@@ -26,6 +26,7 @@ pub struct AppState {
     pub extension_manager: ExtensionManager,
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     pub extension_webview_manager: ExtensionWebviewManager,
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     pub context: Arc<Mutex<extension::webview::web::ApplicationContext>>,
 }
 
@@ -70,6 +71,7 @@ pub fn run() {
             extension_manager: ExtensionManager::new(),
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension_webview_manager: ExtensionWebviewManager::new(),
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             context: Arc::new(Mutex::new(extension::webview::web::ApplicationContext {
                 theme: "dark".to_string(),
                 locale: "en".to_string(),
@@ -126,7 +128,9 @@ pub fn run() {
             // WebView API commands (for native window extensions, desktop only)
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::webview::web::webview_extension_get_info,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::webview::web::webview_extension_context_get,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::webview::web::webview_extension_context_set,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::webview::database::webview_extension_db_query,
