@@ -4,6 +4,10 @@
     direction="bottom"
     :title="t('modal.title')"
     :description="t('modal.description')"
+    :ui="{
+      content: 'h-screen max-h-screen',
+      overlay: 'backdrop-blur-sm',
+    }"
   >
     <template #content>
       <div class="h-full overflow-y-auto p-6 justify-center flex">

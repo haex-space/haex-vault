@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full">
+  <div class="h-full relative">
     <NuxtLayout>
       <div
         class="flex flex-col justify-center items-center gap-5 mx-auto h-full overflow-scroll"
@@ -11,13 +11,13 @@
           <p class="whitespace-nowrap">
             {{ t('welcome') }}
           </p>
-          <UiTextGradient>Haex Hub</UiTextGradient>
+          <UiTextGradient>Haex Space</UiTextGradient>
         </span>
 
         <div class="flex flex-col gap-4 h-24 items-stretch justify-center">
-          <HaexDrawerVaultCreate v-model:open="isCreateDrawerOpen" />
+          <HaexVaultCreate v-model:open="isCreateDrawerOpen" />
 
-          <HaexDrawerVaultOpen
+          <HaexVaultOpen
             v-model:open="isOpenDrawerOpen"
             :path="selectedVault?.path"
           />
@@ -167,7 +167,7 @@ onMounted(async () => {
 
 <i18n lang="yaml">
 de:
-  welcome: 'Viel Spass mit'
+  welcome: 'Viel Spass im'
   lastUsed: 'Zuletzt verwendete Vaults'
   sponsors: Supported by
   remove:
@@ -176,7 +176,7 @@ de:
     description: Möchtest du die Vault {vaultName} wirklich löschen?
 
 en:
-  welcome: 'Have fun with'
+  welcome: 'Have fun at'
   lastUsed: 'Last used Vaults'
   sponsors: 'Supported by'
   remove:

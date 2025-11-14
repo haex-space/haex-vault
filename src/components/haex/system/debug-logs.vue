@@ -1,34 +1,37 @@
 <template>
-  <div class="w-full h-full bg-default flex flex-col">
-    <!-- Header with controls -->
-    <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-      <div class="flex items-center gap-2">
-        <UIcon
-          name="i-heroicons-bug-ant"
-          class="w-5 h-5"
-        />
-        <h2 class="text-lg font-semibold">
-          Debug Logs
-        </h2>
-        <span class="text-xs text-gray-500">
-          {{ logs.length }} logs
-        </span>
+  <HaexSystem :is-dragging="isDragging">
+    <template #header>
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <UIcon
+            name="i-heroicons-bug-ant"
+            class="w-5 h-5"
+          />
+          <h2 class="text-2xl font-bold">
+            Debug Logs
+          </h2>
+          <span class="text-xs text-gray-500">
+            {{ logs.length }} logs
+          </span>
+        </div>
+        <div class="flex gap-2">
+          <UButton
+            :label="allCopied ? 'Copied!' : 'Copy All'"
+            :color="allCopied ? 'success' : 'primary'"
+            size="sm"
+            @click="copyAllLogs"
+          />
+          <UButton
+            label="Clear Logs"
+            color="error"
+            size="sm"
+            @click="clearLogs"
+          />
+        </div>
       </div>
-      <div class="flex gap-2">
-        <UButton
-          :label="allCopied ? 'Copied!' : 'Copy All'"
-          :color="allCopied ? 'success' : 'primary'"
-          size="sm"
-          @click="copyAllLogs"
-        />
-        <UButton
-          label="Clear Logs"
-          color="error"
-          size="sm"
-          @click="clearLogs"
-        />
-      </div>
-    </div>
+    </template>
+
+    <div class="w-full h-full flex flex-col">
 
     <!-- Filter Buttons -->
     <div class="flex gap-2 p-4 border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
@@ -112,12 +115,17 @@
         <p>No logs to display</p>
       </div>
     </div>
-  </div>
+    </div>
+  </HaexSystem>
 </template>
 
 <script setup lang="ts">
 import { globalConsoleLogs } from '~/plugins/console-interceptor'
 import type { ConsoleLog } from '~/plugins/console-interceptor'
+
+defineProps<{
+  isDragging?: boolean
+}>()
 
 const filter = ref<'all' | 'log' | 'info' | 'warn' | 'error' | 'debug'>('all')
 const logsContainer = ref<HTMLDivElement>()

@@ -1,5 +1,5 @@
 [package]
-name = "haex-hub"
+name = "haex-space"
 version = "0.1.4"
 description = "A Tauri App"
 authors = ["you"]

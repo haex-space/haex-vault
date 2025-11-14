@@ -71,7 +71,7 @@
         isResizingOrDragging ? 'pointer-events-none' : '',
       ]"
     >
-      <slot />
+      <slot :window-id="props.id" />
     </div>
 
     <!-- Resize Handles -->
@@ -84,6 +84,7 @@
 
 <script setup lang="ts">
 import { getAvailableContentHeight } from '~/utils/viewport'
+
 const props = defineProps<{
   id: string
   title: string

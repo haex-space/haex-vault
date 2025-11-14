@@ -1,11 +1,11 @@
 <template>
-  <div class="p-4 mx-auto space-y-6 bg-default">
-    <div class="space-y-2">
-      <h1 class="text-2xl font-bold">{{ t('title') }}</h1>
-      <p class="text-sm opacity-70">{{ t('description') }}</p>
-    </div>
-
-    <!-- Add Dev Extension Form -->
+  <HaexSystem
+    :title="t('title')"
+    :description="t('description')"
+    :is-dragging="isDragging"
+  >
+    <div class="p-4 mx-auto space-y-6 overflow-y-auto h-full">
+      <!-- Add Dev Extension Form -->
     <UCard class="p-4 space-y-4">
       <h2 class="text-lg font-semibold">{{ t('add.title') }}</h2>
 
@@ -79,13 +79,18 @@
     >
       {{ t('list.empty') }}
     </div>
-  </div>
+    </div>
+  </HaexSystem>
 </template>
 
 <script setup lang="ts">
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import type { ExtensionInfoResponse } from '~~/src-tauri/bindings/ExtensionInfoResponse'
+
+defineProps<{
+  isDragging?: boolean
+}>()
 
 const { t } = useI18n()
 const { add } = useToast()

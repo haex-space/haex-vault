@@ -54,7 +54,8 @@
       </template>
     </UPageHeader>
 
-    <main class="overflow-hidden relative bg-elevated h-full">
+    <main class="overflow-hidden relative h-full">
+      <UiBackgroundGradient />
       <slot />
     </main>
 

@@ -1,5 +1,5 @@
 {
-  "name": "haex-hub",
+  "name": "haex-vault",
   "private": true,
   "version": "0.1.13",
   "type": "module",
@@ -21,9 +21,9 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "@haex-space/sdk": "^1.0.0",
+    "@haex-space/sdk": "^1.0.1",
     "@nuxt/eslint": "1.9.0",
-    "@nuxt/fonts": "0.11.4",
+    "@nuxt/fonts": "0.12.1",
     "@nuxt/icon": "2.0.0",
     "@nuxt/ui": "4.1.0",
     "@nuxtjs/i18n": "10.0.6",
@@ -48,7 +48,7 @@
     "tailwindcss": "^4.1.17",
     "vue": "^3.5.24",
     "vue-router": "^4.6.3",
-    "zod": "^3.25.76"
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@iconify-json/hugeicons": "^1.2.17",

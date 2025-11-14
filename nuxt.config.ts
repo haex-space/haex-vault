@@ -68,7 +68,15 @@ export default defineNuxtConfig({
       includeCustomCollections: true,
     },
     serverBundle: {
-      collections: ['mdi', 'line-md', 'solar', 'gg', 'emojione', 'lucide', 'hugeicons'],
+      collections: [
+        'mdi',
+        'line-md',
+        'solar',
+        'gg',
+        'emojione',
+        'lucide',
+        'hugeicons',
+      ],
     },
 
     customCollections: [
@@ -109,7 +117,7 @@ export default defineNuxtConfig({
     public: {
       haexVault: {
         deviceFileName: 'device.json',
-        defaultVaultName: 'HaexHub',
+        defaultVaultName: 'HaexVault',
       },
     },
   },

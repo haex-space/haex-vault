@@ -1,70 +1,165 @@
 <template>
-  <div class="w-full h-full bg-default overflow-scroll">
-    <div class="grid grid-cols-2 p-2">
-      <div class="p-2">{{ t('language') }}</div>
-      <div><UiDropdownLocale @select="onSelectLocaleAsync" /></div>
+  <HaexSystem :is-dragging="isDragging">
+    <template #sidebar>
+      <nav class="space-y-1">
+        <button
+          v-for="category in categories"
+          :key="category.value"
+          :class="[
+            'w-full flex items-center justify-center @md:justify-start gap-3 px-2 @md:px-3 py-2 text-sm font-medium rounded-md transition-colors',
+            category.active
+              ? 'bg-primary text-white'
+              : 'text-highlighted hover:bg-muted'
+          ]"
+          :title="category.label"
+          @click="category.click"
+        >
+          <Icon :name="category.icon" class="w-5 h-5 shrink-0" />
+          <span class="hidden @md:inline">{{ category.label }}</span>
+        </button>
+      </nav>
+    </template>
 
-      <div class="p-2">{{ t('design') }}</div>
-      <div><UiDropdownTheme @select="onSelectThemeAsync" /></div>
+    <div class="flex-1 overflow-y-auto">
+      <!-- General Settings -->
+      <div v-if="activeCategory === 'general'">
+        <div class="p-6 border-b border-base-content/10">
+          <h2 class="text-2xl font-bold">
+            {{ t('categories.general') }}
+          </h2>
+        </div>
 
-      <div class="p-2">{{ t('vaultName.label') }}</div>
-      <div>
-        <UiInput
-          v-model="currentVaultName"
-          :placeholder="t('vaultName.label')"
-          @change="onSetVaultNameAsync"
-        />
+        <div class="p-6 space-y-6">
+          <UFormField
+            :label="t('language')"
+            :description="t('language.description')"
+          >
+            <UiDropdownLocale @select="onSelectLocaleAsync" />
+          </UFormField>
+
+          <UFormField
+            :label="t('vaultName.label')"
+            :description="t('vaultName.description')"
+          >
+            <UiInput
+              v-model="currentVaultName"
+              :placeholder="t('vaultName.label')"
+              @change="onSetVaultNameAsync"
+            />
+          </UFormField>
+
+          <UFormField
+            :label="t('deviceName.label')"
+            :description="t('deviceName.description')"
+          >
+            <UiInput
+              v-model="deviceName"
+              :placeholder="t('deviceName.label')"
+              @change="onUpdateDeviceNameAsync"
+            />
+          </UFormField>
+        </div>
       </div>
 
-      <div class="p-2">{{ t('notifications.label') }}</div>
-      <div>
-        <UiButton
-          :label="t('notifications.requestPermission')"
-          @click="requestNotificationPermissionAsync"
-        />
+      <!-- Appearance Settings -->
+      <div v-if="activeCategory === 'appearance'">
+        <div class="p-6 border-b border-base-content/10">
+          <h2 class="text-2xl font-bold">
+            {{ t('categories.appearance') }}
+          </h2>
+        </div>
+
+        <div class="p-6 space-y-6">
+          <UFormField
+            :label="t('design')"
+            :description="t('design.description')"
+          >
+            <UiDropdownTheme @select="onSelectThemeAsync" />
+          </UFormField>
+
+          <UFormField
+            :label="t('workspaceBackground.label')"
+            :description="t('workspaceBackground.description')"
+          >
+            <div class="flex gap-2">
+              <UiButton
+                :label="t('workspaceBackground.choose')"
+                @click="selectBackgroundImage"
+              />
+              <UiButton
+                v-if="currentWorkspace?.background"
+                :label="t('workspaceBackground.remove.label')"
+                color="error"
+                @click="removeBackgroundImage"
+              />
+            </div>
+          </UFormField>
+
+          <UFormField
+            :label="t('gradient.variant.label')"
+            :description="t('gradient.variant.description')"
+          >
+            <USelect
+              v-model="gradientVariant"
+              :items="gradientVariantOptions"
+            />
+          </UFormField>
+
+          <UFormField
+            :label="t('gradient.enabled.label')"
+            :description="t('gradient.enabled.description')"
+          >
+            <UiToggle
+              v-model="gradientEnabled"
+              @update:model-value="onToggleGradientAsync"
+            />
+          </UFormField>
+        </div>
       </div>
 
-      <div class="p-2">{{ t('deviceName.label') }}</div>
-      <div>
-        <UiInput
-          v-model="deviceName"
-          :placeholder="t('deviceName.label')"
-          @change="onUpdateDeviceNameAsync"
-        />
+      <!-- Workspace Settings -->
+      <div v-if="activeCategory === 'workspace'">
+        <div class="p-6 border-b border-base-content/10">
+          <h2 class="text-2xl font-bold">
+            {{ t('categories.workspace') }}
+          </h2>
+        </div>
+
+        <div class="p-6 space-y-6">
+          <UFormField
+            :label="t('desktopGrid.iconSize.label')"
+            :description="t('desktopGrid.iconSize.description')"
+          >
+            <USelect
+              v-model="iconSizePreset"
+              :items="iconSizePresetOptions"
+            />
+          </UFormField>
+        </div>
       </div>
 
-      <div class="p-2">{{ t('workspaceBackground.label') }}</div>
-      <div class="flex gap-2">
-        <UiButton
-          :label="t('workspaceBackground.choose')"
-          @click="selectBackgroundImage"
-        />
-        <UiButton
-          v-if="currentWorkspace?.background"
-          :label="t('workspaceBackground.remove.label')"
-          color="error"
-          @click="removeBackgroundImage"
-        />
-      </div>
+      <!-- Notifications Settings -->
+      <div v-if="activeCategory === 'notifications'">
+        <div class="p-6 border-b border-base-content/10">
+          <h2 class="text-2xl font-bold">
+            {{ t('categories.notifications') }}
+          </h2>
+        </div>
 
-      <!-- Desktop Grid Settings -->
-      <div
-        class="col-span-2 mt-4 border-t border-gray-200 dark:border-gray-700 pt-4"
-      >
-        <h3 class="text-lg font-semibold mb-4">{{ t('desktopGrid.title') }}</h3>
+        <div class="p-6 space-y-6">
+          <UFormField
+            :label="t('notifications.label')"
+            :description="t('notifications.description')"
+          >
+            <UiButton
+              :label="t('notifications.requestPermission')"
+              @click="requestNotificationPermissionAsync"
+            />
+          </UFormField>
+        </div>
       </div>
-
-      <div class="p-2">{{ t('desktopGrid.iconSize.label') }}</div>
-      <div>
-        <USelect
-          v-model="iconSizePreset"
-          :items="iconSizePresetOptions"
-        />
-      </div>
-
-      <div class="h-full" />
     </div>
-  </div>
+  </HaexSystem>
 </template>
 
 <script setup lang="ts">
@@ -80,7 +175,54 @@ import {
 import { appLocalDataDir } from '@tauri-apps/api/path'
 import { DesktopIconSizePreset } from '~/stores/vault/settings'
 
+defineProps<{
+  isDragging?: boolean
+}>()
+
 const { t, setLocale } = useI18n()
+
+// Active category
+const activeCategory = ref('general')
+
+// Categories for sidebar navigation - computed to make active state reactive
+const categories = computed(() => [
+  {
+    value: 'general',
+    label: t('categories.general'),
+    icon: 'i-heroicons-cog-6-tooth',
+    active: activeCategory.value === 'general',
+    click: () => {
+      activeCategory.value = 'general'
+    },
+  },
+  {
+    value: 'appearance',
+    label: t('categories.appearance'),
+    icon: 'i-heroicons-paint-brush',
+    active: activeCategory.value === 'appearance',
+    click: () => {
+      activeCategory.value = 'appearance'
+    },
+  },
+  {
+    value: 'workspace',
+    label: t('categories.workspace'),
+    icon: 'i-heroicons-squares-2x2',
+    active: activeCategory.value === 'workspace',
+    click: () => {
+      activeCategory.value = 'workspace'
+    },
+  },
+  {
+    value: 'notifications',
+    label: t('categories.notifications'),
+    icon: 'i-heroicons-bell',
+    active: activeCategory.value === 'notifications',
+    click: () => {
+      activeCategory.value = 'notifications'
+    },
+  },
+])
 
 const { currentVaultName } = storeToRefs(useVaultStore())
 const { updateVaultNameAsync, updateLocaleAsync, updateThemeAsync } =
@@ -124,6 +266,15 @@ const desktopStore = useDesktopStore()
 const { iconSizePreset } = storeToRefs(desktopStore)
 const { syncDesktopIconSizeAsync, updateDesktopIconSizeAsync } = desktopStore
 
+const gradientStore = useGradientStore()
+const { gradientVariant, gradientEnabled } = storeToRefs(gradientStore)
+const {
+  syncGradientVariantAsync,
+  syncGradientEnabledAsync,
+  setGradientVariantAsync,
+  toggleGradientAsync,
+} = gradientStore
+
 // Icon size preset options
 const iconSizePresetOptions = [
   {
@@ -144,6 +295,26 @@ const iconSizePresetOptions = [
   },
 ]
 
+// Gradient variant options
+const gradientVariantOptions = [
+  {
+    label: t('gradient.variant.options.gitlab'),
+    value: 'gitlab',
+  },
+  {
+    label: t('gradient.variant.options.ocean'),
+    value: 'ocean',
+  },
+  {
+    label: t('gradient.variant.options.sunset'),
+    value: 'sunset',
+  },
+  {
+    label: t('gradient.variant.options.forest'),
+    value: 'forest',
+  },
+]
+
 // Watch for icon size preset changes and update DB
 watch(iconSizePreset, async (newPreset) => {
   if (newPreset) {
@@ -151,9 +322,29 @@ watch(iconSizePreset, async (newPreset) => {
   }
 })
 
+// Watch for gradient variant changes and update DB
+watch(gradientVariant, async (newVariant) => {
+  if (newVariant) {
+    await setGradientVariantAsync(newVariant)
+  }
+})
+
+// Handler for gradient toggle
+const onToggleGradientAsync = async (enabled: boolean) => {
+  try {
+    await toggleGradientAsync(enabled)
+    add({ description: t('gradient.enabled.success'), color: 'success' })
+  } catch (error) {
+    console.error(error)
+    add({ description: t('gradient.enabled.error'), color: 'error' })
+  }
+}
+
 onMounted(async () => {
   await readDeviceNameAsync()
   await syncDesktopIconSizeAsync()
+  await syncGradientVariantAsync()
+  await syncGradientEnabledAsync()
 })
 
 const onUpdateDeviceNameAsync = async () => {
@@ -317,24 +508,49 @@ const removeBackgroundImage = async () => {
 
 <i18n lang="yaml">
 de:
+  categories:
+    general: Allgemein
+    appearance: Erscheinungsbild
+    workspace: Arbeitsbereich
+    notifications: Benachrichtigungen
   language: Sprache
+  language.description: Wähle deine bevorzugte Sprache
   design: Design
+  design.description: Wähle zwischen hellem und dunklem Modus
   save: Änderung speichern
+  gradient:
+    variant:
+      label: Hintergrund-Gradient
+      description: Wähle ein Farbschema für den Hintergrund
+      options:
+        gitlab: GitLab (Orange/Lila/Pink)
+        ocean: Ozean (Blau/Türkis/Lila)
+        sunset: Sonnenuntergang (Orange/Rot/Pink)
+        forest: Wald (Grün/Türkis)
+    enabled:
+      label: Gradient aktiviert
+      description: Zeige einen Farbverlauf im Hintergrund
+      success: Gradient-Einstellung gespeichert
+      error: Fehler beim Speichern der Gradient-Einstellung
   notifications:
     label: Benachrichtigungen
+    description: Erlaube Benachrichtigungen für diese App
     requestPermission: Benachrichtigung erlauben
   vaultName:
     label: Vaultname
+    description: Der Name deiner Vault
     update:
       success: Vaultname erfolgreich aktualisiert
       error: Vaultname konnte nicht aktualisiert werden
   deviceName:
     label: Gerätename
+    description: Ein Name für dieses Gerät zur besseren Identifikation
     update:
       success: Gerätename wurde erfolgreich aktualisiert
       error: Gerätename konnte nich aktualisiert werden
   workspaceBackground:
     label: Workspace-Hintergrund
+    description: Setze ein Hintergrundbild für deinen Workspace
     choose: Bild auswählen
     update:
       success: Hintergrund erfolgreich aktualisiert
@@ -345,14 +561,9 @@ de:
       error: Fehler beim Entfernen des Hintergrunds
   desktopGrid:
     title: Desktop-Raster
-    columns:
-      label: Spalten
-      unit: Spalten
-    rows:
-      label: Zeilen
-      unit: Zeilen
     iconSize:
       label: Icon-Größe
+      description: Wähle die Größe der Desktop-Icons
       presets:
         small: Klein
         medium: Mittel
@@ -360,24 +571,49 @@ de:
         extraLarge: Sehr groß
       unit: px
 en:
+  categories:
+    general: General
+    appearance: Appearance
+    workspace: Workspace
+    notifications: Notifications
   language: Language
+  language.description: Choose your preferred language
   design: Design
+  design.description: Choose between light and dark mode
   save: save changes
+  gradient:
+    variant:
+      label: Background Gradient
+      description: Choose a color scheme for the background
+      options:
+        gitlab: GitLab (Orange/Purple/Pink)
+        ocean: Ocean (Blue/Cyan/Purple)
+        sunset: Sunset (Orange/Red/Pink)
+        forest: Forest (Green/Cyan)
+    enabled:
+      label: Gradient enabled
+      description: Show a gradient in the background
+      success: Gradient setting saved
+      error: Error saving gradient setting
   notifications:
     label: Notifications
+    description: Allow notifications for this app
     requestPermission: Grant Permission
   vaultName:
     label: Vault Name
+    description: The name of your vault
     update:
       success: Vault Name successfully updated
       error: Vault name could not be updated
   deviceName:
     label: Device name
+    description: A name for this device for better identification
     update:
       success: Device name has been successfully updated
       error: Device name could not be updated
   workspaceBackground:
     label: Workspace Background
+    description: Set a background image for your workspace
     choose: Choose Image
     update:
       success: Background successfully updated
@@ -388,14 +624,9 @@ en:
       error: Error removing background
   desktopGrid:
     title: Desktop Grid
-    columns:
-      label: Columns
-      unit: columns
-    rows:
-      label: Rows
-      unit: rows
     iconSize:
       label: Icon Size
+      description: Choose the size of desktop icons
       presets:
         small: Small
         medium: Medium

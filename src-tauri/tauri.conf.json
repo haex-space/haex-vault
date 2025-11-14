@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "haex-hub",
+  "productName": "haex-vault",
   "version": "0.1.13",
-  "identifier": "space.haex.hub",
+  "identifier": "space.haex.vault",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:3003",
@@ -14,14 +14,20 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "haex-hub",
+        "title": "haex-vault",
         "width": 800,
         "height": 600
       }
     ],
     "security": {
       "csp": {
-        "default-src": ["'self'", "http://tauri.localhost", "https://tauri.localhost", "asset:", "haex-extension:"],
+        "default-src": [
+          "'self'",
+          "http://tauri.localhost",
+          "https://tauri.localhost",
+          "asset:",
+          "haex-extension:"
+        ],
         "script-src": [
           "'self'",
           "http://tauri.localhost",
@@ -56,9 +62,21 @@
           "data:",
           "blob:"
         ],
-        "font-src": ["'self'", "http://tauri.localhost", "https://tauri.localhost", "asset:", "haex-extension:"],
+        "font-src": [
+          "'self'",
+          "http://tauri.localhost",
+          "https://tauri.localhost",
+          "asset:",
+          "haex-extension:"
+        ],
         "object-src": ["'none'"],
-        "media-src": ["'self'", "http://tauri.localhost", "https://tauri.localhost", "asset:", "haex-extension:"],
+        "media-src": [
+          "'self'",
+          "http://tauri.localhost",
+          "https://tauri.localhost",
+          "asset:",
+          "haex-extension:"
+        ],
         "frame-src": ["haex-extension:"],
         "frame-ancestors": ["'none'"],
         "base-uri": ["'self'"]

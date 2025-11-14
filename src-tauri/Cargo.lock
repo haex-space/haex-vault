@@ -1692,7 +1692,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "haex-hub"
+name = "haex-space"
 version = "0.1.4"
 dependencies = [
  "base64 0.22.1",

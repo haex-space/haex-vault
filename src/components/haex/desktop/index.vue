@@ -158,6 +158,7 @@
                       <component
                         :is="getSystemWindowComponent(window.sourceId)"
                         v-if="window.type === 'system'"
+                        :is-dragging="windowManager.draggingWindowId === window.id"
                       />
 
                       <!-- Extension Window: Render iFrame -->
@@ -218,6 +219,7 @@
                   <component
                     :is="getSystemWindowComponent(window.sourceId)"
                     v-if="window.type === 'system'"
+                    :is-dragging="windowManager.draggingWindowId === window.id"
                   />
 
                   <!-- Extension Window: Render iFrame -->

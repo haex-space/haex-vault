@@ -54,6 +54,7 @@ const { deviceId } = storeToRefs(useDeviceStore())
 const { syncLocaleAsync, syncThemeAsync, syncVaultNameAsync } =
   useVaultSettingsStore()
 const { syncDesktopIconSizeAsync } = useDesktopStore()
+const { syncGradientVariantAsync, syncGradientEnabledAsync } = useGradientStore()
 
 onMounted(async () => {
   try {
@@ -64,6 +65,8 @@ onMounted(async () => {
       syncThemeAsync(),
       syncVaultNameAsync(),
       syncDesktopIconSizeAsync(),
+      syncGradientVariantAsync(),
+      syncGradientEnabledAsync(),
       loadExtensionsAsync(),
       readNotificationsAsync(),
     ])

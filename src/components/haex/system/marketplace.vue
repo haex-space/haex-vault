@@ -1,43 +1,44 @@
 <template>
-  <div class="flex flex-col h-full bg-default">
-    <!-- Header with Actions -->
-    <div
-      class="flex flex-col @lg:flex-row @lg:items-center justify-between gap-4 p-6 border-b border-gray-200 dark:border-gray-800"
-    >
-      <div>
-        <h1 class="text-2xl font-bold">
-          {{ t('title') }}
-        </h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          {{ t('subtitle') }}
-        </p>
-      </div>
+  <HaexSystem :is-dragging="isDragging">
+    <template #header>
+      <div class="flex flex-col @lg:flex-row @lg:items-center justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-bold">
+            {{ t('title') }}
+          </h1>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {{ t('subtitle') }}
+          </p>
+        </div>
 
-      <div
-        class="flex flex-col @lg:flex-row items-stretch @lg:items-center gap-3"
-      >
-        <!-- Marketplace Selector -->
-        <USelectMenu
-          v-model="selectedMarketplace"
-          :items="marketplaces"
-          value-key="id"
-          class="w-full @lg:w-48"
+        <div
+          class="flex flex-col @lg:flex-row items-stretch @lg:items-center gap-3"
         >
-          <template #leading>
-            <UIcon name="i-heroicons-building-storefront" />
-          </template>
-        </USelectMenu>
+          <!-- Marketplace Selector -->
+          <USelectMenu
+            v-model="selectedMarketplace"
+            :items="marketplaces"
+            value-key="id"
+            class="w-full @lg:w-48"
+          >
+            <template #leading>
+              <UIcon name="i-heroicons-building-storefront" />
+            </template>
+          </USelectMenu>
 
-        <!-- Install from File Button -->
-        <UiButton
-          :label="t('extension.installFromFile')"
-          icon="i-heroicons-arrow-up-tray"
-          color="neutral"
-          block
-          @click="onSelectExtensionAsync"
-        />
+          <!-- Install from File Button -->
+          <UiButton
+            :label="t('extension.installFromFile')"
+            icon="i-heroicons-arrow-up-tray"
+            color="neutral"
+            block
+            @click="onSelectExtensionAsync"
+          />
+        </div>
       </div>
-    </div>
+    </template>
+
+    <div class="flex flex-col h-full">
 
     <!-- Search and Filters -->
     <div
@@ -113,7 +114,8 @@
       :extension="extensionToBeRemoved"
       @confirm="removeExtensionAsync"
     />
-  </div>
+    </div>
+  </HaexSystem>
 </template>
 
 <script setup lang="ts">
@@ -124,6 +126,10 @@ import type {
 } from '~/types/haexhub'
 import { open } from '@tauri-apps/plugin-dialog'
 import type { ExtensionPreview } from '~~/src-tauri/bindings/ExtensionPreview'
+
+defineProps<{
+  isDragging?: boolean
+}>()
 
 const { t } = useI18n()
 const extensionStore = useExtensionsStore()
