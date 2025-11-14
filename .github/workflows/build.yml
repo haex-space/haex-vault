@@ -199,7 +199,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Initialize Android project
-        run: pnpm tauri android init
+        run: |
+          rm -rf src-tauri/gen/android
+          pnpm tauri android init
 
       - name: Setup Keystore (if secrets available)
         env:
