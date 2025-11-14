@@ -162,7 +162,7 @@ sudo dnf install \
 Make sure port 3003 is available (or adjust it in `nuxt.config.ts` and `src-tauri/tauri.conf.json`).
 
 ```bash
-git clone https://github.com/haexhub/haex-vault.git
+git clone https://github.com/haex-space/haex-vault.git
 cd haex-vault
 pnpm install
 pnpm tauri dev

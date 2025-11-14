@@ -1,6 +1,6 @@
 // composables/extensionMessageHandler.ts
 import type { IHaexHubExtension } from '~/types/haexhub'
-import { HAEXTENSION_METHODS, HAEXTENSION_EVENTS } from '@haexhub/sdk'
+import { HAEXTENSION_METHODS, HAEXTENSION_EVENTS } from '@haex-space/sdk'
 import {
   EXTENSION_PROTOCOL_NAME,
   EXTENSION_PROTOCOL_PREFIX,

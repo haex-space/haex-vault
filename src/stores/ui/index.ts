@@ -1,6 +1,6 @@
 import { breakpointsTailwind } from '@vueuse/core'
 import { invoke } from '@tauri-apps/api/core'
-import { HAEXTENSION_EVENTS } from '@haexhub/sdk'
+import { HAEXTENSION_EVENTS } from '@haex-space/sdk'
 import { broadcastContextToAllExtensions } from '~/composables/extensionMessageHandler'
 
 import de from './de.json'

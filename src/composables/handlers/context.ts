@@ -1,5 +1,5 @@
 import type { Platform } from '@tauri-apps/plugin-os'
-import { HAEXTENSION_METHODS } from '@haexhub/sdk'
+import { HAEXTENSION_METHODS } from '@haex-space/sdk'
 import type { ExtensionRequest } from './types'
 
 // Context getters are set from the main handler during initialization
