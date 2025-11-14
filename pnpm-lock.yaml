@@ -12,8 +12,8 @@ importers:
   .:
     dependencies:
       '@haex-space/sdk':
-        specifier: ^1.0.1
-        version: 1.0.1(@libsql/client@0.15.15)(@nuxt/kit@4.2.1(magicast@0.5.1))(@opentelemetry/api@1.9.0)(vite@7.2.2(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.1))(vue@3.5.24(typescript@5.9.3))
+        specifier: ^1.0.2
+        version: 1.0.2(@libsql/client@0.15.15)(@nuxt/kit@4.2.1(magicast@0.5.1))(@opentelemetry/api@1.9.0)(vite@7.2.2(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.1))(vue@3.5.24(typescript@5.9.3))
       '@nuxt/eslint':
         specifier: 1.9.0
         version: 1.9.0(@typescript-eslint/utils@8.46.4(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3))(@vue/compiler-sfc@3.5.24)(eslint@9.39.1(jiti@2.6.1))(magicast@0.5.1)(typescript@5.9.3)(vite@7.2.2(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.1))
@@ -728,8 +728,8 @@ packages:
   '@floating-ui/vue@1.1.9':
     resolution: {integrity: sha512-BfNqNW6KA83Nexspgb9DZuz578R7HT8MZw1CfK9I6Ah4QReNWEJsXWHN+SdmOVLNGmTPDi+fDT535Df5PzMLbQ==}
 
-  '@haex-space/sdk@1.0.1':
-    resolution: {integrity: sha512-hhZOum1r0N+ZAr1+oCZfLBSKlyR4uZT0cABdwroucOAgui52N1C5FOu7Cir+yeGDWunPDVRcjjG7/Nf2j9Q3sg==}
+  '@haex-space/sdk@1.0.2':
+    resolution: {integrity: sha512-AjK4YwFo1YpqvhjUfMl61F+Bgb6pC/dhR3t8jjrTtd4717iLpYiWlmtCfyNUSpLzqx4E3+sGPx1jQO3AqoANSw==}
     hasBin: true
     peerDependencies:
       '@nuxt/kit': ^3.0.0 || ^4.0.0
@@ -6391,7 +6391,7 @@ snapshots:
       - '@vue/composition-api'
       - vue
 
-  '@haex-space/sdk@1.0.1(@libsql/client@0.15.15)(@nuxt/kit@4.2.1(magicast@0.5.1))(@opentelemetry/api@1.9.0)(vite@7.2.2(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.1))(vue@3.5.24(typescript@5.9.3))':
+  '@haex-space/sdk@1.0.2(@libsql/client@0.15.15)(@nuxt/kit@4.2.1(magicast@0.5.1))(@opentelemetry/api@1.9.0)(vite@7.2.2(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.1))(vue@3.5.24(typescript@5.9.3))':
     dependencies:
       archiver: 7.0.1
       commander: 14.0.2
