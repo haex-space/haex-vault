@@ -1,5 +1,6 @@
 <template>
   <UiDrawer
+    v-if="isSmallScreen"
     v-model:open="open"
     :title="t('title')"
     :description="t('description')"
@@ -74,12 +75,90 @@
       </div>
     </template>
   </UiDrawer>
+
+  <UModal
+    v-else
+    v-model:open="open"
+    :title="t('title')"
+    :description="t('description')"
+  >
+    <UiButton
+      :label="t('button.label')"
+      :ui="{
+        base: 'px-3 py-2',
+      }"
+      icon="mdi:plus"
+      size="xl"
+      variant="outline"
+      block
+    />
+
+    <template #body>
+      <div class="p-6 flex flex-col min-h-[50vh]">
+        <div class="flex-1 flex items-center justify-center px-4">
+          <UForm
+            :state="vault"
+            class="w-full max-w-md space-y-6"
+          >
+            <UFormField
+              :label="t('vault.label')"
+              name="name"
+            >
+              <UInput
+                v-model="vault.name"
+                icon="mdi:safe"
+                :placeholder="t('vault.placeholder')"
+                autofocus
+                size="xl"
+                class="w-full"
+              />
+            </UFormField>
+
+            <UFormField
+              :label="t('password.label')"
+              name="password"
+            >
+              <UiInput
+                v-model="vault.password"
+                type="password"
+                icon="i-heroicons-key"
+                :placeholder="t('password.placeholder')"
+                size="xl"
+                class="w-full"
+              />
+            </UFormField>
+          </UForm>
+        </div>
+
+        <div class="flex gap-3 mt-auto pt-6">
+          <UButton
+            color="neutral"
+            variant="outline"
+            block
+            size="xl"
+            @click="open = false"
+          >
+            {{ t('cancel') }}
+          </UButton>
+          <UButton
+            color="primary"
+            block
+            size="xl"
+            @click="onCreateAsync"
+          >
+            {{ t('create') }}
+          </UButton>
+        </div>
+      </div>
+    </template>
+  </UModal>
 </template>
 
 <script setup lang="ts">
 import { vaultSchema } from './schema'
 
 const open = defineModel<boolean>('open', { default: false })
+const { isSmallScreen } = storeToRefs(useUiStore())
 
 const { t } = useI18n({
   useScope: 'local',

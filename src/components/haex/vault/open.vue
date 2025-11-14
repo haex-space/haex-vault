@@ -1,5 +1,6 @@
 <template>
   <UiDrawer
+    v-if="isSmallScreen"
     v-model:open="open"
     :title="t('title')"
     :description="path || t('description')"
@@ -72,6 +73,73 @@
       </div>
     </template>
   </UiDrawer>
+
+  <UModal
+    v-else
+    v-model:open="open"
+    :title="t('title')"
+    :description="path || t('description')"
+  >
+    <UiButton
+      :label="t('button.label')"
+      :ui="{
+        base: 'px-3 py-2',
+      }"
+      icon="mdi:folder-open-outline"
+      size="xl"
+      variant="outline"
+      block
+    />
+
+    <template #body>
+      <div class="p-6 flex flex-col min-h-[50vh]">
+        <div class="flex-1 flex items-center justify-center px-4">
+          <div class="w-full max-w-md space-y-4">
+            <UForm
+              :state="vault"
+              class="w-full"
+            >
+              <UFormField
+                :label="t('password.label')"
+                name="password"
+              >
+                <UInput
+                  v-model="vault.password"
+                  type="password"
+                  icon="i-heroicons-key"
+                  :placeholder="t('password.placeholder')"
+                  autofocus
+                  size="xl"
+                  class="w-full"
+                  @keyup.enter="onOpenDatabase"
+                />
+              </UFormField>
+            </UForm>
+          </div>
+        </div>
+
+        <div class="flex gap-3 mt-auto pt-6">
+          <UButton
+            color="neutral"
+            variant="outline"
+            block
+            size="xl"
+            @click="open = false"
+          >
+            {{ t('cancel') }}
+          </UButton>
+          <UButton
+            color="primary"
+            block
+            size="xl"
+            @click="onOpenDatabase"
+          >
+            {{ t('open') }}
+          </UButton>
+        </div>
+      </div>
+    </template>
+  </UModal>
 </template>
 
 <script setup lang="ts">
@@ -79,6 +147,7 @@
 import { vaultSchema } from './schema'
 
 const open = defineModel<boolean>('open', { default: false })
+const { isSmallScreen } = storeToRefs(useUiStore())
 const props = defineProps<{
   path?: string
 }>()

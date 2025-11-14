@@ -208,6 +208,9 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Initialize Android project
+        run: pnpm tauri android init
+
       - name: Setup Keystore (required for release)
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > $HOME/keystore.jks
