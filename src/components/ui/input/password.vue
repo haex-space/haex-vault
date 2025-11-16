@@ -1,12 +1,13 @@
 <template>
   <UiInput
     v-model="value"
-    :label="t('label')"
-    :leading-icon
+    :label="label || t('label')"
+    :leading-icon="leadingIcon"
     :placeholder="placeholder || ' '"
-    :read-only
+    :read-only="readOnly"
+    :size="size"
     :type="show ? 'text' : 'password'"
-    :with-copy-button
+    :with-copy-button="withCopyButton"
   >
     <template #trailing>
       <UiButton
@@ -26,6 +27,7 @@
 
 <script setup lang="ts">
 import type { AcceptableValue } from '@nuxt/ui/runtime/types/utils.js'
+import type { InputProps } from '@nuxt/ui'
 
 defineProps<{
   label?: string
@@ -33,6 +35,7 @@ defineProps<{
   leadingIcon?: string
   withCopyButton?: boolean
   readOnly?: boolean
+  size?: InputProps['size']
 }>()
 const value = defineModel<AcceptableValue | undefined>()
 

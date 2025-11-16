@@ -8,7 +8,7 @@
     <UiButton
       :label="t('button.label')"
       :ui="{
-        base: 'px-3 py-2',
+        base: 'px-4 py-3',
       }"
       icon="mdi:plus"
       size="xl"
@@ -17,43 +17,44 @@
     />
 
     <template #content>
-      <div class="p-6 flex flex-col min-h-[50vh]">
-        <div class="flex-1 flex items-center justify-center px-4">
+      <div class="p-6 flex flex-col">
+        <div class="w-full mx-auto space-y-4">
+          <h2 class="text-xl font-semibold">
+            {{ t('title') }}
+          </h2>
+
           <UForm
             :state="vault"
-            class="w-full max-w-md space-y-6"
+            class="w-full space-y-6"
           >
-            <UFormField
-              :label="t('vault.label')"
-              name="name"
-            >
-              <UInput
-                v-model="vault.name"
-                icon="mdi:safe"
-                :placeholder="t('vault.placeholder')"
-                autofocus
-                size="xl"
-                class="w-full"
-              />
-            </UFormField>
+            <UiInput
+              v-model="vault.name"
+              icon="mdi:safe"
+              :label="t('vault.placeholder')"
+              autofocus
+              size="xl"
+              class="w-full"
+            />
 
-            <UFormField
-              :label="t('password.label')"
-              name="password"
-            >
-              <UiInput
-                v-model="vault.password"
-                type="password"
-                icon="i-heroicons-key"
-                :placeholder="t('password.placeholder')"
-                size="xl"
-                class="w-full"
-              />
-            </UFormField>
+            <UiInputPassword
+              v-model="vault.password"
+              :label="t('password.placeholder')"
+              leading-icon="i-heroicons-key"
+              size="xl"
+              class="w-full"
+            />
+
+            <UiInputPassword
+              v-model="vault.passwordConfirm"
+              :label="t('passwordConfirm.placeholder')"
+              leading-icon="i-heroicons-key"
+              size="xl"
+              class="w-full"
+            />
           </UForm>
         </div>
 
-        <div class="flex gap-3 mt-auto pt-6">
+        <div class="flex gap-3 mt-12">
           <UButton
             color="neutral"
             variant="outline"
@@ -94,61 +95,71 @@
     />
 
     <template #body>
-      <div class="p-6 flex flex-col min-h-[50vh]">
-        <div class="flex-1 flex items-center justify-center px-4">
-          <UForm
-            :state="vault"
-            class="w-full max-w-md space-y-6"
+      <div class="space-y-4">
+        <UForm
+          :state="vault"
+          class="w-full space-y-6"
+        >
+          <UFormField
+            :label="t('vault.label')"
+            name="name"
           >
-            <UFormField
-              :label="t('vault.label')"
-              name="name"
-            >
-              <UInput
-                v-model="vault.name"
-                icon="mdi:safe"
-                :placeholder="t('vault.placeholder')"
-                autofocus
-                size="xl"
-                class="w-full"
-              />
-            </UFormField>
+            <UInput
+              v-model="vault.name"
+              icon="mdi:safe"
+              :placeholder="t('vault.placeholder')"
+              autofocus
+              size="xl"
+              class="w-full"
+            />
+          </UFormField>
 
-            <UFormField
-              :label="t('password.label')"
-              name="password"
-            >
-              <UiInput
-                v-model="vault.password"
-                type="password"
-                icon="i-heroicons-key"
-                :placeholder="t('password.placeholder')"
-                size="xl"
-                class="w-full"
-              />
-            </UFormField>
-          </UForm>
-        </div>
+          <UFormField
+            :label="t('password.label')"
+            name="password"
+          >
+            <UiInputPassword
+              v-model="vault.password"
+              :label="t('password.placeholder')"
+              leading-icon="i-heroicons-key"
+              size="xl"
+              class="w-full"
+            />
+          </UFormField>
 
-        <div class="flex gap-3 mt-auto pt-6">
-          <UButton
-            color="neutral"
-            variant="outline"
-            block
-            size="xl"
-            @click="open = false"
+          <UFormField
+            :label="t('passwordConfirm.label')"
+            name="passwordConfirm"
           >
-            {{ t('cancel') }}
-          </UButton>
-          <UButton
-            color="primary"
-            block
-            size="xl"
-            @click="onCreateAsync"
-          >
-            {{ t('create') }}
-          </UButton>
-        </div>
+            <UiInputPassword
+              v-model="vault.passwordConfirm"
+              :label="t('passwordConfirm.placeholder')"
+              leading-icon="i-heroicons-key"
+              size="xl"
+              class="w-full"
+            />
+          </UFormField>
+        </UForm>
+      </div>
+    </template>
+
+    <template #footer>
+      <div class="flex gap-3 w-full">
+        <UButton
+          color="neutral"
+          variant="outline"
+          block
+          @click="open = false"
+        >
+          {{ t('cancel') }}
+        </UButton>
+        <UButton
+          color="primary"
+          block
+          @click="onCreateAsync"
+        >
+          {{ t('create') }}
+        </UButton>
       </div>
     </template>
   </UModal>
@@ -167,16 +178,19 @@ const { t } = useI18n({
 const vault = reactive<{
   name: string
   password: string
+  passwordConfirm: string
   type: 'password' | 'text'
 }>({
   name: 'HaexVault',
   password: '',
+  passwordConfirm: '',
   type: 'password',
 })
 
 const initVault = () => {
   vault.name = 'HaexVault'
   vault.password = ''
+  vault.passwordConfirm = ''
   vault.type = 'password'
 }
 
@@ -191,7 +205,35 @@ const onCreateAsync = async () => {
   const nameCheck = vaultSchema.name.safeParse(vault.name)
   const passwordCheck = vaultSchema.password.safeParse(vault.password)
 
-  if (!nameCheck.success || !passwordCheck.success) return
+  if (!nameCheck.success) {
+    add({
+      color: 'error',
+      title: t('error.validation.title'),
+      description:
+        nameCheck.error.errors[0]?.message || t('error.validation.name'),
+    })
+    return
+  }
+
+  if (!passwordCheck.success) {
+    add({
+      color: 'error',
+      title: t('error.validation.title'),
+      description:
+        passwordCheck.error.errors[0]?.message ||
+        t('error.validation.password'),
+    })
+    return
+  }
+
+  if (vault.password !== vault.passwordConfirm) {
+    add({
+      color: 'error',
+      title: t('error.passwordMismatch.title'),
+      description: t('error.passwordMismatch.description'),
+    })
+    return
+  }
 
   open.value = false
   try {
@@ -225,10 +267,21 @@ de:
   password:
     label: Passwort
     placeholder: Passwort eingeben
+  passwordConfirm:
+    label: Passwort bestätigen
+    placeholder: Passwort wiederholen
   title: Neue HaexVault erstellen
   create: Erstellen
   cancel: Abbrechen
   description: Erstelle eine neue Vault für deine Daten
+  error:
+    passwordMismatch:
+      title: Passwörter stimmen nicht überein
+      description: Bitte stelle sicher, dass beide Passwörter identisch sind
+    validation:
+      title: Validierungsfehler
+      name: Bitte gib einen gültigen Vaultnamen ein
+      password: Das Passwort muss mindestens 6 Zeichen lang sein
 
 en:
   button:
@@ -239,8 +292,19 @@ en:
   password:
     label: Password
     placeholder: Enter password
+  passwordConfirm:
+    label: Confirm password
+    placeholder: Repeat password
   title: Create new HaexVault
   create: Create
   cancel: Cancel
   description: Create a new vault for your data
+  error:
+    passwordMismatch:
+      title: Passwords do not match
+      description: Please make sure both passwords are identical
+    validation:
+      title: Validation error
+      name: Please enter a valid vault name
+      password: Password must be at least 6 characters long
 </i18n>

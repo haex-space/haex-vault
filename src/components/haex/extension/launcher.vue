@@ -4,9 +4,10 @@
     direction="right"
     :title="t('launcher.title')"
     :description="t('launcher.description')"
-    :overlay="false"
+    :overlay="true"
     :modal="false"
     :handle-only="true"
+    :dismissible="true"
   >
     <UButton
       icon="material-symbols:apps"

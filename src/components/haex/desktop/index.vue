@@ -514,8 +514,19 @@ const handleDrop = async (event: DragEvent, workspaceId: string) => {
       snapped.y,
       workspaceId,
     )
-  } catch (error) {
-    console.error('Failed to create desktop icon:', error)
+  } catch (error: any) {
+    // Check if it's a dev extension error
+    if (error?.code === 'DEV_EXTENSION_NOT_PERSISTABLE') {
+      const toast = useToast()
+      toast.add({
+        title: 'Dev-Extension kann nicht hinzugefügt werden',
+        description: 'Dev-Extensions existieren nur zur Laufzeit und können nicht auf dem Desktop platziert werden.',
+        color: 'warning',
+        icon: 'i-heroicons-exclamation-triangle',
+      })
+    } else {
+      console.error('Failed to create desktop icon:', error)
+    }
   }
 }
 

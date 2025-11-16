@@ -14,7 +14,7 @@
           <UiTextGradient>Haex Space</UiTextGradient>
         </span>
 
-        <div class="flex flex-col gap-4 h-24 items-stretch justify-center">
+        <div class="flex flex-col gap-3 w-56 items-stretch">
           <HaexVaultCreate v-model:open="isCreateDrawerOpen" />
 
           <HaexVaultOpen
@@ -43,7 +43,7 @@
                 variant="ghost"
                 color="neutral"
                 size="xl"
-                class="flex items-center no-underline justify-between text-nowrap text-sm md:text-base shrink w-full hover:bg-default"
+                class="flex items-center no-underline justify-between text-nowrap text-sm shrink w-full hover:bg-default/40"
                 :context-menu-items="[
                   {
                     icon: 'mdi:trash-can-outline',

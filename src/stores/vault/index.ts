@@ -149,7 +149,7 @@ const drizzleCallback = (async (
         params,
       }).catch((e) => {
         console.error('SQL select Error:', e, sql, params)
-        return []
+        throw e // Re-throw the error so it can be caught by the caller
       })
     } else if (hasReturning(sql)) {
       // INSERT/UPDATE/DELETE with RETURNING → use query
@@ -158,7 +158,7 @@ const drizzleCallback = (async (
         params,
       }).catch((e) => {
         console.error('SQL query with CRDT Error:', e, sql, params)
-        return []
+        throw e // Re-throw the error so it can be caught by the caller
       })
     } else {
       // INSERT/UPDATE/DELETE without RETURNING → use execute
@@ -167,7 +167,7 @@ const drizzleCallback = (async (
         params,
       }).catch((e) => {
         console.error('SQL execute with CRDT Error:', e, sql, params, rows)
-        return []
+        throw e // Re-throw the error so it can be caught by the caller
       })
     }
   } catch (error) {
@@ -176,6 +176,7 @@ const drizzleCallback = (async (
       params,
       method,
     })
+    throw error // Re-throw the error so it can be caught by the caller
   }
 
   /* console.log('drizzleCallback', method, sql, params)

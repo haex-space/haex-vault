@@ -8,7 +8,7 @@
     <UiButton
       :label="t('button.label')"
       :ui="{
-        base: 'px-3 py-2',
+        base: 'px-4 py-3',
       }"
       icon="mdi:folder-open-outline"
       size="xl"
@@ -17,41 +17,41 @@
     />
 
     <template #content>
-      <div class="p-6 flex flex-col min-h-[50vh]">
-        <div class="flex-1 flex items-center justify-center px-4">
-          <div class="w-full max-w-md space-y-4">
-            <div
-              v-if="path"
-              class="text-sm text-gray-500 dark:text-gray-400"
-            >
-              <span class="font-medium">{{ t('path.label') }}:</span>
-              {{ path }}
-            </div>
+      <div class="p-6 flex flex-col">
+        <div class="w-full mx-auto space-y-4">
+          <h2 class="text-xl font-semibold">
+            {{ t('title') }}
+          </h2>
 
-            <UForm
-              :state="vault"
-              class="w-full"
+          <div
+            v-if="path"
+            class="text-sm text-gray-500 dark:text-gray-400"
+          >
+            <button
+              class="text-primary hover:underline cursor-pointer break-all text-left"
+              @click="onRevealInFolder"
             >
-              <UFormField
-                :label="t('password.label')"
-                name="password"
-              >
-                <UInput
-                  v-model="vault.password"
-                  type="password"
-                  icon="i-heroicons-key"
-                  :placeholder="t('password.placeholder')"
-                  autofocus
-                  size="xl"
-                  class="w-full"
-                  @keyup.enter="onOpenDatabase"
-                />
-              </UFormField>
-            </UForm>
+              {{ path }}
+            </button>
           </div>
+
+          <UForm
+            :state="vault"
+            class="w-full"
+          >
+            <UiInputPassword
+              v-model="vault.password"
+              :label="t('password.placeholder')"
+              leading-icon="i-heroicons-key"
+              size="xl"
+              autofocus
+              class="w-full"
+              @keyup.enter="onOpenDatabase"
+            />
+          </UForm>
         </div>
 
-        <div class="flex gap-3 mt-auto pt-6">
+        <div class="flex gap-3 mt-12">
           <UButton
             color="neutral"
             variant="outline"
@@ -92,57 +92,48 @@
     />
 
     <template #body>
-      <div class="p-6 flex flex-col min-h-[50vh]">
-        <div class="flex-1 flex items-center justify-center px-4">
-          <div class="w-full max-w-md space-y-4">
-            <UForm
-              :state="vault"
-              class="w-full"
-            >
-              <UFormField
-                :label="t('password.label')"
-                name="password"
-              >
-                <UInput
-                  v-model="vault.password"
-                  type="password"
-                  icon="i-heroicons-key"
-                  :placeholder="t('password.placeholder')"
-                  autofocus
-                  size="xl"
-                  class="w-full"
-                  @keyup.enter="onOpenDatabase"
-                />
-              </UFormField>
-            </UForm>
-          </div>
-        </div>
+      <div class="space-y-4">
+        <UForm
+          :state="vault"
+          class="w-full"
+        >
+          <UiInputPassword
+            v-model="vault.password"
+            :label="t('password.placeholder')"
+            leading-icon="i-heroicons-key"
+            size="xl"
+            autofocus
+            class="w-full"
+            @keyup.enter="onOpenDatabase"
+          />
+        </UForm>
+      </div>
+    </template>
 
-        <div class="flex gap-3 mt-auto pt-6">
-          <UButton
-            color="neutral"
-            variant="outline"
-            block
-            size="xl"
-            @click="open = false"
-          >
-            {{ t('cancel') }}
-          </UButton>
-          <UButton
-            color="primary"
-            block
-            size="xl"
-            @click="onOpenDatabase"
-          >
-            {{ t('open') }}
-          </UButton>
-        </div>
+    <template #footer>
+      <div class="flex gap-3 w-full">
+        <UButton
+          color="neutral"
+          variant="outline"
+          block
+          @click="open = false"
+        >
+          {{ t('cancel') }}
+        </UButton>
+        <UButton
+          color="primary"
+          block
+          @click="onOpenDatabase"
+        >
+          {{ t('open') }}
+        </UButton>
       </div>
     </template>
   </UModal>
 </template>
 
 <script setup lang="ts">
+import { revealItemInDir } from '@tauri-apps/plugin-opener'
 /* import { open as openVault } from '@tauri-apps/plugin-dialog' */
 import { vaultSchema } from './schema'
 
@@ -210,6 +201,16 @@ const onAbort = () => {
 }
 
 const { add } = useToast()
+
+const onRevealInFolder = async () => {
+  if (!props.path) return
+
+  try {
+    await revealItemInDir(props.path)
+  } catch (error) {
+    add({ color: 'error', description: `${error}` })
+  }
+}
 
 const onOpenDatabase = async () => {
   try {
