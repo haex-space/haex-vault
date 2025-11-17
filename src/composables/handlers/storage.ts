@@ -7,7 +7,7 @@ export async function handleStorageMethodAsync(
   // Storage is now per-window, not per-extension
   const storageKey = `ext_${instance.extension.id}_${instance.windowId}_`
   console.log(
-    `[HaexHub Storage] ${request.method} for window ${instance.windowId}`,
+    `[HaexSpace Storage] ${request.method} for window ${instance.windowId}`,
   )
 
   switch (request.method) {

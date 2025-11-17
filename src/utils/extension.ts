@@ -1,5 +1,5 @@
 /**
- * Utility functions for working with HaexHub extensions
+ * Utility functions for working with HaexSpace extensions
  */
 
 import { platform } from '@tauri-apps/plugin-os'

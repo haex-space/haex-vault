@@ -1,5 +1,5 @@
 // composables/extensionMessageHandler.ts
-import type { IHaexHubExtension } from '~/types/haexhub'
+import type { IHaexSpaceExtension } from '~/types/haexspace'
 import { HAEXTENSION_METHODS, HAEXTENSION_EVENTS } from '@haex-space/sdk'
 import {
   EXTENSION_PROTOCOL_NAME,
@@ -45,7 +45,7 @@ const registerGlobalMessageHandler = () => {
     }
 
     // Handle debug messages for Android debugging
-    if (event.data?.type === 'haexhub:debug') {
+    if (event.data?.type === 'haexspace:debug') {
       console.log('[ExtensionHandler] DEBUG MESSAGE FROM EXTENSION:', event.data.data)
       return
     }
@@ -253,7 +253,7 @@ const registerGlobalMessageHandler = () => {
 
 export const useExtensionMessageHandler = (
   iframeRef: Ref<HTMLIFrameElement | undefined | null>,
-  extension: ComputedRef<IHaexHubExtension | undefined | null>,
+  extension: ComputedRef<IHaexSpaceExtension | undefined | null>,
   windowId: Ref<string>,
 ) => {
   // Initialize context getters (can use composables here because we're in setup)
@@ -301,7 +301,7 @@ export const useExtensionMessageHandler = (
 // Export Funktion für manuelle IFrame-Registrierung (kein Composable!)
 export const registerExtensionIFrame = (
   iframe: HTMLIFrameElement,
-  extension: IHaexHubExtension,
+  extension: IHaexSpaceExtension,
   windowId: string,
 ) => {
   // Stelle sicher, dass der globale Handler registriert ist

@@ -1,11 +1,11 @@
-import type { IHaexHubExtension } from '~/types/haexhub'
+import type { IHaexSpaceExtension } from '~/types/haexspace'
 import type { ExtensionRequest } from './types'
 import { invoke } from '@tauri-apps/api/core'
 import { HAEXTENSION_METHODS } from '@haex-space/sdk'
 
 export async function handleWebMethodAsync(
   request: ExtensionRequest,
-  extension: IHaexHubExtension,
+  extension: IHaexSpaceExtension,
 ) {
   if (!extension || !request) {
     throw new Error('Extension not found')
@@ -26,7 +26,7 @@ export async function handleWebMethodAsync(
 
 async function handleWebFetchAsync(
   params: Record<string, unknown>,
-  extension: IHaexHubExtension,
+  extension: IHaexSpaceExtension,
 ) {
   const url = params.url as string
   const method = (params.method as string) || undefined
@@ -85,7 +85,7 @@ async function handleWebFetchAsync(
 
 async function handleWebOpenAsync(
   params: Record<string, unknown>,
-  extension: IHaexHubExtension,
+  extension: IHaexSpaceExtension,
 ) {
   const url = params.url as string
 

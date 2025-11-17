@@ -4,7 +4,7 @@
       <div
         class="flex flex-col justify-center items-center gap-5 mx-auto h-full overflow-scroll"
       >
-        <UiLogoHaexhub class="bg-primary p-3 size-16 rounded-full shrink-0" />
+        <UiLogoHaexspace class="bg-primary p-3 size-16 rounded-full shrink-0" />
         <span
           class="flex flex-wrap font-bold text-pretty text-xl gap-2 justify-center"
         >
@@ -52,6 +52,9 @@
                     color: 'error',
                   },
                 ]"
+                :ui="{
+                  base: 'px-4 py-3',
+                }"
                 @click="
                   () => {
                     isOpenDrawerOpen = true

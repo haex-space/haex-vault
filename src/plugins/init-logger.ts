@@ -5,7 +5,7 @@ export default defineNuxtPlugin({
   setup() {
     // Add global error handler for better debugging
     window.addEventListener('error', (event) => {
-      console.error('[HaexHub] Global error caught:', {
+      console.error('[HaexSpace] Global error caught:', {
         message: event.message,
         filename: event.filename,
         lineno: event.lineno,
@@ -16,7 +16,7 @@ export default defineNuxtPlugin({
     })
 
     window.addEventListener('unhandledrejection', (event) => {
-      console.error('[HaexHub] Unhandled rejection:', {
+      console.error('[HaexSpace] Unhandled rejection:', {
         reason: event.reason,
         promise: event.promise,
       })

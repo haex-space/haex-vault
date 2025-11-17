@@ -30,7 +30,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
     },
   })
 
-  const currentVaultName = ref(haexVault.defaultVaultName || 'HaexHub')
+  const currentVaultName = ref(haexVault.defaultVaultName || 'HaexSpace')
 
   const openVaults = ref<IOpenVaults>({})
 

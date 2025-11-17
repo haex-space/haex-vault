@@ -3,18 +3,19 @@ import { readFile } from '@tauri-apps/plugin-fs'
 import { getExtensionUrl } from '~/utils/extension'
 
 import type {
-  IHaexHubExtension,
-  IHaexHubExtensionManifest,
-} from '~/types/haexhub'
+  IHaexSpaceExtension,
+  IHaexSpaceExtensionManifest,
+} from '~/types/haexspace'
 import type { ExtensionPreview } from '@bindings/ExtensionPreview'
 import type { ExtensionPermissions } from '~~/src-tauri/bindings/ExtensionPermissions'
 import type { ExtensionInfoResponse } from '~~/src-tauri/bindings/ExtensionInfoResponse'
+import type { DisplayMode } from '~~/src-tauri/bindings/DisplayMode'
 
 /* const manifestFileName = 'manifest.json'
 const logoFileName = 'icon.svg' */
 
 export const useExtensionsStore = defineStore('extensionsStore', () => {
-  const availableExtensions = ref<IHaexHubExtension[]>([])
+  const availableExtensions = ref<IHaexSpaceExtension[]>([])
   const currentRoute = useRouter().currentRoute
 
   const currentExtensionId = computed(() =>
@@ -91,7 +92,7 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
         await invoke<ExtensionInfoResponse[]>('get_all_extensions')
 
       console.log('get_all_extensions', extensions)
-      // ExtensionInfoResponse is now directly compatible with IHaexHubExtension
+      // ExtensionInfoResponse is now directly compatible with IHaexSpaceExtension
       availableExtensions.value = extensions
     } catch (error) {
       console.error('Fehler beim Laden der Extensions:', error)
@@ -202,7 +203,7 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
 
   const checkManifest = (
     manifestFile: unknown,
-  ): manifestFile is IHaexHubExtensionManifest => {
+  ): manifestFile is IHaexSpaceExtensionManifest => {
     const errors = []
 
     if (typeof manifestFile !== 'object' || manifestFile === null) {
@@ -241,7 +242,7 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
 
     if (errors.length) throw errors
 
-    /* const permissions = manifestFile.permissions as Partial<IHaexHubExtensionManifest["permissions"]>;
+    /* const permissions = manifestFile.permissions as Partial<IHaexSpaceExtensionManifest["permissions"]>;
     if (
       ("database" in permissions &&
         (typeof permissions.database !== "object" || permissions.database === null)) ||
@@ -266,6 +267,24 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
     return preview.value
   }
 
+  const updateDisplayModeAsync = async (
+    extensionId: string,
+    displayMode: DisplayMode,
+  ) => {
+    await invoke('update_extension_display_mode', {
+      extensionId,
+      displayMode,
+    })
+
+    // Update local state
+    const extension = availableExtensions.value.find(
+      (ext) => ext.id === extensionId,
+    )
+    if (extension) {
+      extension.displayMode = displayMode
+    }
+  }
+
   return {
     availableExtensions,
     checkManifest,
@@ -278,6 +297,7 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
     loadExtensionsAsync,
     previewManifestAsync,
     removeExtensionAsync,
+    updateDisplayModeAsync,
   }
 })
 

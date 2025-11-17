@@ -10,7 +10,11 @@
       @confirm="handleConfirmUninstall"
     />
 
-    <UContextMenu :items="contextMenuItems">
+    <UContextMenu
+      :key="contextMenuKey"
+      v-model:open="contextMenuOpen"
+      :items="contextMenuItems"
+    >
       <div
         ref="draggableEl"
         :style="style"
@@ -31,7 +35,10 @@
                 ? 'bg-white/95 dark:bg-gray-800/95 border-blue-500 dark:border-blue-400 shadow-lg scale-105'
                 : 'bg-white/80 dark:bg-gray-800/80 border-gray-200/50 dark:border-gray-700/50 hover:bg-white/90 dark:hover:bg-gray-800/90 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md hover:scale-105',
             ]"
-            :style="{ width: `${containerSize}px`, height: `${containerSize}px` }"
+            :style="{
+              width: `${containerSize}px`,
+              height: `${containerSize}px`,
+            }"
           >
             <HaexIcon
               :name="icon || 'i-heroicons-puzzle-piece-solid'"
@@ -43,7 +50,10 @@
                     ? 'text-blue-500 dark:text-blue-400'
                     : 'text-gray-400 dark:text-gray-500 group-hover:text-gray-500 dark:group-hover:text-gray-400'),
               ]"
-              :style="{ width: `${innerIconSize}px`, height: `${innerIconSize}px` }"
+              :style="{
+                width: `${innerIconSize}px`,
+                height: `${innerIconSize}px`,
+              }"
             />
           </div>
           <span
@@ -76,7 +86,15 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   positionChanged: [id: string, x: number, y: number]
-  dragStart: [id: string, itemType: string, referenceId: string, width: number, height: number, x: number, y: number]
+  dragStart: [
+    id: string,
+    itemType: string,
+    referenceId: string,
+    width: number,
+    height: number,
+    x: number,
+    y: number,
+  ]
   dragging: [id: string, x: number, y: number]
   dragEnd: []
 }>()
@@ -84,17 +102,23 @@ const emit = defineEmits<{
 const desktopStore = useDesktopStore()
 const { effectiveIconSize } = storeToRefs(desktopStore)
 const showUninstallDialog = ref(false)
+const contextMenuOpen = ref(false)
+const contextMenuKey = ref(0) // Force remount when needed
 const { t } = useI18n()
 
 const isSelected = computed(() => desktopStore.isItemSelected(props.id))
 const containerSize = computed(() => effectiveIconSize.value) // Container size
 const innerIconSize = computed(() => effectiveIconSize.value * 0.7) // Inner icon is 70% of container
 
-const handleClick = (e: MouseEvent) => {
-  // Prevent selection during drag
-  if (isDragging.value) return
+const handleClick = (_e: MouseEvent) => {
+  // Prevent opening if drag occurred or still dragging
+  if (isDragging.value || hasDragged.value) {
+    hasDragged.value = false
+    return
+  }
 
-  desktopStore.toggleSelection(props.id, e.ctrlKey || e.metaKey)
+  // Open item on single click
+  openItem()
 }
 
 const handleUninstallClick = () => {
@@ -129,43 +153,77 @@ const draggableEl = ref<HTMLElement>()
 const x = ref(props.initialX)
 const y = ref(props.initialY)
 const isDragging = ref(false)
+const hasDragged = ref(false) // Track if actual movement occurred
 const offsetX = ref(0)
 const offsetY = ref(0)
+
+// Close context menu on click outside (Android fix)
+// UContextMenu's built-in outside click detection doesn't work reliably on Android
+onClickOutside(draggableEl, () => {
+  if (contextMenuOpen.value) {
+    contextMenuOpen.value = false
+    contextMenuKey.value++ // Force remount to ensure menu closes
+  }
+})
 
 // Track actual icon dimensions dynamically
 const { width: iconWidth, height: iconHeight } = useElementSize(draggableEl)
 
-// Re-center icon position when dimensions are measured
-watch([iconWidth, iconHeight], async ([width, height]) => {
-  if (width > 0 && height > 0) {
-    console.log('📐 Icon dimensions measured:', {
-      label: props.label,
-      width,
-      height,
-      currentPosition: { x: x.value, y: y.value },
-      gridCellSize: desktopStore.gridCellSize,
-    })
-
-    // Re-snap to grid with actual dimensions to ensure proper centering
-    const snapped = desktopStore.snapToGrid(x.value, y.value, width, height)
-
-    console.log('📍 Snapped position:', {
-      label: props.label,
-      oldPosition: { x: x.value, y: y.value },
-      newPosition: snapped,
-    })
-
-    const oldX = x.value
-    const oldY = y.value
-    x.value = snapped.x
-    y.value = snapped.y
-
-    // Save corrected position to database if it changed
-    if (oldX !== snapped.x || oldY !== snapped.y) {
-      emit('positionChanged', props.id, snapped.x, snapped.y)
+// Watch for external position changes (e.g., during multi-drag when this icon is not the leader)
+watch(
+  () => {
+    const item = desktopStore.desktopItems.find((i) => i.id === props.id)
+    return item ? { x: item.positionX, y: item.positionY } : null
+  },
+  (newPos) => {
+    // Only update if we're in a multi-drag and this icon is NOT the leader
+    if (
+      newPos &&
+      desktopStore.isMultiDragging &&
+      desktopStore.multiDragLeaderId !== props.id &&
+      desktopStore.selectedItemIds.has(props.id)
+    ) {
+      x.value = newPos.x
+      y.value = newPos.y
     }
-  }
-}, { once: true }) // Only run once when dimensions are first measured
+  },
+)
+
+// Re-center icon position when dimensions are measured
+watch(
+  [iconWidth, iconHeight],
+  async ([width, height]) => {
+    if (width > 0 && height > 0) {
+      console.log('📐 Icon dimensions measured:', {
+        label: props.label,
+        width,
+        height,
+        currentPosition: { x: x.value, y: y.value },
+        gridCellSize: desktopStore.gridCellSize,
+      })
+
+      // Re-snap to grid with actual dimensions to ensure proper centering
+      const snapped = desktopStore.snapToGrid(x.value, y.value, width, height)
+
+      console.log('📍 Snapped position:', {
+        label: props.label,
+        oldPosition: { x: x.value, y: y.value },
+        newPosition: snapped,
+      })
+
+      const oldX = x.value
+      const oldY = y.value
+      x.value = snapped.x
+      y.value = snapped.y
+
+      // Save corrected position to database if it changed
+      if (oldX !== snapped.x || oldY !== snapped.y) {
+        emit('positionChanged', props.id, snapped.x, snapped.y)
+      }
+    }
+  },
+  { once: true },
+) // Only run once when dimensions are first measured
 
 const style = computed(() => ({
   position: 'absolute' as const,
@@ -181,7 +239,24 @@ const handlePointerDown = (e: PointerEvent) => {
   e.preventDefault()
 
   isDragging.value = true
-  emit('dragStart', props.id, props.itemType, props.referenceId, iconWidth.value, iconHeight.value, x.value, y.value)
+  hasDragged.value = false // Reset drag tracking
+
+  // Check if this is a multi-drag (multiple icons selected and this one is selected)
+  const isMulti = desktopStore.selectedItemIds.size > 1 && isSelected.value
+  if (isMulti) {
+    desktopStore.startMultiDrag(props.id)
+  }
+
+  emit(
+    'dragStart',
+    props.id,
+    props.itemType,
+    props.referenceId,
+    iconWidth.value,
+    iconHeight.value,
+    x.value,
+    y.value,
+  )
 
   // Get parent offset to convert from viewport coordinates to parent-relative coordinates
   const parentRect = draggableEl.value.parentElement.getBoundingClientRect()
@@ -201,17 +276,44 @@ const handlePointerMove = (e: PointerEvent) => {
   const newY = e.clientY - parentRect.top - offsetY.value
 
   // Clamp position to viewport bounds during drag
-  const maxX = viewportSize ? Math.max(0, viewportSize.width.value - iconWidth.value) : Number.MAX_SAFE_INTEGER
-  const maxY = viewportSize ? Math.max(0, viewportSize.height.value - iconHeight.value) : Number.MAX_SAFE_INTEGER
+  const maxX = viewportSize
+    ? Math.max(0, viewportSize.width.value - iconWidth.value)
+    : Number.MAX_SAFE_INTEGER
+  const maxY = viewportSize
+    ? Math.max(0, viewportSize.height.value - iconHeight.value)
+    : Number.MAX_SAFE_INTEGER
 
-  x.value = Math.max(0, Math.min(maxX, newX))
-  y.value = Math.max(0, Math.min(maxY, newY))
+  const clampedX = Math.max(0, Math.min(maxX, newX))
+  const clampedY = Math.max(0, Math.min(maxY, newY))
+
+  // Check if actual movement occurred (more than 3px threshold to account for small movements)
+  if (Math.abs(clampedX - x.value) > 3 || Math.abs(clampedY - y.value) > 3) {
+    hasDragged.value = true
+
+    // Force close context menu by remounting if it's stuck open (Android touch issue)
+    // Only close after threshold to allow context menu to open via long-press
+    if (contextMenuOpen.value) {
+      contextMenuOpen.value = false
+      contextMenuKey.value++ // Force remount to ensure menu closes
+    }
+  }
+
+  x.value = clampedX
+  y.value = clampedY
+
+  // Update multi-drag positions if this is the leader
+  if (
+    desktopStore.isMultiDragging &&
+    desktopStore.multiDragLeaderId === props.id
+  ) {
+    desktopStore.updateMultiDragPositions(x.value, y.value)
+  }
 
   // Emit current position during drag
   emit('dragging', props.id, x.value, y.value)
 }
 
-const handlePointerUp = (e: PointerEvent) => {
+const handlePointerUp = async (e: PointerEvent) => {
   if (!isDragging.value) return
 
   isDragging.value = false
@@ -219,8 +321,35 @@ const handlePointerUp = (e: PointerEvent) => {
     draggableEl.value.releasePointerCapture(e.pointerId)
   }
 
+  // Handle multi-drag end
+  if (
+    desktopStore.isMultiDragging &&
+    desktopStore.multiDragLeaderId === props.id
+  ) {
+    await desktopStore.endMultiDragAsync(
+      iconWidth.value,
+      iconHeight.value,
+      viewportSize?.width.value,
+      viewportSize?.height.value,
+    )
+    // Update local position from store after snapping
+    const item = desktopStore.desktopItems.find((i) => i.id === props.id)
+    if (item) {
+      x.value = item.positionX
+      y.value = item.positionY
+    }
+    e.preventDefault()
+    emit('dragEnd')
+    return
+  }
+
   // Snap to grid with icon dimensions
-  const snapped = desktopStore.snapToGrid(x.value, y.value, iconWidth.value, iconHeight.value)
+  const snapped = desktopStore.snapToGrid(
+    x.value,
+    y.value,
+    iconWidth.value,
+    iconHeight.value,
+  )
   x.value = snapped.x
   y.value = snapped.y
 
@@ -236,7 +365,7 @@ const handlePointerUp = (e: PointerEvent) => {
   emit('positionChanged', props.id, x.value, y.value)
 }
 
-const handleDoubleClick = () => {
+const openItem = () => {
   // Get icon position and size for animation
   if (draggableEl.value) {
     const rect = draggableEl.value.getBoundingClientRect()
@@ -254,6 +383,10 @@ const handleDoubleClick = () => {
   } else {
     desktopStore.openDesktopItem(props.itemType, props.referenceId)
   }
+}
+
+const handleDoubleClick = () => {
+  openItem()
 }
 </script>
 

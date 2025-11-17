@@ -1,7 +1,7 @@
 <template>
   <div
     :class="[
-      'w-full h-full flex flex-col transition-all duration-300 ease-in-out',
+      '@container w-full h-full flex flex-col transition-all duration-300 ease-in-out',
       isDragging ? 'bg-default/80 backdrop-blur-sm' : 'bg-default',
     ]"
   >
@@ -30,9 +30,9 @@
       <!-- Sidebar (optional) -->
       <div
         v-if="$slots.sidebar"
-        class="w-16 @md:w-64 border-r border-gray-200 dark:border-gray-800 bg-elevated overflow-y-auto shrink-0"
+        class="w-16 @xl:w-64 border-r border-gray-200 dark:border-gray-800 bg-elevated overflow-y-auto shrink-0 transition-[width] duration-200"
       >
-        <div class="p-2 @md:p-4">
+        <div class="p-2">
           <slot name="sidebar" />
         </div>
       </div>

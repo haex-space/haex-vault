@@ -1,0 +1,112 @@
+<template>
+  <HaexSystem :is-dragging="isDragging">
+    <template #sidebar>
+      <nav class="flex flex-col gap-1">
+        <button
+          v-for="category in categories"
+          :key="category.value"
+          :class="[
+            'flex items-center gap-3 p-2.5 text-sm font-medium rounded-md transition-colors',
+            'justify-center @xl:justify-start',
+            category.active
+              ? 'bg-primary text-white'
+              : 'text-highlighted hover:bg-muted',
+          ]"
+          :title="category.label"
+          @click="category.click"
+        >
+          <UIcon
+            :name="category.icon"
+            class="w-5 h-5 shrink-0"
+          />
+          <span class="hidden @xl:block">{{ category.label }}</span>
+        </button>
+      </nav>
+    </template>
+
+    <div class="flex-1 overflow-y-auto">
+      <HaexSystemSettingsGeneral v-if="activeCategory === 'general'" />
+      <HaexSystemSettingsAppearance v-if="activeCategory === 'appearance'" />
+      <HaexSystemSettingsWorkspace v-if="activeCategory === 'workspace'" />
+      <HaexSystemSettingsNotifications
+        v-if="activeCategory === 'notifications'"
+      />
+      <HaexSystemSettingsExtensions v-if="activeCategory === 'extensions'" />
+    </div>
+  </HaexSystem>
+</template>
+
+<script setup lang="ts">
+defineProps<{
+  isDragging?: boolean
+}>()
+
+const { t } = useI18n()
+
+const activeCategory = ref('general')
+
+const categories = computed(() => [
+  {
+    value: 'general',
+    label: t('categories.general'),
+    icon: 'i-heroicons-cog-6-tooth',
+    active: activeCategory.value === 'general',
+    click: () => {
+      activeCategory.value = 'general'
+    },
+  },
+  {
+    value: 'appearance',
+    label: t('categories.appearance'),
+    icon: 'i-heroicons-paint-brush',
+    active: activeCategory.value === 'appearance',
+    click: () => {
+      activeCategory.value = 'appearance'
+    },
+  },
+  {
+    value: 'workspace',
+    label: t('categories.workspace'),
+    icon: 'i-heroicons-squares-2x2',
+    active: activeCategory.value === 'workspace',
+    click: () => {
+      activeCategory.value = 'workspace'
+    },
+  },
+  {
+    value: 'notifications',
+    label: t('categories.notifications'),
+    icon: 'i-heroicons-bell',
+    active: activeCategory.value === 'notifications',
+    click: () => {
+      activeCategory.value = 'notifications'
+    },
+  },
+  {
+    value: 'extensions',
+    label: t('categories.extensions'),
+    icon: 'i-heroicons-puzzle-piece',
+    active: activeCategory.value === 'extensions',
+    click: () => {
+      activeCategory.value = 'extensions'
+    },
+  },
+])
+</script>
+
+<i18n lang="yaml">
+de:
+  categories:
+    general: Allgemein
+    appearance: Erscheinungsbild
+    workspace: Arbeitsbereich
+    notifications: Benachrichtigungen
+    extensions: Erweiterungen
+en:
+  categories:
+    general: General
+    appearance: Appearance
+    workspace: Workspace
+    notifications: Notifications
+    extensions: Extensions
+</i18n>

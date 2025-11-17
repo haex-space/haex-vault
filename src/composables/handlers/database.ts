@@ -1,11 +1,11 @@
 import { invoke } from '@tauri-apps/api/core'
 import { HAEXTENSION_METHODS } from '@haex-space/sdk'
-import type { IHaexHubExtension } from '~/types/haexhub'
+import type { IHaexSpaceExtension } from '~/types/haexspace'
 import type { ExtensionRequest } from './types'
 
 export async function handleDatabaseMethodAsync(
   request: ExtensionRequest,
-  extension: IHaexHubExtension,
+  extension: IHaexSpaceExtension,
 ) {
   const params = request.params as {
     query?: string

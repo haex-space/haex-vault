@@ -27,6 +27,8 @@
         "signature": "signature",
         "url": "url",
         "version": "version",
+        "createdAt": "created_at",
+        "updatedAt": "updated_at",
 
         "haexTimestamp": "haex_timestamp"
       }

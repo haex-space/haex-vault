@@ -64,13 +64,13 @@
 </template>
 
 <script setup lang="ts">
-import type { IHaexHubExtension } from '~/types/haexhub'
+import type { IHaexSpaceExtension } from '~/types/haexspace'
 
 const emit = defineEmits(['confirm', 'abort'])
 
 const { t } = useI18n()
 
-defineProps<{ extension?: IHaexHubExtension }>()
+defineProps<{ extension?: IHaexSpaceExtension }>()
 
 const open = defineModel<boolean>('open')
 

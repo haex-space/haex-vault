@@ -53,10 +53,10 @@
 </template>
 
 <script setup lang="ts">
-import type { IHaexHubExtension } from '~/types/haexhub'
+import type { IHaexSpaceExtension } from '~/types/haexspace'
 const emit = defineEmits(['close', 'submit', 'remove'])
 
-const extension = defineProps<IHaexHubExtension>()
+const extension = defineProps<IHaexSpaceExtension>()
 
 const { escape, enter } = useMagicKeys()
 

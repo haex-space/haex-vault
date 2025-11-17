@@ -1,10 +1,10 @@
 <template>
   <div
     v-if="menuEntry"
-    class="flex items-center justify-between gap-4 p-3 rounded-lg border border-base-300 bg-base-100"
+    class="flex flex-col gap-2 p-3 rounded-lg border border-base-300 bg-base-100"
   >
-    <div class="flex-1 min-w-0">
-      <div class="font-medium truncate">
+    <div class="min-w-0">
+      <div class="font-medium break-all">
         {{ modelValue.target }}
       </div>
       <div
@@ -15,12 +15,12 @@
       </div>
     </div>
 
-    <div class="flex items-center gap-2">
+    <div class="flex items-center">
       <!-- Status Selector -->
       <USelectMenu
         v-model="menuEntry"
         :items="statusOptions"
-        class="w-44"
+        class="w-full sm:w-44"
         :search-input="false"
       >
         <template #leading>
@@ -109,6 +109,7 @@ de:
     ask: Nachfragen
     denied: Verweigert
   operation:
+    "*": Alle
     read: Lesen
     write: Schreiben
     readWrite: Lesen & Schreiben
@@ -120,6 +121,7 @@ en:
     ask: Ask
     denied: Denied
   operation:
+    "*": All
     read: Read
     write: Write
     readWrite: Read & Write

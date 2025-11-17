@@ -12,7 +12,7 @@
       :touch-angle="45"
       :no-swiping="true"
       no-swiping-class="no-swipe"
-      :allow-touch-move="allowSwipe"
+      :allow-touch-move="false"
       class="h-full w-full"
       direction="vertical"
       @swiper="onSwiperInit"
@@ -24,14 +24,13 @@
         class="w-full h-full"
       >
         <UContextMenu :items="getWorkspaceContextMenuItems(workspace.id)">
-          <div
-            class="w-full h-full relative select-none"
-            :style="getWorkspaceBackgroundStyle(workspace)"
-            @click.self.stop="handleDesktopClick"
-            @mousedown.left.self="handleAreaSelectStart"
-            @dragover.prevent="handleDragOver"
-            @drop.prevent="handleDrop($event, workspace.id)"
-            @selectstart.prevent
+          <HaexDesktopWorkspaceDropZone
+            :workspace-id="workspace.id"
+            :background-style="getWorkspaceBackgroundStyle(workspace)"
+            @desktop-click="handleDesktopClick"
+            @area-select-start="handleAreaSelectStart"
+            @drag-over="handleDragOver"
+            @drop="handleDrop($event, workspace.id)"
           >
             <!-- Drop Target Zone (visible during drag) -->
             <div
@@ -158,7 +157,9 @@
                       <component
                         :is="getSystemWindowComponent(window.sourceId)"
                         v-if="window.type === 'system'"
-                        :is-dragging="windowManager.draggingWindowId === window.id"
+                        :is-dragging="
+                          windowManager.draggingWindowId === window.id
+                        "
                       />
 
                       <!-- Extension Window: Render iFrame -->
@@ -231,7 +232,7 @@
                 </HaexWindow>
               </template>
             </template>
-          </div>
+          </HaexDesktopWorkspaceDropZone>
         </UContextMenu>
       </SwiperSlide>
     </Swiper>
@@ -354,60 +355,9 @@ const showRightSnapZone = computed(() => {
   return mouseX.value >= viewportWidth - snapEdgeThreshold
 })
 
-// Get icons for a specific workspace
+// Get icons for a specific workspace (uses cached computed from store)
 const getWorkspaceIcons = (workspaceId: string) => {
-  return desktopItems.value
-    .filter((item) => item.workspaceId === workspaceId)
-    .map((item) => {
-      if (item.itemType === 'system') {
-        const systemWindow = windowManager
-          .getAllSystemWindows()
-          .find((win) => win.id === item.referenceId)
-
-        return {
-          ...item,
-          label: systemWindow?.name || 'Unknown',
-          icon: systemWindow?.icon || '',
-        }
-      }
-
-      if (item.itemType === 'extension') {
-        const extension = availableExtensions.value.find(
-          (ext) => ext.id === item.referenceId,
-        )
-
-        console.log('found ext', extension)
-        return {
-          ...item,
-          label: extension?.name || 'Unknown',
-          icon: extension?.icon || '',
-        }
-      }
-
-      if (item.itemType === 'file') {
-        // Für später: file handling
-        return {
-          ...item,
-          label: item.referenceId,
-          icon: undefined,
-        }
-      }
-
-      if (item.itemType === 'folder') {
-        // Für später: folder handling
-        return {
-          ...item,
-          label: item.referenceId,
-          icon: undefined,
-        }
-      }
-
-      return {
-        ...item,
-        label: item.referenceId,
-        icon: undefined,
-      }
-    })
+  return desktopStore.getWorkspaceIcons(workspaceId)
 }
 
 // Get windows for a specific workspace (including minimized for teleport)
@@ -520,7 +470,8 @@ const handleDrop = async (event: DragEvent, workspaceId: string) => {
       const toast = useToast()
       toast.add({
         title: 'Dev-Extension kann nicht hinzugefügt werden',
-        description: 'Dev-Extensions existieren nur zur Laufzeit und können nicht auf dem Desktop platziert werden.',
+        description:
+          'Dev-Extensions existieren nur zur Laufzeit und können nicht auf dem Desktop platziert werden.',
         color: 'warning',
         icon: 'i-heroicons-exclamation-triangle',
       })
@@ -603,6 +554,9 @@ const handleAreaSelectStart = (e: MouseEvent) => {
   selectionStart.value = { x, y }
   selectionEnd.value = { x, y }
 
+  // Disable Swiper during area selection
+  allowSwipe.value = false
+
   // Clear current selection
   desktopStore.clearSelection()
 }
@@ -625,6 +579,9 @@ useEventListener(window, 'mousemove', (e: MouseEvent) => {
 useEventListener(window, 'mouseup', () => {
   if (isAreaSelecting.value) {
     isAreaSelecting.value = false
+
+    // Re-enable Swiper after area selection
+    allowSwipe.value = true
 
     // Reset selection coordinates after a short delay
     // This allows handleDesktopClick to still check the box size
@@ -664,32 +621,6 @@ const onSlideChange = (swiper: SwiperType) => {
     workspaceStore.workspaces.at(swiper.activeIndex)?.id,
   )
 }
-
-/* const handleRemoveWorkspace = async () => {
-  if (!currentWorkspace.value || workspaces.value.length <= 1) return
-
-  const currentIndex = currentWorkspaceIndex.value
-  await workspaceStore.removeWorkspaceAsync(currentWorkspace.value.id)
-
-  // Slide to adjusted index
-  nextTick(() => {
-    if (swiperInstance.value) {
-      const newIndex = Math.min(currentIndex, workspaces.value.length - 1)
-      swiperInstance.value.slideTo(newIndex)
-    }
-  })
-}
-
-const handleDropWindowOnWorkspace = async (
-  event: DragEvent,
-  targetWorkspaceId: string,
-) => {
-  // Get the window ID from drag data (will be set when we implement window dragging)
-  const windowId = event.dataTransfer?.getData('windowId')
-  if (windowId) {
-    await moveWindowToWorkspace(windowId, targetWorkspaceId)
-  }
-} */
 
 // Overview Mode: Calculate grid positions and scale for windows
 // Calculate preview dimensions for window overview
@@ -773,6 +704,41 @@ useEventListener(document, 'mouseleave', () => {
     currentDraggedItem.x = 0
     currentDraggedItem.y = 0
     allowSwipe.value = true
+  }
+})
+
+// Keyboard shortcuts
+useEventListener(window, 'keydown', async (e: KeyboardEvent) => {
+  // Only handle if no input/textarea is focused
+  const activeElement = document.activeElement
+  if (
+    activeElement instanceof HTMLInputElement ||
+    activeElement instanceof HTMLTextAreaElement ||
+    (activeElement as HTMLElement)?.isContentEditable
+  ) {
+    return
+  }
+
+  // Ctrl/Cmd + A: Select all icons on current workspace
+  if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+    e.preventDefault()
+    desktopStore.selectAll()
+  }
+
+  // Delete/Backspace: Remove selected icons from desktop
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    const selectedIds = Array.from(desktopStore.selectedItemIds)
+    if (selectedIds.length > 0) {
+      e.preventDefault()
+
+      // Remove all selected items from desktop
+      for (const itemId of selectedIds) {
+        await desktopStore.removeDesktopItemAsync(itemId)
+      }
+
+      // Clear selection after removal
+      desktopStore.clearSelection()
+    }
   }
 })
 

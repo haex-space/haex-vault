@@ -64,7 +64,7 @@ export default defineNuxtPlugin(() => {
   interceptConsole('error')
   interceptConsole('debug')
 
-  console.log('[HaexHub] Global console interceptor installed')
+  console.log('[HaexSpace] Global console interceptor installed')
 
   return {
     provide: {

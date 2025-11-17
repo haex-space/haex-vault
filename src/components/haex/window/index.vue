@@ -230,6 +230,18 @@ const windowStyle = computed(() => {
     baseStyle.opacity = '0'
     baseStyle.transform = 'scale(0.3)'
   }
+  // Closing animation fallback: shrink to center when no source position
+  else if (props.isClosing) {
+    // Shrink to center of window
+    const centerX = x.value + width.value / 2 - 50
+    const centerY = y.value + height.value / 2 - 50
+    baseStyle.left = `${centerX}px`
+    baseStyle.top = `${centerY}px`
+    baseStyle.width = '100px'
+    baseStyle.height = '100px'
+    baseStyle.opacity = '0'
+    baseStyle.transform = 'scale(0.3)'
+  }
   // Normal state (maximized windows now use actual pixel dimensions)
   else {
     baseStyle.left = `${x.value}px`

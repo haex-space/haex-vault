@@ -115,7 +115,7 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
 
     if (currentVaultNameRow?.value) {
       currentVaultName.value =
-        currentVaultNameRow.value || haexVault.defaultVaultName || 'HaexHub'
+        currentVaultNameRow.value || haexVault.defaultVaultName || 'HaexSpace'
     } else {
       await currentVault.value?.drizzle.insert(schema.haexSettings).values({
         id: crypto.randomUUID(),
@@ -129,7 +129,7 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
   const updateVaultNameAsync = async (newVaultName?: string | null) => {
     return currentVault.value?.drizzle
       .update(schema.haexSettings)
-      .set({ value: newVaultName || haexVault.defaultVaultName || 'HaexHub' })
+      .set({ value: newVaultName || haexVault.defaultVaultName || 'HaexSpace' })
       .where(eq(schema.haexSettings.key, 'vaultName'))
   }
 

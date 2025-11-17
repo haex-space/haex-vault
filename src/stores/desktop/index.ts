@@ -33,6 +33,13 @@ export const useDesktopStore = defineStore('desktopStore', () => {
   const desktopItems = ref<IDesktopItem[]>([])
   const selectedItemIds = ref<Set<string>>(new Set())
 
+  // Multi-drag state
+  const isMultiDragging = ref(false)
+  const multiDragOffsets = ref<Map<string, { dx: number; dy: number }>>(
+    new Map(),
+  )
+  const multiDragLeaderId = ref<string | null>(null)
+
   // Desktop Grid Settings (stored in DB per device)
   const iconSizePreset = ref<DesktopIconSizePreset>(
     DesktopIconSizePreset.medium,
@@ -398,8 +405,151 @@ export const useDesktopStore = defineStore('desktopStore', () => {
     selectedItemIds.value.clear()
   }
 
+  const selectAll = () => {
+    desktopItems.value.forEach((item) => {
+      selectedItemIds.value.add(item.id)
+    })
+  }
+
   const isItemSelected = (id: string) => {
     return selectedItemIds.value.has(id)
+  }
+
+  // Start multi-drag: Calculate offsets from leader icon
+  const startMultiDrag = (leaderId: string) => {
+    if (selectedItemIds.value.size <= 1) return false
+    if (!selectedItemIds.value.has(leaderId)) return false
+
+    const leaderItem = desktopItems.value.find((item) => item.id === leaderId)
+    if (!leaderItem) return false
+
+    multiDragLeaderId.value = leaderId
+    isMultiDragging.value = true
+    multiDragOffsets.value.clear()
+
+    // Calculate offset for each selected item relative to leader
+    selectedItemIds.value.forEach((itemId) => {
+      if (itemId === leaderId) {
+        multiDragOffsets.value.set(itemId, { dx: 0, dy: 0 })
+      } else {
+        const item = desktopItems.value.find((i) => i.id === itemId)
+        if (item) {
+          multiDragOffsets.value.set(itemId, {
+            dx: item.positionX - leaderItem.positionX,
+            dy: item.positionY - leaderItem.positionY,
+          })
+        }
+      }
+    })
+
+    return true
+  }
+
+  // Update positions during multi-drag
+  const updateMultiDragPositions = (leaderX: number, leaderY: number) => {
+    if (!isMultiDragging.value || !multiDragLeaderId.value) return
+
+    multiDragOffsets.value.forEach((offset, itemId) => {
+      const item = desktopItems.value.find((i) => i.id === itemId)
+      if (item) {
+        item.positionX = leaderX + offset.dx
+        item.positionY = leaderY + offset.dy
+      }
+    })
+  }
+
+  // End multi-drag and save all positions
+  const endMultiDragAsync = async (
+    leaderIconWidth?: number,
+    leaderIconHeight?: number,
+    viewportWidth?: number,
+    viewportHeight?: number,
+  ) => {
+    if (!isMultiDragging.value || !multiDragLeaderId.value) return
+
+    // Find the leader item and snap it first
+    const leaderItem = desktopItems.value.find(
+      (i) => i.id === multiDragLeaderId.value,
+    )
+    if (!leaderItem) return
+
+    // Snap leader position with its dimensions
+    const leaderSnapped = snapToGrid(
+      leaderItem.positionX,
+      leaderItem.positionY,
+      leaderIconWidth,
+      leaderIconHeight,
+    )
+
+    // Calculate how much the leader moved after snapping
+    const snapDeltaX = leaderSnapped.x - leaderItem.positionX
+    const snapDeltaY = leaderSnapped.y - leaderItem.positionY
+
+    // Update all positions: apply the same snap delta to maintain relative positions
+    const promises: Promise<void>[] = []
+
+    // Calculate the bounding box of all icons after applying snap delta
+    let minX = Number.MAX_SAFE_INTEGER
+    let minY = Number.MAX_SAFE_INTEGER
+    let maxX = 0
+    let maxY = 0
+
+    const iconWidth = leaderIconWidth || effectiveIconSize.value
+    const iconHeight = leaderIconHeight || effectiveIconSize.value
+
+    multiDragOffsets.value.forEach((_, itemId) => {
+      const item = desktopItems.value.find((i) => i.id === itemId)
+      if (item) {
+        const newX = item.positionX + snapDeltaX
+        const newY = item.positionY + snapDeltaY
+        minX = Math.min(minX, newX)
+        minY = Math.min(minY, newY)
+        maxX = Math.max(maxX, newX + iconWidth)
+        maxY = Math.max(maxY, newY + iconHeight)
+      }
+    })
+
+    // Calculate additional offset to keep all icons within viewport
+    let viewportAdjustX = 0
+    let viewportAdjustY = 0
+
+    if (viewportWidth && viewportHeight) {
+      // If any icon would be outside left/top edge, shift right/down
+      if (minX < 0) {
+        viewportAdjustX = -minX
+      }
+      if (minY < 0) {
+        viewportAdjustY = -minY
+      }
+
+      // If any icon would be outside right/bottom edge, shift left/up
+      if (maxX > viewportWidth) {
+        viewportAdjustX = Math.min(viewportAdjustX, viewportWidth - maxX)
+      }
+      if (maxY > viewportHeight) {
+        viewportAdjustY = Math.min(viewportAdjustY, viewportHeight - maxY)
+      }
+    }
+
+    multiDragOffsets.value.forEach((_, itemId) => {
+      const item = desktopItems.value.find((i) => i.id === itemId)
+      if (item) {
+        // Apply the same snap delta to all items (this preserves relative positions)
+        item.positionX = item.positionX + snapDeltaX + viewportAdjustX
+        item.positionY = item.positionY + snapDeltaY + viewportAdjustY
+
+        promises.push(
+          updateDesktopItemPositionAsync(itemId, item.positionX, item.positionY),
+        )
+      }
+    })
+
+    await Promise.all(promises)
+
+    // Reset multi-drag state
+    isMultiDragging.value = false
+    multiDragLeaderId.value = null
+    multiDragOffsets.value.clear()
   }
 
   const selectedItems = computed(() => {
@@ -408,12 +558,155 @@ export const useDesktopStore = defineStore('desktopStore', () => {
     )
   })
 
+  // Cached workspace icons map to prevent infinite reactive loops
+  // This computed caches the enriched desktop items (with label/icon) per workspace
+  const workspaceIconsMap = computed(() => {
+    const extensionsStore = useExtensionsStore()
+    const windowManagerStore = useWindowManagerStore()
+    const map = new Map<
+      string,
+      Array<{
+        id: string
+        workspaceId: string
+        itemType: DesktopItemType
+        referenceId: string
+        positionX: number
+        positionY: number
+        label: string
+        icon: string
+      }>
+    >()
+
+    // Group items by workspace
+    const itemsByWorkspace = new Map<string, IDesktopItem[]>()
+    for (const item of desktopItems.value) {
+      if (!itemsByWorkspace.has(item.workspaceId)) {
+        itemsByWorkspace.set(item.workspaceId, [])
+      }
+      itemsByWorkspace.get(item.workspaceId)!.push(item)
+    }
+
+    // Map items for each workspace
+    for (const [workspaceId, items] of itemsByWorkspace) {
+      const enrichedItems = items.map((item) => {
+        let label = item.referenceId
+        let icon = ''
+
+        if (item.itemType === 'system') {
+          const systemWindow = windowManagerStore
+            .getAllSystemWindows()
+            .find((win) => win.id === item.referenceId)
+          label = systemWindow?.name || 'Unknown'
+          icon = systemWindow?.icon || ''
+        } else if (item.itemType === 'extension') {
+          const extension = extensionsStore.availableExtensions.find(
+            (ext) => ext.id === item.referenceId,
+          )
+          label = extension?.name || 'Unknown'
+          icon = extension?.icon || ''
+        }
+
+        return {
+          id: item.id,
+          workspaceId: item.workspaceId,
+          itemType: item.itemType,
+          referenceId: item.referenceId,
+          positionX: item.positionX,
+          positionY: item.positionY,
+          label,
+          icon,
+        }
+      })
+      map.set(workspaceId, enrichedItems)
+    }
+
+    return map
+  })
+
+  // Get icons for a specific workspace (uses cached computed)
+  const getWorkspaceIcons = (workspaceId: string) => {
+    return workspaceIconsMap.value.get(workspaceId) || []
+  }
+
+  // Find a free position on the current workspace grid
+  const findFreePosition = (
+    viewportWidth: number,
+    viewportHeight: number,
+    workspaceId?: string,
+  ) => {
+    const targetWorkspaceId = workspaceId || currentWorkspace.value?.id
+    if (!targetWorkspaceId) {
+      return snapToGrid(0, 0)
+    }
+
+    // Get all items on the target workspace
+    const workspaceItems = desktopItems.value.filter(
+      (item) => item.workspaceId === targetWorkspaceId,
+    )
+
+    // Create a set of occupied grid positions
+    const occupiedCells = new Set<string>()
+    const cellSize = gridCellSize.value
+
+    workspaceItems.forEach((item) => {
+      // Calculate grid cell for this item
+      const col = Math.round(item.positionX / cellSize)
+      const row = Math.round(item.positionY / cellSize)
+      occupiedCells.add(`${col},${row}`)
+    })
+
+    // Calculate max columns and rows based on viewport size
+    const maxCols = Math.max(1, Math.floor(viewportWidth / cellSize))
+    const maxRows = Math.max(1, Math.floor(viewportHeight / cellSize))
+
+    // Find first free position (scan left-to-right, top-to-bottom)
+    for (let row = 0; row < maxRows; row++) {
+      for (let col = 0; col < maxCols; col++) {
+        const key = `${col},${row}`
+        if (!occupiedCells.has(key)) {
+          // Found free position, snap to grid
+          const rawX = col * cellSize
+          const rawY = row * cellSize
+          return snapToGrid(rawX, rawY)
+        }
+      }
+    }
+
+    // Fallback: return (0, 0) if no free position found (grid is full)
+    return snapToGrid(0, 0)
+  }
+
+  const removeSelectedItemsAsync = async () => {
+    const idsToRemove = Array.from(selectedItemIds.value)
+    for (const itemId of idsToRemove) {
+      await removeDesktopItemAsync(itemId)
+    }
+    clearSelection()
+  }
+
   const getContextMenuItems = (
     id: string,
     itemType: DesktopItemType,
     referenceId: string,
     onUninstall: () => void,
   ) => {
+    // If multiple items are selected, show bulk action menu
+    if (selectedItemIds.value.size > 1 && selectedItemIds.value.has(id)) {
+      return [
+        [
+          {
+            label: $i18n.t('desktop.contextMenu.removeSelectedFromDesktop', {
+              count: selectedItemIds.value.size,
+            }),
+            icon: 'i-heroicons-x-mark',
+            onSelect: async () => {
+              await removeSelectedItemsAsync()
+            },
+          },
+        ],
+      ]
+    }
+
     const handleOpen = () => {
       openDesktopItem(itemType, referenceId)
     }
@@ -466,7 +759,14 @@ export const useDesktopStore = defineStore('desktopStore', () => {
     uninstallDesktopItem,
     toggleSelection,
     clearSelection,
+    selectAll,
     isItemSelected,
+    // Multi-drag
+    isMultiDragging,
+    multiDragLeaderId,
+    startMultiDrag,
+    updateMultiDragPositions,
+    endMultiDragAsync,
     // Grid settings
     iconSizePreset,
     syncDesktopIconSizeAsync,
@@ -474,5 +774,8 @@ export const useDesktopStore = defineStore('desktopStore', () => {
     effectiveIconSize,
     gridCellSize,
     snapToGrid,
+    findFreePosition,
+    // Workspace icons (cached)
+    getWorkspaceIcons,
   }
 })

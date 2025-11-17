@@ -53,6 +53,23 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
   // Window Dragging State (for drag & drop to workspaces)
   const draggingWindowId = ref<string | null>(null)
 
+  // Launcher button position (fallback for animations when no source position is available)
+  const launcherButtonPosition = ref<{
+    x: number
+    y: number
+    width: number
+    height: number
+  } | null>(null)
+
+  const setLauncherButtonPosition = (position: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }) => {
+    launcherButtonPosition.value = position
+  }
+
   // System Windows Registry
   const systemWindows: Record<string, SystemWindowDefinition> = {
     developer: {
@@ -72,7 +89,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       name: 'Settings',
       icon: 'i-mdi-cog',
       component: defineAsyncComponent(
-        () => import('@/components/haex/system/settings.vue'),
+        () => import('~/components/haex/system/settings/index.vue'),
       ) as Component,
       defaultWidth: 800,
       defaultHeight: 600,
@@ -168,8 +185,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
         // Determine if we should use native window based on display_mode and platform
         const displayMode = extension?.displayMode ?? 'auto'
         const shouldUseNativeWindow =
-          (displayMode === 'window') ||
-          (displayMode === 'auto' && isDesktop())
+          displayMode === 'window' || (displayMode === 'auto' && isDesktop())
 
         console.log('[windowManager] Extension display mode check:', {
           extensionId: sourceId,
@@ -182,17 +198,23 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
         // Desktop: Extensions can run in native WebviewWindows (separate processes)
         if (isDesktop() && shouldUseNativeWindow) {
           try {
-            console.log('[windowManager] Opening native window with sourceId:', sourceId)
+            console.log(
+              '[windowManager] Opening native window with sourceId:',
+              sourceId,
+            )
             console.log('[windowManager] Extension object:', extension)
             // Backend generates and returns the window_id
-            const windowId = await invoke<string>('open_extension_webview_window', {
-              extensionId: sourceId,
-              title: finalTitle,
-              width,
-              height,
-              x: undefined, // Let OS handle positioning
-              y: undefined,
-            })
+            const windowId = await invoke<string>(
+              'open_extension_webview_window',
+              {
+                extensionId: sourceId,
+                title: finalTitle,
+                width,
+                height,
+                x: undefined, // Let OS handle positioning
+                y: undefined,
+              },
+            )
 
             // Store minimal metadata for tracking (no UI management needed on desktop)
             const newWindow: IWindow = {
@@ -298,11 +320,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
 
         // Adjust width proportionally if needed (optional)
         const aspectRatio = width / height
-        windowWidth = Math.min(
-          width,
-          viewportWidth,
-          windowHeight * aspectRatio,
-        )
+        windowWidth = Math.min(width, viewportWidth, windowHeight * aspectRatio)
 
         // Calculate centered position with cascading offset (only count windows in current workspace)
         const offset = currentWorkspaceWindows.value.length * 30
@@ -311,6 +329,10 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
         x = Math.min(centerX + offset, viewportWidth - windowWidth)
         y = Math.min(centerY + offset, viewportHeight - windowHeight)
       }
+
+      // Use launcher button position as fallback if no source position provided
+      const effectiveSourcePosition =
+        sourcePosition || launcherButtonPosition.value
 
       const newWindow: IWindow = {
         id: windowId,
@@ -325,10 +347,10 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
         height: windowHeight,
         isMinimized: false,
         zIndex: nextZIndex.value++,
-        sourceX: sourcePosition?.x,
-        sourceY: sourcePosition?.y,
-        sourceWidth: sourcePosition?.width,
-        sourceHeight: sourcePosition?.height,
+        sourceX: effectiveSourcePosition?.x,
+        sourceY: effectiveSourcePosition?.y,
+        sourceWidth: effectiveSourcePosition?.width,
+        sourceHeight: effectiveSourcePosition?.height,
         isOpening: true,
         isClosing: false,
       }
@@ -370,8 +392,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       )
       const displayMode = extension?.displayMode ?? 'auto'
       const isNativeWindow =
-        (displayMode === 'window') ||
-        (displayMode === 'auto' && isDesktop())
+        displayMode === 'window' || (displayMode === 'auto' && isDesktop())
 
       // Only try to close native window if it's actually running as native window
       if (isNativeWindow) {
@@ -506,11 +527,13 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     getSystemWindow,
     getVisibleWindows,
     isWindowActive,
+    launcherButtonPosition,
     minimizeWindow,
     moveWindowsToWorkspace,
     openWindowAsync,
     openWindowsCount,
     restoreWindow,
+    setLauncherButtonPosition,
     showWindowOverview,
     updateWindowPosition,
     updateWindowSize,

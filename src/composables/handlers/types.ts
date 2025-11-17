@@ -1,5 +1,5 @@
 // Shared types for extension message handlers
-import type { IHaexHubExtension } from '~/types/haexhub'
+import type { IHaexSpaceExtension } from '~/types/haexspace'
 
 export interface ExtensionRequest {
   id: string
@@ -9,6 +9,6 @@ export interface ExtensionRequest {
 }
 
 export interface ExtensionInstance {
-  extension: IHaexHubExtension
+  extension: IHaexSpaceExtension
   windowId: string
 }

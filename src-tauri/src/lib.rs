@@ -115,6 +115,9 @@ pub fn run() {
             extension::preview_extension,
             extension::remove_dev_extension,
             extension::remove_extension,
+            extension::get_extension_permissions,
+            extension::update_extension_permissions,
+            extension::update_extension_display_mode,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::open_extension_webview_window,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]

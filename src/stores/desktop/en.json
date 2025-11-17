@@ -2,6 +2,7 @@
   "contextMenu": {
     "open": "Open",
     "removeFromDesktop": "Remove from Desktop",
+    "removeSelectedFromDesktop": "Remove {count} icons from Desktop",
     "uninstall": "Uninstall"
   },
   "confirmUninstall": {

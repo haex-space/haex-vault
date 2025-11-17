@@ -80,6 +80,12 @@ export const haexExtensions = sqliteTable(
     signature: text().notNull(),
     single_instance: integer({ mode: 'boolean' }).default(false),
     display_mode: text().default('auto'),
+    createdAt: text(tableNames.haex.extensions.columns.createdAt).default(
+      sql`(CURRENT_TIMESTAMP)`,
+    ),
+    updatedAt: integer(tableNames.haex.extensions.columns.updatedAt, {
+      mode: 'timestamp',
+    }).$onUpdate(() => new Date()),
   }),
   (table) => [
     // UNIQUE constraint: Pro Developer (public_key) kann nur eine Extension mit diesem Namen existieren

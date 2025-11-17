@@ -26,5 +26,5 @@ defineProps<{
   title?: string
 }>()
 
-const modelValue = defineModel<PermissionEntry[]>({ default: () => [] })
+const modelValue = defineModel<PermissionEntry[] | null>({ default: () => [] })
 </script>

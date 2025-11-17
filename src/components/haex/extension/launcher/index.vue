@@ -4,45 +4,35 @@
     direction="right"
     :title="t('launcher.title')"
     :description="t('launcher.description')"
-    :overlay="true"
+    :overlay="false"
     :modal="false"
     :handle-only="true"
     :dismissible="true"
   >
-    <UButton
-      icon="material-symbols:apps"
-      color="neutral"
-      variant="outline"
-      v-bind="$attrs"
-      size="lg"
-    />
+    <div ref="launcherButtonWrapperRef" class="inline-block">
+      <UButton
+        icon="material-symbols:apps"
+        color="neutral"
+        variant="outline"
+        v-bind="$attrs"
+        size="lg"
+      />
+    </div>
 
     <template #content>
       <div class="p-4 h-full overflow-y-auto">
         <div class="flex flex-wrap">
           <!-- All launcher items (system windows + enabled extensions, alphabetically sorted) -->
-          <UContextMenu
+          <HaexExtensionLauncherItem
             v-for="item in launcherItems"
+            :id="item.id"
             :key="item.id"
-            :items="getContextMenuItems(item)"
-          >
-            <UiButton
-              square
-              size="lg"
-              variant="ghost"
-              :ui="{
-                base: 'size-24 flex flex-wrap text-sm items-center justify-center overflow-visible cursor-grab',
-                leadingIcon: 'size-10',
-                label: 'w-full',
-              }"
-              :icon="item.icon"
-              :label="item.name"
-              :tooltip="item.name"
-              draggable="true"
-              @click="openItem(item)"
-              @dragstart="handleDragStart($event, item)"
-            />
-          </UContextMenu>
+            :type="item.type"
+            :name="item.name"
+            :icon="item.icon"
+            @click="openItem(item)"
+            @drag-move="handleLauncherDragMove"
+          />
 
           <!-- Disabled Extensions (grayed out) -->
           <UiButton
@@ -65,20 +55,6 @@
       </div>
     </template>
   </UiDrawer>
-
-  <!-- Uninstall Confirmation Dialog -->
-  <UiDialogConfirm
-    v-model:open="showUninstallDialog"
-    :title="t('uninstall.confirm.title')"
-    :description="
-      t('uninstall.confirm.description', {
-        name: extensionToUninstall?.name || '',
-      })
-    "
-    :confirm-label="t('uninstall.confirm.button')"
-    confirm-icon="i-heroicons-trash"
-    @confirm="confirmUninstall"
-  />
 </template>
 
 <script setup lang="ts">
@@ -88,17 +64,35 @@ defineOptions({
 
 const extensionStore = useExtensionsStore()
 const windowManagerStore = useWindowManagerStore()
-const uiStore = useUiStore()
 
 const { t } = useI18n()
 
 const open = ref(false)
+const launcherButtonWrapperRef = useTemplateRef<HTMLElement>(
+  'launcherButtonWrapperRef',
+)
 
-const { isSmallScreen } = storeToRefs(uiStore)
+// Update launcher button position for window animations
+const updateLauncherButtonPosition = () => {
+  if (!launcherButtonWrapperRef.value) return
 
-// Uninstall dialog state
-const showUninstallDialog = ref(false)
-const extensionToUninstall = ref<LauncherItem | null>(null)
+  const rect = launcherButtonWrapperRef.value.getBoundingClientRect()
+  windowManagerStore.setLauncherButtonPosition({
+    x: rect.left,
+    y: rect.top,
+    width: rect.width,
+    height: rect.height,
+  })
+}
+
+// Update position on mount and when window resizes
+onMounted(() => {
+  nextTick(() => {
+    updateLauncherButtonPosition()
+  })
+})
+
+useEventListener(window, 'resize', updateLauncherButtonPosition)
 
 // Unified launcher item type
 interface LauncherItem {
@@ -162,92 +156,11 @@ const openItem = async (item: LauncherItem) => {
   }
 }
 
-// Uninstall extension - shows confirmation dialog first
-const uninstallExtension = async (item: LauncherItem) => {
-  extensionToUninstall.value = item
-  showUninstallDialog.value = true
-}
-
-// Confirm uninstall - actually removes the extension
-const confirmUninstall = async () => {
-  if (!extensionToUninstall.value) return
-
-  try {
-    const extension = extensionStore.availableExtensions.find(
-      (ext) => ext.id === extensionToUninstall.value!.id,
-    )
-    if (!extension) return
-
-    // Close all windows of this extension first
-    const extensionWindows = windowManagerStore.windows.filter(
-      (win) => win.type === 'extension' && win.sourceId === extension.id,
-    )
-
-    for (const win of extensionWindows) {
-      windowManagerStore.closeWindow(win.id)
-    }
-
-    // Uninstall the extension
-    await extensionStore.removeExtensionAsync(
-      extension.publicKey,
-      extension.name,
-      extension.version,
-    )
-
-    // Refresh available extensions list
-    await extensionStore.loadExtensionsAsync()
-
-    // Close dialog and reset state
-    showUninstallDialog.value = false
-    extensionToUninstall.value = null
-  } catch (error) {
-    console.error('Failed to uninstall extension:', error)
-  }
-}
-
-// Get context menu items for launcher item
-const getContextMenuItems = (item: LauncherItem) => {
-  const items = [
-    {
-      label: t('contextMenu.open'),
-      icon: 'i-heroicons-arrow-top-right-on-square',
-      onSelect: () => openItem(item),
-    },
-  ]
-
-  // Add uninstall option for extensions
-  if (item.type === 'extension') {
-    items.push({
-      label: t('contextMenu.uninstall'),
-      icon: 'i-heroicons-trash',
-      onSelect: () => uninstallExtension(item),
-    })
-  }
-
-  return items
-}
-
-// Drag & Drop handling
-const handleDragStart = (event: DragEvent, item: LauncherItem) => {
-  if (!event.dataTransfer) return
-
-  // Store the launcher item data
-  event.dataTransfer.effectAllowed = 'copy'
-  event.dataTransfer.setData(
-    'application/haex-launcher-item',
-    JSON.stringify(item),
-  )
-
-  // Set drag image (optional - uses default if not set)
-  const dragImage = event.target as HTMLElement
-  if (dragImage) {
-    event.dataTransfer.setDragImage(dragImage, 20, 20)
-  }
-
-  // Close drawer on small screens to reveal workspace for drop
-  if (isSmallScreen.value) {
-    open.value = false
-  }
+// Handle drag move - close launcher when actual movement is detected
+const handleLauncherDragMove = () => {
+  // Now that movement is detected, it's safe to close the drawer
+  // The drag overlay should be fully operational at this point
+  open.value = false
 }
 </script>
 
@@ -260,7 +173,14 @@ de:
     description: Wähle eine App zum Öffnen
   contextMenu:
     open: Öffnen
+    addToDesktop: Zum Desktop hinzufügen
     uninstall: Deinstallieren
+  success:
+    addedToDesktop: Zum Desktop hinzugefügt
+  error:
+    noWorkspace: Kein Workspace aktiv
+    addToDesktop: Konnte nicht zum Desktop hinzugefügt werden
+    devExtension: Dev-Extensions können nicht auf dem Desktop platziert werden
   uninstall:
     confirm:
       title: Erweiterung deinstallieren
@@ -275,7 +195,14 @@ en:
     description: Select an app to open
   contextMenu:
     open: Open
+    addToDesktop: Add to Desktop
     uninstall: Uninstall
+  success:
+    addedToDesktop: Added to Desktop
+  error:
+    noWorkspace: No workspace active
+    addToDesktop: Could not add to Desktop
+    devExtension: Dev extensions cannot be placed on the Desktop
   uninstall:
     confirm:
       title: Uninstall Extension

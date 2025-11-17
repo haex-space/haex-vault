@@ -1,10 +1,10 @@
-import type { IHaexHubExtension } from '~/types/haexhub'
+import type { IHaexSpaceExtension } from '~/types/haexspace'
 import type { ExtensionRequest } from './types'
 import { invoke } from '@tauri-apps/api/core'
 
 export async function handlePermissionsMethodAsync(
   request: ExtensionRequest,
-  extension: IHaexHubExtension,
+  extension: IHaexSpaceExtension,
 ) {
   if (!extension || !request) {
     throw new Error('Extension not found')
@@ -29,7 +29,7 @@ export async function handlePermissionsMethodAsync(
 
 async function checkWebPermissionAsync(
   params: Record<string, unknown>,
-  extension: IHaexHubExtension,
+  extension: IHaexSpaceExtension,
 ) {
   const url = params.url as string
   const method = (params.method as string) || 'GET'
@@ -58,7 +58,7 @@ async function checkWebPermissionAsync(
 
 async function checkDatabasePermissionAsync(
   params: Record<string, unknown>,
-  extension: IHaexHubExtension,
+  extension: IHaexSpaceExtension,
 ) {
   const resource = params.resource as string
   const operation = params.operation as string
@@ -85,7 +85,7 @@ async function checkDatabasePermissionAsync(
 
 async function checkFilesystemPermissionAsync(
   params: Record<string, unknown>,
-  extension: IHaexHubExtension,
+  extension: IHaexSpaceExtension,
 ) {
   const path = params.path as string
   const operation = params.operation as string

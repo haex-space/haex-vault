@@ -3,12 +3,12 @@ import { writeFile } from '@tauri-apps/plugin-fs'
 import { openPath } from '@tauri-apps/plugin-opener'
 import { tempDir, join } from '@tauri-apps/api/path'
 import { HAEXTENSION_METHODS } from '@haex-space/sdk'
-import type { IHaexHubExtension } from '~/types/haexhub'
+import type { IHaexSpaceExtension } from '~/types/haexspace'
 import type { ExtensionRequest } from './types'
 
 export async function handleFilesystemMethodAsync(
   request: ExtensionRequest,
-  extension: IHaexHubExtension,
+  extension: IHaexSpaceExtension,
 ) {
   if (!request || !extension) return
 

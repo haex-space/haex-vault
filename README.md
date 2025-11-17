@@ -1,4 +1,4 @@
-# 🧩 HaexHub – The European “Everything App”
+# 🧩 HaexSpace – The European “Everything App”
 
 ## 🌍 Vision
 
@@ -16,20 +16,20 @@ Creating and maintaining one secure, high-quality app for _all_ systems can be a
 And then there’s **distribution**: each platform requires its own build, packaging, signing, and publishing process.  
 What if you could build your app **once** and deploy it **everywhere**?
 
-> **HaexHub** makes that possible — giving every web app or PWA **superpowers**.
+> **HaexSpace** makes that possible — giving every web app or PWA **superpowers**.
 
-With HaexHub, developers can extend functionality via **extensions** that run securely inside the app, with carefully controlled permissions for accessing system features (files, shell, database, etc.).
+With HaexSpace, developers can extend functionality via **extensions** that run securely inside the app, with carefully controlled permissions for accessing system features (files, shell, database, etc.).
 
 ---
 
-## 🚀 Enter HaexHub
+## 🚀 Enter HaexSpace
 
-HaexHub provides a **framework** for building and running modular, sandboxed **web extensions** — web apps that run in an isolated environment but can communicate securely with the host.
+HaexSpace provides a **framework** for building and running modular, sandboxed **web extensions** — web apps that run in an isolated environment but can communicate securely with the host.
 
 Each extension:
 
 - Runs inside an **IFrame**.
-- Uses **postMessage APIs** to communicate with HaexHub.
+- Uses **postMessage APIs** to communicate with HaexSpace.
 - Declares required **permissions** in a manifest file.
 - Can be added or removed at runtime.
 
@@ -38,18 +38,18 @@ Once granted, however, extensions can unlock full desktop-like capabilities:
 access files, execute commands, or interact with SQLite databases.
 
 Imagine a **web-based VS Code** that can directly access your local shell and file system — something that current web IDEs can’t do.  
-With HaexHub’s permission model, such power is possible, but **always under user control**.
+With HaexSpace’s permission model, such power is possible, but **always under user control**.
 
-HaexHub itself is **cross-platform** and runs on:
+HaexSpace itself is **cross-platform** and runs on:
 
 - 💻 Windows, macOS, Linux
 - 📱 Android, iOS
 - 🧠 Desktops, laptops, tablets, smartphones
 
 All user and extension data is stored in a **locally encrypted SQLite database**.  
-To sync across devices, HaexHub can connect to a **synchronization server** — which you can even **self-host** for maximum independence.
+To sync across devices, HaexSpace can connect to a **synchronization server** — which you can even **self-host** for maximum independence.
 
-> 🛡️ HaexHub is built on the principles of **privacy, security, and digital sovereignty**.
+> 🛡️ HaexSpace is built on the principles of **privacy, security, and digital sovereignty**.
 
 The user is always in control of their data — deciding what to share, and with whom.
 
@@ -57,7 +57,7 @@ The user is always in control of their data — deciding what to share, and with
 
 ## 🧠 Technical Foundations
 
-HaexHub is powered by **[Tauri](https://v2.tauri.app/)** — a secure, efficient framework for building native apps from web technologies.
+HaexSpace is powered by **[Tauri](https://v2.tauri.app/)** — a secure, efficient framework for building native apps from web technologies.
 
 Unlike Electron (used by apps like VS Code), Tauri:
 
@@ -65,26 +65,26 @@ Unlike Electron (used by apps like VS Code), Tauri:
 - Produces **smaller, faster apps**
 - Enforces **strong sandboxing and permission models**
 
-HaexHub builds upon Tauri’s security features, extending them to third-party extensions.
+HaexSpace builds upon Tauri’s security features, extending them to third-party extensions.
 
 ### 🏡 Local-first by Design
 
-HaexHub follows a **strict local-first architecture**:
+HaexSpace follows a **strict local-first architecture**:
 
 - Works **offline** without accounts or internet.
 - Stores data locally in **encrypted SQLite**.
 - Uses **CRDTs (Conflict-free Replicated Data Types)** for safe synchronization across devices — even with encrypted data.
 
-Unlike many “local-first” apps, HaexHub doesn’t just cache data in the browser.  
+Unlike many “local-first” apps, HaexSpace doesn’t just cache data in the browser.  
 Your data truly resides **on your disk**, not under a browser’s limited storage policy.
 
-Optionally, HaexHub can sync databases via a backend service — self-hosted or external — with optional **end-to-end encryption**.
+Optionally, HaexSpace can sync databases via a backend service — self-hosted or external — with optional **end-to-end encryption**.
 
 ---
 
 ## 🧩 Extensions
 
-Extensions are the heart of HaexHub.
+Extensions are the heart of HaexSpace.
 
 Everything the user interacts with — from password management to file syncing — will be implemented as **extensions**.
 
@@ -120,7 +120,7 @@ Another planned core extension will handle **file synchronization**:
 - Messenger
 - Browser & Payment Services (e.g., GNU Taler integration)
 
-With this modular design, HaexHub can evolve into a true **European alternative to WeChat** — but open, federated, and privacy-first.
+With this modular design, HaexSpace can evolve into a true **European alternative to WeChat** — but open, federated, and privacy-first.
 
 ---
 
@@ -196,11 +196,11 @@ GitHub Actions will then automatically:
 
 #### 🧭 Summary
 
-HaexHub aims to:
+HaexSpace aims to:
 
 - Simplify cross-platform app development
 - Empower users with local-first privacy
 - Enable developers to create modular, permissioned extensions
 - Bridge the gap between web and native worlds
 
-HaexHub is the foundation for a decentralized, privacy-friendly, European “everything app.”
+HaexSpace is the foundation for a decentralized, privacy-friendly, European “everything app.”

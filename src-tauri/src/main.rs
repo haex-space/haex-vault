@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    haex_hub_lib::run()
+    haex_space_lib::run()
 }

@@ -143,7 +143,7 @@
 </template>
 
 <script setup lang="ts">
-import type { IMarketplaceExtension } from '~/types/haexhub'
+import type { IMarketplaceExtension } from '~/types/haexspace'
 
 const props = defineProps<{
   extension: IMarketplaceExtension

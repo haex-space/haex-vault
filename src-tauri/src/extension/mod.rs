@@ -1,8 +1,9 @@
 /// src-tauri/src/extension/mod.rs
 use crate::{
     extension::{
-        core::{manager::ExtensionManager, EditablePermissions, ExtensionInfoResponse, ExtensionPreview},
+        core::{manager::ExtensionManager, EditablePermissions, ExtensionInfoResponse, ExtensionPreview, PermissionEntry},
         error::ExtensionError,
+        permissions::{manager::PermissionManager, types::{ResourceType, ExtensionPermission}},
     },
     AppState,
 };
@@ -333,7 +334,7 @@ pub async fn load_dev_extension(
     )?
     .ok_or_else(|| ExtensionError::ManifestError {
         reason: format!(
-            "Manifest not found at: {haextension_dir}/manifest.json. Make sure you run 'npx @haexhub/sdk init' first."
+            "Manifest not found at: {haextension_dir}/manifest.json. Make sure you run 'npx @haexspace/sdk init' first."
         ),
     })?;
 
@@ -431,6 +432,95 @@ pub fn get_all_dev_extensions(
     }
 
     Ok(extensions)
+}
+
+// ============================================================================
+// Permission Management Commands
+// ============================================================================
+
+/// Converts internal ExtensionPermission list to UI-friendly EditablePermissions format
+fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> EditablePermissions {
+    let mut database = Vec::new();
+    let mut filesystem = Vec::new();
+    let mut http = Vec::new();
+    let mut shell = Vec::new();
+
+    for perm in permissions {
+        let entry = PermissionEntry {
+            target: perm.target,
+            operation: Some(perm.action.as_str()),
+            constraints: perm.constraints.map(|c| serde_json::to_value(c).unwrap_or_default()),
+            status: Some(perm.status),
+        };
+
+        match perm.resource_type {
+            ResourceType::Db => database.push(entry),
+            ResourceType::Fs => filesystem.push(entry),
+            ResourceType::Web => http.push(entry),
+            ResourceType::Shell => shell.push(entry),
+        }
+    }
+
+    EditablePermissions {
+        database: if database.is_empty() { None } else { Some(database) },
+        filesystem: if filesystem.is_empty() { None } else { Some(filesystem) },
+        http: if http.is_empty() { None } else { Some(http) },
+        shell: if shell.is_empty() { None } else { Some(shell) },
+    }
+}
+
+#[tauri::command]
+pub async fn get_extension_permissions(
+    extension_id: String,
+    state: State<'_, AppState>,
+) -> Result<EditablePermissions, ExtensionError> {
+    use crate::extension::core::types::ExtensionSource;
+
+    // Check if this is a dev extension - if so, get permissions from manifest
+    if let Some(extension) = state.extension_manager.get_extension(&extension_id) {
+        match &extension.source {
+            ExtensionSource::Development { .. } => {
+                // Dev extension - return permissions from manifest with Granted status
+                return Ok(extension.manifest.to_editable_permissions());
+            }
+            ExtensionSource::Production { .. } => {
+                // Production extension - load from database
+                let permissions = PermissionManager::get_permissions(&state, &extension_id).await?;
+                return Ok(convert_to_editable_permissions(permissions));
+            }
+        }
+    }
+
+    // Extension not found in memory, try loading from database anyway
+    let permissions = PermissionManager::get_permissions(&state, &extension_id).await?;
+    Ok(convert_to_editable_permissions(permissions))
+}
+
+#[tauri::command]
+pub async fn update_extension_permissions(
+    extension_id: String,
+    permissions: EditablePermissions,
+    state: State<'_, AppState>,
+) -> Result<(), ExtensionError> {
+    // Delete old permissions
+    PermissionManager::delete_permissions(&state, &extension_id).await?;
+
+    // Convert to internal format and save
+    let internal_permissions = permissions.to_internal_permissions(&extension_id);
+    PermissionManager::save_permissions(&state, &internal_permissions).await?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn update_extension_display_mode(
+    extension_id: String,
+    display_mode: crate::extension::core::manifest::DisplayMode,
+    state: State<'_, AppState>,
+) -> Result<(), ExtensionError> {
+    state
+        .extension_manager
+        .update_display_mode(&extension_id, display_mode)
 }
 
 // ============================================================================

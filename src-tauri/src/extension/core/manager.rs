@@ -434,6 +434,45 @@ impl ExtensionManager {
         Ok(())
     }
 
+    /// Update the display mode of an extension (works for both dev and production extensions)
+    pub fn update_display_mode(
+        &self,
+        extension_id: &str,
+        display_mode: crate::extension::core::manifest::DisplayMode,
+    ) -> Result<(), ExtensionError> {
+        // Try dev extensions first
+        {
+            let mut dev_extensions =
+                self.dev_extensions
+                    .lock()
+                    .map_err(|e| ExtensionError::MutexPoisoned {
+                        reason: e.to_string(),
+                    })?;
+            if let Some(extension) = dev_extensions.get_mut(extension_id) {
+                extension.manifest.display_mode = Some(display_mode);
+                return Ok(());
+            }
+        }
+
+        // Try production extensions
+        {
+            let mut prod_extensions =
+                self.production_extensions
+                    .lock()
+                    .map_err(|e| ExtensionError::MutexPoisoned {
+                        reason: e.to_string(),
+                    })?;
+            if let Some(extension) = prod_extensions.get_mut(extension_id) {
+                extension.manifest.display_mode = Some(display_mode);
+                return Ok(());
+            }
+        }
+
+        Err(ExtensionError::ValidationError {
+            reason: format!("Extension with id '{}' not found", extension_id),
+        })
+    }
+
     pub async fn remove_extension_internal(
         &self,
         app_handle: &AppHandle,
@@ -529,7 +568,7 @@ impl ExtensionManager {
         file_bytes: Vec<u8>,
     ) -> Result<ExtensionPreview, ExtensionError> {
         let extracted =
-            Self::extract_and_validate_extension(file_bytes, "haexhub_preview", app_handle)?;
+            Self::extract_and_validate_extension(file_bytes, "haexspace_preview", app_handle)?;
 
         let is_valid_signature = ExtensionCrypto::verify_signature(
             &extracted.manifest.public_key,
@@ -555,7 +594,7 @@ impl ExtensionManager {
         state: &State<'_, AppState>,
     ) -> Result<String, ExtensionError> {
         let extracted =
-            Self::extract_and_validate_extension(file_bytes, "haexhub_ext", &app_handle)?;
+            Self::extract_and_validate_extension(file_bytes, "haexspace_ext", &app_handle)?;
 
         // Signatur verifizieren (bei Installation wird ein Fehler geworfen, nicht nur geprüft)
         ExtensionCrypto::verify_signature(

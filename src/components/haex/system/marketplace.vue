@@ -120,10 +120,10 @@
 
 <script setup lang="ts">
 import type {
-  IHaexHubExtension,
-  IHaexHubExtensionManifest,
+  IHaexSpaceExtension,
+  IHaexSpaceExtensionManifest,
   IMarketplaceExtension,
-} from '~/types/haexhub'
+} from '~/types/haexspace'
 import { open } from '@tauri-apps/plugin-dialog'
 import type { ExtensionPreview } from '~~/src-tauri/bindings/ExtensionPreview'
 
@@ -138,7 +138,7 @@ const showConfirmation = ref(false)
 const openOverwriteDialog = ref(false)
 
 const extension = reactive<{
-  manifest: IHaexHubExtensionManifest | null | undefined
+  manifest: IHaexSpaceExtensionManifest | null | undefined
   path: string | null
 }>({
   manifest: null,
@@ -204,7 +204,7 @@ const marketplaceExtensions = ref<IMarketplaceExtension[]>([
     id: 'haex-passy',
     name: 'HaexPassDummy',
     version: '1.0.0',
-    author: 'HaexHub Team',
+    author: 'HaexSpace Team',
     public_key:
       'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2',
     description:
@@ -223,7 +223,7 @@ const marketplaceExtensions = ref<IMarketplaceExtension[]>([
     id: 'haex-notes',
     name: 'HaexNotes',
     version: '2.1.0',
-    author: 'HaexHub Team',
+    author: 'HaexSpace Team',
     public_key:
       'b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3',
     description:
@@ -261,7 +261,7 @@ const marketplaceExtensions = ref<IMarketplaceExtension[]>([
     id: 'haex-calendar',
     name: 'HaexCalendar',
     version: '3.0.1',
-    author: 'HaexHub Team',
+    author: 'HaexSpace Team',
     public_key:
       'd4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5',
     description:
@@ -466,7 +466,7 @@ const reinstallExtensionAsync = async () => {
   }
 }
 
-const extensionToBeRemoved = ref<IHaexHubExtension>()
+const extensionToBeRemoved = ref<IHaexSpaceExtension>()
 const showRemoveDialog = ref(false)
 
 // Load extensions on mount
@@ -480,7 +480,7 @@ onMounted(async () => {
   }
 })
 
-/* const onShowRemoveDialog = (extension: IHaexHubExtension) => {
+/* const onShowRemoveDialog = (extension: IHaexSpaceExtension) => {
   extensionToBeRemoved.value = extension
   showRemoveDialog.value = true
 } */
@@ -543,7 +543,7 @@ const removeExtensionAsync = async () => {
 <i18n lang="yaml">
 de:
   title: Erweiterungen
-  subtitle: Entdecke und installiere Erweiterungen für HaexHub
+  subtitle: Entdecke und installiere Erweiterungen für HaexSpace
   extension:
     installFromFile: Von Datei installieren
     add: Erweiterung hinzufügen
@@ -578,7 +578,7 @@ de:
 
 en:
   title: Extensions
-  subtitle: Discover and install extensions for HaexHub
+  subtitle: Discover and install extensions for HaexSpace
   extension:
     installFromFile: Install from file
     add: Add Extension
