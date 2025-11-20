@@ -51,7 +51,10 @@
           "haex-extension:",
           "ipc:",
           "http://ipc.localhost",
-          "ws://localhost:*"
+          "ws://localhost:*",
+          "http://localhost:*",
+          "https://*.supabase.co",
+          "https://sync.haex.space"
         ],
         "img-src": [
           "'self'",

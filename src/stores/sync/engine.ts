@@ -4,13 +4,18 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
-import type { SelectHaexCrdtLogs } from '~/database/schemas'
+import { eq } from 'drizzle-orm'
+import type { SelectHaexCrdtChanges } from '~/database/schemas'
+import { haexSyncBackends } from '~/database/schemas'
 import {
   encryptVaultKeyAsync,
   decryptVaultKeyAsync,
   encryptCrdtDataAsync,
   decryptCrdtDataAsync,
   generateVaultKey,
+  deriveKeyFromPasswordAsync,
+  encryptStringAsync,
+  base64ToArrayBuffer,
 } from '~/utils/crypto/vaultKey'
 
 interface VaultKeyCache {
@@ -20,30 +25,24 @@ interface VaultKeyCache {
   }
 }
 
-interface SyncLogData {
-  vaultId: string
+interface SyncChangeData {
+  deviceId?: string | null
   encryptedData: string
   nonce: string
-  haexTimestamp: string
-  sequence: number
 }
 
-interface PullLogsResponse {
-  logs: Array<{
+interface PullChangesResponse {
+  changes: Array<{
     id: string
-    userId: string
-    vaultId: string
     encryptedData: string
     nonce: string
-    haexTimestamp: string
-    sequence: number
     createdAt: string
   }>
   hasMore: boolean
 }
 
 export const useSyncEngineStore = defineStore('syncEngineStore', () => {
-  const { currentVault, currentVaultId } = storeToRefs(useVaultStore())
+  const { currentVault } = storeToRefs(useVaultStore())
   const syncBackendsStore = useSyncBackendsStore()
 
   // In-memory cache for decrypted vault keys (cleared on logout/vault close)
@@ -69,10 +68,11 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
 
     const serverInfo = await response.json()
     const supabaseUrl = serverInfo.supabaseUrl
+    const supabaseAnonKey = serverInfo.supabaseAnonKey
 
-    // For now, we need to configure the anon key somewhere
-    // TODO: Store this in backend config or fetch from somewhere secure
-    const supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY'
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error('Supabase configuration missing from server')
+    }
 
     supabaseClient.value = createClient(supabaseUrl, supabaseAnonKey)
   }
@@ -92,11 +92,13 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   }
 
   /**
-   * Stores encrypted vault key on the server
+   * Uploads encrypted vault key to the server
    */
-  const storeVaultKeyAsync = async (
+  const uploadVaultKeyAsync = async (
     backendId: string,
     vaultId: string,
+    vaultKey: Uint8Array,
+    vaultName: string,
     password: string,
   ): Promise<void> => {
     const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
@@ -104,11 +106,18 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       throw new Error('Backend not found')
     }
 
-    // Generate new vault key
-    const vaultKey = generateVaultKey()
-
     // Encrypt vault key with password
-    const encryptedData = await encryptVaultKeyAsync(vaultKey, password)
+    const encryptedVaultKeyData = await encryptVaultKeyAsync(vaultKey, password)
+
+    // Derive key from password to encrypt vault name (use same salt as vault key)
+    const salt = base64ToArrayBuffer(encryptedVaultKeyData.salt)
+    const derivedKey = await deriveKeyFromPasswordAsync(password, salt)
+
+    // Encrypt vault name with derived key
+    const encryptedVaultNameData = await encryptStringAsync(
+      vaultName,
+      derivedKey,
+    )
 
     // Get auth token
     const token = await getAuthTokenAsync()
@@ -125,22 +134,22 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       },
       body: JSON.stringify({
         vaultId,
-        ...encryptedData,
+        encryptedVaultKey: encryptedVaultKeyData.encryptedVaultKey,
+        encryptedVaultName: encryptedVaultNameData.encryptedData,
+        salt: encryptedVaultKeyData.salt,
+        vaultKeyNonce: encryptedVaultKeyData.vaultKeyNonce,
+        vaultNameNonce: encryptedVaultNameData.nonce,
       }),
     })
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
       throw new Error(
-        `Failed to store vault key: ${error.error || response.statusText}`,
+        `Failed to upload vault key: ${error.error || response.statusText}`,
       )
     }
 
-    // Cache decrypted vault key
-    vaultKeyCache.value[vaultId] = {
-      vaultKey,
-      timestamp: Date.now(),
-    }
+    console.log('✅ Vault key uploaded to server')
   }
 
   /**
@@ -185,6 +194,11 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
+      console.error('Get vault key error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error,
+      })
       throw new Error(
         `Failed to get vault key: ${error.error || response.statusText}`,
       )
@@ -194,9 +208,9 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
 
     // Decrypt vault key
     const vaultKey = await decryptVaultKeyAsync(
-      data.encryptedVaultKey,
-      data.salt,
-      data.nonce,
+      data.vaultKey.encryptedVaultKey,
+      data.vaultKey.salt,
+      data.vaultKey.vaultKeyNonce,
       password,
     )
 
@@ -210,12 +224,12 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   }
 
   /**
-   * Pushes CRDT logs to the server
+   * Pushes CRDT changes to the server
    */
-  const pushLogsAsync = async (
+  const pushChangesAsync = async (
     backendId: string,
     vaultId: string,
-    logs: SelectHaexCrdtLogs[],
+    changes: SelectHaexCrdtChanges[],
   ): Promise<void> => {
     const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
     if (!backend) {
@@ -236,23 +250,21 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       throw new Error('Not authenticated')
     }
 
-    // Encrypt each log entry
-    const encryptedLogs: SyncLogData[] = []
-    for (const log of logs) {
+    // Encrypt each change entry (exclude syncState and deviceId - they're sent separately/client-specific)
+    const encryptedChanges: SyncChangeData[] = []
+    for (const change of changes) {
+      // Remove syncState and deviceId before encrypting - deviceId is sent separately, syncState is client-specific
+      const { syncState, deviceId, ...changeWithoutClientData } = change
+
       const { encryptedData, nonce } = await encryptCrdtDataAsync(
-        log,
+        changeWithoutClientData,
         vaultKey,
       )
 
-      // Generate sequence number based on timestamp
-      const sequence = Date.now()
-
-      encryptedLogs.push({
-        vaultId,
+      encryptedChanges.push({
+        deviceId,
         encryptedData,
         nonce,
-        haexTimestamp: log.haexTimestamp!,
-        sequence,
       })
     }
 
@@ -265,7 +277,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       },
       body: JSON.stringify({
         vaultId,
-        logs: encryptedLogs,
+        changes: encryptedChanges,
       }),
     })
 
@@ -278,14 +290,15 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   }
 
   /**
-   * Pulls CRDT logs from the server
+   * Pulls CRDT changes from the server
    */
-  const pullLogsAsync = async (
+  const pullChangesAsync = async (
     backendId: string,
     vaultId: string,
-    afterSequence?: number,
+    excludeDeviceId?: string,
+    afterCreatedAt?: string,
     limit?: number,
-  ): Promise<SelectHaexCrdtLogs[]> => {
+  ): Promise<SelectHaexCrdtChanges[]> => {
     const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
     if (!backend) {
       throw new Error('Backend not found')
@@ -314,7 +327,8 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       },
       body: JSON.stringify({
         vaultId,
-        afterSequence,
+        excludeDeviceId,
+        afterCreatedAt,
         limit: limit ?? 100,
       }),
     })
@@ -326,25 +340,136 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       )
     }
 
-    const data: PullLogsResponse = await response.json()
+    const data: PullChangesResponse = await response.json()
 
     // Decrypt each log entry
-    const decryptedLogs: SelectHaexCrdtLogs[] = []
-    for (const log of data.logs) {
+    const decryptedLogs: SelectHaexCrdtChanges[] = []
+    for (const change of data.changes) {
       try {
-        const decrypted = await decryptCrdtDataAsync<SelectHaexCrdtLogs>(
-          log.encryptedData,
-          log.nonce,
+        const decrypted = await decryptCrdtDataAsync<Omit<SelectHaexCrdtChanges, 'syncState'>>(
+          change.encryptedData,
+          change.nonce,
           vaultKey,
         )
-        decryptedLogs.push(decrypted)
+
+        // Add syncState for downloaded changes - they need to be applied locally
+        decryptedLogs.push({
+          ...decrypted,
+          syncState: 'pending_apply',
+        })
       } catch (error) {
-        console.error('Failed to decrypt log entry:', log.id, error)
+        console.error('Failed to decrypt log entry:', change.id, error)
         // Skip corrupted entries
       }
     }
 
     return decryptedLogs
+  }
+
+  /**
+   * Gets sync key for a backend from haex_sync_backends table
+   * Returns null if not found
+   */
+  const getSyncKeyFromDbAsync = async (
+    backendId: string,
+  ): Promise<Uint8Array | null> => {
+    if (!currentVault.value?.drizzle) {
+      throw new Error('No vault opened')
+    }
+
+    const results = await currentVault.value.drizzle
+      .select()
+      .from(haexSyncBackends)
+      .where(eq(haexSyncBackends.id, backendId))
+      .limit(1)
+
+    if (!results[0]?.syncKey) {
+      return null
+    }
+
+    // Stored as Base64, convert back to Uint8Array
+    return Uint8Array.from(atob(results[0].syncKey), (c) => c.charCodeAt(0))
+  }
+
+  /**
+   * Saves sync key for a backend to haex_sync_backends table
+   */
+  const saveSyncKeyToDbAsync = async (
+    backendId: string,
+    syncKey: Uint8Array,
+  ): Promise<void> => {
+    if (!currentVault.value?.drizzle) {
+      throw new Error('No vault opened')
+    }
+
+    // Convert Uint8Array to Base64
+    const base64 = btoa(String.fromCharCode(...syncKey))
+
+    // Update the backend with the sync key
+    await currentVault.value.drizzle
+      .update(haexSyncBackends)
+      .set({ syncKey: base64 })
+      .where(eq(haexSyncBackends.id, backendId))
+  }
+
+  /**
+   * Ensures sync key exists for a backend (loads from DB or generates new one)
+   * Also ensures the key is uploaded to the server
+   */
+  const ensureSyncKeyAsync = async (
+    backendId: string,
+    vaultId: string,
+    vaultName: string,
+    password: string,
+  ): Promise<Uint8Array> => {
+    // 1. Try to load from local DB
+    let syncKey = await getSyncKeyFromDbAsync(backendId)
+
+    if (syncKey) {
+      // Key exists locally, cache it
+      vaultKeyCache.value[vaultId] = {
+        vaultKey: syncKey,
+        timestamp: Date.now(),
+      }
+      console.log('✅ Sync key loaded from local database')
+      return syncKey
+    }
+
+    // 2. Key doesn't exist locally - check if it exists on server
+    try {
+      syncKey = await getVaultKeyAsync(backendId, vaultId, password)
+      // Key exists on server, save it locally
+      await saveSyncKeyToDbAsync(backendId, syncKey)
+      console.log('✅ Sync key downloaded from server and saved locally')
+      return syncKey
+    } catch (error) {
+      // Key doesn't exist on server either
+      if (error instanceof Error && error.message.includes('not found')) {
+        // 3. Generate new key and upload to server
+        console.log('📤 Generating new sync key...')
+        syncKey = generateVaultKey()
+
+        // Save locally first
+        await saveSyncKeyToDbAsync(backendId, syncKey)
+
+        // Cache it
+        vaultKeyCache.value[vaultId] = {
+          vaultKey: syncKey,
+          timestamp: Date.now(),
+        }
+
+        // Upload to server with the same key we just generated
+        await uploadVaultKeyAsync(backendId, vaultId, syncKey, vaultName, password)
+
+        console.log(
+          '✅ New sync key generated, uploaded to server, and saved locally',
+        )
+        return syncKey
+      }
+
+      // Other errors should be propagated
+      throw error
+    }
   }
 
   /**
@@ -380,10 +505,13 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     supabaseClient,
     initSupabaseClientAsync,
     getAuthTokenAsync,
-    storeVaultKeyAsync,
+    uploadVaultKeyAsync,
     getVaultKeyAsync,
-    pushLogsAsync,
-    pullLogsAsync,
+    pushChangesAsync,
+    pullChangesAsync,
+    getSyncKeyFromDbAsync,
+    saveSyncKeyToDbAsync,
+    ensureSyncKeyAsync,
     clearVaultKeyCache,
     healthCheckAsync,
   }

@@ -3,13 +3,11 @@
 use crate::crdt::insert_transformer::InsertTransformer;
 use crate::crdt::trigger::HLC_TIMESTAMP_COLUMN;
 use crate::database::error::DatabaseError;
-use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_LOGS};
 use sqlparser::ast::{
     Assignment, AssignmentTarget, ColumnDef, DataType, Expr, Ident, ObjectName, ObjectNamePart,
     Statement, TableFactor, TableObject, Value,
 };
 use std::borrow::Cow;
-use std::collections::HashSet;
 use uhlc::Timestamp;
 
 /// Konfiguration für CRDT-Spalten
@@ -47,25 +45,26 @@ impl CrdtColumns {
 
 pub struct CrdtTransformer {
     columns: CrdtColumns,
-    excluded_tables: HashSet<&'static str>,
 }
 
 impl CrdtTransformer {
     pub fn new() -> Self {
-        let mut excluded_tables = HashSet::new();
-        excluded_tables.insert(TABLE_CRDT_CONFIGS);
-        excluded_tables.insert(TABLE_CRDT_LOGS);
-
         Self {
             columns: CrdtColumns::DEFAULT,
-            excluded_tables,
         }
     }
 
     /// Prüft, ob eine Tabelle CRDT-Synchronisation unterstützen soll
     fn is_crdt_sync_table(&self, name: &ObjectName) -> bool {
         let table_name = self.normalize_table_name(name);
-        !self.excluded_tables.contains(table_name.as_ref())
+
+        // Exclude all haex_crdt_* tables (internal CRDT metadata)
+        // This includes: haex_crdt_changes, haex_crdt_configs, haex_crdt_snapshots, haex_crdt_sync_status
+        if table_name.starts_with("haex_crdt_") {
+            return false;
+        }
+
+        true
     }
 
     /// Normalisiert Tabellennamen (entfernt Anführungszeichen)

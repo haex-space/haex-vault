@@ -47,9 +47,8 @@ const { hostname } = storeToRefs(useDeviceStore())
 const newDeviceName = ref<string>('unknown')
 
 const { readNotificationsAsync } = useNotificationStore()
-const { isKnownDeviceAsync } = useDeviceStore()
+const { isKnownDeviceAsync, addDeviceNameAsync, setAsCurrentDeviceAsync } = useDeviceStore()
 const { loadExtensionsAsync } = useExtensionsStore()
-const { addDeviceNameAsync } = useDeviceStore()
 const { deviceId } = storeToRefs(useDeviceStore())
 const { syncLocaleAsync, syncThemeAsync, syncVaultNameAsync } =
   useVaultSettingsStore()
@@ -77,6 +76,9 @@ onMounted(async () => {
       console.log('not known device')
       newDeviceName.value = hostname.value ?? 'unknown'
       showNewDeviceDialog.value = true
+    } else {
+      // Device is known, set it as current device
+      await setAsCurrentDeviceAsync()
     }
   } catch (error) {
     console.error('vault mount error:', error)
@@ -93,6 +95,10 @@ const onSetDeviceNameAsync = async () => {
     }
 
     await addDeviceNameAsync({ name: newDeviceName.value })
+
+    // Set this device as the current device in the vault
+    await setAsCurrentDeviceAsync()
+
     showNewDeviceDialog.value = false
     add({ color: 'success', description: t('newDevice.success') })
   } catch (error) {

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import {
   haexSyncBackends,
   type InsertHaexSyncBackends,
@@ -116,6 +116,34 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
     return updateBackendAsync(id, { priority })
   }
 
+  // Find backend by server URL and email (for checking duplicates)
+  const findBackendByCredentialsAsync = async (
+    serverUrl: string,
+    email: string,
+  ): Promise<SelectHaexSyncBackends | null> => {
+    if (!currentVault.value?.drizzle) {
+      throw new Error('No vault opened')
+    }
+
+    try {
+      const result = await currentVault.value.drizzle
+        .select()
+        .from(haexSyncBackends)
+        .where(
+          and(
+            eq(haexSyncBackends.serverUrl, serverUrl),
+            eq(haexSyncBackends.email, email),
+          ),
+        )
+        .limit(1)
+
+      return result[0] ?? null
+    } catch (error) {
+      console.error('Failed to find backend by credentials:', error)
+      throw error
+    }
+  }
+
   return {
     backends,
     enabledBackends,
@@ -126,5 +154,6 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
     deleteBackendAsync,
     toggleBackendAsync,
     updatePriorityAsync,
+    findBackendByCredentialsAsync,
   }
 })

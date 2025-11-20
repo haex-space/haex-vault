@@ -133,65 +133,6 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
       .where(eq(schema.haexSettings.key, 'vaultName'))
   }
 
-  const readDeviceNameAsync = async (deviceId?: string) => {
-    const { currentVault } = useVaultStore()
-
-    if (!deviceId) return undefined
-
-    const device =
-      await currentVault?.drizzle?.query.haexDevices.findFirst({
-        where: eq(schema.haexDevices.deviceId, deviceId),
-      })
-
-    // Workaround für Drizzle Bug: findFirst gibt manchmal Objekt mit undefined Werten zurück
-    // https://github.com/drizzle-team/drizzle-orm/issues/3872
-    // Prüfe ob das Device wirklich existiert (id muss gesetzt sein, da NOT NULL)
-    if (!device?.id) return undefined
-
-    return device
-  }
-
-  const addDeviceNameAsync = async ({
-    deviceId,
-    deviceName,
-  }: {
-    deviceId: string
-    deviceName: string
-  }) => {
-    const { currentVault } = useVaultStore()
-
-    const isNameOk = vaultDeviceNameSchema.safeParse(deviceName)
-    if (!isNameOk.success) {
-      console.log('deviceName not OK', isNameOk.error)
-      return
-    }
-
-    return currentVault?.drizzle?.insert(schema.haexDevices).values({
-      deviceId,
-      name: deviceName,
-    })
-  }
-
-  const updateDeviceNameAsync = async ({
-    deviceId,
-    deviceName,
-  }: {
-    deviceId: string
-    deviceName: string
-  }) => {
-    const { currentVault } = useVaultStore()
-
-    const isNameOk = vaultDeviceNameSchema.safeParse(deviceName)
-    if (!isNameOk.success) return
-
-    return currentVault?.drizzle
-      ?.update(schema.haexDevices)
-      .set({
-        name: deviceName,
-      })
-      .where(eq(schema.haexDevices.deviceId, deviceId))
-  }
-
   const syncDesktopIconSizeAsync = async (deviceInternalId: string) => {
     const iconSizeRow =
       await currentVault.value?.drizzle.query.haexSettings.findFirst({
@@ -233,12 +174,9 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
   }
 
   return {
-    addDeviceNameAsync,
-    readDeviceNameAsync,
     syncLocaleAsync,
     syncThemeAsync,
     syncVaultNameAsync,
-    updateDeviceNameAsync,
     updateLocaleAsync,
     updateThemeAsync,
     updateVaultNameAsync,

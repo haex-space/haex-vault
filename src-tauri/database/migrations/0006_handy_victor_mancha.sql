@@ -1,0 +1,1 @@
+ALTER TABLE `haex_sync_backends` ADD `vault_id` text;

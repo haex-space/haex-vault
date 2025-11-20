@@ -1,0 +1,1 @@
+ALTER TABLE `haex_devices` ADD `current` integer DEFAULT false NOT NULL;

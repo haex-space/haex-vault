@@ -186,7 +186,7 @@ impl HlcService {
 
     /// Lädt den letzten persistierten Zeitstempel aus der Datenbank.
     fn load_last_timestamp(conn: &Connection) -> Result<Option<Timestamp>, HlcError> {
-        let query = format!("SELECT value FROM {TABLE_CRDT_CONFIGS} WHERE key = ?1");
+        let query = format!("SELECT value FROM {TABLE_CRDT_CONFIGS} WHERE key = ?1 AND type = 'hlc'");
 
         match conn.query_row(&query, params![HLC_TIMESTAMP_TYPE], |row| {
             row.get::<_, String>(0)
@@ -207,7 +207,7 @@ impl HlcService {
         let timestamp_str = timestamp.to_string();
         tx.execute(
             &format!(
-                "INSERT INTO {TABLE_CRDT_CONFIGS} (key, value) VALUES (?1, ?2)
+                "INSERT INTO {TABLE_CRDT_CONFIGS} (key, type, value) VALUES (?1, 'hlc', ?2)
                  ON CONFLICT(key) DO UPDATE SET value = excluded.value"
             ),
             params![HLC_TIMESTAMP_TYPE, timestamp_str],

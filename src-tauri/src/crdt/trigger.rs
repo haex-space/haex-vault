@@ -1,5 +1,5 @@
 // src-tauri/src/crdt/trigger.rs
-use crate::table_names::TABLE_CRDT_LOGS;
+use crate::table_names::TABLE_CRDT_CHANGES;
 use rusqlite::{Connection, Result as RusqliteResult, Row, Transaction};
 use serde::Serialize;
 use std::error::Error;
@@ -236,6 +236,8 @@ pub fn drop_triggers_for_table(
 }
  */
 /// Generiert das SQL für den INSERT-Trigger.
+/// Neues Format: Value-less logging - nur Metadaten werden gespeichert.
+/// Verwendet INSERT OR REPLACE um nur den letzten Change pro (table, row, column) zu behalten.
 fn generate_insert_trigger_sql(table_name: &str, pks: &[String], cols: &[String]) -> String {
     let pk_json_payload = pks
         .iter()
@@ -244,17 +246,17 @@ fn generate_insert_trigger_sql(table_name: &str, pks: &[String], cols: &[String]
         .join(", ");
 
     let column_inserts = if cols.is_empty() {
-        // Nur PKs -> einfacher Insert ins Log
+        // Nur PKs -> ein Insert mit NULL column_name
         format!(
-            "INSERT INTO {TABLE_CRDT_LOGS} (id, haex_timestamp, op_type, table_name, row_pks)
-            VALUES ({UUID_FUNCTION_NAME}(), NEW.\"{HLC_TIMESTAMP_COLUMN}\", 'INSERT', '{table_name}', json_object({pk_json_payload}));"
+            "INSERT OR REPLACE INTO {TABLE_CRDT_CHANGES} (table_name, row_pks, column_name, operation, hlc_timestamp, sync_state, device_id, created_at)
+            VALUES ('{table_name}', json_object({pk_json_payload}), NULL, 'INSERT', NEW.\"{HLC_TIMESTAMP_COLUMN}\", 'pending_upload', (SELECT device_id FROM haex_devices WHERE current = 1), datetime('now'));"
         )
     } else {
         cols.iter().fold(String::new(), |mut acc, col| {
             writeln!(
                 &mut acc,
-                "INSERT INTO {TABLE_CRDT_LOGS} (id, haex_timestamp, op_type, table_name, row_pks, column_name, new_value)
-                VALUES ({UUID_FUNCTION_NAME}(), NEW.\"{HLC_TIMESTAMP_COLUMN}\", 'INSERT', '{table_name}', json_object({pk_json_payload}), '{col}', json_object('value', NEW.\"{col}\"));"
+                "INSERT OR REPLACE INTO {TABLE_CRDT_CHANGES} (table_name, row_pks, column_name, operation, hlc_timestamp, sync_state, device_id, created_at)
+                VALUES ('{table_name}', json_object({pk_json_payload}), '{col}', 'INSERT', NEW.\"{HLC_TIMESTAMP_COLUMN}\", 'pending_upload', (SELECT device_id FROM haex_devices WHERE current = 1), datetime('now'));"
             ).unwrap();
             acc
         })
@@ -278,6 +280,9 @@ fn drop_trigger_sql(trigger_name: String) -> String {
 }
 
 /// Generiert das SQL für den UPDATE-Trigger.
+/// Neues Format: Value-less logging mit INSERT-Optimierung.
+/// Wenn bereits ein INSERT mit sync_state='pending_upload' existiert, wird kein UPDATE geloggt,
+/// da der INSERT beim Sync ohnehin alle Spalten synchronisiert.
 fn generate_update_trigger_sql(table_name: &str, pks: &[String], cols: &[String]) -> String {
     let pk_json_payload = pks
         .iter()
@@ -287,20 +292,25 @@ fn generate_update_trigger_sql(table_name: &str, pks: &[String], cols: &[String]
 
     let mut body = String::new();
 
-    // Spaltenänderungen loggen
+    // Spaltenänderungen loggen - aber nur wenn kein pending INSERT existiert
     if !cols.is_empty() {
         for col in cols {
             writeln!(
                 &mut body,
-                "INSERT INTO {TABLE_CRDT_LOGS} (id, haex_timestamp, op_type, table_name, row_pks, column_name, new_value, old_value)
-                    SELECT {UUID_FUNCTION_NAME}(), NEW.\"{HLC_TIMESTAMP_COLUMN}\", 'UPDATE', '{table_name}', json_object({pk_json_payload}), '{col}',
-                    json_object('value', NEW.\"{col}\"), json_object('value', OLD.\"{col}\")
-                    WHERE NEW.\"{col}\" IS NOT OLD.\"{col}\";"
+                "INSERT OR REPLACE INTO {TABLE_CRDT_CHANGES} (table_name, row_pks, column_name, operation, hlc_timestamp, sync_state, device_id, created_at)
+                    SELECT '{table_name}', json_object({pk_json_payload}), '{col}', 'UPDATE', NEW.\"{HLC_TIMESTAMP_COLUMN}\", 'pending_upload', (SELECT device_id FROM haex_devices WHERE current = 1), datetime('now')
+                    WHERE NEW.\"{col}\" IS NOT OLD.\"{col}\"
+                    AND NOT EXISTS (
+                        SELECT 1 FROM {TABLE_CRDT_CHANGES}
+                        WHERE table_name = '{table_name}'
+                        AND row_pks = json_object({pk_json_payload})
+                        AND column_name = '{col}'
+                        AND operation = 'INSERT'
+                        AND sync_state = 'pending_upload'
+                    );"
             ).unwrap();
         }
     }
-
-    // Soft-delete Logging entfernt - wir nutzen jetzt Hard Deletes mit eigenem BEFORE DELETE Trigger
 
     let trigger_name = UPDATE_TRIGGER_TPL.replace("{TABLE_NAME}", table_name);
 
@@ -315,8 +325,10 @@ fn generate_update_trigger_sql(table_name: &str, pks: &[String], cols: &[String]
 }
 
 /// Generiert das SQL für den BEFORE DELETE-Trigger.
-/// WICHTIG: BEFORE DELETE damit die Daten noch verfügbar sind!
-fn generate_delete_trigger_sql(table_name: &str, pks: &[String], cols: &[String]) -> String {
+/// Neues Format: Ein einzelner Eintrag mit column_name = NULL für die ganze Row.
+/// Alle vorherigen INSERT/UPDATE Einträge für diese Row werden gelöscht,
+/// da DELETE alle überschreibt ("delete wins").
+fn generate_delete_trigger_sql(table_name: &str, pks: &[String], _cols: &[String]) -> String {
     let pk_json_payload = pks
         .iter()
         .map(|pk| format!("'{pk}', OLD.\"{pk}\""))
@@ -325,25 +337,23 @@ fn generate_delete_trigger_sql(table_name: &str, pks: &[String], cols: &[String]
 
     let mut body = String::new();
 
-    // Alle Spaltenwerte speichern für mögliche Wiederherstellung
-    if !cols.is_empty() {
-        for col in cols {
-            writeln!(
-                &mut body,
-                "INSERT INTO {TABLE_CRDT_LOGS} (id, haex_timestamp, op_type, table_name, row_pks, column_name, old_value)
-                    VALUES ({UUID_FUNCTION_NAME}(), OLD.\"{HLC_TIMESTAMP_COLUMN}\", 'DELETE', '{table_name}', json_object({pk_json_payload}), '{col}',
-                    json_object('value', OLD.\"{col}\"));"
-            ).unwrap();
-        }
-    } else {
-        // Nur PKs -> minimales Delete Log
-        writeln!(
-            &mut body,
-            "INSERT INTO {TABLE_CRDT_LOGS} (id, haex_timestamp, op_type, table_name, row_pks)
-                VALUES ({UUID_FUNCTION_NAME}(), OLD.\"{HLC_TIMESTAMP_COLUMN}\", 'DELETE', '{table_name}', json_object({pk_json_payload}));"
-        )
-        .unwrap();
-    }
+    // Lösche alle vorherigen pending Einträge für diese Row (INSERT/UPDATE)
+    writeln!(
+        &mut body,
+        "DELETE FROM {TABLE_CRDT_CHANGES}
+            WHERE table_name = '{table_name}'
+            AND row_pks = json_object({pk_json_payload})
+            AND sync_state = 'pending_upload';"
+    )
+    .unwrap();
+
+    // Ein einzelner DELETE-Eintrag für die ganze Row (column_name = NULL)
+    writeln!(
+        &mut body,
+        "INSERT OR REPLACE INTO {TABLE_CRDT_CHANGES} (table_name, row_pks, column_name, operation, hlc_timestamp, sync_state, device_id, created_at)
+            VALUES ('{table_name}', json_object({pk_json_payload}), NULL, 'DELETE', OLD.\"{HLC_TIMESTAMP_COLUMN}\", 'pending_upload', (SELECT device_id FROM haex_devices WHERE current = 1), datetime('now'));"
+    )
+    .unwrap();
 
     let trigger_name = DELETE_TRIGGER_TPL.replace("{TABLE_NAME}", table_name);
 

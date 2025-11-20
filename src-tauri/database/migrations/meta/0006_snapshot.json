@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "6c765aef-c891-4d45-88c9-7f468f761d34",
-  "prevId": "8794eebb-9d00-4a16-b2fe-386366bf8e40",
+  "id": "82dd07ca-10c8-4366-bda0-fbc481c142d2",
+  "prevId": "309a7ccd-654f-482b-831d-36ae4dd52811",
   "tables": {
     "haex_crdt_changes": {
       "name": "haex_crdt_changes",
@@ -50,6 +50,13 @@
           "autoincrement": false,
           "default": "'pending_upload'"
         },
+        "device_id": {
+          "name": "device_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "text",
@@ -78,6 +85,13 @@
           "columns": [
             "table_name",
             "row_pks"
+          ],
+          "isUnique": false
+        },
+        "idx_crdt_changes_device_id": {
+          "name": "idx_crdt_changes_device_id",
+          "columns": [
+            "device_id"
           ],
           "isUnique": false
         }
@@ -347,6 +361,14 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "current": {
+          "name": "current",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "created_at": {
           "name": "created_at",
@@ -815,6 +837,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "vault_id": {
+          "name": "vault_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "email": {
           "name": "email",
           "type": "text",
@@ -824,6 +853,13 @@
         },
         "password": {
           "name": "password",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "sync_key": {
+          "name": "sync_key",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

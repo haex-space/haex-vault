@@ -32,6 +32,8 @@
         v-if="activeCategory === 'notifications'"
       />
       <HaexSystemSettingsExtensions v-if="activeCategory === 'extensions'" />
+      <HaexSystemSettingsDatabase v-if="activeCategory === 'database'" />
+      <HaexSystemSettingsSync v-if="activeCategory === 'sync'" />
     </div>
   </HaexSystem>
 </template>
@@ -91,6 +93,24 @@ const categories = computed(() => [
       activeCategory.value = 'extensions'
     },
   },
+  {
+    value: 'database',
+    label: t('categories.database'),
+    icon: 'i-heroicons-circle-stack',
+    active: activeCategory.value === 'database',
+    click: () => {
+      activeCategory.value = 'database'
+    },
+  },
+  {
+    value: 'sync',
+    label: t('categories.sync'),
+    icon: 'i-heroicons-arrow-path',
+    active: activeCategory.value === 'sync',
+    click: () => {
+      activeCategory.value = 'sync'
+    },
+  },
 ])
 </script>
 
@@ -102,6 +122,8 @@ de:
     workspace: Arbeitsbereich
     notifications: Benachrichtigungen
     extensions: Erweiterungen
+    database: Datenbank
+    sync: Synchronisation
 en:
   categories:
     general: General
@@ -109,4 +131,6 @@ en:
     workspace: Workspace
     notifications: Notifications
     extensions: Extensions
+    database: Database
+    sync: Sync
 </i18n>

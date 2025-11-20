@@ -1,9 +1,15 @@
 /// src-tauri/src/extension/mod.rs
 use crate::{
     extension::{
-        core::{manager::ExtensionManager, EditablePermissions, ExtensionInfoResponse, ExtensionPreview, PermissionEntry},
+        core::{
+            manager::ExtensionManager, EditablePermissions, ExtensionInfoResponse,
+            ExtensionPreview, PermissionEntry,
+        },
         error::ExtensionError,
-        permissions::{manager::PermissionManager, types::{ResourceType, ExtensionPermission}},
+        permissions::{
+            manager::PermissionManager,
+            types::{ExtensionPermission, ResourceType},
+        },
     },
     AppState,
 };
@@ -114,81 +120,7 @@ pub async fn install_extension_with_permissions(
         )
         .await
 }
-/* #[tauri::command]
-pub async fn install_extension(
-    app_handle: AppHandle,
-    source_path: String,
-    state: State<'_, AppState>,
-) -> Result<String, String> {
-    let source = PathBuf::from(&source_path);
 
-    // Manifest laden
-    let manifest_path = source.join("manifest.json");
-    let manifest_content = std::fs::read_to_string(&manifest_path)
-        .map_err(|e| format!("Manifest konnte nicht gelesen werden: {}", e))?;
-
-    let manifest: ExtensionManifest = serde_json::from_str(&manifest_content)
-        .map_err(|e| format!("Manifest ist ungültig: {}", e))?;
-
-    // Signatur verifizieren
-    let content_hash = ExtensionCrypto::hash_directory(&source)?;
-    ExtensionCrypto::verify_signature(&manifest.public_key, &content_hash, &manifest.signature)?;
-
-    // Key Hash berechnen
-    let key_hash = manifest.calculate_key_hash()?;
-    let full_extension_id = format!("{}-{}", key_hash, manifest.id);
-
-    // Zielverzeichnis mit Key Hash Prefix
-    let extensions_dir = app_handle
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("App-Datenverzeichnis nicht gefunden: {}", e))?
-        .join("extensions")
-        .join(&full_extension_id) // <- z.B. "a3f5b9c2d1e8f4-haex-pass"
-        .join(&manifest.version);
-
-    // Extension-Dateien kopieren
-    std::fs::create_dir_all(&extensions_dir)
-        .map_err(|e| format!("Verzeichnis konnte nicht erstellt werden: {}", e))?;
-
-    let source_to_copy = if source.join("dist").exists() {
-        source.join("dist") // Kopiere aus dist/
-    } else {
-        source.clone() // Kopiere direkt
-    };
-
-    copy_directory(
-        source_to_copy.to_string_lossy().to_string(),
-        extensions_dir.to_string_lossy().to_string(),
-    )?;
-
-    // Permissions speichern
-    let permissions = manifest.to_internal_permissions();
-    PermissionManager::save_permissions(&state.db, &permissions)
-        .await
-        .map_err(|e| format!("Fehler beim Speichern der Permissions: {:?}", e))?;
-
-    // Extension registrieren
-    let extension = Extension {
-        id: full_extension_id.clone(),
-        name: manifest.name.clone(),
-        source: ExtensionSource::Production {
-            path: extensions_dir.clone(),
-            version: manifest.version.clone(),
-        },
-        manifest: manifest.clone(),
-        enabled: true,
-        last_accessed: SystemTime::now(),
-    };
-
-    state
-        .extension_manager
-        .add_production_extension(extension)
-        .map_err(|e| format!("Extension konnte nicht hinzugefügt werden: {:?}", e))?;
-
-    Ok(full_extension_id)
-}
- */
 #[tauri::command]
 pub async fn remove_extension(
     app_handle: AppHandle,
@@ -449,7 +381,9 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
         let entry = PermissionEntry {
             target: perm.target,
             operation: Some(perm.action.as_str()),
-            constraints: perm.constraints.map(|c| serde_json::to_value(c).unwrap_or_default()),
+            constraints: perm
+                .constraints
+                .map(|c| serde_json::to_value(c).unwrap_or_default()),
             status: Some(perm.status),
         };
 
@@ -462,8 +396,16 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
     }
 
     EditablePermissions {
-        database: if database.is_empty() { None } else { Some(database) },
-        filesystem: if filesystem.is_empty() { None } else { Some(filesystem) },
+        database: if database.is_empty() {
+            None
+        } else {
+            Some(database)
+        },
+        filesystem: if filesystem.is_empty() {
+            None
+        } else {
+            Some(filesystem)
+        },
         http: if http.is_empty() { None } else { Some(http) },
         shell: if shell.is_empty() { None } else { Some(shell) },
     }
@@ -539,7 +481,10 @@ pub fn open_extension_webview_window(
     x: Option<f64>,
     y: Option<f64>,
 ) -> Result<String, ExtensionError> {
-    eprintln!("[open_extension_webview_window] Received extension_id: {}", extension_id);
+    eprintln!(
+        "[open_extension_webview_window] Received extension_id: {}",
+        extension_id
+    );
     // Returns the window_id (generated UUID without dashes)
     state.extension_webview_manager.open_extension_window(
         &app_handle,

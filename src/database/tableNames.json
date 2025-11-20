@@ -98,6 +98,7 @@
         "id": "id",
         "deviceId": "device_id",
         "name": "name",
+        "current": "current",
         "createdAt": "created_at",
         "updatedAt": "updated_at",
 
@@ -110,6 +111,10 @@
         "id": "id",
         "name": "name",
         "serverUrl": "server_url",
+        "vaultId": "vault_id",
+        "email": "email",
+        "password": "password",
+        "syncKey": "sync_key",
         "enabled": "enabled",
         "priority": "priority",
         "createdAt": "created_at",
@@ -120,17 +125,17 @@
     },
 
     "crdt": {
-      "logs": {
-        "name": "haex_crdt_logs",
+      "changes": {
+        "name": "haex_crdt_changes",
         "columns": {
-          "id": "id",
-          "haexTimestamp": "haex_timestamp",
           "tableName": "table_name",
           "rowPks": "row_pks",
-          "opType": "op_type",
           "columnName": "column_name",
-          "newValue": "new_value",
-          "oldValue": "old_value"
+          "operation": "operation",
+          "hlcTimestamp": "hlc_timestamp",
+          "syncState": "sync_state",
+          "deviceId": "device_id",
+          "createdAt": "created_at"
         }
       },
       "snapshots": {
@@ -147,7 +152,19 @@
         "name": "haex_crdt_configs",
         "columns": {
           "key": "key",
+          "type": "type",
           "value": "value"
+        }
+      },
+      "sync_status": {
+        "name": "haex_crdt_sync_status",
+        "columns": {
+          "id": "id",
+          "backendId": "backend_id",
+          "lastPullCreatedAt": "last_pull_created_at",
+          "lastPushHlcTimestamp": "last_push_hlc_timestamp",
+          "lastSyncAt": "last_sync_at",
+          "error": "error"
         }
       }
     }

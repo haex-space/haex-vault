@@ -249,6 +249,12 @@ const onOpenDatabase = async () => {
         },
       }),
     )
+
+    // Auto-login and start sync after vault is fully opened (non-blocking)
+    const { autoLoginAndStartSyncAsync } = useVaultStore()
+    autoLoginAndStartSyncAsync().catch((error) => {
+      console.warn('[HaexSpace] Auto-login and sync start failed:', error)
+    })
   } catch (error) {
     open.value = false
     const errorDetails =

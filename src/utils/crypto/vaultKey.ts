@@ -52,8 +52,74 @@ export function generateVaultKey(): Uint8Array {
 }
 
 /**
+ * Encrypts a string (like vault name) with a password-derived key
+ * Returns: { encryptedData, nonce } as Base64 strings
+ */
+export async function encryptStringAsync(
+  data: string,
+  derivedKey: CryptoKey,
+): Promise<{
+  encryptedData: string
+  nonce: string
+}> {
+  // Generate random nonce for AES-GCM
+  const nonce = crypto.getRandomValues(new Uint8Array(12))
+
+  // Convert string to buffer
+  const encoder = new TextEncoder()
+  const dataBuffer = encoder.encode(data)
+
+  // Encrypt data
+  const encryptedBuffer = await crypto.subtle.encrypt(
+    {
+      name: ALGORITHM,
+      iv: nonce,
+    },
+    derivedKey,
+    dataBuffer,
+  )
+
+  // Convert to Base64 for storage
+  return {
+    encryptedData: arrayBufferToBase64(encryptedBuffer),
+    nonce: arrayBufferToBase64(nonce),
+  }
+}
+
+/**
+ * Decrypts a string (like vault name) with a password-derived key
+ */
+export async function decryptStringAsync(
+  encryptedData: string,
+  nonce: string,
+  derivedKey: CryptoKey,
+): Promise<string> {
+  // Convert Base64 to Uint8Array
+  const encryptedBuffer = base64ToArrayBuffer(encryptedData)
+  const nonceBuffer = base64ToArrayBuffer(nonce)
+
+  // Ensure buffers have proper ArrayBuffer
+  const encryptedDataBuffer = new Uint8Array(encryptedBuffer)
+  const iv = new Uint8Array(nonceBuffer)
+
+  // Decrypt data
+  const decryptedBuffer = await crypto.subtle.decrypt(
+    {
+      name: ALGORITHM,
+      iv,
+    },
+    derivedKey,
+    encryptedDataBuffer,
+  )
+
+  // Convert buffer to string
+  const decoder = new TextDecoder()
+  return decoder.decode(decryptedBuffer)
+}
+
+/**
  * Encrypts the vault key with a password-derived key
- * Returns: { encryptedVaultKey, salt, nonce } all as Base64 strings
+ * Returns: { encryptedVaultKey, salt, vaultKeyNonce } all as Base64 strings
  */
 export async function encryptVaultKeyAsync(
   vaultKey: Uint8Array,
@@ -61,7 +127,7 @@ export async function encryptVaultKeyAsync(
 ): Promise<{
   encryptedVaultKey: string
   salt: string
-  nonce: string
+  vaultKeyNonce: string
 }> {
   // Generate random salt for PBKDF2
   const salt = crypto.getRandomValues(new Uint8Array(32))
@@ -89,7 +155,7 @@ export async function encryptVaultKeyAsync(
   return {
     encryptedVaultKey: arrayBufferToBase64(encryptedBuffer),
     salt: arrayBufferToBase64(salt),
-    nonce: arrayBufferToBase64(nonce),
+    vaultKeyNonce: arrayBufferToBase64(nonce),
   }
 }
 
@@ -99,13 +165,13 @@ export async function encryptVaultKeyAsync(
 export async function decryptVaultKeyAsync(
   encryptedVaultKey: string,
   salt: string,
-  nonce: string,
+  vaultKeyNonce: string,
   password: string,
 ): Promise<Uint8Array> {
   // Convert Base64 to Uint8Array
   const encryptedBuffer = base64ToArrayBuffer(encryptedVaultKey)
   const saltBuffer = base64ToArrayBuffer(salt)
-  const nonceBuffer = base64ToArrayBuffer(nonce)
+  const nonceBuffer = base64ToArrayBuffer(vaultKeyNonce)
 
   // Derive decryption key from password
   const derivedKey = await deriveKeyFromPasswordAsync(password, saltBuffer)
@@ -218,7 +284,7 @@ export async function decryptCrdtDataAsync<T = object>(
 
 // Utility functions for Base64 conversion
 
-function arrayBufferToBase64(buffer: ArrayBuffer | Uint8Array): string {
+export function arrayBufferToBase64(buffer: ArrayBuffer | Uint8Array): string {
   const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer)
   // Use Buffer for efficient base64 encoding (works in Node/Bun)
   if (typeof Buffer !== 'undefined') {
@@ -235,7 +301,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer | Uint8Array): string {
   return btoa(binary)
 }
 
-function base64ToArrayBuffer(base64: string): Uint8Array {
+export function base64ToArrayBuffer(base64: string): Uint8Array {
   // Use Buffer for efficient base64 decoding (works in Node/Bun)
   if (typeof Buffer !== 'undefined') {
     return new Uint8Array(Buffer.from(base64, 'base64'))

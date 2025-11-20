@@ -3,13 +3,13 @@
  * Uses Supabase Realtime subscriptions for instant sync
  */
 
-import { eq, gt } from 'drizzle-orm'
+import { eq, gt, and, isNull } from 'drizzle-orm'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import {
-  haexCrdtLogs,
-  haexSyncStatus,
-  type SelectHaexCrdtLogs,
-  type SelectHaexSyncStatus,
+  haexCrdtChanges,
+  haexCrdtSyncStatus,
+  type SelectHaexCrdtChanges,
+  type SelectHaexCrdtSyncStatus,
 } from '~/database/schemas'
 
 interface SyncState {
@@ -17,12 +17,15 @@ interface SyncState {
   isSyncing: boolean
   error: string | null
   subscription: RealtimeChannel | null
-  status: SelectHaexSyncStatus | null
+  status: SelectHaexCrdtSyncStatus | null
 }
 
 interface BackendSyncState {
   [backendId: string]: SyncState
 }
+
+// Server table name for sync changes
+const SERVER_SYNC_TABLE_NAME = 'sync_changes'
 
 export const useSyncOrchestratorStore = defineStore(
   'syncOrchestratorStore',
@@ -42,7 +45,7 @@ export const useSyncOrchestratorStore = defineStore(
      */
     const loadSyncStatusAsync = async (
       backendId: string,
-    ): Promise<SelectHaexSyncStatus | null> => {
+    ): Promise<SelectHaexCrdtSyncStatus | null> => {
       if (!currentVault.value?.drizzle) {
         throw new Error('No vault opened')
       }
@@ -50,8 +53,8 @@ export const useSyncOrchestratorStore = defineStore(
       try {
         const results = await currentVault.value.drizzle
           .select()
-          .from(haexSyncStatus)
-          .where(eq(haexSyncStatus.backendId, backendId))
+          .from(haexCrdtSyncStatus)
+          .where(eq(haexCrdtSyncStatus.backendId, backendId))
           .limit(1)
 
         return results[0] ?? null
@@ -66,7 +69,7 @@ export const useSyncOrchestratorStore = defineStore(
      */
     const updateSyncStatusAsync = async (
       backendId: string,
-      updates: Partial<SelectHaexSyncStatus>,
+      updates: Partial<SelectHaexCrdtSyncStatus>,
     ): Promise<void> => {
       if (!currentVault.value?.drizzle) {
         throw new Error('No vault opened')
@@ -78,15 +81,15 @@ export const useSyncOrchestratorStore = defineStore(
         if (existing) {
           // Update existing
           await currentVault.value.drizzle
-            .update(haexSyncStatus)
+            .update(haexCrdtSyncStatus)
             .set({
               ...updates,
               lastSyncAt: new Date().toISOString(),
             })
-            .where(eq(haexSyncStatus.backendId, backendId))
+            .where(eq(haexCrdtSyncStatus.backendId, backendId))
         } else {
           // Insert new
-          await currentVault.value.drizzle.insert(haexSyncStatus).values({
+          await currentVault.value.drizzle.insert(haexCrdtSyncStatus).values({
             backendId,
             ...updates,
             lastSyncAt: new Date().toISOString(),
@@ -106,11 +109,11 @@ export const useSyncOrchestratorStore = defineStore(
     }
 
     /**
-     * Gets logs that need to be pushed to server (after last push HLC)
+     * Gets changes that need to be pushed to server (after last push HLC)
      */
-    const getLogsToPushAsync = async (
+    const getChangesToPushAsync = async (
       backendId: string,
-    ): Promise<SelectHaexCrdtLogs[]> => {
+    ): Promise<SelectHaexCrdtChanges[]> => {
       if (!currentVault.value?.drizzle) {
         throw new Error('No vault opened')
       }
@@ -121,12 +124,12 @@ export const useSyncOrchestratorStore = defineStore(
 
         const query = currentVault.value.drizzle
           .select()
-          .from(haexCrdtLogs)
-          .orderBy(haexCrdtLogs.haexTimestamp)
+          .from(haexCrdtChanges)
+          .orderBy(haexCrdtChanges.hlcTimestamp)
 
         if (lastPushHlc) {
           return await query.where(
-            gt(haexCrdtLogs.haexTimestamp, lastPushHlc),
+            gt(haexCrdtChanges.hlcTimestamp, lastPushHlc),
           )
         }
 
@@ -141,24 +144,24 @@ export const useSyncOrchestratorStore = defineStore(
      * Applies remote logs to local database
      */
     const applyRemoteLogsAsync = async (
-      logs: SelectHaexCrdtLogs[],
+      logs: SelectHaexCrdtChanges[],
     ): Promise<void> => {
       if (!currentVault.value?.drizzle) {
         throw new Error('No vault opened')
       }
 
       try {
-        // Insert logs into local CRDT log table
+        // Insert logs into local CRDT changes table
         for (const log of logs) {
           await currentVault.value.drizzle
-            .insert(haexCrdtLogs)
+            .insert(haexCrdtChanges)
             .values(log)
             .onConflictDoNothing() // Skip if already exists
         }
 
-        // TODO: Apply CRDT log entries to actual data tables
-        // This requires replaying the operations from the log
-        console.log(`Applied ${logs.length} remote logs to local database`)
+        // TODO: Apply CRDT changes to actual data tables
+        // This requires replaying the operations from the changes
+        console.log(`Applied ${logs.length} remote changes to local database`)
       } catch (error) {
         console.error('Failed to apply remote logs:', error)
         throw error
@@ -187,29 +190,68 @@ export const useSyncOrchestratorStore = defineStore(
       state.error = null
 
       try {
-        // Get logs that need to be pushed
-        const logs = await getLogsToPushAsync(backendId)
+        // Get the vaultId for this backend from the backend configuration
+        const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
+        if (!backend?.vaultId) {
+          throw new Error('Backend vaultId not configured')
+        }
 
-        if (logs.length === 0) {
-          console.log(`No logs to push to backend ${backendId}`)
+        // Get changes that need to be pushed
+        const changes = await getChangesToPushAsync(backendId)
+
+        if (changes.length === 0) {
+          console.log(`No changes to push to backend ${backendId}`)
           return
         }
 
-        await syncEngineStore.pushLogsAsync(
+        // Fix NULL deviceIds
+        const deviceStore = useDeviceStore()
+        const currentDeviceId = deviceStore.deviceId
+
+        for (const change of changes) {
+          if (!change.deviceId && currentDeviceId) {
+            change.deviceId = currentDeviceId
+          }
+        }
+
+        await syncEngineStore.pushChangesAsync(
           backendId,
-          currentVaultId.value,
-          logs,
+          backend.vaultId,
+          changes,
         )
 
+        // After successful push, delete uploaded changes from local table
+        if (!currentVault.value?.drizzle) {
+          throw new Error('No vault opened')
+        }
+
+        for (const change of changes) {
+          const conditions = [
+            eq(haexCrdtChanges.tableName, change.tableName),
+            eq(haexCrdtChanges.rowPks, change.rowPks),
+          ]
+
+          // columnName can be null for DELETE operations
+          if (change.columnName !== null) {
+            conditions.push(eq(haexCrdtChanges.columnName, change.columnName))
+          } else {
+            conditions.push(isNull(haexCrdtChanges.columnName))
+          }
+
+          await currentVault.value.drizzle
+            .delete(haexCrdtChanges)
+            .where(and(...conditions))
+        }
+
         // Update sync status with last pushed HLC timestamp
-        const lastHlc = logs[logs.length - 1]?.haexTimestamp
+        const lastHlc = changes[changes.length - 1]?.hlcTimestamp
         if (lastHlc) {
           await updateSyncStatusAsync(backendId, {
             lastPushHlcTimestamp: lastHlc,
           })
         }
 
-        console.log(`Pushed ${logs.length} logs to backend ${backendId}`)
+        console.log(`Pushed ${changes.length} changes to backend ${backendId} and removed from local table`)
       } catch (error) {
         console.error(`Failed to push to backend ${backendId}:`, error)
         state.error = error instanceof Error ? error.message : 'Unknown error'
@@ -244,25 +286,37 @@ export const useSyncOrchestratorStore = defineStore(
       state.error = null
 
       try {
-        const status = await loadSyncStatusAsync(backendId)
-        const afterSequence = status?.lastPullSequence ?? undefined
+        // Get the vaultId for this backend from the backend configuration
+        const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
+        if (!backend?.vaultId) {
+          throw new Error('Backend vaultId not configured')
+        }
 
-        const remoteLogs = await syncEngineStore.pullLogsAsync(
+        const status = await loadSyncStatusAsync(backendId)
+        const afterCreatedAt = status?.lastPullCreatedAt ?? undefined
+
+        // Get current device ID to exclude our own changes from pull
+        const deviceStore = useDeviceStore()
+
+        const remoteLogs = await syncEngineStore.pullChangesAsync(
           backendId,
-          currentVaultId.value,
-          afterSequence,
+          backend.vaultId,
+          deviceStore.deviceId,
+          afterCreatedAt,
           100,
         )
 
         if (remoteLogs.length > 0) {
           await applyRemoteLogsAsync(remoteLogs)
 
-          // Update sync status with last pulled sequence
-          // TODO: Get actual sequence from server response
-          const lastSequence = Date.now()
-          await updateSyncStatusAsync(backendId, {
-            lastPullSequence: lastSequence,
-          })
+          // Update sync status with last pulled createdAt
+          // Use the createdAt from the last change
+          const lastCreatedAt = remoteLogs[remoteLogs.length - 1]?.createdAt
+          if (lastCreatedAt) {
+            await updateSyncStatusAsync(backendId, {
+              lastPullCreatedAt: lastCreatedAt,
+            })
+          }
 
           console.log(
             `Pulled ${remoteLogs.length} logs from backend ${backendId}`,
@@ -311,6 +365,12 @@ export const useSyncOrchestratorStore = defineStore(
         throw new Error('No vault opened')
       }
 
+      // Get the vaultId for this backend from the backend configuration
+      const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
+      if (!backend?.vaultId) {
+        throw new Error('Backend vaultId not configured')
+      }
+
       const state = syncStates.value[backendId]
       if (!state) {
         throw new Error('Backend not initialized')
@@ -327,16 +387,16 @@ export const useSyncOrchestratorStore = defineStore(
       }
 
       try {
-        // Subscribe to sync_logs table for this vault
+        // Subscribe to sync changes table for this vault (using backend vaultId)
         const channel = client
-          .channel(`sync_logs:${currentVaultId.value}`)
+          .channel(`${SERVER_SYNC_TABLE_NAME}:${backend.vaultId}`)
           .on(
             'postgres_changes',
             {
               event: 'INSERT',
               schema: 'public',
-              table: 'sync_logs',
-              filter: `vault_id=eq.${currentVaultId.value}`,
+              table: SERVER_SYNC_TABLE_NAME,
+              filter: `vault_id=eq.${backend.vaultId}`,
             },
             (payload) => {
               handleRealtimeChangeAsync(backendId, payload).catch(console.error)
@@ -408,6 +468,9 @@ export const useSyncOrchestratorStore = defineStore(
       try {
         // Initial pull to get all existing data
         await pullFromBackendAsync(backendId)
+
+        // Push any pending local changes
+        await pushToBackendAsync(backendId)
 
         // Subscribe to realtime changes
         await subscribeToBackendAsync(backendId)
@@ -509,7 +572,7 @@ export const useSyncOrchestratorStore = defineStore(
       areAllConnected,
       loadSyncStatusAsync,
       updateSyncStatusAsync,
-      getLogsToPushAsync,
+      getChangesToPushAsync,
       applyRemoteLogsAsync,
       pushToBackendAsync,
       pullFromBackendAsync,

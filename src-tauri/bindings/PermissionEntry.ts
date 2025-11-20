@@ -6,7 +6,8 @@ import type { PermissionStatus } from "./PermissionStatus";
  */
 export type PermissionEntry = { target: string, 
 /**
- * Die auszuführende Aktion (z.B. "read", "read_write", "GET", "execute").
+ * Die auszuführende Aktion (z.B. "read", "read_write", "execute").
+ * Für Web-Permissions ist dies optional und wird ignoriert.
  */
 operation?: string | null, 
 /**

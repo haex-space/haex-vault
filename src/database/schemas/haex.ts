@@ -32,6 +32,11 @@ export const haexDevices = sqliteTable(
       .primaryKey(),
     deviceId: text(tableNames.haex.devices.columns.deviceId).notNull().unique(),
     name: text(tableNames.haex.devices.columns.name).notNull(),
+    current: integer(tableNames.haex.devices.columns.current, {
+      mode: 'boolean',
+    })
+      .default(false)
+      .notNull(),
     createdAt: text(tableNames.haex.devices.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),
@@ -219,6 +224,10 @@ export const haexSyncBackends = sqliteTable(
       .primaryKey(),
     name: text(tableNames.haex.sync_backends.columns.name).notNull(),
     serverUrl: text(tableNames.haex.sync_backends.columns.serverUrl).notNull(),
+    vaultId: text(tableNames.haex.sync_backends.columns.vaultId),
+    email: text(tableNames.haex.sync_backends.columns.email),
+    password: text(tableNames.haex.sync_backends.columns.password),
+    syncKey: text(tableNames.haex.sync_backends.columns.syncKey),
     enabled: integer(tableNames.haex.sync_backends.columns.enabled, {
       mode: 'boolean',
     })
@@ -234,6 +243,7 @@ export const haexSyncBackends = sqliteTable(
       mode: 'timestamp',
     }).$onUpdate(() => new Date()),
   }),
+  (table) => [unique().on(table.serverUrl, table.email)],
 )
 export type InsertHaexSyncBackends = typeof haexSyncBackends.$inferInsert
 export type SelectHaexSyncBackends = typeof haexSyncBackends.$inferSelect

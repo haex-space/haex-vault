@@ -531,3 +531,49 @@ fn initialize_session(
 
     Ok(())
 }
+
+/// Cleans up old tombstone entries and applied CRDT changes
+/// Returns statistics about how many entries were deleted
+#[tauri::command]
+pub fn crdt_cleanup_tombstones(
+    retention_days: u32,
+    state: State<'_, AppState>,
+) -> Result<crate::crdt::cleanup::CleanupResult, DatabaseError> {
+    core::with_connection(&state.db, |conn| {
+        crate::crdt::cleanup::cleanup_tombstones(conn, retention_days)
+            .map_err(|e| DatabaseError::ExecutionError {
+                sql: "CRDT cleanup".to_string(),
+                reason: e.to_string(),
+                table: Some("haex_crdt_changes".to_string()),
+            })
+    })
+}
+
+/// Gets statistics about the CRDT changes table
+#[tauri::command]
+pub fn crdt_get_stats(
+    state: State<'_, AppState>,
+) -> Result<crate::crdt::cleanup::CrdtStats, DatabaseError> {
+    core::with_connection(&state.db, |conn| {
+        crate::crdt::cleanup::get_crdt_stats(conn).map_err(|e| DatabaseError::ExecutionError {
+            sql: "CRDT stats".to_string(),
+            reason: e.to_string(),
+            table: Some("haex_crdt_changes".to_string()),
+        })
+    })
+}
+
+/// Runs SQLite VACUUM command to reclaim disk space
+#[tauri::command]
+pub fn database_vacuum(state: State<'_, AppState>) -> Result<String, DatabaseError> {
+    core::with_connection(&state.db, |conn| {
+        conn.execute("VACUUM", [])
+            .map_err(|e| DatabaseError::ExecutionError {
+                sql: "VACUUM".to_string(),
+                reason: e.to_string(),
+                table: None,
+            })?;
+        Ok("Database vacuumed successfully".to_string())
+    })
+}
+

@@ -21,6 +21,8 @@
             v-model:open="isOpenDrawerOpen"
             :path="selectedVault?.path"
           />
+
+          <HaexVaultConnect v-model:open="isConnectBackendDrawerOpen" />
         </div>
 
         <div
@@ -116,18 +118,28 @@ const { t } = useI18n()
 
 const isCreateDrawerOpen = ref(false)
 const isOpenDrawerOpen = ref(false)
+const isConnectBackendDrawerOpen = ref(false)
 const selectedVault = ref<VaultInfo>()
 
 // Ensure only one drawer is open at a time
 watch(isCreateDrawerOpen, (isOpen) => {
   if (isOpen) {
     isOpenDrawerOpen.value = false
+    isConnectBackendDrawerOpen.value = false
   }
 })
 
 watch(isOpenDrawerOpen, (isOpen) => {
   if (isOpen) {
     isCreateDrawerOpen.value = false
+    isConnectBackendDrawerOpen.value = false
+  }
+})
+
+watch(isConnectBackendDrawerOpen, (isOpen) => {
+  if (isOpen) {
+    isCreateDrawerOpen.value = false
+    isOpenDrawerOpen.value = false
   }
 })
 

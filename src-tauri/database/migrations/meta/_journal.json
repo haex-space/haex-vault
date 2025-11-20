@@ -5,43 +5,50 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1762119713008,
-      "tag": "0000_cynical_nicolaos",
+      "when": 1763474075058,
+      "tag": "0000_panoramic_scorpion",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "6",
-      "when": 1762122405562,
-      "tag": "0001_furry_brother_voodoo",
+      "when": 1763475946915,
+      "tag": "0001_add_type_to_crdt_configs",
       "breakpoints": true
     },
     {
       "idx": 2,
       "version": "6",
-      "when": 1762263814375,
-      "tag": "0002_loose_quasimodo",
+      "when": 1763500626165,
+      "tag": "0002_wakeful_songbird",
       "breakpoints": true
     },
     {
       "idx": 3,
       "version": "6",
-      "when": 1762300795436,
-      "tag": "0003_luxuriant_deathstrike",
+      "when": 1763503129510,
+      "tag": "0003_fuzzy_shatterstar",
       "breakpoints": true
     },
     {
       "idx": 4,
       "version": "6",
-      "when": 1762894662424,
-      "tag": "0004_fast_epoch",
+      "when": 1763505759494,
+      "tag": "0004_marvelous_tomorrow_man",
       "breakpoints": true
     },
     {
       "idx": 5,
       "version": "6",
-      "when": 1763381450031,
-      "tag": "0005_purple_miss_america",
+      "when": 1763506377665,
+      "tag": "0005_white_sauron",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1763601260466,
+      "tag": "0006_handy_victor_mancha",
       "breakpoints": true
     }
   ]
