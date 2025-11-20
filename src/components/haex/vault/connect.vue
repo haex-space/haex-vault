@@ -58,14 +58,16 @@ const onWizardCompleteAsync = async (wizardData: {
   isLoading.value = true
 
   try {
-    // Determine which password to use for the vault
-    const vaultPassword = wizardData.newVaultPassword || wizardData.password
+    // 1. Validate required password
+    if (!wizardData.newVaultPassword) {
+      throw new Error('Vault password is required')
+    }
 
-    // 1. Create and open new local vault
+    // 2. Create and open new local vault
     console.log('📦 Creating new vault:', wizardData.localVaultName)
     const localVaultId = await vaultStore.createAsync({
       vaultName: wizardData.localVaultName,
-      password: vaultPassword,
+      password: wizardData.newVaultPassword,
     })
 
     if (!localVaultId) {

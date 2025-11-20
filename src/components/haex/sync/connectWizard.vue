@@ -58,95 +58,54 @@
         </div>
       </div>
 
-      <!-- Step 3: Create or Open Local Vault -->
+      <!-- Step 3: Create Local Vault -->
       <div v-else-if="currentStepIndex === 2" class="space-y-4">
         <p class="text-sm text-base-content/60">
-          {{ t('steps.createOrOpenVault.description') }}
+          {{ t('steps.createVault.description') }}
         </p>
 
-        <div class="space-y-3">
-          <!-- Option 1: Create new vault -->
-          <div
-            class="card bg-base-200 p-4 cursor-pointer hover:bg-base-300 transition-colors"
-            :class="{ 'ring-2 ring-primary': vaultAction === 'create' }"
-            @click="vaultAction = 'create'"
+        <div class="space-y-4">
+          <UFormField
+            :label="t('steps.createVault.vaultName')"
+            :description="t('steps.createVault.vaultNameDescription')"
           >
-            <div class="flex items-center gap-3">
-              <div class="text-2xl">
-                <i class="i-lucide-plus-circle"></i>
-              </div>
-              <div>
-                <p class="font-medium">{{ t('steps.createOrOpenVault.createNew') }}</p>
-                <p class="text-sm text-base-content/60">
-                  {{ t('steps.createOrOpenVault.createNewDescription') }}
-                </p>
-              </div>
-            </div>
-          </div>
+            <UiInput
+              v-model="localVaultName"
+              :placeholder="t('steps.createVault.vaultNamePlaceholder')"
+              size="xl"
+              class="w-full"
+              @blur="checkVaultNameExistsAsync"
+            />
+          </UFormField>
+          <p v-if="vaultNameExists" class="text-sm text-error mt-1">
+            {{ t('steps.createVault.vaultNameExists') }}
+          </p>
 
-          <!-- Vault Name and Password Inputs (shown when creating new vault) -->
-          <div v-if="vaultAction === 'create'" class="mt-4 space-y-4">
-            <UFormField
-              :label="t('steps.createOrOpenVault.vaultName')"
-              :description="t('steps.createOrOpenVault.vaultNameDescription')"
-            >
-              <UiInput
-                v-model="localVaultName"
-                :placeholder="t('steps.createOrOpenVault.vaultNamePlaceholder')"
-                size="xl"
-                class="w-full"
-                @blur="checkVaultNameExistsAsync"
-              />
-            </UFormField>
-            <p v-if="vaultNameExists" class="text-sm text-error mt-1">
-              {{ t('steps.createOrOpenVault.vaultNameExists') }}
-            </p>
-
-            <UFormField
-              :label="t('steps.createOrOpenVault.vaultPassword')"
-              :description="t('steps.createOrOpenVault.vaultPasswordDescription')"
-            >
-              <UiInputPassword
-                v-model="newVaultPassword"
-                :placeholder="t('steps.createOrOpenVault.vaultPasswordPlaceholder')"
-                size="xl"
-                class="w-full"
-              />
-            </UFormField>
-
-            <UFormField
-              :label="t('steps.createOrOpenVault.vaultPasswordConfirm')"
-            >
-              <UiInputPassword
-                v-model="newVaultPasswordConfirm"
-                :placeholder="t('steps.createOrOpenVault.vaultPasswordConfirmPlaceholder')"
-                size="xl"
-                class="w-full"
-              />
-            </UFormField>
-            <p v-if="newVaultPassword !== newVaultPasswordConfirm && newVaultPasswordConfirm !== ''" class="text-sm text-error mt-1">
-              {{ t('steps.createOrOpenVault.passwordMismatch') }}
-            </p>
-          </div>
-
-          <!-- Option 2: Open existing vault -->
-          <div
-            class="card bg-base-200 p-4 cursor-pointer hover:bg-base-300 transition-colors"
-            :class="{ 'ring-2 ring-primary': vaultAction === 'open' }"
-            @click="vaultAction = 'open'"
+          <UFormField
+            :label="t('steps.createVault.vaultPassword')"
+            :description="t('steps.createVault.vaultPasswordDescription')"
           >
-            <div class="flex items-center gap-3">
-              <div class="text-2xl">
-                <i class="i-lucide-folder-open"></i>
-              </div>
-              <div>
-                <p class="font-medium">{{ t('steps.createOrOpenVault.openExisting') }}</p>
-                <p class="text-sm text-base-content/60">
-                  {{ t('steps.createOrOpenVault.openExistingDescription') }}
-                </p>
-              </div>
-            </div>
-          </div>
+            <UiInputPassword
+              v-model="newVaultPassword"
+              :placeholder="t('steps.createVault.vaultPasswordPlaceholder')"
+              size="xl"
+              class="w-full"
+            />
+          </UFormField>
+
+          <UFormField
+            :label="t('steps.createVault.vaultPasswordConfirm')"
+          >
+            <UiInputPassword
+              v-model="newVaultPasswordConfirm"
+              :placeholder="t('steps.createVault.vaultPasswordConfirmPlaceholder')"
+              size="xl"
+              class="w-full"
+            />
+          </UFormField>
+          <p v-if="newVaultPassword !== newVaultPasswordConfirm && newVaultPasswordConfirm !== ''" class="text-sm text-error mt-1">
+            {{ t('steps.createVault.passwordMismatch') }}
+          </p>
         </div>
       </div>
     </div>
@@ -239,7 +198,7 @@ const steps = computed(() => [
     icon: 'i-lucide-folder',
   },
   {
-    label: t('steps.createOrOpenVault.title'),
+    label: t('steps.createVault.title'),
     icon: 'i-lucide-hard-drive',
   },
 ])
@@ -268,8 +227,7 @@ const availableVaults = ref<VaultInfo[]>([])
 const selectedVaultId = ref<string | null>(null)
 const isLoadingVaults = ref(false)
 
-// Step 3: Create or Open Vault
-const vaultAction = ref<'create' | 'open' | null>(null)
+// Step 3: Create Local Vault
 const localVaultName = ref('')
 const vaultNameExists = ref(false)
 const newVaultPassword = ref('')
@@ -287,18 +245,12 @@ const canProceed = computed(() => {
 })
 
 const isStep3Valid = computed(() => {
-  if (vaultAction.value === 'create') {
-    return (
-      localVaultName.value !== '' &&
-      !vaultNameExists.value &&
-      newVaultPassword.value !== '' &&
-      newVaultPassword.value === newVaultPasswordConfirm.value
-    )
-  }
-  if (vaultAction.value === 'open') {
-    return true
-  }
-  return false
+  return (
+    localVaultName.value !== '' &&
+    !vaultNameExists.value &&
+    newVaultPassword.value !== '' &&
+    newVaultPassword.value === newVaultPasswordConfirm.value
+  )
 })
 
 // Methods
@@ -442,7 +394,7 @@ const checkVaultNameExistsAsync = async () => {
 }
 
 const completeSetupAsync = async () => {
-  if (!selectedVaultId.value || !vaultAction.value) return
+  if (!selectedVaultId.value) return
 
   const selectedVault = availableVaults.value.find(v => v.vaultId === selectedVaultId.value)
   if (!selectedVault) return
@@ -456,18 +408,15 @@ const completeSetupAsync = async () => {
   const syncEngineStore = useSyncEngineStore()
   syncEngineStore.supabaseClient = supabaseClient.value
 
-  // Determine which password to use and local vault name
-  const localName = vaultAction.value === 'create' ? localVaultName.value : (selectedVault.decryptedName || selectedVault.vaultId)
-
   emit('complete', {
     backendId: crypto.randomUUID(),
     vaultId: selectedVault.vaultId,
     vaultName: selectedVault.decryptedName || selectedVault.vaultId,
-    localVaultName: localName,
+    localVaultName: localVaultName.value,
     serverUrl: credentials.value.serverUrl,
     email: credentials.value.email,
     password: credentials.value.password,
-    newVaultPassword: vaultAction.value === 'create' ? newVaultPassword.value : undefined,
+    newVaultPassword: newVaultPassword.value,
   })
 }
 
@@ -484,7 +433,6 @@ const clearForm = () => {
   }
   availableVaults.value = []
   selectedVaultId.value = null
-  vaultAction.value = null
   localVaultName.value = ''
   newVaultPassword.value = ''
   newVaultPasswordConfirm.value = ''
@@ -513,13 +461,9 @@ de:
       encryptedVault: Verschlüsselter Vault
       createdAt: Erstellt am
       noVaults: Keine Vaults gefunden
-    createOrOpenVault:
+    createVault:
       title: Lokaler Vault
-      description: Wähle, ob du einen neuen lokalen Vault erstellen oder einen bestehenden öffnen möchtest
-      createNew: Neuen Vault erstellen
-      createNewDescription: Erstelle einen neuen lokalen Vault und synchronisiere ihn mit dem Server
-      openExisting: Bestehenden Vault öffnen
-      openExistingDescription: Öffne einen bestehenden lokalen Vault und synchronisiere ihn
+      description: Erstelle einen neuen lokalen Vault und synchronisiere ihn mit dem ausgewählten Server-Vault
       vaultName: Vault-Name
       vaultNameDescription: Gib einen eindeutigen Namen für deinen lokalen Vault ein
       vaultNamePlaceholder: Mein Vault
@@ -552,13 +496,9 @@ en:
       encryptedVault: Encrypted Vault
       createdAt: Created at
       noVaults: No vaults found
-    createOrOpenVault:
+    createVault:
       title: Local Vault
-      description: Choose whether to create a new local vault or open an existing one
-      createNew: Create New Vault
-      createNewDescription: Create a new local vault and sync it with the server
-      openExisting: Open Existing Vault
-      openExistingDescription: Open an existing local vault and sync it
+      description: Create a new local vault and sync it with the selected server vault
       vaultName: Vault Name
       vaultNameDescription: Enter a unique name for your local vault
       vaultNamePlaceholder: My Vault
