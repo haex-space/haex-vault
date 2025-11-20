@@ -1,5 +1,11 @@
 <template>
   <div>
+    <!-- Remote Sync Loading Overlay -->
+    <HaexSyncInitialSyncOverlay
+      :is-visible="isWaitingForInitialSync"
+      :progress="syncProgress"
+    />
+
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
@@ -39,8 +45,11 @@ definePageMeta({
 })
 
 const { t } = useI18n()
+const route = useRoute()
 
 const showNewDeviceDialog = ref(false)
+const isWaitingForInitialSync = ref(false)
+const syncProgress = ref<{ synced: number; total: number } | undefined>()
 
 const { hostname } = storeToRefs(useDeviceStore())
 
@@ -54,11 +63,27 @@ const { syncLocaleAsync, syncThemeAsync, syncVaultNameAsync } =
   useVaultSettingsStore()
 const { syncDesktopIconSizeAsync } = useDesktopStore()
 const { syncGradientVariantAsync, syncGradientEnabledAsync } = useGradientStore()
+const syncOrchestratorStore = useSyncOrchestratorStore()
+const syncBackendsStore = useSyncBackendsStore()
 
 onMounted(async () => {
   try {
-    // Sync settings first before other initialization
+    // Check if this is a remote sync vault (coming from sync wizard)
+    const isRemoteSync = route.query.remoteSync === 'true'
 
+    if (isRemoteSync) {
+      // Remote sync mode: Wait for initial sync to complete
+      console.log('🔄 Remote sync mode detected - waiting for initial sync')
+      isWaitingForInitialSync.value = true
+
+      // Wait for backend to be configured and initial sync to complete
+      await waitForInitialSyncAsync()
+
+      isWaitingForInitialSync.value = false
+      console.log('✅ Initial sync complete')
+    }
+
+    // Sync settings first before other initialization
     await Promise.allSettled([
       syncLocaleAsync(),
       syncThemeAsync(),
@@ -84,6 +109,37 @@ onMounted(async () => {
     console.error('vault mount error:', error)
   }
 })
+
+const waitForInitialSyncAsync = async () => {
+  return new Promise<void>((resolve) => {
+    // Poll sync state every 500ms
+    const checkInterval = setInterval(() => {
+      const backends = syncBackendsStore.enabledBackends
+
+      if (backends.length === 0) {
+        // No backends yet, keep waiting
+        return
+      }
+
+      // Check if any backend is still syncing
+      const syncStates = syncOrchestratorStore.syncStates
+      const anySyncing = backends.some(backend => syncStates[backend.id]?.isSyncing)
+
+      if (!anySyncing) {
+        // All backends have completed initial sync
+        clearInterval(checkInterval)
+        resolve()
+      }
+    }, 500)
+
+    // Timeout after 30 seconds
+    setTimeout(() => {
+      clearInterval(checkInterval)
+      console.warn('Initial sync timeout - proceeding anyway')
+      resolve()
+    }, 30000)
+  })
+}
 
 const { add } = useToast()
 const onSetDeviceNameAsync = async () => {

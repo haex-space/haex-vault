@@ -79,9 +79,13 @@ const onWizardCompleteAsync = async (wizardData: {
     // Close drawer
     open.value = false
 
-    // 2. Navigate to vault - this will set currentVaultId via route params
+    // 2. Navigate to vault with remote sync flag
     await navigateTo(
-      useLocaleRoute()({ name: 'desktop', params: { vaultId: localVaultId } }),
+      useLocaleRoute()({
+        name: 'desktop',
+        params: { vaultId: localVaultId },
+        query: { remoteSync: 'true' },
+      }),
     )
 
     // 3. Now that vault is open and currentVaultId is set, configure backend
