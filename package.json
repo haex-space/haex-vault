@@ -57,6 +57,7 @@
     "@iconify/json": "^2.2.404",
     "@iconify/tailwind4": "^1.1.0",
     "@libsql/client": "^0.15.15",
+    "@oxc-minify/binding-linux-x64-gnu": "^0.98.0",
     "@tauri-apps/cli": "^2.9.3",
     "@types/node": "^24.10.0",
     "@vitejs/plugin-vue": "6.0.1",
