@@ -83,7 +83,6 @@ pub struct RemoteColumnChange {
     pub table_name: String,
     pub row_pks: String, // JSON string
     pub column_name: String,
-    pub operation: String,
     pub hlc_timestamp: String,
     pub batch_id: String,
     pub batch_seq: usize,
@@ -242,22 +241,9 @@ pub fn apply_remote_changes_in_transaction(
                         }
                     })?;
 
-                if change.operation == "DELETE" {
-                    // Delete the row
-                    let delete_sql =
-                        format!("DELETE FROM \"{}\" WHERE {}", change.table_name, pk_where_clause);
-                    let params: Vec<String> = pk_values
-                        .iter()
-                        .map(|v| v.to_string().trim_matches('"').to_string())
-                        .collect();
-                    let params_refs: Vec<&dyn rusqlite::ToSql> =
-                        params.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
-
-                    tx.execute(&delete_sql, &*params_refs)
-                        .map_err(DatabaseError::from)?;
-                } else {
-                    // Update or insert
-                    if row_exists {
+                // Column-level CRDT: always update or insert the column value
+                // (haex_tombstone is handled like any other column)
+                if row_exists {
                         // Row exists, update it
                         let update_sql = format!(
                             "UPDATE \"{}\" SET {} = ?, haex_column_hlcs = ?, haex_timestamp = ? WHERE {}",
@@ -316,7 +302,6 @@ pub fn apply_remote_changes_in_transaction(
                         tx.execute(&insert_sql, &*params_refs)
                             .map_err(DatabaseError::from)?;
                     }
-                }
             }
         }
 
