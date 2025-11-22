@@ -16,9 +16,11 @@
       >
         <HaexSyncAddBackend
           ref="connectRef"
+          v-model:server-url="credentials.serverUrl"
+          v-model:email="credentials.email"
+          v-model:password="credentials.password"
           :items="serverOptions"
           :is-loading="isLoading"
-          @update="onCredentialsUpdate"
         />
       </div>
 
@@ -252,7 +254,7 @@ const isLoading = ref(false)
 
 // Step 1: Login
 const credentials = ref({
-  serverUrl: '',
+  serverUrl: 'https://sync.haex.space',
   email: '',
   password: '',
 })
@@ -298,14 +300,6 @@ const isStep3Valid = computed(() => {
 })
 
 // Methods
-const onCredentialsUpdate = (newCredentials: {
-  serverUrl: string
-  email: string
-  password: string
-}) => {
-  credentials.value = newCredentials
-}
-
 const nextStep = async () => {
   if (currentStepIndex.value === 0) {
     await loginAsync()
