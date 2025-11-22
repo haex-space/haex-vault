@@ -92,6 +92,13 @@ export const useSyncOrchestratorStore = defineStore(
           throw new Error('Vault key not available. Please unlock vault first.')
         }
 
+        // Get current device ID
+        const deviceStore = useDeviceStore()
+        const deviceId = deviceStore.deviceId
+        if (!deviceId) {
+          throw new Error('Device ID not available')
+        }
+
         // Get all dirty tables that need to be synced
         const dirtyTables = await getDirtyTablesAsync()
 
@@ -129,6 +136,7 @@ export const useSyncOrchestratorStore = defineStore(
               lastPushHlc,
               vaultKey,
               batchId,
+              deviceId,
             )
 
             partialChanges.push(...tableChanges)
@@ -434,9 +442,9 @@ export const useSyncOrchestratorStore = defineStore(
           rowPks: change.rowPks,
           columnName: change.columnName,
           hlcTimestamp: change.hlcTimestamp,
-          batchId: change.batchId,
-          batchSeq: change.batchSeq,
-          batchTotal: change.batchTotal,
+          batchId: change.batchId || crypto.randomUUID(), // Use existing or generate dummy
+          batchSeq: change.batchSeq || 1, // Default to 1
+          batchTotal: change.batchTotal || 1, // Default to 1
           decryptedValue,
         })
       }

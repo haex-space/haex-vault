@@ -16,11 +16,12 @@ export interface ColumnChange {
   rowPks: string // JSON string of primary key values
   columnName: string
   hlcTimestamp: string
-  batchId: string // UUID identifying which changes belong together
-  batchSeq: number // Sequence number within batch (1-based)
-  batchTotal: number // Total number of changes in this batch
+  batchId?: string // UUID identifying which changes belong together (optional for pull)
+  batchSeq?: number // Sequence number within batch (optional for pull, 1-based)
+  batchTotal?: number // Total number of changes in this batch (optional for pull)
   encryptedValue?: string
   nonce?: string
+  deviceId: string // Device that created this change
 }
 
 /**
@@ -65,6 +66,7 @@ export async function scanTableForChangesAsync(
   lastPushHlcTimestamp: string | null,
   vaultKey: Uint8Array,
   batchId: string,
+  deviceId: string,
 ): Promise<Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[]> {
   // Get table schema
   const schema = await getTableSchemaAsync(tableName)
@@ -195,6 +197,7 @@ export async function scanTableForChangesAsync(
           columnName: col.name,
           hlcTimestamp: columnHlc,
           batchId,
+          deviceId,
           encryptedValue: encryptedData,
           nonce,
         })
