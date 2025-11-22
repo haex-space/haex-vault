@@ -5,6 +5,11 @@ import {
   type SelectHaexSyncBackends,
 } from '~/database/schemas'
 
+export interface ISyncServerOption {
+  label: string
+  value: string
+}
+
 export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
   const { currentVault } = storeToRefs(useVaultStore())
 

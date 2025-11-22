@@ -1,1 +1,0 @@
-ALTER TABLE `haex_sync_backends` ADD `sync_key` text;

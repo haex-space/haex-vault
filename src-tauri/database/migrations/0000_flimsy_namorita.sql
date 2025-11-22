@@ -1,37 +1,6 @@
-CREATE TABLE `haex_crdt_changes` (
-	`table_name` text NOT NULL,
-	`row_pks` text NOT NULL,
-	`column_name` text,
-	`operation` text NOT NULL,
-	`hlc_timestamp` text NOT NULL,
-	`sync_state` text DEFAULT 'pending_upload' NOT NULL,
-	`created_at` text NOT NULL,
-	PRIMARY KEY(`table_name`, `row_pks`, `column_name`)
-);
---> statement-breakpoint
-CREATE INDEX `idx_crdt_changes_sync_state` ON `haex_crdt_changes` (`sync_state`);--> statement-breakpoint
-CREATE INDEX `idx_crdt_changes_hlc` ON `haex_crdt_changes` (`hlc_timestamp`);--> statement-breakpoint
-CREATE INDEX `idx_crdt_changes_table_row` ON `haex_crdt_changes` (`table_name`,`row_pks`);--> statement-breakpoint
-CREATE TABLE `haex_crdt_configs` (
-	`key` text PRIMARY KEY NOT NULL,
-	`value` text
-);
---> statement-breakpoint
-CREATE TABLE `haex_crdt_snapshots` (
-	`snapshot_id` text PRIMARY KEY NOT NULL,
-	`created` text,
-	`epoch_hlc` text,
-	`location_url` text,
-	`file_size_bytes` integer
-);
---> statement-breakpoint
-CREATE TABLE `haex_crdt_sync_status` (
-	`id` text PRIMARY KEY NOT NULL,
-	`backend_id` text NOT NULL,
-	`last_pull_created_at` text,
-	`last_push_hlc_timestamp` text,
-	`last_sync_at` text,
-	`error` text
+CREATE TABLE `haex_crdt_dirty_tables` (
+	`table_name` text PRIMARY KEY NOT NULL,
+	`last_modified` text NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE `haex_desktop_items` (
@@ -43,6 +12,8 @@ CREATE TABLE `haex_desktop_items` (
 	`position_x` integer DEFAULT 0 NOT NULL,
 	`position_y` integer DEFAULT 0 NOT NULL,
 	`haex_timestamp` text,
+	`haex_column_hlcs` text DEFAULT '{}' NOT NULL,
+	`haex_tombstone` integer DEFAULT false NOT NULL,
 	FOREIGN KEY (`workspace_id`) REFERENCES `haex_workspaces`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`extension_id`) REFERENCES `haex_extensions`(`id`) ON UPDATE no action ON DELETE cascade,
 	CONSTRAINT "item_reference" CHECK(("haex_desktop_items"."item_type" = 'extension' AND "haex_desktop_items"."extension_id" IS NOT NULL AND "haex_desktop_items"."system_window_id" IS NULL) OR ("haex_desktop_items"."item_type" = 'system' AND "haex_desktop_items"."system_window_id" IS NOT NULL AND "haex_desktop_items"."extension_id" IS NULL) OR ("haex_desktop_items"."item_type" = 'file' AND "haex_desktop_items"."system_window_id" IS NOT NULL AND "haex_desktop_items"."extension_id" IS NULL) OR ("haex_desktop_items"."item_type" = 'folder' AND "haex_desktop_items"."system_window_id" IS NOT NULL AND "haex_desktop_items"."extension_id" IS NULL))
@@ -52,12 +23,15 @@ CREATE TABLE `haex_devices` (
 	`id` text PRIMARY KEY NOT NULL,
 	`device_id` text NOT NULL,
 	`name` text NOT NULL,
+	`current` integer DEFAULT false NOT NULL,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
 	`updated_at` integer,
-	`haex_timestamp` text
+	`haex_timestamp` text,
+	`haex_column_hlcs` text DEFAULT '{}' NOT NULL,
+	`haex_tombstone` integer DEFAULT false NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `haex_devices_device_id_unique` ON `haex_devices` (`device_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_devices_device_id_unique` ON `haex_devices` (`device_id`) WHERE "haex_devices"."haex_tombstone" = 0;--> statement-breakpoint
 CREATE TABLE `haex_extension_permissions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`extension_id` text NOT NULL,
@@ -69,10 +43,12 @@ CREATE TABLE `haex_extension_permissions` (
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
 	`updated_at` integer,
 	`haex_timestamp` text,
+	`haex_column_hlcs` text DEFAULT '{}' NOT NULL,
+	`haex_tombstone` integer DEFAULT false NOT NULL,
 	FOREIGN KEY (`extension_id`) REFERENCES `haex_extensions`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `haex_extension_permissions_extension_id_resource_type_action_target_unique` ON `haex_extension_permissions` (`extension_id`,`resource_type`,`action`,`target`);--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_extension_permissions_extension_id_resource_type_action_target_unique` ON `haex_extension_permissions` (`extension_id`,`resource_type`,`action`,`target`) WHERE "haex_extension_permissions"."haex_tombstone" = 0;--> statement-breakpoint
 CREATE TABLE `haex_extensions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`public_key` text NOT NULL,
@@ -89,10 +65,12 @@ CREATE TABLE `haex_extensions` (
 	`display_mode` text DEFAULT 'auto',
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
 	`updated_at` integer,
-	`haex_timestamp` text
+	`haex_timestamp` text,
+	`haex_column_hlcs` text DEFAULT '{}' NOT NULL,
+	`haex_tombstone` integer DEFAULT false NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `haex_extensions_public_key_name_unique` ON `haex_extensions` (`public_key`,`name`);--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_extensions_public_key_name_unique` ON `haex_extensions` (`public_key`,`name`) WHERE "haex_extensions"."haex_tombstone" = 0;--> statement-breakpoint
 CREATE TABLE `haex_notifications` (
 	`id` text PRIMARY KEY NOT NULL,
 	`alt` text,
@@ -104,7 +82,9 @@ CREATE TABLE `haex_notifications` (
 	`text` text,
 	`title` text,
 	`type` text NOT NULL,
-	`haex_timestamp` text
+	`haex_timestamp` text,
+	`haex_column_hlcs` text DEFAULT '{}' NOT NULL,
+	`haex_tombstone` integer DEFAULT false NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE `haex_settings` (
@@ -114,28 +94,41 @@ CREATE TABLE `haex_settings` (
 	`type` text,
 	`value` text,
 	`haex_timestamp` text,
+	`haex_column_hlcs` text DEFAULT '{}' NOT NULL,
+	`haex_tombstone` integer DEFAULT false NOT NULL,
 	FOREIGN KEY (`device_id`) REFERENCES `haex_devices`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `haex_settings_device_id_key_type_unique` ON `haex_settings` (`device_id`,`key`,`type`);--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_settings_device_id_key_type_unique` ON `haex_settings` (`device_id`,`key`,`type`) WHERE "haex_settings"."haex_tombstone" = 0;--> statement-breakpoint
 CREATE TABLE `haex_sync_backends` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
 	`server_url` text NOT NULL,
+	`vault_id` text,
+	`email` text,
+	`password` text,
+	`sync_key` text,
 	`enabled` integer DEFAULT true NOT NULL,
 	`priority` integer DEFAULT 0 NOT NULL,
+	`last_push_hlc_timestamp` text,
+	`last_pull_hlc_timestamp` text,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
 	`updated_at` integer,
-	`haex_timestamp` text
+	`haex_timestamp` text,
+	`haex_column_hlcs` text DEFAULT '{}' NOT NULL,
+	`haex_tombstone` integer DEFAULT false NOT NULL
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX `haex_sync_backends_server_url_email_unique` ON `haex_sync_backends` (`server_url`,`email`) WHERE "haex_sync_backends"."haex_tombstone" = 0;--> statement-breakpoint
 CREATE TABLE `haex_workspaces` (
 	`id` text PRIMARY KEY NOT NULL,
 	`device_id` text NOT NULL,
 	`name` text NOT NULL,
 	`position` integer DEFAULT 0 NOT NULL,
 	`background` text,
-	`haex_timestamp` text
+	`haex_timestamp` text,
+	`haex_column_hlcs` text DEFAULT '{}' NOT NULL,
+	`haex_tombstone` integer DEFAULT false NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `haex_workspaces_position_unique` ON `haex_workspaces` (`position`);
+CREATE UNIQUE INDEX `haex_workspaces_position_unique` ON `haex_workspaces` (`position`) WHERE "haex_workspaces"."haex_tombstone" = 0;

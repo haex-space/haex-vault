@@ -1,38 +1,48 @@
 /**
  * Sync Orchestrator Store - Orchestrates sync operations across all backends
- * Uses Supabase Realtime subscriptions for instant sync
+ * Uses new table-scanning approach with column-level HLC timestamps
  */
 
-import { eq, gt, and, isNull } from 'drizzle-orm'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import { invoke } from '@tauri-apps/api/core'
+import type {
+  RealtimeChannel,
+  RealtimePostgresInsertPayload,
+} from '@supabase/supabase-js'
 import {
-  haexCrdtChanges,
-  haexCrdtSyncStatus,
-  type SelectHaexCrdtChanges,
-  type SelectHaexCrdtSyncStatus,
-} from '~/database/schemas'
+  getDirtyTablesAsync,
+  scanTableForChangesAsync,
+  clearDirtyTableAsync,
+  type ColumnChange,
+} from './tableScanner'
+import { decryptCrdtDataAsync } from '~/utils/crypto/vaultKey'
 
 interface SyncState {
   isConnected: boolean
   isSyncing: boolean
   error: string | null
   subscription: RealtimeChannel | null
-  status: SelectHaexCrdtSyncStatus | null
 }
 
 interface BackendSyncState {
   [backendId: string]: SyncState
 }
 
-// Server table name for sync changes
-const SERVER_SYNC_TABLE_NAME = 'sync_changes'
+// Batch accumulator for realtime changes
+interface BatchAccumulator {
+  backendId: string
+  changes: ColumnChange[]
+  receivedCount: number
+  totalCount: number
+  timeout?: ReturnType<typeof setTimeout>
+}
 
 export const useSyncOrchestratorStore = defineStore(
   'syncOrchestratorStore',
   () => {
-    const { currentVault, currentVaultId } = storeToRefs(useVaultStore())
+    const { currentVaultId } = storeToRefs(useVaultStore())
     const syncBackendsStore = useSyncBackendsStore()
     const syncEngineStore = useSyncEngineStore()
+    const { add: addToast } = useToast()
 
     // Sync state per backend
     const syncStates = ref<BackendSyncState>({})
@@ -40,136 +50,11 @@ export const useSyncOrchestratorStore = defineStore(
     // Track if we're currently processing a local write
     const isProcessingLocalWrite = ref(false)
 
-    /**
-     * Loads sync status from database for a backend
-     */
-    const loadSyncStatusAsync = async (
-      backendId: string,
-    ): Promise<SelectHaexCrdtSyncStatus | null> => {
-      if (!currentVault.value?.drizzle) {
-        throw new Error('No vault opened')
-      }
-
-      try {
-        const results = await currentVault.value.drizzle
-          .select()
-          .from(haexCrdtSyncStatus)
-          .where(eq(haexCrdtSyncStatus.backendId, backendId))
-          .limit(1)
-
-        return results[0] ?? null
-      } catch (error) {
-        console.error('Failed to load sync status:', error)
-        return null
-      }
-    }
+    // Batch accumulators for realtime changes (keyed by batchId)
+    const batchAccumulators = ref<Map<string, BatchAccumulator>>(new Map())
 
     /**
-     * Updates sync status in database
-     */
-    const updateSyncStatusAsync = async (
-      backendId: string,
-      updates: Partial<SelectHaexCrdtSyncStatus>,
-    ): Promise<void> => {
-      if (!currentVault.value?.drizzle) {
-        throw new Error('No vault opened')
-      }
-
-      try {
-        const existing = await loadSyncStatusAsync(backendId)
-
-        if (existing) {
-          // Update existing
-          await currentVault.value.drizzle
-            .update(haexCrdtSyncStatus)
-            .set({
-              ...updates,
-              lastSyncAt: new Date().toISOString(),
-            })
-            .where(eq(haexCrdtSyncStatus.backendId, backendId))
-        } else {
-          // Insert new
-          await currentVault.value.drizzle.insert(haexCrdtSyncStatus).values({
-            backendId,
-            ...updates,
-            lastSyncAt: new Date().toISOString(),
-          })
-        }
-
-        // Update local state
-        if (syncStates.value[backendId]) {
-          syncStates.value[backendId].status = await loadSyncStatusAsync(
-            backendId,
-          )
-        }
-      } catch (error) {
-        console.error('Failed to update sync status:', error)
-        throw error
-      }
-    }
-
-    /**
-     * Gets changes that need to be pushed to server (after last push HLC)
-     */
-    const getChangesToPushAsync = async (
-      backendId: string,
-    ): Promise<SelectHaexCrdtChanges[]> => {
-      if (!currentVault.value?.drizzle) {
-        throw new Error('No vault opened')
-      }
-
-      try {
-        const status = await loadSyncStatusAsync(backendId)
-        const lastPushHlc = status?.lastPushHlcTimestamp
-
-        const query = currentVault.value.drizzle
-          .select()
-          .from(haexCrdtChanges)
-          .orderBy(haexCrdtChanges.hlcTimestamp)
-
-        if (lastPushHlc) {
-          return await query.where(
-            gt(haexCrdtChanges.hlcTimestamp, lastPushHlc),
-          )
-        }
-
-        return await query
-      } catch (error) {
-        console.error('Failed to get logs to push:', error)
-        throw error
-      }
-    }
-
-    /**
-     * Applies remote logs to local database
-     */
-    const applyRemoteLogsAsync = async (
-      logs: SelectHaexCrdtChanges[],
-    ): Promise<void> => {
-      if (!currentVault.value?.drizzle) {
-        throw new Error('No vault opened')
-      }
-
-      try {
-        // Insert logs into local CRDT changes table
-        for (const log of logs) {
-          await currentVault.value.drizzle
-            .insert(haexCrdtChanges)
-            .values(log)
-            .onConflictDoNothing() // Skip if already exists
-        }
-
-        // TODO: Apply CRDT changes to actual data tables
-        // This requires replaying the operations from the changes
-        console.log(`Applied ${logs.length} remote changes to local database`)
-      } catch (error) {
-        console.error('Failed to apply remote logs:', error)
-        throw error
-      }
-    }
-
-    /**
-     * Pushes local changes to a specific backend
+     * Pushes local changes to a specific backend using table-scanning approach
      */
     const pushToBackendAsync = async (backendId: string): Promise<void> => {
       if (!currentVaultId.value) {
@@ -190,74 +75,122 @@ export const useSyncOrchestratorStore = defineStore(
       state.error = null
 
       try {
-        // Get the vaultId for this backend from the backend configuration
-        const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
+        // Get backend configuration
+        const backend = syncBackendsStore.backends.find(
+          (b) => b.id === backendId,
+        )
         if (!backend?.vaultId) {
           throw new Error('Backend vaultId not configured')
         }
 
-        // Get changes that need to be pushed
-        const changes = await getChangesToPushAsync(backendId)
+        const lastPushHlc = backend.lastPushHlcTimestamp
 
-        if (changes.length === 0) {
-          console.log(`No changes to push to backend ${backendId}`)
+        // Get vault key from cache
+        const vaultKey =
+          syncEngineStore.vaultKeyCache[backend.vaultId]?.vaultKey
+        if (!vaultKey) {
+          throw new Error('Vault key not available. Please unlock vault first.')
+        }
+
+        // Get all dirty tables that need to be synced
+        const dirtyTables = await getDirtyTablesAsync()
+
+        if (dirtyTables.length === 0) {
+          console.log(`No dirty tables to push to backend ${backendId}`)
           return
         }
 
-        // Fix NULL deviceIds
-        const deviceStore = useDeviceStore()
-        const currentDeviceId = deviceStore.deviceId
-
-        for (const change of changes) {
-          if (!change.deviceId && currentDeviceId) {
-            change.deviceId = currentDeviceId
-          }
-        }
-
-        await syncEngineStore.pushChangesAsync(
-          backendId,
-          backend.vaultId,
-          changes,
+        console.log(
+          `Found ${dirtyTables.length} dirty tables to scan for changes`,
         )
 
-        // After successful push, delete uploaded changes from local table
-        if (!currentVault.value?.drizzle) {
-          throw new Error('No vault opened')
-        }
+        // Generate a batch ID for this push - all changes in this push belong together
+        const batchId = crypto.randomUUID()
 
-        for (const change of changes) {
-          const conditions = [
-            eq(haexCrdtChanges.tableName, change.tableName),
-            eq(haexCrdtChanges.rowPks, change.rowPks),
-          ]
+        // Scan each dirty table for column-level changes (without batch seq numbers yet)
+        const partialChanges: Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[] =
+          []
+        let maxHlc = lastPushHlc || ''
 
-          // columnName can be null for DELETE operations
-          if (change.columnName !== null) {
-            conditions.push(eq(haexCrdtChanges.columnName, change.columnName))
-          } else {
-            conditions.push(isNull(haexCrdtChanges.columnName))
+        for (const { tableName } of dirtyTables) {
+          try {
+            console.log(
+              `Scanning table ${tableName} with lastPushHlc:`,
+              lastPushHlc === null
+                ? 'null'
+                : lastPushHlc === undefined
+                  ? 'undefined'
+                  : lastPushHlc === ''
+                    ? '(empty string)'
+                    : lastPushHlc,
+            )
+            const tableChanges = await scanTableForChangesAsync(
+              tableName,
+              lastPushHlc,
+              vaultKey,
+              batchId,
+            )
+
+            partialChanges.push(...tableChanges)
+
+            // Track max HLC timestamp
+            for (const change of tableChanges) {
+              if (change.hlcTimestamp > maxHlc) {
+                maxHlc = change.hlcTimestamp
+              }
+            }
+
+            console.log(
+              `Found ${tableChanges.length} changes in table ${tableName}`,
+            )
+          } catch (error) {
+            console.error(`Failed to scan table ${tableName}:`, error)
+            // Continue with other tables even if one fails
           }
-
-          await currentVault.value.drizzle
-            .delete(haexCrdtChanges)
-            .where(and(...conditions))
         }
 
-        // Update sync status with last pushed HLC timestamp
-        const lastHlc = changes[changes.length - 1]?.hlcTimestamp
-        if (lastHlc) {
-          await updateSyncStatusAsync(backendId, {
-            lastPushHlcTimestamp: lastHlc,
-          })
+        // Add batch sequence numbers now that we know the total
+        const batchTotal = partialChanges.length
+        const allChanges: ColumnChange[] = partialChanges.map(
+          (change, index) => ({
+            ...change,
+            batchSeq: index + 1, // 1-based sequence
+            batchTotal,
+          }),
+        )
+
+        if (allChanges.length === 0) {
+          console.log(`No changes to push to backend ${backendId}`)
+          // Clear dirty tables even if no changes (they might have been synced already)
+          for (const { tableName } of dirtyTables) {
+            await clearDirtyTableAsync(tableName)
+          }
+          return
         }
 
-        console.log(`Pushed ${changes.length} changes to backend ${backendId} and removed from local table`)
+        console.log(
+          `Pushing ${allChanges.length} column-level changes to backend ${backendId}`,
+        )
+
+        // Push changes to server using new format
+        await pushChangesToServerAsync(backendId, backend.vaultId, allChanges)
+
+        // Update backend's lastPushHlcTimestamp
+        await syncBackendsStore.updateBackendAsync(backendId, {
+          lastPushHlcTimestamp: maxHlc,
+        })
+
+        // Clear dirty tables after successful push
+        for (const { tableName } of dirtyTables) {
+          await clearDirtyTableAsync(tableName)
+        }
+
+        console.log(
+          `Successfully pushed ${allChanges.length} changes to backend ${backendId}`,
+        )
       } catch (error) {
         console.error(`Failed to push to backend ${backendId}:`, error)
         state.error = error instanceof Error ? error.message : 'Unknown error'
-        await updateSyncStatusAsync(backendId, {
-          error: state.error,
-        })
         throw error
       } finally {
         state.isSyncing = false
@@ -265,7 +198,68 @@ export const useSyncOrchestratorStore = defineStore(
     }
 
     /**
-     * Pulls changes from a specific backend
+     * Pushes column-level changes to server
+     */
+    const pushChangesToServerAsync = async (
+      backendId: string,
+      vaultId: string,
+      changes: ColumnChange[],
+    ): Promise<void> => {
+      // Get auth token
+      const token = await syncEngineStore.getAuthTokenAsync()
+      if (!token) {
+        throw new Error('Not authenticated')
+      }
+
+      const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
+      if (!backend) {
+        throw new Error('Backend not found')
+      }
+
+      // Get current device ID
+      const deviceStore = useDeviceStore()
+      const deviceId = deviceStore.deviceId
+
+      // Format changes for server API
+      const formattedChanges = changes.map((change) => ({
+        tableName: change.tableName,
+        rowPks: change.rowPks,
+        columnName: change.columnName,
+        hlcTimestamp: change.hlcTimestamp,
+        batchId: change.batchId,
+        batchSeq: change.batchSeq,
+        batchTotal: change.batchTotal,
+        deviceId,
+        encryptedValue: change.encryptedValue,
+        nonce: change.nonce,
+      }))
+
+      // Send to server
+      const response = await fetch(`${backend.serverUrl}/sync/push`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          vaultId,
+          changes: formattedChanges,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(
+          `Failed to push changes: ${error.error || response.statusText}`,
+        )
+      }
+
+      console.log(`✅ Pushed ${changes.length} changes to server`)
+    }
+
+    /**
+     * Pulls changes from a specific backend using column-level HLC comparison
+     * Downloads ALL changes first, then applies them atomically in a transaction
      */
     const pullFromBackendAsync = async (backendId: string): Promise<void> => {
       if (!currentVaultId.value) {
@@ -286,48 +280,59 @@ export const useSyncOrchestratorStore = defineStore(
       state.error = null
 
       try {
-        // Get the vaultId for this backend from the backend configuration
-        const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
+        const backend = syncBackendsStore.backends.find(
+          (b) => b.id === backendId,
+        )
         if (!backend?.vaultId) {
           throw new Error('Backend vaultId not configured')
         }
 
-        const status = await loadSyncStatusAsync(backendId)
-        const afterCreatedAt = status?.lastPullCreatedAt ?? undefined
+        // Get vault key from cache
+        const vaultKey =
+          syncEngineStore.vaultKeyCache[backend.vaultId]?.vaultKey
+        if (!vaultKey) {
+          throw new Error('Vault key not available. Please unlock vault first.')
+        }
 
-        // Get current device ID to exclude our own changes from pull
-        const deviceStore = useDeviceStore()
+        const lastPullHlc = backend.lastPullHlcTimestamp
 
-        const remoteLogs = await syncEngineStore.pullChangesAsync(
-          backendId,
-          backend.vaultId,
-          deviceStore.deviceId,
-          afterCreatedAt,
-          100,
+        console.log(
+          `Pulling changes from backend ${backendId} since ${lastPullHlc || 'beginning'}`,
         )
 
-        if (remoteLogs.length > 0) {
-          await applyRemoteLogsAsync(remoteLogs)
+        // Step 1: Download ALL changes from server (with pagination)
+        const allChanges = await pullChangesFromServerAsync(
+          backendId,
+          backend.vaultId,
+          lastPullHlc,
+        )
 
-          // Update sync status with last pulled createdAt
-          // Use the createdAt from the last change
-          const lastCreatedAt = remoteLogs[remoteLogs.length - 1]?.createdAt
-          if (lastCreatedAt) {
-            await updateSyncStatusAsync(backendId, {
-              lastPullCreatedAt: lastCreatedAt,
-            })
-          }
-
-          console.log(
-            `Pulled ${remoteLogs.length} logs from backend ${backendId}`,
-          )
+        if (allChanges.length === 0) {
+          console.log(`No new changes from backend ${backendId}`)
+          return
         }
+
+        console.log(
+          `Downloaded ${allChanges.length} changes from backend ${backendId}`,
+        )
+
+        // Step 2: Apply ALL changes atomically in a single transaction
+        // The transaction also updates the lastPullHlcTimestamp in the database
+        await applyRemoteChangesInTransactionAsync(
+          allChanges,
+          vaultKey,
+          backendId,
+        )
+
+        // Step 3: Reload backend data from database to get updated lastPullHlcTimestamp
+        await syncBackendsStore.loadBackendsAsync()
+
+        console.log(
+          `Successfully pulled and applied ${allChanges.length} changes from backend ${backendId}`,
+        )
       } catch (error) {
         console.error(`Failed to pull from backend ${backendId}:`, error)
         state.error = error instanceof Error ? error.message : 'Unknown error'
-        await updateSyncStatusAsync(backendId, {
-          error: state.error,
-        })
         throw error
       } finally {
         state.isSyncing = false
@@ -335,11 +340,170 @@ export const useSyncOrchestratorStore = defineStore(
     }
 
     /**
+     * Pulls column-level changes from server with pagination
+     */
+    const pullChangesFromServerAsync = async (
+      backendId: string,
+      vaultId: string,
+      lastPullHlc: string | null,
+    ): Promise<ColumnChange[]> => {
+      const token = await syncEngineStore.getAuthTokenAsync()
+      if (!token) {
+        throw new Error('Not authenticated')
+      }
+
+      const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
+      if (!backend) {
+        throw new Error('Backend not found')
+      }
+
+      const allChanges: ColumnChange[] = []
+      let hasMore = true
+      let currentCursor: string | null = lastPullHlc
+
+      // Pagination loop - download ALL changes before applying
+      while (hasMore) {
+        const response = await fetch(
+          `${backend.serverUrl}/sync/pull?vaultId=${vaultId}&since=${currentCursor || ''}&limit=1000`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        )
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}))
+          throw new Error(
+            `Failed to pull changes: ${error.error || response.statusText}`,
+          )
+        }
+
+        const data = await response.json()
+        const changes: ColumnChange[] = data.changes || []
+
+        allChanges.push(...changes)
+
+        // Check if there are more pages
+        hasMore = data.hasMore === true
+        currentCursor = data.nextCursor || null
+
+        console.log(
+          `Downloaded page with ${changes.length} changes (total: ${allChanges.length}, hasMore: ${hasMore})`,
+        )
+      }
+
+      return allChanges
+    }
+
+    /**
+     * Applies remote changes atomically in a single transaction
+     * Also updates the lastPullHlcTimestamp in the same transaction
+     */
+    const applyRemoteChangesInTransactionAsync = async (
+      changes: ColumnChange[],
+      vaultKey: Uint8Array,
+      backendId: string,
+    ): Promise<void> => {
+      // Calculate max HLC and decrypt all changes
+      let maxHlc = ''
+      const decryptedChanges = []
+
+      for (const change of changes) {
+        // Track max HLC
+        if (change.hlcTimestamp > maxHlc) {
+          maxHlc = change.hlcTimestamp
+        }
+
+        // Decrypt the value
+        let decryptedValue
+        if (change.encryptedValue && change.nonce) {
+          const decryptedData = await decryptCrdtDataAsync<{ value: unknown }>(
+            change.encryptedValue,
+            change.nonce,
+            vaultKey,
+          )
+          decryptedValue = decryptedData.value
+        } else {
+          decryptedValue = null
+        }
+
+        decryptedChanges.push({
+          tableName: change.tableName,
+          rowPks: change.rowPks,
+          columnName: change.columnName,
+          hlcTimestamp: change.hlcTimestamp,
+          batchId: change.batchId,
+          batchSeq: change.batchSeq,
+          batchTotal: change.batchTotal,
+          decryptedValue,
+        })
+      }
+
+      // Call Tauri command to apply changes in a transaction
+      await invoke('apply_remote_changes_in_transaction', {
+        changes: decryptedChanges,
+        backendId,
+        maxHlc,
+      })
+    }
+
+    /**
+     * Fetches missing changes from a batch by their sequence numbers
+     */
+    const fetchMissingBatchChangesAsync = async (
+      backendId: string,
+      batchId: string,
+      receivedSeqNumbers: number[],
+      totalCount: number,
+    ): Promise<ColumnChange[]> => {
+      const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
+      if (!backend) {
+        throw new Error('Backend not found')
+      }
+
+      const token = await syncEngineStore.getAuthTokenAsync()
+      if (!token) {
+        throw new Error('Not authenticated')
+      }
+
+      // Calculate missing sequence numbers
+      const allSeqs = Array.from({ length: totalCount }, (_, i) => i + 1)
+      const missingSeqs = allSeqs.filter((seq) => !receivedSeqNumbers.includes(seq))
+
+      if (missingSeqs.length === 0) {
+        return []
+      }
+
+      console.log(`Fetching ${missingSeqs.length} missing changes for batch ${batchId}`)
+
+      // Fetch missing changes from server
+      const response = await fetch(
+        `${backend.serverUrl}/sync/batch/${batchId}?seqs=${missingSeqs.join(',')}`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      )
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch missing batch changes: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      return data.changes
+    }
+
+    /**
      * Handles incoming realtime changes from Supabase
+     * Accumulates changes by batchId and applies them once the batch is complete
      */
     const handleRealtimeChangeAsync = async (
       backendId: string,
-      payload: any,
+      payload: RealtimePostgresInsertPayload<ColumnChange>,
     ) => {
       console.log(`Realtime change from backend ${backendId}:`, payload)
 
@@ -349,18 +513,146 @@ export const useSyncOrchestratorStore = defineStore(
         return
       }
 
-      // Pull latest changes from this backend
       try {
-        await pullFromBackendAsync(backendId)
+        // Get backend configuration
+        const backend = syncBackendsStore.backends.find(
+          (b) => b.id === backendId,
+        )
+        if (!backend?.vaultId) {
+          console.error('Backend vaultId not configured')
+          return
+        }
+
+        // Get vault key from cache
+        const vaultKey =
+          syncEngineStore.vaultKeyCache[backend.vaultId]?.vaultKey
+        if (!vaultKey) {
+          console.error('Vault key not available')
+          return
+        }
+
+        // Extract the new record from Supabase realtime payload
+        const change = payload.new
+        if (!change) {
+          console.warn('No new record in realtime payload')
+          return
+        }
+
+        const batchId = change.batchId
+        const batchTotal = change.batchTotal
+
+        // Get or create batch accumulator
+        let accumulator = batchAccumulators.value.get(batchId)
+        if (!accumulator) {
+          accumulator = {
+            backendId,
+            changes: [],
+            receivedCount: 0,
+            totalCount: batchTotal,
+            timeout: undefined,
+          }
+          batchAccumulators.value.set(batchId, accumulator)
+        }
+
+        // Add change to accumulator
+        accumulator.changes.push(change)
+        accumulator.receivedCount++
+
+        console.log(
+          `Batch ${batchId}: received ${accumulator.receivedCount}/${batchTotal} changes`,
+        )
+
+        // Clear any existing timeout
+        if (accumulator.timeout) {
+          clearTimeout(accumulator.timeout)
+        }
+
+        // Check if batch is complete
+        if (accumulator.receivedCount >= batchTotal) {
+          // Batch complete - apply all changes
+          console.log(
+            `Batch ${batchId} complete, applying ${accumulator.changes.length} changes`,
+          )
+
+          // Sort by batchSeq to ensure correct order
+          const sortedChanges = accumulator.changes.sort(
+            (a, b) => a.batchSeq - b.batchSeq,
+          )
+
+          await applyRemoteChangesInTransactionAsync(
+            sortedChanges,
+            vaultKey,
+            backendId,
+          )
+
+          // Clean up accumulator
+          batchAccumulators.value.delete(batchId)
+
+          console.log(`✅ Applied batch ${batchId} successfully`)
+        } else {
+          // Set a timeout to fetch missing changes after 10 seconds
+          // This handles cases where some batch items get lost in realtime
+          accumulator.timeout = setTimeout(async () => {
+            const acc = batchAccumulators.value.get(batchId)
+            if (!acc) return
+
+            console.warn(
+              `Batch ${batchId} timeout - fetching ${acc.totalCount - acc.receivedCount} missing changes`,
+            )
+
+            try {
+              // Fetch missing changes from server
+              const receivedSeqs = acc.changes.map((c) => c.batchSeq)
+              const missingChanges = await fetchMissingBatchChangesAsync(
+                acc.backendId,
+                batchId,
+                receivedSeqs,
+                acc.totalCount,
+              )
+
+              // Combine with received changes
+              const allChanges = [...acc.changes, ...missingChanges].sort(
+                (a, b) => a.batchSeq - b.batchSeq,
+              )
+
+              // Apply the complete batch
+              await applyRemoteChangesInTransactionAsync(
+                allChanges,
+                vaultKey,
+                acc.backendId,
+              )
+
+              // Clean up
+              batchAccumulators.value.delete(batchId)
+
+              console.log(`✅ Applied batch ${batchId} after fetching missing changes`)
+            } catch (error) {
+              console.error(`Failed to fetch missing batch ${batchId}:`, error)
+              // Last resort: trigger full pull
+              pullFromBackendAsync(acc.backendId).catch((pullError) => {
+                console.error('Fallback pull also failed:', pullError)
+              })
+            }
+          }, 10000) // 10 second timeout
+        }
       } catch (error) {
         console.error('Failed to handle realtime change:', error)
+        // Fallback: trigger a full pull if direct processing fails
+        console.log('Falling back to full pull...')
+        try {
+          await pullFromBackendAsync(backendId)
+        } catch (pullError) {
+          console.error('Fallback pull also failed:', pullError)
+        }
       }
     }
 
     /**
      * Subscribes to realtime changes from a backend
      */
-    const subscribeToBackendAsync = async (backendId: string): Promise<void> => {
+    const subscribeToBackendAsync = async (
+      backendId: string,
+    ): Promise<void> => {
       if (!currentVaultId.value) {
         throw new Error('No vault opened')
       }
@@ -389,16 +681,16 @@ export const useSyncOrchestratorStore = defineStore(
       try {
         // Subscribe to sync changes table for this vault (using backend vaultId)
         const channel = client
-          .channel(`${SERVER_SYNC_TABLE_NAME}:${backend.vaultId}`)
+          .channel(`sync_changes:${backend.vaultId}`)
           .on(
             'postgres_changes',
             {
               event: 'INSERT',
               schema: 'public',
-              table: SERVER_SYNC_TABLE_NAME,
+              table: 'sync_changes',
               filter: `vault_id=eq.${backend.vaultId}`,
             },
-            (payload) => {
+            (payload: RealtimePostgresInsertPayload<ColumnChange>) => {
               handleRealtimeChangeAsync(backendId, payload).catch(console.error)
             },
           )
@@ -453,24 +745,38 @@ export const useSyncOrchestratorStore = defineStore(
         return
       }
 
-      // Load sync status from database
-      const status = await loadSyncStatusAsync(backendId)
-
       // Initialize state
       syncStates.value[backendId] = {
         isConnected: false,
         isSyncing: false,
         error: null,
         subscription: null,
-        status,
       }
 
       try {
-        // Initial pull to get all existing data
-        await pullFromBackendAsync(backendId)
+        // Initial pull to get all existing data from server
+        try {
+          await pullFromBackendAsync(backendId)
+        } catch (pullError) {
+          console.error(`Failed to pull during init for backend ${backendId}:`, pullError)
+          addToast({
+            color: 'error',
+            description: `Sync pull failed: ${pullError instanceof Error ? pullError.message : 'Unknown error'}`,
+          })
+          throw pullError
+        }
 
-        // Push any pending local changes
-        await pushToBackendAsync(backendId)
+        // Push any pending local changes (dirty tables)
+        try {
+          await pushToBackendAsync(backendId)
+        } catch (pushError) {
+          console.error(`Failed to push during init for backend ${backendId}:`, pushError)
+          addToast({
+            color: 'error',
+            description: `Sync push failed: ${pushError instanceof Error ? pushError.message : 'Unknown error'}`,
+          })
+          throw pushError
+        }
 
         // Subscribe to realtime changes
         await subscribeToBackendAsync(backendId)
@@ -570,10 +876,6 @@ export const useSyncOrchestratorStore = defineStore(
       isProcessingLocalWrite,
       isAnySyncing,
       areAllConnected,
-      loadSyncStatusAsync,
-      updateSyncStatusAsync,
-      getChangesToPushAsync,
-      applyRemoteLogsAsync,
       pushToBackendAsync,
       pullFromBackendAsync,
       subscribeToBackendAsync,

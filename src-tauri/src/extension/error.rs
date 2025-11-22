@@ -31,6 +31,7 @@ pub enum ExtensionErrorCode {
 /// Serialized representation of ExtensionError for TypeScript
 #[derive(Debug, Clone, serde::Serialize, TS)]
 #[ts(export)]
+#[serde(rename_all = "camelCase")]
 pub struct SerializedExtensionError {
     pub code: u16,
     #[serde(rename = "type")]

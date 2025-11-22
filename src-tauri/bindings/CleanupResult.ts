@@ -5,14 +5,14 @@
  */
 export type CleanupResult = { 
 /**
- * Number of tombstone entries deleted
+ * Number of tombstone entries hard-deleted across all tables
  */
-tombstones_deleted: number, 
+tombstonesDeleted: number, 
 /**
- * Number of applied entries deleted (non-DELETE operations)
+ * Number of tables processed (kept for backwards compatibility)
  */
-applied_deleted: number, 
+appliedDeleted: number, 
 /**
  * Total entries deleted
  */
-total_deleted: number, };
+totalDeleted: number, };

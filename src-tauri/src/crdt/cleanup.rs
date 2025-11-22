@@ -1,122 +1,221 @@
 // src-tauri/src/crdt/cleanup.rs
 
-use crate::table_names::TABLE_CRDT_CHANGES;
-use rusqlite::{params, Connection};
+use crate::crdt::trigger::TOMBSTONE_COLUMN;
+use crate::table_names::TABLE_CRDT_CONFIGS;
+use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use ts_rs::TS;
+use uhlc::Timestamp;
 
 /// Result of tombstone cleanup operation
 #[derive(Debug, Serialize, Deserialize, TS)]
 #[ts(export)]
+#[serde(rename_all = "camelCase")]
 pub struct CleanupResult {
-    /// Number of tombstone entries deleted
+    /// Number of tombstone entries hard-deleted across all tables
     pub tombstones_deleted: usize,
-    /// Number of applied entries deleted (non-DELETE operations)
+    /// Number of tables processed (kept for backwards compatibility)
     pub applied_deleted: usize,
     /// Total entries deleted
     pub total_deleted: usize,
 }
 
-/// Cleans up old tombstone (DELETE) entries and applied changes
+/// Cleans up old tombstones (hard-deletes rows with haex_tombstone = 1)
 ///
-/// - DELETE entries older than `retention_days` are removed
-/// - INSERT/UPDATE entries with sync_state='applied' can also be removed
+/// Converts soft-deletes older than `retention_days` into hard deletes
+/// to prevent unbounded table growth.
+///
+/// This function dynamically discovers all CRDT-enabled tables by:
+/// 1. Querying sqlite_master for all tables
+/// 2. Checking each table for a haex_tombstone column
+/// 3. Hard-deleting old tombstoned rows from those tables
+///
+/// The age check works by comparing HLC timestamps.
+/// HLC timestamp format (uhlc 0.8.2): "time/node_id_hex" (e.g. "7575643027736195360/1010101010101010101010101010101")
+/// The time component is a 64-bit NTP64 timestamp in nanoseconds.
 ///
 /// # Arguments
 /// * `conn` - Database connection
-/// * `retention_days` - Number of days to keep DELETE tombstones
+/// * `retention_days` - Number of days to keep soft-deleted tombstones
 pub fn cleanup_tombstones(
     conn: &Connection,
     retention_days: u32,
 ) -> Result<CleanupResult, rusqlite::Error> {
-    // Delete old tombstones (DELETE operations)
-    let tombstones_sql = format!(
-        "DELETE FROM {TABLE_CRDT_CHANGES}
-         WHERE operation = 'DELETE'
-         AND created_at < datetime('now', '-{retention_days} days')"
+    let mut total_deleted = 0;
+    let mut tables_processed = 0;
+
+    // Get current HLC timestamp from config
+    let query = format!(
+        "SELECT value FROM {} WHERE key = ?1 AND type = 'hlc'",
+        TABLE_CRDT_CONFIGS
     );
+    let current_hlc_str: Option<String> = conn
+        .query_row(&query, ["hlc_timestamp"], |row| row.get(0))
+        .ok();
 
-    let tombstones_deleted = conn.execute(&tombstones_sql, [])?;
+    // If no HLC timestamp exists yet, skip cleanup
+    let current_hlc_str = match current_hlc_str {
+        Some(s) => s,
+        None => {
+            eprintln!("No HLC timestamp found in config, skipping cleanup");
+            return Ok(CleanupResult {
+                tombstones_deleted: 0,
+                applied_deleted: 0,
+                total_deleted: 0,
+            });
+        }
+    };
 
-    // Delete applied INSERT/UPDATE entries (they've been synced and can be cleaned)
-    let applied_sql = format!(
-        "DELETE FROM {TABLE_CRDT_CHANGES}
-         WHERE sync_state = 'applied'
-         AND operation != 'DELETE'"
-    );
+    // Parse current HLC timestamp using uhlc's FromStr
+    let current_timestamp = Timestamp::from_str(&current_hlc_str).map_err(|e| {
+        eprintln!("Failed to parse HLC timestamp '{current_hlc_str}': {e:?}");
+        rusqlite::Error::InvalidQuery
+    })?;
 
-    let applied_deleted = conn.execute(&applied_sql, [])?;
+    // Extract the time component as u64 (NTP64 nanoseconds)
+    let current_hlc_num = current_timestamp.get_time().as_u64();
+
+    // Calculate cutoff: subtract retention_days worth of nanoseconds
+    let retention_ns = retention_days as u64 * 24 * 60 * 60 * 1_000_000_000;
+    let cutoff_hlc_num = current_hlc_num.saturating_sub(retention_ns);
+
+    // Get all table names from database
+    let mut stmt = conn.prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+    )?;
+
+    let table_names: Vec<String> = stmt
+        .query_map([], |row| row.get(0))?
+        .collect::<Result<Vec<String>, _>>()?;
+
+    for table_name in table_names {
+        // Check if this table has a haex_tombstone column
+        // This automatically filters out non-CRDT tables like haex_crdt_configs
+        let has_tombstone_column: bool = conn
+            .prepare(&format!("PRAGMA table_info({})", table_name))?
+            .query_map([], |row| {
+                let col_name: String = row.get(1)?;
+                Ok(col_name == TOMBSTONE_COLUMN)
+            })?
+            .filter_map(Result::ok)
+            .any(|x| x);
+
+        if !has_tombstone_column {
+            continue;
+        }
+
+        // Hard-delete tombstoned rows older than retention period
+        // Extract the NTP64 time component (before '/') and compare with cutoff
+        let delete_sql = format!(
+            "DELETE FROM {table_name}
+             WHERE {TOMBSTONE_COLUMN} = 1
+             AND CAST(substr(haex_timestamp, 1, instr(haex_timestamp, '/') - 1) AS INTEGER) < ?1"
+        );
+
+        let deleted_count = conn.execute(&delete_sql, [cutoff_hlc_num])?;
+
+        if deleted_count > 0 {
+            eprintln!("Cleaned up {deleted_count} tombstones from {table_name}");
+        }
+
+        total_deleted += deleted_count;
+        tables_processed += 1;
+    }
 
     Ok(CleanupResult {
-        tombstones_deleted,
-        applied_deleted,
-        total_deleted: tombstones_deleted + applied_deleted,
+        tombstones_deleted: total_deleted,
+        applied_deleted: tables_processed, // Reuse field for tables_processed for backwards compatibility
+        total_deleted,
     })
 }
 
-/// Gets statistics about the CRDT changes table
+/// Gets statistics about CRDT tables
 #[derive(Debug, Serialize, Deserialize, TS)]
 #[ts(export)]
+#[serde(rename_all = "camelCase")]
 pub struct CrdtStats {
+    /// Total number of rows across all CRDT tables
     pub total_entries: usize,
+    /// Number of tables with dirty changes (kept for backwards compatibility)
     pub pending_upload: usize,
+    /// Number of CRDT-enabled tables (kept for backwards compatibility)
     pub pending_apply: usize,
+    /// Number of non-tombstoned entries
     pub applied: usize,
+    /// Total count across all tables (kept for backwards compatibility)
     pub insert_count: usize,
+    /// Number of non-tombstoned entries (kept for backwards compatibility)
     pub update_count: usize,
+    /// Number of tombstoned (soft-deleted) entries
     pub delete_count: usize,
 }
 
 pub fn get_crdt_stats(conn: &Connection) -> Result<CrdtStats, rusqlite::Error> {
-    let total_entries: usize = conn.query_row(
-        &format!("SELECT COUNT(*) FROM {TABLE_CRDT_CHANGES}"),
-        [],
-        |row| row.get(0),
+    let mut total_entries = 0;
+    let mut non_tombstoned = 0;
+    let mut tombstoned = 0;
+    let mut crdt_table_count = 0;
+
+    // Get all table names from database
+    let mut stmt = conn.prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
     )?;
 
-    let pending_upload: usize = conn.query_row(
-        &format!("SELECT COUNT(*) FROM {TABLE_CRDT_CHANGES} WHERE sync_state = 'pending_upload'"),
-        [],
-        |row| row.get(0),
-    )?;
+    let table_names: Vec<String> = stmt
+        .query_map([], |row| row.get(0))?
+        .collect::<Result<Vec<String>, _>>()?;
 
-    let pending_apply: usize = conn.query_row(
-        &format!("SELECT COUNT(*) FROM {TABLE_CRDT_CHANGES} WHERE sync_state = 'pending_apply'"),
-        [],
-        |row| row.get(0),
-    )?;
+    for table_name in table_names {
+        // Check if this table has a haex_tombstone column
+        // This automatically filters out non-CRDT tables like haex_crdt_configs
+        let has_tombstone_column: bool = conn
+            .prepare(&format!("PRAGMA table_info({})", table_name))?
+            .query_map([], |row| {
+                let col_name: String = row.get(1)?;
+                Ok(col_name == TOMBSTONE_COLUMN)
+            })?
+            .filter_map(Result::ok)
+            .any(|x| x);
 
-    let applied: usize = conn.query_row(
-        &format!("SELECT COUNT(*) FROM {TABLE_CRDT_CHANGES} WHERE sync_state = 'applied'"),
-        [],
-        |row| row.get(0),
-    )?;
+        if !has_tombstone_column {
+            continue;
+        }
 
-    let insert_count: usize = conn.query_row(
-        &format!("SELECT COUNT(*) FROM {TABLE_CRDT_CHANGES} WHERE operation = 'INSERT'"),
-        [],
-        |row| row.get(0),
-    )?;
+        crdt_table_count += 1;
 
-    let update_count: usize = conn.query_row(
-        &format!("SELECT COUNT(*) FROM {TABLE_CRDT_CHANGES} WHERE operation = 'UPDATE'"),
-        [],
-        |row| row.get(0),
-    )?;
+        // Count total entries
+        let count: usize = conn.query_row(
+            &format!("SELECT COUNT(*) FROM {}", table_name),
+            [],
+            |row| row.get(0),
+        )?;
+        total_entries += count;
 
-    let delete_count: usize = conn.query_row(
-        &format!("SELECT COUNT(*) FROM {TABLE_CRDT_CHANGES} WHERE operation = 'DELETE'"),
-        [],
-        |row| row.get(0),
-    )?;
+        // Count non-tombstoned entries
+        let active_count: usize = conn.query_row(
+            &format!("SELECT COUNT(*) FROM {} WHERE {} = 0", table_name, TOMBSTONE_COLUMN),
+            [],
+            |row| row.get(0),
+        )?;
+        non_tombstoned += active_count;
+
+        // Count tombstoned entries
+        let tombstone_count: usize = conn.query_row(
+            &format!("SELECT COUNT(*) FROM {} WHERE {} = 1", table_name, TOMBSTONE_COLUMN),
+            [],
+            |row| row.get(0),
+        )?;
+        tombstoned += tombstone_count;
+    }
 
     Ok(CrdtStats {
         total_entries,
-        pending_upload,
-        pending_apply,
-        applied,
-        insert_count,
-        update_count,
-        delete_count,
+        pending_upload: 0, // Not applicable with new architecture
+        pending_apply: crdt_table_count,
+        applied: non_tombstoned,
+        insert_count: total_entries,
+        update_count: non_tombstoned,
+        delete_count: tombstoned,
     })
 }

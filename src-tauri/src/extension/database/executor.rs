@@ -44,7 +44,7 @@ impl SqlExecutor {
                 })?;
 
         let mut modified_schema_tables = HashSet::new();
-        if let Some(table_name) = transformer.transform_execute_statement_with_table_info(
+        if let Some(table_name) = transformer.transform_execute_statement(
             &mut statement,
             &hlc_timestamp,
         )? {
@@ -107,7 +107,7 @@ impl SqlExecutor {
                 })?;
 
         let mut modified_schema_tables = HashSet::new();
-        if let Some(table_name) = transformer.transform_execute_statement_with_table_info(
+        if let Some(table_name) = transformer.transform_execute_statement(
             &mut statement,
             &hlc_timestamp,
         )? {

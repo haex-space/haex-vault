@@ -1,4 +1,11 @@
 {
+  "crdt": {
+    "columns": {
+      "haexTimestamp": "haex_timestamp",
+      "haexColumnHlcs": "haex_column_hlcs",
+      "haexTombstone": "haex_tombstone"
+    }
+  },
   "haex": {
     "settings": {
       "name": "haex_settings",
@@ -117,6 +124,8 @@
         "syncKey": "sync_key",
         "enabled": "enabled",
         "priority": "priority",
+        "lastPushHlcTimestamp": "last_push_hlc_timestamp",
+        "lastPullHlcTimestamp": "last_pull_hlc_timestamp",
         "createdAt": "created_at",
         "updatedAt": "updated_at",
 

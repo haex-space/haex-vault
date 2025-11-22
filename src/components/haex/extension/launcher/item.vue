@@ -1,8 +1,8 @@
 <template>
   <div
     ref="elementRef"
-    class="size-24 flex flex-wrap text-sm items-center justify-center overflow-visible select-none"
-    :class="isDragging ? 'opacity-50' : 'cursor-grab'"
+    class="size-24 flex flex-wrap text-sm items-center justify-center overflow-visible select-none rounded-lg transition-colors"
+    :class="isDragging ? 'opacity-50' : 'cursor-grab hover:bg-gray-100 dark:hover:bg-gray-800'"
     :style="{ touchAction: 'none' }"
     @pointerdown="onPointerDown"
     @pointerup="onPointerUp"

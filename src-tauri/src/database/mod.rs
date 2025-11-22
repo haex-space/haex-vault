@@ -532,8 +532,10 @@ fn initialize_session(
     Ok(())
 }
 
-/// Cleans up old tombstone entries and applied CRDT changes
-/// Returns statistics about how many entries were deleted
+/// Cleans up old tombstones by hard-deleting rows with haex_tombstone = 1
+/// that are older than the specified retention period.
+///
+/// This prevents unbounded table growth from soft-deleted entries.
 #[tauri::command]
 pub fn crdt_cleanup_tombstones(
     retention_days: u32,
@@ -544,12 +546,12 @@ pub fn crdt_cleanup_tombstones(
             .map_err(|e| DatabaseError::ExecutionError {
                 sql: "CRDT cleanup".to_string(),
                 reason: e.to_string(),
-                table: Some("haex_crdt_changes".to_string()),
+                table: None,
             })
     })
 }
 
-/// Gets statistics about the CRDT changes table
+/// Gets statistics about CRDT tables (total entries, tombstoned entries, etc.)
 #[tauri::command]
 pub fn crdt_get_stats(
     state: State<'_, AppState>,
@@ -558,7 +560,7 @@ pub fn crdt_get_stats(
         crate::crdt::cleanup::get_crdt_stats(conn).map_err(|e| DatabaseError::ExecutionError {
             sql: "CRDT stats".to_string(),
             reason: e.to_string(),
-            table: Some("haex_crdt_changes".to_string()),
+            table: None,
         })
     })
 }

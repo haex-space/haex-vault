@@ -30,6 +30,7 @@ pub struct PermissionEntry {
 
 #[derive(Serialize, Deserialize, TS)]
 #[ts(export)]
+#[serde(rename_all = "camelCase")]
 pub struct ExtensionPreview {
     pub manifest: ExtensionManifest,
     pub is_valid_signature: bool,
@@ -72,6 +73,7 @@ impl Default for DisplayMode {
 
 #[derive(Serialize, Deserialize, Clone, Debug, TS)]
 #[ts(export)]
+#[serde(rename_all = "camelCase")]
 pub struct ExtensionManifest {
     pub name: String,
     #[serde(default = "default_version_value")]

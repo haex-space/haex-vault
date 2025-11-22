@@ -5,50 +5,15 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1763474075058,
-      "tag": "0000_panoramic_scorpion",
+      "when": 1763828913568,
+      "tag": "0000_flimsy_namorita",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "6",
-      "when": 1763475946915,
-      "tag": "0001_add_type_to_crdt_configs",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1763500626165,
-      "tag": "0002_wakeful_songbird",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1763503129510,
-      "tag": "0003_fuzzy_shatterstar",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1763505759494,
-      "tag": "0004_marvelous_tomorrow_man",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1763506377665,
-      "tag": "0005_white_sauron",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1763601260466,
-      "tag": "0006_handy_victor_mancha",
+      "when": 1763829278218,
+      "tag": "0001_ambiguous_alice",
       "breakpoints": true
     }
   ]

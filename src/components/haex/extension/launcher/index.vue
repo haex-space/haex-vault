@@ -9,7 +9,10 @@
     :handle-only="true"
     :dismissible="true"
   >
-    <div ref="launcherButtonWrapperRef" class="inline-block">
+    <div
+      ref="launcherButtonWrapperRef"
+      class="inline-block"
+    >
       <UButton
         icon="material-symbols:apps"
         color="neutral"
@@ -19,40 +22,50 @@
       />
     </div>
 
-    <template #content>
-      <div class="p-4 h-full overflow-y-auto">
-        <div class="flex flex-wrap">
-          <!-- All launcher items (system windows + enabled extensions, alphabetically sorted) -->
-          <HaexExtensionLauncherItem
-            v-for="item in launcherItems"
-            :id="item.id"
-            :key="item.id"
-            :type="item.type"
-            :name="item.name"
-            :icon="item.icon"
-            @click="openItem(item)"
-            @drag-move="handleLauncherDragMove"
-          />
+    <template #body>
+      <div class="flex flex-wrap">
+        <!-- All launcher items (system windows + enabled extensions, alphabetically sorted) -->
+        <HaexExtensionLauncherItem
+          v-for="item in launcherItems"
+          :id="item.id"
+          :key="item.id"
+          :type="item.type"
+          :name="item.name"
+          :icon="item.icon"
+          @click="openItem(item)"
+          @drag-move="handleLauncherDragMove"
+        />
 
-          <!-- Disabled Extensions (grayed out) -->
-          <UiButton
-            v-for="extension in disabledExtensions"
-            :key="extension.id"
-            square
-            size="xl"
-            variant="ghost"
-            :disabled="true"
-            :ui="{
-              base: 'size-24 flex flex-wrap text-sm items-center justify-center overflow-visible opacity-40',
-              leadingIcon: 'size-10',
-              label: 'w-full',
-            }"
-            :icon="extension.icon || 'i-heroicons-puzzle-piece-solid'"
-            :label="extension.name"
-            :tooltip="`${extension.name} (${t('disabled')})`"
-          />
-        </div>
+        <!-- Disabled Extensions (grayed out) -->
+        <UiButton
+          v-for="extension in disabledExtensions"
+          :key="extension.id"
+          square
+          size="xl"
+          variant="ghost"
+          :disabled="true"
+          :ui="{
+            base: 'size-24 flex flex-wrap text-sm items-center justify-center overflow-visible opacity-40',
+            leadingIcon: 'size-10',
+            label: 'w-full',
+          }"
+          :icon="extension.icon || 'i-heroicons-puzzle-piece-solid'"
+          :label="extension.name"
+          :tooltip="`${extension.name} (${t('disabled')})`"
+        />
       </div>
+    </template>
+
+    <template #footer>
+      <UButton
+        color="neutral"
+        variant="outline"
+        block
+        size="lg"
+        icon="i-heroicons-arrow-left-on-rectangle"
+        :label="t('logout.label')"
+        @click="onLogout"
+      />
     </template>
   </UiDrawer>
 </template>
@@ -162,6 +175,18 @@ const handleLauncherDragMove = () => {
   // The drag overlay should be fully operational at this point
   open.value = false
 }
+
+// Logout - close vault and navigate back to vault page
+const onLogout = async () => {
+  open.value = false
+
+  // Close the current vault (removes it from openVaults)
+  const vaultStore = useVaultStore()
+  await vaultStore.closeAsync()
+
+  // Navigate back to vault selection page
+  await navigateTo(useLocalePath()({ name: 'vault' }))
+}
 </script>
 
 <i18n lang="yaml">
@@ -171,6 +196,8 @@ de:
   launcher:
     title: App Launcher
     description: Wähle eine App zum Öffnen
+  logout:
+    label: Vault schließen
   contextMenu:
     open: Öffnen
     addToDesktop: Zum Desktop hinzufügen
@@ -193,6 +220,8 @@ en:
   launcher:
     title: App Launcher
     description: Select an app to open
+  logout:
+    label: Close Vault
   contextMenu:
     open: Open
     addToDesktop: Add to Desktop

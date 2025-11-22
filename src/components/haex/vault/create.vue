@@ -16,63 +16,73 @@
       block
     />
 
-    <template #content>
-      <div class="p-6 flex flex-col">
-        <div class="w-full mx-auto space-y-4">
-          <h2 class="text-xl font-semibold">
-            {{ t('title') }}
-          </h2>
+    <template #header>
+      <h2 class="text-xl font-semibold">
+        {{ t('title') }}
+      </h2>
+    </template>
 
-          <UForm
-            :state="vault"
-            class="w-full space-y-6"
-          >
-            <UiInput
-              v-model="vault.name"
-              icon="mdi:safe"
-              :label="t('vault.placeholder')"
-              autofocus
-              size="xl"
-              class="w-full"
-            />
+    <template #body>
+      <UForm
+        :state="vault"
+        class="w-full space-y-6"
+        @keyup.enter="onCreateAsync"
+      >
+        <UiInput
+          v-model="vault.name"
+          v-model:errors="errors.name"
+          icon="mdi:safe"
+          :label="t('vault.placeholder')"
+          :schema="vaultSchema.name"
+          :check="check"
+          :custom-validators="[checkVaultNameExists]"
+          autofocus
+          size="xl"
+          class="w-full"
+        />
 
-            <UiInputPassword
-              v-model="vault.password"
-              :label="t('password.placeholder')"
-              leading-icon="i-heroicons-key"
-              size="xl"
-              class="w-full"
-            />
+        <UiInputPassword
+          v-model="vault.password"
+          v-model:errors="errors.password"
+          :label="t('password.placeholder')"
+          :schema="vaultSchema.password"
+          :check="check"
+          leading-icon="i-heroicons-key"
+          size="xl"
+          class="w-full"
+        />
 
-            <UiInputPassword
-              v-model="vault.passwordConfirm"
-              :label="t('passwordConfirm.placeholder')"
-              leading-icon="i-heroicons-key"
-              size="xl"
-              class="w-full"
-            />
-          </UForm>
-        </div>
+        <UiInputPassword
+          v-model="vault.passwordConfirm"
+          v-model:errors="errors.passwordConfirm"
+          :label="t('passwordConfirm.placeholder')"
+          :check="check"
+          leading-icon="i-heroicons-key"
+          size="xl"
+          class="w-full"
+        />
+      </UForm>
+    </template>
 
-        <div class="flex gap-3 mt-12">
-          <UButton
-            color="neutral"
-            variant="outline"
-            block
-            size="xl"
-            @click="open = false"
-          >
-            {{ t('cancel') }}
-          </UButton>
-          <UButton
-            color="primary"
-            block
-            size="xl"
-            @click="onCreateAsync"
-          >
-            {{ t('create') }}
-          </UButton>
-        </div>
+    <template #footer>
+      <div class="flex gap-3">
+        <UButton
+          color="neutral"
+          variant="outline"
+          block
+          size="xl"
+          @click="open = false"
+        >
+          {{ t('cancel') }}
+        </UButton>
+        <UButton
+          color="primary"
+          block
+          size="xl"
+          @click="onCreateAsync"
+        >
+          {{ t('create') }}
+        </UButton>
       </div>
     </template>
   </UiDrawer>
@@ -86,7 +96,7 @@
     <UiButton
       :label="t('button.label')"
       :ui="{
-        base: 'px-3 py-2',
+        base: 'px-4 py-3 ',
       }"
       icon="mdi:plus"
       size="xl"
@@ -99,46 +109,41 @@
         <UForm
           :state="vault"
           class="w-full space-y-6"
+          @keyup.enter="onCreateAsync"
         >
-          <UFormField
+          <UiInput
+            v-model="vault.name"
+            v-model:errors="errors.name"
+            icon="mdi:safe"
             :label="t('vault.label')"
-            name="name"
-          >
-            <UInput
-              v-model="vault.name"
-              icon="mdi:safe"
-              :placeholder="t('vault.placeholder')"
-              autofocus
-              size="xl"
-              class="w-full"
-            />
-          </UFormField>
+            :schema="vaultSchema.name"
+            :check="check"
+            :custom-validators="[checkVaultNameExists]"
+            autofocus
+            size="xl"
+            class="w-full"
+          />
 
-          <UFormField
-            :label="t('password.label')"
-            name="password"
-          >
-            <UiInputPassword
-              v-model="vault.password"
-              :label="t('password.placeholder')"
-              leading-icon="i-heroicons-key"
-              size="xl"
-              class="w-full"
-            />
-          </UFormField>
+          <UiInputPassword
+            v-model="vault.password"
+            v-model:errors="errors.password"
+            :label="t('password.placeholder')"
+            :schema="vaultSchema.password"
+            :check="check"
+            leading-icon="i-heroicons-key"
+            size="xl"
+            class="w-full"
+          />
 
-          <UFormField
+          <UiInputPassword
+            v-model="vault.passwordConfirm"
+            v-model:errors="errors.passwordConfirm"
             :label="t('passwordConfirm.label')"
-            name="passwordConfirm"
-          >
-            <UiInputPassword
-              v-model="vault.passwordConfirm"
-              :label="t('passwordConfirm.placeholder')"
-              leading-icon="i-heroicons-key"
-              size="xl"
-              class="w-full"
-            />
-          </UFormField>
+            :check="check"
+            leading-icon="i-heroicons-key"
+            size="xl"
+            class="w-full"
+          />
         </UForm>
       </div>
     </template>
@@ -166,6 +171,7 @@
 </template>
 
 <script setup lang="ts">
+import type { AcceptableValue } from '@nuxt/ui/runtime/types/utils.js'
 import { vaultSchema } from './schema'
 
 const open = defineModel<boolean>('open', { default: false })
@@ -175,16 +181,21 @@ const { t } = useI18n({
   useScope: 'local',
 })
 
-const vault = reactive<{
-  name: string
-  password: string
-  passwordConfirm: string
-  type: 'password' | 'text'
-}>({
+const vault = reactive({
   name: 'HaexVault',
   password: '',
   passwordConfirm: '',
-  type: 'password',
+  type: 'password' as 'password' | 'text',
+})
+
+const errors = reactive<{
+  name: string[]
+  password: string[]
+  passwordConfirm: string[]
+}>({
+  name: [],
+  password: [],
+  passwordConfirm: [],
 })
 
 const initVault = () => {
@@ -194,44 +205,53 @@ const initVault = () => {
   vault.type = 'password'
 }
 
+const clearErrors = () => {
+  errors.name = []
+  errors.password = []
+  errors.passwordConfirm = []
+}
 const { createAsync } = useVaultStore()
+const { lastVaults } = storeToRefs(useLastVaultStore())
 const { add } = useToast()
 
 const check = ref(false)
 
+// Custom validator to check if vault name already exists
+const checkVaultNameExists = (
+  vaultName: AcceptableValue | undefined,
+): string | null => {
+  if (!vaultName || typeof vaultName !== 'string') return null
+
+  const inputName = vaultName.toLowerCase()
+  const vaultNameExists = lastVaults.value.some((v) => {
+    const existingName = v.name.toLowerCase()
+    const existingNameWithoutExt = existingName.replace(/\.db$/, '')
+    return existingName === inputName || existingNameWithoutExt === inputName
+  })
+
+  return vaultNameExists ? t('error.vaultExists.description') : null
+}
+
 const onCreateAsync = async () => {
+  // Trigger validation in all input fields
   check.value = true
 
-  const nameCheck = vaultSchema.name.safeParse(vault.name)
-  const passwordCheck = vaultSchema.password.safeParse(vault.password)
-
-  if (!nameCheck.success) {
-    add({
-      color: 'error',
-      title: t('error.validation.title'),
-      description:
-        nameCheck.error.errors[0]?.message || t('error.validation.name'),
-    })
-    return
-  }
-
-  if (!passwordCheck.success) {
-    add({
-      color: 'error',
-      title: t('error.validation.title'),
-      description:
-        passwordCheck.error.errors[0]?.message ||
-        t('error.validation.password'),
-    })
-    return
-  }
-
+  // Validate password confirmation manually (no schema for this)
   if (vault.password !== vault.passwordConfirm) {
-    add({
-      color: 'error',
-      title: t('error.passwordMismatch.title'),
-      description: t('error.passwordMismatch.description'),
-    })
+    errors.passwordConfirm = [t('error.passwordMismatch.description')]
+  } else {
+    errors.passwordConfirm = []
+  }
+
+  // Wait for validation to complete
+  await nextTick()
+
+  // If there are any errors, don't proceed
+  if (
+    errors.name.length > 0 ||
+    errors.password.length > 0 ||
+    errors.passwordConfirm.length > 0
+  ) {
     return
   }
 
@@ -245,6 +265,8 @@ const onCreateAsync = async () => {
 
       if (vaultId) {
         initVault()
+        clearErrors()
+        check.value = false
         await navigateTo(
           useLocaleRoute()({ name: 'desktop', params: { vaultId } }),
         )
@@ -278,6 +300,9 @@ de:
     passwordMismatch:
       title: Passwörter stimmen nicht überein
       description: Bitte stelle sicher, dass beide Passwörter identisch sind
+    vaultExists:
+      title: Vault existiert bereits
+      description: Eine Vault mit diesem Namen existiert bereits
     validation:
       title: Validierungsfehler
       name: Bitte gib einen gültigen Vaultnamen ein
@@ -303,6 +328,9 @@ en:
     passwordMismatch:
       title: Passwords do not match
       description: Please make sure both passwords are identical
+    vaultExists:
+      title: Vault already exists
+      description: A vault with this name already exists
     validation:
       title: Validation error
       name: Please enter a valid vault name

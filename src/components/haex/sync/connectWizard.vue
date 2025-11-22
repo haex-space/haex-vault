@@ -8,10 +8,13 @@
     />
 
     <!-- Step Content -->
-    <div class="min-h-[400px]">
+    <div>
       <!-- Step 1: Login -->
-      <div v-if="currentStepIndex === 0" class="space-y-4">
-        <HaexSyncConnect
+      <div
+        v-if="currentStepIndex === 0"
+        class="space-y-4"
+      >
+        <HaexSyncAddBackend
           ref="connectRef"
           :is-loading="isLoading"
           @update="onCredentialsUpdate"
@@ -19,33 +22,52 @@
       </div>
 
       <!-- Step 2: Select Vault -->
-      <div v-else-if="currentStepIndex === 1" class="space-y-4">
+      <div
+        v-else-if="currentStepIndex === 1"
+        class="space-y-4"
+      >
         <p class="text-sm text-base-content/60">
           {{ t('steps.selectVault.description') }}
         </p>
 
         <!-- Loading state -->
-        <div v-if="isLoadingVaults" class="flex items-center justify-center p-8">
+        <div
+          v-if="isLoadingVaults"
+          class="flex items-center justify-center p-8"
+        >
           <span class="loading loading-spinner loading-lg"></span>
         </div>
 
         <!-- Vault list -->
-        <div v-else-if="availableVaults.length > 0" class="space-y-2">
+        <div
+          v-else-if="availableVaults.length > 0"
+          class="space-y-2"
+        >
           <div
             v-for="vault in availableVaults"
             :key="vault.vaultId"
             class="card bg-base-200 p-4 cursor-pointer hover:bg-base-300 transition-colors"
-            :class="{ 'ring-2 ring-primary': selectedVaultId === vault.vaultId }"
+            :class="{
+              'ring-2 ring-primary': selectedVaultId === vault.vaultId,
+            }"
             @click="selectedVaultId = vault.vaultId"
           >
             <div class="flex items-center justify-between">
               <div>
-                <p class="font-medium">{{ vault.decryptedName || t('steps.selectVault.encryptedVault') }}</p>
+                <p class="font-medium">
+                  {{
+                    vault.decryptedName || t('steps.selectVault.encryptedVault')
+                  }}
+                </p>
                 <p class="text-sm text-base-content/60">
-                  {{ t('steps.selectVault.createdAt') }}: {{ formatDate(vault.createdAt) }}
+                  {{ t('steps.selectVault.createdAt') }}:
+                  {{ formatDate(vault.createdAt) }}
                 </p>
               </div>
-              <div v-if="selectedVaultId === vault.vaultId" class="text-primary">
+              <div
+                v-if="selectedVaultId === vault.vaultId"
+                class="text-primary"
+              >
                 <i class="i-lucide-check-circle text-2xl"></i>
               </div>
             </div>
@@ -53,13 +75,19 @@
         </div>
 
         <!-- No vaults -->
-        <div v-else class="text-center p-8 text-base-content/60">
+        <div
+          v-else
+          class="text-center p-8 text-base-content/60"
+        >
           <p>{{ t('steps.selectVault.noVaults') }}</p>
         </div>
       </div>
 
       <!-- Step 3: Create Local Vault -->
-      <div v-else-if="currentStepIndex === 2" class="space-y-4">
+      <div
+        v-else-if="currentStepIndex === 2"
+        class="space-y-4"
+      >
         <p class="text-sm text-base-content/60">
           {{ t('steps.createVault.description') }}
         </p>
@@ -77,7 +105,10 @@
               @blur="checkVaultNameExistsAsync"
             />
           </UFormField>
-          <p v-if="vaultNameExists" class="text-sm text-error mt-1">
+          <p
+            v-if="vaultNameExists"
+            class="text-sm text-error mt-1"
+          >
             {{ t('steps.createVault.vaultNameExists') }}
           </p>
 
@@ -93,17 +124,23 @@
             />
           </UFormField>
 
-          <UFormField
-            :label="t('steps.createVault.vaultPasswordConfirm')"
-          >
+          <UFormField :label="t('steps.createVault.vaultPasswordConfirm')">
             <UiInputPassword
               v-model="newVaultPasswordConfirm"
-              :placeholder="t('steps.createVault.vaultPasswordConfirmPlaceholder')"
+              :placeholder="
+                t('steps.createVault.vaultPasswordConfirmPlaceholder')
+              "
               size="xl"
               class="w-full"
             />
           </UFormField>
-          <p v-if="newVaultPassword !== newVaultPasswordConfirm && newVaultPasswordConfirm !== ''" class="text-sm text-error mt-1">
+          <p
+            v-if="
+              newVaultPassword !== newVaultPasswordConfirm &&
+              newVaultPasswordConfirm !== ''
+            "
+            class="text-sm text-error mt-1"
+          >
             {{ t('steps.createVault.passwordMismatch') }}
           </p>
         </div>
@@ -153,7 +190,11 @@
 
 <script setup lang="ts">
 import { createClient } from '@supabase/supabase-js'
-import { decryptStringAsync, deriveKeyFromPasswordAsync, base64ToArrayBuffer } from '~/utils/crypto/vaultKey'
+import {
+  decryptStringAsync,
+  deriveKeyFromPasswordAsync,
+  base64ToArrayBuffer,
+} from '~/utils/crypto/vaultKey'
 
 const { t } = useI18n()
 const { add } = useToast()
@@ -168,21 +209,22 @@ interface VaultInfo {
 }
 
 defineProps<{
-  isLoading?: boolean
   showCancel?: boolean
 }>()
 
 const emit = defineEmits<{
-  complete: [{
-    backendId: string
-    vaultId: string
-    vaultName: string
-    localVaultName: string
-    serverUrl: string
-    email: string
-    password: string
-    newVaultPassword?: string
-  }]
+  complete: [
+    {
+      backendId: string
+      vaultId: string
+      vaultName: string
+      localVaultName: string
+      serverUrl: string
+      email: string
+      password: string
+      newVaultPassword?: string
+    },
+  ]
   cancel: []
 }>()
 
@@ -254,7 +296,11 @@ const isStep3Valid = computed(() => {
 })
 
 // Methods
-const onCredentialsUpdate = (newCredentials: { serverUrl: string; email: string; password: string }) => {
+const onCredentialsUpdate = (newCredentials: {
+  serverUrl: string
+  email: string
+  password: string
+}) => {
   credentials.value = newCredentials
 }
 
@@ -329,7 +375,9 @@ const loadVaultsAsync = async () => {
 
   try {
     // Get auth token
-    const { data: { session } } = await supabaseClient.value.auth.getSession()
+    const {
+      data: { session },
+    } = await supabaseClient.value.auth.getSession()
     if (!session?.access_token) {
       throw new Error('Not authenticated')
     }
@@ -338,7 +386,7 @@ const loadVaultsAsync = async () => {
     const response = await fetch(`${credentials.value.serverUrl}/sync/vaults`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${session.access_token}`,
+        Authorization: `Bearer ${session.access_token}`,
       },
     })
 
@@ -353,7 +401,10 @@ const loadVaultsAsync = async () => {
     for (const vault of availableVaults.value) {
       try {
         const salt = base64ToArrayBuffer(vault.salt)
-        const derivedKey = await deriveKeyFromPasswordAsync(credentials.value.password, salt)
+        const derivedKey = await deriveKeyFromPasswordAsync(
+          credentials.value.password,
+          salt,
+        )
         const decryptedName = await decryptStringAsync(
           vault.encryptedVaultName,
           vault.vaultNameNonce,
@@ -396,7 +447,9 @@ const checkVaultNameExistsAsync = async () => {
 const completeSetupAsync = async () => {
   if (!selectedVaultId.value) return
 
-  const selectedVault = availableVaults.value.find(v => v.vaultId === selectedVaultId.value)
+  const selectedVault = availableVaults.value.find(
+    (v) => v.vaultId === selectedVaultId.value,
+  )
   if (!selectedVault) return
 
   // Emit complete event with all necessary data

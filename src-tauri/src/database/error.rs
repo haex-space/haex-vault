@@ -7,7 +7,7 @@ use ts_rs::TS;
 
 #[derive(Error, Debug, Serialize, Deserialize, TS)]
 #[ts(export)]
-#[serde(tag = "type", content = "details")]
+#[serde(tag = "type", content = "details", rename_all_fields = "camelCase")]
 pub enum DatabaseError {
     /// Der SQL-Code konnte nicht geparst werden.
     #[error("Failed to parse SQL: {reason} - SQL: {sql}")]

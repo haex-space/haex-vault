@@ -221,3 +221,257 @@ impl Default for HlcService {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_timestamp_format() {
+        // Verify that uhlc 0.8.2 uses the "time/node_id_hex" format
+        let node_id = ID::try_from([1u8; 16]).unwrap();
+        let hlc = HLCBuilder::new()
+            .with_id(node_id)
+            .with_max_delta(Duration::from_secs(1))
+            .build();
+
+        let timestamp = hlc.new_timestamp();
+        let formatted = timestamp.to_string();
+
+        println!("HLC Timestamp format: {}", formatted);
+        println!("Length: {}", formatted.len());
+
+        // Verify format: "number/hex_string"
+        assert!(formatted.contains('/'), "Timestamp should contain '/'");
+        let parts: Vec<&str> = formatted.split('/').collect();
+        assert_eq!(parts.len(), 2, "Timestamp should have exactly 2 parts");
+
+        // First part should be a valid u64
+        let time_part = parts[0].parse::<u64>();
+        assert!(time_part.is_ok(), "Time part should be a valid u64");
+
+        // Second part should be hex representation of node_id
+        // Note: Leading zeros may be omitted in hex representation
+        assert!(
+            parts[1].len() <= 32,
+            "Node ID hex should be at most 32 characters (16 bytes)"
+        );
+        assert!(
+            !parts[1].is_empty(),
+            "Node ID hex should not be empty"
+        );
+    }
+
+    #[test]
+    fn test_timestamp_parsing() {
+        // Verify that we can parse timestamps back from string
+        let node_id = ID::try_from([2u8; 16]).unwrap();
+        let hlc = HLCBuilder::new()
+            .with_id(node_id)
+            .with_max_delta(Duration::from_secs(1))
+            .build();
+
+        let original = hlc.new_timestamp();
+        let formatted = original.to_string();
+
+        // Parse it back
+        let parsed = Timestamp::from_str(&formatted).expect("Should parse timestamp");
+
+        // Verify they're equal
+        assert_eq!(original, parsed, "Parsed timestamp should equal original");
+    }
+
+    #[test]
+    fn test_timestamp_time_extraction() {
+        // Verify that we can extract the time component correctly
+        let node_id = ID::try_from([3u8; 16]).unwrap();
+        let hlc = HLCBuilder::new()
+            .with_id(node_id)
+            .with_max_delta(Duration::from_secs(1))
+            .build();
+
+        let timestamp = hlc.new_timestamp();
+        let formatted = timestamp.to_string();
+
+        // Extract time via API
+        let time_via_api = timestamp.get_time().as_u64();
+
+        // Extract time via string parsing (like in cleanup.rs)
+        let time_via_string: u64 = formatted
+            .split('/')
+            .next()
+            .unwrap()
+            .parse()
+            .expect("Should parse time component");
+
+        assert_eq!(
+            time_via_api, time_via_string,
+            "Time extraction via API and string should match"
+        );
+    }
+
+    #[test]
+    fn test_timestamp_ordering() {
+        // Verify that timestamps are monotonically increasing
+        let node_id = ID::try_from([4u8; 16]).unwrap();
+        let hlc = HLCBuilder::new()
+            .with_id(node_id)
+            .with_max_delta(Duration::from_secs(1))
+            .build();
+
+        let ts1 = hlc.new_timestamp();
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        let ts2 = hlc.new_timestamp();
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        let ts3 = hlc.new_timestamp();
+
+        // Timestamps should be ordered
+        assert!(ts1 < ts2, "ts1 should be less than ts2");
+        assert!(ts2 < ts3, "ts2 should be less than ts3");
+
+        // Time components should also be ordered
+        assert!(
+            ts1.get_time().as_u64() <= ts2.get_time().as_u64(),
+            "Time components should be non-decreasing"
+        );
+        assert!(
+            ts2.get_time().as_u64() <= ts3.get_time().as_u64(),
+            "Time components should be non-decreasing"
+        );
+    }
+
+    #[test]
+    fn test_hlc_persistence() {
+        // Verify that HLC timestamps can be persisted and loaded
+        let mut conn = Connection::open_in_memory().expect("Should create in-memory DB");
+
+        // Create the config table
+        conn.execute(
+            &format!(
+                "CREATE TABLE {TABLE_CRDT_CONFIGS} (key TEXT PRIMARY KEY, type TEXT NOT NULL, value TEXT NOT NULL)"
+            ),
+            [],
+        )
+        .expect("Should create table");
+
+        let node_id = ID::try_from([5u8; 16]).unwrap();
+        let hlc = HLCBuilder::new()
+            .with_id(node_id)
+            .with_max_delta(Duration::from_secs(1))
+            .build();
+
+        let original_timestamp = hlc.new_timestamp();
+
+        // Persist it
+        {
+            let tx = conn.transaction().expect("Should start transaction");
+            HlcService::persist_timestamp(&tx, &original_timestamp)
+                .expect("Should persist timestamp");
+            tx.commit().expect("Should commit");
+        }
+
+        // Load it back
+        let loaded_timestamp =
+            HlcService::load_last_timestamp(&conn).expect("Should load timestamp");
+
+        assert!(loaded_timestamp.is_some(), "Should have loaded a timestamp");
+        assert_eq!(
+            loaded_timestamp.unwrap(),
+            original_timestamp,
+            "Loaded timestamp should match original"
+        );
+    }
+
+    #[test]
+    fn test_timestamp_difference_calculation() {
+        // Verify that we can correctly calculate time differences
+        let node_id = ID::try_from([6u8; 16]).unwrap();
+        let hlc = HLCBuilder::new()
+            .with_id(node_id)
+            .with_max_delta(Duration::from_secs(1))
+            .build();
+
+        let ts1 = hlc.new_timestamp();
+        let time1 = ts1.get_time().as_u64();
+
+        // Simulate aging by a known amount (e.g., 1 day in nanoseconds)
+        let one_day_ns: u64 = 24 * 60 * 60 * 1_000_000_000;
+        let cutoff_time = time1.saturating_sub(one_day_ns);
+
+        // Verify the calculation
+        assert!(
+            cutoff_time < time1,
+            "Cutoff should be less than current time"
+        );
+        assert_eq!(
+            time1 - cutoff_time,
+            one_day_ns,
+            "Difference should be exactly one day"
+        );
+    }
+
+    #[test]
+    fn test_ntp64_nanosecond_precision() {
+        // Verify that NTP64 timestamps have nanosecond precision
+        let node_id = ID::try_from([7u8; 16]).unwrap();
+        let hlc = HLCBuilder::new()
+            .with_id(node_id)
+            .with_max_delta(Duration::from_secs(1))
+            .build();
+
+        let ts = hlc.new_timestamp();
+        let ntp64_value = ts.get_time().as_u64();
+
+        // NTP64 should be a large number (nanoseconds since 1900)
+        // As of 2024, this should be > 10^18
+        assert!(
+            ntp64_value > 1_000_000_000_000_000_000,
+            "NTP64 value should be in nanoseconds range: {}",
+            ntp64_value
+        );
+
+        println!("NTP64 value: {}", ntp64_value);
+    }
+
+    #[test]
+    fn test_update_with_external_timestamp() {
+        // Verify that HLC can be updated with external timestamps (for sync)
+        let node_id1 = ID::try_from([8u8; 16]).unwrap();
+        let node_id2 = ID::try_from([9u8; 16]).unwrap();
+
+        let hlc1 = HLCBuilder::new()
+            .with_id(node_id1)
+            .with_max_delta(Duration::from_secs(1))
+            .build();
+
+        let hlc2 = HLCBuilder::new()
+            .with_id(node_id2)
+            .with_max_delta(Duration::from_secs(1))
+            .build();
+
+        let ts1 = hlc1.new_timestamp();
+
+        // Simulate time passing
+        std::thread::sleep(std::time::Duration::from_millis(10));
+
+        let ts2_before = hlc2.new_timestamp();
+
+        // Update hlc2 with ts1 (simulating receiving a remote timestamp)
+        hlc2.update_with_timestamp(&ts1)
+            .expect("Should update with external timestamp");
+
+        let ts2_after = hlc2.new_timestamp();
+
+        // ts2_after should be greater than both ts1 and ts2_before
+        assert!(
+            ts2_after > ts1,
+            "Updated timestamp should be greater than external timestamp"
+        );
+        assert!(
+            ts2_after > ts2_before,
+            "Updated timestamp should be greater than previous timestamp"
+        );
+    }
+}

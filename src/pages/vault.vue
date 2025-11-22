@@ -81,6 +81,11 @@ onMounted(async () => {
 
       isWaitingForInitialSync.value = false
       console.log('✅ Initial sync complete')
+
+      // Load sync backends that were synced from remote vault
+      const syncBackendsStore = useSyncBackendsStore()
+      await syncBackendsStore.loadBackendsAsync()
+      console.log('✅ Loaded sync backends from synced data')
     }
 
     // Sync settings first before other initialization

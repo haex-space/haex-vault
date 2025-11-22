@@ -51,10 +51,19 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   // Supabase client (initialized with config from backend)
   const supabaseClient = ref<ReturnType<typeof createClient> | null>(null)
 
+  // Track current backend to avoid recreating client for same backend
+  const currentBackendId = ref<string | null>(null)
+
   /**
    * Initializes Supabase client for a specific backend
+   * Reuses existing client if already initialized for the same backend
    */
   const initSupabaseClientAsync = async (backendId: string) => {
+    // If client already exists for this backend, reuse it
+    if (supabaseClient.value && currentBackendId.value === backendId) {
+      return
+    }
+
     const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
     if (!backend) {
       throw new Error('Backend not found')
@@ -74,7 +83,14 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       throw new Error('Supabase configuration missing from server')
     }
 
-    supabaseClient.value = createClient(supabaseUrl, supabaseAnonKey)
+    // Only create new client if URL/key changed
+    supabaseClient.value = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        // Use backend-specific storage key to avoid conflicts
+        storageKey: `sb-${backendId}-auth-token`,
+      },
+    })
+    currentBackendId.value = backendId
   }
 
   /**
@@ -500,6 +516,49 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     }
   }
 
+  /**
+   * Deletes a remote vault from the sync backend
+   * This will delete all CRDT changes, vault keys, and vault configuration from the server
+   */
+  const deleteRemoteVaultAsync = async (
+    backendId: string,
+    vaultId: string,
+  ): Promise<void> => {
+    const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
+    if (!backend) {
+      throw new Error('Backend not found')
+    }
+
+    // Get auth token
+    const token = await getAuthTokenAsync()
+    if (!token) {
+      throw new Error('Not authenticated')
+    }
+
+    // Send delete request to server
+    const response = await fetch(
+      `${backend.serverUrl}/sync/vault/${vaultId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      },
+    )
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(
+        `Failed to delete remote vault: ${error.error || response.statusText}`,
+      )
+    }
+
+    // Clear vault key from cache
+    clearVaultKeyCache(vaultId)
+
+    console.log(`✅ Remote vault ${vaultId} deleted from server`)
+  }
+
   return {
     vaultKeyCache,
     supabaseClient,
@@ -514,5 +573,6 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     ensureSyncKeyAsync,
     clearVaultKeyCache,
     healthCheckAsync,
+    deleteRemoteVaultAsync,
   }
 })

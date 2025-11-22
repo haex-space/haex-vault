@@ -1,1 +1,0 @@
-ALTER TABLE `haex_crdt_configs` ADD `type` text NOT NULL;

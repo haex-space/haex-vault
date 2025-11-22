@@ -2,4 +2,4 @@
 import type { DisplayMode } from "./DisplayMode";
 import type { ExtensionPermissions } from "./ExtensionPermissions";
 
-export type ExtensionManifest = { name: string, version: string, author: string | null, entry: string | null, icon: string | null, public_key: string, signature: string, permissions: ExtensionPermissions, homepage: string | null, description: string | null, single_instance: boolean | null, display_mode: DisplayMode | null, };
+export type ExtensionManifest = { name: string, version: string, author: string | null, entry: string | null, icon: string | null, publicKey: string, signature: string, permissions: ExtensionPermissions, homepage: string | null, description: string | null, singleInstance: boolean | null, displayMode: DisplayMode | null, };

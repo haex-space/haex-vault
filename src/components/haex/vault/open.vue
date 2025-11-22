@@ -16,60 +16,63 @@
       block
     />
 
-    <template #content>
-      <div class="p-6 flex flex-col">
-        <div class="w-full mx-auto space-y-4">
-          <h2 class="text-xl font-semibold">
-            {{ t('title') }}
-          </h2>
+    <template #header>
+      <h2 class="text-xl font-semibold">
+        {{ t('title') }}
+      </h2>
+    </template>
 
-          <div
-            v-if="path"
-            class="text-sm text-gray-500 dark:text-gray-400"
-          >
-            <button
-              class="text-primary hover:underline cursor-pointer break-all text-left"
-              @click="onRevealInFolder"
-            >
-              {{ path }}
-            </button>
-          </div>
+    <template #body>
+      <div
+        v-if="path"
+        class="text-sm text-gray-500 dark:text-gray-400 mb-4"
+      >
+        <button
+          class="text-primary hover:underline cursor-pointer break-all text-left"
+          @click="onRevealInFolder"
+        >
+          {{ path }}
+        </button>
+      </div>
 
-          <UForm
-            :state="vault"
-            class="w-full"
-          >
-            <UiInputPassword
-              v-model="vault.password"
-              :label="t('password.placeholder')"
-              leading-icon="i-heroicons-key"
-              size="xl"
-              autofocus
-              class="w-full"
-              @keyup.enter="onOpenDatabase"
-            />
-          </UForm>
-        </div>
+      <UForm
+        :state="vault"
+        class="w-full"
+      >
+        <UiInputPassword
+          v-model="vault.password"
+          v-model:errors="errors.password"
+          :label="t('password.placeholder')"
+          :schema="vaultSchema.password"
+          :check="check"
+          leading-icon="i-heroicons-key"
+          size="xl"
+          autofocus
+          class="w-full"
+          @keyup.enter="onOpenDatabase"
+        />
+      </UForm>
+    </template>
 
-        <div class="flex gap-3 mt-12">
-          <UButton
-            color="neutral"
-            variant="outline"
-            block
-            size="xl"
-            @click="open = false"
-          >
-            {{ t('cancel') }}
-          </UButton>
-          <UButton
-            color="primary"
-            block
-            size="xl"
-            @click="onOpenDatabase"
-          >
-            {{ t('open') }}
-          </UButton>
-        </div>
+    <template #footer>
+      <div class="flex gap-3">
+        <UButton
+          color="neutral"
+          variant="outline"
+          block
+          size="xl"
+          @click="open = false"
+        >
+          {{ t('cancel') }}
+        </UButton>
+        <UButton
+          color="primary"
+          block
+          size="xl"
+          @click="onOpenDatabase"
+        >
+          {{ t('open') }}
+        </UButton>
       </div>
     </template>
   </UiDrawer>
@@ -83,7 +86,7 @@
     <UiButton
       :label="t('button.label')"
       :ui="{
-        base: 'px-3 py-2',
+        base: 'px-4 py-3',
       }"
       icon="mdi:folder-open-outline"
       size="xl"
@@ -99,7 +102,10 @@
         >
           <UiInputPassword
             v-model="vault.password"
+            v-model:errors="errors.password"
             :label="t('password.placeholder')"
+            :schema="vaultSchema.password"
+            :check="check"
             leading-icon="i-heroicons-key"
             size="xl"
             autofocus
@@ -147,44 +153,16 @@ const { t } = useI18n({
   useScope: 'local',
 })
 
-const vault = reactive<{
-  name: string
-  password: string
-  path: string | null
-  type: 'password' | 'text'
-}>({
+const vault = reactive({
   name: '',
   password: '',
   path: '',
-  type: 'password',
+  type: 'password' as 'password' | 'text',
 })
 
-/* const onLoadDatabase = async () => {
-  try {
-    vault.path = await openVault({
-      multiple: false,
-      directory: false,
-      filters: [
-        {
-          name: 'HaexVault',
-          extensions: ['db'],
-        },
-      ],
-    })
-
-    console.log('onLoadDatabase', vault.path)
-    if (!vault.path) {
-      open.value = false
-      return
-    }
-
-    open.value = true
-  } catch (error) {
-    open.value = false
-    console.error('handleError', error, typeof error)
-    add({ color: 'error', description: `${error}` })
-  }
-} */
+const errors = reactive({
+  password: [] as string[],
+})
 
 const check = ref(false)
 
@@ -195,8 +173,14 @@ const initVault = () => {
   vault.type = 'password'
 }
 
+const clearErrors = () => {
+  errors.password = []
+}
+
 const onAbort = () => {
   initVault()
+  clearErrors()
+  check.value = false
   open.value = false
 }
 
@@ -219,12 +203,21 @@ const onOpenDatabase = async () => {
     const { openAsync } = useVaultStore()
     const localePath = useLocalePath()
 
+    // Trigger validation
     check.value = true
+
+    // Wait for validation to complete
+    await nextTick()
+
+    // If there are validation errors, don't proceed
+    if (errors.password.length > 0) {
+      return
+    }
+
     const path = props.path
     const pathCheck = vaultSchema.path.safeParse(path)
-    const passwordCheck = vaultSchema.password.safeParse(vault.password)
 
-    if (pathCheck.error || passwordCheck.error) return
+    if (pathCheck.error) return
 
     const vaultId = await openAsync({
       path,

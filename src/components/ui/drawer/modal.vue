@@ -11,8 +11,8 @@
 
     <!-- Drawer Content -->
     <template #content>
-      <div class="p-6 flex flex-col h-full overflow-y-auto">
-        <div class="w-full mx-auto space-y-4 flex-1">
+      <div class="p-6 flex flex-col h-full">
+        <div class="w-full mx-auto space-y-4 flex-1 overflow-y-auto">
           <h2 class="text-xl font-semibold">
             {{ title }}
           </h2>

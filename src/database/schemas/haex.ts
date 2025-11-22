@@ -4,17 +4,15 @@ import {
   integer,
   sqliteTable,
   text,
-  unique,
+  uniqueIndex,
   type AnySQLiteColumn,
   type SQLiteColumnBuilderBase,
 } from 'drizzle-orm/sqlite-core'
 import tableNames from '@/database/tableNames.json'
 
-const crdtColumnNames = {
-  haexTimestamp: 'haex_timestamp',
-}
+const crdtColumnNames = tableNames.crdt.columns
 
-// Helper function to add common CRDT columns ( haexTimestamp)
+// Helper function to add common CRDT columns (haexTimestamp, haexColumnHlcs, haexTombstone)
 export const withCrdtColumns = <
   T extends Record<string, SQLiteColumnBuilderBase>,
 >(
@@ -22,6 +20,10 @@ export const withCrdtColumns = <
 ) => ({
   ...columns,
   haexTimestamp: text(crdtColumnNames.haexTimestamp),
+  haexColumnHlcs: text(crdtColumnNames.haexColumnHlcs).notNull().default('{}'),
+  haexTombstone: integer(crdtColumnNames.haexTombstone, { mode: 'boolean' })
+    .notNull()
+    .default(false),
 })
 
 export const haexDevices = sqliteTable(
@@ -30,7 +32,7 @@ export const haexDevices = sqliteTable(
     id: text(tableNames.haex.devices.columns.id)
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
-    deviceId: text(tableNames.haex.devices.columns.deviceId).notNull().unique(),
+    deviceId: text(tableNames.haex.devices.columns.deviceId).notNull(),
     name: text(tableNames.haex.devices.columns.name).notNull(),
     current: integer(tableNames.haex.devices.columns.current, {
       mode: 'boolean',
@@ -44,6 +46,11 @@ export const haexDevices = sqliteTable(
       mode: 'timestamp',
     }).$onUpdate(() => new Date()),
   }),
+  (table) => [
+    uniqueIndex('haex_devices_device_id_unique')
+      .on(table.deviceId)
+      .where(sql`${table.haexTombstone} = 0`),
+  ],
 )
 export type InsertHaexDevices = typeof haexDevices.$inferInsert
 export type SelectHaexDevices = typeof haexDevices.$inferSelect
@@ -62,7 +69,11 @@ export const haexSettings = sqliteTable(
     type: text(tableNames.haex.settings.columns.type),
     value: text(tableNames.haex.settings.columns.value),
   }),
-  (table) => [unique().on(table.deviceId, table.key, table.type)],
+  (table) => [
+    uniqueIndex('haex_settings_device_id_key_type_unique')
+      .on(table.deviceId, table.key, table.type)
+      .where(sql`${table.haexTombstone} = 0`),
+  ],
 )
 export type InsertHaexSettings = typeof haexSettings.$inferInsert
 export type SelectHaexSettings = typeof haexSettings.$inferSelect
@@ -94,7 +105,9 @@ export const haexExtensions = sqliteTable(
   }),
   (table) => [
     // UNIQUE constraint: Pro Developer (public_key) kann nur eine Extension mit diesem Namen existieren
-    unique().on(table.public_key, table.name),
+    uniqueIndex('haex_extensions_public_key_name_unique')
+      .on(table.public_key, table.name)
+      .where(sql`${table.haexTombstone} = 0`),
   ],
 )
 export type InsertHaexExtensions = typeof haexExtensions.$inferInsert
@@ -126,12 +139,9 @@ export const haexExtensionPermissions = sqliteTable(
     ),
   }),
   (table) => [
-    unique().on(
-      table.extensionId,
-      table.resourceType,
-      table.action,
-      table.target,
-    ),
+    uniqueIndex('haex_extension_permissions_extension_id_resource_type_action_target_unique')
+      .on(table.extensionId, table.resourceType, table.action, table.target)
+      .where(sql`${table.haexTombstone} = 0`),
   ],
 )
 export type InserthaexExtensionPermissions =
@@ -174,7 +184,11 @@ export const haexWorkspaces = sqliteTable(
       .default(0),
     background: text(),
   }),
-  (table) => [unique().on(table.position)],
+  (table) => [
+    uniqueIndex('haex_workspaces_position_unique')
+      .on(table.position)
+      .where(sql`${table.haexTombstone} = 0`),
+  ],
 )
 export type InsertHaexWorkspaces = typeof haexWorkspaces.$inferInsert
 export type SelectHaexWorkspaces = typeof haexWorkspaces.$inferSelect
@@ -236,6 +250,8 @@ export const haexSyncBackends = sqliteTable(
     priority: integer(tableNames.haex.sync_backends.columns.priority)
       .default(0)
       .notNull(),
+    lastPushHlcTimestamp: text(tableNames.haex.sync_backends.columns.lastPushHlcTimestamp),
+    lastPullHlcTimestamp: text(tableNames.haex.sync_backends.columns.lastPullHlcTimestamp),
     createdAt: text(tableNames.haex.sync_backends.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),
@@ -243,7 +259,11 @@ export const haexSyncBackends = sqliteTable(
       mode: 'timestamp',
     }).$onUpdate(() => new Date()),
   }),
-  (table) => [unique().on(table.serverUrl, table.email)],
+  (table) => [
+    uniqueIndex('haex_sync_backends_server_url_email_unique')
+      .on(table.serverUrl, table.email)
+      .where(sql`${table.haexTombstone} = 0`),
+  ],
 )
 export type InsertHaexSyncBackends = typeof haexSyncBackends.$inferInsert
 export type SelectHaexSyncBackends = typeof haexSyncBackends.$inferSelect

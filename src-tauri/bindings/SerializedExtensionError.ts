@@ -3,4 +3,4 @@
 /**
  * Serialized representation of ExtensionError for TypeScript
  */
-export type SerializedExtensionError = { code: number, type: string, message: string, extension_id: string | null, };
+export type SerializedExtensionError = { code: number, type: string, message: string, extensionId: string | null, };

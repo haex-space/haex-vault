@@ -9,8 +9,8 @@
       overlay: 'backdrop-blur-sm',
     }"
   >
-    <template #content>
-      <div class="h-full overflow-y-auto p-6 justify-center flex">
+    <template #body>
+      <div class="justify-center flex">
         <!-- Window Thumbnails Flex Layout -->
 
         <div
