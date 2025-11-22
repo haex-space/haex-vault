@@ -16,6 +16,7 @@
       >
         <HaexSyncAddBackend
           ref="connectRef"
+          :items="serverOptions"
           :is-loading="isLoading"
           @update="onCredentialsUpdate"
         />
@@ -197,6 +198,7 @@ import {
 } from '~/utils/crypto/vaultKey'
 
 const { t } = useI18n()
+const { serverOptions } = useSyncServerOptions()
 const { add } = useToast()
 
 interface VaultInfo {
