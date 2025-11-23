@@ -37,6 +37,28 @@ pub fn open_and_init_db(path: &str, key: &str, create: bool) -> Result<Connectio
             reason: e.to_string(),
         })?;
 
+    // Enable foreign key constraints
+    // This must be set for PRAGMA defer_foreign_keys to work
+    conn.pragma_update(None, "foreign_keys", "ON")
+        .map_err(|e| DatabaseError::PragmaError {
+            pragma: "foreign_keys".to_string(),
+            reason: e.to_string(),
+        })?;
+
+    // Verify foreign keys are enabled
+    let fk_enabled: i32 = conn
+        .query_row("PRAGMA foreign_keys", [], |row| row.get(0))
+        .map_err(|e| DatabaseError::PragmaError {
+            pragma: "foreign_keys (verify)".to_string(),
+            reason: e.to_string(),
+        })?;
+
+    if fk_enabled == 1 {
+        println!("✅ Foreign key constraints enabled.");
+    } else {
+        eprintln!("❌ Failed to enable foreign key constraints.");
+    }
+
     // Register custom UUID function for SQLite triggers
     conn.create_scalar_function(
         UUID_FUNCTION_NAME,
@@ -145,6 +167,23 @@ impl ValueConverter {
 
     pub fn convert_params(params: &[JsonValue]) -> Result<Vec<SqlValue>, DatabaseError> {
         params.iter().map(Self::json_to_rusqlite_value).collect()
+    }
+
+    pub fn rusqlite_value_to_json(sql_value: &SqlValue) -> JsonValue {
+        match sql_value {
+            SqlValue::Null => JsonValue::Null,
+            SqlValue::Integer(n) => JsonValue::Number((*n).into()),
+            SqlValue::Real(f) => {
+                serde_json::Number::from_f64(*f)
+                    .map(JsonValue::Number)
+                    .unwrap_or(JsonValue::Null)
+            }
+            SqlValue::Text(s) => {
+                // Try to parse as JSON first (for objects/arrays that were serialized)
+                serde_json::from_str(s).unwrap_or_else(|_| JsonValue::String(s.clone()))
+            }
+            SqlValue::Blob(_) => JsonValue::Null, // Blobs not supported in JSON
+        }
     }
 }
 

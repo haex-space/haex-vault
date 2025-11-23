@@ -5,10 +5,12 @@ use crate::crdt::trigger;
 use crate::database::error::DatabaseError;
 use crate::table_names::{
     TABLE_DESKTOP_ITEMS,
+    TABLE_DEVICES,
     TABLE_EXTENSIONS,
     TABLE_EXTENSION_PERMISSIONS,
     TABLE_NOTIFICATIONS,
     TABLE_SETTINGS,
+    TABLE_SYNC_BACKENDS,
     TABLE_WORKSPACES,
 };
 use rusqlite::{params, Connection};
@@ -16,6 +18,8 @@ use rusqlite::{params, Connection};
 /// Liste aller CRDT-Tabellen die Trigger benötigen (ohne Password-Tabellen - die kommen in Extension)
 const CRDT_TABLES: &[&str] = &[
     TABLE_SETTINGS,
+    TABLE_DEVICES,
+    TABLE_SYNC_BACKENDS,
     TABLE_EXTENSIONS,
     TABLE_EXTENSION_PERMISSIONS,
     TABLE_NOTIFICATIONS,

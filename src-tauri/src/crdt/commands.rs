@@ -1,8 +1,9 @@
 use crate::crdt::trigger::{get_table_schema as get_table_schema_internal, ColumnInfo, HLC_TIMESTAMP_COLUMN, COLUMN_HLCS_COLUMN};
-use crate::database::core::with_connection;
+use crate::database::core::{with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
 use crate::AppState;
 use rusqlite::params;
+use rusqlite::types::Value as SqlValue;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
@@ -254,11 +255,33 @@ pub fn apply_remote_changes_in_transaction(
         // Start transaction - all changes in the batch are applied atomically
         let tx = conn.transaction().map_err(DatabaseError::from)?;
 
+        // Check if foreign keys are enabled (required for defer_foreign_keys to work)
+        let fk_enabled: i32 = tx
+            .query_row("PRAGMA foreign_keys", [], |row| row.get(0))
+            .map_err(DatabaseError::from)?;
+        eprintln!("🔍 Foreign keys enabled: {}", fk_enabled);
+
+        if fk_enabled != 1 {
+            eprintln!("⚠️ WARNING: Foreign keys are not enabled! defer_foreign_keys will not work.");
+        }
+
         // Defer foreign key constraint checking until the end of the transaction
         // This allows applying changes in any order, but still validates all constraints at commit time
         // This setting is automatically reset when the transaction ends (commit or rollback)
-        tx.execute("PRAGMA defer_foreign_keys = ON", [])
+        // NOTE: This must be set AFTER starting the transaction
+        eprintln!("Setting PRAGMA defer_foreign_keys = 1");
+        tx.pragma_update(None, "defer_foreign_keys", "1")
             .map_err(DatabaseError::from)?;
+
+        // Verify the PRAGMA was actually set
+        let defer_fk_enabled: i32 = tx
+            .query_row("PRAGMA defer_foreign_keys", [], |row| row.get(0))
+            .map_err(DatabaseError::from)?;
+        eprintln!("🔍 PRAGMA defer_foreign_keys is now: {}", defer_fk_enabled);
+
+        if defer_fk_enabled != 1 {
+            eprintln!("❌ ERROR: defer_foreign_keys could not be enabled!");
+        }
 
         // Group changes by (table, row) so we can insert/update all columns of a row together
         let mut row_changes: HashMap<(String, String), Vec<RemoteColumnChange>> = HashMap::new();
@@ -268,9 +291,13 @@ pub fn apply_remote_changes_in_transaction(
         }
 
         // Apply changes grouped by row
+        eprintln!("📊 Applying {} rows total", row_changes.len());
+
         for ((_table_name, row_pks_str), row_change_list) in row_changes {
             // Use the first change to get common data
             let first_change = &row_change_list[0];
+            eprintln!("📝 Processing table: {}, PKs: {}, columns: {}",
+                first_change.table_name, row_pks_str, row_change_list.len());
 
             // Parse row PKs (same for all changes in this row)
             let row_pks: serde_json::Map<String, JsonValue> =
@@ -328,7 +355,7 @@ pub fn apply_remote_changes_in_transaction(
             };
 
             // Collect all column changes that are newer than current
-            let mut columns_to_update: Vec<(String, String, String)> = Vec::new(); // (column_name, value, hlc)
+            let mut columns_to_update: Vec<(String, JsonValue, String)> = Vec::new(); // (column_name, json_value, hlc)
             let mut max_hlc_for_row = first_change.hlc_timestamp.clone();
 
             for change in &row_change_list {
@@ -345,7 +372,7 @@ pub fn apply_remote_changes_in_transaction(
                     );
                     columns_to_update.push((
                         change.column_name.clone(),
-                        change.decrypted_value.to_string(),
+                        change.decrypted_value.clone(),
                         change.hlc_timestamp.clone(),
                     ));
 
@@ -379,25 +406,25 @@ pub fn apply_remote_changes_in_transaction(
                         pk_where_clause
                     );
 
-                    let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+                    let mut params_vec: Vec<SqlValue> = Vec::new();
 
-                    // Add column values
-                    for (_, value, _) in &columns_to_update {
-                        params_vec.push(Box::new(value.clone()));
+                    // Add column values (convert JSON to SQL values)
+                    for (_, json_value, _) in &columns_to_update {
+                        params_vec.push(ValueConverter::json_to_rusqlite_value(json_value)?);
                     }
 
                     // Add HLCs and timestamp
-                    params_vec.push(Box::new(new_hlcs_json));
-                    params_vec.push(Box::new(max_hlc_for_row.clone()));
+                    params_vec.push(SqlValue::Text(new_hlcs_json));
+                    params_vec.push(SqlValue::Text(max_hlc_for_row.clone()));
 
                     // Add PK values for WHERE clause
                     for pk_val in &pk_values {
-                        params_vec.push(Box::new(pk_val.to_string().trim_matches('"').to_string()));
+                        params_vec.push(SqlValue::Text(pk_val.to_string().trim_matches('"').to_string()));
                     }
 
                     let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec
                         .iter()
-                        .map(|b| b.as_ref() as &dyn rusqlite::ToSql)
+                        .map(|v| v as &dyn rusqlite::ToSql)
                         .collect();
 
                     tx.execute(&update_sql, &*params_refs)
@@ -405,7 +432,7 @@ pub fn apply_remote_changes_in_transaction(
                 } else {
                     // Row doesn't exist, insert it with all changed columns + PKs
                     let mut columns = Vec::new();
-                    let mut values: Vec<String> = Vec::new();
+                    let mut values: Vec<SqlValue> = Vec::new();
 
                     // Debug: Log what columns we're about to insert
                     eprintln!("=== INSERT DEBUG for table {} ===", first_change.table_name);
@@ -417,21 +444,21 @@ pub fn apply_remote_changes_in_transaction(
                     for col in &pk_columns {
                         columns.push(col.name.clone());
                         if let Some(pk_val) = row_pks.get(&col.name) {
-                            values.push(pk_val.to_string().trim_matches('"').to_string());
+                            values.push(SqlValue::Text(pk_val.to_string().trim_matches('"').to_string()));
                         }
                     }
 
-                    // Add changed columns
-                    for (col_name, value, _) in &columns_to_update {
+                    // Add changed columns (convert JSON to SQL values)
+                    for (col_name, json_value, _) in &columns_to_update {
                         columns.push(col_name.clone());
-                        values.push(value.clone());
+                        values.push(ValueConverter::json_to_rusqlite_value(json_value)?);
                     }
 
                     // Add CRDT metadata
                     columns.push(COLUMN_HLCS_COLUMN.to_string());
                     columns.push(HLC_TIMESTAMP_COLUMN.to_string());
-                    values.push(new_hlcs_json);
-                    values.push(max_hlc_for_row.clone());
+                    values.push(SqlValue::Text(new_hlcs_json));
+                    values.push(SqlValue::Text(max_hlc_for_row.clone()));
 
                     let placeholders = vec!["?"; columns.len()].join(", ");
                     let insert_sql = format!(
@@ -442,7 +469,7 @@ pub fn apply_remote_changes_in_transaction(
                     );
 
                     let params_refs: Vec<&dyn rusqlite::ToSql> =
-                        values.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+                        values.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
 
                     // Try to insert - if it fails with constraint, log detailed error
                     match tx.execute(&insert_sql, &*params_refs) {
@@ -463,10 +490,8 @@ pub fn apply_remote_changes_in_transaction(
                                 // Build remote row data from all columns being inserted
                                 let mut remote_row_data = serde_json::Map::new();
                                 for (i, col_name) in columns.iter().enumerate() {
-                                    if let Some(value_str) = values.get(i) {
-                                        // Try to parse as JSON, otherwise store as string
-                                        let json_value = serde_json::from_str(value_str)
-                                            .unwrap_or_else(|_| JsonValue::String(value_str.clone()));
+                                    if let Some(sql_value) = values.get(i) {
+                                        let json_value = ValueConverter::rusqlite_value_to_json(sql_value);
                                         remote_row_data.insert(col_name.clone(), json_value);
                                     }
                                 }
@@ -499,6 +524,7 @@ pub fn apply_remote_changes_in_transaction(
         }
 
         // Update lastPullHlcTimestamp for this backend
+        eprintln!("📌 Updating last_pull_hlc_timestamp to {}", max_hlc);
         tx.execute(
             "UPDATE haex_sync_backends SET last_pull_hlc_timestamp = ? WHERE id = ?",
             params![&max_hlc, &backend_id],
@@ -506,8 +532,19 @@ pub fn apply_remote_changes_in_transaction(
         .map_err(DatabaseError::from)?;
 
         // Commit transaction
-        // Note: Foreign keys are re-enabled automatically by the ForeignKeyGuard when it drops
-        tx.commit().map_err(DatabaseError::from)?;
+        // Note: defer_foreign_keys is reset automatically when the transaction ends
+        // All deferred FK constraints will be checked now
+        eprintln!("💾 Committing transaction - FK constraints will be checked now");
+        match tx.commit() {
+            Ok(_) => {
+                eprintln!("✅ Transaction committed successfully");
+                Ok(())
+            }
+            Err(e) => {
+                eprintln!("❌ Transaction commit failed: {:?}", e);
+                Err(DatabaseError::from(e))
+            }
+        }?;
 
         Ok(())
     })

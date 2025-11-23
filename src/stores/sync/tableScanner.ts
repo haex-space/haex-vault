@@ -166,14 +166,21 @@ export async function scanTableForChangesAsync(
     const pks = extractPrimaryKeys(row, pkColumns)
     const pkJson = JSON.stringify(pks)
 
+    // Get row-level HLC to use as fallback for columns without individual HLC
+    const rowHlc = row[CRDT_COLUMNS.haexTimestamp] as string
+
     // For each data column, create a change entry if it has a newer HLC
     for (const col of dataColumns) {
       const columnHlc = columnHlcs[col.name]
 
-      if (!columnHlc) {
-        // Column doesn't have HLC yet - skip
-        console.log(
-          `Table ${tableName}: Column ${col.name} has no HLC, skipping`,
+      // Use row-level HLC as fallback if column doesn't have individual HLC yet
+      // This ensures ALL columns (including NULL values) are pushed on first sync
+      const hlcToUse = columnHlc || rowHlc
+
+      if (!hlcToUse) {
+        // This should never happen as every row must have haex_timestamp
+        console.warn(
+          `Table ${tableName}: Column ${col.name} has no HLC and row has no haex_timestamp, skipping`,
         )
         continue
       }
@@ -181,7 +188,7 @@ export async function scanTableForChangesAsync(
       // Check if this column's HLC is newer than lastPushHlcTimestamp
       if (
         !lastPushHlcTimestamp ||
-        columnHlc > lastPushHlcTimestamp
+        hlcToUse > lastPushHlcTimestamp
       ) {
         // Encrypt the column value (wrap in object for encryptCrdtDataAsync)
         const value = row[col.name]
@@ -195,7 +202,7 @@ export async function scanTableForChangesAsync(
           tableName,
           rowPks: pkJson,
           columnName: col.name,
-          hlcTimestamp: columnHlc,
+          hlcTimestamp: hlcToUse,
           batchId,
           deviceId,
           encryptedValue: encryptedData,
