@@ -60,31 +60,43 @@ pub fn sql_select_with_crdt(
 pub fn sql_execute_with_crdt(
     sql: String,
     params: Vec<JsonValue>,
+    app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<Vec<JsonValue>>, DatabaseError> {
     let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
         reason: "Failed to lock HLC service".to_string(),
     })?;
-    core::execute_with_crdt(sql, params, &state.db, &hlc_service)
+    let result = core::execute_with_crdt(sql, params, &state.db, &hlc_service)?;
+
+    // Emit event to notify frontend that dirty tables may have changed
+    let _ = app_handle.emit("crdt:dirty-tables-changed", ());
+
+    Ok(result)
 }
 
 #[tauri::command]
 pub fn sql_query_with_crdt(
     sql: String,
     params: Vec<JsonValue>,
+    app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<Vec<JsonValue>>, DatabaseError> {
     let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
         reason: "Failed to lock HLC service".to_string(),
     })?;
 
-    core::with_connection(&state.db, |conn| {
+    let result = core::with_connection(&state.db, |conn| {
         let tx = conn.transaction().map_err(DatabaseError::from)?;
         let (_modified_tables, result) =
             SqlExecutor::query_internal(&tx, &hlc_service, &sql, &params)?;
         tx.commit().map_err(DatabaseError::from)?;
         Ok(result)
-    })
+    })?;
+
+    // Emit event to notify frontend that dirty tables may have changed
+    let _ = app_handle.emit("crdt:dirty-tables-changed", ());
+
+    Ok(result)
 }
 
 /// Resolves a database name to the full vault path

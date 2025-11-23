@@ -4,6 +4,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import type {
   RealtimeChannel,
   RealtimePostgresInsertPayload,
@@ -42,6 +43,7 @@ export const useSyncOrchestratorStore = defineStore(
     const { currentVaultId } = storeToRefs(useVaultStore())
     const syncBackendsStore = useSyncBackendsStore()
     const syncEngineStore = useSyncEngineStore()
+    const syncConfigStore = useSyncConfigStore()
     const { add: addToast } = useToast()
 
     // Sync state per backend
@@ -52,6 +54,11 @@ export const useSyncOrchestratorStore = defineStore(
 
     // Batch accumulators for realtime changes (keyed by batchId)
     const batchAccumulators = ref<Map<string, BatchAccumulator>>(new Map())
+
+    // Dirty tables watcher
+    let dirtyTablesDebounceTimer: ReturnType<typeof setTimeout> | null = null
+    let periodicSyncInterval: ReturnType<typeof setInterval> | null = null
+    let eventUnlisten: (() => void) | null = null
 
     /**
      * Pushes local changes to a specific backend using table-scanning approach
@@ -815,6 +822,77 @@ export const useSyncOrchestratorStore = defineStore(
     }
 
     /**
+     * Handles dirty tables event from Rust - triggers sync based on configuration
+     */
+    const onDirtyTablesChangedAsync = async (): Promise<void> => {
+      const config = syncConfigStore.config
+
+      if (config.mode === 'continuous') {
+        // In continuous mode, debounce to batch rapid changes
+        if (dirtyTablesDebounceTimer) {
+          clearTimeout(dirtyTablesDebounceTimer)
+        }
+
+        dirtyTablesDebounceTimer = setTimeout(async () => {
+          console.log('Debounce timer elapsed, triggering sync...')
+          await onLocalWriteAsync()
+          dirtyTablesDebounceTimer = null
+        }, config.continuousDebounceMs)
+      }
+      // In periodic mode, do nothing - the interval will handle it
+    }
+
+    /**
+     * Starts the dirty tables watcher based on sync configuration
+     */
+    const startDirtyTablesWatcherAsync = async (): Promise<void> => {
+      stopDirtyTablesWatcher()
+
+      const config = syncConfigStore.config
+
+      // Listen to Tauri event from Rust
+      eventUnlisten = await listen('crdt:dirty-tables-changed', async () => {
+        await onDirtyTablesChangedAsync()
+      })
+
+      console.log(`Started dirty tables watcher in ${config.mode} mode`)
+
+      if (config.mode === 'periodic') {
+        // In periodic mode, sync at regular intervals
+        periodicSyncInterval = setInterval(async () => {
+          console.log('Periodic sync timer elapsed, triggering sync...')
+          await onLocalWriteAsync()
+        }, config.periodicIntervalMs)
+
+        console.log(
+          `Periodic sync interval set to ${config.periodicIntervalMs}ms`,
+        )
+      }
+    }
+
+    /**
+     * Stops the dirty tables watcher
+     */
+    const stopDirtyTablesWatcher = (): void => {
+      if (dirtyTablesDebounceTimer) {
+        clearTimeout(dirtyTablesDebounceTimer)
+        dirtyTablesDebounceTimer = null
+      }
+
+      if (periodicSyncInterval) {
+        clearInterval(periodicSyncInterval)
+        periodicSyncInterval = null
+      }
+
+      if (eventUnlisten) {
+        eventUnlisten()
+        eventUnlisten = null
+      }
+
+      console.log('Stopped dirty tables watcher')
+    }
+
+    /**
      * Starts sync for all enabled backends
      */
     const startSyncAsync = async (): Promise<void> => {
@@ -826,6 +904,12 @@ export const useSyncOrchestratorStore = defineStore(
       }
 
       console.log(`Starting sync with ${enabledBackends.length} backends`)
+
+      // Load sync configuration
+      await syncConfigStore.loadConfigAsync()
+
+      // Start dirty tables watcher
+      await startDirtyTablesWatcherAsync()
 
       for (const backend of enabledBackends) {
         try {
@@ -844,6 +928,9 @@ export const useSyncOrchestratorStore = defineStore(
      */
     const stopSyncAsync = async (): Promise<void> => {
       console.log('Stopping sync for all backends')
+
+      // Stop dirty tables watcher
+      stopDirtyTablesWatcher()
 
       for (const backendId of Object.keys(syncStates.value)) {
         await unsubscribeFromBackendAsync(backendId)

@@ -141,6 +141,102 @@
         </template>
       </UCard>
 
+      <!-- Sync Configuration -->
+      <UCard>
+        <template #header>
+          <div>
+            <h3 class="text-lg font-semibold">
+              {{ t('config.title') }}
+            </h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              {{ t('config.description') }}
+            </p>
+          </div>
+        </template>
+
+        <div class="space-y-6">
+          <!-- Sync Mode Selection -->
+          <div>
+            <label class="block text-sm font-medium mb-2">
+              {{ t('config.mode.label') }}
+            </label>
+            <URadioGroup
+              v-model="syncMode"
+              :options="syncModeOptions"
+              @update:model-value="onSyncModeChangeAsync"
+            />
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              {{
+                syncMode === 'continuous'
+                  ? t('config.mode.continuous.description')
+                  : t('config.mode.periodic.description')
+              }}
+            </p>
+          </div>
+
+          <!-- Continuous Mode Settings -->
+          <div v-if="syncMode === 'continuous'">
+            <label class="block text-sm font-medium mb-2">
+              {{ t('config.debounce.label') }}
+            </label>
+            <div class="flex items-center gap-3">
+              <UInput
+                v-model.number="continuousDebounceMs"
+                type="number"
+                :min="100"
+                :max="10000"
+                :step="100"
+                class="w-32"
+              />
+              <span class="text-sm text-gray-500">ms</span>
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              {{ t('config.debounce.description') }}
+            </p>
+            <UButton
+              v-if="continuousDebounceMs !== syncConfig.continuousDebounceMs"
+              size="xs"
+              class="mt-2"
+              @click="saveContinuousDebounceAsync"
+            >
+              {{ t('config.save') }}
+            </UButton>
+          </div>
+
+          <!-- Periodic Mode Settings -->
+          <div v-if="syncMode === 'periodic'">
+            <label class="block text-sm font-medium mb-2">
+              {{ t('config.interval.label') }}
+            </label>
+            <div class="flex items-center gap-3">
+              <UInput
+                v-model.number="periodicIntervalMs"
+                type="number"
+                :min="5000"
+                :max="3600000"
+                :step="1000"
+                class="w-32"
+              />
+              <span class="text-sm text-gray-500">ms</span>
+              <span class="text-sm text-gray-500"
+                >({{ Math.round(periodicIntervalMs / 1000) }}s)</span
+              >
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              {{ t('config.interval.description') }}
+            </p>
+            <UButton
+              v-if="periodicIntervalMs !== syncConfig.periodicIntervalMs"
+              size="xs"
+              class="mt-2"
+              @click="savePeriodicIntervalAsync"
+            >
+              {{ t('config.save') }}
+            </UButton>
+          </div>
+        </div>
+      </UCard>
+
       <!-- Vault Overview with Accordions -->
       <UCard>
         <template #header>
@@ -340,10 +436,12 @@ const { add } = useToast()
 const syncBackendsStore = useSyncBackendsStore()
 const syncEngineStore = useSyncEngineStore()
 const syncOrchestratorStore = useSyncOrchestratorStore()
+const syncConfigStore = useSyncConfigStore()
 const vaultStore = useVaultStore()
 
 const { backends: syncBackends } = storeToRefs(syncBackendsStore)
 const { currentVaultId, currentVaultName } = storeToRefs(vaultStore)
+const { config: syncConfig } = storeToRefs(syncConfigStore)
 
 // Local state
 const showAddBackendForm = ref(false)
@@ -381,6 +479,77 @@ interface GroupedServerVaults {
 
 const groupedServerVaults = ref<GroupedServerVaults[]>([])
 const isLoadingAllServerVaults = ref(false)
+
+// Sync configuration
+const syncMode = ref(syncConfig.value.mode)
+const continuousDebounceMs = ref(syncConfig.value.continuousDebounceMs)
+const periodicIntervalMs = ref(syncConfig.value.periodicIntervalMs)
+
+const syncModeOptions = computed(() => [
+  {
+    value: 'continuous',
+    label: t('config.mode.continuous.label'),
+  },
+  {
+    value: 'periodic',
+    label: t('config.mode.periodic.label'),
+  },
+])
+
+const onSyncModeChangeAsync = async (mode: string) => {
+  try {
+    if (mode !== 'continuous' && mode !== 'periodic') {
+      throw new Error(`Invalid sync mode: ${mode}`)
+    }
+    await syncConfigStore.saveConfigAsync({ mode })
+    add({
+      color: 'success',
+      description: t('config.saveSuccess'),
+    })
+  } catch (error) {
+    console.error('Failed to save sync mode:', error)
+    add({
+      color: 'error',
+      description: t('config.saveError'),
+    })
+  }
+}
+
+const saveContinuousDebounceAsync = async () => {
+  try {
+    await syncConfigStore.saveConfigAsync({
+      continuousDebounceMs: continuousDebounceMs.value,
+    })
+    add({
+      color: 'success',
+      description: t('config.saveSuccess'),
+    })
+  } catch (error) {
+    console.error('Failed to save debounce setting:', error)
+    add({
+      color: 'error',
+      description: t('config.saveError'),
+    })
+  }
+}
+
+const savePeriodicIntervalAsync = async () => {
+  try {
+    await syncConfigStore.saveConfigAsync({
+      periodicIntervalMs: periodicIntervalMs.value,
+    })
+    add({
+      color: 'success',
+      description: t('config.saveSuccess'),
+    })
+  } catch (error) {
+    console.error('Failed to save interval setting:', error)
+    add({
+      color: 'error',
+      description: t('config.saveError'),
+    })
+  }
+}
 
 // Cancel add backend
 const cancelAddBackend = () => {
@@ -722,6 +891,26 @@ de:
     disabled: Deaktiviert
     connected: Verbunden
     syncing: Synchronisiert
+  config:
+    title: Sync-Konfiguration
+    description: Lege fest, wie und wann Änderungen synchronisiert werden
+    mode:
+      label: Sync-Modus
+      continuous:
+        label: Kontinuierlich
+        description: Änderungen werden sofort nach einer kurzen Verzögerung synchronisiert (empfohlen)
+      periodic:
+        label: Periodisch
+        description: Änderungen werden in festen Zeitintervallen synchronisiert (datensparsam)
+    debounce:
+      label: Verzögerung
+      description: Wartezeit nach der letzten Änderung, bevor synchronisiert wird
+    interval:
+      label: Sync-Intervall
+      description: Zeitabstand zwischen automatischen Synchronisationen
+    save: Speichern
+    saveSuccess: Einstellungen gespeichert
+    saveError: Fehler beim Speichern der Einstellungen
   actions:
     add: Hinzufügen
     cancel: Abbrechen
@@ -785,6 +974,26 @@ en:
     disabled: Disabled
     connected: Connected
     syncing: Syncing
+  config:
+    title: Sync Configuration
+    description: Configure how and when changes are synchronized
+    mode:
+      label: Sync Mode
+      continuous:
+        label: Continuous
+        description: Changes are synchronized immediately after a short delay (recommended)
+      periodic:
+        label: Periodic
+        description: Changes are synchronized at fixed intervals (data-saving)
+    debounce:
+      label: Delay
+      description: Wait time after the last change before synchronizing
+    interval:
+      label: Sync Interval
+      description: Time between automatic synchronizations
+    save: Save
+    saveSuccess: Settings saved
+    saveError: Error saving settings
   actions:
     add: Add
     cancel: Cancel
