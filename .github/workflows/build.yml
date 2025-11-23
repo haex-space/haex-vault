@@ -57,6 +57,11 @@ jobs:
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
+      - name: Debug - Check pnpm-lock.yaml
+        run: |
+          ls -la pnpm-lock.yaml || echo "pnpm-lock.yaml not found"
+          pwd
+
       - name: Setup pnpm cache
         uses: actions/cache@v4
         with:
@@ -181,6 +186,11 @@ jobs:
         shell: bash
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Debug - Check pnpm-lock.yaml
+        run: |
+          ls -la pnpm-lock.yaml || echo "pnpm-lock.yaml not found"
+          pwd
 
       - name: Setup pnpm cache
         uses: actions/cache@v4
