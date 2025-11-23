@@ -175,6 +175,32 @@
           "lastSyncAt": "last_sync_at",
           "error": "error"
         }
+      },
+      "conflicts": {
+        "name": "haex_crdt_conflicts",
+        "columns": {
+          "id": "id",
+          "tableName": "table_name",
+          "conflictType": "conflict_type",
+          "localRowId": "local_row_id",
+          "remoteRowId": "remote_row_id",
+          "localRowData": "local_row_data",
+          "remoteRowData": "remote_row_data",
+          "localTimestamp": "local_timestamp",
+          "remoteTimestamp": "remote_timestamp",
+          "conflictKey": "conflict_key",
+          "detectedAt": "detected_at",
+          "resolved": "resolved",
+          "resolution": "resolution",
+          "resolvedAt": "resolved_at"
+        }
+      },
+      "dirty_tables": {
+        "name": "haex_crdt_dirty_tables",
+        "columns": {
+          "tableName": "table_name",
+          "lastModified": "last_modified"
+        }
       }
     }
   }

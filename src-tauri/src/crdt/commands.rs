@@ -5,6 +5,7 @@ use crate::AppState;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use std::collections::HashMap;
 use tauri::State;
 use ts_rs::TS;
 
@@ -158,24 +159,37 @@ pub fn apply_remote_changes_in_transaction(
     validate_batch_completeness(&changes)?;
 
     with_connection(&state.db, |conn| {
-        // Start transaction
+        // Start transaction - all changes in the batch are applied atomically
         let tx = conn.transaction().map_err(DatabaseError::from)?;
 
-        // Apply each change
-        for change in changes {
-            // Value is already decrypted in frontend
-            let decrypted_value = change.decrypted_value;
+        // Defer foreign key constraint checking until the end of the transaction
+        // This allows applying changes in any order, but still validates all constraints at commit time
+        // This setting is automatically reset when the transaction ends (commit or rollback)
+        tx.execute("PRAGMA defer_foreign_keys = ON", [])
+            .map_err(DatabaseError::from)?;
 
-            // Parse row PKs
+        // Group changes by (table, row) so we can insert/update all columns of a row together
+        let mut row_changes: HashMap<(String, String), Vec<RemoteColumnChange>> = HashMap::new();
+        for change in changes {
+            let key = (change.table_name.clone(), change.row_pks.clone());
+            row_changes.entry(key).or_insert_with(Vec::new).push(change);
+        }
+
+        // Apply changes grouped by row
+        for ((_table_name, row_pks_str), row_change_list) in row_changes {
+            // Use the first change to get common data
+            let first_change = &row_change_list[0];
+
+            // Parse row PKs (same for all changes in this row)
             let row_pks: serde_json::Map<String, JsonValue> =
-                serde_json::from_str(&change.row_pks).map_err(|e| {
+                serde_json::from_str(&row_pks_str).map_err(|e| {
                     DatabaseError::SerializationError {
                         reason: format!("Failed to parse row PKs: {}", e),
                     }
                 })?;
 
             // Get table schema to identify PK columns
-            let schema = get_table_schema_internal(&tx, &change.table_name)
+            let schema = get_table_schema_internal(&tx, &first_change.table_name)
                 .map_err(DatabaseError::from)?;
             let pk_columns: Vec<_> = schema.iter().filter(|col| col.is_pk).collect();
 
@@ -186,10 +200,10 @@ pub fn apply_remote_changes_in_transaction(
                 .collect();
             let pk_where_clause = pk_where.join(" AND ");
 
-            // Check if row exists and get current HLC for this column
+            // Check if row exists and get current HLCs
             let check_sql = format!(
                 "SELECT haex_column_hlcs FROM \"{}\" WHERE {}",
-                change.table_name, pk_where_clause
+                first_change.table_name, pk_where_clause
             );
 
             let pk_values: Vec<JsonValue> = pk_columns
@@ -221,19 +235,37 @@ pub fn apply_remote_changes_in_transaction(
                 serde_json::Map::new()
             };
 
-            // Check if remote HLC is newer
-            let current_hlc = column_hlcs
-                .get(&change.column_name)
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            // Collect all column changes that are newer than current
+            let mut columns_to_update: Vec<(String, String, String)> = Vec::new(); // (column_name, value, hlc)
+            let mut max_hlc_for_row = first_change.hlc_timestamp.clone();
 
-            if change.hlc_timestamp.as_str() > current_hlc {
-                // Remote change is newer, apply it
-                column_hlcs.insert(
-                    change.column_name.clone(),
-                    JsonValue::String(change.hlc_timestamp.clone()),
-                );
+            for change in &row_change_list {
+                let current_hlc = column_hlcs
+                    .get(&change.column_name)
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
 
+                if change.hlc_timestamp.as_str() > current_hlc {
+                    // Remote change is newer, include it
+                    column_hlcs.insert(
+                        change.column_name.clone(),
+                        JsonValue::String(change.hlc_timestamp.clone()),
+                    );
+                    columns_to_update.push((
+                        change.column_name.clone(),
+                        change.decrypted_value.to_string(),
+                        change.hlc_timestamp.clone(),
+                    ));
+
+                    // Track max HLC for row timestamp
+                    if change.hlc_timestamp > max_hlc_for_row {
+                        max_hlc_for_row = change.hlc_timestamp.clone();
+                    }
+                }
+            }
+
+            // Only apply if there are columns to update
+            if !columns_to_update.is_empty() {
                 let new_hlcs_json =
                     serde_json::to_string(&column_hlcs).map_err(|e| {
                         DatabaseError::SerializationError {
@@ -241,67 +273,101 @@ pub fn apply_remote_changes_in_transaction(
                         }
                     })?;
 
-                // Column-level CRDT: always update or insert the column value
-                // (haex_tombstone is handled like any other column)
                 if row_exists {
-                        // Row exists, update it
-                        let update_sql = format!(
-                            "UPDATE \"{}\" SET {} = ?, haex_column_hlcs = ?, haex_timestamp = ? WHERE {}",
-                            change.table_name, change.column_name, pk_where_clause
-                        );
+                    // Row exists, update it with all changed columns
+                    let set_clauses: Vec<String> = columns_to_update
+                        .iter()
+                        .map(|(col_name, _, _)| format!("{} = ?", col_name))
+                        .collect();
 
-                        let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = vec![
-                            Box::new(decrypted_value.to_string()),
-                            Box::new(new_hlcs_json),
-                            Box::new(change.hlc_timestamp.clone()),
-                        ];
+                    let update_sql = format!(
+                        "UPDATE \"{}\" SET {}, haex_column_hlcs = ?, haex_timestamp = ? WHERE {}",
+                        first_change.table_name,
+                        set_clauses.join(", "),
+                        pk_where_clause
+                    );
 
-                        for pk_val in &pk_values {
-                            params_vec.push(Box::new(pk_val.to_string().trim_matches('"').to_string()));
-                        }
+                    let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
-                        let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec
-                            .iter()
-                            .map(|b| b.as_ref() as &dyn rusqlite::ToSql)
-                            .collect();
-
-                        tx.execute(&update_sql, &*params_refs)
-                            .map_err(DatabaseError::from)?;
-                    } else {
-                        // Row doesn't exist, insert it
-                        // Build column list and values
-                        let mut columns = vec![
-                            change.column_name.clone(),
-                            "haex_column_hlcs".to_string(),
-                            "haex_timestamp".to_string(),
-                        ];
-                        let mut values = vec![
-                            decrypted_value.to_string(),
-                            new_hlcs_json,
-                            change.hlc_timestamp.clone(),
-                        ];
-
-                        for col in &pk_columns {
-                            columns.push(col.name.clone());
-                            if let Some(pk_val) = row_pks.get(&col.name) {
-                                values.push(pk_val.to_string().trim_matches('"').to_string());
-                            }
-                        }
-
-                        let placeholders = vec!["?"; columns.len()].join(", ");
-                        let insert_sql = format!(
-                            "INSERT INTO \"{}\" ({}) VALUES ({})",
-                            change.table_name,
-                            columns.join(", "),
-                            placeholders
-                        );
-
-                        let params_refs: Vec<&dyn rusqlite::ToSql> =
-                            values.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
-
-                        tx.execute(&insert_sql, &*params_refs)
-                            .map_err(DatabaseError::from)?;
+                    // Add column values
+                    for (_, value, _) in &columns_to_update {
+                        params_vec.push(Box::new(value.clone()));
                     }
+
+                    // Add HLCs and timestamp
+                    params_vec.push(Box::new(new_hlcs_json));
+                    params_vec.push(Box::new(max_hlc_for_row.clone()));
+
+                    // Add PK values for WHERE clause
+                    for pk_val in &pk_values {
+                        params_vec.push(Box::new(pk_val.to_string().trim_matches('"').to_string()));
+                    }
+
+                    let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec
+                        .iter()
+                        .map(|b| b.as_ref() as &dyn rusqlite::ToSql)
+                        .collect();
+
+                    tx.execute(&update_sql, &*params_refs)
+                        .map_err(DatabaseError::from)?;
+                } else {
+                    // Row doesn't exist, insert it with all changed columns + PKs
+                    let mut columns = Vec::new();
+                    let mut values: Vec<String> = Vec::new();
+
+                    // Add PKs first
+                    for col in &pk_columns {
+                        columns.push(col.name.clone());
+                        if let Some(pk_val) = row_pks.get(&col.name) {
+                            values.push(pk_val.to_string().trim_matches('"').to_string());
+                        }
+                    }
+
+                    // Add changed columns
+                    for (col_name, value, _) in &columns_to_update {
+                        columns.push(col_name.clone());
+                        values.push(value.clone());
+                    }
+
+                    // Add CRDT metadata
+                    columns.push("haex_column_hlcs".to_string());
+                    columns.push("haex_timestamp".to_string());
+                    values.push(new_hlcs_json);
+                    values.push(max_hlc_for_row);
+
+                    let placeholders = vec!["?"; columns.len()].join(", ");
+                    let insert_sql = format!(
+                        "INSERT INTO \"{}\" ({}) VALUES ({})",
+                        first_change.table_name,
+                        columns.join(", "),
+                        placeholders
+                    );
+
+                    let params_refs: Vec<&dyn rusqlite::ToSql> =
+                        values.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+
+                    // Try to insert - if it fails with UNIQUE constraint, create a conflict entry
+                    match tx.execute(&insert_sql, &*params_refs) {
+                        Ok(_) => {}, // Success - continue
+                        Err(rusqlite::Error::SqliteFailure(err, msg))
+                            if err.code == rusqlite::ErrorCode::ConstraintViolation => {
+                            // Check if it's a UNIQUE constraint violation
+                            if let Some(error_msg) = msg {
+                                if error_msg.contains("UNIQUE constraint failed") {
+                                    eprintln!("UNIQUE constraint conflict detected for table {}: {}",
+                                        first_change.table_name, error_msg);
+
+                                    // Create conflict entry - for now just log, later we'll implement full conflict tracking
+                                    // TODO: Implement create_conflict_entry function
+                                    continue; // Skip this row and continue with next
+                                }
+                            }
+                            // Re-throw if it's not a UNIQUE constraint we can handle
+                            return Err(DatabaseError::from(rusqlite::Error::SqliteFailure(err, None)));
+                        }
+                        Err(e) => return Err(DatabaseError::from(e)), // Other errors
+                    }
+                }
             }
         }
 
@@ -313,6 +379,7 @@ pub fn apply_remote_changes_in_transaction(
         .map_err(DatabaseError::from)?;
 
         // Commit transaction
+        // Note: Foreign keys are re-enabled automatically by the ForeignKeyGuard when it drops
         tx.commit().map_err(DatabaseError::from)?;
 
         Ok(())

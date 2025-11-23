@@ -93,7 +93,7 @@ pub fn cleanup_tombstones(
         // Check if this table has a haex_tombstone column
         // This automatically filters out non-CRDT tables like haex_crdt_configs
         let has_tombstone_column: bool = conn
-            .prepare(&format!("PRAGMA table_info({})", table_name))?
+            .prepare(&format!("PRAGMA table_info(\"{}\")", table_name))?
             .query_map([], |row| {
                 let col_name: String = row.get(1)?;
                 Ok(col_name == TOMBSTONE_COLUMN)
@@ -108,9 +108,10 @@ pub fn cleanup_tombstones(
         // Hard-delete tombstoned rows older than retention period
         // Extract the NTP64 time component (before '/') and compare with cutoff
         let delete_sql = format!(
-            "DELETE FROM {table_name}
+            "DELETE FROM \"{}\"
              WHERE {TOMBSTONE_COLUMN} = 1
-             AND CAST(substr(haex_timestamp, 1, instr(haex_timestamp, '/') - 1) AS INTEGER) < ?1"
+             AND CAST(substr(haex_timestamp, 1, instr(haex_timestamp, '/') - 1) AS INTEGER) < ?1",
+            table_name
         );
 
         let deleted_count = conn.execute(&delete_sql, [cutoff_hlc_num])?;
@@ -170,7 +171,7 @@ pub fn get_crdt_stats(conn: &Connection) -> Result<CrdtStats, rusqlite::Error> {
         // Check if this table has a haex_tombstone column
         // This automatically filters out non-CRDT tables like haex_crdt_configs
         let has_tombstone_column: bool = conn
-            .prepare(&format!("PRAGMA table_info({})", table_name))?
+            .prepare(&format!("PRAGMA table_info(\"{}\")", table_name))?
             .query_map([], |row| {
                 let col_name: String = row.get(1)?;
                 Ok(col_name == TOMBSTONE_COLUMN)
@@ -186,7 +187,7 @@ pub fn get_crdt_stats(conn: &Connection) -> Result<CrdtStats, rusqlite::Error> {
 
         // Count total entries
         let count: usize = conn.query_row(
-            &format!("SELECT COUNT(*) FROM {}", table_name),
+            &format!("SELECT COUNT(*) FROM \"{}\"", table_name),
             [],
             |row| row.get(0),
         )?;
@@ -194,7 +195,7 @@ pub fn get_crdt_stats(conn: &Connection) -> Result<CrdtStats, rusqlite::Error> {
 
         // Count non-tombstoned entries
         let active_count: usize = conn.query_row(
-            &format!("SELECT COUNT(*) FROM {} WHERE {} = 0", table_name, TOMBSTONE_COLUMN),
+            &format!("SELECT COUNT(*) FROM \"{}\" WHERE {} = 0", table_name, TOMBSTONE_COLUMN),
             [],
             |row| row.get(0),
         )?;
@@ -202,7 +203,7 @@ pub fn get_crdt_stats(conn: &Connection) -> Result<CrdtStats, rusqlite::Error> {
 
         // Count tombstoned entries
         let tombstone_count: usize = conn.query_row(
-            &format!("SELECT COUNT(*) FROM {} WHERE {} = 1", table_name, TOMBSTONE_COLUMN),
+            &format!("SELECT COUNT(*) FROM \"{}\" WHERE {} = 1", table_name, TOMBSTONE_COLUMN),
             [],
             |row| row.get(0),
         )?;

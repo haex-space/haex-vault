@@ -15,6 +15,13 @@
       "when": 1763829278218,
       "tag": "0001_ambiguous_alice",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1763913067326,
+      "tag": "0002_faithful_turbo",
+      "breakpoints": true
     }
   ]
 }
