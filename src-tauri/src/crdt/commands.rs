@@ -407,6 +407,12 @@ pub fn apply_remote_changes_in_transaction(
                     let mut columns = Vec::new();
                     let mut values: Vec<String> = Vec::new();
 
+                    // Debug: Log what columns we're about to insert
+                    eprintln!("=== INSERT DEBUG for table {} ===", first_change.table_name);
+                    eprintln!("Total schema columns: {}", schema.len());
+                    eprintln!("Columns to update: {}", columns_to_update.len());
+                    eprintln!("Column names to update: {:?}", columns_to_update.iter().map(|(n, _, _)| n).collect::<Vec<_>>());
+
                     // Add PKs first
                     for col in &pk_columns {
                         columns.push(col.name.clone());
