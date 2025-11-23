@@ -40,6 +40,8 @@ jobs:
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
+        with:
+          run_install: false
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -51,24 +53,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
-
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Debug - Check pnpm-lock.yaml
-        run: |
-          ls -la pnpm-lock.yaml || echo "pnpm-lock.yaml not found"
-          pwd
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
@@ -126,6 +110,8 @@ jobs:
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
+        with:
+          run_install: false
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -181,24 +167,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y perl make
-
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Debug - Check pnpm-lock.yaml
-        run: |
-          ls -la pnpm-lock.yaml || echo "pnpm-lock.yaml not found"
-          pwd
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
