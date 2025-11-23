@@ -55,28 +55,24 @@ export const haexDevices = sqliteTable(
 export type InsertHaexDevices = typeof haexDevices.$inferInsert
 export type SelectHaexDevices = typeof haexDevices.$inferSelect
 
-export const haexSettings = sqliteTable(
-  tableNames.haex.settings.name,
+export const haexVaultSettings = sqliteTable(
+  tableNames.haex.vault_settings.name,
   withCrdtColumns({
-    id: text(tableNames.haex.settings.columns.id)
+    id: text(tableNames.haex.vault_settings.columns.id)
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
-    deviceId: text(tableNames.haex.settings.columns.deviceId).references(
-      (): AnySQLiteColumn => haexDevices.id,
-      { onDelete: 'cascade' },
-    ),
-    key: text(tableNames.haex.settings.columns.key),
-    type: text(tableNames.haex.settings.columns.type),
-    value: text(tableNames.haex.settings.columns.value),
+    key: text(tableNames.haex.vault_settings.columns.key).notNull(),
+    type: text(tableNames.haex.vault_settings.columns.type).notNull(),
+    value: text(tableNames.haex.vault_settings.columns.value),
   }),
   (table) => [
-    uniqueIndex('haex_settings_device_id_key_type_unique')
-      .on(table.deviceId, table.key, table.type)
+    uniqueIndex('haex_vault_settings_key_type_unique')
+      .on(table.key, table.type)
       .where(sql`${table.haexTombstone} = 0`),
   ],
 )
-export type InsertHaexSettings = typeof haexSettings.$inferInsert
-export type SelectHaexSettings = typeof haexSettings.$inferSelect
+export type InsertHaexVaultSettings = typeof haexVaultSettings.$inferInsert
+export type SelectHaexVaultSettings = typeof haexVaultSettings.$inferSelect
 
 export const haexExtensions = sqliteTable(
   tableNames.haex.extensions.name,

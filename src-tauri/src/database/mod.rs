@@ -9,7 +9,7 @@ use crate::crdt::hlc::HlcService;
 use crate::database::core::execute_with_crdt;
 use crate::database::error::DatabaseError;
 use crate::extension::database::executor::SqlExecutor;
-use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_SETTINGS};
+use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_VAULT_SETTINGS};
 use crate::AppState;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -520,7 +520,7 @@ fn initialize_session(
         eprintln!("INFO: Setting 'triggers_initialized' flag via CRDT...");
 
         let insert_sql = format!(
-            "INSERT INTO {TABLE_SETTINGS} (id, key, type, value) VALUES (?, ?, ?, ?)"
+            "INSERT INTO {TABLE_VAULT_SETTINGS} (id, key, type, value) VALUES (?, ?, ?, ?)"
         );
 
         // execute_with_crdt erwartet Vec<JsonValue>, kein params!-Makro

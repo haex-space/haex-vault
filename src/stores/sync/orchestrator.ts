@@ -49,15 +49,13 @@ export const useSyncOrchestratorStore = defineStore(
     // Sync state per backend
     const syncStates = ref<BackendSyncState>({})
 
-    // Track if we're currently processing a local write
-    const isProcessingLocalWrite = ref(false)
-
     // Batch accumulators for realtime changes (keyed by batchId)
     const batchAccumulators = ref<Map<string, BatchAccumulator>>(new Map())
 
     // Dirty tables watcher
     let dirtyTablesDebounceTimer: ReturnType<typeof setTimeout> | null = null
     let periodicSyncInterval: ReturnType<typeof setInterval> | null = null
+    let periodicPullIntervals: Map<string, ReturnType<typeof setInterval>> = new Map()
     let eventUnlisten: (() => void) | null = null
 
     /**
@@ -522,12 +520,6 @@ export const useSyncOrchestratorStore = defineStore(
     ) => {
       console.log(`Realtime change from backend ${backendId}:`, payload)
 
-      // Don't process if we're currently writing locally to avoid loops
-      if (isProcessingLocalWrite.value) {
-        console.log('Skipping realtime change - local write in progress')
-        return
-      }
-
       try {
         // Get backend configuration
         const backend = syncBackendsStore.backends.find(
@@ -550,6 +542,13 @@ export const useSyncOrchestratorStore = defineStore(
         const change = payload.new
         if (!change) {
           console.warn('No new record in realtime payload')
+          return
+        }
+
+        // Skip if this change was made by our own device to avoid applying our own changes
+        const currentDeviceId = await invoke<string>('get_device_id')
+        if (change.deviceId === currentDeviceId) {
+          console.log('Skipping realtime change - originated from this device')
           return
         }
 
@@ -804,6 +803,18 @@ export const useSyncOrchestratorStore = defineStore(
 
         // Subscribe to realtime changes
         await subscribeToBackendAsync(backendId)
+
+        // Start periodic pull as fallback (every 5 minutes)
+        const periodicPullInterval = setInterval(async () => {
+          try {
+            console.log(`Periodic pull for backend ${backendId}`)
+            await pullFromBackendAsync(backendId)
+          } catch (error) {
+            console.error(`Periodic pull failed for backend ${backendId}:`, error)
+          }
+        }, 5 * 60 * 1000) // 5 minutes
+
+        periodicPullIntervals.set(backendId, periodicPullInterval)
       } catch (error) {
         console.error(`Failed to initialize backend ${backendId}:`, error)
         throw error
@@ -814,8 +825,6 @@ export const useSyncOrchestratorStore = defineStore(
      * Called after local write operations to push changes
      */
     const onLocalWriteAsync = async (): Promise<void> => {
-      isProcessingLocalWrite.value = true
-
       try {
         // Push to all enabled backends in parallel
         const enabledBackends = syncBackendsStore.enabledBackends
@@ -825,8 +834,6 @@ export const useSyncOrchestratorStore = defineStore(
         )
       } catch (error) {
         console.error('Failed to push local changes:', error)
-      } finally {
-        isProcessingLocalWrite.value = false
       }
     }
 
@@ -941,6 +948,12 @@ export const useSyncOrchestratorStore = defineStore(
       // Stop dirty tables watcher
       stopDirtyTablesWatcher()
 
+      // Stop all periodic pull intervals
+      for (const [backendId, interval] of periodicPullIntervals.entries()) {
+        clearInterval(interval)
+        periodicPullIntervals.delete(backendId)
+      }
+
       for (const backendId of Object.keys(syncStates.value)) {
         await unsubscribeFromBackendAsync(backendId)
       }
@@ -977,7 +990,6 @@ export const useSyncOrchestratorStore = defineStore(
 
     return {
       syncStates,
-      isProcessingLocalWrite,
       isAnySyncing,
       areAllConnected,
       pushToBackendAsync,

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "097e8ed7-7a6d-4263-9c7e-6af64cce7592",
+  "id": "1a3cb87d-a2ad-44bf-bcd5-65ef3aa5c714",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "haex_crdt_configs": {
@@ -765,99 +765,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "haex_settings": {
-      "name": "haex_settings",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "device_id": {
-          "name": "device_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "key": {
-          "name": "key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "type": {
-          "name": "type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "value": {
-          "name": "value",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "haex_timestamp": {
-          "name": "haex_timestamp",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "haex_column_hlcs": {
-          "name": "haex_column_hlcs",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'{}'"
-        },
-        "haex_tombstone": {
-          "name": "haex_tombstone",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        }
-      },
-      "indexes": {
-        "haex_settings_device_id_key_type_unique": {
-          "name": "haex_settings_device_id_key_type_unique",
-          "columns": [
-            "device_id",
-            "key",
-            "type"
-          ],
-          "isUnique": true,
-          "where": "\"haex_settings\".\"haex_tombstone\" = 0"
-        }
-      },
-      "foreignKeys": {
-        "haex_settings_device_id_haex_devices_id_fk": {
-          "name": "haex_settings_device_id_haex_devices_id_fk",
-          "tableFrom": "haex_settings",
-          "tableTo": "haex_devices",
-          "columnsFrom": [
-            "device_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "haex_sync_backends": {
       "name": "haex_sync_backends",
       "columns": {
@@ -988,6 +895,77 @@
           ],
           "isUnique": true,
           "where": "\"haex_sync_backends\".\"haex_tombstone\" = 0"
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "haex_vault_settings": {
+      "name": "haex_vault_settings",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "value": {
+          "name": "value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "haex_timestamp": {
+          "name": "haex_timestamp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "haex_column_hlcs": {
+          "name": "haex_column_hlcs",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
+        },
+        "haex_tombstone": {
+          "name": "haex_tombstone",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        }
+      },
+      "indexes": {
+        "haex_vault_settings_key_type_unique": {
+          "name": "haex_vault_settings_key_type_unique",
+          "columns": [
+            "key",
+            "type"
+          ],
+          "isUnique": true,
+          "where": "\"haex_vault_settings\".\"haex_tombstone\" = 0"
         }
       },
       "foreignKeys": {},

@@ -9,7 +9,7 @@ use crate::table_names::{
     TABLE_EXTENSIONS,
     TABLE_EXTENSION_PERMISSIONS,
     TABLE_NOTIFICATIONS,
-    TABLE_SETTINGS,
+    TABLE_VAULT_SETTINGS,
     TABLE_SYNC_BACKENDS,
     TABLE_WORKSPACES,
 };
@@ -17,7 +17,7 @@ use rusqlite::{params, Connection};
 
 /// Liste aller CRDT-Tabellen die Trigger benötigen (ohne Password-Tabellen - die kommen in Extension)
 const CRDT_TABLES: &[&str] = &[
-    TABLE_SETTINGS,
+    TABLE_VAULT_SETTINGS,
     TABLE_DEVICES,
     TABLE_SYNC_BACKENDS,
     TABLE_EXTENSIONS,
@@ -40,7 +40,7 @@ pub fn ensure_triggers_initialized(conn: &mut Connection) -> Result<bool, Databa
 
     // Check if triggers already initialized
     let check_sql = format!(
-        "SELECT value FROM {TABLE_SETTINGS} WHERE key = ? AND type = ?"
+        "SELECT value FROM {TABLE_VAULT_SETTINGS} WHERE key = ? AND type = ?"
     );
     let initialized: Option<String> = tx
         .query_row(

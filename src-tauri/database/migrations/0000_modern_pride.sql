@@ -112,19 +112,6 @@ CREATE TABLE `haex_notifications` (
 	`haex_tombstone` integer DEFAULT false NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE `haex_settings` (
-	`id` text PRIMARY KEY NOT NULL,
-	`device_id` text,
-	`key` text,
-	`type` text,
-	`value` text,
-	`haex_timestamp` text,
-	`haex_column_hlcs` text DEFAULT '{}' NOT NULL,
-	`haex_tombstone` integer DEFAULT false NOT NULL,
-	FOREIGN KEY (`device_id`) REFERENCES `haex_devices`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `haex_settings_device_id_key_type_unique` ON `haex_settings` (`device_id`,`key`,`type`) WHERE "haex_settings"."haex_tombstone" = 0;--> statement-breakpoint
 CREATE TABLE `haex_sync_backends` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
@@ -145,6 +132,17 @@ CREATE TABLE `haex_sync_backends` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_sync_backends_server_url_email_unique` ON `haex_sync_backends` (`server_url`,`email`) WHERE "haex_sync_backends"."haex_tombstone" = 0;--> statement-breakpoint
+CREATE TABLE `haex_vault_settings` (
+	`id` text PRIMARY KEY NOT NULL,
+	`key` text NOT NULL,
+	`type` text NOT NULL,
+	`value` text,
+	`haex_timestamp` text,
+	`haex_column_hlcs` text DEFAULT '{}' NOT NULL,
+	`haex_tombstone` integer DEFAULT false NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_vault_settings_key_type_unique` ON `haex_vault_settings` (`key`,`type`) WHERE "haex_vault_settings"."haex_tombstone" = 0;--> statement-breakpoint
 CREATE TABLE `haex_workspaces` (
 	`id` text PRIMARY KEY NOT NULL,
 	`device_id` text NOT NULL,

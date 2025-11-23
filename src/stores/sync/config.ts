@@ -3,7 +3,7 @@
  * Controls how and when sync operations are triggered
  */
 
-import { haexSettings } from '@/database/schemas/haex'
+import { haexVaultSettings } from '@/database/schemas/haex'
 import { eq } from 'drizzle-orm'
 
 export type SyncMode = 'continuous' | 'periodic'
@@ -42,8 +42,8 @@ export const useSyncConfigStore = defineStore('syncConfigStore', () => {
       // Load sync mode
       const modeResult = await db
         .select()
-        .from(haexSettings)
-        .where(eq(haexSettings.key, SYNC_SETTING_KEYS.MODE))
+        .from(haexVaultSettings)
+        .where(eq(haexVaultSettings.key, SYNC_SETTING_KEYS.MODE))
         .limit(1)
 
       if (modeResult.length > 0 && modeResult[0]) {
@@ -56,8 +56,8 @@ export const useSyncConfigStore = defineStore('syncConfigStore', () => {
       // Load continuous debounce
       const debounceResult = await db
         .select()
-        .from(haexSettings)
-        .where(eq(haexSettings.key, SYNC_SETTING_KEYS.CONTINUOUS_DEBOUNCE_MS))
+        .from(haexVaultSettings)
+        .where(eq(haexVaultSettings.key, SYNC_SETTING_KEYS.CONTINUOUS_DEBOUNCE_MS))
         .limit(1)
 
       if (debounceResult.length > 0 && debounceResult[0]) {
@@ -70,8 +70,8 @@ export const useSyncConfigStore = defineStore('syncConfigStore', () => {
       // Load periodic interval
       const intervalResult = await db
         .select()
-        .from(haexSettings)
-        .where(eq(haexSettings.key, SYNC_SETTING_KEYS.PERIODIC_INTERVAL_MS))
+        .from(haexVaultSettings)
+        .where(eq(haexVaultSettings.key, SYNC_SETTING_KEYS.PERIODIC_INTERVAL_MS))
         .limit(1)
 
       if (intervalResult.length > 0 && intervalResult[0]) {
@@ -105,7 +105,7 @@ export const useSyncConfigStore = defineStore('syncConfigStore', () => {
       // Save each setting
       if (newConfig.mode !== undefined) {
         await db
-          .insert(haexSettings)
+          .insert(haexVaultSettings)
           .values({
             id: crypto.randomUUID(),
             key: SYNC_SETTING_KEYS.MODE,
@@ -113,14 +113,14 @@ export const useSyncConfigStore = defineStore('syncConfigStore', () => {
             type: 'system',
           })
           .onConflictDoUpdate({
-            target: haexSettings.key,
+            target: haexVaultSettings.key,
             set: { value: newConfig.mode },
           })
       }
 
       if (newConfig.continuousDebounceMs !== undefined) {
         await db
-          .insert(haexSettings)
+          .insert(haexVaultSettings)
           .values({
             id: crypto.randomUUID(),
             key: SYNC_SETTING_KEYS.CONTINUOUS_DEBOUNCE_MS,
@@ -128,14 +128,14 @@ export const useSyncConfigStore = defineStore('syncConfigStore', () => {
             type: 'system',
           })
           .onConflictDoUpdate({
-            target: haexSettings.key,
+            target: haexVaultSettings.key,
             set: { value: newConfig.continuousDebounceMs.toString() },
           })
       }
 
       if (newConfig.periodicIntervalMs !== undefined) {
         await db
-          .insert(haexSettings)
+          .insert(haexVaultSettings)
           .values({
             id: crypto.randomUUID(),
             key: SYNC_SETTING_KEYS.PERIODIC_INTERVAL_MS,
@@ -143,7 +143,7 @@ export const useSyncConfigStore = defineStore('syncConfigStore', () => {
             type: 'system',
           })
           .onConflictDoUpdate({
-            target: haexSettings.key,
+            target: haexVaultSettings.key,
             set: { value: newConfig.periodicIntervalMs.toString() },
           })
       }

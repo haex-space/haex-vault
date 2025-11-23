@@ -43,8 +43,8 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
       const app = useNuxtApp()
 
       const currentLocaleRow =
-        await currentVault.value?.drizzle.query.haexSettings.findFirst({
-          where: eq(schema.haexSettings.key, VaultSettingsKeyEnum.locale),
+        await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
+          where: eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.locale),
         })
 
       if (currentLocaleRow?.value) {
@@ -53,7 +53,7 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
         )
         await app.$i18n.setLocale(currentLocale ?? app.$i18n.defaultLocale)
       } else {
-        await currentVault.value?.drizzle.insert(schema.haexSettings).values({
+        await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
           id: crypto.randomUUID(),
           key: VaultSettingsKeyEnum.locale,
           type: VaultSettingsTypeEnum.settings,
@@ -67,12 +67,12 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
 
   const updateLocaleAsync = async (locale: Locale) => {
     await currentVault.value?.drizzle
-      .update(schema.haexSettings)
+      .update(schema.haexVaultSettings)
       .set({ key: VaultSettingsKeyEnum.locale, value: locale })
       .where(
         and(
-          eq(schema.haexSettings.key, VaultSettingsKeyEnum.locale),
-          eq(schema.haexSettings.type, VaultSettingsTypeEnum.settings),
+          eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.locale),
+          eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.settings),
         ),
       )
   }
@@ -81,8 +81,8 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
       storeToRefs(useUiStore())
 
     const currentThemeRow =
-      await currentVault.value?.drizzle.query.haexSettings.findFirst({
-        where: eq(schema.haexSettings.key, VaultSettingsKeyEnum.theme),
+      await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
+        where: eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.theme),
       })
 
     if (currentThemeRow?.value) {
@@ -91,7 +91,7 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
       )
       currentThemeName.value = theme?.value || defaultTheme.value
     } else {
-      await currentVault.value?.drizzle.insert(schema.haexSettings).values({
+      await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.theme,
         type: VaultSettingsTypeEnum.settings,
@@ -102,22 +102,22 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
 
   const updateThemeAsync = async (theme: string) => {
     return await currentVault.value?.drizzle
-      .update(schema.haexSettings)
+      .update(schema.haexVaultSettings)
       .set({ key: VaultSettingsKeyEnum.theme, value: theme })
-      .where(eq(schema.haexSettings.key, VaultSettingsKeyEnum.theme))
+      .where(eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.theme))
   }
 
   const syncVaultNameAsync = async () => {
     const currentVaultNameRow =
-      await currentVault.value?.drizzle.query.haexSettings.findFirst({
-        where: eq(schema.haexSettings.key, VaultSettingsKeyEnum.vaultName),
+      await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
+        where: eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.vaultName),
       })
 
     if (currentVaultNameRow?.value) {
       currentVaultName.value =
         currentVaultNameRow.value || haexVault.defaultVaultName || 'HaexSpace'
     } else {
-      await currentVault.value?.drizzle.insert(schema.haexSettings).values({
+      await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.vaultName,
         type: VaultSettingsTypeEnum.settings,
@@ -128,24 +128,24 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
 
   const updateVaultNameAsync = async (newVaultName?: string | null) => {
     return currentVault.value?.drizzle
-      .update(schema.haexSettings)
+      .update(schema.haexVaultSettings)
       .set({ value: newVaultName || haexVault.defaultVaultName || 'HaexSpace' })
-      .where(eq(schema.haexSettings.key, 'vaultName'))
+      .where(eq(schema.haexVaultSettings.key, 'vaultName'))
   }
 
   const syncDesktopIconSizeAsync = async (deviceInternalId: string) => {
     const iconSizeRow =
-      await currentVault.value?.drizzle.query.haexSettings.findFirst({
+      await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
         where: and(
-          eq(schema.haexSettings.deviceId, deviceInternalId),
-          eq(schema.haexSettings.key, VaultSettingsKeyEnum.desktopIconSize),
-          eq(schema.haexSettings.type, VaultSettingsTypeEnum.system),
+          eq(schema.haexVaultSettings.deviceId, deviceInternalId),
+          eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.desktopIconSize),
+          eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.system),
         ),
       })
 
     if (!iconSizeRow?.id) {
       // Kein Eintrag vorhanden, erstelle einen mit Default (medium)
-      await currentVault.value?.drizzle.insert(schema.haexSettings).values({
+      await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
         deviceId: deviceInternalId,
         key: VaultSettingsKeyEnum.desktopIconSize,
         type: VaultSettingsTypeEnum.system,
@@ -162,13 +162,13 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     preset: DesktopIconSizePreset,
   ) => {
     return await currentVault.value?.drizzle
-      .update(schema.haexSettings)
+      .update(schema.haexVaultSettings)
       .set({ value: preset })
       .where(
         and(
-          eq(schema.haexSettings.deviceId, deviceInternalId),
-          eq(schema.haexSettings.key, VaultSettingsKeyEnum.desktopIconSize),
-          eq(schema.haexSettings.type, VaultSettingsTypeEnum.system),
+          eq(schema.haexVaultSettings.deviceId, deviceInternalId),
+          eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.desktopIconSize),
+          eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.system),
         ),
       )
   }

@@ -7,11 +7,10 @@
     }
   },
   "haex": {
-    "settings": {
-      "name": "haex_settings",
+    "vault_settings": {
+      "name": "haex_vault_settings",
       "columns": {
         "id": "id",
-        "deviceId": "device_id",
         "key": "key",
         "type": "type",
         "value": "value",
