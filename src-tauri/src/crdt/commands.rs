@@ -1,4 +1,4 @@
-use crate::crdt::trigger::{get_table_schema as get_table_schema_internal, ColumnInfo};
+use crate::crdt::trigger::{get_table_schema as get_table_schema_internal, ColumnInfo, HLC_TIMESTAMP_COLUMN, COLUMN_HLCS_COLUMN};
 use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
 use crate::AppState;
@@ -6,8 +6,10 @@ use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::State;
 use ts_rs::TS;
+use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, TS)]
 #[ts(export)]
@@ -89,6 +91,96 @@ pub struct RemoteColumnChange {
     pub batch_seq: usize,
     pub batch_total: usize,
     pub decrypted_value: JsonValue, // Already decrypted in frontend
+}
+
+/// Creates a conflict entry when a UNIQUE constraint is violated
+/// Stores remote data + both PKs (local and remote differ due to UNIQUE conflict)
+fn create_conflict_entry(
+    tx: &rusqlite::Transaction,
+    table_name: &str,
+    error_msg: &str,
+    remote_row_data: &serde_json::Map<String, JsonValue>,
+    remote_timestamp: &str,
+    schema: &[ColumnInfo],
+) -> Result<(), DatabaseError> {
+    // Extract the conflicting columns from error message
+    // Example: "UNIQUE constraint failed: haex_settings.device_id, haex_settings.key"
+    let conflict_key = if let Some(cols) = error_msg.strip_prefix("UNIQUE constraint failed: ") {
+        cols.to_string()
+    } else {
+        error_msg.to_string()
+    };
+
+    // Serialize remote row data
+    let remote_row_json = serde_json::to_string(remote_row_data).map_err(|e| {
+        DatabaseError::SerializationError {
+            reason: format!("Failed to serialize remote row: {}", e),
+        }
+    })?;
+
+    // Extract PKs from schema
+    let pk_columns: Vec<_> = schema.iter().filter(|col| col.is_pk).collect();
+
+    // Build remote PK JSON
+    let remote_pk: serde_json::Map<String, JsonValue> = pk_columns.iter()
+        .filter_map(|pk_col| remote_row_data.get(&pk_col.name).map(|v| (pk_col.name.clone(), v.clone())))
+        .collect();
+    let remote_pk_json = serde_json::to_string(&remote_pk).unwrap_or_else(|_| "{}".to_string());
+
+    // Find local row PK - we don't know which exact row conflicts, so query with LIMIT 1
+    // The UI will need to properly identify the conflicting row using the conflict_key
+    let pk_select = pk_columns
+        .iter()
+        .map(|col| col.name.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    let query_sql = format!("SELECT {} FROM \"{}\" LIMIT 1", pk_select, table_name);
+
+    let local_pk_json = tx.query_row(&query_sql, [], |row| {
+        let mut local_pk = serde_json::Map::new();
+        for (i, pk_col) in pk_columns.iter().enumerate() {
+            if let Ok(val) = row.get::<_, String>(i) {
+                local_pk.insert(pk_col.name.clone(), JsonValue::String(val));
+            }
+        }
+        Ok(serde_json::to_string(&local_pk).unwrap_or_else(|_| "{}".to_string()))
+    }).unwrap_or_else(|_| "{}".to_string());
+
+    // Generate conflict ID and timestamp
+    let conflict_id = Uuid::new_v4().to_string();
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let detected_at = format!("{}", timestamp);
+
+    tx.execute(
+        "INSERT INTO haex_crdt_conflicts (
+            id, table_name, conflict_type, local_row_id, remote_row_id,
+            local_row_data, remote_row_data, local_timestamp, remote_timestamp,
+            conflict_key, detected_at, resolved
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+        params![
+            &conflict_id,
+            table_name,
+            "UNIQUE",
+            &local_pk_json,
+            &remote_pk_json,
+            "", // UI fetches full row via local_row_id
+            &remote_row_json,
+            "", // UI fetches local timestamp
+            remote_timestamp,
+            &conflict_key,
+            &detected_at,
+            false,
+        ],
+    )
+    .map_err(DatabaseError::from)?;
+
+    eprintln!("Created conflict entry {} for table {}", conflict_id, table_name);
+
+    Ok(())
 }
 
 /// Validates that all parts of each batch are present
@@ -330,10 +422,10 @@ pub fn apply_remote_changes_in_transaction(
                     }
 
                     // Add CRDT metadata
-                    columns.push("haex_column_hlcs".to_string());
-                    columns.push("haex_timestamp".to_string());
+                    columns.push(COLUMN_HLCS_COLUMN.to_string());
+                    columns.push(HLC_TIMESTAMP_COLUMN.to_string());
                     values.push(new_hlcs_json);
-                    values.push(max_hlc_for_row);
+                    values.push(max_hlc_for_row.clone());
 
                     let placeholders = vec!["?"; columns.len()].join(", ");
                     let insert_sql = format!(
@@ -360,8 +452,31 @@ pub fn apply_remote_changes_in_transaction(
 
                             // Check if it's a UNIQUE constraint violation
                             if error_msg.contains("UNIQUE constraint failed") {
-                                eprintln!("UNIQUE constraint conflict - skipping this row");
-                                // TODO: Implement create_conflict_entry function
+                                eprintln!("UNIQUE constraint conflict - creating conflict entry");
+
+                                // Build remote row data from all columns being inserted
+                                let mut remote_row_data = serde_json::Map::new();
+                                for (i, col_name) in columns.iter().enumerate() {
+                                    if let Some(value_str) = values.get(i) {
+                                        // Try to parse as JSON, otherwise store as string
+                                        let json_value = serde_json::from_str(value_str)
+                                            .unwrap_or_else(|_| JsonValue::String(value_str.clone()));
+                                        remote_row_data.insert(col_name.clone(), json_value);
+                                    }
+                                }
+
+                                // Create conflict entry
+                                if let Err(e) = create_conflict_entry(
+                                    &tx,
+                                    &first_change.table_name,
+                                    error_msg,
+                                    &remote_row_data,
+                                    &max_hlc_for_row,
+                                    &schema,
+                                ) {
+                                    eprintln!("Failed to create conflict entry: {:?}", e);
+                                }
+
                                 continue; // Skip this row and continue with next
                             }
 
