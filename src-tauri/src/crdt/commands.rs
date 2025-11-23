@@ -346,26 +346,32 @@ pub fn apply_remote_changes_in_transaction(
                     let params_refs: Vec<&dyn rusqlite::ToSql> =
                         values.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
 
-                    // Try to insert - if it fails with UNIQUE constraint, create a conflict entry
+                    // Try to insert - if it fails with constraint, log detailed error
                     match tx.execute(&insert_sql, &*params_refs) {
                         Ok(_) => {}, // Success - continue
                         Err(rusqlite::Error::SqliteFailure(err, msg))
                             if err.code == rusqlite::ErrorCode::ConstraintViolation => {
-                            // Check if it's a UNIQUE constraint violation
-                            if let Some(error_msg) = msg {
-                                if error_msg.contains("UNIQUE constraint failed") {
-                                    eprintln!("UNIQUE constraint conflict detected for table {}: {}",
-                                        first_change.table_name, error_msg);
+                            // Log the constraint violation details
+                            let error_msg = msg.as_deref().unwrap_or("Unknown constraint violation");
+                            eprintln!("Constraint violation for table {}: {}",
+                                first_change.table_name, error_msg);
+                            eprintln!("Failed INSERT SQL: {}", insert_sql);
+                            eprintln!("Values: {:?}", values);
 
-                                    // Create conflict entry - for now just log, later we'll implement full conflict tracking
-                                    // TODO: Implement create_conflict_entry function
-                                    continue; // Skip this row and continue with next
-                                }
+                            // Check if it's a UNIQUE constraint violation
+                            if error_msg.contains("UNIQUE constraint failed") {
+                                eprintln!("UNIQUE constraint conflict - skipping this row");
+                                // TODO: Implement create_conflict_entry function
+                                continue; // Skip this row and continue with next
                             }
-                            // Re-throw if it's not a UNIQUE constraint we can handle
-                            return Err(DatabaseError::from(rusqlite::Error::SqliteFailure(err, None)));
+
+                            // For other constraints (CHECK, etc.), re-throw the error
+                            return Err(DatabaseError::from(rusqlite::Error::SqliteFailure(err, msg)));
                         }
-                        Err(e) => return Err(DatabaseError::from(e)), // Other errors
+                        Err(e) => {
+                            eprintln!("INSERT failed for table {}: {:?}", first_change.table_name, e);
+                            return Err(DatabaseError::from(e));
+                        }
                     }
                 }
             }
