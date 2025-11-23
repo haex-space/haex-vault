@@ -168,10 +168,10 @@ export const useVaultStore = defineStore('vaultStore', () => {
         retentionDays,
       })
 
-      if (result.total_deleted > 0) {
+      if (result.totalDeleted > 0) {
         console.log(
-          `[HaexSpace] Automatic cleanup completed: ${result.total_deleted} entries removed ` +
-            `(${result.tombstones_deleted} tombstones, ${result.applied_deleted} applied)`,
+          `[HaexSpace] Automatic cleanup completed: ${result.totalDeleted} entries removed ` +
+            `(${result.tombstonesDeleted} tombstones, ${result.appliedDeleted} applied)`,
         )
       }
 

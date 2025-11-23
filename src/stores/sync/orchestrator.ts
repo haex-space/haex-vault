@@ -555,6 +555,13 @@ export const useSyncOrchestratorStore = defineStore(
 
         const batchId = change.batchId
         const batchTotal = change.batchTotal
+        const batchSeq = change.batchSeq
+
+        // Realtime changes must have batch info
+        if (!batchId || batchTotal === undefined || batchSeq === undefined) {
+          console.error('Realtime change missing batch info:', change)
+          return
+        }
 
         // Get or create batch accumulator
         let accumulator = batchAccumulators.value.get(batchId)
@@ -591,7 +598,7 @@ export const useSyncOrchestratorStore = defineStore(
 
           // Sort by batchSeq to ensure correct order
           const sortedChanges = accumulator.changes.sort(
-            (a, b) => a.batchSeq - b.batchSeq,
+            (a, b) => (a.batchSeq ?? 0) - (b.batchSeq ?? 0),
           )
 
           await applyRemoteChangesInTransactionAsync(
@@ -617,7 +624,9 @@ export const useSyncOrchestratorStore = defineStore(
 
             try {
               // Fetch missing changes from server
-              const receivedSeqs = acc.changes.map((c) => c.batchSeq)
+              const receivedSeqs = acc.changes
+                .map((c) => c.batchSeq)
+                .filter((seq): seq is number => seq !== undefined)
               const missingChanges = await fetchMissingBatchChangesAsync(
                 acc.backendId,
                 batchId,
@@ -627,7 +636,7 @@ export const useSyncOrchestratorStore = defineStore(
 
               // Combine with received changes
               const allChanges = [...acc.changes, ...missingChanges].sort(
-                (a, b) => a.batchSeq - b.batchSeq,
+                (a, b) => (a.batchSeq ?? 0) - (b.batchSeq ?? 0),
               )
 
               // Apply the complete batch
