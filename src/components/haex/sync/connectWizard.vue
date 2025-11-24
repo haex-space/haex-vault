@@ -232,6 +232,9 @@ const emit = defineEmits<{
   cancel: []
 }>()
 
+// Keyboard shortcuts with VueUse
+const { escape, enter } = useMagicKeys()
+
 // Stepper state
 const currentStepIndex = ref(0)
 const steps = computed(() => [
@@ -297,6 +300,21 @@ const isStep3Valid = computed(() => {
     newVaultPassword.value !== '' &&
     newVaultPassword.value === newVaultPasswordConfirm.value
   )
+})
+
+// Keyboard shortcuts handlers
+// ESC to cancel/close
+whenever(escape, () => {
+  cancel()
+})
+
+// Enter to proceed to next step
+whenever(enter, () => {
+  if (currentStepIndex.value < 2 && canProceed.value && !isLoading.value) {
+    nextStep()
+  } else if (currentStepIndex.value === 2 && isStep3Valid.value && !isLoading.value) {
+    completeSetupAsync()
+  }
 })
 
 // Methods
