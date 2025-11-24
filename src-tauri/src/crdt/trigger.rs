@@ -19,6 +19,12 @@ pub const HLC_TIMESTAMP_COLUMN: &str = "haex_timestamp";
 pub const COLUMN_HLCS_COLUMN: &str = "haex_column_hlcs";
 pub const TOMBSTONE_COLUMN: &str = "haex_tombstone";
 
+// Sync metadata columns that should NOT be tracked (to prevent trigger loops)
+const LAST_PUSH_HLC_COLUMN: &str = "last_push_hlc_timestamp";
+const LAST_PULL_HLC_COLUMN: &str = "last_pull_hlc_timestamp";
+const UPDATED_AT_COLUMN: &str = "updated_at";
+const CREATED_AT_COLUMN: &str = "created_at";
+
 /// Name der custom UUID-Generierungs-Funktion (registriert in database::core::open_and_init_db)
 pub const UUID_FUNCTION_NAME: &str = "gen_uuid";
 
@@ -125,13 +131,21 @@ pub fn setup_triggers_for_table(
         });
     }
 
-    // Calculate columns to track: all columns EXCEPT PKs, haex_timestamp, and haex_column_hlcs
+    // Calculate columns to track: all columns EXCEPT:
+    // - PKs
+    // - CRDT columns (haex_timestamp, haex_column_hlcs, haex_tombstone)
+    // - Sync metadata columns (to prevent trigger loops)
     let cols_to_track: Vec<String> = columns
         .iter()
         .filter(|c| {
             !c.is_pk
                 && c.name != HLC_TIMESTAMP_COLUMN
-                && c.name != "haex_column_hlcs"
+                && c.name != COLUMN_HLCS_COLUMN
+                && c.name != TOMBSTONE_COLUMN
+                && c.name != LAST_PUSH_HLC_COLUMN
+                && c.name != LAST_PULL_HLC_COLUMN
+                && c.name != UPDATED_AT_COLUMN
+                && c.name != CREATED_AT_COLUMN
         })
         .map(|c| c.name.clone())
         .collect();
