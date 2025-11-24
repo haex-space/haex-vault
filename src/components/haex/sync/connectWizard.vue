@@ -52,8 +52,9 @@
             class="card bg-base-200 p-4 cursor-pointer hover:bg-base-300 transition-colors"
             :class="{
               'ring-2 ring-primary': selectedVaultId === vault.vaultId,
+              'ring-2 ring-error': step2Error && !selectedVaultId,
             }"
-            @click="selectedVaultId = vault.vaultId"
+            @click="selectedVaultId = vault.vaultId; step2Error = ''"
           >
             <div class="flex items-center justify-between">
               <div>
@@ -75,6 +76,14 @@
               </div>
             </div>
           </div>
+
+          <!-- Error message -->
+          <p
+            v-if="step2Error"
+            class="text-sm text-error mt-2"
+          >
+            {{ step2Error }}
+          </p>
         </div>
 
         <!-- No vaults -->
@@ -96,53 +105,52 @@
         </p>
 
         <div class="space-y-4">
-          <UFormField
+          <UiInput
+            v-model="localVaultName"
+            v-model:errors="step3Errors.vaultName"
             :label="t('steps.createVault.vaultName')"
+            :placeholder="t('steps.createVault.vaultNamePlaceholder')"
             :description="t('steps.createVault.vaultNameDescription')"
-          >
-            <UiInput
-              v-model="localVaultName"
-              :placeholder="t('steps.createVault.vaultNamePlaceholder')"
-              size="xl"
-              class="w-full"
-              @blur="checkVaultNameExistsAsync"
-            />
-          </UFormField>
+            :schema="wizardSchema.vaultName"
+            :check="check"
+            size="xl"
+            class="w-full"
+            @blur="checkVaultNameExistsAsync"
+          />
           <p
             v-if="vaultNameExists"
-            class="text-sm text-error mt-1"
+            class="text-sm text-error -mt-3"
           >
             {{ t('steps.createVault.vaultNameExists') }}
           </p>
 
-          <UFormField
+          <UiInputPassword
+            v-model="newVaultPassword"
+            v-model:errors="step3Errors.password"
             :label="t('steps.createVault.vaultPassword')"
+            :placeholder="t('steps.createVault.vaultPasswordPlaceholder')"
             :description="t('steps.createVault.vaultPasswordDescription')"
-          >
-            <UiInputPassword
-              v-model="newVaultPassword"
-              :placeholder="t('steps.createVault.vaultPasswordPlaceholder')"
-              size="xl"
-              class="w-full"
-            />
-          </UFormField>
+            :schema="wizardSchema.vaultPassword"
+            :check="check"
+            size="xl"
+            class="w-full"
+          />
 
-          <UFormField :label="t('steps.createVault.vaultPasswordConfirm')">
-            <UiInputPassword
-              v-model="newVaultPasswordConfirm"
-              :placeholder="
-                t('steps.createVault.vaultPasswordConfirmPlaceholder')
-              "
-              size="xl"
-              class="w-full"
-            />
-          </UFormField>
+          <UiInputPassword
+            v-model="newVaultPasswordConfirm"
+            v-model:errors="step3Errors.passwordConfirm"
+            :label="t('steps.createVault.vaultPasswordConfirm')"
+            :placeholder="t('steps.createVault.vaultPasswordConfirmPlaceholder')"
+            :check="check"
+            size="xl"
+            class="w-full"
+          />
           <p
             v-if="
               newVaultPassword !== newVaultPasswordConfirm &&
               newVaultPasswordConfirm !== ''
             "
-            class="text-sm text-error mt-1"
+            class="text-sm text-error -mt-3"
           >
             {{ t('steps.createVault.passwordMismatch') }}
           </p>
@@ -198,10 +206,14 @@ import {
   deriveKeyFromPasswordAsync,
   base64ToArrayBuffer,
 } from '~/utils/crypto/vaultKey'
+import { createConnectWizardSchema } from './connectWizardSchema'
 
 const { t } = useI18n()
 const { serverOptions } = useSyncServerOptions()
 const { add } = useToast()
+
+// Create validation schema with i18n
+const wizardSchema = computed(() => createConnectWizardSchema(t))
 
 interface VaultInfo {
   vaultId: string
@@ -254,6 +266,7 @@ const steps = computed(() => [
 
 const connectRef = ref()
 const isLoading = ref(false)
+const check = ref(false)
 
 // Step 1: Login
 const credentials = ref({
@@ -262,12 +275,20 @@ const credentials = ref({
   password: '',
 })
 const supabaseClient = ref<ReturnType<typeof createClient> | null>(null)
+const step1Errors = reactive({
+  serverUrl: [] as string[],
+  email: [] as string[],
+  password: [] as string[],
+})
 
 const isLoginFormValid = computed(() => {
   return (
     credentials.value.serverUrl !== '' &&
     credentials.value.email !== '' &&
-    credentials.value.password !== ''
+    credentials.value.password !== '' &&
+    step1Errors.serverUrl.length === 0 &&
+    step1Errors.email.length === 0 &&
+    step1Errors.password.length === 0
   )
 })
 
@@ -275,12 +296,18 @@ const isLoginFormValid = computed(() => {
 const availableVaults = ref<VaultInfo[]>([])
 const selectedVaultId = ref<string | null>(null)
 const isLoadingVaults = ref(false)
+const step2Error = ref('')
 
 // Step 3: Create Local Vault
 const localVaultName = ref('')
 const vaultNameExists = ref(false)
 const newVaultPassword = ref('')
 const newVaultPasswordConfirm = ref('')
+const step3Errors = reactive({
+  vaultName: [] as string[],
+  password: [] as string[],
+  passwordConfirm: [] as string[],
+})
 
 // Computed for step validation
 const canProceed = computed(() => {
@@ -298,7 +325,10 @@ const isStep3Valid = computed(() => {
     localVaultName.value !== '' &&
     !vaultNameExists.value &&
     newVaultPassword.value !== '' &&
-    newVaultPassword.value === newVaultPasswordConfirm.value
+    newVaultPassword.value === newVaultPasswordConfirm.value &&
+    step3Errors.vaultName.length === 0 &&
+    step3Errors.password.length === 0 &&
+    step3Errors.passwordConfirm.length === 0
   )
 })
 
@@ -322,6 +352,11 @@ const nextStep = async () => {
   if (currentStepIndex.value === 0) {
     await loginAsync()
   } else if (currentStepIndex.value === 1) {
+    // Validate Step 2 (vault selection)
+    if (!selectedVaultId.value) {
+      step2Error.value = t('errors.vaultSelectionRequired')
+      return
+    }
     currentStepIndex.value++
   }
 }
@@ -459,6 +494,17 @@ const checkVaultNameExistsAsync = async () => {
 }
 
 const completeSetupAsync = async () => {
+  // Trigger validation for Step 3
+  check.value = true
+
+  // Wait for validation to complete
+  await nextTick()
+
+  // Check if validation passed
+  if (!isStep3Valid.value) {
+    return
+  }
+
   if (!selectedVaultId.value) return
 
   const selectedVault = availableVaults.value.find(
@@ -552,6 +598,17 @@ de:
     serverConnection: Verbindung zum Server fehlgeschlagen
     loginFailed: Anmeldung fehlgeschlagen
     loadVaultsFailed: Vaults konnten nicht geladen werden
+    vaultSelectionRequired: Bitte wähle einen Vault aus
+  validation:
+    serverUrlRequired: Server-URL ist erforderlich
+    serverUrlInvalid: Muss eine gültige URL sein
+    emailRequired: E-Mail ist erforderlich
+    emailInvalid: Muss eine gültige E-Mail sein
+    passwordRequired: Passwort ist erforderlich
+    vaultNameRequired: Vault-Name ist erforderlich
+    vaultNameTooLong: Vault-Name ist zu lang (max. 255 Zeichen)
+    vaultPasswordMinLength: Passwort muss mindestens 6 Zeichen lang sein
+    vaultPasswordTooLong: Passwort ist zu lang (max. 255 Zeichen)
 en:
   steps:
     login:
@@ -587,4 +644,15 @@ en:
     serverConnection: Failed to connect to server
     loginFailed: Login failed
     loadVaultsFailed: Failed to load vaults
+    vaultSelectionRequired: Please select a vault
+  validation:
+    serverUrlRequired: Server URL is required
+    serverUrlInvalid: Must be a valid URL
+    emailRequired: Email is required
+    emailInvalid: Must be a valid email
+    passwordRequired: Password is required
+    vaultNameRequired: Vault name is required
+    vaultNameTooLong: Vault name is too long (max. 255 characters)
+    vaultPasswordMinLength: Password must be at least 6 characters
+    vaultPasswordTooLong: Password is too long (max. 255 characters)
 </i18n>
