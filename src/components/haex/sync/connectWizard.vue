@@ -494,7 +494,7 @@ const cancel = () => {
 const clearForm = () => {
   currentStepIndex.value = 0
   credentials.value = {
-    serverUrl: '',
+    serverUrl: 'https://sync.haex.space',
     email: '',
     password: '',
   }
@@ -505,7 +505,6 @@ const clearForm = () => {
   newVaultPasswordConfirm.value = ''
   vaultNameExists.value = false
   supabaseClient.value = null
-  connectRef.value?.clearForm()
 }
 
 const formatDate = (dateStr: string) => {
