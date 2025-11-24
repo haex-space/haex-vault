@@ -31,6 +31,9 @@
 </template>
 
 <script setup lang="ts">
+import { eq } from 'drizzle-orm'
+import { schema } from '~/database'
+
 const { t } = useI18n({ useScope: 'local' })
 const { add } = useToast()
 
@@ -74,16 +77,37 @@ const onWizardCompleteAsync = async (wizardData: {
       throw new Error('Failed to create vault')
     }
 
-    console.log('✅ Vault created and opened:', localVaultId)
+    console.log('✅ Vault created with local ID:', localVaultId)
+
+    // IMPORTANT: Override local vault_id with remote vault_id to ensure sync works
+    console.log(`🔄 Setting vault_id to remote ID: ${wizardData.vaultId}`)
+    await vaultStore.currentVault?.drizzle
+      .update(schema.haexVaultSettings)
+      .set({ value: wizardData.vaultId })
+      .where(eq(schema.haexVaultSettings.key, 'vault_id'))
+
+    // Update the openVaults map: move vault from old ID to new ID
+    const vaultData = vaultStore.openVaults[localVaultId]
+    if (vaultData) {
+      vaultStore.openVaults = {
+        ...vaultStore.openVaults,
+        [wizardData.vaultId]: vaultData,
+      }
+      // Remove old key
+      const { [localVaultId]: _, ...rest } = vaultStore.openVaults
+      vaultStore.openVaults = rest
+    }
+
+    console.log('✅ Vault ID updated to remote ID:', wizardData.vaultId)
 
     // Close drawer
     open.value = false
 
-    // 2. Navigate to vault with remote sync flag
+    // Navigate to vault with remote vault ID
     await navigateTo(
       useLocaleRoute()({
         name: 'desktop',
-        params: { vaultId: localVaultId },
+        params: { vaultId: wizardData.vaultId },
         query: { remoteSync: 'true' },
       }),
     )
