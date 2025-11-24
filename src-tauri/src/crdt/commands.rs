@@ -273,6 +273,12 @@ pub fn apply_remote_changes_in_transaction(
         tx.pragma_update(None, "defer_foreign_keys", "1")
             .map_err(DatabaseError::from)?;
 
+        // Disable triggers temporarily to prevent marking tables as dirty
+        // when applying remote changes (we don't want to re-sync changes we just pulled)
+        eprintln!("🔕 Disabling triggers for remote changes");
+        tx.execute("UPDATE haex_crdt_config SET triggers_enabled = 0", [])
+            .map_err(DatabaseError::from)?;
+
         // Verify the PRAGMA was actually set
         let defer_fk_enabled: i32 = tx
             .query_row("PRAGMA defer_foreign_keys", [], |row| row.get(0))
@@ -530,6 +536,11 @@ pub fn apply_remote_changes_in_transaction(
             params![&max_hlc, &backend_id],
         )
         .map_err(DatabaseError::from)?;
+
+        // Re-enable triggers before committing
+        eprintln!("🔔 Re-enabling triggers");
+        tx.execute("UPDATE haex_crdt_config SET triggers_enabled = 1", [])
+            .map_err(DatabaseError::from)?;
 
         // Commit transaction
         // Note: defer_foreign_keys is reset automatically when the transaction ends
