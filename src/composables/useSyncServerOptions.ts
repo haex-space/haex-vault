@@ -1,5 +1,21 @@
 export const useSyncServerOptions = () => {
-  const { t } = useI18n()
+  const { t } = useI18n({
+    useScope: 'global',
+    messages: {
+      de: {
+        serverOptions: {
+          localhost: 'Lokal (localhost:3002)',
+          custom: 'Benutzerdefiniert...',
+        },
+      },
+      en: {
+        serverOptions: {
+          localhost: 'Local (localhost:3002)',
+          custom: 'Custom...',
+        },
+      },
+    },
+  })
 
   const serverOptions = computed<ISyncServerOption[]>(() => [
     {
