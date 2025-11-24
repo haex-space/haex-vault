@@ -1,6 +1,7 @@
 use crate::crdt::trigger::{get_table_schema as get_table_schema_internal, ColumnInfo, HLC_TIMESTAMP_COLUMN, COLUMN_HLCS_COLUMN};
 use crate::database::core::{with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
+use crate::table_names::TABLE_CRDT_CONFIGS;
 use crate::AppState;
 use rusqlite::params;
 use rusqlite::types::Value as SqlValue;
@@ -276,7 +277,11 @@ pub fn apply_remote_changes_in_transaction(
         // Disable triggers temporarily to prevent marking tables as dirty
         // when applying remote changes (we don't want to re-sync changes we just pulled)
         eprintln!("🔕 Disabling triggers for remote changes");
-        tx.execute("UPDATE haex_crdt_config SET triggers_enabled = 0", [])
+        let disable_sql = format!(
+            "INSERT INTO {TABLE_CRDT_CONFIGS} (key, type, value) VALUES ('triggers_enabled', 'system', '0')
+             ON CONFLICT(key) DO UPDATE SET value = '0'"
+        );
+        tx.execute(&disable_sql, [])
             .map_err(DatabaseError::from)?;
 
         // Verify the PRAGMA was actually set
@@ -539,7 +544,11 @@ pub fn apply_remote_changes_in_transaction(
 
         // Re-enable triggers before committing
         eprintln!("🔔 Re-enabling triggers");
-        tx.execute("UPDATE haex_crdt_config SET triggers_enabled = 1", [])
+        let enable_sql = format!(
+            "INSERT INTO {TABLE_CRDT_CONFIGS} (key, type, value) VALUES ('triggers_enabled', 'system', '1')
+             ON CONFLICT(key) DO UPDATE SET value = '1'"
+        );
+        tx.execute(&enable_sql, [])
             .map_err(DatabaseError::from)?;
 
         // Commit transaction
