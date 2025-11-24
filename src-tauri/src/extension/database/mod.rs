@@ -1,6 +1,10 @@
 // src-tauri/src/extension/database/mod.rs
 
 pub mod executor;
+pub mod planner;
+#[cfg(test)]
+mod tests;
+
 use crate::crdt::transformer::CrdtTransformer;
 use crate::crdt::trigger;
 use crate::database::core::{parse_sql_statements, with_connection, ValueConverter};
@@ -11,96 +15,9 @@ use crate::extension::permissions::validator::SqlPermissionValidator;
 use crate::AppState;
 
 use rusqlite::params_from_iter;
-use rusqlite::types::Value as SqlValue;
-use rusqlite::Transaction;
 use serde_json::Value as JsonValue;
-use sqlparser::ast::{Statement, TableFactor, TableObject};
+use sqlparser::ast::Statement;
 use tauri::State;
-
-/// Führt Statements mit korrekter Parameter-Bindung aus
-pub struct StatementExecutor<'a> {
-    transaction: &'a Transaction<'a>,
-}
-
-impl<'a> StatementExecutor<'a> {
-    fn new(transaction: &'a Transaction<'a>) -> Self {
-        Self { transaction }
-    }
-
-    /// Führt ein einzelnes Statement mit Parametern aus
-    fn execute_statement_with_params(
-        &self,
-        statement: &Statement,
-        params: &[SqlValue],
-    ) -> Result<(), DatabaseError> {
-        let sql = statement.to_string();
-        let expected_params = count_sql_placeholders(&sql);
-
-        if expected_params != params.len() {
-            return Err(DatabaseError::ParameterMismatchError {
-                expected: expected_params,
-                provided: params.len(),
-                sql,
-            });
-        }
-
-        self.transaction
-            .execute(&sql, params_from_iter(params.iter()))
-            .map_err(|e| DatabaseError::ExecutionError {
-                sql,
-                table: Some(
-                    self.extract_table_name_from_statement(statement)
-                        .unwrap_or_else(|| "unknown".to_string()),
-                ),
-                reason: e.to_string(),
-            })?;
-
-        Ok(())
-    }
-
-    /// Extrahiert den Tabellennamen aus einem Statement für bessere Fehlermeldungen
-    fn extract_table_name_from_statement(&self, statement: &Statement) -> Option<String> {
-        match statement {
-            Statement::Insert(insert) => {
-                if let TableObject::TableName(name) = &insert.table {
-                    Some(name.to_string())
-                } else {
-                    None
-                }
-            }
-            Statement::Update { table, .. } => {
-                if let TableFactor::Table { name, .. } = &table.relation {
-                    Some(name.to_string())
-                } else {
-                    None
-                }
-            }
-            Statement::Delete(delete) => {
-                // Verbessertes Extrahieren für DELETE
-                use sqlparser::ast::FromTable;
-                match &delete.from {
-                    FromTable::WithFromKeyword(tables) | FromTable::WithoutKeyword(tables) => {
-                        if !tables.is_empty() {
-                            if let TableFactor::Table { name, .. } = &tables[0].relation {
-                                Some(name.to_string())
-                            } else {
-                                None
-                            }
-                        } else if !delete.tables.is_empty() {
-                            Some(delete.tables[0].to_string())
-                        } else {
-                            None
-                        }
-                    }
-                }
-            }
-            Statement::CreateTable(create) => Some(create.name.to_string()),
-            Statement::AlterTable { name, .. } => Some(name.to_string()),
-            Statement::Drop { names, .. } => names.first().map(|name| name.to_string()),
-            _ => None,
-        }
-    }
-}
 
 #[tauri::command]
 pub async fn extension_sql_execute(
@@ -336,20 +253,67 @@ fn count_sql_placeholders(sql: &str) -> usize {
     sql.matches('?').count()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// Registers extension migrations for CRDT synchronization
+/// Validates SQL statements and stores them in haex_extension_migrations table
+#[tauri::command]
+pub async fn register_extension_migrations(
+    public_key: String,
+    extension_name: String,
+    extension_version: String,
+    migrations: Vec<serde_json::Map<String, JsonValue>>,
+    state: State<'_, AppState>,
+) -> Result<(), ExtensionError> {
+    // Get extension to retrieve its ID
+    let extension = state
+        .extension_manager
+        .get_extension_by_public_key_and_name(&public_key, &extension_name)?
+        .ok_or_else(|| ExtensionError::NotFound {
+            public_key: public_key.clone(),
+            name: extension_name.clone(),
+        })?;
 
-    #[test]
-    fn test_count_sql_placeholders() {
-        assert_eq!(
-            count_sql_placeholders("SELECT * FROM users WHERE id = ?"),
-            1
-        );
-        assert_eq!(
-            count_sql_placeholders("SELECT * FROM users WHERE id = ? AND name = ?"),
-            2
-        );
-        assert_eq!(count_sql_placeholders("SELECT * FROM users"), 0);
+    // Extract extension_id
+    let extension_id = extension.id.clone();
+
+    // Process each migration
+    for migration_obj in migrations {
+        let migration_name = migration_obj
+            .get("name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ExtensionError::ValidationError {
+                reason: "Migration must have a 'name' field".to_string(),
+            })?;
+
+        let sql_statement = migration_obj
+            .get("sql")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ExtensionError::ValidationError {
+                reason: "Migration must have a 'sql' field".to_string(),
+            })?;
+
+        // Validate SQL statements - ensure only extension's own tables are accessed
+        SqlPermissionValidator::validate_sql(&state, &extension_id, sql_statement).await?;
+
+        // Insert migration into haex_extension_migrations table
+        with_connection(&state.db, |conn| {
+            let migration_id = uuid::Uuid::new_v4().to_string();
+
+            conn.execute(
+                "INSERT INTO haex_extension_migrations (id, extension_id, extension_version, migration_name, sql_statement)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                rusqlite::params![
+                    migration_id,
+                    extension_id,
+                    extension_version,
+                    migration_name,
+                    sql_statement,
+                ],
+            )
+            .map_err(|e| DatabaseError::from(e))?;
+
+            Ok::<(), DatabaseError>(())
+        })?;
     }
+
+    Ok(())
 }

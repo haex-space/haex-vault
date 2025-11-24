@@ -133,11 +133,10 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
       .where(eq(schema.haexVaultSettings.key, 'vaultName'))
   }
 
-  const syncDesktopIconSizeAsync = async (deviceInternalId: string) => {
+  const syncDesktopIconSizeAsync = async () => {
     const iconSizeRow =
       await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
         where: and(
-          eq(schema.haexVaultSettings.deviceId, deviceInternalId),
           eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.desktopIconSize),
           eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.system),
         ),
@@ -146,7 +145,6 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     if (!iconSizeRow?.id) {
       // Kein Eintrag vorhanden, erstelle einen mit Default (medium)
       await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
-        deviceId: deviceInternalId,
         key: VaultSettingsKeyEnum.desktopIconSize,
         type: VaultSettingsTypeEnum.system,
         value: DesktopIconSizePreset.medium,
@@ -157,16 +155,12 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     return iconSizeRow.value as DesktopIconSizePreset
   }
 
-  const updateDesktopIconSizeAsync = async (
-    deviceInternalId: string,
-    preset: DesktopIconSizePreset,
-  ) => {
+  const updateDesktopIconSizeAsync = async (preset: DesktopIconSizePreset) => {
     return await currentVault.value?.drizzle
       .update(schema.haexVaultSettings)
       .set({ value: preset })
       .where(
         and(
-          eq(schema.haexVaultSettings.deviceId, deviceInternalId),
           eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.desktopIconSize),
           eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.system),
         ),

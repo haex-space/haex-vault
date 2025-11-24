@@ -200,8 +200,55 @@ await db
 5. ✅ **Batch-Konsistenz**: Alle Changes (inkl. DELETE) im gleichen Batch
 6. ✅ **CRDT-kompatibel**: DELETE ist einfach ein Column-Update wie jedes andere
 
+## Extension Schema Migration System
+
+Extensions können dynamisch Tabellen erstellen, die ebenfalls synchronisiert werden müssen.
+
+### Architektur
+
+**Dynamische Tabellenerkennung:**
+- `discover_crdt_tables()` in `src-tauri/src/database/init.rs` scannt alle Tabellen mit `haex_tombstone` Spalte
+- Keine hardcodierte Tabellenliste mehr nötig
+- CRDT-Trigger werden automatisch für alle erkannten Tabellen erstellt
+
+**Extension Migrations Tabelle:**
+```sql
+CREATE TABLE haex_extension_migrations (
+  id TEXT PRIMARY KEY,
+  extension_id TEXT NOT NULL,          -- Foreign Key zu haex_extensions
+  extension_version TEXT NOT NULL,     -- z.B. "0.1.15"
+  migration_name TEXT NOT NULL,        -- z.B. "0000_illegal_wallflower"
+  sql_statement TEXT NOT NULL,         -- Komplette .sql Datei
+  applied_at TEXT DEFAULT (CURRENT_TIMESTAMP),
+
+  -- CRDT Spalten (automatisch synchronisiert)
+  haex_timestamp TEXT,
+  haex_column_hlcs TEXT DEFAULT '{}',
+  haex_tombstone INTEGER DEFAULT 0,
+
+  FOREIGN KEY (extension_id) REFERENCES haex_extensions(id) ON DELETE CASCADE,
+  UNIQUE (extension_id, migration_name) WHERE haex_tombstone = 0
+)
+```
+
+**Migration Flow:**
+1. Extension führt Migration lokal aus via SDK `runMigrationsAsync()`
+2. SDK speichert Migration in `haex_extension_migrations`
+3. Migration wird via CRDT zu anderen Devices synchronisiert
+4. Device B beim Pull:
+   - Prüft ob Extension in entsprechender Version vorhanden
+   - Führt Migration aus wenn Extension verfügbar
+   - Wartet wenn Extension noch nicht heruntergeladen
+5. Backend erstellt automatisch CRDT-Trigger für neue Extension-Tabellen
+
+**Tabellenpräfix:**
+Extension-Tabellen nutzen Format: `{public_key_hash}__{extension_name}__{table_name}`
+
+Beispiel: `b4401f13f65e576b8a30ff9fd83df82a8bb707e1994d40c99996fe88603cefca__haex-pass__haex_passwords_item_details`
+
 ## Status
 
+**Basis-Sync-System:**
 - [ ] Migration: haex_deleted Spalte zu allen CRDT-Tabellen hinzufügen
 - [ ] Migration: UNIQUE Constraints mit `WHERE haex_deleted = 0` aktualisieren
 - [ ] CREATE TABLE Statements mit partial UNIQUE Constraints anpassen
@@ -211,3 +258,15 @@ await db
 - [ ] Alle user-facing SELECT Queries mit `WHERE haex_deleted = 0` erweitern
 - [ ] Cleanup-Job für alte soft-deleted Rows implementieren
 - [ ] Tests schreiben
+
+**Extension Migration System:**
+- [x] `haex_extension_migrations` Tabelle Schema erstellt
+- [x] Dynamische Tabellenerkennung implementiert (`discover_crdt_tables()`)
+- [x] Extension Download Folder existiert bereits (`app_local_data_dir()/extensions`)
+- [x] SDK erweitert: `registerMigrationsAsync()` Methode hinzugefügt
+- [x] Frontend Handler: `handleDatabaseMethodAsync` erweitert
+- [x] Rust Command: `register_extension_migrations` implementiert
+- [x] SQL-Validierung: Nur Extension-eigene Tabellen erlaubt
+- [ ] Pull-Prozess: Extension Migrations vor CRDT-Changes anwenden
+- [ ] Migration Execution: SQL-Statements ausführen wenn Extension verfügbar
+- [ ] Validierung: Extension-Version muss mit Migration-Version übereinstimmen

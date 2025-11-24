@@ -6,7 +6,7 @@ use ts_rs::TS;
 // --- Spezifische Aktionen ---
 
 /// Definiert Aktionen, die auf eine Datenbank angewendet werden können.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum DbAction {

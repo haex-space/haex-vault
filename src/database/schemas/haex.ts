@@ -263,3 +263,30 @@ export const haexSyncBackends = sqliteTable(
 )
 export type InsertHaexSyncBackends = typeof haexSyncBackends.$inferInsert
 export type SelectHaexSyncBackends = typeof haexSyncBackends.$inferSelect
+
+export const haexExtensionMigrations = sqliteTable(
+  tableNames.haex.extension_migrations.name,
+  withCrdtColumns({
+    id: text(tableNames.haex.extension_migrations.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    extensionId: text(tableNames.haex.extension_migrations.columns.extensionId)
+      .notNull()
+      .references((): AnySQLiteColumn => haexExtensions.id, {
+        onDelete: 'cascade',
+      }),
+    extensionVersion: text(tableNames.haex.extension_migrations.columns.extensionVersion).notNull(),
+    migrationName: text(tableNames.haex.extension_migrations.columns.migrationName).notNull(),
+    sqlStatement: text(tableNames.haex.extension_migrations.columns.sqlStatement).notNull(),
+    appliedAt: text(tableNames.haex.extension_migrations.columns.appliedAt).default(
+      sql`(CURRENT_TIMESTAMP)`,
+    ),
+  }),
+  (table) => [
+    uniqueIndex('haex_extension_migrations_extension_id_migration_name_unique')
+      .on(table.extensionId, table.migrationName)
+      .where(sql`${table.haexTombstone} = 0`),
+  ],
+)
+export type InsertHaexExtensionMigrations = typeof haexExtensionMigrations.$inferInsert
+export type SelectHaexExtensionMigrations = typeof haexExtensionMigrations.$inferSelect

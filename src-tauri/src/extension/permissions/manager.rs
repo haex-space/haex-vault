@@ -1,15 +1,16 @@
-use crate::table_names::TABLE_EXTENSION_PERMISSIONS;
-use crate::AppState;
 use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
+use crate::database::generated::HaexExtensionPermissions;
 use crate::extension::core::types::ExtensionSource;
 use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
+use crate::extension::permissions::checker::PermissionChecker;
 use crate::extension::permissions::types::{Action, ExtensionPermission, PermissionConstraints, PermissionStatus, ResourceType};
-use tauri::State;
-use crate::database::generated::HaexExtensionPermissions;
+use crate::table_names::TABLE_EXTENSION_PERMISSIONS;
+use crate::AppState;
 use rusqlite::params;
 use std::path::Path;
+use tauri::State;
 
 pub struct PermissionManager;
 
@@ -197,54 +198,40 @@ impl PermissionManager {
         action: Action,
         table_name: &str,
     ) -> Result<(), ExtensionError> {
-        // Remove quotes from table name if present (from SDK's getTableName())
-        // Support both double quotes and backticks (Drizzle uses backticks by default)
-        let clean_table_name = table_name.trim_matches('"').trim_matches('`');
+        // Extract DbAction from Action enum
+        let db_action = match action {
+            Action::Database(db_action) => db_action,
+            _ => {
+                return Err(ExtensionError::ValidationError {
+                    reason: "Expected database action".to_string(),
+                });
+            }
+        };
 
-        // Auto-allow: Extensions have full access to their own tables
-        // Table format: {publicKey}__{extensionName}__{tableName}
-        // Extension ID format: dev_{publicKey}_{extensionName} or {publicKey}_{extensionName}
-
-        // Get the extension to check if this is its own table
+        // Get the extension
         let extension = app_state
             .extension_manager
             .get_extension(extension_id)
             .ok_or_else(|| ExtensionError::ValidationError {
                 reason: format!("Extension with ID {extension_id} not found"),
-            })?;
+            })?
+            .clone();
 
-        // Build expected table prefix: {publicKey}__{extensionName}__
-        let expected_prefix = format!("{}__{}__", extension.manifest.public_key, extension.manifest.name);
-
-        if clean_table_name.starts_with(&expected_prefix) {
-            // This is the extension's own table - auto-allow
-            return Ok(());
-        }
-
-        // Not own table - check explicit permissions
+        // Load permissions
         let permissions = Self::get_permissions(app_state, extension_id).await?;
 
-        let has_permission = permissions
-            .iter()
-            .filter(|perm| perm.status == PermissionStatus::Granted) // NUR granted!
-            .filter(|perm| perm.resource_type == ResourceType::Db)
-            .filter(|perm| perm.action == action) // action ist nicht mehr Option
-            .any(|perm| {
-                if perm.target != "*" && perm.target != clean_table_name {
-                    return false;
-                }
-                true
-            });
+        // Create checker and validate
+        let checker = PermissionChecker::new(extension, permissions);
 
-        if !has_permission {
-            return Err(ExtensionError::permission_denied(
+        if checker.can_access_table(table_name, db_action) {
+            Ok(())
+        } else {
+            Err(ExtensionError::permission_denied(
                 extension_id,
-                &format!("{action:?}"),
+                &format!("{db_action:?}"),
                 &format!("database table '{table_name}'"),
-            ));
+            ))
         }
-
-        Ok(())
     }
 
     /// Prüft Web-Berechtigungen für Requests

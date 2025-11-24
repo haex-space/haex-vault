@@ -20,6 +20,7 @@ pub mod database;
 pub mod error;
 pub mod filesystem;
 pub mod permissions;
+pub mod utils;
 pub mod web;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]

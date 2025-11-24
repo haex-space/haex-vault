@@ -79,6 +79,22 @@ export async function handleDatabaseMethodAsync(
       return { success: true }
     }
 
+    case HAEXTENSION_METHODS.database.registerMigrations: {
+      const migrationParams = request.params as {
+        extensionVersion: string
+        migrations: Array<{ name: string; sql: string }>
+      }
+
+      await invoke('register_extension_migrations', {
+        publicKey: extension.publicKey,
+        extensionName: extension.name,
+        extensionVersion: migrationParams.extensionVersion,
+        migrations: migrationParams.migrations,
+      })
+
+      return { success: true }
+    }
+
     default:
       throw new Error(`Unknown database method: ${request.method}`)
   }

@@ -1,13 +1,13 @@
 // src-tauri/src/extension/database/executor.rs
 
+use super::planner::SqlExecutionPlanner;
 use crate::crdt::hlc::HlcService;
 use crate::crdt::transformer::CrdtTransformer;
 use crate::crdt::trigger;
-use crate::database::core::{convert_value_ref_to_json, parse_sql_statements};
+use crate::database::core::convert_value_ref_to_json;
 use crate::database::error::DatabaseError;
-use rusqlite::{params_from_iter, types::Value as SqliteValue, ToSql, Transaction};
+use rusqlite::{params_from_iter, ToSql, Transaction};
 use serde_json::Value as JsonValue;
-use sqlparser::ast::Statement;
 use std::collections::HashSet;
 
 /// SQL-Executor OHNE Berechtigungsprüfung - für interne Nutzung
@@ -22,18 +22,7 @@ impl SqlExecutor {
         sql: &str,
         params: &[&dyn ToSql],
     ) -> Result<HashSet<String>, DatabaseError> {
-        let mut ast_vec = parse_sql_statements(sql)?;
-
-        if ast_vec.len() != 1 {
-            return Err(DatabaseError::ExecutionError {
-                sql: sql.to_string(),
-                reason: "execute_internal_typed should only receive a single SQL statement"
-                    .to_string(),
-                table: None,
-            });
-        }
-
-        let mut statement = ast_vec.pop().unwrap();
+        let mut statement = SqlExecutionPlanner::parse_single_statement(sql)?;
 
         let transformer = CrdtTransformer::new();
         let hlc_timestamp =
@@ -63,15 +52,9 @@ impl SqlExecutor {
             })?;
 
         // Trigger-Logik für CREATE TABLE
-        if let Statement::CreateTable(create_table_details) = statement {
-            let raw_name = create_table_details.name.to_string();
-            // Remove quotes from table name
-            let table_name_str = raw_name
-                .trim_matches('"')
-                .trim_matches('`')
-                .to_string();
-            eprintln!("DEBUG: Setting up triggers for table: {table_name_str}");
-            trigger::setup_triggers_for_table(tx, &table_name_str, false)?;
+        if let Some(table_name) = SqlExecutionPlanner::extract_create_table_name(&statement) {
+            eprintln!("DEBUG: Setting up triggers for table: {table_name}");
+            trigger::setup_triggers_for_table(tx, &table_name, false)?;
         }
 
         Ok(modified_schema_tables)
@@ -85,18 +68,7 @@ impl SqlExecutor {
         sql: &str,
         params: &[&dyn ToSql],
     ) -> Result<(HashSet<String>, Vec<Vec<JsonValue>>), DatabaseError> {
-        let mut ast_vec = parse_sql_statements(sql)?;
-
-        if ast_vec.len() != 1 {
-            return Err(DatabaseError::ExecutionError {
-                sql: sql.to_string(),
-                reason: "query_internal_typed should only receive a single SQL statement"
-                    .to_string(),
-                table: None,
-            });
-        }
-
-        let mut statement = ast_vec.pop().unwrap();
+        let mut statement = SqlExecutionPlanner::parse_single_statement(sql)?;
 
         let transformer = CrdtTransformer::new();
         let hlc_timestamp =
@@ -163,15 +135,9 @@ impl SqlExecutor {
         }
 
         // Trigger-Logik für CREATE TABLE
-        if let Statement::CreateTable(create_table_details) = statement {
-            let raw_name = create_table_details.name.to_string();
-            // Remove quotes from table name
-            let table_name_str = raw_name
-                .trim_matches('"')
-                .trim_matches('`')
-                .to_string();
-            eprintln!("DEBUG: Setting up triggers for table (RETURNING): {table_name_str}");
-            trigger::setup_triggers_for_table(tx, &table_name_str, false)?;
+        if let Some(table_name) = SqlExecutionPlanner::extract_create_table_name(&statement) {
+            eprintln!("DEBUG: Setting up triggers for table (RETURNING): {table_name}");
+            trigger::setup_triggers_for_table(tx, &table_name, false)?;
         }
 
         Ok((modified_schema_tables, result_vec))
@@ -184,10 +150,7 @@ impl SqlExecutor {
         sql: &str,
         params: &[JsonValue],
     ) -> Result<HashSet<String>, DatabaseError> {
-        let sql_params: Vec<SqliteValue> = params
-            .iter()
-            .map(crate::database::core::ValueConverter::json_to_rusqlite_value)
-            .collect::<Result<Vec<_>, _>>()?;
+        let sql_params = SqlExecutionPlanner::convert_params(params)?;
         let param_refs: Vec<&dyn ToSql> = sql_params.iter().map(|p| p as &dyn ToSql).collect();
         Self::execute_internal_typed(tx, hlc_service, sql, &param_refs)
     }
@@ -199,10 +162,7 @@ impl SqlExecutor {
         sql: &str,
         params: &[JsonValue],
     ) -> Result<(HashSet<String>, Vec<Vec<JsonValue>>), DatabaseError> {
-        let sql_params: Vec<SqliteValue> = params
-            .iter()
-            .map(crate::database::core::ValueConverter::json_to_rusqlite_value)
-            .collect::<Result<Vec<_>, _>>()?;
+        let sql_params = SqlExecutionPlanner::convert_params(params)?;
         let param_refs: Vec<&dyn ToSql> = sql_params.iter().map(|p| p as &dyn ToSql).collect();
         Self::query_internal_typed(tx, hlc_service, sql, &param_refs)
     }
@@ -214,13 +174,8 @@ impl SqlExecutor {
         sqls: &[String],
         params: &[Vec<JsonValue>],
     ) -> Result<HashSet<String>, DatabaseError> {
-        if sqls.len() != params.len() {
-            return Err(DatabaseError::ExecutionError {
-                sql: format!("{} statements but {} param sets", sqls.len(), params.len()),
-                reason: "Statement count and parameter count mismatch".to_string(),
-                table: None,
-            });
-        }
+        // Use planner for validation
+        SqlExecutionPlanner::validate_batch(sqls, params)?;
 
         let mut all_modified_tables = HashSet::new();
 
@@ -238,27 +193,14 @@ impl SqlExecutor {
         sql: &str,
         params: &[JsonValue],
     ) -> Result<Vec<Vec<JsonValue>>, DatabaseError> {
-        let mut ast_vec = parse_sql_statements(sql)?;
-
-        if ast_vec.len() != 1 {
-            return Err(DatabaseError::ExecutionError {
-                sql: sql.to_string(),
-                reason: "query_select should only receive a single SELECT statement".to_string(),
-                table: None,
-            });
-        }
-
-        // Hard Delete: Keine SELECT-Transformation mehr nötig
-        let stmt_to_execute = ast_vec.pop().unwrap();
+        // Use planner for safe parsing
+        let stmt_to_execute = SqlExecutionPlanner::parse_single_statement(sql)?;
         let transformed_sql = stmt_to_execute.to_string();
 
         eprintln!("DEBUG: SELECT (no transformation): {transformed_sql}");
 
-        // Convert JSON params to SQLite values
-        let sql_params: Vec<SqliteValue> = params
-            .iter()
-            .map(crate::database::core::ValueConverter::json_to_rusqlite_value)
-            .collect::<Result<Vec<_>, _>>()?;
+        // Convert JSON params to SQLite values using planner
+        let sql_params = SqlExecutionPlanner::convert_params(params)?;
 
         let mut prepared_stmt = conn.prepare(&transformed_sql)?;
 

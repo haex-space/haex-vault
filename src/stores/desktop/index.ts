@@ -60,20 +60,13 @@ export const useDesktopStore = defineStore('desktopStore', () => {
 
   // Sync icon size from DB
   const syncDesktopIconSizeAsync = async () => {
-    const deviceInternalId = await getDeviceInternalIdAsync()
-    if (!deviceInternalId) return
-
-    const preset =
-      await settingsStore.syncDesktopIconSizeAsync(deviceInternalId)
+    const preset = await settingsStore.syncDesktopIconSizeAsync()
     iconSizePreset.value = preset
   }
 
   // Update icon size in DB
   const updateDesktopIconSizeAsync = async (preset: DesktopIconSizePreset) => {
-    const deviceInternalId = await getDeviceInternalIdAsync()
-    if (!deviceInternalId) return
-
-    await settingsStore.updateDesktopIconSizeAsync(deviceInternalId, preset)
+    await settingsStore.updateDesktopIconSizeAsync(preset)
     iconSizePreset.value = preset
   }
 

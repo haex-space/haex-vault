@@ -131,6 +131,19 @@
         "haexTimestamp": "haex_timestamp"
       }
     },
+    "extension_migrations": {
+      "name": "haex_extension_migrations",
+      "columns": {
+        "id": "id",
+        "extensionId": "extension_id",
+        "extensionVersion": "extension_version",
+        "migrationName": "migration_name",
+        "sqlStatement": "sql_statement",
+        "appliedAt": "applied_at",
+
+        "haexTimestamp": "haex_timestamp"
+      }
+    },
 
     "crdt": {
       "changes": {

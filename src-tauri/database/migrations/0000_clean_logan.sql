@@ -57,6 +57,20 @@ CREATE TABLE `haex_devices` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_devices_device_id_unique` ON `haex_devices` (`device_id`) WHERE "haex_devices"."haex_tombstone" = 0;--> statement-breakpoint
+CREATE TABLE `haex_extension_migrations` (
+	`id` text PRIMARY KEY NOT NULL,
+	`extension_id` text NOT NULL,
+	`extension_version` text NOT NULL,
+	`migration_name` text NOT NULL,
+	`sql_statement` text NOT NULL,
+	`applied_at` text DEFAULT (CURRENT_TIMESTAMP),
+	`haex_timestamp` text,
+	`haex_column_hlcs` text DEFAULT '{}' NOT NULL,
+	`haex_tombstone` integer DEFAULT false NOT NULL,
+	FOREIGN KEY (`extension_id`) REFERENCES `haex_extensions`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_extension_migrations_extension_id_migration_name_unique` ON `haex_extension_migrations` (`extension_id`,`migration_name`) WHERE "haex_extension_migrations"."haex_tombstone" = 0;--> statement-breakpoint
 CREATE TABLE `haex_extension_permissions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`extension_id` text NOT NULL,

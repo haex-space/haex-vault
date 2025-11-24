@@ -1,4 +1,4 @@
-// src-tauri/src/extension/permissions/check.rs
+// src-tauri/src/extension/permissions/commands.rs
 
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;

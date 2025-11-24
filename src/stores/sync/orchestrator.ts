@@ -55,7 +55,10 @@ export const useSyncOrchestratorStore = defineStore(
     // Dirty tables watcher
     let dirtyTablesDebounceTimer: ReturnType<typeof setTimeout> | null = null
     let periodicSyncInterval: ReturnType<typeof setInterval> | null = null
-    let periodicPullIntervals: Map<string, ReturnType<typeof setInterval>> = new Map()
+    const periodicPullIntervals: Map<
+      string,
+      ReturnType<typeof setInterval>
+    > = new Map()
     let eventUnlisten: (() => void) | null = null
 
     /**
@@ -483,13 +486,17 @@ export const useSyncOrchestratorStore = defineStore(
 
       // Calculate missing sequence numbers
       const allSeqs = Array.from({ length: totalCount }, (_, i) => i + 1)
-      const missingSeqs = allSeqs.filter((seq) => !receivedSeqNumbers.includes(seq))
+      const missingSeqs = allSeqs.filter(
+        (seq) => !receivedSeqNumbers.includes(seq),
+      )
 
       if (missingSeqs.length === 0) {
         return []
       }
 
-      console.log(`Fetching ${missingSeqs.length} missing changes for batch ${batchId}`)
+      console.log(
+        `Fetching ${missingSeqs.length} missing changes for batch ${batchId}`,
+      )
 
       // Fetch missing changes from server
       const response = await fetch(
@@ -503,7 +510,9 @@ export const useSyncOrchestratorStore = defineStore(
       )
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch missing batch changes: ${response.statusText}`)
+        throw new Error(
+          `Failed to fetch missing batch changes: ${response.statusText}`,
+        )
       }
 
       const data = await response.json()
@@ -648,7 +657,9 @@ export const useSyncOrchestratorStore = defineStore(
               // Clean up
               batchAccumulators.value.delete(batchId)
 
-              console.log(`✅ Applied batch ${batchId} after fetching missing changes`)
+              console.log(
+                `✅ Applied batch ${batchId} after fetching missing changes`,
+              )
             } catch (error) {
               console.error(`Failed to fetch missing batch ${batchId}:`, error)
               // Last resort: trigger full pull
@@ -781,7 +792,10 @@ export const useSyncOrchestratorStore = defineStore(
         try {
           await pullFromBackendAsync(backendId)
         } catch (pullError) {
-          console.error(`Failed to pull during init for backend ${backendId}:`, pullError)
+          console.error(
+            `Failed to pull during init for backend ${backendId}:`,
+            pullError,
+          )
           addToast({
             color: 'error',
             description: `Sync pull failed: ${pullError instanceof Error ? pullError.message : 'Unknown error'}`,
@@ -793,7 +807,10 @@ export const useSyncOrchestratorStore = defineStore(
         try {
           await pushToBackendAsync(backendId)
         } catch (pushError) {
-          console.error(`Failed to push during init for backend ${backendId}:`, pushError)
+          console.error(
+            `Failed to push during init for backend ${backendId}:`,
+            pushError,
+          )
           addToast({
             color: 'error',
             description: `Sync push failed: ${pushError instanceof Error ? pushError.message : 'Unknown error'}`,
@@ -805,14 +822,20 @@ export const useSyncOrchestratorStore = defineStore(
         await subscribeToBackendAsync(backendId)
 
         // Start periodic pull as fallback (every 5 minutes)
-        const periodicPullInterval = setInterval(async () => {
-          try {
-            console.log(`Periodic pull for backend ${backendId}`)
-            await pullFromBackendAsync(backendId)
-          } catch (error) {
-            console.error(`Periodic pull failed for backend ${backendId}:`, error)
-          }
-        }, 5 * 60 * 1000) // 5 minutes
+        const periodicPullInterval = setInterval(
+          async () => {
+            try {
+              console.log(`Periodic pull for backend ${backendId}`)
+              await pullFromBackendAsync(backendId)
+            } catch (error) {
+              console.error(
+                `Periodic pull failed for backend ${backendId}:`,
+                error,
+              )
+            }
+          },
+          5 * 60 * 1000,
+        ) // 5 minutes
 
         periodicPullIntervals.set(backendId, periodicPullInterval)
       } catch (error) {

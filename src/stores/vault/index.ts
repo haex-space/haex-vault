@@ -243,13 +243,13 @@ export const useVaultStore = defineStore('vaultStore', () => {
 const getVaultIdAsync = async (
   drizzleDb: SqliteRemoteDatabase<typeof schema>,
 ): Promise<string> => {
-  const { haexSettings } = schema
+  const { haexVaultSettings } = schema
 
   // Try to get existing vault ID from settings
   const existingSettings = await drizzleDb
     .select()
-    .from(haexSettings)
-    .where(eq(haexSettings.key, 'vault_id'))
+    .from(haexVaultSettings)
+    .where(eq(haexVaultSettings.key, 'vault_id'))
     .limit(1)
 
   if (existingSettings[0]?.value) {
@@ -260,7 +260,7 @@ const getVaultIdAsync = async (
   const vaultId = crypto.randomUUID()
 
   // Store it in settings
-  await drizzleDb.insert(haexSettings).values({
+  await drizzleDb.insert(haexVaultSettings).values({
     key: 'vault_id',
     type: 'system',
     value: vaultId,

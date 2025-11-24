@@ -4,28 +4,29 @@
 use crate::crdt::trigger;
 use crate::database::error::DatabaseError;
 use crate::table_names::{
-    TABLE_DESKTOP_ITEMS,
-    TABLE_DEVICES,
-    TABLE_EXTENSIONS,
-    TABLE_EXTENSION_PERMISSIONS,
-    TABLE_NOTIFICATIONS,
     TABLE_VAULT_SETTINGS,
-    TABLE_SYNC_BACKENDS,
-    TABLE_WORKSPACES,
 };
 use rusqlite::{params, Connection};
 
-/// Liste aller CRDT-Tabellen die Trigger benötigen (ohne Password-Tabellen - die kommen in Extension)
-const CRDT_TABLES: &[&str] = &[
-    TABLE_VAULT_SETTINGS,
-    TABLE_DEVICES,
-    TABLE_SYNC_BACKENDS,
-    TABLE_EXTENSIONS,
-    TABLE_EXTENSION_PERMISSIONS,
-    TABLE_NOTIFICATIONS,
-    TABLE_WORKSPACES,
-    TABLE_DESKTOP_ITEMS,
-];
+/// Scans the database for all tables that have a 'haex_tombstone' column
+/// These are the tables that need CRDT triggers
+fn discover_crdt_tables(conn: &Connection) -> Result<Vec<String>, DatabaseError> {
+    let mut stmt = conn.prepare(
+        "SELECT m.name as table_name
+         FROM sqlite_master m
+         JOIN pragma_table_info(m.name) p
+         WHERE m.type = 'table'
+           AND p.name = 'haex_tombstone'
+         GROUP BY m.name
+         ORDER BY m.name"
+    )?;
+
+    let tables: Result<Vec<String>, _> = stmt
+        .query_map([], |row| row.get(0))?
+        .collect();
+
+    Ok(tables?)
+}
 
 /// Prüft ob Trigger bereits initialisiert wurden und erstellt sie falls nötig
 ///
@@ -58,10 +59,14 @@ pub fn ensure_triggers_initialized(conn: &mut Connection) -> Result<bool, Databa
 
     eprintln!("INFO: Initializing CRDT triggers for database...");
 
-    // Create triggers for all CRDT tables
-    for table_name in CRDT_TABLES {
+    // Discover all tables with haex_tombstone column
+    let crdt_tables = discover_crdt_tables(&tx)?;
+    eprintln!("INFO: Discovered {} CRDT tables", crdt_tables.len());
+
+    // Create triggers for all discovered CRDT tables
+    for table_name in crdt_tables {
         eprintln!("  - Setting up triggers for: {table_name}");
-        trigger::setup_triggers_for_table(&tx, table_name, false)?;
+        trigger::setup_triggers_for_table(&tx, &table_name, false)?;
     }
 
     tx.commit()?;
