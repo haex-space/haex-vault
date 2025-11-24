@@ -4,7 +4,7 @@
 use crate::crdt::trigger;
 use crate::database::error::DatabaseError;
 use crate::table_names::{
-    TABLE_VAULT_SETTINGS,
+    TABLE_CRDT_CONFIGS, TABLE_VAULT_SETTINGS,
 };
 use rusqlite::{params, Connection};
 
@@ -62,6 +62,15 @@ pub fn ensure_triggers_initialized(conn: &mut Connection) -> Result<bool, Databa
     // Discover all tables with haex_tombstone column
     let crdt_tables = discover_crdt_tables(&tx)?;
     eprintln!("INFO: Discovered {} CRDT tables", crdt_tables.len());
+
+    // Initialize triggers_enabled config (enable triggers by default)
+    eprintln!("INFO: Initializing triggers_enabled config...");
+    tx.execute(
+        &format!(
+            "INSERT OR REPLACE INTO {TABLE_CRDT_CONFIGS} (key, type, value) VALUES ('triggers_enabled', 'system', '1')"
+        ),
+        [],
+    )?;
 
     // Create triggers for all discovered CRDT tables
     for table_name in crdt_tables {
