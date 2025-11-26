@@ -279,6 +279,9 @@ pub async fn load_dev_extension(
 
     let manifest: ExtensionManifest = serde_json::from_str(&manifest_content)?;
 
+    // 3.5. Validate public key format
+    utils::validate_public_key(&manifest.public_key)?;
+
     // 4. Generate a unique ID for dev extension: dev_<public_key>_<name>
     let extension_id = format!("dev_{}_{}", manifest.public_key, manifest.name);
 

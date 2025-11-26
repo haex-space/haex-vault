@@ -8,6 +8,7 @@ use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::ExtensionPermission;
+use crate::extension::utils::validate_public_key;
 use crate::table_names::{TABLE_EXTENSIONS, TABLE_EXTENSION_PERMISSIONS};
 use crate::AppState;
 use std::collections::HashMap;
@@ -570,6 +571,9 @@ impl ExtensionManager {
         let extracted =
             Self::extract_and_validate_extension(file_bytes, "haexspace_preview", app_handle)?;
 
+        // Validate public key format (early error for invalid extensions)
+        validate_public_key(&extracted.manifest.public_key)?;
+
         let is_valid_signature = ExtensionCrypto::verify_signature(
             &extracted.manifest.public_key,
             &extracted.content_hash,
@@ -595,6 +599,9 @@ impl ExtensionManager {
     ) -> Result<String, ExtensionError> {
         let extracted =
             Self::extract_and_validate_extension(file_bytes, "haexspace_ext", &app_handle)?;
+
+        // Validate that the public key is a valid Ed25519 key format
+        validate_public_key(&extracted.manifest.public_key)?;
 
         // Signatur verifizieren (bei Installation wird ein Fehler geworfen, nicht nur geprüft)
         ExtensionCrypto::verify_signature(

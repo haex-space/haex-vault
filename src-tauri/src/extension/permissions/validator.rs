@@ -85,6 +85,8 @@ impl SqlPermissionValidator {
     }
 
     /// Validiert CREATE TABLE
+    /// Extensions können nur Tabellen mit ihrem eigenen Prefix erstellen:
+    /// Format: {public_key}__{extension_name}__{table_name}
     async fn validate_create_statement(
         app_state: &State<'_, AppState>,
         extension_id: &str,
@@ -92,13 +94,37 @@ impl SqlPermissionValidator {
     ) -> Result<(), ExtensionError> {
         if let Statement::CreateTable(create_table) = statement {
             let table_name = create_table.name.to_string();
+            let clean_table_name = table_name.trim_matches('"').trim_matches('`');
 
-            // Prüfe ob Extension überhaupt CREATE-Rechte hat (z.B. auf "*")
+            // Get extension to retrieve public_key and name
+            let extension = app_state
+                .extension_manager
+                .get_extension(extension_id)
+                .ok_or_else(|| ExtensionError::ValidationError {
+                    reason: format!("Extension with ID {} not found", extension_id),
+                })?;
+
+            // Extensions can ONLY create tables with their own prefix
+            let expected_prefix = crate::extension::utils::get_extension_table_prefix(
+                &extension.manifest.public_key,
+                &extension.manifest.name,
+            );
+
+            if !clean_table_name.starts_with(&expected_prefix) {
+                return Err(ExtensionError::ValidationError {
+                    reason: format!(
+                        "Extension can only create tables with prefix '{}'. Got: '{}'",
+                        expected_prefix, clean_table_name
+                    ),
+                });
+            }
+
+            // Also check if extension has CREATE permission
             PermissionManager::check_database_permission(
                 app_state,
                 extension_id,
                 Action::Database(super::types::DbAction::Create),
-                &table_name,
+                clean_table_name,
             )
             .await?;
         }
@@ -107,6 +133,7 @@ impl SqlPermissionValidator {
     }
 
     /// Validiert Schema-Änderungen (ALTER, DROP)
+    /// Extensions können nur ihre eigenen Tabellen ändern/löschen
     async fn validate_schema_statement(
         app_state: &State<'_, AppState>,
         extension_id: &str,
@@ -114,13 +141,38 @@ impl SqlPermissionValidator {
     ) -> Result<(), ExtensionError> {
         let table_names = Self::extract_table_names_from_statement(statement)?;
 
+        // Get extension to retrieve public_key and name
+        let extension = app_state
+            .extension_manager
+            .get_extension(extension_id)
+            .ok_or_else(|| ExtensionError::ValidationError {
+                reason: format!("Extension with ID {} not found", extension_id),
+            })?;
+
+        let expected_prefix = crate::extension::utils::get_extension_table_prefix(
+            &extension.manifest.public_key,
+            &extension.manifest.name,
+        );
+
         for table_name in table_names {
-            // ALTER/DROP benötigen WRITE-Rechte
+            let clean_table_name = table_name.trim_matches('"').trim_matches('`');
+
+            // Extensions can ONLY alter/drop their own tables
+            if !clean_table_name.starts_with(&expected_prefix) {
+                return Err(ExtensionError::ValidationError {
+                    reason: format!(
+                        "Extension can only alter/drop tables with prefix '{}'. Got: '{}'",
+                        expected_prefix, clean_table_name
+                    ),
+                });
+            }
+
+            // Also check if extension has ALTER/DROP permission
             PermissionManager::check_database_permission(
                 app_state,
                 extension_id,
                 Action::Database(super::types::DbAction::AlterDrop),
-                &table_name,
+                clean_table_name,
             )
             .await?;
         }
