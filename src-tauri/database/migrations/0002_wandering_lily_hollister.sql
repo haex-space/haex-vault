@@ -1,0 +1,2 @@
+DROP INDEX `haex_workspaces_position_unique`;--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_workspaces_device_position_unique` ON `haex_workspaces` (`device_id`,`position`) WHERE "haex_workspaces"."haex_tombstone" = 0;

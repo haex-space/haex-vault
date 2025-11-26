@@ -181,8 +181,8 @@ export const haexWorkspaces = sqliteTable(
     background: text(),
   }),
   (table) => [
-    uniqueIndex('haex_workspaces_position_unique')
-      .on(table.position)
+    uniqueIndex('haex_workspaces_device_position_unique')
+      .on(table.deviceId, table.position)
       .where(sql`${table.haexTombstone} = 0`),
   ],
 )
