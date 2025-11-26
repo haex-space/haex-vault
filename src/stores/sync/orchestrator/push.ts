@@ -162,15 +162,16 @@ export const pushToBackendAsync = async (
     )
 
     // Update backend's lastPushHlcTimestamp (HLC for tracking what we've pushed)
-    // Also set lastPullServerTimestamp from server response (for tracking what we've pulled)
     const updateData: { lastPushHlcTimestamp: string; lastPullServerTimestamp?: string } = {
       lastPushHlcTimestamp: maxHlc,
     }
 
-    // Set lastPullServerTimestamp from server response
-    // This ensures we don't re-download our own changes on the next pull
-    if (serverTimestamp) {
-      log.info('Setting lastPullServerTimestamp from server response:', serverTimestamp)
+    // Only set lastPullServerTimestamp on the FIRST push (when it's not yet set)
+    // This prevents re-downloading our own initial data.
+    // For subsequent pushes, we must NOT update it - otherwise we'd skip changes
+    // from other devices that happened between our last pull and this push.
+    if (serverTimestamp && !backend.lastPullServerTimestamp) {
+      log.info('First push: Setting initial lastPullServerTimestamp:', serverTimestamp)
       updateData.lastPullServerTimestamp = serverTimestamp
     }
 
