@@ -4,7 +4,7 @@
  */
 
 import { listen } from '@tauri-apps/api/event'
-import { log, type BackendSyncState, type BatchAccumulator } from './types'
+import { log, type BackendSyncState } from './types'
 import { pushToBackendAsync } from './push'
 import {
   pullFromBackendAsync,
@@ -31,9 +31,6 @@ export const useSyncOrchestratorStore = defineStore(
 
     // Sync state per backend
     const syncStates = ref<BackendSyncState>({})
-
-    // Batch accumulators for realtime changes (keyed by batchId)
-    const batchAccumulators = ref<Map<string, BatchAccumulator>>(new Map())
 
     // Dirty tables watcher
     let dirtyTablesDebounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -75,7 +72,6 @@ export const useSyncOrchestratorStore = defineStore(
         backendId,
         currentVaultId.value,
         syncStates.value,
-        batchAccumulators.value,
         syncBackendsStore,
         syncEngineStore,
       )

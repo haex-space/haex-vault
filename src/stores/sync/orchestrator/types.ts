@@ -18,17 +18,6 @@ export interface BackendSyncState {
 }
 
 /**
- * Batch accumulator for realtime changes
- */
-export interface BatchAccumulator {
-  backendId: string
-  changes: ColumnChange[]
-  receivedCount: number
-  totalCount: number
-  timeout?: ReturnType<typeof setTimeout>
-}
-
-/**
  * Result from pulling changes from server
  */
 export interface PullResult {
