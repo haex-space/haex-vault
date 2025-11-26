@@ -4,6 +4,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
+import { emit } from '@tauri-apps/api/event'
 import { decryptCrdtDataAsync } from '~/utils/crypto/vaultKey'
 import type { ColumnChange } from '../tableScanner'
 import { log, type BackendSyncState, type PullResult } from './types'
@@ -106,6 +107,12 @@ export const pullFromBackendAsync = async (
     // Step 4: Reload backend data from database
     log.debug('Reloading backend config after pull...')
     await syncBackendsStore.loadBackendsAsync()
+
+    // Step 5: Emit event to notify frontend about changed tables
+    if (tablesAffected.length > 0) {
+      log.debug('Emitting sync:tables-updated event for tables:', tablesAffected)
+      await emit('sync:tables-updated', { tables: tablesAffected })
+    }
 
     log.info(`========== PULL SUCCESS: ${allChanges.length} changes applied ==========`)
   } catch (error) {

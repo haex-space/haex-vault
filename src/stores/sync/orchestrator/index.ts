@@ -15,6 +15,7 @@ import {
   subscribeToBackendAsync,
   unsubscribeFromBackendAsync,
 } from './realtime'
+import { initSyncEventsAsync, stopSyncEvents } from '../syncEvents'
 
 // Re-export types
 export * from './types'
@@ -270,6 +271,14 @@ export const useSyncOrchestratorStore = defineStore(
         enabledBackends.map((b) => ({ id: b.id, name: b.name })),
       )
 
+      // Initialize sync events listener (for frontend refresh after pull)
+      log.debug('START: Initializing sync events listener...')
+      await initSyncEventsAsync()
+
+      // Start vault settings sync listener
+      const vaultSettingsStore = useVaultSettingsStore()
+      vaultSettingsStore.startSyncListener()
+
       // Load sync configuration
       log.debug('START: Loading sync configuration...')
       await syncConfigStore.loadConfigAsync()
@@ -293,6 +302,13 @@ export const useSyncOrchestratorStore = defineStore(
      */
     const stopSyncAsync = async (): Promise<void> => {
       log.info('========== STOP SYNC ==========')
+
+      // Stop vault settings sync listener
+      const vaultSettingsStore = useVaultSettingsStore()
+      vaultSettingsStore.stopSyncListener()
+
+      // Stop sync events listener
+      stopSyncEvents()
 
       // Stop dirty tables watcher
       stopDirtyTablesWatcher()

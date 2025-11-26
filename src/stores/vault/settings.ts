@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import * as schema from '~/database/schemas/haex'
 import type { Locale } from 'vue-i18n'
+import { subscribeToSyncUpdates, unsubscribeFromSyncUpdates } from '~/stores/sync/syncEvents'
 
 export enum VaultSettingsTypeEnum {
   settings = 'settings',
@@ -167,6 +168,26 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
       )
   }
 
+  // Register for sync updates using the central event system
+  const SUBSCRIPTION_ID = 'vaultSettingsStore'
+
+  const startSyncListener = () => {
+    subscribeToSyncUpdates(
+      SUBSCRIPTION_ID,
+      ['haex_vault_settings'],
+      async () => {
+        console.log('[VaultSettings] Sync update detected, reloading settings...')
+        await syncThemeAsync()
+        await syncLocaleAsync()
+        await syncVaultNameAsync()
+      },
+    )
+  }
+
+  const stopSyncListener = () => {
+    unsubscribeFromSyncUpdates(SUBSCRIPTION_ID)
+  }
+
   return {
     syncLocaleAsync,
     syncThemeAsync,
@@ -176,5 +197,7 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     updateVaultNameAsync,
     syncDesktopIconSizeAsync,
     updateDesktopIconSizeAsync,
+    startSyncListener,
+    stopSyncListener,
   }
 })
