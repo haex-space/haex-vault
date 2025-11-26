@@ -5,8 +5,8 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import type {
-  RealtimeChannel,
   RealtimePostgresInsertPayload,
+  RealtimePostgresUpdatePayload,
 } from '@supabase/supabase-js'
 import type { ColumnChange } from '../tableScanner'
 import { log, type BackendSyncState, type BatchAccumulator } from './types'
@@ -274,6 +274,7 @@ export const subscribeToBackendAsync = async (
   try {
     log.debug(`SUBSCRIBE: Creating channel sync_changes:${backend.vaultId}`)
     // Subscribe to sync changes table for this vault (using backend vaultId)
+    // Listen to both INSERT (new records) and UPDATE (UPSERT updates existing records)
     const channel = client
       .channel(`sync_changes:${backend.vaultId}`)
       .on(
@@ -288,6 +289,27 @@ export const subscribeToBackendAsync = async (
           handleRealtimeChangeAsync(
             backendId,
             payload,
+            batchAccumulators,
+            currentVaultId,
+            syncStates,
+            syncBackendsStore,
+            syncEngineStore,
+          ).catch(log.error)
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'sync_changes',
+          filter: `vault_id=eq.${backend.vaultId}`,
+        },
+        (payload: RealtimePostgresUpdatePayload<ColumnChange>) => {
+          // UPDATE events have the same structure - .new contains the updated record
+          handleRealtimeChangeAsync(
+            backendId,
+            payload as unknown as RealtimePostgresInsertPayload<ColumnChange>,
             batchAccumulators,
             currentVaultId,
             syncStates,
