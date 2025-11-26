@@ -200,6 +200,9 @@ const onOpenDatabase = async () => {
   try {
     if (!props.path) return
 
+    console.log('[VAULT OPEN] onOpenDatabase called')
+    console.log('[VAULT OPEN] path:', props.path)
+
     const { openAsync } = useVaultStore()
     const localePath = useLocalePath()
 
@@ -211,18 +214,26 @@ const onOpenDatabase = async () => {
 
     // If there are validation errors, don't proceed
     if (errors.password.length > 0) {
+      console.log('[VAULT OPEN] Validation errors, aborting')
       return
     }
 
     const path = props.path
     const pathCheck = vaultSchema.path.safeParse(path)
 
-    if (pathCheck.error) return
+    if (pathCheck.error) {
+      console.log('[VAULT OPEN] Path validation failed:', pathCheck.error)
+      return
+    }
+
+    console.log('[VAULT OPEN] Calling vaultStore.openAsync...')
 
     const vaultId = await openAsync({
       path,
       password: vault.password,
     })
+
+    console.log('[VAULT OPEN] openAsync returned vaultId:', vaultId)
 
     if (!vaultId) {
       add({

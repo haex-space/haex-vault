@@ -180,7 +180,7 @@ fn create_conflict_entry(
     )
     .map_err(DatabaseError::from)?;
 
-    eprintln!("Created conflict entry {} for table {}", conflict_id, table_name);
+    eprintln!("[SYNC RUST] Created conflict entry {} for table {}", conflict_id, table_name);
 
     Ok(())
 }
@@ -240,8 +240,8 @@ fn validate_batch_completeness(changes: &[RemoteColumnChange]) -> Result<(), Dat
 }
 
 /// Applies remote changes in a single transaction
-/// Also updates lastPullHlcTimestamp for the backend atomically
 /// Validates batch completeness before applying changes
+/// Note: lastPullServerTimestamp is now updated by the TypeScript layer after successful apply
 #[tauri::command]
 pub fn apply_remote_changes_in_transaction(
     changes: Vec<RemoteColumnChange>,
@@ -249,34 +249,40 @@ pub fn apply_remote_changes_in_transaction(
     max_hlc: String,
     state: State<'_, AppState>,
 ) -> Result<(), DatabaseError> {
+    eprintln!("[SYNC RUST] ========== APPLY REMOTE CHANGES START ==========");
+    eprintln!("[SYNC RUST] Changes count: {}, backend_id: {}, max_hlc: {}", changes.len(), backend_id, max_hlc);
+
     // Validate batch completeness
+    eprintln!("[SYNC RUST] Validating batch completeness...");
     validate_batch_completeness(&changes)?;
+    eprintln!("[SYNC RUST] Batch validation passed");
 
     with_connection(&state.db, |conn| {
         // Start transaction - all changes in the batch are applied atomically
+        eprintln!("[SYNC RUST] Starting transaction...");
         let tx = conn.transaction().map_err(DatabaseError::from)?;
 
         // Check if foreign keys are enabled (required for defer_foreign_keys to work)
         let fk_enabled: i32 = tx
             .query_row("PRAGMA foreign_keys", [], |row| row.get(0))
             .map_err(DatabaseError::from)?;
-        eprintln!("🔍 Foreign keys enabled: {}", fk_enabled);
+        eprintln!("[SYNC RUST] Foreign keys enabled: {}", fk_enabled);
 
         if fk_enabled != 1 {
-            eprintln!("⚠️ WARNING: Foreign keys are not enabled! defer_foreign_keys will not work.");
+            eprintln!("[SYNC RUST] WARNING: Foreign keys are not enabled! defer_foreign_keys will not work.");
         }
 
         // Defer foreign key constraint checking until the end of the transaction
         // This allows applying changes in any order, but still validates all constraints at commit time
         // This setting is automatically reset when the transaction ends (commit or rollback)
         // NOTE: This must be set AFTER starting the transaction
-        eprintln!("Setting PRAGMA defer_foreign_keys = 1");
+        eprintln!("[SYNC RUST] Setting PRAGMA defer_foreign_keys = 1");
         tx.pragma_update(None, "defer_foreign_keys", "1")
             .map_err(DatabaseError::from)?;
 
         // Disable triggers temporarily to prevent marking tables as dirty
         // when applying remote changes (we don't want to re-sync changes we just pulled)
-        eprintln!("🔕 Disabling triggers for remote changes");
+        eprintln!("[SYNC RUST] Disabling triggers for remote changes");
         let disable_sql = format!(
             "INSERT INTO {TABLE_CRDT_CONFIGS} (key, type, value) VALUES ('triggers_enabled', 'system', '0')
              ON CONFLICT(key) DO UPDATE SET value = '0'"
@@ -288,10 +294,10 @@ pub fn apply_remote_changes_in_transaction(
         let defer_fk_enabled: i32 = tx
             .query_row("PRAGMA defer_foreign_keys", [], |row| row.get(0))
             .map_err(DatabaseError::from)?;
-        eprintln!("🔍 PRAGMA defer_foreign_keys is now: {}", defer_fk_enabled);
+        eprintln!("[SYNC RUST] PRAGMA defer_foreign_keys is now: {}", defer_fk_enabled);
 
         if defer_fk_enabled != 1 {
-            eprintln!("❌ ERROR: defer_foreign_keys could not be enabled!");
+            eprintln!("[SYNC RUST] ERROR: defer_foreign_keys could not be enabled!");
         }
 
         // Group changes by (table, row) so we can insert/update all columns of a row together
@@ -302,12 +308,12 @@ pub fn apply_remote_changes_in_transaction(
         }
 
         // Apply changes grouped by row
-        eprintln!("📊 Applying {} rows total", row_changes.len());
+        eprintln!("[SYNC RUST] Applying {} rows total", row_changes.len());
 
         for ((_table_name, row_pks_str), row_change_list) in row_changes {
             // Use the first change to get common data
             let first_change = &row_change_list[0];
-            eprintln!("📝 Processing table: {}, PKs: {}, columns: {}",
+            eprintln!("[SYNC RUST] Processing table: {}, PKs: {}, columns: {}",
                 first_change.table_name, row_pks_str, row_change_list.len());
 
             // Parse row PKs (same for all changes in this row)
@@ -446,10 +452,9 @@ pub fn apply_remote_changes_in_transaction(
                     let mut values: Vec<SqlValue> = Vec::new();
 
                     // Debug: Log what columns we're about to insert
-                    eprintln!("=== INSERT DEBUG for table {} ===", first_change.table_name);
-                    eprintln!("Total schema columns: {}", schema.len());
-                    eprintln!("Columns to update: {}", columns_to_update.len());
-                    eprintln!("Column names to update: {:?}", columns_to_update.iter().map(|(n, _, _)| n).collect::<Vec<_>>());
+                    eprintln!("[SYNC RUST] INSERT for table {}: schema={} cols, updating={} cols",
+                        first_change.table_name, schema.len(), columns_to_update.len());
+                    eprintln!("[SYNC RUST]   Column names: {:?}", columns_to_update.iter().map(|(n, _, _)| n).collect::<Vec<_>>());
 
                     // Add PKs first
                     for col in &pk_columns {
@@ -489,14 +494,14 @@ pub fn apply_remote_changes_in_transaction(
                             if err.code == rusqlite::ErrorCode::ConstraintViolation => {
                             // Log the constraint violation details
                             let error_msg = msg.as_deref().unwrap_or("Unknown constraint violation");
-                            eprintln!("Constraint violation for table {}: {}",
+                            eprintln!("[SYNC RUST] Constraint violation for table {}: {}",
                                 first_change.table_name, error_msg);
-                            eprintln!("Failed INSERT SQL: {}", insert_sql);
-                            eprintln!("Values: {:?}", values);
+                            eprintln!("[SYNC RUST] Failed INSERT SQL: {}", insert_sql);
+                            eprintln!("[SYNC RUST] Values: {:?}", values);
 
                             // Check if it's a UNIQUE constraint violation
                             if error_msg.contains("UNIQUE constraint failed") {
-                                eprintln!("UNIQUE constraint conflict - creating conflict entry");
+                                eprintln!("[SYNC RUST] UNIQUE constraint conflict - creating conflict entry");
 
                                 // Build remote row data from all columns being inserted
                                 let mut remote_row_data = serde_json::Map::new();
@@ -516,7 +521,7 @@ pub fn apply_remote_changes_in_transaction(
                                     &max_hlc_for_row,
                                     &schema,
                                 ) {
-                                    eprintln!("Failed to create conflict entry: {:?}", e);
+                                    eprintln!("[SYNC RUST] Failed to create conflict entry: {:?}", e);
                                 }
 
                                 continue; // Skip this row and continue with next
@@ -526,7 +531,7 @@ pub fn apply_remote_changes_in_transaction(
                             return Err(DatabaseError::from(rusqlite::Error::SqliteFailure(err, msg)));
                         }
                         Err(e) => {
-                            eprintln!("INSERT failed for table {}: {:?}", first_change.table_name, e);
+                            eprintln!("[SYNC RUST] INSERT failed for table {}: {:?}", first_change.table_name, e);
                             return Err(DatabaseError::from(e));
                         }
                     }
@@ -534,16 +539,17 @@ pub fn apply_remote_changes_in_transaction(
             }
         }
 
-        // Update lastPullHlcTimestamp for this backend
-        eprintln!("📌 Updating last_pull_hlc_timestamp to {}", max_hlc);
+        // Update lastPushHlcTimestamp for this backend to prevent re-pushing the data we just pulled
+        // Note: lastPullServerTimestamp is now updated by TypeScript using the server timestamp
+        eprintln!("[SYNC RUST] Updating last_push_hlc_timestamp to {}", max_hlc);
         tx.execute(
-            "UPDATE haex_sync_backends SET last_pull_hlc_timestamp = ? WHERE id = ?",
+            "UPDATE haex_sync_backends SET last_push_hlc_timestamp = ? WHERE id = ?",
             params![&max_hlc, &backend_id],
         )
         .map_err(DatabaseError::from)?;
 
         // Re-enable triggers before committing
-        eprintln!("🔔 Re-enabling triggers");
+        eprintln!("[SYNC RUST] Re-enabling triggers");
         let enable_sql = format!(
             "INSERT INTO {TABLE_CRDT_CONFIGS} (key, type, value) VALUES ('triggers_enabled', 'system', '1')
              ON CONFLICT(key) DO UPDATE SET value = '1'"
@@ -554,14 +560,14 @@ pub fn apply_remote_changes_in_transaction(
         // Commit transaction
         // Note: defer_foreign_keys is reset automatically when the transaction ends
         // All deferred FK constraints will be checked now
-        eprintln!("💾 Committing transaction - FK constraints will be checked now");
+        eprintln!("[SYNC RUST] Committing transaction - FK constraints will be checked now");
         match tx.commit() {
             Ok(_) => {
-                eprintln!("✅ Transaction committed successfully");
+                eprintln!("[SYNC RUST] Transaction committed successfully");
                 Ok(())
             }
             Err(e) => {
-                eprintln!("❌ Transaction commit failed: {:?}", e);
+                eprintln!("[SYNC RUST] Transaction commit failed: {:?}", e);
                 Err(DatabaseError::from(e))
             }
         }?;

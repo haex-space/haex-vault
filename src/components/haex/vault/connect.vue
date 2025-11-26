@@ -31,9 +31,6 @@
 </template>
 
 <script setup lang="ts">
-import { eq } from 'drizzle-orm'
-import { schema } from '~/database'
-
 const { t } = useI18n({ useScope: 'local' })
 const { add } = useToast()
 
@@ -66,44 +63,53 @@ const onWizardCompleteAsync = async (wizardData: {
       throw new Error('Vault password is required')
     }
 
-    // 2. Create and open new local vault
-    console.log('📦 Creating new vault:', wizardData.localVaultName)
+    // 2. Create minimal vault with remote vault_id (DB + vault_id only)
+    // No workspaces, devices, or backends are created yet
+    console.log('📦 Creating minimal vault:', wizardData.localVaultName)
+    console.log('📦 Using remote vault_id:', wizardData.vaultId)
+
     const localVaultId = await vaultStore.createAsync({
       vaultName: wizardData.localVaultName,
       password: wizardData.newVaultPassword,
+      vaultId: wizardData.vaultId, // Pass remote vault_id directly
     })
 
     if (!localVaultId) {
       throw new Error('Failed to create vault')
     }
 
-    console.log('✅ Vault created with local ID:', localVaultId)
+    console.log('✅ Vault created with ID:', localVaultId)
 
-    // IMPORTANT: Override local vault_id with remote vault_id to ensure sync works
-    console.log(`🔄 Setting vault_id to remote ID: ${wizardData.vaultId}`)
-    await vaultStore.currentVault?.drizzle
-      .update(schema.haexVaultSettings)
-      .set({ value: wizardData.vaultId })
-      .where(eq(schema.haexVaultSettings.key, 'vault_id'))
+    // 3. Set up temporary backend (NOT in DB yet)
+    // This allows us to pull data before persisting the backend
+    console.log('📤 Setting up temporary backend for initial sync')
+    syncBackendsStore.setTemporaryBackend({
+      id: wizardData.backendId,
+      name: new URL(wizardData.serverUrl).host,
+      serverUrl: wizardData.serverUrl,
+      vaultId: wizardData.vaultId,
+      email: wizardData.email,
+      password: wizardData.password,
+      enabled: true,
+    })
 
-    // Update the openVaults map: move vault from old ID to new ID
-    const vaultData = vaultStore.openVaults[localVaultId]
-    if (vaultData) {
-      vaultStore.openVaults = {
-        ...vaultStore.openVaults,
-        [wizardData.vaultId]: vaultData,
-      }
-      // Remove old key
-      const { [localVaultId]: _, ...rest } = vaultStore.openVaults
-      vaultStore.openVaults = rest
-    }
+    // 4. Ensure sync key exists (needed for decryption)
+    // Supabase client is already initialized in wizard
+    // Pass serverUrl to fetch directly from server (initial sync mode)
+    console.log('🔐 Ensuring sync key exists')
+    await syncEngineStore.ensureSyncKeyAsync(
+      wizardData.backendId,
+      wizardData.vaultId,
+      wizardData.vaultName,
+      wizardData.password,
+      wizardData.serverUrl, // Initial sync: fetch from server directly
+    )
 
-    console.log('✅ Vault ID updated to remote ID:', wizardData.vaultId)
-
-    // Close drawer
+    // Close drawer before navigating
     open.value = false
 
-    // Navigate to vault with remote vault ID
+    // 5. Navigate to vault
+    // The vault.vue page will detect remoteSync=true and wait for initial sync
     await navigateTo(
       useLocaleRoute()({
         name: 'desktop',
@@ -112,47 +118,14 @@ const onWizardCompleteAsync = async (wizardData: {
       }),
     )
 
-    // 3. Now that vault is open and currentVaultId is set, configure backend
-    const existingBackend = await syncBackendsStore.findBackendByCredentialsAsync(
-      wizardData.serverUrl,
-      wizardData.email,
-    )
+    // 6. Perform initial pull using temporary backend
+    // This pulls ALL data from server before creating any local data
+    // After successful pull, the backend is persisted to DB
+    console.log('🔄 Starting initial pull from remote vault')
+    await syncOrchestratorStore.performInitialPullAsync()
 
-    let backendId: string
-
-    if (existingBackend) {
-      // Backend exists, update password and vaultId if changed
-      console.log('✅ Backend already exists, updating password and vaultId')
-      await syncBackendsStore.updateBackendAsync(existingBackend.id, {
-        password: wizardData.password,
-        vaultId: wizardData.vaultId,
-      })
-      backendId = existingBackend.id
-    } else {
-      // Create new backend with credentials
-      console.log('📤 Creating new backend with credentials')
-      backendId = wizardData.backendId
-      await syncBackendsStore.addBackendAsync({
-        id: backendId,
-        name: new URL(wizardData.serverUrl).host,
-        serverUrl: wizardData.serverUrl,
-        vaultId: wizardData.vaultId,
-        email: wizardData.email,
-        password: wizardData.password,
-        enabled: true,
-      })
-    }
-
-    // 4. Ensure sync key exists (use the backend vaultId from wizard)
-    // Use backend password for encrypting vault key on server
-    await syncEngineStore.ensureSyncKeyAsync(
-      backendId,
-      wizardData.vaultId,
-      wizardData.vaultName,
-      wizardData.password, // Backend password for server encryption
-    )
-
-    // 5. Start sync (Supabase client already initialized in wizard)
+    // 7. Start normal sync (backend is now in DB from step 6)
+    console.log('🔄 Starting normal sync')
     await syncOrchestratorStore.startSyncAsync()
 
     console.log('✅ Vault created and sync started')
@@ -164,6 +137,8 @@ const onWizardCompleteAsync = async (wizardData: {
     })
   } catch (error) {
     console.error('Failed to connect backend and create vault:', error)
+    // Clear temporary backend on error
+    syncBackendsStore.clearTemporaryBackend()
     add({
       title: t('error.title'),
       description: error instanceof Error ? error.message : 'Unknown error',

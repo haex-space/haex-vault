@@ -21,7 +21,7 @@ pub const TOMBSTONE_COLUMN: &str = "haex_tombstone";
 
 // Sync metadata columns that should NOT be tracked (to prevent trigger loops)
 const LAST_PUSH_HLC_COLUMN: &str = "last_push_hlc_timestamp";
-const LAST_PULL_HLC_COLUMN: &str = "last_pull_hlc_timestamp";
+const LAST_PULL_SERVER_TIMESTAMP_COLUMN: &str = "last_pull_server_timestamp";
 const UPDATED_AT_COLUMN: &str = "updated_at";
 const CREATED_AT_COLUMN: &str = "created_at";
 
@@ -143,7 +143,7 @@ pub fn setup_triggers_for_table(
                 && c.name != COLUMN_HLCS_COLUMN
                 && c.name != TOMBSTONE_COLUMN
                 && c.name != LAST_PUSH_HLC_COLUMN
-                && c.name != LAST_PULL_HLC_COLUMN
+                && c.name != LAST_PULL_SERVER_TIMESTAMP_COLUMN
                 && c.name != UPDATED_AT_COLUMN
                 && c.name != CREATED_AT_COLUMN
         })

@@ -166,7 +166,7 @@ DELETE FROM haex_passwords
 WHERE haex_deleted = 1
   AND datetime(haex_timestamp) < datetime('now', '-90 days')
   AND haex_timestamp <= (
-    SELECT MIN(last_pull_hlc_timestamp)
+    SELECT MIN(last_pull_server_timestamp)
     FROM haex_sync_backends
     WHERE enabled = 1
   );

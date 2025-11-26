@@ -351,6 +351,8 @@ impl From<&ExtensionPermission> for crate::database::generated::HaexExtensionPer
             created_at: None,
             updated_at: None,
             haex_timestamp: perm.haex_timestamp.clone(),
+            haex_column_hlcs: "{}".to_string(),
+            haex_tombstone: false,
         }
     }
 }

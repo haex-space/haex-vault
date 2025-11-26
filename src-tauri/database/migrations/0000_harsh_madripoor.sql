@@ -28,6 +28,14 @@ CREATE TABLE `haex_crdt_dirty_tables` (
 	`last_modified` text NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE `haex_crdt_migrations` (
+	`id` text PRIMARY KEY NOT NULL,
+	`migration_name` text NOT NULL,
+	`migration_content` text NOT NULL,
+	`applied_at` text NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_crdt_migrations_migration_name_unique` ON `haex_crdt_migrations` (`migration_name`);--> statement-breakpoint
 CREATE TABLE `haex_desktop_items` (
 	`id` text PRIMARY KEY NOT NULL,
 	`workspace_id` text NOT NULL,

@@ -247,7 +247,7 @@ export const haexSyncBackends = sqliteTable(
       .default(0)
       .notNull(),
     lastPushHlcTimestamp: text(tableNames.haex.sync_backends.columns.lastPushHlcTimestamp),
-    lastPullHlcTimestamp: text(tableNames.haex.sync_backends.columns.lastPullHlcTimestamp),
+    lastPullServerTimestamp: text(tableNames.haex.sync_backends.columns.lastPullServerTimestamp),
     createdAt: text(tableNames.haex.sync_backends.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),

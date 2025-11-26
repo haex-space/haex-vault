@@ -158,16 +158,11 @@ use serde::{Deserialize, Serialize};
 `
 
   const schemas = [
-    { name: tablesNames.haex.settings.name, table: schema.haexSettings },
+    { name: tablesNames.haex.vault_settings.name, table: schema.haexVaultSettings },
     { name: tablesNames.haex.extensions.name, table: schema.haexExtensions },
     {
       name: tablesNames.haex.extension_permissions.name,
       table: schema.haexExtensionPermissions,
-    },
-    { name: tablesNames.haex.crdt.logs.name, table: schema.haexCrdtLogs },
-    {
-      name: tablesNames.haex.crdt.snapshots.name,
-      table: schema.haexCrdtSnapshots,
     },
     { name: tablesNames.haex.crdt.configs.name, table: schema.haexCrdtConfigs },
     {
@@ -177,6 +172,10 @@ use serde::{Deserialize, Serialize};
     {
       name: tablesNames.haex.workspaces.name,
       table: schema.haexWorkspaces,
+    },
+    {
+      name: tablesNames.haex.crdt.migrations.name,
+      table: schema.haexCrdtMigrations,
     },
   ]
 

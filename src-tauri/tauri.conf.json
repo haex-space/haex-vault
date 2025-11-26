@@ -100,7 +100,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": ["database/vault.db"],
+    "resources": ["database/migrations/*.sql"],
 
     "linux": {
       "appimage": {

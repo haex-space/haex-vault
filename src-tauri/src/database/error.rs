@@ -96,6 +96,9 @@ pub enum DatabaseError {
 
     #[error("CRDT setup failed: {0}")]
     CrdtSetup(String),
+
+    #[error("Migration error: {reason}")]
+    MigrationError { reason: String },
 }
 
 impl From<rusqlite::Error> for DatabaseError {

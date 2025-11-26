@@ -117,22 +117,35 @@ export const useVaultStore = defineStore('vaultStore', () => {
   const openAsync = async ({
     path = '',
     password,
+    vaultId: providedVaultId,
   }: {
     path: string
     password: string
+    /** Optional: Use this vault ID instead of reading from DB (for remote sync) */
+    vaultId?: string
   }) => {
     try {
+      console.log('[VAULT STORE] openAsync called with path:', path)
+      if (providedVaultId) {
+        console.log('[VAULT STORE] Using provided vault ID (remote sync):', providedVaultId)
+      }
+      console.log('[VAULT STORE] Invoking open_encrypted_database...')
+
       await invoke<string>('open_encrypted_database', {
         vaultPath: path,
         key: password,
       })
+
+      console.log('[VAULT STORE] open_encrypted_database completed')
 
       const drizzleDb = drizzle<typeof schema>(drizzleCallback, {
         schema: schema,
         logger: false,
       })
 
-      const vaultId = await getVaultIdAsync(drizzleDb)
+      // For remote sync: use provided vaultId, skip DB lookup/creation
+      // For normal open: read vaultId from DB (or create if not exists)
+      const vaultId = providedVaultId ?? await getVaultIdAsync(drizzleDb)
 
       const fileName = getFileName(path) ?? path
 
@@ -185,15 +198,30 @@ export const useVaultStore = defineStore('vaultStore', () => {
   const createAsync = async ({
     vaultName,
     password,
+    vaultId,
   }: {
     vaultName: string
     password: string
+    /** Optional: Set a specific vault ID (for connecting to remote vaults) */
+    vaultId?: string
   }) => {
+    console.log('[VAULT STORE] createAsync called with vaultName:', vaultName)
+    if (vaultId) {
+      console.log('[VAULT STORE] Using provided vault ID:', vaultId)
+    }
+    console.log('[VAULT STORE] Invoking create_encrypted_database...')
+
     const vaultPath = await invoke<string>('create_encrypted_database', {
       vaultName,
       key: password,
+      vaultId: vaultId || null,
     })
-    return await openAsync({ path: vaultPath, password })
+
+    console.log('[VAULT STORE] create_encrypted_database returned path:', vaultPath)
+    console.log('[VAULT STORE] Now calling openAsync...')
+
+    // Pass vaultId to openAsync so it doesn't create a new one from DB
+    return await openAsync({ path: vaultPath, password, vaultId })
   }
 
   const closeAsync = async () => {

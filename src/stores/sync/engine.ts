@@ -429,61 +429,123 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   }
 
   /**
-   * Ensures sync key exists for a backend (loads from DB or generates new one)
-   * Also ensures the key is uploaded to the server
+   * Fetches sync key directly from server (for initial sync)
+   */
+  const fetchSyncKeyFromServerAsync = async (
+    serverUrl: string,
+    vaultId: string,
+    password: string,
+  ): Promise<Uint8Array> => {
+    const token = await getAuthTokenAsync()
+    if (!token) {
+      throw new Error('Not authenticated')
+    }
+
+    const response = await fetch(`${serverUrl}/sync/vault-key/${vaultId}`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+
+    if (response.status === 404) {
+      throw new Error('Vault key not found on server. Cannot connect to vault without existing sync key.')
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(`Failed to get vault key: ${error.error || response.statusText}`)
+    }
+
+    const data = await response.json()
+
+    return decryptVaultKeyAsync(
+      data.vaultKey.encryptedVaultKey,
+      data.vaultKey.salt,
+      data.vaultKey.vaultKeyNonce,
+      password,
+    )
+  }
+
+  /**
+   * Caches the sync key in memory
+   */
+  const cacheSyncKey = (vaultId: string, syncKey: Uint8Array): void => {
+    vaultKeyCache.value[vaultId] = {
+      vaultKey: syncKey,
+      timestamp: Date.now(),
+    }
+  }
+
+  /**
+   * Generates new sync key, saves locally, and uploads to server
+   */
+  const generateAndUploadSyncKeyAsync = async (
+    backendId: string,
+    vaultId: string,
+    vaultName: string,
+    password: string,
+  ): Promise<Uint8Array> => {
+    console.log('📤 Generating new sync key...')
+    const syncKey = generateVaultKey()
+
+    await saveSyncKeyToDbAsync(backendId, syncKey)
+    cacheSyncKey(vaultId, syncKey)
+    await uploadVaultKeyAsync(backendId, vaultId, syncKey, vaultName, password)
+
+    console.log('✅ New sync key generated, uploaded to server, and saved locally')
+    return syncKey
+  }
+
+  /**
+   * Ensures sync key exists for a backend (loads from cache/DB/server or generates new one)
+   *
+   * @param backendId - The backend ID
+   * @param vaultId - The vault ID
+   * @param vaultName - The vault name (for generating new key)
+   * @param password - The sync password (for encryption/decryption)
+   * @param serverUrl - Optional: If provided, fetches directly from server (for initial sync)
    */
   const ensureSyncKeyAsync = async (
     backendId: string,
     vaultId: string,
     vaultName: string,
     password: string,
+    serverUrl?: string,
   ): Promise<Uint8Array> => {
-    // 1. Try to load from local DB
-    let syncKey = await getSyncKeyFromDbAsync(backendId)
+    // 1. Check cache first
+    const cached = vaultKeyCache.value[vaultId]
+    if (cached) {
+      console.log('✅ Sync key found in cache')
+      return cached.vaultKey
+    }
 
-    if (syncKey) {
-      // Key exists locally, cache it
-      vaultKeyCache.value[vaultId] = {
-        vaultKey: syncKey,
-        timestamp: Date.now(),
-      }
-      console.log('✅ Sync key loaded from local database')
+    // 2. Initial sync mode: fetch directly from server
+    if (serverUrl) {
+      console.log('🔐 Initial sync mode: Fetching sync key from server...')
+      const syncKey = await fetchSyncKeyFromServerAsync(serverUrl, vaultId, password)
+      cacheSyncKey(vaultId, syncKey)
+      console.log('✅ Sync key downloaded from server and cached')
       return syncKey
     }
 
-    // 2. Key doesn't exist locally - check if it exists on server
+    // 3. Try to load from local DB
+    const dbKey = await getSyncKeyFromDbAsync(backendId)
+    if (dbKey) {
+      cacheSyncKey(vaultId, dbKey)
+      console.log('✅ Sync key loaded from local database')
+      return dbKey
+    }
+
+    // 4. Try to fetch from server via backend
     try {
-      syncKey = await getVaultKeyAsync(backendId, vaultId, password)
-      // Key exists on server, save it locally
-      await saveSyncKeyToDbAsync(backendId, syncKey)
+      const serverKey = await getVaultKeyAsync(backendId, vaultId, password)
+      await saveSyncKeyToDbAsync(backendId, serverKey)
       console.log('✅ Sync key downloaded from server and saved locally')
-      return syncKey
+      return serverKey
     } catch (error) {
-      // Key doesn't exist on server either
+      // 5. Generate new key if not found on server
       if (error instanceof Error && error.message.includes('not found')) {
-        // 3. Generate new key and upload to server
-        console.log('📤 Generating new sync key...')
-        syncKey = generateVaultKey()
-
-        // Save locally first
-        await saveSyncKeyToDbAsync(backendId, syncKey)
-
-        // Cache it
-        vaultKeyCache.value[vaultId] = {
-          vaultKey: syncKey,
-          timestamp: Date.now(),
-        }
-
-        // Upload to server with the same key we just generated
-        await uploadVaultKeyAsync(backendId, vaultId, syncKey, vaultName, password)
-
-        console.log(
-          '✅ New sync key generated, uploaded to server, and saved locally',
-        )
-        return syncKey
+        return generateAndUploadSyncKeyAsync(backendId, vaultId, vaultName, password)
       }
-
-      // Other errors should be propagated
       throw error
     }
   }

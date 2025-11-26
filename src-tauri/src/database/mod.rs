@@ -4,9 +4,10 @@ pub mod core;
 pub mod error;
 pub mod generated;
 pub mod init;
+pub mod migrations;
 
 use crate::crdt::hlc::HlcService;
-use crate::database::core::execute_with_crdt;
+use crate::database::core::{execute_with_crdt, with_connection};
 use crate::database::error::DatabaseError;
 use crate::extension::database::executor::SqlExecutor;
 use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_VAULT_SETTINGS};
@@ -19,7 +20,6 @@ use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
 use std::{fs, sync::Arc};
 use tauri::{path::BaseDirectory, AppHandle, Emitter, Manager, State};
-use tauri_plugin_fs::FsExt;
 #[cfg(not(target_os = "android"))]
 use trash;
 use ts_rs::TS;
@@ -117,9 +117,7 @@ fn get_vault_path(app_handle: &AppHandle, vault_name: &str) -> Result<String, Da
             BaseDirectory::AppLocalData,
         )
         .map_err(|e| DatabaseError::PathResolutionError {
-            reason: format!(
-                "Failed to resolve vault path for '{vault_file_name}': {e}"
-            ),
+            reason: format!("Failed to resolve vault path for '{vault_file_name}': {e}"),
         })?;
 
     // Sicherstellen, dass das vaults-Verzeichnis existiert
@@ -262,9 +260,7 @@ pub fn move_vault_to_trash(
             let _ = trash::delete(&vault_shm_path);
             let _ = trash::delete(&vault_wal_path);
 
-            Ok(format!(
-                "Vault '{vault_name}' successfully moved to trash"
-            ))
+            Ok(format!("Vault '{vault_name}' successfully moved to trash"))
         } else {
             // Fallback: Permanent deletion if trash fails
             println!(
@@ -316,6 +312,7 @@ pub fn create_encrypted_database(
     app_handle: AppHandle,
     vault_name: String,
     key: String,
+    vault_id: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<String, DatabaseError> {
     println!("Creating encrypted vault with name: {vault_name}");
@@ -326,126 +323,137 @@ pub fn create_encrypted_database(
     // Prüfen, ob bereits eine Vault mit diesem Namen existiert
     if Path::new(&vault_path).exists() {
         return Err(DatabaseError::IoError {
-            path: vault_path,
+            path: vault_path.clone(),
             reason: format!("A vault with the name '{vault_name}' already exists"),
         });
     }
-    /* let resource_path = app_handle
-    .path()
-    .resolve("database/vault.db", BaseDirectory::Resource)
-    .map_err(|e| format!("Fehler beim Auflösen des Ressourcenpfads: {}", e))?; */
 
-    let template_path = app_handle
-        .path()
-        .resolve("database/vault.db", BaseDirectory::Resource)
-        .map_err(|e| DatabaseError::PathResolutionError {
-            reason: format!("Failed to resolve template database: {e}"),
+    println!("Creating new empty encrypted database at: {}", &vault_path);
+
+    // Step 1: Create empty encrypted database
+    {
+        let conn = Connection::open(&vault_path).map_err(|e| DatabaseError::ConnectionFailed {
+            path: vault_path.clone(),
+            reason: format!("Failed to create database file: {}", e),
         })?;
 
-    let template_content =
-        app_handle
-            .fs()
-            .read(&template_path)
-            .map_err(|e| DatabaseError::IoError {
-                path: template_path.display().to_string(),
-                reason: format!("Failed to read template database from resources: {e}"),
+        // Set encryption key immediately
+        conn.pragma_update(None, "key", &key)
+            .map_err(|e| DatabaseError::PragmaError {
+                pragma: "key".to_string(),
+                reason: e.to_string(),
             })?;
 
-    let temp_path = app_handle
-        .path()
-        .resolve("temp_vault.db", BaseDirectory::AppLocalData)
-        .map_err(|e| DatabaseError::PathResolutionError {
-            reason: format!("Failed to resolve temp database: {e}"),
+        // Verify SQLCipher is active
+        println!("Verifying SQLCipher encryption...");
+        match conn.query_row("PRAGMA cipher_version;", [], |row| {
+            let version: String = row.get(0)?;
+            Ok(version)
+        }) {
+            Ok(version) => {
+                println!("✅ SQLCipher is active! Version: {}", version);
+            }
+            Err(e) => {
+                eprintln!("❌ ERROR: SQLCipher is NOT active!");
+                eprintln!("PRAGMA cipher_version failed: {}", e);
+                let _ = fs::remove_file(&vault_path);
+                return Err(DatabaseError::DatabaseError {
+                    reason: format!("SQLCipher verification failed: {}", e),
+                });
+            }
+        }
+
+        // Create a minimal table to initialize the database file
+        // This forces SQLite to write the header and validates the encryption
+        conn.execute("CREATE TABLE _init (id INTEGER PRIMARY KEY);", [])
+            .map_err(|e| DatabaseError::ExecutionError {
+                sql: "CREATE TABLE _init".to_string(),
+                reason: e.to_string(),
+                table: Some("_init".to_string()),
+            })?;
+
+        conn.execute("DROP TABLE _init;", [])
+            .map_err(|e| DatabaseError::ExecutionError {
+                sql: "DROP TABLE _init".to_string(),
+                reason: e.to_string(),
+                table: Some("_init".to_string()),
+            })?;
+
+        conn.close().map_err(|(_, e)| DatabaseError::ConnectionFailed {
+            path: vault_path.clone(),
+            reason: format!("Failed to close database after initialization: {}", e),
         })?;
-
-    let temp_path_clone = temp_path.to_owned();
-    fs::write(temp_path, template_content).map_err(|e| DatabaseError::IoError {
-        path: vault_path.to_string(),
-        reason: format!("Failed to write temporary template database: {e}"),
-    })?;
-    /* if !template_path.exists() {
-        return Err(DatabaseError::IoError {
-            path: template_path.display().to_string(),
-            reason: "Template database not found in resources".to_string(),
-        });
-    } */
-
-    println!("Öffne Temp-Datenbank direkt: {}", temp_path_clone.display());
-    let conn = Connection::open(&temp_path_clone).map_err(|e| DatabaseError::ConnectionFailed {
-        path: temp_path_clone.display().to_string(),
-        reason: format!(
-            "Fehler beim Öffnen der unverschlüsselten Quelldatenbank: {e}"
-        ),
-    })?;
-
-    println!(
-        "Hänge neue, verschlüsselte Datenbank an unter '{}'",
-        &vault_path
-    );
-    // ATTACH DATABASE 'Dateiname' AS Alias KEY 'Passwort';
-    conn.execute(
-        "ATTACH DATABASE ?1 AS encrypted KEY ?2;",
-        [&vault_path, &key],
-    )
-    .map_err(|e| DatabaseError::ExecutionError {
-        sql: "ATTACH DATABASE ...".to_string(),
-        reason: e.to_string(),
-        table: None,
-    })?;
-
-    println!("Exportiere Daten von 'main' nach 'encrypted' ...");
-
-    if let Err(e) = conn.query_row("SELECT sqlcipher_export('encrypted');", [], |_| Ok(())) {
-        // Versuche aufzuräumen, ignoriere Fehler dabei
-        let _ = conn.execute("DETACH DATABASE encrypted;", []);
-        // Lösche auch die eventuell teilweise erstellte Datei
-        let _ = fs::remove_file(&vault_path);
-        let _ = fs::remove_file(&temp_path_clone);
-        return Err(DatabaseError::QueryError {
-            reason: format!("Fehler während sqlcipher_export: {e}"),
-        });
     }
 
-    println!("Löse die verschlüsselte Datenbank vom Handle...");
+    println!("[CREATE_DB] ✅ Empty encrypted database created successfully");
 
-    conn.execute("DETACH DATABASE encrypted;", [])
-        .map_err(|e| DatabaseError::ExecutionError {
-            sql: "DETACH DATABASE ...".to_string(),
+    // Step 2: Open the database and store connection in AppState (without full initialization)
+    // We need the connection available for migrations, but can't initialize HLC yet
+    // because haex_crdt_configs table doesn't exist until migrations run
+    println!("[CREATE_DB] Step 2: Opening database connection for migrations...");
+    let conn = core::open_and_init_db(&vault_path, &key, false)?;
+    println!("[CREATE_DB] Database connection opened successfully");
+
+    // Store connection in AppState
+    println!("[CREATE_DB] Storing connection in AppState...");
+    {
+        let mut db_guard = state.db.0.lock().map_err(|e| DatabaseError::LockError {
             reason: e.to_string(),
-            table: None,
         })?;
+        *db_guard = Some(conn);
+    }
+    println!("[CREATE_DB] Connection stored in AppState");
+
+    // Step 3: Apply core migrations to build the schema
+    println!("[CREATE_DB] Step 3: Applying core migrations...");
+    let migrations_applied =
+        crate::database::migrations::apply_core_migrations(app_handle.clone(), state.clone())?;
 
     println!(
-        "Datenbank erfolgreich nach '{}' verschlüsselt.",
-        &vault_path
+        "[CREATE_DB] ✅ {} core migrations applied",
+        migrations_applied
     );
 
-    // SQLCipher-Verifizierung
-    println!("Prüfe SQLCipher-Aktivität mit 'PRAGMA cipher_version;'...");
-    match conn.query_row("PRAGMA cipher_version;", [], |row| {
-        let version: String = row.get(0)?;
-        Ok(version)
-    }) {
-        Ok(version) => {
-            println!("SQLCipher ist aktiv! Version: {version}");
-        }
-        Err(e) => {
-            eprintln!("FEHLER: SQLCipher scheint NICHT aktiv zu sein!");
-            eprintln!("Der Befehl 'PRAGMA cipher_version;' schlug fehl: {e}");
-            eprintln!("Die Datenbank wurde wahrscheinlich NICHT verschlüsselt.");
-        }
+    // Step 4: Now initialize HLC and triggers (tables exist after migrations)
+    println!("[CREATE_DB] Step 4: Initializing HLC and CRDT triggers...");
+    initialize_session_post_migration(&app_handle, &state)?;
+    println!("[CREATE_DB] ✅ HLC and triggers initialized");
+
+    // Step 5: Set vault_id - but only for NEW vaults (not for remote sync)
+    // When connecting to a remote vault (vault_id provided), skip this step
+    // because the vault_id setting will be pulled from the server
+    println!("[CREATE_DB] Step 5: Setting vault_id...");
+    if vault_id.is_some() {
+        println!("[CREATE_DB] Remote sync mode: Skipping vault_id insert (will be pulled from server)");
+    } else {
+        // Generate new vault_id for newly created vaults
+        let new_vault_id = uuid::Uuid::new_v4().to_string();
+        println!("[CREATE_DB] Generating new vault_id: {}", new_vault_id);
+
+        // Use HLC service to insert with proper CRDT timestamps
+        let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
+            reason: "Failed to lock HLC service".to_string(),
+        })?;
+        let row_id = uuid::Uuid::new_v4().to_string();
+        let insert_sql = format!(
+            "INSERT INTO {} (id, key, type, value) VALUES (?, 'vault_id', 'string', ?)",
+            TABLE_VAULT_SETTINGS
+        );
+        with_connection(&state.db, |conn| {
+            let tx = conn.transaction().map_err(DatabaseError::from)?;
+            SqlExecutor::execute_internal_typed(
+                &tx,
+                &hlc_service,
+                &insert_sql,
+                rusqlite::params![row_id, new_vault_id],
+            )?;
+            tx.commit().map_err(DatabaseError::from)?;
+            Ok(())
+        })?;
+        println!("[CREATE_DB] ✅ vault_id set successfully with CRDT timestamp");
     }
 
-    conn.close()
-        .map_err(|(_, e)| DatabaseError::ConnectionFailed {
-            path: template_path.display().to_string(),
-            reason: format!("Fehler beim Schließen der Quelldatenbank: {e}"),
-        })?;
-
-    let _ = fs::remove_file(&temp_path_clone);
-
-    initialize_session(&app_handle, &vault_path, &key, &state)?;
-
+    println!("[CREATE_DB] ========== create_encrypted_database COMPLETE ==========");
     Ok(vault_path)
 }
 
@@ -456,8 +464,23 @@ pub fn open_encrypted_database(
     key: String,
     state: State<'_, AppState>,
 ) -> Result<String, DatabaseError> {
-    println!("Opening encrypted database vault_path: {vault_path}");
-    println!("Resolved vault path: {vault_path}");
+    println!("[OPEN_DB] open_encrypted_database called for: {vault_path}");
+
+    // Check if a database connection already exists in AppState
+    // This happens when create_encrypted_database was called before
+    let already_open = {
+        let db_guard = state.db.0.lock().map_err(|e| DatabaseError::LockError {
+            reason: e.to_string(),
+        })?;
+        db_guard.is_some()
+    };
+
+    if already_open {
+        println!("[OPEN_DB] Database connection already exists in AppState, skipping re-initialization");
+        return Ok(format!("Vault '{vault_path}' already open"));
+    }
+
+    println!("[OPEN_DB] No existing connection, initializing new session...");
 
     if !Path::new(&vault_path).exists() {
         return Err(DatabaseError::IoError {
@@ -468,7 +491,56 @@ pub fn open_encrypted_database(
 
     initialize_session(&app_handle, &vault_path, &key, &state)?;
 
+    println!("[OPEN_DB] ✅ Vault opened successfully");
     Ok(format!("Vault '{vault_path}' opened successfully"))
+}
+
+/// Initializes HLC and triggers AFTER migrations have been applied.
+/// Used by create_encrypted_database where the connection is already in AppState.
+fn initialize_session_post_migration(
+    app_handle: &AppHandle,
+    state: &State<'_, AppState>,
+) -> Result<(), DatabaseError> {
+    // Connection is already in AppState, we just need to initialize HLC and triggers
+    with_connection(&state.db, |conn| {
+        // 1. Ensure CRDT triggers are initialized
+        let triggers_were_already_initialized = init::ensure_triggers_initialized(conn)?;
+
+        // 2. Initialize the HLC service
+        let hlc_service = HlcService::try_initialize(conn, app_handle).map_err(|e| {
+            DatabaseError::ExecutionError {
+                sql: "HLC Initialization".to_string(),
+                reason: e.to_string(),
+                table: Some(TABLE_CRDT_CONFIGS.to_string()),
+            }
+        })?;
+
+        // 3. Store HLC service in AppState
+        let mut hlc_guard = state.hlc.lock().map_err(|e| DatabaseError::LockError {
+            reason: e.to_string(),
+        })?;
+        *hlc_guard = hlc_service;
+        drop(hlc_guard);
+
+        // 4. Set triggers_initialized flag if needed
+        if !triggers_were_already_initialized {
+            eprintln!("INFO: Setting 'triggers_initialized' flag...");
+            conn.execute(
+                &format!(
+                    "INSERT INTO {TABLE_VAULT_SETTINGS} (id, key, type, value) VALUES (?, ?, ?, ?)"
+                ),
+                rusqlite::params![
+                    uuid::Uuid::new_v4().to_string(),
+                    "triggers_initialized",
+                    "system",
+                    "1"
+                ],
+            )
+            .map_err(DatabaseError::from)?;
+        }
+
+        Ok(())
+    })
 }
 
 /// Opens the DB, initializes the HLC service, and stores both in the AppState.
@@ -481,7 +553,7 @@ fn initialize_session(
     // 1. Establish the raw database connection
     let mut conn = core::open_and_init_db(path, key, false)?;
 
-    // 2. Ensure CRDT triggers are initialized (for template DB)
+    // 2. Ensure CRDT triggers are initialized
     let triggers_were_already_initialized = init::ensure_triggers_initialized(&mut conn)?;
 
     // 3. Initialize the HLC service
@@ -554,12 +626,13 @@ pub fn crdt_cleanup_tombstones(
     state: State<'_, AppState>,
 ) -> Result<crate::crdt::cleanup::CleanupResult, DatabaseError> {
     core::with_connection(&state.db, |conn| {
-        crate::crdt::cleanup::cleanup_tombstones(conn, retention_days)
-            .map_err(|e| DatabaseError::ExecutionError {
+        crate::crdt::cleanup::cleanup_tombstones(conn, retention_days).map_err(|e| {
+            DatabaseError::ExecutionError {
                 sql: "CRDT cleanup".to_string(),
                 reason: e.to_string(),
                 table: None,
-            })
+            }
+        })
     })
 }
 
@@ -590,4 +663,3 @@ pub fn database_vacuum(state: State<'_, AppState>) -> Result<String, DatabaseErr
         Ok("Database vacuumed successfully".to_string())
     })
 }
-

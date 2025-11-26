@@ -81,3 +81,30 @@ export const haexCrdtConflicts = sqliteTable(
 )
 export type InsertHaexCrdtConflicts = typeof haexCrdtConflicts.$inferInsert
 export type SelectHaexCrdtConflicts = typeof haexCrdtConflicts.$inferSelect
+
+/**
+ * Core Migrations (WITHOUT CRDT - local-only metadata)
+ * Tracks which core system migrations have been applied to this vault
+ * Unlike extension migrations, these are NOT synchronized between devices
+ * Each device applies core migrations independently from the bundled migration files
+ *
+ * The migrationContent contains the complete .sql file with all statements
+ * separated by '--> statement-breakpoint' markers (Drizzle format)
+ *
+ * IMPORTANT: This table is ALWAYS created by Rust (bootstrapping in migrations.rs)
+ * DO NOT generate migrations for this table via Drizzle!
+ * The SQL DEFAULT for appliedAt is set in Rust: DEFAULT (CURRENT_TIMESTAMP)
+ */
+export const haexCrdtMigrations = sqliteTable(
+  crdtTableNames.migrations.name,
+  {
+    id: text(crdtTableNames.migrations.columns.id).primaryKey(),
+    migrationName: text(crdtTableNames.migrations.columns.migrationName)
+      .notNull()
+      .unique(),
+    migrationContent: text(crdtTableNames.migrations.columns.migrationContent).notNull(),
+    appliedAt: text(crdtTableNames.migrations.columns.appliedAt).notNull(),
+  },
+)
+export type InsertHaexCrdtMigrations = typeof haexCrdtMigrations.$inferInsert
+export type SelectHaexCrdtMigrations = typeof haexCrdtMigrations.$inferSelect

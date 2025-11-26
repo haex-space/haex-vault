@@ -10,10 +10,31 @@ export interface ISyncServerOption {
   value: string
 }
 
+/**
+ * Temporary backend configuration used during initial sync
+ * before the backend is persisted to the database
+ */
+export interface TemporaryBackend {
+  id: string
+  name: string
+  serverUrl: string
+  vaultId: string
+  email: string
+  password: string
+  enabled: boolean
+}
+
 export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
   const { currentVault } = storeToRefs(useVaultStore())
 
   const backends = ref<SelectHaexSyncBackends[]>([])
+
+  /**
+   * Temporary backend for initial sync (not persisted to DB yet)
+   * Used when connecting to a remote vault - we need to pull data first
+   * before we can safely insert the backend into the database
+   */
+  const temporaryBackend = ref<TemporaryBackend | null>(null)
 
   const enabledBackends = computed(() =>
     backends.value.filter((b) => b.enabled),
@@ -149,10 +170,74 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
     }
   }
 
+  /**
+   * Sets a temporary backend for initial sync.
+   * This backend is used to perform the first pull before persisting to DB.
+   */
+  const setTemporaryBackend = (backend: TemporaryBackend | null) => {
+    temporaryBackend.value = backend
+    console.log('[SYNC BACKENDS] Temporary backend set:', backend?.id ?? 'null')
+  }
+
+  /**
+   * Clears the temporary backend after initial sync is complete.
+   */
+  const clearTemporaryBackend = () => {
+    temporaryBackend.value = null
+    console.log('[SYNC BACKENDS] Temporary backend cleared')
+  }
+
+  /**
+   * Persists the temporary backend to the database after successful initial sync.
+   * Checks if backend already exists (from remote data) and updates it if needed.
+   */
+  const persistTemporaryBackendAsync = async (): Promise<void> => {
+    if (!temporaryBackend.value) {
+      console.log('[SYNC BACKENDS] No temporary backend to persist')
+      return
+    }
+
+    const temp = temporaryBackend.value
+
+    // Check if backend already exists in DB (from synced data)
+    const existingBackend = await findBackendByCredentialsAsync(
+      temp.serverUrl,
+      temp.email,
+    )
+
+    if (existingBackend) {
+      // Backend exists from remote sync - update password if needed
+      console.log('[SYNC BACKENDS] Backend already exists from sync, updating password')
+      await updateBackendAsync(existingBackend.id, {
+        password: temp.password,
+        vaultId: temp.vaultId,
+      })
+    } else {
+      // Backend doesn't exist - add it
+      console.log('[SYNC BACKENDS] Backend not found in synced data, adding new')
+      await addBackendAsync({
+        id: temp.id,
+        name: temp.name,
+        serverUrl: temp.serverUrl,
+        vaultId: temp.vaultId,
+        email: temp.email,
+        password: temp.password,
+        enabled: temp.enabled,
+      })
+    }
+
+    // Clear temporary backend
+    clearTemporaryBackend()
+
+    // Reload backends from DB
+    await loadBackendsAsync()
+  }
+
   return {
     backends,
     enabledBackends,
     sortedBackends,
+    temporaryBackend,
     loadBackendsAsync,
     addBackendAsync,
     updateBackendAsync,
@@ -160,5 +245,8 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
     toggleBackendAsync,
     updatePriorityAsync,
     findBackendByCredentialsAsync,
+    setTemporaryBackend,
+    clearTemporaryBackend,
+    persistTemporaryBackendAsync,
   }
 })

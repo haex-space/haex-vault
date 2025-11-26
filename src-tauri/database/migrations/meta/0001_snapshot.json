@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "3356c365-35d3-44ad-9d03-df4822587059",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "9be31bb5-03df-4de9-b2a7-9190179c6bbf",
+  "prevId": "3356c365-35d3-44ad-9d03-df4822587059",
   "tables": {
     "haex_crdt_configs": {
       "name": "haex_crdt_configs",
@@ -986,8 +986,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "last_pull_hlc_timestamp": {
-          "name": "last_pull_hlc_timestamp",
+        "last_pull_server_timestamp": {
+          "name": "last_pull_server_timestamp",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -1203,7 +1203,9 @@
   "_meta": {
     "schemas": {},
     "tables": {},
-    "columns": {}
+    "columns": {
+      "\"haex_sync_backends\".\"last_pull_hlc_timestamp\"": "\"haex_sync_backends\".\"last_pull_server_timestamp\""
+    }
   },
   "internal": {
     "indexes": {}

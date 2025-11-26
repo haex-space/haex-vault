@@ -10,6 +10,15 @@ import { encryptCrdtDataAsync } from '~/utils/crypto/vaultKey'
 import tableNames from '@/database/tableNames.json'
 
 const CRDT_COLUMNS = tableNames.crdt.columns
+const SYNC_METADATA_COLUMNS = tableNames.sync_metadata.columns
+
+// Structured logging helper
+const log = {
+  info: (...args: unknown[]) => console.log('[SYNC SCANNER]', ...args),
+  warn: (...args: unknown[]) => console.warn('[SYNC SCANNER]', ...args),
+  error: (...args: unknown[]) => console.error('[SYNC SCANNER]', ...args),
+  debug: (...args: unknown[]) => console.log('[SYNC SCANNER DEBUG]', ...args),
+}
 
 export interface ColumnChange {
   tableName: string
@@ -68,6 +77,9 @@ export async function scanTableForChangesAsync(
   batchId: string,
   deviceId: string,
 ): Promise<Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[]> {
+  log.info(`Scanning table: ${tableName}`)
+  log.debug(`  lastPushHlcTimestamp: ${lastPushHlcTimestamp || '(none - full scan)'}`)
+
   // Get table schema
   const schema = await getTableSchemaAsync(tableName)
   const pkColumns = schema.filter((col) => col.isPk)
@@ -75,11 +87,18 @@ export async function scanTableForChangesAsync(
     (col) =>
       !col.isPk &&
       col.name !== CRDT_COLUMNS.haexTimestamp &&
-      col.name !== CRDT_COLUMNS.haexColumnHlcs,
+      col.name !== CRDT_COLUMNS.haexColumnHlcs &&
+      col.name !== SYNC_METADATA_COLUMNS.lastPushHlcTimestamp &&
+      col.name !== SYNC_METADATA_COLUMNS.lastPullServerTimestamp &&
+      col.name !== SYNC_METADATA_COLUMNS.updatedAt &&
+      col.name !== SYNC_METADATA_COLUMNS.createdAt,
   )
   // Note: haex_tombstone is included in dataColumns and will be synced like any other column
 
+  log.debug(`  Schema: ${schema.length} columns, ${pkColumns.length} PKs, ${dataColumns.length} data columns`)
+
   if (pkColumns.length === 0) {
+    log.error(`Table ${tableName} has no primary key`)
     throw new Error(`Table ${tableName} has no primary key`)
   }
 
@@ -100,19 +119,16 @@ export async function scanTableForChangesAsync(
   const query = `SELECT ${columnList} FROM "${tableName}" ${whereClause}`
   const params = lastPushHlcTimestamp ? [lastPushHlcTimestamp] : []
 
+  log.debug(`  SQL: ${query}`)
+  log.debug(`  Params: ${JSON.stringify(params)}`)
+
   // Execute query using Tauri SQL command
   const result = await invoke<unknown[][]>('sql_select', {
     sql: query,
     params,
   })
 
-  console.log(
-    `Table ${tableName}: SQL result structure:`,
-    'result.length:',
-    result.length,
-    'allColumns:',
-    allColumns,
-  )
+  log.info(`  Query returned ${result.length} rows`)
 
   // Convert result to rows - we know the column order from allColumns
   const rows: Array<Record<string, unknown>> = []
@@ -131,35 +147,18 @@ export async function scanTableForChangesAsync(
     rows.push(row)
   }
 
-  console.log(
-    `Table ${tableName}: Found ${rows.length} rows matching WHERE clause`,
-  )
-  console.log(`Table ${tableName}: First row:`, rows[0])
+  if (rows.length > 0) {
+    log.debug(`  First row PKs:`, extractPrimaryKeys(rows[0]!, pkColumns))
+  }
 
   const changes: Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[] = []
 
   for (const row of rows) {
     // Parse column HLCs from JSON
     const hlcsString = row[CRDT_COLUMNS.haexColumnHlcs]
-    console.log(
-      `Table ${tableName}: Raw hlcsString:`,
-      hlcsString,
-      'type:',
-      typeof hlcsString,
-      'CRDT_COLUMNS.haexColumnHlcs:',
-      CRDT_COLUMNS.haexColumnHlcs,
-    )
-    console.log(`Table ${tableName}: All row keys:`, Object.keys(row))
 
     const columnHlcs: Record<string, string> = JSON.parse(
       typeof hlcsString === 'string' ? hlcsString : '{}',
-    )
-
-    console.log(
-      `Table ${tableName}: Row columnHlcs:`,
-      columnHlcs,
-      'dataColumns:',
-      dataColumns.map((c) => c.name),
     )
 
     // Extract primary keys
@@ -179,9 +178,7 @@ export async function scanTableForChangesAsync(
 
       if (!hlcToUse) {
         // This should never happen as every row must have haex_timestamp
-        console.warn(
-          `Table ${tableName}: Column ${col.name} has no HLC and row has no haex_timestamp, skipping`,
-        )
+        log.warn(`Column ${col.name} has no HLC and row has no haex_timestamp, skipping`)
         continue
       }
 
@@ -211,6 +208,8 @@ export async function scanTableForChangesAsync(
       }
     }
   }
+
+  log.info(`  Generated ${changes.length} column changes from ${rows.length} rows`)
 
   return changes
 }
