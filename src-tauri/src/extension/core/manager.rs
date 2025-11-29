@@ -8,7 +8,7 @@ use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::ExtensionPermission;
-use crate::extension::utils::validate_public_key;
+use crate::extension::utils::{drop_extension_tables, validate_public_key};
 use crate::table_names::{TABLE_EXTENSIONS, TABLE_EXTENSION_PERMISSIONS};
 use crate::AppState;
 use std::collections::HashMap;
@@ -507,6 +507,16 @@ impl ExtensionManager {
                 extension.id
             );
             PermissionManager::delete_permissions_in_transaction(&tx, &hlc_service, &extension.id)?;
+
+            // Lösche alle Tabellen der Extension
+            eprintln!(
+                "DEBUG: Dropping tables for extension {}::{}",
+                public_key, extension_name
+            );
+            let dropped_tables = drop_extension_tables(&tx, public_key, extension_name)?;
+            if !dropped_tables.is_empty() {
+                eprintln!("DEBUG: Dropped tables: {:?}", dropped_tables);
+            }
 
             // Lösche Extension-Eintrag mit extension_id
             let sql = format!("DELETE FROM {TABLE_EXTENSIONS} WHERE id = ?");

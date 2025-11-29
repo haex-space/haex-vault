@@ -29,7 +29,7 @@ pub async fn extension_sql_execute(
     name: String,
     state: State<'_, AppState>,
 ) -> Result<Vec<Vec<JsonValue>>, ExtensionError> {
-    // Get extension to retrieve its ID
+    // Get extension to retrieve its ID and check if dev mode
     let extension = state
         .extension_manager
         .get_extension_by_public_key_and_name(&public_key, &name)?
@@ -37,6 +37,8 @@ pub async fn extension_sql_execute(
             public_key: public_key.clone(),
             name: name.clone(),
         })?;
+
+    let is_dev_mode = matches!(extension.source, ExtensionSource::Development { .. });
 
     // Permission check
     SqlPermissionValidator::validate_sql(&state, &extension.id, sql).await?;
@@ -117,27 +119,25 @@ pub async fn extension_sql_execute(
             vec![]
         };
 
-        // Handle CREATE TABLE trigger setup
+        // Handle CREATE TABLE trigger setup (only for production extensions)
+        // Dev mode extensions don't get CRDT triggers - their tables are local-only and not synced
         if let Statement::CreateTable(ref create_table_details) = statement {
-            // Extract table name and remove quotes (both " and `)
             let raw_name = create_table_details.name.to_string();
-            println!("DEBUG: Raw table name from AST: {raw_name:?}");
-            println!(
-                "DEBUG: Raw table name chars: {:?}",
-                raw_name.chars().collect::<Vec<_>>()
-            );
-
             let table_name_str = raw_name.trim_matches('"').trim_matches('`').to_string();
 
-            println!("DEBUG: Cleaned table name: {table_name_str:?}");
-            println!(
-                "DEBUG: Cleaned table name chars: {:?}",
-                table_name_str.chars().collect::<Vec<_>>()
-            );
-
-            println!("Table '{table_name_str}' created by extension, setting up CRDT triggers...");
-            trigger::setup_triggers_for_table(&tx, &table_name_str, false)?;
-            println!("Triggers for table '{table_name_str}' successfully created.");
+            if is_dev_mode {
+                println!(
+                    "[DEV] Table '{}' created by dev extension - NO CRDT triggers (local-only)",
+                    table_name_str
+                );
+            } else {
+                println!(
+                    "Table '{}' created by extension, setting up CRDT triggers...",
+                    table_name_str
+                );
+                trigger::setup_triggers_for_table(&tx, &table_name_str, false)?;
+                println!("Triggers for table '{}' successfully created.", table_name_str);
+            }
         }
 
         // Commit transaction

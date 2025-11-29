@@ -1,5 +1,6 @@
 /// src-tauri/src/extension/mod.rs
 use crate::{
+    database as db,
     extension::{
         core::{
             manager::ExtensionManager, EditablePermissions, ExtensionInfoResponse,
@@ -345,6 +346,24 @@ pub fn remove_dev_extension(
 
     if let Some(id) = to_remove {
         dev_exts.remove(&id);
+
+        // Drop all tables created by this dev extension
+        // (Dev extension tables have no CRDT triggers, so they're local-only)
+        db::core::with_connection(&state.db, |conn| {
+            let tx = conn.transaction().map_err(db::error::DatabaseError::from)?;
+            let dropped = utils::drop_extension_tables(&tx, &public_key, &name)?;
+            tx.commit().map_err(db::error::DatabaseError::from)?;
+            if !dropped.is_empty() {
+                eprintln!(
+                    "[DEV] Dropped {} tables for dev extension {}::{}",
+                    dropped.len(),
+                    public_key,
+                    name
+                );
+            }
+            Ok::<(), db::error::DatabaseError>(())
+        })?;
+
         eprintln!("✅ Dev extension removed: {name}");
         Ok(())
     } else {

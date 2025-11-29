@@ -43,6 +43,58 @@ pub fn is_extension_table(table_name: &str, public_key: &str, extension_name: &s
     table_name.starts_with(&prefix)
 }
 
+/// Drops all tables belonging to an extension
+///
+/// This function finds all tables with the extension's prefix and drops them.
+/// Used when uninstalling an extension to clean up its data.
+///
+/// # Arguments
+/// * `tx` - Database transaction
+/// * `public_key` - Extension's public key
+/// * `extension_name` - Extension's name
+///
+/// # Returns
+/// * `Ok(Vec<String>)` - List of dropped table names
+/// * `Err` - If any DROP TABLE fails
+pub fn drop_extension_tables(
+    tx: &rusqlite::Transaction,
+    public_key: &str,
+    extension_name: &str,
+) -> Result<Vec<String>, crate::database::error::DatabaseError> {
+    let prefix = get_extension_table_prefix(public_key, extension_name);
+
+    // Find all tables with this extension's prefix
+    let mut stmt = tx.prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE ?1",
+    )?;
+
+    let pattern = format!("{}%", prefix);
+    let table_names: Vec<String> = stmt
+        .query_map([&pattern], |row| row.get(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // Drop each table
+    for table_name in &table_names {
+        println!(
+            "[EXTENSION_CLEANUP] Dropping table: {}",
+            table_name
+        );
+        // Use quotes to handle table names with special characters
+        tx.execute(&format!("DROP TABLE IF EXISTS \"{}\"", table_name), [])?;
+    }
+
+    if !table_names.is_empty() {
+        println!(
+            "[EXTENSION_CLEANUP] Dropped {} tables for extension {}::{}",
+            table_names.len(),
+            public_key,
+            extension_name
+        );
+    }
+
+    Ok(table_names)
+}
+
 /// Ed25519 public key length in bytes
 const ED25519_PUBLIC_KEY_LENGTH: usize = 32;
 
