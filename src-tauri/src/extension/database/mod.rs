@@ -9,9 +9,11 @@ use crate::crdt::transformer::CrdtTransformer;
 use crate::crdt::trigger;
 use crate::database::core::{parse_sql_statements, with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
+use crate::extension::core::types::ExtensionSource;
 use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::validator::SqlPermissionValidator;
+use crate::table_names::TABLE_EXTENSION_MIGRATIONS;
 use crate::AppState;
 
 use rusqlite::params_from_iter;
@@ -253,8 +255,30 @@ fn count_sql_placeholders(sql: &str) -> usize {
     sql.matches('?').count()
 }
 
-/// Registers extension migrations for CRDT synchronization
-/// Validates SQL statements and stores them in haex_extension_migrations table
+/// Result of applying extension migrations
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MigrationResult {
+    pub applied_count: usize,
+    pub already_applied_count: usize,
+    pub applied_migrations: Vec<String>,
+}
+
+const STATEMENT_BREAKPOINT: &str = "--> statement-breakpoint";
+
+/// Registers and applies extension migrations
+///
+/// For production extensions:
+/// 1. Validates all SQL statements (ensures only extension's own tables are accessed)
+/// 2. Stores all migrations in the database with applied_at = NULL
+/// 3. Queries for pending migrations (applied_at IS NULL) sorted by name
+/// 4. Applies pending migrations using extension_sql_execute (handles CRDT triggers)
+/// 5. Marks successful migrations with applied_at timestamp
+///
+/// For dev extensions:
+/// - Validates and executes all migrations directly without database tracking
+/// - Uses CREATE TABLE IF NOT EXISTS to skip already-created tables
+/// - No foreign key constraint issues since dev extensions aren't in haex_extensions table
 #[tauri::command]
 pub async fn register_extension_migrations(
     public_key: String,
@@ -262,8 +286,13 @@ pub async fn register_extension_migrations(
     extension_version: String,
     migrations: Vec<serde_json::Map<String, JsonValue>>,
     state: State<'_, AppState>,
-) -> Result<(), ExtensionError> {
-    // Get extension to retrieve its ID
+) -> Result<MigrationResult, ExtensionError> {
+    println!(
+        "[EXT_MIGRATIONS] register_extension_migrations called for {}::{}",
+        public_key, extension_name
+    );
+
+    // Get extension to retrieve its ID and check if dev mode
     let extension = state
         .extension_manager
         .get_extension_by_public_key_and_name(&public_key, &extension_name)?
@@ -272,11 +301,25 @@ pub async fn register_extension_migrations(
             name: extension_name.clone(),
         })?;
 
-    // Extract extension_id
     let extension_id = extension.id.clone();
+    let is_dev_mode = matches!(extension.source, ExtensionSource::Development { .. });
 
-    // Process each migration
-    for migration_obj in migrations {
+    // Dev mode: Execute migrations directly without database tracking
+    if is_dev_mode {
+        println!("[EXT_MIGRATIONS] Dev mode detected - executing migrations without DB tracking");
+        return execute_dev_mode_migrations(
+            &public_key,
+            &extension_name,
+            &extension_id,
+            migrations,
+            state,
+        )
+        .await;
+    }
+
+    // Production mode: Store and track migrations in database
+    // Step 1: Validate and store all migrations with applied_at = NULL
+    for migration_obj in &migrations {
         let migration_name = migration_obj
             .get("name")
             .and_then(|v| v.as_str())
@@ -291,16 +334,50 @@ pub async fn register_extension_migrations(
                 reason: "Migration must have a 'sql' field".to_string(),
             })?;
 
-        // Validate SQL statements - ensure only extension's own tables are accessed
-        SqlPermissionValidator::validate_sql(&state, &extension_id, sql_statement).await?;
+        println!("[EXT_MIGRATIONS] Validating migration: {}", migration_name);
 
-        // Insert migration into haex_extension_migrations table
-        with_connection(&state.db, |conn| {
+        // Validate each SQL statement in the migration
+        let statements: Vec<&str> = sql_statement
+            .split(STATEMENT_BREAKPOINT)
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        println!(
+            "[EXT_MIGRATIONS] Found {} statements in migration",
+            statements.len()
+        );
+
+        for (idx, stmt) in statements.iter().enumerate() {
+            println!(
+                "[EXT_MIGRATIONS] Validating statement {}/{}",
+                idx + 1,
+                statements.len()
+            );
+            if let Err(e) =
+                SqlPermissionValidator::validate_sql(&state, &extension_id, stmt).await
+            {
+                println!("[EXT_MIGRATIONS] Validation FAILED: {:?}", e);
+                return Err(e);
+            }
+            println!("[EXT_MIGRATIONS] Statement {} validated OK", idx + 1);
+        }
+
+        // Store migration with applied_at = NULL (upsert to avoid duplicates)
+        println!(
+            "[EXT_MIGRATIONS] Storing migration '{}' in database...",
+            migration_name
+        );
+        if let Err(e) = with_connection(&state.db, |conn| {
             let migration_id = uuid::Uuid::new_v4().to_string();
 
+            // Try to insert, ignore if already exists (unique constraint on extension_id + migration_name)
             conn.execute(
-                "INSERT INTO haex_extension_migrations (id, extension_id, extension_version, migration_name, sql_statement)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                &format!(
+                    "INSERT OR IGNORE INTO {TABLE_EXTENSION_MIGRATIONS}
+                     (id, extension_id, extension_version, migration_name, sql_statement, applied_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, NULL)"
+                ),
                 rusqlite::params![
                     migration_id,
                     extension_id,
@@ -309,11 +386,233 @@ pub async fn register_extension_migrations(
                     sql_statement,
                 ],
             )
-            .map_err(|e| DatabaseError::from(e))?;
+            .map_err(DatabaseError::from)?;
+
+            Ok::<(), DatabaseError>(())
+        }) {
+            println!("[EXT_MIGRATIONS] Failed to store migration: {:?}", e);
+            return Err(e.into());
+        }
+        println!(
+            "[EXT_MIGRATIONS] Migration '{}' stored successfully",
+            migration_name
+        );
+    }
+
+    println!("[EXT_MIGRATIONS] All migrations validated and stored");
+
+    // Step 2: Query pending migrations sorted by name
+    let pending_migrations: Vec<(String, String, String)> = with_connection(&state.db, |conn| {
+        let mut stmt = conn.prepare(&format!(
+            "SELECT id, migration_name, sql_statement FROM {TABLE_EXTENSION_MIGRATIONS}
+             WHERE extension_id = ?1 AND applied_at IS NULL AND haex_tombstone = 0
+             ORDER BY migration_name ASC"
+        ))?;
+
+        let rows = stmt.query_map([&extension_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })?;
+
+        let result: Result<Vec<_>, _> = rows.collect();
+        Ok(result.map_err(DatabaseError::from)?)
+    })?;
+
+    // Get count of already applied migrations
+    let already_applied_count: usize = with_connection(&state.db, |conn| {
+        let count: i64 = conn.query_row(
+            &format!(
+                "SELECT COUNT(*) FROM {TABLE_EXTENSION_MIGRATIONS}
+                 WHERE extension_id = ?1 AND applied_at IS NOT NULL AND haex_tombstone = 0"
+            ),
+            [&extension_id],
+            |row| row.get(0),
+        )?;
+        Ok(count as usize)
+    })?;
+
+    if pending_migrations.is_empty() {
+        println!("[EXT_MIGRATIONS] No pending migrations");
+        return Ok(MigrationResult {
+            applied_count: 0,
+            already_applied_count,
+            applied_migrations: vec![],
+        });
+    }
+
+    println!(
+        "[EXT_MIGRATIONS] Found {} pending migrations: {:?}",
+        pending_migrations.len(),
+        pending_migrations
+            .iter()
+            .map(|(_, n, _)| n)
+            .collect::<Vec<_>>()
+    );
+
+    // Step 3: Apply each pending migration using extension_sql_execute
+    let mut applied_names: Vec<String> = Vec::new();
+
+    for (migration_id, migration_name, sql_content) in &pending_migrations {
+        println!("[EXT_MIGRATIONS] Applying migration: {}", migration_name);
+
+        // Split SQL by statement breakpoint and execute each statement
+        let statements: Vec<&str> = sql_content
+            .split(STATEMENT_BREAKPOINT)
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        for (idx, statement) in statements.iter().enumerate() {
+            println!(
+                "[EXT_MIGRATIONS] Executing statement {}/{} of {}",
+                idx + 1,
+                statements.len(),
+                migration_name
+            );
+
+            // Use extension_sql_execute which handles CRDT triggers for CREATE TABLE
+            extension_sql_execute(
+                statement,
+                vec![],
+                public_key.clone(),
+                extension_name.clone(),
+                state.clone(),
+            )
+            .await?;
+        }
+
+        // Step 4: Mark migration as applied
+        with_connection(&state.db, |conn| {
+            conn.execute(
+                &format!(
+                    "UPDATE {TABLE_EXTENSION_MIGRATIONS}
+                     SET applied_at = datetime('now')
+                     WHERE id = ?1"
+                ),
+                rusqlite::params![migration_id],
+            )
+            .map_err(DatabaseError::from)?;
 
             Ok::<(), DatabaseError>(())
         })?;
+
+        applied_names.push(migration_name.clone());
+        println!(
+            "[EXT_MIGRATIONS] Migration '{}' applied successfully",
+            migration_name
+        );
     }
 
-    Ok(())
+    println!(
+        "[EXT_MIGRATIONS] ✅ Successfully applied {} migrations",
+        applied_names.len()
+    );
+
+    Ok(MigrationResult {
+        applied_count: applied_names.len(),
+        already_applied_count,
+        applied_migrations: applied_names,
+    })
+}
+
+/// Execute migrations for dev mode extensions without database tracking
+///
+/// Dev extensions are not persisted to haex_extensions table, so we cannot
+/// store migrations in haex_extension_migrations (foreign key constraint).
+/// Instead, we validate and execute all migrations directly.
+/// CREATE TABLE IF NOT EXISTS ensures idempotency across hot reloads.
+async fn execute_dev_mode_migrations(
+    public_key: &str,
+    extension_name: &str,
+    extension_id: &str,
+    migrations: Vec<serde_json::Map<String, JsonValue>>,
+    state: State<'_, AppState>,
+) -> Result<MigrationResult, ExtensionError> {
+    let mut applied_names: Vec<String> = Vec::new();
+
+    for migration_obj in &migrations {
+        let migration_name = migration_obj
+            .get("name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ExtensionError::ValidationError {
+                reason: "Migration must have a 'name' field".to_string(),
+            })?;
+
+        let sql_statement = migration_obj
+            .get("sql")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ExtensionError::ValidationError {
+                reason: "Migration must have a 'sql' field".to_string(),
+            })?;
+
+        println!(
+            "[EXT_MIGRATIONS/DEV] Processing migration: {}",
+            migration_name
+        );
+
+        // Split and validate each statement
+        let statements: Vec<&str> = sql_statement
+            .split(STATEMENT_BREAKPOINT)
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        println!(
+            "[EXT_MIGRATIONS/DEV] Found {} statements",
+            statements.len()
+        );
+
+        // Validate all statements first
+        for (idx, stmt) in statements.iter().enumerate() {
+            println!(
+                "[EXT_MIGRATIONS/DEV] Validating statement {}/{}",
+                idx + 1,
+                statements.len()
+            );
+            if let Err(e) =
+                SqlPermissionValidator::validate_sql(&state, extension_id, stmt).await
+            {
+                println!("[EXT_MIGRATIONS/DEV] Validation FAILED: {:?}", e);
+                return Err(e);
+            }
+        }
+
+        // Execute all statements (CREATE TABLE IF NOT EXISTS handles idempotency)
+        for (idx, statement) in statements.iter().enumerate() {
+            println!(
+                "[EXT_MIGRATIONS/DEV] Executing statement {}/{}",
+                idx + 1,
+                statements.len()
+            );
+
+            extension_sql_execute(
+                statement,
+                vec![],
+                public_key.to_string(),
+                extension_name.to_string(),
+                state.clone(),
+            )
+            .await?;
+        }
+
+        applied_names.push(migration_name.to_string());
+        println!(
+            "[EXT_MIGRATIONS/DEV] Migration '{}' executed",
+            migration_name
+        );
+    }
+
+    println!(
+        "[EXT_MIGRATIONS/DEV] ✅ Executed {} migrations (no DB tracking in dev mode)",
+        applied_names.len()
+    );
+
+    Ok(MigrationResult {
+        applied_count: applied_names.len(),
+        already_applied_count: 0, // Can't track in dev mode
+        applied_migrations: applied_names,
+    })
 }

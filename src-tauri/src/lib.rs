@@ -153,6 +153,8 @@ pub fn run() {
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::webview::database::webview_extension_db_execute,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            extension::webview::database::webview_extension_db_register_migrations,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::webview::web::webview_extension_check_web_permission,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::webview::web::webview_extension_check_database_permission,

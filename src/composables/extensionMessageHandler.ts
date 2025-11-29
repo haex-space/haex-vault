@@ -195,7 +195,8 @@ const registerGlobalMessageHandler = () => {
       } else if (
         request.method === HAEXTENSION_METHODS.database.query ||
         request.method === HAEXTENSION_METHODS.database.execute ||
-        request.method === HAEXTENSION_METHODS.database.transaction
+        request.method === HAEXTENSION_METHODS.database.transaction ||
+        request.method === HAEXTENSION_METHODS.database.registerMigrations
       ) {
         result = await handleDatabaseMethodAsync(request, instance.extension)
       } else if (

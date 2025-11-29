@@ -9,8 +9,8 @@ import en from './en.json'
 export const useUiStore = defineStore('uiStore', () => {
   const breakpoints = useBreakpoints(breakpointsTailwind)
 
-  // "smAndDown" gilt für sm, xs usw.
-  const isSmallScreen = breakpoints.smaller('sm')
+  // "mdAndDown" gilt für md, sm, xs usw.
+  const isSmallScreen = breakpoints.smaller('md')
 
   const { $i18n } = useNuxtApp()
   const { locale } = useI18n({

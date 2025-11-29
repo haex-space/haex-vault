@@ -85,14 +85,18 @@ export async function handleDatabaseMethodAsync(
         migrations: Array<{ name: string; sql: string }>
       }
 
-      await invoke('register_extension_migrations', {
+      const result = await invoke<{
+        appliedCount: number
+        alreadyAppliedCount: number
+        appliedMigrations: string[]
+      }>('register_extension_migrations', {
         publicKey: extension.publicKey,
         extensionName: extension.name,
         extensionVersion: migrationParams.extensionVersion,
         migrations: migrationParams.migrations,
       })
 
-      return { success: true }
+      return result
     }
 
     default:
