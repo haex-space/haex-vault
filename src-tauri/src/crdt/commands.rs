@@ -316,6 +316,19 @@ pub fn apply_remote_changes_in_transaction(
             eprintln!("[SYNC RUST] Processing table: {}, PKs: {}, columns: {}",
                 first_change.table_name, row_pks_str, row_change_list.len());
 
+            // Get table schema to identify PK columns
+            // If table doesn't exist (e.g., from a dev extension not installed here), skip it
+            let schema = get_table_schema_internal(&tx, &first_change.table_name)
+                .map_err(DatabaseError::from)?;
+
+            if schema.is_empty() {
+                eprintln!(
+                    "[SYNC RUST] Skipping table '{}' - table does not exist (extension not installed?)",
+                    first_change.table_name
+                );
+                continue;
+            }
+
             // Parse row PKs (same for all changes in this row)
             let row_pks: serde_json::Map<String, JsonValue> =
                 serde_json::from_str(&row_pks_str).map_err(|e| {
@@ -324,9 +337,6 @@ pub fn apply_remote_changes_in_transaction(
                     }
                 })?;
 
-            // Get table schema to identify PK columns
-            let schema = get_table_schema_internal(&tx, &first_change.table_name)
-                .map_err(DatabaseError::from)?;
             let pk_columns: Vec<_> = schema.iter().filter(|col| col.is_pk).collect();
 
             // Build WHERE clause for PKs
