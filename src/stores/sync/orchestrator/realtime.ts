@@ -130,6 +130,15 @@ export const subscribeToBackendAsync = async (
   }
 
   try {
+    // Ensure auth token is set for realtime connection
+    const token = await syncEngineStore.getAuthTokenAsync()
+    if (token) {
+      log.debug('SUBSCRIBE: Setting auth token for realtime connection')
+      client.realtime.setAuth(token)
+    } else {
+      log.warn('SUBSCRIBE: No auth token available for realtime connection')
+    }
+
     // The sync_changes table is partitioned by vault_id
     // Each partition is named: sync_changes_<vault_id_with_underscores>
     // We need to subscribe to the specific partition, not the parent table
@@ -149,6 +158,7 @@ export const subscribeToBackendAsync = async (
           table: partitionName,
         },
         (payload) => {
+          log.info(`REALTIME: INSERT event received on ${partitionName}`)
           handleRealtimeChangeAsync(
             backendId,
             payload,
@@ -167,6 +177,7 @@ export const subscribeToBackendAsync = async (
           table: partitionName,
         },
         (payload) => {
+          log.info(`REALTIME: UPDATE event received on ${partitionName}`)
           handleRealtimeChangeAsync(
             backendId,
             payload,
@@ -177,16 +188,18 @@ export const subscribeToBackendAsync = async (
           ).catch(log.error)
         },
       )
-      .subscribe((status) => {
+      .subscribe((status, err) => {
+        log.info(`SUBSCRIBE: Channel status changed to ${status}`, err ? `Error: ${err.message}` : '')
         if (status === 'SUBSCRIBED') {
           state.isConnected = true
           log.info(`SUBSCRIBE: Successfully subscribed to backend ${backendId}`)
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           state.isConnected = false
           state.error = `Subscription error: ${status}`
-          log.error(`SUBSCRIBE: Subscription to backend ${backendId} failed: ${status}`)
-        } else {
-          log.debug(`SUBSCRIBE: Status changed to ${status}`)
+          log.error(`SUBSCRIBE: Subscription to backend ${backendId} failed: ${status}`, err)
+        } else if (status === 'CLOSED') {
+          state.isConnected = false
+          log.warn(`SUBSCRIBE: Channel closed for backend ${backendId}`)
         }
       })
 
