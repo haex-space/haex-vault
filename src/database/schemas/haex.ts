@@ -238,6 +238,7 @@ export const haexSyncBackends = sqliteTable(
     email: text(tableNames.haex.sync_backends.columns.email),
     password: text(tableNames.haex.sync_backends.columns.password),
     syncKey: text(tableNames.haex.sync_backends.columns.syncKey),
+    vaultKeySalt: text(tableNames.haex.sync_backends.columns.vaultKeySalt),
     enabled: integer(tableNames.haex.sync_backends.columns.enabled, {
       mode: 'boolean',
     })

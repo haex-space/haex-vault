@@ -52,14 +52,14 @@ const onWizardCompleteAsync = async (wizardData: {
   localVaultName: string
   serverUrl: string
   email: string
-  password: string
-  newVaultPassword?: string
+  serverPassword: string
+  vaultPassword: string
 }) => {
   isLoading.value = true
 
   try {
     // 1. Validate required password
-    if (!wizardData.newVaultPassword) {
+    if (!wizardData.vaultPassword) {
       throw new Error('Vault password is required')
     }
 
@@ -70,7 +70,7 @@ const onWizardCompleteAsync = async (wizardData: {
 
     const localVaultId = await vaultStore.createAsync({
       vaultName: wizardData.localVaultName,
-      password: wizardData.newVaultPassword,
+      password: wizardData.vaultPassword,
       vaultId: wizardData.vaultId, // Pass remote vault_id directly
     })
 
@@ -89,19 +89,20 @@ const onWizardCompleteAsync = async (wizardData: {
       serverUrl: wizardData.serverUrl,
       vaultId: wizardData.vaultId,
       email: wizardData.email,
-      password: wizardData.password,
+      password: wizardData.serverPassword, // Server login password
       enabled: true,
     })
 
     // 4. Ensure sync key exists (needed for decryption)
     // Supabase client is already initialized in wizard
     // Pass serverUrl to fetch directly from server (initial sync mode)
+    // Use vaultPassword for vault key decryption
     console.log('🔐 Ensuring sync key exists')
     await syncEngineStore.ensureSyncKeyAsync(
       wizardData.backendId,
       wizardData.vaultId,
       wizardData.vaultName,
-      wizardData.password,
+      wizardData.vaultPassword, // Vault encryption password
       wizardData.serverUrl, // Initial sync: fetch from server directly
     )
 

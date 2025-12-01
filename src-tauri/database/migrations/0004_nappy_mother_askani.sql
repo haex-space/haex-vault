@@ -1,0 +1,1 @@
+ALTER TABLE `haex_sync_backends` RENAME COLUMN "salt" TO "vault_key_salt";

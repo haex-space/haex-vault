@@ -16,6 +16,7 @@ import {
   deriveKeyFromPasswordAsync,
   encryptStringAsync,
   base64ToArrayBuffer,
+  arrayBufferToBase64,
 } from '~/utils/crypto/vaultKey'
 
 interface VaultKeyCache {
@@ -108,31 +109,36 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   }
 
   /**
-   * Uploads encrypted vault key to the server
+   * Uploads encrypted vault key to the server and saves salts locally
+   *
+   * Uses two different passwords for encryption:
+   * - Vault password: encrypts the vault key (for data access)
+   * - Server password: encrypts the vault name (visible after login)
    */
   const uploadVaultKeyAsync = async (
     backendId: string,
     vaultId: string,
     vaultKey: Uint8Array,
     vaultName: string,
-    password: string,
+    vaultPassword: string,
+    serverPassword: string,
   ): Promise<void> => {
     const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
     if (!backend) {
       throw new Error('Backend not found')
     }
 
-    // Encrypt vault key with password
-    const encryptedVaultKeyData = await encryptVaultKeyAsync(vaultKey, password)
+    // Encrypt vault key with vault password
+    const encryptedVaultKeyData = await encryptVaultKeyAsync(vaultKey, vaultPassword)
 
-    // Derive key from password to encrypt vault name (use same salt as vault key)
-    const salt = base64ToArrayBuffer(encryptedVaultKeyData.salt)
-    const derivedKey = await deriveKeyFromPasswordAsync(password, salt)
+    // Generate separate salt for vault name encryption (server password)
+    const vaultNameSalt = crypto.getRandomValues(new Uint8Array(32))
+    const derivedServerKey = await deriveKeyFromPasswordAsync(serverPassword, vaultNameSalt)
 
-    // Encrypt vault name with derived key
+    // Encrypt vault name with server password derived key
     const encryptedVaultNameData = await encryptStringAsync(
       vaultName,
-      derivedKey,
+      derivedServerKey,
     )
 
     // Get auth token
@@ -152,7 +158,8 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
         vaultId,
         encryptedVaultKey: encryptedVaultKeyData.encryptedVaultKey,
         encryptedVaultName: encryptedVaultNameData.encryptedData,
-        salt: encryptedVaultKeyData.salt,
+        vaultKeySalt: encryptedVaultKeyData.salt,
+        vaultNameSalt: arrayBufferToBase64(vaultNameSalt),
         vaultKeyNonce: encryptedVaultKeyData.vaultKeyNonce,
         vaultNameNonce: encryptedVaultNameData.nonce,
       }),
@@ -165,7 +172,10 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       )
     }
 
-    console.log('✅ Vault key uploaded to server')
+    // Save vault key salt locally for future vault key decryption
+    await saveVaultKeySaltAsync(backendId, encryptedVaultKeyData.salt)
+
+    console.log('✅ Vault key uploaded to server, vault key salt saved locally')
   }
 
   /**
@@ -222,10 +232,10 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
 
     const data = await response.json()
 
-    // Decrypt vault key
+    // Decrypt vault key using vaultKeySalt
     const vaultKey = await decryptVaultKeyAsync(
       data.vaultKey.encryptedVaultKey,
-      data.vaultKey.salt,
+      data.vaultKey.vaultKeySalt,
       data.vaultKey.vaultKeyNonce,
       password,
     )
@@ -429,6 +439,41 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   }
 
   /**
+   * Saves vault key salt for a backend to local vault's haex_sync_backends table
+   * Salt is used for PBKDF2 key derivation from vault password
+   */
+  const saveVaultKeySaltAsync = async (
+    backendId: string,
+    vaultKeySalt: string,
+  ): Promise<void> => {
+    if (!currentVault.value?.drizzle) {
+      throw new Error('No vault opened')
+    }
+
+    await currentVault.value.drizzle
+      .update(haexSyncBackends)
+      .set({ vaultKeySalt })
+      .where(eq(haexSyncBackends.id, backendId))
+  }
+
+  /**
+   * Gets vault key salt for a backend from local vault's haex_sync_backends table
+   */
+  const getVaultKeySaltAsync = async (
+    backendId: string,
+  ): Promise<string | null> => {
+    if (!currentVault.value?.drizzle) {
+      throw new Error('No vault opened')
+    }
+
+    const result = await currentVault.value.drizzle.query.haexSyncBackends.findFirst({
+      where: eq(haexSyncBackends.id, backendId),
+    })
+
+    return result?.vaultKeySalt ?? null
+  }
+
+  /**
    * Fetches sync key directly from server (for initial sync)
    */
   const fetchSyncKeyFromServerAsync = async (
@@ -459,7 +504,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
 
     return decryptVaultKeyAsync(
       data.vaultKey.encryptedVaultKey,
-      data.vaultKey.salt,
+      data.vaultKey.vaultKeySalt,
       data.vaultKey.vaultKeyNonce,
       password,
     )
@@ -477,19 +522,23 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
 
   /**
    * Generates new sync key, saves locally, and uploads to server
+   *
+   * @param vaultPassword - Password for vault key encryption
+   * @param serverPassword - Password for vault name encryption
    */
   const generateAndUploadSyncKeyAsync = async (
     backendId: string,
     vaultId: string,
     vaultName: string,
-    password: string,
+    vaultPassword: string,
+    serverPassword: string,
   ): Promise<Uint8Array> => {
     console.log('📤 Generating new sync key...')
     const syncKey = generateVaultKey()
 
     await saveSyncKeyToDbAsync(backendId, syncKey)
     cacheSyncKey(vaultId, syncKey)
-    await uploadVaultKeyAsync(backendId, vaultId, syncKey, vaultName, password)
+    await uploadVaultKeyAsync(backendId, vaultId, syncKey, vaultName, vaultPassword, serverPassword)
 
     console.log('✅ New sync key generated, uploaded to server, and saved locally')
     return syncKey
@@ -501,15 +550,17 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
    * @param backendId - The backend ID
    * @param vaultId - The vault ID
    * @param vaultName - The vault name (for generating new key)
-   * @param password - The sync password (for encryption/decryption)
+   * @param vaultPassword - The vault password (for vault key encryption/decryption)
    * @param serverUrl - Optional: If provided, fetches directly from server (for initial sync)
+   * @param serverPassword - Optional: Required only when generating a new key (for vault name encryption)
    */
   const ensureSyncKeyAsync = async (
     backendId: string,
     vaultId: string,
     vaultName: string,
-    password: string,
+    vaultPassword: string,
     serverUrl?: string,
+    serverPassword?: string,
   ): Promise<Uint8Array> => {
     // 1. Check cache first
     const cached = vaultKeyCache.value[vaultId]
@@ -521,7 +572,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     // 2. Initial sync mode: fetch directly from server
     if (serverUrl) {
       console.log('🔐 Initial sync mode: Fetching sync key from server...')
-      const syncKey = await fetchSyncKeyFromServerAsync(serverUrl, vaultId, password)
+      const syncKey = await fetchSyncKeyFromServerAsync(serverUrl, vaultId, vaultPassword)
       cacheSyncKey(vaultId, syncKey)
       console.log('✅ Sync key downloaded from server and cached')
       return syncKey
@@ -537,14 +588,17 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
 
     // 4. Try to fetch from server via backend
     try {
-      const serverKey = await getVaultKeyAsync(backendId, vaultId, password)
+      const serverKey = await getVaultKeyAsync(backendId, vaultId, vaultPassword)
       await saveSyncKeyToDbAsync(backendId, serverKey)
       console.log('✅ Sync key downloaded from server and saved locally')
       return serverKey
     } catch (error) {
       // 5. Generate new key if not found on server
       if (error instanceof Error && error.message.includes('not found')) {
-        return generateAndUploadSyncKeyAsync(backendId, vaultId, vaultName, password)
+        if (!serverPassword) {
+          throw new Error('Server password required to generate new sync key')
+        }
+        return generateAndUploadSyncKeyAsync(backendId, vaultId, vaultName, vaultPassword, serverPassword)
       }
       throw error
     }
@@ -621,6 +675,85 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     console.log(`✅ Remote vault ${vaultId} deleted from server`)
   }
 
+  /**
+   * Updates the vault name on the server
+   * Fetches vaultNameSalt from server and uses server password to encrypt
+   */
+  const updateVaultNameOnServerAsync = async (
+    backendId: string,
+    vaultId: string,
+    newVaultName: string,
+    serverPassword: string,
+  ): Promise<void> => {
+    const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
+    if (!backend) {
+      throw new Error('Backend not found')
+    }
+
+    // Get auth token
+    const token = await getAuthTokenAsync()
+    if (!token) {
+      throw new Error('Not authenticated')
+    }
+
+    // Fetch vault key info from server to get vaultNameSalt
+    const vaultKeyResponse = await fetch(
+      `${backend.serverUrl}/sync/vault-key/${vaultId}`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      },
+    )
+
+    if (!vaultKeyResponse.ok) {
+      throw new Error('Failed to fetch vault key info from server')
+    }
+
+    const vaultKeyData = await vaultKeyResponse.json()
+    const vaultNameSaltBase64 = vaultKeyData.vaultKey.vaultNameSalt
+
+    if (!vaultNameSaltBase64) {
+      throw new Error('Vault name salt not found on server. Cannot update vault name.')
+    }
+
+    // Derive key from server password using vaultNameSalt
+    const vaultNameSalt = base64ToArrayBuffer(vaultNameSaltBase64)
+    const derivedKey = await deriveKeyFromPasswordAsync(serverPassword, vaultNameSalt)
+
+    // Encrypt new vault name with new nonce
+    const encryptedVaultNameData = await encryptStringAsync(
+      newVaultName,
+      derivedKey,
+    )
+
+    // Send PATCH request to update vault name on server
+    const response = await fetch(
+      `${backend.serverUrl}/sync/vault-key/${vaultId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          encryptedVaultName: encryptedVaultNameData.encryptedData,
+          vaultNameNonce: encryptedVaultNameData.nonce,
+        }),
+      },
+    )
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(
+        `Failed to update vault name on server: ${error.error || response.statusText}`,
+      )
+    }
+
+    console.log('✅ Vault name updated on server')
+  }
+
   return {
     vaultKeyCache,
     supabaseClient,
@@ -632,9 +765,12 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     pullChangesAsync,
     getSyncKeyFromDbAsync,
     saveSyncKeyToDbAsync,
+    saveVaultKeySaltAsync,
+    getVaultKeySaltAsync,
     ensureSyncKeyAsync,
     clearVaultKeyCache,
     healthCheckAsync,
     deleteRemoteVaultAsync,
+    updateVaultNameOnServerAsync,
   }
 })

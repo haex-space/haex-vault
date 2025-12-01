@@ -13,6 +13,7 @@ import type { CleanupResult } from '~~/src-tauri/bindings/CleanupResult'
 interface IVault {
   name: string
   drizzle: SqliteRemoteDatabase<typeof schema>
+  password: string
 }
 interface IOpenVaults {
   [vaultId: string]: IVault
@@ -38,6 +39,12 @@ export const useVaultStore = defineStore('vaultStore', () => {
 
   const currentVault = computed(
     () => openVaults.value?.[currentVaultId.value ?? ''],
+  )
+
+  // Vault password from the currently open vault
+  // Used for sync key encryption/decryption and vault name updates on server
+  const currentVaultPassword = computed(
+    () => currentVault.value?.password ?? null,
   )
 
   /**
@@ -91,12 +98,13 @@ export const useVaultStore = defineStore('vaultStore', () => {
           console.log(`[HaexSpace] ✅ Auto-login successful for ${backend.name}`)
 
           // Ensure sync key exists
-          if (currentVaultId.value && currentVault.value?.name) {
+          // Use vault password (from memory) for sync key decryption
+          if (currentVaultId.value && currentVault.value?.name && currentVaultPassword.value) {
             await syncEngineStore.ensureSyncKeyAsync(
               backend.id,
               currentVaultId.value,
               currentVault.value.name,
-              backend.password,
+              currentVaultPassword.value, // Vault password for sync key decryption
             )
           }
         } catch (error) {
@@ -154,6 +162,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
         [vaultId]: {
           name: fileName,
           drizzle: drizzleDb,
+          password,
         },
       }
 
@@ -227,6 +236,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
   const closeAsync = async () => {
     if (!currentVaultId.value) return
 
+    // Removing vault from openVaults also clears the password from memory
     delete openVaults.value?.[currentVaultId.value]
   }
 
@@ -256,6 +266,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
     currentVault,
     currentVaultId,
     currentVaultName,
+    currentVaultPassword,
     existsVault,
     openAsync,
     openVaults,

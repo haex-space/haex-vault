@@ -3,6 +3,7 @@ import { z } from 'zod'
 import * as schema from '~/database/schemas/haex'
 import type { Locale } from 'vue-i18n'
 import { subscribeToSyncUpdates, unsubscribeFromSyncUpdates } from '~/stores/sync/syncEvents'
+import { haexSyncBackends } from '~/database/schemas'
 
 export enum VaultSettingsTypeEnum {
   settings = 'settings',
@@ -128,10 +129,55 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
   }
 
   const updateVaultNameAsync = async (newVaultName?: string | null) => {
-    return currentVault.value?.drizzle
+    const vaultName = newVaultName || haexVault.defaultVaultName || 'HaexSpace'
+
+    // Update locally in haex_vault_settings
+    await currentVault.value?.drizzle
       .update(schema.haexVaultSettings)
-      .set({ value: newVaultName || haexVault.defaultVaultName || 'HaexSpace' })
+      .set({ value: vaultName })
       .where(eq(schema.haexVaultSettings.key, 'vaultName'))
+
+    // Also update on sync server(s) if vault password is available
+    await updateVaultNameOnServersAsync(vaultName)
+  }
+
+  /**
+   * Updates the vault name on all enabled sync backends
+   * Uses the server password (stored in backend) to encrypt the vault name
+   */
+  const updateVaultNameOnServersAsync = async (newVaultName: string) => {
+    const { currentVaultId } = storeToRefs(useVaultStore())
+    const syncEngineStore = useSyncEngineStore()
+
+    if (!currentVaultId.value || !currentVault.value?.drizzle) {
+      console.log('[VaultSettings] No vault open, skipping server update')
+      return
+    }
+
+    // Get all enabled backends
+    const backends = await currentVault.value.drizzle.query.haexSyncBackends.findMany({
+      where: eq(haexSyncBackends.enabled, true),
+    })
+
+    for (const backend of backends) {
+      if (!backend.vaultId || !backend.password) {
+        console.log(`[VaultSettings] Skipping ${backend.name}: missing vaultId or server password`)
+        continue
+      }
+
+      try {
+        await syncEngineStore.updateVaultNameOnServerAsync(
+          backend.id,
+          backend.vaultId,
+          newVaultName,
+          backend.password, // Server password for vault name encryption
+        )
+        console.log(`[VaultSettings] Vault name updated on server: ${backend.name}`)
+      } catch (error) {
+        console.error(`[VaultSettings] Failed to update vault name on server ${backend.name}:`, error)
+        // Continue with other backends even if one fails
+      }
+    }
   }
 
   const syncDesktopIconSizeAsync = async () => {

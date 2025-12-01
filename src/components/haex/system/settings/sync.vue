@@ -440,7 +440,7 @@ const syncConfigStore = useSyncConfigStore()
 const vaultStore = useVaultStore()
 
 const { backends: syncBackends } = storeToRefs(syncBackendsStore)
-const { currentVaultId, currentVaultName } = storeToRefs(vaultStore)
+const { currentVaultId, currentVaultName, currentVaultPassword } = storeToRefs(vaultStore)
 const { config: syncConfig } = storeToRefs(syncConfigStore)
 
 // Local state
@@ -614,11 +614,18 @@ const onWizardCompleteAsync = async () => {
       await syncBackendsStore.loadBackendsAsync()
       loadAllServerVaultsAsync()
       // 6. Ensure sync key (client is now authenticated)
+      // vaultPassword = current vault's password (for sync key encryption)
+      // serverPassword = newBackend.password (for vault name encryption)
+      if (!currentVaultPassword.value) {
+        throw new Error('Vault password not available')
+      }
       await syncEngineStore.ensureSyncKeyAsync(
         backendId,
         currentVaultId.value!,
         currentVaultName.value,
-        newBackend.password,
+        currentVaultPassword.value,
+        undefined, // serverUrl - not needed, backend already has it
+        newBackend.password, // serverPassword for vault name encryption
       )
 
       // 7. Start sync

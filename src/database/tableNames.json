@@ -129,6 +129,7 @@
         "email": "email",
         "password": "password",
         "syncKey": "sync_key",
+        "vaultKeySalt": "vault_key_salt",
         "enabled": "enabled",
         "priority": "priority",
         "lastPushHlcTimestamp": "last_push_hlc_timestamp",

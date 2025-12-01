@@ -1,0 +1,1 @@
+ALTER TABLE `haex_sync_backends` ADD `salt` text;

@@ -95,22 +95,22 @@
         </div>
       </div>
 
-      <!-- Step 3: Create Local Vault -->
+      <!-- Step 3: Enter Vault Password -->
       <div
         v-else-if="currentStepIndex === 2"
         class="space-y-4"
       >
         <p class="text-sm text-base-content/60">
-          {{ t('steps.createVault.description') }}
+          {{ t('steps.enterVaultPassword.description') }}
         </p>
 
         <div class="space-y-4">
           <UiInput
             v-model="localVaultName"
             v-model:errors="step3Errors.vaultName"
-            :label="t('steps.createVault.vaultName')"
-            :placeholder="t('steps.createVault.vaultNamePlaceholder')"
-            :description="t('steps.createVault.vaultNameDescription')"
+            :label="t('steps.enterVaultPassword.vaultName')"
+            :placeholder="t('steps.enterVaultPassword.vaultNamePlaceholder')"
+            :description="t('steps.enterVaultPassword.vaultNameDescription')"
             :schema="wizardSchema.vaultName"
             :check="check"
             size="xl"
@@ -121,39 +121,20 @@
             v-if="vaultNameExists"
             class="text-sm text-error -mt-3"
           >
-            {{ t('steps.createVault.vaultNameExists') }}
+            {{ t('steps.enterVaultPassword.vaultNameExists') }}
           </p>
 
           <UiInputPassword
-            v-model="newVaultPassword"
+            v-model="vaultPassword"
             v-model:errors="step3Errors.password"
-            :label="t('steps.createVault.vaultPassword')"
-            :placeholder="t('steps.createVault.vaultPasswordPlaceholder')"
-            :description="t('steps.createVault.vaultPasswordDescription')"
+            :label="t('steps.enterVaultPassword.vaultPassword')"
+            :placeholder="t('steps.enterVaultPassword.vaultPasswordPlaceholder')"
+            :description="t('steps.enterVaultPassword.vaultPasswordDescription')"
             :schema="wizardSchema.vaultPassword"
             :check="check"
             size="xl"
             class="w-full"
           />
-
-          <UiInputPassword
-            v-model="newVaultPasswordConfirm"
-            v-model:errors="step3Errors.passwordConfirm"
-            :label="t('steps.createVault.vaultPasswordConfirm')"
-            :placeholder="t('steps.createVault.vaultPasswordConfirmPlaceholder')"
-            :check="check"
-            size="xl"
-            class="w-full"
-          />
-          <p
-            v-if="
-              newVaultPassword !== newVaultPasswordConfirm &&
-              newVaultPasswordConfirm !== ''
-            "
-            class="text-sm text-error -mt-3"
-          >
-            {{ t('steps.createVault.passwordMismatch') }}
-          </p>
         </div>
       </div>
     </div>
@@ -219,7 +200,7 @@ interface VaultInfo {
   vaultId: string
   encryptedVaultName: string
   vaultNameNonce: string
-  salt: string
+  vaultNameSalt: string
   createdAt: string
   decryptedName?: string
 }
@@ -237,8 +218,8 @@ const emit = defineEmits<{
       localVaultName: string
       serverUrl: string
       email: string
-      password: string
-      newVaultPassword?: string
+      serverPassword: string
+      vaultPassword: string
     },
   ]
   cancel: []
@@ -259,8 +240,8 @@ const steps = computed(() => [
     icon: 'i-lucide-folder',
   },
   {
-    label: t('steps.createVault.title'),
-    icon: 'i-lucide-hard-drive',
+    label: t('steps.enterVaultPassword.title'),
+    icon: 'i-lucide-key',
   },
 ])
 
@@ -298,15 +279,13 @@ const selectedVaultId = ref<string | null>(null)
 const isLoadingVaults = ref(false)
 const step2Error = ref('')
 
-// Step 3: Create Local Vault
+// Step 3: Enter Vault Password
 const localVaultName = ref('')
 const vaultNameExists = ref(false)
-const newVaultPassword = ref('')
-const newVaultPasswordConfirm = ref('')
+const vaultPassword = ref('')
 const step3Errors = reactive({
   vaultName: [] as string[],
   password: [] as string[],
-  passwordConfirm: [] as string[],
 })
 
 // Computed for step validation
@@ -324,11 +303,9 @@ const isStep3Valid = computed(() => {
   return (
     localVaultName.value !== '' &&
     !vaultNameExists.value &&
-    newVaultPassword.value !== '' &&
-    newVaultPassword.value === newVaultPasswordConfirm.value &&
+    vaultPassword.value !== '' &&
     step3Errors.vaultName.length === 0 &&
-    step3Errors.password.length === 0 &&
-    step3Errors.passwordConfirm.length === 0
+    step3Errors.password.length === 0
   )
 })
 
@@ -446,13 +423,13 @@ const loadVaultsAsync = async () => {
     const data = await response.json()
     availableVaults.value = data.vaults
 
-    // Try to decrypt vault names
+    // Decrypt vault names using server password and vaultNameSalt
     for (const vault of availableVaults.value) {
       try {
-        const salt = base64ToArrayBuffer(vault.salt)
+        const vaultNameSalt = base64ToArrayBuffer(vault.vaultNameSalt)
         const derivedKey = await deriveKeyFromPasswordAsync(
-          credentials.value.password,
-          salt,
+          credentials.value.password, // Server password
+          vaultNameSalt,
         )
         const decryptedName = await decryptStringAsync(
           vault.encryptedVaultName,
@@ -528,8 +505,8 @@ const completeSetupAsync = async () => {
     localVaultName: localVaultName.value,
     serverUrl: credentials.value.serverUrl,
     email: credentials.value.email,
-    password: credentials.value.password,
-    newVaultPassword: newVaultPassword.value,
+    serverPassword: credentials.value.password,
+    vaultPassword: vaultPassword.value,
   })
 }
 
@@ -547,8 +524,7 @@ const clearForm = () => {
   availableVaults.value = []
   selectedVaultId.value = null
   localVaultName.value = ''
-  newVaultPassword.value = ''
-  newVaultPasswordConfirm.value = ''
+  vaultPassword.value = ''
   vaultNameExists.value = false
   supabaseClient.value = null
 }
@@ -573,19 +549,16 @@ de:
       encryptedVault: Verschlüsselter Vault
       createdAt: Erstellt am
       noVaults: Keine Vaults gefunden
-    createVault:
-      title: Lokaler Vault
-      description: Erstelle einen neuen lokalen Vault und synchronisiere ihn mit dem ausgewählten Server-Vault
-      vaultName: Vault-Name
-      vaultNameDescription: Gib einen eindeutigen Namen für deinen lokalen Vault ein
+    enterVaultPassword:
+      title: Vault-Passwort
+      description: Gib das Passwort deines Vaults ein, um die Synchronisierung einzurichten
+      vaultName: Lokaler Vault-Name
+      vaultNameDescription: Gib einen Namen für deinen lokalen Vault ein
       vaultNamePlaceholder: Mein Vault
       vaultNameExists: Ein Vault mit diesem Namen existiert bereits
       vaultPassword: Vault-Passwort
-      vaultPasswordDescription: Wähle ein sicheres Passwort für deinen Vault
-      vaultPasswordPlaceholder: Passwort eingeben
-      vaultPasswordConfirm: Passwort bestätigen
-      vaultPasswordConfirmPlaceholder: Passwort erneut eingeben
-      passwordMismatch: Passwörter stimmen nicht überein
+      vaultPasswordDescription: Das Passwort, mit dem du deinen Vault ursprünglich erstellt hast
+      vaultPasswordPlaceholder: Vault-Passwort eingeben
   actions:
     login: Anmelden
     back: Zurück
@@ -619,19 +592,16 @@ en:
       encryptedVault: Encrypted Vault
       createdAt: Created at
       noVaults: No vaults found
-    createVault:
-      title: Local Vault
-      description: Create a new local vault and sync it with the selected server vault
-      vaultName: Vault Name
-      vaultNameDescription: Enter a unique name for your local vault
+    enterVaultPassword:
+      title: Vault Password
+      description: Enter your vault password to set up synchronization
+      vaultName: Local Vault Name
+      vaultNameDescription: Enter a name for your local vault
       vaultNamePlaceholder: My Vault
       vaultNameExists: A vault with this name already exists
       vaultPassword: Vault Password
-      vaultPasswordDescription: Choose a secure password for your vault
-      vaultPasswordPlaceholder: Enter password
-      vaultPasswordConfirm: Confirm Password
-      vaultPasswordConfirmPlaceholder: Re-enter password
-      passwordMismatch: Passwords do not match
+      vaultPasswordDescription: The password you used to originally create your vault
+      vaultPasswordPlaceholder: Enter vault password
   actions:
     login: Login
     back: Back
