@@ -72,7 +72,8 @@ const handleRealtimeChangeAsync = async (
   // Skip if this change was made by our own device
   // Supabase Realtime returns snake_case column names
   const deviceStore = useDeviceStore()
-  const deviceId = payload.new?.device_id as string | undefined
+  const newRecord = payload.new as Record<string, unknown> | undefined
+  const deviceId = newRecord?.device_id as string | undefined
   if (deviceId === deviceStore.deviceId) {
     log.debug('REALTIME: Skipping - change originated from this device')
     return
@@ -129,10 +130,15 @@ export const subscribeToBackendAsync = async (
   }
 
   try {
-    log.debug(`SUBSCRIBE: Creating channel sync_changes:${backend.vaultId}`)
+    // The sync_changes table is partitioned by vault_id
+    // Each partition is named: sync_changes_<vault_id_with_underscores>
+    // We need to subscribe to the specific partition, not the parent table
+    const partitionName = `sync_changes_${backend.vaultId.replace(/-/g, '_')}`
+    log.debug(`SUBSCRIBE: Creating channel for partition ${partitionName}`)
 
-    // Subscribe to sync changes table for this vault
+    // Subscribe to the vault's specific partition
     // Listen to both INSERT and UPDATE (UPSERT triggers UPDATE for existing records)
+    // Note: No filter needed since each partition only contains data for one vault_id
     const channel = client
       .channel(`sync_changes:${backend.vaultId}`)
       .on(
@@ -140,8 +146,7 @@ export const subscribeToBackendAsync = async (
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'sync_changes',
-          filter: `vault_id=eq.${backend.vaultId}`,
+          table: partitionName,
         },
         (payload) => {
           handleRealtimeChangeAsync(
@@ -159,8 +164,7 @@ export const subscribeToBackendAsync = async (
         {
           event: 'UPDATE',
           schema: 'public',
-          table: 'sync_changes',
-          filter: `vault_id=eq.${backend.vaultId}`,
+          table: partitionName,
         },
         (payload) => {
           handleRealtimeChangeAsync(
