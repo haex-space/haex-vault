@@ -2,7 +2,7 @@
   <div class="h-full relative">
     <NuxtLayout>
       <div
-        class="flex flex-col justify-center items-center gap-5 mx-auto h-full overflow-scroll"
+        class="flex flex-col justify-center items-center gap-5 mx-auto h-full overflow-auto"
       >
         <UiLogoHaexspace class="bg-primary p-3 size-16 rounded-full shrink-0" />
         <span
@@ -34,12 +34,12 @@
           </div>
 
           <div
-            class="relative border-base-content/25 divide-base-content/25 flex w-full flex-col divide-y rounded-md border overflow-scroll"
+            class="relative border-base-content/25 divide-base-content/25 flex w-full flex-col divide-y rounded-md border overflow-hidden"
           >
             <div
               v-for="vault in lastVaults"
               :key="vault.name"
-              class="flex items-center justify-between group overflow-x-scroll"
+              class="flex items-center justify-between group overflow-x-hidden"
             >
               <UiButtonContext
                 variant="ghost"
