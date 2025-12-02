@@ -68,7 +68,7 @@ console.log('✅ Updated Cargo.toml');
 try {
   // Check if there are uncommitted changes
   const status = execSync('git status --porcelain', { encoding: 'utf8' });
-  const versionFiles = ['package.json', 'src-tauri/tauri.conf.json', 'src-tauri/Cargo.toml'];
+  const versionFiles = ['package.json', 'src-tauri/tauri.conf.json', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock'];
   const hasOtherChanges = status
     .split('\n')
     .filter(line => line && !versionFiles.some(f => line.includes(f)))
@@ -80,7 +80,7 @@ try {
   }
 
   // Add and commit version files
-  execSync('git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml', { stdio: 'inherit' });
+  execSync('git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock', { stdio: 'inherit' });
   execSync(`git commit -m "Bump version to ${newVersion}"`, { stdio: 'inherit' });
   console.log('✅ Committed version bump');
 
