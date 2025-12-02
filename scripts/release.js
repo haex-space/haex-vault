@@ -50,22 +50,37 @@ packageJson.version = newVersion;
 writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
 console.log('✅ Updated package.json');
 
+// Update tauri.conf.json
+const tauriConfPath = join(rootDir, 'src-tauri', 'tauri.conf.json');
+const tauriConf = JSON.parse(readFileSync(tauriConfPath, 'utf8'));
+tauriConf.version = newVersion;
+writeFileSync(tauriConfPath, JSON.stringify(tauriConf, null, 2) + '\n');
+console.log('✅ Updated tauri.conf.json');
+
+// Update Cargo.toml
+const cargoTomlPath = join(rootDir, 'src-tauri', 'Cargo.toml');
+let cargoToml = readFileSync(cargoTomlPath, 'utf8');
+cargoToml = cargoToml.replace(/^version = ".*"$/m, `version = "${newVersion}"`);
+writeFileSync(cargoTomlPath, cargoToml);
+console.log('✅ Updated Cargo.toml');
+
 // Git operations
 try {
   // Check if there are uncommitted changes
   const status = execSync('git status --porcelain', { encoding: 'utf8' });
+  const versionFiles = ['package.json', 'src-tauri/tauri.conf.json', 'src-tauri/Cargo.toml'];
   const hasOtherChanges = status
     .split('\n')
-    .filter(line => line && !line.includes('package.json'))
+    .filter(line => line && !versionFiles.some(f => line.includes(f)))
     .length > 0;
 
   if (hasOtherChanges) {
-    console.error('❌ There are uncommitted changes besides package.json. Please commit or stash them first.');
+    console.error('❌ There are uncommitted changes besides version files. Please commit or stash them first.');
     process.exit(1);
   }
 
-  // Add and commit package.json
-  execSync('git add package.json', { stdio: 'inherit' });
+  // Add and commit version files
+  execSync('git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml', { stdio: 'inherit' });
   execSync(`git commit -m "Bump version to ${newVersion}"`, { stdio: 'inherit' });
   console.log('✅ Committed version bump');
 
