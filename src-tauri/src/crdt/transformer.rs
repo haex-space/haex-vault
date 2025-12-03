@@ -178,7 +178,7 @@ impl CrdtTransformer {
     }
 
     /// Transformiert eine Query rekursiv (SELECT, UNION, etc.)
-    fn transform_query(&self, query: &mut Query) {
+    pub fn transform_query(&self, query: &mut Query) {
         self.transform_set_expr(&mut query.body);
     }
 

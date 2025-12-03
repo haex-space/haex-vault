@@ -10,7 +10,23 @@
     </div>
 
     <div class="@container p-6 space-y-6">
-      <UCard v-if="showAddBackendForm">
+      <UCard
+        v-if="showAddBackendForm"
+        class="relative"
+      >
+        <!-- Loading Overlay -->
+        <div
+          v-if="isLoading"
+          class="absolute inset-0 z-10 flex items-center justify-center bg-base-100/80 backdrop-blur-sm rounded-lg"
+        >
+          <div class="flex flex-col items-center gap-3">
+            <div class="loading loading-spinner loading-lg text-primary" />
+            <span class="text-sm text-base-content/70">
+              {{ t('addBackend.connecting') }}
+            </span>
+          </div>
+        </div>
+
         <template #header>
           <div class="flex justify-between px-1">
             <h3 class="text-lg font-semibold">
@@ -21,6 +37,7 @@
               icon="mdi-close"
               variant="ghost"
               color="neutral"
+              :disabled="isLoading"
               @click="showAddBackendForm = false"
             />
           </div>
@@ -31,6 +48,7 @@
           v-model:password="newBackend.password"
           v-model:server-url="newBackend.serverUrl"
           :items="serverOptions"
+          @keydown.enter.prevent="onWizardCompleteAsync"
         />
 
         <template #footer>
@@ -38,6 +56,7 @@
             <UButton
               color="neutral"
               variant="outline"
+              :disabled="isLoading"
               @click="cancelAddBackend"
             >
               {{ t('actions.back') }}
@@ -45,6 +64,7 @@
 
             <UiButton
               icon="mdi-plus"
+              :disabled="isLoading"
               @click="onWizardCompleteAsync"
             >
               <span class="hidden @sm:inline">
@@ -56,13 +76,13 @@
       </UCard>
 
       <!-- Sync Backends List -->
-      <UCard>
+      <UCard v-if="!showAddBackendForm || syncBackends.length">
         <template #header>
           <div class="flex items-center justify-between">
             <h3 class="text-lg font-semibold">{{ t('backends.title') }}</h3>
             <UButton
+              v-if="!showAddBackendForm"
               color="primary"
-              size="sm"
               icon="i-lucide-plus"
               @click="showAddBackendForm = true"
             >
@@ -238,7 +258,7 @@
       </UCard>
 
       <!-- Vault Overview with Accordions -->
-      <UCard>
+      <UCard v-if="syncBackends.length">
         <template #header>
           <div>
             <h3 class="text-lg font-semibold">
@@ -440,7 +460,8 @@ const syncConfigStore = useSyncConfigStore()
 const vaultStore = useVaultStore()
 
 const { backends: syncBackends } = storeToRefs(syncBackendsStore)
-const { currentVaultId, currentVaultName, currentVaultPassword } = storeToRefs(vaultStore)
+const { currentVaultId, currentVaultName, currentVaultPassword } =
+  storeToRefs(vaultStore)
 const { config: syncConfig } = storeToRefs(syncConfigStore)
 
 // Local state
@@ -465,7 +486,7 @@ interface ServerVault {
   vaultId: string
   encryptedVaultName: string
   vaultNameNonce: string
-  salt: string
+  vaultNameSalt: string
   createdAt: string
   decryptedName?: string
 }
@@ -564,6 +585,23 @@ const onWizardCompleteAsync = async () => {
   isLoading.value = true
 
   try {
+    // 0. Check if we already have a connection to this server
+    const existingBackend = syncBackends.value.find(
+      (b) => b.serverUrl === newBackend.serverUrl,
+    )
+
+    if (existingBackend) {
+      add({
+        title: t('errors.backendAlreadyExists'),
+        description: t('errors.backendAlreadyExistsDescription', {
+          serverUrl: newBackend.serverUrl,
+        }),
+        color: 'warning',
+      })
+      isLoading.value = false
+      return
+    }
+
     // 1. First create a temporary backend entry to get an ID for Supabase client initialization
     // We need the backend ID to initialize the client with the correct storage key
     const tempBackend = await syncBackendsStore.addBackendAsync({
@@ -612,7 +650,7 @@ const onWizardCompleteAsync = async () => {
 
       // 5. Reload backends to ensure they're in the store
       await syncBackendsStore.loadBackendsAsync()
-      loadAllServerVaultsAsync()
+
       // 6. Ensure sync key (client is now authenticated)
       // vaultPassword = current vault's password (for sync key encryption)
       // serverPassword = newBackend.password (for vault name encryption)
@@ -632,6 +670,9 @@ const onWizardCompleteAsync = async () => {
       await syncOrchestratorStore.startSyncAsync()
 
       console.log('✅ Sync started automatically after backend added')
+
+      // 8. Reload server vaults after sync has started (vault should now exist on server)
+      await loadAllServerVaultsAsync()
 
       add({
         title: t('success.backendAdded'),
@@ -749,7 +790,7 @@ const loadVaultsForBackendAsync = async (
 
       for (const vault of vaults) {
         try {
-          const salt = base64ToArrayBuffer(vault.salt)
+          const salt = base64ToArrayBuffer(vault.vaultNameSalt)
           const derivedKey = await deriveKeyFromPasswordAsync(
             backend.password,
             salt,
@@ -841,12 +882,26 @@ const onConfirmDeleteRemoteVaultAsync = async () => {
 
     const isCurrentVault = vaultId === currentVaultId.value
 
+    console.log('[SYNC DELETE]', {
+      vaultId,
+      currentVaultId: currentVaultId.value,
+      isCurrentVault,
+      backendId: backend.id,
+    })
+
+    // If this is the current vault, stop sync first
+    if (isCurrentVault) {
+      await syncOrchestratorStore.stopSyncAsync()
+    }
+
     // Delete remote vault from server
     await syncEngineStore.deleteRemoteVaultAsync(backend.id, vaultId)
 
     // If this is the current vault, also delete the backend connection
     if (isCurrentVault) {
+      console.log('[SYNC DELETE] Deleting backend...', backend.id)
       await syncBackendsStore.deleteBackendAsync(backend.id)
+      console.log('[SYNC DELETE] Backend deleted')
 
       add({
         title: t('success.syncConnectionDeleted'),
@@ -862,7 +917,9 @@ const onConfirmDeleteRemoteVaultAsync = async () => {
     }
 
     // Reload backends to update the list
+    console.log('[SYNC DELETE] Reloading backends...')
     await syncBackendsStore.loadBackendsAsync()
+    console.log('[SYNC DELETE] Backends reloaded:', syncBackends.value.length)
 
     // Refresh all server vaults
     await loadAllServerVaultsAsync()
@@ -892,6 +949,7 @@ de:
   description: Verwalte deine Sync-Backends und Account-Einstellungen
   addBackend:
     title: Backend hinzufügen
+    connecting: Verbindung wird hergestellt...
   backends:
     title: Sync-Backends
     enabled: Aktiviert
@@ -970,11 +1028,14 @@ de:
     deleteRemoteVaultFailed: Remote-Vault konnte nicht gelöscht werden
     noVaultId: Keine Vault-ID für dieses Backend konfiguriert
     loadServerVaultsFailed: Server-Vaults konnten nicht geladen werden
+    backendAlreadyExists: Backend bereits vorhanden
+    backendAlreadyExistsDescription: Es besteht bereits eine Verbindung zu {serverUrl}
 en:
   title: Synchronization
   description: Manage your sync backends and account settings
   addBackend:
     title: Add Backend
+    connecting: Connecting...
   backends:
     title: Sync Backends
     enabled: Enabled
@@ -1053,4 +1114,6 @@ en:
     deleteRemoteVaultFailed: Failed to delete remote vault
     noVaultId: No vault ID configured for this backend
     loadServerVaultsFailed: Failed to load server vaults
+    backendAlreadyExists: Backend already exists
+    backendAlreadyExistsDescription: A connection to {serverUrl} already exists
 </i18n>

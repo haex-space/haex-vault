@@ -296,8 +296,47 @@ pub fn select_with_crdt(
     params: Vec<JsonValue>,
     connection: &DbConnection,
 ) -> Result<Vec<Vec<JsonValue>>, DatabaseError> {
+    use crate::crdt::transformer::CrdtTransformer;
+
+    // Parse the SQL statement
+    let statement = parse_single_statement(&sql)?;
+
+    // Extract and transform the Query
+    let transformed_sql = if let Statement::Query(mut query) = statement {
+        let transformer = CrdtTransformer::new();
+        transformer.transform_query(&mut query);
+        query.to_string()
+    } else {
+        return Err(DatabaseError::StatementError {
+            reason: "Only SELECT statements are allowed in select_with_crdt".to_string(),
+        });
+    };
+
+    eprintln!("DEBUG: SELECT (with tombstone filter): {transformed_sql}");
+
+    // Convert params and execute
+    let params_converted: Vec<RusqliteValue> = params
+        .iter()
+        .map(ValueConverter::json_to_rusqlite_value)
+        .collect::<Result<Vec<_>, _>>()?;
+    let params_sql: Vec<&dyn ToSql> = params_converted.iter().map(|v| v as &dyn ToSql).collect();
+
     with_connection(connection, |conn| {
-        SqlExecutor::query_select(conn, &sql, &params)
+        let mut stmt = conn.prepare(&transformed_sql)?;
+        let num_columns = stmt.column_count();
+        let mut rows = stmt.query(&params_sql[..])?;
+        let mut result_vec: Vec<Vec<JsonValue>> = Vec::new();
+
+        while let Some(row) = rows.next()? {
+            let mut row_values: Vec<JsonValue> = Vec::with_capacity(num_columns);
+            for i in 0..num_columns {
+                let value_ref = row.get_ref(i)?;
+                let json_val = convert_value_ref_to_json(value_ref)?;
+                row_values.push(json_val);
+            }
+            result_vec.push(row_values);
+        }
+        Ok(result_vec)
     })
 }
 

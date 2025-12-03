@@ -11,7 +11,10 @@
         <h2 class="text-2xl font-bold">{{ t('title') }}</h2>
         <p class="text-base-content/70">{{ t('description') }}</p>
       </div>
-      <div v-if="progress" class="w-full space-y-2">
+      <div
+        v-if="progress"
+        class="w-full space-y-2"
+      >
         <div class="flex justify-between text-sm">
           <span>{{ t('progress') }}</span>
           <span>{{ progress.synced }} / {{ progress.total }}</span>
@@ -20,7 +23,7 @@
           class="progress progress-primary w-full"
           :value="progress.synced"
           :max="progress.total"
-        ></progress>
+        />
       </div>
     </div>
   </div>
