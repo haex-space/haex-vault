@@ -213,7 +213,7 @@ jobs:
           rm -rf src-tauri/gen/android
           pnpm tauri android init
 
-      - name: Setup Keystore (required for release)
+      - name: Setup Keystore and Signing Config
         run: |
           # Decode keystore from base64 secret
           echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > /tmp/keystore.jks
@@ -222,19 +222,48 @@ jobs:
           ls -la /tmp/keystore.jks
 
           # Create keystore.properties for Gradle signing config
-          cat > src-tauri/gen/android/keystore.properties << EOF
-          storeFile=/tmp/keystore.jks
-          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
-          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
-          EOF
-
-          # Remove leading spaces from properties file
-          sed -i 's/^[[:space:]]*//' src-tauri/gen/android/keystore.properties
+          echo "storeFile=/tmp/keystore.jks" > src-tauri/gen/android/keystore.properties
+          echo "storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> src-tauri/gen/android/keystore.properties
+          echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> src-tauri/gen/android/keystore.properties
+          echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> src-tauri/gen/android/keystore.properties
 
           # Debug: show keystore.properties content (without passwords)
           echo "=== keystore.properties ==="
           cat src-tauri/gen/android/keystore.properties | sed 's/Password=.*/Password=***/'
+
+          # Patch build.gradle.kts to add signing config (tauri android init overwrites it)
+          BUILD_GRADLE="src-tauri/gen/android/app/build.gradle.kts"
+
+          # Add keystore properties loading after tauriProperties
+          sed -i '/val tauriProperties/a\
+          \
+          val keystoreProperties = Properties().apply {\
+              val propFile = rootProject.file("keystore.properties")\
+              if (propFile.exists()) {\
+                  propFile.inputStream().use { load(it) }\
+              }\
+          }' "$BUILD_GRADLE"
+
+          # Add signingConfigs block after namespace line
+          sed -i '/namespace = /a\
+          \
+              signingConfigs {\
+                  create("release") {\
+                      storeFile = file(keystoreProperties.getProperty("storeFile") ?: "")\
+                      storePassword = keystoreProperties.getProperty("storePassword")\
+                      keyAlias = keystoreProperties.getProperty("keyAlias")\
+                      keyPassword = keystoreProperties.getProperty("keyPassword")\
+                  }\
+              }' "$BUILD_GRADLE"
+
+          # Add signingConfig to release buildType
+          sed -i '/getByName("release") {/a\
+                      signingConfig = signingConfigs.getByName("release")' "$BUILD_GRADLE"
+
+          # Debug: show relevant parts of build.gradle.kts
+          echo "=== build.gradle.kts signing config ==="
+          grep -A 10 "signingConfigs" "$BUILD_GRADLE" || echo "signingConfigs not found"
+          grep -A 5 'getByName("release")' "$BUILD_GRADLE" || echo "release buildType not found"
 
       - name: Build Android APK and AAB (signed)
         run: pnpm tauri android build
