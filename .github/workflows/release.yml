@@ -231,39 +231,105 @@ jobs:
           echo "=== keystore.properties ==="
           cat src-tauri/gen/android/keystore.properties | sed 's/Password=.*/Password=***/'
 
-          # Patch build.gradle.kts to add signing config (tauri android init overwrites it)
-          BUILD_GRADLE="src-tauri/gen/android/app/build.gradle.kts"
+          # Replace build.gradle.kts with version that includes signing config
+          cat > src-tauri/gen/android/app/build.gradle.kts << 'GRADLE'
+          import java.util.Properties
 
-          # Add keystore properties loading after tauriProperties
-          sed -i '/val tauriProperties/a\
-          \
-          val keystoreProperties = Properties().apply {\
-              val propFile = rootProject.file("keystore.properties")\
-              if (propFile.exists()) {\
-                  propFile.inputStream().use { load(it) }\
-              }\
-          }' "$BUILD_GRADLE"
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+              id("rust")
+          }
 
-          # Add signingConfigs block after namespace line
-          sed -i '/namespace = /a\
-          \
-              signingConfigs {\
-                  create("release") {\
-                      storeFile = file(keystoreProperties.getProperty("storeFile") ?: "")\
-                      storePassword = keystoreProperties.getProperty("storePassword")\
-                      keyAlias = keystoreProperties.getProperty("keyAlias")\
-                      keyPassword = keystoreProperties.getProperty("keyPassword")\
-                  }\
-              }' "$BUILD_GRADLE"
+          val tauriProperties = Properties().apply {
+              val propFile = file("tauri.properties")
+              if (propFile.exists()) {
+                  propFile.inputStream().use { load(it) }
+              }
+          }
 
-          # Add signingConfig to release buildType
-          sed -i '/getByName("release") {/a\
-                      signingConfig = signingConfigs.getByName("release")' "$BUILD_GRADLE"
+          val keystoreProperties = Properties().apply {
+              val propFile = rootProject.file("keystore.properties")
+              if (propFile.exists()) {
+                  propFile.inputStream().use { load(it) }
+              }
+          }
 
-          # Debug: show relevant parts of build.gradle.kts
+          android {
+              compileSdk = 36
+              namespace = "space.haex.vault"
+
+              signingConfigs {
+                  create("release") {
+                      storeFile = file(keystoreProperties.getProperty("storeFile") ?: "")
+                      storePassword = keystoreProperties.getProperty("storePassword")
+                      keyAlias = keystoreProperties.getProperty("keyAlias")
+                      keyPassword = keystoreProperties.getProperty("keyPassword")
+                  }
+              }
+
+              defaultConfig {
+                  manifestPlaceholders["usesCleartextTraffic"] = "false"
+                  applicationId = "space.haex.vault"
+                  minSdk = 24
+                  targetSdk = 36
+                  versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
+                  versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+              }
+              buildTypes {
+                  getByName("debug") {
+                      manifestPlaceholders["usesCleartextTraffic"] = "true"
+                      isDebuggable = true
+                      isJniDebuggable = true
+                      isMinifyEnabled = false
+                      packaging {
+                          jniLibs.keepDebugSymbols.add("*/arm64-v8a/*.so")
+                          jniLibs.keepDebugSymbols.add("*/armeabi-v7a/*.so")
+                          jniLibs.keepDebugSymbols.add("*/x86/*.so")
+                          jniLibs.keepDebugSymbols.add("*/x86_64/*.so")
+                      }
+                  }
+                  getByName("release") {
+                      signingConfig = signingConfigs.getByName("release")
+                      isMinifyEnabled = true
+                      proguardFiles(
+                          *fileTree(".") { include("**/*.pro") }
+                              .plus(getDefaultProguardFile("proguard-android-optimize.txt"))
+                              .toList().toTypedArray()
+                      )
+                  }
+              }
+              kotlinOptions {
+                  jvmTarget = "1.8"
+              }
+              buildFeatures {
+                  buildConfig = true
+              }
+          }
+
+          rust {
+              rootDirRel = "../../../"
+          }
+
+          dependencies {
+              implementation("androidx.webkit:webkit:1.14.0")
+              implementation("androidx.appcompat:appcompat:1.7.1")
+              implementation("androidx.activity:activity-ktx:1.10.1")
+              implementation("com.google.android.material:material:1.12.0")
+              testImplementation("junit:junit:4.13.2")
+              androidTestImplementation("androidx.test.ext:junit:1.1.4")
+              androidTestImplementation("androidx.test.espresso:espresso-core:3.5.0")
+          }
+
+          apply(from = "tauri.build.gradle.kts")
+          GRADLE
+
+          # Remove leading spaces from gradle file
+          sed -i 's/^          //' src-tauri/gen/android/app/build.gradle.kts
+
+          # Debug: show signing config
           echo "=== build.gradle.kts signing config ==="
-          grep -A 10 "signingConfigs" "$BUILD_GRADLE" || echo "signingConfigs not found"
-          grep -A 5 'getByName("release")' "$BUILD_GRADLE" || echo "release buildType not found"
+          grep -A 8 "signingConfigs" src-tauri/gen/android/app/build.gradle.kts
 
       - name: Build Android APK and AAB (signed)
         run: pnpm tauri android build
