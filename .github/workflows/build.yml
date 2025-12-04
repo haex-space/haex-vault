@@ -14,7 +14,25 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Skip build for version bump commits (they trigger the Release workflow via tag)
+  check-skip:
+    runs-on: ubuntu-latest
+    outputs:
+      should_skip: ${{ steps.check.outputs.should_skip }}
+    steps:
+      - name: Check if version bump commit
+        id: check
+        run: |
+          if [[ "${{ github.event.head_commit.message }}" == "Bump version to"* ]]; then
+            echo "should_skip=true" >> $GITHUB_OUTPUT
+            echo "Skipping build for version bump commit"
+          else
+            echo "should_skip=false" >> $GITHUB_OUTPUT
+          fi
+
   build-desktop:
+    needs: check-skip
+    if: needs.check-skip.outputs.should_skip != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -98,6 +116,8 @@ jobs:
             src-tauri/target/release/bundle/nsis/*.exe
 
   build-android:
+    needs: check-skip
+    if: needs.check-skip.outputs.should_skip != 'true'
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
