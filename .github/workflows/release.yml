@@ -334,6 +334,16 @@ jobs:
       - name: Build Android APK and AAB (signed)
         run: pnpm tauri android build
 
+      - name: Get version
+        run: echo "PACKAGE_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
+
+      - name: Rename Android artifacts
+        run: |
+          mv src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk \
+             src-tauri/gen/android/app/build/outputs/apk/universal/release/haex-vault_${PACKAGE_VERSION}_universal.apk
+          mv src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab \
+             src-tauri/gen/android/app/build/outputs/bundle/universalRelease/haex-vault_${PACKAGE_VERSION}_universal.aab
+
       - name: Upload Android artifacts to Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
