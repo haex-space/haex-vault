@@ -34,6 +34,7 @@
       <HaexSystemSettingsExtensions v-if="activeCategory === 'extensions'" />
       <HaexSystemSettingsDatabase v-if="activeCategory === 'database'" />
       <HaexSystemSettingsSync v-if="activeCategory === 'sync'" />
+      <HaexSystemSettingsDeveloper v-if="activeCategory === 'developer'" />
     </div>
   </HaexSystem>
 </template>
@@ -111,6 +112,15 @@ const categories = computed(() => [
       activeCategory.value = 'sync'
     },
   },
+  {
+    value: 'developer',
+    label: t('categories.developer'),
+    icon: 'i-heroicons-code-bracket',
+    active: activeCategory.value === 'developer',
+    click: () => {
+      activeCategory.value = 'developer'
+    },
+  },
 ])
 </script>
 
@@ -124,6 +134,7 @@ de:
     extensions: Erweiterungen
     database: Datenbank
     sync: Synchronisation
+    developer: Entwickler
 en:
   categories:
     general: General
@@ -133,4 +144,5 @@ en:
     extensions: Extensions
     database: Database
     sync: Sync
+    developer: Developer
 </i18n>

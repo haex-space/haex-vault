@@ -216,13 +216,25 @@ jobs:
       - name: Setup Keystore (required for release)
         run: |
           # Decode keystore from base64 secret
-          echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > $HOME/keystore.jks
+          echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > /tmp/keystore.jks
+
+          # Verify keystore was created
+          ls -la /tmp/keystore.jks
 
           # Create keystore.properties for Gradle signing config
-          echo "storeFile=$HOME/keystore.jks" > src-tauri/gen/android/keystore.properties
-          echo "storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> src-tauri/gen/android/keystore.properties
-          echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> src-tauri/gen/android/keystore.properties
-          echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> src-tauri/gen/android/keystore.properties
+          cat > src-tauri/gen/android/keystore.properties << EOF
+          storeFile=/tmp/keystore.jks
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          EOF
+
+          # Remove leading spaces from properties file
+          sed -i 's/^[[:space:]]*//' src-tauri/gen/android/keystore.properties
+
+          # Debug: show keystore.properties content (without passwords)
+          echo "=== keystore.properties ==="
+          cat src-tauri/gen/android/keystore.properties | sed 's/Password=.*/Password=***/'
 
       - name: Build Android APK and AAB (signed)
         run: pnpm tauri android build

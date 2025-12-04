@@ -8,13 +8,14 @@
       :size
       :type
       :icon
+      class="w-full"
       :ui="{ base: 'peer', root: 'group' }"
       :data-size="size || 'md'"
+      v-bind="$attrs"
       @change="(e) => $emit('change', e)"
       @blur="(e) => $emit('blur', e)"
       @keyup="(e: KeyboardEvent) => $emit('keyup', e)"
       @keydown="(e: KeyboardEvent) => $emit('keydown', e)"
-      v-bind="$attrs"
     >
       <label
         v-if="label"
@@ -93,7 +94,9 @@ const props = defineProps<
     size?: InputProps['size']
     schema?: ZodSchema
     check?: boolean
-    customValidators?: Array<(value: AcceptableValue | undefined) => string | null>
+    customValidators?: Array<
+      (value: AcceptableValue | undefined) => string | null
+    >
   }
 >()
 
@@ -182,17 +185,23 @@ const validate = () => {
 
 // Watch for value changes and validate
 watch(value, () => {
-  if ((props.schema || props.customValidators) && (props.check || errors.value.length > 0)) {
+  if (
+    (props.schema || props.customValidators) &&
+    (props.check || errors.value.length > 0)
+  ) {
     validate()
   }
 })
 
 // Watch for check prop changes to trigger validation
-watch(() => props.check, (newCheck) => {
-  if (newCheck && (props.schema || props.customValidators)) {
-    validate()
-  }
-})
+watch(
+  () => props.check,
+  (newCheck) => {
+    if (newCheck && (props.schema || props.customValidators)) {
+      validate()
+    }
+  },
+)
 </script>
 
 <i18n lang="yaml">
