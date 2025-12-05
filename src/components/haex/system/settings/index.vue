@@ -35,6 +35,7 @@
       <HaexSystemSettingsDatabase v-if="activeCategory === 'database'" />
       <HaexSystemSettingsSync v-if="activeCategory === 'sync'" />
       <HaexSystemSettingsDeveloper v-if="activeCategory === 'developer'" />
+      <HaexSystemDebugLogs v-if="activeCategory === 'debugLogs'" />
     </div>
   </HaexSystem>
 </template>
@@ -121,6 +122,15 @@ const categories = computed(() => [
       activeCategory.value = 'developer'
     },
   },
+  {
+    value: 'debugLogs',
+    label: t('categories.debugLogs'),
+    icon: 'i-heroicons-bug-ant',
+    active: activeCategory.value === 'debugLogs',
+    click: () => {
+      activeCategory.value = 'debugLogs'
+    },
+  },
 ])
 </script>
 
@@ -135,6 +145,7 @@ de:
     database: Datenbank
     sync: Synchronisation
     developer: Entwickler
+    debugLogs: Debug Logs
 en:
   categories:
     general: General
@@ -145,4 +156,5 @@ en:
     database: Database
     sync: Sync
     developer: Developer
+    debugLogs: Debug Logs
 </i18n>

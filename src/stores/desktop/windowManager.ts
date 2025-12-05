@@ -96,18 +96,6 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       resizable: true,
       singleton: false,
     },
-    debugLogs: {
-      id: 'debugLogs',
-      name: 'Debug Logs',
-      icon: 'i-heroicons-bug-ant',
-      component: defineAsyncComponent(
-        () => import('@/components/haex/system/debug-logs.vue'),
-      ),
-      defaultWidth: 1000,
-      defaultHeight: 700,
-      resizable: true,
-      singleton: true,
-    },
   }
 
   const getSystemWindow = (id: string): SystemWindowDefinition | undefined => {
