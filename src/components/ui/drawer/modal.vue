@@ -11,19 +11,25 @@
 
     <!-- Drawer Content -->
     <template #content>
-      <div class="p-6 flex flex-col h-full">
-        <div class="w-full mx-auto space-y-4 flex-1 overflow-y-auto">
-          <h2 class="text-xl font-semibold">
-            {{ title }}
-          </h2>
+      <div class="p-6 flex flex-col h-full max-h-[95vh]">
+        <!-- Custom Header or default title -->
+        <div class="shrink-0 mb-4">
+          <slot name="header">
+            <h2 class="text-xl font-semibold">
+              {{ title }}
+            </h2>
+          </slot>
+        </div>
 
+        <!-- Scrollable Content -->
+        <div class="flex-1 overflow-y-auto space-y-4 min-h-0 px-1 pb-4">
           <slot name="content" />
         </div>
 
         <!-- Footer (optional) -->
         <div
           v-if="$slots.footer"
-          class="mt-12 shrink-0"
+          class="mt-6 shrink-0"
         >
           <slot name="footer" />
         </div>
@@ -37,13 +43,22 @@
     v-model:open="open"
     :title="title"
     :description="description"
+    :ui="ui"
   >
     <!-- Trigger Button -->
     <slot name="trigger" />
 
+    <!-- Custom Header (optional) -->
+    <template
+      v-if="$slots.header"
+      #header
+    >
+      <slot name="header" />
+    </template>
+
     <!-- Modal Body -->
     <template #body>
-      <div class="space-y-4">
+      <div class="space-y-4 px-4">
         <slot name="content" />
       </div>
     </template>
@@ -59,9 +74,12 @@
 </template>
 
 <script setup lang="ts">
+import type { ModalProps } from '@nuxt/ui'
+
 defineProps<{
-  title: string
+  title?: string
   description?: string
+  ui?: ModalProps['ui']
 }>()
 
 const open = defineModel<boolean>('open', { default: false })

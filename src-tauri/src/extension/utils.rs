@@ -48,6 +48,12 @@ pub fn is_extension_table(table_name: &str, public_key: &str, extension_name: &s
 /// This function finds all tables with the extension's prefix and drops them.
 /// Used when uninstalling an extension to clean up its data.
 ///
+/// The cleanup process:
+/// 1. Find all tables with the extension's prefix
+/// 2. Drop CRDT triggers for each table (to prevent trigger errors)
+/// 3. Remove entries from haex_crdt_dirty_tables (to prevent sync errors)
+/// 4. Drop the tables themselves
+///
 /// # Arguments
 /// * `tx` - Database transaction
 /// * `public_key` - Extension's public key
@@ -73,13 +79,31 @@ pub fn drop_extension_tables(
         .query_map([&pattern], |row| row.get(0))?
         .collect::<Result<Vec<_>, _>>()?;
 
-    // Drop each table
+    // For each table, we need to:
+    // 1. Drop CRDT triggers first
+    // 2. Remove from dirty tables tracking
+    // 3. Drop the table
     for table_name in &table_names {
         println!(
-            "[EXTENSION_CLEANUP] Dropping table: {}",
+            "[EXTENSION_CLEANUP] Cleaning up table: {}",
             table_name
         );
-        // Use quotes to handle table names with special characters
+
+        // Drop CRDT triggers for this table (prevents trigger errors on table drop)
+        // Trigger naming pattern: z_dirty_{TABLE_NAME}_{insert|update|delete}
+        let trigger_suffixes = ["insert", "update", "delete"];
+        for suffix in &trigger_suffixes {
+            let trigger_name = format!("z_dirty_{}_{}", table_name, suffix);
+            tx.execute(&format!("DROP TRIGGER IF EXISTS \"{}\"", trigger_name), [])?;
+        }
+
+        // Remove from haex_crdt_dirty_tables (prevents sync from trying to scan dropped table)
+        tx.execute(
+            "DELETE FROM haex_crdt_dirty_tables WHERE table_name = ?1",
+            [table_name],
+        )?;
+
+        // Drop the table
         tx.execute(&format!("DROP TABLE IF EXISTS \"{}\"", table_name), [])?;
     }
 

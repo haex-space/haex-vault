@@ -474,12 +474,22 @@ impl ExtensionManager {
         })
     }
 
+    /// Removes an extension from the system
+    ///
+    /// # Arguments
+    /// * `app_handle` - Tauri app handle
+    /// * `public_key` - Extension's public key
+    /// * `extension_name` - Extension name
+    /// * `extension_version` - Extension version
+    /// * `delete_data` - If true, deletes all extension tables and data. If false, only removes the extension entry (data persists for sync).
+    /// * `state` - App state
     pub async fn remove_extension_internal(
         &self,
         app_handle: &AppHandle,
         public_key: &str,
         extension_name: &str,
         extension_version: &str,
+        delete_data: bool,
         state: &State<'_, AppState>,
     ) -> Result<(), ExtensionError> {
         // Get the extension from memory to get its ID
@@ -491,7 +501,7 @@ impl ExtensionManager {
             })?;
 
         eprintln!("DEBUG: Removing extension with ID: {}", extension.id);
-        eprintln!("DEBUG: Extension name: {extension_name}, version: {extension_version}");
+        eprintln!("DEBUG: Extension name: {extension_name}, version: {extension_version}, delete_data: {delete_data}");
 
         // Lösche Permissions und Extension-Eintrag in einer Transaktion
         with_connection(&state.db, |conn| {
@@ -508,14 +518,19 @@ impl ExtensionManager {
             );
             PermissionManager::delete_permissions_in_transaction(&tx, &hlc_service, &extension.id)?;
 
-            // Lösche alle Tabellen der Extension
-            eprintln!(
-                "DEBUG: Dropping tables for extension {}::{}",
-                public_key, extension_name
-            );
-            let dropped_tables = drop_extension_tables(&tx, public_key, extension_name)?;
-            if !dropped_tables.is_empty() {
-                eprintln!("DEBUG: Dropped tables: {:?}", dropped_tables);
+            // Only delete extension data (tables) if delete_data is true
+            if delete_data {
+                // Lösche alle Tabellen der Extension
+                eprintln!(
+                    "DEBUG: Dropping tables for extension {}::{}",
+                    public_key, extension_name
+                );
+                let dropped_tables = drop_extension_tables(&tx, public_key, extension_name)?;
+                if !dropped_tables.is_empty() {
+                    eprintln!("DEBUG: Dropped tables: {:?}", dropped_tables);
+                }
+            } else {
+                eprintln!("DEBUG: Keeping extension data (delete_data=false)");
             }
 
             // Lösche Extension-Eintrag mit extension_id

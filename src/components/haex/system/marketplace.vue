@@ -14,18 +14,6 @@
         <div
           class="flex flex-col @lg:flex-row items-stretch @lg:items-center gap-3"
         >
-          <!-- Marketplace Selector -->
-          <USelectMenu
-            v-model="selectedMarketplace"
-            :items="marketplaces"
-            value-key="id"
-            class="w-full @lg:w-48"
-          >
-            <template #leading>
-              <UIcon name="i-heroicons-building-storefront" />
-            </template>
-          </USelectMenu>
-
           <!-- Install from File Button -->
           <UiButton
             :label="t('extension.installFromFile')"
@@ -39,53 +27,77 @@
     </template>
 
     <div class="flex flex-col h-full">
-
-    <!-- Search and Filters -->
-    <div
-      class="flex flex-col @lg:flex-row items-stretch @lg:items-center gap-4 p-6 border-b border-gray-200 dark:border-gray-800"
-    >
-      <UInput
-        v-model="searchQuery"
-        :placeholder="t('search.placeholder')"
-        icon="i-heroicons-magnifying-glass"
-        class="flex-1"
-      />
-      <USelectMenu
-        v-model="selectedCategory"
-        :items="categories"
-        :placeholder="t('filter.category')"
-        value-key="id"
-        class="w-full @lg:w-48"
-      >
-        <template #leading>
-          <UIcon name="i-heroicons-tag" />
-        </template>
-      </USelectMenu>
-    </div>
-
-    <!-- Extensions Grid -->
-    <div class="flex-1 overflow-auto p-6">
+      <!-- Search and Filters -->
       <div
-        v-if="filteredExtensions.length"
-        class="grid grid-cols-1 @md:grid-cols-2 @2xl:grid-cols-3 gap-4"
+        class="flex flex-col @lg:flex-row items-stretch @lg:items-center gap-4 p-6 border-b border-gray-200 dark:border-gray-800"
       >
-        <!-- Marketplace Extension Card -->
-        <HaexExtensionMarketplaceCard
-          v-for="ext in filteredExtensions"
-          :key="ext.id"
-          :extension="ext"
-          @install="onInstallFromMarketplace(ext)"
-          @details="onShowExtensionDetails(ext)"
+        <UInput
+          v-model="searchQuery"
+          :placeholder="t('search.placeholder')"
+          icon="i-heroicons-magnifying-glass"
+          class="flex-1"
         />
+        <USelectMenu
+          v-model="selectedCategory"
+          :items="categoryItems"
+          :placeholder="t('filter.category')"
+          value-key="id"
+          class="w-full @lg:w-48"
+        >
+          <template #leading>
+            <UIcon name="i-heroicons-tag" />
+          </template>
+        </USelectMenu>
+      </div>
+
+      <!-- Loading State -->
+      <div
+        v-if="marketplace.isLoading.value"
+        class="flex-1 flex items-center justify-center"
+      >
+        <UIcon
+          name="i-heroicons-arrow-path"
+          class="w-8 h-8 animate-spin text-gray-400"
+        />
+      </div>
+
+      <!-- Extensions Grid -->
+      <div
+        v-else-if="extensionViewModels.length"
+        class="flex-1 overflow-auto p-6"
+      >
+        <div class="grid grid-cols-1 @xl:grid-cols-2 gap-6">
+          <HaexExtensionMarketplaceCard
+            v-for="ext in extensionViewModels"
+            :key="ext.id"
+            :extension="ext"
+            @install="onInstallFromMarketplace(ext)"
+            @update="onUpdateExtension(ext)"
+            @details="onShowExtensionDetails(ext)"
+            @remove="onRemoveExtension(ext)"
+          />
+        </div>
+
+        <!-- Pagination -->
+        <div
+          v-if="marketplace.extensionsTotal.value > 20"
+          class="flex justify-center mt-6"
+        >
+          <UPagination
+            v-model="currentPage"
+            :total="marketplace.extensionsTotal.value"
+            :items-per-page="20"
+          />
+        </div>
       </div>
 
       <!-- Empty State -->
       <div
         v-else
-        class="flex flex-col items-center justify-center h-full text-center"
+        class="flex flex-col items-center justify-center flex-1 text-center p-6"
       >
         <UIcon
-          name="i-heroicons-magnifying-glass"
+          name="i-heroicons-puzzle-piece"
           class="w-16 h-16 text-gray-400 mb-4"
         />
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
@@ -95,25 +107,31 @@
           {{ t('empty.description') }}
         </p>
       </div>
-    </div>
 
-    <HaexExtensionDialogReinstall
-      v-model:open="openOverwriteDialog"
-      v-model:preview="preview"
-      @confirm="reinstallExtensionAsync"
-    />
+      <HaexExtensionDialogReinstall
+        v-model:open="openOverwriteDialog"
+        v-model:preview="installPreview"
+        :mode="reinstallMode"
+        @confirm="confirmReinstallAsync"
+      />
 
-    <HaexExtensionDialogInstall
-      v-model:open="showConfirmation"
-      :preview="preview"
-      @confirm="addExtensionAsync"
-    />
+      <HaexExtensionDialogInstall
+        v-model:open="showConfirmation"
+        :preview="installPreview"
+        @confirm="confirmInstallAsync"
+      />
 
-    <HaexExtensionDialogRemove
-      v-model:open="showRemoveDialog"
-      :extension="extensionToBeRemoved"
-      @confirm="removeExtensionAsync"
-    />
+      <HaexExtensionDialogRemove
+        v-model:open="showRemoveDialog"
+        :extension="extensionToBeRemoved"
+        @confirm="removeExtensionAsync"
+      />
+
+      <HaexExtensionDialogDetails
+        v-model:open="showDetailsDialog"
+        :extension="selectedExtensionForDetails"
+        @install="onInstallFromMarketplace"
+      />
     </div>
   </HaexSystem>
 </template>
@@ -122,8 +140,9 @@
 import type {
   IHaexSpaceExtension,
   IHaexSpaceExtensionManifest,
-  IMarketplaceExtension,
+  MarketplaceExtensionViewModel,
 } from '~/types/haexspace'
+import { useMarketplace } from '@haex-space/marketplace-sdk/vue'
 import { open } from '@tauri-apps/plugin-dialog'
 import type { ExtensionPreview } from '~~/src-tauri/bindings/ExtensionPreview'
 
@@ -145,239 +164,191 @@ const extension = reactive<{
   path: '',
 })
 
-/* const loadExtensionManifestAsync = async () => {
-  try {
-    extension.path = await open({ directory: true, recursive: true })
-    if (!extension.path) return
-
-    const manifestFile = JSON.parse(
-      await readTextFile(await join(extension.path, 'manifest.json')),
-    )
-
-    if (!extensionStore.checkManifest(manifestFile))
-      throw new Error(`Manifest fehlerhaft ${JSON.stringify(manifestFile)}`)
-
-    return manifestFile
-  } catch (error) {
-    console.error('Fehler loadExtensionManifestAsync:', error)
-    add({ color: 'error', description: JSON.stringify(error) })
-    await addNotificationAsync({ text: JSON.stringify(error), type: 'error' })
-  }
-} */
-
 const { add } = useToast()
 const { addNotificationAsync } = useNotificationStore()
 
 const preview = ref<ExtensionPreview>()
 
-// Marketplace State
-const selectedMarketplace = ref('official')
+// Track installation source: 'file' or 'marketplace'
+const installSource = ref<'file' | 'marketplace'>('file')
+
+// Combined preview from either file or marketplace download
+const installPreview = computed(() => {
+  if (installSource.value === 'marketplace') {
+    return extensionStore.preview
+  }
+  return preview.value
+})
+
+// Marketplace SDK
+const marketplace = useMarketplace()
+
+// State
 const searchQuery = ref('')
-const selectedCategory = ref('all')
+const selectedCategory = ref<string | null>(null)
+const currentPage = ref(1)
 
-// Marketplaces (später von API laden)
-const marketplaces = [
-  {
-    id: 'official',
-    label: t('marketplace.official'),
-    icon: 'i-heroicons-building-storefront',
-  },
-  {
-    id: 'community',
-    label: t('marketplace.community'),
-    icon: 'i-heroicons-users',
-  },
-]
+// Debounced search
+const debouncedSearch = refDebounced(searchQuery, 300)
 
-// Categories
-const categories = computed(() => [
-  { id: 'all', label: t('category.all') },
-  { id: 'productivity', label: t('category.productivity') },
-  { id: 'security', label: t('category.security') },
-  { id: 'utilities', label: t('category.utilities') },
-  { id: 'integration', label: t('category.integration') },
-])
+// Category items for select menu
+const categoryItems = computed(() => {
+  const allCategory = { id: null, label: t('category.all') }
+  const apiCategories = marketplace.categories.value.map((cat) => ({
+    id: cat.slug,
+    label: cat.name,
+  }))
+  return [allCategory, ...apiCategories]
+})
 
-// Dummy Marketplace Extensions (später von API laden)
-const marketplaceExtensions = ref<IMarketplaceExtension[]>([
-  {
-    id: 'haex-passy',
-    name: 'HaexPassDummy',
-    version: '1.0.0',
-    author: 'HaexSpace Team',
-    public_key:
-      'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2',
-    description:
-      'Sicherer Passwort-Manager mit Ende-zu-Ende-Verschlüsselung und Autofill-Funktion.',
-    icon: 'i-heroicons-lock-closed',
-    homepage: null,
-    downloads: 15420,
-    rating: 4.8,
-    verified: true,
-    tags: ['security', 'password', 'productivity'],
-    category: 'security',
-    downloadUrl: '/extensions/haex-pass-1.0.0.haextension',
-    isInstalled: false,
-  },
-  {
-    id: 'haex-notes',
-    name: 'HaexNotes',
-    version: '2.1.0',
-    author: 'HaexSpace Team',
-    public_key:
-      'b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3',
-    description:
-      'Markdown-basierter Notizen-Editor mit Syntax-Highlighting und Live-Preview.',
-    icon: 'i-heroicons-document-text',
-    homepage: null,
-    downloads: 8930,
-    rating: 4.5,
-    verified: true,
-    tags: ['productivity', 'notes', 'markdown'],
-    category: 'productivity',
-    downloadUrl: '/extensions/haex-notes-2.1.0.haextension',
-    isInstalled: false,
-  },
-  {
-    id: 'haex-backup',
-    name: 'HaexBackup',
-    version: '1.5.2',
-    author: 'Community',
-    public_key:
-      'c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4',
-    description:
-      'Automatische Backups deiner Daten mit Cloud-Sync-Unterstützung.',
-    icon: 'i-heroicons-cloud-arrow-up',
-    homepage: null,
-    downloads: 5240,
-    rating: 4.6,
-    verified: false,
-    tags: ['backup', 'cloud', 'utilities'],
-    category: 'utilities',
-    downloadUrl: '/extensions/haex-backup-1.5.2.haextension',
-    isInstalled: false,
-  },
-  {
-    id: 'haex-calendar',
-    name: 'HaexCalendar',
-    version: '3.0.1',
-    author: 'HaexSpace Team',
-    public_key:
-      'd4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5',
-    description:
-      'Integrierter Kalender mit Event-Management und Synchronisation.',
-    icon: 'i-heroicons-calendar',
-    homepage: null,
-    downloads: 12100,
-    rating: 4.7,
-    verified: true,
-    tags: ['productivity', 'calendar', 'events'],
-    category: 'productivity',
-    downloadUrl: '/extensions/haex-calendar-3.0.1.haextension',
-    isInstalled: false,
-  },
-  {
-    id: 'haex-2fa',
-    name: 'Haex2FA',
-    version: '1.2.0',
-    author: 'Security Team',
-    public_key:
-      'e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6',
-    description:
-      '2-Faktor-Authentifizierung Manager mit TOTP und Backup-Codes.',
-    icon: 'i-heroicons-shield-check',
-    homepage: null,
-    downloads: 7800,
-    rating: 4.9,
-    verified: true,
-    tags: ['security', '2fa', 'authentication'],
-    category: 'security',
-    downloadUrl: '/extensions/haex-2fa-1.2.0.haextension',
-    isInstalled: false,
-  },
-  {
-    id: 'haex-github',
-    name: 'GitHub Integration',
-    version: '1.0.5',
-    author: 'Community',
-    public_key:
-      'f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7',
-    description:
-      'Direkter Zugriff auf GitHub Repositories, Issues und Pull Requests.',
-    icon: 'i-heroicons-code-bracket',
-    homepage: null,
-    downloads: 4120,
-    rating: 4.3,
-    verified: false,
-    tags: ['integration', 'github', 'development'],
-    category: 'integration',
-    downloadUrl: '/extensions/haex-github-1.0.5.haextension',
-    isInstalled: false,
-  },
-])
-
-// Mark marketplace extensions as installed if they exist in availableExtensions
-const allExtensions = computed((): IMarketplaceExtension[] => {
-  return marketplaceExtensions.value.map((ext) => {
-    // Extensions are uniquely identified by public_key + name
+// Transform API extensions to view models with installation status
+const extensionViewModels = computed((): MarketplaceExtensionViewModel[] => {
+  return marketplace.extensions.value.map((ext) => {
+    // Find if this extension is installed locally by matching name
     const installedExt = extensionStore.availableExtensions.find(
-      (installed) => {
-        return (
-          installed.publicKey === ext.publicKey && installed.name === ext.name
-        )
-      },
+      (installed) => installed.name === ext.name,
     )
-
-    if (installedExt) {
-      return {
-        ...ext,
-        isInstalled: true,
-        // Show installed version if it differs from marketplace version
-        installedVersion:
-          installedExt.version !== ext.version
-            ? installedExt.version
-            : undefined,
-      }
-    }
 
     return {
       ...ext,
-      isInstalled: false,
-      installedVersion: undefined,
+      isInstalled: !!installedExt,
+      installedVersion: installedExt?.version,
+      latestVersion: undefined, // Could be set from extension detail API
     }
   })
 })
 
-// Filtered Extensions
-const filteredExtensions = computed(() => {
-  return allExtensions.value.filter((ext) => {
-    const matchesSearch =
-      !searchQuery.value ||
-      ext.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      ext.description?.toLowerCase().includes(searchQuery.value.toLowerCase())
+// Load extensions from API
+const loadExtensionsAsync = async () => {
+  try {
+    await marketplace.fetchExtensions({
+      page: currentPage.value,
+      limit: 20,
+      category: selectedCategory.value || undefined,
+      search: debouncedSearch.value || undefined,
+      sort: 'downloads',
+    })
+  } catch (error) {
+    console.error('Failed to load marketplace extensions:', error)
+    add({ color: 'error', description: t('error.loadExtensions') })
+  }
+}
 
-    const matchesCategory =
-      selectedCategory.value === 'all' ||
-      ext.category === selectedCategory.value
+// Load categories from API
+const loadCategoriesAsync = async () => {
+  try {
+    await marketplace.fetchCategories()
+  } catch (error) {
+    console.error('Failed to load categories:', error)
+  }
+}
 
-    return matchesSearch && matchesCategory
-  })
+// Watch for filter changes
+watch([debouncedSearch, selectedCategory, currentPage], () => {
+  loadExtensionsAsync()
 })
 
+// Reset page when filters change
+watch([debouncedSearch, selectedCategory], () => {
+  currentPage.value = 1
+})
+
+// Current extension being installed from marketplace
+const currentMarketplaceExtension = ref<MarketplaceExtensionViewModel | null>(null)
+const isDownloading = ref(false)
+
+// Reinstall mode: 'update' preserves data, 'reinstall' deletes everything
+const reinstallMode = ref<'update' | 'reinstall'>('reinstall')
+
 // Install from marketplace
-const onInstallFromMarketplace = async (ext: unknown) => {
-  console.log('Install from marketplace:', ext)
-  // TODO: Download extension from marketplace and install
-  add({ color: 'info', description: t('extension.marketplace.comingSoon') })
+const onInstallFromMarketplace = async (ext: MarketplaceExtensionViewModel) => {
+  currentMarketplaceExtension.value = ext
+  installSource.value = 'marketplace'
+  isDownloading.value = true
+
+  try {
+    // Get download URL from marketplace API
+    const downloadInfo = await marketplace.getDownloadUrl(ext.slug)
+
+    // Download and preview
+    await extensionStore.downloadAndPreviewAsync(
+      downloadInfo.downloadUrl,
+      downloadInfo.bundleHash,
+    )
+
+    // Check if already installed
+    const isAlreadyInstalled = extensionStore.availableExtensions.some(
+      (installed) =>
+        installed.publicKey === extensionStore.preview?.manifest.publicKey &&
+        installed.name === extensionStore.preview?.manifest.name,
+    )
+
+    if (isAlreadyInstalled) {
+      reinstallMode.value = 'reinstall'
+      openOverwriteDialog.value = true
+    } else {
+      showConfirmation.value = true
+    }
+  } catch (error) {
+    console.error('Failed to download extension:', error)
+    add({ color: 'error', description: t('error.downloadExtension') })
+    extensionStore.clearPendingInstall()
+  } finally {
+    isDownloading.value = false
+  }
+}
+
+// Update extension from marketplace (preserves data)
+const onUpdateExtension = async (ext: MarketplaceExtensionViewModel) => {
+  currentMarketplaceExtension.value = ext
+  installSource.value = 'marketplace'
+  isDownloading.value = true
+
+  try {
+    // Get download URL from marketplace API
+    const downloadInfo = await marketplace.getDownloadUrl(ext.slug)
+
+    // Download and preview
+    await extensionStore.downloadAndPreviewAsync(
+      downloadInfo.downloadUrl,
+      downloadInfo.bundleHash,
+    )
+
+    // Set mode to update (preserves data)
+    reinstallMode.value = 'update'
+    openOverwriteDialog.value = true
+  } catch (error) {
+    console.error('Failed to download extension:', error)
+    add({ color: 'error', description: t('error.downloadExtension') })
+    extensionStore.clearPendingInstall()
+  } finally {
+    isDownloading.value = false
+  }
 }
 
 // Show extension details
-const onShowExtensionDetails = (ext: unknown) => {
-  console.log('Show details:', ext)
-  // TODO: Show extension details modal
+const showDetailsDialog = ref(false)
+const selectedExtensionForDetails = ref<MarketplaceExtensionViewModel | null>(null)
+
+const onShowExtensionDetails = (ext: MarketplaceExtensionViewModel) => {
+  selectedExtensionForDetails.value = ext
+  showDetailsDialog.value = true
+}
+
+const onRemoveExtension = (ext: MarketplaceExtensionViewModel) => {
+  // Find the installed extension by name
+  const installedExt = extensionStore.availableExtensions.find(
+    (installed) => installed.name === ext.name,
+  )
+  if (installedExt) {
+    extensionToBeRemoved.value = installedExt
+    showRemoveDialog.value = true
+  }
 }
 
 const onSelectExtensionAsync = async () => {
+  installSource.value = 'file'
+
   try {
     extension.path = await open({ directory: false, recursive: true })
     if (!extension.path) return
@@ -386,10 +357,10 @@ const onSelectExtensionAsync = async () => {
 
     if (!preview.value?.manifest) return
 
-    // Check if already installed using public_key + name
+    // Check if already installed using publicKey + name
     const isAlreadyInstalled = extensionStore.availableExtensions.some(
       (ext) =>
-        ext.publicKey === preview.value!.manifest.public_key &&
+        ext.publicKey === preview.value!.manifest.publicKey &&
         ext.name === preview.value!.manifest.name,
     )
 
@@ -404,63 +375,87 @@ const onSelectExtensionAsync = async () => {
   }
 }
 
-const addExtensionAsync = async () => {
+// Unified install function that handles both file and marketplace sources
+const confirmInstallAsync = async () => {
   try {
-    console.log(
-      'preview.value?.editable_permissions',
-      preview.value?.editable_permissions,
-    )
-    await extensionStore.installAsync(
-      extension.path,
-      preview.value?.editable_permissions,
-    )
+    if (installSource.value === 'marketplace') {
+      // Install from cached marketplace download
+      await extensionStore.installPendingAsync(
+        extensionStore.preview?.editablePermissions,
+      )
+    } else {
+      // Install from file
+      await extensionStore.installAsync(
+        extension.path,
+        preview.value?.editablePermissions,
+      )
+    }
+
     await extensionStore.loadExtensionsAsync()
+
+    // Refresh marketplace list if we came from marketplace
+    if (installSource.value === 'marketplace') {
+      await loadExtensionsAsync()
+    }
+
+    const extName = installSource.value === 'marketplace'
+      ? currentMarketplaceExtension.value?.name
+      : extension.manifest?.name
 
     add({
       color: 'success',
-      title: t('extension.success.title', {
-        extension: extension.manifest?.name,
-      }),
+      title: t('extension.success.title', { extension: extName }),
       description: t('extension.success.text'),
     })
     await addNotificationAsync({
       text: t('extension.success.text'),
       type: 'success',
-      title: t('extension.success.title', {
-        extension: extension.manifest?.name,
-      }),
+      title: t('extension.success.title', { extension: extName }),
     })
   } catch (error) {
-    console.error('Fehler addExtensionAsync:', error)
+    console.error('Fehler confirmInstallAsync:', error)
     add({ color: 'error', description: JSON.stringify(error) })
     await addNotificationAsync({ text: JSON.stringify(error), type: 'error' })
+  } finally {
+    if (installSource.value === 'marketplace') {
+      currentMarketplaceExtension.value = null
+      extensionStore.clearPendingInstall()
+    }
   }
 }
 
-const reinstallExtensionAsync = async () => {
+// Unified reinstall function that handles both file and marketplace sources
+const confirmReinstallAsync = async () => {
   try {
-    if (!preview.value?.manifest) return
+    const previewToUse = installSource.value === 'marketplace'
+      ? extensionStore.preview
+      : preview.value
+
+    if (!previewToUse?.manifest) return
 
     // Find the installed extension to get its current version
     const installedExt = extensionStore.availableExtensions.find(
       (ext) =>
-        ext.publicKey === preview.value!.manifest.public_key &&
-        ext.name === preview.value!.manifest.name,
+        ext.publicKey === previewToUse.manifest.publicKey &&
+        ext.name === previewToUse.manifest.name,
     )
 
     if (installedExt) {
       // Remove old extension first
+      // deleteData: true for reinstall (delete everything), false for update (preserve data)
+      const deleteData = reinstallMode.value === 'reinstall'
       await extensionStore.removeExtensionAsync(
         installedExt.publicKey,
         installedExt.name,
         installedExt.version,
+        deleteData,
       )
     }
 
     // Then install new version
-    await addExtensionAsync()
+    await confirmInstallAsync()
   } catch (error) {
-    console.error('Fehler reinstallExtensionAsync:', error)
+    console.error('Fehler confirmReinstallAsync:', error)
     add({ color: 'error', description: JSON.stringify(error) })
     await addNotificationAsync({ text: JSON.stringify(error), type: 'error' })
   }
@@ -469,23 +464,21 @@ const reinstallExtensionAsync = async () => {
 const extensionToBeRemoved = ref<IHaexSpaceExtension>()
 const showRemoveDialog = ref(false)
 
-// Load extensions on mount
+// Load data on mount
 onMounted(async () => {
   try {
-    await extensionStore.loadExtensionsAsync()
-    console.log('Loaded extensions:', extensionStore.availableExtensions)
+    await Promise.all([
+      extensionStore.loadExtensionsAsync(),
+      loadCategoriesAsync(),
+      loadExtensionsAsync(),
+    ])
   } catch (error) {
-    console.error('Failed to load extensions:', error)
-    add({ color: 'error', description: 'Failed to load installed extensions' })
+    console.error('Failed to load data:', error)
+    add({ color: 'error', description: t('error.loadExtensions') })
   }
 })
 
-/* const onShowRemoveDialog = (extension: IHaexSpaceExtension) => {
-  extensionToBeRemoved.value = extension
-  showRemoveDialog.value = true
-} */
-
-const removeExtensionAsync = async () => {
+const removeExtensionAsync = async (deleteMode: 'device' | 'complete') => {
   if (
     !extensionToBeRemoved.value?.publicKey ||
     !extensionToBeRemoved.value?.name ||
@@ -503,23 +496,32 @@ const removeExtensionAsync = async () => {
       extensionToBeRemoved.value.publicKey,
       extensionToBeRemoved.value.name,
       extensionToBeRemoved.value.version,
+      deleteMode === 'complete', // deleteData flag
     )
     await extensionStore.loadExtensionsAsync()
+
+    // Refresh marketplace list to update installed status
+    await loadExtensionsAsync()
+
+    const successKey = deleteMode === 'complete'
+      ? 'extension.remove.success.complete'
+      : 'extension.remove.success.device'
+
     add({
       color: 'success',
-      title: t('extension.remove.success.title', {
+      title: t(`${successKey}.title`, {
         extensionName: extensionToBeRemoved.value.name,
       }),
-      description: t('extension.remove.success.text', {
+      description: t(`${successKey}.text`, {
         extensionName: extensionToBeRemoved.value.name,
       }),
     })
     await addNotificationAsync({
-      text: t('extension.remove.success.text', {
+      text: t(`${successKey}.text`, {
         extensionName: extensionToBeRemoved.value.name,
       }),
       type: 'success',
-      title: t('extension.remove.success.title', {
+      title: t(`${successKey}.title`, {
         extensionName: extensionToBeRemoved.value.name,
       }),
     })
@@ -552,22 +554,19 @@ de:
       text: Die Erweiterung wurde erfolgreich hinzugefügt
     remove:
       success:
-        text: 'Erweiterung {extensionName} wurde erfolgreich entfernt'
-        title: '{extensionName} entfernt'
+        device:
+          title: '{extensionName} deinstalliert'
+          text: '{extensionName} wurde von diesem Gerät entfernt. Die Daten bleiben erhalten.'
+        complete:
+          title: '{extensionName} gelöscht'
+          text: '{extensionName} und alle zugehörigen Daten wurden dauerhaft gelöscht.'
       error:
         text: "Erweiterung {extensionName} konnte nicht entfernt werden. \n {error}"
         title: 'Fehler beim Entfernen von {extensionName}'
     marketplace:
       comingSoon: Marketplace-Installation kommt bald!
-  marketplace:
-    official: Offizieller Marketplace
-    community: Community Marketplace
   category:
-    all: Alle
-    productivity: Produktivität
-    security: Sicherheit
-    utilities: Werkzeuge
-    integration: Integration
+    all: Alle Kategorien
   search:
     placeholder: Erweiterungen durchsuchen...
   filter:
@@ -575,6 +574,9 @@ de:
   empty:
     title: Keine Erweiterungen gefunden
     description: Versuche einen anderen Suchbegriff oder eine andere Kategorie
+  error:
+    loadExtensions: Erweiterungen konnten nicht geladen werden
+    downloadExtension: Erweiterung konnte nicht heruntergeladen werden
 
 en:
   title: Extensions
@@ -587,22 +589,19 @@ en:
       text: Extension was added successfully
     remove:
       success:
-        text: 'Extension {extensionName} was removed'
-        title: '{extensionName} removed'
+        device:
+          title: '{extensionName} uninstalled'
+          text: '{extensionName} was removed from this device. Data has been preserved.'
+        complete:
+          title: '{extensionName} deleted'
+          text: '{extensionName} and all associated data have been permanently deleted.'
       error:
         text: "Extension {extensionName} couldn't be removed. \n {error}"
         title: 'Exception during uninstall {extensionName}'
     marketplace:
       comingSoon: Marketplace installation coming soon!
-  marketplace:
-    official: Official Marketplace
-    community: Community Marketplace
   category:
-    all: All
-    productivity: Productivity
-    security: Security
-    utilities: Utilities
-    integration: Integration
+    all: All Categories
   search:
     placeholder: Search extensions...
   filter:
@@ -610,4 +609,7 @@ en:
   empty:
     title: No extensions found
     description: Try a different search term or category
+  error:
+    loadExtensions: Failed to load extensions
+    downloadExtension: Failed to download extension
 </i18n>

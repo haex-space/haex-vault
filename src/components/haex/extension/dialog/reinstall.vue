@@ -5,18 +5,33 @@
     @confirm="onConfirm"
   >
     <template #title>
-      {{ t('title', { extensionName: preview?.manifest.name }) }}
+      {{ mode === 'update' ? t('update.title', { extensionName: preview?.manifest.name }) : t('reinstall.title', { extensionName: preview?.manifest.name }) }}
     </template>
 
     <template #body>
       <div class="flex flex-col gap-4">
-        <p>{{ t('question', { extensionName: preview?.manifest.name }) }}</p>
+        <p>
+          {{
+            mode === 'update'
+              ? t('update.question', { extensionName: preview?.manifest.name })
+              : t('reinstall.question', { extensionName: preview?.manifest.name })
+          }}
+        </p>
 
         <UAlert
-          color="warning"
+          v-if="mode === 'update'"
+          color="info"
           variant="soft"
-          :title="t('warning.title')"
-          :description="t('warning.description')"
+          :title="t('update.info.title')"
+          :description="t('update.info.description')"
+          icon="i-heroicons-information-circle"
+        />
+        <UAlert
+          v-else
+          color="error"
+          variant="soft"
+          :title="t('reinstall.warning.title')"
+          :description="t('reinstall.warning.description')"
           icon="i-heroicons-exclamation-triangle"
         />
 
@@ -48,11 +63,19 @@
 <script setup lang="ts">
 import type { ExtensionPreview } from '~~/src-tauri/bindings/ExtensionPreview'
 
+export type ReinstallMode = 'update' | 'reinstall'
+
 const { t } = useI18n()
 
 const open = defineModel<boolean>('open', { default: false })
 const preview = defineModel<ExtensionPreview | null>('preview', {
   default: null,
+})
+
+withDefaults(defineProps<{
+  mode?: ReinstallMode
+}>(), {
+  mode: 'reinstall',
 })
 
 const emit = defineEmits(['deny', 'confirm'])
@@ -70,18 +93,32 @@ const onConfirm = () => {
 
 <i18n lang="yaml">
 de:
-  title: '{extensionName} bereits installiert'
-  question: Soll die Erweiterung {extensionName} erneut installiert werden?
-  warning:
-    title: Achtung
-    description: Die vorhandene Version wird vollständig entfernt und durch die neue Version ersetzt. Dieser Vorgang kann nicht rückgängig gemacht werden.
+  update:
+    title: '{extensionName} aktualisieren'
+    question: Möchtest du {extensionName} auf die neueste Version aktualisieren?
+    info:
+      title: Hinweis
+      description: Deine Daten bleiben erhalten. Nur die Erweiterungsdateien werden aktualisiert.
+  reinstall:
+    title: '{extensionName} neu installieren'
+    question: Soll die Erweiterung {extensionName} komplett neu installiert werden?
+    warning:
+      title: Achtung
+      description: Alle Daten der Erweiterung werden gelöscht und die Erweiterung wird neu installiert. Diese Aktion kann nicht rückgängig gemacht werden.
   version: Version
 
 en:
-  title: '{extensionName} is already installed'
-  question: Do you want to reinstall {extensionName}?
-  warning:
-    title: Warning
-    description: The existing version will be completely removed and replaced with the new version. This action cannot be undone.
+  update:
+    title: 'Update {extensionName}'
+    question: Do you want to update {extensionName} to the latest version?
+    info:
+      title: Note
+      description: Your data will be preserved. Only the extension files will be updated.
+  reinstall:
+    title: 'Reinstall {extensionName}'
+    question: Do you want to completely reinstall {extensionName}?
+    warning:
+      title: Warning
+      description: All extension data will be deleted and the extension will be reinstalled. This action cannot be undone.
   version: Version
 </i18n>

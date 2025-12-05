@@ -129,6 +129,9 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
     return true
   } */
 
+  // Cached bytes from marketplace download for install after preview
+  const pendingInstallBytes = ref<Uint8Array | null>(null)
+
   const installAsync = async (
     sourcePath: string | null,
     permissions?: ExtensionPermissions,
@@ -153,16 +156,93 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
     }
   }
 
+  /**
+   * Download extension from URL and show preview
+   * Caches bytes for subsequent install
+   */
+  const downloadAndPreviewAsync = async (downloadUrl: string, expectedHash?: string) => {
+    try {
+      const response = await fetch(downloadUrl)
+
+      if (!response.ok) {
+        throw new Error(`Download fehlgeschlagen: ${response.status} ${response.statusText}`)
+      }
+
+      const arrayBuffer = await response.arrayBuffer()
+      const fileBytes = new Uint8Array(arrayBuffer)
+
+      // TODO: Verify hash if provided
+      if (expectedHash) {
+        console.log('Expected hash:', expectedHash)
+      }
+
+      // Cache bytes for install
+      pendingInstallBytes.value = fileBytes
+
+      // Get preview
+      preview.value = await invoke<ExtensionPreview>('preview_extension', {
+        fileBytes: Array.from(fileBytes),
+      })
+
+      return preview.value
+    } catch (error) {
+      console.error('Fehler beim Download der Extension:', error)
+      pendingInstallBytes.value = null
+      throw error
+    }
+  }
+
+  /**
+   * Install the previously downloaded extension
+   */
+  const installPendingAsync = async (permissions?: ExtensionPermissions) => {
+    if (!pendingInstallBytes.value) {
+      throw new Error('Keine Extension zum Installieren vorhanden')
+    }
+
+    try {
+      const extensionId = await invoke<string>(
+        'install_extension_with_permissions',
+        {
+          fileBytes: Array.from(pendingInstallBytes.value),
+          customPermissions: permissions,
+        },
+      )
+
+      // Clear cache after successful install
+      pendingInstallBytes.value = null
+
+      return extensionId
+    } catch (error) {
+      console.error('Fehler bei Extension-Installation:', error)
+      throw error
+    }
+  }
+
+  const clearPendingInstall = () => {
+    pendingInstallBytes.value = null
+    preview.value = undefined
+  }
+
+  /**
+   * Remove an extension
+   * @param publicKey - Extension's public key
+   * @param name - Extension name
+   * @param version - Extension version
+   * @param deleteData - If true, also deletes all extension data (tables). If false (default), only removes the extension from this device.
+   */
   const removeExtensionAsync = async (
     publicKey: string,
     name: string,
     version: string,
+    deleteData: boolean = false,
   ) => {
     try {
       await invoke('remove_extension', {
         publicKey,
         name,
         version,
+        deleteData,
       })
     } catch (error) {
       console.error('Fehler beim Entfernen der Extension:', error)
@@ -288,13 +368,17 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
   return {
     availableExtensions,
     checkManifest,
+    clearPendingInstall,
     currentExtension,
     currentExtensionId,
+    downloadAndPreviewAsync,
     extensionEntry,
     installAsync,
+    installPendingAsync,
     //isActive,
     isExtensionInstalledAsync,
     loadExtensionsAsync,
+    preview,
     previewManifestAsync,
     removeExtensionAsync,
     updateDisplayModeAsync,

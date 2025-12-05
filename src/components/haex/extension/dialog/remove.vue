@@ -19,14 +19,6 @@
           </template>
         </i18n-t>
 
-        <UAlert
-          color="error"
-          variant="soft"
-          :title="t('warning.title')"
-          :description="t('warning.description')"
-          icon="i-heroicons-exclamation-triangle"
-        />
-
         <div
           v-if="extension"
           class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4"
@@ -58,6 +50,32 @@
             </div>
           </div>
         </div>
+
+        <!-- Delete Mode Selection -->
+        <URadioGroup
+          v-model="deleteMode"
+          :items="deleteModeItems"
+        />
+
+        <!-- Warning for complete deletion -->
+        <UAlert
+          v-if="deleteMode === 'complete'"
+          color="error"
+          variant="soft"
+          :title="t('warning.title')"
+          :description="t('warning.description')"
+          icon="i-heroicons-exclamation-triangle"
+        />
+
+        <!-- Info for device-only removal -->
+        <UAlert
+          v-else
+          color="info"
+          variant="soft"
+          :title="t('info.title')"
+          :description="t('info.description')"
+          icon="i-heroicons-information-circle"
+        />
       </div>
     </template>
   </UiDialogConfirm>
@@ -66,13 +84,39 @@
 <script setup lang="ts">
 import type { IHaexSpaceExtension } from '~/types/haexspace'
 
-const emit = defineEmits(['confirm', 'abort'])
+export type DeleteMode = 'device' | 'complete'
+
+const emit = defineEmits<{
+  confirm: [deleteMode: DeleteMode]
+  abort: []
+}>()
 
 const { t } = useI18n()
 
 defineProps<{ extension?: IHaexSpaceExtension }>()
 
 const open = defineModel<boolean>('open')
+const deleteMode = ref<DeleteMode>('device')
+
+const deleteModeItems = computed(() => [
+  {
+    value: 'device',
+    label: t('mode.device.label'),
+    description: t('mode.device.description'),
+  },
+  {
+    value: 'complete',
+    label: t('mode.complete.label'),
+    description: t('mode.complete.description'),
+  },
+])
+
+// Reset to default when dialog opens
+watch(open, (isOpen) => {
+  if (isOpen) {
+    deleteMode.value = 'device'
+  }
+})
 
 const onAbort = () => {
   open.value = false
@@ -81,7 +125,7 @@ const onAbort = () => {
 
 const onConfirm = () => {
   open.value = false
-  emit('confirm')
+  emit('confirm', deleteMode.value)
 }
 </script>
 
@@ -89,18 +133,38 @@ const onConfirm = () => {
 de:
   title: Erweiterung entfernen
   question: Möchtest du {name} wirklich entfernen?
+  mode:
+    device:
+      label: Nur von diesem Gerät entfernen
+      description: Die Erweiterung wird deinstalliert, aber alle Daten bleiben erhalten und werden weiter synchronisiert.
+    complete:
+      label: Komplett löschen
+      description: Die Erweiterung und alle zugehörigen Daten werden dauerhaft gelöscht.
   warning:
     title: Achtung
     description: Diese Aktion kann nicht rückgängig gemacht werden. Alle Daten der Erweiterung werden dauerhaft gelöscht.
+  info:
+    title: Hinweis
+    description: Die Daten der Erweiterung bleiben erhalten und werden weiter synchronisiert. Du kannst die Erweiterung jederzeit wieder installieren.
   version: Version
   author: Autor
 
 en:
   title: Remove Extension
   question: Do you really want to remove {name}?
+  mode:
+    device:
+      label: Remove from this device only
+      description: The extension will be uninstalled, but all data will be preserved and continue to sync.
+    complete:
+      label: Delete completely
+      description: The extension and all associated data will be permanently deleted.
   warning:
     title: Warning
     description: This action cannot be undone. All extension data will be permanently deleted.
+  info:
+    title: Note
+    description: The extension data will be preserved and continue to sync. You can reinstall the extension at any time.
   version: Version
   author: Author
 </i18n>

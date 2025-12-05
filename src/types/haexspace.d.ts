@@ -2,17 +2,44 @@
 export type { ExtensionManifest as IHaexSpaceExtensionManifest } from '~~/src-tauri/bindings/ExtensionManifest'
 export type { ExtensionInfoResponse as IHaexSpaceExtension } from '~~/src-tauri/bindings/ExtensionInfoResponse'
 
+// Re-export marketplace SDK types
+export type {
+  ExtensionListItem,
+  ExtensionDetail,
+  ExtensionVersion,
+  CategoryWithCount,
+  DownloadResponse,
+} from '@haex-space/marketplace-sdk'
+
 /**
- * Marketplace extension with additional metadata
- * Extends IHaexSpaceExtension with marketplace-specific fields
+ * Marketplace extension view model
+ * Extends SDK ExtensionListItem with local installation status
  */
-export interface IMarketplaceExtension extends Omit<IHaexSpaceExtension, 'enabled'> {
-  downloads: number
-  rating: number
+export interface MarketplaceExtensionViewModel {
+  // From API
+  id: string
+  extensionId: string
+  name: string
+  slug: string
+  shortDescription: string
+  iconUrl: string | null
   verified: boolean
-  tags: string[]
-  category: string
-  downloadUrl: string
+  totalDownloads: number
+  averageRating: number | null
+  reviewCount: number
+  tags: string[] | null
+  publishedAt: string | null
+  publisher: {
+    displayName: string
+    slug: string
+    verified: boolean
+  } | null
+  category: {
+    name: string
+    slug: string
+  } | null
+  // Local state
   isInstalled: boolean
-  installedVersion?: string // The version that is currently installed (if different from marketplace version)
+  installedVersion?: string
+  latestVersion?: string
 }

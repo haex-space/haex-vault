@@ -44,21 +44,21 @@
 
               <!-- Signature Verification -->
               <UBadge
-                :color="preview?.is_valid_signature ? 'success' : 'error'"
+                :color="preview?.isValidSignature ? 'success' : 'error'"
                 variant="subtle"
                 class="mt-2"
               >
                 <template #leading>
                   <UIcon
                     :name="
-                      preview?.is_valid_signature
+                      preview?.isValidSignature
                         ? 'i-heroicons-shield-check'
                         : 'i-heroicons-shield-exclamation'
                     "
                   />
                 </template>
                 {{
-                  preview?.is_valid_signature
+                  preview?.isValidSignature
                     ? t('signature.valid')
                     : t('signature.invalid')
                 }}
@@ -149,37 +149,37 @@ const preview = defineModel<ExtensionPreview | null>('preview', {
 const addToDesktop = ref(true)
 
 const databasePermissions = computed({
-  get: () => preview.value?.editable_permissions?.database || [],
+  get: () => preview.value?.editablePermissions?.database || [],
   set: (value) => {
-    if (preview.value?.editable_permissions) {
-      preview.value.editable_permissions.database = value
+    if (preview.value?.editablePermissions) {
+      preview.value.editablePermissions.database = value
     }
   },
 })
 
 const filesystemPermissions = computed({
-  get: () => preview.value?.editable_permissions?.filesystem || [],
+  get: () => preview.value?.editablePermissions?.filesystem || [],
   set: (value) => {
-    if (preview.value?.editable_permissions) {
-      preview.value.editable_permissions.filesystem = value
+    if (preview.value?.editablePermissions) {
+      preview.value.editablePermissions.filesystem = value
     }
   },
 })
 
 const httpPermissions = computed({
-  get: () => preview.value?.editable_permissions?.http || [],
+  get: () => preview.value?.editablePermissions?.http || [],
   set: (value) => {
-    if (preview.value?.editable_permissions) {
-      preview.value.editable_permissions.http = value
+    if (preview.value?.editablePermissions) {
+      preview.value.editablePermissions.http = value
     }
   },
 })
 
 const shellPermissions = computed({
-  get: () => preview.value?.editable_permissions?.shell || [],
+  get: () => preview.value?.editablePermissions?.shell || [],
   set: (value) => {
-    if (preview.value?.editable_permissions) {
-      preview.value.editable_permissions.shell = value
+    if (preview.value?.editablePermissions) {
+      preview.value.editablePermissions.shell = value
     }
   },
 })

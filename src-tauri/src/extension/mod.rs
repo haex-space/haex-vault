@@ -129,11 +129,19 @@ pub async fn remove_extension(
     public_key: String,
     name: String,
     version: String,
+    delete_data: Option<bool>,
     state: State<'_, AppState>,
 ) -> Result<(), ExtensionError> {
     state
         .extension_manager
-        .remove_extension_internal(&app_handle, &public_key, &name, &version, &state)
+        .remove_extension_internal(
+            &app_handle,
+            &public_key,
+            &name,
+            &version,
+            delete_data.unwrap_or(false),
+            &state,
+        )
         .await
 }
 
