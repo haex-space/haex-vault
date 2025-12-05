@@ -151,6 +151,14 @@ jobs:
           rustup target add i686-linux-android
           rustup target add x86_64-linux-android
 
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          df -h
+
       - name: Setup NDK
         uses: nttld/setup-ndk@v1
         with:
@@ -196,25 +204,18 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-android-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-pnpm-store-
+            ${{ runner.os }}-android-pnpm-store-
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          prefix-key: android
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-          df -h
 
       - name: Initialize Android project
         run: |
