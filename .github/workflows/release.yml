@@ -208,13 +208,21 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          df -h
+
       - name: Initialize Android project
         run: |
           rm -rf src-tauri/gen/android
           pnpm tauri android init
 
       - name: Generate app icons
-        run: npx tauri icon src-tauri/icons/icon.png
+        run: pnpm tauri icon app-icon.json
 
       - name: Setup Keystore and Signing Config
         run: |
