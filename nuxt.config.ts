@@ -63,7 +63,20 @@ export default defineNuxtConfig({
     provider: 'server',
     mode: 'svg',
     clientBundle: {
-      icons: ['solar:global-outline', 'gg:extension', 'hugeicons:corporate'],
+      icons: [
+        // Explicitly bundled icons (used dynamically, not detected by scan)
+        'solar:global-outline',
+        'gg:extension',
+        'hugeicons:corporate',
+        // System window icons (from windowManager.ts)
+        'hugeicons:developer',
+        'mdi:cog',
+        'mdi:store',
+        'heroicons:bug-ant',
+        // Theme icons (from stores/ui/index.ts)
+        'line-md:moon-rising-alt-loop',
+        'line-md:moon-to-sunny-outline-loop-transition',
+      ],
       scan: true,
       includeCustomCollections: true,
     },
