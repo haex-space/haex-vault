@@ -124,6 +124,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          df -h
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -150,14 +158,6 @@ jobs:
           rustup target add armv7-linux-androideabi
           rustup target add i686-linux-android
           rustup target add x86_64-linux-android
-
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-          df -h
 
       - name: Setup NDK
         uses: nttld/setup-ndk@v1
