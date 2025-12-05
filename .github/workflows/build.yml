@@ -201,6 +201,9 @@ jobs:
           rm -rf src-tauri/gen/android
           pnpm tauri android init
 
+      - name: Generate app icons
+        run: npx tauri icon src-tauri/icons/icon.png
+
       - name: Setup Keystore (if secrets available)
         env:
           ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}

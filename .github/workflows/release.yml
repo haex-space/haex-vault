@@ -213,6 +213,9 @@ jobs:
           rm -rf src-tauri/gen/android
           pnpm tauri android init
 
+      - name: Generate app icons
+        run: npx tauri icon src-tauri/icons/icon.png
+
       - name: Setup Keystore and Signing Config
         run: |
           # Decode keystore from base64 secret
