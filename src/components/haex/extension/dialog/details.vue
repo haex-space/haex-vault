@@ -85,13 +85,6 @@
         <!-- Stats -->
         <div class="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
           <div
-            v-if="detail.totalDownloads"
-            class="flex items-center gap-1"
-          >
-            <UIcon name="i-heroicons-arrow-down-tray" />
-            <span>{{ formatNumber(detail.totalDownloads) }} {{ t('downloads') }}</span>
-          </div>
-          <div
             v-if="detail.averageRating"
             class="flex items-center gap-1"
           >
