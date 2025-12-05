@@ -1,8 +1,6 @@
 // src-tauri/src/extension/utils.rs
 // Utility functions for extension management
 
-use crate::extension::core::manifest::ExtensionManifest;
-use crate::extension::core::types::Extension;
 use crate::extension::error::ExtensionError;
 
 /// Generates the table prefix for an extension
@@ -18,16 +16,6 @@ use crate::extension::error::ExtensionError;
 /// ```
 pub fn get_extension_table_prefix(public_key: &str, extension_name: &str) -> String {
     format!("{}__{}__", public_key, extension_name)
-}
-
-/// Generates the table prefix from an Extension instance
-pub fn get_extension_table_prefix_from_extension(extension: &Extension) -> String {
-    get_extension_table_prefix(&extension.manifest.public_key, &extension.manifest.name)
-}
-
-/// Generates the table prefix from an ExtensionManifest
-pub fn get_extension_table_prefix_from_manifest(manifest: &ExtensionManifest) -> String {
-    get_extension_table_prefix(&manifest.public_key, &manifest.name)
 }
 
 /// Checks if a table name belongs to a specific extension

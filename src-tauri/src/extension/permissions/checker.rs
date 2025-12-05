@@ -67,49 +67,6 @@ impl PermissionChecker {
             .any(|perm| matches_target(&perm.target, table_name))
     }
 
-    /// Checks if the extension can create tables (has CREATE permission)
-    pub fn can_create_tables(&self) -> bool {
-        self.permissions
-            .iter()
-            .filter(|perm| perm.status == PermissionStatus::Granted)
-            .filter(|perm| perm.resource_type == ResourceType::Db)
-            .any(|perm| matches!(perm.action, Action::Database(DbAction::Create)))
-    }
-
-    /// Validates if a table name is allowed for this extension
-    ///
-    /// Returns true if:
-    /// - Table name starts with extension's prefix (own table)
-    /// - Table is not a system table AND extension has matching permission
-    pub fn validate_table_name(&self, table_name: &str) -> bool {
-        let clean_table_name = table_name.trim_matches('"').trim_matches('`');
-
-        // Own tables are always allowed
-        if utils::is_extension_table(
-            clean_table_name,
-            &self.extension.manifest.public_key,
-            &self.extension.manifest.name,
-        ) {
-            return true;
-        }
-
-        // System tables are never allowed
-        if is_system_table(clean_table_name) {
-            return false;
-        }
-
-        // Check if any permission pattern matches this table
-        self.has_matching_permission_target(clean_table_name)
-    }
-
-    /// Checks if any permission target matches the table name
-    fn has_matching_permission_target(&self, table_name: &str) -> bool {
-        self.permissions
-            .iter()
-            .filter(|perm| perm.status == PermissionStatus::Granted)
-            .filter(|perm| perm.resource_type == ResourceType::Db)
-            .any(|perm| matches_target(&perm.target, table_name))
-    }
 }
 
 /// Checks if an action matches the required DbAction

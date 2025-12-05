@@ -16,7 +16,6 @@ use thiserror::Error;
 use uhlc::{HLCBuilder, Timestamp, HLC, ID};
 use uuid::Uuid;
 
-const HLC_NODE_ID_TYPE: &str = "hlc_node_id";
 const HLC_TIMESTAMP_TYPE: &str = "hlc_timestamp";
 
 #[derive(Error, Debug)]

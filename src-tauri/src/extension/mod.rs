@@ -19,7 +19,6 @@ pub mod core;
 pub mod crypto;
 pub mod database;
 pub mod error;
-pub mod filesystem;
 pub mod permissions;
 pub mod utils;
 pub mod web;
@@ -165,16 +164,6 @@ pub fn is_extension_installed(
 #[derive(serde::Deserialize, Debug)]
 struct HaextensionConfig {
     dev: DevConfig,
-    #[serde(default)]
-    keys: KeysConfig,
-}
-
-#[derive(serde::Deserialize, Debug, Default)]
-struct KeysConfig {
-    #[serde(default)]
-    public_key_path: Option<String>,
-    #[serde(default)]
-    private_key_path: Option<String>,
 }
 
 #[derive(serde::Deserialize, Debug)]

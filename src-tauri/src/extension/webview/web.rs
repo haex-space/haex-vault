@@ -3,7 +3,6 @@ use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{Action, DbAction, FsAction};
 use crate::AppState;
-use base64::Engine;
 use serde::{Deserialize, Serialize};
 use tauri::{State, WebviewWindow};
 use tauri_plugin_http::reqwest;

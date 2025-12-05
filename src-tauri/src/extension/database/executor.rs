@@ -167,26 +167,6 @@ impl SqlExecutor {
         Self::query_internal_typed(tx, hlc_service, sql, &param_refs)
     }
 
-    /// Führt mehrere SQL Statements als Batch aus
-    pub fn execute_batch_internal(
-        tx: &Transaction,
-        hlc_service: &HlcService,
-        sqls: &[String],
-        params: &[Vec<JsonValue>],
-    ) -> Result<HashSet<String>, DatabaseError> {
-        // Use planner for validation
-        SqlExecutionPlanner::validate_batch(sqls, params)?;
-
-        let mut all_modified_tables = HashSet::new();
-
-        for (sql, param_set) in sqls.iter().zip(params.iter()) {
-            let modified_tables = Self::execute_internal(tx, hlc_service, sql, param_set)?;
-            all_modified_tables.extend(modified_tables);
-        }
-
-        Ok(all_modified_tables)
-    }
-
     /// Query für SELECT-Statements (read-only, kein CRDT nötig außer Filter)
     pub fn query_select(
         conn: &rusqlite::Connection,
