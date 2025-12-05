@@ -8,10 +8,20 @@ use crate::table_names::TABLE_CRDT_MIGRATIONS;
 use crate::AppState;
 use rusqlite::{params, Connection};
 use serde::Serialize;
-use std::fs;
-use tauri::{Manager, State};
+use tauri::{path::BaseDirectory, Manager, State};
+use tauri_plugin_fs::FsExt;
 
 const STATEMENT_BREAKPOINT: &str = "--> statement-breakpoint";
+
+/// List of all migration file names (without .sql extension)
+/// When adding new migrations, append them to this list
+const MIGRATION_FILES: &[&str] = &[
+    "0000_harsh_madripoor",
+    "0001_hard_turbo",
+    "0002_wandering_lily_hollister",
+    "0003_loud_ulik",
+    "0004_nappy_mother_askani",
+];
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -273,74 +283,51 @@ fn migrations_table_exists(conn: &Connection) -> Result<bool, DatabaseError> {
 
 /// Loads all migration files from the bundled resources directory
 ///
-/// Expected structure: resources/migrations/0000_migration_name.sql
+/// Uses FsExt to read files, which works on all platforms including Android
+/// where resources are stored in the APK as assets.
 fn load_bundled_migrations(
     app_handle: &tauri::AppHandle,
 ) -> Result<Vec<(String, String)>, DatabaseError> {
-    // Get the bundled migrations directory path
-    // Migrations are bundled via tauri.conf.json resources: ["database/migrations/*.sql"]
-    let migrations_dir = app_handle
-        .path()
-        .resource_dir()
-        .map_err(|e| DatabaseError::MigrationError {
-            reason: format!("Failed to resolve resource directory: {}", e),
-        })?
-        .join("database")
-        .join("migrations");
-
     println!(
-        "[MIGRATIONS] load_bundled_migrations: looking in {:?}",
-        migrations_dir
+        "[MIGRATIONS] load_bundled_migrations: loading {} migrations via FsExt",
+        MIGRATION_FILES.len()
     );
 
-    if !migrations_dir.exists() {
-        println!(
-            "[MIGRATIONS] load_bundled_migrations: ERROR - directory does not exist!"
-        );
-        return Err(DatabaseError::MigrationError {
-            reason: format!("Migrations directory not found: {:?}", migrations_dir),
-        });
-    }
-
-    // Read all .sql files
+    let fs = app_handle.fs();
     let mut migrations = Vec::new();
-    let entries = fs::read_dir(&migrations_dir).map_err(|e| DatabaseError::MigrationError {
-        reason: format!("Failed to read migrations directory: {}", e),
-    })?;
 
-    for entry in entries {
-        let entry = entry.map_err(|e| DatabaseError::MigrationError {
-            reason: format!("Failed to read directory entry: {}", e),
-        })?;
+    for migration_name in MIGRATION_FILES {
+        let relative_path = format!("database/migrations/{}.sql", migration_name);
 
-        let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) == Some("sql") {
-            let file_name = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .ok_or_else(|| DatabaseError::MigrationError {
-                    reason: format!("Invalid migration file name: {:?}", path),
-                })?
-                .to_string();
-
-            println!(
-                "[MIGRATIONS] load_bundled_migrations: found migration file '{}'",
-                file_name
-            );
-
-            let content = fs::read_to_string(&path).map_err(|e| DatabaseError::MigrationError {
-                reason: format!("Failed to read migration file {:?}: {}", path, e),
+        let resource_path = app_handle
+            .path()
+            .resolve(&relative_path, BaseDirectory::Resource)
+            .map_err(|e| DatabaseError::MigrationError {
+                reason: format!(
+                    "Failed to resolve migration path '{}': {}",
+                    relative_path, e
+                ),
             })?;
 
-            migrations.push((file_name, content));
-        }
+        println!(
+            "[MIGRATIONS] load_bundled_migrations: reading '{}' from {:?}",
+            migration_name, resource_path
+        );
+
+        let content = fs
+            .read_to_string(&resource_path)
+            .map_err(|e| DatabaseError::MigrationError {
+                reason: format!(
+                    "Failed to read migration file '{}': {}",
+                    migration_name, e
+                ),
+            })?;
+
+        migrations.push((migration_name.to_string(), content));
     }
 
-    // Sort migrations by name (assumes format: 0000_name.sql)
-    migrations.sort_by(|a, b| a.0.cmp(&b.0));
-
     println!(
-        "[MIGRATIONS] 📂 Found {} migration files: {:?}",
+        "[MIGRATIONS] 📂 Loaded {} migration files: {:?}",
         migrations.len(),
         migrations.iter().map(|(n, _)| n).collect::<Vec<_>>()
     );
