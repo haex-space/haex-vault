@@ -72,18 +72,6 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
 
   // System Windows Registry
   const systemWindows: Record<string, SystemWindowDefinition> = {
-    developer: {
-      id: 'developer',
-      name: 'Developer',
-      icon: 'i-hugeicons-developer',
-      component: defineAsyncComponent(
-        () => import('@/components/haex/system/developer.vue'),
-      ) as Component,
-      defaultWidth: 800,
-      defaultHeight: 600,
-      resizable: true,
-      singleton: true,
-    },
     settings: {
       id: 'settings',
       name: 'Settings',

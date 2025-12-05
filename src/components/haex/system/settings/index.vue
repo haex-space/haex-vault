@@ -115,7 +115,7 @@ const categories = computed(() => [
   {
     value: 'developer',
     label: t('categories.developer'),
-    icon: 'i-heroicons-code-bracket',
+    icon: 'i-hugeicons-developer',
     active: activeCategory.value === 'developer',
     click: () => {
       activeCategory.value = 'developer'
