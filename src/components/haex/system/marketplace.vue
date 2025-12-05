@@ -144,7 +144,9 @@ import type {
 } from '~/types/haexspace'
 import { useMarketplace } from '@haex-space/marketplace-sdk/vue'
 import { open } from '@tauri-apps/plugin-dialog'
+import { invoke } from '@tauri-apps/api/core'
 import type { ExtensionPreview } from '~~/src-tauri/bindings/ExtensionPreview'
+import { isDesktop } from '~/utils/platform'
 
 defineProps<{
   isDragging?: boolean
@@ -276,6 +278,9 @@ const onInstallFromMarketplace = async (ext: MarketplaceExtensionViewModel) => {
       downloadInfo.bundleHash,
     )
 
+    // Ensure extensions list is up-to-date before checking
+    await extensionStore.loadExtensionsAsync()
+
     // Check if already installed
     const isAlreadyInstalled = extensionStore.availableExtensions.some(
       (installed) =>
@@ -376,22 +381,51 @@ const onSelectExtensionAsync = async () => {
 }
 
 // Unified install function that handles both file and marketplace sources
-const confirmInstallAsync = async () => {
+const confirmInstallAsync = async (createDesktopShortcut: boolean = false) => {
   try {
+    let installedExtensionId: string | undefined
+
     if (installSource.value === 'marketplace') {
       // Install from cached marketplace download
-      await extensionStore.installPendingAsync(
+      installedExtensionId = await extensionStore.installPendingAsync(
         extensionStore.preview?.editablePermissions,
       )
     } else {
       // Install from file
-      await extensionStore.installAsync(
+      installedExtensionId = await extensionStore.installAsync(
         extension.path,
         preview.value?.editablePermissions,
       )
     }
 
     await extensionStore.loadExtensionsAsync()
+
+    // Automatically add extension to internal HaexVault desktop
+    if (installedExtensionId) {
+      try {
+        await useDesktopStore().addDesktopItemAsync('extension', installedExtensionId)
+      } catch (error) {
+        // Ignore errors for dev extensions (they can't be persisted)
+        if ((error as any)?.code !== 'DEV_EXTENSION_NOT_PERSISTABLE') {
+          console.warn('Could not add extension to desktop:', error)
+        }
+      }
+
+      // Create native desktop shortcut if requested (only on desktop platforms)
+      if (createDesktopShortcut && isDesktop()) {
+        try {
+          await createNativeDesktopShortcut(installedExtensionId)
+        } catch (error) {
+          console.warn('Could not create native desktop shortcut:', error)
+          // Don't fail the installation, just show a warning
+          add({
+            color: 'warning',
+            title: t('extension.shortcut.error.title'),
+            description: t('extension.shortcut.error.text'),
+          })
+        }
+      }
+    }
 
     // Refresh marketplace list if we came from marketplace
     if (installSource.value === 'marketplace') {
@@ -422,6 +456,13 @@ const confirmInstallAsync = async () => {
       extensionStore.clearPendingInstall()
     }
   }
+}
+
+// Create a native desktop shortcut using Tauri command
+const createNativeDesktopShortcut = async (extensionId: string) => {
+  await invoke('create_desktop_shortcut', {
+    extensionId,
+  })
 }
 
 // Unified reinstall function that handles both file and marketplace sources
@@ -552,6 +593,10 @@ de:
     success:
       title: '{extension} hinzugefügt'
       text: Die Erweiterung wurde erfolgreich hinzugefügt
+    shortcut:
+      error:
+        title: Desktop-Verknüpfung fehlgeschlagen
+        text: Die Erweiterung wurde installiert, aber die Desktop-Verknüpfung konnte nicht erstellt werden.
     remove:
       success:
         device:
@@ -587,6 +632,10 @@ en:
     success:
       title: '{extension} added'
       text: Extension was added successfully
+    shortcut:
+      error:
+        title: Desktop shortcut failed
+        text: The extension was installed, but the desktop shortcut could not be created.
     remove:
       success:
         device:

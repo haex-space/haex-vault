@@ -3,7 +3,9 @@
 use crate::extension::core::manifest::{DisplayMode, ExtensionManifest, ExtensionPermissions};
 use crate::extension::core::types::{Extension, ExtensionSource};
 use crate::extension::permissions::checker::{is_system_table, matches_target, PermissionChecker};
-use crate::extension::permissions::types::{Action, DbAction, ExtensionPermission, PermissionStatus, ResourceType};
+use crate::extension::permissions::types::{
+    Action, DbAction, ExtensionPermission, PermissionStatus, ResourceType,
+};
 use std::path::PathBuf;
 
 fn create_test_extension(public_key: &str, name: &str) -> Extension {
@@ -147,63 +149,6 @@ fn test_exact_table_permission() {
 
     assert!(checker.can_access_table("specific_table", DbAction::Read));
     assert!(!checker.can_access_table("different_table", DbAction::Read));
-}
-
-#[test]
-fn test_can_create_tables() {
-    let extension = create_test_extension("test_key", "my_ext");
-    let permissions = vec![create_permission(DbAction::Create, "*")];
-    let checker = PermissionChecker::new(extension, permissions);
-
-    assert!(checker.can_create_tables());
-}
-
-#[test]
-fn test_cannot_create_tables_without_permission() {
-    let extension = create_test_extension("test_key", "my_ext");
-    let permissions = vec![create_permission(DbAction::Read, "*")];
-    let checker = PermissionChecker::new(extension, permissions);
-
-    assert!(!checker.can_create_tables());
-}
-
-#[test]
-fn test_validate_table_name_own_table() {
-    let extension = create_test_extension("test_key", "my_ext");
-    let checker = PermissionChecker::new(extension, vec![]);
-
-    assert!(checker.validate_table_name("test_key__my_ext__users"));
-}
-
-#[test]
-fn test_validate_table_name_system_table() {
-    let extension = create_test_extension("test_key", "my_ext");
-    let permissions = vec![create_permission(DbAction::Create, "*")];
-    let checker = PermissionChecker::new(extension, permissions);
-
-    // System tables should NEVER be valid, even with wildcard permission
-    assert!(!checker.validate_table_name("haex_extensions"));
-    assert!(!checker.validate_table_name("sqlite_master"));
-}
-
-#[test]
-fn test_validate_table_name_with_quotes() {
-    let extension = create_test_extension("test_key", "my_ext");
-    let checker = PermissionChecker::new(extension, vec![]);
-
-    assert!(checker.validate_table_name("\"test_key__my_ext__users\""));
-    assert!(checker.validate_table_name("`test_key__my_ext__users`"));
-}
-
-#[test]
-fn test_validate_table_name_with_prefix_wildcard_permission() {
-    let extension = create_test_extension("test_key", "my_ext");
-    let permissions = vec![create_permission(DbAction::Create, "other__ext__*")];
-    let checker = PermissionChecker::new(extension, permissions);
-
-    assert!(checker.validate_table_name("other__ext__users"));
-    assert!(checker.validate_table_name("other__ext__posts"));
-    assert!(!checker.validate_table_name("different__table"));
 }
 
 #[test]

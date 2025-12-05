@@ -4,7 +4,7 @@ use super::planner::SqlExecutionPlanner;
 use crate::crdt::hlc::HlcService;
 use crate::crdt::transformer::CrdtTransformer;
 use crate::crdt::trigger;
-use crate::database::core::convert_value_ref_to_json;
+use crate::database::core::{convert_value_ref_to_json, strip_main_schema_prefix};
 use crate::database::error::DatabaseError;
 use rusqlite::{params_from_iter, ToSql, Transaction};
 use serde_json::Value as JsonValue;
@@ -40,8 +40,11 @@ impl SqlExecutor {
             modified_schema_tables.insert(table_name);
         }
 
-        let sql_str = statement.to_string();
-        eprintln!("DEBUG: Transformed execute SQL: {sql_str}");
+        // Remove "main." schema prefix that sqlparser adds
+        let raw_sql = statement.to_string();
+        let sql_str = strip_main_schema_prefix(&raw_sql);
+        eprintln!("DEBUG: [execute_internal_typed] Raw SQL before strip: {raw_sql}");
+        eprintln!("DEBUG: [execute_internal_typed] Transformed execute SQL: {sql_str}");
 
         // Führe Statement aus
         tx.execute(&sql_str, params)
@@ -86,8 +89,11 @@ impl SqlExecutor {
             modified_schema_tables.insert(table_name);
         }
 
-        let sql_str = statement.to_string();
-        eprintln!("DEBUG: Transformed SQL (with RETURNING): {sql_str}");
+        // Remove "main." schema prefix that sqlparser adds
+        let raw_sql = statement.to_string();
+        let sql_str = strip_main_schema_prefix(&raw_sql);
+        eprintln!("DEBUG: [query_internal_typed] Raw SQL before strip: {raw_sql}");
+        eprintln!("DEBUG: [query_internal_typed] Transformed SQL (with RETURNING): {sql_str}");
 
         // Prepare und query ausführen
         let mut stmt = tx
@@ -175,9 +181,11 @@ impl SqlExecutor {
     ) -> Result<Vec<Vec<JsonValue>>, DatabaseError> {
         // Use planner for safe parsing
         let stmt_to_execute = SqlExecutionPlanner::parse_single_statement(sql)?;
-        let transformed_sql = stmt_to_execute.to_string();
+        let raw_sql = stmt_to_execute.to_string();
+        let transformed_sql = strip_main_schema_prefix(&raw_sql);
 
-        eprintln!("DEBUG: SELECT (no transformation): {transformed_sql}");
+        eprintln!("DEBUG: [query_select] Raw SQL before strip: {raw_sql}");
+        eprintln!("DEBUG: [query_select] SELECT (after strip): {transformed_sql}");
 
         // Convert JSON params to SQLite values using planner
         let sql_params = SqlExecutionPlanner::convert_params(params)?;

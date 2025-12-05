@@ -289,6 +289,43 @@ export const useDesktopStore = defineStore('desktopStore', () => {
     }
   }
 
+  const removeDesktopItemsByExtensionIdAsync = async (extensionId: string) => {
+    if (!currentVault.value?.drizzle) {
+      throw new Error('Kein Vault geöffnet')
+    }
+
+    try {
+      // Find all desktop items for this extension
+      const itemsToRemove = desktopItems.value.filter(
+        (item) =>
+          item.itemType === 'extension' && item.extensionId === extensionId,
+      )
+
+      // Delete from database
+      for (const item of itemsToRemove) {
+        await currentVault.value.drizzle
+          .delete(haexDesktopItems)
+          .where(eq(haexDesktopItems.id, item.id))
+      }
+
+      // Update local state
+      desktopItems.value = desktopItems.value.filter(
+        (item) =>
+          !(item.itemType === 'extension' && item.extensionId === extensionId),
+      )
+
+      console.log(
+        `Removed ${itemsToRemove.length} desktop items for extension ${extensionId}`,
+      )
+    } catch (error) {
+      console.error(
+        'Fehler beim Entfernen der Desktop-Items für Extension:',
+        error,
+      )
+      throw error
+    }
+  }
+
   const getDesktopItemByReference = (
     itemType: DesktopItemType,
     referenceId: string,
@@ -746,6 +783,7 @@ export const useDesktopStore = defineStore('desktopStore', () => {
     addDesktopItemAsync,
     updateDesktopItemPositionAsync,
     removeDesktopItemAsync,
+    removeDesktopItemsByExtensionIdAsync,
     getDesktopItemByReference,
     getContextMenuItems,
     openDesktopItem,

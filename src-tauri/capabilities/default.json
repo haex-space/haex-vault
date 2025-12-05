@@ -58,6 +58,7 @@
     "opener:default",
     "os:allow-hostname",
     "os:default",
-    "store:default"
+    "store:default",
+    "deep-link:default"
   ]
 }

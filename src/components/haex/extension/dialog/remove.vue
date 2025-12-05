@@ -1,14 +1,25 @@
 <template>
-  <UiDialogConfirm
+  <UiDrawerModal
     v-model:open="open"
-    @abort="onAbort"
-    @confirm="onConfirm"
+    :ui="{
+      content: 'sm:max-w-xl sm:mx-auto',
+    }"
   >
-    <template #title>
-      {{ t('title') }}
+    <template #header>
+      <div class="flex items-center justify-between w-full">
+        <h3 class="text-lg font-semibold">
+          {{ t('title') }}
+        </h3>
+        <UButton
+          icon="i-heroicons-x-mark"
+          color="neutral"
+          variant="ghost"
+          @click="onAbort"
+        />
+      </div>
     </template>
 
-    <template #body>
+    <template #content>
       <div class="flex flex-col gap-4">
         <i18n-t
           keypath="question"
@@ -78,7 +89,27 @@
         />
       </div>
     </template>
-  </UiDialogConfirm>
+
+    <template #footer>
+      <div class="flex flex-col sm:flex-row gap-4 justify-end w-full">
+        <UButton
+          icon="i-heroicons-x-mark"
+          :label="t('abort')"
+          color="neutral"
+          variant="outline"
+          class="w-full sm:w-auto"
+          @click="onAbort"
+        />
+        <UButton
+          icon="i-heroicons-trash"
+          :label="t('confirm')"
+          color="error"
+          class="w-full sm:w-auto"
+          @click="onConfirm"
+        />
+      </div>
+    </template>
+  </UiDrawerModal>
 </template>
 
 <script setup lang="ts">
@@ -148,6 +179,8 @@ de:
     description: Die Daten der Erweiterung bleiben erhalten und werden weiter synchronisiert. Du kannst die Erweiterung jederzeit wieder installieren.
   version: Version
   author: Autor
+  abort: Abbrechen
+  confirm: Entfernen
 
 en:
   title: Remove Extension
@@ -167,4 +200,6 @@ en:
     description: The extension data will be preserved and continue to sync. You can reinstall the extension at any time.
   version: Version
   author: Author
+  abort: Cancel
+  confirm: Remove
 </i18n>

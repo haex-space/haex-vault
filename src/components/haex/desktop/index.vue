@@ -83,6 +83,7 @@
               @drag-start="handleDragStart"
               @dragging="handleDragging"
               @drag-end="handleDragEnd"
+              @request-uninstall="handleRequestUninstall"
             />
 
             <!-- Windows for this workspace -->
@@ -239,6 +240,13 @@
 
     <!-- Window Overview Modal -->
     <HaexWindowOverview />
+
+    <!-- Extension Remove Dialog -->
+    <HaexExtensionDialogRemove
+      v-model:open="showRemoveDialog"
+      :extension="extensionToRemove"
+      @confirm="handleRemoveExtension"
+    />
   </div>
 </template>
 
@@ -246,6 +254,7 @@
 import { Swiper, SwiperSlide } from 'swiper/vue'
 import { Navigation } from 'swiper/modules'
 import type { Swiper as SwiperType } from 'swiper'
+import type { IHaexSpaceExtension } from '~/types/haexspace'
 import 'swiper/css'
 import 'swiper/css/navigation'
 
@@ -269,6 +278,45 @@ const { getWorkspaceBackgroundStyle, getWorkspaceContextMenuItems } =
   workspaceStore
 
 const desktopEl = useTemplateRef('desktopEl')
+
+// Extension uninstall dialog state
+const showRemoveDialog = ref(false)
+const extensionToRemove = ref<IHaexSpaceExtension | undefined>(undefined)
+
+const handleRequestUninstall = (extensionId: string) => {
+  const extension = extensionsStore.availableExtensions.find(
+    (ext) => ext.id === extensionId,
+  )
+
+  if (extension) {
+    extensionToRemove.value = extension
+    showRemoveDialog.value = true
+  }
+}
+
+const handleRemoveExtension = async (deleteMode: 'device' | 'complete') => {
+  if (!extensionToRemove.value) return
+
+  const extensionId = extensionToRemove.value.id
+
+  try {
+    // First remove from backend
+    await extensionsStore.removeExtensionAsync(
+      extensionToRemove.value.publicKey,
+      extensionToRemove.value.name,
+      extensionToRemove.value.version,
+      deleteMode === 'complete',
+    )
+
+    // Then remove all desktop items for this extension
+    await desktopStore.removeDesktopItemsByExtensionIdAsync(extensionId)
+
+    // Reload extensions list
+    await extensionsStore.loadExtensionsAsync()
+  } catch (error) {
+    console.error('Failed to remove extension:', error)
+  }
+}
 
 // Track desktop viewport size reactively
 const { width: viewportWidth, height: viewportHeight } =

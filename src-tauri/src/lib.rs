@@ -1,6 +1,7 @@
 mod crdt;
 mod database;
 mod extension;
+mod shortcuts;
 use crate::{
     crdt::hlc::HlcService,
     database::DbConnection,
@@ -10,7 +11,7 @@ use crate::{
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use crate::extension::webview::ExtensionWebviewManager;
 use std::sync::{Arc, Mutex};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 pub mod table_names {
     include!(concat!(env!("OUT_DIR"), "/tableNames.rs"));
@@ -34,7 +35,26 @@ pub struct AppState {
 pub fn run() {
     use extension::core::EXTENSION_PROTOCOL_NAME;
 
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+
+    // Single-instance plugin must be registered first (desktop only)
+    // This handles deep-link URLs passed as CLI arguments when a new instance is launched
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            // Deep-link URLs come as CLI arguments
+            // Emit event to frontend for handling
+            if let Some(url) = argv.iter().find(|arg| arg.starts_with("haexvault://")) {
+                let _ = app.emit("deep-link-received", url.clone());
+            }
+            // Focus the main window
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_focus();
+            }
+        }));
+    }
+
+    builder
         .register_uri_scheme_protocol(EXTENSION_PROTOCOL_NAME, move |context, request| {
             // Hole den AppState aus dem Context
             let app_handle = context.app_handle();
@@ -87,6 +107,7 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_persisted_scope::init())
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
             database::create_encrypted_database,
             database::delete_vault,
@@ -170,6 +191,11 @@ pub fn run() {
             extension::webview::filesystem::webview_extension_fs_save_file,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::webview::filesystem::webview_extension_fs_open_file,
+            // Desktop shortcuts (desktop only)
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            shortcuts::create_desktop_shortcut,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            shortcuts::remove_desktop_shortcut,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

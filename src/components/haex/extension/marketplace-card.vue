@@ -4,7 +4,7 @@
       root: 'hover:shadow-lg transition-shadow duration-200 cursor-pointer',
       body: 'flex flex-col gap-3',
     }"
-    @click="$emit('click')"
+    @click="$emit('details')"
   >
     <div class="flex items-start gap-4">
       <!-- Icon -->
@@ -120,15 +120,7 @@
 
     <!-- Actions -->
     <template #footer>
-      <div class="flex items-center justify-between gap-2">
-        <UButton
-          :label="t('details')"
-          color="neutral"
-          variant="ghost"
-          size="sm"
-          @click.stop="$emit('details')"
-        />
-        <div class="flex items-center gap-2">
+      <div class="flex items-center justify-end gap-2">
           <UButton
             v-if="extension.isInstalled"
             icon="i-heroicons-trash"
@@ -164,7 +156,6 @@
             size="sm"
             disabled
           />
-        </div>
       </div>
     </template>
   </UCard>
@@ -177,7 +168,7 @@ const props = defineProps<{
   extension: MarketplaceExtensionViewModel
 }>()
 
-defineEmits(['click', 'install', 'update', 'details', 'remove'])
+defineEmits(['install', 'update', 'details', 'remove'])
 
 const { t } = useI18n()
 
@@ -210,7 +201,6 @@ de:
   installedVersion: 'Installiert (v{version})'
   installedVersionShort: 'v{version}'
   update: Aktualisieren
-  details: Details
   verified: Verifiziert
 en:
   by: by
@@ -219,6 +209,5 @@ en:
   installedVersion: 'Installed (v{version})'
   installedVersionShort: 'v{version}'
   update: Update
-  details: Details
   verified: Verified
 </i18n>

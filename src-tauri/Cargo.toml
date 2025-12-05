@@ -41,6 +41,8 @@ tauri-plugin-opener = "2.5.2"
 tauri-plugin-os = "2.3.2"
 tauri-plugin-persisted-scope = "2.3.4"
 tauri-plugin-store = "2.4.1"
+tauri-plugin-deep-link = "2"
+tauri-plugin-single-instance = "2"
 thiserror = "2.0.17"
 ts-rs = { version = "11.1.0", features = ["serde-compat"] }
 uhlc = "0.8.2"
@@ -52,6 +54,7 @@ rusqlite = { version = "0.37.0", features = [
   "bundled-sqlcipher-vendored-openssl",
   "functions",
 ] }
+regex = "1.12.2"
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 trash = "5.2.5"

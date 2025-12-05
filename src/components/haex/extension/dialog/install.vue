@@ -1,14 +1,25 @@
 <template>
-  <UiDialogConfirm
+  <UiDrawerModal
     v-model:open="open"
-    @abort="onDeny"
-    @confirm="onConfirm"
+    :ui="{
+      content: 'sm:max-w-2xl sm:mx-auto',
+    }"
   >
-    <template #title>
-      {{ t('title') }}
+    <template #header>
+      <div class="flex items-center justify-between w-full">
+        <h3 class="text-lg font-semibold">
+          {{ t('title') }}
+        </h3>
+        <UButton
+          icon="i-heroicons-x-mark"
+          color="neutral"
+          variant="ghost"
+          @click="onDeny"
+        />
+      </div>
     </template>
 
-    <template #body>
+    <template #content>
       <div class="flex flex-col gap-6">
         <!-- Extension Info -->
         <UCard>
@@ -67,11 +78,19 @@
           </div>
         </UCard>
 
-        <!-- Add to Desktop Option -->
-        <UCheckbox
-          v-model="addToDesktop"
-          :label="t('addToDesktop')"
-        />
+        <!-- Create Native Desktop Shortcut (Desktop only) -->
+        <div
+          v-if="showDesktopShortcutOption"
+          class="flex flex-col gap-1"
+        >
+          <UCheckbox
+            v-model="createDesktopShortcut"
+            :label="t('createDesktopShortcut.label')"
+          />
+          <p class="text-sm text-gray-500 dark:text-gray-400 ml-6">
+            {{ t('createDesktopShortcut.description') }}
+          </p>
+        </div>
 
         <!-- Permissions Section -->
         <div class="flex flex-col gap-4">
@@ -134,11 +153,32 @@
         </div>
       </div>
     </template>
-  </UiDialogConfirm>
+
+    <template #footer>
+      <div class="flex flex-col sm:flex-row gap-4 justify-end w-full">
+        <UButton
+          icon="i-heroicons-x-mark"
+          :label="t('abort')"
+          color="error"
+          variant="outline"
+          class="w-full sm:w-auto"
+          @click="onDeny"
+        />
+        <UButton
+          icon="i-heroicons-check"
+          :label="t('confirm')"
+          color="primary"
+          class="w-full sm:w-auto"
+          @click="onConfirm"
+        />
+      </div>
+    </template>
+  </UiDrawerModal>
 </template>
 
 <script setup lang="ts">
 import type { ExtensionPreview } from '~~/src-tauri/bindings/ExtensionPreview'
+import { isDesktop } from '~/utils/platform'
 
 const { t } = useI18n()
 
@@ -146,7 +186,10 @@ const open = defineModel<boolean>('open', { default: false })
 const preview = defineModel<ExtensionPreview | null>('preview', {
   default: null,
 })
-const addToDesktop = ref(true)
+
+// Desktop shortcut option (only shown on desktop platforms)
+const showDesktopShortcutOption = computed(() => isDesktop())
+const createDesktopShortcut = ref(false)
 
 const databasePermissions = computed({
   get: () => preview.value?.editablePermissions?.database || [],
@@ -225,7 +268,7 @@ const permissionAccordionItems = computed(() => {
 
 const emit = defineEmits<{
   deny: []
-  confirm: [addToDesktop: boolean]
+  confirm: [createDesktopShortcut: boolean]
 }>()
 
 const onDeny = () => {
@@ -235,7 +278,7 @@ const onDeny = () => {
 
 const onConfirm = () => {
   open.value = false
-  emit('confirm', addToDesktop.value)
+  emit('confirm', createDesktopShortcut.value)
 }
 </script>
 
@@ -244,7 +287,9 @@ de:
   title: Erweiterung installieren
   version: Version
   author: Autor
-  addToDesktop: Zum Desktop hinzufügen
+  createDesktopShortcut:
+    label: Desktop-Verknüpfung erstellen
+    description: Erstellt eine Verknüpfung auf deinem System-Desktop, um diese Erweiterung direkt zu starten.
   signature:
     valid: Signatur verifiziert
     invalid: Signatur ungültig
@@ -254,12 +299,16 @@ de:
     filesystem: Dateisystem
     http: Internet
     shell: Terminal
+  abort: Abbrechen
+  confirm: Installieren
 
 en:
   title: Install Extension
   version: Version
   author: Author
-  addToDesktop: Add to Desktop
+  createDesktopShortcut:
+    label: Create desktop shortcut
+    description: Creates a shortcut on your system desktop to launch this extension directly.
   signature:
     valid: Signature verified
     invalid: Invalid signature
@@ -269,4 +318,6 @@ en:
     filesystem: Filesystem
     http: Internet
     shell: Terminal
+  abort: Cancel
+  confirm: Install
 </i18n>

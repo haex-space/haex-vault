@@ -99,21 +99,26 @@ pub async fn extension_sql_execute(
             .map(|v| v as &dyn rusqlite::ToSql)
             .collect();
 
+        let statement_sql = statement.to_string();
+        eprintln!("DEBUG: [extension_sql_execute] Statement SQL: {statement_sql}");
+
         let result = if has_returning {
             // Use query_internal for statements with RETURNING
+            eprintln!("DEBUG: [extension_sql_execute] Using query_internal_typed (has RETURNING)");
             let (_, rows) = SqlExecutor::query_internal_typed(
                 &tx,
                 &hlc_service,
-                &statement.to_string(),
+                &statement_sql,
                 &param_refs,
             )?;
             rows
         } else {
             // Use execute_internal for statements without RETURNING
+            eprintln!("DEBUG: [extension_sql_execute] Using execute_internal_typed (no RETURNING)");
             SqlExecutor::execute_internal_typed(
                 &tx,
                 &hlc_service,
-                &statement.to_string(),
+                &statement_sql,
                 &param_refs,
             )?;
             vec![]
@@ -197,6 +202,8 @@ pub async fn extension_sql_select(
         let sql_params = ValueConverter::convert_params(&params)?;
         let stmt_to_execute = ast_vec.pop().unwrap();
         let transformed_sql = stmt_to_execute.to_string();
+
+        eprintln!("DEBUG: [extension_sql_select] SQL to execute: {transformed_sql}");
 
         // Prepare and execute query
         let mut prepared_stmt =

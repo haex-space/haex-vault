@@ -347,9 +347,21 @@ pub fn remove_dev_extension(
         // Drop all tables created by this dev extension
         // (Dev extension tables have no CRDT triggers, so they're local-only)
         db::core::with_connection(&state.db, |conn| {
+            // Disable foreign key constraints BEFORE starting the transaction
+            // (PRAGMA changes don't take effect within an active transaction)
+            conn.execute("PRAGMA foreign_keys = OFF", [])
+                .map_err(db::error::DatabaseError::from)?;
+
             let tx = conn.transaction().map_err(db::error::DatabaseError::from)?;
             let dropped = utils::drop_extension_tables(&tx, &public_key, &name)?;
-            tx.commit().map_err(db::error::DatabaseError::from)?;
+            let commit_result = tx.commit().map_err(db::error::DatabaseError::from);
+
+            // Re-enable foreign key constraints after transaction
+            conn.execute("PRAGMA foreign_keys = ON", [])
+                .map_err(db::error::DatabaseError::from)?;
+
+            commit_result?;
+
             if !dropped.is_empty() {
                 eprintln!(
                     "[DEV] Dropped {} tables for dev extension {}::{}",

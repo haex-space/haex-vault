@@ -1,14 +1,25 @@
 <template>
-  <UiDialogConfirm
+  <UiDrawerModal
     v-model:open="open"
-    @abort="onDeny"
-    @confirm="onConfirm"
+    :ui="{
+      content: 'sm:max-w-xl sm:mx-auto',
+    }"
   >
-    <template #title>
-      {{ mode === 'update' ? t('update.title', { extensionName: preview?.manifest.name }) : t('reinstall.title', { extensionName: preview?.manifest.name }) }}
+    <template #header>
+      <div class="flex items-center justify-between w-full">
+        <h3 class="text-lg font-semibold">
+          {{ mode === 'update' ? t('update.title', { extensionName: preview?.manifest.name }) : t('reinstall.title', { extensionName: preview?.manifest.name }) }}
+        </h3>
+        <UButton
+          icon="i-heroicons-x-mark"
+          color="neutral"
+          variant="ghost"
+          @click="onDeny"
+        />
+      </div>
     </template>
 
-    <template #body>
+    <template #content>
       <div class="flex flex-col gap-4">
         <p>
           {{
@@ -57,7 +68,27 @@
         </div>
       </div>
     </template>
-  </UiDialogConfirm>
+
+    <template #footer>
+      <div class="flex flex-col sm:flex-row gap-4 justify-end w-full">
+        <UButton
+          icon="i-heroicons-x-mark"
+          :label="t('abort')"
+          color="neutral"
+          variant="outline"
+          class="w-full sm:w-auto"
+          @click="onDeny"
+        />
+        <UButton
+          :icon="mode === 'update' ? 'i-heroicons-arrow-path' : 'i-heroicons-arrow-down-tray'"
+          :label="mode === 'update' ? t('update.confirm') : t('reinstall.confirm')"
+          :color="mode === 'update' ? 'primary' : 'error'"
+          class="w-full sm:w-auto"
+          @click="onConfirm"
+        />
+      </div>
+    </template>
+  </UiDrawerModal>
 </template>
 
 <script setup lang="ts">
@@ -99,13 +130,16 @@ de:
     info:
       title: Hinweis
       description: Deine Daten bleiben erhalten. Nur die Erweiterungsdateien werden aktualisiert.
+    confirm: Aktualisieren
   reinstall:
     title: '{extensionName} neu installieren'
     question: Soll die Erweiterung {extensionName} komplett neu installiert werden?
     warning:
       title: Achtung
       description: Alle Daten der Erweiterung werden gelöscht und die Erweiterung wird neu installiert. Diese Aktion kann nicht rückgängig gemacht werden.
+    confirm: Neu installieren
   version: Version
+  abort: Abbrechen
 
 en:
   update:
@@ -114,11 +148,14 @@ en:
     info:
       title: Note
       description: Your data will be preserved. Only the extension files will be updated.
+    confirm: Update
   reinstall:
     title: 'Reinstall {extensionName}'
     question: Do you want to completely reinstall {extensionName}?
     warning:
       title: Warning
       description: All extension data will be deleted and the extension will be reinstalled. This action cannot be undone.
+    confirm: Reinstall
   version: Version
+  abort: Cancel
 </i18n>

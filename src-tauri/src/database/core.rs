@@ -5,6 +5,7 @@ use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
 use crate::extension::database::executor::SqlExecutor;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
+use regex::Regex;
 use rusqlite::functions::FunctionFlags;
 use rusqlite::types::Value as SqlValue;
 use rusqlite::{
@@ -15,7 +16,21 @@ use serde_json::Value as JsonValue;
 use sqlparser::ast::{Expr, Query, Select, SetExpr, Statement, TableFactor, TableObject};
 use sqlparser::dialect::SQLiteDialect;
 use sqlparser::parser::Parser;
+use std::sync::LazyLock;
 use uuid::Uuid;
+
+/// Removes the "main." schema prefix that sqlparser-rs adds when serializing SQL.
+/// SQLite doesn't need this prefix and it causes "no such table" errors.
+/// Only removes "main." when it appears as a schema prefix (followed by a table name).
+pub fn strip_main_schema_prefix(sql: &str) -> String {
+    // Pattern: "main." followed by a table name (word character or quoted identifier)
+    // Handles: main.tablename, main."tablename", main.`tablename`, main.'tablename'
+    // Captures the character after "main." to preserve it in the replacement
+    static RE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r#"\bmain\.(["'`]?\w)"#).expect("Invalid regex for main. prefix")
+    });
+    RE.replace_all(sql, "$1").to_string()
+}
 
 /// Öffnet und initialisiert eine Datenbank mit Verschlüsselung
 pub fn open_and_init_db(path: &str, key: &str, create: bool) -> Result<Connection, DatabaseError> {
@@ -305,7 +320,8 @@ pub fn select_with_crdt(
     let transformed_sql = if let Statement::Query(mut query) = statement {
         let transformer = CrdtTransformer::new();
         transformer.transform_query(&mut query);
-        query.to_string()
+        // Remove "main." schema prefix that sqlparser adds
+        strip_main_schema_prefix(&query.to_string())
     } else {
         return Err(DatabaseError::StatementError {
             reason: "Only SELECT statements are allowed in select_with_crdt".to_string(),

@@ -505,6 +505,13 @@ impl ExtensionManager {
 
         // Lösche Permissions und Extension-Eintrag in einer Transaktion
         with_connection(&state.db, |conn| {
+            // Disable foreign key constraints BEFORE starting the transaction
+            // (PRAGMA changes don't take effect within an active transaction)
+            if delete_data {
+                conn.execute("PRAGMA foreign_keys = OFF", [])
+                    .map_err(DatabaseError::from)?;
+            }
+
             let tx = conn.transaction().map_err(DatabaseError::from)?;
 
             let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
@@ -544,7 +551,15 @@ impl ExtensionManager {
             )?;
 
             eprintln!("DEBUG: Committing transaction");
-            tx.commit().map_err(DatabaseError::from)
+            let commit_result = tx.commit().map_err(DatabaseError::from);
+
+            // Re-enable foreign key constraints after transaction
+            if delete_data {
+                conn.execute("PRAGMA foreign_keys = ON", [])
+                    .map_err(DatabaseError::from)?;
+            }
+
+            commit_result
         })?;
 
         eprintln!("DEBUG: Transaction committed successfully");

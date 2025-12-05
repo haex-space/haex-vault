@@ -57,6 +57,23 @@ pub fn drop_extension_tables(
 ) -> Result<Vec<String>, crate::database::error::DatabaseError> {
     let prefix = get_extension_table_prefix(public_key, extension_name);
 
+    // Note: Foreign key constraints must be disabled BEFORE the transaction starts
+    // (PRAGMA changes don't take effect within an active transaction)
+    // The caller is responsible for setting PRAGMA foreign_keys = OFF before calling this function
+
+    // First, clean up haex_crdt_dirty_tables for ANY tables with this prefix
+    // This must happen BEFORE we query sqlite_master, because dirty_tables might
+    // reference tables that were never created or have been partially created
+    let dirty_pattern = format!("{}%", prefix);
+    tx.execute(
+        "DELETE FROM haex_crdt_dirty_tables WHERE table_name LIKE ?1",
+        [&dirty_pattern],
+    )?;
+    println!(
+        "[EXTENSION_CLEANUP] Cleaned up dirty_tables entries for prefix: {}",
+        prefix
+    );
+
     // Find all tables with this extension's prefix
     let mut stmt = tx.prepare(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE ?1",
@@ -67,10 +84,15 @@ pub fn drop_extension_tables(
         .query_map([&pattern], |row| row.get(0))?
         .collect::<Result<Vec<_>, _>>()?;
 
+    println!(
+        "[EXTENSION_CLEANUP] Found {} tables to clean up: {:?}",
+        table_names.len(),
+        table_names
+    );
+
     // For each table, we need to:
     // 1. Drop CRDT triggers first
-    // 2. Remove from dirty tables tracking
-    // 3. Drop the table
+    // 2. Drop the table
     for table_name in &table_names {
         println!(
             "[EXTENSION_CLEANUP] Cleaning up table: {}",
@@ -82,17 +104,20 @@ pub fn drop_extension_tables(
         let trigger_suffixes = ["insert", "update", "delete"];
         for suffix in &trigger_suffixes {
             let trigger_name = format!("z_dirty_{}_{}", table_name, suffix);
-            tx.execute(&format!("DROP TRIGGER IF EXISTS \"{}\"", trigger_name), [])?;
+            let drop_sql = format!("DROP TRIGGER IF EXISTS \"{}\"", trigger_name);
+            println!("[EXTENSION_CLEANUP] Executing: {}", drop_sql);
+            tx.execute(&drop_sql, [])?;
         }
 
-        // Remove from haex_crdt_dirty_tables (prevents sync from trying to scan dropped table)
-        tx.execute(
-            "DELETE FROM haex_crdt_dirty_tables WHERE table_name = ?1",
-            [table_name],
-        )?;
-
         // Drop the table
-        tx.execute(&format!("DROP TABLE IF EXISTS \"{}\"", table_name), [])?;
+        let drop_table_sql = format!("DROP TABLE IF EXISTS \"{}\"", table_name);
+        println!("[EXTENSION_CLEANUP] Executing: {}", drop_table_sql);
+        tx.execute(&drop_table_sql, [])
+            .map_err(|e| {
+                eprintln!("[EXTENSION_CLEANUP] ERROR dropping table {}: {}", table_name, e);
+                e
+            })?;
+        println!("[EXTENSION_CLEANUP] Successfully dropped table: {}", table_name);
     }
 
     if !table_names.is_empty() {

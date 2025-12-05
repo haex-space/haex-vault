@@ -12,6 +12,12 @@ const { locale } = useI18n()
 
 // Handle Android back button
 useAndroidBackButton()
+
+// Initialize deep-link handler (desktop only)
+const deepLink = useDeepLink()
+onMounted(() => {
+  deepLink.init()
+})
 </script>
 
 <style>

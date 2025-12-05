@@ -149,9 +149,20 @@ impl CrdtTransformer {
         true
     }
 
-    /// Normalisiert Tabellennamen (entfernt Anführungszeichen)
+    /// Normalisiert Tabellennamen (entfernt Anführungszeichen und Schema-Präfix wie "main.")
     fn normalize_table_name(&self, name: &ObjectName) -> Cow<str> {
-        let name_str = name.to_string().to_lowercase();
+        // Get the last part of the ObjectName (the actual table name without schema)
+        // This handles cases like "main.tablename" where we only want "tablename"
+        let table_name = name
+            .0
+            .last()
+            .map(|part| match part {
+                ObjectNamePart::Identifier(ident) => ident.value.clone(),
+                ObjectNamePart::Function(func) => func.name.to_string(),
+            })
+            .unwrap_or_else(|| name.to_string());
+
+        let name_str = table_name.to_lowercase();
         Cow::Owned(name_str.trim_matches('`').trim_matches('"').to_string())
     }
 

@@ -1,15 +1,5 @@
 <template>
   <div>
-    <UiDialogConfirm
-      v-model:open="showUninstallDialog"
-      :title="t('confirmUninstall.title')"
-      :description="t('confirmUninstall.message', { name: label })"
-      :confirm-label="t('confirmUninstall.confirm')"
-      :abort-label="t('confirmUninstall.cancel')"
-      confirm-icon="i-heroicons-trash"
-      @confirm="handleConfirmUninstall"
-    />
-
     <UContextMenu
       :key="contextMenuKey"
       v-model:open="contextMenuOpen"
@@ -97,14 +87,13 @@ const emit = defineEmits<{
   ]
   dragging: [id: string, x: number, y: number]
   dragEnd: []
+  requestUninstall: [extensionId: string]
 }>()
 
 const desktopStore = useDesktopStore()
 const { effectiveIconSize } = storeToRefs(desktopStore)
-const showUninstallDialog = ref(false)
 const contextMenuOpen = ref(false)
 const contextMenuKey = ref(0) // Force remount when needed
-const { t } = useI18n()
 
 const isSelected = computed(() => desktopStore.isItemSelected(props.id))
 const containerSize = computed(() => effectiveIconSize.value) // Container size
@@ -122,16 +111,11 @@ const handleClick = (_e: MouseEvent) => {
 }
 
 const handleUninstallClick = () => {
-  showUninstallDialog.value = true
-}
-
-const handleConfirmUninstall = async () => {
-  showUninstallDialog.value = false
-  await desktopStore.uninstallDesktopItem(
-    props.id,
-    props.itemType,
-    props.referenceId,
-  )
+  // Emit event to parent to show the uninstall dialog
+  // Use nextTick to ensure the context menu has fully closed first
+  nextTick(() => {
+    emit('requestUninstall', props.referenceId)
+  })
 }
 
 const contextMenuItems = computed(() =>
@@ -159,12 +143,19 @@ const offsetY = ref(0)
 
 // Close context menu on click outside (Android fix)
 // UContextMenu's built-in outside click detection doesn't work reliably on Android
-onClickOutside(draggableEl, () => {
-  if (contextMenuOpen.value) {
-    contextMenuOpen.value = false
-    contextMenuKey.value++ // Force remount to ensure menu closes
-  }
-})
+// Ignore clicks inside the context menu portal (which renders outside draggableEl)
+onClickOutside(
+  draggableEl,
+  () => {
+    if (contextMenuOpen.value) {
+      contextMenuOpen.value = false
+      contextMenuKey.value++ // Force remount to ensure menu closes
+    }
+  },
+  {
+    ignore: ['[data-radix-popper-content-wrapper]', '[role="menu"]'],
+  },
+)
 
 // Track actual icon dimensions dynamically
 const { width: iconWidth, height: iconHeight } = useElementSize(draggableEl)

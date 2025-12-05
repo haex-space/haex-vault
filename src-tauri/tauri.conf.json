@@ -101,6 +101,13 @@
       }
     }
   },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["haexvault"]
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
