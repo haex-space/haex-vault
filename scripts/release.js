@@ -64,6 +64,11 @@ cargoToml = cargoToml.replace(/^version = ".*"$/m, `version = "${newVersion}"`);
 writeFileSync(cargoTomlPath, cargoToml);
 console.log('✅ Updated Cargo.toml');
 
+// Update Cargo.lock by running cargo check
+console.log('🔄 Updating Cargo.lock...');
+execSync('cargo check', { cwd: join(rootDir, 'src-tauri'), stdio: 'inherit' });
+console.log('✅ Updated Cargo.lock');
+
 // Git operations
 try {
   // Check if there are uncommitted changes
