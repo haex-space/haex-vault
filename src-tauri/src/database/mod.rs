@@ -5,6 +5,7 @@ pub mod error;
 pub mod generated;
 pub mod init;
 pub mod migrations;
+pub mod stats;
 
 use crate::crdt::hlc::HlcService;
 use crate::database::core::{execute_with_crdt, with_connection};

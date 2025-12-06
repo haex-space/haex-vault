@@ -123,6 +123,7 @@ pub fn run() {
             database::crdt_cleanup_tombstones,
             database::crdt_get_stats,
             database::database_vacuum,
+            database::stats::get_database_info,
             database::migrations::apply_core_migrations,
             database::migrations::get_applied_core_migrations,
             database::migrations::get_unapplied_core_migrations,
