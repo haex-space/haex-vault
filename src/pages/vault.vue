@@ -10,32 +10,12 @@
       <NuxtPage />
     </NuxtLayout>
 
-    <div class="hidden">
-      <UiDialogConfirm
-        v-model:open="showNewDeviceDialog"
-        :confirm-label="t('newDevice.save')"
-        :title="t('newDevice.title')"
-        :description="t('newDevice.setName')"
-        confirm-icon="mdi:content-save-outline"
-        @abort="showNewDeviceDialog = false"
-        @confirm="onSetDeviceNameAsync"
-      >
-        <template #body>
-          <div class="flex flex-col gap-4">
-            <p>{{ t('newDevice.intro') }}</p>
-            <p>
-              {{ t('newDevice.setName') }}
-            </p>
-            {{ deviceId }}
-            <UiInput
-              v-model="newDeviceName"
-              :label="t('newDevice.label')"
-              :rules="vaultDeviceNameSchema"
-            />
-          </div>
-        </template>
-      </UiDialogConfirm>
-    </div>
+    <!-- Welcome Dialog for new devices -->
+    <HaexWelcomeDialog
+      v-model:open="showWelcomeDialog"
+      :initial-device-name="initialDeviceName"
+      @complete="onWelcomeComplete"
+    />
   </div>
 </template>
 
@@ -44,21 +24,18 @@ definePageMeta({
   middleware: 'database',
 })
 
-const { t } = useI18n()
 const route = useRoute()
 
-const showNewDeviceDialog = ref(false)
+const showWelcomeDialog = ref(false)
+const initialDeviceName = ref<string>('unknown')
 const isWaitingForInitialSync = ref(false)
 const syncProgress = ref<{ synced: number; total: number } | undefined>()
 
 const { hostname } = storeToRefs(useDeviceStore())
 
-const newDeviceName = ref<string>('unknown')
-
 const { readNotificationsAsync } = useNotificationStore()
-const { isKnownDeviceAsync, addDeviceNameAsync, setAsCurrentDeviceAsync } = useDeviceStore()
+const { isKnownDeviceAsync, setAsCurrentDeviceAsync } = useDeviceStore()
 const { loadExtensionsAsync } = useExtensionsStore()
-const { deviceId } = storeToRefs(useDeviceStore())
 const { syncLocaleAsync, syncThemeAsync, syncVaultNameAsync } =
   useVaultSettingsStore()
 const { syncDesktopIconSizeAsync } = useDesktopStore()
@@ -103,9 +80,9 @@ onMounted(async () => {
     const knownDevice = await isKnownDeviceAsync()
 
     if (!knownDevice) {
-      console.log('not known device')
-      newDeviceName.value = hostname.value ?? 'unknown'
-      showNewDeviceDialog.value = true
+      console.log('New device detected - showing welcome dialog')
+      initialDeviceName.value = hostname.value ?? 'unknown'
+      showWelcomeDialog.value = true
     } else {
       // Device is known, set it as current device
       await setAsCurrentDeviceAsync()
@@ -146,47 +123,12 @@ const waitForInitialSyncAsync = async () => {
   })
 }
 
-const { add } = useToast()
-const onSetDeviceNameAsync = async () => {
-  try {
-    const check = vaultDeviceNameSchema.safeParse(newDeviceName.value)
-    if (!check.success) {
-      console.log('check failed', check.error)
-      return
-    }
-
-    await addDeviceNameAsync({ name: newDeviceName.value })
-
-    // Set this device as the current device in the vault
-    await setAsCurrentDeviceAsync()
-
-    showNewDeviceDialog.value = false
-    add({ color: 'success', description: t('newDevice.success') })
-  } catch (error) {
-    console.error(error)
-    add({ color: 'error', description: t('newDevice.error') })
-  }
+const onWelcomeComplete = () => {
+  console.log('Welcome wizard completed')
 }
 </script>
 
 <i18n lang="yaml">
-de:
-  newDevice:
-    title: Neues Gerät erkannt
-    save: Speichern
-    label: Name
-    intro: Offenbar öffnest du das erste Mal diese Vault auf diesem Gerät.
-    setName: Bitte gib diesem Gerät einen für dich sprechenden Namen. Dadurch kannst du später besser nachverfolgen, welche Änderungen von welchem Gerät erfolgt sind.
-    success: Name erfolgreich gespeichert
-    error: Name konnt nicht gespeichert werden
-
-en:
-  newDevice:
-    title: New device recognized
-    save: Save
-    label: Name
-    intro: This is obviously your first time with this Vault on this device.
-    setName: Please give this device a name that is meaningful to you. This will make it easier for you to track which changes have been made by which device.
-    success: Name successfully saved
-    error: Name could not be saved
+de: {}
+en: {}
 </i18n>
