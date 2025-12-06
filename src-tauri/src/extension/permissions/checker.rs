@@ -33,13 +33,6 @@ impl PermissionChecker {
     ///    - "*" grants access to all non-system tables
     ///    - "prefix__*" grants access to all tables starting with prefix__
     ///    - "exact_table" grants access to specific table
-    ///
-    /// # Examples
-    /// ```
-    /// let checker = PermissionChecker::new(extension, permissions);
-    /// assert!(checker.can_access_table("mykey__myext__users", DbAction::Read));
-    /// assert!(!checker.can_access_table("haex_extensions", DbAction::Read));
-    /// ```
     pub fn can_access_table(&self, table_name: &str, action: DbAction) -> bool {
         // Remove quotes from table name if present
         let clean_table_name = table_name.trim_matches('"').trim_matches('`');

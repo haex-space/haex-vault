@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="@container">
     <div class="p-6 border-b border-default">
       <h2 class="text-2xl font-bold">
         {{ t('title') }}
@@ -24,39 +24,25 @@
           <h3 class="text-lg font-semibold">
             {{ t('overview.title') }}
           </h3>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="bg-muted p-4 rounded-lg">
-              <div class="text-sm text-muted">
-                {{ t('overview.fileSize') }}
-              </div>
-              <div class="text-2xl font-bold">
-                {{ dbInfo.fileSizeFormatted }}
-              </div>
-            </div>
-            <div class="bg-muted p-4 rounded-lg">
-              <div class="text-sm text-muted">
-                {{ t('overview.totalEntries') }}
-              </div>
-              <div class="text-2xl font-bold">
-                {{ dbInfo.totalEntries.toLocaleString() }}
-              </div>
-            </div>
-            <div class="bg-muted p-4 rounded-lg">
-              <div class="text-sm text-muted">
-                {{ t('overview.activeEntries') }}
-              </div>
-              <div class="text-2xl font-bold text-success">
-                {{ dbInfo.totalActive.toLocaleString() }}
-              </div>
-            </div>
-            <div class="bg-muted p-4 rounded-lg">
-              <div class="text-sm text-muted">
-                {{ t('overview.tombstones') }}
-              </div>
-              <div class="text-2xl font-bold text-warning">
-                {{ dbInfo.totalTombstones.toLocaleString() }}
-              </div>
-            </div>
+          <div class="grid grid-cols-1 @sm:grid-cols-2 @lg:grid-cols-4 gap-4">
+            <UiStatCard
+              :label="t('overview.fileSize')"
+              :value="dbInfo.fileSizeFormatted"
+            />
+            <UiStatCard
+              :label="t('overview.totalEntries')"
+              :value="dbInfo.totalEntries"
+            />
+            <UiStatCard
+              :label="t('overview.activeEntries')"
+              :value="dbInfo.totalActive"
+              color="success"
+            />
+            <UiStatCard
+              :label="t('overview.tombstones')"
+              :value="dbInfo.totalTombstones"
+              color="warning"
+            />
           </div>
         </div>
 
@@ -110,13 +96,13 @@
             :items="extensionItems"
             multiple
           >
-            <template #default="{ item, open }">
+            <template #default="{ item }">
               <UButton
                 color="neutral"
                 variant="ghost"
                 class="w-full"
               >
-                <div class="flex items-center justify-between w-full">
+                <div class="flex items-center justify-between w-full gap-4">
                   <div class="flex items-center gap-2">
                     <UIcon
                       :name="item.extensionId ? 'i-heroicons-puzzle-piece' : 'i-heroicons-cog-6-tooth'"
@@ -141,11 +127,6 @@
                     >
                       {{ item.tombstoneRows.toLocaleString() }} {{ t('extensions.deleted') }}
                     </span>
-                    <UIcon
-                      name="i-heroicons-chevron-down"
-                      class="w-5 h-5 transition-transform"
-                      :class="{ 'rotate-180': open }"
-                    />
                   </div>
                 </div>
               </UButton>
@@ -446,7 +427,7 @@ de:
   overview:
     title: Übersicht
     fileSize: Dateigröße
-    totalEntries: Gesamteinträge
+    totalEntries: Einträge insgesamt
     activeEntries: Aktive Einträge
     tombstones: Gelöschte Einträge
   pendingSync:

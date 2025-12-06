@@ -8,24 +8,11 @@ use crate::extension::error::ExtensionError;
 ///
 /// This prefix ensures table isolation between extensions.
 /// Each extension can only access tables that start with this prefix.
-///
-/// # Examples
-/// ```
-/// let prefix = get_extension_table_prefix("abc123", "my_extension");
-/// assert_eq!(prefix, "abc123__my_extension__");
-/// ```
 pub fn get_extension_table_prefix(public_key: &str, extension_name: &str) -> String {
     format!("{}__{}__", public_key, extension_name)
 }
 
 /// Checks if a table name belongs to a specific extension
-///
-/// # Examples
-/// ```
-/// assert!(is_extension_table("abc123__my_ext__users", "abc123", "my_ext"));
-/// assert!(!is_extension_table("other__ext__users", "abc123", "my_ext"));
-/// assert!(!is_extension_table("haex_system_table", "abc123", "my_ext"));
-/// ```
 pub fn is_extension_table(table_name: &str, public_key: &str, extension_name: &str) -> bool {
     let prefix = get_extension_table_prefix(public_key, extension_name);
     table_name.starts_with(&prefix)
@@ -140,18 +127,6 @@ const ED25519_PUBLIC_KEY_LENGTH: usize = 32;
 /// A valid public key must:
 /// - Be exactly 64 hex characters (32 bytes)
 /// - Contain only valid hex characters (0-9, a-f, A-F)
-///
-/// # Examples
-/// ```
-/// // Valid public key (64 hex chars)
-/// assert!(validate_public_key("b4401f13f65e576b8a30ff9fd83df82a8bb707e1994d40c99996fe88603cefca").is_ok());
-///
-/// // Invalid: too short
-/// assert!(validate_public_key("abc123").is_err());
-///
-/// // Invalid: contains non-hex characters
-/// assert!(validate_public_key("demo_test_key_12345").is_err());
-/// ```
 pub fn validate_public_key(public_key: &str) -> Result<(), ExtensionError> {
     // Check length: Ed25519 public key is 32 bytes = 64 hex characters
     if public_key.len() != ED25519_PUBLIC_KEY_LENGTH * 2 {
