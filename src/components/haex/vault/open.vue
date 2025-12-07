@@ -1,101 +1,29 @@
 <template>
-  <UiDrawer
-    v-if="isSmallScreen"
+  <UiDrawerModal
     v-model:open="open"
     :title="t('title')"
     :description="path || t('description')"
   >
-    <UiButton
-      :label="t('button.label')"
-      :ui="{
-        base: 'px-4 py-3',
-      }"
-      icon="mdi:folder-open-outline"
-      size="xl"
-      variant="outline"
-      block
-    />
-
-    <template #header>
-      <h2 class="text-xl font-semibold">
-        {{ t('title') }}
-      </h2>
+    <!-- No trigger - this component is opened programmatically -->
+    <template #trigger>
+      <span class="hidden" />
     </template>
 
-    <template #body>
-      <div
-        v-if="path"
-        class="text-sm text-gray-500 dark:text-gray-400 mb-4"
-      >
-        <button
-          class="text-primary hover:underline cursor-pointer break-all text-left"
-          @click="onRevealInFolder"
-        >
-          {{ path }}
-        </button>
-      </div>
-
-      <UForm
-        :state="vault"
-        class="w-full"
-      >
-        <UiInputPassword
-          v-model="vault.password"
-          v-model:errors="errors.password"
-          :label="t('password.placeholder')"
-          :schema="vaultSchema.password"
-          :check="check"
-          leading-icon="i-heroicons-key"
-          size="xl"
-          autofocus
-          class="w-full"
-          @keyup.enter="onOpenDatabase"
-        />
-      </UForm>
-    </template>
-
-    <template #footer>
-      <div class="flex gap-3">
-        <UButton
-          color="neutral"
-          variant="outline"
-          block
-          size="xl"
-          @click="open = false"
-        >
-          {{ t('cancel') }}
-        </UButton>
-        <UButton
-          color="primary"
-          block
-          size="xl"
-          @click="onOpenDatabase"
-        >
-          {{ t('open') }}
-        </UButton>
-      </div>
-    </template>
-  </UiDrawer>
-
-  <UModal
-    v-else
-    v-model:open="open"
-    :title="t('title')"
-    :description="path || t('description')"
-  >
-    <UiButton
-      :label="t('button.label')"
-      :ui="{
-        base: 'px-4 py-3',
-      }"
-      icon="mdi:folder-open-outline"
-      size="xl"
-      variant="outline"
-      block
-    />
-
-    <template #body>
+    <!-- Content -->
+    <template #content>
       <div class="space-y-4">
+        <div
+          v-if="path"
+          class="text-sm text-gray-500 dark:text-gray-400"
+        >
+          <button
+            class="text-primary hover:underline cursor-pointer break-all text-left"
+            @click="onRevealInFolder"
+          >
+            {{ path }}
+          </button>
+        </div>
+
         <UForm
           :state="vault"
           class="w-full"
@@ -106,45 +34,43 @@
             :label="t('password.placeholder')"
             :schema="vaultSchema.password"
             :check="check"
-            leading-icon="i-heroicons-key"
+            leading-icon="i-lucide-lock"
             size="xl"
             autofocus
             class="w-full"
             @keyup.enter="onOpenDatabase"
           />
         </UForm>
-      </div>
-    </template>
 
-    <template #footer>
-      <div class="flex gap-3 w-full">
-        <UButton
-          color="neutral"
-          variant="outline"
-          block
-          @click="open = false"
-        >
-          {{ t('cancel') }}
-        </UButton>
-        <UButton
-          color="primary"
-          block
-          @click="onOpenDatabase"
-        >
-          {{ t('open') }}
-        </UButton>
+        <div class="flex gap-3 pt-4">
+          <UButton
+            color="neutral"
+            variant="outline"
+            block
+            size="xl"
+            @click="open = false"
+          >
+            {{ t('cancel') }}
+          </UButton>
+          <UButton
+            color="primary"
+            block
+            size="xl"
+            @click="onOpenDatabase"
+          >
+            {{ t('open') }}
+          </UButton>
+        </div>
       </div>
     </template>
-  </UModal>
+  </UiDrawerModal>
 </template>
 
 <script setup lang="ts">
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
-/* import { open as openVault } from '@tauri-apps/plugin-dialog' */
 import { vaultSchema } from './schema'
 
 const open = defineModel<boolean>('open', { default: false })
-const { isSmallScreen } = storeToRefs(useUiStore())
 const props = defineProps<{
   path?: string
 }>()

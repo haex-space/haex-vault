@@ -99,6 +99,12 @@ pub enum DatabaseError {
 
     #[error("Migration error: {reason}")]
     MigrationError { reason: String },
+
+    #[error("Vault '{vault_name}' already exists")]
+    VaultAlreadyExists { vault_name: String },
+
+    #[error("Validation error: {reason}")]
+    ValidationError { reason: String },
 }
 
 impl From<rusqlite::Error> for DatabaseError {

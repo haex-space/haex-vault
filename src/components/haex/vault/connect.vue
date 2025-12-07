@@ -160,10 +160,10 @@ watch(open, (isOpen) => {
 
 <i18n lang="yaml">
 de:
-  title: Mit Backend verbinden
+  title: Vault verbinden
   description: Verbinde dich mit einem Sync-Backend und erstelle eine neue Vault
   button:
-    label: Mit Backend verbinden
+    label: Vault verbinden
   divider: Vault-Einstellungen
   vaultName:
     label: Vaultname
@@ -182,10 +182,10 @@ de:
     title: Verbindung fehlgeschlagen
 
 en:
-  title: Connect to Backend
+  title: Connect Vault
   description: Connect to a sync backend and create a new vault
   button:
-    label: Connect to Backend
+    label: Connect Vault
   divider: Vault Settings
   vaultName:
     label: Vault Name

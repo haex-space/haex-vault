@@ -47,7 +47,7 @@
           :label="t('password.placeholder')"
           :schema="vaultSchema.password"
           :check="check"
-          leading-icon="i-heroicons-key"
+          leading-icon="i-lucide-lock"
           size="xl"
           class="w-full"
         />
@@ -57,7 +57,7 @@
           v-model:errors="errors.passwordConfirm"
           :label="t('passwordConfirm.placeholder')"
           :check="check"
-          leading-icon="i-heroicons-key"
+          leading-icon="i-lucide-lock"
           size="xl"
           class="w-full"
         />
@@ -130,7 +130,7 @@
             :label="t('password.placeholder')"
             :schema="vaultSchema.password"
             :check="check"
-            leading-icon="i-heroicons-key"
+            leading-icon="i-lucide-lock"
             size="xl"
             class="w-full"
           />
@@ -140,7 +140,7 @@
             v-model:errors="errors.passwordConfirm"
             :label="t('passwordConfirm.label')"
             :check="check"
-            leading-icon="i-heroicons-key"
+            leading-icon="i-lucide-lock"
             size="xl"
             class="w-full"
           />

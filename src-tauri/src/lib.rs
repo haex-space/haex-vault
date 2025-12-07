@@ -120,6 +120,7 @@ pub fn run() {
             database::sql_select_with_crdt,
             database::sql_select,
             database::vault_exists,
+            database::import_vault,
             database::crdt_cleanup_tombstones,
             database::crdt_get_stats,
             database::database_vacuum,

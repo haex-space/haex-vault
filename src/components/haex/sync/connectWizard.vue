@@ -109,7 +109,6 @@
             v-model="localVaultName"
             v-model:errors="step3Errors.vaultName"
             :label="t('steps.enterVaultPassword.vaultName')"
-            :placeholder="t('steps.enterVaultPassword.vaultNamePlaceholder')"
             :description="t('steps.enterVaultPassword.vaultNameDescription')"
             :schema="wizardSchema.vaultName"
             :check="check"
@@ -128,10 +127,10 @@
             v-model="vaultPassword"
             v-model:errors="step3Errors.password"
             :label="t('steps.enterVaultPassword.vaultPassword')"
-            :placeholder="t('steps.enterVaultPassword.vaultPasswordPlaceholder')"
             :description="t('steps.enterVaultPassword.vaultPasswordDescription')"
             :schema="wizardSchema.vaultPassword"
             :check="check"
+            leading-icon="i-lucide-lock"
             size="xl"
             class="w-full"
           />
@@ -334,6 +333,17 @@ const nextStep = async () => {
       step2Error.value = t('errors.vaultSelectionRequired')
       return
     }
+
+    // Pre-fill local vault name with the decrypted name from backend
+    const selectedVault = availableVaults.value.find(
+      (v) => v.vaultId === selectedVaultId.value,
+    )
+    if (selectedVault?.decryptedName) {
+      localVaultName.value = selectedVault.decryptedName
+      // Check if this name already exists locally
+      await checkVaultNameExistsAsync()
+    }
+
     currentStepIndex.value++
   }
 }
@@ -371,11 +381,6 @@ const loginAsync = async () => {
     if (error) {
       throw new Error(error.message)
     }
-
-    add({
-      title: t('success.loggedIn'),
-      color: 'success',
-    })
 
     // 3. Load available vaults
     await loadVaultsAsync()
@@ -554,19 +559,15 @@ de:
       description: Gib das Passwort deines Vaults ein, um die Synchronisierung einzurichten
       vaultName: Lokaler Vault-Name
       vaultNameDescription: Gib einen Namen für deinen lokalen Vault ein
-      vaultNamePlaceholder: Mein Vault
       vaultNameExists: Ein Vault mit diesem Namen existiert bereits
       vaultPassword: Vault-Passwort
       vaultPasswordDescription: Das Passwort, mit dem du deinen Vault ursprünglich erstellt hast
-      vaultPasswordPlaceholder: Vault-Passwort eingeben
   actions:
     login: Anmelden
     back: Zurück
     next: Weiter
     complete: Abschließen
     cancel: Abbrechen
-  success:
-    loggedIn: Erfolgreich angemeldet
   errors:
     serverConnection: Verbindung zum Server fehlgeschlagen
     loginFailed: Anmeldung fehlgeschlagen
@@ -597,19 +598,15 @@ en:
       description: Enter your vault password to set up synchronization
       vaultName: Local Vault Name
       vaultNameDescription: Enter a name for your local vault
-      vaultNamePlaceholder: My Vault
       vaultNameExists: A vault with this name already exists
       vaultPassword: Vault Password
       vaultPasswordDescription: The password you used to originally create your vault
-      vaultPasswordPlaceholder: Enter vault password
   actions:
     login: Login
     back: Back
     next: Next
     complete: Complete
     cancel: Cancel
-  success:
-    loggedIn: Successfully logged in
   errors:
     serverConnection: Failed to connect to server
     loginFailed: Login failed

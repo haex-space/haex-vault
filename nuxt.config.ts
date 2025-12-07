@@ -60,9 +60,14 @@ export default defineNuxtConfig({
   css: ['./assets/css/main.css'],
 
   icon: {
-    provider: 'server',
+    // Use local bundles only - no runtime fetching from external servers
+    provider: 'iconify',
     mode: 'svg',
     clientBundle: {
+      // Bundle ALL icons from these collections for offline use
+      scan: true,
+      sizeLimitKb: 0, // 0 = no limit, bundle everything that's scanned
+      includeCustomCollections: true,
       icons: [
         // Explicitly bundled icons (used dynamically, not detected by scan)
         'solar:global-outline',
@@ -76,12 +81,13 @@ export default defineNuxtConfig({
         // Theme icons (from stores/ui/index.ts)
         'line-md:moon-rising-alt-loop',
         'line-md:moon-to-sunny-outline-loop-transition',
+        // UCheckbox default icon
+        'lucide:check',
       ],
-      scan: true,
-      includeCustomCollections: true,
     },
     serverBundle: {
       collections: [
+        'heroicons',
         'mdi',
         'line-md',
         'solar',
@@ -98,6 +104,9 @@ export default defineNuxtConfig({
         dir: './src/assets/icons/',
       },
     ],
+
+    // Disable fetching from external API - all icons must be bundled
+    fetchTimeout: 0,
   },
 
   i18n: {

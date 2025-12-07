@@ -17,13 +17,16 @@
         <div class="flex flex-col gap-3 w-56 items-stretch">
           <HaexVaultCreate v-model:open="isCreateDrawerOpen" />
 
-          <HaexVaultOpen
-            v-model:open="isOpenDrawerOpen"
-            :path="selectedVault?.path"
-          />
+          <HaexVaultImport v-model:open="isImportDrawerOpen" />
 
           <HaexVaultConnect v-model:open="isConnectBackendDrawerOpen" />
         </div>
+
+        <!-- Hidden component for opening vaults from the list -->
+        <HaexVaultOpen
+          v-model:open="isOpenDrawerOpen"
+          :path="selectedVault?.path"
+        />
 
         <div
           v-show="lastVaults.length"
@@ -117,6 +120,7 @@ definePageMeta({
 const { t } = useI18n()
 
 const isCreateDrawerOpen = ref(false)
+const isImportDrawerOpen = ref(false)
 const isOpenDrawerOpen = ref(false)
 const isConnectBackendDrawerOpen = ref(false)
 const selectedVault = ref<VaultInfo>()
@@ -124,6 +128,15 @@ const selectedVault = ref<VaultInfo>()
 // Ensure only one drawer is open at a time
 watch(isCreateDrawerOpen, (isOpen) => {
   if (isOpen) {
+    isImportDrawerOpen.value = false
+    isOpenDrawerOpen.value = false
+    isConnectBackendDrawerOpen.value = false
+  }
+})
+
+watch(isImportDrawerOpen, (isOpen) => {
+  if (isOpen) {
+    isCreateDrawerOpen.value = false
     isOpenDrawerOpen.value = false
     isConnectBackendDrawerOpen.value = false
   }
@@ -132,6 +145,7 @@ watch(isCreateDrawerOpen, (isOpen) => {
 watch(isOpenDrawerOpen, (isOpen) => {
   if (isOpen) {
     isCreateDrawerOpen.value = false
+    isImportDrawerOpen.value = false
     isConnectBackendDrawerOpen.value = false
   }
 })
@@ -139,6 +153,7 @@ watch(isOpenDrawerOpen, (isOpen) => {
 watch(isConnectBackendDrawerOpen, (isOpen) => {
   if (isOpen) {
     isCreateDrawerOpen.value = false
+    isImportDrawerOpen.value = false
     isOpenDrawerOpen.value = false
   }
 })

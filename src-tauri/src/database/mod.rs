@@ -223,6 +223,61 @@ pub fn vault_exists(app_handle: AppHandle, vault_name: String) -> Result<bool, D
     Ok(Path::new(&vault_path).exists())
 }
 
+/// Imports a vault database file from an external location into the vaults directory.
+/// Returns the new path of the imported vault.
+/// Fails if a vault with the same name already exists.
+#[tauri::command]
+pub fn import_vault(
+    app_handle: AppHandle,
+    source_path: String,
+) -> Result<String, DatabaseError> {
+    let source = Path::new(&source_path);
+
+    // Validate source file exists
+    if !source.exists() {
+        return Err(DatabaseError::IoError {
+            path: source_path.clone(),
+            reason: "Source file does not exist".to_string(),
+        });
+    }
+
+    // Validate source file has .db extension
+    if source.extension().and_then(|e| e.to_str()) != Some("db") {
+        return Err(DatabaseError::ValidationError {
+            reason: "Source file must have .db extension".to_string(),
+        });
+    }
+
+    // Get the file name from the source path
+    let file_name = source
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| DatabaseError::ValidationError {
+            reason: "Could not extract file name from source path".to_string(),
+        })?;
+
+    // Get the vault name (without .db extension)
+    let vault_name = file_name.trim_end_matches(VAULT_EXTENSION);
+
+    // Check if vault already exists
+    let target_path = get_vault_path(&app_handle, vault_name)?;
+    if Path::new(&target_path).exists() {
+        return Err(DatabaseError::VaultAlreadyExists {
+            vault_name: vault_name.to_string(),
+        });
+    }
+
+    // Copy the file to the vaults directory
+    fs::copy(&source_path, &target_path).map_err(|e| DatabaseError::IoError {
+        path: target_path.clone(),
+        reason: format!("Failed to copy vault file: {e}"),
+    })?;
+
+    println!("Vault '{}' successfully imported to '{}'", vault_name, target_path);
+
+    Ok(target_path)
+}
+
 /// Moves a vault database file to trash (or deletes permanently if trash is unavailable)
 #[tauri::command]
 pub fn move_vault_to_trash(
