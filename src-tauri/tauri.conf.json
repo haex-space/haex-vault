@@ -25,7 +25,8 @@
           "http://tauri.localhost",
           "https://tauri.localhost",
           "asset:",
-          "haex-extension:"
+          "haex-extension:",
+          "http://haex-extension.localhost"
         ],
         "script-src": [
           "'self'",
@@ -33,6 +34,7 @@
           "https://tauri.localhost",
           "asset:",
           "haex-extension:",
+          "http://haex-extension.localhost",
           "'wasm-unsafe-eval'",
           "'unsafe-inline'"
         ],
@@ -42,12 +44,14 @@
           "https://tauri.localhost",
           "asset:",
           "haex-extension:",
+          "http://haex-extension.localhost",
           "'unsafe-inline'"
         ],
         "connect-src": [
           "'self'",
           "http://tauri.localhost",
           "haex-extension:",
+          "http://haex-extension.localhost",
           "ipc:",
           "http://ipc.localhost",
           "ws://localhost:*",
@@ -62,15 +66,18 @@
           "https://tauri.localhost",
           "asset:",
           "haex-extension:",
+          "http://haex-extension.localhost",
           "data:",
-          "blob:"
+          "blob:",
+          "https://*.supabase.co"
         ],
         "font-src": [
           "'self'",
           "http://tauri.localhost",
           "https://tauri.localhost",
           "asset:",
-          "haex-extension:"
+          "haex-extension:",
+          "http://haex-extension.localhost"
         ],
         "object-src": [
           "'none'"
@@ -80,10 +87,12 @@
           "http://tauri.localhost",
           "https://tauri.localhost",
           "asset:",
-          "haex-extension:"
+          "haex-extension:",
+          "http://haex-extension.localhost"
         ],
         "frame-src": [
-          "haex-extension:"
+          "haex-extension:",
+          "http://haex-extension.localhost"
         ],
         "frame-ancestors": [
           "'none'"
