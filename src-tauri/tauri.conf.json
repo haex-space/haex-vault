@@ -53,7 +53,8 @@
           "ws://localhost:*",
           "http://localhost:*",
           "https://*.supabase.co",
-          "https://sync.haex.space"
+          "https://sync.haex.space",
+          "https://marketplace.haex.space"
         ],
         "img-src": [
           "'self'",
