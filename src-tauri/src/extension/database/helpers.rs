@@ -7,7 +7,6 @@ use rusqlite::params_from_iter;
 use serde_json::Value as JsonValue;
 use sqlparser::ast::Statement;
 
-use crate::crdt::transformer::CrdtTransformer;
 use crate::crdt::trigger;
 use crate::database::core::{
     parse_sql_statements, with_connection, ValueConverter, DRIZZLE_STATEMENT_BREAKPOINT,
@@ -155,7 +154,7 @@ pub fn execute_sql_with_context(
         });
     }
 
-    let mut statement = ast_vec.pop().unwrap();
+    let statement = ast_vec.pop().unwrap();
 
     // If this is a SELECT statement, just execute it
     if matches!(statement, Statement::Query(_)) {
@@ -205,23 +204,14 @@ pub fn execute_sql_with_context(
     with_connection(&state.db, |conn| {
         let tx = conn.transaction().map_err(DatabaseError::from)?;
 
-        let transformer = CrdtTransformer::new();
-
         // Get HLC service reference
         let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
             reason: "Failed to lock HLC service".to_string(),
         })?;
 
-        // Generate HLC timestamp
-        let hlc_timestamp =
-            hlc_service
-                .new_timestamp_and_persist(&tx)
-                .map_err(|e| DatabaseError::HlcError {
-                    reason: e.to_string(),
-                })?;
-
-        // Transform statement
-        transformer.transform_execute_statement(&mut statement, &hlc_timestamp)?;
+        // Note: CRDT transformation (adding haex_timestamp) is handled by
+        // SqlExecutor::execute_internal_typed / query_internal_typed.
+        // Do NOT transform here to avoid double transformation!
 
         // Convert parameters to references
         let sql_values = ValueConverter::convert_params(params)?;

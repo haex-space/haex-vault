@@ -50,12 +50,14 @@ impl SqlExecutor {
         eprintln!("DEBUG: [execute_internal_typed] Transformed execute SQL: {sql_str}");
 
         // Führe Statement aus
-        tx.execute(&sql_str, params)
+        let rows_affected = tx.execute(&sql_str, params)
             .map_err(|e| DatabaseError::ExecutionError {
                 sql: sql_str.clone(),
                 table: None,
                 reason: format!("Execute failed: {e}"),
             })?;
+
+        eprintln!("DEBUG: [execute_internal_typed] Rows affected: {rows_affected}");
 
         Ok(modified_schema_tables)
     }

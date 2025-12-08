@@ -230,6 +230,42 @@ fn default_haextension_dir() -> String {
     "haextension".to_string()
 }
 
+/// Package.json structure for fallback values
+#[derive(serde::Deserialize, Debug, Default)]
+struct PackageJson {
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    version: Option<String>,
+    #[serde(default)]
+    author: Option<String>,
+    #[serde(default)]
+    homepage: Option<String>,
+}
+
+/// Partial manifest for initial parsing (allows missing name for fallback)
+#[derive(serde::Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct PartialManifest {
+    name: Option<String>,
+    version: Option<String>,
+    author: Option<String>,
+    entry: Option<String>,
+    icon: Option<String>,
+    public_key: String,
+    signature: String,
+    #[serde(default)]
+    permissions: core::manifest::ExtensionPermissions,
+    homepage: Option<String>,
+    description: Option<String>,
+    #[serde(default)]
+    single_instance: Option<bool>,
+    #[serde(default)]
+    display_mode: Option<core::manifest::DisplayMode>,
+    #[serde(default)]
+    migrations_dir: Option<String>,
+}
+
 /// Check if a dev server is reachable by making a simple HTTP request
 async fn check_dev_server_health(url: &str) -> bool {
     use std::time::Duration;
@@ -311,13 +347,57 @@ pub async fn load_dev_extension(
         ),
     })?;
 
-    // 3. Read and parse manifest
+    // 3. Read and parse manifest (using partial struct to allow missing fields)
     let manifest_content =
         std::fs::read_to_string(&manifest_path).map_err(|e| ExtensionError::ManifestError {
             reason: format!("Failed to read manifest: {e}"),
         })?;
 
-    let manifest: ExtensionManifest = serde_json::from_str(&manifest_content)?;
+    let partial_manifest: PartialManifest =
+        serde_json::from_str(&manifest_content).map_err(|e| ExtensionError::ManifestError {
+            reason: format!("Manifest error: {e}"),
+        })?;
+
+    // 3.5. Read package.json for fallback values (like SDK does)
+    let package_json_path = extension_path_buf.join("package.json");
+    let package_json: PackageJson = if package_json_path.exists() {
+        let pkg_content = std::fs::read_to_string(&package_json_path).unwrap_or_default();
+        serde_json::from_str(&pkg_content).unwrap_or_default()
+    } else {
+        PackageJson::default()
+    };
+
+    // 3.6. Merge manifest with package.json fallbacks
+    let name = partial_manifest
+        .name
+        .or(package_json.name)
+        .ok_or_else(|| ExtensionError::ManifestError {
+            reason: "No name found in manifest or package.json".to_string(),
+        })?;
+
+    let version = partial_manifest
+        .version
+        .or(package_json.version)
+        .unwrap_or_else(|| "0.0.0-dev".to_string());
+
+    let author = partial_manifest.author.or(package_json.author);
+    let homepage = partial_manifest.homepage.or(package_json.homepage);
+
+    let manifest = ExtensionManifest {
+        name,
+        version,
+        author,
+        entry: partial_manifest.entry,
+        icon: partial_manifest.icon,
+        public_key: partial_manifest.public_key,
+        signature: partial_manifest.signature,
+        permissions: partial_manifest.permissions,
+        homepage,
+        description: partial_manifest.description,
+        single_instance: partial_manifest.single_instance,
+        display_mode: partial_manifest.display_mode,
+        migrations_dir: partial_manifest.migrations_dir,
+    };
 
     // 3.5. Validate public key format
     utils::validate_public_key(&manifest.public_key)?;

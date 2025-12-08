@@ -36,13 +36,25 @@ impl CrdtColumns {
         }
     }
 
-    /// Erstellt eine WHERE-Bedingung für haex_tombstone = 0
+    /// Erstellt eine WHERE-Bedingung für (haex_tombstone = 0 OR haex_tombstone IS NULL)
+    /// Dies ist notwendig, da haex_tombstone bei neuen Einträgen NULL sein kann
     fn create_tombstone_filter(&self) -> Expr {
-        Expr::BinaryOp {
+        // haex_tombstone = 0
+        let eq_zero = Expr::BinaryOp {
             left: Box::new(Expr::Identifier(Ident::new(self.tombstone))),
             op: BinaryOperator::Eq,
             right: Box::new(Expr::Value(Value::Number("0".to_string(), false).into())),
-        }
+        };
+
+        // haex_tombstone IS NULL
+        let is_null = Expr::IsNull(Box::new(Expr::Identifier(Ident::new(self.tombstone))));
+
+        // (haex_tombstone = 0 OR haex_tombstone IS NULL)
+        Expr::Nested(Box::new(Expr::BinaryOp {
+            left: Box::new(eq_zero),
+            op: BinaryOperator::Or,
+            right: Box::new(is_null),
+        }))
     }
 
     /// Prüft ob ein Ausdruck bereits eine haex_tombstone Bedingung enthält
