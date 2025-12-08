@@ -127,8 +127,8 @@ importers:
         specifier: ^0.15.15
         version: 0.15.15
       '@oxc-minify/binding-linux-x64-gnu':
-        specifier: ^0.98.0
-        version: 0.98.0
+        specifier: ^0.102.0
+        version: 0.102.0
       '@tauri-apps/cli':
         specifier: ^2.9.5
         version: 2.9.5
@@ -1552,14 +1552,14 @@ packages:
     cpu: [s390x]
     os: [linux]
 
-  '@oxc-minify/binding-linux-x64-gnu@0.96.0':
-    resolution: {integrity: sha512-UMM1jkns+p+WwwmdjC5giI3SfR2BCTga18x3C0cAu6vDVf4W37uTZeTtSIGmwatTBbgiq++Te24/DE0oCdm1iQ==}
+  '@oxc-minify/binding-linux-x64-gnu@0.102.0':
+    resolution: {integrity: sha512-0YEKmAIun1bS+Iy5Shx6WOTSj3GuilVuctJjc5/vP8/EMTZ/RI8j0eq0Mu3UFPoT/bMULL3MBXuHuEIXmq7Ddg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
 
-  '@oxc-minify/binding-linux-x64-gnu@0.98.0':
-    resolution: {integrity: sha512-P/9krmxwtLbxdT339jEm4XUHUFMN4lzjqqvGwBug6NxPvN1sppSl06CNXzHQ6H7/oSftZIyAmsOaLWknhm30uw==}
+  '@oxc-minify/binding-linux-x64-gnu@0.96.0':
+    resolution: {integrity: sha512-UMM1jkns+p+WwwmdjC5giI3SfR2BCTga18x3C0cAu6vDVf4W37uTZeTtSIGmwatTBbgiq++Te24/DE0oCdm1iQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
@@ -8252,10 +8252,10 @@ snapshots:
   '@oxc-minify/binding-linux-s390x-gnu@0.96.0':
     optional: true
 
+  '@oxc-minify/binding-linux-x64-gnu@0.102.0': {}
+
   '@oxc-minify/binding-linux-x64-gnu@0.96.0':
     optional: true
-
-  '@oxc-minify/binding-linux-x64-gnu@0.98.0': {}
 
   '@oxc-minify/binding-linux-x64-musl@0.96.0':
     optional: true
