@@ -262,16 +262,16 @@
               <div
                 v-for="vault in group.vaults"
                 :key="vault.vaultId"
-                class="flex items-center justify-between p-3 rounded-lg"
+                class="flex flex-col gap-2 p-3 rounded-lg"
                 :class="
                   vault.vaultId === currentVaultId
                     ? 'bg-primary/10 border border-primary/20'
                     : 'bg-gray-50 dark:bg-gray-800/50'
                 "
               >
-                <div class="flex-1 min-w-0 flex items-center gap-2">
+                <div class="flex flex-col @xs:flex-row @xs:items-center @xs:justify-between gap-2">
                   <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 flex-wrap">
                       <p class="font-medium text-sm truncate">
                         {{
                           vault.decryptedName ||
@@ -294,20 +294,40 @@
                       {{ formatDate(vault.createdAt) }}
                     </p>
                   </div>
+                  <!-- Button: visible on larger screens -->
+                  <div class="hidden @xs:block shrink-0">
+                    <UButton
+                      size="xs"
+                      color="error"
+                      variant="ghost"
+                      icon="i-lucide-trash-2"
+                      @click="prepareDeleteServerVault(group.backend, vault)"
+                    >
+                      {{
+                        vault.vaultId === currentVaultId
+                          ? t('actions.deleteWithSync')
+                          : t('actions.delete')
+                      }}
+                    </UButton>
+                  </div>
                 </div>
-                <UButton
-                  size="xs"
-                  color="error"
-                  variant="ghost"
-                  icon="i-lucide-trash-2"
-                  @click="prepareDeleteServerVault(group.backend, vault)"
-                >
-                  {{
-                    vault.vaultId === currentVaultId
-                      ? t('actions.deleteWithSync')
-                      : t('actions.delete')
-                  }}
-                </UButton>
+                <!-- Button: visible on small screens, full width -->
+                <div class="@xs:hidden">
+                  <UButton
+                    size="xs"
+                    color="error"
+                    variant="ghost"
+                    icon="i-lucide-trash-2"
+                    class="w-full"
+                    @click="prepareDeleteServerVault(group.backend, vault)"
+                  >
+                    {{
+                      vault.vaultId === currentVaultId
+                        ? t('actions.deleteWithSync')
+                        : t('actions.delete')
+                    }}
+                  </UButton>
+                </div>
               </div>
             </div>
           </HaexSyncBackendItem>

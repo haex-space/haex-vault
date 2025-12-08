@@ -1,75 +1,94 @@
 <template>
   <UCard>
-    <div
-      class="flex flex-col @sm:flex-row @sm:items-center justify-between gap-3"
-    >
-      <div class="flex-1 min-w-0">
-        <p class="font-medium">{{ backend.name }}</p>
-        <p class="text-sm text-gray-500 dark:text-gray-400 truncate">
-          {{ backend.serverUrl }}
-        </p>
-        <div class="flex flex-wrap gap-2 mt-2">
-          <UBadge
-            :color="backend.enabled ? 'success' : 'neutral'"
-            variant="subtle"
-            size="xs"
+    <div class="flex flex-col gap-3">
+      <!-- Header row: Info and button -->
+      <div class="flex flex-col @sm:flex-row @sm:items-center justify-between gap-3">
+        <div class="flex-1 min-w-0">
+          <p class="font-medium">{{ backend.name }}</p>
+          <p class="text-sm text-gray-500 dark:text-gray-400 truncate">
+            {{ backend.serverUrl }}
+          </p>
+          <div class="flex flex-wrap gap-2 mt-2">
+            <UBadge
+              :color="backend.enabled ? 'success' : 'neutral'"
+              variant="subtle"
+              size="xs"
+            >
+              {{
+                backend.enabled
+                  ? t('status.enabled')
+                  : t('status.disabled')
+              }}
+            </UBadge>
+            <UBadge
+              v-if="syncState?.isConnected"
+              color="info"
+              variant="subtle"
+              size="xs"
+            >
+              {{ t('status.connected') }}
+            </UBadge>
+            <UBadge
+              v-else-if="syncState?.isSyncing"
+              color="warning"
+              variant="subtle"
+              size="xs"
+            >
+              {{ t('status.syncing') }}
+            </UBadge>
+            <!-- Loading indicator -->
+            <UIcon
+              v-if="loading"
+              name="i-lucide-loader-2"
+              class="w-4 h-4 animate-spin"
+            />
+            <!-- Error badge -->
+            <UBadge
+              v-if="error"
+              color="error"
+              variant="subtle"
+              size="xs"
+            >
+              {{ t('status.error') }}
+            </UBadge>
+            <!-- Count badge -->
+            <UBadge
+              v-if="count !== undefined && !loading && !error"
+              color="neutral"
+              variant="subtle"
+              size="xs"
+            >
+              {{ count }}
+            </UBadge>
+          </div>
+        </div>
+        <!-- Button: hidden on small screens, shown on larger -->
+        <div
+          v-if="showToggle"
+          class="hidden @sm:block shrink-0"
+        >
+          <UButton
+            size="sm"
+            :color="backend.enabled ? 'neutral' : 'primary'"
+            @click="emit('toggle', backend.id)"
           >
             {{
               backend.enabled
-                ? t('status.enabled')
-                : t('status.disabled')
+                ? t('actions.disable')
+                : t('actions.enable')
             }}
-          </UBadge>
-          <UBadge
-            v-if="syncState?.isConnected"
-            color="info"
-            variant="subtle"
-            size="xs"
-          >
-            {{ t('status.connected') }}
-          </UBadge>
-          <UBadge
-            v-else-if="syncState?.isSyncing"
-            color="warning"
-            variant="subtle"
-            size="xs"
-          >
-            {{ t('status.syncing') }}
-          </UBadge>
-          <!-- Loading indicator -->
-          <UIcon
-            v-if="loading"
-            name="i-lucide-loader-2"
-            class="w-4 h-4 animate-spin"
-          />
-          <!-- Error badge -->
-          <UBadge
-            v-if="error"
-            color="error"
-            variant="subtle"
-            size="xs"
-          >
-            {{ t('status.error') }}
-          </UBadge>
-          <!-- Count badge -->
-          <UBadge
-            v-if="count !== undefined && !loading && !error"
-            color="neutral"
-            variant="subtle"
-            size="xs"
-          >
-            {{ count }}
-          </UBadge>
+          </UButton>
         </div>
       </div>
+      <!-- Button row: shown only on small screens -->
       <div
         v-if="showToggle"
-        class="shrink-0"
+        class="@sm:hidden"
       >
         <UButton
           size="sm"
           :color="backend.enabled ? 'neutral' : 'primary'"
-          class="w-full @sm:w-auto"
+          class="w-full"
           @click="emit('toggle', backend.id)"
         >
           {{

@@ -55,8 +55,10 @@
           "ipc:",
           "http://ipc.localhost",
           "ws://localhost:*",
+          "wss://localhost:*",
           "http://localhost:*",
           "https://*.supabase.co",
+          "wss://*.supabase.co",
           "https://sync.haex.space",
           "https://marketplace.haex.space"
         ],
