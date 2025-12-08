@@ -259,8 +259,8 @@ export const pullChangesFromServerWithConfigAsync = async (
  * don't exist yet when the data is being applied.
  *
  * Order of operations:
- * 1. Separate extension migration changes from other changes
- * 2. Apply extension migration changes (haex_extension_migrations table)
+ * 1. Apply haex_extensions changes (extension registrations - needed for FK)
+ * 2. Apply haex_extension_migrations changes (migration definitions)
  * 3. Run apply_synced_extension_migrations to create extension tables
  * 4. Apply remaining changes (including extension table data)
  *
@@ -278,31 +278,56 @@ export const applyAllChangesWithMigrationsAsync = async (
 
   log.info(`Processing ${allChanges.length} changes...`)
 
-  // Separate extension migrations from other changes
+  // Separate changes into categories with correct application order:
+  // 1. haex_extensions (extension registrations - needed for FK in migrations)
+  // 2. haex_extension_migrations (migration definitions)
+  // 3. All other changes (including extension table data)
+  const extensionChanges = allChanges.filter((c) => c.tableName === 'haex_extensions')
   const migrationChanges = allChanges.filter((c) => c.tableName === 'haex_extension_migrations')
-  const otherChanges = allChanges.filter((c) => c.tableName !== 'haex_extension_migrations')
+  const otherChanges = allChanges.filter(
+    (c) => c.tableName !== 'haex_extensions' && c.tableName !== 'haex_extension_migrations',
+  )
 
   let maxHlc = ''
 
-  // Step 1: Apply extension migration changes first (if any)
-  if (migrationChanges.length > 0) {
-    log.info(`Applying ${migrationChanges.length} extension migration changes first...`)
-    maxHlc = await applyRemoteChangesInTransactionAsync(migrationChanges, vaultKey, backendId)
+  // Step 1: Apply extension registrations first (haex_extensions)
+  // This is required because haex_extension_migrations has a FK to haex_extensions
+  if (extensionChanges.length > 0) {
+    log.info(`Applying ${extensionChanges.length} extension registration changes first...`)
+    maxHlc = await applyRemoteChangesInTransactionAsync(extensionChanges, vaultKey, backendId)
+  }
 
-    // Now apply the actual migrations to create extension tables
-    log.info('Creating extension tables from synced migrations...')
-    const migrationResult = await invoke<{
-      appliedCount: number
-      alreadyAppliedCount: number
-      appliedMigrations: string[]
-    }>('apply_synced_extension_migrations')
+  // Step 2: Apply extension migration definitions (haex_extension_migrations)
+  if (migrationChanges.length > 0) {
+    log.info(`Applying ${migrationChanges.length} extension migration changes...`)
+    const migrationMaxHlc = await applyRemoteChangesInTransactionAsync(migrationChanges, vaultKey, backendId)
+    if (migrationMaxHlc > maxHlc) {
+      maxHlc = migrationMaxHlc
+    }
+  }
+
+  // Step 3: Always try to apply synced extension migrations
+  // This creates extension tables from synced migration definitions
+  // We run this even if no new migration changes came in, because:
+  // - haex_extensions might have been synced in a previous batch
+  // - haex_extension_migrations might have been synced in a previous batch
+  // - The tables might not have been created yet on this device
+  log.info('Checking for pending synced extension migrations...')
+  const migrationResult = await invoke<{
+    appliedCount: number
+    alreadyAppliedCount: number
+    appliedMigrations: string[]
+  }>('apply_synced_extension_migrations')
+  if (migrationResult.appliedCount > 0) {
     log.info(
       `Applied ${migrationResult.appliedCount} synced extension migrations:`,
       migrationResult.appliedMigrations,
     )
+  } else {
+    log.debug('No pending extension migrations to apply')
   }
 
-  // Step 2: Now apply all other changes (including extension table data)
+  // Step 4: Now apply all other changes (including extension table data)
   // Extension tables now exist, so data won't be skipped
   if (otherChanges.length > 0) {
     log.info(`Applying ${otherChanges.length} remaining changes to local database...`)
