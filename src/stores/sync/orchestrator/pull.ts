@@ -92,36 +92,8 @@ export const pullFromBackendAsync = async (
     const tablesAffected = [...new Set(allChanges.map((c) => c.tableName))]
     log.debug('Tables affected:', tablesAffected)
 
-    // Step 2: Separate extension migrations from other changes
-    // Extension migrations MUST be applied BEFORE extension table data,
-    // otherwise the data will be skipped because tables don't exist yet
-    const migrationChanges = allChanges.filter((c) => c.tableName === 'haex_extension_migrations')
-    const otherChanges = allChanges.filter((c) => c.tableName !== 'haex_extension_migrations')
-
-    // Step 2a: Apply extension migration changes first (if any)
-    if (migrationChanges.length > 0) {
-      log.info(`Applying ${migrationChanges.length} extension migration changes first...`)
-      await applyRemoteChangesInTransactionAsync(migrationChanges, vaultKey, backendId)
-
-      // Now apply the actual migrations to create extension tables
-      log.info('Creating extension tables from synced migrations...')
-      const migrationResult = await invoke<{
-        appliedCount: number
-        alreadyAppliedCount: number
-        appliedMigrations: string[]
-      }>('apply_synced_extension_migrations')
-      log.info(
-        `Applied ${migrationResult.appliedCount} synced extension migrations:`,
-        migrationResult.appliedMigrations,
-      )
-    }
-
-    // Step 2b: Now apply all other changes (including extension table data)
-    // Extension tables now exist, so data won't be skipped
-    if (otherChanges.length > 0) {
-      log.info(`Applying ${otherChanges.length} remaining changes to local database...`)
-      await applyRemoteChangesInTransactionAsync(otherChanges, vaultKey, backendId)
-    }
+    // Step 2: Apply all changes with proper migration ordering
+    await applyAllChangesWithMigrationsAsync(allChanges, vaultKey, backendId)
 
     // Step 3: Update lastPullServerTimestamp with the server timestamp
     if (serverTimestamp) {
@@ -280,8 +252,75 @@ export const pullChangesFromServerWithConfigAsync = async (
 }
 
 /**
+ * Applies all remote changes with proper ordering for extension tables
+ *
+ * This function ensures extension migrations are applied BEFORE extension table data.
+ * Without this ordering, extension table data would be skipped because the tables
+ * don't exist yet when the data is being applied.
+ *
+ * Order of operations:
+ * 1. Separate extension migration changes from other changes
+ * 2. Apply extension migration changes (haex_extension_migrations table)
+ * 3. Run apply_synced_extension_migrations to create extension tables
+ * 4. Apply remaining changes (including extension table data)
+ *
+ * @returns The maximum HLC timestamp from all applied changes
+ */
+export const applyAllChangesWithMigrationsAsync = async (
+  allChanges: ColumnChange[],
+  vaultKey: Uint8Array,
+  backendId: string,
+): Promise<string> => {
+  if (allChanges.length === 0) {
+    log.info('No changes to apply')
+    return ''
+  }
+
+  log.info(`Processing ${allChanges.length} changes...`)
+
+  // Separate extension migrations from other changes
+  const migrationChanges = allChanges.filter((c) => c.tableName === 'haex_extension_migrations')
+  const otherChanges = allChanges.filter((c) => c.tableName !== 'haex_extension_migrations')
+
+  let maxHlc = ''
+
+  // Step 1: Apply extension migration changes first (if any)
+  if (migrationChanges.length > 0) {
+    log.info(`Applying ${migrationChanges.length} extension migration changes first...`)
+    maxHlc = await applyRemoteChangesInTransactionAsync(migrationChanges, vaultKey, backendId)
+
+    // Now apply the actual migrations to create extension tables
+    log.info('Creating extension tables from synced migrations...')
+    const migrationResult = await invoke<{
+      appliedCount: number
+      alreadyAppliedCount: number
+      appliedMigrations: string[]
+    }>('apply_synced_extension_migrations')
+    log.info(
+      `Applied ${migrationResult.appliedCount} synced extension migrations:`,
+      migrationResult.appliedMigrations,
+    )
+  }
+
+  // Step 2: Now apply all other changes (including extension table data)
+  // Extension tables now exist, so data won't be skipped
+  if (otherChanges.length > 0) {
+    log.info(`Applying ${otherChanges.length} remaining changes to local database...`)
+    const otherMaxHlc = await applyRemoteChangesInTransactionAsync(otherChanges, vaultKey, backendId)
+    if (otherMaxHlc > maxHlc) {
+      maxHlc = otherMaxHlc
+    }
+  }
+
+  return maxHlc
+}
+
+/**
  * Applies remote changes atomically in a single transaction
  * Returns the max HLC timestamp from all changes (for updating lastPushHlcTimestamp)
+ *
+ * NOTE: For applying changes that may include extension tables, use
+ * applyAllChangesWithMigrationsAsync instead to ensure proper ordering.
  */
 export const applyRemoteChangesInTransactionAsync = async (
   changes: ColumnChange[],
