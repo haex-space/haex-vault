@@ -3,8 +3,10 @@ import {
   integer,
   sqliteTable,
   text,
+  type AnySQLiteColumn,
 } from 'drizzle-orm/sqlite-core'
 import tableNames from '@/database/tableNames.json'
+import { haexExtensions } from './haex'
 
 const crdtTableNames = tableNames.haex.crdt
 
@@ -99,6 +101,10 @@ export const haexCrdtMigrations = sqliteTable(
   crdtTableNames.migrations.name,
   {
     id: text(crdtTableNames.migrations.columns.id).primaryKey(),
+    extensionId: text(crdtTableNames.migrations.columns.extensionId).references(
+      (): AnySQLiteColumn => haexExtensions.id,
+      { onDelete: 'cascade' },
+    ),
     migrationName: text(crdtTableNames.migrations.columns.migrationName)
       .notNull()
       .unique(),

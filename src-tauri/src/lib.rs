@@ -137,6 +137,7 @@ pub fn run() {
             extension::database::extension_sql_execute,
             extension::database::extension_sql_select,
             extension::database::register_extension_migrations,
+            extension::database::apply_synced_extension_migrations,
             extension::web::extension_web_fetch,
             extension::web::extension_web_open,
             extension::permissions::commands::check_web_permission,

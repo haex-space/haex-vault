@@ -30,11 +30,14 @@ impl SqlPermissionValidator {
             Statement::Insert(_) | Statement::Update { .. } | Statement::Delete(_) => {
                 Self::validate_write_statement(app_state, extension_id, &statement).await
             }
-            Statement::CreateTable(_) => {
-                Self::validate_create_statement(app_state, extension_id, &statement).await
-            }
-            Statement::AlterTable { .. } | Statement::Drop { .. } => {
-                Self::validate_schema_statement(app_state, extension_id, &statement).await
+            // Schema modification statements (CREATE TABLE, ALTER TABLE, DROP) are NOT allowed
+            // through regular SQL execution. They can only be executed during:
+            // - Extension installation (migrations)
+            // - Synchronization of migrations from other devices
+            Statement::CreateTable(_) | Statement::AlterTable { .. } | Statement::Drop { .. } => {
+                Err(ExtensionError::ValidationError {
+                    reason: "Schema modifications (CREATE TABLE, ALTER TABLE, DROP) are only allowed during extension installation and synchronization".to_string(),
+                })
             }
             _ => Err(ExtensionError::ValidationError {
                 reason: format!("Statement type not allowed: {sql}"),

@@ -148,7 +148,6 @@
         "extensionVersion": "extension_version",
         "migrationName": "migration_name",
         "sqlStatement": "sql_statement",
-        "appliedAt": "applied_at",
 
         "haexTimestamp": "haex_timestamp"
       }
@@ -227,6 +226,7 @@
         "name": "haex_crdt_migrations",
         "columns": {
           "id": "id",
+          "extensionId": "extension_id",
           "migrationName": "migration_name",
           "migrationContent": "migration_content",
           "appliedAt": "applied_at"

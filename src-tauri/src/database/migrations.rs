@@ -1,7 +1,7 @@
 // src-tauri/src/database/migrations.rs
 // Core migration system for system tables
 
-use crate::database::core::with_connection;
+use crate::database::core::{with_connection, DRIZZLE_STATEMENT_BREAKPOINT};
 use crate::database::error::DatabaseError;
 use crate::database::generated::HaexCrdtMigrations;
 use crate::table_names::TABLE_CRDT_MIGRATIONS;
@@ -11,8 +11,6 @@ use serde::Serialize;
 use tauri::{path::BaseDirectory, Manager, State};
 use tauri_plugin_fs::FsExt;
 
-const STATEMENT_BREAKPOINT: &str = "--> statement-breakpoint";
-
 /// List of all migration file names (without .sql extension)
 /// When adding new migrations, append them to this list
 const MIGRATION_FILES: &[&str] = &[
@@ -21,6 +19,8 @@ const MIGRATION_FILES: &[&str] = &[
     "0002_wandering_lily_hollister",
     "0003_loud_ulik",
     "0004_nappy_mother_askani",
+    "0005_bitter_lily_hollister",
+    "0006_short_madame_hydra",
 ];
 
 #[derive(Debug, Serialize, Clone)]
@@ -420,7 +420,7 @@ fn apply_single_migration(
 
     // Split migration content by statement breakpoint
     let statements: Vec<&str> = migration_content
-        .split(STATEMENT_BREAKPOINT)
+        .split(DRIZZLE_STATEMENT_BREAKPOINT)
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
         .collect();

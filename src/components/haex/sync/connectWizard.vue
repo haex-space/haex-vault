@@ -225,7 +225,9 @@ const emit = defineEmits<{
 }>()
 
 // Keyboard shortcuts with VueUse
-const { escape, enter } = useMagicKeys()
+const keys = useMagicKeys()
+const escape = computed(() => keys.escape?.value ?? false)
+const enter = computed(() => keys.enter?.value ?? false)
 
 // Stepper state
 const currentStepIndex = ref(0)

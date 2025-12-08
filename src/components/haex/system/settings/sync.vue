@@ -460,13 +460,21 @@ const syncConfigStore = useSyncConfigStore()
 const vaultStore = useVaultStore()
 
 const { backends: syncBackends } = storeToRefs(syncBackendsStore)
-const { currentVaultId, currentVaultName, currentVaultPassword } =
-  storeToRefs(vaultStore)
+const { currentVaultId } = storeToRefs(vaultStore)
 const { config: syncConfig } = storeToRefs(syncConfigStore)
+
+// Sync connection composable
+const {
+  isLoading: isConnectionLoading,
+  error: connectionError,
+  createConnectionAsync,
+} = useCreateSyncConnection()
 
 // Local state
 const showAddBackendForm = ref(false)
-const isLoading = ref(false)
+const isLoading = computed(
+  () => isConnectionLoading.value,
+)
 
 const newBackend = reactive({
   email: '',
@@ -582,15 +590,26 @@ const cancelAddBackend = () => {
 
 // Handle wizard completion
 const onWizardCompleteAsync = async () => {
-  isLoading.value = true
+  const backendId = await createConnectionAsync({
+    serverUrl: newBackend.serverUrl,
+    email: newBackend.email,
+    password: newBackend.password,
+  })
 
-  try {
-    // 0. Check if we already have a connection to this server
-    const existingBackend = syncBackends.value.find(
-      (b) => b.serverUrl === newBackend.serverUrl,
-    )
+  if (backendId) {
+    // Reload server vaults after sync has started
+    await loadAllServerVaultsAsync()
 
-    if (existingBackend) {
+    add({
+      title: t('success.backendAdded'),
+      color: 'success',
+    })
+
+    // Reset form and close
+    cancelAddBackend()
+  } else if (connectionError.value) {
+    // Check if it's a duplicate backend error
+    if (connectionError.value.includes('already exists')) {
       add({
         title: t('errors.backendAlreadyExists'),
         description: t('errors.backendAlreadyExistsDescription', {
@@ -598,104 +617,13 @@ const onWizardCompleteAsync = async () => {
         }),
         color: 'warning',
       })
-      isLoading.value = false
-      return
-    }
-
-    // 1. First create a temporary backend entry to get an ID for Supabase client initialization
-    // We need the backend ID to initialize the client with the correct storage key
-    const tempBackend = await syncBackendsStore.addBackendAsync({
-      name: new URL(newBackend.serverUrl).host,
-      serverUrl: newBackend.serverUrl,
-      email: newBackend.email,
-      password: newBackend.password,
-      enabled: false, // Start disabled until credentials are verified
-      vaultId: currentVaultId.value,
-    })
-
-    if (!tempBackend) {
-      throw new Error('Failed to create backend entry')
-    }
-
-    const backendId = tempBackend.id
-
-    try {
-      // 2. Initialize Supabase client with the backend ID
-      console.log(
-        '🔐 Initializing Supabase client and verifying credentials...',
-      )
-      await syncEngineStore.initSupabaseClientAsync(backendId)
-
-      // 3. Verify credentials by signing in
-      if (!syncEngineStore.supabaseClient) {
-        throw new Error('Supabase client not initialized')
-      }
-
-      const { error: signInError } =
-        await syncEngineStore.supabaseClient.auth.signInWithPassword({
-          email: newBackend.email,
-          password: newBackend.password,
-        })
-
-      if (signInError) {
-        throw new Error(`Authentication failed: ${signInError.message}`)
-      }
-
-      console.log('✅ Credentials verified successfully')
-
-      // 4. Enable the backend now that credentials are verified
-      await syncBackendsStore.updateBackendAsync(backendId, {
-        enabled: true,
-      })
-
-      // 5. Reload backends to ensure they're in the store
-      await syncBackendsStore.loadBackendsAsync()
-
-      // 6. Ensure sync key (client is now authenticated)
-      // vaultPassword = current vault's password (for sync key encryption)
-      // serverPassword = newBackend.password (for vault name encryption)
-      if (!currentVaultPassword.value) {
-        throw new Error('Vault password not available')
-      }
-      await syncEngineStore.ensureSyncKeyAsync(
-        backendId,
-        currentVaultId.value!,
-        currentVaultName.value,
-        currentVaultPassword.value,
-        undefined, // serverUrl - not needed, backend already has it
-        newBackend.password, // serverPassword for vault name encryption
-      )
-
-      // 7. Start sync
-      await syncOrchestratorStore.startSyncAsync()
-
-      console.log('✅ Sync started automatically after backend added')
-
-      // 8. Reload server vaults after sync has started (vault should now exist on server)
-      await loadAllServerVaultsAsync()
-
+    } else {
       add({
-        title: t('success.backendAdded'),
-        color: 'success',
+        title: t('errors.addBackendFailed'),
+        description: connectionError.value,
+        color: 'error',
       })
-
-      // Reset form and close
-      cancelAddBackend()
-    } catch (error) {
-      // If authentication fails, delete the backend entry we just created
-      console.error('Authentication failed, removing backend entry')
-      await syncBackendsStore.deleteBackendAsync(backendId)
-      throw error
     }
-  } catch (error) {
-    console.error('Failed to add backend:', error)
-    add({
-      title: t('errors.addBackendFailed'),
-      description: error instanceof Error ? error.message : 'Unknown error',
-      color: 'error',
-    })
-  } finally {
-    isLoading.value = false
   }
 }
 

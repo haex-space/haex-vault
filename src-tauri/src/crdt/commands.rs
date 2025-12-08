@@ -258,27 +258,19 @@ pub fn apply_remote_changes_in_transaction(
     eprintln!("[SYNC RUST] Batch validation passed");
 
     with_connection(&state.db, |conn| {
+        // Disable foreign key constraints BEFORE starting the transaction
+        // IMPORTANT: PRAGMA foreign_keys cannot be changed inside a transaction!
+        // See: https://sqlite.org/foreignkeys.html
+        // "It is not possible to enable or disable foreign key constraints in the middle
+        // of a multi-statement transaction. Attempting to do so does not return an error;
+        // it simply has no effect."
+        eprintln!("[SYNC RUST] Disabling foreign_keys BEFORE transaction");
+        conn.pragma_update(None, "foreign_keys", "OFF")
+            .map_err(DatabaseError::from)?;
+
         // Start transaction - all changes in the batch are applied atomically
         eprintln!("[SYNC RUST] Starting transaction...");
         let tx = conn.transaction().map_err(DatabaseError::from)?;
-
-        // Check if foreign keys are enabled (required for defer_foreign_keys to work)
-        let fk_enabled: i32 = tx
-            .query_row("PRAGMA foreign_keys", [], |row| row.get(0))
-            .map_err(DatabaseError::from)?;
-        eprintln!("[SYNC RUST] Foreign keys enabled: {}", fk_enabled);
-
-        if fk_enabled != 1 {
-            eprintln!("[SYNC RUST] WARNING: Foreign keys are not enabled! defer_foreign_keys will not work.");
-        }
-
-        // Defer foreign key constraint checking until the end of the transaction
-        // This allows applying changes in any order, but still validates all constraints at commit time
-        // This setting is automatically reset when the transaction ends (commit or rollback)
-        // NOTE: This must be set AFTER starting the transaction
-        eprintln!("[SYNC RUST] Setting PRAGMA defer_foreign_keys = 1");
-        tx.pragma_update(None, "defer_foreign_keys", "1")
-            .map_err(DatabaseError::from)?;
 
         // Disable triggers temporarily to prevent marking tables as dirty
         // when applying remote changes (we don't want to re-sync changes we just pulled)
@@ -289,16 +281,6 @@ pub fn apply_remote_changes_in_transaction(
         );
         tx.execute(&disable_sql, [])
             .map_err(DatabaseError::from)?;
-
-        // Verify the PRAGMA was actually set
-        let defer_fk_enabled: i32 = tx
-            .query_row("PRAGMA defer_foreign_keys", [], |row| row.get(0))
-            .map_err(DatabaseError::from)?;
-        eprintln!("[SYNC RUST] PRAGMA defer_foreign_keys is now: {}", defer_fk_enabled);
-
-        if defer_fk_enabled != 1 {
-            eprintln!("[SYNC RUST] ERROR: defer_foreign_keys could not be enabled!");
-        }
 
         // Group changes by (table, row) so we can insert/update all columns of a row together
         let mut row_changes: HashMap<(String, String), Vec<RemoteColumnChange>> = HashMap::new();
@@ -567,20 +549,23 @@ pub fn apply_remote_changes_in_transaction(
         tx.execute(&enable_sql, [])
             .map_err(DatabaseError::from)?;
 
-        // Commit transaction
-        // Note: defer_foreign_keys is reset automatically when the transaction ends
-        // All deferred FK constraints will be checked now
-        eprintln!("[SYNC RUST] Committing transaction - FK constraints will be checked now");
+        // Commit transaction (with FK constraints disabled)
+        eprintln!("[SYNC RUST] Committing transaction");
         match tx.commit() {
             Ok(_) => {
                 eprintln!("[SYNC RUST] Transaction committed successfully");
-                Ok(())
             }
             Err(e) => {
                 eprintln!("[SYNC RUST] Transaction commit failed: {:?}", e);
-                Err(DatabaseError::from(e))
+                return Err(DatabaseError::from(e));
             }
-        }?;
+        }
+
+        // Re-enable foreign key constraints after transaction is complete
+        // This is done on the connection, not in a transaction
+        eprintln!("[SYNC RUST] Re-enabling foreign_keys");
+        conn.pragma_update(None, "foreign_keys", "ON")
+            .map_err(DatabaseError::from)?;
 
         Ok(())
     })

@@ -36,7 +36,7 @@ export const useSyncConfigStore = defineStore('syncConfigStore', () => {
    */
   const loadConfigAsync = async (): Promise<void> => {
     try {
-      const db = vaultStore.db
+      const db = vaultStore.currentVault?.drizzle
       if (!db) return
 
       // Load sync mode
@@ -94,7 +94,7 @@ export const useSyncConfigStore = defineStore('syncConfigStore', () => {
     newConfig: Partial<SyncConfig>,
   ): Promise<void> => {
     try {
-      const db = vaultStore.db
+      const db = vaultStore.currentVault?.drizzle
       if (!db) {
         throw new Error('Database not available')
       }

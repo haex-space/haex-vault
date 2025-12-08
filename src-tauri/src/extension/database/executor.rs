@@ -3,7 +3,6 @@
 use super::planner::SqlExecutionPlanner;
 use crate::crdt::hlc::HlcService;
 use crate::crdt::transformer::CrdtTransformer;
-use crate::crdt::trigger;
 use crate::database::core::{convert_value_ref_to_json, strip_main_schema_prefix};
 use crate::database::error::DatabaseError;
 use rusqlite::{params_from_iter, ToSql, Transaction};
@@ -16,6 +15,10 @@ pub struct SqlExecutor;
 impl SqlExecutor {
     /// Führt ein SQL Statement OHNE RETURNING aus (mit CRDT)
     /// Returns: modified_schema_tables
+    ///
+    /// Note: This function does NOT automatically create CRDT triggers for CREATE TABLE.
+    /// The caller is responsible for setting up triggers using `trigger::setup_triggers_for_table`
+    /// when needed (e.g., for production extensions but not for dev mode extensions).
     pub fn execute_internal_typed(
         tx: &Transaction,
         hlc_service: &HlcService,
@@ -53,12 +56,6 @@ impl SqlExecutor {
                 table: None,
                 reason: format!("Execute failed: {e}"),
             })?;
-
-        // Trigger-Logik für CREATE TABLE
-        if let Some(table_name) = SqlExecutionPlanner::extract_create_table_name(&statement) {
-            eprintln!("DEBUG: Setting up triggers for table: {table_name}");
-            trigger::setup_triggers_for_table(tx, &table_name, false)?;
-        }
 
         Ok(modified_schema_tables)
     }
@@ -138,12 +135,6 @@ impl SqlExecutor {
                 row_values.push(json_value);
             }
             result_vec.push(row_values);
-        }
-
-        // Trigger-Logik für CREATE TABLE
-        if let Some(table_name) = SqlExecutionPlanner::extract_create_table_name(&statement) {
-            eprintln!("DEBUG: Setting up triggers for table (RETURNING): {table_name}");
-            trigger::setup_triggers_for_table(tx, &table_name, false)?;
         }
 
         Ok((modified_schema_tables, result_vec))

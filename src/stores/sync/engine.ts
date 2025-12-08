@@ -5,7 +5,6 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { eq } from 'drizzle-orm'
-import type { SelectHaexCrdtChanges } from '~/database/schemas'
 import { haexSyncBackends } from '~/database/schemas'
 import {
   encryptVaultKeyAsync,
@@ -18,6 +17,21 @@ import {
   base64ToArrayBuffer,
   arrayBufferToBase64,
 } from '~/utils/crypto/vaultKey'
+
+/**
+ * Type for CRDT change entries used in sync operations
+ * Contains the fields needed for push/pull with haex-sync-server
+ */
+interface CrdtChange {
+  tableName: string
+  rowPks: string
+  columnName: string | null
+  hlcTimestamp: string
+  deviceId: string | null
+  encryptedValue: string | null
+  nonce: string | null
+  createdAt: string
+}
 
 interface VaultKeyCache {
   [vaultId: string]: {
@@ -255,7 +269,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   const pushChangesAsync = async (
     backendId: string,
     vaultId: string,
-    changes: SelectHaexCrdtChanges[],
+    changes: CrdtChange[],
   ): Promise<void> => {
     const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
     if (!backend) {
@@ -276,14 +290,14 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       throw new Error('Not authenticated')
     }
 
-    // Encrypt each change entry (exclude syncState and deviceId - they're sent separately/client-specific)
+    // Encrypt each change entry (exclude deviceId - it's sent separately)
     const encryptedChanges: SyncChangeData[] = []
     for (const change of changes) {
-      // Remove syncState and deviceId before encrypting - deviceId is sent separately, syncState is client-specific
-      const { syncState, deviceId, ...changeWithoutClientData } = change
+      // Remove deviceId before encrypting - it's sent separately
+      const { deviceId, ...changeWithoutDeviceId } = change
 
       const { encryptedData, nonce } = await encryptCrdtDataAsync(
-        changeWithoutClientData,
+        changeWithoutDeviceId,
         vaultKey,
       )
 
@@ -324,7 +338,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     excludeDeviceId?: string,
     afterCreatedAt?: string,
     limit?: number,
-  ): Promise<SelectHaexCrdtChanges[]> => {
+  ): Promise<CrdtChange[]> => {
     const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
     if (!backend) {
       throw new Error('Backend not found')
@@ -369,20 +383,16 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     const data: PullChangesResponse = await response.json()
 
     // Decrypt each log entry
-    const decryptedLogs: SelectHaexCrdtChanges[] = []
+    const decryptedLogs: CrdtChange[] = []
     for (const change of data.changes) {
       try {
-        const decrypted = await decryptCrdtDataAsync<Omit<SelectHaexCrdtChanges, 'syncState'>>(
+        const decrypted = await decryptCrdtDataAsync<CrdtChange>(
           change.encryptedData,
           change.nonce,
           vaultKey,
         )
 
-        // Add syncState for downloaded changes - they need to be applied locally
-        decryptedLogs.push({
-          ...decrypted,
-          syncState: 'pending_apply',
-        })
+        decryptedLogs.push(decrypted)
       } catch (error) {
         console.error('Failed to decrypt log entry:', change.id, error)
         // Skip corrupted entries

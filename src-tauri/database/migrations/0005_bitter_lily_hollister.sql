@@ -1,0 +1,1 @@
+ALTER TABLE `haex_crdt_migrations` ADD `extension_id` text REFERENCES haex_extensions(id);

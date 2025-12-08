@@ -136,6 +136,7 @@
             v-model:email="syncCredentials.email"
             v-model:password="syncCredentials.password"
             :items="serverOptions"
+            :is-loading="isSyncLoading"
           />
         </div>
       </div>
@@ -212,7 +213,10 @@ const { hostname } = storeToRefs(useDeviceStore())
 const { addDeviceNameAsync, setAsCurrentDeviceAsync } = useDeviceStore()
 const extensionStore = useExtensionsStore()
 const { serverOptions } = useSyncServerOptions()
-const syncBackendsStore = useSyncBackendsStore()
+
+// Sync connection composable
+const { isLoading: isSyncLoading, error: syncError, createConnectionAsync } =
+  useCreateSyncConnection()
 
 // Step management
 const currentStep = ref(0)
@@ -450,45 +454,26 @@ const installSelectedExtensionsAsync = async () => {
   await extensionStore.loadExtensionsAsync()
 }
 
-const getBackendNameFromUrl = (url: string): string => {
-  try {
-    const hostname = new URL(url).hostname
-    // Check for known servers
-    if (hostname === 'sync.haex.space') {
-      return 'HaexSpace Sync'
-    }
-    // For custom servers, use hostname
-    return hostname
-  } catch {
-    return 'Sync Server'
-  }
-}
-
 const setupSyncAsync = async () => {
-  try {
-    const backendName = getBackendNameFromUrl(syncCredentials.value.serverUrl)
+  const backendId = await createConnectionAsync({
+    serverUrl: syncCredentials.value.serverUrl,
+    email: syncCredentials.value.email,
+    password: syncCredentials.value.password,
+  })
 
-    // Create sync backend
-    await syncBackendsStore.addBackendAsync({
-      name: backendName,
-      serverUrl: syncCredentials.value.serverUrl,
-      email: syncCredentials.value.email,
-      password: syncCredentials.value.password,
-    })
-
+  if (backendId) {
     add({
       color: 'success',
       title: t('success.syncConfigured'),
     })
-  } catch (error) {
-    console.error('Failed to setup sync:', error)
+  } else if (syncError.value) {
     add({
       color: 'error',
       title: t('errors.syncSetup'),
-      description: error instanceof Error ? error.message : 'Unknown error',
+      description: syncError.value,
     })
-    // Don't throw - let the wizard complete even if sync fails
   }
+  // Don't throw - let the wizard complete even if sync fails
 }
 
 const completeWizardAsync = () => finishWizardAsync({ withSync: true })

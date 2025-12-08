@@ -3,6 +3,7 @@
  * Uses new table-scanning approach with column-level HLC timestamps
  */
 
+import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { log, type BackendSyncState } from './types'
 import { pushToBackendAsync } from './push'
@@ -417,6 +418,23 @@ export const useSyncOrchestratorStore = defineStore(
           // Apply all changes atomically
           log.info('Applying changes to local database...')
           maxHlc = await applyRemoteChangesInTransactionAsync(allChanges, vaultKey, backendId)
+
+          // Apply any synced extension migrations (creates extension tables)
+          // This must happen after the sync data is applied, as extension_migrations table
+          // may now contain migrations from other devices
+          const tablesAffected = [...new Set(allChanges.map((c) => c.tableName))]
+          if (tablesAffected.includes('haex_extension_migrations')) {
+            log.info('Extension migrations were synced - applying pending migrations...')
+            const migrationResult = await invoke<{
+              appliedCount: number
+              alreadyAppliedCount: number
+              appliedMigrations: string[]
+            }>('apply_synced_extension_migrations')
+            log.info(
+              `Applied ${migrationResult.appliedCount} synced extension migrations:`,
+              migrationResult.appliedMigrations,
+            )
+          }
         }
 
         // Now persist the backend to DB

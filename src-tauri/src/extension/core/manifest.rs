@@ -1,11 +1,45 @@
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::types::{
-    Action, DbAction, ExtensionPermission, FsAction, WebAction, PermissionConstraints,
-    PermissionStatus, ResourceType, ShellAction,
+    Action, DbAction, ExtensionPermission, FsAction, PermissionConstraints, PermissionStatus,
+    ResourceType, ShellAction, WebAction,
 };
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use ts_rs::TS;
+
+/// Drizzle migration journal entry from _journal.json
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct MigrationJournalEntry {
+    /// Index/order of the migration
+    pub idx: u32,
+    /// Drizzle schema version
+    pub version: String,
+    /// Unix timestamp when migration was created
+    pub when: u64,
+    /// Migration file name without .sql extension (e.g., "0000_initial_schema")
+    pub tag: String,
+    /// Whether to use statement breakpoints
+    pub breakpoints: bool,
+}
+
+/// Drizzle migration journal (_journal.json)
+/// Note: We only parse the fields we need; Drizzle adds other fields like "dialect"
+/// which we intentionally ignore (always SQLite for us)
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(default)]
+pub struct MigrationJournal {
+    pub version: String,
+    pub entries: Vec<MigrationJournalEntry>,
+}
+
+impl Default for MigrationJournal {
+    fn default() -> Self {
+        Self {
+            version: String::new(),
+            entries: Vec::new(),
+        }
+    }
+}
 
 /// Repräsentiert einen einzelnen Berechtigungseintrag im Manifest und im UI-Modell.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, TS)]
@@ -91,6 +125,11 @@ pub struct ExtensionManifest {
     pub single_instance: Option<bool>,
     #[serde(default)]
     pub display_mode: Option<DisplayMode>,
+    /// Path to the migrations directory relative to the extension root.
+    /// Contains Drizzle-style migrations with _journal.json and *.sql files.
+    /// Example: "database/migrations"
+    #[serde(default)]
+    pub migrations_dir: Option<String>,
 }
 
 fn default_entry_value() -> Option<String> {

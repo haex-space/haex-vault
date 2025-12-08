@@ -96,6 +96,22 @@ export const pullFromBackendAsync = async (
     log.info('Applying changes to local database...')
     await applyRemoteChangesInTransactionAsync(allChanges, vaultKey, backendId)
 
+    // Step 2.5: Apply any synced extension migrations (creates extension tables)
+    // This must happen after the sync data is applied, as extension_migrations table
+    // may now contain new migrations from other devices
+    if (tablesAffected.includes('haex_extension_migrations')) {
+      log.info('Extension migrations were synced - applying pending migrations...')
+      const migrationResult = await invoke<{
+        appliedCount: number
+        alreadyAppliedCount: number
+        appliedMigrations: string[]
+      }>('apply_synced_extension_migrations')
+      log.info(
+        `Applied ${migrationResult.appliedCount} synced extension migrations:`,
+        migrationResult.appliedMigrations,
+      )
+    }
+
     // Step 3: Update lastPullServerTimestamp with the server timestamp
     if (serverTimestamp) {
       log.debug('Updating lastPullServerTimestamp to:', serverTimestamp)

@@ -1,5 +1,8 @@
 // src-tauri/src/database/core.rs
 
+/// Statement breakpoint marker used by Drizzle migrations
+pub const DRIZZLE_STATEMENT_BREAKPOINT: &str = "--> statement-breakpoint";
+
 use crate::crdt::trigger::UUID_FUNCTION_NAME;
 use crate::database::error::DatabaseError;
 use crate::database::DbConnection;

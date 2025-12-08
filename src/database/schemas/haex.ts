@@ -279,9 +279,6 @@ export const haexExtensionMigrations = sqliteTable(
     extensionVersion: text(tableNames.haex.extension_migrations.columns.extensionVersion).notNull(),
     migrationName: text(tableNames.haex.extension_migrations.columns.migrationName).notNull(),
     sqlStatement: text(tableNames.haex.extension_migrations.columns.sqlStatement).notNull(),
-    appliedAt: text(tableNames.haex.extension_migrations.columns.appliedAt).default(
-      sql`(CURRENT_TIMESTAMP)`,
-    ),
   }),
   (table) => [
     uniqueIndex('haex_extension_migrations_extension_id_migration_name_unique')

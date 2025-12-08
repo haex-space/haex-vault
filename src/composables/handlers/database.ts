@@ -30,7 +30,8 @@ export async function handleDatabaseMethodAsync(
       } catch (error) {
         // If error is about non-SELECT statements (INSERT/UPDATE/DELETE with RETURNING),
         // automatically retry with execute
-        if (error?.message?.includes('Only SELECT statements are allowed')) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        if (errorMessage.includes('Only SELECT statements are allowed')) {
           const rows = await invoke<unknown[]>('extension_sql_execute', {
             sql: params.query || '',
             params: params.params || [],

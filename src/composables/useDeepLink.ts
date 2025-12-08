@@ -25,7 +25,7 @@ export const useDeepLink = () => {
    */
   const parseDeepLinkUrl = (url: string): string | null => {
     const match = url.match(/haexvault:\/\/extension\/(.+)/)
-    return match ? match[1] : null
+    return match?.[1] ?? null
   }
 
   /**
