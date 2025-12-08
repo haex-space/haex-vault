@@ -92,15 +92,19 @@ export const pullFromBackendAsync = async (
     const tablesAffected = [...new Set(allChanges.map((c) => c.tableName))]
     log.debug('Tables affected:', tablesAffected)
 
-    // Step 2: Apply ALL changes atomically in a single transaction
-    log.info('Applying changes to local database...')
-    await applyRemoteChangesInTransactionAsync(allChanges, vaultKey, backendId)
+    // Step 2: Separate extension migrations from other changes
+    // Extension migrations MUST be applied BEFORE extension table data,
+    // otherwise the data will be skipped because tables don't exist yet
+    const migrationChanges = allChanges.filter((c) => c.tableName === 'haex_extension_migrations')
+    const otherChanges = allChanges.filter((c) => c.tableName !== 'haex_extension_migrations')
 
-    // Step 2.5: Apply any synced extension migrations (creates extension tables)
-    // This must happen after the sync data is applied, as extension_migrations table
-    // may now contain new migrations from other devices
-    if (tablesAffected.includes('haex_extension_migrations')) {
-      log.info('Extension migrations were synced - applying pending migrations...')
+    // Step 2a: Apply extension migration changes first (if any)
+    if (migrationChanges.length > 0) {
+      log.info(`Applying ${migrationChanges.length} extension migration changes first...`)
+      await applyRemoteChangesInTransactionAsync(migrationChanges, vaultKey, backendId)
+
+      // Now apply the actual migrations to create extension tables
+      log.info('Creating extension tables from synced migrations...')
       const migrationResult = await invoke<{
         appliedCount: number
         alreadyAppliedCount: number
@@ -110,6 +114,13 @@ export const pullFromBackendAsync = async (
         `Applied ${migrationResult.appliedCount} synced extension migrations:`,
         migrationResult.appliedMigrations,
       )
+    }
+
+    // Step 2b: Now apply all other changes (including extension table data)
+    // Extension tables now exist, so data won't be skipped
+    if (otherChanges.length > 0) {
+      log.info(`Applying ${otherChanges.length} remaining changes to local database...`)
+      await applyRemoteChangesInTransactionAsync(otherChanges, vaultKey, backendId)
     }
 
     // Step 3: Update lastPullServerTimestamp with the server timestamp
