@@ -1,7 +1,7 @@
 import type { IHaexSpaceExtension } from '~/types/haexspace'
 import type { ExtensionRequest } from './types'
 import { invoke } from '@tauri-apps/api/core'
-import { HAEXTENSION_METHODS } from '@haex-space/sdk'
+import { HAEXTENSION_METHODS } from '@haex-space/vault-sdk'
 
 export async function handleWebMethodAsync(
   request: ExtensionRequest,

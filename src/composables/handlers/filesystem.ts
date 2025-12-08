@@ -2,7 +2,7 @@ import { save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
 import { openPath } from '@tauri-apps/plugin-opener'
 import { tempDir, join } from '@tauri-apps/api/path'
-import { HAEXTENSION_METHODS } from '@haex-space/sdk'
+import { HAEXTENSION_METHODS } from '@haex-space/vault-sdk'
 import type { IHaexSpaceExtension } from '~/types/haexspace'
 import type { ExtensionRequest } from './types'
 

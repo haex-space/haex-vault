@@ -1,6 +1,6 @@
 // composables/extensionMessageHandler.ts
 import type { IHaexSpaceExtension } from '~/types/haexspace'
-import { HAEXTENSION_METHODS, HAEXTENSION_EVENTS } from '@haex-space/sdk'
+import { HAEXTENSION_METHODS, HAEXTENSION_EVENTS, HAEXSPACE_MESSAGE_TYPES } from '@haex-space/vault-sdk'
 import {
   EXTENSION_PROTOCOL_NAME,
   EXTENSION_PROTOCOL_PREFIX,
@@ -40,12 +40,12 @@ const registerGlobalMessageHandler = () => {
     })
 
     // Ignore console.forward messages - they're handled elsewhere
-    if (event.data?.type === 'console.forward') {
+    if (event.data?.type === HAEXSPACE_MESSAGE_TYPES.CONSOLE_FORWARD) {
       return
     }
 
     // Handle debug messages for Android debugging
-    if (event.data?.type === 'haexspace:debug') {
+    if (event.data?.type === HAEXSPACE_MESSAGE_TYPES.DEBUG) {
       console.log('[ExtensionHandler] DEBUG MESSAGE FROM EXTENSION:', event.data.data)
       return
     }

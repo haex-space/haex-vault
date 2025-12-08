@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@haex-space/marketplace-sdk": "^0.1.2",
-    "@haex-space/sdk": "^1.0.5",
+    "@haex-space/vault-sdk": "^2.3.0",
     "@nuxt/eslint": "1.9.0",
     "@nuxt/fonts": "0.12.1",
     "@nuxt/icon": "2.0.0",

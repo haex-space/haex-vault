@@ -14,9 +14,9 @@ importers:
       '@haex-space/marketplace-sdk':
         specifier: ^0.1.2
         version: 0.1.2(vue@3.5.25(typescript@5.9.3))
-      '@haex-space/sdk':
-        specifier: ^1.0.5
-        version: 1.0.5(@libsql/client@0.15.15)(@nuxt/kit@4.2.1(magicast@0.5.1))(@opentelemetry/api@1.9.0)(vite@7.2.6(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))(vue@3.5.25(typescript@5.9.3))
+      '@haex-space/vault-sdk':
+        specifier: ^2.3.0
+        version: 2.3.0(@libsql/client@0.15.15)(@nuxt/kit@4.2.1(magicast@0.5.1))(@opentelemetry/api@1.9.0)(vite@7.2.6(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))(vue@3.5.25(typescript@5.9.3))
       '@nuxt/eslint':
         specifier: 1.9.0
         version: 1.9.0(@typescript-eslint/utils@8.48.1(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3))(@vue/compiler-sfc@3.5.25)(eslint@9.39.1(jiti@2.6.1))(magicast@0.5.1)(typescript@5.9.3)(vite@7.2.6(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -1018,9 +1018,8 @@ packages:
       vue:
         optional: true
 
-  '@haex-space/sdk@1.0.5':
-    resolution: {integrity: sha512-m0wf5DUgSv3nGomOHYG/y3eUwK1P5Ome9UZdmu2bXZgKta8QHLDuQLj1j6SoY68viMhncAT9CwSowSDBsXYJXQ==}
-    deprecated: This package has been renamed to @haex-space/vault-sdk. Please update your dependencies.
+  '@haex-space/vault-sdk@2.3.0':
+    resolution: {integrity: sha512-a0LG7Q1Pi4F1ZS35gu1kPHtAVuQInYyZibeuaAW0Npxuh7a+ZM5NhQqHB+7U7XLUJ6I9yBXHS/CaxT06AmyG3Q==}
     hasBin: true
     peerDependencies:
       '@nuxt/kit': ^3.0.0 || ^4.0.0
@@ -7027,7 +7026,7 @@ snapshots:
     optionalDependencies:
       vue: 3.5.25(typescript@5.9.3)
 
-  '@haex-space/sdk@1.0.5(@libsql/client@0.15.15)(@nuxt/kit@4.2.1(magicast@0.5.1))(@opentelemetry/api@1.9.0)(vite@7.2.6(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))(vue@3.5.25(typescript@5.9.3))':
+  '@haex-space/vault-sdk@2.3.0(@libsql/client@0.15.15)(@nuxt/kit@4.2.1(magicast@0.5.1))(@opentelemetry/api@1.9.0)(vite@7.2.6(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))(vue@3.5.25(typescript@5.9.3))':
     dependencies:
       archiver: 7.0.1
       commander: 14.0.2
