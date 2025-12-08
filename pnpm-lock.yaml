@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  zod: ^3.22.4
+  zod: ^3.25.76
 
 importers:
 
@@ -175,13 +175,13 @@ packages:
     resolution: {integrity: sha512-sDQcW+6ck2m0pTIHW6BPHD7S125WD3qNkx/B8sEzJp/hurocmJ5Cni0ybExg6sQMGo+fr/GWOwpHF1cmCdg5rQ==}
     engines: {node: '>=18'}
     peerDependencies:
-      zod: ^3.22.4
+      zod: ^3.25.76
 
   '@ai-sdk/provider-utils@3.0.18':
     resolution: {integrity: sha512-ypv1xXMsgGcNKUP+hglKqtdDuMg68nWHucPPAhIENrbFAI+xCHiqPVN8Zllxyv1TNZwGWUghPxJXU+Mqps0YRQ==}
     engines: {node: '>=18'}
     peerDependencies:
-      zod: ^3.22.4
+      zod: ^3.25.76
 
   '@ai-sdk/provider@2.0.0':
     resolution: {integrity: sha512-6o7Y2SeO9vFKB8lArHXehNuusnpddKPk7xqL7T2/b+OvXMRIXUO1rR4wcv1hAFUAT9avGZshty3Wlua/XA7TvA==}
@@ -192,7 +192,7 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       vue: ^3.3.4
-      zod: ^3.22.4
+      zod: ^3.25.76
     peerDependenciesMeta:
       vue:
         optional: true
@@ -1454,7 +1454,7 @@ packages:
       valibot: ^1.0.0
       vue-router: ^4.5.0
       yup: ^1.7.0
-      zod: ^3.22.4
+      zod: ^3.25.76
     peerDependenciesMeta:
       '@inertiajs/vue3':
         optional: true
@@ -2987,7 +2987,7 @@ packages:
     resolution: {integrity: sha512-Jex3Lb7V41NNpuqJHKgrwoU6BCLHdI1Pg4qb4GJH4jRIDRXUBySJErHjyN4oTCwbiYCeb/8II9EnqSRPq9EifA==}
     engines: {node: '>=18'}
     peerDependencies:
-      zod: ^3.22.4
+      zod: ^3.25.76
 
   ajv@6.12.6:
     resolution: {integrity: sha512-j3fVLgvTo527anyYyJOGTYJbG+vnnQYvE0m5mmkc1TK+nxAppkCLMIL0aZ4dblVCNoGShhm+kzE4ZUykBoMg4g==}
