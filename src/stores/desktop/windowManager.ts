@@ -277,13 +277,21 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       // Check if we're on a small screen
       const { isSmallScreen } = useUiStore()
 
+      // Minimum dimensions for windowed mode
+      const MIN_WINDOW_WIDTH = 800
+      const MIN_WINDOW_HEIGHT = 600
+
+      // Check if viewport is too small for the requested window size
+      const viewportTooSmall =
+        viewportWidth < MIN_WINDOW_WIDTH || viewportHeight < MIN_WINDOW_HEIGHT
+
       let windowWidth: number
       let windowHeight: number
       let x: number
       let y: number
 
-      if (isSmallScreen) {
-        // On small screens, make window fullscreen starting at 0,0
+      if (isSmallScreen || viewportTooSmall) {
+        // On small screens or when viewport is too small, make window fullscreen
         // Use helper function to calculate correct dimensions with safe areas
         const fullscreen = getFullscreenDimensions()
         x = fullscreen.x

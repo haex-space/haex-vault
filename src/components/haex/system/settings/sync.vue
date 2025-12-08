@@ -76,90 +76,35 @@
       </UCard>
 
       <!-- Sync Backends List -->
-      <UCard v-if="!showAddBackendForm || syncBackends.length">
-        <template #header>
-          <div class="flex items-center justify-between">
-            <h3 class="text-lg font-semibold">{{ t('backends.title') }}</h3>
-            <UButton
-              v-if="!showAddBackendForm"
-              color="primary"
-              icon="i-lucide-plus"
-              @click="showAddBackendForm = true"
-            >
-              <span class="hidden @sm:inline">
-                {{ t('actions.add') }}
-              </span>
-            </UButton>
-          </div>
-        </template>
+      <div v-if="!showAddBackendForm || syncBackends.length">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold">{{ t('backends.title') }}</h3>
+          <UButton
+            v-if="!showAddBackendForm"
+            color="primary"
+            icon="i-lucide-plus"
+            @click="showAddBackendForm = true"
+          >
+            <span class="hidden @sm:inline">
+              {{ t('actions.add') }}
+            </span>
+          </UButton>
+        </div>
 
-        <template
+        <div
           v-if="syncBackends.length"
-          #default
+          class="space-y-3"
         >
-          <div class="space-y-3">
-            <div
-              v-for="backend in syncBackends"
-              :key="backend.id"
-              class="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg"
-            >
-              <div
-                class="flex flex-col @sm:flex-row @sm:items-center justify-between gap-3"
-              >
-                <div class="flex-1 min-w-0">
-                  <p class="font-medium">{{ backend.name }}</p>
-                  <p class="text-sm text-gray-500 dark:text-gray-400 truncate">
-                    {{ backend.serverUrl }}
-                  </p>
-                  <div class="flex flex-wrap gap-2 mt-2">
-                    <UBadge
-                      :color="backend.enabled ? 'success' : 'neutral'"
-                      variant="subtle"
-                      size="xs"
-                    >
-                      {{
-                        backend.enabled
-                          ? t('backends.enabled')
-                          : t('backends.disabled')
-                      }}
-                    </UBadge>
-                    <UBadge
-                      v-if="getSyncState(backend.id)?.isConnected"
-                      color="info"
-                      variant="subtle"
-                      size="xs"
-                    >
-                      {{ t('backends.connected') }}
-                    </UBadge>
-                    <UBadge
-                      v-else-if="getSyncState(backend.id)?.isSyncing"
-                      color="warning"
-                      variant="subtle"
-                      size="xs"
-                    >
-                      {{ t('backends.syncing') }}
-                    </UBadge>
-                  </div>
-                </div>
-                <div class="shrink-0">
-                  <UButton
-                    size="sm"
-                    :color="backend.enabled ? 'neutral' : 'primary'"
-                    class="w-full @sm:w-auto"
-                    @click="toggleBackendAsync(backend.id)"
-                  >
-                    {{
-                      backend.enabled
-                        ? t('actions.disable')
-                        : t('actions.enable')
-                    }}
-                  </UButton>
-                </div>
-              </div>
-            </div>
-          </div>
-        </template>
-      </UCard>
+          <HaexSyncBackendItem
+            v-for="backend in syncBackends"
+            :key="backend.id"
+            :backend="backend"
+            :sync-state="getSyncState(backend.id)"
+            show-toggle
+            @toggle="toggleBackendAsync"
+          />
+        </div>
+      </div>
 
       <!-- Sync Configuration -->
       <UCard>
@@ -257,170 +202,117 @@
         </div>
       </UCard>
 
-      <!-- Vault Overview with Accordions -->
-      <UCard v-if="syncBackends.length">
-        <template #header>
-          <div>
-            <h3 class="text-lg font-semibold">
-              {{ t('vaultOverview.title') }}
-            </h3>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {{ t('vaultOverview.description') }}
-            </p>
-          </div>
-        </template>
+      <!-- Vault Overview -->
+      <div v-if="syncBackends.length">
+        <div class="mb-4">
+          <h3 class="text-lg font-semibold">
+            {{ t('vaultOverview.title') }}
+          </h3>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {{ t('vaultOverview.description') }}
+          </p>
+        </div>
 
         <!-- Overall loading state -->
-        <template
-          v-if="groupedServerVaults.length"
-          #default
+        <div
+          v-if="isLoadingAllServerVaults"
+          class="flex items-center justify-center py-8"
         >
-          <div
-            v-if="isLoadingAllServerVaults"
-            class="flex items-center justify-center py-8"
-          >
-            <UIcon
-              name="i-lucide-loader-2"
-              class="w-8 h-8 animate-spin text-primary"
-            />
-          </div>
+          <UIcon
+            name="i-lucide-loader-2"
+            class="w-8 h-8 animate-spin text-primary"
+          />
+        </div>
 
-          <!-- Accordion per backend -->
-          <div
-            v-else
-            class="space-y-2"
+        <!-- Backend cards with vaults -->
+        <div
+          v-else-if="groupedServerVaults.length"
+          class="space-y-3"
+        >
+          <HaexSyncBackendItem
+            v-for="group in groupedServerVaults"
+            :key="group.backend.id"
+            :backend="group.backend"
+            :sync-state="getSyncState(group.backend.id)"
+            :loading="group.isLoading"
+            :error="group.error"
+            :count="group.vaults.length"
           >
+            <!-- Error state -->
             <div
-              v-for="group in groupedServerVaults"
-              :key="group.backend.id"
+              v-if="group.error"
+              class="text-center text-red-500 text-sm py-4"
             >
-              <UAccordion
-                :items="[
-                  {
-                    label: group.backend.name,
-                    slot: 'content',
-                  },
-                ]"
-              >
-                <template #default>
-                  <div class="flex items-center justify-between w-full">
-                    <div class="flex items-center gap-3 flex-1 min-w-0">
-                      <div class="flex-1 min-w-0">
-                        <p class="font-medium truncate">
-                          {{ group.backend.name }}
-                        </p>
-                        <p
-                          class="text-xs text-gray-500 dark:text-gray-400 truncate"
-                        >
-                          {{ group.backend.serverUrl }}
-                        </p>
-                      </div>
-                    </div>
-                    <div class="flex items-center gap-2 ml-3">
-                      <UIcon
-                        v-if="group.isLoading"
-                        name="i-lucide-loader-2"
-                        class="w-4 h-4 animate-spin"
-                      />
-                      <UBadge
-                        v-else-if="group.error"
-                        color="error"
-                        variant="subtle"
-                        size="xs"
-                      >
-                        {{ t('vaultOverview.loadError') }}
-                      </UBadge>
-                      <UBadge
-                        v-else
-                        color="neutral"
-                        variant="subtle"
-                        size="xs"
-                      >
-                        {{ group.vaults.length }}
-                      </UBadge>
-                    </div>
-                  </div>
-                </template>
-
-                <template #content>
-                  <!-- Error state -->
-                  <div
-                    v-if="group.error"
-                    class="text-center text-red-500 text-sm py-4"
-                  >
-                    {{ group.error }}
-                  </div>
-
-                  <!-- No vaults -->
-                  <div
-                    v-else-if="group.vaults.length === 0"
-                    class="text-center text-gray-500 dark:text-gray-400 text-sm py-4"
-                  >
-                    {{ t('vaultOverview.noVaults') }}
-                  </div>
-
-                  <!-- Vaults list -->
-                  <div
-                    v-else
-                    class="space-y-2"
-                  >
-                    <div
-                      v-for="vault in group.vaults"
-                      :key="vault.vaultId"
-                      class="flex items-center justify-between p-3 rounded-lg"
-                      :class="
-                        vault.vaultId === currentVaultId
-                          ? 'bg-primary/10 border border-primary/20'
-                          : 'bg-gray-50 dark:bg-gray-800/50'
-                      "
-                    >
-                      <div class="flex-1 min-w-0 flex items-center gap-2">
-                        <div class="flex-1 min-w-0">
-                          <div class="flex items-center gap-2">
-                            <p class="font-medium text-sm truncate">
-                              {{
-                                vault.decryptedName ||
-                                t('vaultOverview.encryptedName')
-                              }}
-                            </p>
-                            <UBadge
-                              v-if="vault.vaultId === currentVaultId"
-                              color="primary"
-                              variant="subtle"
-                              size="xs"
-                            >
-                              {{ t('vaultOverview.currentVault') }}
-                            </UBadge>
-                          </div>
-                          <p
-                            class="text-xs text-gray-500 dark:text-gray-400 mt-1"
-                          >
-                            {{ t('vaultOverview.createdAt') }}:
-                            {{ formatDate(vault.createdAt) }}
-                          </p>
-                        </div>
-                      </div>
-                      <UButton
-                        size="xs"
-                        color="error"
-                        variant="ghost"
-                        icon="i-lucide-trash-2"
-                        @click="prepareDeleteServerVault(group.backend, vault)"
-                      >
-                        {{
-                          vault.vaultId === currentVaultId
-                            ? t('actions.deleteWithSync')
-                            : t('actions.delete')
-                        }}
-                      </UButton>
-                    </div>
-                  </div>
-                </template>
-              </UAccordion>
+              {{ group.error }}
             </div>
-          </div>
-        </template>
-      </UCard>
+
+            <!-- No vaults -->
+            <div
+              v-else-if="group.vaults.length === 0"
+              class="text-center text-gray-500 dark:text-gray-400 text-sm py-4"
+            >
+              {{ t('vaultOverview.noVaults') }}
+            </div>
+
+            <!-- Vaults list -->
+            <div
+              v-else
+              class="space-y-2"
+            >
+              <div
+                v-for="vault in group.vaults"
+                :key="vault.vaultId"
+                class="flex items-center justify-between p-3 rounded-lg"
+                :class="
+                  vault.vaultId === currentVaultId
+                    ? 'bg-primary/10 border border-primary/20'
+                    : 'bg-gray-50 dark:bg-gray-800/50'
+                "
+              >
+                <div class="flex-1 min-w-0 flex items-center gap-2">
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2">
+                      <p class="font-medium text-sm truncate">
+                        {{
+                          vault.decryptedName ||
+                          t('vaultOverview.encryptedName')
+                        }}
+                      </p>
+                      <UBadge
+                        v-if="vault.vaultId === currentVaultId"
+                        color="primary"
+                        variant="subtle"
+                        size="xs"
+                      >
+                        {{ t('vaultOverview.currentVault') }}
+                      </UBadge>
+                    </div>
+                    <p
+                      class="text-xs text-gray-500 dark:text-gray-400 mt-1"
+                    >
+                      {{ t('vaultOverview.createdAt') }}:
+                      {{ formatDate(vault.createdAt) }}
+                    </p>
+                  </div>
+                </div>
+                <UButton
+                  size="xs"
+                  color="error"
+                  variant="ghost"
+                  icon="i-lucide-trash-2"
+                  @click="prepareDeleteServerVault(group.backend, vault)"
+                >
+                  {{
+                    vault.vaultId === currentVaultId
+                      ? t('actions.deleteWithSync')
+                      : t('actions.delete')
+                  }}
+                </UButton>
+              </div>
+            </div>
+          </HaexSyncBackendItem>
+        </div>
+      </div>
     </div>
 
     <!-- Delete Remote Vault Confirmation Dialog -->
