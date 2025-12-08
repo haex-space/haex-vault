@@ -193,7 +193,7 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
   }
 
   /**
-   * Install the previously downloaded extension
+   * Install the previously downloaded extension (full installation: DB + files)
    */
   const installPendingAsync = async (permissions?: ExtensionPermissions) => {
     if (!pendingInstallBytes.value) {
@@ -217,6 +217,76 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
       console.error('Fehler bei Extension-Installation:', error)
       throw error
     }
+  }
+
+  /**
+   * Register extension metadata in database only.
+   * Use this for the first step of a two-step installation.
+   * Returns the extension ID.
+   */
+  const registerInDatabaseAsync = async (
+    manifest: IHaexSpaceExtensionManifest,
+    permissions?: ExtensionPermissions,
+  ) => {
+    try {
+      const extensionId = await invoke<string>(
+        'register_extension_in_database',
+        {
+          manifest,
+          customPermissions: permissions ?? { database: [], filesystem: [], http: [], shell: [] },
+        },
+      )
+      return extensionId
+    } catch (error) {
+      console.error('Fehler bei DB-Registrierung:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Install extension files only (no DB registration).
+   * Use when extension already exists in DB (e.g., from sync).
+   */
+  const installFilesAsync = async (extensionId: string) => {
+    if (!pendingInstallBytes.value) {
+      throw new Error('Keine Extension zum Installieren vorhanden')
+    }
+
+    try {
+      const resultId = await invoke<string>(
+        'install_extension_files',
+        {
+          fileBytes: Array.from(pendingInstallBytes.value),
+          extensionId,
+        },
+      )
+
+      // Clear cache after successful install
+      pendingInstallBytes.value = null
+
+      return resultId
+    } catch (error) {
+      console.error('Fehler bei Datei-Installation:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Full installation: Register in DB, then install files.
+   * Explicitly performs both steps separately.
+   */
+  const registerAndInstallFilesAsync = async (permissions?: ExtensionPermissions) => {
+    if (!pendingInstallBytes.value || !preview.value?.manifest) {
+      throw new Error('Keine Extension zum Installieren vorhanden')
+    }
+
+    // Step 1: Register in database
+    const extensionId = await registerInDatabaseAsync(preview.value.manifest, permissions)
+
+    // Step 2: Install files
+    await installFilesAsync(extensionId)
+
+    return extensionId
   }
 
   const clearPendingInstall = () => {
@@ -365,21 +435,41 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
     }
   }
 
+  /**
+   * Compare two semver version strings
+   * @returns -1 if a < b, 0 if a == b, 1 if a > b
+   */
+  const compareVersions = (a: string, b: string): number => {
+    const partsA = a.split('.').map(Number)
+    const partsB = b.split('.').map(Number)
+    for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+      const numA = partsA[i] || 0
+      const numB = partsB[i] || 0
+      if (numA > numB) return 1
+      if (numA < numB) return -1
+    }
+    return 0
+  }
+
   return {
     availableExtensions,
     checkManifest,
     clearPendingInstall,
+    compareVersions,
     currentExtension,
     currentExtensionId,
     downloadAndPreviewAsync,
     extensionEntry,
     installAsync,
+    installFilesAsync,
     installPendingAsync,
+    registerAndInstallFilesAsync,
     //isActive,
     isExtensionInstalledAsync,
     loadExtensionsAsync,
     preview,
     previewManifestAsync,
+    registerInDatabaseAsync,
     removeExtensionAsync,
     updateDisplayModeAsync,
   }

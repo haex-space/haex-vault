@@ -634,113 +634,99 @@ impl ExtensionManager {
         })
     }
 
-    pub async fn install_extension_with_permissions_internal(
+    /// Register extension metadata in the database (UPSERT pattern).
+    /// This handles extensions that may already exist from sync.
+    /// Returns the extension ID (existing or newly generated).
+    pub fn register_extension_in_database(
         &self,
-        app_handle: AppHandle,
-        file_bytes: Vec<u8>,
-        custom_permissions: EditablePermissions,
+        manifest: &ExtensionManifest,
+        custom_permissions: &EditablePermissions,
         state: &State<'_, AppState>,
     ) -> Result<String, ExtensionError> {
-        let extracted =
-            Self::extract_and_validate_extension(file_bytes, "haexspace_ext", &app_handle)?;
-
-        // Validate that the public key is a valid Ed25519 key format
-        validate_public_key(&extracted.manifest.public_key)?;
-
-        // Signatur verifizieren (bei Installation wird ein Fehler geworfen, nicht nur geprüft)
-        ExtensionCrypto::verify_signature(
-            &extracted.manifest.public_key,
-            &extracted.content_hash,
-            &extracted.manifest.signature,
-        )
-        .map_err(|e| ExtensionError::SignatureVerificationFailed { reason: e })?;
-
-        let extensions_dir = self.get_extension_dir(
-            &app_handle,
-            &extracted.manifest.public_key,
-            &extracted.manifest.name,
-            &extracted.manifest.version,
-        )?;
-
-        // If extension version already exists, remove it completely before installing
-        if extensions_dir.exists() {
-            eprintln!(
-                "Extension version already exists at {}, removing old version",
-                extensions_dir.display()
-            );
-            std::fs::remove_dir_all(&extensions_dir).map_err(|e| {
-                ExtensionError::filesystem_with_path(extensions_dir.display().to_string(), e)
-            })?;
-        }
-
-        std::fs::create_dir_all(&extensions_dir).map_err(|e| {
-            ExtensionError::filesystem_with_path(extensions_dir.display().to_string(), e)
-        })?;
-
-        // Copy contents of extracted.temp_dir to extensions_dir
-        // Note: extracted.temp_dir already points to the correct directory with manifest.json
-        for entry in fs::read_dir(&extracted.temp_dir).map_err(|e| {
-            ExtensionError::filesystem_with_path(extracted.temp_dir.display().to_string(), e)
-        })? {
-            let entry = entry.map_err(|e| ExtensionError::Filesystem { source: e })?;
-            let path = entry.path();
-            let file_name = entry.file_name();
-            let dest_path = extensions_dir.join(&file_name);
-
-            if path.is_dir() {
-                copy_directory(
-                    path.to_string_lossy().to_string(),
-                    dest_path.to_string_lossy().to_string(),
-                )?;
-            } else {
-                fs::copy(&path, &dest_path).map_err(|e| {
-                    ExtensionError::filesystem_with_path(path.display().to_string(), e)
-                })?;
-            }
-        }
-
-        // Generate UUID for extension (Drizzle's $defaultFn only works from JS, not raw SQL)
-        let extension_id = uuid::Uuid::new_v4().to_string();
-        let permissions = custom_permissions.to_internal_permissions(&extension_id);
-
-        // Extension-Eintrag und Permissions in einer Transaktion speichern
-        let actual_extension_id = with_connection(&state.db, |conn| {
+        let actual_id = with_connection(&state.db, |conn| {
             let tx = conn.transaction().map_err(DatabaseError::from)?;
 
             let hlc_service_guard = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
                 reason: "Failed to lock HLC service".to_string(),
             })?;
-            // Klonen, um den MutexGuard freizugeben, bevor potenziell lange DB-Operationen stattfinden
             let hlc_service = hlc_service_guard.clone();
             drop(hlc_service_guard);
 
-            // 1. Extension-Eintrag erstellen mit generierter UUID
-            let insert_ext_sql = format!(
-                "INSERT INTO {TABLE_EXTENSIONS} (id, name, version, author, entry, icon, public_key, signature, homepage, description, enabled, single_instance, display_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            // 1. Check if extension already exists (e.g., from sync)
+            let check_sql = format!(
+                "SELECT id FROM {TABLE_EXTENSIONS} WHERE public_key = ? AND name = ?"
             );
+            let existing_id: Option<String> = tx
+                .query_row(&check_sql, [&manifest.public_key, &manifest.name], |row| row.get(0))
+                .ok();
 
-            SqlExecutor::execute_internal_typed(
-                &tx,
-                &hlc_service,
-                &insert_ext_sql,
-                rusqlite::params![
-                    extension_id,
-                    extracted.manifest.name,
-                    extracted.manifest.version,
-                    extracted.manifest.author,
-                    extracted.manifest.entry,
-                    extracted.manifest.icon,
-                    extracted.manifest.public_key,
-                    extracted.manifest.signature,
-                    extracted.manifest.homepage,
-                    extracted.manifest.description,
-                    true, // enabled
-                    extracted.manifest.single_instance.unwrap_or(false),
-                    extracted.manifest.display_mode.as_ref().map(|dm| format!("{:?}", dm).to_lowercase()).unwrap_or_else(|| "auto".to_string()),
-                ],
-            )?;
+            let actual_id = if let Some(existing_id) = existing_id {
+                // Extension exists (probably from sync), update it
+                eprintln!(
+                    "Extension {}:{} already exists with id {}, updating instead of inserting",
+                    manifest.public_key, manifest.name, existing_id
+                );
+                let update_ext_sql = format!(
+                    "UPDATE {TABLE_EXTENSIONS} SET version = ?, author = ?, entry = ?, icon = ?, signature = ?, homepage = ?, description = ?, enabled = ?, single_instance = ?, display_mode = ? WHERE id = ?"
+                );
 
-            // 2. Permissions speichern
+                SqlExecutor::execute_internal_typed(
+                    &tx,
+                    &hlc_service,
+                    &update_ext_sql,
+                    rusqlite::params![
+                        manifest.version,
+                        manifest.author,
+                        manifest.entry,
+                        manifest.icon,
+                        manifest.signature,
+                        manifest.homepage,
+                        manifest.description,
+                        true, // enabled
+                        manifest.single_instance.unwrap_or(false),
+                        manifest.display_mode.as_ref().map(|dm| format!("{:?}", dm).to_lowercase()).unwrap_or_else(|| "auto".to_string()),
+                        existing_id,
+                    ],
+                )?;
+                existing_id
+            } else {
+                // New extension, generate UUID and insert
+                let new_extension_id = uuid::Uuid::new_v4().to_string();
+                let insert_ext_sql = format!(
+                    "INSERT INTO {TABLE_EXTENSIONS} (id, name, version, author, entry, icon, public_key, signature, homepage, description, enabled, single_instance, display_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                );
+
+                SqlExecutor::execute_internal_typed(
+                    &tx,
+                    &hlc_service,
+                    &insert_ext_sql,
+                    rusqlite::params![
+                        new_extension_id,
+                        manifest.name,
+                        manifest.version,
+                        manifest.author,
+                        manifest.entry,
+                        manifest.icon,
+                        manifest.public_key,
+                        manifest.signature,
+                        manifest.homepage,
+                        manifest.description,
+                        true, // enabled
+                        manifest.single_instance.unwrap_or(false),
+                        manifest.display_mode.as_ref().map(|dm| format!("{:?}", dm).to_lowercase()).unwrap_or_else(|| "auto".to_string()),
+                    ],
+                )?;
+                new_extension_id
+            };
+
+            // 2. Permissions: Delete existing permissions for this extension (if updating)
+            let delete_perm_sql = format!(
+                "DELETE FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ?"
+            );
+            tx.execute(&delete_perm_sql, [&actual_id]).ok();
+
+            // 3. Permissions: Recreate with correct extension_id
+            let permissions = custom_permissions.to_internal_permissions(&actual_id);
             let insert_perm_sql = format!(
                 "INSERT INTO {TABLE_EXTENSION_PERMISSIONS} (id, extension_id, resource_type, action, target, constraints, status) VALUES (?, ?, ?, ?, ?, ?, ?)"
             );
@@ -766,20 +752,67 @@ impl ExtensionManager {
             }
 
             tx.commit().map_err(DatabaseError::from)?;
-            Ok(extension_id.clone())
+            Ok(actual_id)
         })?;
 
-        // Register and apply migrations from the bundle (if migrations_dir is specified)
-        Self::register_bundle_migrations(
-            &extensions_dir,
-            &extracted.manifest,
-            &actual_extension_id,
-            state,
-        )
-        .await?;
+        Ok(actual_id)
+    }
 
+    /// Install extension files to the local filesystem.
+    /// Extracts the bundle, copies files to the extensions directory,
+    /// and loads the extension into memory.
+    fn install_extension_files(
+        &self,
+        app_handle: &AppHandle,
+        extracted: &ExtractedExtension,
+        extension_id: &str,
+    ) -> Result<PathBuf, ExtensionError> {
+        let extensions_dir = self.get_extension_dir(
+            app_handle,
+            &extracted.manifest.public_key,
+            &extracted.manifest.name,
+            &extracted.manifest.version,
+        )?;
+
+        // If extension version already exists, remove it completely before installing
+        if extensions_dir.exists() {
+            eprintln!(
+                "Extension version already exists at {}, removing old version",
+                extensions_dir.display()
+            );
+            std::fs::remove_dir_all(&extensions_dir).map_err(|e| {
+                ExtensionError::filesystem_with_path(extensions_dir.display().to_string(), e)
+            })?;
+        }
+
+        std::fs::create_dir_all(&extensions_dir).map_err(|e| {
+            ExtensionError::filesystem_with_path(extensions_dir.display().to_string(), e)
+        })?;
+
+        // Copy contents of extracted.temp_dir to extensions_dir
+        for entry in fs::read_dir(&extracted.temp_dir).map_err(|e| {
+            ExtensionError::filesystem_with_path(extracted.temp_dir.display().to_string(), e)
+        })? {
+            let entry = entry.map_err(|e| ExtensionError::Filesystem { source: e })?;
+            let path = entry.path();
+            let file_name = entry.file_name();
+            let dest_path = extensions_dir.join(&file_name);
+
+            if path.is_dir() {
+                copy_directory(
+                    path.to_string_lossy().to_string(),
+                    dest_path.to_string_lossy().to_string(),
+                )?;
+            } else {
+                fs::copy(&path, &dest_path).map_err(|e| {
+                    ExtensionError::filesystem_with_path(path.display().to_string(), e)
+                })?;
+            }
+        }
+
+        // Load extension into memory
         let extension = Extension {
-            id: extension_id.clone(),
+            id: extension_id.to_string(),
             source: ExtensionSource::Production {
                 path: extensions_dir.clone(),
                 version: extracted.manifest.version.clone(),
@@ -791,7 +824,98 @@ impl ExtensionManager {
 
         self.add_production_extension(extension)?;
 
-        Ok(actual_extension_id) // Gebe die actual_extension_id an den Caller zurück
+        Ok(extensions_dir)
+    }
+
+    /// Install extension files from bytes.
+    /// Use when extension is already registered in DB (e.g., from sync).
+    /// Validates signature, extracts files, registers migrations.
+    pub async fn install_extension_files_from_bytes(
+        &self,
+        app_handle: &AppHandle,
+        file_bytes: Vec<u8>,
+        extension_id: &str,
+        state: &State<'_, AppState>,
+    ) -> Result<String, ExtensionError> {
+        let extracted =
+            Self::extract_and_validate_extension(file_bytes, "haexspace_ext", app_handle)?;
+
+        // Validate that the public key is a valid Ed25519 key format
+        validate_public_key(&extracted.manifest.public_key)?;
+
+        // Verify signature
+        ExtensionCrypto::verify_signature(
+            &extracted.manifest.public_key,
+            &extracted.content_hash,
+            &extracted.manifest.signature,
+        )
+        .map_err(|e| ExtensionError::SignatureVerificationFailed { reason: e })?;
+
+        // Install files locally
+        let extensions_dir = self.install_extension_files(
+            app_handle,
+            &extracted,
+            extension_id,
+        )?;
+
+        // Register and apply migrations from the bundle
+        Self::register_bundle_migrations(
+            &extensions_dir,
+            &extracted.manifest,
+            extension_id,
+            state,
+        )
+        .await?;
+
+        Ok(extension_id.to_string())
+    }
+
+    /// Full installation: Register in DB + Install files.
+    pub async fn install_extension_with_permissions_internal(
+        &self,
+        app_handle: AppHandle,
+        file_bytes: Vec<u8>,
+        custom_permissions: EditablePermissions,
+        state: &State<'_, AppState>,
+    ) -> Result<String, ExtensionError> {
+        let extracted =
+            Self::extract_and_validate_extension(file_bytes, "haexspace_ext", &app_handle)?;
+
+        // Validate that the public key is a valid Ed25519 key format
+        validate_public_key(&extracted.manifest.public_key)?;
+
+        // Verify signature
+        ExtensionCrypto::verify_signature(
+            &extracted.manifest.public_key,
+            &extracted.content_hash,
+            &extracted.manifest.signature,
+        )
+        .map_err(|e| ExtensionError::SignatureVerificationFailed { reason: e })?;
+
+        // Step 1: Register in database (UPSERT - handles sync case)
+        let extension_id = self.register_extension_in_database(
+            &extracted.manifest,
+            &custom_permissions,
+            state,
+        )?;
+
+        // Step 2: Install files locally
+        let extensions_dir = self.install_extension_files(
+            &app_handle,
+            &extracted,
+            &extension_id,
+        )?;
+
+        // Step 3: Register and apply migrations from the bundle
+        Self::register_bundle_migrations(
+            &extensions_dir,
+            &extracted.manifest,
+            &extension_id,
+            state,
+        )
+        .await?;
+
+        Ok(extension_id)
     }
 
     /// Scannt das Dateisystem beim Start und lädt alle installierten Erweiterungen.

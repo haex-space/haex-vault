@@ -78,6 +78,53 @@
           </div>
         </UCard>
 
+        <!-- Version Selection (only shown when versions are provided) -->
+        <UCard v-if="showVersionSelection">
+          <template #header>
+            <div class="flex items-center gap-2">
+              <UIcon
+                name="i-heroicons-tag"
+                class="w-5 h-5"
+              />
+              <h4 class="font-semibold">
+                {{ t('versionSelection.title') }}
+              </h4>
+            </div>
+          </template>
+
+          <!-- Installed Version Info -->
+          <div
+            v-if="installedVersion"
+            class="mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+          >
+            <div class="flex items-center gap-2 text-sm">
+              <UIcon
+                name="i-heroicons-check-circle"
+                class="w-4 h-4 text-success"
+              />
+              <span>{{ t('versionSelection.installedVersion', { version: installedVersion }) }}</span>
+            </div>
+          </div>
+
+          <!-- Loading Versions -->
+          <div
+            v-if="isLoadingVersions"
+            class="flex justify-center py-4"
+          >
+            <UIcon
+              name="i-heroicons-arrow-path"
+              class="w-6 h-6 animate-spin text-muted"
+            />
+          </div>
+
+          <!-- Version Radio Group -->
+          <URadioGroup
+            v-else
+            v-model="internalSelectedVersion"
+            :items="versionRadioItems"
+          />
+        </UCard>
+
         <!-- Create Native Desktop Shortcut (Desktop only) -->
         <div
           v-if="showDesktopShortcutOption"
@@ -178,6 +225,7 @@
 
 <script setup lang="ts">
 import type { ExtensionPreview } from '~~/src-tauri/bindings/ExtensionPreview'
+import type { ExtensionVersion } from '@haex-space/marketplace-sdk/vue'
 import { isDesktop } from '~/utils/platform'
 
 const { t } = useI18n()
@@ -185,6 +233,52 @@ const { t } = useI18n()
 const open = defineModel<boolean>('open', { default: false })
 const preview = defineModel<ExtensionPreview | null>('preview', {
   default: null,
+})
+const selectedVersion = defineModel<string | null>('selectedVersion', {
+  default: null,
+})
+
+// Props for version selection
+const props = defineProps<{
+  /** Available versions from marketplace (optional - shows version selection when provided) */
+  availableVersions?: ExtensionVersion[]
+  /** Currently installed version (optional - shows installed badge) */
+  installedVersion?: string | null
+  /** Whether versions are being loaded */
+  isLoadingVersions?: boolean
+}>()
+
+// Show version selection only when versions are provided
+const showVersionSelection = computed(() =>
+  (props.availableVersions && props.availableVersions.length > 0) || props.isLoadingVersions,
+)
+
+// Internal selected version state, synced with model
+const internalSelectedVersion = computed({
+  get: () => selectedVersion.value || props.availableVersions?.[0]?.version || null,
+  set: (value) => {
+    selectedVersion.value = value
+  },
+})
+
+// Build radio items from available versions
+const versionRadioItems = computed(() => {
+  if (!props.availableVersions) return []
+
+  return props.availableVersions.map((v) => {
+    const isInstalled = v.version === props.installedVersion
+    const isLatest = v.version === props.availableVersions?.[0]?.version
+
+    let label = `v${v.version}`
+    if (isLatest) label += ` (${t('versionSelection.latest')})`
+    if (isInstalled) label += ` (${t('versionSelection.installed')})`
+
+    return {
+      value: v.version,
+      label,
+      description: v.changelog || undefined,
+    }
+  })
 })
 
 // Desktop shortcut option (only shown on desktop platforms)
@@ -293,6 +387,11 @@ de:
   signature:
     valid: Signatur verifiziert
     invalid: Signatur ungültig
+  versionSelection:
+    title: Versionsauswahl
+    installedVersion: "Aktuell installiert: v{version}"
+    latest: Neueste
+    installed: Installiert
   permissions:
     title: Berechtigungen
     database: Datenbank
@@ -312,6 +411,11 @@ en:
   signature:
     valid: Signature verified
     invalid: Invalid signature
+  versionSelection:
+    title: Version Selection
+    installedVersion: "Currently installed: v{version}"
+    latest: Latest
+    installed: Installed
   permissions:
     title: Permissions
     database: Database

@@ -14,6 +14,7 @@
     <HaexWelcomeDialog
       v-model:open="showWelcomeDialog"
       :initial-device-name="initialDeviceName"
+      :is-connected-to-remote="isRemoteSyncVault"
       @complete="onWelcomeComplete"
     />
   </div>
@@ -30,6 +31,7 @@ const showWelcomeDialog = ref(false)
 const initialDeviceName = ref<string>('unknown')
 const isWaitingForInitialSync = ref(false)
 const syncProgress = ref<{ synced: number; total: number } | undefined>()
+const isRemoteSyncVault = computed(() => route.query.remoteSync === 'true')
 
 const { hostname } = storeToRefs(useDeviceStore())
 
@@ -45,10 +47,7 @@ const syncBackendsStore = useSyncBackendsStore()
 
 onMounted(async () => {
   try {
-    // Check if this is a remote sync vault (coming from sync wizard)
-    const isRemoteSync = route.query.remoteSync === 'true'
-
-    if (isRemoteSync) {
+    if (isRemoteSyncVault.value) {
       // Remote sync mode: Wait for initial sync to complete
       console.log('🔄 Remote sync mode detected - waiting for initial sync')
       isWaitingForInitialSync.value = true

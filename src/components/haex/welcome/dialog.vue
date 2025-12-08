@@ -71,15 +71,14 @@
             <div
               v-for="ext in recommendedExtensions"
               :key="ext.slug"
-              class="flex items-start gap-3 p-3 rounded-lg border border-default hover:bg-elevated transition-colors cursor-pointer"
-              @click="toggleExtension(ext.slug)"
+              class="flex items-start gap-3 p-3 rounded-lg border border-default"
             >
               <UCheckbox
                 :model-value="selectedExtensions.includes(ext.slug)"
-                @click.stop
+                @update:model-value="toggleExtension(ext.slug)"
               />
               <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 flex-wrap">
                   <span class="font-medium">{{ ext.name }}</span>
                   <UBadge
                     v-if="ext.isRecommended"
@@ -89,10 +88,54 @@
                   >
                     {{ t('steps.extensions.recommended') }}
                   </UBadge>
+                  <UBadge
+                    v-if="ext.installedVersion"
+                    color="neutral"
+                    variant="subtle"
+                    size="xs"
+                  >
+                    {{ t('steps.extensions.installed', { version: ext.installedVersion }) }}
+                  </UBadge>
+                  <UBadge
+                    v-if="ext.installedVersion && ext.availableVersions.length > 0 && ext.installedVersion !== ext.availableVersions[0]?.version"
+                    color="warning"
+                    variant="subtle"
+                    size="xs"
+                  >
+                    {{ t('steps.extensions.updateAvailable') }}
+                  </UBadge>
                 </div>
                 <p class="text-sm text-muted line-clamp-2">
                   {{ ext.shortDescription }}
                 </p>
+
+                <!-- Version Selection & Permissions Row -->
+                <div
+                  v-if="selectedExtensions.includes(ext.slug)"
+                  class="flex items-center gap-2 mt-2"
+                >
+                  <!-- Version Dropdown -->
+                  <USelectMenu
+                    v-model="extensionVersionSelections[ext.slug]"
+                    :items="getVersionOptionsForExtension(ext)"
+                    :loading="ext.isLoadingVersions"
+                    :placeholder="t('steps.extensions.selectVersion')"
+                    size="xs"
+                    class="w-32"
+                    value-key="value"
+                  />
+
+                  <!-- Permissions Button -->
+                  <UButton
+                    size="xs"
+                    color="neutral"
+                    variant="ghost"
+                    icon="i-heroicons-shield-check"
+                    @click.stop="openPermissionsDialog(ext)"
+                  >
+                    {{ t('steps.extensions.permissions') }}
+                  </UButton>
+                </div>
               </div>
               <img
                 v-if="ext.iconUrl"
@@ -184,11 +227,19 @@
           :disabled="!canProceed"
           @click="nextStep"
         >
-          {{ currentStep === 2 ? t('actions.finish') : t('actions.next') }}
+          {{ currentStep === lastStepIndex ? t('actions.finish') : t('actions.next') }}
         </UButton>
       </div>
     </template>
   </UiDrawerModal>
+
+  <!-- Permissions Dialog -->
+  <HaexExtensionDialogInstall
+    v-model:open="showPermissionsDialog"
+    v-model:preview="currentPermissionsPreview"
+    @confirm="onPermissionsConfirm"
+    @deny="onPermissionsDeny"
+  />
 </template>
 
 <script setup lang="ts">
@@ -206,6 +257,8 @@ const emit = defineEmits<{
 // Props
 const props = defineProps<{
   initialDeviceName?: string
+  /** If true, skip the sync step (already connected to remote vault) */
+  isConnectedToRemote?: boolean
 }>()
 
 // Stores
@@ -220,11 +273,24 @@ const { isLoading: isSyncLoading, error: syncError, createConnectionAsync } =
 
 // Step management
 const currentStep = ref(0)
-const stepItems = computed(() => [
-  { title: t('steps.device.title'), icon: 'i-heroicons-device-phone-mobile' },
-  { title: t('steps.extensions.title'), icon: 'i-heroicons-puzzle-piece' },
-  { title: t('steps.sync.title'), icon: 'i-heroicons-cloud' },
-])
+
+// Total steps depends on whether we're connected to remote
+const totalSteps = computed(() => props.isConnectedToRemote ? 2 : 3)
+const lastStepIndex = computed(() => totalSteps.value - 1)
+
+const stepItems = computed(() => {
+  const items = [
+    { title: t('steps.device.title'), icon: 'i-heroicons-device-phone-mobile' },
+    { title: t('steps.extensions.title'), icon: 'i-heroicons-puzzle-piece' },
+  ]
+
+  // Only add sync step if not already connected to remote
+  if (!props.isConnectedToRemote) {
+    items.push({ title: t('steps.sync.title'), icon: 'i-heroicons-cloud' })
+  }
+
+  return items
+})
 
 const currentStepTitle = computed(() => {
   switch (currentStep.value) {
@@ -233,7 +299,7 @@ const currentStepTitle = computed(() => {
     case 1:
       return t('steps.extensions.title')
     case 2:
-      return t('steps.sync.title')
+      return props.isConnectedToRemote ? t('title') : t('steps.sync.title')
     default:
       return t('title')
   }
@@ -258,26 +324,48 @@ interface RecommendedExtension {
   shortDescription: string
   iconUrl: string | null
   isRecommended: boolean
+  installedVersion: string | null
+  availableVersions: { version: string; label: string }[]
+  isLoadingVersions: boolean
 }
 
 const recommendedExtensions = ref<RecommendedExtension[]>([])
 
+// Track selected version per extension (slug -> version)
+const extensionVersionSelections = reactive<Record<string, string>>({})
+
+// Track custom permissions per extension (slug -> permissions)
+const extensionPermissions = reactive<Record<string, import('~~/src-tauri/bindings/ExtensionPermissions').ExtensionPermissions | null>>({})
+
 const loadRecommendedExtensionsAsync = async () => {
   isLoadingExtensions.value = true
   try {
+    // Load installed extensions first
+    await extensionStore.loadExtensionsAsync()
+
     await marketplace.fetchExtensions({
       page: 1,
       limit: 20,
       sort: 'downloads',
     })
 
-    recommendedExtensions.value = marketplace.extensions.value.map((ext) => ({
-      slug: ext.slug,
-      name: ext.name,
-      shortDescription: ext.shortDescription,
-      iconUrl: ext.iconUrl,
-      isRecommended: RECOMMENDED_EXTENSION_SLUGS.includes(ext.slug),
-    }))
+    recommendedExtensions.value = marketplace.extensions.value.map((ext) => {
+      // Check if this extension is already installed (by name match)
+      const installedExt = extensionStore.availableExtensions.find(
+        (installed) => installed.name === ext.name,
+      )
+
+      return {
+        slug: ext.slug,
+        name: ext.name,
+        shortDescription: ext.shortDescription,
+        iconUrl: ext.iconUrl,
+        isRecommended: RECOMMENDED_EXTENSION_SLUGS.includes(ext.slug),
+        installedVersion: installedExt?.version || null,
+        availableVersions: [],
+        isLoadingVersions: false,
+      }
+    })
 
     // Sort: recommended first, then by name
     recommendedExtensions.value.sort((a, b) => {
@@ -290,6 +378,11 @@ const loadRecommendedExtensionsAsync = async () => {
     selectedExtensions.value = recommendedExtensions.value
       .filter((ext) => ext.isRecommended)
       .map((ext) => ext.slug)
+
+    // Load versions for pre-selected extensions
+    for (const slug of selectedExtensions.value) {
+      loadVersionsForExtension(slug)
+    }
   } catch (error) {
     console.error('Failed to load extensions:', error)
   } finally {
@@ -297,13 +390,102 @@ const loadRecommendedExtensionsAsync = async () => {
   }
 }
 
+// Load available versions for an extension
+const loadVersionsForExtension = async (slug: string) => {
+  const ext = recommendedExtensions.value.find((e) => e.slug === slug)
+  if (!ext || ext.availableVersions.length > 0) return // Already loaded
+
+  ext.isLoadingVersions = true
+  try {
+    const versions = await marketplace.fetchVersions(slug)
+
+    // Filter versions: only >= installed version (no downgrade)
+    const filteredVersions = versions.filter((v) => {
+      if (!ext.installedVersion) return true
+      return extensionStore.compareVersions(v.version, ext.installedVersion) >= 0
+    })
+
+    ext.availableVersions = filteredVersions.map((v) => ({
+      version: v.version,
+      label: v.version === versions[0]?.version ? `${v.version} (${t('steps.extensions.latest')})` : v.version,
+    }))
+
+    // Set default selection to latest version
+    if (ext.availableVersions.length > 0 && !extensionVersionSelections[slug]) {
+      extensionVersionSelections[slug] = ext.availableVersions[0]!.version
+    }
+  } catch (error) {
+    console.error(`Failed to load versions for ${slug}:`, error)
+    ext.availableVersions = []
+  } finally {
+    ext.isLoadingVersions = false
+  }
+}
+
+// Get version options for dropdown
+const getVersionOptionsForExtension = (ext: RecommendedExtension) => {
+  return ext.availableVersions.map((v) => ({
+    value: v.version,
+    label: v.label,
+  }))
+}
+
 const toggleExtension = (slug: string) => {
   const index = selectedExtensions.value.indexOf(slug)
   if (index === -1) {
     selectedExtensions.value.push(slug)
+    // Load versions when selecting
+    loadVersionsForExtension(slug)
   } else {
     selectedExtensions.value.splice(index, 1)
+    // Clean up selections
+    delete extensionVersionSelections[slug]
+    delete extensionPermissions[slug]
   }
+}
+
+// Permissions dialog
+const showPermissionsDialog = ref(false)
+const currentPermissionsExtension = ref<RecommendedExtension | null>(null)
+const currentPermissionsPreview = ref<import('~~/src-tauri/bindings/ExtensionPreview').ExtensionPreview | null>(null)
+const isLoadingPermissions = ref(false)
+
+const openPermissionsDialog = async (ext: RecommendedExtension) => {
+  currentPermissionsExtension.value = ext
+  isLoadingPermissions.value = true
+  showPermissionsDialog.value = true
+
+  try {
+    const selectedVersion = extensionVersionSelections[ext.slug]
+    const downloadInfo = await marketplace.getDownloadUrl(ext.slug, selectedVersion)
+    await extensionStore.downloadAndPreviewAsync(downloadInfo.downloadUrl, downloadInfo.bundleHash)
+    currentPermissionsPreview.value = extensionStore.preview || null
+
+    // If we already have custom permissions for this extension, apply them
+    if (extensionPermissions[ext.slug] && currentPermissionsPreview.value) {
+      currentPermissionsPreview.value.editablePermissions = extensionPermissions[ext.slug]!
+    }
+  } catch (error) {
+    console.error('Failed to load extension preview:', error)
+    add({ color: 'error', description: t('errors.loadPermissions') })
+    showPermissionsDialog.value = false
+  } finally {
+    isLoadingPermissions.value = false
+  }
+}
+
+const onPermissionsConfirm = () => {
+  if (currentPermissionsExtension.value && currentPermissionsPreview.value) {
+    // Save custom permissions
+    extensionPermissions[currentPermissionsExtension.value.slug] = currentPermissionsPreview.value.editablePermissions
+  }
+  showPermissionsDialog.value = false
+  extensionStore.clearPendingInstall()
+}
+
+const onPermissionsDeny = () => {
+  showPermissionsDialog.value = false
+  extensionStore.clearPendingInstall()
 }
 
 // Step 3: Sync
@@ -346,7 +528,12 @@ const previousStep = () => {
 
 const skipExtensions = () => {
   selectedExtensions.value = []
-  currentStep.value = 2
+  // If connected to remote, finish immediately. Otherwise go to sync step.
+  if (props.isConnectedToRemote) {
+    finishWizardAsync({ withSync: false })
+  } else {
+    currentStep.value = 2
+  }
 }
 
 const finishWizardAsync = async (options: { withSync: boolean }) => {
@@ -390,10 +577,14 @@ const nextStep = async () => {
     // Load extensions when entering step 2
     await loadRecommendedExtensionsAsync()
   } else if (currentStep.value === 1) {
-    // Proceed to sync step
-    currentStep.value = 2
+    // If connected to remote, finish. Otherwise go to sync step.
+    if (props.isConnectedToRemote) {
+      await finishWizardAsync({ withSync: false })
+    } else {
+      currentStep.value = 2
+    }
   } else if (currentStep.value === 2) {
-    // Complete the wizard
+    // Complete the wizard with sync
     await completeWizardAsync()
   }
 }
@@ -421,19 +612,56 @@ const installSelectedExtensionsAsync = async () => {
 
   for (const slug of selectedExtensions.value) {
     try {
-      // Get download URL from marketplace API
-      const downloadInfo = await marketplace.getDownloadUrl(slug)
+      // Get selected version (or undefined for latest)
+      const selectedVersion = extensionVersionSelections[slug]
 
-      // Download and install
+      // Get download URL from marketplace API with specific version
+      const downloadInfo = await marketplace.getDownloadUrl(slug, selectedVersion)
+
+      // Download and preview
       await extensionStore.downloadAndPreviewAsync(
         downloadInfo.downloadUrl,
         downloadInfo.bundleHash,
       )
 
-      // Install the extension
-      const extensionId = await extensionStore.installPendingAsync(
-        extensionStore.preview?.editablePermissions,
+      const previewManifest = extensionStore.preview?.manifest
+      if (!previewManifest) {
+        console.error(`No manifest for ${slug}`)
+        continue
+      }
+
+      // Use custom permissions if user modified them, otherwise use default from preview
+      const permissions = extensionPermissions[slug] || extensionStore.preview?.editablePermissions
+
+      // Check if extension files are already installed locally
+      const isLocallyInstalled = await extensionStore.isExtensionInstalledAsync({
+        publicKey: previewManifest.publicKey,
+        name: previewManifest.name,
+        version: previewManifest.version,
+      })
+
+      let extensionId: string | undefined
+
+      if (isLocallyInstalled) {
+        // Already fully installed - skip
+        console.log(`Extension ${slug} already installed locally, skipping`)
+        extensionStore.clearPendingInstall()
+        continue
+      }
+
+      // Check if extension exists in DB (e.g., from sync) but not locally installed
+      const existingExt = extensionStore.availableExtensions.find(
+        (ext) => ext.publicKey === previewManifest.publicKey && ext.name === previewManifest.name,
       )
+
+      if (existingExt) {
+        // Extension exists in DB from sync - only install files
+        console.log(`Extension ${slug} exists in DB, installing files only`)
+        extensionId = await extensionStore.installFilesAsync(existingExt.id)
+      } else {
+        // New extension - full installation (DB + files)
+        extensionId = await extensionStore.installPendingAsync(permissions)
+      }
 
       // Add to desktop
       if (extensionId) {
@@ -508,6 +736,11 @@ de:
       recommended: Empfohlen
       noExtensions: Keine Erweiterungen verfügbar
       hint: Du kannst später jederzeit weitere Erweiterungen im Marketplace installieren.
+      installed: "Installiert: v{version}"
+      updateAvailable: Update verfügbar
+      selectVersion: Version
+      latest: Neueste
+      permissions: Berechtigungen
     sync:
       title: Synchronisierung
       description: Synchronisiere deine Vault mit anderen Geräten über einen Sync-Server.
@@ -529,6 +762,7 @@ de:
     saveDeviceName: Gerätename konnte nicht gespeichert werden
     syncSetup: Synchronisierung konnte nicht eingerichtet werden
     complete: Einrichtung konnte nicht abgeschlossen werden
+    loadPermissions: Berechtigungen konnten nicht geladen werden
 
 en:
   title: Welcome
@@ -544,6 +778,11 @@ en:
       recommended: Recommended
       noExtensions: No extensions available
       hint: You can always install more extensions from the Marketplace later.
+      installed: "Installed: v{version}"
+      updateAvailable: Update available
+      selectVersion: Version
+      latest: Latest
+      permissions: Permissions
     sync:
       title: Synchronization
       description: Sync your vault with other devices via a sync server.
@@ -565,4 +804,5 @@ en:
     saveDeviceName: Could not save device name
     syncSetup: Could not set up synchronization
     complete: Could not complete setup
+    loadPermissions: Could not load permissions
 </i18n>

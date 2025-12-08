@@ -4,7 +4,7 @@ use crate::{
     extension::{
         core::{
             manager::ExtensionManager, EditablePermissions, ExtensionInfoResponse,
-            ExtensionPreview, PermissionEntry,
+            ExtensionManifest, ExtensionPreview, PermissionEntry,
         },
         error::ExtensionError,
         permissions::{
@@ -104,6 +104,48 @@ pub async fn preview_extension(
         .await
 }
 
+/// Register extension metadata in database (UPSERT - handles sync case).
+/// Takes manifest data directly - call preview_extension first to get the manifest.
+/// Returns the extension ID.
+#[tauri::command]
+pub fn register_extension_in_database(
+    manifest: ExtensionManifest,
+    custom_permissions: EditablePermissions,
+    state: State<'_, AppState>,
+) -> Result<String, ExtensionError> {
+    state
+        .extension_manager
+        .register_extension_in_database(
+            &manifest,
+            &custom_permissions,
+            &state,
+        )
+}
+
+/// Install extension files to local filesystem.
+/// Use this after register_extension_in_database or when extension
+/// already exists in DB (e.g., from sync).
+/// Returns the extension ID.
+#[tauri::command]
+pub async fn install_extension_files(
+    app_handle: AppHandle,
+    file_bytes: Vec<u8>,
+    extension_id: String,
+    state: State<'_, AppState>,
+) -> Result<String, ExtensionError> {
+    state
+        .extension_manager
+        .install_extension_files_from_bytes(
+            &app_handle,
+            file_bytes,
+            &extension_id,
+            &state,
+        )
+        .await
+}
+
+/// Full installation: Register in DB + Install files.
+/// Convenience function that calls both steps.
 #[tauri::command]
 pub async fn install_extension_with_permissions(
     app_handle: AppHandle,

@@ -29,6 +29,7 @@ fn create_test_extension(public_key: &str, name: &str) -> Extension {
             description: None,
             single_instance: None,
             display_mode: Some(DisplayMode::Iframe),
+            migrations_dir: None,
         },
         source: ExtensionSource::Production {
             path: PathBuf::from("/tmp/test"),

@@ -2,4 +2,10 @@
 import type { DisplayMode } from "./DisplayMode";
 import type { ExtensionPermissions } from "./ExtensionPermissions";
 
-export type ExtensionManifest = { name: string, version: string, author: string | null, entry: string | null, icon: string | null, publicKey: string, signature: string, permissions: ExtensionPermissions, homepage: string | null, description: string | null, singleInstance: boolean | null, displayMode: DisplayMode | null, };
+export type ExtensionManifest = { name: string, version: string, author: string | null, entry: string | null, icon: string | null, publicKey: string, signature: string, permissions: ExtensionPermissions, homepage: string | null, description: string | null, singleInstance: boolean | null, displayMode: DisplayMode | null, 
+/**
+ * Path to the migrations directory relative to the extension root.
+ * Contains Drizzle-style migrations with _journal.json and *.sql files.
+ * Example: "database/migrations"
+ */
+migrationsDir: string | null, };

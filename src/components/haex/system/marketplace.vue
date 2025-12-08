@@ -281,17 +281,25 @@ const onInstallFromMarketplace = async (ext: MarketplaceExtensionViewModel) => {
     // Ensure extensions list is up-to-date before checking
     await extensionStore.loadExtensionsAsync()
 
-    // Check if already installed
-    const isAlreadyInstalled = extensionStore.availableExtensions.some(
-      (installed) =>
-        installed.publicKey === extensionStore.preview?.manifest.publicKey &&
-        installed.name === extensionStore.preview?.manifest.name,
-    )
+    const previewManifest = extensionStore.preview?.manifest
+    if (!previewManifest) {
+      throw new Error('No preview manifest available')
+    }
 
-    if (isAlreadyInstalled) {
+    // Check if extension files are actually installed locally (not just in DB from sync)
+    const isLocallyInstalled = await extensionStore.isExtensionInstalledAsync({
+      publicKey: previewManifest.publicKey,
+      name: previewManifest.name,
+      version: previewManifest.version,
+    })
+
+    if (isLocallyInstalled) {
+      // Files exist locally - show reinstall dialog
       reinstallMode.value = 'reinstall'
       openOverwriteDialog.value = true
     } else {
+      // Not locally installed (may exist in DB from sync) - show normal install dialog
+      // The Rust backend handles the UPSERT case
       showConfirmation.value = true
     }
   } catch (error) {
@@ -362,16 +370,19 @@ const onSelectExtensionAsync = async () => {
 
     if (!preview.value?.manifest) return
 
-    // Check if already installed using publicKey + name
-    const isAlreadyInstalled = extensionStore.availableExtensions.some(
-      (ext) =>
-        ext.publicKey === preview.value!.manifest.publicKey &&
-        ext.name === preview.value!.manifest.name,
-    )
+    // Check if extension files are actually installed locally (not just in DB from sync)
+    const isLocallyInstalled = await extensionStore.isExtensionInstalledAsync({
+      publicKey: preview.value.manifest.publicKey,
+      name: preview.value.manifest.name,
+      version: preview.value.manifest.version,
+    })
 
-    if (isAlreadyInstalled) {
+    if (isLocallyInstalled) {
+      // Files exist locally - show reinstall dialog
       openOverwriteDialog.value = true
     } else {
+      // Not locally installed (may exist in DB from sync) - show normal install dialog
+      // The Rust backend handles the UPSERT case
       showConfirmation.value = true
     }
   } catch (error) {
@@ -385,17 +396,49 @@ const confirmInstallAsync = async (createDesktopShortcut: boolean = false) => {
   try {
     let installedExtensionId: string | undefined
 
+    const previewToUse = installSource.value === 'marketplace'
+      ? extensionStore.preview
+      : preview.value
+
+    const previewManifest = previewToUse?.manifest
+
     if (installSource.value === 'marketplace') {
-      // Install from cached marketplace download
-      installedExtensionId = await extensionStore.installPendingAsync(
-        extensionStore.preview?.editablePermissions,
-      )
+      // Check if extension exists in DB (e.g., from sync) but not locally installed
+      const existingExt = previewManifest
+        ? extensionStore.availableExtensions.find(
+            (ext) => ext.publicKey === previewManifest.publicKey && ext.name === previewManifest.name,
+          )
+        : undefined
+
+      if (existingExt) {
+        // Extension exists in DB from sync - only install files
+        console.log(`Extension exists in DB, installing files only`)
+        installedExtensionId = await extensionStore.installFilesAsync(existingExt.id)
+      } else {
+        // New extension - full installation (DB + files)
+        installedExtensionId = await extensionStore.installPendingAsync(
+          extensionStore.preview?.editablePermissions,
+        )
+      }
     } else {
-      // Install from file
-      installedExtensionId = await extensionStore.installAsync(
-        extension.path,
-        preview.value?.editablePermissions,
-      )
+      // Install from file - check same condition
+      const existingExt = previewManifest
+        ? extensionStore.availableExtensions.find(
+            (ext) => ext.publicKey === previewManifest.publicKey && ext.name === previewManifest.name,
+          )
+        : undefined
+
+      if (existingExt) {
+        // Extension exists in DB from sync - only install files
+        console.log(`Extension exists in DB, installing files only`)
+        installedExtensionId = await extensionStore.installFilesAsync(existingExt.id)
+      } else {
+        // New extension - full installation
+        installedExtensionId = await extensionStore.installAsync(
+          extension.path,
+          preview.value?.editablePermissions,
+        )
+      }
     }
 
     await extensionStore.loadExtensionsAsync()
