@@ -42,6 +42,8 @@ pub fn cleanup_tombstones(
     conn: &Connection,
     retention_days: u32,
 ) -> Result<CleanupResult, rusqlite::Error> {
+    eprintln!("🧹 [cleanup_tombstones] Called with retention_days={}", retention_days);
+
     let mut total_deleted = 0;
     let mut tables_processed = 0;
 
@@ -54,31 +56,37 @@ pub fn cleanup_tombstones(
         .query_row(&query, ["hlc_timestamp"], |row| row.get(0))
         .ok();
 
-    // If no HLC timestamp exists yet, skip cleanup
-    let current_hlc_str = match current_hlc_str {
-        Some(s) => s,
-        None => {
-            eprintln!("No HLC timestamp found in config, skipping cleanup");
-            return Ok(CleanupResult {
-                tombstones_deleted: 0,
-                applied_deleted: 0,
-                total_deleted: 0,
-            });
-        }
+    // Calculate cutoff timestamp (only needed if retention_days > 0)
+    let cutoff_hlc_num = if retention_days > 0 {
+        // If no HLC timestamp exists yet, skip cleanup (can't calculate cutoff)
+        let current_hlc_str = match current_hlc_str {
+            Some(s) => s,
+            None => {
+                eprintln!("No HLC timestamp found in config, skipping cleanup");
+                return Ok(CleanupResult {
+                    tombstones_deleted: 0,
+                    applied_deleted: 0,
+                    total_deleted: 0,
+                });
+            }
+        };
+
+        // Parse current HLC timestamp using uhlc's FromStr
+        let current_timestamp = Timestamp::from_str(&current_hlc_str).map_err(|e| {
+            eprintln!("Failed to parse HLC timestamp '{current_hlc_str}': {e:?}");
+            rusqlite::Error::InvalidQuery
+        })?;
+
+        // Extract the time component as u64 (NTP64 nanoseconds)
+        let current_hlc_num = current_timestamp.get_time().as_u64();
+
+        // Calculate cutoff: subtract retention_days worth of nanoseconds
+        let retention_ns = retention_days as u64 * 24 * 60 * 60 * 1_000_000_000;
+        current_hlc_num.saturating_sub(retention_ns)
+    } else {
+        // Force delete mode: cutoff not needed, will delete all tombstones
+        0
     };
-
-    // Parse current HLC timestamp using uhlc's FromStr
-    let current_timestamp = Timestamp::from_str(&current_hlc_str).map_err(|e| {
-        eprintln!("Failed to parse HLC timestamp '{current_hlc_str}': {e:?}");
-        rusqlite::Error::InvalidQuery
-    })?;
-
-    // Extract the time component as u64 (NTP64 nanoseconds)
-    let current_hlc_num = current_timestamp.get_time().as_u64();
-
-    // Calculate cutoff: subtract retention_days worth of nanoseconds
-    let retention_ns = retention_days as u64 * 24 * 60 * 60 * 1_000_000_000;
-    let cutoff_hlc_num = current_hlc_num.saturating_sub(retention_ns);
 
     // Get all table names from database
     let mut stmt = conn.prepare(
@@ -105,16 +113,28 @@ pub fn cleanup_tombstones(
             continue;
         }
 
-        // Hard-delete tombstoned rows older than retention period
-        // Extract the NTP64 time component (before '/') and compare with cutoff
-        let delete_sql = format!(
-            "DELETE FROM \"{}\"
-             WHERE {TOMBSTONE_COLUMN} = 1
-             AND CAST(substr(haex_timestamp, 1, instr(haex_timestamp, '/') - 1) AS INTEGER) < ?1",
-            table_name
-        );
-
-        let deleted_count = conn.execute(&delete_sql, [cutoff_hlc_num])?;
+        // Hard-delete tombstoned rows
+        // If retention_days is 0, delete ALL tombstones (force delete)
+        // Otherwise, only delete tombstones older than the retention period
+        let deleted_count = if retention_days == 0 {
+            // Force delete: remove all tombstones regardless of age
+            let delete_sql = format!(
+                "DELETE FROM \"{}\" WHERE {} = 1",
+                table_name, TOMBSTONE_COLUMN
+            );
+            eprintln!("🧹 [cleanup_tombstones] FORCE DELETE: {}", delete_sql);
+            conn.execute(&delete_sql, [])?
+        } else {
+            // Normal cleanup: only delete tombstones older than cutoff
+            // Extract the NTP64 time component (before '/') and compare with cutoff
+            let delete_sql = format!(
+                "DELETE FROM \"{}\"
+                 WHERE {TOMBSTONE_COLUMN} = 1
+                 AND CAST(substr(haex_timestamp, 1, instr(haex_timestamp, '/') - 1) AS INTEGER) < ?1",
+                table_name
+            );
+            conn.execute(&delete_sql, [cutoff_hlc_num])?
+        };
 
         if deleted_count > 0 {
             eprintln!("Cleaned up {deleted_count} tombstones from {table_name}");

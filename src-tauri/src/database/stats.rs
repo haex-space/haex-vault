@@ -253,15 +253,25 @@ fn get_table_statistics(conn: &Connection) -> Result<Vec<TableStats>, DatabaseEr
         let active_rows: usize = conn
             .query_row(
                 &format!(
-                    "SELECT COUNT(*) FROM \"{}\" WHERE {} = 0",
-                    table_name, TOMBSTONE_COLUMN
+                    "SELECT COUNT(*) FROM \"{}\" WHERE {} = 0 OR {} IS NULL",
+                    table_name, TOMBSTONE_COLUMN, TOMBSTONE_COLUMN
                 ),
                 [],
                 |row| row.get(0),
             )
             .unwrap_or(0);
 
-        let tombstone_rows = total_rows - active_rows;
+        // Count actual tombstones (haex_tombstone = 1), not just non-active
+        let tombstone_rows: usize = conn
+            .query_row(
+                &format!(
+                    "SELECT COUNT(*) FROM \"{}\" WHERE {} = 1",
+                    table_name, TOMBSTONE_COLUMN
+                ),
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
 
         stats.push(TableStats {
             name: table_name,

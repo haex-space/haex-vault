@@ -219,59 +219,76 @@
           </h3>
 
           <!-- Tombstone Retention Setting -->
-          <UFormField
-            :label="t('retention.label')"
-            :description="t('retention.description')"
-          >
-            <div class="flex items-center gap-2">
-              <UiInput
-                v-model.number="retentionDays"
-                type="number"
-                min="1"
-                max="365"
-                class="w-24"
-              />
-              <span class="text-muted">{{ t('retention.days') }}</span>
+          <div class="flex flex-col @sm:flex-row @sm:items-center @sm:justify-between gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="font-medium">
+                {{ t('retention.label') }}
+              </div>
+              <div class="text-sm text-muted">
+                {{ t('retention.description') }}
+              </div>
             </div>
-          </UFormField>
-
-          <div class="flex flex-col gap-3">
-            <div class="flex items-center justify-between">
-              <div>
-                <div class="font-medium">
-                  {{ t('actions.cleanup.label') }}
-                </div>
-                <div class="text-sm text-muted">
-                  {{ t('actions.cleanup.description') }}
-                </div>
+            <div class="flex flex-col @sm:flex-row items-stretch @sm:items-center gap-2 shrink-0 w-full @sm:w-auto">
+              <div class="flex items-center gap-2">
+                <USelectMenu
+                  v-model="retentionDays"
+                  :items="retentionOptions"
+                  value-key="value"
+                  class="w-20"
+                />
+                <span class="text-muted whitespace-nowrap">{{ t('retention.days') }}</span>
               </div>
               <UButton
-                :loading="isCleaningUp"
-                :disabled="isCleaningUp || isVacuuming"
-                @click="onCleanupAsync"
+                :loading="isSavingRetention"
+                :disabled="!hasUnsavedRetentionChanges || isSavingRetention"
+                class="w-full @sm:w-28 justify-center"
+                @click="onSaveRetentionAsync"
               >
-                {{ t('actions.cleanup.button') }}
+                {{ t('retention.save') }}
               </UButton>
             </div>
+          </div>
 
-            <div class="flex items-center justify-between">
-              <div>
-                <div class="font-medium">
-                  {{ t('actions.vacuum.label') }}
-                </div>
-                <div class="text-sm text-muted">
-                  {{ t('actions.vacuum.description') }}
-                </div>
+          <!-- Cleanup old tombstones -->
+          <div class="flex flex-col @sm:flex-row @sm:items-center @sm:justify-between gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="font-medium">
+                {{ t('actions.cleanup.label') }}
               </div>
-              <UButton
-                :loading="isVacuuming"
-                :disabled="isCleaningUp || isVacuuming"
-                variant="outline"
-                @click="onVacuumAsync"
-              >
-                {{ t('actions.vacuum.button') }}
-              </UButton>
+              <div class="text-sm text-muted">
+                {{ t('actions.cleanup.description', { days: savedRetentionDays }) }}
+              </div>
             </div>
+            <UButton
+              :loading="isCleaningUp"
+              :disabled="isCleaningUp || isForceDeleting"
+              class="w-full @sm:w-28 shrink-0 justify-center"
+              @click="onCleanupAsync"
+            >
+              {{ t('actions.cleanup.button') }}
+            </UButton>
+          </div>
+
+          <!-- Force delete all tombstones -->
+          <div class="flex flex-col @sm:flex-row @sm:items-center @sm:justify-between gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="font-medium">
+                {{ t('actions.forceDelete.label') }}
+              </div>
+              <div class="text-sm text-muted">
+                {{ t('actions.forceDelete.description') }}
+              </div>
+            </div>
+            <UButton
+              :loading="isForceDeleting"
+              :disabled="isForceDeleting || isCleaningUp || !hasTombstones"
+              color="error"
+              variant="soft"
+              class="w-full @sm:w-28 shrink-0 justify-center"
+              @click="onForceDeleteAsync"
+            >
+              {{ t('actions.forceDelete.button') }}
+            </UButton>
           </div>
         </div>
 
@@ -283,19 +300,8 @@
           <div class="font-medium text-success">
             {{ t('cleanup.success') }}
           </div>
-          <div class="text-sm mt-2 space-y-1">
-            <div>
-              {{ t('cleanup.tombstonesDeleted') }}:
-              {{ lastCleanupResult.tombstonesDeleted }}
-            </div>
-            <div>
-              {{ t('cleanup.appliedDeleted') }}:
-              {{ lastCleanupResult.appliedDeleted }}
-            </div>
-            <div class="font-semibold">
-              {{ t('cleanup.totalDeleted') }}:
-              {{ lastCleanupResult.totalDeleted }}
-            </div>
+          <div class="text-sm mt-2">
+            {{ t('cleanup.tombstonesDeleted', { count: lastCleanupResult.tombstonesDeleted }) }}
           </div>
         </div>
       </template>
@@ -310,13 +316,29 @@ import type { DatabaseInfo } from '~~/src-tauri/bindings/DatabaseInfo'
 
 const { t } = useI18n()
 const { add } = useToast()
+const vaultSettingsStore = useVaultSettingsStore()
 
 const isLoading = ref(true)
 const dbInfo = ref<DatabaseInfo | null>(null)
 const retentionDays = ref(30)
+const savedRetentionDays = ref(30)
 const isCleaningUp = ref(false)
-const isVacuuming = ref(false)
+const isForceDeleting = ref(false)
+const isSavingRetention = ref(false)
 const lastCleanupResult = ref<CleanupResult | null>(null)
+
+const hasUnsavedRetentionChanges = computed(() => retentionDays.value !== savedRetentionDays.value)
+const hasTombstones = computed(() => (dbInfo.value?.totalTombstones ?? 0) > 0)
+
+const retentionOptions = [
+  { label: '7', value: 7 },
+  { label: '14', value: 14 },
+  { label: '30', value: 30 },
+  { label: '60', value: 60 },
+  { label: '90', value: 90 },
+  { label: '180', value: 180 },
+  { label: '365', value: 365 },
+]
 
 const extensionItems = computed(() => {
   if (!dbInfo.value) return []
@@ -374,6 +396,10 @@ const loadDatabaseInfoAsync = async () => {
   isLoading.value = true
   try {
     dbInfo.value = await invoke<DatabaseInfo>('get_database_info')
+    // Load persisted retention days
+    const persistedRetentionDays = await vaultSettingsStore.getTombstoneRetentionDaysAsync()
+    retentionDays.value = persistedRetentionDays
+    savedRetentionDays.value = persistedRetentionDays
   } catch (error) {
     console.error('Failed to load database info:', error)
     add({ description: t('errors.loadFailed'), color: 'error' })
@@ -382,15 +408,34 @@ const loadDatabaseInfoAsync = async () => {
   }
 }
 
+const onSaveRetentionAsync = async () => {
+  isSavingRetention.value = true
+  try {
+    await vaultSettingsStore.updateTombstoneRetentionDaysAsync(retentionDays.value)
+    savedRetentionDays.value = retentionDays.value
+    add({ description: t('retention.saved'), color: 'success' })
+  } catch (error) {
+    console.error('Failed to save retention days:', error)
+    add({ description: t('retention.saveError'), color: 'error' })
+  } finally {
+    isSavingRetention.value = false
+  }
+}
+
 const onCleanupAsync = async () => {
   isCleaningUp.value = true
   lastCleanupResult.value = null
 
   try {
+    // 1. Cleanup tombstones older than retention period
     const result = await invoke<CleanupResult>('crdt_cleanup_tombstones', {
-      retentionDays: retentionDays.value,
+      retentionDays: savedRetentionDays.value,
     })
     lastCleanupResult.value = result
+
+    // 2. Vacuum to reclaim disk space
+    await invoke('database_vacuum')
+
     add({ description: t('cleanup.success'), color: 'success' })
     await loadDatabaseInfoAsync()
   } catch (error) {
@@ -401,18 +446,27 @@ const onCleanupAsync = async () => {
   }
 }
 
-const onVacuumAsync = async () => {
-  isVacuuming.value = true
+const onForceDeleteAsync = async () => {
+  isForceDeleting.value = true
+  lastCleanupResult.value = null
 
   try {
+    // Force delete ALL tombstones (retention = 0)
+    const result = await invoke<CleanupResult>('crdt_cleanup_tombstones', {
+      retentionDays: 0,
+    })
+    lastCleanupResult.value = result
+
+    // Vacuum to reclaim disk space
     await invoke('database_vacuum')
-    add({ description: t('vacuum.success'), color: 'success' })
+
+    add({ description: t('forceDelete.success'), color: 'success' })
     await loadDatabaseInfoAsync()
   } catch (error) {
-    console.error('Vacuum failed:', error)
-    add({ description: t('vacuum.error'), color: 'error' })
+    console.error('Force delete failed:', error)
+    add({ description: t('forceDelete.error'), color: 'error' })
   } finally {
-    isVacuuming.value = false
+    isForceDeleting.value = false
   }
 }
 
@@ -448,28 +502,29 @@ de:
     deletedAt: Gelöscht am
     andMore: '... und {count} weitere'
   retention:
-    label: Tombstone-Aufbewahrung
-    description: Wie lange gelöschte Einträge aufbewahrt werden sollen (für Sync-Konsistenz)
+    label: Aufbewahrungszeit
+    description: Gelöschte Einträge werden für diese Zeit aufbewahrt, damit alle Geräte die Löschung synchronisieren können.
     days: Tage
+    save: Speichern
+    saved: Aufbewahrungszeit gespeichert
+    saveError: Fehler beim Speichern der Aufbewahrungszeit
   actions:
     title: Datenbankoptimierung
     cleanup:
-      label: Tombstones bereinigen
-      description: Entfernt alte Löschmarkierungen und bereits synchronisierte Einträge
+      label: Alte Löschmarkierungen entfernen
+      description: 'Entfernt Löschmarkierungen die älter als {days} Tage sind. Diese Löschungen wurden bereits an alle Geräte synchronisiert.'
       button: Bereinigen
-    vacuum:
-      label: Datenbank komprimieren
-      description: Optimiert die Datenbankdatei und gibt ungenutzten Speicherplatz frei
-      button: Komprimieren
+    forceDelete:
+      label: Alle Löschmarkierungen sofort entfernen
+      description: 'Achtung: Geräte die noch nicht synchronisiert haben, werden diese Löschungen nicht mehr erhalten. Gelöschte Einträge könnten dort wieder auftauchen.'
+      button: Sofort löschen
   cleanup:
     success: Bereinigung erfolgreich abgeschlossen
     error: Bereinigung fehlgeschlagen
-    tombstonesDeleted: Tombstones gelöscht
-    appliedDeleted: Angewendete Einträge gelöscht
-    totalDeleted: Gesamt gelöscht
-  vacuum:
-    success: Datenbank erfolgreich komprimiert
-    error: Komprimierung fehlgeschlagen
+    tombstonesDeleted: '{count} Löschmarkierungen entfernt'
+  forceDelete:
+    success: Alle Löschmarkierungen wurden entfernt
+    error: Fehler beim Löschen der Löschmarkierungen
   errors:
     loadFailed: Datenbankinformationen konnten nicht geladen werden
 
@@ -499,28 +554,29 @@ en:
     deletedAt: Deleted At
     andMore: '... and {count} more'
   retention:
-    label: Tombstone Retention
-    description: How long to keep deleted entries (for sync consistency)
+    label: Retention Period
+    description: Deleted entries are kept for this time so all devices can sync the deletion.
     days: days
+    save: Save
+    saved: Retention period saved
+    saveError: Failed to save retention period
   actions:
     title: Database Optimization
     cleanup:
-      label: Cleanup Tombstones
-      description: Remove old deletion markers and already synced entries
+      label: Remove old deletion markers
+      description: 'Removes deletion markers older than {days} days. These deletions have already been synced to all devices.'
       button: Cleanup
-    vacuum:
-      label: Compact Database
-      description: Optimize the database file and reclaim unused space
-      button: Compact
+    forceDelete:
+      label: Remove all deletion markers now
+      description: 'Warning: Devices that have not synced yet will not receive these deletions. Deleted entries may reappear on those devices.'
+      button: Delete now
   cleanup:
     success: Cleanup completed successfully
     error: Cleanup failed
-    tombstonesDeleted: Tombstones deleted
-    appliedDeleted: Applied entries deleted
-    totalDeleted: Total deleted
-  vacuum:
-    success: Database compacted successfully
-    error: Compaction failed
+    tombstonesDeleted: '{count} deletion markers removed'
+  forceDelete:
+    success: All deletion markers have been removed
+    error: Failed to delete deletion markers
   errors:
     loadFailed: Could not load database information
 </i18n>

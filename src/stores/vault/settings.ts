@@ -15,6 +15,7 @@ export enum VaultSettingsKeyEnum {
   theme = 'theme',
   vaultName = 'vaultName',
   desktopIconSize = 'desktopIconSize',
+  tombstoneRetentionDays = 'tombstoneRetentionDays',
 }
 
 export enum DesktopIconSizePreset {
@@ -214,6 +215,63 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
       )
   }
 
+  const DEFAULT_TOMBSTONE_RETENTION_DAYS = 30
+
+  const getTombstoneRetentionDaysAsync = async (): Promise<number> => {
+    const retentionRow =
+      await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
+        where: and(
+          eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.tombstoneRetentionDays),
+          eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.system),
+        ),
+      })
+
+    if (!retentionRow?.id) {
+      // No entry exists, create one with default
+      await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
+        id: crypto.randomUUID(),
+        key: VaultSettingsKeyEnum.tombstoneRetentionDays,
+        type: VaultSettingsTypeEnum.system,
+        value: String(DEFAULT_TOMBSTONE_RETENTION_DAYS),
+      })
+      return DEFAULT_TOMBSTONE_RETENTION_DAYS
+    }
+
+    return parseInt(retentionRow.value ?? String(DEFAULT_TOMBSTONE_RETENTION_DAYS), 10)
+  }
+
+  const updateTombstoneRetentionDaysAsync = async (days: number) => {
+    const clampedDays = Math.max(1, Math.min(365, days))
+
+    // Check if entry exists
+    const existingRow =
+      await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
+        where: and(
+          eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.tombstoneRetentionDays),
+          eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.system),
+        ),
+      })
+
+    if (existingRow?.id) {
+      await currentVault.value?.drizzle
+        .update(schema.haexVaultSettings)
+        .set({ value: String(clampedDays) })
+        .where(
+          and(
+            eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.tombstoneRetentionDays),
+            eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.system),
+          ),
+        )
+    } else {
+      await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
+        id: crypto.randomUUID(),
+        key: VaultSettingsKeyEnum.tombstoneRetentionDays,
+        type: VaultSettingsTypeEnum.system,
+        value: String(clampedDays),
+      })
+    }
+  }
+
   // Register for sync updates using the central event system
   const SUBSCRIPTION_ID = 'vaultSettingsStore'
 
@@ -243,6 +301,8 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     updateVaultNameAsync,
     syncDesktopIconSizeAsync,
     updateDesktopIconSizeAsync,
+    getTombstoneRetentionDaysAsync,
+    updateTombstoneRetentionDaysAsync,
     startSyncListener,
     stopSyncListener,
   }
