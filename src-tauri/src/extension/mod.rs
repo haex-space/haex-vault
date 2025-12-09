@@ -383,12 +383,19 @@ pub async fn load_dev_extension(
     let author = partial_manifest.author.or(package_json.author);
     let homepage = partial_manifest.homepage.or(package_json.homepage);
 
+    // Resolve icon path with fallback to favicon.ico
+    let resolved_icon = ExtensionManager::validate_and_resolve_icon_path(
+        &extension_path_buf,
+        &haextension_dir,
+        partial_manifest.icon.as_deref(),
+    )?;
+
     let manifest = ExtensionManifest {
         name,
         version,
         author,
         entry: partial_manifest.entry,
-        icon: partial_manifest.icon,
+        icon: resolved_icon,
         public_key: partial_manifest.public_key,
         signature: partial_manifest.signature,
         permissions: partial_manifest.permissions,

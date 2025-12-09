@@ -124,7 +124,7 @@ impl ExtensionManager {
     }
 
     /// Validates icon path and falls back to favicon.ico if not specified
-    fn validate_and_resolve_icon_path(
+    pub fn validate_and_resolve_icon_path(
         extension_dir: &PathBuf,
         haextension_dir: &str,
         icon_path: Option<&str>,
