@@ -43,20 +43,12 @@
           >
             <div class="flex items-center gap-3">
               <div
-                v-if="ext.icon"
                 class="w-10 h-10 shrink-0 rounded-lg bg-base-200 flex items-center justify-center overflow-hidden"
               >
-                <img
-                  :src="ext.icon"
-                  :alt="ext.name"
+                <HaexIcon
+                  :name="ext.icon || 'i-heroicons-puzzle-piece'"
                   class="w-full h-full object-contain"
                 />
-              </div>
-              <div
-                v-else
-                class="w-10 h-10 shrink-0 rounded-lg bg-base-200 flex items-center justify-center"
-              >
-                <UIcon name="i-heroicons-puzzle-piece" class="w-5 h-5" />
               </div>
 
               <div class="flex-1 min-w-0">

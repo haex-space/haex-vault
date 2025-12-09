@@ -320,6 +320,23 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
     }
   }
 
+  /**
+   * Remove a dev extension
+   * @param publicKey - Extension's public key
+   * @param name - Extension name
+   */
+  const removeDevExtensionAsync = async (publicKey: string, name: string) => {
+    try {
+      await invoke('remove_dev_extension', {
+        publicKey,
+        name,
+      })
+    } catch (error) {
+      console.error('Fehler beim Entfernen der Dev-Extension:', error)
+      throw error
+    }
+  }
+
   /* const removeExtensionAsync = async (id: string, version: string) => {
     try {
       console.log('remove extension', id, version)
@@ -470,6 +487,7 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
     preview,
     previewManifestAsync,
     registerInDatabaseAsync,
+    removeDevExtensionAsync,
     removeExtensionAsync,
     updateDisplayModeAsync,
   }

@@ -38,20 +38,12 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="flex items-start gap-3">
             <div
-              v-if="extension.icon"
               class="w-16 h-16 shrink-0 rounded-lg bg-base-200 flex items-center justify-center overflow-hidden"
             >
-              <img
-                :src="extension.icon"
-                :alt="extension.name"
+              <HaexIcon
+                :name="extension.icon || 'i-heroicons-puzzle-piece'"
                 class="w-full h-full object-contain"
               />
-            </div>
-            <div
-              v-else
-              class="w-16 h-16 shrink-0 rounded-lg bg-base-200 flex items-center justify-center"
-            >
-              <UIcon name="i-heroicons-puzzle-piece" class="w-8 h-8" />
             </div>
 
             <div class="flex-1 min-w-0">
@@ -174,17 +166,16 @@
       </div>
 
       <!-- Danger Zone -->
-      <div
-        v-if="!extension.devServerUrl"
-        class="space-y-4 pt-4 border-t border-error/20"
-      >
+      <div class="space-y-4 pt-4 border-t border-error/20">
         <h3 class="text-lg font-semibold text-error">{{ t('dangerZone') }}</h3>
 
         <div class="flex items-center justify-between p-4 rounded-lg border border-error/30 bg-error/5">
           <div>
-            <div class="font-medium">{{ t('removeExtension') }}</div>
+            <div class="font-medium">
+              {{ extension.devServerUrl ? t('removeDevExtension') : t('removeExtension') }}
+            </div>
             <div class="text-sm text-gray-500 dark:text-gray-400">
-              {{ t('removeWarning') }}
+              {{ extension.devServerUrl ? t('removeDevWarning') : t('removeWarning') }}
             </div>
           </div>
           <UiButton
@@ -195,13 +186,6 @@
             @click="confirmRemove"
           />
         </div>
-      </div>
-
-      <div
-        v-else
-        class="text-sm text-gray-500 dark:text-gray-400 italic"
-      >
-        {{ t('devExtensionNote') }}
       </div>
     </div>
 
@@ -414,11 +398,20 @@ const confirmRemove = () => {
 const handleRemoveAsync = async () => {
   removing.value = true
   try {
-    await extensionsStore.removeExtensionAsync(
-      props.extension.publicKey,
-      props.extension.name,
-      props.extension.version,
-    )
+    if (props.extension.devServerUrl) {
+      // Dev extension - use removeDevExtensionAsync
+      await extensionsStore.removeDevExtensionAsync(
+        props.extension.publicKey,
+        props.extension.name,
+      )
+    } else {
+      // Regular extension - use removeExtensionAsync
+      await extensionsStore.removeExtensionAsync(
+        props.extension.publicKey,
+        props.extension.name,
+        props.extension.version,
+      )
+    }
     add({ description: t('removeSuccess'), color: 'success' })
     removeDialogOpen.value = false
     emit('removed')
@@ -466,7 +459,9 @@ de:
   savePermissions: Berechtigungen speichern
   dangerZone: Gefahrenzone
   removeExtension: Erweiterung entfernen
+  removeDevExtension: Entwicklungserweiterung entfernen
   removeWarning: Diese Aktion kann nicht rückgängig gemacht werden.
+  removeDevWarning: Die Erweiterung wird aus der Liste entfernt. Du kannst sie jederzeit erneut verbinden.
   remove: Entfernen
   confirmRemove: Erweiterung entfernen
   removeConfirmText: Bist du sicher, dass du "{name}" entfernen möchtest? Alle Daten dieser Erweiterung werden gelöscht.
@@ -507,7 +502,9 @@ en:
   savePermissions: Save Permissions
   dangerZone: Danger Zone
   removeExtension: Remove Extension
+  removeDevExtension: Remove Development Extension
   removeWarning: This action cannot be undone.
+  removeDevWarning: The extension will be removed from the list. You can reconnect it at any time.
   remove: Remove
   confirmRemove: Remove Extension
   removeConfirmText: Are you sure you want to remove "{name}"? All data for this extension will be deleted.
