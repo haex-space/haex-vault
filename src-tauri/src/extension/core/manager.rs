@@ -810,14 +810,24 @@ impl ExtensionManager {
             }
         }
 
+        // Update icon path to point to installed location (instead of temp dir)
+        let mut installed_manifest = extracted.manifest.clone();
+        if let Some(ref temp_icon_path) = installed_manifest.icon {
+            let temp_icon = PathBuf::from(temp_icon_path);
+            if let Ok(relative_icon) = temp_icon.strip_prefix(&extracted.temp_dir) {
+                installed_manifest.icon =
+                    Some(extensions_dir.join(relative_icon).to_string_lossy().to_string());
+            }
+        }
+
         // Load extension into memory
         let extension = Extension {
             id: extension_id.to_string(),
             source: ExtensionSource::Production {
                 path: extensions_dir.clone(),
-                version: extracted.manifest.version.clone(),
+                version: installed_manifest.version.clone(),
             },
-            manifest: extracted.manifest.clone(),
+            manifest: installed_manifest,
             enabled: true,
             last_accessed: SystemTime::now(),
         };
@@ -1093,13 +1103,22 @@ impl ExtensionManager {
 
             eprintln!("DEBUG: Extension loaded successfully: {extension_id}");
 
+            // Resolve icon path to installed location
+            let mut manifest = extension_data.manifest;
+            let resolved_icon = Self::validate_and_resolve_icon_path(
+                &extension_path,
+                &haextension_dir,
+                manifest.icon.as_deref(),
+            )?;
+            manifest.icon = resolved_icon;
+
             let extension = Extension {
                 id: extension_id.clone(),
                 source: ExtensionSource::Production {
                     path: extension_path,
-                    version: extension_data.manifest.version.clone(),
+                    version: manifest.version.clone(),
                 },
-                manifest: extension_data.manifest,
+                manifest,
                 enabled: extension_data.enabled,
                 last_accessed: SystemTime::now(),
             };
