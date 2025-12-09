@@ -439,7 +439,9 @@ const toggleExtension = (slug: string) => {
   } else {
     selectedExtensions.value.splice(index, 1)
     // Clean up selections
+    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
     delete extensionVersionSelections[slug]
+    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
     delete extensionPermissions[slug]
   }
 }
@@ -675,6 +677,13 @@ const installSelectedExtensionsAsync = async () => {
       extensionStore.clearPendingInstall()
     } catch (error) {
       console.error(`Failed to install extension ${slug}:`, error)
+      const ext = recommendedExtensions.value.find((e) => e.slug === slug)
+      add({
+        color: 'error',
+        title: t('errors.extensionInstall', { name: ext?.name || slug }),
+        description: (error as { message?: string })?.message || String(error),
+      })
+      extensionStore.clearPendingInstall()
       // Continue with next extension
     }
   }
@@ -763,6 +772,7 @@ de:
     syncSetup: Synchronisierung konnte nicht eingerichtet werden
     complete: Einrichtung konnte nicht abgeschlossen werden
     loadPermissions: Berechtigungen konnten nicht geladen werden
+    extensionInstall: "Fehler bei Installation von {name}"
 
 en:
   title: Welcome
@@ -805,4 +815,5 @@ en:
     syncSetup: Could not set up synchronization
     complete: Could not complete setup
     loadPermissions: Could not load permissions
+    extensionInstall: "Failed to install {name}"
 </i18n>

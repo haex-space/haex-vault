@@ -250,13 +250,20 @@ impl ExtensionManager {
 
         let mut manifest: ExtensionManifest = serde_json::from_str(&manifest_content)?;
 
-        // Validate and resolve icon path with fallback logic
+        // Validate icon path exists but keep it as RELATIVE path for DB storage.
+        // The path will be resolved to absolute when the extension is loaded.
         let validated_icon = Self::validate_and_resolve_icon_path(
             &actual_dir,
             &haextension_dir,
             manifest.icon.as_deref(),
         )?;
-        manifest.icon = validated_icon;
+        // Convert absolute path back to relative for storage in DB
+        manifest.icon = validated_icon.and_then(|abs_path| {
+            std::path::Path::new(&abs_path)
+                .strip_prefix(&actual_dir)
+                .ok()
+                .map(|rel| rel.to_string_lossy().to_string())
+        });
 
         let content_hash =
             ExtensionCrypto::hash_directory(&actual_dir, &manifest_path).map_err(|e| {

@@ -83,6 +83,8 @@ export default defineNuxtConfig({
         'line-md:moon-to-sunny-outline-loop-transition',
         // UCheckbox default icon
         'lucide:check',
+        // UButton loading icon
+        'lucide:loader-circle',
       ],
     },
     serverBundle: {
