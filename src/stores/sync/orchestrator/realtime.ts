@@ -14,8 +14,20 @@ import { pullFromBackendAsync } from './pull'
 /** Debounce timers per backend */
 const pullDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
+/** Retry timers per backend */
+const subscriptionRetryTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+/** Retry counts per backend */
+const subscriptionRetryCounts = new Map<string, number>()
+
 /** Debounce delay in milliseconds */
 const PULL_DEBOUNCE_MS = 500
+
+/** Max retry attempts for subscription */
+const MAX_SUBSCRIPTION_RETRIES = 3
+
+/** Base delay for retry (exponential backoff) */
+const RETRY_BASE_DELAY_MS = 5000
 
 /**
  * Triggers a debounced pull from the backend.
@@ -193,13 +205,37 @@ export const subscribeToBackendAsync = async (
         log.debug(`SUBSCRIBE: Channel status changed to ${status}`, err ? `Error: ${JSON.stringify(err)}` : '')
         if (status === 'SUBSCRIBED') {
           state.isConnected = true
+          // Reset retry count on successful subscription
+          subscriptionRetryCounts.set(backendId, 0)
           log.info(`SUBSCRIBE: Successfully subscribed to backend ${backendId}`)
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           state.isConnected = false
           const errorDetails = err ? JSON.stringify(err) : 'unknown'
           state.error = `Subscription error: ${status} - ${errorDetails}`
-          // Log as warning instead of error - realtime is optional, periodic pull is the fallback
-          log.warn(`SUBSCRIBE: Realtime subscription failed for backend ${backendId}: ${status} (periodic pull will be used as fallback)`)
+
+          // Attempt retry with exponential backoff
+          const retryCount = subscriptionRetryCounts.get(backendId) ?? 0
+          if (retryCount < MAX_SUBSCRIPTION_RETRIES) {
+            const delay = RETRY_BASE_DELAY_MS * Math.pow(2, retryCount)
+            log.warn(`SUBSCRIBE: Subscription failed for ${backendId}: ${status}. Retrying in ${delay}ms (attempt ${retryCount + 1}/${MAX_SUBSCRIPTION_RETRIES})`)
+
+            // Clear existing subscription before retry
+            state.subscription = null
+
+            // Schedule retry
+            const retryTimer = setTimeout(async () => {
+              subscriptionRetryTimers.delete(backendId)
+              subscriptionRetryCounts.set(backendId, retryCount + 1)
+              try {
+                await subscribeToBackendAsync(backendId, currentVaultId, syncStates, syncBackendsStore, syncEngineStore)
+              } catch (retryError) {
+                log.error(`SUBSCRIBE: Retry failed for backend ${backendId}:`, retryError)
+              }
+            }, delay)
+            subscriptionRetryTimers.set(backendId, retryTimer)
+          } else {
+            log.warn(`SUBSCRIBE: Realtime subscription failed for backend ${backendId} after ${MAX_SUBSCRIPTION_RETRIES} attempts. Periodic pull will be used as fallback.`)
+          }
         } else if (status === 'CLOSED') {
           state.isConnected = false
           log.debug(`SUBSCRIBE: Channel closed for backend ${backendId}`)
@@ -221,16 +257,24 @@ export const unsubscribeFromBackendAsync = async (
   backendId: string,
   syncStates: BackendSyncState,
 ): Promise<void> => {
-  const state = syncStates[backendId]
-  if (!state || !state.subscription) {
-    return
+  // Clear any pending retry timer
+  const retryTimer = subscriptionRetryTimers.get(backendId)
+  if (retryTimer) {
+    clearTimeout(retryTimer)
+    subscriptionRetryTimers.delete(backendId)
   }
+  subscriptionRetryCounts.delete(backendId)
 
   // Clear any pending debounce timer
   const timer = pullDebounceTimers.get(backendId)
   if (timer) {
     clearTimeout(timer)
     pullDebounceTimers.delete(backendId)
+  }
+
+  const state = syncStates[backendId]
+  if (!state || !state.subscription) {
+    return
   }
 
   try {

@@ -104,6 +104,12 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
         // Use backend-specific storage key to avoid conflicts
         storageKey: `sb-${backendId}-auth-token`,
       },
+      realtime: {
+        // Increase timeout for mobile connections (default is 10s)
+        timeout: 30000,
+        // Heartbeat interval to keep connection alive on mobile
+        heartbeatIntervalMs: 15000,
+      },
     })
     currentBackendId.value = backendId
   }
