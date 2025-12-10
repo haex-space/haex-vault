@@ -54,13 +54,14 @@
 
       <!-- Loading State -->
       <div
-        v-if="marketplace.isLoading.value"
-        class="flex-1 flex items-center justify-center"
+        v-if="isInitialLoading || marketplace.isLoading.value"
+        class="flex-1 flex flex-col items-center justify-center gap-3"
       >
         <UIcon
           name="i-heroicons-arrow-path"
           class="w-8 h-8 animate-spin text-gray-400"
         />
+        <p class="text-sm text-gray-500">{{ t('loading') }}</p>
       </div>
 
       <!-- Extensions Grid -->
@@ -191,6 +192,7 @@ const marketplace = useMarketplace()
 const searchQuery = ref('')
 const selectedCategory = ref<string | null>(null)
 const currentPage = ref(1)
+const isInitialLoading = ref(true)
 
 // Debounced search
 const debouncedSearch = refDebounced(searchQuery, 300)
@@ -579,6 +581,8 @@ onMounted(async () => {
   } catch (error) {
     console.error('Failed to load data:', error)
     add({ color: 'error', description: t('error.loadExtensions') })
+  } finally {
+    isInitialLoading.value = false
   }
 })
 
@@ -642,6 +646,7 @@ const removeExtensionAsync = async (deleteMode: 'device' | 'complete') => {
 de:
   title: Erweiterungen
   subtitle: Entdecke und installiere Erweiterungen für HaexSpace
+  loading: Erweiterungen werden geladen...
   extension:
     installFromFile: Von Datei installieren
     add: Erweiterung hinzufügen
@@ -681,6 +686,7 @@ de:
 en:
   title: Extensions
   subtitle: Discover and install extensions for HaexSpace
+  loading: Loading extensions...
   extension:
     installFromFile: Install from file
     add: Add Extension
