@@ -185,7 +185,7 @@ fn find_extension_for_table<'a>(
 ) -> Option<&'a InstalledExtension> {
     for ext in extensions {
         // Build the prefix: {public_key}__{name}__
-        let prefix = format!("{}__{}__", ext.public_key, ext.name.replace('-', "_"));
+        let prefix = format!("{}__{}__", ext.public_key, ext.name);
         if table_name.starts_with(&prefix) {
             return Some(ext);
         }
