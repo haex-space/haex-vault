@@ -190,7 +190,7 @@ export const subscribeToBackendAsync = async (
         },
       )
       .subscribe((status, err) => {
-        log.info(`SUBSCRIBE: Channel status changed to ${status}`, err ? `Error: ${JSON.stringify(err)}` : '')
+        log.debug(`SUBSCRIBE: Channel status changed to ${status}`, err ? `Error: ${JSON.stringify(err)}` : '')
         if (status === 'SUBSCRIBED') {
           state.isConnected = true
           log.info(`SUBSCRIBE: Successfully subscribed to backend ${backendId}`)
@@ -198,10 +198,11 @@ export const subscribeToBackendAsync = async (
           state.isConnected = false
           const errorDetails = err ? JSON.stringify(err) : 'unknown'
           state.error = `Subscription error: ${status} - ${errorDetails}`
-          log.error(`SUBSCRIBE: Subscription to backend ${backendId} failed: ${status}`, errorDetails)
+          // Log as warning instead of error - realtime is optional, periodic pull is the fallback
+          log.warn(`SUBSCRIBE: Realtime subscription failed for backend ${backendId}: ${status} (periodic pull will be used as fallback)`)
         } else if (status === 'CLOSED') {
           state.isConnected = false
-          log.warn(`SUBSCRIBE: Channel closed for backend ${backendId}`)
+          log.debug(`SUBSCRIBE: Channel closed for backend ${backendId}`)
         }
       })
 
