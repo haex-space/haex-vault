@@ -69,9 +69,7 @@ pub fn copy_directory(
     use crate::extension::error::ExtensionError;
     use std::path::PathBuf;
 
-    println!(
-        "Kopiere Verzeichnis von '{source}' nach '{destination}'"
-    );
+    println!("Kopiere Verzeichnis von '{source}' nach '{destination}'");
 
     let source_path = PathBuf::from(&source);
     let destination_path = PathBuf::from(&destination);

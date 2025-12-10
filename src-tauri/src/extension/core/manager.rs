@@ -12,7 +12,9 @@ use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::ExtensionPermission;
 use crate::extension::utils::{drop_extension_tables, validate_public_key};
-use crate::table_names::{TABLE_EXTENSIONS, TABLE_EXTENSION_MIGRATIONS, TABLE_EXTENSION_PERMISSIONS};
+use crate::table_names::{
+    TABLE_EXTENSIONS, TABLE_EXTENSION_MIGRATIONS, TABLE_EXTENSION_PERMISSIONS,
+};
 use crate::AppState;
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
@@ -21,6 +23,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime};
 use tauri::{AppHandle, Manager, State};
+use tauri_plugin_fs::FsExt;
 use zip::ZipArchive;
 
 #[derive(Debug, Clone)]
@@ -133,10 +136,8 @@ impl ExtensionManager {
         if let Some(icon) = icon_path {
             if let Some(clean_path) = Self::validate_path_in_directory(extension_dir, icon, true)? {
                 return Ok(Some(clean_path.to_string_lossy().to_string()));
-            } else {
-                eprintln!("WARNING: Icon path specified in manifest not found: {icon}");
-                // Continue to fallback logic
             }
+            // Icon not found, continue to fallback logic
         }
 
         // Fallback 1: Check haextension/favicon.ico
@@ -147,15 +148,68 @@ impl ExtensionManager {
             return Ok(Some(clean_path.to_string_lossy().to_string()));
         }
 
-        // Fallback 2: Check public/favicon.ico
+        // Fallback 2: Check favicon.ico in root
         if let Some(clean_path) =
-            Self::validate_path_in_directory(extension_dir, "public/favicon.ico", true)?
+            Self::validate_path_in_directory(extension_dir, "favicon.ico", true)?
         {
             return Ok(Some(clean_path.to_string_lossy().to_string()));
         }
 
         // No icon found
         Ok(None)
+    }
+
+    /// Find icon path using FsExt (works better on Android)
+    /// Returns the relative path if found, None otherwise
+    fn find_icon(
+        app_handle: &AppHandle,
+        extension_dir: &PathBuf,
+        haextension_dir: &str,
+        icon_path: Option<&str>,
+    ) -> Option<String> {
+        let fs = app_handle.fs();
+
+        // Helper to check if path contains traversal
+        let is_safe_path = |path: &str| -> bool { !path.contains("..") };
+
+        // Helper to clean relative path
+        let clean_relative = |path: &str| -> String {
+            path.replace('\\', "/")
+                .trim_start_matches('/')
+                .to_string()
+        };
+
+        // Helper to check if file exists using FsExt
+        // We try to read a small portion of the file to check existence
+        let file_exists = |relative_path: &str| -> bool {
+            if !is_safe_path(relative_path) {
+                return false;
+            }
+            let clean = clean_relative(relative_path);
+            let full_path = extension_dir.join(&clean);
+            // Use FsExt to check if file can be read
+            fs.read(&full_path).is_ok()
+        };
+
+        // 1. Check manifest icon path
+        if let Some(icon) = icon_path {
+            if file_exists(icon) {
+                return Some(clean_relative(icon));
+            }
+        }
+
+        // 2. Fallback: Check haextension/favicon.ico
+        let haextension_favicon = format!("{haextension_dir}/favicon.ico");
+        if file_exists(&haextension_favicon) {
+            return Some(clean_relative(&haextension_favicon));
+        }
+
+        // 3. Fallback: Check favicon.ico in root
+        if file_exists("favicon.ico") {
+            return Some("favicon.ico".to_string());
+        }
+
+        None
     }
 
     /// Extrahiert eine Extension-ZIP-Datei und validiert das Manifest
@@ -250,20 +304,14 @@ impl ExtensionManager {
 
         let mut manifest: ExtensionManifest = serde_json::from_str(&manifest_content)?;
 
-        // Validate icon path exists but keep it as RELATIVE path for DB storage.
-        // The path will be resolved to absolute when the extension is loaded.
-        let validated_icon = Self::validate_and_resolve_icon_path(
+        // Find icon path using FsExt for better Android compatibility
+        // Returns relative path directly (no conversion needed)
+        manifest.icon = Self::find_icon(
+            app_handle,
             &actual_dir,
             &haextension_dir,
             manifest.icon.as_deref(),
-        )?;
-        // Convert absolute path back to relative for storage in DB
-        manifest.icon = validated_icon.and_then(|abs_path| {
-            std::path::Path::new(&abs_path)
-                .strip_prefix(&actual_dir)
-                .ok()
-                .map(|rel| rel.to_string_lossy().to_string())
-        });
+        );
 
         let content_hash =
             ExtensionCrypto::hash_directory(&actual_dir, &manifest_path).map_err(|e| {
@@ -660,11 +708,12 @@ impl ExtensionManager {
             drop(hlc_service_guard);
 
             // 1. Check if extension already exists (e.g., from sync)
-            let check_sql = format!(
-                "SELECT id FROM {TABLE_EXTENSIONS} WHERE public_key = ? AND name = ?"
-            );
+            let check_sql =
+                format!("SELECT id FROM {TABLE_EXTENSIONS} WHERE public_key = ? AND name = ?");
             let existing_id: Option<String> = tx
-                .query_row(&check_sql, [&manifest.public_key, &manifest.name], |row| row.get(0))
+                .query_row(&check_sql, [&manifest.public_key, &manifest.name], |row| {
+                    row.get(0)
+                })
                 .ok();
 
             let actual_id = if let Some(existing_id) = existing_id {
@@ -691,7 +740,11 @@ impl ExtensionManager {
                         manifest.description,
                         true, // enabled
                         manifest.single_instance.unwrap_or(false),
-                        manifest.display_mode.as_ref().map(|dm| format!("{:?}", dm).to_lowercase()).unwrap_or_else(|| "auto".to_string()),
+                        manifest
+                            .display_mode
+                            .as_ref()
+                            .map(|dm| format!("{:?}", dm).to_lowercase())
+                            .unwrap_or_else(|| "auto".to_string()),
                         existing_id,
                     ],
                 )?;
@@ -720,16 +773,19 @@ impl ExtensionManager {
                         manifest.description,
                         true, // enabled
                         manifest.single_instance.unwrap_or(false),
-                        manifest.display_mode.as_ref().map(|dm| format!("{:?}", dm).to_lowercase()).unwrap_or_else(|| "auto".to_string()),
+                        manifest
+                            .display_mode
+                            .as_ref()
+                            .map(|dm| format!("{:?}", dm).to_lowercase())
+                            .unwrap_or_else(|| "auto".to_string()),
                     ],
                 )?;
                 new_extension_id
             };
 
             // 2. Permissions: Delete existing permissions for this extension (if updating)
-            let delete_perm_sql = format!(
-                "DELETE FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ?"
-            );
+            let delete_perm_sql =
+                format!("DELETE FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ?");
             tx.execute(&delete_perm_sql, [&actual_id]).ok();
 
             // 3. Permissions: Recreate with correct extension_id
@@ -822,8 +878,12 @@ impl ExtensionManager {
         if let Some(ref temp_icon_path) = installed_manifest.icon {
             let temp_icon = PathBuf::from(temp_icon_path);
             if let Ok(relative_icon) = temp_icon.strip_prefix(&extracted.temp_dir) {
-                installed_manifest.icon =
-                    Some(extensions_dir.join(relative_icon).to_string_lossy().to_string());
+                installed_manifest.icon = Some(
+                    extensions_dir
+                        .join(relative_icon)
+                        .to_string_lossy()
+                        .to_string(),
+                );
             }
         }
 
@@ -869,20 +929,11 @@ impl ExtensionManager {
         .map_err(|e| ExtensionError::SignatureVerificationFailed { reason: e })?;
 
         // Install files locally
-        let extensions_dir = self.install_extension_files(
-            app_handle,
-            &extracted,
-            extension_id,
-        )?;
+        let extensions_dir = self.install_extension_files(app_handle, &extracted, extension_id)?;
 
         // Register and apply migrations from the bundle
-        Self::register_bundle_migrations(
-            &extensions_dir,
-            &extracted.manifest,
-            extension_id,
-            state,
-        )
-        .await?;
+        Self::register_bundle_migrations(&extensions_dir, &extracted.manifest, extension_id, state)
+            .await?;
 
         Ok(extension_id.to_string())
     }
@@ -910,18 +961,12 @@ impl ExtensionManager {
         .map_err(|e| ExtensionError::SignatureVerificationFailed { reason: e })?;
 
         // Step 1: Register in database (UPSERT - handles sync case)
-        let extension_id = self.register_extension_in_database(
-            &extracted.manifest,
-            &custom_permissions,
-            state,
-        )?;
+        let extension_id =
+            self.register_extension_in_database(&extracted.manifest, &custom_permissions, state)?;
 
         // Step 2: Install files locally
-        let extensions_dir = self.install_extension_files(
-            &app_handle,
-            &extracted,
-            &extension_id,
-        )?;
+        let extensions_dir =
+            self.install_extension_files(&app_handle, &extracted, &extension_id)?;
 
         // Step 3: Register and apply migrations from the bundle
         Self::register_bundle_migrations(
@@ -1112,12 +1157,11 @@ impl ExtensionManager {
 
             // Resolve icon path to installed location
             let mut manifest = extension_data.manifest;
-            let resolved_icon = Self::validate_and_resolve_icon_path(
+            manifest.icon = Self::validate_and_resolve_icon_path(
                 &extension_path,
                 &haextension_dir,
                 manifest.icon.as_deref(),
             )?;
-            manifest.icon = resolved_icon;
 
             let extension = Extension {
                 id: extension_id.clone(),
@@ -1171,14 +1215,17 @@ impl ExtensionManager {
 
         // Validate migrations_dir path to prevent path traversal attacks
         // The migrations directory MUST be within the extension directory
-        let _migrations_path =
-            Self::validate_path_in_directory(extension_dir, migrations_dir, true)?
-                .ok_or_else(|| ExtensionError::ValidationError {
-                    reason: format!(
-                        "Migrations directory '{}' does not exist or is outside extension directory",
-                        migrations_dir
-                    ),
-                })?;
+        let _migrations_path = Self::validate_path_in_directory(
+            extension_dir,
+            migrations_dir,
+            true,
+        )?
+        .ok_or_else(|| ExtensionError::ValidationError {
+            reason: format!(
+                "Migrations directory '{}' does not exist or is outside extension directory",
+                migrations_dir
+            ),
+        })?;
 
         // Read _journal.json to get migration order
         let journal_relative_path = format!("{}/meta/_journal.json", migrations_dir);
@@ -1235,10 +1282,7 @@ impl ExtensionManager {
                 ExtensionError::filesystem_with_path(sql_file_path.display().to_string(), e)
             })?;
 
-            eprintln!(
-                "[INSTALL_MIGRATIONS] Processing migration: {}",
-                entry.tag
-            );
+            eprintln!("[INSTALL_MIGRATIONS] Processing migration: {}", entry.tag);
 
             // Create context for SQL execution (production mode for installed extensions)
             let ctx = ExtensionSqlContext::new(

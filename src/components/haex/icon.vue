@@ -1,9 +1,9 @@
 <template>
   <div class="inline-flex">
     <UTooltip :text="tooltip">
-      <!-- Bundled Icon (iconify) -->
+      <!-- Bundled Icon (iconify) - also show when fallback is active -->
       <UIcon
-        v-if="isBundledIcon"
+        v-if="isBundledIcon || showFallback"
         :name="name"
         v-bind="$attrs"
       />
@@ -31,9 +31,19 @@ const props = defineProps<{
   tooltip?: string
 }>()
 
-// Check if it's a bundled icon (no file extension)
+// Check if it's a bundled icon (iconify icon name, no file extension or URL)
 const isBundledIcon = computed(() => {
+  // If it starts with http:// or https://, it's a URL (not bundled)
+  if (props.name.startsWith('http://') || props.name.startsWith('https://')) {
+    return false
+  }
+  // If it has a file extension, it's an external image (not bundled)
   return !props.name.match(/\.(png|jpg|jpeg|svg|gif|webp|ico)$/i)
+})
+
+// Check if it's already a URL (no conversion needed)
+const isUrl = computed(() => {
+  return props.name.startsWith('http://') || props.name.startsWith('https://')
 })
 
 // Convert file path to Tauri URL for images
@@ -45,8 +55,13 @@ const FALLBACK_ICON = 'i-heroicons-puzzle-piece-solid'
 
 watchEffect(() => {
   if (!isBundledIcon.value && !showFallback.value) {
-    // Convert local file path to Tauri asset URL
-    imageUrl.value = convertFileSrc(props.name)
+    if (isUrl.value) {
+      // Already a URL, use directly
+      imageUrl.value = props.name
+    } else {
+      // Convert local file path to Tauri asset URL
+      imageUrl.value = convertFileSrc(props.name)
+    }
   }
 })
 

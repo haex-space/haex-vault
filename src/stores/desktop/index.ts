@@ -372,7 +372,7 @@ export const useDesktopStore = defineStore('desktopStore', () => {
         windowManager.openWindowAsync({
           sourceId: extension.id,
           type: 'extension',
-          icon: extension.icon,
+          icon: extension.iconUrl || undefined,
           title: extension.name,
           sourcePosition,
         })
@@ -633,7 +633,7 @@ export const useDesktopStore = defineStore('desktopStore', () => {
             (ext) => ext.id === item.referenceId,
           )
           label = extension?.name || 'Unknown'
-          icon = extension?.icon || ''
+          icon = extension?.iconUrl || ''
         }
 
         return {

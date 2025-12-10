@@ -115,11 +115,7 @@ pub fn register_extension_in_database(
 ) -> Result<String, ExtensionError> {
     state
         .extension_manager
-        .register_extension_in_database(
-            &manifest,
-            &custom_permissions,
-            &state,
-        )
+        .register_extension_in_database(&manifest, &custom_permissions, &state)
 }
 
 /// Install extension files to local filesystem.
@@ -135,12 +131,7 @@ pub async fn install_extension_files(
 ) -> Result<String, ExtensionError> {
     state
         .extension_manager
-        .install_extension_files_from_bytes(
-            &app_handle,
-            file_bytes,
-            &extension_id,
-            &state,
-        )
+        .install_extension_files_from_bytes(&app_handle, file_bytes, &extension_id, &state)
         .await
 }
 
@@ -368,12 +359,11 @@ pub async fn load_dev_extension(
     };
 
     // 3.6. Merge manifest with package.json fallbacks
-    let name = partial_manifest
-        .name
-        .or(package_json.name)
-        .ok_or_else(|| ExtensionError::ManifestError {
+    let name = partial_manifest.name.or(package_json.name).ok_or_else(|| {
+        ExtensionError::ManifestError {
             reason: "No name found in manifest or package.json".to_string(),
-        })?;
+        }
+    })?;
 
     let version = partial_manifest
         .version

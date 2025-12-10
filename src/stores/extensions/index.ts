@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { readFile } from '@tauri-apps/plugin-fs'
-import { getExtensionUrl } from '~/utils/extension'
+import { getExtensionUrl, getExtensionIconUrl } from '~/utils/extension'
 
 import type {
   IHaexSpaceExtension,
@@ -91,9 +91,16 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
       const extensions =
         await invoke<ExtensionInfoResponse[]>('get_all_extensions')
 
-      console.log('get_all_extensions', extensions)
-      // ExtensionInfoResponse is now directly compatible with IHaexSpaceExtension
-      availableExtensions.value = extensions
+      // Add computed iconUrl to each extension (synchronous, for cross-platform compatibility)
+      const extensionsWithIconUrls: IHaexSpaceExtension[] = extensions.map((ext) => {
+        const iconUrl = getExtensionIconUrl(ext.icon, ext.publicKey, ext.name, ext.version)
+        return {
+          ...ext,
+          iconUrl: iconUrl || undefined,
+        }
+      })
+
+      availableExtensions.value = extensionsWithIconUrls
     } catch (error) {
       console.error('Fehler beim Laden der Extensions:', error)
       throw error
@@ -337,6 +344,32 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
     }
   }
 
+  /**
+   * Unified uninstall function that handles both regular and dev extensions.
+   * Automatically reloads the extensions list after removal.
+   * @param extension - The extension to uninstall
+   * @param deleteMode - 'device' (keep data) or 'complete' (delete all data)
+   */
+  const uninstallExtensionAsync = async (
+    extension: { publicKey: string; name: string; version: string; devServerUrl?: string | null },
+    deleteMode: 'device' | 'complete' = 'device',
+  ) => {
+    if (extension.devServerUrl) {
+      // Dev extension - use removeDevExtensionAsync
+      await removeDevExtensionAsync(extension.publicKey, extension.name)
+    } else {
+      // Regular extension - use removeExtensionAsync
+      await removeExtensionAsync(
+        extension.publicKey,
+        extension.name,
+        extension.version,
+        deleteMode === 'complete',
+      )
+    }
+    // Reload extensions list
+    await loadExtensionsAsync()
+  }
+
   /* const removeExtensionAsync = async (id: string, version: string) => {
     try {
       console.log('remove extension', id, version)
@@ -489,6 +522,7 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
     registerInDatabaseAsync,
     removeDevExtensionAsync,
     removeExtensionAsync,
+    uninstallExtensionAsync,
     updateDisplayModeAsync,
   }
 })
