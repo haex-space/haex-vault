@@ -50,6 +50,13 @@
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <UButton
+            v-if="isInstalled"
+            icon="i-heroicons-trash"
+            color="error"
+            variant="ghost"
+            @click="onRemove"
+          />
+          <UButton
             :label="installButtonLabel"
             :color="isInstalled ? 'neutral' : 'primary'"
             :disabled="isInstalled && !hasUpdate"
@@ -216,6 +223,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   install: [extension: MarketplaceExtensionViewModel]
+  remove: [extension: MarketplaceExtensionViewModel]
 }>()
 
 const open = defineModel<boolean>('open', { default: false })
@@ -260,6 +268,13 @@ watch(open, async (isOpen) => {
 const onInstall = () => {
   if (props.extension) {
     emit('install', props.extension)
+    open.value = false
+  }
+}
+
+const onRemove = () => {
+  if (props.extension) {
+    emit('remove', props.extension)
     open.value = false
   }
 }

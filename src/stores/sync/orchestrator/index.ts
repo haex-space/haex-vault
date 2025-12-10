@@ -6,7 +6,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { log, type BackendSyncState } from './types'
-import { pushToBackendAsync } from './push'
+import { pushToBackendAsync, pushAllDataToBackendAsync } from './push'
 import {
   pullFromBackendAsync,
   pullChangesFromServerWithConfigAsync,
@@ -481,6 +481,7 @@ export const useSyncOrchestratorStore = defineStore(
       stopSyncAsync,
       getSyncState,
       performInitialPullAsync,
+      pushAllDataToBackendAsync,
     }
   },
 )

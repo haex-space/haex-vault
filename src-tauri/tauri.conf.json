@@ -133,7 +133,8 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "database/migrations/*.sql"
+      "database/migrations/*.sql",
+      "database/migrations/meta/_journal.json"
     ],
     "linux": {
       "appimage": {

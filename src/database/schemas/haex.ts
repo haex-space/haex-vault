@@ -249,6 +249,11 @@ export const haexSyncBackends = sqliteTable(
       .notNull(),
     lastPushHlcTimestamp: text(tableNames.haex.sync_backends.columns.lastPushHlcTimestamp),
     lastPullServerTimestamp: text(tableNames.haex.sync_backends.columns.lastPullServerTimestamp),
+    pendingVaultKeyUpdate: integer(tableNames.haex.sync_backends.columns.pendingVaultKeyUpdate, {
+      mode: 'boolean',
+    })
+      .default(false)
+      .notNull(),
     createdAt: text(tableNames.haex.sync_backends.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),
@@ -288,3 +293,32 @@ export const haexExtensionMigrations = sqliteTable(
 )
 export type InsertHaexExtensionMigrations = typeof haexExtensionMigrations.$inferInsert
 export type SelectHaexExtensionMigrations = typeof haexExtensionMigrations.$inferSelect
+
+// Browser Bridge - Authorized external clients (browser extensions)
+export const haexBridgeAuthorizedClients = sqliteTable(
+  tableNames.haex.bridge_authorized_clients.name,
+  withCrdtColumns({
+    id: text(tableNames.haex.bridge_authorized_clients.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    clientId: text(tableNames.haex.bridge_authorized_clients.columns.clientId).notNull(),
+    clientName: text(tableNames.haex.bridge_authorized_clients.columns.clientName).notNull(),
+    publicKey: text(tableNames.haex.bridge_authorized_clients.columns.publicKey).notNull(),
+    extensionId: text(tableNames.haex.bridge_authorized_clients.columns.extensionId)
+      .notNull()
+      .references((): AnySQLiteColumn => haexExtensions.id, {
+        onDelete: 'cascade',
+      }),
+    authorizedAt: text(tableNames.haex.bridge_authorized_clients.columns.authorizedAt).default(
+      sql`(CURRENT_TIMESTAMP)`,
+    ),
+    lastSeen: text(tableNames.haex.bridge_authorized_clients.columns.lastSeen),
+  }),
+  (table) => [
+    uniqueIndex('haex_bridge_authorized_clients_client_id_unique')
+      .on(table.clientId)
+      .where(sql`${table.haexTombstone} = 0`),
+  ],
+)
+export type InsertHaexBridgeAuthorizedClients = typeof haexBridgeAuthorizedClients.$inferInsert
+export type SelectHaexBridgeAuthorizedClients = typeof haexBridgeAuthorizedClients.$inferSelect

@@ -112,6 +112,33 @@ export const useVaultStore = defineStore('vaultStore', () => {
         }
       }
 
+      // Retry pending vault key updates (from previous password changes that failed)
+      if (currentVaultPassword.value) {
+        try {
+          const { successCount, failedBackendIds } = await syncEngineStore.retryPendingVaultKeyUpdatesAsync(
+            syncEngineStore.vaultKeyCache[currentVaultId.value ?? '']?.vaultKey ?? new Uint8Array(),
+            currentVaultPassword.value,
+          )
+
+          if (successCount > 0) {
+            console.log(`[HaexSpace] ✅ Retried vault key update for ${successCount} backend(s)`)
+          }
+
+          if (failedBackendIds.length > 0) {
+            console.warn(`[HaexSpace] ⚠️ Vault key update still pending for ${failedBackendIds.length} backend(s)`)
+            // Show toast to user
+            const { add } = useToast()
+            add({
+              color: 'warning',
+              title: 'Sync-Server nicht erreichbar',
+              description: `${failedBackendIds.length} Server konnte(n) nicht aktualisiert werden. Die Aktualisierung wird erneut versucht, sobald die Server erreichbar sind.`,
+            })
+          }
+        } catch (error) {
+          console.error('[HaexSpace] Error retrying pending vault key updates:', error)
+        }
+      }
+
       // Start sync after all logins are attempted
       if (enabledBackends.length > 0) {
         await syncOrchestratorStore.startSyncAsync()
@@ -260,6 +287,100 @@ export const useVaultStore = defineStore('vaultStore', () => {
     }
   }
 
+  /**
+   * Changes the vault password.
+   * This re-encrypts the local database and updates the vault key on all sync backends.
+   *
+   * @param currentPassword - The current vault password (for verification)
+   * @param newPassword - The new vault password
+   * @returns Object with success status and count of backends that need retry
+   */
+  const changePasswordAsync = async (
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<{ success: boolean; pendingBackends: number; error?: string }> => {
+    if (!currentVaultId.value || !currentVault.value) {
+      return { success: false, pendingBackends: 0, error: 'No vault opened' }
+    }
+
+    // Verify current password matches
+    if (currentPassword !== currentVaultPassword.value) {
+      return { success: false, pendingBackends: 0, error: 'Current password is incorrect' }
+    }
+
+    const syncEngineStore = useSyncEngineStore()
+    const syncBackendsStore = useSyncBackendsStore()
+    const { add: addToast } = useToast()
+
+    try {
+      // Step 1: Change local database password using SQLCipher rekey
+      console.log('[VAULT STORE] Changing local vault password...')
+      await invoke('change_vault_password', { newPassword })
+      console.log('[VAULT STORE] ✅ Local vault password changed')
+
+      // Step 2: Update password in memory
+      const vaultId = currentVaultId.value
+      if (vaultId && openVaults.value[vaultId]) {
+        openVaults.value[vaultId]!.password = newPassword
+      }
+
+      // Step 3: Re-encrypt vault key on all enabled sync backends
+      const enabledBackends = syncBackendsStore.enabledBackends
+      let pendingBackends = 0
+
+      if (enabledBackends.length > 0) {
+        console.log(`[VAULT STORE] Updating vault key on ${enabledBackends.length} sync backend(s)...`)
+
+        // Get the current vault key from cache
+        const cachedKey = syncEngineStore.vaultKeyCache[vaultId ?? '']
+        if (!cachedKey?.vaultKey) {
+          console.warn('[VAULT STORE] No vault key in cache, backends will be updated on next sync')
+          // Mark all backends as pending
+          for (const backend of enabledBackends) {
+            await syncEngineStore.markBackendPendingVaultKeyUpdateAsync(backend.id, true)
+          }
+          pendingBackends = enabledBackends.length
+        } else {
+          // Try to update each backend
+          for (const backend of enabledBackends) {
+            if (!backend.vaultId) continue
+
+            const success = await syncEngineStore.reEncryptVaultKeyOnBackendAsync(
+              backend.id,
+              backend.vaultId,
+              cachedKey.vaultKey,
+              newPassword,
+            )
+
+            if (!success) {
+              // Mark for retry later
+              await syncEngineStore.markBackendPendingVaultKeyUpdateAsync(backend.id, true)
+              pendingBackends++
+            }
+          }
+        }
+
+        if (pendingBackends > 0) {
+          addToast({
+            color: 'warning',
+            title: 'Sync-Server teilweise aktualisiert',
+            description: `${pendingBackends} Server konnte(n) nicht erreicht werden. Die Aktualisierung wird beim nächsten Start erneut versucht.`,
+          })
+        }
+      }
+
+      console.log('[VAULT STORE] ✅ Password change complete')
+      return { success: true, pendingBackends }
+    } catch (error) {
+      console.error('[VAULT STORE] Failed to change password:', error)
+      return {
+        success: false,
+        pendingBackends: 0,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    }
+  }
+
   return {
     closeAsync,
     createAsync,
@@ -272,6 +393,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
     openVaults,
     autoLoginAndStartSyncAsync,
     vaultExistsAsync,
+    changePasswordAsync,
   }
 })
 

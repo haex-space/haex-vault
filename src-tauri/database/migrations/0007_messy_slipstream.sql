@@ -1,0 +1,1 @@
+ALTER TABLE `haex_sync_backends` ADD `pending_vault_key_update` integer DEFAULT false NOT NULL;

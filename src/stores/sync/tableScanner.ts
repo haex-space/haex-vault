@@ -50,6 +50,13 @@ export async function getDirtyTablesAsync(): Promise<DirtyTable[]> {
 }
 
 /**
+ * Gets all CRDT-enabled tables (tables with haex_tombstone column)
+ */
+export async function getAllCrdtTablesAsync(): Promise<string[]> {
+  return await invoke('get_all_crdt_tables')
+}
+
+/**
  * Extracts primary key values from a row
  */
 export function extractPrimaryKeys(

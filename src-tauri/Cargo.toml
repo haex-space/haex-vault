@@ -55,6 +55,11 @@ rusqlite = { version = "0.37.0", features = [
   "functions",
 ] }
 regex = "1.12.2"
+tokio-tungstenite = "0.26"
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+p256 = { version = "0.13", features = ["ecdh", "pkcs8"] }
+aes-gcm = "0.10"
+rand = "0.8"
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 trash = "5.2.5"

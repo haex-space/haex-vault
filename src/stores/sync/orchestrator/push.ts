@@ -5,6 +5,7 @@
 
 import {
   getDirtyTablesAsync,
+  getAllCrdtTablesAsync,
   scanTableForChangesAsync,
   clearDirtyTableAsync,
   type ColumnChange,
@@ -264,4 +265,149 @@ export const pushChangesToServerAsync = async (
 
   // Return the server timestamp for use as pull cursor
   return responseData.serverTimestamp || null
+}
+
+/**
+ * Pushes ALL local data to a backend (full re-upload).
+ * Unlike pushToBackendAsync, this ignores lastPushHlcTimestamp and scans ALL CRDT tables.
+ * Used when server data was deleted but local data still exists.
+ */
+export const pushAllDataToBackendAsync = async (
+  backendId: string,
+): Promise<void> => {
+  const { currentVaultId } = storeToRefs(useVaultStore())
+  const syncBackendsStore = useSyncBackendsStore()
+  const syncEngineStore = useSyncEngineStore()
+
+  log.info(`========== FULL PUSH START (backend: ${backendId}) ==========`)
+
+  if (!currentVaultId.value) {
+    log.error('FULL PUSH FAILED: No vault opened')
+    throw new Error('No vault opened')
+  }
+
+  // Get backend configuration
+  const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
+  if (!backend?.vaultId) {
+    log.error('FULL PUSH FAILED: Backend vaultId not configured')
+    throw new Error('Backend vaultId not configured')
+  }
+
+  log.debug('Backend config:', {
+    backendId,
+    vaultId: backend.vaultId,
+    serverUrl: backend.serverUrl,
+  })
+
+  // Get vault key from cache
+  const vaultKey = syncEngineStore.vaultKeyCache[backend.vaultId]?.vaultKey
+  if (!vaultKey) {
+    log.error('FULL PUSH FAILED: Vault key not available')
+    throw new Error('Vault key not available. Please unlock vault first.')
+  }
+  log.debug('Vault key available: true')
+
+  // Get current device ID
+  const deviceStore = useDeviceStore()
+  const deviceId = deviceStore.deviceId
+  if (!deviceId) {
+    log.error('FULL PUSH FAILED: Device ID not available')
+    throw new Error('Device ID not available')
+  }
+  log.debug('Device ID:', deviceId)
+
+  // Get ALL CRDT tables (not just dirty ones)
+  log.info('Fetching all CRDT tables...')
+  const allTables = await getAllCrdtTablesAsync()
+
+  if (allTables.length === 0) {
+    log.info('FULL PUSH COMPLETE: No CRDT tables found')
+    return
+  }
+
+  log.info(`Found ${allTables.length} CRDT tables:`, allTables)
+
+  // Generate a batch ID for this push
+  const batchId = crypto.randomUUID()
+  log.debug('Generated batch ID:', batchId)
+
+  // Scan each table for ALL data (null = no lastPushHlc filter)
+  const partialChanges: Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[] = []
+  let maxHlc = ''
+
+  for (const tableName of allTables) {
+    try {
+      log.info(`Scanning table: ${tableName} (full scan)`)
+
+      const tableChanges = await scanTableForChangesAsync(
+        tableName,
+        null, // null = scan ALL data, not just newer than lastPushHlc
+        vaultKey,
+        batchId,
+        deviceId,
+      )
+
+      partialChanges.push(...tableChanges)
+
+      // Track max HLC timestamp
+      for (const change of tableChanges) {
+        if (change.hlcTimestamp > maxHlc) {
+          maxHlc = change.hlcTimestamp
+        }
+      }
+
+      log.info(`  Found ${tableChanges.length} column changes in ${tableName}`)
+    } catch (error) {
+      log.error(`Failed to scan table ${tableName}:`, error)
+      // Continue with other tables even if one fails
+    }
+  }
+
+  // Add batch sequence numbers
+  const batchTotal = partialChanges.length
+  const allChanges: ColumnChange[] = partialChanges.map((change, index) => ({
+    ...change,
+    batchSeq: index + 1,
+    batchTotal,
+  }))
+
+  if (allChanges.length === 0) {
+    log.info('FULL PUSH COMPLETE: No data to push')
+    return
+  }
+
+  log.info(`Pushing ${allChanges.length} column changes to server...`)
+  log.debug('Batch info:', { batchId, batchTotal })
+
+  // Push changes to server
+  const serverTimestamp = await pushChangesToServerAsync(
+    backendId,
+    backend.vaultId,
+    allChanges,
+    syncBackendsStore,
+    syncEngineStore,
+  )
+
+  // Update backend timestamps
+  const updateData: { lastPushHlcTimestamp: string; lastPullServerTimestamp?: string } = {
+    lastPushHlcTimestamp: maxHlc,
+  }
+
+  // Set lastPullServerTimestamp to prevent re-downloading our own data
+  if (serverTimestamp) {
+    log.info('Setting lastPullServerTimestamp:', serverTimestamp)
+    updateData.lastPullServerTimestamp = serverTimestamp
+  }
+
+  log.debug('Updating backend timestamps:', updateData)
+  await syncBackendsStore.updateBackendAsync(backendId, updateData)
+
+  // Clear all dirty tables after successful push
+  log.debug('Clearing all dirty tables...')
+  const dirtyTables = await getDirtyTablesAsync()
+  for (const { tableName } of dirtyTables) {
+    await clearDirtyTableAsync(tableName)
+  }
+
+  log.info(`========== FULL PUSH SUCCESS: ${allChanges.length} changes pushed ==========`)
 }

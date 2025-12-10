@@ -770,6 +770,191 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     console.log('✅ Vault name updated on server')
   }
 
+  /**
+   * Re-encrypts the vault key on a specific backend with a new password.
+   * The vault key itself stays the same, only the encryption changes.
+   *
+   * @param backendId - The backend ID
+   * @param vaultId - The vault ID
+   * @param vaultKey - The decrypted vault key
+   * @param newPassword - The new vault password
+   * @returns true if successful, false if server unreachable
+   */
+  const reEncryptVaultKeyOnBackendAsync = async (
+    backendId: string,
+    vaultId: string,
+    vaultKey: Uint8Array,
+    newPassword: string,
+  ): Promise<boolean> => {
+    const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
+    if (!backend) {
+      throw new Error('Backend not found')
+    }
+
+    try {
+      // Get auth token
+      const token = await getAuthTokenAsync()
+      if (!token) {
+        console.warn(`⚠️ Not authenticated for backend ${backendId}`)
+        return false
+      }
+
+      // Re-encrypt the vault key with the new password (generates new salt and nonce)
+      const encryptedVaultKeyData = await encryptVaultKeyAsync(vaultKey, newPassword)
+
+      // Send PATCH request to update the encrypted vault key on server
+      const response = await fetch(
+        `${backend.serverUrl}/sync/vault-key/${vaultId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            encryptedVaultKey: encryptedVaultKeyData.encryptedVaultKey,
+            vaultKeySalt: encryptedVaultKeyData.salt,
+            vaultKeyNonce: encryptedVaultKeyData.vaultKeyNonce,
+          }),
+        },
+      )
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        console.error(`Failed to re-encrypt vault key on backend ${backendId}:`, error)
+        return false
+      }
+
+      // Update local vault key salt
+      await saveVaultKeySaltAsync(backendId, encryptedVaultKeyData.salt)
+
+      console.log(`✅ Vault key re-encrypted on backend ${backendId}`)
+      return true
+    } catch (error) {
+      console.error(`Failed to re-encrypt vault key on backend ${backendId}:`, error)
+      return false
+    }
+  }
+
+  /**
+   * Marks a backend as having a pending vault key update.
+   * Used when a backend is unreachable during password change.
+   */
+  const markBackendPendingVaultKeyUpdateAsync = async (
+    backendId: string,
+    pending: boolean,
+  ): Promise<void> => {
+    if (!currentVault.value?.drizzle) {
+      throw new Error('No vault opened')
+    }
+
+    await currentVault.value.drizzle
+      .update(haexSyncBackends)
+      .set({ pendingVaultKeyUpdate: pending })
+      .where(eq(haexSyncBackends.id, backendId))
+  }
+
+  /**
+   * Gets all backends that have pending vault key updates.
+   */
+  const getBackendsWithPendingVaultKeyUpdateAsync = async (): Promise<string[]> => {
+    if (!currentVault.value?.drizzle) {
+      return []
+    }
+
+    const results = await currentVault.value.drizzle
+      .select({ id: haexSyncBackends.id })
+      .from(haexSyncBackends)
+      .where(eq(haexSyncBackends.pendingVaultKeyUpdate, true))
+
+    return results.map((r) => r.id)
+  }
+
+  /**
+   * Retries pending vault key updates for all backends.
+   * Called on sync start to handle previously failed updates.
+   *
+   * @param vaultKey - The decrypted vault key
+   * @param vaultPassword - The current vault password
+   * @returns Object with success count and failed backend IDs
+   */
+  const retryPendingVaultKeyUpdatesAsync = async (
+    vaultKey: Uint8Array,
+    vaultPassword: string,
+  ): Promise<{ successCount: number; failedBackendIds: string[] }> => {
+    const pendingBackendIds = await getBackendsWithPendingVaultKeyUpdateAsync()
+
+    if (pendingBackendIds.length === 0) {
+      return { successCount: 0, failedBackendIds: [] }
+    }
+
+    console.log(`🔄 Retrying vault key update for ${pendingBackendIds.length} backends...`)
+
+    let successCount = 0
+    const failedBackendIds: string[] = []
+
+    for (const backendId of pendingBackendIds) {
+      const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
+      if (!backend?.vaultId) {
+        failedBackendIds.push(backendId)
+        continue
+      }
+
+      const success = await reEncryptVaultKeyOnBackendAsync(
+        backendId,
+        backend.vaultId,
+        vaultKey,
+        vaultPassword,
+      )
+
+      if (success) {
+        await markBackendPendingVaultKeyUpdateAsync(backendId, false)
+        successCount++
+      } else {
+        failedBackendIds.push(backendId)
+      }
+    }
+
+    return { successCount, failedBackendIds }
+  }
+
+  /**
+   * Re-uploads the vault key to the server.
+   * Used when the server data was deleted but local data still exists.
+   *
+   * @param backendId - The backend ID
+   * @param vaultId - The vault ID
+   * @param vaultKey - The decrypted vault key
+   * @param vaultName - The vault name
+   * @param vaultPassword - The vault password (for vault key encryption)
+   * @param serverPassword - The server password (for vault name encryption)
+   */
+  const reUploadVaultKeyAsync = async (
+    backendId: string,
+    vaultId: string,
+    vaultKey: Uint8Array,
+    vaultName: string,
+    vaultPassword: string,
+    serverPassword: string,
+  ): Promise<void> => {
+    console.log('📤 Re-uploading vault key to server...')
+
+    // Upload the vault key (this will create a new entry on the server)
+    await uploadVaultKeyAsync(
+      backendId,
+      vaultId,
+      vaultKey,
+      vaultName,
+      vaultPassword,
+      serverPassword,
+    )
+
+    // Cache the sync key
+    cacheSyncKey(vaultId, vaultKey)
+
+    console.log('✅ Vault key re-uploaded to server')
+  }
+
   return {
     vaultKeyCache,
     supabaseClient,
@@ -788,5 +973,10 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     healthCheckAsync,
     deleteRemoteVaultAsync,
     updateVaultNameOnServerAsync,
+    reEncryptVaultKeyOnBackendAsync,
+    markBackendPendingVaultKeyUpdateAsync,
+    getBackendsWithPendingVaultKeyUpdateAsync,
+    retryPendingVaultKeyUpdatesAsync,
+    reUploadVaultKeyAsync,
   }
 })

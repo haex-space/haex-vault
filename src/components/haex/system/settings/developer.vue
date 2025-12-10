@@ -14,29 +14,33 @@
       <UCard class="p-4 space-y-4">
         <h3 class="text-lg font-semibold">{{ t('add.title') }}</h3>
 
-        <div class="space-y-2">
+        <div class="space-y-3">
           <label class="text-sm font-medium">
             {{ t('add.extensionPath') }}
           </label>
-          <div class="flex flex-wrap gap-2 items-center">
-            <UiInput
-              v-model="extensionPath"
-              :placeholder="t('add.extensionPathPlaceholder')"
-              class="min-w-64 flex-1"
-            />
+          <p class="text-xs opacity-60 wrap-break-word">{{ t('add.extensionPathHint') }}</p>
+          <UiInput
+            v-model="extensionPath"
+            :placeholder="t('add.extensionPathPlaceholder')"
+            class="w-full"
+          />
+          <div class="flex flex-col @sm:flex-row gap-2 @sm:justify-end">
             <UiButton
               :label="t('add.browse')"
               variant="outline"
+              block
+              class="@sm:w-auto"
               @click="browseExtensionPathAsync"
             />
             <UiButton
               :label="t('add.loadExtension')"
               :loading="isLoading"
               :disabled="!extensionPath"
+              block
+              class="@sm:w-auto"
               @click="loadDevExtensionAsync"
             />
           </div>
-          <p class="text-xs opacity-60">{{ t('add.extensionPathHint') }}</p>
         </div>
       </UCard>
 

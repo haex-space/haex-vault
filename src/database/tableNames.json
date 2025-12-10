@@ -134,6 +134,7 @@
         "priority": "priority",
         "lastPushHlcTimestamp": "last_push_hlc_timestamp",
         "lastPullServerTimestamp": "last_pull_server_timestamp",
+        "pendingVaultKeyUpdate": "pending_vault_key_update",
         "createdAt": "created_at",
         "updatedAt": "updated_at",
 
@@ -148,6 +149,20 @@
         "extensionVersion": "extension_version",
         "migrationName": "migration_name",
         "sqlStatement": "sql_statement",
+
+        "haexTimestamp": "haex_timestamp"
+      }
+    },
+    "bridge_authorized_clients": {
+      "name": "haex_bridge_authorized_clients",
+      "columns": {
+        "id": "id",
+        "clientId": "client_id",
+        "clientName": "client_name",
+        "publicKey": "public_key",
+        "extensionId": "extension_id",
+        "authorizedAt": "authorized_at",
+        "lastSeen": "last_seen",
 
         "haexTimestamp": "haex_timestamp"
       }

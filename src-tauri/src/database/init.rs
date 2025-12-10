@@ -8,7 +8,7 @@ use rusqlite::{params, Connection};
 
 /// Scans the database for all tables that have a 'haex_tombstone' column
 /// These are the tables that need CRDT triggers
-fn discover_crdt_tables(conn: &Connection) -> Result<Vec<String>, DatabaseError> {
+pub fn discover_crdt_tables(conn: &Connection) -> Result<Vec<String>, DatabaseError> {
     let mut stmt = conn.prepare(
         "SELECT m.name as table_name
          FROM sqlite_master m

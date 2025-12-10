@@ -263,9 +263,35 @@
             <!-- No vaults -->
             <div
               v-else-if="group.vaults.length === 0"
-              class="text-center text-gray-500 dark:text-gray-400 text-sm py-4"
+              class="space-y-4"
             >
-              {{ t('vaultOverview.noVaults') }}
+              <p class="text-center text-gray-500 dark:text-gray-400 text-sm py-4">
+                {{ t('vaultOverview.noVaults') }}
+              </p>
+
+              <!-- Re-Upload option when current vault is missing on server -->
+              <div
+                v-if="group.currentVaultMissingOnServer"
+                class="space-y-3"
+              >
+                <UAlert
+                  color="warning"
+                  icon="i-lucide-alert-triangle"
+                  :title="t('reUpload.warning.title')"
+                  :description="t('reUpload.warning.description')"
+                />
+                <div class="flex justify-end">
+                  <UButton
+                    color="primary"
+                    icon="i-lucide-upload"
+                    :loading="isReUploading"
+                    :disabled="isReUploading"
+                    @click="prepareReUpload(group.backend)"
+                  >
+                    {{ t('reUpload.button') }}
+                  </UButton>
+                </div>
+              </div>
             </div>
 
             <!-- Vaults list -->
@@ -347,6 +373,7 @@
           </HaexSyncBackendItem>
         </div>
       </div>
+
     </div>
 
     <!-- Delete Remote Vault Confirmation Dialog -->
@@ -369,6 +396,14 @@
       "
       confirm-label="Löschen"
       @confirm="onConfirmDeleteRemoteVaultAsync"
+    />
+
+    <!-- Re-Upload Confirmation Dialog -->
+    <HaexSyncReUploadDialog
+      v-model:open="showReUploadDialog"
+      :backend="reUploadBackend"
+      :loading="isReUploading"
+      @confirm="onConfirmReUploadAsync"
     />
   </div>
 </template>
@@ -415,6 +450,11 @@ const { serverOptions } = useSyncServerOptions()
 const showDeleteDialog = ref(false)
 const backendToDelete = ref<SelectHaexSyncBackends | null>(null)
 
+// Re-upload state
+const showReUploadDialog = ref(false)
+const isReUploading = ref(false)
+const reUploadBackend = ref<SelectHaexSyncBackends | null>(null)
+
 // Server vaults management state - grouped by backend
 interface ServerVault {
   vaultId: string
@@ -430,6 +470,7 @@ interface GroupedServerVaults {
   vaults: ServerVault[]
   isLoading: boolean
   error: string | null
+  currentVaultMissingOnServer: boolean // true if backend is configured for current vault but vault not found on server
 }
 
 const groupedServerVaults = ref<GroupedServerVaults[]>([])
@@ -683,6 +724,7 @@ const loadAllServerVaultsAsync = async () => {
     vaults: [],
     isLoading: true,
     error: null,
+    currentVaultMissingOnServer: false,
   }))
 
   // Load vaults for each backend in parallel
@@ -694,6 +736,14 @@ const loadAllServerVaultsAsync = async () => {
         // Keep all vaults including the currently opened one
         group.vaults = vaults
         group.isLoading = false
+
+        // Check if this backend is configured for current vault but vault is not on server
+        if (group.backend.vaultId === currentVaultId.value) {
+          const vaultFoundOnServer = vaults.some(
+            (v) => v.vaultId === currentVaultId.value,
+          )
+          group.currentVaultMissingOnServer = !vaultFoundOnServer
+        }
       } catch (error) {
         group.error = error instanceof Error ? error.message : 'Unknown error'
         group.isLoading = false
@@ -795,6 +845,68 @@ const onConfirmDeleteRemoteVaultAsync = async () => {
 const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString()
 }
+
+// Prepare re-upload for a specific backend
+const prepareReUpload = (backend: SelectHaexSyncBackends) => {
+  reUploadBackend.value = backend
+  showReUploadDialog.value = true
+}
+
+// Confirm re-upload
+const onConfirmReUploadAsync = async (serverPassword: string) => {
+  const backend = reUploadBackend.value
+  if (!backend || !currentVaultId.value) return
+
+  isReUploading.value = true
+
+  try {
+    // Get vault key from local DB
+    const vaultKey = await syncEngineStore.getSyncKeyFromDbAsync(backend.id)
+    if (!vaultKey) {
+      throw new Error('Vault key not found locally')
+    }
+
+    // Get current vault info
+    const { currentVault, currentVaultPassword } = storeToRefs(vaultStore)
+    if (!currentVault.value || !currentVaultPassword.value) {
+      throw new Error('Vault not opened or password not available')
+    }
+
+    // Re-upload vault key to server
+    await syncEngineStore.reUploadVaultKeyAsync(
+      backend.id,
+      currentVaultId.value,
+      vaultKey,
+      currentVault.value.name,
+      currentVaultPassword.value,
+      serverPassword,
+    )
+
+    // Push all local data to server
+    await syncOrchestratorStore.pushAllDataToBackendAsync(backend.id)
+
+    add({
+      title: t('reUpload.success.title'),
+      description: t('reUpload.success.description'),
+      color: 'success',
+    })
+
+    // Refresh server vaults
+    await loadAllServerVaultsAsync()
+
+    showReUploadDialog.value = false
+    reUploadBackend.value = null
+  } catch (error) {
+    console.error('Re-upload failed:', error)
+    add({
+      title: t('reUpload.error.title'),
+      description: error instanceof Error ? error.message : 'Unknown error',
+      color: 'error',
+    })
+  } finally {
+    isReUploading.value = false
+  }
+}
 </script>
 
 <i18n lang="yaml">
@@ -873,6 +985,16 @@ de:
     remoteVaultDeletedDescription: Die Remote-Vault wurde erfolgreich vom Server gelöscht
     syncConnectionDeleted: Sync-Verbindung gelöscht
     syncConnectionDeletedDescription: Die Sync-Verbindung wurde getrennt und alle Server-Daten wurden gelöscht
+  reUpload:
+    warning:
+      title: Vault nicht auf Server gefunden
+      description: Die aktuell geöffnete Vault wurde auf diesem Server nicht gefunden. Du kannst alle lokalen Daten erneut hochladen.
+    button: Daten hochladen
+    success:
+      title: Daten hochgeladen
+      description: Alle lokalen Daten wurden erfolgreich auf den Server hochgeladen.
+    error:
+      title: Upload fehlgeschlagen
   errors:
     noBackend: Kein Backend konfiguriert
     noServerUrl: Bitte trage zuerst die Server-URL ein
@@ -961,6 +1083,16 @@ en:
     remoteVaultDeletedDescription: The remote vault was successfully deleted from the server
     syncConnectionDeleted: Sync connection deleted
     syncConnectionDeletedDescription: The sync connection was disconnected and all server data was deleted
+  reUpload:
+    warning:
+      title: Vault not found on server
+      description: The currently opened vault was not found on this server. You can re-upload all local data.
+    button: Upload Data
+    success:
+      title: Data uploaded
+      description: All local data was successfully uploaded to the server.
+    error:
+      title: Upload failed
   errors:
     noBackend: No backend configured
     noServerUrl: Please enter the server URL first

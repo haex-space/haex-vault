@@ -1,7 +1,10 @@
+mod browser_bridge;
 mod crdt;
 mod database;
 mod extension;
 mod shortcuts;
+
+use crate::browser_bridge::BrowserBridge;
 use crate::{crdt::hlc::HlcService, database::DbConnection, extension::core::ExtensionManager};
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -25,6 +28,9 @@ pub struct AppState {
     pub extension_webview_manager: ExtensionWebviewManager,
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     pub context: Arc<Mutex<extension::webview::web::ApplicationContext>>,
+    /// Browser bridge for external WebSocket connections (desktop only)
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    pub browser_bridge: tokio::sync::Mutex<BrowserBridge>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -99,6 +105,8 @@ pub fn run() {
                 locale: "en".to_string(),
                 platform: std::env::consts::OS.to_string(),
             })),
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            browser_bridge: tokio::sync::Mutex::new(BrowserBridge::new()),
         })
         //.manage(ExtensionState::default())
         .plugin(tauri_plugin_dialog::init())
@@ -126,6 +134,7 @@ pub fn run() {
             database::crdt_cleanup_tombstones,
             database::crdt_get_stats,
             database::database_vacuum,
+            database::change_vault_password,
             database::stats::get_database_info,
             database::migrations::apply_core_migrations,
             database::migrations::get_applied_core_migrations,
@@ -135,6 +144,7 @@ pub fn run() {
             crdt::commands::get_dirty_tables,
             crdt::commands::clear_dirty_table,
             crdt::commands::clear_all_dirty_tables,
+            crdt::commands::get_all_crdt_tables,
             crdt::commands::apply_remote_changes_in_transaction,
             extension::database::extension_sql_execute,
             extension::database::extension_sql_select,
@@ -198,11 +208,32 @@ pub fn run() {
             extension::webview::filesystem::webview_extension_fs_save_file,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::webview::filesystem::webview_extension_fs_open_file,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            extension::webview::external::webview_extension_external_respond,
             // Desktop shortcuts (desktop only)
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             shortcuts::create_desktop_shortcut,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             shortcuts::remove_desktop_shortcut,
+            // Browser bridge (desktop only)
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            browser_bridge::start_browser_bridge,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            browser_bridge::stop_browser_bridge,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            browser_bridge::get_browser_bridge_status,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            browser_bridge::get_authorized_clients,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            browser_bridge::revoke_client_authorization,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            browser_bridge::approve_client_authorization,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            browser_bridge::deny_client_authorization,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            browser_bridge::get_pending_authorizations,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            browser_bridge::respond_to_external_request,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

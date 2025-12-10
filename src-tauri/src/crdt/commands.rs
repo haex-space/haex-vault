@@ -85,6 +85,14 @@ pub fn clear_all_dirty_tables(state: State<'_, AppState>) -> Result<(), Database
     })
 }
 
+/// Gets all CRDT-enabled tables (tables with haex_tombstone column)
+#[tauri::command]
+pub fn get_all_crdt_tables(state: State<'_, AppState>) -> Result<Vec<String>, DatabaseError> {
+    use crate::database::init::discover_crdt_tables;
+
+    with_connection(&state.db, |conn| discover_crdt_tables(conn))
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteColumnChange {

@@ -134,6 +134,7 @@
         v-model:open="showDetailsDialog"
         :extension="selectedExtensionForDetails"
         @install="onInstallFromMarketplace"
+        @remove="onRemoveExtension"
       />
     </div>
   </HaexSystem>

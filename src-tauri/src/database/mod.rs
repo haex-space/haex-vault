@@ -723,3 +723,27 @@ pub fn database_vacuum(state: State<'_, AppState>) -> Result<String, DatabaseErr
         Ok("Database vacuumed successfully".to_string())
     })
 }
+
+/// Changes the vault password using SQLCipher's rekey functionality.
+/// This re-encrypts the entire database with the new password.
+///
+/// IMPORTANT: The old password must be correct (database must already be open).
+/// After this operation, the database will be encrypted with the new password.
+#[tauri::command]
+pub fn change_vault_password(
+    new_password: String,
+    state: State<'_, AppState>,
+) -> Result<String, DatabaseError> {
+    core::with_connection(&state.db, |conn| {
+        // Use PRAGMA rekey to change the encryption key
+        // This re-encrypts the entire database with the new key
+        conn.pragma_update(None, "rekey", &new_password)
+            .map_err(|e| DatabaseError::PragmaError {
+                pragma: "rekey".to_string(),
+                reason: e.to_string(),
+            })?;
+
+        println!("✅ Vault password changed successfully via SQLCipher rekey");
+        Ok("Vault password changed successfully".to_string())
+    })
+}
