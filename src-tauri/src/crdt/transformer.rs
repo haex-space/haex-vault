@@ -5,8 +5,7 @@ use crate::crdt::trigger::{COLUMN_HLCS_COLUMN, HLC_TIMESTAMP_COLUMN, TOMBSTONE_C
 use crate::database::error::DatabaseError;
 use sqlparser::ast::{
     Assignment, AssignmentTarget, BinaryOperator, ColumnDef, DataType, Expr, FromTable, Ident,
-    ObjectName, ObjectNamePart, Query, Select, SetExpr, Statement, TableFactor, TableObject,
-    Value,
+    ObjectName, ObjectNamePart, Query, Select, SetExpr, Statement, TableFactor, TableObject, Value,
 };
 use std::borrow::Cow;
 use uhlc::Timestamp;
@@ -277,9 +276,7 @@ impl CrdtTransformer {
 
                         // Add WHERE haex_tombstone = 0 to only update non-deleted rows
                         // (unless WHERE haex_tombstone = 1 is already present)
-                        *selection = self
-                            .columns
-                            .add_tombstone_filter_to_where(selection.take());
+                        *selection = self.columns.add_tombstone_filter_to_where(selection.take());
                     }
                 }
                 Ok(None)

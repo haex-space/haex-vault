@@ -3,7 +3,7 @@
 use crate::extension::core::types::get_tauri_origin;
 use crate::extension::error::ExtensionError;
 use crate::AppState;
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use mime;
 use serde::Deserialize;
 use serde::Serialize;
@@ -157,9 +157,7 @@ pub fn resolve_secure_extension_asset_path(
             if final_path.starts_with(&specific_extension_dir) {
                 Ok(final_path)
             } else {
-                eprintln!(
-                    "SECURITY WARNING: Invalid asset path: {requested_asset_path}"
-                );
+                eprintln!("SECURITY WARNING: Invalid asset path: {requested_asset_path}");
                 Err(ExtensionError::SecurityViolation {
                     reason: format!("Invalid asset path: {requested_asset_path}"),
                 })
@@ -227,118 +225,124 @@ pub fn extension_protocol_handler(
     let host = uri_ref.host().unwrap_or("");
     println!("URI Host: {host}");
 
-    let (info, segments_after_version) = if host == "localhost" || host == format!("{EXTENSION_PROTOCOL_NAME}.localhost").as_str() {
-        // Android format: http://haex-extension.localhost/{base64}/{assetPath}
-        // Extract base64 from first path segment
-        println!("Android format detected: http://{host}/...");
-        let mut segments_iter = path_str.split('/').filter(|s| !s.is_empty());
+    let (info, segments_after_version) =
+        if host == "localhost" || host == format!("{EXTENSION_PROTOCOL_NAME}.localhost").as_str() {
+            // Android format: http://haex-extension.localhost/{base64}/{assetPath}
+            // Extract base64 from first path segment
+            println!("Android format detected: http://{host}/...");
+            let mut segments_iter = path_str.split('/').filter(|s| !s.is_empty());
 
-        if let Some(first_segment) = segments_iter.next() {
-            println!("First path segment (base64): {first_segment}");
-            match BASE64_STANDARD.decode(first_segment) {
+            if let Some(first_segment) = segments_iter.next() {
+                println!("First path segment (base64): {first_segment}");
+                match BASE64_STANDARD.decode(first_segment) {
+                    Ok(decoded_bytes) => match String::from_utf8(decoded_bytes) {
+                        Ok(json_str) => match serde_json::from_str::<ExtensionInfo>(&json_str) {
+                            Ok(info) => {
+                                println!("=== Extension Info from path (Android) ===");
+                                println!("  PublicKey: {}", info.public_key);
+                                println!("  Name: {}", info.name);
+                                println!("  Version: {}", info.version);
+                                cache_extension_info(&info);
+
+                                // Remaining segments after base64 are the asset path
+                                let remaining: Vec<String> =
+                                    segments_iter.map(|s| s.to_string()).collect();
+                                (info, remaining)
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to parse JSON from base64 path: {e}");
+                                return Response::builder()
+                                    .status(400)
+                                    .header("Access-Control-Allow-Origin", allowed_origin)
+                                    .body(Vec::from(format!(
+                                        "Invalid extension info in base64 path: {e}"
+                                    )))
+                                    .map_err(|e| e.into());
+                            }
+                        },
+                        Err(e) => {
+                            eprintln!("Failed to decode UTF-8 from base64 path: {e}");
+                            return Response::builder()
+                                .status(400)
+                                .header("Access-Control-Allow-Origin", allowed_origin)
+                                .body(Vec::from(format!("Invalid UTF-8 in base64 path: {e}")))
+                                .map_err(|e| e.into());
+                        }
+                    },
+                    Err(e) => {
+                        eprintln!("Failed to decode base64 from path: {e}");
+                        return Response::builder()
+                            .status(400)
+                            .header("Access-Control-Allow-Origin", allowed_origin)
+                            .body(Vec::from(format!("Invalid base64 in path: {e}")))
+                            .map_err(|e| e.into());
+                    }
+                }
+            } else {
+                eprintln!("No path segment found for Android format");
+                return Response::builder()
+                    .status(400)
+                    .header("Access-Control-Allow-Origin", allowed_origin)
+                    .body(Vec::from("No base64 segment found in path"))
+                    .map_err(|e| e.into());
+            }
+        } else if host != "localhost" && !host.is_empty() {
+            // Desktop format: haex-extension://<base64>/{assetPath}
+            println!("Desktop format detected: haex-extension://<base64>/...");
+            match BASE64_STANDARD.decode(host) {
                 Ok(decoded_bytes) => match String::from_utf8(decoded_bytes) {
                     Ok(json_str) => match serde_json::from_str::<ExtensionInfo>(&json_str) {
                         Ok(info) => {
-                            println!("=== Extension Info from path (Android) ===");
+                            println!("=== Extension Info from base64-encoded host ===");
                             println!("  PublicKey: {}", info.public_key);
                             println!("  Name: {}", info.name);
                             println!("  Version: {}", info.version);
                             cache_extension_info(&info);
 
-                            // Remaining segments after base64 are the asset path
-                            let remaining: Vec<String> = segments_iter.map(|s| s.to_string()).collect();
-                            (info, remaining)
+                            // Parse path segments as asset path
+                            // Format: haex-extension://<base64>/{asset_path}
+                            // All extension info is in the base64-encoded host
+                            let segments: Vec<String> = path_str
+                                .split('/')
+                                .filter(|s| !s.is_empty())
+                                .map(|s| s.to_string())
+                                .collect();
+
+                            (info, segments)
                         }
                         Err(e) => {
-                            eprintln!("Failed to parse JSON from base64 path: {e}");
+                            eprintln!("Failed to parse JSON from base64 host: {e}");
                             return Response::builder()
                                 .status(400)
                                 .header("Access-Control-Allow-Origin", allowed_origin)
-                                .body(Vec::from(format!("Invalid extension info in base64 path: {e}")))
+                                .body(Vec::from(format!(
+                                    "Invalid extension info in base64 host: {e}"
+                                )))
                                 .map_err(|e| e.into());
                         }
                     },
                     Err(e) => {
-                        eprintln!("Failed to decode UTF-8 from base64 path: {e}");
+                        eprintln!("Failed to decode UTF-8 from base64 host: {e}");
                         return Response::builder()
                             .status(400)
                             .header("Access-Control-Allow-Origin", allowed_origin)
-                            .body(Vec::from(format!("Invalid UTF-8 in base64 path: {e}")))
+                            .body(Vec::from(format!("Invalid UTF-8 in base64 host: {e}")))
                             .map_err(|e| e.into());
                     }
                 },
                 Err(e) => {
-                    eprintln!("Failed to decode base64 from path: {e}");
+                    eprintln!("Failed to decode base64 host: {e}");
                     return Response::builder()
                         .status(400)
                         .header("Access-Control-Allow-Origin", allowed_origin)
-                        .body(Vec::from(format!("Invalid base64 in path: {e}")))
+                        .body(Vec::from(format!("Invalid base64 in host: {e}")))
                         .map_err(|e| e.into());
                 }
             }
         } else {
-            eprintln!("No path segment found for Android format");
-            return Response::builder()
-                .status(400)
-                .header("Access-Control-Allow-Origin", allowed_origin)
-                .body(Vec::from("No base64 segment found in path"))
-                .map_err(|e| e.into());
-        }
-    } else if host != "localhost" && !host.is_empty() {
-        // Desktop format: haex-extension://<base64>/{assetPath}
-        println!("Desktop format detected: haex-extension://<base64>/...");
-        match BASE64_STANDARD.decode(host) {
-            Ok(decoded_bytes) => match String::from_utf8(decoded_bytes) {
-                Ok(json_str) => match serde_json::from_str::<ExtensionInfo>(&json_str) {
-                    Ok(info) => {
-                        println!("=== Extension Info from base64-encoded host ===");
-                        println!("  PublicKey: {}", info.public_key);
-                        println!("  Name: {}", info.name);
-                        println!("  Version: {}", info.version);
-                        cache_extension_info(&info);
-
-                        // Parse path segments as asset path
-                        // Format: haex-extension://<base64>/{asset_path}
-                        // All extension info is in the base64-encoded host
-                        let segments: Vec<String> = path_str
-                            .split('/')
-                            .filter(|s| !s.is_empty())
-                            .map(|s| s.to_string())
-                            .collect();
-
-                        (info, segments)
-                    }
-                    Err(e) => {
-                        eprintln!("Failed to parse JSON from base64 host: {e}");
-                        return Response::builder()
-                            .status(400)
-                            .header("Access-Control-Allow-Origin", allowed_origin)
-                            .body(Vec::from(format!("Invalid extension info in base64 host: {e}")))
-                            .map_err(|e| e.into());
-                    }
-                },
-                Err(e) => {
-                    eprintln!("Failed to decode UTF-8 from base64 host: {e}");
-                    return Response::builder()
-                        .status(400)
-                        .header("Access-Control-Allow-Origin", allowed_origin)
-                        .body(Vec::from(format!("Invalid UTF-8 in base64 host: {e}")))
-                        .map_err(|e| e.into());
-                }
-            },
-            Err(e) => {
-                eprintln!("Failed to decode base64 host: {e}");
-                return Response::builder()
-                    .status(400)
-                    .header("Access-Control-Allow-Origin", allowed_origin)
-                    .body(Vec::from(format!("Invalid base64 in host: {e}")))
-                    .map_err(|e| e.into());
-            }
-        }
-    } else {
-        // No base64 host - use path-based parsing (for localhost/Android/Windows)
-        parse_extension_info_from_path(path_str, origin, uri_ref, referer)?
-    };
+            // No base64 host - use path-based parsing (for localhost/Android/Windows)
+            parse_extension_info_from_path(path_str, origin, uri_ref, referer)?
+        };
 
     // Construct asset path from remaining segments
     let raw_asset_path = segments_after_version.join("/");
@@ -616,7 +620,11 @@ fn parse_extension_info_from_path(
 ) -> Result<(ExtensionInfo, Vec<String>), Box<dyn std::error::Error>> {
     let mut segments_iter = path_str.split('/').filter(|s| !s.is_empty());
 
-    match (segments_iter.next(), segments_iter.next(), segments_iter.next()) {
+    match (
+        segments_iter.next(),
+        segments_iter.next(),
+        segments_iter.next(),
+    ) {
         (Some(public_key), Some(name), Some(version)) => {
             println!("=== Extension Protocol Handler (path-based) ===");
             println!("Full URI: {uri_ref}");

@@ -28,7 +28,10 @@ pub async fn webview_extension_fs_save_file(
 ) -> Result<Option<SaveFileResult>, ExtensionError> {
     eprintln!("[Filesystem] save_file called with {} bytes", data.len());
     eprintln!("[Filesystem] save_file default_path: {:?}", default_path);
-    eprintln!("[Filesystem] save_file first 10 bytes: {:?}", &data[..data.len().min(10)]);
+    eprintln!(
+        "[Filesystem] save_file first 10 bytes: {:?}",
+        &data[..data.len().min(10)]
+    );
 
     // Build save dialog
     let mut dialog = window.dialog().file();
@@ -54,21 +57,22 @@ pub async fn webview_extension_fs_save_file(
 
     if let Some(file_path) = file_path {
         // Convert FilePath to PathBuf
-        let path_buf = file_path.as_path().ok_or_else(|| ExtensionError::ValidationError {
-            reason: "Failed to get file path".to_string(),
-        })?;
+        let path_buf = file_path
+            .as_path()
+            .ok_or_else(|| ExtensionError::ValidationError {
+                reason: "Failed to get file path".to_string(),
+            })?;
 
         eprintln!("[Filesystem] User selected path: {}", path_buf.display());
         eprintln!("[Filesystem] Writing {} bytes to file...", data.len());
 
         // Write file using std::fs
-        std::fs::write(path_buf, &data)
-            .map_err(|e| {
-                eprintln!("[Filesystem] ERROR writing file: {}", e);
-                ExtensionError::ValidationError {
-                    reason: format!("Failed to write file: {}", e),
-                }
-            })?;
+        std::fs::write(path_buf, &data).map_err(|e| {
+            eprintln!("[Filesystem] ERROR writing file: {}", e);
+            ExtensionError::ValidationError {
+                reason: format!("Failed to write file: {}", e),
+            }
+        })?;
 
         eprintln!("[Filesystem] File written successfully");
 
@@ -95,14 +99,15 @@ pub async fn webview_extension_fs_open_file(
     let temp_file_path = temp_dir.join(&file_name);
 
     // Write file to temp directory using std::fs
-    std::fs::write(&temp_file_path, data)
-        .map_err(|e| ExtensionError::ValidationError {
-            reason: format!("Failed to write temp file: {}", e),
-        })?;
+    std::fs::write(&temp_file_path, data).map_err(|e| ExtensionError::ValidationError {
+        reason: format!("Failed to write temp file: {}", e),
+    })?;
 
     // Open file with system's default viewer
     let path_str = temp_file_path.to_string_lossy().to_string();
-    window.opener().open_path(path_str, None::<String>)
+    window
+        .opener()
+        .open_path(path_str, None::<String>)
         .map_err(|e| ExtensionError::ValidationError {
             reason: format!("Failed to open file: {}", e),
         })?;

@@ -26,6 +26,7 @@
         <HaexVaultOpen
           v-model:open="isOpenDrawerOpen"
           :path="selectedVault?.path"
+          :name="selectedVault?.name"
         />
 
         <div

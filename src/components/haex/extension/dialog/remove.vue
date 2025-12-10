@@ -35,15 +35,9 @@
           class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4"
         >
           <div class="flex items-center gap-3">
-            <UIcon
-              v-if="extension.icon"
-              :name="extension.icon"
+            <HaexIcon
+              :name="extension.iconUrl || extension.icon || 'i-heroicons-puzzle-piece'"
               class="w-12 h-12"
-            />
-            <UIcon
-              v-else
-              name="i-heroicons-puzzle-piece"
-              class="w-12 h-12 text-gray-400"
             />
             <div class="flex-1">
               <h4 class="font-semibold">

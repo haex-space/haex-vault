@@ -227,10 +227,7 @@ pub fn vault_exists(app_handle: AppHandle, vault_name: String) -> Result<bool, D
 /// Returns the new path of the imported vault.
 /// Fails if a vault with the same name already exists.
 #[tauri::command]
-pub fn import_vault(
-    app_handle: AppHandle,
-    source_path: String,
-) -> Result<String, DatabaseError> {
+pub fn import_vault(app_handle: AppHandle, source_path: String) -> Result<String, DatabaseError> {
     let source = Path::new(&source_path);
 
     // Validate source file exists
@@ -249,12 +246,11 @@ pub fn import_vault(
     }
 
     // Get the file name from the source path
-    let file_name = source
-        .file_name()
-        .and_then(|n| n.to_str())
-        .ok_or_else(|| DatabaseError::ValidationError {
+    let file_name = source.file_name().and_then(|n| n.to_str()).ok_or_else(|| {
+        DatabaseError::ValidationError {
             reason: "Could not extract file name from source path".to_string(),
-        })?;
+        }
+    })?;
 
     // Get the vault name (without .db extension)
     let vault_name = file_name.trim_end_matches(VAULT_EXTENSION);
@@ -273,7 +269,10 @@ pub fn import_vault(
         reason: format!("Failed to copy vault file: {e}"),
     })?;
 
-    println!("Vault '{}' successfully imported to '{}'", vault_name, target_path);
+    println!(
+        "Vault '{}' successfully imported to '{}'",
+        vault_name, target_path
+    );
 
     Ok(target_path)
 }
@@ -435,10 +434,11 @@ pub fn create_encrypted_database(
                 table: Some("_init".to_string()),
             })?;
 
-        conn.close().map_err(|(_, e)| DatabaseError::ConnectionFailed {
-            path: vault_path.clone(),
-            reason: format!("Failed to close database after initialization: {}", e),
-        })?;
+        conn.close()
+            .map_err(|(_, e)| DatabaseError::ConnectionFailed {
+                path: vault_path.clone(),
+                reason: format!("Failed to close database after initialization: {}", e),
+            })?;
     }
 
     println!("[CREATE_DB] ✅ Empty encrypted database created successfully");
@@ -480,7 +480,9 @@ pub fn create_encrypted_database(
     // because the vault_id setting will be pulled from the server
     println!("[CREATE_DB] Step 5: Setting vault_id...");
     if vault_id.is_some() {
-        println!("[CREATE_DB] Remote sync mode: Skipping vault_id insert (will be pulled from server)");
+        println!(
+            "[CREATE_DB] Remote sync mode: Skipping vault_id insert (will be pulled from server)"
+        );
     } else {
         // Generate new vault_id for newly created vaults
         let new_vault_id = uuid::Uuid::new_v4().to_string();
@@ -532,7 +534,9 @@ pub fn open_encrypted_database(
     };
 
     if already_open {
-        println!("[OPEN_DB] Database connection already exists in AppState, skipping re-initialization");
+        println!(
+            "[OPEN_DB] Database connection already exists in AppState, skipping re-initialization"
+        );
         return Ok(format!("Vault '{vault_path}' already open"));
     }
 

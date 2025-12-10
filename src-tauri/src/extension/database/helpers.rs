@@ -162,13 +162,13 @@ pub fn execute_sql_with_context(
             let sql_params = ValueConverter::convert_params(params)?;
             let transformed_sql = statement.to_string();
 
-            let mut prepared_stmt = conn
-                .prepare(&transformed_sql)
-                .map_err(|e| DatabaseError::ExecutionError {
-                    sql: transformed_sql.clone(),
-                    reason: e.to_string(),
-                    table: None,
-                })?;
+            let mut prepared_stmt =
+                conn.prepare(&transformed_sql)
+                    .map_err(|e| DatabaseError::ExecutionError {
+                        sql: transformed_sql.clone(),
+                        reason: e.to_string(),
+                        table: None,
+                    })?;
 
             let num_columns = prepared_stmt.column_count();
             let mut rows = prepared_stmt

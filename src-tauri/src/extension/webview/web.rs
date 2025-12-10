@@ -41,9 +41,12 @@ pub fn webview_extension_get_info(
 pub fn webview_extension_context_get(
     state: State<'_, AppState>,
 ) -> Result<ApplicationContext, ExtensionError> {
-    let context = state.context.lock().map_err(|e| ExtensionError::ValidationError {
-        reason: format!("Failed to lock context: {}", e),
-    })?;
+    let context = state
+        .context
+        .lock()
+        .map_err(|e| ExtensionError::ValidationError {
+            reason: format!("Failed to lock context: {}", e),
+        })?;
     Ok(context.clone())
 }
 
@@ -52,9 +55,13 @@ pub fn webview_extension_context_set(
     state: State<'_, AppState>,
     context: ApplicationContext,
 ) -> Result<(), ExtensionError> {
-    let mut current_context = state.context.lock().map_err(|e| ExtensionError::ValidationError {
-        reason: format!("Failed to lock context: {}", e),
-    })?;
+    let mut current_context =
+        state
+            .context
+            .lock()
+            .map_err(|e| ExtensionError::ValidationError {
+                reason: format!("Failed to lock context: {}", e),
+            })?;
     *current_context = context;
     Ok(())
 }
@@ -92,7 +99,9 @@ pub async fn webview_extension_check_database_permission(
         _ => return Ok(false),
     };
 
-    match PermissionManager::check_database_permission(&state, &extension_id, action, &resource).await {
+    match PermissionManager::check_database_permission(&state, &extension_id, action, &resource)
+        .await
+    {
         Ok(_) => Ok(true),
         Err(_) => Ok(false),
     }
@@ -114,7 +123,9 @@ pub async fn webview_extension_check_filesystem_permission(
     };
 
     let path_buf = std::path::Path::new(&path);
-    match PermissionManager::check_filesystem_permission(&state, &extension_id, action, path_buf).await {
+    match PermissionManager::check_filesystem_permission(&state, &extension_id, action, path_buf)
+        .await
+    {
         Ok(_) => Ok(true),
         Err(_) => Ok(false),
     }
@@ -141,7 +152,10 @@ pub async fn webview_extension_web_open(
     let scheme = parsed_url.scheme();
     if scheme != "http" && scheme != "https" {
         return Err(ExtensionError::WebError {
-            reason: format!("Unsupported URL scheme: {}. Only http and https are allowed.", scheme),
+            reason: format!(
+                "Unsupported URL scheme: {}. Only http and https are allowed.",
+                scheme
+            ),
         });
     }
 
@@ -223,7 +237,8 @@ pub async fn webview_extension_web_request(
         })?;
 
     // Encode body as base64
-    let body_base64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &body_bytes);
+    let body_base64 =
+        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &body_bytes);
 
     // Convert headers to JSON
     let mut headers_json = serde_json::Map::new();
@@ -254,11 +269,9 @@ pub async fn webview_extension_emit_to_all(
 ) -> Result<(), ExtensionError> {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-        state.extension_webview_manager.emit_to_all_extensions(
-            &app_handle,
-            &event,
-            payload,
-        )?;
+        state
+            .extension_webview_manager
+            .emit_to_all_extensions(&app_handle, &event, payload)?;
     }
 
     Ok(())

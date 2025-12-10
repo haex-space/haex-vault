@@ -11,6 +11,9 @@ importers:
 
   .:
     dependencies:
+      '@choochmeque/tauri-plugin-biometry-api':
+        specifier: ^0.2.5
+        version: 0.2.5
       '@haex-space/marketplace-sdk':
         specifier: ^0.1.2
         version: 0.1.2(vue@3.5.25(typescript@5.9.3))
@@ -353,6 +356,9 @@ packages:
   '@capsizecss/unpack@3.0.1':
     resolution: {integrity: sha512-8XqW8xGn++Eqqbz3e9wKuK7mxryeRjs4LOHLxbh2lwKeSbuNR4NFifDZT4KzvjU6HMOPbiNTsWpniK5EJfTWkg==}
     engines: {node: '>=18'}
+
+  '@choochmeque/tauri-plugin-biometry-api@0.2.5':
+    resolution: {integrity: sha512-Kbx0cNrsDIh0qSvqPgENhA94GzsvbDVmvZPM8Zbz+Nu0aHmJ5yKlCAyt05hovB6A8UHakqpTGBVvsIJPgL28Lg==}
 
   '@clack/core@0.5.0':
     resolution: {integrity: sha512-p3y0FIOwaYRUPRcMO7+dlmLh8PSRcrjuTndsiA0WAFbWES0mLZlrjVoBRZ9DzkPFJZG6KGkJmoEAY0ZcVWTkow==}
@@ -6482,6 +6488,10 @@ snapshots:
   '@capsizecss/unpack@3.0.1':
     dependencies:
       fontkit: 2.0.4
+
+  '@choochmeque/tauri-plugin-biometry-api@0.2.5':
+    dependencies:
+      '@tauri-apps/api': 2.9.1
 
   '@clack/core@0.5.0':
     dependencies:

@@ -38,7 +38,8 @@ mod tests {
 
     #[test]
     fn test_reject_union_injection() {
-        let sql = "SELECT * FROM test__ext__users WHERE id = '1' UNION SELECT * FROM haex_extensions";
+        let sql =
+            "SELECT * FROM test__ext__users WHERE id = '1' UNION SELECT * FROM haex_extensions";
         let result = parse_sql_statements(sql);
 
         // This should parse as a single SELECT, but the permission validator
@@ -69,13 +70,7 @@ mod tests {
 
     #[test]
     fn test_reject_completely_invalid_sql() {
-        let invalid_sqls = vec![
-            "ASDF QWERTY ZXCV",
-            "12345",
-            ";;;",
-            "",
-            "  ",
-        ];
+        let invalid_sqls = vec!["ASDF QWERTY ZXCV", "12345", ";;;", "", "  "];
 
         for sql in invalid_sqls {
             let result = parse_sql_statements(sql);
@@ -99,7 +94,8 @@ mod tests {
 
     #[test]
     fn test_parse_nested_select() {
-        let sql = "SELECT * FROM test__ext__users WHERE id IN (SELECT user_id FROM test__ext__posts)";
+        let sql =
+            "SELECT * FROM test__ext__users WHERE id IN (SELECT user_id FROM test__ext__posts)";
         let result = parse_sql_statements(sql);
         assert!(result.is_ok(), "Nested SELECT should parse");
     }
@@ -117,7 +113,10 @@ mod tests {
 
         let result = parse_sql_statements(sql);
         // CTE (Common Table Expression) should parse
-        assert!(result.is_ok() || result.is_err(), "CTE handling should be consistent");
+        assert!(
+            result.is_ok() || result.is_err(),
+            "CTE handling should be consistent"
+        );
     }
 
     #[test]
@@ -186,7 +185,10 @@ mod tests {
         // Either way, it should be rejected at validation level
         match result {
             Ok(stmts) => {
-                println!("ATTACH parsed as {} statements - must be rejected by validator", stmts.len());
+                println!(
+                    "ATTACH parsed as {} statements - must be rejected by validator",
+                    stmts.len()
+                );
             }
             Err(_) => {
                 // Parse error is good - ATTACH rejected

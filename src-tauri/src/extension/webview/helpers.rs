@@ -4,9 +4,15 @@ use crate::AppState;
 use tauri::{State, WebviewWindow};
 
 /// Get extension_id from window (SECURITY: window_id from Tauri, cannot be spoofed)
-pub fn get_extension_id(window: &WebviewWindow, state: &State<AppState>) -> Result<String, ExtensionError> {
+pub fn get_extension_id(
+    window: &WebviewWindow,
+    state: &State<AppState>,
+) -> Result<String, ExtensionError> {
     let window_id = window.label();
-    eprintln!("[webview_api] Looking up extension_id for window: {}", window_id);
+    eprintln!(
+        "[webview_api] Looking up extension_id for window: {}",
+        window_id
+    );
 
     let windows = state
         .extension_webview_manager
@@ -18,12 +24,16 @@ pub fn get_extension_id(window: &WebviewWindow, state: &State<AppState>) -> Resu
 
     eprintln!("[webview_api] HashMap contents: {:?}", *windows);
 
-    let extension_id = windows
-        .get(window_id)
-        .cloned()
-        .ok_or_else(|| ExtensionError::ValidationError {
-            reason: format!("Window {} is not registered as an extension window", window_id),
-        })?;
+    let extension_id =
+        windows
+            .get(window_id)
+            .cloned()
+            .ok_or_else(|| ExtensionError::ValidationError {
+                reason: format!(
+                    "Window {} is not registered as an extension window",
+                    window_id
+                ),
+            })?;
 
     eprintln!("[webview_api] Found extension_id: {}", extension_id);
     Ok(extension_id)
@@ -45,7 +55,9 @@ pub fn get_extension_info_from_window(
         })?;
 
     let version = match &extension.source {
-        crate::extension::core::types::ExtensionSource::Production { version, .. } => version.clone(),
+        crate::extension::core::types::ExtensionSource::Production { version, .. } => {
+            version.clone()
+        }
         crate::extension::core::types::ExtensionSource::Development { .. } => "dev".to_string(),
     };
 

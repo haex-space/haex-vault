@@ -185,7 +185,8 @@ impl HlcService {
 
     /// Lädt den letzten persistierten Zeitstempel aus der Datenbank.
     fn load_last_timestamp(conn: &Connection) -> Result<Option<Timestamp>, HlcError> {
-        let query = format!("SELECT value FROM {TABLE_CRDT_CONFIGS} WHERE key = ?1 AND type = 'hlc'");
+        let query =
+            format!("SELECT value FROM {TABLE_CRDT_CONFIGS} WHERE key = ?1 AND type = 'hlc'");
 
         match conn.query_row(&query, params![HLC_TIMESTAMP_TYPE], |row| {
             row.get::<_, String>(0)
@@ -257,10 +258,7 @@ mod tests {
             parts[1].len() <= 32,
             "Node ID hex should be at most 32 characters (16 bytes)"
         );
-        assert!(
-            !parts[1].is_empty(),
-            "Node ID hex should not be empty"
-        );
+        assert!(!parts[1].is_empty(), "Node ID hex should not be empty");
     }
 
     #[test]

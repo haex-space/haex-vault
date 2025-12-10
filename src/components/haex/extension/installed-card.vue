@@ -10,21 +10,13 @@
       <!-- Icon -->
       <div class="shrink-0">
         <div
-          v-if="extension.icon"
-          class="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center"
+          class="w-16 h-16 rounded-lg flex items-center justify-center"
+          :class="extension.iconUrl || extension.icon ? 'bg-primary/10' : 'bg-gray-200 dark:bg-gray-700'"
         >
-          <UIcon
-            :name="extension.icon"
-            class="w-10 h-10 text-primary"
-          />
-        </div>
-        <div
-          v-else
-          class="w-16 h-16 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center"
-        >
-          <UIcon
-            name="i-heroicons-puzzle-piece"
-            class="w-10 h-10 text-gray-400"
+          <HaexIcon
+            :name="extension.iconUrl || extension.icon || 'i-heroicons-puzzle-piece'"
+            class="w-10 h-10"
+            :class="extension.iconUrl || extension.icon ? 'text-primary' : 'text-gray-400'"
           />
         </div>
       </div>
@@ -125,6 +117,7 @@ interface InstalledExtension {
   author?: string
   description?: string
   icon?: string
+  iconUrl?: string
   enabled?: boolean
 }
 

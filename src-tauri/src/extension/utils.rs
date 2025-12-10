@@ -62,9 +62,8 @@ pub fn drop_extension_tables(
     );
 
     // Find all tables with this extension's prefix
-    let mut stmt = tx.prepare(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE ?1",
-    )?;
+    let mut stmt =
+        tx.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE ?1")?;
 
     let pattern = format!("{}%", prefix);
     let table_names: Vec<String> = stmt
@@ -81,10 +80,7 @@ pub fn drop_extension_tables(
     // 1. Drop CRDT triggers first
     // 2. Drop the table
     for table_name in &table_names {
-        println!(
-            "[EXTENSION_CLEANUP] Cleaning up table: {}",
-            table_name
-        );
+        println!("[EXTENSION_CLEANUP] Cleaning up table: {}", table_name);
 
         // Drop CRDT triggers for this table (prevents trigger errors on table drop)
         // Trigger naming pattern: z_dirty_{TABLE_NAME}_{insert|update|delete}
@@ -99,12 +95,17 @@ pub fn drop_extension_tables(
         // Drop the table
         let drop_table_sql = format!("DROP TABLE IF EXISTS \"{}\"", table_name);
         println!("[EXTENSION_CLEANUP] Executing: {}", drop_table_sql);
-        tx.execute(&drop_table_sql, [])
-            .map_err(|e| {
-                eprintln!("[EXTENSION_CLEANUP] ERROR dropping table {}: {}", table_name, e);
-                e
-            })?;
-        println!("[EXTENSION_CLEANUP] Successfully dropped table: {}", table_name);
+        tx.execute(&drop_table_sql, []).map_err(|e| {
+            eprintln!(
+                "[EXTENSION_CLEANUP] ERROR dropping table {}: {}",
+                table_name, e
+            );
+            e
+        })?;
+        println!(
+            "[EXTENSION_CLEANUP] Successfully dropped table: {}",
+            table_name
+        );
     }
 
     if !table_names.is_empty() {
@@ -142,7 +143,8 @@ pub fn validate_public_key(public_key: &str) -> Result<(), ExtensionError> {
     // Check that it's valid hex
     if !public_key.chars().all(|c| c.is_ascii_hexdigit()) {
         return Err(ExtensionError::ValidationError {
-            reason: "Invalid public key: must contain only hex characters (0-9, a-f, A-F)".to_string(),
+            reason: "Invalid public key: must contain only hex characters (0-9, a-f, A-F)"
+                .to_string(),
         });
     }
 

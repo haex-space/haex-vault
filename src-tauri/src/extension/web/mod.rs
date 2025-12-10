@@ -58,7 +58,10 @@ pub async fn extension_web_open(
     let scheme = parsed_url.scheme();
     if scheme != "http" && scheme != "https" {
         return Err(ExtensionError::WebError {
-            reason: format!("Unsupported URL scheme: {}. Only http and https are allowed.", scheme),
+            reason: format!(
+                "Unsupported URL scheme: {}. Only http and https are allowed.",
+                scheme
+            ),
         });
     }
 
@@ -157,11 +160,11 @@ async fn fetch_web_request(request: WebFetchRequest) -> Result<WebFetchResponse,
 
     // Add body if present (decode from base64)
     if let Some(body_base64) = request.body {
-        let body_bytes = STANDARD.decode(&body_base64).map_err(|e| {
-            ExtensionError::WebError {
+        let body_bytes = STANDARD
+            .decode(&body_base64)
+            .map_err(|e| ExtensionError::WebError {
                 reason: format!("Failed to decode request body from base64: {}", e),
-            }
-        })?;
+            })?;
         req_builder = req_builder.body(body_bytes);
     }
 
@@ -180,7 +183,11 @@ async fn fetch_web_request(request: WebFetchRequest) -> Result<WebFetchResponse,
 
     // Extract response data
     let status = response.status().as_u16();
-    let status_text = response.status().canonical_reason().unwrap_or("").to_string();
+    let status_text = response
+        .status()
+        .canonical_reason()
+        .unwrap_or("")
+        .to_string();
     let final_url = response.url().to_string();
 
     // Extract headers
@@ -192,9 +199,12 @@ async fn fetch_web_request(request: WebFetchRequest) -> Result<WebFetchResponse,
     }
 
     // Read body and encode to base64
-    let body_bytes = response.bytes().await.map_err(|e| ExtensionError::WebError {
-        reason: format!("Failed to read response body: {}", e),
-    })?;
+    let body_bytes = response
+        .bytes()
+        .await
+        .map_err(|e| ExtensionError::WebError {
+            reason: format!("Failed to read response body: {}", e),
+        })?;
 
     let body_base64 = STANDARD.encode(&body_bytes);
 

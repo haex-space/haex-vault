@@ -1,5 +1,7 @@
 use super::helpers::get_extension_id;
-use crate::extension::database::{extension_sql_execute, extension_sql_select, register_extension_migrations, MigrationResult};
+use crate::extension::database::{
+    extension_sql_execute, extension_sql_select, register_extension_migrations, MigrationResult,
+};
 use crate::extension::error::ExtensionError;
 use crate::AppState;
 use tauri::{State, WebviewWindow};

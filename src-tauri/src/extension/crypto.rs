@@ -45,7 +45,8 @@ impl ExtensionCrypto {
         let mut relative_files: Vec<(String, PathBuf)> = all_files
             .into_iter()
             .map(|path| {
-                let relative = path.strip_prefix(dir)
+                let relative = path
+                    .strip_prefix(dir)
                     .unwrap_or(&path)
                     .to_string_lossy()
                     .to_string()
@@ -62,12 +63,12 @@ impl ExtensionCrypto {
 
         // Canonicalize manifest path for comparison (important on Android where symlinks may differ)
         // Also ensure the canonical path is still within the allowed directory (security check)
-        let canonical_manifest_path = manifest_path.canonicalize()
+        let canonical_manifest_path = manifest_path
+            .canonicalize()
             .unwrap_or_else(|_| manifest_path.to_path_buf());
 
         // Security: Verify canonical manifest path is still within dir
-        let canonical_dir = dir.canonicalize()
-            .unwrap_or_else(|_| dir.to_path_buf());
+        let canonical_dir = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
 
         if !canonical_manifest_path.starts_with(&canonical_dir) {
             return Err(ExtensionError::ManifestError {
@@ -78,7 +79,8 @@ impl ExtensionCrypto {
         // 4. Inhalte der sortierten Dateien hashen
         for (_relative, file_path) in relative_files {
             // Canonicalize file_path for comparison
-            let canonical_file_path = file_path.canonicalize()
+            let canonical_file_path = file_path
+                .canonicalize()
                 .unwrap_or_else(|_| file_path.clone());
 
             if canonical_file_path == canonical_manifest_path {

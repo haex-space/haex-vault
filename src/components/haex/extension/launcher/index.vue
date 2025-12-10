@@ -49,7 +49,7 @@
             leadingIcon: 'size-10',
             label: 'w-full',
           }"
-          :icon="extension.icon || 'i-heroicons-puzzle-piece-solid'"
+          :icon="extension.iconUrl || extension.icon || 'i-heroicons-puzzle-piece-solid'"
           :label="extension.name"
           :tooltip="`${extension.name} (${t('disabled')})`"
         />
@@ -130,7 +130,7 @@ const launcherItems = computed(() => {
     })
   })
 
-  // Add enabled extensions
+  // Add enabled extensions (iconUrl is computed in store)
   const enabledExtensions = extensionStore.availableExtensions.filter(
     (ext) => ext.enabled,
   )
@@ -138,7 +138,7 @@ const launcherItems = computed(() => {
     items.push({
       id: ext.id,
       name: ext.name,
-      icon: ext.icon || 'i-heroicons-puzzle-piece-solid',
+      icon: ext.iconUrl || 'i-heroicons-puzzle-piece-solid',
       type: 'extension',
     })
   })

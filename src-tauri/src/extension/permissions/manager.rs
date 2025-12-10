@@ -5,7 +5,9 @@ use crate::extension::core::types::ExtensionSource;
 use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::checker::PermissionChecker;
-use crate::extension::permissions::types::{Action, ExtensionPermission, PermissionConstraints, PermissionStatus, ResourceType};
+use crate::extension::permissions::types::{
+    Action, ExtensionPermission, PermissionConstraints, PermissionStatus, ResourceType,
+};
 use crate::table_names::TABLE_EXTENSION_PERMISSIONS;
 use crate::AppState;
 use rusqlite::params;
@@ -121,25 +123,28 @@ impl PermissionManager {
     }
 
     /// Löscht alle Permissions einer Extension
-   pub async fn delete_permission(
+    pub async fn delete_permission(
         app_state: &State<'_, AppState>,
         permission_id: &str,
     ) -> Result<(), ExtensionError> {
         with_connection(&app_state.db, |conn| {
             let tx = conn.transaction().map_err(DatabaseError::from)?;
-            
-            let hlc_service = app_state.hlc.lock()
+
+            let hlc_service = app_state
+                .hlc
+                .lock()
                 .map_err(|_| DatabaseError::MutexPoisoned {
                     reason: "Failed to lock HLC service".to_string(),
                 })?;
-            
+
             // Echtes DELETE - wird vom CrdtTransformer zu UPDATE umgewandelt
             let sql = format!("DELETE FROM {TABLE_EXTENSION_PERMISSIONS} WHERE id = ?");
             SqlExecutor::execute_internal_typed(&tx, &hlc_service, &sql, params![permission_id])?;
             tx.commit().map_err(DatabaseError::from)
-        }).map_err(ExtensionError::from)
+        })
+        .map_err(ExtensionError::from)
     }
-    
+
     /// Löscht alle Permissions einer Extension (Soft-Delete)
     pub async fn delete_permissions(
         app_state: &State<'_, AppState>,
@@ -148,15 +153,18 @@ impl PermissionManager {
         with_connection(&app_state.db, |conn| {
             let tx = conn.transaction().map_err(DatabaseError::from)?;
 
-            let hlc_service = app_state.hlc.lock()
+            let hlc_service = app_state
+                .hlc
+                .lock()
                 .map_err(|_| DatabaseError::MutexPoisoned {
                     reason: "Failed to lock HLC service".to_string(),
                 })?;
 
-             let sql = format!("DELETE FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ?");
+            let sql = format!("DELETE FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ?");
             SqlExecutor::execute_internal_typed(&tx, &hlc_service, &sql, params![extension_id])?;
             tx.commit().map_err(DatabaseError::from)
-        }).map_err(ExtensionError::from)
+        })
+        .map_err(ExtensionError::from)
     }
 
     /// Löscht alle Permissions einer Extension innerhalb einer bestehenden Transaktion
@@ -175,24 +183,22 @@ impl PermissionManager {
         extension_id: &str,
     ) -> Result<Vec<ExtensionPermission>, ExtensionError> {
         with_connection(&app_state.db, |conn| {
-             let sql = format!("SELECT * FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ?");
+            let sql = format!("SELECT * FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ?");
             let mut stmt = conn.prepare(&sql).map_err(DatabaseError::from)?;
-            
+
             let perms_iter = stmt.query_map(params![extension_id], |row| {
                 HaexExtensionPermissions::from_row(row)
             })?;
-            
-            let permissions = perms_iter
-                .filter_map(Result::ok) 
-                .map(Into::into) 
-                .collect();
-            
+
+            let permissions = perms_iter.filter_map(Result::ok).map(Into::into).collect();
+
             Ok(permissions)
-        }).map_err(ExtensionError::from)
+        })
+        .map_err(ExtensionError::from)
     }
 
     /// Prüft Datenbankberechtigungen
-   pub async fn check_database_permission(
+    pub async fn check_database_permission(
         app_state: &State<'_, AppState>,
         extension_id: &str,
         action: Action,
@@ -242,11 +248,15 @@ impl PermissionManager {
         url: &str,
     ) -> Result<(), ExtensionError> {
         // Load permissions - for dev extensions, get from manifest; for production, from database
-        let permissions = if let Some(extension) = app_state.extension_manager.get_extension(extension_id) {
+        let permissions = if let Some(extension) =
+            app_state.extension_manager.get_extension(extension_id)
+        {
             match &extension.source {
                 ExtensionSource::Development { .. } => {
                     // Dev extension - get web permissions from manifest
-                    extension.manifest.permissions
+                    extension
+                        .manifest
+                        .permissions
                         .to_internal_permissions(extension_id)
                         .into_iter()
                         .filter(|p| p.resource_type == ResourceType::Web)
@@ -269,10 +279,8 @@ impl PermissionManager {
                             crate::database::generated::HaexExtensionPermissions::from_row(row)
                         })?;
 
-                        let permissions: Vec<ExtensionPermission> = perms_iter
-                            .filter_map(Result::ok)
-                            .map(Into::into)
-                            .collect();
+                        let permissions: Vec<ExtensionPermission> =
+                            perms_iter.filter_map(Result::ok).map(Into::into).collect();
 
                         Ok(permissions)
                     })?
@@ -289,9 +297,11 @@ impl PermissionManager {
             reason: format!("Invalid URL: {}", e),
         })?;
 
-        let domain = url_parsed.host_str().ok_or_else(|| ExtensionError::ValidationError {
-            reason: "URL does not contain a valid host".to_string(),
-        })?;
+        let domain = url_parsed
+            .host_str()
+            .ok_or_else(|| ExtensionError::ValidationError {
+                reason: "URL does not contain a valid host".to_string(),
+            })?;
 
         let has_permission = permissions
             .iter()
@@ -448,8 +458,6 @@ impl PermissionManager {
         }
     }
 
-    
-    
     fn matches_path_pattern(pattern: &str, path: &str) -> bool {
         if let Some(prefix) = pattern.strip_suffix("/*") {
             return path.starts_with(prefix);
@@ -510,7 +518,10 @@ impl PermissionManager {
             };
 
             // Find where the domain pattern ends (at / or end of string)
-            let domain_pattern_end = pattern[domain_start..].find('/').map(|i| domain_start + i).unwrap_or(pattern.len());
+            let domain_pattern_end = pattern[domain_start..]
+                .find('/')
+                .map(|i| domain_start + i)
+                .unwrap_or(pattern.len());
             let domain_pattern = &pattern[domain_start..domain_pattern_end];
 
             // Check if the URL's host ends with the domain pattern
@@ -577,9 +588,6 @@ impl PermissionManager {
         // Exact path match (no wildcard)
         pattern_url.path() == url_parsed.path()
     }
-
-    
-
 }
 
 // Convenience-Funktionen für die verschiedenen Subsysteme

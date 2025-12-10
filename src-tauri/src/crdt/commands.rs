@@ -1,4 +1,7 @@
-use crate::crdt::trigger::{get_table_schema as get_table_schema_internal, ColumnInfo, HLC_TIMESTAMP_COLUMN, COLUMN_HLCS_COLUMN};
+use crate::crdt::trigger::{
+    get_table_schema as get_table_schema_internal, ColumnInfo, COLUMN_HLCS_COLUMN,
+    HLC_TIMESTAMP_COLUMN,
+};
 use crate::database::core::{with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
 use crate::table_names::TABLE_CRDT_CONFIGS;
@@ -114,18 +117,22 @@ fn create_conflict_entry(
     };
 
     // Serialize remote row data
-    let remote_row_json = serde_json::to_string(remote_row_data).map_err(|e| {
-        DatabaseError::SerializationError {
+    let remote_row_json =
+        serde_json::to_string(remote_row_data).map_err(|e| DatabaseError::SerializationError {
             reason: format!("Failed to serialize remote row: {}", e),
-        }
-    })?;
+        })?;
 
     // Extract PKs from schema
     let pk_columns: Vec<_> = schema.iter().filter(|col| col.is_pk).collect();
 
     // Build remote PK JSON
-    let remote_pk: serde_json::Map<String, JsonValue> = pk_columns.iter()
-        .filter_map(|pk_col| remote_row_data.get(&pk_col.name).map(|v| (pk_col.name.clone(), v.clone())))
+    let remote_pk: serde_json::Map<String, JsonValue> = pk_columns
+        .iter()
+        .filter_map(|pk_col| {
+            remote_row_data
+                .get(&pk_col.name)
+                .map(|v| (pk_col.name.clone(), v.clone()))
+        })
         .collect();
     let remote_pk_json = serde_json::to_string(&remote_pk).unwrap_or_else(|_| "{}".to_string());
 
@@ -139,15 +146,17 @@ fn create_conflict_entry(
 
     let query_sql = format!("SELECT {} FROM \"{}\" LIMIT 1", pk_select, table_name);
 
-    let local_pk_json = tx.query_row(&query_sql, [], |row| {
-        let mut local_pk = serde_json::Map::new();
-        for (i, pk_col) in pk_columns.iter().enumerate() {
-            if let Ok(val) = row.get::<_, String>(i) {
-                local_pk.insert(pk_col.name.clone(), JsonValue::String(val));
+    let local_pk_json = tx
+        .query_row(&query_sql, [], |row| {
+            let mut local_pk = serde_json::Map::new();
+            for (i, pk_col) in pk_columns.iter().enumerate() {
+                if let Ok(val) = row.get::<_, String>(i) {
+                    local_pk.insert(pk_col.name.clone(), JsonValue::String(val));
+                }
             }
-        }
-        Ok(serde_json::to_string(&local_pk).unwrap_or_else(|_| "{}".to_string()))
-    }).unwrap_or_else(|_| "{}".to_string());
+            Ok(serde_json::to_string(&local_pk).unwrap_or_else(|_| "{}".to_string()))
+        })
+        .unwrap_or_else(|_| "{}".to_string());
 
     // Generate conflict ID and timestamp
     let conflict_id = Uuid::new_v4().to_string();
@@ -180,7 +189,10 @@ fn create_conflict_entry(
     )
     .map_err(DatabaseError::from)?;
 
-    eprintln!("[SYNC RUST] Created conflict entry {} for table {}", conflict_id, table_name);
+    eprintln!(
+        "[SYNC RUST] Created conflict entry {} for table {}",
+        conflict_id, table_name
+    );
 
     Ok(())
 }
@@ -250,7 +262,12 @@ pub fn apply_remote_changes_in_transaction(
     state: State<'_, AppState>,
 ) -> Result<(), DatabaseError> {
     eprintln!("[SYNC RUST] ========== APPLY REMOTE CHANGES START ==========");
-    eprintln!("[SYNC RUST] Changes count: {}, backend_id: {}, max_hlc: {}", changes.len(), backend_id, max_hlc);
+    eprintln!(
+        "[SYNC RUST] Changes count: {}, backend_id: {}, max_hlc: {}",
+        changes.len(),
+        backend_id,
+        max_hlc
+    );
 
     // Validate batch completeness
     eprintln!("[SYNC RUST] Validating batch completeness...");
@@ -279,8 +296,7 @@ pub fn apply_remote_changes_in_transaction(
             "INSERT INTO {TABLE_CRDT_CONFIGS} (key, type, value) VALUES ('triggers_enabled', 'system', '0')
              ON CONFLICT(key) DO UPDATE SET value = '0'"
         );
-        tx.execute(&disable_sql, [])
-            .map_err(DatabaseError::from)?;
+        tx.execute(&disable_sql, []).map_err(DatabaseError::from)?;
 
         // Group changes by (table, row) so we can insert/update all columns of a row together
         let mut row_changes: HashMap<(String, String), Vec<RemoteColumnChange>> = HashMap::new();
@@ -295,8 +311,12 @@ pub fn apply_remote_changes_in_transaction(
         for ((_table_name, row_pks_str), row_change_list) in row_changes {
             // Use the first change to get common data
             let first_change = &row_change_list[0];
-            eprintln!("[SYNC RUST] Processing table: {}, PKs: {}, columns: {}",
-                first_change.table_name, row_pks_str, row_change_list.len());
+            eprintln!(
+                "[SYNC RUST] Processing table: {}, PKs: {}, columns: {}",
+                first_change.table_name,
+                row_pks_str,
+                row_change_list.len()
+            );
 
             // Get table schema to identify PK columns
             // If table doesn't exist (e.g., from a dev extension not installed here), skip it
@@ -312,11 +332,9 @@ pub fn apply_remote_changes_in_transaction(
             }
 
             // Parse row PKs (same for all changes in this row)
-            let row_pks: serde_json::Map<String, JsonValue> =
-                serde_json::from_str(&row_pks_str).map_err(|e| {
-                    DatabaseError::SerializationError {
-                        reason: format!("Failed to parse row PKs: {}", e),
-                    }
+            let row_pks: serde_json::Map<String, JsonValue> = serde_json::from_str(&row_pks_str)
+                .map_err(|e| DatabaseError::SerializationError {
+                    reason: format!("Failed to parse row PKs: {}", e),
                 })?;
 
             let pk_columns: Vec<_> = schema.iter().filter(|col| col.is_pk).collect();
@@ -355,13 +373,12 @@ pub fn apply_remote_changes_in_transaction(
             let row_exists = current_hlcs.is_some();
 
             // Parse current HLCs
-            let mut column_hlcs: serde_json::Map<String, JsonValue> = if let Some(hlcs_str) =
-                current_hlcs
-            {
-                serde_json::from_str(&hlcs_str).unwrap_or_default()
-            } else {
-                serde_json::Map::new()
-            };
+            let mut column_hlcs: serde_json::Map<String, JsonValue> =
+                if let Some(hlcs_str) = current_hlcs {
+                    serde_json::from_str(&hlcs_str).unwrap_or_default()
+                } else {
+                    serde_json::Map::new()
+                };
 
             // Collect all column changes that are newer than current
             let mut columns_to_update: Vec<(String, JsonValue, String)> = Vec::new(); // (column_name, json_value, hlc)
@@ -394,12 +411,11 @@ pub fn apply_remote_changes_in_transaction(
 
             // Only apply if there are columns to update
             if !columns_to_update.is_empty() {
-                let new_hlcs_json =
-                    serde_json::to_string(&column_hlcs).map_err(|e| {
-                        DatabaseError::SerializationError {
-                            reason: format!("Failed to serialize column HLCs: {}", e),
-                        }
-                    })?;
+                let new_hlcs_json = serde_json::to_string(&column_hlcs).map_err(|e| {
+                    DatabaseError::SerializationError {
+                        reason: format!("Failed to serialize column HLCs: {}", e),
+                    }
+                })?;
 
                 if row_exists {
                     // Row exists, update it with all changed columns
@@ -428,7 +444,9 @@ pub fn apply_remote_changes_in_transaction(
 
                     // Add PK values for WHERE clause
                     for pk_val in &pk_values {
-                        params_vec.push(SqlValue::Text(pk_val.to_string().trim_matches('"').to_string()));
+                        params_vec.push(SqlValue::Text(
+                            pk_val.to_string().trim_matches('"').to_string(),
+                        ));
                     }
 
                     let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec
@@ -444,15 +462,27 @@ pub fn apply_remote_changes_in_transaction(
                     let mut values: Vec<SqlValue> = Vec::new();
 
                     // Debug: Log what columns we're about to insert
-                    eprintln!("[SYNC RUST] INSERT for table {}: schema={} cols, updating={} cols",
-                        first_change.table_name, schema.len(), columns_to_update.len());
-                    eprintln!("[SYNC RUST]   Column names: {:?}", columns_to_update.iter().map(|(n, _, _)| n).collect::<Vec<_>>());
+                    eprintln!(
+                        "[SYNC RUST] INSERT for table {}: schema={} cols, updating={} cols",
+                        first_change.table_name,
+                        schema.len(),
+                        columns_to_update.len()
+                    );
+                    eprintln!(
+                        "[SYNC RUST]   Column names: {:?}",
+                        columns_to_update
+                            .iter()
+                            .map(|(n, _, _)| n)
+                            .collect::<Vec<_>>()
+                    );
 
                     // Add PKs first
                     for col in &pk_columns {
                         columns.push(col.name.clone());
                         if let Some(pk_val) = row_pks.get(&col.name) {
-                            values.push(SqlValue::Text(pk_val.to_string().trim_matches('"').to_string()));
+                            values.push(SqlValue::Text(
+                                pk_val.to_string().trim_matches('"').to_string(),
+                            ));
                         }
                     }
 
@@ -481,13 +511,17 @@ pub fn apply_remote_changes_in_transaction(
 
                     // Try to insert - if it fails with constraint, log detailed error
                     match tx.execute(&insert_sql, &*params_refs) {
-                        Ok(_) => {}, // Success - continue
+                        Ok(_) => {} // Success - continue
                         Err(rusqlite::Error::SqliteFailure(err, msg))
-                            if err.code == rusqlite::ErrorCode::ConstraintViolation => {
+                            if err.code == rusqlite::ErrorCode::ConstraintViolation =>
+                        {
                             // Log the constraint violation details
-                            let error_msg = msg.as_deref().unwrap_or("Unknown constraint violation");
-                            eprintln!("[SYNC RUST] Constraint violation for table {}: {}",
-                                first_change.table_name, error_msg);
+                            let error_msg =
+                                msg.as_deref().unwrap_or("Unknown constraint violation");
+                            eprintln!(
+                                "[SYNC RUST] Constraint violation for table {}: {}",
+                                first_change.table_name, error_msg
+                            );
                             eprintln!("[SYNC RUST] Failed INSERT SQL: {}", insert_sql);
                             eprintln!("[SYNC RUST] Values: {:?}", values);
 
@@ -499,7 +533,8 @@ pub fn apply_remote_changes_in_transaction(
                                 let mut remote_row_data = serde_json::Map::new();
                                 for (i, col_name) in columns.iter().enumerate() {
                                     if let Some(sql_value) = values.get(i) {
-                                        let json_value = ValueConverter::rusqlite_value_to_json(sql_value);
+                                        let json_value =
+                                            ValueConverter::rusqlite_value_to_json(sql_value);
                                         remote_row_data.insert(col_name.clone(), json_value);
                                     }
                                 }
@@ -513,17 +548,25 @@ pub fn apply_remote_changes_in_transaction(
                                     &max_hlc_for_row,
                                     &schema,
                                 ) {
-                                    eprintln!("[SYNC RUST] Failed to create conflict entry: {:?}", e);
+                                    eprintln!(
+                                        "[SYNC RUST] Failed to create conflict entry: {:?}",
+                                        e
+                                    );
                                 }
 
                                 continue; // Skip this row and continue with next
                             }
 
                             // For other constraints (CHECK, etc.), re-throw the error
-                            return Err(DatabaseError::from(rusqlite::Error::SqliteFailure(err, msg)));
+                            return Err(DatabaseError::from(rusqlite::Error::SqliteFailure(
+                                err, msg,
+                            )));
                         }
                         Err(e) => {
-                            eprintln!("[SYNC RUST] INSERT failed for table {}: {:?}", first_change.table_name, e);
+                            eprintln!(
+                                "[SYNC RUST] INSERT failed for table {}: {:?}",
+                                first_change.table_name, e
+                            );
                             return Err(DatabaseError::from(e));
                         }
                     }
@@ -533,7 +576,10 @@ pub fn apply_remote_changes_in_transaction(
 
         // Update lastPushHlcTimestamp for this backend to prevent re-pushing the data we just pulled
         // Note: lastPullServerTimestamp is now updated by TypeScript using the server timestamp
-        eprintln!("[SYNC RUST] Updating last_push_hlc_timestamp to {}", max_hlc);
+        eprintln!(
+            "[SYNC RUST] Updating last_push_hlc_timestamp to {}",
+            max_hlc
+        );
         tx.execute(
             "UPDATE haex_sync_backends SET last_push_hlc_timestamp = ? WHERE id = ?",
             params![&max_hlc, &backend_id],
@@ -546,8 +592,7 @@ pub fn apply_remote_changes_in_transaction(
             "INSERT INTO {TABLE_CRDT_CONFIGS} (key, type, value) VALUES ('triggers_enabled', 'system', '1')
              ON CONFLICT(key) DO UPDATE SET value = '1'"
         );
-        tx.execute(&enable_sql, [])
-            .map_err(DatabaseError::from)?;
+        tx.execute(&enable_sql, []).map_err(DatabaseError::from)?;
 
         // Commit transaction (with FK constraints disabled)
         eprintln!("[SYNC RUST] Committing transaction");
@@ -570,4 +615,3 @@ pub fn apply_remote_changes_in_transaction(
         Ok(())
     })
 }
-

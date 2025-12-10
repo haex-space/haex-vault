@@ -222,6 +222,10 @@ jobs:
           rm -rf src-tauri/gen/android
           pnpm tauri android init
 
+      - name: Update Kotlin version for biometry plugin
+        run: |
+          sed -i 's/kotlin-gradle-plugin:1.9.25/kotlin-gradle-plugin:2.1.0/' src-tauri/gen/android/build.gradle.kts
+
       - name: Generate app icons
         run: pnpm tauri icon app-icon.json
 

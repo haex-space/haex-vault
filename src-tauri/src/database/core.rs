@@ -82,9 +82,7 @@ pub fn open_and_init_db(path: &str, key: &str, create: bool) -> Result<Connectio
         UUID_FUNCTION_NAME,
         0,
         FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC,
-        |_ctx| {
-            Ok(Uuid::new_v4().to_string())
-        },
+        |_ctx| Ok(Uuid::new_v4().to_string()),
     )
     .map_err(|e| DatabaseError::DatabaseError {
         reason: format!("Failed to register {UUID_FUNCTION_NAME} function: {e}"),
@@ -100,9 +98,7 @@ pub fn open_and_init_db(path: &str, key: &str, create: bool) -> Result<Connectio
     if journal_mode.eq_ignore_ascii_case("wal") {
         println!("WAL mode successfully enabled.");
     } else {
-        eprintln!(
-            "Failed to enable WAL mode, journal_mode is '{journal_mode}'."
-        );
+        eprintln!("Failed to enable WAL mode, journal_mode is '{journal_mode}'.");
     }
 
     Ok(conn)
@@ -130,10 +126,7 @@ pub fn parse_sql_statements(sql: &str) -> Result<Vec<Statement>, DatabaseError> 
     let dialect = SQLiteDialect {};
 
     // Normalize whitespace: replace multiple whitespaces (including newlines, tabs) with single space
-    let normalized_sql = sql
-        .split_whitespace()
-        .collect::<Vec<&str>>()
-        .join(" ");
+    let normalized_sql = sql.split_whitespace().collect::<Vec<&str>>().join(" ");
 
     Parser::parse_sql(&dialect, &normalized_sql).map_err(|e| DatabaseError::ParseError {
         reason: format!("Failed to parse SQL: {e}"),
@@ -191,11 +184,9 @@ impl ValueConverter {
         match sql_value {
             SqlValue::Null => JsonValue::Null,
             SqlValue::Integer(n) => JsonValue::Number((*n).into()),
-            SqlValue::Real(f) => {
-                serde_json::Number::from_f64(*f)
-                    .map(JsonValue::Number)
-                    .unwrap_or(JsonValue::Null)
-            }
+            SqlValue::Real(f) => serde_json::Number::from_f64(*f)
+                .map(JsonValue::Number)
+                .unwrap_or(JsonValue::Null),
             SqlValue::Text(s) => {
                 // Try to parse as JSON first (for objects/arrays that were serialized)
                 serde_json::from_str(s).unwrap_or_else(|_| JsonValue::String(s.clone()))

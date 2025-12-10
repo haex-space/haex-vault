@@ -97,7 +97,10 @@ impl ColumnInfo {
 
 fn is_safe_identifier(name: &str) -> bool {
     // Allow alphanumeric characters, underscores, and hyphens (for extension names like "nuxt-app")
-    !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
 }
 
 /// Richtet CRDT-Trigger für eine einzelne Tabelle ein.
@@ -199,9 +202,8 @@ pub fn drop_triggers_for_table(
     let drop_delete_trigger_sql =
         drop_trigger_sql(DELETE_TRIGGER_TPL.replace("{TABLE_NAME}", table_name));
 
-    let sql_batch = format!(
-        "{drop_insert_trigger_sql}\n{drop_update_trigger_sql}\n{drop_delete_trigger_sql}"
-    );
+    let sql_batch =
+        format!("{drop_insert_trigger_sql}\n{drop_update_trigger_sql}\n{drop_delete_trigger_sql}");
 
     tx.execute_batch(&sql_batch)?;
     Ok(())

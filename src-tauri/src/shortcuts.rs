@@ -1,6 +1,5 @@
 /// Desktop shortcut creation for extensions
 /// Creates native OS shortcuts that launch HaexVault with a deep-link URL
-
 use crate::AppState;
 use tauri::{AppHandle, Manager, State};
 
@@ -59,12 +58,25 @@ pub async fn create_desktop_shortcut(
 
     #[cfg(target_os = "linux")]
     {
-        create_linux_shortcut(&app_handle, &app_path, extension_name, extension_icon, &deep_link_url, &extension_id)?;
+        create_linux_shortcut(
+            &app_handle,
+            &app_path,
+            extension_name,
+            extension_icon,
+            &deep_link_url,
+            &extension_id,
+        )?;
     }
 
     #[cfg(target_os = "windows")]
     {
-        create_windows_shortcut(&app_path, extension_name, extension_icon, &deep_link_url, &extension_id)?;
+        create_windows_shortcut(
+            &app_path,
+            extension_name,
+            extension_icon,
+            &deep_link_url,
+            &extension_id,
+        )?;
     }
 
     #[cfg(target_os = "macos")]
@@ -195,7 +207,11 @@ $Shortcut.Save()
         shortcut_path = shortcut_path.replace('\\', "\\\\"),
         app_path = app_path.display().to_string().replace('\\', "\\\\"),
         deep_link_url = deep_link_url,
-        working_dir = app_path.parent().map(|p| p.display().to_string()).unwrap_or_default().replace('\\', "\\\\"),
+        working_dir = app_path
+            .parent()
+            .map(|p| p.display().to_string())
+            .unwrap_or_default()
+            .replace('\\', "\\\\"),
     );
 
     let output = Command::new("powershell")
@@ -225,7 +241,8 @@ pub async fn remove_desktop_shortcut(extension_id: String) -> Result<(), Shortcu
         let home = std::env::var("HOME").map_err(|_| ShortcutError::CreationFailed {
             reason: "Could not determine HOME directory".to_string(),
         })?;
-        let desktop_file_path = format!("{home}/.local/share/applications/haex-vault-ext-{safe_id}.desktop");
+        let desktop_file_path =
+            format!("{home}/.local/share/applications/haex-vault-ext-{safe_id}.desktop");
 
         if std::path::Path::new(&desktop_file_path).exists() {
             std::fs::remove_file(&desktop_file_path)?;

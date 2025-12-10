@@ -396,7 +396,12 @@ pub async fn register_extension_migrations(
                      (id, extension_id, migration_name, migration_content, applied_at)
                      VALUES (?1, ?2, ?3, ?4, datetime('now'))"
                 ),
-                rusqlite::params![local_migration_id, extension_id, migration_name, sql_content],
+                rusqlite::params![
+                    local_migration_id,
+                    extension_id,
+                    migration_name,
+                    sql_content
+                ],
             )
             .map_err(DatabaseError::from)?;
             Ok::<(), DatabaseError>(())
@@ -569,7 +574,12 @@ pub fn apply_synced_extension_migrations(
                      (id, extension_id, migration_name, migration_content, applied_at)
                      VALUES (?1, ?2, ?3, ?4, datetime('now'))"
                 ),
-                rusqlite::params![local_migration_id, extension_id, migration_name, sql_content],
+                rusqlite::params![
+                    local_migration_id,
+                    extension_id,
+                    migration_name,
+                    sql_content
+                ],
             )
             .map_err(DatabaseError::from)?;
             Ok::<(), DatabaseError>(())

@@ -93,7 +93,11 @@ pub fn apply_core_migrations(
                 "[MIGRATIONS] Applying migration {} of total...",
                 applied_count + 1
             );
-            apply_single_migration(conn, &migration.migration_name, &migration.migration_content)?;
+            apply_single_migration(
+                conn,
+                &migration.migration_name,
+                &migration.migration_content,
+            )?;
             applied_count += 1;
             println!(
                 "[MIGRATIONS] Migration '{}' applied successfully",
@@ -314,14 +318,11 @@ fn load_bundled_migrations(
             migration_name, resource_path
         );
 
-        let content = fs
-            .read_to_string(&resource_path)
-            .map_err(|e| DatabaseError::MigrationError {
-                reason: format!(
-                    "Failed to read migration file '{}': {}",
-                    migration_name, e
-                ),
-            })?;
+        let content =
+            fs.read_to_string(&resource_path)
+                .map_err(|e| DatabaseError::MigrationError {
+                    reason: format!("Failed to read migration file '{}': {}", migration_name, e),
+                })?;
 
         migrations.push((migration_name.to_string(), content));
     }
@@ -340,7 +341,9 @@ fn get_applied_migration_names(conn: &Connection) -> Result<Vec<String>, Databas
     println!("[MIGRATIONS] get_applied_migration_names: checking if table exists...");
 
     if !migrations_table_exists(conn)? {
-        println!("[MIGRATIONS] get_applied_migration_names: table doesn't exist, returning empty vec");
+        println!(
+            "[MIGRATIONS] get_applied_migration_names: table doesn't exist, returning empty vec"
+        );
         return Ok(Vec::new());
     }
 

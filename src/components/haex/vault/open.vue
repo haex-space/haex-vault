@@ -42,6 +42,19 @@
           />
         </UForm>
 
+        <!-- Biometry retry button -->
+        <UButton
+          v-if="hasBiometryData"
+          color="primary"
+          variant="outline"
+          block
+          size="xl"
+          icon="i-lucide-fingerprint"
+          @click="onBiometryUnlock"
+        >
+          {{ t('biometry.retry') }}
+        </UButton>
+
         <div class="flex gap-3 pt-4">
           <UButton
             color="neutral"
@@ -56,7 +69,7 @@
             color="primary"
             block
             size="xl"
-            @click="onOpenDatabase"
+            @click="onOpenDatabase()"
           >
             {{ t('open') }}
           </UButton>
@@ -69,10 +82,13 @@
 <script setup lang="ts">
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import { vaultSchema } from './schema'
+import { isMobile } from '~/utils/platform'
+import { useBiometry } from '~/composables/useBiometry'
 
 const open = defineModel<boolean>('open', { default: false })
 const props = defineProps<{
   path?: string
+  name?: string
 }>()
 
 const { t } = useI18n({
@@ -91,6 +107,82 @@ const errors = reactive({
 })
 
 const check = ref(false)
+
+// Biometry state
+const biometry = useBiometry()
+const isBiometryAvailable = ref(false)
+const hasBiometryData = ref(false)
+
+// Check biometry availability when modal opens
+watch(open, async (isOpen) => {
+  if (isOpen && isMobile() && props.name) {
+    try {
+      const status = await biometry.checkStatus()
+      isBiometryAvailable.value = status.isAvailable
+
+      if (status.isAvailable) {
+        hasBiometryData.value = await biometry.hasData({
+          domain: 'haex-vault',
+          name: props.name,
+        })
+
+        // Auto-trigger biometric unlock if data exists
+        if (hasBiometryData.value) {
+          await onBiometryUnlock()
+        }
+      }
+    } catch {
+      isBiometryAvailable.value = false
+    }
+  }
+})
+
+// Unlock with biometry
+const onBiometryUnlock = async () => {
+  if (!props.name) return
+
+  const password = await biometry.getData({
+    domain: 'haex-vault',
+    name: props.name,
+    reason: t('biometry.reason'),
+  })
+
+  if (password) {
+    vault.password = password
+    await onOpenDatabase({ fromBiometry: true })
+  }
+}
+
+// Save password to biometry after successful unlock
+const saveToBiometry = async (password: string) => {
+  if (!isBiometryAvailable.value || !props.name) return
+
+  try {
+    await biometry.setData({
+      domain: 'haex-vault',
+      name: props.name,
+      data: password,
+    })
+    hasBiometryData.value = true
+  } catch (e) {
+    console.warn('[Biometry] Save failed:', e)
+  }
+}
+
+// Remove biometry data (when password is wrong)
+const removeBiometryData = async () => {
+  if (!props.name) return
+
+  try {
+    await biometry.removeData({
+      domain: 'haex-vault',
+      name: props.name,
+    })
+    hasBiometryData.value = false
+  } catch (e) {
+    console.warn('[Biometry] Remove failed:', e)
+  }
+}
 
 const initVault = () => {
   vault.name = ''
@@ -122,44 +214,40 @@ const onRevealInFolder = async () => {
   }
 }
 
-const onOpenDatabase = async () => {
+const onOpenDatabase = async (options?: { fromBiometry?: boolean }) => {
+  const fromBiometry = options?.fromBiometry ?? false
+
   try {
     if (!props.path) return
-
-    console.log('[VAULT OPEN] onOpenDatabase called')
-    console.log('[VAULT OPEN] path:', props.path)
 
     const { openAsync } = useVaultStore()
     const localePath = useLocalePath()
 
-    // Trigger validation
-    check.value = true
+    // Skip validation if coming from biometry (password is pre-filled)
+    if (!fromBiometry) {
+      // Trigger validation
+      check.value = true
 
-    // Wait for validation to complete
-    await nextTick()
+      // Wait for validation to complete
+      await nextTick()
 
-    // If there are validation errors, don't proceed
-    if (errors.password.length > 0) {
-      console.log('[VAULT OPEN] Validation errors, aborting')
-      return
+      // If there are validation errors, don't proceed
+      if (errors.password.length > 0) {
+        return
+      }
     }
 
     const path = props.path
     const pathCheck = vaultSchema.path.safeParse(path)
 
     if (pathCheck.error) {
-      console.log('[VAULT OPEN] Path validation failed:', pathCheck.error)
       return
     }
-
-    console.log('[VAULT OPEN] Calling vaultStore.openAsync...')
 
     const vaultId = await openAsync({
       path,
       password: vault.password,
     })
-
-    console.log('[VAULT OPEN] openAsync returned vaultId:', vaultId)
 
     if (!vaultId) {
       add({
@@ -167,6 +255,11 @@ const onOpenDatabase = async () => {
         description: t('error.open'),
       })
       return
+    }
+
+    // Save password to biometry on successful unlock (if not already from biometry)
+    if (!fromBiometry && isBiometryAvailable.value) {
+      await saveToBiometry(vault.password)
     }
 
     onAbort()
@@ -193,6 +286,11 @@ const onOpenDatabase = async () => {
         : undefined
 
     if (errorDetails?.reason === 'file is not a database') {
+      // Wrong password - remove biometry data if it came from biometry
+      if (fromBiometry) {
+        await removeBiometryData()
+      }
+
       add({
         color: 'error',
         title: t('error.password.title'),
@@ -218,6 +316,9 @@ de:
     label: Passwort
     placeholder: Passwort eingeben
   description: Öffne eine vorhandene Vault
+  biometry:
+    reason: Entsperre deine Vault
+    retry: Mit Fingerabdruck entsperren
   error:
     open: Vault konnte nicht geöffnet werden
     password:
@@ -236,6 +337,9 @@ en:
     label: Password
     placeholder: Enter password
   description: Open your existing vault
+  biometry:
+    reason: Unlock your vault
+    retry: Unlock with fingerprint
   error:
     open: Vault couldn't be opened
     password:

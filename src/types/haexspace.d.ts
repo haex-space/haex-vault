@@ -1,6 +1,15 @@
 // Re-export types from bindings for backwards compatibility
 export type { ExtensionManifest as IHaexSpaceExtensionManifest } from '~~/src-tauri/bindings/ExtensionManifest'
-export type { ExtensionInfoResponse as IHaexSpaceExtension } from '~~/src-tauri/bindings/ExtensionInfoResponse'
+import type { ExtensionInfoResponse } from '~~/src-tauri/bindings/ExtensionInfoResponse'
+
+/**
+ * Extension with computed icon URL for display
+ * Extends ExtensionInfoResponse with iconUrl for cross-platform compatibility
+ */
+export interface IHaexSpaceExtension extends ExtensionInfoResponse {
+  /** Computed URL for displaying the icon (works on all platforms) */
+  iconUrl?: string
+}
 
 // Re-export marketplace SDK types
 export type {

@@ -42,7 +42,10 @@ pub fn cleanup_tombstones(
     conn: &Connection,
     retention_days: u32,
 ) -> Result<CleanupResult, rusqlite::Error> {
-    eprintln!("🧹 [cleanup_tombstones] Called with retention_days={}", retention_days);
+    eprintln!(
+        "🧹 [cleanup_tombstones] Called with retention_days={}",
+        retention_days
+    );
 
     let mut total_deleted = 0;
     let mut tables_processed = 0;
@@ -90,7 +93,7 @@ pub fn cleanup_tombstones(
 
     // Get all table names from database
     let mut stmt = conn.prepare(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
     )?;
 
     let table_names: Vec<String> = stmt
@@ -180,7 +183,7 @@ pub fn get_crdt_stats(conn: &Connection) -> Result<CrdtStats, rusqlite::Error> {
 
     // Get all table names from database
     let mut stmt = conn.prepare(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
     )?;
 
     let table_names: Vec<String> = stmt
@@ -215,7 +218,10 @@ pub fn get_crdt_stats(conn: &Connection) -> Result<CrdtStats, rusqlite::Error> {
 
         // Count non-tombstoned entries
         let active_count: usize = conn.query_row(
-            &format!("SELECT COUNT(*) FROM \"{}\" WHERE {} = 0", table_name, TOMBSTONE_COLUMN),
+            &format!(
+                "SELECT COUNT(*) FROM \"{}\" WHERE {} = 0",
+                table_name, TOMBSTONE_COLUMN
+            ),
             [],
             |row| row.get(0),
         )?;
@@ -223,7 +229,10 @@ pub fn get_crdt_stats(conn: &Connection) -> Result<CrdtStats, rusqlite::Error> {
 
         // Count tombstoned entries
         let tombstone_count: usize = conn.query_row(
-            &format!("SELECT COUNT(*) FROM \"{}\" WHERE {} = 1", table_name, TOMBSTONE_COLUMN),
+            &format!(
+                "SELECT COUNT(*) FROM \"{}\" WHERE {} = 1",
+                table_name, TOMBSTONE_COLUMN
+            ),
             [],
             |row| row.get(0),
         )?;

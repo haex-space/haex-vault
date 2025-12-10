@@ -3,9 +3,7 @@
 
 use crate::crdt::trigger;
 use crate::database::error::DatabaseError;
-use crate::table_names::{
-    TABLE_CRDT_CONFIGS, TABLE_VAULT_SETTINGS,
-};
+use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_VAULT_SETTINGS};
 use rusqlite::{params, Connection};
 
 /// Scans the database for all tables that have a 'haex_tombstone' column
@@ -18,12 +16,10 @@ fn discover_crdt_tables(conn: &Connection) -> Result<Vec<String>, DatabaseError>
          WHERE m.type = 'table'
            AND p.name = 'haex_tombstone'
          GROUP BY m.name
-         ORDER BY m.name"
+         ORDER BY m.name",
     )?;
 
-    let tables: Result<Vec<String>, _> = stmt
-        .query_map([], |row| row.get(0))?
-        .collect();
+    let tables: Result<Vec<String>, _> = stmt.query_map([], |row| row.get(0))?.collect();
 
     Ok(tables?)
 }
@@ -40,9 +36,7 @@ pub fn ensure_triggers_initialized(conn: &mut Connection) -> Result<bool, Databa
     let tx = conn.transaction()?;
 
     // Check if triggers already initialized
-    let check_sql = format!(
-        "SELECT value FROM {TABLE_VAULT_SETTINGS} WHERE key = ? AND type = ?"
-    );
+    let check_sql = format!("SELECT value FROM {TABLE_VAULT_SETTINGS} WHERE key = ? AND type = ?");
     let initialized: Option<String> = tx
         .query_row(
             &check_sql,

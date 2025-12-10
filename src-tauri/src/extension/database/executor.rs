@@ -36,10 +36,9 @@ impl SqlExecutor {
                 })?;
 
         let mut modified_schema_tables = HashSet::new();
-        if let Some(table_name) = transformer.transform_execute_statement(
-            &mut statement,
-            &hlc_timestamp,
-        )? {
+        if let Some(table_name) =
+            transformer.transform_execute_statement(&mut statement, &hlc_timestamp)?
+        {
             modified_schema_tables.insert(table_name);
         }
 
@@ -50,12 +49,13 @@ impl SqlExecutor {
         eprintln!("DEBUG: [execute_internal_typed] Transformed execute SQL: {sql_str}");
 
         // Führe Statement aus
-        let rows_affected = tx.execute(&sql_str, params)
-            .map_err(|e| DatabaseError::ExecutionError {
-                sql: sql_str.clone(),
-                table: None,
-                reason: format!("Execute failed: {e}"),
-            })?;
+        let rows_affected =
+            tx.execute(&sql_str, params)
+                .map_err(|e| DatabaseError::ExecutionError {
+                    sql: sql_str.clone(),
+                    table: None,
+                    reason: format!("Execute failed: {e}"),
+                })?;
 
         eprintln!("DEBUG: [execute_internal_typed] Rows affected: {rows_affected}");
 
@@ -81,10 +81,9 @@ impl SqlExecutor {
                 })?;
 
         let mut modified_schema_tables = HashSet::new();
-        if let Some(table_name) = transformer.transform_execute_statement(
-            &mut statement,
-            &hlc_timestamp,
-        )? {
+        if let Some(table_name) =
+            transformer.transform_execute_statement(&mut statement, &hlc_timestamp)?
+        {
             modified_schema_tables.insert(table_name);
         }
 
@@ -110,13 +109,13 @@ impl SqlExecutor {
             .collect();
         let num_columns = column_names.len();
 
-        let mut rows = stmt
-            .query(params_from_iter(params.iter()))
-            .map_err(|e| DatabaseError::ExecutionError {
+        let mut rows = stmt.query(params_from_iter(params.iter())).map_err(|e| {
+            DatabaseError::ExecutionError {
                 sql: sql_str.clone(),
                 table: None,
                 reason: e.to_string(),
-            })?;
+            }
+        })?;
 
         let mut result_vec: Vec<Vec<JsonValue>> = Vec::new();
 

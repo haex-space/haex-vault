@@ -72,12 +72,15 @@ impl ExtensionWebviewManager {
                         _ => "",
                     }
                 });
-                let extension_info_str = serde_json::to_string(&extension_info)
-                    .map_err(|e| ExtensionError::ValidationError {
+                let extension_info_str = serde_json::to_string(&extension_info).map_err(|e| {
+                    ExtensionError::ValidationError {
                         reason: format!("Failed to serialize extension info: {}", e),
-                    })?;
-                let extension_info_base64 =
-                    base64::Engine::encode(&base64::engine::general_purpose::STANDARD, extension_info_str.as_bytes());
+                    }
+                })?;
+                let extension_info_base64 = base64::Engine::encode(
+                    &base64::engine::general_purpose::STANDARD,
+                    extension_info_str.as_bytes(),
+                );
 
                 #[cfg(target_os = "android")]
                 let host = "haex-extension.localhost";
@@ -85,7 +88,10 @@ impl ExtensionWebviewManager {
                 let host = "localhost";
 
                 let entry = extension.manifest.entry.as_deref().unwrap_or("index.html");
-                format!("{}://{}/{}/{}", protocol, host, extension_info_base64, entry)
+                format!(
+                    "{}://{}/{}/{}",
+                    protocol, host, extension_info_base64, entry
+                )
             }
             ExtensionSource::Development { dev_server_url, .. } => {
                 // Für Dev Extensions: direkt Dev-Server URL
@@ -99,11 +105,10 @@ impl ExtensionWebviewManager {
         eprintln!("Opening extension window: {} with URL: {}", window_id, url);
 
         // WebviewWindow erstellen
-        let webview_url = WebviewUrl::External(url.parse().map_err(|e| {
-            ExtensionError::ValidationError {
+        let webview_url =
+            WebviewUrl::External(url.parse().map_err(|e| ExtensionError::ValidationError {
                 reason: format!("Invalid URL: {}", e),
-            }
-        })?);
+            })?);
 
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         let mut builder = WebviewWindowBuilder::new(app_handle, &window_id, webview_url)
@@ -125,9 +130,11 @@ impl ExtensionWebviewManager {
         }
 
         // Fenster erstellen
-        let webview_window = builder.build().map_err(|e| ExtensionError::ValidationError {
-            reason: format!("Failed to create webview window: {}", e),
-        })?;
+        let webview_window = builder
+            .build()
+            .map_err(|e| ExtensionError::ValidationError {
+                reason: format!("Failed to create webview window: {}", e),
+            })?;
 
         // Event-Listener für das Schließen des Fensters registrieren
         let window_id_for_event = window_id.clone();
@@ -144,14 +151,18 @@ impl ExtensionWebviewManager {
                 }
 
                 // Emit event an Frontend, damit das Tracking aktualisiert wird
-                let _ = app_handle_for_event.emit(EVENT_EXTENSION_WINDOW_CLOSED, &window_id_for_event);
+                let _ =
+                    app_handle_for_event.emit(EVENT_EXTENSION_WINDOW_CLOSED, &window_id_for_event);
             }
         });
 
         // In Registry speichern
-        let mut windows = self.windows.lock().map_err(|e| ExtensionError::MutexPoisoned {
-            reason: e.to_string(),
-        })?;
+        let mut windows = self
+            .windows
+            .lock()
+            .map_err(|e| ExtensionError::MutexPoisoned {
+                reason: e.to_string(),
+            })?;
         windows.insert(window_id.clone(), extension_id.clone());
 
         eprintln!("Extension window opened successfully: {}", window_id);
@@ -164,9 +175,12 @@ impl ExtensionWebviewManager {
         app_handle: &AppHandle,
         window_id: &str,
     ) -> Result<(), ExtensionError> {
-        let mut windows = self.windows.lock().map_err(|e| ExtensionError::MutexPoisoned {
-            reason: e.to_string(),
-        })?;
+        let mut windows = self
+            .windows
+            .lock()
+            .map_err(|e| ExtensionError::MutexPoisoned {
+                reason: e.to_string(),
+            })?;
 
         if windows.remove(window_id).is_some() {
             drop(windows); // Release lock before potentially blocking operation
@@ -174,9 +188,11 @@ impl ExtensionWebviewManager {
             // Webview Window schließen (nur Desktop)
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             if let Some(window) = app_handle.get_webview_window(window_id) {
-                window.close().map_err(|e| ExtensionError::ValidationError {
-                    reason: format!("Failed to close window: {}", e),
-                })?;
+                window
+                    .close()
+                    .map_err(|e| ExtensionError::ValidationError {
+                        reason: format!("Failed to close window: {}", e),
+                    })?;
             }
             eprintln!("Extension window closed: {}", window_id);
             Ok(())
@@ -194,9 +210,12 @@ impl ExtensionWebviewManager {
         app_handle: &AppHandle,
         window_id: &str,
     ) -> Result<(), ExtensionError> {
-        let windows = self.windows.lock().map_err(|e| ExtensionError::MutexPoisoned {
-            reason: e.to_string(),
-        })?;
+        let windows = self
+            .windows
+            .lock()
+            .map_err(|e| ExtensionError::MutexPoisoned {
+                reason: e.to_string(),
+            })?;
 
         let exists = windows.contains_key(window_id);
         drop(windows); // Release lock
@@ -204,9 +223,11 @@ impl ExtensionWebviewManager {
         if exists {
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             if let Some(window) = app_handle.get_webview_window(window_id) {
-                window.set_focus().map_err(|e| ExtensionError::ValidationError {
-                    reason: format!("Failed to focus window: {}", e),
-                })?;
+                window
+                    .set_focus()
+                    .map_err(|e| ExtensionError::ValidationError {
+                        reason: format!("Failed to focus window: {}", e),
+                    })?;
                 // Zusätzlich nach vorne bringen
                 window.set_always_on_top(true).ok();
                 window.set_always_on_top(false).ok();
@@ -228,9 +249,12 @@ impl ExtensionWebviewManager {
         x: f64,
         y: f64,
     ) -> Result<(), ExtensionError> {
-        let windows = self.windows.lock().map_err(|e| ExtensionError::MutexPoisoned {
-            reason: e.to_string(),
-        })?;
+        let windows = self
+            .windows
+            .lock()
+            .map_err(|e| ExtensionError::MutexPoisoned {
+                reason: e.to_string(),
+            })?;
 
         let exists = windows.contains_key(window_id);
         drop(windows); // Release lock
@@ -265,9 +289,12 @@ impl ExtensionWebviewManager {
         width: f64,
         height: f64,
     ) -> Result<(), ExtensionError> {
-        let windows = self.windows.lock().map_err(|e| ExtensionError::MutexPoisoned {
-            reason: e.to_string(),
-        })?;
+        let windows = self
+            .windows
+            .lock()
+            .map_err(|e| ExtensionError::MutexPoisoned {
+                reason: e.to_string(),
+            })?;
 
         let exists = windows.contains_key(window_id);
         drop(windows); // Release lock
@@ -301,11 +328,18 @@ impl ExtensionWebviewManager {
         event: &str,
         payload: S,
     ) -> Result<(), ExtensionError> {
-        let windows = self.windows.lock().map_err(|e| ExtensionError::MutexPoisoned {
-            reason: e.to_string(),
-        })?;
+        let windows = self
+            .windows
+            .lock()
+            .map_err(|e| ExtensionError::MutexPoisoned {
+                reason: e.to_string(),
+            })?;
 
-        eprintln!("[Manager] Emitting event '{}' to {} webview windows", event, windows.len());
+        eprintln!(
+            "[Manager] Emitting event '{}' to {} webview windows",
+            event,
+            windows.len()
+        );
 
         // Iterate over all window IDs
         for window_id in windows.keys() {
@@ -314,8 +348,14 @@ impl ExtensionWebviewManager {
             if let Some(window) = app_handle.get_webview_window(window_id) {
                 // Emit event to this specific webview window
                 match window.emit(event, payload.clone()) {
-                    Ok(_) => eprintln!("[Manager] Successfully emitted event '{}' to window {}", event, window_id),
-                    Err(e) => eprintln!("[Manager] Failed to emit event {} to window {}: {}", event, window_id, e),
+                    Ok(_) => eprintln!(
+                        "[Manager] Successfully emitted event '{}' to window {}",
+                        event, window_id
+                    ),
+                    Err(e) => eprintln!(
+                        "[Manager] Failed to emit event {} to window {}: {}",
+                        event, window_id, e
+                    ),
                 }
             } else {
                 eprintln!("[Manager] Window not found: {}", window_id);

@@ -2,11 +2,7 @@ mod crdt;
 mod database;
 mod extension;
 mod shortcuts;
-use crate::{
-    crdt::hlc::HlcService,
-    database::DbConnection,
-    extension::core::ExtensionManager,
-};
+use crate::{crdt::hlc::HlcService, database::DbConnection, extension::core::ExtensionManager};
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use crate::extension::webview::ExtensionWebviewManager;
@@ -36,6 +32,12 @@ pub fn run() {
     use extension::core::EXTENSION_PROTOCOL_NAME;
 
     let mut builder = tauri::Builder::default();
+
+    // Biometry plugin (mobile only) - provides biometric auth + secure storage
+    #[cfg(mobile)]
+    {
+        builder = builder.plugin(tauri_plugin_biometry::init());
+    }
 
     // Single-instance plugin must be registered first (desktop only)
     // This handles deep-link URLs passed as CLI arguments when a new instance is launched

@@ -2,7 +2,9 @@
 // Testable permission checking logic without Tauri State dependencies
 
 use crate::extension::core::types::Extension;
-use crate::extension::permissions::types::{Action, DbAction, ExtensionPermission, PermissionStatus, ResourceType};
+use crate::extension::permissions::types::{
+    Action, DbAction, ExtensionPermission, PermissionStatus, ResourceType,
+};
 use crate::extension::utils;
 
 /// Testable permission checker that doesn't depend on Tauri State
@@ -59,7 +61,6 @@ impl PermissionChecker {
             .filter(|perm| matches_action(&perm.action, action))
             .any(|perm| matches_target(&perm.target, table_name))
     }
-
 }
 
 /// Checks if an action matches the required DbAction
@@ -104,5 +105,7 @@ pub(crate) fn matches_target(target: &str, table_name: &str) -> bool {
 
 /// Checks if a table is a system table
 pub(crate) fn is_system_table(table_name: &str) -> bool {
-    table_name.starts_with("haex_") || table_name == "sqlite_master" || table_name == "sqlite_sequence"
+    table_name.starts_with("haex_")
+        || table_name == "sqlite_master"
+        || table_name == "sqlite_sequence"
 }

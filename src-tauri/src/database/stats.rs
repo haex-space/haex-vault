@@ -384,11 +384,13 @@ fn get_tombstone_entries(
             break;
         }
 
-        let mut stmt = conn.prepare(&query).map_err(|e| DatabaseError::ExecutionError {
-            sql: query.clone(),
-            reason: e.to_string(),
-            table: Some(table.name.clone()),
-        })?;
+        let mut stmt = conn
+            .prepare(&query)
+            .map_err(|e| DatabaseError::ExecutionError {
+                sql: query.clone(),
+                reason: e.to_string(),
+                table: Some(table.name.clone()),
+            })?;
 
         let rows = stmt
             .query_map([remaining], |row| {
@@ -400,7 +402,10 @@ fn get_tombstone_entries(
                     }
                 }
                 let timestamp: String = row.get(pk_columns.len())?;
-                Ok((serde_json::to_string(&pk_values).unwrap_or_default(), timestamp))
+                Ok((
+                    serde_json::to_string(&pk_values).unwrap_or_default(),
+                    timestamp,
+                ))
             })
             .map_err(|e| DatabaseError::ExecutionError {
                 sql: "query tombstones".to_string(),
@@ -453,21 +458,20 @@ pub fn get_database_info(state: State<'_, AppState>) -> Result<DatabaseInfo, Dat
 
         for table in &table_stats {
             // Find which extension this table belongs to
-            let (key, ext_id, ext_name) = if let Some(ext) = find_extension_for_table(&table.name, &installed_extensions) {
-                (ext.id.clone(), Some(ext.id.clone()), ext.name.clone())
-            } else {
-                ("system".to_string(), None, "System".to_string())
-            };
+            let (key, ext_id, ext_name) =
+                if let Some(ext) = find_extension_for_table(&table.name, &installed_extensions) {
+                    (ext.id.clone(), Some(ext.id.clone()), ext.name.clone())
+                } else {
+                    ("system".to_string(), None, "System".to_string())
+                };
 
-            let ext_stats = extension_map.entry(key).or_insert_with(|| {
-                ExtensionStats {
-                    extension_id: ext_id,
-                    name: ext_name,
-                    tables: Vec::new(),
-                    total_rows: 0,
-                    active_rows: 0,
-                    tombstone_rows: 0,
-                }
+            let ext_stats = extension_map.entry(key).or_insert_with(|| ExtensionStats {
+                extension_id: ext_id,
+                name: ext_name,
+                tables: Vec::new(),
+                total_rows: 0,
+                active_rows: 0,
+                tombstone_rows: 0,
             });
 
             ext_stats.tables.push(table.clone());
