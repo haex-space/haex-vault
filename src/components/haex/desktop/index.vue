@@ -300,19 +300,11 @@ const handleRemoveExtension = async (deleteMode: 'device' | 'complete') => {
   const extensionId = extensionToRemove.value.id
 
   try {
-    // First remove from backend
-    await extensionsStore.removeExtensionAsync(
-      extensionToRemove.value.publicKey,
-      extensionToRemove.value.name,
-      extensionToRemove.value.version,
-      deleteMode === 'complete',
-    )
+    // Uninstall extension (handles dev/regular, reloads list)
+    await extensionsStore.uninstallExtensionAsync(extensionToRemove.value, deleteMode)
 
     // Then remove all desktop items for this extension
     await desktopStore.removeDesktopItemsByExtensionIdAsync(extensionId)
-
-    // Reload extensions list
-    await extensionsStore.loadExtensionsAsync()
   } catch (error) {
     console.error('Failed to remove extension:', error)
   }

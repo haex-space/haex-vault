@@ -79,22 +79,9 @@ const { add } = useToast()
 const { t } = useI18n()
 const extensionStore = useExtensionsStore()
 
-const removeExtensionAsync = async () => {
-  if (!extension?.id || !extension?.version) {
-    add({
-      color: 'error',
-      description: 'Erweiterung kann nicht gelöscht werden',
-    })
-    return
-  }
-
+const removeExtensionAsync = async (deleteMode: 'device' | 'complete') => {
   try {
-    await extensionStore.removeExtensionAsync(
-      extension.publicKey,
-      extension.name,
-      extension.version,
-    )
-    await extensionStore.loadExtensionsAsync()
+    await extensionStore.uninstallExtensionAsync(extension, deleteMode)
 
     add({
       color: 'success',

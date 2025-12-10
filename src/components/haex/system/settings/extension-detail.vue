@@ -41,7 +41,7 @@
               class="w-16 h-16 shrink-0 rounded-lg bg-base-200 flex items-center justify-center overflow-hidden"
             >
               <HaexIcon
-                :name="extension.icon || 'i-heroicons-puzzle-piece'"
+                :name="extension.iconUrl || 'i-heroicons-puzzle-piece'"
                 class="w-full h-full object-contain"
               />
             </div>
@@ -190,43 +190,17 @@
     </div>
 
     <!-- Remove Confirmation Dialog -->
-    <UModal v-model:open="removeDialogOpen">
-      <template #content>
-        <UCard>
-          <template #header>
-            <h3 class="text-lg font-semibold text-error">
-              {{ t('confirmRemove') }}
-            </h3>
-          </template>
-
-          <p>
-            {{ t('removeConfirmText', { name: extension.name }) }}
-          </p>
-
-          <template #footer>
-            <div class="flex justify-end gap-2">
-              <UiButton
-                :label="t('cancel')"
-                variant="outline"
-                @click="removeDialogOpen = false"
-              />
-              <UiButton
-                :label="t('remove')"
-                color="error"
-                :loading="removing"
-                @click="handleRemoveAsync"
-              />
-            </div>
-          </template>
-        </UCard>
-      </template>
-    </UModal>
+    <HaexExtensionDialogRemove
+      v-model:open="removeDialogOpen"
+      :extension="extension"
+      @confirm="handleRemoveAsync"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { invoke } from '@tauri-apps/api/core'
-import type { ExtensionInfoResponse } from '~~/src-tauri/bindings/ExtensionInfoResponse'
+import type { IHaexSpaceExtension } from '~/types/haexspace'
 import type { PermissionEntry } from '~~/src-tauri/bindings/PermissionEntry'
 import type { DisplayMode } from '~~/src-tauri/bindings/DisplayMode'
 
@@ -238,7 +212,7 @@ interface ExtensionPermissionsEditable {
 }
 
 const props = defineProps<{
-  extension: ExtensionInfoResponse
+  extension: IHaexSpaceExtension
 }>()
 
 const emit = defineEmits<{
@@ -301,7 +275,6 @@ const editablePermissions = ref<ExtensionPermissionsEditable>({
 
 // Remove dialog
 const removeDialogOpen = ref(false)
-const removing = ref(false)
 
 const hasAnyPermissions = computed(() => {
   return (
@@ -395,31 +368,14 @@ const confirmRemove = () => {
   removeDialogOpen.value = true
 }
 
-const handleRemoveAsync = async () => {
-  removing.value = true
+const handleRemoveAsync = async (deleteMode: 'device' | 'complete') => {
   try {
-    if (props.extension.devServerUrl) {
-      // Dev extension - use removeDevExtensionAsync
-      await extensionsStore.removeDevExtensionAsync(
-        props.extension.publicKey,
-        props.extension.name,
-      )
-    } else {
-      // Regular extension - use removeExtensionAsync
-      await extensionsStore.removeExtensionAsync(
-        props.extension.publicKey,
-        props.extension.name,
-        props.extension.version,
-      )
-    }
+    await extensionsStore.uninstallExtensionAsync(props.extension, deleteMode)
     add({ description: t('removeSuccess'), color: 'success' })
-    removeDialogOpen.value = false
     emit('removed')
   } catch (error) {
     console.error('Error removing extension:', error)
     add({ description: t('removeError'), color: 'error' })
-  } finally {
-    removing.value = false
   }
 }
 
@@ -463,10 +419,6 @@ de:
   removeWarning: Diese Aktion kann nicht rückgängig gemacht werden.
   removeDevWarning: Die Erweiterung wird aus der Liste entfernt. Du kannst sie jederzeit erneut verbinden.
   remove: Entfernen
-  confirmRemove: Erweiterung entfernen
-  removeConfirmText: Bist du sicher, dass du "{name}" entfernen möchtest? Alle Daten dieser Erweiterung werden gelöscht.
-  cancel: Abbrechen
-  devExtensionNote: Entwicklungs-Erweiterungen werden über den Dev-Server verwaltet und können hier nicht entfernt werden.
   permissionsLoadError: Fehler beim Laden der Berechtigungen
   permissionsSaved: Berechtigungen gespeichert
   permissionsSaveError: Fehler beim Speichern der Berechtigungen
@@ -506,10 +458,6 @@ en:
   removeWarning: This action cannot be undone.
   removeDevWarning: The extension will be removed from the list. You can reconnect it at any time.
   remove: Remove
-  confirmRemove: Remove Extension
-  removeConfirmText: Are you sure you want to remove "{name}"? All data for this extension will be deleted.
-  cancel: Cancel
-  devExtensionNote: Development extensions are managed via the dev server and cannot be removed here.
   permissionsLoadError: Error loading permissions
   permissionsSaved: Permissions saved
   permissionsSaveError: Error saving permissions

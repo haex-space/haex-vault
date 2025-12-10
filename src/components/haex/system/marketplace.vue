@@ -1,7 +1,9 @@
 <template>
   <HaexSystem :is-dragging="isDragging">
     <template #header>
-      <div class="flex flex-col @lg:flex-row @lg:items-center justify-between gap-4">
+      <div
+        class="flex flex-col @lg:flex-row @lg:items-center justify-between gap-4"
+      >
         <div>
           <h1 class="text-2xl font-bold">
             {{ t('title') }}
@@ -256,7 +258,9 @@ watch([debouncedSearch, selectedCategory], () => {
 })
 
 // Current extension being installed from marketplace
-const currentMarketplaceExtension = ref<MarketplaceExtensionViewModel | null>(null)
+const currentMarketplaceExtension = ref<MarketplaceExtensionViewModel | null>(
+  null,
+)
 const isDownloading = ref(false)
 
 // Reinstall mode: 'update' preserves data, 'reinstall' deletes everything
@@ -341,7 +345,9 @@ const onUpdateExtension = async (ext: MarketplaceExtensionViewModel) => {
 
 // Show extension details
 const showDetailsDialog = ref(false)
-const selectedExtensionForDetails = ref<MarketplaceExtensionViewModel | null>(null)
+const selectedExtensionForDetails = ref<MarketplaceExtensionViewModel | null>(
+  null,
+)
 
 const onShowExtensionDetails = (ext: MarketplaceExtensionViewModel) => {
   selectedExtensionForDetails.value = ext
@@ -396,9 +402,10 @@ const confirmInstallAsync = async (createDesktopShortcut: boolean = false) => {
   try {
     let installedExtensionId: string | undefined
 
-    const previewToUse = installSource.value === 'marketplace'
-      ? extensionStore.preview
-      : preview.value
+    const previewToUse =
+      installSource.value === 'marketplace'
+        ? extensionStore.preview
+        : preview.value
 
     const previewManifest = previewToUse?.manifest
 
@@ -406,14 +413,18 @@ const confirmInstallAsync = async (createDesktopShortcut: boolean = false) => {
       // Check if extension exists in DB (e.g., from sync) but not locally installed
       const existingExt = previewManifest
         ? extensionStore.availableExtensions.find(
-            (ext) => ext.publicKey === previewManifest.publicKey && ext.name === previewManifest.name,
+            (ext) =>
+              ext.publicKey === previewManifest.publicKey &&
+              ext.name === previewManifest.name,
           )
         : undefined
 
       if (existingExt) {
         // Extension exists in DB from sync - only install files
         console.log(`Extension exists in DB, installing files only`)
-        installedExtensionId = await extensionStore.installFilesAsync(existingExt.id)
+        installedExtensionId = await extensionStore.installFilesAsync(
+          existingExt.id,
+        )
       } else {
         // New extension - full installation (DB + files)
         installedExtensionId = await extensionStore.installPendingAsync(
@@ -424,14 +435,18 @@ const confirmInstallAsync = async (createDesktopShortcut: boolean = false) => {
       // Install from file - check same condition
       const existingExt = previewManifest
         ? extensionStore.availableExtensions.find(
-            (ext) => ext.publicKey === previewManifest.publicKey && ext.name === previewManifest.name,
+            (ext) =>
+              ext.publicKey === previewManifest.publicKey &&
+              ext.name === previewManifest.name,
           )
         : undefined
 
       if (existingExt) {
         // Extension exists in DB from sync - only install files
         console.log(`Extension exists in DB, installing files only`)
-        installedExtensionId = await extensionStore.installFilesAsync(existingExt.id)
+        installedExtensionId = await extensionStore.installFilesAsync(
+          existingExt.id,
+        )
       } else {
         // New extension - full installation
         installedExtensionId = await extensionStore.installAsync(
@@ -446,7 +461,10 @@ const confirmInstallAsync = async (createDesktopShortcut: boolean = false) => {
     // Automatically add extension to internal HaexVault desktop
     if (installedExtensionId) {
       try {
-        await useDesktopStore().addDesktopItemAsync('extension', installedExtensionId)
+        await useDesktopStore().addDesktopItemAsync(
+          'extension',
+          installedExtensionId,
+        )
       } catch (error) {
         // Ignore errors for dev extensions (they can't be persisted)
         if ((error as any)?.code !== 'DEV_EXTENSION_NOT_PERSISTABLE') {
@@ -475,9 +493,10 @@ const confirmInstallAsync = async (createDesktopShortcut: boolean = false) => {
       await loadExtensionsAsync()
     }
 
-    const extName = installSource.value === 'marketplace'
-      ? currentMarketplaceExtension.value?.name
-      : extension.manifest?.name
+    const extName =
+      installSource.value === 'marketplace'
+        ? currentMarketplaceExtension.value?.name
+        : extension.manifest?.name
 
     add({
       color: 'success',
@@ -511,9 +530,10 @@ const createNativeDesktopShortcut = async (extensionId: string) => {
 // Unified reinstall function that handles both file and marketplace sources
 const confirmReinstallAsync = async () => {
   try {
-    const previewToUse = installSource.value === 'marketplace'
-      ? extensionStore.preview
-      : preview.value
+    const previewToUse =
+      installSource.value === 'marketplace'
+        ? extensionStore.preview
+        : preview.value
 
     if (!previewToUse?.manifest) return
 
@@ -563,11 +583,7 @@ onMounted(async () => {
 })
 
 const removeExtensionAsync = async (deleteMode: 'device' | 'complete') => {
-  if (
-    !extensionToBeRemoved.value?.publicKey ||
-    !extensionToBeRemoved.value?.name ||
-    !extensionToBeRemoved.value?.version
-  ) {
+  if (!extensionToBeRemoved.value) {
     add({
       color: 'error',
       description: 'Erweiterung kann nicht gelöscht werden',
@@ -576,20 +592,16 @@ const removeExtensionAsync = async (deleteMode: 'device' | 'complete') => {
   }
 
   try {
-    await extensionStore.removeExtensionAsync(
-      extensionToBeRemoved.value.publicKey,
-      extensionToBeRemoved.value.name,
-      extensionToBeRemoved.value.version,
-      deleteMode === 'complete', // deleteData flag
+    // Uninstall extension (handles dev/regular, reloads installed list)
+    await extensionStore.uninstallExtensionAsync(
+      extensionToBeRemoved.value,
+      deleteMode,
     )
-    await extensionStore.loadExtensionsAsync()
 
-    // Refresh marketplace list to update installed status
-    await loadExtensionsAsync()
-
-    const successKey = deleteMode === 'complete'
-      ? 'extension.remove.success.complete'
-      : 'extension.remove.success.device'
+    const successKey =
+      deleteMode === 'complete'
+        ? 'extension.remove.success.complete'
+        : 'extension.remove.success.device'
 
     add({
       color: 'success',
