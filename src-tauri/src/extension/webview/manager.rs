@@ -321,6 +321,54 @@ impl ExtensionWebviewManager {
         }
     }
 
+    /// Closes all extension windows
+    /// Called when the main app window is closed or when the vault becomes unavailable
+    pub fn close_all_extension_windows(&self, app_handle: &AppHandle) -> Result<(), ExtensionError> {
+        let mut windows = self
+            .windows
+            .lock()
+            .map_err(|e| ExtensionError::MutexPoisoned {
+                reason: e.to_string(),
+            })?;
+
+        let window_ids: Vec<String> = windows.keys().cloned().collect();
+        let count = window_ids.len();
+
+        if count == 0 {
+            return Ok(());
+        }
+
+        eprintln!(
+            "[ExtensionWebviewManager] Closing all {} extension windows...",
+            count
+        );
+
+        // Clear the registry first
+        windows.clear();
+        drop(windows); // Release lock before closing windows
+
+        // Close all windows
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        for window_id in window_ids {
+            if let Some(window) = app_handle.get_webview_window(&window_id) {
+                if let Err(e) = window.close() {
+                    eprintln!(
+                        "[ExtensionWebviewManager] Failed to close window {}: {}",
+                        window_id, e
+                    );
+                } else {
+                    eprintln!(
+                        "[ExtensionWebviewManager] Closed extension window: {}",
+                        window_id
+                    );
+                }
+            }
+        }
+
+        eprintln!("[ExtensionWebviewManager] All extension windows closed");
+        Ok(())
+    }
+
     /// Emits an event to all extension webview windows
     pub fn emit_to_all_extensions<S: serde::Serialize + Clone>(
         &self,

@@ -41,6 +41,16 @@ export const useVaultStore = defineStore('vaultStore', () => {
     () => openVaults.value?.[currentVaultId.value ?? ''],
   )
 
+  // Watch for vault becoming unavailable (e.g., webview reload, explicit close)
+  // Close all extension windows when no vault is available
+  watch(currentVault, async (newVault) => {
+    if (!newVault) {
+      console.log('[VAULT STORE] No vault available, closing all extension windows...')
+      const windowManagerStore = useWindowManagerStore()
+      await windowManagerStore.closeAllExtensionWindowsAsync()
+    }
+  }, { immediate: true })
+
   // Vault password from the currently open vault
   // Used for sync key encryption/decryption and vault name updates on server
   const currentVaultPassword = computed(

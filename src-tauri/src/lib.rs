@@ -120,20 +120,37 @@ pub fn run() {
         .plugin(tauri_plugin_persisted_scope::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_deep_link::init())
-        // Auto-start browser bridge on desktop
+        // Auto-start browser bridge on desktop and register main window close handler
         .setup(|app| {
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             {
                 let app_handle = app.handle().clone();
+
+                // Auto-start browser bridge
+                let app_handle_for_bridge = app_handle.clone();
                 tauri::async_runtime::spawn(async move {
-                    let state = app_handle.state::<AppState>();
+                    let state = app_handle_for_bridge.state::<AppState>();
                     let mut bridge = state.browser_bridge.lock().await;
-                    if let Err(e) = bridge.start(app_handle.clone()).await {
+                    if let Err(e) = bridge.start(app_handle_for_bridge.clone()).await {
                         eprintln!("Failed to auto-start browser bridge: {}", e);
                     } else {
                         println!("Browser bridge auto-started on port 19455");
                     }
                 });
+
+                // Register main window close handler to close all extension windows
+                if let Some(main_window) = app.get_webview_window("main") {
+                    let app_handle_for_close = app_handle.clone();
+                    main_window.on_window_event(move |event| {
+                        if let tauri::WindowEvent::CloseRequested { .. } = event {
+                            eprintln!("[Main Window] Close requested, closing all extension windows...");
+                            let state = app_handle_for_close.state::<AppState>();
+                            if let Err(e) = state.extension_webview_manager.close_all_extension_windows(&app_handle_for_close) {
+                                eprintln!("[Main Window] Failed to close extension windows: {:?}", e);
+                            }
+                        }
+                    });
+                }
             }
             Ok(())
         })
@@ -198,6 +215,8 @@ pub fn run() {
             extension::update_extension_webview_window_position,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::update_extension_webview_window_size,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            extension::close_all_extension_webview_windows,
             // WebView API commands (for native window extensions, desktop only)
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::webview::web::webview_extension_get_info,

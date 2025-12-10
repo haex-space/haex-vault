@@ -483,7 +483,18 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       `[windowManager] Closing ${extensionWindows.length} extension window(s)...`,
     )
 
-    // Close all extension windows in parallel
+    // Desktop: Call backend to close all native extension windows
+    // This is more reliable than closing one by one, especially for webview reload scenarios
+    if (isDesktop()) {
+      try {
+        await invoke('close_all_extension_webview_windows')
+        console.log('[windowManager] Backend closed all native extension windows')
+      } catch (error) {
+        console.error('[windowManager] Failed to close native windows via backend:', error)
+      }
+    }
+
+    // Close all extension windows in parallel (for iframe-based windows on mobile or mixed scenarios)
     await Promise.all(
       extensionWindows.map(async (window) => {
         try {

@@ -700,3 +700,16 @@ pub fn update_extension_webview_window_size(
         .extension_webview_manager
         .update_extension_window_size(&app_handle, &window_id, width, height)
 }
+
+/// Close all extension webview windows.
+/// Called when the vault is closed or becomes unavailable (e.g., webview reload).
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+#[tauri::command]
+pub fn close_all_extension_webview_windows(
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), ExtensionError> {
+    state
+        .extension_webview_manager
+        .close_all_extension_windows(&app_handle)
+}
