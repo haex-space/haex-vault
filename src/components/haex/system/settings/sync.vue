@@ -76,20 +76,27 @@
       </UCard>
 
       <!-- Sync Backends List -->
-      <div v-if="!showAddBackendForm || syncBackends.length">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-semibold">{{ t('backends.title') }}</h3>
-          <UButton
-            v-if="!showAddBackendForm"
-            color="primary"
-            icon="i-lucide-plus"
-            @click="showAddBackendForm = true"
-          >
-            <span class="hidden @sm:inline">
-              {{ t('actions.add') }}
-            </span>
-          </UButton>
-        </div>
+      <UCard v-if="!showAddBackendForm || syncBackends.length">
+        <template #header>
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-lg font-semibold">{{ t('backends.title') }}</h3>
+              <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                {{ t('backends.description') }}
+              </p>
+            </div>
+            <UButton
+              v-if="!showAddBackendForm"
+              color="primary"
+              icon="i-lucide-plus"
+              @click="showAddBackendForm = true"
+            >
+              <span class="hidden @sm:inline">
+                {{ t('actions.add') }}
+              </span>
+            </UButton>
+          </div>
+        </template>
 
         <div
           v-if="syncBackends.length"
@@ -104,7 +111,14 @@
             @toggle="toggleBackendAsync"
           />
         </div>
-      </div>
+
+        <div
+          v-else
+          class="text-center py-4 text-gray-500 dark:text-gray-400"
+        >
+          {{ t('backends.noBackends') }}
+        </div>
+      </UCard>
 
       <!-- Sync Configuration -->
       <UCard>
@@ -792,6 +806,8 @@ de:
     connecting: Verbindung wird hergestellt...
   backends:
     title: Sync-Backends
+    description: Verbundene Server für die Synchronisation deiner Daten
+    noBackends: Keine Sync-Backends konfiguriert
     enabled: Aktiviert
     disabled: Deaktiviert
     connected: Verbunden
@@ -878,6 +894,8 @@ en:
     connecting: Connecting...
   backends:
     title: Sync Backends
+    description: Connected servers for syncing your data
+    noBackends: No sync backends configured
     enabled: Enabled
     disabled: Disabled
     connected: Connected
