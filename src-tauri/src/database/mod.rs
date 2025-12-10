@@ -551,6 +551,10 @@ pub fn open_encrypted_database(
 
     initialize_session(&app_handle, &vault_path, &key, &state)?;
 
+    // Apply any pending migrations to bring existing vaults up to date
+    println!("[OPEN_DB] Checking for pending migrations...");
+    crate::database::migrations::apply_core_migrations(app_handle, state)?;
+
     println!("[OPEN_DB] ✅ Vault opened successfully");
     Ok(format!("Vault '{vault_path}' opened successfully"))
 }

@@ -178,54 +178,52 @@ export const useSyncOrchestratorStore = defineStore(
     }
 
     /**
-     * Handles dirty tables event from Rust - triggers sync based on configuration
+     * Handles dirty tables event from Rust - triggers push with debounce
+     * This runs in parallel with periodic pulls
      */
     const onDirtyTablesChangedAsync = async (): Promise<void> => {
       const config = syncConfigStore.config
-      log.debug(`DIRTY_TABLES: Event received (mode: ${config.mode})`)
+      log.debug('DIRTY_TABLES: Event received, scheduling push...')
 
-      if (config.mode === 'continuous') {
-        // In continuous mode, debounce to batch rapid changes
-        if (dirtyTablesDebounceTimer) {
-          log.debug('DIRTY_TABLES: Resetting debounce timer')
-          clearTimeout(dirtyTablesDebounceTimer)
-        }
-
-        dirtyTablesDebounceTimer = setTimeout(async () => {
-          log.info('DIRTY_TABLES: Debounce timer elapsed, triggering sync...')
-          await onLocalWriteAsync()
-          dirtyTablesDebounceTimer = null
-        }, config.continuousDebounceMs)
+      // Debounce to batch rapid changes before pushing
+      if (dirtyTablesDebounceTimer) {
+        log.debug('DIRTY_TABLES: Resetting debounce timer')
+        clearTimeout(dirtyTablesDebounceTimer)
       }
-      // In periodic mode, do nothing - the interval will handle it
+
+      dirtyTablesDebounceTimer = setTimeout(async () => {
+        log.info('DIRTY_TABLES: Debounce timer elapsed, triggering push...')
+        await onLocalWriteAsync()
+        dirtyTablesDebounceTimer = null
+      }, config.continuousDebounceMs)
     }
 
     /**
-     * Starts the dirty tables watcher based on sync configuration
+     * Starts sync watchers:
+     * - Push: Listens for dirty tables and pushes local changes with debounce
+     * - Fallback Pull: Periodically fetches to catch missed realtime updates
      */
     const startDirtyTablesWatcherAsync = async (): Promise<void> => {
-      log.info('WATCHER: Starting dirty tables watcher...')
+      log.info('WATCHER: Starting sync watchers...')
       stopDirtyTablesWatcher()
 
       const config = syncConfigStore.config
       log.debug('WATCHER: Config:', config)
 
-      // Listen to Tauri event from Rust
+      // Start push watcher: Listen to dirty tables events
       eventUnlisten = await listen('crdt:dirty-tables-changed', async () => {
         await onDirtyTablesChangedAsync()
       })
+      log.info(`WATCHER: Push started (debounce: ${config.continuousDebounceMs}ms)`)
 
-      log.info(`WATCHER: Started in ${config.mode} mode`)
-
-      if (config.mode === 'periodic') {
-        // In periodic mode, sync at regular intervals
-        periodicSyncInterval = setInterval(async () => {
-          log.debug('WATCHER: Periodic sync timer elapsed')
-          await onLocalWriteAsync()
-        }, config.periodicIntervalMs)
-
-        log.info(`WATCHER: Periodic interval set to ${config.periodicIntervalMs}ms`)
-      }
+      // Start fallback pull: Catch missed realtime updates
+      periodicSyncInterval = setInterval(async () => {
+        log.debug('WATCHER: Fallback pull timer elapsed')
+        await onLocalWriteAsync()
+      }, config.periodicIntervalMs)
+      log.info(
+        `WATCHER: Fallback pull started (interval: ${config.periodicIntervalMs}ms)`,
+      )
     }
 
     /**

@@ -1,9 +1,11 @@
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod browser_bridge;
 mod crdt;
 mod database;
 mod extension;
 mod shortcuts;
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 use crate::browser_bridge::BrowserBridge;
 use crate::{crdt::hlc::HlcService, database::DbConnection, extension::core::ExtensionManager};
 
@@ -118,6 +120,23 @@ pub fn run() {
         .plugin(tauri_plugin_persisted_scope::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_deep_link::init())
+        // Auto-start browser bridge on desktop
+        .setup(|app| {
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            {
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    let state = app_handle.state::<AppState>();
+                    let mut bridge = state.browser_bridge.lock().await;
+                    if let Err(e) = bridge.start(app_handle.clone()).await {
+                        eprintln!("Failed to auto-start browser bridge: {}", e);
+                    } else {
+                        println!("Browser bridge auto-started on port 19455");
+                    }
+                });
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             database::create_encrypted_database,
             database::delete_vault,

@@ -75,7 +75,7 @@
         </template>
       </UCard>
 
-      <!-- Sync Backends List -->
+      <!-- Sync Backends List (merged with Vault Overview) -->
       <UCard v-if="!showAddBackendForm || syncBackends.length">
         <template #header>
           <div class="flex items-center justify-between">
@@ -106,10 +106,156 @@
             v-for="backend in syncBackends"
             :key="backend.id"
             :backend="backend"
-            :sync-state="getSyncState(backend.id)"
-            show-toggle
-            @toggle="toggleBackendAsync"
-          />
+          >
+            <template #badges>
+              <UBadge
+                :color="backend.enabled ? 'success' : 'neutral'"
+                variant="subtle"
+                size="xs"
+              >
+                {{ backend.enabled ? t('backends.enabled') : t('backends.disabled') }}
+              </UBadge>
+              <UBadge
+                v-if="getSyncState(backend.id)?.isConnected"
+                color="info"
+                variant="subtle"
+                size="xs"
+              >
+                {{ t('backends.connected') }}
+              </UBadge>
+              <UBadge
+                v-else-if="getSyncState(backend.id)?.isSyncing"
+                color="warning"
+                variant="subtle"
+                size="xs"
+              >
+                {{ t('backends.syncing') }}
+              </UBadge>
+            </template>
+            <template #actions>
+              <UButton
+                size="sm"
+                :color="backend.enabled ? 'neutral' : 'primary'"
+                @click="toggleBackendAsync(backend.id)"
+              >
+                {{ backend.enabled ? t('actions.disable') : t('actions.enable') }}
+              </UButton>
+            </template>
+
+            <!-- Server Vaults for this backend -->
+            <template
+              v-if="getGroupedVaults(backend.id)"
+              #default
+            >
+              <!-- Loading state -->
+              <div
+                v-if="getGroupedVaults(backend.id)?.isLoading"
+                class="flex items-center justify-center py-4"
+              >
+                <UIcon
+                  name="i-lucide-loader-2"
+                  class="w-5 h-5 animate-spin text-primary"
+                />
+              </div>
+
+              <!-- Error state -->
+              <div
+                v-else-if="getGroupedVaults(backend.id)?.error"
+                class="text-center text-red-500 text-sm py-4"
+              >
+                {{ getGroupedVaults(backend.id)?.error }}
+              </div>
+
+              <!-- No vaults -->
+              <div
+                v-else-if="getGroupedVaults(backend.id)?.vaults.length === 0"
+                class="space-y-4"
+              >
+                <p class="text-center text-gray-500 dark:text-gray-400 text-sm py-4">
+                  {{ t('vaultOverview.noVaults') }}
+                </p>
+
+                <!-- Re-Upload option when current vault is missing on server -->
+                <div
+                  v-if="getGroupedVaults(backend.id)?.currentVaultMissingOnServer"
+                  class="space-y-3"
+                >
+                  <UAlert
+                    color="warning"
+                    icon="i-lucide-alert-triangle"
+                    :title="t('reUpload.warning.title')"
+                    :description="t('reUpload.warning.description')"
+                  />
+                  <div class="flex justify-end">
+                    <UButton
+                      color="primary"
+                      icon="i-lucide-upload"
+                      :loading="isReUploading"
+                      :disabled="isReUploading"
+                      @click="prepareReUpload(backend)"
+                    >
+                      {{ t('reUpload.button') }}
+                    </UButton>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Vaults list -->
+              <div
+                v-else
+                class="space-y-2"
+              >
+                <div
+                  v-for="vault in getGroupedVaults(backend.id)?.vaults"
+                  :key="vault.vaultId"
+                  class="flex flex-col gap-2 p-3 rounded-lg"
+                  :class="
+                    vault.vaultId === currentVaultId
+                      ? 'bg-primary/10 border border-primary/20'
+                      : 'bg-gray-50 dark:bg-gray-800/50'
+                  "
+                >
+                  <div class="flex flex-col @xs:flex-row @xs:items-center @xs:justify-between gap-2">
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <p class="font-medium text-sm truncate">
+                          {{
+                            vault.decryptedName ||
+                            t('vaultOverview.encryptedName')
+                          }}
+                        </p>
+                        <UBadge
+                          v-if="vault.vaultId === currentVaultId"
+                          color="primary"
+                          variant="subtle"
+                          size="xs"
+                        >
+                          {{ t('vaultOverview.currentVault') }}
+                        </UBadge>
+                      </div>
+                      <p
+                        class="text-xs text-gray-500 dark:text-gray-400 mt-1"
+                      >
+                        {{ t('vaultOverview.createdAt') }}:
+                        {{ formatDate(vault.createdAt) }}
+                      </p>
+                    </div>
+                    <!-- Delete button -->
+                    <div class="@xs:shrink-0 w-full @xs:w-auto">
+                      <UButton
+                        color="error"
+                        variant="ghost"
+                        icon="i-lucide-trash-2"
+                        size="lg"
+                        class="w-full @xs:w-auto justify-center"
+                        @click="prepareDeleteServerVault(backend, vault)"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </HaexSyncBackendItem>
         </div>
 
         <div
@@ -127,252 +273,86 @@
             <h3 class="text-lg font-semibold">
               {{ t('config.title') }}
             </h3>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {{ t('config.description') }}
-            </p>
           </div>
         </template>
 
-        <div class="space-y-6">
-          <!-- Sync Mode Selection -->
-          <div>
-            <label class="block text-sm font-medium mb-2">
-              {{ t('config.mode.label') }}
-            </label>
-            <URadioGroup
-              v-model="syncMode"
-              :options="syncModeOptions"
-              @update:model-value="onSyncModeChangeAsync"
-            />
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              {{
-                syncMode === 'continuous'
-                  ? t('config.mode.continuous.description')
-                  : t('config.mode.periodic.description')
-              }}
-            </p>
-          </div>
-
-          <!-- Continuous Mode Settings -->
-          <div v-if="syncMode === 'continuous'">
-            <label class="block text-sm font-medium mb-2">
-              {{ t('config.debounce.label') }}
-            </label>
-            <div class="flex items-center gap-3">
-              <UInput
-                v-model.number="continuousDebounceMs"
-                type="number"
-                :min="100"
-                :max="10000"
-                :step="100"
-                class="w-32"
-              />
-              <span class="text-sm text-gray-500">ms</span>
-            </div>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              {{ t('config.debounce.description') }}
-            </p>
-            <UButton
-              v-if="continuousDebounceMs !== syncConfig.continuousDebounceMs"
-              size="xs"
-              class="mt-2"
-              @click="saveContinuousDebounceAsync"
-            >
-              {{ t('config.save') }}
-            </UButton>
-          </div>
-
-          <!-- Periodic Mode Settings -->
-          <div v-if="syncMode === 'periodic'">
-            <label class="block text-sm font-medium mb-2">
-              {{ t('config.interval.label') }}
-            </label>
-            <div class="flex items-center gap-3">
-              <UInput
-                v-model.number="periodicIntervalMs"
-                type="number"
-                :min="5000"
-                :max="3600000"
-                :step="1000"
-                class="w-32"
-              />
-              <span class="text-sm text-gray-500">ms</span>
-              <span class="text-sm text-gray-500"
-                >({{ Math.round(periodicIntervalMs / 1000) }}s)</span
-              >
-            </div>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              {{ t('config.interval.description') }}
-            </p>
-            <UButton
-              v-if="periodicIntervalMs !== syncConfig.periodicIntervalMs"
-              size="xs"
-              class="mt-2"
-              @click="savePeriodicIntervalAsync"
-            >
-              {{ t('config.save') }}
-            </UButton>
-          </div>
-        </div>
-      </UCard>
-
-      <!-- Vault Overview -->
-      <div v-if="syncBackends.length">
-        <div class="mb-4">
-          <h3 class="text-lg font-semibold">
-            {{ t('vaultOverview.title') }}
-          </h3>
-          <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            {{ t('vaultOverview.description') }}
-          </p>
-        </div>
-
-        <!-- Overall loading state -->
-        <div
-          v-if="isLoadingAllServerVaults"
-          class="flex items-center justify-center py-8"
+        <UTabs
+          v-model="activeConfigTab"
+          :items="configTabItems"
         >
-          <UIcon
-            name="i-lucide-loader-2"
-            class="w-8 h-8 animate-spin text-primary"
-          />
-        </div>
-
-        <!-- Backend cards with vaults -->
-        <div
-          v-else-if="groupedServerVaults.length"
-          class="space-y-3"
-        >
-          <HaexSyncBackendItem
-            v-for="group in groupedServerVaults"
-            :key="group.backend.id"
-            :backend="group.backend"
-            :sync-state="getSyncState(group.backend.id)"
-            :loading="group.isLoading"
-            :error="group.error"
-            :count="group.vaults.length"
-          >
-            <!-- Error state -->
+          <template #content="{ item }">
+            <!-- Continuous Sync Settings (Push) -->
             <div
-              v-if="group.error"
-              class="text-center text-red-500 text-sm py-4"
+              v-if="item.value === 'continuous'"
+              class="pt-4"
             >
-              {{ group.error }}
-            </div>
-
-            <!-- No vaults -->
-            <div
-              v-else-if="group.vaults.length === 0"
-              class="space-y-4"
-            >
-              <p class="text-center text-gray-500 dark:text-gray-400 text-sm py-4">
-                {{ t('vaultOverview.noVaults') }}
+              <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                {{ t('config.continuous.description') }}
               </p>
-
-              <!-- Re-Upload option when current vault is missing on server -->
-              <div
-                v-if="group.currentVaultMissingOnServer"
-                class="space-y-3"
-              >
-                <UAlert
-                  color="warning"
-                  icon="i-lucide-alert-triangle"
-                  :title="t('reUpload.warning.title')"
-                  :description="t('reUpload.warning.description')"
+              <label class="block text-sm font-medium mb-2">
+                {{ t('config.debounce.label') }}
+              </label>
+              <div class="flex items-center gap-3">
+                <UInput
+                  v-model.number="continuousDebounceSec"
+                  type="number"
+                  :min="0.1"
+                  :max="30"
+                  :step="0.5"
+                  class="w-24"
                 />
-                <div class="flex justify-end">
-                  <UButton
-                    color="primary"
-                    icon="i-lucide-upload"
-                    :loading="isReUploading"
-                    :disabled="isReUploading"
-                    @click="prepareReUpload(group.backend)"
-                  >
-                    {{ t('reUpload.button') }}
-                  </UButton>
-                </div>
+                <span class="text-sm text-gray-500">{{ t('config.units.seconds') }}</span>
               </div>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                {{ t('config.debounce.hint') }}
+              </p>
+              <UButton
+                v-if="continuousDebounceSec !== syncConfig.continuousDebounceMs / 1000"
+                size="xs"
+                class="mt-2"
+                @click="saveContinuousDebounceAsync"
+              >
+                {{ t('config.save') }}
+              </UButton>
             </div>
 
-            <!-- Vaults list -->
+            <!-- Periodic Sync Settings (Pull) -->
             <div
-              v-else
-              class="space-y-2"
+              v-if="item.value === 'periodic'"
+              class="pt-4"
             >
-              <div
-                v-for="vault in group.vaults"
-                :key="vault.vaultId"
-                class="flex flex-col gap-2 p-3 rounded-lg"
-                :class="
-                  vault.vaultId === currentVaultId
-                    ? 'bg-primary/10 border border-primary/20'
-                    : 'bg-gray-50 dark:bg-gray-800/50'
-                "
-              >
-                <div class="flex flex-col @xs:flex-row @xs:items-center @xs:justify-between gap-2">
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 flex-wrap">
-                      <p class="font-medium text-sm truncate">
-                        {{
-                          vault.decryptedName ||
-                          t('vaultOverview.encryptedName')
-                        }}
-                      </p>
-                      <UBadge
-                        v-if="vault.vaultId === currentVaultId"
-                        color="primary"
-                        variant="subtle"
-                        size="xs"
-                      >
-                        {{ t('vaultOverview.currentVault') }}
-                      </UBadge>
-                    </div>
-                    <p
-                      class="text-xs text-gray-500 dark:text-gray-400 mt-1"
-                    >
-                      {{ t('vaultOverview.createdAt') }}:
-                      {{ formatDate(vault.createdAt) }}
-                    </p>
-                  </div>
-                  <!-- Button: visible on larger screens -->
-                  <div class="hidden @xs:block shrink-0">
-                    <UButton
-                      size="xs"
-                      color="error"
-                      variant="ghost"
-                      icon="i-lucide-trash-2"
-                      @click="prepareDeleteServerVault(group.backend, vault)"
-                    >
-                      {{
-                        vault.vaultId === currentVaultId
-                          ? t('actions.deleteWithSync')
-                          : t('actions.delete')
-                      }}
-                    </UButton>
-                  </div>
-                </div>
-                <!-- Button: visible on small screens, full width -->
-                <div class="@xs:hidden">
-                  <UButton
-                    size="xs"
-                    color="error"
-                    variant="ghost"
-                    icon="i-lucide-trash-2"
-                    class="w-full"
-                    @click="prepareDeleteServerVault(group.backend, vault)"
-                  >
-                    {{
-                      vault.vaultId === currentVaultId
-                        ? t('actions.deleteWithSync')
-                        : t('actions.delete')
-                    }}
-                  </UButton>
-                </div>
+              <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                {{ t('config.periodic.description') }}
+              </p>
+              <label class="block text-sm font-medium mb-2">
+                {{ t('config.interval.label') }}
+              </label>
+              <div class="flex items-center gap-3">
+                <UInput
+                  v-model.number="periodicIntervalMin"
+                  type="number"
+                  :min="1"
+                  :max="60"
+                  :step="1"
+                  class="w-24"
+                />
+                <span class="text-sm text-gray-500">{{ t('config.units.minutes') }}</span>
               </div>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                {{ t('config.interval.hint') }}
+              </p>
+              <UButton
+                v-if="periodicIntervalMin !== syncConfig.periodicIntervalMs / 60000"
+                size="xs"
+                class="mt-2"
+                @click="savePeriodicIntervalAsync"
+              >
+                {{ t('config.save') }}
+              </UButton>
             </div>
-          </HaexSyncBackendItem>
-        </div>
-      </div>
+          </template>
+        </UTabs>
+      </UCard>
 
     </div>
 
@@ -474,47 +454,34 @@ interface GroupedServerVaults {
 }
 
 const groupedServerVaults = ref<GroupedServerVaults[]>([])
-const isLoadingAllServerVaults = ref(false)
+
+// Helper to get grouped vaults for a specific backend
+const getGroupedVaults = (backendId: string) => {
+  return groupedServerVaults.value.find((g) => g.backend.id === backendId)
+}
 
 // Sync configuration
-const syncMode = ref(syncConfig.value.mode)
-const continuousDebounceMs = ref(syncConfig.value.continuousDebounceMs)
-const periodicIntervalMs = ref(syncConfig.value.periodicIntervalMs)
+const activeConfigTab = ref('continuous')
+// UI uses seconds for debounce, minutes for interval - convert from ms
+const continuousDebounceSec = ref(syncConfig.value.continuousDebounceMs / 1000)
+const periodicIntervalMin = ref(syncConfig.value.periodicIntervalMs / 60000)
 
-const syncModeOptions = computed(() => [
+const configTabItems = computed(() => [
   {
     value: 'continuous',
-    label: t('config.mode.continuous.label'),
+    label: t('config.continuous.label'),
   },
   {
     value: 'periodic',
-    label: t('config.mode.periodic.label'),
+    label: t('config.periodic.label'),
   },
 ])
 
-const onSyncModeChangeAsync = async (mode: string) => {
-  try {
-    if (mode !== 'continuous' && mode !== 'periodic') {
-      throw new Error(`Invalid sync mode: ${mode}`)
-    }
-    await syncConfigStore.saveConfigAsync({ mode })
-    add({
-      color: 'success',
-      description: t('config.saveSuccess'),
-    })
-  } catch (error) {
-    console.error('Failed to save sync mode:', error)
-    add({
-      color: 'error',
-      description: t('config.saveError'),
-    })
-  }
-}
-
 const saveContinuousDebounceAsync = async () => {
   try {
+    // Convert seconds to milliseconds for storage
     await syncConfigStore.saveConfigAsync({
-      continuousDebounceMs: continuousDebounceMs.value,
+      continuousDebounceMs: Math.round(continuousDebounceSec.value * 1000),
     })
     add({
       color: 'success',
@@ -531,8 +498,9 @@ const saveContinuousDebounceAsync = async () => {
 
 const savePeriodicIntervalAsync = async () => {
   try {
+    // Convert minutes to milliseconds for storage
     await syncConfigStore.saveConfigAsync({
-      periodicIntervalMs: periodicIntervalMs.value,
+      periodicIntervalMs: Math.round(periodicIntervalMin.value * 60000),
     })
     add({
       color: 'success',
@@ -716,8 +684,6 @@ const loadAllServerVaultsAsync = async () => {
     return
   }
 
-  isLoadingAllServerVaults.value = true
-
   // Initialize grouped vaults structure
   groupedServerVaults.value = syncBackends.value.map((backend) => ({
     backend,
@@ -750,8 +716,6 @@ const loadAllServerVaultsAsync = async () => {
       }
     }),
   )
-
-  isLoadingAllServerVaults.value = false
 }
 
 // Auto-load vaults on mount
@@ -926,21 +890,21 @@ de:
     syncing: Synchronisiert
   config:
     title: Sync-Konfiguration
-    description: Lege fest, wie und wann Änderungen synchronisiert werden
-    mode:
-      label: Sync-Modus
-      continuous:
-        label: Kontinuierlich
-        description: Änderungen werden sofort nach einer kurzen Verzögerung synchronisiert (empfohlen)
-      periodic:
-        label: Periodisch
-        description: Änderungen werden in festen Zeitintervallen synchronisiert (datensparsam)
+    continuous:
+      label: Push
+      description: Lokale Änderungen werden nach einer kurzen Verzögerung an den Server gesendet.
+    periodic:
+      label: Fallback-Pull
+      description: Änderungen werden normalerweise in Echtzeit empfangen. Der periodische Pull holt verpasste Änderungen nach, falls die Verbindung kurzzeitig unterbrochen war.
     debounce:
       label: Verzögerung
-      description: Wartezeit nach der letzten Änderung, bevor synchronisiert wird
+      hint: Wartezeit nach der letzten Änderung, bevor gesendet wird
     interval:
-      label: Sync-Intervall
-      description: Zeitabstand zwischen automatischen Synchronisationen
+      label: Abruf-Intervall
+      hint: Zeitabstand zwischen automatischen Fallback-Abrufen
+    units:
+      seconds: Sekunden
+      minutes: Minuten
     save: Speichern
     saveSuccess: Einstellungen gespeichert
     saveError: Fehler beim Speichern der Einstellungen
@@ -959,8 +923,6 @@ de:
     localhost: Lokal (localhost:3002)
     custom: Benutzerdefiniert...
   vaultOverview:
-    title: Vault-Übersicht
-    description: Hier siehst du alle Vaults, die auf den Sync Servern gespeichert sind. Du kannst verwaiste Vaults löschen, auf die du lokal keinen Zugriff mehr hast.
     encryptedName: Verschlüsselter Name
     createdAt: Erstellt am
     noVaults: Keine Vaults auf dem Server gefunden
@@ -1024,21 +986,21 @@ en:
     syncing: Syncing
   config:
     title: Sync Configuration
-    description: Configure how and when changes are synchronized
-    mode:
-      label: Sync Mode
-      continuous:
-        label: Continuous
-        description: Changes are synchronized immediately after a short delay (recommended)
-      periodic:
-        label: Periodic
-        description: Changes are synchronized at fixed intervals (data-saving)
+    continuous:
+      label: Push
+      description: Local changes are sent to the server after a short delay.
+    periodic:
+      label: Fallback Pull
+      description: Changes are normally received in real-time. The periodic pull catches up on missed changes if the connection was briefly interrupted.
     debounce:
       label: Delay
-      description: Wait time after the last change before synchronizing
+      hint: Wait time after the last change before sending
     interval:
-      label: Sync Interval
-      description: Time between automatic synchronizations
+      label: Fetch Interval
+      hint: Time between automatic fallback fetches
+    units:
+      seconds: seconds
+      minutes: minutes
     save: Save
     saveSuccess: Settings saved
     saveError: Error saving settings

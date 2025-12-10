@@ -1,30 +1,29 @@
 /**
  * Sync Configuration Store - Manages global sync behavior settings
- * Controls how and when sync operations are triggered
+ *
+ * Sync mechanisms:
+ * - Push: Local changes are pushed to the server after a debounce delay
+ * - Realtime: Changes from other devices are received instantly via subscription
+ * - Fallback Pull: Periodic fetch to catch missed changes if connection was interrupted
  */
 
 import { haexVaultSettings } from '@/database/schemas/haex'
 import { eq } from 'drizzle-orm'
 
-export type SyncMode = 'continuous' | 'periodic'
-
 // Setting keys as constants
 export const SYNC_SETTING_KEYS = {
-  MODE: 'sync_mode',
   CONTINUOUS_DEBOUNCE_MS: 'sync_continuous_debounce_ms',
   PERIODIC_INTERVAL_MS: 'sync_periodic_interval_ms',
 } as const
 
 export interface SyncConfig {
-  mode: SyncMode
-  continuousDebounceMs: number // Debounce time in continuous mode to batch rapid changes
-  periodicIntervalMs: number // Interval for periodic sync mode
+  continuousDebounceMs: number // Debounce time before pushing local changes
+  periodicIntervalMs: number // Interval for pulling remote changes
 }
 
 export const DEFAULT_SYNC_CONFIG: SyncConfig = {
-  mode: 'continuous',
-  continuousDebounceMs: 1000, // Wait 1s after last change before syncing (batch rapid changes)
-  periodicIntervalMs: 30000, // Sync every 30 seconds in periodic mode
+  continuousDebounceMs: 1000, // Wait 1s after last change before pushing
+  periodicIntervalMs: 300000, // Pull every 5 minutes (300000ms)
 }
 
 export const useSyncConfigStore = defineStore('syncConfigStore', () => {
@@ -39,21 +38,7 @@ export const useSyncConfigStore = defineStore('syncConfigStore', () => {
       const db = vaultStore.currentVault?.drizzle
       if (!db) return
 
-      // Load sync mode
-      const modeResult = await db
-        .select()
-        .from(haexVaultSettings)
-        .where(eq(haexVaultSettings.key, SYNC_SETTING_KEYS.MODE))
-        .limit(1)
-
-      if (modeResult.length > 0 && modeResult[0]) {
-        const mode = modeResult[0].value
-        if (mode === 'continuous' || mode === 'periodic') {
-          config.value.mode = mode
-        }
-      }
-
-      // Load continuous debounce
+      // Load continuous debounce (push delay)
       const debounceResult = await db
         .select()
         .from(haexVaultSettings)
@@ -67,7 +52,7 @@ export const useSyncConfigStore = defineStore('syncConfigStore', () => {
         }
       }
 
-      // Load periodic interval
+      // Load periodic interval (pull interval)
       const intervalResult = await db
         .select()
         .from(haexVaultSettings)
@@ -88,6 +73,39 @@ export const useSyncConfigStore = defineStore('syncConfigStore', () => {
   }
 
   /**
+   * Upsert helper - SQLite doesn't support qualified column names in ON CONFLICT
+   * So we do a manual check: update if exists, insert if not
+   */
+  const upsertSettingAsync = async (
+    db: NonNullable<typeof vaultStore.currentVault>['drizzle'],
+    key: string,
+    value: string,
+  ): Promise<void> => {
+    // Check if setting exists
+    const existing = await db
+      .select()
+      .from(haexVaultSettings)
+      .where(eq(haexVaultSettings.key, key))
+      .limit(1)
+
+    if (existing.length > 0) {
+      // Update existing
+      await db
+        .update(haexVaultSettings)
+        .set({ value })
+        .where(eq(haexVaultSettings.key, key))
+    } else {
+      // Insert new
+      await db.insert(haexVaultSettings).values({
+        id: crypto.randomUUID(),
+        key,
+        value,
+        type: 'system',
+      })
+    }
+  }
+
+  /**
    * Saves sync configuration to database settings
    */
   const saveConfigAsync = async (
@@ -102,50 +120,21 @@ export const useSyncConfigStore = defineStore('syncConfigStore', () => {
       // Update local config
       config.value = { ...config.value, ...newConfig }
 
-      // Save each setting
-      if (newConfig.mode !== undefined) {
-        await db
-          .insert(haexVaultSettings)
-          .values({
-            id: crypto.randomUUID(),
-            key: SYNC_SETTING_KEYS.MODE,
-            value: newConfig.mode,
-            type: 'system',
-          })
-          .onConflictDoUpdate({
-            target: haexVaultSettings.key,
-            set: { value: newConfig.mode },
-          })
-      }
-
+      // Save each setting using manual upsert
       if (newConfig.continuousDebounceMs !== undefined) {
-        await db
-          .insert(haexVaultSettings)
-          .values({
-            id: crypto.randomUUID(),
-            key: SYNC_SETTING_KEYS.CONTINUOUS_DEBOUNCE_MS,
-            value: newConfig.continuousDebounceMs.toString(),
-            type: 'system',
-          })
-          .onConflictDoUpdate({
-            target: haexVaultSettings.key,
-            set: { value: newConfig.continuousDebounceMs.toString() },
-          })
+        await upsertSettingAsync(
+          db,
+          SYNC_SETTING_KEYS.CONTINUOUS_DEBOUNCE_MS,
+          newConfig.continuousDebounceMs.toString(),
+        )
       }
 
       if (newConfig.periodicIntervalMs !== undefined) {
-        await db
-          .insert(haexVaultSettings)
-          .values({
-            id: crypto.randomUUID(),
-            key: SYNC_SETTING_KEYS.PERIODIC_INTERVAL_MS,
-            value: newConfig.periodicIntervalMs.toString(),
-            type: 'system',
-          })
-          .onConflictDoUpdate({
-            target: haexVaultSettings.key,
-            set: { value: newConfig.periodicIntervalMs.toString() },
-          })
+        await upsertSettingAsync(
+          db,
+          SYNC_SETTING_KEYS.PERIODIC_INTERVAL_MS,
+          newConfig.periodicIntervalMs.toString(),
+        )
       }
 
       console.log('Saved sync config:', config.value)
