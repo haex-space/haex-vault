@@ -472,6 +472,34 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     return currentWorkspaceWindows.value.filter((w) => w.isMinimized)
   })
 
+  /**
+   * Closes all extension windows (both native and iframe-based)
+   * Called when the vault is closed or becomes unavailable
+   */
+  const closeAllExtensionWindowsAsync = async () => {
+    const extensionWindows = windows.value.filter((w) => w.type === 'extension')
+
+    console.log(
+      `[windowManager] Closing ${extensionWindows.length} extension window(s)...`,
+    )
+
+    // Close all extension windows in parallel
+    await Promise.all(
+      extensionWindows.map(async (window) => {
+        try {
+          await closeWindow(window.id)
+        } catch (error) {
+          console.error(
+            `Failed to close extension window ${window.id}:`,
+            error,
+          )
+        }
+      }),
+    )
+
+    console.log('[windowManager] All extension windows closed')
+  }
+
   // Desktop: Listen for native window close events from Tauri
   // Backend is source of truth, frontend is read-only mirror for tracking
   let _unlistenWindowClosed: UnlistenFn | null = null
@@ -503,6 +531,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
   return {
     activateWindow,
     activeWindowId,
+    closeAllExtensionWindowsAsync,
     closeWindow,
     currentWorkspaceWindows,
     draggingWindowId,

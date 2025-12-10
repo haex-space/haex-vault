@@ -263,6 +263,10 @@ export const useVaultStore = defineStore('vaultStore', () => {
   const closeAsync = async () => {
     if (!currentVaultId.value) return
 
+    // Close all extension windows before closing the vault
+    const windowManagerStore = useWindowManagerStore()
+    await windowManagerStore.closeAllExtensionWindowsAsync()
+
     // Removing vault from openVaults also clears the password from memory
     delete openVaults.value?.[currentVaultId.value]
   }
