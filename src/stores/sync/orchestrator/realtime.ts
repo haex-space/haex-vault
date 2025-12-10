@@ -133,23 +133,24 @@ export const subscribeToBackendAsync = async (
     // Ensure auth token is set for realtime connection
     const token = await syncEngineStore.getAuthTokenAsync()
     if (token) {
-      log.debug('SUBSCRIBE: Setting auth token for realtime connection')
+      log.info('SUBSCRIBE: Setting auth token for realtime connection')
       client.realtime.setAuth(token)
     } else {
-      log.warn('SUBSCRIBE: No auth token available for realtime connection')
+      log.error('SUBSCRIBE: No auth token available for realtime connection - subscription will likely fail')
     }
 
     // The sync_changes table is partitioned by vault_id
     // Each partition is named: sync_changes_<vault_id_with_underscores>
     // We need to subscribe to the specific partition, not the parent table
     const partitionName = `sync_changes_${backend.vaultId.replace(/-/g, '_')}`
-    log.debug(`SUBSCRIBE: Creating channel for partition ${partitionName}`)
+    const channelName = `sync_changes:${backend.vaultId}`
+    log.info(`SUBSCRIBE: Creating channel "${channelName}" for partition "${partitionName}"`)
 
     // Subscribe to the vault's specific partition
     // Listen to both INSERT and UPDATE (UPSERT triggers UPDATE for existing records)
     // Note: No filter needed since each partition only contains data for one vault_id
     const channel = client
-      .channel(`sync_changes:${backend.vaultId}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -189,14 +190,15 @@ export const subscribeToBackendAsync = async (
         },
       )
       .subscribe((status, err) => {
-        log.info(`SUBSCRIBE: Channel status changed to ${status}`, err ? `Error: ${err.message}` : '')
+        log.info(`SUBSCRIBE: Channel status changed to ${status}`, err ? `Error: ${JSON.stringify(err)}` : '')
         if (status === 'SUBSCRIBED') {
           state.isConnected = true
           log.info(`SUBSCRIBE: Successfully subscribed to backend ${backendId}`)
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           state.isConnected = false
-          state.error = `Subscription error: ${status}`
-          log.error(`SUBSCRIBE: Subscription to backend ${backendId} failed: ${status}`, err)
+          const errorDetails = err ? JSON.stringify(err) : 'unknown'
+          state.error = `Subscription error: ${status} - ${errorDetails}`
+          log.error(`SUBSCRIBE: Subscription to backend ${backendId} failed: ${status}`, errorDetails)
         } else if (status === 'CLOSED') {
           state.isConnected = false
           log.warn(`SUBSCRIBE: Channel closed for backend ${backendId}`)
