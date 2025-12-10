@@ -104,8 +104,8 @@
               >
                 <div class="flex items-center justify-between w-full gap-4">
                   <div class="flex items-center gap-2">
-                    <UIcon
-                      :name="item.extensionId ? 'i-heroicons-puzzle-piece' : 'i-heroicons-cog-6-tooth'"
+                    <HaexIcon
+                      :name="item.iconUrl || (item.extensionId ? 'i-heroicons-puzzle-piece' : 'i-heroicons-cog-6-tooth')"
                       class="w-5 h-5"
                     />
                     <span class="font-medium">{{ item.label }}</span>
@@ -317,6 +317,7 @@ import type { DatabaseInfo } from '~~/src-tauri/bindings/DatabaseInfo'
 const { t } = useI18n()
 const { add } = useToast()
 const vaultSettingsStore = useVaultSettingsStore()
+const extensionsStore = useExtensionsStore()
 
 const isLoading = ref(true)
 const dbInfo = ref<DatabaseInfo | null>(null)
@@ -343,14 +344,22 @@ const retentionOptions = [
 const extensionItems = computed(() => {
   if (!dbInfo.value) return []
 
-  return dbInfo.value.extensions.map((ext) => ({
-    label: ext.name,
-    extensionId: ext.extensionId,
-    tableCount: ext.tables.length,
-    activeRows: ext.activeRows,
-    tombstoneRows: ext.tombstoneRows,
-    tables: ext.tables,
-  }))
+  return dbInfo.value.extensions.map((ext) => {
+    // Find the extension in the store to get its icon
+    const storeExtension = ext.extensionId
+      ? extensionsStore.availableExtensions.find((e) => e.id === ext.extensionId)
+      : null
+
+    return {
+      label: ext.name,
+      extensionId: ext.extensionId,
+      iconUrl: storeExtension?.iconUrl,
+      tableCount: ext.tables.length,
+      activeRows: ext.activeRows,
+      tombstoneRows: ext.tombstoneRows,
+      tables: ext.tables,
+    }
+  })
 })
 
 const formatTableName = (name: string): string => {
