@@ -11,7 +11,7 @@
 
     <!-- Drawer Content -->
     <template #content>
-      <div class="p-6 flex flex-col h-full max-h-[95vh]">
+      <div class="p-6 pb-[calc(2rem+env(safe-area-inset-bottom))] flex flex-col h-full max-h-[95vh]">
         <!-- Custom Header or default title -->
         <div class="shrink-0 mb-4">
           <slot name="header">
