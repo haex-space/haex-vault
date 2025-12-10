@@ -43,7 +43,7 @@ const isBundledIcon = computed(() => {
 
 // Check if it's already a URL (no conversion needed)
 const isUrl = computed(() => {
-  return props.name.startsWith('http://') || props.name.startsWith('https://')
+  return props.name.startsWith('http://') || props.name.startsWith('https://') || props.name.startsWith('asset://')
 })
 
 // Convert file path to Tauri URL for images
