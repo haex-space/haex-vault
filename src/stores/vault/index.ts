@@ -94,16 +94,31 @@ export const useVaultStore = defineStore('vaultStore', () => {
             continue
           }
 
-          // Attempt login with saved credentials
-          const { error } = await syncEngineStore.supabaseClient.auth.signInWithPassword({
-            email: backend.email,
-            password: backend.password,
+          // Attempt login via server-side endpoint (bypasses Turnstile)
+          const loginResponse = await fetch(`${backend.serverUrl}/auth/login`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: backend.email,
+              password: backend.password,
+            }),
           })
 
-          if (error) {
-            console.error(`[HaexSpace] Auto-login failed for ${backend.name}:`, error.message)
+          if (!loginResponse.ok) {
+            const errorData = await loginResponse.json().catch(() => ({ error: 'Unknown error' }))
+            console.error(`[HaexSpace] Auto-login failed for ${backend.name}:`, errorData.error)
             continue
           }
+
+          const loginData = await loginResponse.json()
+
+          // Set the session from the server response
+          await syncEngineStore.supabaseClient.auth.setSession({
+            access_token: loginData.access_token,
+            refresh_token: loginData.refresh_token,
+          })
 
           console.log(`[HaexSpace] ✅ Auto-login successful for ${backend.name}`)
 

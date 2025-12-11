@@ -369,25 +369,42 @@ const loginAsync = async () => {
     }
 
     const serverInfo = await response.json()
+
+    // 2. Sign in via server-side endpoint (bypasses Turnstile captcha)
+    const loginResponse = await fetch(`${credentials.value.serverUrl}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: credentials.value.email,
+        password: credentials.value.password,
+      }),
+    })
+
+    if (!loginResponse.ok) {
+      const errorData = await loginResponse.json()
+      throw new Error(errorData.error || 'Login failed')
+    }
+
+    const loginData = await loginResponse.json()
+
+    // 3. Create Supabase client and set session from server response
     supabaseClient.value = createClient(
       serverInfo.supabaseUrl,
       serverInfo.supabaseAnonKey,
     )
 
-    // 2. Sign in
-    const { error } = await supabaseClient.value.auth.signInWithPassword({
-      email: credentials.value.email,
-      password: credentials.value.password,
+    // Set the session from the server response
+    await supabaseClient.value.auth.setSession({
+      access_token: loginData.access_token,
+      refresh_token: loginData.refresh_token,
     })
 
-    if (error) {
-      throw new Error(error.message)
-    }
-
-    // 3. Load available vaults
+    // 4. Load available vaults
     await loadVaultsAsync()
 
-    // 4. Move to next step
+    // 5. Move to next step
     currentStepIndex.value = 1
   } catch (error) {
     console.error('Login failed:', error)

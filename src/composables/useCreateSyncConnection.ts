@@ -86,20 +86,34 @@ export const useCreateSyncConnection = () => {
         console.log('[SYNC] Initializing Supabase client...')
         await syncEngineStore.initSupabaseClientAsync(backendId)
 
-        // 3. Verify credentials by signing in
+        // 3. Verify credentials by signing in via server-side endpoint (bypasses Turnstile)
         if (!syncEngineStore.supabaseClient) {
           throw new Error('Supabase client not initialized')
         }
 
-        const { error: signInError } =
-          await syncEngineStore.supabaseClient.auth.signInWithPassword({
+        const loginResponse = await fetch(`${credentials.serverUrl}/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
             email: credentials.email,
             password: credentials.password,
-          })
+          }),
+        })
 
-        if (signInError) {
-          throw new Error(`Authentication failed: ${signInError.message}`)
+        if (!loginResponse.ok) {
+          const errorData = await loginResponse.json()
+          throw new Error(`Authentication failed: ${errorData.error || 'Unknown error'}`)
         }
+
+        const loginData = await loginResponse.json()
+
+        // Set the session from the server response
+        await syncEngineStore.supabaseClient.auth.setSession({
+          access_token: loginData.access_token,
+          refresh_token: loginData.refresh_token,
+        })
 
         console.log('[SYNC] Credentials verified successfully')
 
