@@ -182,10 +182,10 @@
 <script setup lang="ts">
 import { createClient } from '@supabase/supabase-js'
 import {
-  decryptStringAsync,
-  deriveKeyFromPasswordAsync,
+  decryptString,
+  deriveKeyFromPassword,
   base64ToArrayBuffer,
-} from '~/utils/crypto/vaultKey'
+} from '@haex-space/vault-sdk'
 import { createConnectWizardSchema } from './connectWizardSchema'
 
 const { t } = useI18n()
@@ -451,11 +451,11 @@ const loadVaultsAsync = async () => {
     for (const vault of availableVaults.value) {
       try {
         const vaultNameSalt = base64ToArrayBuffer(vault.vaultNameSalt)
-        const derivedKey = await deriveKeyFromPasswordAsync(
+        const derivedKey = await deriveKeyFromPassword(
           credentials.value.password, // Server password
           vaultNameSalt,
         )
-        const decryptedName = await decryptStringAsync(
+        const decryptedName = await decryptString(
           vault.encryptedVaultName,
           vault.vaultNameNonce,
           derivedKey,

@@ -277,6 +277,10 @@ pub fn execute_sql_with_context(
 /// 3. Executes each statement with CRDT support
 /// 4. Sets up triggers for CREATE TABLE (if not dev mode)
 ///
+/// Note: This function is idempotent for schema changes:
+/// - "duplicate column" errors from ALTER TABLE ADD COLUMN are ignored
+/// - "table already exists" errors from CREATE TABLE are ignored
+///
 /// Returns the number of statements executed.
 pub fn execute_migration_statements(
     ctx: &ExtensionSqlContext,
@@ -295,7 +299,26 @@ pub fn execute_migration_statements(
         validate_sql_table_prefix(ctx, statement)?;
 
         // Execute statement with CRDT support and trigger creation
-        execute_sql_with_context(ctx, statement, &[], state)?;
+        // Ignore idempotent errors (duplicate column, table already exists)
+        match execute_sql_with_context(ctx, statement, &[], state) {
+            Ok(_) => {}
+            Err(ExtensionError::Database { source }) => {
+                let error_msg = format!("{:?}", source);
+                // Check for idempotent schema errors that can be safely ignored
+                if error_msg.contains("duplicate column name")
+                    || error_msg.contains("table") && error_msg.contains("already exists")
+                {
+                    println!(
+                        "[MIGRATION] Skipping already-applied schema change: {}",
+                        statement.chars().take(80).collect::<String>()
+                    );
+                    continue;
+                }
+                // Re-throw other database errors
+                return Err(ExtensionError::Database { source });
+            }
+            Err(e) => return Err(e),
+        }
     }
 
     Ok(statements.len())

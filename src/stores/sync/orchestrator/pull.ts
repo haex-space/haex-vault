@@ -5,7 +5,7 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import { emit } from '@tauri-apps/api/event'
-import { decryptCrdtDataAsync } from '~/utils/crypto/vaultKey'
+import { decryptCrdtData } from '@haex-space/vault-sdk'
 import type { ColumnChange } from '../tableScanner'
 import { log, type BackendSyncState, type PullResult } from './types'
 
@@ -369,7 +369,7 @@ export const applyRemoteChangesInTransactionAsync = async (
     let decryptedValue
     if (change.encryptedValue && change.nonce) {
       try {
-        const decryptedData = await decryptCrdtDataAsync<{ value: unknown }>(
+        const decryptedData = await decryptCrdtData<{ value: unknown }>(
           change.encryptedValue,
           change.nonce,
           vaultKey,

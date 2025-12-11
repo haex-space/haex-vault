@@ -7,16 +7,16 @@ import { createClient } from '@supabase/supabase-js'
 import { eq } from 'drizzle-orm'
 import { haexSyncBackends } from '~/database/schemas'
 import {
-  encryptVaultKeyAsync,
-  decryptVaultKeyAsync,
-  encryptCrdtDataAsync,
-  decryptCrdtDataAsync,
+  encryptVaultKey,
+  decryptVaultKey,
+  encryptCrdtData,
+  decryptCrdtData,
   generateVaultKey,
-  deriveKeyFromPasswordAsync,
-  encryptStringAsync,
+  deriveKeyFromPassword,
+  encryptString,
   base64ToArrayBuffer,
   arrayBufferToBase64,
-} from '~/utils/crypto/vaultKey'
+} from '@haex-space/vault-sdk'
 
 /**
  * Type for CRDT change entries used in sync operations
@@ -149,14 +149,14 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     }
 
     // Encrypt vault key with vault password
-    const encryptedVaultKeyData = await encryptVaultKeyAsync(vaultKey, vaultPassword)
+    const encryptedVaultKeyData = await encryptVaultKey(vaultKey, vaultPassword)
 
     // Generate separate salt for vault name encryption (server password)
     const vaultNameSalt = crypto.getRandomValues(new Uint8Array(32))
-    const derivedServerKey = await deriveKeyFromPasswordAsync(serverPassword, vaultNameSalt)
+    const derivedServerKey = await deriveKeyFromPassword(serverPassword, vaultNameSalt)
 
     // Encrypt vault name with server password derived key
-    const encryptedVaultNameData = await encryptStringAsync(
+    const encryptedVaultNameData = await encryptString(
       vaultName,
       derivedServerKey,
     )
@@ -253,7 +253,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     const data = await response.json()
 
     // Decrypt vault key using vaultKeySalt
-    const vaultKey = await decryptVaultKeyAsync(
+    const vaultKey = await decryptVaultKey(
       data.vaultKey.encryptedVaultKey,
       data.vaultKey.vaultKeySalt,
       data.vaultKey.vaultKeyNonce,
@@ -302,7 +302,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       // Remove deviceId before encrypting - it's sent separately
       const { deviceId, ...changeWithoutDeviceId } = change
 
-      const { encryptedData, nonce } = await encryptCrdtDataAsync(
+      const { encryptedData, nonce } = await encryptCrdtData(
         changeWithoutDeviceId,
         vaultKey,
       )
@@ -392,7 +392,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     const decryptedLogs: CrdtChange[] = []
     for (const change of data.changes) {
       try {
-        const decrypted = await decryptCrdtDataAsync<CrdtChange>(
+        const decrypted = await decryptCrdtData<CrdtChange>(
           change.encryptedData,
           change.nonce,
           vaultKey,
@@ -518,7 +518,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
 
     const data = await response.json()
 
-    return decryptVaultKeyAsync(
+    return decryptVaultKey(
       data.vaultKey.encryptedVaultKey,
       data.vaultKey.vaultKeySalt,
       data.vaultKey.vaultKeyNonce,
@@ -736,10 +736,10 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
 
     // Derive key from server password using vaultNameSalt
     const vaultNameSalt = base64ToArrayBuffer(vaultNameSaltBase64)
-    const derivedKey = await deriveKeyFromPasswordAsync(serverPassword, vaultNameSalt)
+    const derivedKey = await deriveKeyFromPassword(serverPassword, vaultNameSalt)
 
     // Encrypt new vault name with new nonce
-    const encryptedVaultNameData = await encryptStringAsync(
+    const encryptedVaultNameData = await encryptString(
       newVaultName,
       derivedKey,
     )
@@ -800,7 +800,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       }
 
       // Re-encrypt the vault key with the new password (generates new salt and nonce)
-      const encryptedVaultKeyData = await encryptVaultKeyAsync(vaultKey, newPassword)
+      const encryptedVaultKeyData = await encryptVaultKey(vaultKey, newPassword)
 
       // Send PATCH request to update the encrypted vault key on server
       const response = await fetch(

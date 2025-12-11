@@ -6,7 +6,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import type { ColumnInfo } from '@bindings/ColumnInfo'
 import type { DirtyTable } from '@bindings/DirtyTable'
-import { encryptCrdtDataAsync } from '~/utils/crypto/vaultKey'
+import { encryptCrdtData } from '@haex-space/vault-sdk'
 import tableNames from '@/database/tableNames.json'
 
 const CRDT_COLUMNS = tableNames.crdt.columns
@@ -197,7 +197,7 @@ export async function scanTableForChangesAsync(
         // Encrypt the column value (wrap in object for encryptCrdtDataAsync)
         const value = row[col.name]
         const valueObject = { value }
-        const { encryptedData, nonce } = await encryptCrdtDataAsync(
+        const { encryptedData, nonce } = await encryptCrdtData(
           valueObject as object,
           vaultKey,
         )

@@ -390,6 +390,11 @@
 
 <script setup lang="ts">
 import type { SelectHaexSyncBackends } from '~/database/schemas'
+import {
+  decryptString,
+  deriveKeyFromPassword,
+  base64ToArrayBuffer,
+} from '@haex-space/vault-sdk'
 
 const { t } = useI18n()
 const { add } = useToast()
@@ -645,20 +650,14 @@ const loadVaultsForBackendAsync = async (
 
     // Try to decrypt vault names if backend has password
     if (backend.password) {
-      const {
-        decryptStringAsync,
-        deriveKeyFromPasswordAsync,
-        base64ToArrayBuffer,
-      } = await import('~/utils/crypto/vaultKey')
-
       for (const vault of vaults) {
         try {
           const salt = base64ToArrayBuffer(vault.vaultNameSalt)
-          const derivedKey = await deriveKeyFromPasswordAsync(
+          const derivedKey = await deriveKeyFromPassword(
             backend.password,
             salt,
           )
-          const decryptedName = await decryptStringAsync(
+          const decryptedName = await decryptString(
             vault.encryptedVaultName,
             vault.vaultNameNonce,
             derivedKey,
