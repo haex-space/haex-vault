@@ -3,6 +3,7 @@ import {
   integer,
   sqliteTable,
   text,
+  uniqueIndex,
   type AnySQLiteColumn,
 } from 'drizzle-orm/sqlite-core'
 import tableNames from '@/database/tableNames.json'
@@ -105,12 +106,18 @@ export const haexCrdtMigrations = sqliteTable(
       (): AnySQLiteColumn => haexExtensions.id,
       { onDelete: 'cascade' },
     ),
-    migrationName: text(crdtTableNames.migrations.columns.migrationName)
-      .notNull()
-      .unique(),
+    migrationName: text(crdtTableNames.migrations.columns.migrationName).notNull(),
     migrationContent: text(crdtTableNames.migrations.columns.migrationContent).notNull(),
     appliedAt: text(crdtTableNames.migrations.columns.appliedAt).notNull(),
   },
+  (table) => [
+    // Unique index on (extensionId, migrationName) - each extension can have its own migrations
+    // Core migrations have extensionId = NULL, extension migrations have their extension_id
+    uniqueIndex('haex_crdt_migrations_ext_name_unique').on(
+      table.extensionId,
+      table.migrationName,
+    ),
+  ],
 )
 export type InsertHaexCrdtMigrations = typeof haexCrdtMigrations.$inferInsert
 export type SelectHaexCrdtMigrations = typeof haexCrdtMigrations.$inferSelect
