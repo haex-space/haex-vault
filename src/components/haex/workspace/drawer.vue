@@ -1,5 +1,7 @@
 <template>
+  <!-- Hide workspace drawer on small screens - workspaces are desktop-only -->
   <UiDrawer
+    v-if="!isSmallScreen"
     v-model:open="isOverviewMode"
     direction="left"
     :overlay="false"
@@ -36,7 +38,9 @@
 const { t } = useI18n()
 
 const workspaceStore = useWorkspaceStore()
+const uiStore = useUiStore()
 const { workspaces, isOverviewMode } = storeToRefs(workspaceStore)
+const { isSmallScreen } = storeToRefs(uiStore)
 
 const handleAddWorkspaceAsync = async () => {
   const workspace = await workspaceStore.addWorkspaceAsync()

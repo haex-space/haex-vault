@@ -26,7 +26,7 @@
               icon="i-bi-person-workspace"
               size="lg"
               :tooltip="t('workspaces.label')"
-              @click="isOverviewMode = !isOverviewMode"
+              @click="toggleOverview"
             />
           </div>
 
@@ -38,15 +38,6 @@
               v-else
               class="flex flex-row gap-2"
             >
-              <UButton
-                v-if="openWindowsCount > 0"
-                color="primary"
-                variant="outline"
-                size="lg"
-                @click="showWindowOverview = !showWindowOverview"
-              >
-                {{ openWindowsCount }}
-              </UButton>
               <HaexExtensionLauncher />
             </div>
           </div>
@@ -76,11 +67,15 @@ const onSelectLocale = async (locale: Locale) => {
 }
 
 const { currentVaultId } = storeToRefs(useVaultStore())
-const { showWindowOverview, openWindowsCount } = storeToRefs(
-  useWindowManagerStore(),
-)
+const windowManager = useWindowManagerStore()
+const workspaceStore = useWorkspaceStore()
 
-const { isOverviewMode } = storeToRefs(useWorkspaceStore())
+// Toggle combined overview (workspace sidebar + window overview)
+const toggleOverview = () => {
+  const newState = !windowManager.showWindowOverview
+  windowManager.showWindowOverview = newState
+  workspaceStore.isOverviewMode = newState
+}
 
 // Measure header height and store it in UI store
 const headerEl = useTemplateRef('headerEl')
