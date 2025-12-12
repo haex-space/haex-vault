@@ -48,7 +48,6 @@
               :id="`window-preview-${window.id}`"
               class="relative bg-gray-100 dark:bg-gray-900 rounded-xl overflow-hidden border-2 border-gray-200 dark:border-gray-700 group-hover:border-primary-500 transition-all shadow-lg"
               :style="getCardStyle(window)"
-              @click="handleRestoreAndActivateWindow(window.id)"
             >
               <!-- Native Window Placeholder (no live preview available) -->
               <div
@@ -61,6 +60,11 @@
                 />
                 <span class="text-sm font-medium">{{ t('nativeWindow') }}</span>
               </div>
+              <!-- Click capture layer - captures clicks above teleported iframe content -->
+              <div
+                class="absolute inset-0 z-50 cursor-pointer"
+                @click="handleRestoreAndActivateWindow(window.id)"
+              />
               <!-- Hover Overlay -->
               <div
                 class="absolute inset-0 bg-primary-500/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-40"
