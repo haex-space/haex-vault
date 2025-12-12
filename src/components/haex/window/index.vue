@@ -4,8 +4,9 @@
     :style="windowStyle"
     :class="[
       'absolute bg-default/80 backdrop-blur-xl rounded-lg shadow-xl overflow-hidden',
-      'transition-all ease-out duration-600',
       'flex flex-col @container',
+      // Only apply transition when NOT dragging/resizing for smooth animations
+      isResizingOrDragging ? '' : 'transition-all ease-out duration-300',
       { 'select-none': isResizingOrDragging },
       isActive ? 'z-20' : 'z-10',
       // Border colors based on warning level
@@ -22,6 +23,8 @@
     <div
       ref="titlebarEl"
       class="grid grid-cols-3 items-center px-3 py-1 bg-white/80 dark:bg-gray-800/80 border-b border-gray-200/50 dark:border-gray-700/50 cursor-move select-none touch-none"
+      @mousedown="handleDragStart"
+      @touchstart.passive="handleDragStart"
       @dblclick="handleMaximize"
     >
       <!-- Left: Icon -->
@@ -51,7 +54,7 @@
         />
 
         <HaexWindowButton
-          v-if="!isSmallScreen && !viewportTooSmall"
+          v-if="!isMaximized || (!isSmallScreen && !viewportTooSmall)"
           :is-maximized
           variant="maximize"
           @click.stop="handleMaximize"
@@ -96,7 +99,7 @@ const props = defineProps<{
   sourceHeight?: number
   isOpening?: boolean
   isClosing?: boolean
-  warningLevel?: 'warning' | 'danger' // Warning indicator (e.g., dev extension, dangerous permissions)
+  warningLevel?: 'warning' | 'danger'
 }>()
 
 const emit = defineEmits<{
@@ -151,10 +154,25 @@ const preMaximizeState = ref({
   height: height.value,
 })
 
+// Keep maximized window in sync with viewport size
+watch(
+  () => [viewportSize?.width.value, viewportSize?.height.value],
+  () => {
+    if (isMaximized.value && viewportSize) {
+      x.value = 0
+      y.value = 0
+      width.value = viewportSize.width.value
+      height.value = getAvailableContentHeight()
+    }
+  },
+)
+
 // Dragging state
 const isDragging = ref(false)
-const dragStartX = ref(0)
-const dragStartY = ref(0)
+const dragStartMouseX = ref(0)
+const dragStartMouseY = ref(0)
+const dragStartWindowX = ref(0)
+const dragStartWindowY = ref(0)
 
 // Resizing state
 const isResizing = ref(false)
@@ -170,60 +188,92 @@ const isResizingOrDragging = computed(
   () => isResizing.value || isDragging.value,
 )
 
-// Setup drag with useDrag composable (supports mouse + touch)
-useDrag(
-  ({ movement: [mx, my], first, last }) => {
-    // Disable dragging on small screens (always fullscreen)
-    if (isMaximized.value || isSmallScreen.value) return
+// Drag start handler
+const handleDragStart = (e: MouseEvent | TouchEvent) => {
+  // Disable dragging when maximized or on small screens
+  if (isMaximized.value || isSmallScreen.value) return
 
-    if (first) {
-      // Drag started - save initial position
-      isDragging.value = true
-      dragStartX.value = x.value
-      dragStartY.value = y.value
-      emit('dragStart')
-      return // Don't update position on first event
-    }
+  // Don't start drag on button clicks
+  if ((e.target as HTMLElement).closest('button')) return
 
-    if (last) {
-      // Drag ended
-      isDragging.value = false
-      globalThis.getSelection()?.removeAllRanges()
-      emit('positionChanged', x.value, y.value)
-      emit('sizeChanged', width.value, height.value)
-      emit('dragEnd')
-      return
-    }
+  // Only prevent default for mouse events (touch needs passive)
+  if (!('touches' in e)) {
+    e.preventDefault()
+  }
 
-    // Dragging (not first, not last)
-    const newX = dragStartX.value + mx
-    const newY = dragStartY.value + my
+  const clientX = 'touches' in e ? (e.touches[0]?.clientX ?? 0) : e.clientX
+  const clientY = 'touches' in e ? (e.touches[0]?.clientY ?? 0) : e.clientY
 
-    // Apply constraints during drag
-    const constrained = constrainToViewportDuringDrag(newX, newY)
-    x.value = constrained.x
-    y.value = constrained.y
-  },
-  {
-    domTarget: titlebarEl,
-    eventOptions: { passive: false },
-    pointer: { touch: true },
-    drag: {
-      filterTaps: true, // Filter out taps (clicks) vs drags
-      delay: 0, // No delay for immediate response
-    },
-  },
-)
+  isDragging.value = true
+  dragStartMouseX.value = clientX
+  dragStartMouseY.value = clientY
+  dragStartWindowX.value = x.value
+  dragStartWindowY.value = y.value
+
+  emit('dragStart')
+}
+
+// Global mouse move for dragging
+useEventListener(window, 'mousemove', (e: MouseEvent) => {
+  if (!isDragging.value) return
+
+  const deltaX = e.clientX - dragStartMouseX.value
+  const deltaY = e.clientY - dragStartMouseY.value
+
+  const newX = dragStartWindowX.value + deltaX
+  const newY = dragStartWindowY.value + deltaY
+
+  const constrained = constrainToViewport(newX, newY)
+  x.value = constrained.x
+  y.value = constrained.y
+})
+
+// Global touch move for dragging
+useEventListener(window, 'touchmove', (e: TouchEvent) => {
+  if (!isDragging.value || !e.touches[0]) return
+
+  const deltaX = e.touches[0].clientX - dragStartMouseX.value
+  const deltaY = e.touches[0].clientY - dragStartMouseY.value
+
+  const newX = dragStartWindowX.value + deltaX
+  const newY = dragStartWindowY.value + deltaY
+
+  const constrained = constrainToViewport(newX, newY)
+  x.value = constrained.x
+  y.value = constrained.y
+}, { passive: true })
+
+// Global mouse up for drag end
+useEventListener(window, 'mouseup', () => {
+  if (isDragging.value) {
+    isDragging.value = false
+    globalThis.getSelection()?.removeAllRanges()
+    emit('positionChanged', x.value, y.value)
+    emit('dragEnd')
+  }
+
+  if (isResizing.value) {
+    isResizing.value = false
+    globalThis.getSelection()?.removeAllRanges()
+    emit('positionChanged', x.value, y.value)
+    emit('sizeChanged', width.value, height.value)
+  }
+})
+
+// Global touch end for drag end
+useEventListener(window, 'touchend', () => {
+  if (isDragging.value) {
+    isDragging.value = false
+    emit('positionChanged', x.value, y.value)
+    emit('dragEnd')
+  }
+})
 
 const windowStyle = computed(() => {
   const baseStyle: Record<string, string> = {}
 
-  // Opening animation: start from icon position
-  if (
-    props.isOpening &&
-    props.sourceX !== undefined &&
-    props.sourceY !== undefined
-  ) {
+  // Opening animation
+  if (props.isOpening && props.sourceX !== undefined && props.sourceY !== undefined) {
     baseStyle.left = `${props.sourceX}px`
     baseStyle.top = `${props.sourceY}px`
     baseStyle.width = `${props.sourceWidth || 100}px`
@@ -231,12 +281,8 @@ const windowStyle = computed(() => {
     baseStyle.opacity = '0'
     baseStyle.transform = 'scale(0.3)'
   }
-  // Closing animation: shrink to icon position
-  else if (
-    props.isClosing &&
-    props.sourceX !== undefined &&
-    props.sourceY !== undefined
-  ) {
+  // Closing animation
+  else if (props.isClosing && props.sourceX !== undefined && props.sourceY !== undefined) {
     baseStyle.left = `${props.sourceX}px`
     baseStyle.top = `${props.sourceY}px`
     baseStyle.width = `${props.sourceWidth || 100}px`
@@ -244,9 +290,8 @@ const windowStyle = computed(() => {
     baseStyle.opacity = '0'
     baseStyle.transform = 'scale(0.3)'
   }
-  // Closing animation fallback: shrink to center when no source position
+  // Closing fallback
   else if (props.isClosing) {
-    // Shrink to center of window
     const centerX = x.value + width.value / 2 - 50
     const centerY = y.value + height.value / 2 - 50
     baseStyle.left = `${centerX}px`
@@ -256,7 +301,7 @@ const windowStyle = computed(() => {
     baseStyle.opacity = '0'
     baseStyle.transform = 'scale(0.3)'
   }
-  // Normal state (maximized windows now use actual pixel dimensions)
+  // Normal state
   else {
     baseStyle.left = `${x.value}px`
     baseStyle.top = `${y.value}px`
@@ -264,23 +309,15 @@ const windowStyle = computed(() => {
     baseStyle.height = `${height.value}px`
     baseStyle.opacity = '1'
 
-    // Remove border-radius when maximized
     if (isMaximized.value) {
       baseStyle.borderRadius = '0'
     }
-  }
-
-  // Performance optimization: hint browser about transforms
-  if (isDragging.value || isResizing.value) {
-    baseStyle.willChange = 'transform, width, height'
-    baseStyle.transform = 'translateZ(0)'
   }
 
   return baseStyle
 })
 
 const getViewportBounds = () => {
-  // Use reactive viewport size from parent if available
   if (viewportSize) {
     return {
       width: viewportSize.width.value,
@@ -288,7 +325,6 @@ const getViewportBounds = () => {
     }
   }
 
-  // Fallback to parent element measurement
   if (!windowEl.value?.parentElement) return null
 
   const parent = windowEl.value.parentElement
@@ -298,30 +334,25 @@ const getViewportBounds = () => {
   }
 }
 
-const constrainToViewportDuringDrag = (newX: number, newY: number) => {
+const constrainToViewport = (newX: number, newY: number) => {
   const bounds = getViewportBounds()
   if (!bounds) return { x: newX, y: newY }
 
   const windowWidth = width.value
   const windowHeight = height.value
 
-  // Allow sides and bottom to go out more
   const maxOffscreenX = windowWidth / 3
   const maxOffscreenBottom = windowHeight / 3
 
-  // For X axis: allow 1/3 to go outside on both sides
   const maxX = bounds.width - windowWidth + maxOffscreenX
   const minX = -maxOffscreenX
-
-  // For Y axis: HARD constraint at top (y=0), never allow window to go above header
   const minY = 0
-  // Bottom: allow 1/3 to go outside
   const maxY = bounds.height - windowHeight + maxOffscreenBottom
 
-  const constrainedX = Math.max(minX, Math.min(maxX, newX))
-  const constrainedY = Math.max(minY, Math.min(maxY, newY))
-
-  return { x: constrainedX, y: constrainedY }
+  return {
+    x: Math.max(minX, Math.min(maxX, newX)),
+    y: Math.max(minY, Math.min(maxY, newY)),
+  }
 }
 
 const handleActivate = () => {
@@ -338,17 +369,15 @@ const handleMinimize = () => {
 
 const handleMaximize = () => {
   if (isMaximized.value) {
-    // Don't allow restore if viewport is too small
-    if (viewportTooSmall.value) return
+    // On small screens or when viewport is too small, don't allow restore
+    if (isSmallScreen.value || viewportTooSmall.value) return
 
-    // Restore
     x.value = preMaximizeState.value.x
     y.value = preMaximizeState.value.y
     width.value = preMaximizeState.value.width
     height.value = preMaximizeState.value.height
     isMaximized.value = false
   } else {
-    // Maximize - set position and size to viewport dimensions
     preMaximizeState.value = {
       x: x.value,
       y: y.value,
@@ -356,14 +385,12 @@ const handleMaximize = () => {
       height: height.value,
     }
 
-    // Get viewport bounds (desktop container, already excludes header)
     const bounds = getViewportBounds()
 
     if (bounds && bounds.width > 0 && bounds.height > 0) {
       x.value = 0
       y.value = 0
       width.value = bounds.width
-      // Use helper function to calculate correct height with safe areas
       height.value = getAvailableContentHeight()
       isMaximized.value = true
     }
@@ -374,26 +401,13 @@ const handleMaximize = () => {
 const handleResizeStart = (direction: string, e: MouseEvent | TouchEvent) => {
   isResizing.value = true
   resizeDirection.value = direction
-  let clientX: number
-  let clientY: number
 
-  if ('touches' in e) {
-    // Es ist ein TouchEvent
-    const touch = e.touches[0] // Hole den ersten Touch
+  const clientX = 'touches' in e ? (e.touches[0]?.clientX ?? 0) : e.clientX
+  const clientY = 'touches' in e ? (e.touches[0]?.clientY ?? 0) : e.clientY
 
-    // Prüfe, ob 'touch' existiert (ist undefined, wenn e.touches leer ist)
-    if (touch) {
-      clientX = touch.clientX
-      clientY = touch.clientY
-    } else {
-      // Ungültiges Start-Event (kein Finger). Abbruch.
-      isResizing.value = false
-      return
-    }
-  } else {
-    // Es ist ein MouseEvent
-    clientX = e.clientX
-    clientY = e.clientY
+  if ('touches' in e && !e.touches[0]) {
+    isResizing.value = false
+    return
   }
 
   resizeStartX.value = clientX
@@ -404,44 +418,30 @@ const handleResizeStart = (direction: string, e: MouseEvent | TouchEvent) => {
   resizeStartPosY.value = y.value
 }
 
-// Global mouse move handler (for resizing only, dragging handled by useDrag)
+// Global handler for resizing
 useEventListener(window, 'mousemove', (e: MouseEvent) => {
-  if (isResizing.value) {
-    const deltaX = e.clientX - resizeStartX.value
-    const deltaY = e.clientY - resizeStartY.value
+  if (!isResizing.value) return
 
-    const dir = resizeDirection.value
+  const deltaX = e.clientX - resizeStartX.value
+  const deltaY = e.clientY - resizeStartY.value
+  const dir = resizeDirection.value
 
-    // Handle width changes
-    if (dir.includes('e')) {
-      width.value = Math.max(300, resizeStartWidth.value + deltaX)
-    } else if (dir.includes('w')) {
-      const newWidth = Math.max(300, resizeStartWidth.value - deltaX)
-      const widthDiff = resizeStartWidth.value - newWidth
-      x.value = resizeStartPosX.value + widthDiff
-      width.value = newWidth
-    }
-
-    // Handle height changes
-    if (dir.includes('s')) {
-      height.value = Math.max(200, resizeStartHeight.value + deltaY)
-    } else if (dir.includes('n')) {
-      const newHeight = Math.max(200, resizeStartHeight.value - deltaY)
-      const heightDiff = resizeStartHeight.value - newHeight
-      y.value = resizeStartPosY.value + heightDiff
-      height.value = newHeight
-    }
+  if (dir.includes('e')) {
+    width.value = Math.max(300, resizeStartWidth.value + deltaX)
+  } else if (dir.includes('w')) {
+    const newWidth = Math.max(300, resizeStartWidth.value - deltaX)
+    const widthDiff = resizeStartWidth.value - newWidth
+    x.value = resizeStartPosX.value + widthDiff
+    width.value = newWidth
   }
-})
 
-// Global mouse up handler (for resizing only, dragging handled by useDrag)
-useEventListener(window, 'mouseup', () => {
-  if (isResizing.value) {
-    globalThis.getSelection()?.removeAllRanges()
-    isResizing.value = false
-
-    emit('positionChanged', x.value, y.value)
-    emit('sizeChanged', width.value, height.value)
+  if (dir.includes('s')) {
+    height.value = Math.max(200, resizeStartHeight.value + deltaY)
+  } else if (dir.includes('n')) {
+    const newHeight = Math.max(200, resizeStartHeight.value - deltaY)
+    const heightDiff = resizeStartHeight.value - newHeight
+    y.value = resizeStartPosY.value + heightDiff
+    height.value = newHeight
   }
 })
 </script>
