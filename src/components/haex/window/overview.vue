@@ -50,6 +50,17 @@
               :style="getCardStyle(window)"
               @click="handleRestoreAndActivateWindow(window.id)"
             >
+              <!-- Native Window Placeholder (no live preview available) -->
+              <div
+                v-if="window.isNativeWebview"
+                class="absolute inset-0 flex flex-col items-center justify-center gap-4 text-gray-400 dark:text-gray-500"
+              >
+                <UIcon
+                  :name="window.icon || 'i-lucide-app-window'"
+                  class="size-16 shrink-0"
+                />
+                <span class="text-sm font-medium">{{ t('nativeWindow') }}</span>
+              </div>
               <!-- Hover Overlay -->
               <div
                 class="absolute inset-0 bg-primary-500/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-40"
@@ -78,6 +89,8 @@
 </template>
 
 <script setup lang="ts">
+import { invoke } from '@tauri-apps/api/core'
+
 const { t } = useI18n()
 
 const windowManager = useWindowManagerStore()
@@ -93,20 +106,44 @@ const localShowWindowOverview = computed({
   },
 })
 
-const handleRestoreAndActivateWindow = (windowId: string) => {
+const handleRestoreAndActivateWindow = async (windowId: string) => {
   const window = windowManager.windows.find((w) => w.id === windowId)
   if (!window) return
 
-  // Switch to the workspace where this window is located
+  console.log('[WindowOverview] Activating window:', {
+    windowId,
+    type: window.type,
+    workspaceId: window.workspaceId,
+    isMinimized: window.isMinimized,
+    isNativeWebview: window.isNativeWebview,
+  })
+
+  // Desktop: Native webview windows need to be focused via Tauri command
+  if (window.isNativeWebview) {
+    try {
+      console.log('[WindowOverview] Focusing native window via Tauri...')
+      await invoke('focus_extension_webview_window', { windowId })
+    } catch (error) {
+      console.error('Failed to focus native extension window:', error)
+    }
+    // Close the overview
+    localShowWindowOverview.value = false
+    return
+  }
+
+  // Switch to the workspace where this window is located (for iframe-based windows)
   if (window.workspaceId) {
+    console.log('[WindowOverview] Sliding to workspace:', window.workspaceId)
     workspaceStore.slideToWorkspace(window.workspaceId)
   }
 
   // If window is minimized, restore it first
   if (window.isMinimized) {
+    console.log('[WindowOverview] Restoring minimized window')
     windowManager.restoreWindow(windowId)
   } else {
     // If not minimized, just activate it
+    console.log('[WindowOverview] Activating window')
     windowManager.activateWindow(windowId)
   }
 
@@ -216,6 +253,7 @@ de:
     description: Übersicht aller offenen Fenster auf allen Workspaces
 
   minimized: Minimiert
+  nativeWindow: Separates Fenster
 
 en:
   modal:
@@ -223,4 +261,5 @@ en:
     description: Overview of all open windows on all workspaces
 
   minimized: Minimized
+  nativeWindow: Native Window
 </i18n>

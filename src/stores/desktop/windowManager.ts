@@ -26,6 +26,8 @@ export interface IWindow {
   // Animation state
   isOpening?: boolean
   isClosing?: boolean
+  // Native webview window flag (separate OS window vs iframe)
+  isNativeWebview?: boolean
 }
 
 export interface SystemWindowDefinition {
@@ -208,6 +210,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
               zIndex: 0,
               isOpening: false,
               isClosing: false,
+              isNativeWebview: true, // Mark as native OS window
             }
             windows.value.push(newWindow)
 
