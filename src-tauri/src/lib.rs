@@ -191,6 +191,7 @@ pub fn run() {
             extension::permissions::commands::check_web_permission,
             extension::permissions::commands::check_database_permission,
             extension::permissions::commands::check_filesystem_permission,
+            extension::permissions::commands::resolve_permission_prompt,
             extension::get_all_dev_extensions,
             extension::get_all_extensions,
             extension::get_extension_info,

@@ -3,6 +3,14 @@
     <div data-vaul-drawer-wrapper>
       <NuxtPage />
     </div>
+
+    <!-- Global Permission Prompt Dialog -->
+    <HaexExtensionDialogPermissionPrompt
+      :open="permissionPrompt.isOpen.value"
+      :prompt-data="permissionPrompt.promptData.value"
+      @update:open="(v) => !v && permissionPrompt.cancelPrompt()"
+      @decision="permissionPrompt.handleDecision"
+    />
   </UApp>
 </template>
 
@@ -18,6 +26,9 @@ const deepLink = useDeepLink()
 onMounted(() => {
   deepLink.init()
 })
+
+// Global permission prompt handler
+const permissionPrompt = usePermissionPrompt()
 </script>
 
 <style>

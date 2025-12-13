@@ -90,6 +90,7 @@ pub async fn extension_web_fetch(
     timeout: Option<u64>,
     public_key: String,
     name: String,
+    allow_once: Option<bool>,
     state: State<'_, AppState>,
 ) -> Result<WebFetchResponse, ExtensionError> {
     // Get extension to validate it exists
@@ -103,13 +104,16 @@ pub async fn extension_web_fetch(
 
     let method_str = method.as_deref().unwrap_or("GET");
 
-    // Check web permissions before making request
-    crate::extension::permissions::manager::PermissionManager::check_web_permission(
-        &state,
-        &extension.id,
-        &url,
-    )
-    .await?;
+    // Skip permission check if allowOnce is true (user clicked "Allow Once" in dialog)
+    if !allow_once.unwrap_or(false) {
+        // Check web permissions before making request
+        crate::extension::permissions::manager::PermissionManager::check_web_permission(
+            &state,
+            &extension.id,
+            &url,
+        )
+        .await?;
+    }
 
     let request = WebFetchRequest {
         url,

@@ -61,6 +61,27 @@ impl PermissionChecker {
             .filter(|perm| matches_action(&perm.action, action))
             .any(|perm| matches_target(&perm.target, table_name))
     }
+
+    /// Checks if a table is auto-allowed (extension's own table)
+    pub fn is_auto_allowed_table(&self, table_name: &str) -> bool {
+        let clean_table_name = table_name.trim_matches('"').trim_matches('`');
+        utils::is_extension_table(
+            clean_table_name,
+            &self.extension.manifest.public_key,
+            &self.extension.manifest.name,
+        )
+    }
+
+    /// Checks if a target pattern matches a table name (public wrapper)
+    pub fn matches_table_pattern(&self, target: &str, table_name: &str) -> bool {
+        let clean_table_name = table_name.trim_matches('"').trim_matches('`');
+        matches_target(target, clean_table_name)
+    }
+
+    /// Checks if an action allows a specific DbAction (public wrapper)
+    pub fn action_allows_db_action(&self, permission_action: &Action, required: DbAction) -> bool {
+        matches_action(permission_action, required)
+    }
 }
 
 /// Checks if an action matches the required DbAction

@@ -12,6 +12,7 @@ pub enum ExtensionErrorCode {
     NotFound = 1001,
     PermissionDenied = 1002,
     MutexPoisoned = 1003,
+    PermissionPromptRequired = 1004,
     Database = 2000,
     Filesystem = 2001,
     FilesystemWithPath = 2004,
@@ -62,6 +63,15 @@ pub enum ExtensionError {
         extension_id: String,
         operation: String,
         resource: String,
+    },
+
+    #[error("Permission prompt required: {extension_name} wants to {action} on {target}")]
+    PermissionPromptRequired {
+        extension_id: String,
+        extension_name: String,
+        resource_type: String,
+        action: String,
+        target: String,
     },
 
     #[error("Database operation failed: {source}")]
@@ -132,6 +142,9 @@ impl ExtensionError {
             ExtensionError::SecurityViolation { .. } => ExtensionErrorCode::SecurityViolation,
             ExtensionError::NotFound { .. } => ExtensionErrorCode::NotFound,
             ExtensionError::PermissionDenied { .. } => ExtensionErrorCode::PermissionDenied,
+            ExtensionError::PermissionPromptRequired { .. } => {
+                ExtensionErrorCode::PermissionPromptRequired
+            }
             ExtensionError::Database { .. } => ExtensionErrorCode::Database,
             ExtensionError::Filesystem { .. } => ExtensionErrorCode::Filesystem,
             ExtensionError::FilesystemWithPath { .. } => ExtensionErrorCode::FilesystemWithPath,
@@ -170,7 +183,25 @@ impl ExtensionError {
     pub fn extension_id(&self) -> Option<&str> {
         match self {
             ExtensionError::PermissionDenied { extension_id, .. } => Some(extension_id),
+            ExtensionError::PermissionPromptRequired { extension_id, .. } => Some(extension_id),
             _ => None,
+        }
+    }
+
+    /// Create a permission prompt required error
+    pub fn permission_prompt_required(
+        extension_id: &str,
+        extension_name: &str,
+        resource_type: &str,
+        action: &str,
+        target: &str,
+    ) -> Self {
+        Self::PermissionPromptRequired {
+            extension_id: extension_id.to_string(),
+            extension_name: extension_name.to_string(),
+            resource_type: resource_type.to_string(),
+            action: action.to_string(),
+            target: target.to_string(),
         }
     }
 
@@ -190,6 +221,27 @@ impl serde::Serialize for ExtensionError {
     {
         use serde::ser::SerializeStruct;
 
+        // PermissionPromptRequired needs extra fields for the frontend dialog
+        if let ExtensionError::PermissionPromptRequired {
+            extension_id,
+            extension_name,
+            resource_type,
+            action,
+            target,
+        } = self
+        {
+            let mut state = serializer.serialize_struct("ExtensionError", 8)?;
+            state.serialize_field("code", &self.code())?;
+            state.serialize_field("type", &format!("{self:?}"))?;
+            state.serialize_field("message", &self.to_string())?;
+            state.serialize_field("extensionId", extension_id)?;
+            state.serialize_field("extensionName", extension_name)?;
+            state.serialize_field("resourceType", resource_type)?;
+            state.serialize_field("action", action)?;
+            state.serialize_field("target", target)?;
+            return state.end();
+        }
+
         let mut state = serializer.serialize_struct("ExtensionError", 4)?;
 
         state.serialize_field("code", &self.code())?;
@@ -197,9 +249,9 @@ impl serde::Serialize for ExtensionError {
         state.serialize_field("message", &self.to_string())?;
 
         if let Some(ext_id) = self.extension_id() {
-            state.serialize_field("extension_id", ext_id)?;
+            state.serialize_field("extensionId", ext_id)?;
         } else {
-            state.serialize_field("extension_id", &Option::<String>::None)?;
+            state.serialize_field("extensionId", &Option::<String>::None)?;
         }
 
         state.end()

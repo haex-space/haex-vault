@@ -227,6 +227,8 @@ impl PermissionManager {
     }
 
     /// Prüft Datenbankberechtigungen
+    /// Returns PermissionPromptRequired if status is Ask or no permission exists
+    /// Returns PermissionDenied if status is explicitly Denied
     pub async fn check_database_permission(
         app_state: &State<'_, AppState>,
         extension_id: &str,
@@ -256,94 +258,124 @@ impl PermissionManager {
         let permissions = Self::get_permissions(app_state, extension_id).await?;
 
         // Create checker and validate
-        let checker = PermissionChecker::new(extension, permissions);
+        let checker = PermissionChecker::new(extension.clone(), permissions.clone());
 
-        if checker.can_access_table(table_name, db_action) {
-            Ok(())
-        } else {
-            Err(ExtensionError::permission_denied(
+        // First check if auto-allowed (extension's own tables)
+        if checker.is_auto_allowed_table(table_name) {
+            return Ok(());
+        }
+
+        // Find matching permission for this table and action
+        let matching_permission = permissions.iter().find(|perm| {
+            perm.resource_type == ResourceType::Db
+                && checker.matches_table_pattern(&perm.target, table_name)
+                && checker.action_allows_db_action(&perm.action, db_action)
+        });
+
+        match matching_permission {
+            Some(perm) => match perm.status {
+                PermissionStatus::Granted => Ok(()),
+                PermissionStatus::Denied => Err(ExtensionError::permission_denied(
+                    extension_id,
+                    &format!("{db_action:?}"),
+                    &format!("database table '{table_name}'"),
+                )),
+                PermissionStatus::Ask => Err(ExtensionError::permission_prompt_required(
+                    extension_id,
+                    &extension.manifest.name,
+                    "db",
+                    &format!("{db_action:?}"),
+                    table_name,
+                )),
+            },
+            // No matching permission - prompt the user
+            None => Err(ExtensionError::permission_prompt_required(
                 extension_id,
+                &extension.manifest.name,
+                "db",
                 &format!("{db_action:?}"),
-                &format!("database table '{table_name}'"),
-            ))
+                table_name,
+            )),
         }
     }
 
     /// Prüft Web-Berechtigungen für Requests
     /// Method/operation is not checked - only protocol, domain, port, and path
+    /// Returns PermissionPromptRequired if status is Ask or no permission exists
+    /// Returns PermissionDenied if status is explicitly Denied
     pub async fn check_web_permission(
         app_state: &State<'_, AppState>,
         extension_id: &str,
         url: &str,
     ) -> Result<(), ExtensionError> {
-        // Load permissions - for dev extensions, get from manifest; for production, from database
-        let permissions: Vec<ExtensionPermission> = if let Some(extension) =
-            app_state.extension_manager.get_extension(extension_id)
-        {
-            match &extension.source {
-                ExtensionSource::Development { .. } => {
-                    // Dev extension - get web permissions from manifest
-                    extension
-                        .manifest
-                        .permissions
-                        .to_internal_permissions(extension_id)
-                        .into_iter()
-                        .filter(|p| p.resource_type == ResourceType::Web)
-                        .map(|mut p| {
-                            // Dev extensions have all permissions granted by default
-                            p.status = PermissionStatus::Granted;
-                            p
-                        })
-                        .collect()
-                }
-                ExtensionSource::Production { .. } => {
-                    // Production extension - load from database using select_with_crdt
-                    // to automatically filter out tombstoned (soft-deleted) entries
-                    let sql = format!(
-                        "SELECT id, extension_id, resource_type, action, target, constraints, status, haex_timestamp FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ? AND resource_type = 'web'"
-                    );
-                    let params = vec![JsonValue::String(extension_id.to_string())];
-
-                    let results = select_with_crdt(sql, params, &app_state.db)?;
-
-                    results
-                        .into_iter()
-                        .map(|row| {
-                            let resource_type = row[2]
-                                .as_str()
-                                .and_then(|s| ResourceType::from_str(s).ok())
-                                .unwrap_or(ResourceType::Web);
-                            let action = row[3]
-                                .as_str()
-                                .and_then(|s| Action::from_str(&resource_type, s).ok())
-                                .unwrap_or(Action::Web(crate::extension::permissions::types::WebAction::Get));
-                            let status = row[6]
-                                .as_str()
-                                .and_then(|s| PermissionStatus::from_str(s).ok())
-                                .unwrap_or(PermissionStatus::Denied);
-                            let constraints: Option<PermissionConstraints> = row[5]
-                                .as_str()
-                                .and_then(|s| serde_json::from_str(s).ok());
-
-                            ExtensionPermission {
-                                id: row[0].as_str().unwrap_or_default().to_string(),
-                                extension_id: row[1].as_str().unwrap_or_default().to_string(),
-                                resource_type,
-                                action,
-                                target: row[4].as_str().unwrap_or_default().to_string(),
-                                constraints,
-                                status,
-                                haex_timestamp: row[7].as_str().map(String::from),
-                            }
-                        })
-                        .collect()
-                }
-            }
-        } else {
-            // Extension not found - deny
-            return Err(ExtensionError::ValidationError {
+        // Get extension for name lookup
+        let extension = app_state
+            .extension_manager
+            .get_extension(extension_id)
+            .ok_or_else(|| ExtensionError::ValidationError {
                 reason: format!("Extension not found: {}", extension_id),
-            });
+            })?
+            .clone();
+
+        // Load permissions - for dev extensions, get from manifest; for production, from database
+        let permissions: Vec<ExtensionPermission> = match &extension.source {
+            ExtensionSource::Development { .. } => {
+                // Dev extension - get web permissions from manifest
+                extension
+                    .manifest
+                    .permissions
+                    .to_internal_permissions(extension_id)
+                    .into_iter()
+                    .filter(|p| p.resource_type == ResourceType::Web)
+                    .map(|mut p| {
+                        // Dev extensions have all permissions granted by default
+                        p.status = PermissionStatus::Granted;
+                        p
+                    })
+                    .collect()
+            }
+            ExtensionSource::Production { .. } => {
+                // Production extension - load from database using select_with_crdt
+                // to automatically filter out tombstoned (soft-deleted) entries
+                let sql = format!(
+                    "SELECT id, extension_id, resource_type, action, target, constraints, status, haex_timestamp FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ? AND resource_type = 'web'"
+                );
+                let params = vec![JsonValue::String(extension_id.to_string())];
+
+                let results = select_with_crdt(sql, params, &app_state.db)?;
+
+                results
+                    .into_iter()
+                    .map(|row| {
+                        let resource_type = row[2]
+                            .as_str()
+                            .and_then(|s| ResourceType::from_str(s).ok())
+                            .unwrap_or(ResourceType::Web);
+                        let action = row[3]
+                            .as_str()
+                            .and_then(|s| Action::from_str(&resource_type, s).ok())
+                            .unwrap_or(Action::Web(crate::extension::permissions::types::WebAction::Get));
+                        let status = row[6]
+                            .as_str()
+                            .and_then(|s| PermissionStatus::from_str(s).ok())
+                            .unwrap_or(PermissionStatus::Denied);
+                        let constraints: Option<PermissionConstraints> = row[5]
+                            .as_str()
+                            .and_then(|s| serde_json::from_str(s).ok());
+
+                        ExtensionPermission {
+                            id: row[0].as_str().unwrap_or_default().to_string(),
+                            extension_id: row[1].as_str().unwrap_or_default().to_string(),
+                            resource_type,
+                            action,
+                            target: row[4].as_str().unwrap_or_default().to_string(),
+                            constraints,
+                            status,
+                            haex_timestamp: row[7].as_str().map(String::from),
+                        }
+                    })
+                    .collect()
+            }
         };
 
         let url_parsed = url::Url::parse(url).map_err(|e| ExtensionError::ValidationError {
@@ -356,146 +388,224 @@ impl PermissionManager {
                 reason: "URL does not contain a valid host".to_string(),
             })?;
 
-        let has_permission = permissions
-            .iter()
-            .filter(|perm| perm.status == PermissionStatus::Granted)
-            .any(|perm| {
-                // Check if target matches the URL
-                let url_matches = if perm.target == "*" {
-                    // Wildcard matches everything
-                    true
-                } else if perm.target.contains("://") {
-                    // URL pattern matching (with protocol and optional path)
-                    Self::matches_url_pattern(&perm.target, url)
-                } else {
-                    // Domain-only matching (legacy behavior)
-                    perm.target == domain || domain.ends_with(&format!(".{}", perm.target))
-                };
+        // Find matching permission for this URL
+        let matching_permission = permissions.iter().find(|perm| {
+            let url_matches = if perm.target == "*" {
+                true
+            } else if perm.target.contains("://") {
+                Self::matches_url_pattern(&perm.target, url)
+            } else {
+                perm.target == domain || domain.ends_with(&format!(".{}", perm.target))
+            };
+            url_matches
+        });
 
-                // Return the URL match result (no method checking)
-                url_matches
-            });
-
-        if !has_permission {
-            return Err(ExtensionError::permission_denied(
+        match matching_permission {
+            Some(perm) => match perm.status {
+                PermissionStatus::Granted => Ok(()),
+                PermissionStatus::Denied => Err(ExtensionError::permission_denied(
+                    extension_id,
+                    "web request",
+                    url,
+                )),
+                PermissionStatus::Ask => Err(ExtensionError::permission_prompt_required(
+                    extension_id,
+                    &extension.manifest.name,
+                    "web",
+                    "request",
+                    url,
+                )),
+            },
+            // No matching permission - prompt the user
+            None => Err(ExtensionError::permission_prompt_required(
                 extension_id,
-                "web request",
+                &extension.manifest.name,
+                "web",
+                "request",
                 url,
-            ));
+            )),
         }
-
-        Ok(())
     }
 
     /// Prüft Dateisystem-Berechtigungen
+    /// Returns PermissionPromptRequired if status is Ask or no permission exists
+    /// Returns PermissionDenied if status is explicitly Denied
     pub async fn check_filesystem_permission(
         app_state: &State<'_, AppState>,
         extension_id: &str,
         action: Action,
         file_path: &Path,
     ) -> Result<(), ExtensionError> {
-        let permissions = Self::get_permissions(app_state, extension_id).await?;
+        // Get extension for name lookup
+        let extension = app_state
+            .extension_manager
+            .get_extension(extension_id)
+            .ok_or_else(|| ExtensionError::ValidationError {
+                reason: format!("Extension not found: {}", extension_id),
+            })?
+            .clone();
 
+        let permissions = Self::get_permissions(app_state, extension_id).await?;
         let file_path_str = file_path.to_string_lossy();
 
-        let has_permission = permissions
-            .iter()
-            .filter(|perm| perm.status == PermissionStatus::Granted)
-            .filter(|perm| perm.resource_type == ResourceType::Fs)
-            .filter(|perm| perm.action == action)
-            .any(|perm| {
-                if !Self::matches_path_pattern(&perm.target, &file_path_str) {
-                    return false;
-                }
+        // Find matching permission for this path and action
+        let matching_permission = permissions.iter().find(|perm| {
+            perm.resource_type == ResourceType::Fs
+                && perm.action == action
+                && Self::matches_path_pattern(&perm.target, &file_path_str)
+        });
 
-                if let Some(PermissionConstraints::Filesystem(constraints)) = &perm.constraints {
-                    if let Some(allowed_ext) = &constraints.allowed_extensions {
-                        if let Some(ext) = file_path.extension() {
-                            let ext_str = format!(".{}", ext.to_string_lossy());
-                            if !allowed_ext.contains(&ext_str) {
-                                return false;
-                            }
-                        } else {
+        // Check constraints if we have a matching permission
+        let passes_constraints = |perm: &ExtensionPermission| -> bool {
+            if let Some(PermissionConstraints::Filesystem(constraints)) = &perm.constraints {
+                if let Some(allowed_ext) = &constraints.allowed_extensions {
+                    if let Some(ext) = file_path.extension() {
+                        let ext_str = format!(".{}", ext.to_string_lossy());
+                        if !allowed_ext.contains(&ext_str) {
                             return false;
                         }
+                    } else {
+                        return false;
                     }
                 }
+            }
+            true
+        };
 
-                true
-            });
-
-        if !has_permission {
-            return Err(ExtensionError::permission_denied(
+        match matching_permission {
+            Some(perm) => {
+                if !passes_constraints(perm) {
+                    return Err(ExtensionError::permission_denied(
+                        extension_id,
+                        &format!("{:?}", action),
+                        &format!("filesystem path '{}' (constraint violation)", file_path_str),
+                    ));
+                }
+                match perm.status {
+                    PermissionStatus::Granted => Ok(()),
+                    PermissionStatus::Denied => Err(ExtensionError::permission_denied(
+                        extension_id,
+                        &format!("{:?}", action),
+                        &format!("filesystem path '{}'", file_path_str),
+                    )),
+                    PermissionStatus::Ask => Err(ExtensionError::permission_prompt_required(
+                        extension_id,
+                        &extension.manifest.name,
+                        "fs",
+                        &format!("{:?}", action),
+                        &file_path_str,
+                    )),
+                }
+            }
+            // No matching permission - prompt the user
+            None => Err(ExtensionError::permission_prompt_required(
                 extension_id,
+                &extension.manifest.name,
+                "fs",
                 &format!("{:?}", action),
-                &format!("filesystem path '{}'", file_path_str),
-            ));
+                &file_path_str,
+            )),
         }
-
-        Ok(())
     }
 
     /// Prüft Shell-Berechtigungen
+    /// Returns PermissionPromptRequired if status is Ask or no permission exists
+    /// Returns PermissionDenied if status is explicitly Denied
     pub async fn check_shell_permission(
         app_state: &State<'_, AppState>,
         extension_id: &str,
         command: &str,
         args: &[String],
     ) -> Result<(), ExtensionError> {
+        // Get extension for name lookup
+        let extension = app_state
+            .extension_manager
+            .get_extension(extension_id)
+            .ok_or_else(|| ExtensionError::ValidationError {
+                reason: format!("Extension not found: {}", extension_id),
+            })?
+            .clone();
+
         let permissions = Self::get_permissions(app_state, extension_id).await?;
 
-        let has_permission = permissions
-            .iter()
-            .filter(|perm| perm.status == PermissionStatus::Granted)
-            .filter(|perm| perm.resource_type == ResourceType::Shell)
-            .any(|perm| {
-                if perm.target != command && perm.target != "*" {
-                    return false;
+        // Helper to check if command matches target pattern
+        let matches_command = |target: &str| -> bool {
+            target == command || target == "*"
+        };
+
+        // Helper to check constraints
+        let passes_constraints = |perm: &ExtensionPermission| -> bool {
+            if let Some(PermissionConstraints::Shell(constraints)) = &perm.constraints {
+                if let Some(allowed_subcommands) = &constraints.allowed_subcommands {
+                    if !args.is_empty()
+                        && !allowed_subcommands.contains(&args[0])
+                        && !allowed_subcommands.contains(&"*".to_string())
+                    {
+                        return false;
+                    }
                 }
 
-                if let Some(PermissionConstraints::Shell(constraints)) = &perm.constraints {
-                    if let Some(allowed_subcommands) = &constraints.allowed_subcommands {
-                        if !args.is_empty() {
-                            if !allowed_subcommands.contains(&args[0])
-                                && !allowed_subcommands.contains(&"*".to_string())
-                            {
-                                return false;
-                            }
-                        }
+                if let Some(forbidden) = &constraints.forbidden_args {
+                    if args.iter().any(|arg| forbidden.contains(arg)) {
+                        return false;
                     }
+                }
 
-                    if let Some(forbidden) = &constraints.forbidden_args {
-                        if args.iter().any(|arg| forbidden.contains(arg)) {
+                if let Some(allowed_flags) = &constraints.allowed_flags {
+                    let user_flags: Vec<_> =
+                        args.iter().filter(|arg| arg.starts_with('-')).collect();
+
+                    for flag in user_flags {
+                        if !allowed_flags.contains(flag)
+                            && !allowed_flags.contains(&"*".to_string())
+                        {
                             return false;
                         }
                     }
-
-                    if let Some(allowed_flags) = &constraints.allowed_flags {
-                        let user_flags: Vec<_> =
-                            args.iter().filter(|arg| arg.starts_with('-')).collect();
-
-                        for flag in user_flags {
-                            if !allowed_flags.contains(flag)
-                                && !allowed_flags.contains(&"*".to_string())
-                            {
-                                return false;
-                            }
-                        }
-                    }
                 }
+            }
+            true
+        };
 
-                true
-            });
+        // Find matching permission for this command
+        let matching_permission = permissions.iter().find(|perm| {
+            perm.resource_type == ResourceType::Shell && matches_command(&perm.target)
+        });
 
-        if !has_permission {
-            return Err(ExtensionError::permission_denied(
+        match matching_permission {
+            Some(perm) => {
+                if !passes_constraints(perm) {
+                    return Err(ExtensionError::permission_denied(
+                        extension_id,
+                        "execute",
+                        &format!("shell command '{}' with args {:?} (constraint violation)", command, args),
+                    ));
+                }
+                match perm.status {
+                    PermissionStatus::Granted => Ok(()),
+                    PermissionStatus::Denied => Err(ExtensionError::permission_denied(
+                        extension_id,
+                        "execute",
+                        &format!("shell command '{}' with args {:?}", command, args),
+                    )),
+                    PermissionStatus::Ask => Err(ExtensionError::permission_prompt_required(
+                        extension_id,
+                        &extension.manifest.name,
+                        "shell",
+                        "execute",
+                        command,
+                    )),
+                }
+            }
+            // No matching permission - prompt the user
+            None => Err(ExtensionError::permission_prompt_required(
                 extension_id,
+                &extension.manifest.name,
+                "shell",
                 "execute",
-                &format!("shell command '{}' with args {:?}", command, args),
-            ));
+                command,
+            )),
         }
-
-        Ok(())
     }
 
     // Helper-Methoden - müssen DatabaseError statt ExtensionError zurückgeben

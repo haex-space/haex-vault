@@ -1,6 +1,12 @@
 import type { IHaexSpaceExtension } from '~/types/haexspace'
 import type { ExtensionRequest } from './types'
 import { invoke } from '@tauri-apps/api/core'
+import {
+  isPermissionPromptRequired,
+  extractPromptData,
+} from '~/composables/usePermissionPrompt'
+
+const { promptForPermission } = usePermissionPrompt()
 
 export async function handlePermissionsMethodAsync(
   request: ExtensionRequest,
@@ -46,9 +52,21 @@ async function checkWebPermissionAsync(
     })
 
     return { status: 'granted' }
-  } catch (error: any) {
+  } catch (error: unknown) {
+    // Permission prompt required - show dialog to user
+    if (isPermissionPromptRequired(error)) {
+      const promptData = extractPromptData(error)!
+      const decision = await promptForPermission(promptData)
+
+      if (decision === 'granted' || decision === 'ask') {
+        return { status: 'granted' }
+      }
+      return { status: 'denied' }
+    }
+
     // Permission denied errors return a specific error code
-    if (error?.code === 1002 || error?.message?.includes('Permission denied')) {
+    const err = error as { code?: number; message?: string }
+    if (err?.code === 1002 || err?.message?.includes('Permission denied')) {
       return { status: 'denied' }
     }
     // Other errors should be thrown
@@ -75,8 +93,20 @@ async function checkDatabasePermissionAsync(
     })
 
     return { status: 'granted' }
-  } catch (error: any) {
-    if (error?.code === 1002 || error?.message?.includes('Permission denied')) {
+  } catch (error: unknown) {
+    // Permission prompt required - show dialog to user
+    if (isPermissionPromptRequired(error)) {
+      const promptData = extractPromptData(error)!
+      const decision = await promptForPermission(promptData)
+
+      if (decision === 'granted' || decision === 'ask') {
+        return { status: 'granted' }
+      }
+      return { status: 'denied' }
+    }
+
+    const err = error as { code?: number; message?: string }
+    if (err?.code === 1002 || err?.message?.includes('Permission denied')) {
       return { status: 'denied' }
     }
     throw error
@@ -102,8 +132,20 @@ async function checkFilesystemPermissionAsync(
     })
 
     return { status: 'granted' }
-  } catch (error: any) {
-    if (error?.code === 1002 || error?.message?.includes('Permission denied')) {
+  } catch (error: unknown) {
+    // Permission prompt required - show dialog to user
+    if (isPermissionPromptRequired(error)) {
+      const promptData = extractPromptData(error)!
+      const decision = await promptForPermission(promptData)
+
+      if (decision === 'granted' || decision === 'ask') {
+        return { status: 'granted' }
+      }
+      return { status: 'denied' }
+    }
+
+    const err = error as { code?: number; message?: string }
+    if (err?.code === 1002 || err?.message?.includes('Permission denied')) {
       return { status: 'denied' }
     }
     throw error

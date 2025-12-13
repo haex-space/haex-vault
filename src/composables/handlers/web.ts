@@ -2,6 +2,12 @@ import type { IHaexSpaceExtension } from '~/types/haexspace'
 import type { ExtensionRequest } from './types'
 import { invoke } from '@tauri-apps/api/core'
 import { HAEXTENSION_METHODS } from '@haex-space/vault-sdk'
+import {
+  isPermissionPromptRequired,
+  extractPromptData,
+} from '~/composables/usePermissionPrompt'
+
+const { promptForPermission } = usePermissionPrompt()
 
 export async function handleWebMethodAsync(
   request: ExtensionRequest,
@@ -38,6 +44,16 @@ async function handleWebFetchAsync(
     throw new Error('URL is required')
   }
 
+  const invokeArgs = {
+    url,
+    method,
+    headers,
+    body,
+    timeout,
+    publicKey: extension.publicKey,
+    name: extension.name,
+  }
+
   try {
     // Call Rust backend through Tauri IPC to avoid CORS restrictions
     const response = await invoke<{
@@ -46,15 +62,7 @@ async function handleWebFetchAsync(
       headers: Record<string, string>
       body: string
       url: string
-    }>('extension_web_fetch', {
-      url,
-      method,
-      headers,
-      body,
-      timeout,
-      publicKey: extension.publicKey,
-      name: extension.name,
-    })
+    }>('extension_web_fetch', invokeArgs)
 
     return {
       status: response.status,
@@ -63,11 +71,50 @@ async function handleWebFetchAsync(
       body: response.body,
       url: response.url,
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Web request error:', error)
 
+    // Permission prompt required - show dialog to user
+    if (isPermissionPromptRequired(error)) {
+      const promptData = extractPromptData(error)!
+      const decision = await promptForPermission(promptData)
+
+      if (decision === 'granted' || decision === 'ask') {
+        // Retry the request after permission granted/allowed once
+        // Pass allowOnce=true for "ask" to skip permission check on retry
+        const response = await invoke<{
+          status: number
+          status_text: string
+          headers: Record<string, string>
+          body: string
+          url: string
+        }>('extension_web_fetch', {
+          ...invokeArgs,
+          allowOnce: decision === 'ask',
+        })
+
+        return {
+          status: response.status,
+          statusText: response.status_text,
+          headers: response.headers,
+          body: response.body,
+          url: response.url,
+        }
+      }
+
+      // User denied
+      const toast = useToast()
+      toast.add({
+        title: 'Permission denied',
+        description: `Extension "${extension.name}" does not have permission to access ${url}`,
+        color: 'error',
+      })
+      throw new Error(`Permission denied for ${url}`)
+    }
+
     // Check if it's a permission denied error
-    if (error?.code === 1002 || error?.message?.includes('Permission denied')) {
+    const err = error as { code?: number; message?: string }
+    if (err?.code === 1002 || err?.message?.includes('Permission denied')) {
       const toast = useToast()
       toast.add({
         title: 'Permission denied',
