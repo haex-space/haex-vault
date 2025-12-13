@@ -45,6 +45,10 @@
               />
               <span v-if="extension?.averageRating">{{ formatRating(extension.averageRating) }}</span>
               <span v-else>–</span>
+              <span
+                v-if="detail?.reviewCount"
+                class="text-gray-400"
+              >({{ detail.reviewCount }})</span>
             </div>
           </div>
         </div>
@@ -57,10 +61,18 @@
             @click="onRemove"
           />
           <UButton
+            :color="hasUpdate ? 'warning' : isInstalled ? 'neutral' : 'primary'"
+            :disabled="isInstalled && !hasUpdate"
+            :icon="hasUpdate ? 'i-heroicons-arrow-path' : isInstalled ? 'i-heroicons-check' : 'i-heroicons-arrow-down-tray'"
+            class="sm:hidden"
+            @click="onInstall"
+          />
+          <UButton
             :label="installButtonLabel"
             :color="hasUpdate ? 'warning' : isInstalled ? 'neutral' : 'primary'"
             :disabled="isInstalled && !hasUpdate"
             :icon="hasUpdate ? 'i-heroicons-arrow-path' : isInstalled ? 'i-heroicons-check' : 'i-heroicons-arrow-down-tray'"
+            class="hidden sm:flex"
             @click="onInstall"
           />
           <UButton
@@ -89,21 +101,12 @@
         v-else-if="detail"
         class="flex flex-col gap-6"
       >
-        <!-- Stats -->
-        <div class="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
-          <div
-            v-if="detail.averageRating"
-            class="flex items-center gap-1"
-          >
-            <UIcon
-              name="i-heroicons-star-solid"
-              class="text-yellow-500"
-            />
-            <span>{{ formatRating(detail.averageRating) }}</span>
-            <span class="text-gray-400">({{ detail.reviewCount }})</span>
-          </div>
+        <!-- Verified Badge -->
+        <div
+          v-if="detail.verified"
+          class="flex items-center"
+        >
           <UBadge
-            v-if="detail.verified"
             color="success"
             variant="subtle"
           >
