@@ -46,7 +46,7 @@
                 class="w-10 h-10 shrink-0 rounded-lg bg-base-200 flex items-center justify-center overflow-hidden"
               >
                 <HaexIcon
-                  :name="ext.icon || 'i-heroicons-puzzle-piece'"
+                  :name="ext.iconUrl || 'i-heroicons-puzzle-piece'"
                   class="w-full h-full object-contain"
                 />
               </div>
@@ -84,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import type { ExtensionInfoResponse } from '~~/src-tauri/bindings/ExtensionInfoResponse'
+import type { IHaexSpaceExtension } from '~/types/haexspace'
 
 const { t } = useI18n()
 const { add } = useToast()
@@ -94,8 +94,8 @@ const { availableExtensions } = storeToRefs(extensionsStore)
 const { loadExtensionsAsync } = extensionsStore
 
 const loading = ref(true)
-const allExtensions = ref<ExtensionInfoResponse[]>([])
-const selectedExtension = ref<ExtensionInfoResponse | null>(null)
+const allExtensions = ref<IHaexSpaceExtension[]>([])
+const selectedExtension = ref<IHaexSpaceExtension | null>(null)
 
 const loadAllExtensionsAsync = async () => {
   loading.value = true
