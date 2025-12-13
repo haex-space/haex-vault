@@ -121,6 +121,9 @@
       <HaexExtensionDialogInstall
         v-model:open="showConfirmation"
         :preview="installPreview"
+        :available-versions="currentMarketplaceExtension?.versions"
+        :installed-version="currentMarketplaceExtension?.installedVersion"
+        :icon-url="currentMarketplaceExtension?.iconUrl"
         @confirm="confirmInstallAsync"
       />
 
@@ -134,6 +137,7 @@
         v-model:open="showDetailsDialog"
         :extension="selectedExtensionForDetails"
         @install="onInstallFromMarketplace"
+        @update="onUpdateExtension"
         @remove="onRemoveExtension"
       />
     </div>
@@ -152,8 +156,9 @@ import { invoke } from '@tauri-apps/api/core'
 import type { ExtensionPreview } from '~~/src-tauri/bindings/ExtensionPreview'
 import { isDesktop } from '~/utils/platform'
 
-defineProps<{
+const props = defineProps<{
   isDragging?: boolean
+  windowParams?: Record<string, unknown>
 }>()
 
 const { t } = useI18n()
@@ -220,7 +225,7 @@ const extensionViewModels = computed((): MarketplaceExtensionViewModel[] => {
       ...ext,
       isInstalled: !!installedExt,
       installedVersion: installedExt?.version,
-      latestVersion: undefined, // Could be set from extension detail API
+      latestVersion: ext.versions?.[0]?.version,
     }
   })
 })
@@ -401,9 +406,30 @@ const onSelectExtensionAsync = async () => {
 }
 
 // Unified install function that handles both file and marketplace sources
-const confirmInstallAsync = async (createDesktopShortcut: boolean = false) => {
+const confirmInstallAsync = async (
+  createDesktopShortcut: boolean = false,
+  selectedVersion: string | null = null,
+) => {
   try {
     let installedExtensionId: string | undefined
+
+    // If a different version was selected, download that version first
+    if (
+      installSource.value === 'marketplace' &&
+      selectedVersion &&
+      currentMarketplaceExtension.value &&
+      selectedVersion !== extensionStore.preview?.manifest.version
+    ) {
+      // Download the selected version
+      const downloadInfo = await marketplace.getDownloadUrl(
+        currentMarketplaceExtension.value.slug,
+        selectedVersion,
+      )
+      await extensionStore.downloadAndPreviewAsync(
+        downloadInfo.downloadUrl,
+        downloadInfo.bundleHash,
+      )
+    }
 
     const previewToUse =
       installSource.value === 'marketplace'
@@ -540,27 +566,62 @@ const confirmReinstallAsync = async () => {
 
     if (!previewToUse?.manifest) return
 
-    // Find the installed extension to get its current version
+    // Find the installed extension to get its current version and ID
     const installedExt = extensionStore.availableExtensions.find(
       (ext) =>
         ext.publicKey === previewToUse.manifest.publicKey &&
         ext.name === previewToUse.manifest.name,
     )
 
-    if (installedExt) {
-      // Remove old extension first
-      // deleteData: true for reinstall (delete everything), false for update (preserve data)
-      const deleteData = reinstallMode.value === 'reinstall'
-      await extensionStore.removeExtensionAsync(
-        installedExt.publicKey,
-        installedExt.name,
-        installedExt.version,
-        deleteData,
-      )
+    if (!installedExt) {
+      // No installed extension found, just do a fresh install
+      await confirmInstallAsync()
+      return
     }
 
-    // Then install new version
-    await confirmInstallAsync()
+    // Save the extension ID before removing (needed for update mode)
+    const existingExtensionId = installedExt.id
+    const isUpdate = reinstallMode.value === 'update'
+
+    // Remove old extension first
+    // deleteData: true for reinstall (delete everything), false for update (preserve data)
+    await extensionStore.removeExtensionAsync(
+      installedExt.publicKey,
+      installedExt.name,
+      installedExt.version,
+      !isUpdate, // deleteData: false for update, true for reinstall
+    )
+
+    if (isUpdate) {
+      // Update mode: Install files only, keeping the existing DB entry and extension ID
+      // This preserves the desktop icon reference
+      await extensionStore.installFilesAsync(existingExtensionId)
+
+      // Reload extensions list
+      await extensionStore.loadExtensionsAsync()
+
+      // Show success message
+      const extName = previewToUse.manifest.name
+      add({
+        color: 'success',
+        title: t('extension.success.title', { extension: extName }),
+        description: t('extension.success.text'),
+      })
+      await addNotificationAsync({
+        text: t('extension.success.text'),
+        type: 'success',
+        title: t('extension.success.title', { extension: extName }),
+      })
+
+      // Clear pending install data
+      if (installSource.value === 'marketplace') {
+        currentMarketplaceExtension.value = null
+        extensionStore.clearPendingInstall()
+      }
+    } else {
+      // Reinstall mode: Full fresh install (DB entry was deleted)
+      await confirmInstallAsync()
+    }
   } catch (error) {
     console.error('Fehler confirmReinstallAsync:', error)
     add({ color: 'error', description: JSON.stringify(error) })
@@ -571,6 +632,33 @@ const confirmReinstallAsync = async () => {
 const extensionToBeRemoved = ref<IHaexSpaceExtension>()
 const showRemoveDialog = ref(false)
 
+// Handle window params (e.g., update action from settings)
+const handleWindowParams = async () => {
+  if (!props.windowParams) return
+
+  const { action, extensionName } = props.windowParams as {
+    action?: string
+    extensionName?: string
+  }
+
+  if (action === 'update' && extensionName) {
+    // Set search query to find the extension
+    searchQuery.value = extensionName
+
+    // Wait for search to complete
+    await nextTick()
+    await loadExtensionsAsync()
+
+    // Find the extension in the results and trigger update
+    const ext = extensionViewModels.value.find(
+      (e) => e.name === extensionName,
+    )
+    if (ext && ext.isInstalled) {
+      onUpdateExtension(ext)
+    }
+  }
+}
+
 // Load data on mount
 onMounted(async () => {
   try {
@@ -579,6 +667,9 @@ onMounted(async () => {
       loadCategoriesAsync(),
       loadExtensionsAsync(),
     ])
+
+    // Handle any window params after initial load
+    await handleWindowParams()
   } catch (error) {
     console.error('Failed to load data:', error)
     add({ color: 'error', description: t('error.loadExtensions') })
@@ -597,9 +688,9 @@ const removeExtensionAsync = async (deleteMode: 'device' | 'complete') => {
   }
 
   try {
-    // Uninstall extension (handles dev/regular, reloads installed list)
+    // Uninstall extension (handles dev/regular, removes desktop items, reloads installed list)
     await extensionStore.uninstallExtensionAsync(
-      extensionToBeRemoved.value,
+      extensionToBeRemoved.value.id,
       deleteMode,
     )
 

@@ -135,6 +135,7 @@
                 :is="getSystemWindowComponent(window.sourceId)"
                 v-if="window.type === 'system'"
                 :is-dragging="windowManager.draggingWindowId === window.id"
+                :window-params="window.params"
               />
 
               <!-- Native WebView: Show icon placeholder (actual content is in separate OS window) -->
@@ -327,14 +328,9 @@ const handleRequestUninstall = (extensionId: string) => {
 const handleRemoveExtension = async (deleteMode: 'device' | 'complete') => {
   if (!extensionToRemove.value) return
 
-  const extensionId = extensionToRemove.value.id
-
   try {
-    // Uninstall extension (handles dev/regular, reloads list)
-    await extensionsStore.uninstallExtensionAsync(extensionToRemove.value, deleteMode)
-
-    // Then remove all desktop items for this extension
-    await desktopStore.removeDesktopItemsByExtensionIdAsync(extensionId)
+    // Uninstall extension (handles dev/regular, removes desktop items, reloads list)
+    await extensionsStore.uninstallExtensionAsync(extensionToRemove.value.id, deleteMode)
   } catch (error) {
     console.error('Failed to remove extension:', error)
   }

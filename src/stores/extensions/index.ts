@@ -346,14 +346,28 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
 
   /**
    * Unified uninstall function that handles both regular and dev extensions.
-   * Automatically reloads the extensions list after removal.
-   * @param extension - The extension to uninstall
+   * Automatically removes associated desktop items and reloads the extensions list.
+   * @param extensionId - The extension ID to uninstall
    * @param deleteMode - 'device' (keep data) or 'complete' (delete all data)
    */
   const uninstallExtensionAsync = async (
-    extension: { publicKey: string; name: string; version: string; devServerUrl?: string | null },
+    extensionId: string,
     deleteMode: 'device' | 'complete' = 'device',
   ) => {
+    // Find the extension by ID
+    const extension = availableExtensions.value.find((ext) => ext.id === extensionId)
+    if (!extension) {
+      throw new Error(`Extension with ID ${extensionId} not found`)
+    }
+
+    // Close all open windows for this extension first
+    const windowManager = useWindowManagerStore()
+    await windowManager.closeWindowsByExtensionIdAsync(extensionId)
+
+    // Remove desktop items for this extension
+    const desktopStore = useDesktopStore()
+    await desktopStore.removeDesktopItemsByExtensionIdAsync(extensionId)
+
     if (extension.devServerUrl) {
       // Dev extension - use removeDevExtensionAsync
       await removeDevExtensionAsync(extension.publicKey, extension.name)

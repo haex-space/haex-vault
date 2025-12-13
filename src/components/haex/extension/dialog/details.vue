@@ -58,9 +58,9 @@
           />
           <UButton
             :label="installButtonLabel"
-            :color="isInstalled ? 'neutral' : 'primary'"
+            :color="hasUpdate ? 'warning' : isInstalled ? 'neutral' : 'primary'"
             :disabled="isInstalled && !hasUpdate"
-            :icon="isInstalled && !hasUpdate ? 'i-heroicons-check' : 'i-heroicons-arrow-down-tray'"
+            :icon="hasUpdate ? 'i-heroicons-arrow-path' : isInstalled ? 'i-heroicons-check' : 'i-heroicons-arrow-down-tray'"
             @click="onInstall"
           />
           <UButton
@@ -223,6 +223,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   install: [extension: MarketplaceExtensionViewModel]
+  update: [extension: MarketplaceExtensionViewModel]
   remove: [extension: MarketplaceExtensionViewModel]
 }>()
 
@@ -267,7 +268,11 @@ watch(open, async (isOpen) => {
 
 const onInstall = () => {
   if (props.extension) {
-    emit('install', props.extension)
+    if (hasUpdate.value) {
+      emit('update', props.extension)
+    } else {
+      emit('install', props.extension)
+    }
     open.value = false
   }
 }
@@ -314,6 +319,7 @@ de:
   install: Installieren
   update: Aktualisieren
   installed: Installiert
+  remove: Entfernen
 
 en:
   by: by
@@ -328,6 +334,7 @@ en:
   install: Install
   update: Update
   installed: Installed
+  remove: Remove
 </i18n>
 
 <style>

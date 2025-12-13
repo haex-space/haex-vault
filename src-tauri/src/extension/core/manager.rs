@@ -1,4 +1,4 @@
-use crate::database::core::with_connection;
+use crate::database::core::{execute_with_crdt, select_with_crdt, with_connection};
 use crate::database::error::DatabaseError;
 use crate::extension::core::manifest::{
     EditablePermissions, ExtensionManifest, ExtensionPreview, MigrationJournal,
@@ -495,12 +495,14 @@ impl ExtensionManager {
     }
 
     /// Update the display mode of an extension (works for both dev and production extensions)
+    /// For production extensions, also persists the change to the database.
     pub fn update_display_mode(
         &self,
         extension_id: &str,
         display_mode: crate::extension::core::manifest::DisplayMode,
+        state: &State<'_, AppState>,
     ) -> Result<(), ExtensionError> {
-        // Try dev extensions first
+        // Try dev extensions first (in-memory only, no database persistence)
         {
             let mut dev_extensions =
                 self.dev_extensions
@@ -514,7 +516,7 @@ impl ExtensionManager {
             }
         }
 
-        // Try production extensions
+        // Try production extensions (update in-memory + persist to database)
         {
             let mut prod_extensions =
                 self.production_extensions
@@ -523,7 +525,25 @@ impl ExtensionManager {
                         reason: e.to_string(),
                     })?;
             if let Some(extension) = prod_extensions.get_mut(extension_id) {
+                // Persist to database using CRDT-aware update
+                let display_mode_str = format!("{:?}", display_mode).to_lowercase();
+
+                // Update in-memory state
                 extension.manifest.display_mode = Some(display_mode);
+                let sql = format!(
+                    "UPDATE {} SET display_mode = ? WHERE id = ?",
+                    TABLE_EXTENSIONS
+                );
+                let params = vec![
+                    JsonValue::String(display_mode_str),
+                    JsonValue::String(extension_id.to_string()),
+                ];
+
+                let hlc_guard = state.hlc.lock().map_err(|e| ExtensionError::MutexPoisoned {
+                    reason: format!("Failed to lock HLC: {}", e),
+                })?;
+                execute_with_crdt(sql, params, &state.db, &hlc_guard)?;
+
                 return Ok(());
             }
         }
@@ -562,30 +582,29 @@ impl ExtensionManager {
         eprintln!("DEBUG: Removing extension with ID: {}", extension.id);
         eprintln!("DEBUG: Extension name: {extension_name}, version: {extension_version}, delete_data: {delete_data}");
 
-        // Lösche Permissions und Extension-Eintrag in einer Transaktion
-        with_connection(&state.db, |conn| {
-            // Disable foreign key constraints BEFORE starting the transaction
-            // (PRAGMA changes don't take effect within an active transaction)
-            if delete_data {
+        // Only delete DB entries if delete_data is true (complete removal)
+        // For updates (delete_data=false), we keep the DB entry and permissions
+        if delete_data {
+            // Lösche Permissions und Extension-Eintrag in einer Transaktion
+            with_connection(&state.db, |conn| {
+                // Disable foreign key constraints BEFORE starting the transaction
+                // (PRAGMA changes don't take effect within an active transaction)
                 conn.execute("PRAGMA foreign_keys = OFF", [])
                     .map_err(DatabaseError::from)?;
-            }
 
-            let tx = conn.transaction().map_err(DatabaseError::from)?;
+                let tx = conn.transaction().map_err(DatabaseError::from)?;
 
-            let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-                reason: "Failed to lock HLC service".to_string(),
-            })?;
+                let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
+                    reason: "Failed to lock HLC service".to_string(),
+                })?;
 
-            // Lösche alle Permissions mit extension_id
-            eprintln!(
-                "DEBUG: Deleting permissions for extension_id: {}",
-                extension.id
-            );
-            PermissionManager::delete_permissions_in_transaction(&tx, &hlc_service, &extension.id)?;
+                // Lösche alle Permissions mit extension_id
+                eprintln!(
+                    "DEBUG: Deleting permissions for extension_id: {}",
+                    extension.id
+                );
+                PermissionManager::delete_permissions_in_transaction(&tx, &hlc_service, &extension.id)?;
 
-            // Only delete extension data (tables) if delete_data is true
-            if delete_data {
                 // Lösche alle Tabellen der Extension
                 eprintln!(
                     "DEBUG: Dropping tables for extension {}::{}",
@@ -595,33 +614,31 @@ impl ExtensionManager {
                 if !dropped_tables.is_empty() {
                     eprintln!("DEBUG: Dropped tables: {:?}", dropped_tables);
                 }
-            } else {
-                eprintln!("DEBUG: Keeping extension data (delete_data=false)");
-            }
 
-            // Lösche Extension-Eintrag mit extension_id
-            let sql = format!("DELETE FROM {TABLE_EXTENSIONS} WHERE id = ?");
-            eprintln!("DEBUG: Executing SQL: {} with id = {}", sql, extension.id);
-            SqlExecutor::execute_internal_typed(
-                &tx,
-                &hlc_service,
-                &sql,
-                rusqlite::params![&extension.id],
-            )?;
+                // Lösche Extension-Eintrag mit extension_id
+                let sql = format!("DELETE FROM {TABLE_EXTENSIONS} WHERE id = ?");
+                eprintln!("DEBUG: Executing SQL: {} with id = {}", sql, extension.id);
+                SqlExecutor::execute_internal_typed(
+                    &tx,
+                    &hlc_service,
+                    &sql,
+                    rusqlite::params![&extension.id],
+                )?;
 
-            eprintln!("DEBUG: Committing transaction");
-            let commit_result = tx.commit().map_err(DatabaseError::from);
+                eprintln!("DEBUG: Committing transaction");
+                let commit_result = tx.commit().map_err(DatabaseError::from);
 
-            // Re-enable foreign key constraints after transaction
-            if delete_data {
+                // Re-enable foreign key constraints after transaction
                 conn.execute("PRAGMA foreign_keys = ON", [])
                     .map_err(DatabaseError::from)?;
-            }
 
-            commit_result
-        })?;
+                commit_result
+            })?;
 
-        eprintln!("DEBUG: Transaction committed successfully");
+            eprintln!("DEBUG: Transaction committed successfully");
+        } else {
+            eprintln!("DEBUG: Keeping DB entry and permissions (delete_data=false, update mode)");
+        }
 
         // Entferne aus dem In-Memory-Manager
         self.remove_extension(public_key, extension_name)?;
@@ -698,6 +715,28 @@ impl ExtensionManager {
         custom_permissions: &EditablePermissions,
         state: &State<'_, AppState>,
     ) -> Result<String, ExtensionError> {
+        // 1. Check if extension already exists (e.g., from sync) using select_with_crdt
+        // This automatically filters out tombstoned (soft-deleted) entries
+        let check_sql = format!(
+            "SELECT id FROM {TABLE_EXTENSIONS} WHERE public_key = ? AND name = ?"
+        );
+        let check_params = vec![
+            JsonValue::String(manifest.public_key.clone()),
+            JsonValue::String(manifest.name.clone()),
+        ];
+        let existing_results = select_with_crdt(check_sql, check_params, &state.db)?;
+        let existing_id: Option<String> = existing_results
+            .first()
+            .and_then(|row| row.first())
+            .and_then(|v| v.as_str())
+            .map(String::from);
+
+        eprintln!(
+            "DEBUG: [register_extension_in_database] Check for existing extension: public_key={}, name={}, found={:?}",
+            manifest.public_key, manifest.name, existing_id
+        );
+
+        // 2. Perform the actual INSERT or UPDATE in a transaction
         let actual_id = with_connection(&state.db, |conn| {
             let tx = conn.transaction().map_err(DatabaseError::from)?;
 
@@ -706,15 +745,6 @@ impl ExtensionManager {
             })?;
             let hlc_service = hlc_service_guard.clone();
             drop(hlc_service_guard);
-
-            // 1. Check if extension already exists (e.g., from sync)
-            let check_sql =
-                format!("SELECT id FROM {TABLE_EXTENSIONS} WHERE public_key = ? AND name = ?");
-            let existing_id: Option<String> = tx
-                .query_row(&check_sql, [&manifest.public_key, &manifest.name], |row| {
-                    row.get(0)
-                })
-                .ok();
 
             let actual_id = if let Some(existing_id) = existing_id {
                 // Extension exists (probably from sync), update it
@@ -752,6 +782,10 @@ impl ExtensionManager {
             } else {
                 // New extension, generate UUID and insert
                 let new_extension_id = uuid::Uuid::new_v4().to_string();
+                eprintln!(
+                    "DEBUG: [register_extension_in_database] Inserting NEW extension: id={}, name={}, version={}",
+                    new_extension_id, manifest.name, manifest.version
+                );
                 let insert_ext_sql = format!(
                     "INSERT INTO {TABLE_EXTENSIONS} (id, name, version, author, entry, icon, public_key, signature, homepage, description, enabled, single_instance, display_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 );
@@ -784,9 +818,8 @@ impl ExtensionManager {
             };
 
             // 2. Permissions: Delete existing permissions for this extension (if updating)
-            let delete_perm_sql =
-                format!("DELETE FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ?");
-            tx.execute(&delete_perm_sql, [&actual_id]).ok();
+            // Use CRDT-aware delete function to properly handle tombstones
+            PermissionManager::delete_permissions_in_transaction(&tx, &hlc_service, &actual_id)?;
 
             // 3. Permissions: Recreate with correct extension_id
             let permissions = custom_permissions.to_internal_permissions(&actual_id);
@@ -830,12 +863,17 @@ impl ExtensionManager {
         extracted: &ExtractedExtension,
         extension_id: &str,
     ) -> Result<PathBuf, ExtensionError> {
+        eprintln!("DEBUG: [install_extension_files] Installing extension id={}, name={}, version={}",
+            extension_id, extracted.manifest.name, extracted.manifest.version);
+
         let extensions_dir = self.get_extension_dir(
             app_handle,
             &extracted.manifest.public_key,
             &extracted.manifest.name,
             &extracted.manifest.version,
         )?;
+
+        eprintln!("DEBUG: [install_extension_files] Target directory: {:?}", extensions_dir);
 
         // If extension version already exists, remove it completely before installing
         if extensions_dir.exists() {
@@ -905,8 +943,9 @@ impl ExtensionManager {
     }
 
     /// Install extension files from bytes.
-    /// Use when extension is already registered in DB (e.g., from sync).
+    /// Use when extension is already registered in DB (e.g., from sync or update).
     /// Validates signature, extracts files, registers migrations.
+    /// Also updates the version in the database to the new version from the manifest.
     pub async fn install_extension_files_from_bytes(
         &self,
         app_handle: &AppHandle,
@@ -931,11 +970,62 @@ impl ExtensionManager {
         // Install files locally
         let extensions_dir = self.install_extension_files(app_handle, &extracted, extension_id)?;
 
+        // Update version and other metadata in DB (for updates)
+        self.update_extension_version_in_database(&extracted.manifest, extension_id, state)?;
+
         // Register and apply migrations from the bundle
         Self::register_bundle_migrations(&extensions_dir, &extracted.manifest, extension_id, state)
             .await?;
 
         Ok(extension_id.to_string())
+    }
+
+    /// Update extension version and metadata in database.
+    /// Used when installing a new version of an existing extension.
+    fn update_extension_version_in_database(
+        &self,
+        manifest: &ExtensionManifest,
+        extension_id: &str,
+        state: &State<'_, AppState>,
+    ) -> Result<(), ExtensionError> {
+        with_connection(&state.db, |conn| {
+            let tx = conn.transaction().map_err(DatabaseError::from)?;
+
+            let hlc_service_guard = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
+                reason: "Failed to lock HLC service".to_string(),
+            })?;
+            let hlc_service = hlc_service_guard.clone();
+            drop(hlc_service_guard);
+
+            eprintln!(
+                "Updating extension {} to version {}",
+                extension_id, manifest.version
+            );
+
+            let update_sql = format!(
+                "UPDATE {TABLE_EXTENSIONS} SET version = ?, author = ?, entry = ?, icon = ?, signature = ?, homepage = ?, description = ? WHERE id = ?"
+            );
+
+            SqlExecutor::execute_internal_typed(
+                &tx,
+                &hlc_service,
+                &update_sql,
+                rusqlite::params![
+                    manifest.version,
+                    manifest.author,
+                    manifest.entry,
+                    manifest.icon,
+                    manifest.signature,
+                    manifest.homepage,
+                    manifest.description,
+                    extension_id,
+                ],
+            )?;
+
+            tx.commit().map_err(DatabaseError::from)?;
+            Ok(())
+        })
+        .map_err(ExtensionError::from)
     }
 
     /// Full installation: Register in DB + Install files.
@@ -1007,72 +1097,70 @@ impl ExtensionManager {
             .clear();
 
         // Lade alle Daten aus der Datenbank
-        let extensions = with_connection(&state.db, |conn| {
-            let sql = format!(
+        // Use select_with_crdt to automatically filter out tombstoned (soft-deleted) entries
+        let sql = format!(
             "SELECT id, name, version, author, entry, icon, public_key, signature, homepage, description, enabled, single_instance, display_mode FROM {TABLE_EXTENSIONS}"
         );
-            eprintln!("DEBUG: SQL Query before transformation: {sql}");
+        eprintln!("DEBUG: SQL Query (will be transformed by select_with_crdt): {sql}");
 
-            let results = SqlExecutor::query_select(conn, &sql, &[])?;
-            eprintln!("DEBUG: Query returned {} results", results.len());
+        let results = select_with_crdt(sql, vec![], &state.db)?;
+        eprintln!("DEBUG: Query returned {} results", results.len());
 
-            let mut data = Vec::new();
-            for row in results {
-                // Wir erwarten die Werte in der Reihenfolge der SELECT-Anweisung
-                let id = row[0]
+        let mut extensions = Vec::new();
+        for row in results {
+            // Wir erwarten die Werte in der Reihenfolge der SELECT-Anweisung
+            let id = row[0]
+                .as_str()
+                .ok_or_else(|| ExtensionError::ManifestError {
+                    reason: "Missing id field in database row".to_string(),
+                })?
+                .to_string();
+
+            let manifest = ExtensionManifest {
+                name: row[1]
                     .as_str()
-                    .ok_or_else(|| DatabaseError::SerializationError {
-                        reason: "Missing id field".to_string(),
+                    .ok_or_else(|| ExtensionError::ManifestError {
+                        reason: "Missing name field in database row".to_string(),
                     })?
-                    .to_string();
-
-                let manifest = ExtensionManifest {
-                    name: row[1]
-                        .as_str()
-                        .ok_or_else(|| DatabaseError::SerializationError {
-                            reason: "Missing name field".to_string(),
-                        })?
-                        .to_string(),
-                    version: row[2]
-                        .as_str()
-                        .ok_or_else(|| DatabaseError::SerializationError {
-                            reason: "Missing version field".to_string(),
-                        })?
-                        .to_string(),
-                    author: row[3].as_str().map(String::from),
-                    entry: row[4].as_str().map(String::from),
-                    icon: row[5].as_str().map(String::from),
-                    public_key: row[6].as_str().unwrap_or("").to_string(),
-                    signature: row[7].as_str().unwrap_or("").to_string(),
-                    permissions: ExtensionPermissions::default(),
-                    homepage: row[8].as_str().map(String::from),
-                    description: row[9].as_str().map(String::from),
-                    single_instance: row[11]
-                        .as_bool()
-                        .or_else(|| row[11].as_i64().map(|v| v != 0)),
-                    display_mode: row[12].as_str().and_then(|s| match s {
-                        "window" => Some(DisplayMode::Window),
-                        "iframe" => Some(DisplayMode::Iframe),
-                        "auto" | _ => Some(DisplayMode::Auto),
-                    }),
-                    // migrations_dir is not stored in DB - it's only used during installation
-                    // from the manifest.json file
-                    migrations_dir: None,
-                };
-
-                let enabled = row[10]
+                    .to_string(),
+                version: row[2]
+                    .as_str()
+                    .ok_or_else(|| ExtensionError::ManifestError {
+                        reason: "Missing version field in database row".to_string(),
+                    })?
+                    .to_string(),
+                author: row[3].as_str().map(String::from),
+                entry: row[4].as_str().map(String::from),
+                icon: row[5].as_str().map(String::from),
+                public_key: row[6].as_str().unwrap_or("").to_string(),
+                signature: row[7].as_str().unwrap_or("").to_string(),
+                permissions: ExtensionPermissions::default(),
+                homepage: row[8].as_str().map(String::from),
+                description: row[9].as_str().map(String::from),
+                single_instance: row[11]
                     .as_bool()
-                    .or_else(|| row[10].as_i64().map(|v| v != 0))
-                    .unwrap_or(false);
+                    .or_else(|| row[11].as_i64().map(|v| v != 0)),
+                display_mode: row[12].as_str().and_then(|s| match s {
+                    "window" => Some(DisplayMode::Window),
+                    "iframe" => Some(DisplayMode::Iframe),
+                    "auto" | _ => Some(DisplayMode::Auto),
+                }),
+                // migrations_dir is not stored in DB - it's only used during installation
+                // from the manifest.json file
+                migrations_dir: None,
+            };
 
-                data.push(ExtensionDataFromDb {
-                    id,
-                    manifest,
-                    enabled,
-                });
-            }
-            Ok(data)
-        })?;
+            let enabled = row[10]
+                .as_bool()
+                .or_else(|| row[10].as_i64().map(|v| v != 0))
+                .unwrap_or(false);
+
+            extensions.push(ExtensionDataFromDb {
+                id,
+                manifest,
+                enabled,
+            });
+        }
 
         // Schritt 2: Die gesammelten Daten verarbeiten (Dateisystem, State-Mutationen).
         let mut loaded_extension_ids = Vec::new();
@@ -1081,7 +1169,8 @@ impl ExtensionManager {
 
         for extension_data in extensions {
             let extension_id = extension_data.id;
-            eprintln!("DEBUG: Processing extension: {extension_id}");
+            eprintln!("DEBUG: Processing extension: {extension_id} (name={}, version={})",
+                extension_data.manifest.name, extension_data.manifest.version);
 
             // Use public_key/name/version path structure
             let extension_path = self.get_extension_dir(
@@ -1091,10 +1180,12 @@ impl ExtensionManager {
                 &extension_data.manifest.version,
             )?;
 
+            eprintln!("DEBUG: Checking extension path: {:?}", extension_path);
+
             // Check if extension directory exists
             if !extension_path.exists() {
                 eprintln!(
-                    "DEBUG: Extension directory missing for: {extension_id} at {extension_path:?}"
+                    "DEBUG: Extension directory MISSING for: {extension_id} at {extension_path:?}"
                 );
                 self.missing_extensions
                     .lock()

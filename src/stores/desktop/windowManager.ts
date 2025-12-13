@@ -28,6 +28,8 @@ export interface IWindow {
   isClosing?: boolean
   // Native webview window flag (separate OS window vs iframe)
   isNativeWebview?: boolean
+  // Optional parameters passed when opening the window
+  params?: Record<string, unknown>
 }
 
 export interface SystemWindowDefinition {
@@ -135,6 +137,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
   const openWindowAsync = async ({
     height = 800,
     icon = '',
+    params,
     sourceId,
     sourcePosition,
     title,
@@ -144,6 +147,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
   }: {
     height?: number
     icon?: string | null
+    params?: Record<string, unknown>
     sourceId: string
     sourcePosition?: { x: number; y: number; width: number; height: number }
     title?: string
@@ -340,6 +344,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
         sourceHeight: effectiveSourcePosition?.height,
         isOpening: true,
         isClosing: false,
+        params,
       }
 
       windows.value.push(newWindow)
@@ -476,6 +481,38 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
   })
 
   /**
+   * Closes all windows for a specific extension (both native and iframe-based)
+   * Called before uninstalling an extension
+   */
+  const closeWindowsByExtensionIdAsync = async (extensionId: string) => {
+    const extensionWindows = windows.value.filter(
+      (w) => w.type === 'extension' && w.sourceId === extensionId,
+    )
+
+    if (extensionWindows.length === 0) return
+
+    console.log(
+      `[windowManager] Closing ${extensionWindows.length} window(s) for extension ${extensionId}...`,
+    )
+
+    // Close all windows for this extension in parallel
+    await Promise.all(
+      extensionWindows.map(async (window) => {
+        try {
+          await closeWindow(window.id)
+        } catch (error) {
+          console.error(
+            `[windowManager] Failed to close window ${window.id}:`,
+            error,
+          )
+        }
+      }),
+    )
+
+    console.log(`[windowManager] All windows for extension ${extensionId} closed`)
+  }
+
+  /**
    * Closes all extension windows (both native and iframe-based)
    * Called when the vault is closed or becomes unavailable
    */
@@ -547,6 +584,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     activeWindowId,
     closeAllExtensionWindowsAsync,
     closeWindow,
+    closeWindowsByExtensionIdAsync,
     currentWorkspaceWindows,
     draggingWindowId,
     getAllSystemWindows,

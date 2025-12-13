@@ -8,7 +8,7 @@
     <template #header>
       <div class="flex items-center justify-between w-full">
         <h3 class="text-lg font-semibold">
-          {{ t('title') }}
+          {{ isUpdate ? t('titleUpdate') : t('title') }}
         </h3>
         <UButton
           icon="i-heroicons-x-mark"
@@ -20,26 +20,22 @@
     </template>
 
     <template #content>
-      <div class="flex flex-col gap-6">
+      <div class="flex flex-col gap-6 pt-2">
         <!-- Extension Info -->
         <UCard>
           <div class="flex items-start gap-4">
             <div
-              v-if="preview?.manifest.icon"
-              class="w-16 h-16 shrink-0"
+              class="w-16 h-16 shrink-0 rounded-lg bg-base-200 flex items-center justify-center overflow-hidden"
             >
-              <UIcon
-                :name="preview.manifest.icon"
-                class="w-full h-full"
+              <HaexIcon
+                :name="iconUrl || preview?.manifest.icon || 'i-heroicons-puzzle-piece'"
+                class="w-full h-full object-contain"
               />
             </div>
             <div class="flex-1">
               <h3 class="text-xl font-bold">
                 {{ preview?.manifest.name }}
               </h3>
-              <p class="text-sm text-gray-500 dark:text-gray-400">
-                {{ t('version') }}: {{ preview?.manifest.version }}
-              </p>
               <p
                 v-if="preview?.manifest.author"
                 class="text-sm text-gray-500 dark:text-gray-400"
@@ -79,51 +75,42 @@
         </UCard>
 
         <!-- Version Selection (only shown when versions are provided) -->
-        <UCard v-if="showVersionSelection">
-          <template #header>
-            <div class="flex items-center gap-2">
-              <UIcon
-                name="i-heroicons-tag"
-                class="w-5 h-5"
-              />
-              <h4 class="font-semibold">
-                {{ t('versionSelection.title') }}
-              </h4>
-            </div>
-          </template>
-
-          <!-- Installed Version Info -->
-          <div
-            v-if="installedVersion"
-            class="mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
-          >
-            <div class="flex items-center gap-2 text-sm">
-              <UIcon
-                name="i-heroicons-check-circle"
-                class="w-4 h-4 text-success"
-              />
-              <span>{{ t('versionSelection.installedVersion', { version: installedVersion }) }}</span>
-            </div>
-          </div>
+        <div
+          v-if="showVersionSelection"
+          class="flex items-center gap-3"
+        >
+          <span class="text-sm font-medium shrink-0">{{ t('versionSelection.title') }}:</span>
 
           <!-- Loading Versions -->
-          <div
+          <UIcon
             v-if="isLoadingVersions"
-            class="flex justify-center py-4"
-          >
-            <UIcon
-              name="i-heroicons-arrow-path"
-              class="w-6 h-6 animate-spin text-muted"
-            />
-          </div>
+            name="i-heroicons-arrow-path"
+            class="w-5 h-5 animate-spin text-muted"
+          />
 
-          <!-- Version Radio Group -->
-          <URadioGroup
+          <!-- Version Dropdown -->
+          <USelectMenu
             v-else
             v-model="internalSelectedVersion"
-            :items="versionRadioItems"
-          />
-        </UCard>
+            :items="versionSelectItems"
+            value-key="value"
+            class="flex-1"
+          >
+            <template #leading>
+              <UIcon name="i-heroicons-tag" />
+            </template>
+          </USelectMenu>
+
+          <!-- Installed badge -->
+          <UBadge
+            v-if="installedVersion"
+            color="success"
+            variant="subtle"
+            size="xs"
+          >
+            {{ t('versionSelection.installedShort', { version: installedVersion }) }}
+          </UBadge>
+        </div>
 
         <!-- Create Native Desktop Shortcut (Desktop only) -->
         <div
@@ -212,9 +199,9 @@
           @click="onDeny"
         />
         <UButton
-          icon="i-heroicons-check"
-          :label="t('confirm')"
-          color="primary"
+          :icon="isUpdate ? 'i-heroicons-arrow-path' : 'i-heroicons-check'"
+          :label="isUpdate ? t('confirmUpdate') : t('confirm')"
+          :color="isUpdate ? 'warning' : 'primary'"
           class="w-full sm:w-auto"
           @click="onConfirm"
         />
@@ -238,7 +225,7 @@ const selectedVersion = defineModel<string | null>('selectedVersion', {
   default: null,
 })
 
-// Props for version selection
+// Props for version selection and icon
 const props = defineProps<{
   /** Available versions from marketplace (optional - shows version selection when provided) */
   availableVersions?: ExtensionVersion[]
@@ -246,6 +233,8 @@ const props = defineProps<{
   installedVersion?: string | null
   /** Whether versions are being loaded */
   isLoadingVersions?: boolean
+  /** Icon URL from marketplace (optional - used when manifest icon is not available) */
+  iconUrl?: string | null
 }>()
 
 // Show version selection only when versions are provided
@@ -253,16 +242,19 @@ const showVersionSelection = computed(() =>
   (props.availableVersions && props.availableVersions.length > 0) || props.isLoadingVersions,
 )
 
+// Determine if this is an update (extension already installed)
+const isUpdate = computed(() => !!props.installedVersion)
+
 // Internal selected version state, synced with model
 const internalSelectedVersion = computed({
-  get: () => selectedVersion.value || props.availableVersions?.[0]?.version || null,
-  set: (value) => {
-    selectedVersion.value = value
+  get: () => selectedVersion.value || props.availableVersions?.[0]?.version || undefined,
+  set: (value: string | undefined) => {
+    selectedVersion.value = value ?? null
   },
 })
 
-// Build radio items from available versions
-const versionRadioItems = computed(() => {
+// Build select items from available versions
+const versionSelectItems = computed(() => {
   if (!props.availableVersions) return []
 
   return props.availableVersions.map((v) => {
@@ -276,7 +268,6 @@ const versionRadioItems = computed(() => {
     return {
       value: v.version,
       label,
-      description: v.changelog || undefined,
     }
   })
 })
@@ -362,7 +353,7 @@ const permissionAccordionItems = computed(() => {
 
 const emit = defineEmits<{
   deny: []
-  confirm: [createDesktopShortcut: boolean]
+  confirm: [createDesktopShortcut: boolean, selectedVersion: string | null]
 }>()
 
 const onDeny = () => {
@@ -372,13 +363,14 @@ const onDeny = () => {
 
 const onConfirm = () => {
   open.value = false
-  emit('confirm', createDesktopShortcut.value)
+  emit('confirm', createDesktopShortcut.value, internalSelectedVersion.value ?? null)
 }
 </script>
 
 <i18n lang="yaml">
 de:
   title: Erweiterung installieren
+  titleUpdate: Erweiterung aktualisieren
   version: Version
   author: Autor
   createDesktopShortcut:
@@ -388,8 +380,9 @@ de:
     valid: Signatur verifiziert
     invalid: Signatur ungültig
   versionSelection:
-    title: Versionsauswahl
+    title: Version
     installedVersion: "Aktuell installiert: v{version}"
+    installedShort: "v{version} installiert"
     latest: Neueste
     installed: Installiert
   permissions:
@@ -400,9 +393,11 @@ de:
     shell: Terminal
   abort: Abbrechen
   confirm: Installieren
+  confirmUpdate: Aktualisieren
 
 en:
   title: Install Extension
+  titleUpdate: Update Extension
   version: Version
   author: Author
   createDesktopShortcut:
@@ -412,8 +407,9 @@ en:
     valid: Signature verified
     invalid: Invalid signature
   versionSelection:
-    title: Version Selection
+    title: Version
     installedVersion: "Currently installed: v{version}"
+    installedShort: "v{version} installed"
     latest: Latest
     installed: Installed
   permissions:
@@ -424,4 +420,5 @@ en:
     shell: Terminal
   abort: Cancel
   confirm: Install
+  confirmUpdate: Update
 </i18n>

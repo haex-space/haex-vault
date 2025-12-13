@@ -81,7 +81,7 @@ const extensionStore = useExtensionsStore()
 
 const removeExtensionAsync = async (deleteMode: 'device' | 'complete') => {
   try {
-    await extensionStore.uninstallExtensionAsync(extension, deleteMode)
+    await extensionStore.uninstallExtensionAsync(extension.id, deleteMode)
 
     add({
       color: 'success',

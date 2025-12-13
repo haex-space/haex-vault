@@ -1,4 +1,4 @@
-use crate::database::core::with_connection;
+use crate::database::core::{select_with_crdt, with_connection};
 use crate::database::error::DatabaseError;
 use crate::database::generated::HaexExtensionPermissions;
 use crate::extension::core::types::ExtensionSource;
@@ -11,6 +11,7 @@ use crate::extension::permissions::types::{
 use crate::table_names::TABLE_EXTENSION_PERMISSIONS;
 use crate::AppState;
 use rusqlite::params;
+use serde_json::Value as JsonValue;
 use std::path::Path;
 use tauri::State;
 
@@ -178,23 +179,51 @@ impl PermissionManager {
         Ok(())
     }
     /// Lädt alle Permissions einer Extension
+    /// Uses select_with_crdt to automatically filter out tombstoned (soft-deleted) entries
     pub async fn get_permissions(
         app_state: &State<'_, AppState>,
         extension_id: &str,
     ) -> Result<Vec<ExtensionPermission>, ExtensionError> {
-        with_connection(&app_state.db, |conn| {
-            let sql = format!("SELECT * FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ?");
-            let mut stmt = conn.prepare(&sql).map_err(DatabaseError::from)?;
+        let sql = format!(
+            "SELECT id, extension_id, resource_type, action, target, constraints, status, haex_timestamp FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ?"
+        );
+        let params = vec![JsonValue::String(extension_id.to_string())];
 
-            let perms_iter = stmt.query_map(params![extension_id], |row| {
-                HaexExtensionPermissions::from_row(row)
-            })?;
+        let results = select_with_crdt(sql, params, &app_state.db)?;
 
-            let permissions = perms_iter.filter_map(Result::ok).map(Into::into).collect();
+        let permissions = results
+            .into_iter()
+            .map(|row| {
+                let resource_type = row[2]
+                    .as_str()
+                    .and_then(|s| ResourceType::from_str(s).ok())
+                    .unwrap_or(ResourceType::Db);
+                let action = row[3]
+                    .as_str()
+                    .and_then(|s| Action::from_str(&resource_type, s).ok())
+                    .unwrap_or(Action::Database(crate::extension::permissions::types::DbAction::Read));
+                let status = row[6]
+                    .as_str()
+                    .and_then(|s| PermissionStatus::from_str(s).ok())
+                    .unwrap_or(PermissionStatus::Denied);
+                let constraints: Option<PermissionConstraints> = row[5]
+                    .as_str()
+                    .and_then(|s| serde_json::from_str(s).ok());
 
-            Ok(permissions)
-        })
-        .map_err(ExtensionError::from)
+                ExtensionPermission {
+                    id: row[0].as_str().unwrap_or_default().to_string(),
+                    extension_id: row[1].as_str().unwrap_or_default().to_string(),
+                    resource_type,
+                    action,
+                    target: row[4].as_str().unwrap_or_default().to_string(),
+                    constraints,
+                    status,
+                    haex_timestamp: row[7].as_str().map(String::from),
+                }
+            })
+            .collect();
+
+        Ok(permissions)
     }
 
     /// Prüft Datenbankberechtigungen
@@ -248,7 +277,7 @@ impl PermissionManager {
         url: &str,
     ) -> Result<(), ExtensionError> {
         // Load permissions - for dev extensions, get from manifest; for production, from database
-        let permissions = if let Some(extension) =
+        let permissions: Vec<ExtensionPermission> = if let Some(extension) =
             app_state.extension_manager.get_extension(extension_id)
         {
             match &extension.source {
@@ -268,22 +297,46 @@ impl PermissionManager {
                         .collect()
                 }
                 ExtensionSource::Production { .. } => {
-                    // Production extension - load from database
-                    with_connection(&app_state.db, |conn| {
-                        let sql = format!(
-                            "SELECT * FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ? AND resource_type = 'web'"
-                        );
-                        let mut stmt = conn.prepare(&sql).map_err(DatabaseError::from)?;
+                    // Production extension - load from database using select_with_crdt
+                    // to automatically filter out tombstoned (soft-deleted) entries
+                    let sql = format!(
+                        "SELECT id, extension_id, resource_type, action, target, constraints, status, haex_timestamp FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ? AND resource_type = 'web'"
+                    );
+                    let params = vec![JsonValue::String(extension_id.to_string())];
 
-                        let perms_iter = stmt.query_map(params![extension_id], |row| {
-                            crate::database::generated::HaexExtensionPermissions::from_row(row)
-                        })?;
+                    let results = select_with_crdt(sql, params, &app_state.db)?;
 
-                        let permissions: Vec<ExtensionPermission> =
-                            perms_iter.filter_map(Result::ok).map(Into::into).collect();
+                    results
+                        .into_iter()
+                        .map(|row| {
+                            let resource_type = row[2]
+                                .as_str()
+                                .and_then(|s| ResourceType::from_str(s).ok())
+                                .unwrap_or(ResourceType::Web);
+                            let action = row[3]
+                                .as_str()
+                                .and_then(|s| Action::from_str(&resource_type, s).ok())
+                                .unwrap_or(Action::Web(crate::extension::permissions::types::WebAction::Get));
+                            let status = row[6]
+                                .as_str()
+                                .and_then(|s| PermissionStatus::from_str(s).ok())
+                                .unwrap_or(PermissionStatus::Denied);
+                            let constraints: Option<PermissionConstraints> = row[5]
+                                .as_str()
+                                .and_then(|s| serde_json::from_str(s).ok());
 
-                        Ok(permissions)
-                    })?
+                            ExtensionPermission {
+                                id: row[0].as_str().unwrap_or_default().to_string(),
+                                extension_id: row[1].as_str().unwrap_or_default().to_string(),
+                                resource_type,
+                                action,
+                                target: row[4].as_str().unwrap_or_default().to_string(),
+                                constraints,
+                                status,
+                                haex_timestamp: row[7].as_str().map(String::from),
+                            }
+                        })
+                        .collect()
                 }
             }
         } else {

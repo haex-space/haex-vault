@@ -47,6 +47,7 @@ export interface MarketplaceExtensionViewModel {
     name: string
     slug: string
   } | null
+  versions: ExtensionVersion[]
   // Local state
   isInstalled: boolean
   installedVersion?: string

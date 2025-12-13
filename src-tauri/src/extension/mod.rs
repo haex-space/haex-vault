@@ -613,7 +613,7 @@ pub fn update_extension_display_mode(
 ) -> Result<(), ExtensionError> {
     state
         .extension_manager
-        .update_display_mode(&extension_id, display_mode)
+        .update_display_mode(&extension_id, display_mode, &state)
 }
 
 // ============================================================================
