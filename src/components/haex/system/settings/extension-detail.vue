@@ -78,6 +78,23 @@
               {{ extension.author }}
             </div>
           </div>
+
+          <!-- Action Buttons -->
+          <div class="flex gap-2 shrink-0">
+            <UiButton
+              icon="i-heroicons-trash"
+              color="error"
+              variant="outline"
+              size="sm"
+              @click="confirmRemove"
+            />
+            <UiButton
+              :label="t('open')"
+              icon="i-heroicons-play"
+              size="sm"
+              @click="openExtensionAsync"
+            />
+          </div>
         </div>
 
         <div
@@ -210,6 +227,7 @@
             <UiButton
               :label="t('savePermissions')"
               :loading="savingPermissions"
+              :disabled="!hasPermissionChanges"
               size="sm"
               @click="savePermissionsAsync"
             />
@@ -217,38 +235,6 @@
         </div>
       </div>
 
-      <!-- Danger Zone -->
-      <div class="space-y-4 pt-4 border-t border-error/20">
-        <h3 class="text-lg font-semibold text-error">{{ t('dangerZone') }}</h3>
-
-        <div
-          class="flex items-center justify-between p-4 rounded-lg border border-error/30 bg-error/5"
-        >
-          <div>
-            <div class="font-medium">
-              {{
-                extension.devServerUrl
-                  ? t('removeDevExtension')
-                  : t('removeExtension')
-              }}
-            </div>
-            <div class="text-sm text-gray-500 dark:text-gray-400">
-              {{
-                extension.devServerUrl
-                  ? t('removeDevWarning')
-                  : t('removeWarning')
-              }}
-            </div>
-          </div>
-          <UiButton
-            :label="t('remove')"
-            color="error"
-            variant="outline"
-            size="sm"
-            @click="confirmRemove"
-          />
-        </div>
-      </div>
     </div>
 
     <!-- Remove Confirmation Dialog -->
@@ -298,6 +284,7 @@ const { t } = useI18n()
 const { add } = useToast()
 const extensionsStore = useExtensionsStore()
 const marketplace = useMarketplace()
+const windowManager = useWindowManagerStore()
 
 // Update state
 const isCheckingUpdate = ref(false)
@@ -427,6 +414,12 @@ const updateDisplayModeAsync = async (
 // Permissions
 const loadingPermissions = ref(true)
 const savingPermissions = ref(false)
+const originalPermissions = ref<ExtensionPermissionsEditable>({
+  database: null,
+  filesystem: null,
+  http: null,
+  shell: null,
+})
 const editablePermissions = ref<ExtensionPermissionsEditable>({
   database: null,
   filesystem: null,
@@ -452,6 +445,25 @@ const hasAnyPermissions = computed(() => {
     (editablePermissions.value.filesystem?.length ?? 0) > 0 ||
     (editablePermissions.value.http?.length ?? 0) > 0 ||
     (editablePermissions.value.shell?.length ?? 0) > 0
+  )
+})
+
+const hasPermissionChanges = computed(() => {
+  const compareArrays = (a: PermissionEntry[] | null | undefined, b: PermissionEntry[] | null | undefined) => {
+    if (!a && !b) return true
+    if (!a || !b) return false
+    if (a.length !== b.length) return false
+    return a.every((item, index) => {
+      const other = b[index]
+      return item.target === other?.target && item.status === other?.status
+    })
+  }
+
+  return (
+    !compareArrays(editablePermissions.value.database, originalPermissions.value.database) ||
+    !compareArrays(editablePermissions.value.filesystem, originalPermissions.value.filesystem) ||
+    !compareArrays(editablePermissions.value.http, originalPermissions.value.http) ||
+    !compareArrays(editablePermissions.value.shell, originalPermissions.value.shell)
   )
 })
 
@@ -503,10 +515,18 @@ const loadPermissionsAsync = async () => {
         extensionId: props.extension.id,
       },
     )
+    // Store original for comparison
+    originalPermissions.value = JSON.parse(JSON.stringify(permissions))
     editablePermissions.value = permissions
   } catch (error) {
     console.error('Error loading permissions:', error)
     editablePermissions.value = {
+      database: [],
+      filesystem: [],
+      http: [],
+      shell: [],
+    }
+    originalPermissions.value = {
       database: [],
       filesystem: [],
       http: [],
@@ -525,6 +545,8 @@ const savePermissionsAsync = async () => {
       extensionId: props.extension.id,
       permissions: editablePermissions.value,
     })
+    // Update original after successful save
+    originalPermissions.value = JSON.parse(JSON.stringify(editablePermissions.value))
     add({ description: t('permissionsSaved'), color: 'success' })
   } catch (error) {
     console.error('Error saving permissions:', error)
@@ -536,6 +558,18 @@ const savePermissionsAsync = async () => {
 
 const confirmRemove = () => {
   removeDialogOpen.value = true
+}
+
+const openExtensionAsync = async () => {
+  try {
+    await windowManager.openWindowAsync({
+      type: 'extension',
+      sourceId: props.extension.id,
+    })
+  } catch (error) {
+    console.error('Error opening extension:', error)
+    add({ description: t('openError'), color: 'error' })
+  }
 }
 
 const handleRemoveAsync = async (deleteMode: 'device' | 'complete') => {
@@ -561,6 +595,8 @@ onMounted(async () => {
 de:
   extensionDetails: Erweiterungsdetails und Konfiguration
   devExtension: Entwicklung
+  open: Öffnen
+  openError: Fehler beim Öffnen der Erweiterung
   info: Informationen
   version: Version
   updateAvailable: 'Update auf v{version}'
@@ -603,6 +639,8 @@ de:
 en:
   extensionDetails: Extension details and configuration
   devExtension: Development
+  open: Open
+  openError: Error opening extension
   info: Information
   version: Version
   updateAvailable: 'Update to v{version}'
