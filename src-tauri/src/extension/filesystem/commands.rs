@@ -15,6 +15,8 @@ use crate::table_names::{
 use crate::AppState;
 use serde_json::Value as JsonValue;
 use tauri::{AppHandle, Emitter, State};
+#[cfg(desktop)]
+use tauri_plugin_dialog::DialogExt;
 
 // Helper to convert DatabaseError to FileSyncError
 impl From<DatabaseError> for FileSyncError {
@@ -627,12 +629,32 @@ pub async fn filesync_resolve_conflict(
 pub async fn filesync_select_folder(
     app_handle: tauri::AppHandle,
 ) -> Result<Option<String>, FileSyncError> {
-    use tauri_plugin_dialog::DialogExt;
+    #[cfg(desktop)]
+    {
+        let folder = app_handle.dialog().file().blocking_pick_folder();
 
-    let folder = app_handle
-        .dialog()
-        .file()
-        .blocking_pick_folder();
+        Ok(folder.and_then(|p| p.as_path().map(|path| path.to_string_lossy().to_string())))
+    }
 
-    Ok(folder.map(|p| p.to_string()))
+    #[cfg(target_os = "android")]
+    {
+        use tauri_plugin_android_fs::AndroidFsExt;
+
+        let api = app_handle.android_fs();
+        let selected = api
+            .file_picker()
+            .pick_dir(None, false)
+            .await
+            .map_err(|e| FileSyncError::FilesystemError {
+                reason: e.to_string(),
+            })?;
+
+        if let Some(dir_uri) = selected {
+            // Persist permissions across app restarts
+            let _ = api.take_persistable_uri_permission(&dir_uri).await;
+            Ok(Some(dir_uri.to_string()))
+        } else {
+            Ok(None)
+        }
+    }
 }

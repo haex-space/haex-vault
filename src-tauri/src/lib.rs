@@ -47,6 +47,12 @@ pub fn run() {
         builder = builder.plugin(tauri_plugin_biometry::init());
     }
 
+    // Android FS plugin (Android only) - provides file/folder picker with SAF support
+    #[cfg(target_os = "android")]
+    {
+        builder = builder.plugin(tauri_plugin_android_fs::init());
+    }
+
     // Single-instance plugin must be registered first (desktop only)
     // This handles deep-link URLs passed as CLI arguments when a new instance is launched
     #[cfg(desktop)]

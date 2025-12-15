@@ -59,6 +59,9 @@ pub enum FileSyncError {
 
     #[error("Internal error: {reason}")]
     Internal { reason: String },
+
+    #[error("Not supported: {reason}")]
+    NotSupported { reason: String },
 }
 
 impl From<std::io::Error> for FileSyncError {
