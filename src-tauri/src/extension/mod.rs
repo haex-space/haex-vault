@@ -19,6 +19,7 @@ pub mod core;
 pub mod crypto;
 pub mod database;
 pub mod error;
+pub mod filesystem;
 pub mod permissions;
 pub mod utils;
 pub mod web;

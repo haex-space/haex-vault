@@ -198,19 +198,32 @@ impl ValueConverter {
 
 /// Execute SQL mit CRDT-Transformation (für Drizzle-Integration)
 /// Diese Funktion sollte von Drizzle verwendet werden, um CRDT-Support zu erhalten
+/// Unterstützt RETURNING-Klausel: Falls vorhanden, werden die Ergebnis-Rows zurückgegeben
 pub fn execute_with_crdt(
     sql: String,
     params: Vec<JsonValue>,
     connection: &DbConnection,
     hlc_service: &std::sync::MutexGuard<crate::crdt::hlc::HlcService>,
 ) -> Result<Vec<Vec<JsonValue>>, DatabaseError> {
+    // Parse statement to check for RETURNING clause (AST-basiert)
+    let statement = parse_single_statement(&sql)?;
+    let has_returning = statement_has_returning(&statement);
+
     with_connection(connection, |conn| {
         let tx = conn.transaction().map_err(DatabaseError::from)?;
-        let _modified_tables = SqlExecutor::execute_internal(&tx, hlc_service, &sql, &params)?;
-        tx.commit().map_err(DatabaseError::from)?;
 
-        // Für Drizzle: gebe leeres Array zurück (wie bei execute ohne RETURNING)
-        Ok(vec![])
+        let result = if has_returning {
+            let (_modified_tables, rows) =
+                SqlExecutor::query_internal(&tx, hlc_service, &sql, &params)?;
+            rows
+        } else {
+            let _modified_tables =
+                SqlExecutor::execute_internal(&tx, hlc_service, &sql, &params)?;
+            vec![]
+        };
+
+        tx.commit().map_err(DatabaseError::from)?;
+        Ok(result)
     })
 }
 
@@ -693,5 +706,55 @@ mod tests {
             extract_primary_table_name_from_sql("DELETE FROM customers").unwrap(),
             Some("customers".to_string())
         );
+    }
+
+    #[test]
+    fn test_statement_has_returning_insert() {
+        // INSERT ohne RETURNING
+        let stmt = parse_single_statement("INSERT INTO users (name) VALUES ('test')").unwrap();
+        assert!(!statement_has_returning(&stmt));
+
+        // INSERT mit RETURNING
+        let stmt_ret =
+            parse_single_statement("INSERT INTO users (name) VALUES ('test') RETURNING id, name")
+                .unwrap();
+        assert!(statement_has_returning(&stmt_ret));
+
+        // INSERT mit RETURNING *
+        let stmt_ret_all =
+            parse_single_statement("INSERT INTO users (name) VALUES ('test') RETURNING *").unwrap();
+        assert!(statement_has_returning(&stmt_ret_all));
+    }
+
+    #[test]
+    fn test_statement_has_returning_update() {
+        // UPDATE ohne RETURNING
+        let stmt = parse_single_statement("UPDATE users SET name = 'new' WHERE id = 1").unwrap();
+        assert!(!statement_has_returning(&stmt));
+
+        // UPDATE mit RETURNING
+        let stmt_ret =
+            parse_single_statement("UPDATE users SET name = 'new' WHERE id = 1 RETURNING id, name")
+                .unwrap();
+        assert!(statement_has_returning(&stmt_ret));
+    }
+
+    #[test]
+    fn test_statement_has_returning_delete() {
+        // DELETE ohne RETURNING
+        let stmt = parse_single_statement("DELETE FROM users WHERE id = 1").unwrap();
+        assert!(!statement_has_returning(&stmt));
+
+        // DELETE mit RETURNING
+        let stmt_ret =
+            parse_single_statement("DELETE FROM users WHERE id = 1 RETURNING id, name").unwrap();
+        assert!(statement_has_returning(&stmt_ret));
+    }
+
+    #[test]
+    fn test_statement_has_returning_select() {
+        // SELECT hat kein RETURNING (immer false)
+        let stmt = parse_single_statement("SELECT * FROM users").unwrap();
+        assert!(!statement_has_returning(&stmt));
     }
 }

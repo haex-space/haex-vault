@@ -75,6 +75,8 @@ pub fn sql_execute_with_crdt(
     Ok(result)
 }
 
+/// DEPRECATED: Use sql_with_crdt instead
+/// This command is kept for backwards compatibility
 #[tauri::command]
 pub fn sql_query_with_crdt(
     sql: String,
@@ -98,6 +100,49 @@ pub fn sql_query_with_crdt(
     let _ = app_handle.emit("crdt:dirty-tables-changed", ());
 
     Ok(result)
+}
+
+/// Unified SQL command with CRDT support
+///
+/// This command automatically detects the SQL statement type using AST parsing:
+/// - SELECT: Executes with tombstone filtering (select_with_crdt)
+/// - INSERT/UPDATE/DELETE: Executes with CRDT timestamps (execute_with_crdt)
+///   - If RETURNING clause is present, returns the result rows
+///   - Otherwise returns empty array
+///
+/// This replaces the need for separate sql_select_with_crdt, sql_execute_with_crdt,
+/// and sql_query_with_crdt commands in the frontend.
+#[tauri::command]
+pub fn sql_with_crdt(
+    sql: String,
+    params: Vec<JsonValue>,
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Vec<Vec<JsonValue>>, DatabaseError> {
+    use sqlparser::ast::Statement;
+
+    // Parse the SQL statement using AST (no string matching!)
+    let statement = core::parse_single_statement(&sql)?;
+
+    match statement {
+        // SELECT statements: use select_with_crdt (adds tombstone filter)
+        Statement::Query(_) => core::select_with_crdt(sql, params, &state.db),
+        // INSERT/UPDATE/DELETE: use execute_with_crdt (handles RETURNING via AST)
+        Statement::Insert(_) | Statement::Update { .. } | Statement::Delete(_) => {
+            let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
+                reason: "Failed to lock HLC service".to_string(),
+            })?;
+
+            let result = core::execute_with_crdt(sql, params, &state.db, &hlc_service)?;
+
+            // Emit event to notify frontend that dirty tables may have changed
+            let _ = app_handle.emit("crdt:dirty-tables-changed", ());
+
+            Ok(result)
+        }
+        // Other statements (CREATE TABLE, etc.) - execute without CRDT
+        _ => core::execute(sql, params, &state.db),
+    }
 }
 
 /// Resolves a database name to the full vault path

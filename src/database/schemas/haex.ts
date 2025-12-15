@@ -26,6 +26,29 @@ export const withCrdtColumns = <
     .default(false),
 })
 
+// Helper to create standard timestamp columns (createdAt, updatedAt)
+export const timestampColumns = (createdAtCol: string, updatedAtCol: string) => ({
+  createdAt: text(createdAtCol).default(sql`(CURRENT_TIMESTAMP)`),
+  updatedAt: text(updatedAtCol),
+})
+
+// Combined helper for CRDT + timestamps (for tables that need both)
+export const withCrdtAndTimestamps = <
+  T extends Record<string, SQLiteColumnBuilderBase>,
+>(
+  columns: T,
+  createdAtCol: string,
+  updatedAtCol: string,
+) => ({
+  ...columns,
+  ...timestampColumns(createdAtCol, updatedAtCol),
+  haexTimestamp: text(crdtColumnNames.haexTimestamp),
+  haexColumnHlcs: text(crdtColumnNames.haexColumnHlcs).notNull().default('{}'),
+  haexTombstone: integer(crdtColumnNames.haexTombstone, { mode: 'boolean' })
+    .notNull()
+    .default(false),
+})
+
 export const haexDevices = sqliteTable(
   tableNames.haex.devices.name,
   withCrdtColumns({

@@ -165,6 +165,7 @@ pub fn run() {
             database::sql_query_with_crdt,
             database::sql_select_with_crdt,
             database::sql_select,
+            database::sql_with_crdt,
             database::vault_exists,
             database::import_vault,
             database::crdt_cleanup_tombstones,
@@ -273,6 +274,28 @@ pub fn run() {
             browser_bridge::get_pending_authorizations,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             browser_bridge::respond_to_external_request,
+            // FileSync commands (extension/filesystem)
+            extension::filesystem::commands::filesync_list_spaces,
+            extension::filesystem::commands::filesync_create_space,
+            extension::filesystem::commands::filesync_delete_space,
+            extension::filesystem::commands::filesync_list_files,
+            extension::filesystem::commands::filesync_get_file,
+            extension::filesystem::commands::filesync_upload_file,
+            extension::filesystem::commands::filesync_download_file,
+            extension::filesystem::commands::filesync_delete_file,
+            extension::filesystem::commands::filesync_list_backends,
+            extension::filesystem::commands::filesync_add_backend,
+            extension::filesystem::commands::filesync_remove_backend,
+            extension::filesystem::commands::filesync_test_backend,
+            extension::filesystem::commands::filesync_list_sync_rules,
+            extension::filesystem::commands::filesync_add_sync_rule,
+            extension::filesystem::commands::filesync_remove_sync_rule,
+            extension::filesystem::commands::filesync_get_sync_status,
+            extension::filesystem::commands::filesync_trigger_sync,
+            extension::filesystem::commands::filesync_pause_sync,
+            extension::filesystem::commands::filesync_resume_sync,
+            extension::filesystem::commands::filesync_resolve_conflict,
+            extension::filesystem::commands::filesync_select_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

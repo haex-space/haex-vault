@@ -459,65 +459,33 @@ const getVaultIdAsync = async (
   return vaultId
 }
 
-const isSelectQuery = (sql: string) => {
-  const selectRegex = /^\s*SELECT\b/i
-  return selectRegex.test(sql)
-}
-
-const hasReturning = (sql: string) => {
-  const returningRegex = /\bRETURNING\b/i
-  return returningRegex.test(sql)
-}
-
+/**
+ * Unified Drizzle callback using sql_with_crdt
+ *
+ * The Rust backend (sql_with_crdt) handles all SQL statement type detection
+ * via AST parsing - no string matching needed here.
+ *
+ * - SELECT: Automatically filtered for tombstones
+ * - INSERT/UPDATE/DELETE: CRDT timestamps applied, RETURNING handled correctly
+ */
 const drizzleCallback = (async (
   sql: string,
   params: unknown[],
   method: 'get' | 'run' | 'all' | 'values',
 ) => {
-  // Wir MÜSSEN 'any[]' verwenden, um Drizzle's Typ zu erfüllen.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let rows: any[] = []
 
   try {
-    if (isSelectQuery(sql)) {
-      // SELECT statements
-      rows = await invoke<unknown[]>('sql_select_with_crdt', {
-        sql,
-        params,
-      }).catch((e) => {
-        console.error('SQL select Error:', e, sql, params)
-        throw e // Re-throw the error so it can be caught by the caller
-      })
-    } else if (hasReturning(sql)) {
-      // INSERT/UPDATE/DELETE with RETURNING → use query
-      rows = await invoke<unknown[]>('sql_query_with_crdt', {
-        sql,
-        params,
-      }).catch((e) => {
-        console.error('SQL query with CRDT Error:', e, sql, params)
-        throw e // Re-throw the error so it can be caught by the caller
-      })
-    } else {
-      // INSERT/UPDATE/DELETE without RETURNING → use execute
-      await invoke<unknown[]>('sql_execute_with_crdt', {
-        sql,
-        params,
-      }).catch((e) => {
-        console.error('SQL execute with CRDT Error:', e, sql, params, rows)
-        throw e // Re-throw the error so it can be caught by the caller
-      })
-    }
-  } catch (error) {
-    console.error('Fehler im drizzleCallback invoke:', error, {
+    // Single unified command - Rust handles statement type detection via AST
+    rows = await invoke<unknown[]>('sql_with_crdt', {
       sql,
       params,
-      method,
     })
-    throw error // Re-throw the error so it can be caught by the caller
+  } catch (error) {
+    console.error('SQL Error:', error, { sql, params, method })
+    throw error
   }
-
-  /* console.log('drizzleCallback', method, sql, params)
-  console.log('drizzleCallback rows', rows, rows.slice(0, 1)) */
 
   if (method === 'get') {
     return rows.length > 0 ? { rows: rows.at(0) } : { rows }
