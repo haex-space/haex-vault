@@ -249,6 +249,7 @@
       v-model:open="updateDialogOpen"
       v-model:preview="updatePreview"
       mode="update"
+      :icon-url="extension.iconUrl"
       @confirm="handleUpdateConfirmAsync"
     />
   </div>

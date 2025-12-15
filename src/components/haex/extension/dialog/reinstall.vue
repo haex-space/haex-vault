@@ -51,11 +51,12 @@
           class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4"
         >
           <div class="flex items-center gap-3">
-            <UIcon
-              v-if="preview.manifest.icon"
-              :name="preview.manifest.icon"
-              class="w-12 h-12"
-            />
+            <div class="w-12 h-12 shrink-0 rounded-lg bg-base-200 flex items-center justify-center overflow-hidden">
+              <HaexIcon
+                :name="iconUrl || preview.manifest.icon || 'i-heroicons-puzzle-piece'"
+                class="w-full h-full object-contain"
+              />
+            </div>
             <div class="flex-1">
               <h4 class="font-semibold">
                 {{ preview.manifest.name }}
@@ -103,11 +104,16 @@ const preview = defineModel<ExtensionPreview | null>('preview', {
   default: null,
 })
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   mode?: ReinstallMode
+  /** Icon URL from marketplace (optional - used when manifest icon is not available) */
+  iconUrl?: string | null
 }>(), {
   mode: 'reinstall',
+  iconUrl: null,
 })
+
+const { iconUrl } = toRefs(props)
 
 const emit = defineEmits(['deny', 'confirm'])
 

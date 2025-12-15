@@ -115,6 +115,7 @@
         v-model:open="openOverwriteDialog"
         v-model:preview="installPreview"
         :mode="reinstallMode"
+        :icon-url="currentMarketplaceExtension?.iconUrl"
         @confirm="confirmReinstallAsync"
       />
 
