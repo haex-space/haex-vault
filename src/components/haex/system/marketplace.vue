@@ -497,7 +497,12 @@ const confirmInstallAsync = async (
         )
       } catch (error) {
         // Ignore errors for dev extensions (they can't be persisted)
-        if ((error as any)?.code !== 'DEV_EXTENSION_NOT_PERSISTABLE') {
+        const isDevExtensionError =
+          error &&
+          typeof error === 'object' &&
+          'code' in error &&
+          error.code === 'DEV_EXTENSION_NOT_PERSISTABLE'
+        if (!isDevExtensionError) {
           console.warn('Could not add extension to desktop:', error)
         }
       }
