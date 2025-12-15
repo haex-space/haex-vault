@@ -644,15 +644,15 @@ pub async fn filesync_select_folder(
         let selected = api
             .file_picker()
             .pick_dir(None, false)
-            .await
             .map_err(|e| FileSyncError::FilesystemError {
                 reason: e.to_string(),
             })?;
 
         if let Some(dir_uri) = selected {
             // Persist permissions across app restarts
-            let _ = api.take_persistable_uri_permission(&dir_uri).await;
-            Ok(Some(dir_uri.to_string()))
+            let _ = api.take_persistable_uri_permission(&dir_uri);
+            // Convert FileUri to String using Debug format as fallback
+            Ok(Some(format!("{:?}", dir_uri)))
         } else {
             Ok(None)
         }

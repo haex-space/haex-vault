@@ -2271,6 +2271,444 @@
       "description": "Permission identifier",
       "oneOf": [
         {
+          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `all-without-delete`",
+          "type": "string",
+          "const": "android-fs:default",
+          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `all-without-delete`"
+        },
+        {
+          "description": "This enables all commands.",
+          "type": "string",
+          "const": "android-fs:all",
+          "markdownDescription": "This enables all commands."
+        },
+        {
+          "description": "This enables all commands except those that delete existing entries (such as remove, copy or truncate).",
+          "type": "string",
+          "const": "android-fs:all-without-delete",
+          "markdownDescription": "This enables all commands except those that delete existing entries (such as remove, copy or truncate)."
+        },
+        {
+          "description": "Enables the check_persisted_uri_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-check-persisted-uri-permission",
+          "markdownDescription": "Enables the check_persisted_uri_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the copy_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-copy-file",
+          "markdownDescription": "Enables the copy_file command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the create_dir_all command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-create-dir-all",
+          "markdownDescription": "Enables the create_dir_all command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the create_new_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-create-new-file",
+          "markdownDescription": "Enables the create_new_file command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the create_new_public_audio_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-create-new-public-audio-file",
+          "markdownDescription": "Enables the create_new_public_audio_file command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the create_new_public_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-create-new-public-file",
+          "markdownDescription": "Enables the create_new_public_file command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the create_new_public_image_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-create-new-public-image-file",
+          "markdownDescription": "Enables the create_new_public_image_file command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the create_new_public_video_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-create-new-public-video-file",
+          "markdownDescription": "Enables the create_new_public_video_file command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_byte_length command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-get-byte-length",
+          "markdownDescription": "Enables the get_byte_length command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_fs_path command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-get-fs-path",
+          "markdownDescription": "Enables the get_fs_path command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_metadata command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-get-metadata",
+          "markdownDescription": "Enables the get_metadata command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_mime_type command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-get-mime-type",
+          "markdownDescription": "Enables the get_mime_type command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_name command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-get-name",
+          "markdownDescription": "Enables the get_name command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_thumbnail command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-get-thumbnail",
+          "markdownDescription": "Enables the get_thumbnail command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_thumbnail_base64 command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-get-thumbnail-base64",
+          "markdownDescription": "Enables the get_thumbnail_base64 command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_thumbnail_data_url command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-get-thumbnail-data-url",
+          "markdownDescription": "Enables the get_thumbnail_data_url command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_type command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-get-type",
+          "markdownDescription": "Enables the get_type command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the has_public_files_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-has-public-files-permission",
+          "markdownDescription": "Enables the has_public_files_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the list_volumes command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-list-volumes",
+          "markdownDescription": "Enables the list_volumes command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the persist_uri_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-persist-uri-permission",
+          "markdownDescription": "Enables the persist_uri_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the read_dir command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-read-dir",
+          "markdownDescription": "Enables the read_dir command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the release_all_persisted_uri_permissions command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-release-all-persisted-uri-permissions",
+          "markdownDescription": "Enables the release_all_persisted_uri_permissions command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the release_persisted_uri_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-release-persisted-uri-permission",
+          "markdownDescription": "Enables the release_persisted_uri_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the remove_dir_all command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-remove-dir-all",
+          "markdownDescription": "Enables the remove_dir_all command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the remove_empty_dir command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-remove-empty-dir",
+          "markdownDescription": "Enables the remove_empty_dir command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the remove_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-remove-file",
+          "markdownDescription": "Enables the remove_file command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the request_public_files_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-request-public-files-permission",
+          "markdownDescription": "Enables the request_public_files_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the scan_public_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-scan-public-file",
+          "markdownDescription": "Enables the scan_public_file command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the show_open_dir_picker command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-show-open-dir-picker",
+          "markdownDescription": "Enables the show_open_dir_picker command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the show_open_file_picker command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-show-open-file-picker",
+          "markdownDescription": "Enables the show_open_file_picker command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the show_save_file_picker command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-show-save-file-picker",
+          "markdownDescription": "Enables the show_save_file_picker command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the show_share_file_dialog command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-show-share-file-dialog",
+          "markdownDescription": "Enables the show_share_file_dialog command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the show_view_dir_dialog command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-show-view-dir-dialog",
+          "markdownDescription": "Enables the show_view_dir_dialog command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the show_view_file_dialog command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-show-view-file-dialog",
+          "markdownDescription": "Enables the show_view_file_dialog command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the truncate_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:allow-truncate-file",
+          "markdownDescription": "Enables the truncate_file command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the check_persisted_uri_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-check-persisted-uri-permission",
+          "markdownDescription": "Denies the check_persisted_uri_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the copy_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-copy-file",
+          "markdownDescription": "Denies the copy_file command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the create_dir_all command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-create-dir-all",
+          "markdownDescription": "Denies the create_dir_all command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the create_new_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-create-new-file",
+          "markdownDescription": "Denies the create_new_file command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the create_new_public_audio_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-create-new-public-audio-file",
+          "markdownDescription": "Denies the create_new_public_audio_file command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the create_new_public_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-create-new-public-file",
+          "markdownDescription": "Denies the create_new_public_file command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the create_new_public_image_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-create-new-public-image-file",
+          "markdownDescription": "Denies the create_new_public_image_file command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the create_new_public_video_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-create-new-public-video-file",
+          "markdownDescription": "Denies the create_new_public_video_file command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_byte_length command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-get-byte-length",
+          "markdownDescription": "Denies the get_byte_length command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_fs_path command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-get-fs-path",
+          "markdownDescription": "Denies the get_fs_path command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_metadata command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-get-metadata",
+          "markdownDescription": "Denies the get_metadata command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_mime_type command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-get-mime-type",
+          "markdownDescription": "Denies the get_mime_type command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_name command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-get-name",
+          "markdownDescription": "Denies the get_name command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_thumbnail command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-get-thumbnail",
+          "markdownDescription": "Denies the get_thumbnail command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_thumbnail_base64 command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-get-thumbnail-base64",
+          "markdownDescription": "Denies the get_thumbnail_base64 command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_thumbnail_data_url command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-get-thumbnail-data-url",
+          "markdownDescription": "Denies the get_thumbnail_data_url command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_type command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-get-type",
+          "markdownDescription": "Denies the get_type command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the has_public_files_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-has-public-files-permission",
+          "markdownDescription": "Denies the has_public_files_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the list_volumes command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-list-volumes",
+          "markdownDescription": "Denies the list_volumes command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the persist_uri_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-persist-uri-permission",
+          "markdownDescription": "Denies the persist_uri_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the read_dir command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-read-dir",
+          "markdownDescription": "Denies the read_dir command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the release_all_persisted_uri_permissions command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-release-all-persisted-uri-permissions",
+          "markdownDescription": "Denies the release_all_persisted_uri_permissions command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the release_persisted_uri_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-release-persisted-uri-permission",
+          "markdownDescription": "Denies the release_persisted_uri_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the remove_dir_all command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-remove-dir-all",
+          "markdownDescription": "Denies the remove_dir_all command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the remove_empty_dir command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-remove-empty-dir",
+          "markdownDescription": "Denies the remove_empty_dir command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the remove_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-remove-file",
+          "markdownDescription": "Denies the remove_file command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the request_public_files_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-request-public-files-permission",
+          "markdownDescription": "Denies the request_public_files_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the scan_public_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-scan-public-file",
+          "markdownDescription": "Denies the scan_public_file command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the show_open_dir_picker command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-show-open-dir-picker",
+          "markdownDescription": "Denies the show_open_dir_picker command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the show_open_file_picker command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-show-open-file-picker",
+          "markdownDescription": "Denies the show_open_file_picker command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the show_save_file_picker command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-show-save-file-picker",
+          "markdownDescription": "Denies the show_save_file_picker command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the show_share_file_dialog command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-show-share-file-dialog",
+          "markdownDescription": "Denies the show_share_file_dialog command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the show_view_dir_dialog command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-show-view-dir-dialog",
+          "markdownDescription": "Denies the show_view_dir_dialog command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the show_view_file_dialog command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-show-view-file-dialog",
+          "markdownDescription": "Denies the show_view_file_dialog command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the truncate_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "android-fs:deny-truncate-file",
+          "markdownDescription": "Denies the truncate_file command without any pre-configured scope."
+        },
+        {
           "description": "This permission set configures which\nbiometry features are by default exposed.\n\n#### Granted Permissions\n\nIt allows acccess to all biometry commands.\n\n\n#### This default permission set includes:\n\n- `allow-authenticate`\n- `allow-status`\n- `allow-has-data`\n- `allow-get-data`\n- `allow-set-data`\n- `allow-remove-data`",
           "type": "string",
           "const": "biometry:default",

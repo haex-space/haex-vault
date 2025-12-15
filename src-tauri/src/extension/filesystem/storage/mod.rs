@@ -3,6 +3,7 @@
 //! Storage Backend Trait and Implementations
 //!
 
+#[cfg(not(target_os = "android"))]
 pub mod s3;
 
 use crate::extension::filesystem::error::FileSyncError;
