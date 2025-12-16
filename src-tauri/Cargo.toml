@@ -66,12 +66,11 @@ rand = "0.8"
 # FileSync dependencies
 chacha20poly1305 = "0.10"
 async-trait = "0.1"
+# S3 backend - cross-platform with rustls (no OpenSSL needed for Android/iOS)
+rust-s3 = { version = "0.37", default-features = false, features = ["tokio-rustls-tls", "fail-on-err", "tags"] }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 trash = "5.2"
-# S3 backend only on desktop (aws-lc-sys doesn't compile for Android without NDK cmake)
-aws-sdk-s3 = "1.76"
-aws-config = "1.6"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"

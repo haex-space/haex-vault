@@ -8,6 +8,7 @@ import {
 import {
   handleDatabaseMethodAsync,
   handleFilesystemMethodAsync,
+  handleFileSyncMethodAsync,
   handleWebMethodAsync,
   handlePermissionsMethodAsync,
   handleContextMethodAsync,
@@ -205,6 +206,8 @@ const registerGlobalMessageHandler = () => {
         request.method === HAEXTENSION_METHODS.filesystem.showImage
       ) {
         result = await handleFilesystemMethodAsync(request, instance.extension)
+      } else if (request.method.startsWith('haextension:filesystem:sync:')) {
+        result = await handleFileSyncMethodAsync(request, instance.extension)
       } else if (
         request.method === HAEXTENSION_METHODS.web.fetch ||
         request.method === HAEXTENSION_METHODS.application.open

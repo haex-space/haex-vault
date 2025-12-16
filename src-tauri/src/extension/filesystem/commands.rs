@@ -8,6 +8,7 @@
 use crate::database::core;
 use crate::database::error::DatabaseError;
 use crate::extension::filesystem::error::FileSyncError;
+use crate::extension::filesystem::storage::StorageBackend;
 use crate::extension::filesystem::types::*;
 use crate::table_names::{
     TABLE_FILE_BACKENDS, TABLE_FILE_SPACES, TABLE_FILE_SYNC_RULES, TABLE_FILE_SYNC_RULE_BACKENDS,
@@ -369,16 +370,17 @@ pub async fn filesync_test_backend(
 
     // TODO: Decrypt config with vault_key
     // For now, parse as plain JSON
-    let _config: serde_json::Value = serde_json::from_str(&encrypted_config)
-        .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
+    let config: S3BackendConfig = serde_json::from_str(&encrypted_config)
+        .map_err(|e| FileSyncError::Internal {
+            reason: format!("Failed to parse config: {}", e),
+        })?;
 
     // Test connection based on backend type
     match backend_type.as_str() {
-        "s3" => {
-            // TODO: Create S3Backend and test connection
-            // let s3_config = S3Config::from_json(&_config)?;
-            // let backend = S3Backend::new(s3_config).await?;
-            // backend.test_connection().await?;
+        "s3" | "r2" | "minio" => {
+            use super::storage::s3::S3Backend;
+            let backend = S3Backend::new(&config).await?;
+            backend.test_connection().await?;
             Ok(())
         }
         _ => Err(FileSyncError::Internal {

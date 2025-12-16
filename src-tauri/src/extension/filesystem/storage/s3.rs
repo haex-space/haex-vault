@@ -3,23 +3,21 @@
 //! S3-compatible Storage Backend
 //!
 //! Supports AWS S3, Cloudflare R2, MinIO, and other S3-compatible services.
+//! Uses rust-s3 with rustls for cross-platform support (including Android/iOS).
 //!
 
 use super::{BlobInfo, BlobMetadata, StorageBackend, TransferProgress};
 use crate::extension::filesystem::error::FileSyncError;
 use crate::extension::filesystem::types::S3BackendConfig;
 use async_trait::async_trait;
-use aws_sdk_s3::{
-    config::{Credentials, Region},
-    primitives::ByteStream,
-    Client,
-};
+use s3::creds::Credentials;
+use s3::region::Region;
+use s3::Bucket;
 use tokio::sync::mpsc;
 
 /// S3-compatible storage backend
 pub struct S3Backend {
-    client: Client,
-    bucket: String,
+    bucket: Box<Bucket>,
     backend_type: &'static str,
 }
 
@@ -27,27 +25,31 @@ impl S3Backend {
     /// Create a new S3 backend from config
     pub async fn new(config: &S3BackendConfig) -> Result<Self, FileSyncError> {
         let credentials = Credentials::new(
-            &config.access_key_id,
-            &config.secret_access_key,
+            Some(&config.access_key_id),
+            Some(&config.secret_access_key),
+            None, // security token
             None, // session token
-            None, // expiry
-            "haex-files",
-        );
+            None, // profile
+        )
+        .map_err(|e| FileSyncError::BackendConnectionFailed {
+            reason: format!("Failed to create credentials: {}", e),
+        })?;
 
-        let region = Region::new(config.region.clone());
+        // Determine region - for custom endpoints, use a custom region
+        let region = if let Some(endpoint) = &config.endpoint {
+            Region::Custom {
+                region: config.region.clone(),
+                endpoint: endpoint.clone(),
+            }
+        } else {
+            config.region.parse().unwrap_or(Region::UsEast1)
+        };
 
-        let mut s3_config_builder = aws_sdk_s3::Config::builder()
-            .credentials_provider(credentials)
-            .region(region)
-            .force_path_style(true); // Required for MinIO and some S3-compatible services
-
-        // Set custom endpoint for R2, MinIO, etc.
-        if let Some(endpoint) = &config.endpoint {
-            s3_config_builder = s3_config_builder.endpoint_url(endpoint);
-        }
-
-        let s3_config = s3_config_builder.build();
-        let client = Client::from_conf(s3_config);
+        let bucket = Bucket::new(&config.bucket, region, credentials)
+            .map_err(|e| FileSyncError::BackendConnectionFailed {
+                reason: format!("Failed to create bucket: {}", e),
+            })?
+            .with_path_style(); // Required for MinIO and some S3-compatible services
 
         let backend_type = match config.backend_type {
             crate::extension::filesystem::types::StorageBackendType::S3 => "s3",
@@ -57,8 +59,7 @@ impl S3Backend {
         };
 
         Ok(Self {
-            client,
-            bucket: config.bucket.clone(),
+            bucket,
             backend_type,
         })
     }
@@ -72,11 +73,8 @@ impl StorageBackend for S3Backend {
 
     async fn test_connection(&self) -> Result<(), FileSyncError> {
         // Try to list objects (with max 1) to verify credentials and bucket access
-        self.client
-            .list_objects_v2()
-            .bucket(&self.bucket)
-            .max_keys(1)
-            .send()
+        self.bucket
+            .list("".to_string(), Some("/".to_string()))
             .await
             .map_err(|e| FileSyncError::BackendConnectionFailed {
                 reason: format!("S3 connection test failed: {}", e),
@@ -92,15 +90,8 @@ impl StorageBackend for S3Backend {
         _progress: Option<mpsc::Sender<TransferProgress>>,
     ) -> Result<(), FileSyncError> {
         // TODO: Implement multipart upload with progress for large files
-
-        let body = ByteStream::from(data.to_vec());
-
-        self.client
-            .put_object()
-            .bucket(&self.bucket)
-            .key(remote_id)
-            .body(body)
-            .send()
+        self.bucket
+            .put_object(remote_id, data)
             .await
             .map_err(|e| FileSyncError::UploadFailed {
                 reason: format!("S3 upload failed: {}", e),
@@ -111,35 +102,19 @@ impl StorageBackend for S3Backend {
 
     async fn download(&self, remote_id: &str) -> Result<Vec<u8>, FileSyncError> {
         let response = self
-            .client
-            .get_object()
-            .bucket(&self.bucket)
-            .key(remote_id)
-            .send()
+            .bucket
+            .get_object(remote_id)
             .await
             .map_err(|e| FileSyncError::DownloadFailed {
                 reason: format!("S3 download failed: {}", e),
             })?;
 
-        let bytes = response
-            .body
-            .collect()
-            .await
-            .map_err(|e| FileSyncError::DownloadFailed {
-                reason: format!("Failed to read S3 response body: {}", e),
-            })?
-            .into_bytes()
-            .to_vec();
-
-        Ok(bytes)
+        Ok(response.to_vec())
     }
 
     async fn delete(&self, remote_id: &str) -> Result<(), FileSyncError> {
-        self.client
-            .delete_object()
-            .bucket(&self.bucket)
-            .key(remote_id)
-            .send()
+        self.bucket
+            .delete_object(remote_id)
             .await
             .map_err(|e| FileSyncError::Internal {
                 reason: format!("S3 delete failed: {}", e),
@@ -149,23 +124,16 @@ impl StorageBackend for S3Backend {
     }
 
     async fn exists(&self, remote_id: &str) -> Result<bool, FileSyncError> {
-        match self
-            .client
-            .head_object()
-            .bucket(&self.bucket)
-            .key(remote_id)
-            .send()
-            .await
-        {
+        match self.bucket.head_object(remote_id).await {
             Ok(_) => Ok(true),
             Err(e) => {
-                // Check if it's a "not found" error
-                let service_error = e.into_service_error();
-                if service_error.is_not_found() {
+                // Check if it's a "not found" error (404)
+                let error_str = e.to_string();
+                if error_str.contains("404") || error_str.contains("NoSuchKey") {
                     Ok(false)
                 } else {
                     Err(FileSyncError::Internal {
-                        reason: format!("S3 head_object failed: {}", service_error),
+                        reason: format!("S3 head_object failed: {}", e),
                     })
                 }
             }
@@ -173,42 +141,39 @@ impl StorageBackend for S3Backend {
     }
 
     async fn get_metadata(&self, remote_id: &str) -> Result<BlobMetadata, FileSyncError> {
-        let response = self
-            .client
-            .head_object()
-            .bucket(&self.bucket)
-            .key(remote_id)
-            .send()
+        let (head, _status_code) = self
+            .bucket
+            .head_object(remote_id)
             .await
             .map_err(|e| FileSyncError::FileNotFound {
                 id: format!("{}: {}", remote_id, e),
             })?;
 
         Ok(BlobMetadata {
-            size: response.content_length().unwrap_or(0) as u64,
-            last_modified: response.last_modified().map(|dt| dt.to_string()),
-            etag: response.e_tag().map(|s| s.to_string()),
+            size: head.content_length.unwrap_or(0) as u64,
+            last_modified: head.last_modified,
+            etag: head.e_tag,
         })
     }
 
     async fn list(&self, prefix: Option<&str>) -> Result<Vec<BlobInfo>, FileSyncError> {
-        let mut request = self.client.list_objects_v2().bucket(&self.bucket);
+        let prefix_str = prefix.unwrap_or("").to_string();
 
-        if let Some(prefix) = prefix {
-            request = request.prefix(prefix);
-        }
+        let results = self
+            .bucket
+            .list(prefix_str, None)
+            .await
+            .map_err(|e| FileSyncError::Internal {
+                reason: format!("S3 list failed: {}", e),
+            })?;
 
-        let response = request.send().await.map_err(|e| FileSyncError::Internal {
-            reason: format!("S3 list failed: {}", e),
-        })?;
-
-        let objects = response
-            .contents()
-            .iter()
+        let objects = results
+            .into_iter()
+            .flat_map(|result| result.contents)
             .map(|obj| BlobInfo {
-                key: obj.key().unwrap_or_default().to_string(),
-                size: obj.size().unwrap_or(0) as u64,
-                last_modified: obj.last_modified().map(|dt| dt.to_string()),
+                key: obj.key,
+                size: obj.size,
+                last_modified: Some(obj.last_modified),
             })
             .collect();
 
