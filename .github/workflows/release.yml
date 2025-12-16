@@ -67,17 +67,95 @@ jobs:
       - name: Get version
         run: echo "PACKAGE_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
 
+      - name: Generate release notes
+        id: release-notes
+        run: |
+          # Find the previous tag
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          if [ -z "$PREVIOUS_TAG" ]; then
+            echo "No previous tag found, using all commits"
+            COMMITS=$(git log --pretty=format:"%s|%b" --no-merges)
+          else
+            echo "Previous tag: $PREVIOUS_TAG"
+            COMMITS=$(git log ${PREVIOUS_TAG}..HEAD --pretty=format:"%s|%b" --no-merges)
+          fi
+
+          # Parse commits into categories
+          FEATURES=""
+          FIXES=""
+          OTHER=""
+
+          while IFS='|' read -r subject body; do
+            # Skip version bump commits
+            if [[ "$subject" == "Bump version to"* ]]; then
+              continue
+            fi
+
+            # Extract bullet points from body if present
+            DETAILS=""
+            if [ -n "$body" ]; then
+              DETAILS=$(echo "$body" | grep -E "^- " | head -10 || true)
+            fi
+
+            if [[ "$subject" == feat:* ]] || [[ "$subject" == feat\(*\):* ]]; then
+              # Remove prefix and format
+              CLEAN=$(echo "$subject" | sed 's/^feat[^:]*: //')
+              FEATURES="${FEATURES}- ${CLEAN}"$'\n'
+              if [ -n "$DETAILS" ]; then
+                FEATURES="${FEATURES}${DETAILS}"$'\n'
+              fi
+            elif [[ "$subject" == fix:* ]] || [[ "$subject" == fix\(*\):* ]]; then
+              CLEAN=$(echo "$subject" | sed 's/^fix[^:]*: //')
+              FIXES="${FIXES}- ${CLEAN}"$'\n'
+            else
+              # Other commits (chore, refactor, etc.)
+              OTHER="${OTHER}- ${subject}"$'\n'
+            fi
+          done <<< "$COMMITS"
+
+          # Build release notes
+          NOTES=""
+
+          if [ -n "$FEATURES" ]; then
+            NOTES="${NOTES}## ✨ Features"$'\n\n'"${FEATURES}"$'\n'
+          fi
+
+          if [ -n "$FIXES" ]; then
+            NOTES="${NOTES}## 🐛 Bug Fixes"$'\n\n'"${FIXES}"$'\n'
+          fi
+
+          if [ -n "$OTHER" ]; then
+            NOTES="${NOTES}## 🔧 Other Changes"$'\n\n'"${OTHER}"$'\n'
+          fi
+
+          # Fallback if no categorized commits
+          if [ -z "$NOTES" ]; then
+            NOTES="Release v${PACKAGE_VERSION}"$'\n\n'"See commit history for changes."
+          fi
+
+          # Add download instructions
+          NOTES="${NOTES}"$'\n'"---"$'\n\n'"📥 **Downloads**: See assets below for your platform."
+
+          # Save to file (multi-line output)
+          echo "$NOTES" > release_notes.md
+          echo "Generated release notes:"
+          cat release_notes.md
+
       - name: Create release
         id: create-release
         uses: actions/github-script@v7
         with:
           script: |
+            const fs = require('fs');
+            const releaseNotes = fs.readFileSync('release_notes.md', 'utf8');
+
             const { data } = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: `v${process.env.PACKAGE_VERSION}`,
               name: `haex-vault v${process.env.PACKAGE_VERSION}`,
-              body: 'Take a look at the assets to download and install this app.',
+              body: releaseNotes,
               draft: true,
               prerelease: false
             })
