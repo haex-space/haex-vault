@@ -9,7 +9,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::net::{TcpListener, TcpStream};
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot, RwLock};
