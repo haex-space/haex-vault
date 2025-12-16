@@ -10,7 +10,6 @@ use aes_gcm::{
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use p256::{
     ecdh::EphemeralSecret,
-    elliptic_curve::sec1::ToEncodedPoint,
     pkcs8::EncodePublicKey,
     PublicKey,
 };

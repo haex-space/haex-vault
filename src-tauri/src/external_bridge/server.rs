@@ -9,17 +9,17 @@ use futures_util::{SinkExt, StreamExt};
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use tokio::net::{TcpListener, TcpStream};
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot, RwLock};
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 use super::authorization::{
-    parse_authorized_client, PendingAuthorization, SQL_GET_CLIENT_EXTENSION, SQL_IS_CLIENT_KNOWN,
+    PendingAuthorization, SQL_GET_CLIENT_EXTENSION, SQL_IS_CLIENT_KNOWN,
     SQL_UPDATE_LAST_SEEN,
 };
-use super::crypto::{EncryptedEnvelope, ServerKeyPair, create_encrypted_response};
+use super::crypto::{ServerKeyPair, create_encrypted_response};
 use super::error::BridgeError;
 use super::protocol::{HandshakeResponse, ProtocolMessage};
 

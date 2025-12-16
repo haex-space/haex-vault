@@ -12,5 +12,3 @@ pub mod storage;
 pub mod sync;
 pub mod types;
 
-pub use error::FileSyncError;
-pub use types::*;

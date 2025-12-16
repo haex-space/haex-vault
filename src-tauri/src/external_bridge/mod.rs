@@ -12,8 +12,6 @@ mod server;
 mod tests;
 
 pub use authorization::{AuthorizedClient, BlockedClient, PendingAuthorization};
-pub use error::BridgeError;
-pub use protocol::{BridgeRequest, BridgeResponse, ClientInfo, RequestedExtension};
 pub use server::{ExternalBridge, SessionAuthorization, DEFAULT_BRIDGE_PORT};
 
 use crate::database::core::{execute_with_crdt, select_with_crdt};
@@ -24,7 +22,7 @@ use authorization::{
     SQL_GET_ALL_BLOCKED_CLIENTS, SQL_INSERT_BLOCKED_CLIENT, SQL_DELETE_BLOCKED_CLIENT, SQL_IS_BLOCKED,
 };
 use serde_json::Value as JsonValue;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 
 /// Start the external bridge server on a specific port
 #[tauri::command]
