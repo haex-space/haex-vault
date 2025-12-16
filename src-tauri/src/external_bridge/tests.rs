@@ -17,6 +17,7 @@ mod tests {
             client_id: "test-client-123".to_string(),
             client_name: "Test Browser Extension".to_string(),
             public_key: "base64-public-key".to_string(),
+            requested_extensions: vec![],
         };
 
         let json = serde_json::to_string(&client).unwrap();
@@ -38,6 +39,7 @@ mod tests {
                 client_id: "client-abc".to_string(),
                 client_name: "haex-pass Extension".to_string(),
                 public_key: "pk123".to_string(),
+                requested_extensions: vec![],
             },
         };
 
@@ -73,6 +75,7 @@ mod tests {
                 client_id: "c1".to_string(),
                 client_name: "Test".to_string(),
                 public_key: "pk".to_string(),
+                requested_extensions: vec![],
             },
         });
 
@@ -194,14 +197,14 @@ mod tests {
             client_id: "pending-client".to_string(),
             client_name: "Pending Extension".to_string(),
             public_key: "pending-pk".to_string(),
-            extension_id: "haex-pass".to_string(),
+            requested_extensions: vec![],
         };
 
         let json = serde_json::to_string(&pending).unwrap();
         assert!(json.contains("clientId"));
         assert!(json.contains("clientName"));
         assert!(json.contains("publicKey"));
-        assert!(json.contains("extensionId"));
+        assert!(json.contains("requestedExtensions"));
 
         let deserialized: PendingAuthorization = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.client_id, pending.client_id);

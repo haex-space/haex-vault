@@ -10,6 +10,58 @@
     </div>
 
     <div class="p-6 space-y-6">
+      <!-- Bridge Configuration Section -->
+      <UCard>
+        <template #header>
+          <h3 class="text-lg font-semibold flex items-center gap-2">
+            <UIcon name="i-heroicons-cog-6-tooth" class="w-5 h-5" />
+            {{ t('bridgeConfigTitle') }}
+          </h3>
+        </template>
+
+        <div class="space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div class="flex-1">
+              <label class="text-sm font-medium block mb-1">{{ t('bridgeConfigPort') }}</label>
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                {{ t('bridgeConfigPortHint') }}
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <UInput
+                v-model.number="bridgePort"
+                type="number"
+                :min="1024"
+                :max="65535"
+                class="w-28"
+                :disabled="savingPort"
+              />
+              <UButton
+                :label="t('bridgeConfigApply')"
+                :loading="savingPort"
+                :disabled="bridgePort === currentPort || !isValidPort"
+                size="sm"
+                @click="handleSavePort"
+              />
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 text-sm">
+            <UIcon
+              :name="bridgeRunning ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'"
+              :class="bridgeRunning ? 'text-success' : 'text-error'"
+              class="w-4 h-4"
+            />
+            <span v-if="bridgeRunning">
+              {{ t('bridgeConfigRunning', { port: currentPort }) }}
+            </span>
+            <span v-else>
+              {{ t('bridgeConfigStopped') }}
+            </span>
+          </div>
+        </div>
+      </UCard>
+
       <div v-if="loading" class="flex justify-center py-8">
         <UIcon
           name="i-heroicons-arrow-path"
@@ -19,15 +71,17 @@
 
       <template v-else>
         <!-- Authorized Clients Section (Permanent) -->
-        <div>
-          <h3 class="text-lg font-semibold mb-3 flex items-center gap-2">
-            <UIcon name="i-heroicons-check-circle" class="w-5 h-5 text-success" />
-            {{ t('authorizedClients') }}
-          </h3>
+        <UCard>
+          <template #header>
+            <h3 class="text-lg font-semibold flex items-center gap-2">
+              <UIcon name="i-heroicons-check-circle" class="w-5 h-5 text-success" />
+              {{ t('authorizedClients') }}
+            </h3>
+          </template>
 
           <div
             v-if="!authorizedClients.length"
-            class="text-center py-6 text-gray-500 dark:text-gray-400 bg-base-200 rounded-lg"
+            class="text-center py-6 text-gray-500 dark:text-gray-400"
           >
             {{ t('noAuthorizedClients') }}
           </div>
@@ -36,7 +90,7 @@
             <div
               v-for="client in authorizedClients"
               :key="client.id"
-              class="p-4 rounded-lg border border-base-300 bg-base-100"
+              class="p-4 rounded-lg border border-base-300 bg-base-200/50"
             >
               <div class="flex items-start justify-between gap-4">
                 <div class="flex-1 min-w-0">
@@ -69,18 +123,20 @@
               </div>
             </div>
           </div>
-        </div>
+        </UCard>
 
         <!-- Session Authorizations Section (Temporary) -->
-        <div>
-          <h3 class="text-lg font-semibold mb-3 flex items-center gap-2">
-            <UIcon name="i-heroicons-clock" class="w-5 h-5 text-warning" />
-            {{ t('sessionAuthorizations') }}
-          </h3>
+        <UCard>
+          <template #header>
+            <h3 class="text-lg font-semibold flex items-center gap-2">
+              <UIcon name="i-heroicons-clock" class="w-5 h-5 text-warning" />
+              {{ t('sessionAuthorizations') }}
+            </h3>
+          </template>
 
           <div
             v-if="!sessionAuthorizations.length"
-            class="text-center py-6 text-gray-500 dark:text-gray-400 bg-base-200 rounded-lg"
+            class="text-center py-6 text-gray-500 dark:text-gray-400"
           >
             {{ t('noSessionAuthorizations') }}
           </div>
@@ -89,7 +145,7 @@
             <div
               v-for="auth in sessionAuthorizations"
               :key="auth.clientId"
-              class="p-4 rounded-lg border border-base-300 bg-base-100"
+              class="p-4 rounded-lg border border-base-300 bg-base-200/50"
             >
               <div class="flex items-start justify-between gap-4">
                 <div class="flex-1 min-w-0">
@@ -122,18 +178,20 @@
               </div>
             </div>
           </div>
-        </div>
+        </UCard>
 
         <!-- Blocked Clients Section -->
-        <div>
-          <h3 class="text-lg font-semibold mb-3 flex items-center gap-2">
-            <UIcon name="i-heroicons-no-symbol" class="w-5 h-5 text-error" />
-            {{ t('blockedClients') }}
-          </h3>
+        <UCard>
+          <template #header>
+            <h3 class="text-lg font-semibold flex items-center gap-2">
+              <UIcon name="i-heroicons-no-symbol" class="w-5 h-5 text-error" />
+              {{ t('blockedClients') }}
+            </h3>
+          </template>
 
           <div
             v-if="!blockedClients.length"
-            class="text-center py-6 text-gray-500 dark:text-gray-400 bg-base-200 rounded-lg"
+            class="text-center py-6 text-gray-500 dark:text-gray-400"
           >
             {{ t('noBlockedClients') }}
           </div>
@@ -142,7 +200,7 @@
             <div
               v-for="client in blockedClients"
               :key="client.id"
-              class="p-4 rounded-lg border border-base-300 bg-base-100"
+              class="p-4 rounded-lg border border-base-300 bg-base-200/50"
             >
               <div class="flex items-start justify-between gap-4">
                 <div class="flex-1 min-w-0">
@@ -172,19 +230,21 @@
               </div>
             </div>
           </div>
-        </div>
+        </UCard>
       </template>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { invoke } from '@tauri-apps/api/core'
 import type { AuthorizedClient, BlockedClient, SessionAuthorization } from '@haex-space/vault-sdk'
 
 const { t } = useI18n()
 const { add } = useToast()
 const { getAuthorizedClients, getBlockedClients, revokeClient, unblockClient, getSessionAuthorizations, revokeSessionAuthorization } = useExternalAuth()
 const extensionsStore = useExtensionsStore()
+const vaultSettingsStore = useVaultSettingsStore()
 
 const loading = ref(true)
 const authorizedClients = ref<AuthorizedClient[]>([])
@@ -193,6 +253,55 @@ const sessionAuthorizations = ref<SessionAuthorization[]>([])
 const revokingClientId = ref<string | null>(null)
 const revokingSessionClientId = ref<string | null>(null)
 const unblockingClientId = ref<string | null>(null)
+
+// Bridge port configuration
+const bridgePort = ref(19455)
+const currentPort = ref(19455)
+const bridgeRunning = ref(false)
+const savingPort = ref(false)
+
+const isValidPort = computed(() => {
+  return bridgePort.value >= 1024 && bridgePort.value <= 65535
+})
+
+const loadBridgeStatus = async () => {
+  try {
+    const [running, port, savedPort] = await Promise.all([
+      invoke<boolean>('external_bridge_get_status'),
+      invoke<number>('external_bridge_get_port'),
+      vaultSettingsStore.getExternalBridgePortAsync(),
+    ])
+    bridgeRunning.value = running
+    currentPort.value = port
+    bridgePort.value = savedPort
+  } catch (error) {
+    console.error('Error loading bridge status:', error)
+  }
+}
+
+const handleSavePort = async () => {
+  if (!isValidPort.value || bridgePort.value === currentPort.value) return
+
+  savingPort.value = true
+  try {
+    // Save to database
+    const newPort = await vaultSettingsStore.updateExternalBridgePortAsync(bridgePort.value)
+
+    // Restart bridge with new port
+    await invoke('external_bridge_stop')
+    await invoke('external_bridge_start', { port: newPort })
+
+    currentPort.value = newPort
+    bridgeRunning.value = true
+
+    add({ description: t('bridgeConfigPortChanged', { port: newPort }), color: 'success' })
+  } catch (error) {
+    console.error('Error changing bridge port:', error)
+    add({ description: t('bridgeConfigPortChangeError'), color: 'error' })
+  } finally {
+    savingPort.value = false
+  }
+}
 
 const loadClients = async () => {
   loading.value = true
@@ -269,7 +378,10 @@ const handleRevokeSessionAuth = async (auth: SessionAuthorization) => {
 }
 
 onMounted(async () => {
-  await loadClients()
+  await Promise.all([
+    loadClients(),
+    loadBridgeStatus(),
+  ])
 })
 </script>
 
@@ -277,6 +389,14 @@ onMounted(async () => {
 de:
   title: Externe Clients
   description: Verwalte Browser-Erweiterungen, CLI-Tools und andere externe Anwendungen, die auf deine Vault zugreifen können.
+  bridgeConfigTitle: Bridge-Konfiguration
+  bridgeConfigPort: Port
+  bridgeConfigPortHint: "Port für die WebSocket-Verbindung externer Clients (Standard: 19455)"
+  bridgeConfigApply: Anwenden
+  bridgeConfigRunning: 'Bridge läuft auf Port {port}'
+  bridgeConfigStopped: Bridge ist gestoppt
+  bridgeConfigPortChanged: 'Port wurde auf {port} geändert'
+  bridgeConfigPortChangeError: Fehler beim Ändern des Ports
   authorizedClients: Dauerhaft autorisierte Clients
   blockedClients: Blockierte Clients
   sessionAuthorizations: Temporäre Autorisierungen (diese Sitzung)
@@ -303,6 +423,14 @@ de:
 en:
   title: External Clients
   description: Manage browser extensions, CLI tools, and other external applications that can access your vault.
+  bridgeConfigTitle: Bridge Configuration
+  bridgeConfigPort: Port
+  bridgeConfigPortHint: "Port for WebSocket connections from external clients (default: 19455)"
+  bridgeConfigApply: Apply
+  bridgeConfigRunning: 'Bridge running on port {port}'
+  bridgeConfigStopped: Bridge is stopped
+  bridgeConfigPortChanged: 'Port changed to {port}'
+  bridgeConfigPortChangeError: Error changing port
   authorizedClients: Permanently Authorized Clients
   blockedClients: Blocked Clients
   sessionAuthorizations: Temporary Authorizations (this session)

@@ -16,6 +16,7 @@ export enum VaultSettingsKeyEnum {
   vaultName = 'vaultName',
   desktopIconSize = 'desktopIconSize',
   tombstoneRetentionDays = 'tombstoneRetentionDays',
+  externalBridgePort = 'externalBridgePort',
 }
 
 export enum DesktopIconSizePreset {
@@ -216,6 +217,7 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
   }
 
   const DEFAULT_TOMBSTONE_RETENTION_DAYS = 30
+  const DEFAULT_EXTERNAL_BRIDGE_PORT = 19455
 
   const getTombstoneRetentionDaysAsync = async (): Promise<number> => {
     const retentionRow =
@@ -272,6 +274,64 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     }
   }
 
+  const getExternalBridgePortAsync = async (): Promise<number> => {
+    const portRow =
+      await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
+        where: and(
+          eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.externalBridgePort),
+          eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.system),
+        ),
+      })
+
+    if (!portRow?.id) {
+      // No entry exists, create one with default
+      await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
+        id: crypto.randomUUID(),
+        key: VaultSettingsKeyEnum.externalBridgePort,
+        type: VaultSettingsTypeEnum.system,
+        value: String(DEFAULT_EXTERNAL_BRIDGE_PORT),
+      })
+      return DEFAULT_EXTERNAL_BRIDGE_PORT
+    }
+
+    return parseInt(portRow.value ?? String(DEFAULT_EXTERNAL_BRIDGE_PORT), 10)
+  }
+
+  const updateExternalBridgePortAsync = async (port: number) => {
+    // Validate port range (1024-65535, avoid system ports)
+    const clampedPort = Math.max(1024, Math.min(65535, port))
+
+    // Check if entry exists
+    const existingRow =
+      await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
+        where: and(
+          eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.externalBridgePort),
+          eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.system),
+        ),
+      })
+
+    if (existingRow?.id) {
+      await currentVault.value?.drizzle
+        .update(schema.haexVaultSettings)
+        .set({ value: String(clampedPort) })
+        .where(
+          and(
+            eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.externalBridgePort),
+            eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.system),
+          ),
+        )
+    } else {
+      await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
+        id: crypto.randomUUID(),
+        key: VaultSettingsKeyEnum.externalBridgePort,
+        type: VaultSettingsTypeEnum.system,
+        value: String(clampedPort),
+      })
+    }
+
+    return clampedPort
+  }
+
   // Register for sync updates using the central event system
   const SUBSCRIPTION_ID = 'vaultSettingsStore'
 
@@ -303,6 +363,9 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     updateDesktopIconSizeAsync,
     getTombstoneRetentionDaysAsync,
     updateTombstoneRetentionDaysAsync,
+    getExternalBridgePortAsync,
+    updateExternalBridgePortAsync,
+    DEFAULT_EXTERNAL_BRIDGE_PORT,
     startSyncListener,
     stopSyncListener,
   }

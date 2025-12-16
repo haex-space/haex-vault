@@ -11,8 +11,10 @@
 
     <div class="@container p-6 space-y-6">
       <!-- Add Dev Extension Form -->
-      <UCard class="p-4 space-y-4">
-        <h3 class="text-lg font-semibold">{{ t('add.title') }}</h3>
+      <UCard>
+        <template #header>
+          <h3 class="text-lg font-semibold">{{ t('add.title') }}</h3>
+        </template>
 
         <div class="space-y-3">
           <label class="text-sm font-medium">
@@ -45,52 +47,56 @@
       </UCard>
 
       <!-- List of Dev Extensions -->
-      <div
-        v-if="devExtensions.length > 0"
-        class="space-y-2"
-      >
-        <h3 class="text-lg font-semibold">{{ t('list.title') }}</h3>
+      <UCard>
+        <template #header>
+          <h3 class="text-lg font-semibold">{{ t('list.title') }}</h3>
+        </template>
 
-        <UCard
-          v-for="ext in devExtensions"
-          :key="ext.id"
-          class="p-4 flex items-center justify-between"
+        <div
+          v-if="devExtensions.length > 0"
+          class="space-y-2"
         >
-          <div class="space-y-1">
-            <div class="flex items-center gap-2">
-              <h4 class="font-medium">{{ ext.name }}</h4>
-              <UBadge color="info">DEV</UBadge>
+          <div
+            v-for="ext in devExtensions"
+            :key="ext.id"
+            class="p-4 rounded-lg border border-base-300 bg-base-200/50 flex items-center justify-between"
+          >
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <h4 class="font-medium">{{ ext.name }}</h4>
+                <UBadge color="info">DEV</UBadge>
+              </div>
+              <p class="text-sm opacity-70">v{{ ext.version }}</p>
+              <p class="text-xs opacity-50">
+                {{ ext.publicKey.slice(0, 16) }}...
+              </p>
             </div>
-            <p class="text-sm opacity-70">v{{ ext.version }}</p>
-            <p class="text-xs opacity-50">
-              {{ ext.publicKey.slice(0, 16) }}...
-            </p>
-          </div>
 
-          <div class="flex gap-2">
-            <UiButton
-              :label="t('list.reload')"
-              variant="outline"
-              size="sm"
-              @click="reloadDevExtensionAsync(ext)"
-            />
-            <UiButton
-              :label="t('list.remove')"
-              variant="ghost"
-              size="sm"
-              color="error"
-              @click="removeDevExtensionAsync(ext)"
-            />
+            <div class="flex gap-2">
+              <UiButton
+                :label="t('list.reload')"
+                variant="outline"
+                size="sm"
+                @click="reloadDevExtensionAsync(ext)"
+              />
+              <UiButton
+                :label="t('list.remove')"
+                variant="ghost"
+                size="sm"
+                color="error"
+                @click="removeDevExtensionAsync(ext)"
+              />
+            </div>
           </div>
-        </UCard>
-      </div>
+        </div>
 
-      <div
-        v-else
-        class="text-center py-8 opacity-50"
-      >
-        {{ t('list.empty') }}
-      </div>
+        <div
+          v-else
+          class="text-center py-6 text-gray-500 dark:text-gray-400"
+        >
+          {{ t('list.empty') }}
+        </div>
+      </UCard>
     </div>
   </div>
 </template>

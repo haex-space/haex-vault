@@ -113,17 +113,27 @@
 </template>
 
 <script setup lang="ts">
-import type {
-  ExternalAuthDecision,
-  PendingAuthorization,
-} from '@haex-space/vault-sdk'
+import type { ExternalAuthDecision } from '@haex-space/vault-sdk'
+
+// Accept both mutable and readonly versions of PendingAuthorization
+interface RequestedExtensionProp {
+  name: string
+  extensionPublicKey: string
+}
+
+interface PendingAuthProp {
+  clientId: string
+  clientName: string
+  publicKey: string
+  requestedExtensions: readonly RequestedExtensionProp[] | RequestedExtensionProp[]
+}
 
 const { t } = useI18n()
 
 const open = defineModel<boolean>('open', { required: true })
 
-defineProps<{
-  pendingAuth: PendingAuthorization | null
+const props = defineProps<{
+  pendingAuth: PendingAuthProp | null
 }>()
 
 const emit = defineEmits<{
@@ -146,11 +156,28 @@ const extensionOptions = computed(() => {
   }))
 })
 
-// Reset selection when dialog opens
+// Reset selection when dialog opens and pre-select requested extensions
 watch(open, (isOpen) => {
   if (isOpen) {
-    selectedExtensionIds.value = []
     rememberDecision.value = false
+
+    // Pre-select extensions that match the client's requestedExtensions
+    const requested = props.pendingAuth?.requestedExtensions ?? []
+    if (requested.length > 0) {
+      const matchedIds = extensionsStore.availableExtensions
+        .filter((ext) =>
+          requested.some(
+            (req) =>
+              ext.name === req.name && ext.publicKey === req.extensionPublicKey,
+          ),
+        )
+        .map((ext) => ext.id)
+
+      selectedExtensionIds.value = matchedIds
+    }
+    else {
+      selectedExtensionIds.value = []
+    }
   }
 })
 

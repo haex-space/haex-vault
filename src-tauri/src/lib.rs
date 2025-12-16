@@ -134,15 +134,16 @@ pub fn run() {
             {
                 let app_handle = app.handle().clone();
 
-                // Auto-start external bridge
+                // Auto-start external bridge with default port
+                // Port can be changed later via settings when vault is opened
                 let app_handle_for_bridge = app_handle.clone();
                 tauri::async_runtime::spawn(async move {
                     let state = app_handle_for_bridge.state::<AppState>();
                     let mut bridge = state.external_bridge.lock().await;
-                    if let Err(e) = bridge.start(app_handle_for_bridge.clone()).await {
+                    if let Err(e) = bridge.start(app_handle_for_bridge.clone(), None).await {
                         eprintln!("Failed to auto-start external bridge: {}", e);
                     } else {
-                        println!("External bridge auto-started on port 19455");
+                        println!("External bridge auto-started on port {}", bridge.get_port());
                     }
                 });
 
@@ -275,6 +276,10 @@ pub fn run() {
             external_bridge::external_bridge_stop,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             external_bridge::external_bridge_get_status,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            external_bridge::external_bridge_get_port,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            external_bridge::external_bridge_get_default_port,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             external_bridge::external_get_authorized_clients,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]

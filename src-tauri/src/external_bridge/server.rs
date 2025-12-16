@@ -23,7 +23,8 @@ use super::crypto::{EncryptedEnvelope, ServerKeyPair, create_encrypted_response}
 use super::error::BridgeError;
 use super::protocol::{HandshakeResponse, ProtocolMessage};
 
-const BRIDGE_PORT: u16 = 19455;
+/// Default port for the external bridge WebSocket server
+pub const DEFAULT_BRIDGE_PORT: u16 = 19455;
 const PROTOCOL_VERSION: u32 = 1;
 /// Default timeout for extension responses (can be overridden per extension)
 const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 30;
@@ -55,6 +56,7 @@ pub struct SessionAuthorization {
 /// External Bridge WebSocket Server
 pub struct ExternalBridge {
     running: bool,
+    current_port: u16,
     shutdown_tx: Option<mpsc::Sender<()>>,
     clients: Arc<RwLock<HashMap<String, ConnectedClient>>>,
     pending_authorizations: Arc<RwLock<HashMap<String, PendingAuthorization>>>,
@@ -76,6 +78,7 @@ impl ExternalBridge {
     pub fn new() -> Self {
         Self {
             running: false,
+            current_port: DEFAULT_BRIDGE_PORT,
             shutdown_tx: None,
             clients: Arc::new(RwLock::new(HashMap::new())),
             pending_authorizations: Arc::new(RwLock::new(HashMap::new())),
@@ -121,11 +124,19 @@ impl ExternalBridge {
         self.running
     }
 
-    /// Start the WebSocket server
-    pub async fn start(&mut self, app_handle: AppHandle) -> Result<(), BridgeError> {
+    /// Get the current port the server is running on (or will run on)
+    pub fn get_port(&self) -> u16 {
+        self.current_port
+    }
+
+    /// Start the WebSocket server on the specified port
+    pub async fn start(&mut self, app_handle: AppHandle, port: Option<u16>) -> Result<(), BridgeError> {
         if self.running {
             return Err(BridgeError::AlreadyRunning);
         }
+
+        let port = port.unwrap_or(DEFAULT_BRIDGE_PORT);
+        self.current_port = port;
 
         // Generate server keypair
         {
@@ -136,7 +147,7 @@ impl ExternalBridge {
         let (shutdown_tx, mut shutdown_rx) = mpsc::channel::<()>(1);
         self.shutdown_tx = Some(shutdown_tx);
 
-        let addr = format!("127.0.0.1:{}", BRIDGE_PORT);
+        let addr = format!("127.0.0.1:{}", port);
         let listener = TcpListener::bind(&addr).await?;
 
         println!("[ExternalBridge] WebSocket server listening on {}", addr);
@@ -400,7 +411,7 @@ async fn handle_connection(
                                 client_id: cid.clone(),
                                 client_name: handshake.client.client_name.clone(),
                                 public_key: handshake.client.public_key.clone(),
-                                extension_id: String::new(), // Will be set when user approves
+                                requested_extensions: handshake.client.requested_extensions.clone(),
                             };
                             pending_guard.insert(cid.clone(), pending_auth.clone());
 

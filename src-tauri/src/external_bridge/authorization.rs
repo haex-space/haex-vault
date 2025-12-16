@@ -68,8 +68,10 @@ pub struct PendingAuthorization {
     pub client_name: String,
     /// Client's public key (base64)
     pub public_key: String,
-    /// Requested extension ID
-    pub extension_id: String,
+    /// Extensions the client wants to access
+    /// These should be pre-selected in the authorization dialog (matched by name + extensionPublicKey)
+    #[serde(default)]
+    pub requested_extensions: Vec<super::protocol::RequestedExtension>,
 }
 
 // ============================================================================

@@ -13,8 +13,8 @@ mod tests;
 
 pub use authorization::{AuthorizedClient, BlockedClient, PendingAuthorization};
 pub use error::BridgeError;
-pub use protocol::{BridgeRequest, BridgeResponse, ClientInfo};
-pub use server::{ExternalBridge, SessionAuthorization};
+pub use protocol::{BridgeRequest, BridgeResponse, ClientInfo, RequestedExtension};
+pub use server::{ExternalBridge, SessionAuthorization, DEFAULT_BRIDGE_PORT};
 
 use crate::database::core::{execute_with_crdt, select_with_crdt};
 use crate::AppState;
@@ -26,10 +26,11 @@ use authorization::{
 use serde_json::Value as JsonValue;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-/// Start the external bridge server
+/// Start the external bridge server on a specific port
 #[tauri::command]
 pub async fn external_bridge_start(
     app: AppHandle,
+    port: Option<u16>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let bridge = state.external_bridge.lock().await;
@@ -39,7 +40,7 @@ pub async fn external_bridge_start(
     drop(bridge);
 
     let mut bridge = state.external_bridge.lock().await;
-    bridge.start(app).await.map_err(|e| e.to_string())
+    bridge.start(app, port).await.map_err(|e| e.to_string())
 }
 
 /// Stop the external bridge server
@@ -54,6 +55,19 @@ pub async fn external_bridge_stop(state: State<'_, AppState>) -> Result<(), Stri
 pub async fn external_bridge_get_status(state: State<'_, AppState>) -> Result<bool, String> {
     let bridge = state.external_bridge.lock().await;
     Ok(bridge.is_running())
+}
+
+/// Get the current port of the external bridge server
+#[tauri::command]
+pub async fn external_bridge_get_port(state: State<'_, AppState>) -> Result<u16, String> {
+    let bridge = state.external_bridge.lock().await;
+    Ok(bridge.get_port())
+}
+
+/// Get the default external bridge port
+#[tauri::command]
+pub fn external_bridge_get_default_port() -> u16 {
+    DEFAULT_BRIDGE_PORT
 }
 
 /// Get all authorized external clients from database

@@ -3,6 +3,18 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+/// Extension requested by an external client
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
+pub struct RequestedExtension {
+    /// Extension name (e.g., "haex-pass")
+    pub name: String,
+    /// Extension's public key (hex string from manifest)
+    /// Named differently from ClientInfo.public_key to avoid confusion
+    pub extension_public_key: String,
+}
+
 /// Information about a connected client
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, rename_all = "camelCase")]
@@ -14,6 +26,10 @@ pub struct ClientInfo {
     pub client_name: String,
     /// Client's public key for encryption (base64)
     pub public_key: String,
+    /// Extensions the client wants to access
+    /// If provided, matching extensions will be pre-selected in the authorization dialog
+    #[serde(default)]
+    pub requested_extensions: Vec<RequestedExtension>,
 }
 
 /// Request from browser extension to haex-vault
