@@ -32,6 +32,7 @@
         v-if="activeCategory === 'notifications'"
       />
       <HaexSystemSettingsExtensions v-if="activeCategory === 'extensions'" />
+      <HaexSystemSettingsExternalClients v-if="activeCategory === 'externalClients'" />
       <HaexSystemSettingsDatabase v-if="activeCategory === 'database'" />
       <HaexSystemSettingsSync v-if="activeCategory === 'sync'" />
       <HaexSystemSettingsDeveloper v-if="activeCategory === 'developer'" />
@@ -96,6 +97,15 @@ const categories = computed(() => [
     },
   },
   {
+    value: 'externalClients',
+    label: t('categories.externalClients'),
+    icon: 'i-heroicons-globe-alt',
+    active: activeCategory.value === 'externalClients',
+    click: () => {
+      activeCategory.value = 'externalClients'
+    },
+  },
+  {
     value: 'database',
     label: t('categories.database'),
     icon: 'i-heroicons-circle-stack',
@@ -142,6 +152,7 @@ de:
     workspace: Arbeitsbereich
     notifications: Benachrichtigungen
     extensions: Erweiterungen
+    externalClients: Externe Clients
     database: Datenbank
     sync: Synchronisation
     developer: Entwickler
@@ -153,6 +164,7 @@ en:
     workspace: Workspace
     notifications: Notifications
     extensions: Extensions
+    externalClients: External Clients
     database: Database
     sync: Sync
     developer: Developer

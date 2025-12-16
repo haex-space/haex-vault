@@ -19,7 +19,7 @@ pub async fn webview_extension_external_respond(
     error: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    let bridge = state.browser_bridge.lock().await;
+    let bridge = state.external_bridge.lock().await;
     let pending_responses = bridge.get_pending_responses();
 
     // Build the response JSON

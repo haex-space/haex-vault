@@ -1,13 +1,10 @@
 use crate::event_names::EVENT_EXTENSION_WINDOW_CLOSED;
 use crate::extension::error::ExtensionError;
 use crate::extension::ExtensionManager;
+use crate::window::focus_window;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
-
-// Linux-specific GTK imports for window.present() workaround
-#[cfg(target_os = "linux")]
-use gtk::prelude::GtkWindowExt;
 
 /// Verwaltet native WebviewWindows für Extensions (nur Desktop-Plattformen)
 pub struct ExtensionWebviewManager {
@@ -232,46 +229,9 @@ impl ExtensionWebviewManager {
         if exists {
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             if let Some(window) = app_handle.get_webview_window(window_id) {
-                let is_minimized = window.is_minimized().unwrap_or(false);
-                let is_visible = window.is_visible().unwrap_or(true);
-                println!(
-                    "[focus_extension_window] is_minimized: {}, is_visible: {}",
-                    is_minimized, is_visible
-                );
-
-                // Linux: Use GTK's present() which properly handles unminimize + focus + raise
-                // Tauri's unminimize() doesn't work on modern GNOME/GTK (known issue #5974)
-                #[cfg(target_os = "linux")]
-                {
-                    println!("[focus_extension_window] Linux: Using GTK present()...");
-                    if let Ok(gtk_window) = window.gtk_window() {
-                        gtk_window.present();
-                        println!("[focus_extension_window] GTK present() called successfully");
-                    } else {
-                        println!("[focus_extension_window] Failed to get GTK window");
-                    }
-                }
-
-                // Non-Linux: Use standard Tauri methods
-                #[cfg(not(target_os = "linux"))]
-                {
-                    if is_minimized {
-                        println!("[focus_extension_window] Calling unminimize()...");
-                        window.unminimize().ok();
-                    }
-
-                    println!("[focus_extension_window] Calling set_focus()...");
-                    window
-                        .set_focus()
-                        .map_err(|e| ExtensionError::ValidationError {
-                            reason: format!("Failed to focus window: {}", e),
-                        })?;
-
-                    // Bring to front using always_on_top trick
-                    window.set_always_on_top(true).ok();
-                    window.set_always_on_top(false).ok();
-                }
-
+                focus_window(&window).map_err(|e| ExtensionError::ValidationError {
+                    reason: format!("Failed to focus window: {}", e),
+                })?;
                 println!("[focus_extension_window] Done!");
             } else {
                 println!("[focus_extension_window] Window not found via get_webview_window!");

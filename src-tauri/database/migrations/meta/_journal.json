@@ -78,6 +78,13 @@
       "when": 1765668462493,
       "tag": "0010_shocking_mongu",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1765889688700,
+      "tag": "0011_sturdy_wolf_cub",
+      "breakpoints": true
     }
   ]
 }

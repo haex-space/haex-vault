@@ -153,8 +153,8 @@
         "haexTimestamp": "haex_timestamp"
       }
     },
-    "bridge_authorized_clients": {
-      "name": "haex_bridge_authorized_clients",
+    "external_authorized_clients": {
+      "name": "haex_external_authorized_clients",
       "columns": {
         "id": "id",
         "clientId": "client_id",
@@ -163,6 +163,18 @@
         "extensionId": "extension_id",
         "authorizedAt": "authorized_at",
         "lastSeen": "last_seen",
+
+        "haexTimestamp": "haex_timestamp"
+      }
+    },
+    "external_blocked_clients": {
+      "name": "haex_external_blocked_clients",
+      "columns": {
+        "id": "id",
+        "clientId": "client_id",
+        "clientName": "client_name",
+        "publicKey": "public_key",
+        "blockedAt": "blocked_at",
 
         "haexTimestamp": "haex_timestamp"
       }

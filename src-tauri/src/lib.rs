@@ -1,12 +1,14 @@
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
-mod browser_bridge;
+mod external_bridge;
 mod crdt;
 mod database;
 mod extension;
 mod shortcuts;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod window;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
-use crate::browser_bridge::BrowserBridge;
+use crate::external_bridge::ExternalBridge;
 use crate::{crdt::hlc::HlcService, database::DbConnection, extension::core::ExtensionManager};
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -30,9 +32,9 @@ pub struct AppState {
     pub extension_webview_manager: ExtensionWebviewManager,
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     pub context: Arc<Mutex<extension::webview::web::ApplicationContext>>,
-    /// Browser bridge for external WebSocket connections (desktop only)
+    /// External bridge for WebSocket connections (desktop only)
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    pub browser_bridge: tokio::sync::Mutex<BrowserBridge>,
+    pub external_bridge: tokio::sync::Mutex<ExternalBridge>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -114,7 +116,7 @@ pub fn run() {
                 platform: std::env::consts::OS.to_string(),
             })),
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            browser_bridge: tokio::sync::Mutex::new(BrowserBridge::new()),
+            external_bridge: tokio::sync::Mutex::new(ExternalBridge::new()),
         })
         //.manage(ExtensionState::default())
         .plugin(tauri_plugin_dialog::init())
@@ -132,15 +134,15 @@ pub fn run() {
             {
                 let app_handle = app.handle().clone();
 
-                // Auto-start browser bridge
+                // Auto-start external bridge
                 let app_handle_for_bridge = app_handle.clone();
                 tauri::async_runtime::spawn(async move {
                     let state = app_handle_for_bridge.state::<AppState>();
-                    let mut bridge = state.browser_bridge.lock().await;
+                    let mut bridge = state.external_bridge.lock().await;
                     if let Err(e) = bridge.start(app_handle_for_bridge.clone()).await {
-                        eprintln!("Failed to auto-start browser bridge: {}", e);
+                        eprintln!("Failed to auto-start external bridge: {}", e);
                     } else {
-                        println!("Browser bridge auto-started on port 19455");
+                        println!("External bridge auto-started on port 19455");
                     }
                 });
 
@@ -256,30 +258,49 @@ pub fn run() {
             extension::webview::filesystem::webview_extension_fs_open_file,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::webview::external::webview_extension_external_respond,
+            // Window management (desktop only)
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            window::focus_main_window,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            window::focus_window_by_label,
             // Desktop shortcuts (desktop only)
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             shortcuts::create_desktop_shortcut,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             shortcuts::remove_desktop_shortcut,
-            // Browser bridge (desktop only)
+            // External bridge (desktop only)
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            browser_bridge::start_browser_bridge,
+            external_bridge::external_bridge_start,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            browser_bridge::stop_browser_bridge,
+            external_bridge::external_bridge_stop,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            browser_bridge::get_browser_bridge_status,
+            external_bridge::external_bridge_get_status,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            browser_bridge::get_authorized_clients,
+            external_bridge::external_get_authorized_clients,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            browser_bridge::revoke_client_authorization,
+            external_bridge::external_get_session_authorizations,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            browser_bridge::approve_client_authorization,
+            external_bridge::external_revoke_session_authorization,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            browser_bridge::deny_client_authorization,
+            external_bridge::external_revoke_client,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            browser_bridge::get_pending_authorizations,
+            external_bridge::external_approve_client,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            browser_bridge::respond_to_external_request,
+            external_bridge::external_deny_client,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            external_bridge::external_get_pending_authorizations,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            external_bridge::external_respond,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            external_bridge::external_client_allow,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            external_bridge::external_client_block,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            external_bridge::external_get_blocked_clients,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            external_bridge::external_unblock_client,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            external_bridge::external_is_client_blocked,
             // FileSync commands (extension/filesystem)
             extension::filesystem::commands::filesync_list_spaces,
             extension::filesystem::commands::filesync_create_space,

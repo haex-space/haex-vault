@@ -11,6 +11,13 @@
       @update:open="(v) => !v && permissionPrompt.cancelPrompt()"
       @decision="permissionPrompt.handleDecision"
     />
+
+    <!-- External Client Authorization Dialog -->
+    <HaexExtensionDialogExternalAuth
+      v-model:open="externalAuthOpen"
+      :pending-auth="externalAuth.pendingAuth.value"
+      @decision="externalAuth.handleDecision"
+    />
   </UApp>
 </template>
 
@@ -29,6 +36,22 @@ onMounted(() => {
 
 // Global permission prompt handler
 const permissionPrompt = usePermissionPrompt()
+
+// External client authorization handler
+const externalAuth = useExternalAuth()
+const externalAuthOpen = computed({
+  get: () => {
+    console.log('[ExternalAuth] get isOpen:', externalAuth.isOpen.value)
+    return externalAuth.isOpen.value
+  },
+  set: (v) => {
+    console.log('[ExternalAuth] set isOpen:', v, 'stack:', new Error().stack)
+    if (!v) externalAuth.cancelPrompt()
+  },
+})
+onMounted(() => {
+  externalAuth.init()
+})
 </script>
 
 <style>

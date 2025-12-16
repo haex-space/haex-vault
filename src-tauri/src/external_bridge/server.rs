@@ -1,7 +1,7 @@
-//! WebSocket server for browser bridge
+//! WebSocket server for external bridge
 //!
-//! Handles incoming connections from browser extensions and routes
-//! requests to the appropriate haex-vault extensions.
+//! Handles incoming connections from external clients (browser extensions,
+//! CLI tools, servers, etc.) and routes requests to haex-vault extensions.
 
 use crate::AppState;
 use crate::database::core::{execute_with_crdt, select_with_crdt};
@@ -41,8 +41,19 @@ struct ConnectedClient {
     tx: mpsc::UnboundedSender<Message>,
 }
 
-/// Browser Bridge WebSocket Server
-pub struct BrowserBridge {
+/// Session authorization entry (for "allow once" authorizations)
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ts_rs::TS)]
+#[ts(export, rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
+pub struct SessionAuthorization {
+    /// Unique client identifier (public key fingerprint)
+    pub client_id: String,
+    /// Extension ID this client can access
+    pub extension_id: String,
+}
+
+/// External Bridge WebSocket Server
+pub struct ExternalBridge {
     running: bool,
     shutdown_tx: Option<mpsc::Sender<()>>,
     clients: Arc<RwLock<HashMap<String, ConnectedClient>>>,
@@ -50,15 +61,18 @@ pub struct BrowserBridge {
     server_keypair: Arc<RwLock<Option<ServerKeyPair>>>,
     /// Pending responses waiting for extension callbacks (requestId → sender)
     pending_responses: Arc<RwLock<HashMap<String, ResponseSender>>>,
+    /// Session-based authorizations (for "allow once" - cleared when server stops)
+    /// Key: client_id, Value: SessionAuthorization
+    session_authorizations: Arc<RwLock<HashMap<String, SessionAuthorization>>>,
 }
 
-impl Default for BrowserBridge {
+impl Default for ExternalBridge {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl BrowserBridge {
+impl ExternalBridge {
     pub fn new() -> Self {
         Self {
             running: false,
@@ -67,12 +81,40 @@ impl BrowserBridge {
             pending_authorizations: Arc::new(RwLock::new(HashMap::new())),
             server_keypair: Arc::new(RwLock::new(None)),
             pending_responses: Arc::new(RwLock::new(HashMap::new())),
+            session_authorizations: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
     /// Get a clone of the pending_responses map for use in Tauri commands
     pub fn get_pending_responses(&self) -> Arc<RwLock<HashMap<String, ResponseSender>>> {
         self.pending_responses.clone()
+    }
+
+    /// Get a clone of the session_authorizations map for use in Tauri commands
+    pub fn get_session_authorizations(&self) -> Arc<RwLock<HashMap<String, SessionAuthorization>>> {
+        self.session_authorizations.clone()
+    }
+
+    /// Add a session authorization (for "allow once")
+    pub async fn add_session_authorization(&self, client_id: &str, extension_id: &str) {
+        let mut authorizations = self.session_authorizations.write().await;
+        authorizations.insert(
+            client_id.to_string(),
+            SessionAuthorization {
+                client_id: client_id.to_string(),
+                extension_id: extension_id.to_string(),
+            },
+        );
+        println!(
+            "[ExternalBridge] Added session authorization for client {} -> extension {}",
+            client_id, extension_id
+        );
+    }
+
+    /// Check if a client has a session authorization
+    pub async fn get_session_authorization(&self, client_id: &str) -> Option<SessionAuthorization> {
+        let authorizations = self.session_authorizations.read().await;
+        authorizations.get(client_id).cloned()
     }
 
     pub fn is_running(&self) -> bool {
@@ -97,12 +139,13 @@ impl BrowserBridge {
         let addr = format!("127.0.0.1:{}", BRIDGE_PORT);
         let listener = TcpListener::bind(&addr).await?;
 
-        println!("[BrowserBridge] WebSocket server listening on {}", addr);
+        println!("[ExternalBridge] WebSocket server listening on {}", addr);
 
         let clients = self.clients.clone();
         let pending = self.pending_authorizations.clone();
         let server_keypair = self.server_keypair.clone();
         let pending_responses = self.pending_responses.clone();
+        let session_authorizations = self.session_authorizations.clone();
 
         // Spawn the server task
         tokio::spawn(async move {
@@ -111,26 +154,27 @@ impl BrowserBridge {
                     result = listener.accept() => {
                         match result {
                             Ok((stream, addr)) => {
-                                println!("[BrowserBridge] New connection from {}", addr);
+                                println!("[ExternalBridge] New connection from {}", addr);
                                 let app = app_handle.clone();
                                 let clients = clients.clone();
                                 let pending = pending.clone();
                                 let keypair = server_keypair.clone();
                                 let pending_resp = pending_responses.clone();
+                                let session_auths = session_authorizations.clone();
 
                                 tokio::spawn(async move {
-                                    if let Err(e) = handle_connection(stream, app, clients, pending, keypair, pending_resp).await {
-                                        eprintln!("[BrowserBridge] Connection error: {}", e);
+                                    if let Err(e) = handle_connection(stream, app, clients, pending, keypair, pending_resp, session_auths).await {
+                                        eprintln!("[ExternalBridge] Connection error: {}", e);
                                     }
                                 });
                             }
                             Err(e) => {
-                                eprintln!("[BrowserBridge] Accept error: {}", e);
+                                eprintln!("[ExternalBridge] Accept error: {}", e);
                             }
                         }
                     }
                     _ = shutdown_rx.recv() => {
-                        println!("[BrowserBridge] Shutdown signal received");
+                        println!("[ExternalBridge] Shutdown signal received");
                         break;
                     }
                 }
@@ -156,7 +200,7 @@ impl BrowserBridge {
         clients.clear();
 
         self.running = false;
-        println!("[BrowserBridge] Server stopped");
+        println!("[ExternalBridge] Server stopped");
         Ok(())
     }
 
@@ -215,6 +259,7 @@ async fn handle_connection(
     pending: Arc<RwLock<HashMap<String, PendingAuthorization>>>,
     server_keypair: Arc<RwLock<Option<ServerKeyPair>>>,
     pending_responses: Arc<RwLock<HashMap<String, ResponseSender>>>,
+    session_authorizations: Arc<RwLock<HashMap<String, SessionAuthorization>>>,
 ) -> Result<(), BridgeError> {
     let ws_stream = accept_async(stream).await?;
     let (mut write, mut read) = ws_stream.split();
@@ -249,7 +294,7 @@ async fn handle_connection(
         let msg = match msg_result {
             Ok(m) => m,
             Err(e) => {
-                eprintln!("[BrowserBridge] Read error: {}", e);
+                eprintln!("[ExternalBridge] Read error: {}", e);
                 break;
             }
         };
@@ -259,7 +304,7 @@ async fn handle_connection(
                 let protocol_msg: ProtocolMessage = match serde_json::from_str(&text) {
                     Ok(m) => m,
                     Err(e) => {
-                        eprintln!("[BrowserBridge] Parse error: {}", e);
+                        eprintln!("[ExternalBridge] Parse error: {}", e);
                         let error_msg = ProtocolMessage::Error {
                             code: "PARSE_ERROR".to_string(),
                             message: e.to_string(),
@@ -276,12 +321,31 @@ async fn handle_connection(
                         client_id = Some(cid.clone());
 
                         // Check if client is already authorized in database
-                        let is_authorized = check_client_authorized(&app_handle, &cid).await;
+                        let db_authorized = check_client_authorized(&app_handle, &cid).await;
+
+                        // Check if client has session-based authorization (from "allow once")
+                        let session_auth = {
+                            let auths = session_authorizations.read().await;
+                            auths.get(&cid).cloned()
+                        };
+
+                        let is_authorized = db_authorized || session_auth.is_some();
+                        let ext_id = if db_authorized {
+                            get_client_extension(&app_handle, &cid).await
+                        } else {
+                            session_auth.as_ref().map(|sa| sa.extension_id.clone())
+                        };
 
                         if is_authorized {
-                            // Client is authorized, get their extension_id
-                            let ext_id = get_client_extension(&app_handle, &cid).await;
+                            // Client is authorized (either permanently or for this session)
                             authorized = true;
+
+                            if session_auth.is_some() {
+                                println!(
+                                    "[ExternalBridge] Client {} authorized via session (allow once)",
+                                    cid
+                                );
+                            }
 
                             // Add to connected clients
                             let mut clients_guard = clients.write().await;
@@ -297,8 +361,10 @@ async fn handle_connection(
                                 },
                             );
 
-                            // Update last_seen
-                            let _ = update_client_last_seen(&app_handle, &cid).await;
+                            // Update last_seen (only for database-authorized clients)
+                            if db_authorized {
+                                let _ = update_client_last_seen(&app_handle, &cid).await;
+                            }
 
                             // Store client's public key for encrypted responses
                             client_public_key_spki = Some(handshake.client.public_key.clone());
@@ -339,7 +405,7 @@ async fn handle_connection(
                             pending_guard.insert(cid.clone(), pending_auth.clone());
 
                             // Emit event to frontend to show authorization dialog
-                            let _ = app_handle.emit("browser-bridge:authorization-request", &pending_auth);
+                            let _ = app_handle.emit("external:authorization-request", &pending_auth);
 
                             // Store client's public key for encrypted responses later
                             client_public_key_spki = Some(handshake.client.public_key.clone());
@@ -409,7 +475,7 @@ async fn handle_connection(
                                             tx.send(Message::Text(json.into()))?;
                                         }
                                         Err(e) => {
-                                            eprintln!("[BrowserBridge] Failed to encrypt response: {}", e);
+                                            eprintln!("[ExternalBridge] Failed to encrypt response: {}", e);
                                             let error_msg = ProtocolMessage::Error {
                                                 code: "ENCRYPTION_ERROR".to_string(),
                                                 message: "Failed to encrypt response".to_string(),
@@ -421,7 +487,7 @@ async fn handle_connection(
                                 }
                             }
                             Err(e) => {
-                                eprintln!("[BrowserBridge] Failed to decrypt request: {}", e);
+                                eprintln!("[ExternalBridge] Failed to decrypt request: {}", e);
                                 let error_msg = ProtocolMessage::Error {
                                     code: "DECRYPTION_ERROR".to_string(),
                                     message: "Failed to decrypt request".to_string(),
@@ -470,7 +536,7 @@ async fn handle_connection(
     if let Some(cid) = client_id {
         let mut clients_guard = clients.write().await;
         clients_guard.remove(&cid);
-        println!("[BrowserBridge] Client {} disconnected", cid);
+        println!("[ExternalBridge] Client {} disconnected", cid);
     }
 
     // Cancel write task
@@ -585,7 +651,7 @@ async fn process_request(
     // Emit the request to the extension via Tauri event
     // The extension's SDK will receive this and call the appropriate handler
     if let Err(e) = app_handle.emit("haextension:external:request", &external_request) {
-        eprintln!("[BrowserBridge] Failed to emit external request: {}", e);
+        eprintln!("[ExternalBridge] Failed to emit external request: {}", e);
         // Clean up pending response
         let mut pending = pending_responses.write().await;
         pending.remove(&request_id);

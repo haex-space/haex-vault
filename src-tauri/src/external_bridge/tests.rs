@@ -245,7 +245,7 @@ mod tests {
 
     #[test]
     fn test_sql_queries_reference_correct_table() {
-        let table_name = "haex_bridge_authorized_clients";
+        let table_name = "haex_external_authorized_clients";
         assert!(SQL_IS_AUTHORIZED.contains(table_name));
         assert!(SQL_IS_CLIENT_KNOWN.contains(table_name));
         assert!(SQL_GET_CLIENT_EXTENSION.contains(table_name));

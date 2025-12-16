@@ -317,31 +317,54 @@ export const haexExtensionMigrations = sqliteTable(
 export type InsertHaexExtensionMigrations = typeof haexExtensionMigrations.$inferInsert
 export type SelectHaexExtensionMigrations = typeof haexExtensionMigrations.$inferSelect
 
-// Browser Bridge - Authorized external clients (browser extensions)
-export const haexBridgeAuthorizedClients = sqliteTable(
-  tableNames.haex.bridge_authorized_clients.name,
+// External authorized clients (browser extensions, CLI tools, servers, etc.)
+export const haexExternalAuthorizedClients = sqliteTable(
+  tableNames.haex.external_authorized_clients.name,
   withCrdtColumns({
-    id: text(tableNames.haex.bridge_authorized_clients.columns.id)
+    id: text(tableNames.haex.external_authorized_clients.columns.id)
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
-    clientId: text(tableNames.haex.bridge_authorized_clients.columns.clientId).notNull(),
-    clientName: text(tableNames.haex.bridge_authorized_clients.columns.clientName).notNull(),
-    publicKey: text(tableNames.haex.bridge_authorized_clients.columns.publicKey).notNull(),
-    extensionId: text(tableNames.haex.bridge_authorized_clients.columns.extensionId)
+    clientId: text(tableNames.haex.external_authorized_clients.columns.clientId).notNull(),
+    clientName: text(tableNames.haex.external_authorized_clients.columns.clientName).notNull(),
+    publicKey: text(tableNames.haex.external_authorized_clients.columns.publicKey).notNull(),
+    extensionId: text(tableNames.haex.external_authorized_clients.columns.extensionId)
       .notNull()
       .references((): AnySQLiteColumn => haexExtensions.id, {
         onDelete: 'cascade',
       }),
-    authorizedAt: text(tableNames.haex.bridge_authorized_clients.columns.authorizedAt).default(
+    authorizedAt: text(tableNames.haex.external_authorized_clients.columns.authorizedAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),
-    lastSeen: text(tableNames.haex.bridge_authorized_clients.columns.lastSeen),
+    lastSeen: text(tableNames.haex.external_authorized_clients.columns.lastSeen),
   }),
   (table) => [
-    uniqueIndex('haex_bridge_authorized_clients_client_id_unique')
+    uniqueIndex('haex_external_authorized_clients_client_id_unique')
       .on(table.clientId)
       .where(sql`${table.haexTombstone} = 0`),
   ],
 )
-export type InsertHaexBridgeAuthorizedClients = typeof haexBridgeAuthorizedClients.$inferInsert
-export type SelectHaexBridgeAuthorizedClients = typeof haexBridgeAuthorizedClients.$inferSelect
+export type InsertHaexExternalAuthorizedClients = typeof haexExternalAuthorizedClients.$inferInsert
+export type SelectHaexExternalAuthorizedClients = typeof haexExternalAuthorizedClients.$inferSelect
+
+// External blocked clients (permanently denied)
+export const haexExternalBlockedClients = sqliteTable(
+  tableNames.haex.external_blocked_clients.name,
+  withCrdtColumns({
+    id: text(tableNames.haex.external_blocked_clients.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    clientId: text(tableNames.haex.external_blocked_clients.columns.clientId).notNull(),
+    clientName: text(tableNames.haex.external_blocked_clients.columns.clientName).notNull(),
+    publicKey: text(tableNames.haex.external_blocked_clients.columns.publicKey).notNull(),
+    blockedAt: text(tableNames.haex.external_blocked_clients.columns.blockedAt).default(
+      sql`(CURRENT_TIMESTAMP)`,
+    ),
+  }),
+  (table) => [
+    uniqueIndex('haex_external_blocked_clients_client_id_unique')
+      .on(table.clientId)
+      .where(sql`${table.haexTombstone} = 0`),
+  ],
+)
+export type InsertHaexExternalBlockedClients = typeof haexExternalBlockedClients.$inferInsert
+export type SelectHaexExternalBlockedClients = typeof haexExternalBlockedClients.$inferSelect
