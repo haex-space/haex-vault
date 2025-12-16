@@ -61,8 +61,12 @@ jobs:
     steps:
       - name: Check if version bump commit
         id: check
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
-          if [[ "${{ github.event.head_commit.message }}" == "Bump version to"* ]]; then
+          # Extract only the first line to handle multi-line commit messages
+          FIRST_LINE=$(echo "$COMMIT_MSG" | head -n 1)
+          if [[ "$FIRST_LINE" == "Bump version to"* ]]; then
             echo "should_skip=true" >> $GITHUB_OUTPUT
             echo "Skipping build for version bump commit"
           else
