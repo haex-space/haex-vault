@@ -44,6 +44,15 @@
                   name="i-heroicons-arrow-path"
                   class="w-4 h-4 animate-spin text-gray-400"
                 />
+                <!-- Latest version badge -->
+                <UBadge
+                  v-if="latestAvailableVersion && !isCheckingUpdate"
+                  :color="hasUpdate ? 'warning' : 'success'"
+                  variant="subtle"
+                  size="md"
+                >
+                  {{ hasUpdate ? t('latestVersion', { version: latestAvailableVersion }) : t('upToDate') }}
+                </UBadge>
               </div>
               <div v-if="extension.author">
                 <span class="font-medium">{{ t('author') }}:</span>
@@ -278,9 +287,14 @@ const windowManager = useWindowManagerStore()
 const isCheckingUpdate = ref(false)
 const marketplaceVersion = ref<string | null>(null)
 
+// Latest available version (from props or marketplace)
+const latestAvailableVersion = computed(() => {
+  return props.latestVersion || marketplaceVersion.value
+})
+
 // Check if update is available
 const hasUpdate = computed(() => {
-  const latest = props.latestVersion || marketplaceVersion.value
+  const latest = latestAvailableVersion.value
   if (!latest || !props.extension.version) return false
   return extensionsStore.compareVersions(props.extension.version, latest) < 0
 })
@@ -584,6 +598,8 @@ de:
   openError: Fehler beim Öffnen der Erweiterung
   info: Informationen
   version: Version
+  latestVersion: 'Neu: v{version}'
+  upToDate: Aktuell
   updateAvailable: 'Update auf v{version}'
   author: Autor
   homepage: Homepage
@@ -629,6 +645,8 @@ en:
   openError: Error opening extension
   info: Information
   version: Version
+  latestVersion: 'New: v{version}'
+  upToDate: Up to date
   updateAvailable: 'Update to v{version}'
   author: Author
   homepage: Homepage

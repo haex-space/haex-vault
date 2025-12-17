@@ -27,10 +27,6 @@
     <div class="flex-1 overflow-y-auto">
       <HaexSystemSettingsGeneral v-if="activeCategory === 'general'" />
       <HaexSystemSettingsAppearance v-if="activeCategory === 'appearance'" />
-      <HaexSystemSettingsWorkspace v-if="activeCategory === 'workspace'" />
-      <HaexSystemSettingsNotifications
-        v-if="activeCategory === 'notifications'"
-      />
       <HaexSystemSettingsExtensions v-if="activeCategory === 'extensions'" />
       <HaexSystemSettingsExternalClients v-if="activeCategory === 'externalClients'" />
       <HaexSystemSettingsDatabase v-if="activeCategory === 'database'" />
@@ -67,24 +63,6 @@ const categories = computed(() => [
     active: activeCategory.value === 'appearance',
     click: () => {
       activeCategory.value = 'appearance'
-    },
-  },
-  {
-    value: 'workspace',
-    label: t('categories.workspace'),
-    icon: 'i-heroicons-squares-2x2',
-    active: activeCategory.value === 'workspace',
-    click: () => {
-      activeCategory.value = 'workspace'
-    },
-  },
-  {
-    value: 'notifications',
-    label: t('categories.notifications'),
-    icon: 'i-heroicons-bell',
-    active: activeCategory.value === 'notifications',
-    click: () => {
-      activeCategory.value = 'notifications'
     },
   },
   {
@@ -149,8 +127,6 @@ de:
   categories:
     general: Allgemein
     appearance: Erscheinungsbild
-    workspace: Arbeitsbereich
-    notifications: Benachrichtigungen
     extensions: Erweiterungen
     externalClients: Externe Clients
     database: Datenbank
@@ -161,8 +137,6 @@ en:
   categories:
     general: General
     appearance: Appearance
-    workspace: Workspace
-    notifications: Notifications
     extensions: Extensions
     externalClients: External Clients
     database: Database

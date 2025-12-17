@@ -26,6 +26,29 @@
         />
       </UFormField>
 
+      <UFormField
+        :label="t('notifications.label')"
+        :description="t('notifications.description')"
+      >
+        <UiButton
+          :label="isNotificationAllowed ? t('notifications.granted') : t('notifications.requestPermission')"
+          :icon="isNotificationAllowed ? 'i-heroicons-check-circle' : 'i-heroicons-bell'"
+          :color="isNotificationAllowed ? 'success' : 'primary'"
+          :disabled="isNotificationAllowed"
+          @click="requestNotificationPermissionAsync"
+        />
+      </UFormField>
+
+      <UFormField
+        :label="t('iconSize.label')"
+        :description="t('iconSize.description')"
+      >
+        <USelect
+          v-model="iconSizePreset"
+          :items="iconSizePresetOptions"
+        />
+      </UFormField>
+
       <!-- Passwort ändern Section -->
       <USeparator class="my-6" />
 
@@ -95,6 +118,7 @@
 <script setup lang="ts">
 import type { Locale } from 'vue-i18n'
 import { createChangePasswordSchema } from '~/components/haex/vault/schema'
+import { DesktopIconSizePreset } from '~/stores/vault/settings'
 
 const { t, setLocale } = useI18n()
 const { add } = useToast()
@@ -105,6 +129,27 @@ const { updateVaultNameAsync, updateLocaleAsync } = useVaultSettingsStore()
 
 const { deviceName } = storeToRefs(useDeviceStore())
 const { updateDeviceNameAsync, readDeviceNameAsync } = useDeviceStore()
+
+const { isNotificationAllowed } = storeToRefs(useNotificationStore())
+const { requestNotificationPermissionAsync, checkNotificationAsync } = useNotificationStore()
+
+// Desktop icon size
+const desktopStore = useDesktopStore()
+const { iconSizePreset } = storeToRefs(desktopStore)
+const { syncDesktopIconSizeAsync, updateDesktopIconSizeAsync } = desktopStore
+
+const iconSizePresetOptions = computed(() => [
+  { label: t('iconSize.presets.small'), value: DesktopIconSizePreset.small },
+  { label: t('iconSize.presets.medium'), value: DesktopIconSizePreset.medium },
+  { label: t('iconSize.presets.large'), value: DesktopIconSizePreset.large },
+  { label: t('iconSize.presets.extraLarge'), value: DesktopIconSizePreset.extraLarge },
+])
+
+watch(iconSizePreset, async (newPreset) => {
+  if (newPreset) {
+    await updateDesktopIconSizeAsync(newPreset)
+  }
+})
 
 // Password change state
 const isPasswordModalOpen = ref(false)
@@ -230,6 +275,8 @@ const onUpdateDeviceNameAsync = async () => {
 
 onMounted(async () => {
   await readDeviceNameAsync()
+  await checkNotificationAsync()
+  await syncDesktopIconSizeAsync()
 })
 </script>
 
@@ -250,6 +297,19 @@ de:
     update:
       success: Gerätename wurde erfolgreich aktualisiert
       error: Gerätename konnte nich aktualisiert werden
+  notifications:
+    label: Benachrichtigungen
+    description: Erlaube Benachrichtigungen für diese App
+    requestPermission: Benachrichtigung erlauben
+    granted: Erlaubt
+  iconSize:
+    label: Icon-Größe
+    description: Wähle die Größe der Desktop-Icons
+    presets:
+      small: Klein
+      medium: Mittel
+      large: Groß
+      extraLarge: Sehr groß
   password:
     label: Vault-Passwort
     description: Ändere das Passwort für deine Vault
@@ -290,6 +350,19 @@ en:
     update:
       success: Device name has been successfully updated
       error: Device name could not be updated
+  notifications:
+    label: Notifications
+    description: Allow notifications for this app
+    requestPermission: Grant Permission
+    granted: Granted
+  iconSize:
+    label: Icon Size
+    description: Choose the size of desktop icons
+    presets:
+      small: Small
+      medium: Medium
+      large: Large
+      extraLarge: Extra Large
   password:
     label: Vault Password
     description: Change the password for your vault
