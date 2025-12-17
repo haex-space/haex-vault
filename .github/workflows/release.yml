@@ -58,6 +58,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -70,21 +73,35 @@ jobs:
       - name: Generate release notes
         id: release-notes
         run: |
-          # Find the previous tag
-          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          # Get all tags sorted by version
+          CURRENT_TAG="v${PACKAGE_VERSION}"
+          echo "Current tag: $CURRENT_TAG"
 
-          if [ -z "$PREVIOUS_TAG" ]; then
+          # Find the previous tag (the one before current in sorted list)
+          PREVIOUS_TAG=$(git tag -l 'v*' --sort=-v:refname | grep -A1 "^${CURRENT_TAG}$" | tail -1)
+
+          # If previous tag equals current (no match after), try another method
+          if [ "$PREVIOUS_TAG" = "$CURRENT_TAG" ] || [ -z "$PREVIOUS_TAG" ]; then
+            PREVIOUS_TAG=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || echo "")
+          fi
+
+          echo "Previous tag: '$PREVIOUS_TAG'"
+
+          if [ -z "$PREVIOUS_TAG" ] || [ "$PREVIOUS_TAG" = "$CURRENT_TAG" ]; then
             echo "No previous tag found, using all commits"
             COMMITS=$(git log --pretty=format:"%s|%b" --no-merges)
           else
-            echo "Previous tag: $PREVIOUS_TAG"
-            COMMITS=$(git log ${PREVIOUS_TAG}..HEAD --pretty=format:"%s|%b" --no-merges)
+            echo "Getting commits between $PREVIOUS_TAG and $CURRENT_TAG"
+            COMMITS=$(git log ${PREVIOUS_TAG}..${CURRENT_TAG} --pretty=format:"%s|%b" --no-merges)
           fi
 
-          # Parse commits into categories
+          echo "Commits found:"
+          echo "$COMMITS" | head -20
+
+          # Parse commits into categories (only conventional commits: feat, fix, break)
+          BREAKING=""
           FEATURES=""
           FIXES=""
-          OTHER=""
 
           while IFS='|' read -r subject body; do
             # Skip version bump commits
@@ -98,9 +115,16 @@ jobs:
               DETAILS=$(echo "$body" | grep -E "^- " | head -10 || true)
             fi
 
-            if [[ "$subject" == feat:* ]] || [[ "$subject" == feat\(*\):* ]]; then
+            # Check for breaking changes (break:, break(scope):, or BREAKING CHANGE in body)
+            if [[ "$subject" == break:* ]] || [[ "$subject" == break\(*\):* ]] || [[ "$subject" == BREAKING* ]] || [[ "$body" == *"BREAKING CHANGE"* ]]; then
+              CLEAN=$(echo "$subject" | sed 's/^break[^:]*: //' | sed 's/^BREAKING CHANGE: //')
+              BREAKING="${BREAKING}- ${CLEAN}"$'\n'
+              if [ -n "$DETAILS" ]; then
+                BREAKING="${BREAKING}${DETAILS}"$'\n'
+              fi
+            elif [[ "$subject" == feat:* ]] || [[ "$subject" == feat\(*\):* ]] || [[ "$subject" == feature:* ]] || [[ "$subject" == feature\(*\):* ]]; then
               # Remove prefix and format
-              CLEAN=$(echo "$subject" | sed 's/^feat[^:]*: //')
+              CLEAN=$(echo "$subject" | sed 's/^feat[^:]*: //' | sed 's/^feature[^:]*: //')
               FEATURES="${FEATURES}- ${CLEAN}"$'\n'
               if [ -n "$DETAILS" ]; then
                 FEATURES="${FEATURES}${DETAILS}"$'\n'
@@ -108,14 +132,19 @@ jobs:
             elif [[ "$subject" == fix:* ]] || [[ "$subject" == fix\(*\):* ]]; then
               CLEAN=$(echo "$subject" | sed 's/^fix[^:]*: //')
               FIXES="${FIXES}- ${CLEAN}"$'\n'
-            else
-              # Other commits (chore, refactor, etc.)
-              OTHER="${OTHER}- ${subject}"$'\n'
+              if [ -n "$DETAILS" ]; then
+                FIXES="${FIXES}${DETAILS}"$'\n'
+              fi
             fi
+            # Ignore all other commits (chore, refactor, docs, etc.)
           done <<< "$COMMITS"
 
           # Build release notes
           NOTES=""
+
+          if [ -n "$BREAKING" ]; then
+            NOTES="${NOTES}## ⚠️ Breaking Changes"$'\n\n'"${BREAKING}"$'\n'
+          fi
 
           if [ -n "$FEATURES" ]; then
             NOTES="${NOTES}## ✨ Features"$'\n\n'"${FEATURES}"$'\n'
@@ -125,11 +154,7 @@ jobs:
             NOTES="${NOTES}## 🐛 Bug Fixes"$'\n\n'"${FIXES}"$'\n'
           fi
 
-          if [ -n "$OTHER" ]; then
-            NOTES="${NOTES}## 🔧 Other Changes"$'\n\n'"${OTHER}"$'\n'
-          fi
-
-          # Fallback if no categorized commits
+          # Fallback if no conventional commits found
           if [ -z "$NOTES" ]; then
             NOTES="Release v${PACKAGE_VERSION}"$'\n\n'"See commit history for changes."
           fi

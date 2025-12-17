@@ -40,12 +40,8 @@ const permissionPrompt = usePermissionPrompt()
 // External client authorization handler
 const externalAuth = useExternalAuth()
 const externalAuthOpen = computed({
-  get: () => {
-    console.log('[ExternalAuth] get isOpen:', externalAuth.isOpen.value)
-    return externalAuth.isOpen.value
-  },
+  get: () => externalAuth.isOpen.value,
   set: (v) => {
-    console.log('[ExternalAuth] set isOpen:', v, 'stack:', new Error().stack)
     if (!v) externalAuth.cancelPrompt()
   },
 })

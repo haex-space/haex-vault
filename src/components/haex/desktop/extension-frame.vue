@@ -118,27 +118,13 @@ const sandboxAttributes = computed(() => {
 // Generate extension URL
 const extensionUrl = computed(() => {
   if (!extension.value) {
-    console.log('[ExtensionFrame] No extension found')
     return ''
   }
 
   const { publicKey, name, version, devServerUrl } = extension.value
   const assetPath = 'index.html'
 
-  console.log('[ExtensionFrame] Generating URL for extension:', {
-    name,
-    publicKey: publicKey?.substring(0, 10) + '...',
-    version,
-    devServerUrl,
-    platform,
-  })
-
   if (!publicKey || !name || !version) {
-    console.error('[ExtensionFrame] Missing required extension fields:', {
-      hasPublicKey: !!publicKey,
-      hasName: !!name,
-      hasVersion: !!version,
-    })
     return ''
   }
 
@@ -146,9 +132,7 @@ const extensionUrl = computed(() => {
   if (devServerUrl) {
     const cleanUrl = devServerUrl.replace(/\/$/, '')
     const cleanPath = assetPath.replace(/^\//, '')
-    const url = cleanPath ? `${cleanUrl}/${cleanPath}` : cleanUrl
-    console.log('[ExtensionFrame] Using dev server URL:', url)
-    return url
+    return cleanPath ? `${cleanUrl}/${cleanPath}` : cleanUrl
   }
 
   const extensionInfo = {
@@ -158,18 +142,13 @@ const extensionUrl = computed(() => {
   }
   const encodedInfo = btoa(JSON.stringify(extensionInfo))
 
-  let url = ''
   if (platform === 'android' || platform === 'windows') {
     // Android: Tauri uses http://{scheme}.localhost format
-    url = `http://${EXTENSION_PROTOCOL_NAME}.localhost/${encodedInfo}/${assetPath}`
-    console.log('[ExtensionFrame] Generated Android/Windows URL:', url)
+    return `http://${EXTENSION_PROTOCOL_NAME}.localhost/${encodedInfo}/${assetPath}`
   } else {
     // Desktop: Use custom protocol with base64 as host
-    url = `${EXTENSION_PROTOCOL_PREFIX}${encodedInfo}/${assetPath}`
-    console.log('[ExtensionFrame] Generated Desktop URL:', url)
+    return `${EXTENSION_PROTOCOL_PREFIX}${encodedInfo}/${assetPath}`
   }
-
-  return url
 })
 
 const retryLoad = () => {
