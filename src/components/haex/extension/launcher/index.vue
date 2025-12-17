@@ -61,7 +61,7 @@
         color="neutral"
         variant="outline"
         block
-        size="lg"
+        size="xl"
         icon="i-heroicons-arrow-left-on-rectangle"
         :label="t('logout.label')"
         @click="onLogout"

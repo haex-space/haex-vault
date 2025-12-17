@@ -139,27 +139,29 @@
     </div>
 
     <!-- Actions -->
-    <div class="flex gap-2 mt-6">
+    <div class="flex gap-3 mt-6">
+      <UButton
+        color="neutral"
+        variant="outline"
+        size="xl"
+        @click="cancel"
+      >
+        {{ t('actions.cancel') }}
+      </UButton>
       <UButton
         v-if="currentStepIndex > 0"
         color="neutral"
         variant="outline"
+        size="xl"
         @click="previousStep"
       >
         {{ t('actions.back') }}
-      </UButton>
-      <UButton
-        v-if="showCancel && currentStepIndex === 0"
-        color="neutral"
-        variant="outline"
-        @click="cancel"
-      >
-        {{ t('actions.cancel') }}
       </UButton>
       <div class="flex-1"></div>
       <UButton
         v-if="currentStepIndex < 2"
         color="primary"
+        size="xl"
         :disabled="!canProceed"
         :loading="isLoading"
         @click="nextStep"
@@ -169,6 +171,7 @@
       <UButton
         v-else
         color="primary"
+        size="xl"
         :disabled="!isStep3Valid || isLoading"
         :loading="isLoading"
         @click="completeSetupAsync"

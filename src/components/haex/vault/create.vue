@@ -154,6 +154,7 @@
           color="neutral"
           variant="outline"
           block
+          size="xl"
           @click="open = false"
         >
           {{ t('cancel') }}
@@ -161,6 +162,7 @@
         <UButton
           color="primary"
           block
+          size="xl"
           @click="onCreateAsync"
         >
           {{ t('create') }}
