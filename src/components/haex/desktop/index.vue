@@ -113,9 +113,9 @@
                   ? 'warning'
                   : undefined
               "
-              class="no-swipe"
+              class="no-swipe transition-opacity duration-300"
               :class="{
-                'invisible': windowManager.showWindowOverview,
+                'opacity-0 pointer-events-none': windowManager.showWindowOverview,
               }"
               @close="windowManager.closeWindow(window.id)"
               @minimize="windowManager.minimizeWindow(window.id)"
@@ -170,7 +170,7 @@
       >
         <!-- Backdrop to close overview on click -->
         <div
-          class="absolute inset-0 -z-10 bg-black/30 backdrop-blur-sm"
+          class="absolute inset-0 -z-10 bg-black/30 backdrop-blur-sm transition-all duration-300"
           @click="windowManager.showWindowOverview = false"
         />
 
@@ -911,7 +911,7 @@ onMounted(async () => {
 
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity 0.3s ease;
 }
 
 .fade-enter-from,

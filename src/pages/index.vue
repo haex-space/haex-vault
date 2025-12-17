@@ -4,7 +4,7 @@
       <div
         class="flex flex-col justify-center items-center gap-5 mx-auto h-full overflow-auto"
       >
-        <UiLogoHaexspace class="bg-primary p-3 size-16 rounded-full shrink-0" />
+        <UiLogoHaexspace class="size-16 shrink-0" />
         <span
           class="flex flex-wrap font-bold text-pretty text-xl gap-2 justify-center"
         >
