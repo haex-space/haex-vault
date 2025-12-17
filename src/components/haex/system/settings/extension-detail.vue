@@ -62,7 +62,7 @@
               :loading="isUpdating"
               block
               class="@md:w-auto"
-              @click="() => handleUpdateAsync()"
+              @click="() => void handleUpdateAsync()"
             />
             <UiButton
               :label="t('remove')"
