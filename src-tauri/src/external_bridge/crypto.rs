@@ -179,6 +179,7 @@ pub fn create_encrypted_response(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use p256::elliptic_curve::sec1::ToEncodedPoint;
 
     #[test]
     fn test_keypair_generation() {
