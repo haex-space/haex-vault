@@ -1,11 +1,11 @@
 <template>
   <UTooltip :text="formattedValue">
-    <div class="bg-muted p-4 rounded-lg min-w-0">
+    <div class="bg-muted p-4 rounded-lg min-w-0 h-full flex flex-col justify-between">
       <div class="text-sm text-muted">
         {{ label }}
       </div>
       <div
-        class="text-xl @lg:text-2xl font-bold truncate"
+        class="text-xl @lg:text-2xl font-bold truncate mt-auto"
         :class="colorClass"
       >
         {{ formattedValue }}

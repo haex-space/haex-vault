@@ -1,13 +1,6 @@
 <template>
-  <div>
-    <div class="p-6 border-b border-base-content/10">
-      <h2 class="text-2xl font-bold">
-        {{ t('title') }}
-      </h2>
-    </div>
-
-    <div class="p-6 space-y-6">
-      <UFormField :label="t('language')" :description="t('language.description')">
+  <HaexSystemSettingsLayout :title="t('title')">
+    <UFormField :label="t('language')" :description="t('language.description')">
         <UiDropdownLocale @select="onSelectLocaleAsync" />
       </UFormField>
 
@@ -96,8 +89,7 @@
           </template>
         </UiDrawerModal>
       </UFormField>
-    </div>
-  </div>
+  </HaexSystemSettingsLayout>
 </template>
 
 <script setup lang="ts">

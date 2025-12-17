@@ -18,13 +18,11 @@
           <UButton
             :label="allCopied ? 'Copied!' : 'Copy All'"
             :color="allCopied ? 'success' : 'primary'"
-            size="sm"
             @click="copyAllLogs"
           />
           <UButton
             label="Clear Logs"
             color="error"
-            size="sm"
             @click="clearLogs"
           />
         </div>
@@ -40,7 +38,6 @@
         :key="level"
         :label="level"
         :color="filter === level ? 'primary' : 'neutral'"
-        size="sm"
         @click="filter = level as any"
       />
     </div>

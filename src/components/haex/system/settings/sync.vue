@@ -1,16 +1,6 @@
 <template>
-  <div>
-    <div class="p-6 border-b border-base-content/10">
-      <h2 class="text-2xl font-bold">
-        {{ t('title') }}
-      </h2>
-      <p class="text-sm text-base-content/60 mt-1">
-        {{ t('description') }}
-      </p>
-    </div>
-
-    <div class="@container p-6 space-y-6">
-      <UCard
+  <HaexSystemSettingsLayout :title="t('title')" :description="t('description')">
+    <UCard
         v-if="showAddBackendForm"
         class="relative"
       >
@@ -134,8 +124,7 @@
             </template>
             <template #actions>
               <UButton
-                size="sm"
-                :color="backend.enabled ? 'neutral' : 'primary'"
+                                :color="backend.enabled ? 'neutral' : 'primary'"
                 @click="toggleBackendAsync(backend.id)"
               >
                 {{ backend.enabled ? t('actions.disable') : t('actions.enable') }}
@@ -354,8 +343,6 @@
         </UTabs>
       </UCard>
 
-    </div>
-
     <!-- Delete Remote Vault Confirmation Dialog -->
     <UiDialogConfirm
       v-model:open="showDeleteDialog"
@@ -385,7 +372,7 @@
       :loading="isReUploading"
       @confirm="onConfirmReUploadAsync"
     />
-  </div>
+  </HaexSystemSettingsLayout>
 </template>
 
 <script setup lang="ts">

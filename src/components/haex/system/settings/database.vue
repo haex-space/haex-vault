@@ -1,13 +1,6 @@
 <template>
-  <div class="@container">
-    <div class="p-6 border-b border-default">
-      <h2 class="text-2xl font-bold">
-        {{ t('title') }}
-      </h2>
-    </div>
-
-    <div class="p-6 space-y-8">
-      <!-- Loading State -->
+  <HaexSystemSettingsLayout :title="t('title')">
+    <!-- Loading State -->
       <div
         v-if="isLoading"
         class="flex justify-center py-8"
@@ -24,7 +17,7 @@
           <h3 class="text-lg font-semibold">
             {{ t('overview.title') }}
           </h3>
-          <div class="grid grid-cols-1 @sm:grid-cols-2 @lg:grid-cols-4 gap-4">
+          <div class="grid grid-cols-2 @2xl:grid-cols-4 gap-4">
             <UiStatCard
               :label="t('overview.fileSize')"
               :value="dbInfo.fileSizeFormatted"
@@ -254,8 +247,7 @@
           </div>
         </div>
       </template>
-    </div>
-  </div>
+  </HaexSystemSettingsLayout>
 </template>
 
 <script setup lang="ts">

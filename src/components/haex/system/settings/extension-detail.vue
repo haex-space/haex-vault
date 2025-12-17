@@ -1,113 +1,101 @@
 <template>
-  <div>
-    <!-- Header with back button -->
-    <div class="p-6 border-b border-base-content/10">
-      <div class="flex items-center gap-3">
-        <UiButton
-          icon="i-heroicons-arrow-left"
-          variant="ghost"
-          size="sm"
-          @click="emit('back')"
-        />
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2">
-            <h2 class="text-2xl font-bold truncate">
-              {{ extension.name }}
-            </h2>
-            <UBadge
-              v-if="extension.devServerUrl"
-              color="warning"
-              variant="subtle"
-              size="xs"
-            >
-              {{ t('devExtension') }}
-            </UBadge>
-          </div>
-          <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            {{ t('extensionDetails') }}
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <div class="p-6 space-y-6">
+  <HaexSystemSettingsLayout
+    :description="t('extensionDetails')"
+    show-back
+    @back="emit('back')"
+  >
+    <template #title>
+      <span class="truncate">{{ extension.name }}</span>
+      <UBadge
+        v-if="extension.devServerUrl"
+        color="warning"
+        variant="subtle"
+        size="xs"
+        class="ml-2"
+      >
+        {{ t('devExtension') }}
+      </UBadge>
+    </template>
       <!-- Extension Info Section -->
-      <div class="space-y-4">
-        <h3 class="text-lg font-semibold">{{ t('info') }}</h3>
+      <UCard>
+        <template #header>
+          <h3 class="text-lg font-semibold">{{ t('info') }}</h3>
+        </template>
 
-        <div class="flex items-start gap-3">
-          <div
-            class="w-16 h-16 shrink-0 rounded-lg bg-base-200 flex items-center justify-center overflow-hidden"
-          >
-            <HaexIcon
-              :name="extension.iconUrl || 'i-heroicons-puzzle-piece'"
-              class="w-full h-full object-contain"
-            />
-          </div>
-
-          <div class="flex-1 min-w-0 text-sm space-y-1">
-            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span class="font-medium">{{ t('version') }}:</span>
-              <span>{{ extension.version }}</span>
-              <!-- Loading indicator while checking for updates -->
-              <UIcon
-                v-if="isCheckingUpdate"
-                name="i-heroicons-arrow-path"
-                class="w-4 h-4 animate-spin text-gray-400"
+        <div class="space-y-3">
+          <!-- Icon and Info Row -->
+          <div class="flex items-start gap-3">
+            <div
+              class="w-16 h-16 shrink-0 rounded-lg bg-base-200 flex items-center justify-center overflow-hidden"
+            >
+              <HaexIcon
+                :name="extension.iconUrl || 'i-heroicons-puzzle-piece'"
+                class="w-full h-full object-contain"
               />
-              <!-- Clickable update badge -->
-              <button
-                v-else-if="hasUpdate && !extension.devServerUrl"
-                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-warning/20 text-warning-600 dark:text-warning-400 hover:bg-warning/30 transition-colors cursor-pointer"
-                :disabled="isUpdating"
-                @click="handleUpdateAsync"
-              >
-                <UIcon
-                  :name="
-                    isUpdating
-                      ? 'i-heroicons-arrow-path'
-                      : 'i-heroicons-sparkles'
-                  "
-                  :class="['w-4 h-4', { 'animate-spin': isUpdating }]"
-                />
-                {{ t('updateAvailable', { version: latestVersion }) }}
-              </button>
             </div>
-            <div v-if="extension.author">
-              <span class="font-medium">{{ t('author') }}:</span>
-              {{ extension.author }}
+
+            <div class="flex-1 min-w-0 text-sm space-y-1">
+              <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span class="font-medium">{{ t('version') }}:</span>
+                <span>{{ extension.version }}</span>
+                <!-- Loading indicator while checking for updates -->
+                <UIcon
+                  v-if="isCheckingUpdate"
+                  name="i-heroicons-arrow-path"
+                  class="w-4 h-4 animate-spin text-gray-400"
+                />
+              </div>
+              <div v-if="extension.author">
+                <span class="font-medium">{{ t('author') }}:</span>
+                {{ extension.author }}
+              </div>
             </div>
           </div>
 
           <!-- Action Buttons -->
-          <div class="flex gap-2 shrink-0">
+          <div class="flex flex-col @md:flex-row @md:justify-end gap-2">
             <UiButton
+              v-if="hasUpdate && !extension.devServerUrl"
+              :label="t('update')"
+              icon="i-heroicons-arrow-up-circle"
+              color="warning"
+              :loading="isUpdating"
+              block
+              class="@md:w-auto"
+              @click="() => handleUpdateAsync()"
+            />
+            <UiButton
+              :label="t('remove')"
               icon="i-heroicons-trash"
               color="error"
               variant="outline"
-              size="sm"
+              block
+              class="@md:w-auto"
               @click="confirmRemove"
             />
             <UiButton
               :label="t('open')"
               icon="i-heroicons-play"
-              size="sm"
+              block
+              class="@md:w-auto"
               @click="openExtensionAsync"
             />
           </div>
-        </div>
 
-        <div
-          v-if="extension.description"
-          class="text-sm text-gray-600 dark:text-gray-300"
-        >
-          {{ extension.description }}
+          <div
+            v-if="extension.description"
+            class="text-sm text-gray-600 dark:text-gray-300"
+          >
+            {{ extension.description }}
+          </div>
         </div>
-      </div>
+      </UCard>
 
       <!-- Settings Section -->
-      <div class="space-y-4">
-        <h3 class="text-lg font-semibold">{{ t('settings') }}</h3>
+      <UCard>
+        <template #header>
+          <h3 class="text-lg font-semibold">{{ t('settings') }}</h3>
+        </template>
 
         <div class="space-y-3">
           <div class="flex items-center justify-between gap-4">
@@ -168,11 +156,13 @@
             </a>
           </div>
         </div>
-      </div>
+      </UCard>
 
       <!-- Permissions Section -->
-      <div class="space-y-4">
-        <h3 class="text-lg font-semibold">{{ t('permissions') }}</h3>
+      <UCard>
+        <template #header>
+          <h3 class="text-lg font-semibold">{{ t('permissions') }}</h3>
+        </template>
 
         <div
           v-if="loadingPermissions"
@@ -228,14 +218,11 @@
               :label="t('savePermissions')"
               :loading="savingPermissions"
               :disabled="!hasPermissionChanges"
-              size="sm"
               @click="savePermissionsAsync"
             />
           </div>
         </div>
-      </div>
-
-    </div>
+      </UCard>
 
     <!-- Remove Confirmation Dialog -->
     <HaexExtensionDialogRemove
@@ -252,7 +239,7 @@
       :icon-url="extension.iconUrl"
       @confirm="handleUpdateConfirmAsync"
     />
-  </div>
+  </HaexSystemSettingsLayout>
 </template>
 
 <script setup lang="ts">
@@ -596,6 +583,7 @@ onMounted(async () => {
 de:
   extensionDetails: Erweiterungsdetails und Konfiguration
   devExtension: Entwicklung
+  update: Aktualisieren
   open: Öffnen
   openError: Fehler beim Öffnen der Erweiterung
   info: Informationen
@@ -640,6 +628,7 @@ de:
 en:
   extensionDetails: Extension details and configuration
   devExtension: Development
+  update: Update
   open: Open
   openError: Error opening extension
   info: Information

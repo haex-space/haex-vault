@@ -1,15 +1,8 @@
 <template>
-  <div class="space-y-6">
-    <div class="px-6 pt-6">
-      <h2 class="text-xl font-semibold">
-        {{ t('title') }}
-      </h2>
-      <p class="text-sm text-base-content/60 mt-1">
-        {{ t('description') }}
-      </p>
-    </div>
-
-    <div class="@container p-6 space-y-6">
+  <HaexSystemSettingsLayout
+    :title="t('title')"
+    :description="t('description')"
+  >
       <!-- Add Dev Extension Form -->
       <UCard>
         <template #header>
@@ -76,14 +69,12 @@
               <UiButton
                 :label="t('list.reload')"
                 variant="outline"
-                size="sm"
-                @click="reloadDevExtensionAsync(ext)"
+                                @click="reloadDevExtensionAsync(ext)"
               />
               <UiButton
                 :label="t('list.remove')"
                 variant="ghost"
-                size="sm"
-                color="error"
+                                color="error"
                 @click="removeDevExtensionAsync(ext)"
               />
             </div>
@@ -97,8 +88,7 @@
           {{ t('list.empty') }}
         </div>
       </UCard>
-    </div>
-  </div>
+  </HaexSystemSettingsLayout>
 </template>
 
 <script setup lang="ts">

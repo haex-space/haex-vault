@@ -1,20 +1,12 @@
 <template>
-  <div>
-    <div class="p-6 border-b border-base-content/10">
-      <h2 class="text-2xl font-bold">
-        {{ t('title') }}
-      </h2>
-    </div>
-
-    <div class="p-6 space-y-6">
-      <UFormField
-        :label="t('iconSize.label')"
-        :description="t('iconSize.description')"
-      >
-        <USelect v-model="iconSizePreset" :items="iconSizePresetOptions" />
-      </UFormField>
-    </div>
-  </div>
+  <HaexSystemSettingsLayout :title="t('title')">
+    <UFormField
+      :label="t('iconSize.label')"
+      :description="t('iconSize.description')"
+    >
+      <USelect v-model="iconSizePreset" :items="iconSizePresetOptions" />
+    </UFormField>
+  </HaexSystemSettingsLayout>
 </template>
 
 <script setup lang="ts">

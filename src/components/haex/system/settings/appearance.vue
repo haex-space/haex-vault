@@ -1,52 +1,44 @@
 <template>
-  <div>
-    <div class="p-6 border-b border-base-content/10">
-      <h2 class="text-2xl font-bold">
-        {{ t('title') }}
-      </h2>
-    </div>
+  <HaexSystemSettingsLayout :title="t('title')">
+    <UFormField :label="t('design')" :description="t('design.description')">
+      <UiDropdownTheme @select="onSelectThemeAsync" />
+    </UFormField>
 
-    <div class="p-6 space-y-6">
-      <UFormField :label="t('design')" :description="t('design.description')">
-        <UiDropdownTheme @select="onSelectThemeAsync" />
-      </UFormField>
-
-      <UFormField
-        :label="t('workspaceBackground.label')"
-        :description="t('workspaceBackground.description')"
-      >
-        <div class="flex gap-2">
-          <UiButton
-            :label="t('workspaceBackground.choose')"
-            @click="selectBackgroundImage"
-          />
-          <UiButton
-            v-if="currentWorkspace?.background"
-            :label="t('workspaceBackground.remove.label')"
-            color="error"
-            @click="removeBackgroundImage"
-          />
-        </div>
-      </UFormField>
-
-      <UFormField
-        :label="t('gradient.variant.label')"
-        :description="t('gradient.variant.description')"
-      >
-        <USelect v-model="gradientVariant" :items="gradientVariantOptions" />
-      </UFormField>
-
-      <UFormField
-        :label="t('gradient.enabled.label')"
-        :description="t('gradient.enabled.description')"
-      >
-        <UiToggle
-          v-model="gradientEnabled"
-          @update:model-value="onToggleGradientAsync"
+    <UFormField
+      :label="t('workspaceBackground.label')"
+      :description="t('workspaceBackground.description')"
+    >
+      <div class="flex gap-2">
+        <UiButton
+          :label="t('workspaceBackground.choose')"
+          @click="selectBackgroundImage"
         />
-      </UFormField>
-    </div>
-  </div>
+        <UiButton
+          v-if="currentWorkspace?.background"
+          :label="t('workspaceBackground.remove.label')"
+          color="error"
+          @click="removeBackgroundImage"
+        />
+      </div>
+    </UFormField>
+
+    <UFormField
+      :label="t('gradient.variant.label')"
+      :description="t('gradient.variant.description')"
+    >
+      <USelect v-model="gradientVariant" :items="gradientVariantOptions" />
+    </UFormField>
+
+    <UFormField
+      :label="t('gradient.enabled.label')"
+      :description="t('gradient.enabled.description')"
+    >
+      <UiToggle
+        v-model="gradientEnabled"
+        @update:model-value="onToggleGradientAsync"
+      />
+    </UFormField>
+  </HaexSystemSettingsLayout>
 </template>
 
 <script setup lang="ts">

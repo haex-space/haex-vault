@@ -1,16 +1,6 @@
 <template>
-  <div>
-    <div class="p-6 border-b border-base-content/10">
-      <h2 class="text-2xl font-bold">
-        {{ t('title') }}
-      </h2>
-      <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-        {{ t('description') }}
-      </p>
-    </div>
-
-    <div class="p-6 space-y-6">
-      <!-- Bridge Configuration Section -->
+  <HaexSystemSettingsLayout :title="t('title')" :description="t('description')">
+    <!-- Bridge Configuration Section -->
       <UCard>
         <template #header>
           <h3 class="text-lg font-semibold flex items-center gap-2">
@@ -40,8 +30,7 @@
                 :label="t('bridgeConfigApply')"
                 :loading="savingPort"
                 :disabled="bridgePort === currentPort || !isValidPort"
-                size="sm"
-                @click="handleSavePort"
+                                @click="handleSavePort"
               />
             </div>
           </div>
@@ -113,8 +102,7 @@
                 <UButton
                   color="error"
                   variant="ghost"
-                  size="sm"
-                  :loading="revokingClientId === client.clientId"
+                                    :loading="revokingClientId === client.clientId"
                   @click="handleRevokeClient(client)"
                 >
                   <UIcon name="i-heroicons-x-mark" class="w-4 h-4" />
@@ -168,8 +156,7 @@
                 <UButton
                   color="error"
                   variant="ghost"
-                  size="sm"
-                  :loading="revokingSessionClientId === auth.clientId"
+                                    :loading="revokingSessionClientId === auth.clientId"
                   @click="handleRevokeSessionAuth(auth)"
                 >
                   <UIcon name="i-heroicons-x-mark" class="w-4 h-4" />
@@ -220,8 +207,7 @@
                 <UButton
                   color="success"
                   variant="ghost"
-                  size="sm"
-                  :loading="unblockingClientId === client.clientId"
+                                    :loading="unblockingClientId === client.clientId"
                   @click="handleUnblockClient(client)"
                 >
                   <UIcon name="i-heroicons-check" class="w-4 h-4" />
@@ -232,8 +218,7 @@
           </div>
         </UCard>
       </template>
-    </div>
-  </div>
+  </HaexSystemSettingsLayout>
 </template>
 
 <script setup lang="ts">
