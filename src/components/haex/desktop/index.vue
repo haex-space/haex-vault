@@ -113,9 +113,11 @@
                   ? 'warning'
                   : undefined
               "
-              class="no-swipe transition-opacity duration-300"
+              class="no-swipe"
               :class="{
-                'opacity-0 pointer-events-none': windowManager.showWindowOverview,
+                'transition-opacity duration-300': !window.isNativeWebview,
+                'opacity-0 pointer-events-none': windowManager.showWindowOverview && !window.isNativeWebview,
+                'invisible': windowManager.showWindowOverview && window.isNativeWebview,
               }"
               @close="windowManager.closeWindow(window.id)"
               @minimize="windowManager.minimizeWindow(window.id)"
