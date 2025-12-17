@@ -21,6 +21,27 @@ impl ExtensionWebviewManager {
         }
     }
 
+    /// Checks if there's an open window for the given extension
+    pub fn has_window_for_extension(&self, extension_id: &str) -> bool {
+        if let Ok(windows) = self.windows.lock() {
+            windows.values().any(|id| id == extension_id)
+        } else {
+            false
+        }
+    }
+
+    /// Gets the window_id for an extension if it has an open window
+    pub fn get_window_for_extension(&self, extension_id: &str) -> Option<String> {
+        if let Ok(windows) = self.windows.lock() {
+            windows
+                .iter()
+                .find(|(_, id)| *id == extension_id)
+                .map(|(window_id, _)| window_id.clone())
+        } else {
+            None
+        }
+    }
+
     /// Öffnet eine Extension in einem nativen WebviewWindow
     ///
     /// # Arguments
@@ -32,6 +53,7 @@ impl ExtensionWebviewManager {
     /// * `height` - Fensterhöhe
     /// * `x` - X-Position (optional)
     /// * `y` - Y-Position (optional)
+    /// * `minimized` - Fenster minimiert öffnen (optional, default: false)
     ///
     /// # Returns
     /// Das window_id des erstellten Fensters
@@ -45,6 +67,7 @@ impl ExtensionWebviewManager {
         height: f64,
         x: Option<f64>,
         y: Option<f64>,
+        minimized: Option<bool>,
     ) -> Result<String, ExtensionError> {
         // Extension aus Manager holen
         let extension = extension_manager
@@ -136,6 +159,13 @@ impl ExtensionWebviewManager {
             .map_err(|e| ExtensionError::ValidationError {
                 reason: format!("Failed to create webview window: {}", e),
             })?;
+
+        // Minimiert öffnen, falls angegeben (nur Desktop)
+        // Muss nach dem Erstellen aufgerufen werden, da WebviewWindowBuilder keine minimize-Option hat
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        if minimized.unwrap_or(false) {
+            let _ = webview_window.minimize();
+        }
 
         // Event-Listener für das Schließen des Fensters registrieren
         let window_id_for_event = window_id.clone();

@@ -85,6 +85,13 @@
       "when": 1765889688700,
       "tag": "0011_sturdy_wolf_cub",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1765978734915,
+      "tag": "0012_low_wallop",
+      "breakpoints": true
     }
   ]
 }

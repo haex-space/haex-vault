@@ -1,0 +1,2 @@
+DROP INDEX `haex_external_authorized_clients_client_id_unique`;--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_external_authorized_clients_client_extension_unique` ON `haex_external_authorized_clients` (`client_id`,`extension_id`) WHERE "haex_external_authorized_clients"."haex_tombstone" = 0;

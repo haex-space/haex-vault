@@ -15,6 +15,8 @@ use crate::table_names::{
     COL_EXTERNAL_BLOCKED_CLIENTS_BLOCKED_AT, COL_EXTERNAL_BLOCKED_CLIENTS_CLIENT_ID,
     COL_EXTERNAL_BLOCKED_CLIENTS_CLIENT_NAME, COL_EXTERNAL_BLOCKED_CLIENTS_ID,
     COL_EXTERNAL_BLOCKED_CLIENTS_PUBLIC_KEY, TABLE_EXTERNAL_BLOCKED_CLIENTS,
+    // Extensions table
+    TABLE_EXTENSIONS,
 };
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -169,6 +171,26 @@ lazy_static::lazy_static! {
     pub static ref SQL_DELETE_BLOCKED_CLIENT: String = format!(
         "DELETE FROM {TABLE_EXTERNAL_BLOCKED_CLIENTS}
          WHERE {COL_EXTERNAL_BLOCKED_CLIENTS_CLIENT_ID} = ?1"
+    );
+
+    // ============================================================================
+    // SQL queries for extension lookup and authorization validation
+    // ============================================================================
+
+    /// Check if a client is authorized for a specific extension (by extension public_key + name)
+    /// Uses JOIN to lookup extension by public_key and name
+    pub static ref SQL_IS_CLIENT_AUTHORIZED_FOR_EXTENSION: String = format!(
+        "SELECT COUNT(*) FROM {TABLE_EXTERNAL_AUTHORIZED_CLIENTS} ac
+         JOIN {TABLE_EXTENSIONS} e ON ac.{COL_EXTERNAL_AUTHORIZED_CLIENTS_EXTENSION_ID} = e.id
+         WHERE ac.{COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_ID} = ?1
+         AND e.public_key = ?2
+         AND e.name = ?3"
+    );
+
+    /// Get extension ID by public_key and name
+    pub static ref SQL_GET_EXTENSION_ID_BY_PUBLIC_KEY_AND_NAME: String = format!(
+        "SELECT id FROM {TABLE_EXTENSIONS}
+         WHERE public_key = ?1 AND name = ?2"
     );
 }
 

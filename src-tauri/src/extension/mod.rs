@@ -632,10 +632,11 @@ pub fn open_extension_webview_window(
     height: f64,
     x: Option<f64>,
     y: Option<f64>,
+    minimized: Option<bool>,
 ) -> Result<String, ExtensionError> {
     eprintln!(
-        "[open_extension_webview_window] Received extension_id: {}",
-        extension_id
+        "[open_extension_webview_window] Received extension_id: {}, minimized: {:?}",
+        extension_id, minimized
     );
     // Returns the window_id (generated UUID without dashes)
     state.extension_webview_manager.open_extension_window(
@@ -647,6 +648,7 @@ pub fn open_extension_webview_window(
         height,
         x,
         y,
+        minimized,
     )
 }
 

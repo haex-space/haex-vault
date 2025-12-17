@@ -338,8 +338,10 @@ export const haexExternalAuthorizedClients = sqliteTable(
     lastSeen: text(tableNames.haex.external_authorized_clients.columns.lastSeen),
   }),
   (table) => [
-    uniqueIndex('haex_external_authorized_clients_client_id_unique')
-      .on(table.clientId)
+    // A client can be authorized for multiple extensions
+    // The combination of client_id + extension_id must be unique
+    uniqueIndex('haex_external_authorized_clients_client_extension_unique')
+      .on(table.clientId, table.extensionId)
       .where(sql`${table.haexTombstone} = 0`),
   ],
 )

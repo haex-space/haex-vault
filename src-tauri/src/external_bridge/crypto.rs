@@ -105,6 +105,12 @@ pub struct EncryptedEnvelope {
     pub iv: String,           // Base64 12-byte IV
     pub client_id: String,
     pub public_key: String,   // Ephemeral public key (SPKI base64)
+    /// Target extension's public key (from manifest) - identifies the developer
+    #[serde(default)]
+    pub extension_public_key: Option<String>,
+    /// Target extension's name (from manifest) - together with public_key uniquely identifies the extension
+    #[serde(default)]
+    pub extension_name: Option<String>,
 }
 
 impl EncryptedEnvelope {
@@ -173,6 +179,8 @@ pub fn create_encrypted_response(
         iv: BASE64.encode(&iv),
         client_id: String::new(), // Server doesn't have a client_id
         public_key: ephemeral.public_key_spki_base64()?,
+        extension_public_key: None, // Not needed for responses
+        extension_name: None,       // Not needed for responses
     })
 }
 

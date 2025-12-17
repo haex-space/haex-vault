@@ -5,6 +5,7 @@
 
 use crate::AppState;
 use crate::database::core::{execute_with_crdt, select_with_crdt};
+use crate::event_names::EVENT_EXTENSION_AUTO_START_REQUEST;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
@@ -16,8 +17,8 @@ use tokio::sync::{mpsc, oneshot, RwLock};
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 use super::authorization::{
-    PendingAuthorization, SQL_GET_CLIENT_EXTENSION, SQL_IS_CLIENT_KNOWN,
-    SQL_UPDATE_LAST_SEEN,
+    PendingAuthorization, SQL_GET_CLIENT_EXTENSION, SQL_GET_EXTENSION_ID_BY_PUBLIC_KEY_AND_NAME,
+    SQL_IS_CLIENT_AUTHORIZED_FOR_EXTENSION, SQL_IS_CLIENT_KNOWN, SQL_UPDATE_LAST_SEEN,
 };
 use super::crypto::{ServerKeyPair, create_encrypted_response};
 use super::error::BridgeError;
@@ -312,10 +313,18 @@ async fn handle_connection(
 
         match msg {
             Message::Text(text) => {
+                // Debug: Log raw message (truncated for readability)
+                let preview = if text.len() > 200 {
+                    format!("{}...", &text[..200])
+                } else {
+                    text.to_string()
+                };
+                eprintln!("[ExternalBridge] Received raw message: {}", preview);
+
                 let protocol_msg: ProtocolMessage = match serde_json::from_str(&text) {
                     Ok(m) => m,
                     Err(e) => {
-                        eprintln!("[ExternalBridge] Parse error: {}", e);
+                        eprintln!("[ExternalBridge] Parse error: {} - raw: {}", e, preview);
                         let error_msg = ProtocolMessage::Error {
                             code: "PARSE_ERROR".to_string(),
                             message: e.to_string(),
@@ -434,7 +443,27 @@ async fn handle_connection(
                     }
 
                     ProtocolMessage::Request(envelope) => {
-                        if !authorized {
+                        eprintln!(
+                            "[ExternalBridge] Received request: action={}, client_id={:?}, ext_pk={:?}, ext_name={:?}",
+                            envelope.action,
+                            client_id,
+                            envelope.extension_public_key,
+                            envelope.extension_name
+                        );
+
+                        // Check authorization - either from handshake or session (allow once)
+                        // Session authorization may have been granted AFTER the handshake
+                        let is_authorized = if authorized {
+                            true
+                        } else if let Some(cid) = &client_id {
+                            let session_auth = session_authorizations.read().await;
+                            session_auth.contains_key(cid)
+                        } else {
+                            false
+                        };
+
+                        if !is_authorized {
+                            eprintln!("[ExternalBridge] Request rejected: client not authorized");
                             let error_msg = ProtocolMessage::Error {
                                 code: "UNAUTHORIZED".to_string(),
                                 message: "Client not authorized".to_string(),
@@ -465,12 +494,17 @@ async fn handle_connection(
                                 // Process the decrypted request
                                 // Use client's public key as identifier (consistent with rest of haex-vault)
                                 let public_key = client_public_key_spki.as_deref().unwrap_or("");
+                                let cid = client_id.as_deref().unwrap_or("");
                                 let response_payload = process_request(
                                     &envelope.action,
                                     &payload,
                                     public_key,
+                                    envelope.extension_public_key.as_deref(),
+                                    envelope.extension_name.as_deref(),
+                                    cid,
                                     &app_handle,
                                     pending_responses.clone(),
+                                    session_authorizations.clone(),
                                 ).await;
 
                                 // Send encrypted response back
@@ -616,20 +650,165 @@ async fn update_client_last_seen(
     Ok(())
 }
 
+/// Check if a client is authorized for a specific extension (by extension public_key + name)
+async fn check_client_authorized_for_extension(
+    app_handle: &AppHandle,
+    client_id: &str,
+    extension_public_key: &str,
+    extension_name: &str,
+) -> bool {
+    let state = app_handle.state::<AppState>();
+    let params = vec![
+        JsonValue::String(client_id.to_string()),
+        JsonValue::String(extension_public_key.to_string()),
+        JsonValue::String(extension_name.to_string()),
+    ];
+
+    match select_with_crdt(
+        SQL_IS_CLIENT_AUTHORIZED_FOR_EXTENSION.to_string(),
+        params,
+        &state.db,
+    ) {
+        Ok(rows) => {
+            if let Some(row) = rows.first() {
+                if let Some(count) = row.first() {
+                    return count.as_i64().unwrap_or(0) > 0;
+                }
+            }
+            false
+        }
+        Err(e) => {
+            eprintln!(
+                "[ExternalBridge] Failed to check client authorization: {}",
+                e
+            );
+            false
+        }
+    }
+}
+
+/// Get extension ID by public_key and name
+async fn get_extension_id_by_public_key_and_name(
+    app_handle: &AppHandle,
+    extension_public_key: &str,
+    extension_name: &str,
+) -> Option<String> {
+    let state = app_handle.state::<AppState>();
+    let params = vec![
+        JsonValue::String(extension_public_key.to_string()),
+        JsonValue::String(extension_name.to_string()),
+    ];
+
+    match select_with_crdt(
+        SQL_GET_EXTENSION_ID_BY_PUBLIC_KEY_AND_NAME.to_string(),
+        params,
+        &state.db,
+    ) {
+        Ok(rows) => {
+            if let Some(row) = rows.first() {
+                if let Some(id) = row.first() {
+                    return id.as_str().map(|s| s.to_string());
+                }
+            }
+            None
+        }
+        Err(e) => {
+            eprintln!("[ExternalBridge] Failed to get extension ID: {}", e);
+            None
+        }
+    }
+}
+
+/// Ensure an extension is loaded (auto-start if needed)
+/// Returns Ok(()) if extension is loaded or was successfully started
+///
+/// This function:
+/// 1. Checks if extension already has an open window (Desktop only)
+/// 2. If not, emits an event to the frontend to request extension loading
+/// 3. Waits for the extension to be ready
+async fn ensure_extension_loaded(
+    app_handle: &AppHandle,
+    extension_id: &str,
+) -> Result<(), String> {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let state = app_handle.state::<AppState>();
+
+        // Check if extension already has an open window
+        if state
+            .extension_webview_manager
+            .has_window_for_extension(extension_id)
+        {
+            eprintln!(
+                "[ExternalBridge] Extension {} already has an open window",
+                extension_id
+            );
+            return Ok(());
+        }
+    }
+
+    // Extension not loaded - request frontend to start it
+    eprintln!(
+        "[ExternalBridge] Extension {} not loaded, requesting frontend to start it...",
+        extension_id
+    );
+
+    // Emit event to frontend to start the extension
+    // The frontend will handle this based on the extension's display_mode
+    let payload = serde_json::json!({
+        "extensionId": extension_id,
+    });
+
+    if let Err(e) = app_handle.emit(EVENT_EXTENSION_AUTO_START_REQUEST, &payload) {
+        return Err(format!("Failed to emit auto-start request: {}", e));
+    }
+
+    // Wait for extension to initialize
+    // TODO: Implement proper signaling mechanism where extension confirms it's ready
+    // For now, we wait a fixed time which should be enough for most extensions
+    tokio::time::sleep(Duration::from_millis(1000)).await;
+
+    // Verify extension is now loaded (Desktop only)
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let state = app_handle.state::<AppState>();
+        if !state
+            .extension_webview_manager
+            .has_window_for_extension(extension_id)
+        {
+            // Extension might be running in iframe mode, which we can't detect from backend
+            // We'll proceed and let the request timeout if the extension doesn't respond
+            eprintln!(
+                "[ExternalBridge] Extension {} may be running in iframe mode or failed to start",
+                extension_id
+            );
+        }
+    }
+
+    Ok(())
+}
+
 /// Process a decrypted request and route it to the appropriate extension
 ///
 /// # Arguments
 /// * `action` - The action/method name to perform
 /// * `payload` - The decrypted request payload (must contain requestId)
-/// * `public_key` - Client's public key (Base64 SPKI format, used as identifier)
+/// * `client_public_key` - Client's public key (Base64 SPKI format, used as identifier)
+/// * `extension_public_key` - Target extension's public key (from manifest)
+/// * `extension_name` - Target extension's name (from manifest)
+/// * `client_id` - Client's unique identifier
 /// * `app_handle` - Tauri app handle for emitting events
 /// * `pending_responses` - Map to store response channel for correlation
 async fn process_request(
     action: &str,
     payload: &serde_json::Value,
-    public_key: &str,
+    client_public_key: &str,
+    extension_public_key: Option<&str>,
+    extension_name: Option<&str>,
+    client_id: &str,
     app_handle: &AppHandle,
     pending_responses: Arc<RwLock<HashMap<String, ResponseSender>>>,
+    session_authorizations: Arc<RwLock<HashMap<String, SessionAuthorization>>>,
 ) -> serde_json::Value {
     // Extract requestId - required for response correlation
     let request_id = match payload.get("requestId").and_then(|v| v.as_str()) {
@@ -641,6 +820,56 @@ async fn process_request(
             });
         }
     };
+
+    // Validate that extension target is specified
+    let (ext_public_key, ext_name) = match (extension_public_key, extension_name) {
+        (Some(pk), Some(name)) if !pk.is_empty() && !name.is_empty() => (pk, name),
+        _ => {
+            return serde_json::json!({
+                "requestId": request_id,
+                "success": false,
+                "error": "Missing required fields: extensionPublicKey and extensionName"
+            });
+        }
+    };
+
+    // Lookup the extension's internal ID first (needed for session auth check)
+    let extension_id = match get_extension_id_by_public_key_and_name(app_handle, ext_public_key, ext_name).await {
+        Some(id) => id,
+        None => {
+            return serde_json::json!({
+                "requestId": request_id,
+                "success": false,
+                "error": "Extension not found"
+            });
+        }
+    };
+
+    // Verify client is authorized for this extension
+    // Check both database authorization AND session authorization ("allow once")
+    let db_authorized = check_client_authorized_for_extension(app_handle, client_id, ext_public_key, ext_name).await;
+    let session_authorized = {
+        let auths = session_authorizations.read().await;
+        auths.get(client_id).map(|sa| sa.extension_id == extension_id).unwrap_or(false)
+    };
+
+    if !db_authorized && !session_authorized {
+        return serde_json::json!({
+            "requestId": request_id,
+            "success": false,
+            "error": "Client not authorized for this extension"
+        });
+    }
+
+    // Ensure the extension is loaded (auto-start if needed)
+    if let Err(e) = ensure_extension_loaded(app_handle, &extension_id).await {
+        eprintln!("[ExternalBridge] Failed to ensure extension is loaded: {}", e);
+        return serde_json::json!({
+            "requestId": request_id,
+            "success": false,
+            "error": format!("Failed to load extension: {}", e)
+        });
+    }
 
     // Create oneshot channel for response
     let (tx, rx) = oneshot::channel::<serde_json::Value>();
@@ -654,9 +883,11 @@ async fn process_request(
     // Build the external request payload to send to the extension
     let external_request = serde_json::json!({
         "requestId": request_id,
-        "publicKey": public_key,
+        "publicKey": client_public_key,
         "action": action,
-        "payload": payload
+        "payload": payload,
+        "extensionPublicKey": ext_public_key,
+        "extensionName": ext_name
     });
 
     // Emit the request to the extension via Tauri event

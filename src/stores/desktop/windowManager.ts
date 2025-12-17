@@ -2,8 +2,8 @@ import { defineAsyncComponent, type Component } from 'vue'
 import { getFullscreenDimensions } from '~/utils/viewport'
 import { isDesktop } from '~/utils/platform'
 import { invoke } from '@tauri-apps/api/core'
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { EXTENSION_WINDOW_CLOSED } from '~/constants/events'
+import { listen } from '@tauri-apps/api/event'
+import { EXTENSION_AUTO_START_REQUEST, EXTENSION_WINDOW_CLOSED } from '~/constants/events'
 
 export interface IWindow {
   id: string
@@ -137,6 +137,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
   const openWindowAsync = async ({
     height = 800,
     icon = '',
+    minimized = false,
     params,
     sourceId,
     sourcePosition,
@@ -147,6 +148,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
   }: {
     height?: number
     icon?: string | null
+    minimized?: boolean
     params?: Record<string, unknown>
     sourceId: string
     sourcePosition?: { x: number; y: number; width: number; height: number }
@@ -195,6 +197,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
                 height,
                 x: undefined, // Let OS handle positioning
                 y: undefined,
+                minimized,
               },
             )
 
@@ -553,13 +556,11 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
 
   // Desktop: Listen for native window close events from Tauri
   // Backend is source of truth, frontend is read-only mirror for tracking
-  let _unlistenWindowClosed: UnlistenFn | null = null
-
   const setupDesktopEventListenersAsync = async () => {
     if (!isDesktop()) return
 
     // Listen for native WebviewWindow close events from backend
-    _unlistenWindowClosed = await listen<string>(
+    await listen<string>(
       EXTENSION_WINDOW_CLOSED,
       (event) => {
         const windowId = event.payload
@@ -569,6 +570,40 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
         const index = windows.value.findIndex((w) => w.id === windowId)
         if (index !== -1) {
           windows.value.splice(index, 1)
+        }
+      },
+    )
+
+    // Listen for extension auto-start requests from ExternalBridge
+    // This is triggered when an external client sends a request to an extension
+    // that is not currently loaded
+    await listen<{ extensionId: string }>(
+      EXTENSION_AUTO_START_REQUEST,
+      async (event) => {
+        const { extensionId } = event.payload
+        console.log(`[windowManager] Auto-start request for extension: ${extensionId}`)
+
+        // Check if extension is already open
+        const existingWindow = windows.value.find(
+          w => w.type === 'extension' && w.sourceId === extensionId,
+        )
+        if (existingWindow) {
+          console.log(`[windowManager] Extension ${extensionId} already has an open window`)
+          return
+        }
+
+        // Open the extension window minimized (auto-start runs in background)
+        // This will respect the extension's display_mode setting
+        try {
+          await openWindowAsync({
+            type: 'extension',
+            sourceId: extensionId,
+            minimized: true,
+          })
+          console.log(`[windowManager] Extension ${extensionId} started successfully (minimized)`)
+        }
+        catch (error) {
+          console.error(`[windowManager] Failed to auto-start extension ${extensionId}:`, error)
         }
       },
     )
