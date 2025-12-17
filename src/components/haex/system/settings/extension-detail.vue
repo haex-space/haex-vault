@@ -285,10 +285,6 @@ const hasUpdate = computed(() => {
   return extensionsStore.compareVersions(props.extension.version, latest) < 0
 })
 
-const latestVersion = computed(
-  () => props.latestVersion || marketplaceVersion.value,
-)
-
 // Handle update button click - downloads and shows update dialog
 const handleUpdateAsync = () => downloadForUpdateAsync(props.extension)
 
