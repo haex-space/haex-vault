@@ -51,6 +51,15 @@ pub enum FileSyncError {
     #[error("Permission denied: {reason}")]
     PermissionDenied { reason: String },
 
+    #[error("Permission prompt required: {extension_name} wants to {action} on {target}")]
+    PermissionPromptRequired {
+        extension_id: String,
+        extension_name: String,
+        resource_type: String,
+        action: String,
+        target: String,
+    },
+
     #[error("Operation cancelled")]
     Cancelled,
 
@@ -82,6 +91,37 @@ impl From<rusqlite::Error> for FileSyncError {
     fn from(e: rusqlite::Error) -> Self {
         FileSyncError::DatabaseError {
             reason: e.to_string(),
+        }
+    }
+}
+
+impl From<crate::extension::error::ExtensionError> for FileSyncError {
+    fn from(e: crate::extension::error::ExtensionError) -> Self {
+        use crate::extension::error::ExtensionError;
+        match e {
+            ExtensionError::PermissionPromptRequired {
+                extension_id,
+                extension_name,
+                resource_type,
+                action,
+                target,
+            } => FileSyncError::PermissionPromptRequired {
+                extension_id,
+                extension_name,
+                resource_type,
+                action,
+                target,
+            },
+            ExtensionError::PermissionDenied {
+                extension_id: _,
+                operation,
+                resource,
+            } => FileSyncError::PermissionDenied {
+                reason: format!("Cannot {} on {}", operation, resource),
+            },
+            other => FileSyncError::PermissionDenied {
+                reason: other.to_string(),
+            },
         }
     }
 }

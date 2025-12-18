@@ -58,7 +58,7 @@ pub async fn filesync_list_spaces(
         FileSyncTarget::Spaces,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     let sql = format!(
         "SELECT id, name, is_personal, file_count, total_size, created_at, updated_at
@@ -109,7 +109,7 @@ pub async fn filesync_create_space(
         FileSyncTarget::Spaces,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     let id = uuid::Uuid::new_v4().to_string();
     let wrapped_key = "TODO_IMPLEMENT_KEY_WRAPPING".to_string();
@@ -177,7 +177,7 @@ pub async fn filesync_delete_space(
         FileSyncTarget::Spaces,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     let sql = format!("DELETE FROM {TABLE_FILE_SPACES} WHERE id = ?");
 
@@ -225,7 +225,7 @@ pub async fn filesync_list_files(
         FileSyncTarget::Spaces,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     let (sql, params) = if let Some(path) = &request.path {
         if path == "/" || path.is_empty() {
@@ -283,7 +283,7 @@ pub async fn filesync_get_file(
         FileSyncTarget::Spaces,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     let rows = core::select_with_crdt(
         SQL_GET_FILE.clone(),
@@ -349,7 +349,7 @@ pub async fn filesync_upload_file(
         FileSyncTarget::Spaces,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     PermissionManager::check_filesystem_permission(
         &state,
@@ -358,7 +358,7 @@ pub async fn filesync_upload_file(
         Path::new(&request.local_path),
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     #[cfg(desktop)]
     let file_data = read_file_bytes(&request.local_path)?;
@@ -518,7 +518,7 @@ pub async fn filesync_download_file(
         FileSyncTarget::Spaces,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     PermissionManager::check_filesystem_permission(
         &state,
@@ -527,7 +527,7 @@ pub async fn filesync_download_file(
         Path::new(&request.local_path),
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     let rows = core::select_with_crdt(
         SQL_GET_FILE.clone(),
@@ -625,7 +625,7 @@ pub async fn filesync_delete_file(
         FileSyncTarget::Spaces,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     let _id = file_id;
     Err(FileSyncError::NotInitialized)
@@ -658,7 +658,7 @@ pub async fn filesync_list_backends(
         FileSyncTarget::Backends,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     let sql = format!(
         "SELECT id, type, name, enabled, created_at
@@ -711,7 +711,7 @@ pub async fn filesync_add_backend(
         FileSyncTarget::Backends,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     let id = uuid::Uuid::new_v4().to_string();
 
@@ -791,7 +791,7 @@ pub async fn filesync_remove_backend(
         FileSyncTarget::Backends,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     let sql = format!("DELETE FROM {TABLE_FILE_BACKENDS} WHERE id = ?");
 
@@ -835,7 +835,7 @@ pub async fn filesync_test_backend(
         FileSyncTarget::Backends,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     let sql = format!(
         "SELECT type, encrypted_config FROM {TABLE_FILE_BACKENDS} WHERE id = ?"
@@ -901,7 +901,7 @@ pub async fn filesync_list_sync_rules(
         FileSyncTarget::Rules,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     let sql = format!(
         "SELECT id, space_id, local_path, direction, enabled, created_at, updated_at
@@ -968,7 +968,7 @@ pub async fn filesync_add_sync_rule(
         FileSyncTarget::Rules,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     let id = uuid::Uuid::new_v4().to_string();
     let direction = request.direction.clone().unwrap_or(SyncDirection::Both);
@@ -1058,7 +1058,7 @@ pub async fn filesync_update_sync_rule(
         FileSyncTarget::Rules,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     let hlc_service = state.hlc.lock().map_err(|_| FileSyncError::Internal {
         reason: "Failed to lock HLC service".to_string(),
@@ -1171,7 +1171,7 @@ pub async fn filesync_remove_sync_rule(
         FileSyncTarget::Rules,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     let hlc_service = state.hlc.lock().map_err(|_| FileSyncError::Internal {
         reason: "Failed to lock HLC service".to_string(),
@@ -1225,7 +1225,7 @@ pub async fn filesync_get_sync_status(
         FileSyncTarget::All,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     Ok(SyncStatus {
         is_syncing: false,
@@ -1259,7 +1259,7 @@ pub async fn filesync_trigger_sync(
         FileSyncTarget::All,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     Err(FileSyncError::NotInitialized)
 }
@@ -1287,7 +1287,7 @@ pub async fn filesync_pause_sync(
         FileSyncTarget::All,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     Err(FileSyncError::NotInitialized)
 }
@@ -1315,7 +1315,7 @@ pub async fn filesync_resume_sync(
         FileSyncTarget::All,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     Err(FileSyncError::NotInitialized)
 }
@@ -1348,7 +1348,7 @@ pub async fn filesync_resolve_conflict(
         FileSyncTarget::Spaces,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     let _request = request;
     Err(FileSyncError::NotInitialized)
@@ -1419,7 +1419,7 @@ pub async fn filesync_scan_local(
         FileSyncTarget::Rules,
     )
     .await
-    .map_err(|e| FileSyncError::PermissionDenied { reason: e.to_string() })?;
+    ?;
 
     let rows = core::select_with_crdt(
         SQL_GET_SYNC_RULE.clone(),

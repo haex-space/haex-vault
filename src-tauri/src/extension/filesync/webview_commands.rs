@@ -12,7 +12,62 @@ use super::error::FileSyncError;
 use super::types::*;
 use crate::extension::webview::helpers::get_extension_info_from_window;
 use crate::AppState;
-use tauri::{AppHandle, State, WebviewWindow};
+use serde::Serialize;
+use tauri::{AppHandle, Emitter, State, WebviewWindow};
+
+/// Event name for permission prompt required
+const EVENT_PERMISSION_PROMPT_REQUIRED: &str = "extension:permission-prompt-required";
+
+/// Payload for permission prompt event
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PermissionPromptPayload {
+    extension_id: String,
+    extension_name: String,
+    resource_type: String,
+    action: String,
+    target: String,
+}
+
+/// Helper to emit permission prompt event and return the error
+fn emit_permission_prompt(
+    app_handle: &AppHandle,
+    error: &FileSyncError,
+) {
+    if let FileSyncError::PermissionPromptRequired {
+        extension_id,
+        extension_name,
+        resource_type,
+        action,
+        target,
+    } = error
+    {
+        let payload = PermissionPromptPayload {
+            extension_id: extension_id.clone(),
+            extension_name: extension_name.clone(),
+            resource_type: resource_type.clone(),
+            action: action.clone(),
+            target: target.clone(),
+        };
+        let _ = app_handle.emit(EVENT_PERMISSION_PROMPT_REQUIRED, &payload);
+    }
+}
+
+/// Wrapper to handle permission prompt errors
+async fn with_permission_prompt<T, F, Fut>(
+    app_handle: &AppHandle,
+    f: F,
+) -> Result<T, FileSyncError>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<T, FileSyncError>>,
+{
+    let result = f().await;
+    if let Err(ref e) = result {
+        emit_permission_prompt(app_handle, e);
+    }
+    result
+}
 
 // ============================================================================
 // Spaces Commands
@@ -21,12 +76,15 @@ use tauri::{AppHandle, State, WebviewWindow};
 #[tauri::command]
 pub async fn webview_filesync_list_spaces(
     window: WebviewWindow,
+    app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<FileSpace>, FileSyncError> {
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_list_spaces(state, info.public_key, info.name).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_list_spaces(state, info.public_key, info.name).await
+    }).await
 }
 
 #[tauri::command]
@@ -128,12 +186,15 @@ pub async fn webview_filesync_delete_file(
 #[tauri::command]
 pub async fn webview_filesync_list_backends(
     window: WebviewWindow,
+    app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<StorageBackendInfo>, FileSyncError> {
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_list_backends(state, info.public_key, info.name).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_list_backends(state, info.public_key, info.name).await
+    }).await
 }
 
 #[tauri::command]
@@ -181,12 +242,15 @@ pub async fn webview_filesync_test_backend(
 #[tauri::command]
 pub async fn webview_filesync_list_sync_rules(
     window: WebviewWindow,
+    app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<SyncRule>, FileSyncError> {
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_list_sync_rules(state, info.public_key, info.name).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_list_sync_rules(state, info.public_key, info.name).await
+    }).await
 }
 
 #[tauri::command]

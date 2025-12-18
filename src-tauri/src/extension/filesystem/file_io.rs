@@ -5,7 +5,7 @@
 //! Provides unified file read/write operations that work across desktop and Android platforms.
 //!
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 /// Errors that can occur during file I/O operations
@@ -98,11 +98,8 @@ pub fn read_file_bytes_android(
     use tauri_plugin_android_fs::AndroidFsExt;
 
     let api = app_handle.android_fs();
-    let file_uri =
-        tauri_plugin_android_fs::FileUri::try_from(path).map_err(|e| FileIoError::InvalidPath {
-            path: path.to_string(),
-            reason: format!("{:?}", e),
-        })?;
+    let path_buf = PathBuf::from(path);
+    let file_uri = tauri_plugin_android_fs::FileUri::from(&path_buf);
 
     api.read(&file_uri).map_err(|e| FileIoError::ReadError {
         path: path.to_string(),
@@ -120,11 +117,8 @@ pub fn write_file_bytes_android(
     use tauri_plugin_android_fs::AndroidFsExt;
 
     let api = app_handle.android_fs();
-    let file_uri =
-        tauri_plugin_android_fs::FileUri::try_from(path).map_err(|e| FileIoError::InvalidPath {
-            path: path.to_string(),
-            reason: format!("{:?}", e),
-        })?;
+    let path_buf = PathBuf::from(path);
+    let file_uri = tauri_plugin_android_fs::FileUri::from(&path_buf);
 
     api.write(&file_uri, data)
         .map_err(|e| FileIoError::WriteError {

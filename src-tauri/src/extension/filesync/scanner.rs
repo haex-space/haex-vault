@@ -5,7 +5,7 @@
 
 use crate::extension::filesync::error::FileSyncError;
 use crate::extension::filesync::types::LocalFileInfo;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 // ============================================================================
 // ID Generation
@@ -200,56 +200,78 @@ pub fn scan_local_directory_android(
 
     let api = app_handle.android_fs();
 
-    let dir_uri = tauri_plugin_android_fs::FileUri::try_from(scan_path)
-        .map_err(|e| FileSyncError::FilesystemError {
-            reason: format!("Invalid directory URI '{}': {:?}", scan_path, e),
-        })?;
+    let path_buf = PathBuf::from(scan_path);
+    let dir_uri = tauri_plugin_android_fs::FileUri::from(&path_buf);
 
-    let entries = api.list_files(&dir_uri).map_err(|e| FileSyncError::FilesystemError {
+    let entries = api.read_dir(&dir_uri).map_err(|e| FileSyncError::FilesystemError {
         reason: format!("Failed to list directory '{}': {:?}", scan_path, e),
     })?;
 
     let mut files = Vec::new();
 
     for entry in entries {
-        let full_path = format!("{:?}", entry.uri);
-        let name = entry.name.clone();
+        use tauri_plugin_android_fs::Entry;
 
-        // Calculate relative path
-        let relative_path = if full_path.starts_with(base_path) {
-            full_path[base_path.len()..].trim_start_matches('/').to_string()
-        } else {
-            name.clone()
-        };
+        match entry {
+            Entry::File { uri, name, size, mime_type, last_modified } => {
+                let full_path = format!("{:?}", uri);
 
-        let is_directory = entry.is_directory;
-        let size = entry.size.unwrap_or(0) as u64;
+                // Calculate relative path
+                let relative_path = if full_path.starts_with(base_path) {
+                    full_path[base_path.len()..].trim_start_matches('/').to_string()
+                } else {
+                    name.clone()
+                };
 
-        // Convert milliseconds to seconds for formatting
-        let modified_at = entry.last_modified.map(|ms| {
-            format_unix_timestamp((ms / 1000) as u64)
-        });
+                // Convert milliseconds to seconds for formatting
+                let modified_at = last_modified.map(|ms| {
+                    format_unix_timestamp((ms / 1000) as u64)
+                });
 
-        // Detect MIME type
-        let mime_type = if is_directory {
-            None
-        } else {
-            entry.mime_type.clone()
-        };
+                // Generate ID from rule_id + relative path (unique per rule, same across devices)
+                let id = generate_file_id(rule_id, &relative_path);
 
-        // Generate ID from rule_id + relative path (unique per rule, same across devices)
-        let id = generate_file_id(rule_id, &relative_path);
+                files.push(LocalFileInfo {
+                    id,
+                    name,
+                    path: full_path,
+                    relative_path,
+                    mime_type,
+                    size: size as u64,
+                    is_directory: false,
+                    modified_at,
+                });
+            }
+            Entry::Dir { uri, name, last_modified } => {
+                let full_path = format!("{:?}", uri);
 
-        files.push(LocalFileInfo {
-            id,
-            name,
-            path: full_path,
-            relative_path,
-            mime_type,
-            size,
-            is_directory,
-            modified_at,
-        });
+                // Calculate relative path
+                let relative_path = if full_path.starts_with(base_path) {
+                    full_path[base_path.len()..].trim_start_matches('/').to_string()
+                } else {
+                    name.clone()
+                };
+
+                // Convert milliseconds to seconds for formatting
+                let modified_at = last_modified.map(|ms| {
+                    format_unix_timestamp((ms / 1000) as u64)
+                });
+
+                // Generate ID from rule_id + relative path (unique per rule, same across devices)
+                let id = generate_file_id(rule_id, &relative_path);
+
+                files.push(LocalFileInfo {
+                    id,
+                    name,
+                    path: full_path,
+                    relative_path,
+                    mime_type: None,
+                    size: 0,
+                    is_directory: true,
+                    modified_at,
+                });
+            }
+        }
     }
 
     // Sort: directories first, then by name
