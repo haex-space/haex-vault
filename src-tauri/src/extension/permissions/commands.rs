@@ -103,6 +103,7 @@ pub async fn resolve_permission_prompt(
         "web" => ResourceType::Web,
         "fs" => ResourceType::Fs,
         "shell" => ResourceType::Shell,
+        "filesync" => ResourceType::Filesync,
         _ => {
             return Err(ExtensionError::ValidationError {
                 reason: format!("Invalid resource type: {}", resource_type),
@@ -133,6 +134,14 @@ pub async fn resolve_permission_prompt(
             Action::Filesystem(fs_action)
         }
         ResourceType::Shell => Action::Shell(crate::extension::permissions::types::ShellAction::Execute),
+        ResourceType::Filesync => {
+            let filesync_action = match action.to_lowercase().as_str() {
+                "read" => crate::extension::permissions::types::FileSyncAction::Read,
+                "readwrite" | "read_write" => crate::extension::permissions::types::FileSyncAction::ReadWrite,
+                _ => crate::extension::permissions::types::FileSyncAction::Read,
+            };
+            Action::FileSync(filesync_action)
+        }
     };
 
     // Check if permission already exists

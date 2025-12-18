@@ -3,6 +3,48 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use ts_rs::TS;
 
+/// FileSync target types for permission matching
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FileSyncTarget {
+    /// All FileSync resources
+    All,
+    /// File spaces
+    Spaces,
+    /// Storage backends
+    Backends,
+    /// Sync rules
+    Rules,
+}
+
+impl FileSyncTarget {
+    pub fn as_str(&self) -> &str {
+        match self {
+            FileSyncTarget::All => "*",
+            FileSyncTarget::Spaces => "spaces",
+            FileSyncTarget::Backends => "backends",
+            FileSyncTarget::Rules => "rules",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "*" => Some(FileSyncTarget::All),
+            "spaces" => Some(FileSyncTarget::Spaces),
+            "backends" => Some(FileSyncTarget::Backends),
+            "rules" => Some(FileSyncTarget::Rules),
+            _ => None,
+        }
+    }
+
+    /// Checks if this target matches the required target
+    pub fn matches(&self, required: FileSyncTarget) -> bool {
+        match self {
+            FileSyncTarget::All => true, // * matches everything
+            other => *other == required,
+        }
+    }
+}
+
 // --- Spezifische Aktionen ---
 
 /// Definiert Aktionen, die auf eine Datenbank angewendet werden können.
@@ -141,6 +183,42 @@ impl FromStr for ShellAction {
     }
 }
 
+/// Definiert Aktionen, die auf FileSync (Cloud-Sync) angewendet werden können.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum FileSyncAction {
+    Read,
+    ReadWrite,
+}
+
+impl FileSyncAction {
+    /// Prüft, ob diese Aktion Lesezugriff gewährt.
+    pub fn allows_read(&self) -> bool {
+        matches!(self, FileSyncAction::Read | FileSyncAction::ReadWrite)
+    }
+
+    /// Prüft, ob diese Aktion Schreibzugriff gewährt.
+    pub fn allows_write(&self) -> bool {
+        matches!(self, FileSyncAction::ReadWrite)
+    }
+}
+
+impl FromStr for FileSyncAction {
+    type Err = ExtensionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "read" => Ok(FileSyncAction::Read),
+            "readwrite" | "read_write" => Ok(FileSyncAction::ReadWrite),
+            _ => Err(ExtensionError::InvalidActionString {
+                input: s.to_string(),
+                resource_type: "filesync".to_string(),
+            }),
+        }
+    }
+}
+
 // --- Haupt-Typen für Berechtigungen ---
 
 /// Ein typsicherer Container, der die spezifische Aktion für einen Ressourcentyp enthält.
@@ -151,6 +229,7 @@ pub enum Action {
     Filesystem(FsAction),
     Web(WebAction),
     Shell(ShellAction),
+    FileSync(FileSyncAction),
 }
 
 /// Die interne Repräsentation einer einzelnen, gewährten Berechtigung.
@@ -176,6 +255,7 @@ pub enum ResourceType {
     Web,
     Db,
     Shell,
+    Filesync,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -257,6 +337,7 @@ impl ResourceType {
             ResourceType::Web => "web",
             ResourceType::Db => "db",
             ResourceType::Shell => "shell",
+            ResourceType::Filesync => "filesync",
         }
     }
 
@@ -266,6 +347,7 @@ impl ResourceType {
             "web" => Ok(ResourceType::Web),
             "db" => Ok(ResourceType::Db),
             "shell" => Ok(ResourceType::Shell),
+            "filesync" => Ok(ResourceType::Filesync),
             _ => Err(ExtensionError::ValidationError {
                 reason: format!("Unknown resource type: {s}"),
             }),
@@ -292,6 +374,10 @@ impl Action {
                 .unwrap_or_default()
                 .trim_matches('"')
                 .to_string(),
+            Action::FileSync(action) => serde_json::to_string(action)
+                .unwrap_or_default()
+                .trim_matches('"')
+                .to_string(),
         }
     }
 
@@ -310,6 +396,7 @@ impl Action {
                 Ok(Action::Web(action))
             }
             ResourceType::Shell => Ok(Action::Shell(ShellAction::from_str(s)?)),
+            ResourceType::Filesync => Ok(Action::FileSync(FileSyncAction::from_str(s)?)),
         }
     }
 }

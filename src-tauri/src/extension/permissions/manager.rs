@@ -6,7 +6,8 @@ use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::checker::PermissionChecker;
 use crate::extension::permissions::types::{
-    Action, ExtensionPermission, PermissionConstraints, PermissionStatus, ResourceType,
+    Action, ExtensionPermission, FileSyncAction, FileSyncTarget, PermissionConstraints,
+    PermissionStatus, ResourceType,
 };
 use crate::table_names::TABLE_EXTENSION_PERMISSIONS;
 use crate::AppState;
@@ -608,6 +609,93 @@ impl PermissionManager {
         }
     }
 
+    /// Prüft FileSync-Berechtigungen (Cloud-Sync-API)
+    /// Returns PermissionPromptRequired if status is Ask or no permission exists
+    /// Returns PermissionDenied if status is explicitly Denied
+    ///
+    /// Targets:
+    /// - "*" → All FileSync resources
+    /// - "spaces" → File spaces
+    /// - "backends" → Storage backends
+    /// - "rules" → Sync rules
+    pub async fn check_filesync_permission(
+        app_state: &State<'_, AppState>,
+        extension_id: &str,
+        action: FileSyncAction,
+        target: FileSyncTarget,
+    ) -> Result<(), ExtensionError> {
+        // Get extension for name lookup
+        let extension = app_state
+            .extension_manager
+            .get_extension(extension_id)
+            .ok_or_else(|| ExtensionError::ValidationError {
+                reason: format!("Extension not found: {}", extension_id),
+            })?
+            .clone();
+
+        let permissions = Self::get_permissions(app_state, extension_id).await?;
+
+        // Helper to check if action allows the required action
+        let action_allows = |perm_action: &Action, required: &FileSyncAction| -> bool {
+            match perm_action {
+                Action::FileSync(fs_action) => match (fs_action, required) {
+                    // Exact match
+                    (a, b) if a == b => true,
+                    // ReadWrite includes Read
+                    (FileSyncAction::ReadWrite, FileSyncAction::Read) => true,
+                    _ => false,
+                },
+                _ => false,
+            }
+        };
+
+        // Helper to check if target matches
+        let target_matches = |perm_target: &str, required: FileSyncTarget| -> bool {
+            FileSyncTarget::from_str(perm_target)
+                .map(|t| t.matches(required))
+                .unwrap_or(false)
+        };
+
+        // Find matching permission for this target and action
+        let matching_permission = permissions.iter().find(|perm| {
+            perm.resource_type == ResourceType::Filesync
+                && action_allows(&perm.action, &action)
+                && target_matches(&perm.target, target)
+        });
+
+        let target_str = target.as_str();
+        let action_str = match action {
+            FileSyncAction::Read => "read",
+            FileSyncAction::ReadWrite => "readWrite",
+        };
+
+        match matching_permission {
+            Some(perm) => match perm.status {
+                PermissionStatus::Granted => Ok(()),
+                PermissionStatus::Denied => Err(ExtensionError::permission_denied(
+                    extension_id,
+                    action_str,
+                    &format!("filesync:{}", target_str),
+                )),
+                PermissionStatus::Ask => Err(ExtensionError::permission_prompt_required(
+                    extension_id,
+                    &extension.manifest.name,
+                    "filesync",
+                    action_str,
+                    target_str,
+                )),
+            },
+            // No matching permission - prompt the user
+            None => Err(ExtensionError::permission_prompt_required(
+                extension_id,
+                &extension.manifest.name,
+                "filesync",
+                action_str,
+                target_str,
+            )),
+        }
+    }
+
     // Helper-Methoden - müssen DatabaseError statt ExtensionError zurückgeben
     pub fn parse_resource_type(s: &str) -> Result<ResourceType, DatabaseError> {
         match s {
@@ -615,37 +703,199 @@ impl PermissionManager {
             "web" => Ok(ResourceType::Web),
             "db" => Ok(ResourceType::Db),
             "shell" => Ok(ResourceType::Shell),
+            "filesync" => Ok(ResourceType::Filesync),
             _ => Err(DatabaseError::SerializationError {
                 reason: format!("Unknown resource type: {s}"),
             }),
         }
     }
 
-    fn matches_path_pattern(pattern: &str, path: &str) -> bool {
+    /// Matches a filesystem path against a permission pattern with path traversal protection.
+    ///
+    /// This function normalizes paths to prevent directory traversal attacks.
+    /// It handles:
+    /// - Path traversal sequences (../, ..\)
+    /// - URL-encoded traversal (%2e%2e%2f)
+    /// - Null byte injection
+    /// - Current directory references (./)
+    ///
+    /// Pattern types supported:
+    /// - `*` - matches all paths (full wildcard)
+    /// - `/path/to/dir/*` - matches all files under the directory
+    /// - `*.ext` - matches all files with the given extension
+    /// - `/path/*.ext` - matches files with extension under path
+    /// - `/exact/path` - exact path match
+    pub(crate) fn matches_path_pattern(pattern: &str, path: &str) -> bool {
+        // Reject paths with null bytes (potential injection attack)
+        if path.contains('\0') {
+            return false;
+        }
+
+        // Reject empty paths (except for empty pattern == empty path exact match)
+        if path.is_empty() && pattern != "" {
+            return false;
+        }
+
+        // URL-decode the path to catch encoded traversal attempts
+        let decoded_path = Self::url_decode_path(path);
+
+        // Normalize the path to resolve . and .. components
+        let normalized_path = Self::normalize_path(&decoded_path);
+
+        // Full wildcard matches everything (after normalization)
+        if pattern == "*" {
+            return true;
+        }
+
+        // Directory wildcard: /path/to/dir/*
         if let Some(prefix) = pattern.strip_suffix("/*") {
-            return path.starts_with(prefix);
+            // Normalize the prefix pattern as well
+            let normalized_prefix = Self::normalize_path(prefix);
+
+            // The normalized path must start with the normalized prefix
+            // AND must be either equal or have a path separator after the prefix
+            if normalized_path == normalized_prefix {
+                return true;
+            }
+
+            // Ensure proper directory boundary check
+            let prefix_with_sep = if normalized_prefix.ends_with('/') {
+                normalized_prefix.clone()
+            } else {
+                format!("{}/", normalized_prefix)
+            };
+
+            return normalized_path.starts_with(&prefix_with_sep);
         }
 
+        // Extension wildcard: *.ext
         if pattern.starts_with("*.") {
-            let suffix = &pattern[1..];
-            return path.ends_with(suffix);
+            let suffix = &pattern[1..]; // includes the dot
+            // For extension wildcards, the normalized path must end with the suffix
+            // AND must not have originally contained traversal sequences (even if normalized away)
+            // This prevents attacks where "../../../etc/secret.txt" normalizes to "/etc/secret.txt"
+            let original_had_traversal = decoded_path.contains("..")
+                || decoded_path.contains("./")
+                || decoded_path.contains(".\\");
+            return normalized_path.ends_with(suffix)
+                && !Self::has_traversal(&normalized_path)
+                && !original_had_traversal;
         }
 
+        // Combined prefix and suffix: /path/*.ext
         if pattern.contains('*') {
             let parts: Vec<&str> = pattern.split('*').collect();
             if parts.len() == 2 {
-                return path.starts_with(parts[0]) && path.ends_with(parts[1]);
+                let prefix = parts[0];
+                let suffix = parts[1];
+
+                let normalized_prefix = Self::normalize_path(prefix);
+
+                // The normalized path must:
+                // 1. Start with the normalized prefix
+                // 2. End with the suffix
+                // 3. Not have traversal components
+                return normalized_path.starts_with(&normalized_prefix)
+                    && normalized_path.ends_with(suffix)
+                    && !Self::has_traversal(&normalized_path);
             }
         }
 
-        pattern == path || pattern == "*"
+        // Exact match: compare normalized paths
+        let normalized_pattern = Self::normalize_path(pattern);
+        normalized_path == normalized_pattern
+    }
+
+    /// URL-decode a path to catch encoded traversal attempts
+    fn url_decode_path(path: &str) -> String {
+        // Decode common URL-encoded sequences
+        let mut result = path.to_string();
+
+        // Decode %2e (.) and %2f (/) - case insensitive
+        // We do this iteratively to catch double-encoding
+        // First decode %25 (%) to handle double-encoding like %252e -> %2e -> .
+        for _ in 0..5 {
+            // Max 5 levels of encoding to catch deep nesting
+            let prev = result.clone();
+
+            // First handle double-encoding by decoding %25 -> %
+            result = result.replace("%25", "%");
+
+            // Then decode the actual characters
+            result = result
+                .replace("%2e", ".")
+                .replace("%2E", ".")
+                .replace("%2f", "/")
+                .replace("%2F", "/")
+                .replace("%5c", "\\")
+                .replace("%5C", "\\")
+                .replace("%00", "\0"); // Null byte
+
+            if result == prev {
+                break;
+            }
+        }
+
+        result
+    }
+
+    /// Normalize a filesystem path by resolving . and .. components
+    fn normalize_path(path: &str) -> String {
+        // Replace backslashes with forward slashes for uniform handling
+        let path = path.replace('\\', "/");
+
+        // Handle empty path
+        if path.is_empty() {
+            return String::new();
+        }
+
+        let is_absolute = path.starts_with('/');
+        let mut components: Vec<&str> = Vec::new();
+
+        for component in path.split('/') {
+            match component {
+                "" | "." => {
+                    // Skip empty components and current directory references
+                }
+                ".." => {
+                    // Go up one directory, but don't go above root
+                    if !components.is_empty() && components.last() != Some(&"..") {
+                        components.pop();
+                    } else if !is_absolute {
+                        // For relative paths, keep the .. if we can't go up
+                        components.push(component);
+                    }
+                    // For absolute paths, ignore .. at root level
+                }
+                _ => {
+                    components.push(component);
+                }
+            }
+        }
+
+        let normalized = components.join("/");
+
+        if is_absolute {
+            format!("/{}", normalized)
+        } else {
+            normalized
+        }
+    }
+
+    /// Check if a path contains traversal sequences (after normalization)
+    fn has_traversal(path: &str) -> bool {
+        // After proper normalization, these shouldn't exist in valid paths
+        path.contains("../")
+            || path.contains("..\\")
+            || path.ends_with("..")
+            || path.contains("\0")
     }
 
     /// Matches a URL against a URL pattern
     /// Supports:
     /// - Path wildcards: "https://domain.com/*"
     /// - Subdomain wildcards: "https://*.domain.com/*"
-    fn matches_url_pattern(pattern: &str, url: &str) -> bool {
+    pub(crate) fn matches_url_pattern(pattern: &str, url: &str) -> bool {
         // Parse the actual URL
         let Ok(url_parsed) = url::Url::parse(url) else {
             return false;
@@ -692,15 +942,21 @@ impl PermissionManager {
                 return false;
             };
 
-            // Match: *.example.com should match subdomain.example.com but not example.com
-            // Also match: exact domain if no subdomain wildcard prefix
-            if !url_host.ends_with(domain_pattern) && url_host != domain_pattern {
-                return false;
-            }
-
-            // For subdomain wildcard, ensure there's actually a subdomain
-            if pattern.contains("*.") && url_host == domain_pattern {
-                return false; // *.example.com should NOT match example.com
+            // For subdomain wildcard (*.example.com), the host must:
+            // 1. End with ".example.com" (note the leading dot!) OR
+            // 2. NOT match if it's just "example.com" (no subdomain)
+            // This prevents attacks like "evil-example.com" matching "*.example.com"
+            if pattern.contains("*.") {
+                // Subdomain wildcard: require ".domain_pattern" suffix
+                let required_suffix = format!(".{}", domain_pattern);
+                if !url_host.ends_with(&required_suffix) {
+                    return false;
+                }
+            } else {
+                // No subdomain wildcard: exact match or ends_with
+                if !url_host.ends_with(domain_pattern) && url_host != domain_pattern {
+                    return false;
+                }
             }
 
             // Check path wildcard if present
@@ -741,15 +997,54 @@ impl PermissionManager {
 
         // Path matching with wildcard support
         if pattern.contains("/*") {
-            // Extract the base path before the wildcard
-            if let Some(wildcard_pos) = pattern.find("/*") {
-                let pattern_before_wildcard = &pattern[..wildcard_pos];
-                return url.starts_with(pattern_before_wildcard);
+            // Extract the path pattern before the wildcard
+            let pattern_path = pattern_url.path();
+            if let Some(wildcard_pos) = pattern_path.find("/*") {
+                let path_prefix = &pattern_path[..wildcard_pos + 1]; // Include trailing /
+
+                // Normalize the URL path to prevent traversal bypass
+                let url_path = url_parsed.path();
+                let normalized_url_path = Self::normalize_url_path(url_path);
+
+                // Check if the normalized path starts with the pattern prefix
+                return normalized_url_path.starts_with(path_prefix)
+                    || normalized_url_path == &path_prefix[..path_prefix.len() - 1]; // Allow exact match without trailing /
             }
         }
 
         // Exact path match (no wildcard)
         pattern_url.path() == url_parsed.path()
+    }
+
+    /// Normalize a URL path by resolving . and .. components
+    fn normalize_url_path(path: &str) -> String {
+        let mut components: Vec<&str> = Vec::new();
+
+        for component in path.split('/') {
+            match component {
+                "" | "." => {
+                    // Skip empty components and current directory
+                    if components.is_empty() {
+                        components.push(""); // Keep leading empty for absolute path
+                    }
+                }
+                ".." => {
+                    // Go up one directory, but don't go above root
+                    if components.len() > 1 {
+                        components.pop();
+                    }
+                }
+                _ => {
+                    components.push(component);
+                }
+            }
+        }
+
+        if components.is_empty() {
+            return "/".to_string();
+        }
+
+        components.join("/")
     }
 }
 

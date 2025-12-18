@@ -24,6 +24,7 @@ fn create_test_extension(public_key: &str, name: &str) -> Extension {
                 filesystem: None,
                 http: None,
                 shell: None,
+                filesync: None,
             },
             homepage: None,
             description: None,
