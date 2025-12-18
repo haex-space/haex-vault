@@ -67,11 +67,37 @@ pub async fn check_filesystem_permission(
     PermissionManager::check_filesystem_permission(&state, &extension_id, action, file_path).await
 }
 
-/// Resolves a permission prompt by updating or creating a permission entry
+/// Grants or denies a permission for the current session only (not persisted to database)
 ///
-/// Called by the frontend after the user makes a decision in the permission dialog.
-/// - "granted" or "denied": Updates/creates the permission in the database
-/// - "ask": No change (permission stays as-is or remains non-existent for one-time allow)
+/// Called by the frontend when user makes a decision without checking "remember".
+/// These permissions are cleared when the application restarts.
+#[tauri::command]
+pub fn grant_session_permission(
+    extension_id: String,
+    resource_type: String,
+    target: String,
+    decision: String,
+    state: State<'_, AppState>,
+) -> Result<(), ExtensionError> {
+    let resource_type_enum = ResourceType::from_str(&resource_type)?;
+    let status = PermissionStatus::from_str(&decision)?;
+
+    state
+        .session_permissions
+        .set_permission(&extension_id, resource_type_enum, &target, status);
+
+    eprintln!(
+        "[SessionPermission] Set {} permission for extension {} on {}: {:?}",
+        resource_type, extension_id, target, status
+    );
+
+    Ok(())
+}
+
+/// Resolves a permission prompt by updating or creating a permission entry in the database
+///
+/// Called by the frontend after the user makes a decision in the permission dialog
+/// with "remember" checked.
 #[tauri::command]
 pub async fn resolve_permission_prompt(
     extension_id: String,

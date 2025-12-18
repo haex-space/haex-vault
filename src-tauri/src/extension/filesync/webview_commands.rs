@@ -97,7 +97,9 @@ pub async fn webview_filesync_create_space(
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_create_space(app_handle, state, info.public_key, info.name, request).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_create_space(app_handle.clone(), state, info.public_key, info.name, request).await
+    }).await
 }
 
 #[tauri::command]
@@ -110,7 +112,9 @@ pub async fn webview_filesync_delete_space(
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_delete_space(app_handle, state, info.public_key, info.name, space_id).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_delete_space(app_handle.clone(), state, info.public_key, info.name, space_id).await
+    }).await
 }
 
 // ============================================================================
@@ -120,25 +124,31 @@ pub async fn webview_filesync_delete_space(
 #[tauri::command]
 pub async fn webview_filesync_list_files(
     window: WebviewWindow,
+    app_handle: AppHandle,
     state: State<'_, AppState>,
     request: ListFilesRequest,
 ) -> Result<Vec<FileInfo>, FileSyncError> {
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_list_files(state, info.public_key, info.name, request).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_list_files(state, info.public_key, info.name, request).await
+    }).await
 }
 
 #[tauri::command]
 pub async fn webview_filesync_get_file(
     window: WebviewWindow,
+    app_handle: AppHandle,
     state: State<'_, AppState>,
     file_id: String,
 ) -> Result<FileInfo, FileSyncError> {
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_get_file(state, info.public_key, info.name, file_id).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_get_file(state, info.public_key, info.name, file_id).await
+    }).await
 }
 
 #[tauri::command]
@@ -151,7 +161,9 @@ pub async fn webview_filesync_upload_file(
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_upload_file(app_handle, state, info.public_key, info.name, request).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_upload_file(app_handle.clone(), state, info.public_key, info.name, request).await
+    }).await
 }
 
 #[tauri::command]
@@ -164,19 +176,24 @@ pub async fn webview_filesync_download_file(
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_download_file(app_handle, state, info.public_key, info.name, request).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_download_file(app_handle.clone(), state, info.public_key, info.name, request).await
+    }).await
 }
 
 #[tauri::command]
 pub async fn webview_filesync_delete_file(
     window: WebviewWindow,
+    app_handle: AppHandle,
     state: State<'_, AppState>,
     file_id: String,
 ) -> Result<(), FileSyncError> {
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_delete_file(state, info.public_key, info.name, file_id).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_delete_file(state, info.public_key, info.name, file_id).await
+    }).await
 }
 
 // ============================================================================
@@ -207,7 +224,9 @@ pub async fn webview_filesync_add_backend(
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_add_backend(app_handle, state, info.public_key, info.name, request).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_add_backend(app_handle.clone(), state, info.public_key, info.name, request).await
+    }).await
 }
 
 #[tauri::command]
@@ -220,19 +239,24 @@ pub async fn webview_filesync_remove_backend(
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_remove_backend(app_handle, state, info.public_key, info.name, backend_id).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_remove_backend(app_handle.clone(), state, info.public_key, info.name, backend_id).await
+    }).await
 }
 
 #[tauri::command]
 pub async fn webview_filesync_test_backend(
     window: WebviewWindow,
+    app_handle: AppHandle,
     state: State<'_, AppState>,
     backend_id: String,
 ) -> Result<(), FileSyncError> {
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_test_backend(state, info.public_key, info.name, backend_id).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_test_backend(state, info.public_key, info.name, backend_id).await
+    }).await
 }
 
 // ============================================================================
@@ -263,7 +287,9 @@ pub async fn webview_filesync_add_sync_rule(
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_add_sync_rule(app_handle, state, info.public_key, info.name, request).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_add_sync_rule(app_handle.clone(), state, info.public_key, info.name, request).await
+    }).await
 }
 
 #[tauri::command]
@@ -276,7 +302,9 @@ pub async fn webview_filesync_update_sync_rule(
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_update_sync_rule(app_handle, state, info.public_key, info.name, request).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_update_sync_rule(app_handle.clone(), state, info.public_key, info.name, request).await
+    }).await
 }
 
 #[tauri::command]
@@ -289,7 +317,9 @@ pub async fn webview_filesync_remove_sync_rule(
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_remove_sync_rule(app_handle, state, info.public_key, info.name, rule_id).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_remove_sync_rule(app_handle.clone(), state, info.public_key, info.name, rule_id).await
+    }).await
 }
 
 // ============================================================================
@@ -299,45 +329,57 @@ pub async fn webview_filesync_remove_sync_rule(
 #[tauri::command]
 pub async fn webview_filesync_get_sync_status(
     window: WebviewWindow,
+    app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<SyncStatus, FileSyncError> {
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_get_sync_status(state, info.public_key, info.name).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_get_sync_status(state, info.public_key, info.name).await
+    }).await
 }
 
 #[tauri::command]
 pub async fn webview_filesync_trigger_sync(
     window: WebviewWindow,
+    app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), FileSyncError> {
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_trigger_sync(state, info.public_key, info.name).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_trigger_sync(state, info.public_key, info.name).await
+    }).await
 }
 
 #[tauri::command]
 pub async fn webview_filesync_pause_sync(
     window: WebviewWindow,
+    app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), FileSyncError> {
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_pause_sync(state, info.public_key, info.name).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_pause_sync(state, info.public_key, info.name).await
+    }).await
 }
 
 #[tauri::command]
 pub async fn webview_filesync_resume_sync(
     window: WebviewWindow,
+    app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), FileSyncError> {
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_resume_sync(state, info.public_key, info.name).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_resume_sync(state, info.public_key, info.name).await
+    }).await
 }
 
 // ============================================================================
@@ -347,13 +389,16 @@ pub async fn webview_filesync_resume_sync(
 #[tauri::command]
 pub async fn webview_filesync_resolve_conflict(
     window: WebviewWindow,
+    app_handle: AppHandle,
     state: State<'_, AppState>,
     request: ResolveConflictRequest,
 ) -> Result<(), FileSyncError> {
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_resolve_conflict(state, info.public_key, info.name, request).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_resolve_conflict(state, info.public_key, info.name, request).await
+    }).await
 }
 
 // ============================================================================
@@ -370,5 +415,7 @@ pub async fn webview_filesync_scan_local(
     let info = get_extension_info_from_window(&window, &state)
         .map_err(|e| FileSyncError::Internal { reason: e.to_string() })?;
 
-    super::commands::filesync_scan_local(app_handle, state, info.public_key, info.name, request).await
+    with_permission_prompt(&app_handle, || async {
+        super::commands::filesync_scan_local(app_handle.clone(), state, info.public_key, info.name, request).await
+    }).await
 }

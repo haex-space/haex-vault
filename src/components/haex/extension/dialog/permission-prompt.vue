@@ -7,9 +7,17 @@
   >
     <template #header>
       <div class="flex items-center justify-between w-full">
-        <h3 class="text-lg font-semibold">
-          {{ t('title') }}
-        </h3>
+        <div class="flex items-center gap-2">
+          <h3 class="text-lg font-semibold">
+            {{ t('title') }}
+          </h3>
+          <span
+            v-if="props.pendingCount && props.pendingCount > 0"
+            class="text-xs text-muted bg-muted px-2 py-0.5 rounded-full"
+          >
+            +{{ props.pendingCount }} {{ t('pending') }}
+          </span>
+        </div>
         <UButton
           icon="i-heroicons-x-mark"
           color="neutral"
@@ -73,16 +81,15 @@
     </template>
 
     <template #footer>
-      <div class="flex flex-col gap-2 w-full">
-        <!-- Primary actions -->
+      <div class="flex flex-col gap-3 w-full">
+        <!-- Remember checkbox -->
+        <UCheckbox
+          v-model="rememberDecision"
+          :label="t('rememberDecision')"
+        />
+
+        <!-- Action buttons -->
         <div class="flex flex-col sm:flex-row gap-2 w-full">
-          <UButton
-            icon="i-heroicons-check"
-            :label="t('allow')"
-            color="success"
-            class="w-full sm:flex-1"
-            @click="onAllow"
-          />
           <UButton
             icon="i-heroicons-x-mark"
             :label="t('deny')"
@@ -90,16 +97,14 @@
             class="w-full sm:flex-1"
             @click="onDeny"
           />
+          <UButton
+            icon="i-heroicons-check"
+            :label="t('allow')"
+            color="success"
+            class="w-full sm:flex-1"
+            @click="onAllow"
+          />
         </div>
-        <!-- Secondary action -->
-        <UButton
-          icon="i-heroicons-clock"
-          :label="t('allowOnce')"
-          color="neutral"
-          variant="outline"
-          class="w-full"
-          @click="onAllowOnce"
-        />
       </div>
     </template>
   </UiDrawerModal>
@@ -113,12 +118,22 @@ const { t } = useI18n()
 const props = defineProps<{
   open: boolean
   promptData: PermissionPromptData | null
+  pendingCount?: number
 }>()
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
-  decision: [value: PermissionDecision]
+  decision: [value: PermissionDecision, remember: boolean]
 }>()
+
+const rememberDecision = ref(false)
+
+// Reset checkbox when dialog opens
+watch(() => props.open, (isOpen) => {
+  if (isOpen) {
+    rememberDecision.value = false
+  }
+})
 
 const modelOpen = computed({
   get: () => props.open,
@@ -135,6 +150,8 @@ const resourceTypeIcon = computed(() => {
       return 'i-heroicons-folder'
     case 'shell':
       return 'i-heroicons-command-line'
+    case 'filesync':
+      return 'i-heroicons-cloud-arrow-up'
     default:
       return 'i-heroicons-question-mark-circle'
   }
@@ -150,31 +167,30 @@ const resourceTypeLabel = computed(() => {
       return t('resourceType.fs')
     case 'shell':
       return t('resourceType.shell')
+    case 'filesync':
+      return t('resourceType.filesync')
     default:
       return t('resourceType.unknown')
   }
 })
 
 function onAllow() {
-  emit('decision', 'granted')
+  emit('decision', 'granted', rememberDecision.value)
 }
 
 function onDeny() {
-  emit('decision', 'denied')
-}
-
-function onAllowOnce() {
-  emit('decision', 'ask')
+  emit('decision', 'denied', rememberDecision.value)
 }
 
 function onCancel() {
-  emit('decision', 'denied')
+  emit('decision', 'denied', false)
 }
 </script>
 
 <i18n lang="yaml">
 de:
   title: Berechtigungsanfrage
+  pending: weitere
   requestsPermission: möchte eine Berechtigung
   action: Aktion
   target: Ziel
@@ -183,15 +199,17 @@ de:
     web: Netzwerkzugriff
     fs: Dateisystemzugriff
     shell: Shell-Befehl
+    filesync: Dateisynchronisation
     unknown: Unbekannt
   warning:
     title: Vorsicht
     description: Erteile nur Berechtigungen für Erweiterungen, denen du vertraust.
+  rememberDecision: Entscheidung merken
   allow: Erlauben
   deny: Ablehnen
-  allowOnce: Einmal erlauben
 en:
   title: Permission Request
+  pending: more
   requestsPermission: is requesting a permission
   action: Action
   target: Target
@@ -200,11 +218,12 @@ en:
     web: Network Access
     fs: Filesystem Access
     shell: Shell Command
+    filesync: File Sync
     unknown: Unknown
   warning:
     title: Caution
     description: Only grant permissions to extensions you trust.
+  rememberDecision: Remember decision
   allow: Allow
   deny: Deny
-  allowOnce: Allow Once
 </i18n>

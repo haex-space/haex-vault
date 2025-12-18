@@ -247,7 +247,7 @@ pub struct ExtensionPermission {
     pub haex_timestamp: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash, TS)]
 #[serde(rename_all = "lowercase")]
 #[ts(export)]
 pub enum ResourceType {
@@ -258,7 +258,7 @@ pub enum ResourceType {
     Filesync,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, TS)]
 #[serde(rename_all = "lowercase")]
 #[ts(export)]
 pub enum PermissionStatus {

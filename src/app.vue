@@ -8,6 +8,7 @@
     <HaexExtensionDialogPermissionPrompt
       :open="permissionPrompt.isOpen.value"
       :prompt-data="permissionPrompt.promptData.value"
+      :pending-count="permissionPrompt.pendingCount.value"
       @update:open="(v) => !v && permissionPrompt.cancelPrompt()"
       @decision="permissionPrompt.handleDecision"
     />
@@ -36,6 +37,9 @@ onMounted(() => {
 
 // Global permission prompt handler
 const permissionPrompt = usePermissionPrompt()
+onMounted(() => {
+  permissionPrompt.init()
+})
 
 // External client authorization handler
 const externalAuth = useExternalAuth()

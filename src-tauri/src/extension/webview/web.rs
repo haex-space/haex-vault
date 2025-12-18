@@ -4,10 +4,10 @@ use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{Action, DbAction, FsAction};
 use crate::AppState;
 use serde::{Deserialize, Serialize};
-use tauri::{State, WebviewWindow};
+use tauri::{AppHandle, State, WebviewWindow};
 use tauri_plugin_http::reqwest;
 
-use super::helpers::{get_extension_id, get_extension_info_from_window};
+use super::helpers::{emit_permission_prompt_if_needed, get_extension_id, get_extension_info_from_window};
 
 // ============================================================================
 // Types for SDK communication
@@ -140,6 +140,7 @@ pub async fn webview_extension_check_filesystem_permission(
 pub async fn webview_extension_web_open(
     window: WebviewWindow,
     state: State<'_, AppState>,
+    app_handle: AppHandle,
     url: String,
 ) -> Result<(), ExtensionError> {
     let extension_id = get_extension_id(&window, &state)?;
@@ -160,8 +161,13 @@ pub async fn webview_extension_web_open(
         });
     }
 
-    // Check web permissions
-    PermissionManager::check_web_permission(&state, &extension_id, &url).await?;
+    // Check web permissions (emit event if permission prompt required)
+    let permission_result =
+        PermissionManager::check_web_permission(&state, &extension_id, &url).await;
+    if let Err(ref e) = permission_result {
+        emit_permission_prompt_if_needed(&app_handle, e);
+    }
+    permission_result?;
 
     // Open URL in default browser using tauri-plugin-opener
     tauri_plugin_opener::open_url(&url, None::<&str>).map_err(|e| ExtensionError::WebError {
@@ -175,6 +181,7 @@ pub async fn webview_extension_web_open(
 pub async fn webview_extension_web_request(
     window: WebviewWindow,
     state: State<'_, AppState>,
+    app_handle: AppHandle,
     url: String,
     method: Option<String>,
     headers: Option<serde_json::Value>,
@@ -182,8 +189,13 @@ pub async fn webview_extension_web_request(
 ) -> Result<serde_json::Value, ExtensionError> {
     let extension_id = get_extension_id(&window, &state)?;
 
-    // Check permission first
-    PermissionManager::check_web_permission(&state, &extension_id, &url).await?;
+    // Check permission first (emit event if permission prompt required)
+    let permission_result =
+        PermissionManager::check_web_permission(&state, &extension_id, &url).await;
+    if let Err(ref e) = permission_result {
+        emit_permission_prompt_if_needed(&app_handle, e);
+    }
+    permission_result?;
 
     // Build request
     let method = method.unwrap_or_else(|| "GET".to_string());

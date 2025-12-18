@@ -289,14 +289,34 @@ impl PermissionManager {
                     table_name,
                 )),
             },
-            // No matching permission - prompt the user
-            None => Err(ExtensionError::permission_prompt_required(
-                extension_id,
-                &extension.manifest.name,
-                "db",
-                &format!("{db_action:?}"),
-                table_name,
-            )),
+            // No matching permission in database - check session permissions
+            None => {
+                if app_state
+                    .session_permissions
+                    .is_granted(extension_id, ResourceType::Db, table_name)
+                {
+                    return Ok(());
+                }
+                if app_state
+                    .session_permissions
+                    .is_denied(extension_id, ResourceType::Db, table_name)
+                {
+                    return Err(ExtensionError::permission_denied(
+                        extension_id,
+                        &format!("{db_action:?}"),
+                        &format!("database table '{table_name}'"),
+                    ));
+                }
+
+                // No session permission either - prompt the user
+                Err(ExtensionError::permission_prompt_required(
+                    extension_id,
+                    &extension.manifest.name,
+                    "db",
+                    &format!("{db_action:?}"),
+                    table_name,
+                ))
+            }
         }
     }
 
@@ -417,14 +437,34 @@ impl PermissionManager {
                     url,
                 )),
             },
-            // No matching permission - prompt the user
-            None => Err(ExtensionError::permission_prompt_required(
-                extension_id,
-                &extension.manifest.name,
-                "web",
-                "request",
-                url,
-            )),
+            // No matching permission in database - check session permissions
+            None => {
+                if app_state
+                    .session_permissions
+                    .is_granted(extension_id, ResourceType::Web, url)
+                {
+                    return Ok(());
+                }
+                if app_state
+                    .session_permissions
+                    .is_denied(extension_id, ResourceType::Web, url)
+                {
+                    return Err(ExtensionError::permission_denied(
+                        extension_id,
+                        "web request",
+                        url,
+                    ));
+                }
+
+                // No session permission either - prompt the user
+                Err(ExtensionError::permission_prompt_required(
+                    extension_id,
+                    &extension.manifest.name,
+                    "web",
+                    "request",
+                    url,
+                ))
+            }
         }
     }
 
@@ -498,14 +538,34 @@ impl PermissionManager {
                     )),
                 }
             }
-            // No matching permission - prompt the user
-            None => Err(ExtensionError::permission_prompt_required(
-                extension_id,
-                &extension.manifest.name,
-                "fs",
-                &format!("{:?}", action),
-                &file_path_str,
-            )),
+            // No matching permission in database - check session permissions
+            None => {
+                if app_state
+                    .session_permissions
+                    .is_granted(extension_id, ResourceType::Fs, &file_path_str)
+                {
+                    return Ok(());
+                }
+                if app_state
+                    .session_permissions
+                    .is_denied(extension_id, ResourceType::Fs, &file_path_str)
+                {
+                    return Err(ExtensionError::permission_denied(
+                        extension_id,
+                        &format!("{:?}", action),
+                        &format!("filesystem path '{}'", file_path_str),
+                    ));
+                }
+
+                // No session permission either - prompt the user
+                Err(ExtensionError::permission_prompt_required(
+                    extension_id,
+                    &extension.manifest.name,
+                    "fs",
+                    &format!("{:?}", action),
+                    &file_path_str,
+                ))
+            }
         }
     }
 
@@ -598,14 +658,34 @@ impl PermissionManager {
                     )),
                 }
             }
-            // No matching permission - prompt the user
-            None => Err(ExtensionError::permission_prompt_required(
-                extension_id,
-                &extension.manifest.name,
-                "shell",
-                "execute",
-                command,
-            )),
+            // No matching permission in database - check session permissions
+            None => {
+                if app_state
+                    .session_permissions
+                    .is_granted(extension_id, ResourceType::Shell, command)
+                {
+                    return Ok(());
+                }
+                if app_state
+                    .session_permissions
+                    .is_denied(extension_id, ResourceType::Shell, command)
+                {
+                    return Err(ExtensionError::permission_denied(
+                        extension_id,
+                        "execute",
+                        &format!("shell command '{}' with args {:?}", command, args),
+                    ));
+                }
+
+                // No session permission either - prompt the user
+                Err(ExtensionError::permission_prompt_required(
+                    extension_id,
+                    &extension.manifest.name,
+                    "shell",
+                    "execute",
+                    command,
+                ))
+            }
         }
     }
 
@@ -685,14 +765,35 @@ impl PermissionManager {
                     target_str,
                 )),
             },
-            // No matching permission - prompt the user
-            None => Err(ExtensionError::permission_prompt_required(
-                extension_id,
-                &extension.manifest.name,
-                "filesync",
-                action_str,
-                target_str,
-            )),
+            // No matching permission in database - check session permissions
+            None => {
+                // Check session permissions first
+                if app_state
+                    .session_permissions
+                    .is_granted(extension_id, ResourceType::Filesync, target_str)
+                {
+                    return Ok(());
+                }
+                if app_state
+                    .session_permissions
+                    .is_denied(extension_id, ResourceType::Filesync, target_str)
+                {
+                    return Err(ExtensionError::permission_denied(
+                        extension_id,
+                        action_str,
+                        &format!("filesync:{}", target_str),
+                    ));
+                }
+
+                // No session permission either - prompt the user
+                Err(ExtensionError::permission_prompt_required(
+                    extension_id,
+                    &extension.manifest.name,
+                    "filesync",
+                    action_str,
+                    target_str,
+                ))
+            }
         }
     }
 

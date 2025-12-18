@@ -1,15 +1,16 @@
-use super::helpers::get_extension_id;
+use super::helpers::{emit_permission_prompt_if_needed, get_extension_id};
 use crate::extension::database::{
     extension_sql_execute, extension_sql_select, register_extension_migrations, MigrationResult,
 };
 use crate::extension::error::ExtensionError;
 use crate::AppState;
-use tauri::{State, WebviewWindow};
+use tauri::{AppHandle, State, WebviewWindow};
 
 #[tauri::command]
 pub async fn webview_extension_db_query(
     window: WebviewWindow,
     state: State<'_, AppState>,
+    app_handle: AppHandle,
     query: String,
     params: Vec<serde_json::Value>,
 ) -> Result<serde_json::Value, ExtensionError> {
@@ -23,15 +24,21 @@ pub async fn webview_extension_db_query(
             reason: format!("Extension with ID {} not found", extension_id),
         })?;
 
-    let rows = extension_sql_select(
+    let result = extension_sql_select(
         &query,
         params,
         extension.manifest.public_key.clone(),
         extension.manifest.name.clone(),
         state,
     )
-    .await
-    .map_err(|e| ExtensionError::ValidationError {
+    .await;
+
+    // Emit permission prompt event if needed
+    if let Err(ref e) = result {
+        emit_permission_prompt_if_needed(&app_handle, e);
+    }
+
+    let rows = result.map_err(|e| ExtensionError::ValidationError {
         reason: format!("Database query failed: {}", e),
     })?;
 
@@ -46,6 +53,7 @@ pub async fn webview_extension_db_query(
 pub async fn webview_extension_db_execute(
     window: WebviewWindow,
     state: State<'_, AppState>,
+    app_handle: AppHandle,
     query: String,
     params: Vec<serde_json::Value>,
 ) -> Result<serde_json::Value, ExtensionError> {
@@ -59,15 +67,21 @@ pub async fn webview_extension_db_execute(
             reason: format!("Extension with ID {} not found", extension_id),
         })?;
 
-    let rows = extension_sql_execute(
+    let result = extension_sql_execute(
         &query,
         params,
         extension.manifest.public_key.clone(),
         extension.manifest.name.clone(),
         state,
     )
-    .await
-    .map_err(|e| ExtensionError::ValidationError {
+    .await;
+
+    // Emit permission prompt event if needed
+    if let Err(ref e) = result {
+        emit_permission_prompt_if_needed(&app_handle, e);
+    }
+
+    let rows = result.map_err(|e| ExtensionError::ValidationError {
         reason: format!("Database execute failed: {}", e),
     })?;
 
@@ -82,6 +96,7 @@ pub async fn webview_extension_db_execute(
 pub async fn webview_extension_db_register_migrations(
     window: WebviewWindow,
     state: State<'_, AppState>,
+    app_handle: AppHandle,
     extension_version: String,
     migrations: Vec<serde_json::Map<String, serde_json::Value>>,
 ) -> Result<MigrationResult, ExtensionError> {
@@ -95,12 +110,19 @@ pub async fn webview_extension_db_register_migrations(
             reason: format!("Extension with ID {} not found", extension_id),
         })?;
 
-    register_extension_migrations(
+    let result = register_extension_migrations(
         extension.manifest.public_key.clone(),
         extension.manifest.name.clone(),
         extension_version,
         migrations,
         state,
     )
-    .await
+    .await;
+
+    // Emit permission prompt event if needed
+    if let Err(ref e) = result {
+        emit_permission_prompt_if_needed(&app_handle, e);
+    }
+
+    result
 }
