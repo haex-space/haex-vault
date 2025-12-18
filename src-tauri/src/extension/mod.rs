@@ -20,6 +20,7 @@ pub mod crypto;
 pub mod database;
 pub mod error;
 pub mod filesystem;
+pub mod filesync;
 pub mod permissions;
 pub mod utils;
 pub mod web;
@@ -528,6 +529,7 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
     let mut filesystem = Vec::new();
     let mut http = Vec::new();
     let mut shell = Vec::new();
+    let mut filesync = Vec::new();
 
     for perm in permissions {
         let entry = PermissionEntry {
@@ -544,6 +546,7 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
             ResourceType::Fs => filesystem.push(entry),
             ResourceType::Web => http.push(entry),
             ResourceType::Shell => shell.push(entry),
+            ResourceType::Filesync => filesync.push(entry),
         }
     }
 
@@ -560,6 +563,11 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
         },
         http: if http.is_empty() { None } else { Some(http) },
         shell: if shell.is_empty() { None } else { Some(shell) },
+        filesync: if filesync.is_empty() {
+            None
+        } else {
+            Some(filesync)
+        },
     }
 }
 

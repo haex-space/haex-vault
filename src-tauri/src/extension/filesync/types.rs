@@ -1,4 +1,4 @@
-// src-tauri/src/extension/filesystem/types.rs
+// src-tauri/src/extension/filesync/types.rs
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -132,8 +132,6 @@ impl std::fmt::Display for StorageBackendType {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct S3BackendConfig {
-    #[serde(rename = "type")]
-    pub backend_type: StorageBackendType,
     pub endpoint: Option<String>,
     pub region: String,
     pub bucket: String,
@@ -141,14 +139,25 @@ pub struct S3BackendConfig {
     pub secret_access_key: String,
 }
 
+/// Backend configuration for S3-compatible storage
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(tag = "type", rename_all = "camelCase")]
+#[ts(export)]
+pub enum BackendConfig {
+    #[serde(rename = "s3")]
+    S3(S3BackendConfig),
+    #[serde(rename = "r2")]
+    R2(S3BackendConfig),
+    #[serde(rename = "minio")]
+    Minio(S3BackendConfig),
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct AddBackendRequest {
-    #[serde(rename = "type")]
-    pub backend_type: StorageBackendType,
     pub name: String,
-    pub config: S3BackendConfig,
+    pub config: BackendConfig,
 }
 
 // ============================================================================
@@ -186,6 +195,16 @@ pub struct AddSyncRuleRequest {
     pub local_path: String,
     pub backend_ids: Vec<String>,
     pub direction: Option<SyncDirection>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct UpdateSyncRuleRequest {
+    pub rule_id: String,
+    pub backend_ids: Option<Vec<String>>,
+    pub direction: Option<SyncDirection>,
+    pub enabled: Option<bool>,
 }
 
 // ============================================================================
@@ -230,6 +249,44 @@ pub struct SyncProgress {
 pub enum SyncProgressDirection {
     Upload,
     Download,
+}
+
+// ============================================================================
+// Local File Scanning (unencrypted, for display only)
+// ============================================================================
+
+/// Request to scan local files in a sync rule folder
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ScanLocalRequest {
+    /// Sync rule ID to get the local path from
+    pub rule_id: String,
+    /// Optional subdirectory path relative to sync rule root
+    pub subpath: Option<String>,
+}
+
+/// Local file information (not encrypted, for UI display)
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct LocalFileInfo {
+    /// Unique identifier (local path hash)
+    pub id: String,
+    /// File name
+    pub name: String,
+    /// Full local path
+    pub path: String,
+    /// Relative path from sync root
+    pub relative_path: String,
+    /// MIME type (if detected)
+    pub mime_type: Option<String>,
+    /// File size in bytes
+    pub size: u64,
+    /// Whether this is a directory
+    pub is_directory: bool,
+    /// Last modified time (ISO 8601)
+    pub modified_at: Option<String>,
 }
 
 // ============================================================================

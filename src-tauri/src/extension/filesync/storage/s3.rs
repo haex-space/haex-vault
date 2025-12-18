@@ -1,4 +1,4 @@
-// src-tauri/src/extension/filesystem/storage/s3.rs
+// src-tauri/src/extension/filesync/storage/s3.rs
 //!
 //! S3-compatible Storage Backend
 //!
@@ -7,8 +7,8 @@
 //!
 
 use super::{BlobInfo, BlobMetadata, StorageBackend, TransferProgress};
-use crate::extension::filesystem::error::FileSyncError;
-use crate::extension::filesystem::types::S3BackendConfig;
+use crate::extension::filesync::error::FileSyncError;
+use crate::extension::filesync::types::{S3BackendConfig, StorageBackendType};
 use async_trait::async_trait;
 use s3::creds::Credentials;
 use s3::region::Region;
@@ -23,7 +23,12 @@ pub struct S3Backend {
 
 impl S3Backend {
     /// Create a new S3 backend from config
-    pub async fn new(config: &S3BackendConfig) -> Result<Self, FileSyncError> {
+    ///
+    /// The `backend_type` parameter determines the type string returned by `backend_type()`.
+    pub async fn new(
+        config: &S3BackendConfig,
+        backend_type: StorageBackendType,
+    ) -> Result<Self, FileSyncError> {
         let credentials = Credentials::new(
             Some(&config.access_key_id),
             Some(&config.secret_access_key),
@@ -51,16 +56,16 @@ impl S3Backend {
             })?
             .with_path_style(); // Required for MinIO and some S3-compatible services
 
-        let backend_type = match config.backend_type {
-            crate::extension::filesystem::types::StorageBackendType::S3 => "s3",
-            crate::extension::filesystem::types::StorageBackendType::R2 => "r2",
-            crate::extension::filesystem::types::StorageBackendType::Minio => "minio",
+        let backend_type_str = match backend_type {
+            StorageBackendType::S3 => "s3",
+            StorageBackendType::R2 => "r2",
+            StorageBackendType::Minio => "minio",
             _ => "s3",
         };
 
         Ok(Self {
             bucket,
-            backend_type,
+            backend_type: backend_type_str,
         })
     }
 }

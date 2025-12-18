@@ -1,4 +1,4 @@
-// src-tauri/src/extension/filesystem/encryption.rs
+// src-tauri/src/extension/filesync/encryption.rs
 //!
 //! File Encryption Layer
 //!
@@ -6,7 +6,7 @@
 //! Each chunk is encrypted with XChaCha20-Poly1305 with a unique nonce.
 //!
 
-use crate::extension::filesystem::error::FileSyncError;
+use crate::extension::filesync::error::FileSyncError;
 use chacha20poly1305::{
     aead::{Aead, KeyInit},
     XChaCha20Poly1305, XNonce,

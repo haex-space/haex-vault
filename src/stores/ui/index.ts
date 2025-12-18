@@ -66,11 +66,11 @@ export const useUiStore = defineStore('uiStore', () => {
   // Broadcast theme and locale changes to extensions (including initial state)
   watch([currentThemeName, locale], async () => {
     const deviceStore = useDeviceStore()
-    const platformValue = await deviceStore.platform
     const context = {
       theme: currentThemeName.value,
       locale: locale.value,
-      platform: platformValue,
+      platform: deviceStore.platform,
+      deviceId: deviceStore.deviceId,
     }
 
     // Broadcast to iframe extensions (existing)

@@ -25,7 +25,7 @@
   "dependencies": {
     "@choochmeque/tauri-plugin-biometry-api": "^0.2.5",
     "@haex-space/marketplace-sdk": "^0.1.3",
-    "@haex-space/vault-sdk": "^2.5.19",
+    "@haex-space/vault-sdk": "^2.5.32",
     "@nuxt/eslint": "1.9.0",
     "@nuxt/fonts": "0.12.1",
     "@nuxt/icon": "2.0.0",

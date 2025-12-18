@@ -1,4 +1,4 @@
-// src-tauri/src/extension/filesystem/error.rs
+// src-tauri/src/extension/filesync/error.rs
 
 use serde::Serialize;
 use thiserror::Error;
@@ -6,6 +6,9 @@ use thiserror::Error;
 #[derive(Debug, Error, Serialize)]
 #[serde(tag = "type", content = "details")]
 pub enum FileSyncError {
+    #[error("Extension not found: {public_key}::{name}")]
+    ExtensionNotFound { public_key: String, name: String },
+
     #[error("Space not found: {id}")]
     SpaceNotFound { id: String },
 
@@ -53,6 +56,9 @@ pub enum FileSyncError {
 
     #[error("Not initialized")]
     NotInitialized,
+
+    #[error("No backends configured")]
+    NoBackendsConfigured,
 
     #[error("Already syncing")]
     AlreadySyncing,

@@ -19,6 +19,7 @@ pub struct ApplicationContext {
     pub theme: String,
     pub locale: String,
     pub platform: String,
+    pub device_id: String,
 }
 
 // ============================================================================

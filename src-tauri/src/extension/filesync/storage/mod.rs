@@ -1,11 +1,11 @@
-// src-tauri/src/extension/filesystem/storage/mod.rs
+// src-tauri/src/extension/filesync/storage/mod.rs
 //!
 //! Storage Backend Trait and Implementations
 //!
 
 pub mod s3;
 
-use crate::extension::filesystem::error::FileSyncError;
+use crate::extension::filesync::error::FileSyncError;
 use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::sync::mpsc;

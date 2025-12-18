@@ -225,6 +225,8 @@ export const haexFileSyncRules = sqliteTable(
       id: text(tableNames.haex.file_sync_rules.columns.id)
         .$defaultFn(() => crypto.randomUUID())
         .primaryKey(),
+      // Device ID - sync rules are device-specific because local paths differ per device
+      deviceId: text(tableNames.haex.file_sync_rules.columns.deviceId).notNull(),
       spaceId: text(tableNames.haex.file_sync_rules.columns.spaceId)
         .notNull()
         .references((): AnySQLiteColumn => haexFileSpaces.id, {
@@ -247,10 +249,12 @@ export const haexFileSyncRules = sqliteTable(
     tableNames.haex.file_sync_rules.columns.updatedAt,
   ),
   (table) => [
-    uniqueIndex('haex_file_sync_rules_local_path_unique')
-      .on(table.localPath)
+    // Unique constraint on device_id + local_path (same path can be synced on different devices)
+    uniqueIndex('haex_file_sync_rules_device_path_unique')
+      .on(table.deviceId, table.localPath)
       .where(sql`${table.haexTombstone} = 0`),
     index('haex_file_sync_rules_space_id_idx').on(table.spaceId),
+    index('haex_file_sync_rules_device_id_idx').on(table.deviceId),
   ],
 )
 export type InsertHaexFileSyncRules = typeof haexFileSyncRules.$inferInsert
@@ -296,6 +300,8 @@ export const haexFileLocalSyncState = sqliteTable(
     id: text(tableNames.haex.file_local_sync_state.columns.id)
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
+    // Device ID - same file can have different local states on different devices
+    deviceId: text(tableNames.haex.file_local_sync_state.columns.deviceId).notNull(),
     fileId: text(tableNames.haex.file_local_sync_state.columns.fileId)
       .notNull()
       .references((): AnySQLiteColumn => haexFiles.id, {
@@ -308,12 +314,15 @@ export const haexFileLocalSyncState = sqliteTable(
     syncedAt: text(tableNames.haex.file_local_sync_state.columns.syncedAt),
   }),
   (table) => [
-    uniqueIndex('haex_file_local_sync_state_file_id_unique')
-      .on(table.fileId)
+    // Unique constraint on device_id + file_id (same file can exist on multiple devices)
+    uniqueIndex('haex_file_local_sync_state_device_file_unique')
+      .on(table.deviceId, table.fileId)
       .where(sql`${table.haexTombstone} = 0`),
-    uniqueIndex('haex_file_local_sync_state_local_path_unique')
-      .on(table.localPath)
+    // Unique constraint on device_id + local_path (same path can be used on different devices)
+    uniqueIndex('haex_file_local_sync_state_device_path_unique')
+      .on(table.deviceId, table.localPath)
       .where(sql`${table.haexTombstone} = 0`),
+    index('haex_file_local_sync_state_device_id_idx').on(table.deviceId),
   ],
 )
 export type InsertHaexFileLocalSyncState = typeof haexFileLocalSyncState.$inferInsert

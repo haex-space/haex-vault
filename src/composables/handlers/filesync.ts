@@ -2,126 +2,137 @@
 // Maps SDK FileSyncAPI methods to Tauri commands
 
 import { invoke } from '@tauri-apps/api/core'
-import { HAEXTENSION_METHODS } from '@haex-space/vault-sdk'
+import { HAEXTENSION_METHODS, TAURI_COMMANDS } from '@haex-space/vault-sdk'
 import type { IHaexSpaceExtension } from '~/types/haexspace'
 import type { ExtensionRequest } from './types'
 
 export async function handleFileSyncMethodAsync(
   request: ExtensionRequest,
-  _extension: IHaexSpaceExtension,
+  extension: IHaexSpaceExtension,
 ) {
   if (!request) return
+
+  // Extension identification for Rust commands (secure - set by host app)
+  const extInfo = {
+    publicKey: extension.publicKey,
+    name: extension.name,
+  }
 
   switch (request.method) {
     // ========================================================================
     // Spaces
     // ========================================================================
     case HAEXTENSION_METHODS.filesystem.sync.listSpaces: {
-      return invoke('filesync_list_spaces')
+      return invoke(TAURI_COMMANDS.filesync.listSpaces, extInfo)
     }
 
     case HAEXTENSION_METHODS.filesystem.sync.createSpace: {
-      return invoke('filesync_create_space', { request: request.params })
+      return invoke(TAURI_COMMANDS.filesync.createSpace, { ...extInfo, request: request.params })
     }
 
     case HAEXTENSION_METHODS.filesystem.sync.deleteSpace: {
       const params = request.params as { spaceId: string }
-      return invoke('filesync_delete_space', { spaceId: params.spaceId })
+      return invoke(TAURI_COMMANDS.filesync.deleteSpace, { ...extInfo, spaceId: params.spaceId })
     }
 
     // ========================================================================
     // Files
     // ========================================================================
     case HAEXTENSION_METHODS.filesystem.sync.listFiles: {
-      return invoke('filesync_list_files', { request: request.params })
+      return invoke(TAURI_COMMANDS.filesync.listFiles, { ...extInfo, request: request.params })
     }
 
     case HAEXTENSION_METHODS.filesystem.sync.getFile: {
       const params = request.params as { fileId: string }
-      return invoke('filesync_get_file', { fileId: params.fileId })
+      return invoke(TAURI_COMMANDS.filesync.getFile, { ...extInfo, fileId: params.fileId })
     }
 
     case HAEXTENSION_METHODS.filesystem.sync.uploadFile: {
-      return invoke('filesync_upload_file', { request: request.params })
+      return invoke(TAURI_COMMANDS.filesync.uploadFile, { ...extInfo, request: request.params })
     }
 
     case HAEXTENSION_METHODS.filesystem.sync.downloadFile: {
-      return invoke('filesync_download_file', { request: request.params })
+      return invoke(TAURI_COMMANDS.filesync.downloadFile, { ...extInfo, request: request.params })
     }
 
     case HAEXTENSION_METHODS.filesystem.sync.deleteFile: {
       const params = request.params as { fileId: string }
-      return invoke('filesync_delete_file', { fileId: params.fileId })
+      return invoke(TAURI_COMMANDS.filesync.deleteFile, { ...extInfo, fileId: params.fileId })
     }
 
     // ========================================================================
     // Backends
     // ========================================================================
     case HAEXTENSION_METHODS.filesystem.sync.listBackends: {
-      return invoke('filesync_list_backends')
+      return invoke(TAURI_COMMANDS.filesync.listBackends, extInfo)
     }
 
     case HAEXTENSION_METHODS.filesystem.sync.addBackend: {
-      return invoke('filesync_add_backend', { request: request.params })
+      return invoke(TAURI_COMMANDS.filesync.addBackend, { ...extInfo, request: request.params })
     }
 
     case HAEXTENSION_METHODS.filesystem.sync.removeBackend: {
       const params = request.params as { backendId: string }
-      return invoke('filesync_remove_backend', { backendId: params.backendId })
+      return invoke(TAURI_COMMANDS.filesync.removeBackend, { ...extInfo, backendId: params.backendId })
     }
 
     case HAEXTENSION_METHODS.filesystem.sync.testBackend: {
       const params = request.params as { backendId: string }
-      return invoke('filesync_test_backend', { backendId: params.backendId })
+      return invoke(TAURI_COMMANDS.filesync.testBackend, { ...extInfo, backendId: params.backendId })
     }
 
     // ========================================================================
     // Sync Rules
     // ========================================================================
     case HAEXTENSION_METHODS.filesystem.sync.listSyncRules: {
-      return invoke('filesync_list_sync_rules')
+      return invoke(TAURI_COMMANDS.filesync.listSyncRules, extInfo)
     }
 
     case HAEXTENSION_METHODS.filesystem.sync.addSyncRule: {
-      return invoke('filesync_add_sync_rule', { request: request.params })
+      return invoke(TAURI_COMMANDS.filesync.addSyncRule, { ...extInfo, request: request.params })
     }
 
     case HAEXTENSION_METHODS.filesystem.sync.removeSyncRule: {
       const params = request.params as { ruleId: string }
-      return invoke('filesync_remove_sync_rule', { ruleId: params.ruleId })
+      return invoke(TAURI_COMMANDS.filesync.removeSyncRule, { ...extInfo, ruleId: params.ruleId })
     }
 
     // ========================================================================
     // Sync Operations
     // ========================================================================
     case HAEXTENSION_METHODS.filesystem.sync.getSyncStatus: {
-      return invoke('filesync_get_sync_status')
+      return invoke(TAURI_COMMANDS.filesync.getSyncStatus, extInfo)
     }
 
     case HAEXTENSION_METHODS.filesystem.sync.triggerSync: {
-      return invoke('filesync_trigger_sync')
+      return invoke(TAURI_COMMANDS.filesync.triggerSync, extInfo)
     }
 
     case HAEXTENSION_METHODS.filesystem.sync.pauseSync: {
-      return invoke('filesync_pause_sync')
+      return invoke(TAURI_COMMANDS.filesync.pauseSync, extInfo)
     }
 
     case HAEXTENSION_METHODS.filesystem.sync.resumeSync: {
-      return invoke('filesync_resume_sync')
+      return invoke(TAURI_COMMANDS.filesync.resumeSync, extInfo)
     }
 
     // ========================================================================
     // Conflict Resolution
     // ========================================================================
     case HAEXTENSION_METHODS.filesystem.sync.resolveConflict: {
-      return invoke('filesync_resolve_conflict', { request: request.params })
+      return invoke(TAURI_COMMANDS.filesync.resolveConflict, { ...extInfo, request: request.params })
     }
 
     // ========================================================================
     // UI Helpers
     // ========================================================================
     case HAEXTENSION_METHODS.filesystem.sync.selectFolder: {
-      return invoke('filesync_select_folder')
+      // selectFolder doesn't need extension info - just opens a dialog
+      return invoke(TAURI_COMMANDS.filesync.selectFolder)
+    }
+
+    case HAEXTENSION_METHODS.filesystem.sync.scanLocal: {
+      return invoke(TAURI_COMMANDS.filesync.scanLocal, { ...extInfo, request: request.params })
     }
 
     default:

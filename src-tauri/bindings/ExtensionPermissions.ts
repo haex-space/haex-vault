@@ -4,4 +4,4 @@ import type { PermissionEntry } from "./PermissionEntry";
 /**
  * Definiert die einheitliche Struktur für alle Berechtigungsarten im Manifest und UI.
  */
-export type ExtensionPermissions = { database: Array<PermissionEntry> | null, filesystem: Array<PermissionEntry> | null, http: Array<PermissionEntry> | null, shell: Array<PermissionEntry> | null, };
+export type ExtensionPermissions = { database: Array<PermissionEntry> | null, filesystem: Array<PermissionEntry> | null, http: Array<PermissionEntry> | null, shell: Array<PermissionEntry> | null, filesync: Array<PermissionEntry> | null, };

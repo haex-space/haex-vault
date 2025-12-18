@@ -262,6 +262,7 @@
       "name": "haex_file_sync_rules",
       "columns": {
         "id": "id",
+        "deviceId": "device_id",
         "spaceId": "space_id",
         "localPath": "local_path",
         "direction": "direction",
@@ -287,6 +288,7 @@
       "name": "haex_file_local_sync_state",
       "columns": {
         "id": "id",
+        "deviceId": "device_id",
         "fileId": "file_id",
         "localPath": "local_path",
         "localHash": "local_hash",

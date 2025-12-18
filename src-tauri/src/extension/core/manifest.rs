@@ -1,7 +1,7 @@
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::types::{
-    Action, DbAction, ExtensionPermission, FsAction, PermissionConstraints, PermissionStatus,
-    ResourceType, ShellAction, WebAction,
+    Action, DbAction, ExtensionPermission, FileSyncAction, FsAction, PermissionConstraints,
+    PermissionStatus, ResourceType, ShellAction, WebAction,
 };
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -82,6 +82,8 @@ pub struct ExtensionPermissions {
     pub http: Option<Vec<PermissionEntry>>,
     #[serde(default)]
     pub shell: Option<Vec<PermissionEntry>>,
+    #[serde(default)]
+    pub filesync: Option<Vec<PermissionEntry>>,
 }
 
 /// Typ-Alias für bessere Lesbarkeit, wenn die Struktur als UI-Modell verwendet wird.
@@ -158,6 +160,7 @@ impl ExtensionManifest {
         set_status_for_list(editable.filesystem.as_mut());
         set_status_for_list(editable.http.as_mut());
         set_status_for_list(editable.shell.as_mut());
+        set_status_for_list(editable.filesync.as_mut());
 
         editable
     }
@@ -196,6 +199,13 @@ impl ExtensionPermissions {
                 }
             }
         }
+        if let Some(entries) = &self.filesync {
+            for p in entries {
+                if let Some(perm) = Self::create_internal(extension_id, ResourceType::Filesync, p) {
+                    permissions.push(perm);
+                }
+            }
+        }
 
         permissions
     }
@@ -222,6 +232,9 @@ impl ExtensionPermissions {
                 }
             }
             ResourceType::Shell => ShellAction::from_str(operation_str).ok().map(Action::Shell),
+            ResourceType::Filesync => {
+                FileSyncAction::from_str(operation_str).ok().map(Action::FileSync)
+            }
         };
 
         action.map(|act| ExtensionPermission {

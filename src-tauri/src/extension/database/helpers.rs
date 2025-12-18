@@ -323,3 +323,74 @@ pub fn execute_migration_statements(
 
     Ok(statements.len())
 }
+
+/// Splits a migration SQL content into individual statements
+pub fn split_migration_statements(sql: &str) -> Vec<&str> {
+    sql.split(DRIZZLE_STATEMENT_BREAKPOINT)
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+/// Execute migrations for dev mode extensions without database tracking
+///
+/// Dev extensions are not persisted to haex_extensions table, so we cannot
+/// store migrations in haex_extension_migrations (foreign key constraint).
+/// Instead, we validate and execute all migrations directly.
+/// CREATE TABLE IF NOT EXISTS ensures idempotency across hot reloads.
+pub fn execute_dev_mode_migrations(
+    public_key: &str,
+    extension_name: &str,
+    migrations: &[serde_json::Map<String, serde_json::Value>],
+    state: &AppState,
+) -> Result<crate::extension::database::types::MigrationResult, ExtensionError> {
+    use crate::extension::database::types::MigrationResult;
+
+    // Create context for dev mode (no CRDT triggers)
+    let ctx = ExtensionSqlContext::new(public_key.to_string(), extension_name.to_string(), true);
+
+    let mut applied_names: Vec<String> = Vec::new();
+
+    for migration_obj in migrations {
+        let migration_name = migration_obj
+            .get("name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ExtensionError::ValidationError {
+                reason: "Migration must have a 'name' field".to_string(),
+            })?;
+
+        let sql_statement = migration_obj
+            .get("sql")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ExtensionError::ValidationError {
+                reason: "Migration must have a 'sql' field".to_string(),
+            })?;
+
+        println!(
+            "[EXT_MIGRATIONS/DEV] Processing migration: {}",
+            migration_name
+        );
+
+        // Execute all statements using the helper function
+        // CREATE TABLE IF NOT EXISTS handles idempotency for dev hot reloads
+        let stmt_count = execute_migration_statements(&ctx, sql_statement, state)?;
+
+        println!(
+            "[EXT_MIGRATIONS/DEV] Migration '{}' executed ({} statements)",
+            migration_name, stmt_count
+        );
+
+        applied_names.push(migration_name.to_string());
+    }
+
+    println!(
+        "[EXT_MIGRATIONS/DEV] Executed {} migrations (no DB tracking in dev mode)",
+        applied_names.len()
+    );
+
+    Ok(MigrationResult {
+        applied_count: applied_names.len(),
+        already_applied_count: 0, // Can't track in dev mode
+        applied_migrations: applied_names,
+    })
+}

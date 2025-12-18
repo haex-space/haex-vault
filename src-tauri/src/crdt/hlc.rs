@@ -104,7 +104,7 @@ impl HlcService {
     }
 
     /// Holt die Geräte-ID aus dem Tauri Store oder erstellt eine neue, wenn keine existiert.
-    fn get_or_create_device_id(app_handle: &AppHandle) -> Result<String, HlcError> {
+    pub fn get_or_create_device_id(app_handle: &AppHandle) -> Result<String, HlcError> {
         let store_path = PathBuf::from("instance.json");
         let store = app_handle
             .store(store_path)

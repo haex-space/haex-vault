@@ -263,12 +263,13 @@ export const useExtensionMessageHandler = (
   // Initialize context getters (can use composables here because we're in setup)
   const { currentTheme } = storeToRefs(useUiStore())
   const { locale } = useI18n()
-  const { platform } = useDeviceStore()
+  const { platform, deviceId } = useDeviceStore()
   // Store getters for use outside setup context
   setContextGetters({
     getTheme: () => currentTheme.value?.value || 'system',
     getLocale: () => locale.value,
     getPlatform: () => platform,
+    getDeviceId: () => deviceId,
   })
 
   // Registriere globalen Handler beim ersten Aufruf

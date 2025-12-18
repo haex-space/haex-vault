@@ -35,6 +35,9 @@ pub struct AppState {
     /// External bridge for WebSocket connections (desktop only)
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     pub external_bridge: tokio::sync::Mutex<ExternalBridge>,
+    /// File watcher for sync rules (desktop only)
+    #[cfg(desktop)]
+    pub file_watcher: extension::filesystem::watcher::FileWatcherManager,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -114,9 +117,13 @@ pub fn run() {
                 theme: "dark".to_string(),
                 locale: "en".to_string(),
                 platform: std::env::consts::OS.to_string(),
+                // Device ID is set after vault opens (loaded from instance.json store)
+                device_id: String::new(),
             })),
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             external_bridge: tokio::sync::Mutex::new(ExternalBridge::new()),
+            #[cfg(desktop)]
+            file_watcher: extension::filesystem::watcher::FileWatcherManager::new(),
         })
         //.manage(ExtensionState::default())
         .plugin(tauri_plugin_dialog::init())
@@ -192,12 +199,12 @@ pub fn run() {
             crdt::commands::clear_all_dirty_tables,
             crdt::commands::get_all_crdt_tables,
             crdt::commands::apply_remote_changes_in_transaction,
-            extension::database::extension_sql_execute,
-            extension::database::extension_sql_select,
-            extension::database::register_extension_migrations,
-            extension::database::apply_synced_extension_migrations,
-            extension::web::extension_web_fetch,
-            extension::web::extension_web_open,
+            extension::database::commands::extension_sql_execute,
+            extension::database::commands::extension_sql_select,
+            extension::database::commands::register_extension_migrations,
+            extension::database::commands::apply_synced_extension_migrations,
+            extension::web::commands::extension_web_fetch,
+            extension::web::commands::extension_web_open,
             extension::permissions::commands::check_web_permission,
             extension::permissions::commands::check_database_permission,
             extension::permissions::commands::check_filesystem_permission,
@@ -306,28 +313,53 @@ pub fn run() {
             external_bridge::external_unblock_client,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             external_bridge::external_is_client_blocked,
-            // FileSync commands (extension/filesystem)
-            extension::filesystem::commands::filesync_list_spaces,
-            extension::filesystem::commands::filesync_create_space,
-            extension::filesystem::commands::filesync_delete_space,
-            extension::filesystem::commands::filesync_list_files,
-            extension::filesystem::commands::filesync_get_file,
-            extension::filesystem::commands::filesync_upload_file,
-            extension::filesystem::commands::filesync_download_file,
-            extension::filesystem::commands::filesync_delete_file,
-            extension::filesystem::commands::filesync_list_backends,
-            extension::filesystem::commands::filesync_add_backend,
-            extension::filesystem::commands::filesync_remove_backend,
-            extension::filesystem::commands::filesync_test_backend,
-            extension::filesystem::commands::filesync_list_sync_rules,
-            extension::filesystem::commands::filesync_add_sync_rule,
-            extension::filesystem::commands::filesync_remove_sync_rule,
-            extension::filesystem::commands::filesync_get_sync_status,
-            extension::filesystem::commands::filesync_trigger_sync,
-            extension::filesystem::commands::filesync_pause_sync,
-            extension::filesystem::commands::filesync_resume_sync,
-            extension::filesystem::commands::filesync_resolve_conflict,
-            extension::filesystem::commands::filesync_select_folder,
+            // FileSync commands (extension/filesync) - require publicKey/name params (used by iframe handler)
+            extension::filesync::commands::filesync_list_spaces,
+            extension::filesync::commands::filesync_create_space,
+            extension::filesync::commands::filesync_delete_space,
+            extension::filesync::commands::filesync_list_files,
+            extension::filesync::commands::filesync_get_file,
+            extension::filesync::commands::filesync_upload_file,
+            extension::filesync::commands::filesync_download_file,
+            extension::filesync::commands::filesync_delete_file,
+            extension::filesync::commands::filesync_list_backends,
+            extension::filesync::commands::filesync_add_backend,
+            extension::filesync::commands::filesync_remove_backend,
+            extension::filesync::commands::filesync_test_backend,
+            extension::filesync::commands::filesync_list_sync_rules,
+            extension::filesync::commands::filesync_add_sync_rule,
+            extension::filesync::commands::filesync_update_sync_rule,
+            extension::filesync::commands::filesync_remove_sync_rule,
+            extension::filesync::commands::filesync_get_sync_status,
+            extension::filesync::commands::filesync_trigger_sync,
+            extension::filesync::commands::filesync_pause_sync,
+            extension::filesync::commands::filesync_resume_sync,
+            extension::filesync::commands::filesync_resolve_conflict,
+            extension::filesync::commands::filesync_select_folder,
+            extension::filesync::commands::filesync_scan_local,
+            // WebView FileSync commands - extract extension info from WebviewWindow (used by native SDK)
+            extension::filesync::webview_commands::webview_filesync_list_spaces,
+            extension::filesync::webview_commands::webview_filesync_create_space,
+            extension::filesync::webview_commands::webview_filesync_delete_space,
+            extension::filesync::webview_commands::webview_filesync_list_files,
+            extension::filesync::webview_commands::webview_filesync_get_file,
+            extension::filesync::webview_commands::webview_filesync_upload_file,
+            extension::filesync::webview_commands::webview_filesync_download_file,
+            extension::filesync::webview_commands::webview_filesync_delete_file,
+            extension::filesync::webview_commands::webview_filesync_list_backends,
+            extension::filesync::webview_commands::webview_filesync_add_backend,
+            extension::filesync::webview_commands::webview_filesync_remove_backend,
+            extension::filesync::webview_commands::webview_filesync_test_backend,
+            extension::filesync::webview_commands::webview_filesync_list_sync_rules,
+            extension::filesync::webview_commands::webview_filesync_add_sync_rule,
+            extension::filesync::webview_commands::webview_filesync_update_sync_rule,
+            extension::filesync::webview_commands::webview_filesync_remove_sync_rule,
+            extension::filesync::webview_commands::webview_filesync_get_sync_status,
+            extension::filesync::webview_commands::webview_filesync_trigger_sync,
+            extension::filesync::webview_commands::webview_filesync_pause_sync,
+            extension::filesync::webview_commands::webview_filesync_resume_sync,
+            extension::filesync::webview_commands::webview_filesync_resolve_conflict,
+            extension::filesync::webview_commands::webview_filesync_scan_local,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
