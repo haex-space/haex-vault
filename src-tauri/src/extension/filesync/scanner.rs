@@ -6,6 +6,7 @@
 use crate::extension::filesync::error::FileSyncError;
 use crate::extension::filesync::types::LocalFileInfo;
 use std::path::{Path, PathBuf};
+use std::time::UNIX_EPOCH;
 
 // ============================================================================
 // ID Generation
@@ -213,7 +214,7 @@ pub fn scan_local_directory_android(
         use tauri_plugin_android_fs::Entry;
 
         match entry {
-            Entry::File { uri, name, size, mime_type, last_modified } => {
+            Entry::File { uri, name, len, mime_type, last_modified, .. } => {
                 let full_path = format!("{:?}", uri);
 
                 // Calculate relative path
@@ -223,10 +224,11 @@ pub fn scan_local_directory_android(
                     name.clone()
                 };
 
-                // Convert milliseconds to seconds for formatting
-                let modified_at = last_modified.map(|ms| {
-                    format_unix_timestamp((ms / 1000) as u64)
-                });
+                // Convert SystemTime to formatted string
+                let modified_at = last_modified
+                    .duration_since(UNIX_EPOCH)
+                    .ok()
+                    .map(|d| format_unix_timestamp(d.as_secs()));
 
                 // Generate ID from rule_id + relative path (unique per rule, same across devices)
                 let id = generate_file_id(rule_id, &relative_path);
@@ -236,13 +238,13 @@ pub fn scan_local_directory_android(
                     name,
                     path: full_path,
                     relative_path,
-                    mime_type,
-                    size: size as u64,
+                    mime_type: Some(mime_type),
+                    size: len,
                     is_directory: false,
                     modified_at,
                 });
             }
-            Entry::Dir { uri, name, last_modified } => {
+            Entry::Dir { uri, name, last_modified, .. } => {
                 let full_path = format!("{:?}", uri);
 
                 // Calculate relative path
@@ -252,10 +254,11 @@ pub fn scan_local_directory_android(
                     name.clone()
                 };
 
-                // Convert milliseconds to seconds for formatting
-                let modified_at = last_modified.map(|ms| {
-                    format_unix_timestamp((ms / 1000) as u64)
-                });
+                // Convert SystemTime to formatted string
+                let modified_at = last_modified
+                    .duration_since(UNIX_EPOCH)
+                    .ok()
+                    .map(|d| format_unix_timestamp(d.as_secs()));
 
                 // Generate ID from rule_id + relative path (unique per rule, same across devices)
                 let id = generate_file_id(rule_id, &relative_path);
