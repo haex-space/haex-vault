@@ -16,4 +16,6 @@ pub mod storage;
 #[cfg(test)]
 mod tests;
 pub mod types;
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod webview_commands;

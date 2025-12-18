@@ -337,28 +337,50 @@ pub fn run() {
             extension::filesync::commands::filesync_resolve_conflict,
             extension::filesync::commands::filesync_select_folder,
             extension::filesync::commands::filesync_scan_local,
-            // WebView FileSync commands - extract extension info from WebviewWindow (used by native SDK)
+            // WebView FileSync commands - extract extension info from WebviewWindow (desktop only)
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_list_spaces,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_create_space,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_delete_space,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_list_files,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_get_file,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_upload_file,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_download_file,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_delete_file,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_list_backends,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_add_backend,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_remove_backend,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_test_backend,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_list_sync_rules,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_add_sync_rule,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_update_sync_rule,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_remove_sync_rule,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_get_sync_status,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_trigger_sync,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_pause_sync,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_resume_sync,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_resolve_conflict,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::filesync::webview_commands::webview_filesync_scan_local,
         ])
         .run(tauri::generate_context!())
