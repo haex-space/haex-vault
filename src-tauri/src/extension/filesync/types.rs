@@ -137,6 +137,9 @@ pub struct S3BackendConfig {
     pub bucket: String,
     pub access_key_id: String,
     pub secret_access_key: String,
+    /// Use path-style URLs instead of virtual-hosted-style (for MinIO and some other services)
+    #[serde(default)]
+    pub use_path_style: Option<bool>,
 }
 
 /// Backend configuration for S3-compatible storage

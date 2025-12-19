@@ -29,6 +29,38 @@ impl S3Backend {
         config: &S3BackendConfig,
         backend_type: StorageBackendType,
     ) -> Result<Self, FileSyncError> {
+        eprintln!("[S3Backend::new] Creating backend for bucket: {}", config.bucket);
+        eprintln!("[S3Backend::new] Endpoint: {:?}", config.endpoint);
+        eprintln!("[S3Backend::new] Region: {}", config.region);
+        eprintln!("[S3Backend::new] Backend type: {:?}", backend_type);
+
+        // Extract path prefix from endpoint URL if present
+        // This handles S3-compatible services that use path-based endpoints (e.g., Supabase /storage/v1/s3)
+        // For path-style URLs, we prepend the path prefix to the bucket name so rust-s3 constructs
+        // the URL correctly: https://host/{prefix}/{bucket}/{key}
+        let (clean_endpoint, effective_bucket) = if let Some(endpoint) = &config.endpoint {
+            if let Ok(url) = url::Url::parse(endpoint) {
+                let path = url.path();
+                if path != "/" && !path.is_empty() {
+                    // Extract the path and reconstruct the base URL
+                    let base = format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""));
+                    let prefix = path.trim_matches('/');
+                    // Combine path prefix with bucket name: "storage/v1/s3" + "/" + "my-bucket"
+                    let combined_bucket = format!("{}/{}", prefix, config.bucket);
+                    eprintln!("[S3Backend::new] Extracted path prefix: {} from endpoint", prefix);
+                    eprintln!("[S3Backend::new] Clean endpoint: {}", base);
+                    eprintln!("[S3Backend::new] Effective bucket name: {}", combined_bucket);
+                    (Some(base), combined_bucket)
+                } else {
+                    (Some(endpoint.clone()), config.bucket.clone())
+                }
+            } else {
+                (Some(endpoint.clone()), config.bucket.clone())
+            }
+        } else {
+            (None, config.bucket.clone())
+        };
+
         let credentials = Credentials::new(
             Some(&config.access_key_id),
             Some(&config.secret_access_key),
@@ -41,20 +73,61 @@ impl S3Backend {
         })?;
 
         // Determine region - for custom endpoints, use a custom region
-        let region = if let Some(endpoint) = &config.endpoint {
+        let region = if let Some(endpoint) = &clean_endpoint {
+            eprintln!("[S3Backend::new] Using custom endpoint: {}", endpoint);
             Region::Custom {
                 region: config.region.clone(),
                 endpoint: endpoint.clone(),
             }
+        } else if config.endpoint.is_some() {
+            // Fallback if clean_endpoint extraction failed
+            let ep = config.endpoint.as_ref().unwrap();
+            eprintln!("[S3Backend::new] Using original endpoint: {}", ep);
+            Region::Custom {
+                region: config.region.clone(),
+                endpoint: ep.clone(),
+            }
         } else {
+            eprintln!("[S3Backend::new] Using standard AWS region: {}", config.region);
             config.region.parse().unwrap_or(Region::UsEast1)
         };
 
-        let bucket = Bucket::new(&config.bucket, region, credentials)
+        let mut bucket = Bucket::new(&effective_bucket, region, credentials)
             .map_err(|e| FileSyncError::BackendConnectionFailed {
                 reason: format!("Failed to create bucket: {}", e),
-            })?
-            .with_path_style(); // Required for MinIO and some S3-compatible services
+            })?;
+
+        // Determine if path-style should be used:
+        // 1. MinIO always uses path-style
+        // 2. Supabase S3-compatible storage uses path-style
+        // 3. Other services with /s3/ or /storage/ in the path need path-style
+        // 4. Explicitly configured via use_path_style option
+        let endpoint_needs_path_style = config.endpoint.as_ref().map(|e| {
+            let needs = e.contains("supabase.co")
+                || e.contains("supabase.in")
+                || e.contains("/s3/")
+                || e.contains("/storage/");
+            eprintln!("[S3Backend::new] Endpoint '{}' needs path-style: {}", e, needs);
+            needs
+        }).unwrap_or(false);
+
+        let use_path_style = backend_type == StorageBackendType::Minio
+            || config.use_path_style.unwrap_or(false)
+            || endpoint_needs_path_style;
+
+        eprintln!("[S3Backend::new] use_path_style decision: {} (minio={}, config={:?}, endpoint={})",
+            use_path_style,
+            backend_type == StorageBackendType::Minio,
+            config.use_path_style,
+            endpoint_needs_path_style
+        );
+
+        if use_path_style {
+            eprintln!("[S3Backend::new] Enabling path-style URLs");
+            bucket = bucket.with_path_style();
+        } else {
+            eprintln!("[S3Backend::new] Using virtual-hosted-style URLs");
+        }
 
         let backend_type_str = match backend_type {
             StorageBackendType::S3 => "s3",
@@ -62,6 +135,9 @@ impl S3Backend {
             StorageBackendType::Minio => "minio",
             _ => "s3",
         };
+
+        eprintln!("[S3Backend::new] Backend created successfully, path_style={}, bucket={}",
+            bucket.is_path_style(), bucket.name());
 
         Ok(Self {
             bucket,
@@ -78,6 +154,8 @@ impl StorageBackend for S3Backend {
 
     async fn test_connection(&self) -> Result<(), FileSyncError> {
         // Try to list objects (with max 1) to verify credentials and bucket access
+        eprintln!("[S3Backend::test_connection] Testing connection to bucket: {}", self.bucket.name());
+
         self.bucket
             .list("".to_string(), Some("/".to_string()))
             .await
@@ -94,13 +172,32 @@ impl StorageBackend for S3Backend {
         data: &[u8],
         _progress: Option<mpsc::Sender<TransferProgress>>,
     ) -> Result<(), FileSyncError> {
+        eprintln!("[S3Backend::upload] Starting upload");
+        eprintln!("[S3Backend::upload] Remote ID (key): {}", remote_id);
+        eprintln!("[S3Backend::upload] Data size: {} bytes", data.len());
+        eprintln!("[S3Backend::upload] Bucket: {}", self.bucket.name());
+        eprintln!("[S3Backend::upload] Path style: {}", self.bucket.is_path_style());
+        eprintln!("[S3Backend::upload] Host: {}", self.bucket.host());
+        eprintln!("[S3Backend::upload] Region: {:?}", self.bucket.region());
+
         // TODO: Implement multipart upload with progress for large files
-        self.bucket
+        let result = self.bucket
             .put_object(remote_id, data)
-            .await
-            .map_err(|e| FileSyncError::UploadFailed {
-                reason: format!("S3 upload failed: {}", e),
-            })?;
+            .await;
+
+        match &result {
+            Ok(response) => {
+                eprintln!("[S3Backend::upload] SUCCESS - Status: {}", response.status_code());
+            }
+            Err(e) => {
+                eprintln!("[S3Backend::upload] FAILED - Error: {}", e);
+                eprintln!("[S3Backend::upload] Error details: {:?}", e);
+            }
+        }
+
+        result.map_err(|e| FileSyncError::UploadFailed {
+            reason: format!("S3 upload failed: {}", e),
+        })?;
 
         Ok(())
     }
