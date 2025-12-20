@@ -3,6 +3,7 @@ use thiserror::Error;
 use ts_rs::TS;
 
 use crate::database::error::DatabaseError;
+use crate::remote_storage::StorageError;
 
 /// Error codes for frontend handling
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TS)]
@@ -27,6 +28,7 @@ pub enum ExtensionErrorCode {
     SignatureVerificationFailed = 4002,
     CalculateHash = 4003,
     Installation = 5000,
+    Storage = 6000,
 }
 
 /// Serialized representation of ExtensionError for TypeScript
@@ -133,6 +135,12 @@ pub enum ExtensionError {
 
     #[error("A mutex was poisoned: {reason}")]
     MutexPoisoned { reason: String },
+
+    #[error("Storage operation failed: {source}")]
+    StorageError { source: StorageError },
+
+    #[error("Filesystem operation failed: {reason}")]
+    FilesystemError { reason: String },
 }
 
 impl ExtensionError {
@@ -162,6 +170,8 @@ impl ExtensionError {
             ExtensionError::CalculateHashError { .. } => ExtensionErrorCode::CalculateHash,
             ExtensionError::MutexPoisoned { .. } => ExtensionErrorCode::MutexPoisoned,
             ExtensionError::InvalidActionString { .. } => ExtensionErrorCode::InvalidActionString,
+            ExtensionError::StorageError { .. } => ExtensionErrorCode::Storage,
+            ExtensionError::FilesystemError { .. } => ExtensionErrorCode::Filesystem,
         }
     }
 

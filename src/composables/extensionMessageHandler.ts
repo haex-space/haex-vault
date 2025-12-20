@@ -1,6 +1,10 @@
 // composables/extensionMessageHandler.ts
 import type { IHaexSpaceExtension } from '~/types/haexspace'
-import { HAEXTENSION_METHODS, HAEXTENSION_EVENTS, HAEXSPACE_MESSAGE_TYPES } from '@haex-space/vault-sdk'
+import {
+  TAURI_COMMANDS,
+  HAEXTENSION_EVENTS,
+  HAEXSPACE_MESSAGE_TYPES,
+} from '@haex-space/vault-sdk'
 import {
   EXTENSION_PROTOCOL_NAME,
   EXTENSION_PROTOCOL_PREFIX,
@@ -8,11 +12,11 @@ import {
 import {
   handleDatabaseMethodAsync,
   handleFilesystemMethodAsync,
-  handleFileSyncMethodAsync,
   handleWebMethodAsync,
   handlePermissionsMethodAsync,
   handleContextMethodAsync,
-  handleStorageMethodAsync,
+  handleWebStorageMethodAsync,
+  handleRemoteStorageMethodAsync,
   setContextGetters,
   type ExtensionRequest,
   type ExtensionInstance,
@@ -183,39 +187,38 @@ const registerGlobalMessageHandler = () => {
       let result: unknown
 
       // Check specific methods first, then use direct routing to handlers
-      if (request.method === HAEXTENSION_METHODS.context.get) {
+      if (request.method === TAURI_COMMANDS.extension.getContext) {
         result = await handleContextMethodAsync(request)
       } else if (
-        request.method === HAEXTENSION_METHODS.storage.getItem ||
-        request.method === HAEXTENSION_METHODS.storage.setItem ||
-        request.method === HAEXTENSION_METHODS.storage.removeItem ||
-        request.method === HAEXTENSION_METHODS.storage.clear ||
-        request.method === HAEXTENSION_METHODS.storage.keys
+        request.method === TAURI_COMMANDS.webStorage.getItem ||
+        request.method === TAURI_COMMANDS.webStorage.setItem ||
+        request.method === TAURI_COMMANDS.webStorage.removeItem ||
+        request.method === TAURI_COMMANDS.webStorage.clear ||
+        request.method === TAURI_COMMANDS.webStorage.keys
       ) {
-        result = await handleStorageMethodAsync(request, instance)
+        result = await handleWebStorageMethodAsync(request, instance)
       } else if (
-        request.method === HAEXTENSION_METHODS.database.query ||
-        request.method === HAEXTENSION_METHODS.database.execute ||
-        request.method === HAEXTENSION_METHODS.database.transaction ||
-        request.method === HAEXTENSION_METHODS.database.registerMigrations
+        request.method === TAURI_COMMANDS.database.query ||
+        request.method === TAURI_COMMANDS.database.execute ||
+        request.method === TAURI_COMMANDS.database.transaction ||
+        request.method === TAURI_COMMANDS.database.registerMigrations
       ) {
         result = await handleDatabaseMethodAsync(request, instance.extension)
       } else if (
-        request.method === HAEXTENSION_METHODS.filesystem.saveFile ||
-        request.method === HAEXTENSION_METHODS.filesystem.openFile ||
-        request.method === HAEXTENSION_METHODS.filesystem.showImage
+        request.method === TAURI_COMMANDS.filesystem.saveFile ||
+        request.method === TAURI_COMMANDS.filesystem.openFile ||
+        request.method === TAURI_COMMANDS.filesystem.showImage
       ) {
         result = await handleFilesystemMethodAsync(request, instance.extension)
-      } else if (request.method.startsWith('haextension:filesystem:sync:')) {
-        result = await handleFileSyncMethodAsync(request, instance.extension)
       } else if (
-        request.method === HAEXTENSION_METHODS.web.fetch ||
-        request.method === HAEXTENSION_METHODS.application.open
+        request.method === TAURI_COMMANDS.web.fetch ||
+        request.method === TAURI_COMMANDS.web.open
       ) {
         result = await handleWebMethodAsync(request, instance.extension)
-      } else if (request.method.startsWith('haextension:permissions:')) {
-        // Permissions noch nicht migriert
+      } else if (request.method.startsWith('extension_permissions_')) {
         result = await handlePermissionsMethodAsync(request, instance.extension)
+      } else if (request.method.startsWith('extension_remote_storage_')) {
+        result = await handleRemoteStorageMethodAsync(request, instance.extension)
       } else {
         throw new Error(`Unknown method: ${request.method}`)
       }

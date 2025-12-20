@@ -18,6 +18,7 @@ use super::helpers::{emit_permission_prompt_if_needed, get_extension_id, get_ext
 pub struct ApplicationContext {
     pub theme: String,
     pub locale: String,
+    #[serde(default)]
     pub platform: String,
     pub device_id: String,
 }

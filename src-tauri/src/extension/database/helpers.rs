@@ -204,15 +204,6 @@ pub fn execute_sql_with_context(
     with_connection(&state.db, |conn| {
         let tx = conn.transaction().map_err(DatabaseError::from)?;
 
-        // Get HLC service reference
-        let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-            reason: "Failed to lock HLC service".to_string(),
-        })?;
-
-        // Note: CRDT transformation (adding haex_timestamp) is handled by
-        // SqlExecutor::execute_internal_typed / query_internal_typed.
-        // Do NOT transform here to avoid double transformation!
-
         // Convert parameters to references
         let sql_values = ValueConverter::convert_params(params)?;
         let param_refs: Vec<&dyn rusqlite::ToSql> = sql_values
@@ -222,20 +213,82 @@ pub fn execute_sql_with_context(
 
         let statement_sql = statement.to_string();
         eprintln!("DEBUG: [execute_sql_with_context] Statement SQL: {statement_sql}");
+        eprintln!("DEBUG: [execute_sql_with_context] is_dev_mode: {}", ctx.is_dev_mode);
 
-        let result = if has_returning {
-            eprintln!(
-                "DEBUG: [execute_sql_with_context] Using query_internal_typed (has RETURNING)"
-            );
-            let (_, rows) =
-                SqlExecutor::query_internal_typed(&tx, &hlc_service, &statement_sql, &param_refs)?;
-            rows
+        // Dev mode extensions execute SQL directly without CRDT transformation.
+        // Their tables don't have CRDT columns (haex_timestamp, haex_tombstone, haex_column_hlcs).
+        let result = if ctx.is_dev_mode {
+            eprintln!("DEBUG: [execute_sql_with_context] DEV MODE - executing SQL directly");
+            if has_returning {
+                // Execute with RETURNING clause
+                let mut stmt = tx.prepare(&statement_sql).map_err(|e| DatabaseError::ExecutionError {
+                    sql: statement_sql.clone(),
+                    table: None,
+                    reason: e.to_string(),
+                })?;
+                let num_columns = stmt.column_count();
+                let mut rows = stmt.query(params_from_iter(param_refs.iter())).map_err(|e| {
+                    DatabaseError::ExecutionError {
+                        sql: statement_sql.clone(),
+                        table: None,
+                        reason: e.to_string(),
+                    }
+                })?;
+                let mut result_vec: Vec<Vec<JsonValue>> = Vec::new();
+                while let Some(row) = rows.next().map_err(|e| DatabaseError::ExecutionError {
+                    sql: statement_sql.clone(),
+                    table: None,
+                    reason: e.to_string(),
+                })? {
+                    let mut row_values: Vec<JsonValue> = Vec::new();
+                    for i in 0..num_columns {
+                        let value_ref = row.get_ref(i).map_err(|e| DatabaseError::ExecutionError {
+                            sql: statement_sql.clone(),
+                            table: None,
+                            reason: e.to_string(),
+                        })?;
+                        let json_value = crate::database::core::convert_value_ref_to_json(value_ref)?;
+                        row_values.push(json_value);
+                    }
+                    result_vec.push(row_values);
+                }
+                result_vec
+            } else {
+                // Execute without RETURNING clause
+                let rows_affected = tx.execute(&statement_sql, params_from_iter(param_refs.iter()))
+                    .map_err(|e| DatabaseError::ExecutionError {
+                        sql: statement_sql.clone(),
+                        table: None,
+                        reason: format!("Execute failed: {e}"),
+                    })?;
+                eprintln!("DEBUG: [execute_sql_with_context] DEV MODE - rows affected: {rows_affected}");
+                vec![]
+            }
         } else {
-            eprintln!(
-                "DEBUG: [execute_sql_with_context] Using execute_internal_typed (no RETURNING)"
-            );
-            SqlExecutor::execute_internal_typed(&tx, &hlc_service, &statement_sql, &param_refs)?;
-            vec![]
+            // Production mode: Use CRDT-aware execution
+            // Get HLC service reference
+            let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
+                reason: "Failed to lock HLC service".to_string(),
+            })?;
+
+            // Note: CRDT transformation (adding haex_timestamp) is handled by
+            // SqlExecutor::execute_internal_typed / query_internal_typed.
+            // Do NOT transform here to avoid double transformation!
+
+            if has_returning {
+                eprintln!(
+                    "DEBUG: [execute_sql_with_context] Using query_internal_typed (has RETURNING)"
+                );
+                let (_, rows) =
+                    SqlExecutor::query_internal_typed(&tx, &hlc_service, &statement_sql, &param_refs)?;
+                rows
+            } else {
+                eprintln!(
+                    "DEBUG: [execute_sql_with_context] Using execute_internal_typed (no RETURNING)"
+                );
+                SqlExecutor::execute_internal_typed(&tx, &hlc_service, &statement_sql, &param_refs)?;
+                vec![]
+            }
         };
 
         // Handle CREATE TABLE trigger setup (only for production extensions)

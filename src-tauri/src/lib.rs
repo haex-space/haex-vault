@@ -3,7 +3,9 @@ mod external_bridge;
 mod crdt;
 mod database;
 mod extension;
+mod filesystem;
 mod shortcuts;
+mod remote_storage;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod window;
 
@@ -317,75 +319,50 @@ pub fn run() {
             external_bridge::external_unblock_client,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             external_bridge::external_is_client_blocked,
-            // FileSync commands (extension/filesync) - require publicKey/name params (used by iframe handler)
-            extension::filesync::commands::filesync_list_spaces,
-            extension::filesync::commands::filesync_create_space,
-            extension::filesync::commands::filesync_delete_space,
-            extension::filesync::commands::filesync_list_files,
-            extension::filesync::commands::filesync_get_file,
-            extension::filesync::commands::filesync_upload_file,
-            extension::filesync::commands::filesync_download_file,
-            extension::filesync::commands::filesync_delete_file,
-            extension::filesync::commands::filesync_list_backends,
-            extension::filesync::commands::filesync_add_backend,
-            extension::filesync::commands::filesync_remove_backend,
-            extension::filesync::commands::filesync_test_backend,
-            extension::filesync::commands::filesync_list_sync_rules,
-            extension::filesync::commands::filesync_add_sync_rule,
-            extension::filesync::commands::filesync_update_sync_rule,
-            extension::filesync::commands::filesync_remove_sync_rule,
-            extension::filesync::commands::filesync_get_sync_status,
-            extension::filesync::commands::filesync_trigger_sync,
-            extension::filesync::commands::filesync_pause_sync,
-            extension::filesync::commands::filesync_resume_sync,
-            extension::filesync::commands::filesync_resolve_conflict,
-            extension::filesync::commands::filesync_select_folder,
-            extension::filesync::commands::filesync_scan_local,
-            // WebView FileSync commands - extract extension info from WebviewWindow (desktop only)
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_list_spaces,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_create_space,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_delete_space,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_list_files,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_get_file,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_upload_file,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_download_file,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_delete_file,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_list_backends,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_add_backend,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_remove_backend,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_test_backend,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_list_sync_rules,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_add_sync_rule,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_update_sync_rule,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_remove_sync_rule,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_get_sync_status,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_trigger_sync,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_pause_sync,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_resume_sync,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_resolve_conflict,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::filesync::webview_commands::webview_filesync_scan_local,
+            // Remote Storage API commands (internal - use extension_remote_storage_* for extensions)
+            remote_storage::remote_storage_list_backends,
+            remote_storage::remote_storage_add_backend,
+            remote_storage::remote_storage_update_backend,
+            remote_storage::remote_storage_remove_backend,
+            remote_storage::remote_storage_test_backend,
+            remote_storage::remote_storage_upload,
+            remote_storage::remote_storage_download,
+            remote_storage::remote_storage_delete,
+            remote_storage::remote_storage_list,
+            // Extension Remote Storage commands (with permission checks)
+            extension::remote_storage::commands::extension_remote_storage_list_backends,
+            extension::remote_storage::commands::extension_remote_storage_add_backend,
+            extension::remote_storage::commands::extension_remote_storage_update_backend,
+            extension::remote_storage::commands::extension_remote_storage_remove_backend,
+            extension::remote_storage::commands::extension_remote_storage_test_backend,
+            extension::remote_storage::commands::extension_remote_storage_upload,
+            extension::remote_storage::commands::extension_remote_storage_download,
+            extension::remote_storage::commands::extension_remote_storage_delete,
+            extension::remote_storage::commands::extension_remote_storage_list,
+            // Filesystem API commands (generische Filesystem Operationen - internal use)
+            filesystem::filesystem_read_file,
+            filesystem::filesystem_write_file,
+            filesystem::filesystem_read_dir,
+            filesystem::filesystem_mkdir,
+            filesystem::filesystem_remove,
+            filesystem::filesystem_exists,
+            filesystem::filesystem_stat,
+            filesystem::filesystem_select_folder,
+            filesystem::filesystem_select_file,
+            filesystem::filesystem_rename,
+            filesystem::filesystem_copy,
+            // Extension Filesystem commands (with permission checks)
+            extension::filesystem::commands::extension_filesystem_read_file,
+            extension::filesystem::commands::extension_filesystem_write_file,
+            extension::filesystem::commands::extension_filesystem_read_dir,
+            extension::filesystem::commands::extension_filesystem_mkdir,
+            extension::filesystem::commands::extension_filesystem_remove,
+            extension::filesystem::commands::extension_filesystem_exists,
+            extension::filesystem::commands::extension_filesystem_stat,
+            extension::filesystem::commands::extension_filesystem_select_folder,
+            extension::filesystem::commands::extension_filesystem_select_file,
+            extension::filesystem::commands::extension_filesystem_rename,
+            extension::filesystem::commands::extension_filesystem_copy,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

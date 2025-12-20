@@ -1,0 +1,1 @@
+ALTER TABLE `haex_file_sync_rules` ADD `conflict_strategy` text DEFAULT 'ask' NOT NULL;

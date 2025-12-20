@@ -1,5 +1,5 @@
 import type { Platform } from '@tauri-apps/plugin-os'
-import { HAEXTENSION_METHODS } from '@haex-space/vault-sdk'
+import { TAURI_COMMANDS } from '@haex-space/vault-sdk'
 import type { ExtensionRequest } from './types'
 
 // Context getters are set from the main handler during initialization
@@ -21,7 +21,7 @@ export function setContextGetters(getters: {
 
 export async function handleContextMethodAsync(request: ExtensionRequest) {
   switch (request.method) {
-    case HAEXTENSION_METHODS.context.get:
+    case TAURI_COMMANDS.extension.getContext:
       if (!contextGetters) {
         throw new Error(
           'Context not initialized. Make sure useExtensionMessageHandler is called in a component.',

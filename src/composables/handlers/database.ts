@@ -1,38 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
-import { HAEXTENSION_METHODS } from '@haex-space/vault-sdk'
+import { TAURI_COMMANDS } from '@haex-space/vault-sdk'
 import type { IHaexSpaceExtension } from '~/types/haexspace'
 import type { ExtensionRequest } from './types'
-import { isPermissionPromptRequired, extractPromptData } from '~/composables/usePermissionPrompt'
-
-const { promptForPermission } = usePermissionPrompt()
-
-/**
- * Wraps an invoke call with permission prompt handling.
- * If the backend returns a permission prompt required error,
- * shows the permission dialog and retries on approval.
- */
-async function invokeWithPermissionPrompt<T>(
-  command: string,
-  args: Record<string, unknown>,
-): Promise<T> {
-  try {
-    return await invoke<T>(command, args)
-  } catch (error) {
-    if (isPermissionPromptRequired(error)) {
-      const promptData = extractPromptData(error)!
-      const decision = await promptForPermission(promptData)
-
-      if (decision === 'granted' || decision === 'ask') {
-        // Retry the request after permission granted/allowed once
-        return await invoke<T>(command, args)
-      }
-
-      // User denied - rethrow original error
-      throw error
-    }
-    throw error
-  }
-}
+import { invokeWithPermissionPrompt } from './invoke'
 
 export async function handleDatabaseMethodAsync(
   request: ExtensionRequest,
@@ -44,7 +14,7 @@ export async function handleDatabaseMethodAsync(
   }
 
   switch (request.method) {
-    case HAEXTENSION_METHODS.database.query: {
+    case TAURI_COMMANDS.database.query: {
       try {
         const rows = await invokeWithPermissionPrompt<unknown[]>('extension_sql_select', {
           sql: params.query || '',
@@ -80,7 +50,7 @@ export async function handleDatabaseMethodAsync(
       }
     }
 
-    case HAEXTENSION_METHODS.database.execute: {
+    case TAURI_COMMANDS.database.execute: {
       const rows = await invokeWithPermissionPrompt<unknown[]>('extension_sql_execute', {
         sql: params.query || '',
         params: params.params || [],
@@ -95,7 +65,7 @@ export async function handleDatabaseMethodAsync(
       }
     }
 
-    case HAEXTENSION_METHODS.database.transaction: {
+    case TAURI_COMMANDS.database.transaction: {
       const statements =
         (request.params as { statements?: string[] }).statements || []
 
@@ -111,7 +81,7 @@ export async function handleDatabaseMethodAsync(
       return { success: true }
     }
 
-    case HAEXTENSION_METHODS.database.registerMigrations: {
+    case TAURI_COMMANDS.database.registerMigrations: {
       const migrationParams = request.params as {
         extensionVersion: string
         migrations: Array<{ name: string; sql: string }>

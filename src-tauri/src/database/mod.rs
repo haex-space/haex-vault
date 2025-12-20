@@ -5,6 +5,7 @@ pub mod error;
 pub mod generated;
 pub mod init;
 pub mod migrations;
+pub mod row;
 pub mod stats;
 
 use crate::crdt::hlc::HlcService;

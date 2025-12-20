@@ -1,0 +1,62 @@
+// src-tauri/src/storage/queries.rs
+//!
+//! Storage Backend Database Queries
+//!
+
+use crate::table_names::{
+    COL_STORAGE_BACKENDS_CONFIG, COL_STORAGE_BACKENDS_CREATED_AT, COL_STORAGE_BACKENDS_ENABLED,
+    COL_STORAGE_BACKENDS_ID, COL_STORAGE_BACKENDS_NAME, COL_STORAGE_BACKENDS_TYPE,
+    TABLE_STORAGE_BACKENDS,
+};
+use lazy_static::lazy_static;
+
+lazy_static! {
+    /// List all storage backends (with config for editing)
+    pub static ref SQL_LIST_BACKENDS: String = format!(
+        "SELECT {COL_STORAGE_BACKENDS_ID}, {COL_STORAGE_BACKENDS_TYPE}, {COL_STORAGE_BACKENDS_NAME}, \
+         {COL_STORAGE_BACKENDS_ENABLED}, {COL_STORAGE_BACKENDS_CREATED_AT}, {COL_STORAGE_BACKENDS_CONFIG} \
+         FROM {TABLE_STORAGE_BACKENDS} ORDER BY {COL_STORAGE_BACKENDS_NAME}"
+    );
+
+    /// Get a single backend by ID (with config)
+    pub static ref SQL_GET_BACKEND: String = format!(
+        "SELECT {COL_STORAGE_BACKENDS_ID}, {COL_STORAGE_BACKENDS_TYPE}, {COL_STORAGE_BACKENDS_NAME}, \
+         {COL_STORAGE_BACKENDS_CONFIG}, {COL_STORAGE_BACKENDS_ENABLED}, {COL_STORAGE_BACKENDS_CREATED_AT} \
+         FROM {TABLE_STORAGE_BACKENDS} WHERE {COL_STORAGE_BACKENDS_ID} = ?1"
+    );
+
+    /// Get backend config only
+    pub static ref SQL_GET_BACKEND_CONFIG: String = format!(
+        "SELECT {COL_STORAGE_BACKENDS_TYPE}, {COL_STORAGE_BACKENDS_CONFIG} \
+         FROM {TABLE_STORAGE_BACKENDS} WHERE {COL_STORAGE_BACKENDS_ID} = ?1"
+    );
+
+    /// Insert a new backend
+    pub static ref SQL_INSERT_BACKEND: String = format!(
+        "INSERT INTO {TABLE_STORAGE_BACKENDS} \
+         ({COL_STORAGE_BACKENDS_ID}, {COL_STORAGE_BACKENDS_TYPE}, {COL_STORAGE_BACKENDS_NAME}, \
+          {COL_STORAGE_BACKENDS_CONFIG}, {COL_STORAGE_BACKENDS_ENABLED}) \
+         VALUES (?1, ?2, ?3, ?4, 1) \
+         RETURNING {COL_STORAGE_BACKENDS_ID}, {COL_STORAGE_BACKENDS_TYPE}, {COL_STORAGE_BACKENDS_NAME}, \
+         {COL_STORAGE_BACKENDS_ENABLED}, {COL_STORAGE_BACKENDS_CREATED_AT}"
+    );
+
+    /// Delete a backend
+    pub static ref SQL_DELETE_BACKEND: String = format!(
+        "DELETE FROM {TABLE_STORAGE_BACKENDS} WHERE {COL_STORAGE_BACKENDS_ID} = ?1"
+    );
+
+    /// Update backend enabled status
+    pub static ref SQL_UPDATE_BACKEND_ENABLED: String = format!(
+        "UPDATE {TABLE_STORAGE_BACKENDS} SET {COL_STORAGE_BACKENDS_ENABLED} = ?2 \
+         WHERE {COL_STORAGE_BACKENDS_ID} = ?1"
+    );
+
+    /// Update backend name and config
+    pub static ref SQL_UPDATE_BACKEND: String = format!(
+        "UPDATE {TABLE_STORAGE_BACKENDS} SET {COL_STORAGE_BACKENDS_NAME} = ?2, {COL_STORAGE_BACKENDS_CONFIG} = ?3 \
+         WHERE {COL_STORAGE_BACKENDS_ID} = ?1 \
+         RETURNING {COL_STORAGE_BACKENDS_ID}, {COL_STORAGE_BACKENDS_TYPE}, {COL_STORAGE_BACKENDS_NAME}, \
+         {COL_STORAGE_BACKENDS_ENABLED}, {COL_STORAGE_BACKENDS_CREATED_AT}, {COL_STORAGE_BACKENDS_CONFIG}"
+    );
+}

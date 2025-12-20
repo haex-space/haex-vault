@@ -2,6 +2,34 @@
 // Utility functions for extension management
 
 use crate::extension::error::ExtensionError;
+use crate::AppState;
+use tauri::State;
+
+// ============================================================================
+// Extension Identification
+// ============================================================================
+
+/// Get extension ID from public_key and name.
+/// Used by extension commands to identify the calling extension.
+pub async fn get_extension_id(
+    state: &State<'_, AppState>,
+    public_key: &str,
+    name: &str,
+) -> Result<String, ExtensionError> {
+    let extension = state
+        .extension_manager
+        .get_extension_by_public_key_and_name(public_key, name)?
+        .ok_or_else(|| ExtensionError::NotFound {
+            public_key: public_key.to_string(),
+            name: name.to_string(),
+        })?;
+
+    Ok(extension.id)
+}
+
+// ============================================================================
+// Table Prefix Utilities
+// ============================================================================
 
 /// Generates the table prefix for an extension
 /// Format: {public_key}__{extension_name}__

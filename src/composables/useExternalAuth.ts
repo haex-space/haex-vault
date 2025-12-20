@@ -90,7 +90,7 @@ export function useExternalAuth() {
           if (extensionIds && extensionIds.length > 0) {
             // Allow access for each selected extension
             for (const extensionId of extensionIds) {
-              await invoke(TAURI_COMMANDS.external.clientAllow, {
+              await invoke(TAURI_COMMANDS.externalBridge.clientAllow, {
                 clientId: pendingAuth.value.clientId,
                 clientName: pendingAuth.value.clientName,
                 publicKey: pendingAuth.value.publicKey,
@@ -108,7 +108,7 @@ export function useExternalAuth() {
 
         case 'deny':
           // Block this client (permanently if remember is true)
-          await invoke(TAURI_COMMANDS.external.clientBlock, {
+          await invoke(TAURI_COMMANDS.externalBridge.clientBlock, {
             clientId: pendingAuth.value.clientId,
             clientName: pendingAuth.value.clientName,
             publicKey: pendingAuth.value.publicKey,
@@ -139,7 +139,7 @@ export function useExternalAuth() {
     }
 
     try {
-      await invoke(TAURI_COMMANDS.external.clientBlock, {
+      await invoke(TAURI_COMMANDS.externalBridge.clientBlock, {
         clientId: pendingAuth.value.clientId,
         clientName: pendingAuth.value.clientName,
         publicKey: pendingAuth.value.publicKey,
@@ -159,7 +159,7 @@ export function useExternalAuth() {
    */
   async function getAuthorizedClients(): Promise<AuthorizedClient[]> {
     try {
-      return await invoke<AuthorizedClient[]>(TAURI_COMMANDS.external.getAuthorizedClients)
+      return await invoke<AuthorizedClient[]>(TAURI_COMMANDS.externalBridge.getAuthorizedClients)
     } catch (error) {
       console.error('[ExternalAuth] Failed to get authorized clients:', error)
       return []
@@ -171,7 +171,7 @@ export function useExternalAuth() {
    */
   async function revokeClient(clientId: string): Promise<void> {
     try {
-      await invoke(TAURI_COMMANDS.external.revokeClient, { clientId })
+      await invoke(TAURI_COMMANDS.externalBridge.revokeClient, { clientId })
       console.log('[ExternalAuth] Client revoked:', clientId)
     } catch (error) {
       console.error('[ExternalAuth] Failed to revoke client:', error)
@@ -184,7 +184,7 @@ export function useExternalAuth() {
    */
   async function getBlockedClients(): Promise<BlockedClient[]> {
     try {
-      return await invoke<BlockedClient[]>(TAURI_COMMANDS.external.getBlockedClients)
+      return await invoke<BlockedClient[]>(TAURI_COMMANDS.externalBridge.getBlockedClients)
     } catch (error) {
       console.error('[ExternalAuth] Failed to get blocked clients:', error)
       return []
@@ -196,7 +196,7 @@ export function useExternalAuth() {
    */
   async function unblockClient(clientId: string): Promise<void> {
     try {
-      await invoke(TAURI_COMMANDS.external.unblockClient, { clientId })
+      await invoke(TAURI_COMMANDS.externalBridge.unblockClient, { clientId })
       console.log('[ExternalAuth] Client unblocked:', clientId)
     } catch (error) {
       console.error('[ExternalAuth] Failed to unblock client:', error)
@@ -210,7 +210,7 @@ export function useExternalAuth() {
    */
   async function getSessionAuthorizations(): Promise<SessionAuthorization[]> {
     try {
-      return await invoke<SessionAuthorization[]>(TAURI_COMMANDS.external.getSessionAuthorizations)
+      return await invoke<SessionAuthorization[]>(TAURI_COMMANDS.externalBridge.getSessionAuthorizations)
     } catch (error) {
       console.error('[ExternalAuth] Failed to get session authorizations:', error)
       return []
@@ -222,7 +222,7 @@ export function useExternalAuth() {
    */
   async function revokeSessionAuthorization(clientId: string): Promise<void> {
     try {
-      await invoke(TAURI_COMMANDS.external.revokeSessionAuthorization, { clientId })
+      await invoke(TAURI_COMMANDS.externalBridge.revokeSessionAuthorization, { clientId })
       console.log('[ExternalAuth] Session authorization revoked:', clientId)
     } catch (error) {
       console.error('[ExternalAuth] Failed to revoke session authorization:', error)
