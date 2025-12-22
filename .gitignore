@@ -31,4 +31,4 @@ target
 CLAUDE.md
 
 # Tauri Android generated files
-src-tauri/gen/android/
+src-tauri/gen/android/playwright-report/
