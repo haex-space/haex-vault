@@ -15,11 +15,11 @@ mod tests;
 pub mod types;
 
 pub use commands::{
-    apply_synced_extension_migrations, extension_sql_execute, extension_sql_select,
-    register_extension_migrations,
+    apply_synced_extension_migrations, extension_database_execute,
+    extension_database_query, extension_database_register_migrations,
 };
 pub use helpers::{
     execute_migration_statements, execute_sql_with_context, validate_sql_table_prefix,
     ExtensionSqlContext,
 };
-pub use types::MigrationResult;
+pub use types::{DatabaseQueryResult, MigrationResult};

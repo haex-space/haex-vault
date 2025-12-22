@@ -4,65 +4,58 @@ import type { IHaexSpaceExtension } from '~/types/haexspace'
 import type { ExtensionRequest } from './types'
 import { invokeWithPermissionPrompt } from './invoke'
 
+interface DatabaseQueryResult {
+  rows: unknown[]
+  rowsAffected: number
+  lastInsertId?: number
+}
+
 export async function handleDatabaseMethodAsync(
   request: ExtensionRequest,
   extension: IHaexSpaceExtension,
 ) {
   const params = request.params as {
-    query?: string
+    sql?: string
     params?: unknown[]
   }
 
   switch (request.method) {
     case TAURI_COMMANDS.database.query: {
       try {
-        const rows = await invokeWithPermissionPrompt<unknown[]>('extension_sql_select', {
-          sql: params.query || '',
+        // Backend now returns DatabaseQueryResult directly
+        const result = await invokeWithPermissionPrompt<DatabaseQueryResult>(TAURI_COMMANDS.database.query, {
+          sql: params.sql || '',
           params: params.params || [],
           publicKey: extension.publicKey,
           name: extension.name,
         })
-
-        return {
-          rows,
-          rowsAffected: 0,
-          lastInsertId: undefined,
-        }
+        return result
       } catch (error) {
         // If error is about non-SELECT statements (INSERT/UPDATE/DELETE with RETURNING),
         // automatically retry with execute
         const errorMessage = error instanceof Error ? error.message : String(error)
         if (errorMessage.includes('Only SELECT statements are allowed')) {
-          const rows = await invokeWithPermissionPrompt<unknown[]>('extension_sql_execute', {
-            sql: params.query || '',
+          const result = await invokeWithPermissionPrompt<DatabaseQueryResult>(TAURI_COMMANDS.database.execute, {
+            sql: params.sql || '',
             params: params.params || [],
             publicKey: extension.publicKey,
             name: extension.name,
           })
-
-          return {
-            rows,
-            rowsAffected: rows.length,
-            lastInsertId: undefined,
-          }
+          return result
         }
         throw error
       }
     }
 
     case TAURI_COMMANDS.database.execute: {
-      const rows = await invokeWithPermissionPrompt<unknown[]>('extension_sql_execute', {
-        sql: params.query || '',
+      // Backend now returns DatabaseQueryResult directly
+      const result = await invokeWithPermissionPrompt<DatabaseQueryResult>(TAURI_COMMANDS.database.execute, {
+        sql: params.sql || '',
         params: params.params || [],
         publicKey: extension.publicKey,
         name: extension.name,
       })
-
-      return {
-        rows,
-        rowsAffected: 1,
-        lastInsertId: undefined,
-      }
+      return result
     }
 
     case TAURI_COMMANDS.database.transaction: {
@@ -70,7 +63,7 @@ export async function handleDatabaseMethodAsync(
         (request.params as { statements?: string[] }).statements || []
 
       for (const stmt of statements) {
-        await invokeWithPermissionPrompt('extension_sql_execute', {
+        await invokeWithPermissionPrompt(TAURI_COMMANDS.database.execute, {
           sql: stmt,
           params: [],
           publicKey: extension.publicKey,
@@ -91,9 +84,9 @@ export async function handleDatabaseMethodAsync(
         appliedCount: number
         alreadyAppliedCount: number
         appliedMigrations: string[]
-      }>('register_extension_migrations', {
+      }>(TAURI_COMMANDS.database.registerMigrations, {
         publicKey: extension.publicKey,
-        extensionName: extension.name,
+        name: extension.name,
         extensionVersion: migrationParams.extensionVersion,
         migrations: migrationParams.migrations,
       })

@@ -15,7 +15,7 @@ use crate::extension::database::queries::{
     SQL_COUNT_APPLIED_MIGRATIONS, SQL_GET_PENDING_MIGRATIONS, SQL_GET_SYNCED_PENDING_MIGRATIONS,
     SQL_INSERT_CRDT_MIGRATION, SQL_INSERT_EXTENSION_MIGRATION,
 };
-use crate::extension::database::types::MigrationResult;
+use crate::extension::database::types::{DatabaseQueryResult, MigrationResult};
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::validator::SqlPermissionValidator;
 use crate::AppState;
@@ -27,13 +27,13 @@ use tauri::State;
 
 /// Executes a SQL statement for an extension with full permission validation.
 #[tauri::command]
-pub async fn extension_sql_execute(
+pub async fn extension_database_execute(
     sql: &str,
     params: Vec<JsonValue>,
     public_key: String,
     name: String,
     state: State<'_, AppState>,
-) -> Result<Vec<Vec<JsonValue>>, ExtensionError> {
+) -> Result<DatabaseQueryResult, ExtensionError> {
     let extension = state
         .extension_manager
         .get_extension_by_public_key_and_name(&public_key, &name)?
@@ -47,18 +47,24 @@ pub async fn extension_sql_execute(
     SqlPermissionValidator::validate_sql(&state, &extension.id, sql).await?;
 
     let ctx = ExtensionSqlContext::new(public_key, name, is_dev_mode);
-    execute_sql_with_context(&ctx, sql, &params, state.inner())
+    let rows = execute_sql_with_context(&ctx, sql, &params, state.inner())?;
+
+    Ok(DatabaseQueryResult {
+        rows_affected: rows.len(),
+        rows,
+        last_insert_id: None,
+    })
 }
 
 /// Executes a SELECT statement for an extension
 #[tauri::command]
-pub async fn extension_sql_select(
+pub async fn extension_database_query(
     sql: &str,
     params: Vec<JsonValue>,
     public_key: String,
     name: String,
     state: State<'_, AppState>,
-) -> Result<Vec<Vec<JsonValue>>, ExtensionError> {
+) -> Result<DatabaseQueryResult, ExtensionError> {
     let extension = state
         .extension_manager
         .get_extension_by_public_key_and_name(&public_key, &name)?
@@ -83,7 +89,11 @@ pub async fn extension_sql_select(
     let mut ast_vec = parse_sql_statements(sql)?;
 
     if ast_vec.is_empty() {
-        return Ok(vec![]);
+        return Ok(DatabaseQueryResult {
+            rows: vec![],
+            rows_affected: 0,
+            last_insert_id: None,
+        });
     }
 
     for stmt in &ast_vec {
@@ -91,14 +101,14 @@ pub async fn extension_sql_select(
             return Err(ExtensionError::Database {
                 source: DatabaseError::ExecutionError {
                     sql: sql.to_string(),
-                    reason: "Only SELECT statements are allowed in extension_sql_select".to_string(),
+                    reason: "Only SELECT statements are allowed in extension_database_query".to_string(),
                     table: None,
                 },
             });
         }
     }
 
-    with_connection(&state.db, |conn| {
+    let rows = with_connection(&state.db, |conn| {
         let sql_params = ValueConverter::convert_params(&params)?;
         let stmt_to_execute = ast_vec.pop().unwrap();
         let transformed_sql = stmt_to_execute.to_string();
@@ -136,24 +146,30 @@ pub async fn extension_sql_select(
 
         Ok(result_vec)
     })
-    .map_err(ExtensionError::from)
+    .map_err(ExtensionError::from)?;
+
+    Ok(DatabaseQueryResult {
+        rows,
+        rows_affected: 0,
+        last_insert_id: None,
+    })
 }
 
 /// Registers and applies extension migrations
 #[tauri::command]
-pub async fn register_extension_migrations(
+pub async fn extension_database_register_migrations(
     public_key: String,
-    extension_name: String,
+    name: String,
     extension_version: String,
     migrations: Vec<serde_json::Map<String, JsonValue>>,
     state: State<'_, AppState>,
 ) -> Result<MigrationResult, ExtensionError> {
     let extension = state
         .extension_manager
-        .get_extension_by_public_key_and_name(&public_key, &extension_name)?
+        .get_extension_by_public_key_and_name(&public_key, &name)?
         .ok_or_else(|| ExtensionError::NotFound {
             public_key: public_key.clone(),
-            name: extension_name.clone(),
+            name: name.clone(),
         })?;
 
     let extension_id = extension.id.clone();
@@ -161,7 +177,7 @@ pub async fn register_extension_migrations(
 
     // Dev mode: Execute migrations directly without database tracking
     if is_dev_mode {
-        return execute_dev_mode_migrations(&public_key, &extension_name, &migrations, state.inner())
+        return execute_dev_mode_migrations(&public_key, &name, &migrations, state.inner())
             .map_err(Into::into);
     }
 
@@ -182,7 +198,7 @@ pub async fn register_extension_migrations(
             })?;
 
         let statements = split_migration_statements(sql_statement);
-        let ctx = ExtensionSqlContext::new(public_key.clone(), extension_name.clone(), is_dev_mode);
+        let ctx = ExtensionSqlContext::new(public_key.clone(), name.clone(), is_dev_mode);
 
         for stmt in statements.iter() {
             validate_sql_table_prefix(&ctx, stmt)?;
@@ -236,7 +252,7 @@ pub async fn register_extension_migrations(
 
     // Apply pending migrations
     let mut applied_names: Vec<String> = Vec::new();
-    let exec_ctx = ExtensionSqlContext::new(public_key.clone(), extension_name.clone(), false);
+    let exec_ctx = ExtensionSqlContext::new(public_key.clone(), name.clone(), false);
 
     for (migration_name, sql_content) in &pending_migrations {
         execute_migration_statements(&exec_ctx, sql_content, state.inner())?;

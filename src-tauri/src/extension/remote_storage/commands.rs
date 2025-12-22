@@ -23,7 +23,7 @@ use tauri::State;
 // ============================================================================
 
 /// List all storage backends (requires filesync:backends:read permission)
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn extension_remote_storage_list_backends(
     public_key: String,
     name: String,
@@ -47,7 +47,7 @@ pub async fn extension_remote_storage_list_backends(
 }
 
 /// Add a new storage backend (requires filesync:backends:readWrite permission)
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn extension_remote_storage_add_backend(
     public_key: String,
     name: String,
@@ -72,7 +72,7 @@ pub async fn extension_remote_storage_add_backend(
 }
 
 /// Update a storage backend (requires filesync:backends:readWrite permission)
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn extension_remote_storage_update_backend(
     public_key: String,
     name: String,
@@ -97,7 +97,7 @@ pub async fn extension_remote_storage_update_backend(
 }
 
 /// Remove a storage backend (requires filesync:backends:readWrite permission)
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn extension_remote_storage_remove_backend(
     public_key: String,
     name: String,
@@ -122,7 +122,7 @@ pub async fn extension_remote_storage_remove_backend(
 }
 
 /// Test a storage backend connection (requires filesync:backends:read permission)
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn extension_remote_storage_test_backend(
     public_key: String,
     name: String,
@@ -151,7 +151,7 @@ pub async fn extension_remote_storage_test_backend(
 // ============================================================================
 
 /// Upload data to a storage backend (requires filesync:backends:readWrite permission)
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn extension_remote_storage_upload(
     public_key: String,
     name: String,
@@ -176,7 +176,7 @@ pub async fn extension_remote_storage_upload(
 }
 
 /// Download data from a storage backend (requires filesync:backends:read permission)
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn extension_remote_storage_download(
     public_key: String,
     name: String,
@@ -201,7 +201,7 @@ pub async fn extension_remote_storage_download(
 }
 
 /// Delete an object from a storage backend (requires filesync:backends:readWrite permission)
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn extension_remote_storage_delete(
     public_key: String,
     name: String,
@@ -226,7 +226,7 @@ pub async fn extension_remote_storage_delete(
 }
 
 /// List objects in a storage backend (requires filesync:backends:read permission)
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn extension_remote_storage_list(
     public_key: String,
     name: String,

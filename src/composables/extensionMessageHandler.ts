@@ -207,7 +207,8 @@ const registerGlobalMessageHandler = () => {
       } else if (
         request.method === TAURI_COMMANDS.filesystem.saveFile ||
         request.method === TAURI_COMMANDS.filesystem.openFile ||
-        request.method === TAURI_COMMANDS.filesystem.showImage
+        request.method === TAURI_COMMANDS.filesystem.showImage ||
+        request.method.startsWith('extension_filesystem_')
       ) {
         result = await handleFilesystemMethodAsync(request, instance.extension)
       } else if (

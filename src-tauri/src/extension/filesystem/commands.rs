@@ -20,7 +20,7 @@ use tauri::State;
 // ============================================================================
 
 /// Read file contents as base64 (requires fs:read permission for path)
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_read_file(
     public_key: String,
     name: String,
@@ -47,7 +47,7 @@ pub async fn extension_filesystem_read_file(
 }
 
 /// Read directory contents (requires fs:read permission for path)
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_read_dir(
     public_key: String,
     name: String,
@@ -74,7 +74,7 @@ pub async fn extension_filesystem_read_dir(
 }
 
 /// Check if a path exists (requires fs:read permission for path)
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_exists(
     public_key: String,
     name: String,
@@ -101,7 +101,7 @@ pub async fn extension_filesystem_exists(
 }
 
 /// Get file/directory metadata (requires fs:read permission for path)
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_stat(
     public_key: String,
     name: String,
@@ -132,7 +132,7 @@ pub async fn extension_filesystem_stat(
 // ============================================================================
 
 /// Write file contents from base64 (requires fs:readWrite permission for path)
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_write_file(
     public_key: String,
     name: String,
@@ -160,7 +160,7 @@ pub async fn extension_filesystem_write_file(
 }
 
 /// Create a directory (requires fs:readWrite permission for path)
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_mkdir(
     public_key: String,
     name: String,
@@ -187,7 +187,7 @@ pub async fn extension_filesystem_mkdir(
 }
 
 /// Remove a file or directory (requires fs:readWrite permission for path)
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_remove(
     public_key: String,
     name: String,
@@ -215,7 +215,7 @@ pub async fn extension_filesystem_remove(
 }
 
 /// Rename/move a file or directory (requires fs:readWrite permission for both paths)
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_rename(
     public_key: String,
     name: String,
@@ -252,7 +252,7 @@ pub async fn extension_filesystem_rename(
 }
 
 /// Copy a file (requires fs:read for source, fs:readWrite for destination)
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_copy(
     public_key: String,
     name: String,
@@ -294,7 +294,7 @@ pub async fn extension_filesystem_copy(
 
 /// Open a folder selection dialog
 /// Note: No permission check needed as user explicitly selects the folder
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_select_folder(
     public_key: String,
     name: String,
@@ -302,12 +302,13 @@ pub async fn extension_filesystem_select_folder(
     default_path: Option<String>,
     window: tauri::WebviewWindow,
     state: State<'_, AppState>,
+    app_handle: tauri::AppHandle,
 ) -> Result<Option<String>, ExtensionError> {
     // Verify extension exists
     let _extension_id = get_extension_id(&state, &public_key, &name).await?;
 
     // Delegate to internal filesystem command (no permission check - user explicitly selects)
-    crate::filesystem::filesystem_select_folder(window, title, default_path)
+    crate::filesystem::filesystem_select_folder(window, title, default_path, app_handle)
         .await
         .map_err(|e| ExtensionError::FilesystemError {
             reason: e.to_string(),
@@ -316,7 +317,7 @@ pub async fn extension_filesystem_select_folder(
 
 /// Open a file selection dialog
 /// Note: No permission check needed as user explicitly selects the file
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_select_file(
     public_key: String,
     name: String,
@@ -326,12 +327,13 @@ pub async fn extension_filesystem_select_file(
     multiple: Option<bool>,
     window: tauri::WebviewWindow,
     state: State<'_, AppState>,
+    app_handle: tauri::AppHandle,
 ) -> Result<Option<Vec<String>>, ExtensionError> {
     // Verify extension exists
     let _extension_id = get_extension_id(&state, &public_key, &name).await?;
 
     // Delegate to internal filesystem command (no permission check - user explicitly selects)
-    crate::filesystem::filesystem_select_file(window, title, default_path, filters, multiple)
+    crate::filesystem::filesystem_select_file(window, title, default_path, filters, multiple, app_handle)
         .await
         .map_err(|e| ExtensionError::FilesystemError {
             reason: e.to_string(),
