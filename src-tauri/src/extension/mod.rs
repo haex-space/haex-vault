@@ -28,6 +28,9 @@ pub mod web;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod webview;
 
+#[cfg(test)]
+mod tests;
+
 #[tauri::command]
 pub fn get_extension_info(
     public_key: String,
