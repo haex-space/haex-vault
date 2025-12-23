@@ -302,6 +302,16 @@ pub fn execute_sql_with_context(
                     table_name_str
                 );
             } else {
+                // For CREATE TABLE IF NOT EXISTS: The table might already exist without CRDT columns
+                // (e.g., from a previous dev mode installation). Ensure CRDT columns exist.
+                let columns_added = trigger::ensure_crdt_columns(&tx, &table_name_str)?;
+                if columns_added {
+                    println!(
+                        "[CRDT] Added missing CRDT columns to existing table '{}'",
+                        table_name_str
+                    );
+                }
+
                 println!(
                     "Table '{}' created by extension, setting up CRDT triggers...",
                     table_name_str

@@ -349,3 +349,205 @@ fn generate_delete_trigger_sql(table_name: &str) -> String {
             END;"
     )
 }
+
+/// Ensures that a table has all required CRDT columns.
+/// If columns are missing, they are added via ALTER TABLE.
+/// Returns true if any columns were added, false if all columns already existed.
+pub fn ensure_crdt_columns(
+    tx: &Transaction,
+    table_name: &str,
+) -> Result<bool, CrdtSetupError> {
+    let columns = get_table_schema(tx, table_name)?;
+
+    if columns.is_empty() {
+        // Table doesn't exist - nothing to do
+        return Ok(false);
+    }
+
+    let has_hlc = columns.iter().any(|c| c.name == HLC_TIMESTAMP_COLUMN);
+    let has_column_hlcs = columns.iter().any(|c| c.name == COLUMN_HLCS_COLUMN);
+    let has_tombstone = columns.iter().any(|c| c.name == TOMBSTONE_COLUMN);
+
+    let mut added_any = false;
+
+    // Add missing CRDT columns
+    if !has_hlc {
+        let sql = format!(
+            "ALTER TABLE \"{}\" ADD COLUMN \"{}\" TEXT",
+            table_name, HLC_TIMESTAMP_COLUMN
+        );
+        tx.execute(&sql, [])
+            .map_err(CrdtSetupError::DatabaseError)?;
+        println!(
+            "[CRDT] Added missing column '{}' to table '{}'",
+            HLC_TIMESTAMP_COLUMN, table_name
+        );
+        added_any = true;
+    }
+
+    if !has_column_hlcs {
+        let sql = format!(
+            "ALTER TABLE \"{}\" ADD COLUMN \"{}\" TEXT NOT NULL DEFAULT '{{}}'",
+            table_name, COLUMN_HLCS_COLUMN
+        );
+        tx.execute(&sql, [])
+            .map_err(CrdtSetupError::DatabaseError)?;
+        println!(
+            "[CRDT] Added missing column '{}' to table '{}'",
+            COLUMN_HLCS_COLUMN, table_name
+        );
+        added_any = true;
+    }
+
+    if !has_tombstone {
+        let sql = format!(
+            "ALTER TABLE \"{}\" ADD COLUMN \"{}\" INTEGER NOT NULL DEFAULT 0",
+            table_name, TOMBSTONE_COLUMN
+        );
+        tx.execute(&sql, [])
+            .map_err(CrdtSetupError::DatabaseError)?;
+        println!(
+            "[CRDT] Added missing column '{}' to table '{}'",
+            TOMBSTONE_COLUMN, table_name
+        );
+        added_any = true;
+    }
+
+    Ok(added_any)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    /// Test that ensure_crdt_columns adds the same columns that the CrdtTransformer
+    /// would add to a CREATE TABLE statement.
+    /// This ensures consistency between the two approaches.
+    #[test]
+    fn test_ensure_crdt_columns_consistency_with_transformer() {
+        // The CRDT columns that should be added are defined by these constants:
+        // - HLC_TIMESTAMP_COLUMN ("haex_timestamp")
+        // - COLUMN_HLCS_COLUMN ("haex_column_hlcs")
+        // - TOMBSTONE_COLUMN ("haex_tombstone")
+        //
+        // Both ensure_crdt_columns (in trigger.rs) and CrdtColumns::add_to_table_definition
+        // (in transformer.rs) must use these same constants.
+        //
+        // This test verifies that ensure_crdt_columns adds all required columns.
+
+        let conn = Connection::open_in_memory().unwrap();
+
+        // Create a table WITHOUT CRDT columns
+        conn.execute(
+            "CREATE TABLE test_table (id TEXT PRIMARY KEY, name TEXT)",
+            [],
+        )
+        .unwrap();
+
+        let tx = conn.unchecked_transaction().unwrap();
+
+        // Ensure CRDT columns are added
+        let result = ensure_crdt_columns(&tx, "test_table").unwrap();
+        assert!(result, "Should have added columns");
+
+        tx.commit().unwrap();
+
+        // Verify all three CRDT columns exist
+        let columns = get_table_schema(&conn, "test_table").unwrap();
+        let column_names: Vec<&str> = columns.iter().map(|c| c.name.as_str()).collect();
+
+        assert!(
+            column_names.contains(&HLC_TIMESTAMP_COLUMN),
+            "Missing {} column. Found: {:?}",
+            HLC_TIMESTAMP_COLUMN,
+            column_names
+        );
+        assert!(
+            column_names.contains(&COLUMN_HLCS_COLUMN),
+            "Missing {} column. Found: {:?}",
+            COLUMN_HLCS_COLUMN,
+            column_names
+        );
+        assert!(
+            column_names.contains(&TOMBSTONE_COLUMN),
+            "Missing {} column. Found: {:?}",
+            TOMBSTONE_COLUMN,
+            column_names
+        );
+    }
+
+    #[test]
+    fn test_ensure_crdt_columns_idempotent() {
+        let conn = Connection::open_in_memory().unwrap();
+
+        // Create a table that already has CRDT columns
+        conn.execute(
+            &format!(
+                "CREATE TABLE test_table (
+                    id TEXT PRIMARY KEY,
+                    name TEXT,
+                    {} TEXT,
+                    {} TEXT NOT NULL DEFAULT '{{}}',
+                    {} INTEGER NOT NULL DEFAULT 0
+                )",
+                HLC_TIMESTAMP_COLUMN, COLUMN_HLCS_COLUMN, TOMBSTONE_COLUMN
+            ),
+            [],
+        )
+        .unwrap();
+
+        let tx = conn.unchecked_transaction().unwrap();
+
+        // ensure_crdt_columns should return false (no columns added)
+        let result = ensure_crdt_columns(&tx, "test_table").unwrap();
+        assert!(!result, "Should not have added any columns");
+
+        tx.commit().unwrap();
+    }
+
+    #[test]
+    fn test_ensure_crdt_columns_partial() {
+        let conn = Connection::open_in_memory().unwrap();
+
+        // Create a table with only haex_timestamp (missing other CRDT columns)
+        conn.execute(
+            &format!(
+                "CREATE TABLE test_table (
+                    id TEXT PRIMARY KEY,
+                    name TEXT,
+                    {} TEXT
+                )",
+                HLC_TIMESTAMP_COLUMN
+            ),
+            [],
+        )
+        .unwrap();
+
+        let tx = conn.unchecked_transaction().unwrap();
+
+        // ensure_crdt_columns should add the missing columns
+        let result = ensure_crdt_columns(&tx, "test_table").unwrap();
+        assert!(result, "Should have added missing columns");
+
+        tx.commit().unwrap();
+
+        // Verify all columns exist now
+        let columns = get_table_schema(&conn, "test_table").unwrap();
+        let column_names: Vec<&str> = columns.iter().map(|c| c.name.as_str()).collect();
+
+        assert!(column_names.contains(&HLC_TIMESTAMP_COLUMN));
+        assert!(column_names.contains(&COLUMN_HLCS_COLUMN));
+        assert!(column_names.contains(&TOMBSTONE_COLUMN));
+    }
+
+    #[test]
+    fn test_ensure_crdt_columns_nonexistent_table() {
+        let conn = Connection::open_in_memory().unwrap();
+        let tx = conn.unchecked_transaction().unwrap();
+
+        // Should return false for non-existent table
+        let result = ensure_crdt_columns(&tx, "nonexistent_table").unwrap();
+        assert!(!result, "Should return false for non-existent table");
+    }
+}
