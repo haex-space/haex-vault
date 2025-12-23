@@ -12,7 +12,7 @@
           base: 'px-4 py-3',
         }"
         icon="mdi:folder-open-outline"
-        size="xl"
+        size="lg"
         variant="outline"
         block
         :loading="isLoading"
@@ -80,7 +80,7 @@
             :schema="vaultSchema.password"
             :check="check"
             leading-icon="i-lucide-lock"
-            size="xl"
+            size="lg"
             autofocus
             class="w-full"
             @keyup.enter="onImportAsync"
@@ -92,7 +92,7 @@
             color="neutral"
             variant="outline"
             block
-            size="xl"
+            size="lg"
             @click="onClose"
           >
             {{ t('cancel') }}
@@ -100,7 +100,7 @@
           <UButton
             color="primary"
             block
-            size="xl"
+            size="lg"
             :disabled="!selectedPath"
             :loading="isLoading"
             @click="onImportAsync"

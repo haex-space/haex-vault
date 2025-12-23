@@ -7,7 +7,6 @@
           ...buttonProps,
           ...$attrs,
         }"
-        size="lg"
         @click="$emit('click', $event)"
       >
         <template
@@ -32,6 +31,4 @@ interface IButtonProps extends /* @vue-ignore */ ButtonProps {
 }
 const buttonProps = defineProps<IButtonProps>()
 defineEmits<{ click: [Event] }>()
-
-const { isSmallScreen } = storeToRefs(useUiStore())
 </script>

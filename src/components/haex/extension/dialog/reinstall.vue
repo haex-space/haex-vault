@@ -72,7 +72,7 @@
 
     <template #footer>
       <div class="flex flex-col sm:flex-row gap-4 justify-end w-full">
-        <UButton
+        <UiButton
           icon="i-heroicons-x-mark"
           :label="t('abort')"
           color="neutral"
@@ -80,7 +80,7 @@
           class="w-full sm:w-auto"
           @click="onDeny"
         />
-        <UButton
+        <UiButton
           :icon="mode === 'update' ? 'i-heroicons-arrow-path' : 'i-heroicons-arrow-down-tray'"
           :label="mode === 'update' ? t('update.confirm') : t('reinstall.confirm')"
           :color="mode === 'update' ? 'primary' : 'error'"

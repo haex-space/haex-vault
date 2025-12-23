@@ -26,10 +26,10 @@
           <slot name="content" />
         </div>
 
-        <!-- Footer (optional) -->
+        <!-- Footer (optional) - buttons are sized up for touch targets -->
         <div
           v-if="$slots.footer"
-          class="mt-6 shrink-0"
+          class="mt-6 shrink-0 drawer-footer"
         >
           <slot name="footer" />
         </div>

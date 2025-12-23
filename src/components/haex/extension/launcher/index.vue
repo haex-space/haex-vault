@@ -41,7 +41,7 @@
           v-for="extension in disabledExtensions"
           :key="extension.id"
           square
-          size="xl"
+          size="lg"
           variant="ghost"
           :disabled="true"
           :ui="{
@@ -61,7 +61,7 @@
         color="neutral"
         variant="outline"
         block
-        size="xl"
+        size="lg"
         icon="i-heroicons-arrow-left-on-rectangle"
         :label="t('logout.label')"
         @click="onLogout"

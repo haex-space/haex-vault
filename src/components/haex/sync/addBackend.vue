@@ -5,7 +5,7 @@
       <USelectMenu
         v-model="selectedServerOption"
         :items
-        size="xl"
+        size="lg"
         class="w-full"
       >
         <template #item="{ item }">
@@ -20,7 +20,7 @@
         v-if="selectedServerOption.value === 'custom'"
         v-model="customServerUrl"
         :label="t('customUrl.label')"
-        size="xl"
+        size="lg"
         class="w-full"
       />
     </div>
@@ -30,7 +30,7 @@
       type="email"
       :label="t('email.label')"
       leading-icon="i-lucide-mail"
-      size="xl"
+      size="lg"
       class="w-full"
     />
 
@@ -38,7 +38,7 @@
       v-model="password"
       :label="t('password.label')"
       leading-icon="i-lucide-lock"
-      size="xl"
+      size="lg"
       class="w-full"
     />
   </div>

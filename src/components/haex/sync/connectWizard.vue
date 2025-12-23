@@ -112,7 +112,7 @@
             :description="t('steps.enterVaultPassword.vaultNameDescription')"
             :schema="wizardSchema.vaultName"
             :check="check"
-            size="xl"
+            size="lg"
             class="w-full"
             @blur="checkVaultNameExistsAsync"
           />
@@ -131,7 +131,7 @@
             :schema="wizardSchema.vaultPassword"
             :check="check"
             leading-icon="i-lucide-lock"
-            size="xl"
+            size="lg"
             class="w-full"
           />
         </div>
@@ -143,7 +143,7 @@
       <UButton
         color="neutral"
         variant="outline"
-        size="xl"
+        size="lg"
         @click="cancel"
       >
         {{ t('actions.cancel') }}
@@ -152,7 +152,7 @@
         v-if="currentStepIndex > 0"
         color="neutral"
         variant="outline"
-        size="xl"
+        size="lg"
         @click="previousStep"
       >
         {{ t('actions.back') }}
@@ -161,7 +161,7 @@
       <UButton
         v-if="currentStepIndex < 2"
         color="primary"
-        size="xl"
+        size="lg"
         :disabled="!canProceed"
         :loading="isLoading"
         @click="nextStep"
@@ -171,7 +171,7 @@
       <UButton
         v-else
         color="primary"
-        size="xl"
+        size="lg"
         :disabled="!isStep3Valid || isLoading"
         :loading="isLoading"
         @click="completeSetupAsync"
@@ -249,7 +249,6 @@ const steps = computed(() => [
   },
 ])
 
-const connectRef = ref()
 const isLoading = ref(false)
 const check = ref(false)
 

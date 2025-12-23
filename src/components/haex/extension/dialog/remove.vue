@@ -86,7 +86,7 @@
 
     <template #footer>
       <div class="flex flex-col sm:flex-row gap-4 justify-end w-full">
-        <UButton
+        <UiButton
           icon="i-heroicons-x-mark"
           :label="t('abort')"
           color="neutral"
@@ -94,7 +94,7 @@
           class="w-full sm:w-auto"
           @click="onAbort"
         />
-        <UButton
+        <UiButton
           icon="i-heroicons-trash"
           :label="t('confirm')"
           color="error"

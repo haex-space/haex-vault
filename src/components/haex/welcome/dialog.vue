@@ -32,7 +32,7 @@
             :label="t('steps.device.label')"
             :placeholder="t('steps.device.placeholder')"
             :rules="vaultDeviceNameSchema"
-            size="xl"
+            size="lg"
             class="w-full"
           />
         </div>

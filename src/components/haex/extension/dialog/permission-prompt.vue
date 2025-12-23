@@ -90,14 +90,14 @@
 
         <!-- Action buttons -->
         <div class="flex flex-col sm:flex-row gap-2 w-full">
-          <UButton
+          <UiButton
             icon="i-heroicons-x-mark"
             :label="t('deny')"
             color="error"
             class="w-full sm:flex-1"
             @click="onDeny"
           />
-          <UButton
+          <UiButton
             icon="i-heroicons-check"
             :label="t('allow')"
             color="success"

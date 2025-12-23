@@ -53,21 +53,21 @@
           </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <UButton
+          <UiButton
             v-if="isInstalled"
             icon="i-heroicons-trash"
             color="error"
             variant="ghost"
             @click="onRemove"
           />
-          <UButton
+          <UiButton
             :color="hasUpdate ? 'warning' : isInstalled ? 'neutral' : 'primary'"
             :disabled="isInstalled && !hasUpdate"
             :icon="hasUpdate ? 'i-heroicons-arrow-path' : isInstalled ? 'i-heroicons-check' : 'i-heroicons-arrow-down-tray'"
             class="sm:hidden"
             @click="onInstall"
           />
-          <UButton
+          <UiButton
             :label="installButtonLabel"
             :color="hasUpdate ? 'warning' : isInstalled ? 'neutral' : 'primary'"
             :disabled="isInstalled && !hasUpdate"
@@ -75,7 +75,7 @@
             class="hidden sm:flex"
             @click="onInstall"
           />
-          <UButton
+          <UiButton
             icon="i-heroicons-x-mark"
             color="neutral"
             variant="ghost"

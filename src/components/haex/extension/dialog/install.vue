@@ -190,7 +190,7 @@
 
     <template #footer>
       <div class="flex flex-col sm:flex-row gap-4 justify-end w-full">
-        <UButton
+        <UiButton
           icon="i-heroicons-x-mark"
           :label="t('abort')"
           color="error"
@@ -198,7 +198,7 @@
           class="w-full sm:w-auto"
           @click="onDeny"
         />
-        <UButton
+        <UiButton
           :icon="isUpdate ? 'i-heroicons-arrow-path' : 'i-heroicons-check'"
           :label="isUpdate ? t('confirmUpdate') : t('confirm')"
           :color="isUpdate ? 'warning' : 'primary'"

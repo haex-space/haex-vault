@@ -35,7 +35,7 @@
             :schema="vaultSchema.password"
             :check="check"
             leading-icon="i-lucide-lock"
-            size="xl"
+            size="lg"
             autofocus
             class="w-full"
             @keyup.enter="onOpenDatabase"
@@ -48,7 +48,7 @@
           color="primary"
           variant="outline"
           block
-          size="xl"
+          size="lg"
           icon="i-lucide-fingerprint"
           @click="onBiometryUnlock"
         >
@@ -60,7 +60,7 @@
             color="neutral"
             variant="outline"
             block
-            size="xl"
+            size="lg"
             @click="open = false"
           >
             {{ t('cancel') }}
@@ -68,7 +68,7 @@
           <UButton
             color="primary"
             block
-            size="xl"
+            size="lg"
             @click="onOpenDatabase()"
           >
             {{ t('open') }}
