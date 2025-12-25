@@ -50,6 +50,29 @@ pub fn cleanup_tombstones(
     let mut total_deleted = 0;
     let mut tables_processed = 0;
 
+    // Temporarily disable foreign key checks to avoid constraint errors
+    // when deleting parent rows that are still referenced by child tombstones
+    conn.execute("PRAGMA foreign_keys = OFF", [])?;
+
+    // Ensure foreign keys are re-enabled even if an error occurs
+    let result = cleanup_tombstones_internal(conn, retention_days, &mut total_deleted, &mut tables_processed);
+
+    // Re-enable foreign keys
+    conn.execute("PRAGMA foreign_keys = ON", [])?;
+
+    result.map(|_| CleanupResult {
+        tombstones_deleted: total_deleted,
+        applied_deleted: tables_processed,
+        total_deleted,
+    })
+}
+
+fn cleanup_tombstones_internal(
+    conn: &Connection,
+    retention_days: u32,
+    total_deleted: &mut usize,
+    tables_processed: &mut usize,
+) -> Result<(), rusqlite::Error> {
     // Get current HLC timestamp from config
     let query = format!(
         "SELECT value FROM {} WHERE key = ?1 AND type = 'hlc'",
@@ -66,11 +89,7 @@ pub fn cleanup_tombstones(
             Some(s) => s,
             None => {
                 eprintln!("No HLC timestamp found in config, skipping cleanup");
-                return Ok(CleanupResult {
-                    tombstones_deleted: 0,
-                    applied_deleted: 0,
-                    total_deleted: 0,
-                });
+                return Ok(());
             }
         };
 
@@ -143,15 +162,11 @@ pub fn cleanup_tombstones(
             eprintln!("Cleaned up {deleted_count} tombstones from {table_name}");
         }
 
-        total_deleted += deleted_count;
-        tables_processed += 1;
+        *total_deleted += deleted_count;
+        *tables_processed += 1;
     }
 
-    Ok(CleanupResult {
-        tombstones_deleted: total_deleted,
-        applied_deleted: tables_processed, // Reuse field for tables_processed for backwards compatibility
-        total_deleted,
-    })
+    Ok(())
 }
 
 /// Gets statistics about CRDT tables
