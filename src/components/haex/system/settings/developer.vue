@@ -52,30 +52,32 @@
           <div
             v-for="ext in devExtensions"
             :key="ext.id"
-            class="p-4 rounded-lg border border-base-300 bg-base-200/50 flex items-center justify-between"
+            class="p-4 rounded-lg border border-base-300 bg-base-200/50 flex flex-col gap-3"
           >
-            <div class="space-y-1">
-              <div class="flex items-center gap-2">
+            <div class="space-y-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
                 <h4 class="font-medium">{{ ext.name }}</h4>
                 <UBadge color="info">DEV</UBadge>
               </div>
               <p class="text-sm opacity-70">v{{ ext.version }}</p>
-              <p class="text-xs opacity-50">
+              <p class="text-xs opacity-50 truncate">
                 {{ ext.publicKey.slice(0, 16) }}...
               </p>
             </div>
 
-            <div class="flex gap-2">
-              <UiButton
-                :label="t('list.reload')"
-                variant="outline"
-                                @click="reloadDevExtensionAsync(ext)"
-              />
+            <div class="flex gap-2 w-full">
               <UiButton
                 :label="t('list.remove')"
                 variant="ghost"
-                                color="error"
+                color="error"
+                class="flex-1"
                 @click="removeDevExtensionAsync(ext)"
+              />
+              <UiButton
+                :label="t('list.reload')"
+                variant="outline"
+                class="flex-1"
+                @click="reloadDevExtensionAsync(ext)"
               />
             </div>
           </div>

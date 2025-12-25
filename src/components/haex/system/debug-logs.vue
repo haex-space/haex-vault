@@ -1,11 +1,11 @@
 <template>
   <HaexSystem :is-dragging="isDragging">
     <template #header>
-      <div class="flex items-center justify-between">
+      <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2">
           <UIcon
             name="i-heroicons-bug-ant"
-            class="w-5 h-5"
+            class="w-5 h-5 shrink-0"
           />
           <h2 class="text-2xl font-bold">
             Debug Logs
@@ -14,16 +14,16 @@
             {{ logs.length }} logs
           </span>
         </div>
-        <div class="flex gap-2">
-          <UButton
-            :label="allCopied ? 'Copied!' : 'Copy All'"
-            :color="allCopied ? 'success' : 'primary'"
-            @click="copyAllLogs"
-          />
+        <div class="flex flex-wrap gap-2">
           <UButton
             label="Clear Logs"
             color="error"
             @click="clearLogs"
+          />
+          <UButton
+            :label="allCopied ? 'Copied!' : 'Copy All'"
+            :color="allCopied ? 'success' : 'primary'"
+            @click="copyAllLogs"
           />
         </div>
       </div>

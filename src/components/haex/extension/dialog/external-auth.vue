@@ -97,6 +97,7 @@
           :label="t('deny')"
           color="error"
           class="w-full sm:flex-1"
+          size="lg"
           @click="onDeny"
         />
         <UiButton
@@ -105,6 +106,7 @@
           color="success"
           class="w-full sm:flex-1"
           :disabled="selectedExtensionIds.length === 0"
+          size="lg"
           @click="onAllow"
         />
       </div>
@@ -125,7 +127,9 @@ interface PendingAuthProp {
   clientId: string
   clientName: string
   publicKey: string
-  requestedExtensions: readonly RequestedExtensionProp[] | RequestedExtensionProp[]
+  requestedExtensions:
+    | readonly RequestedExtensionProp[]
+    | RequestedExtensionProp[]
 }
 
 const { t } = useI18n()
@@ -174,8 +178,7 @@ watch(open, (isOpen) => {
         .map((ext) => ext.id)
 
       selectedExtensionIds.value = matchedIds
-    }
-    else {
+    } else {
       selectedExtensionIds.value = []
     }
   }

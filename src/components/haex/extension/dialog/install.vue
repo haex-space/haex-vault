@@ -28,7 +28,11 @@
               class="w-16 h-16 shrink-0 rounded-lg bg-base-200 flex items-center justify-center overflow-hidden"
             >
               <HaexIcon
-                :name="iconUrl || preview?.manifest.icon || 'i-heroicons-puzzle-piece'"
+                :name="
+                  iconUrl ||
+                  preview?.manifest.icon ||
+                  'i-heroicons-puzzle-piece'
+                "
                 class="w-full h-full object-contain"
               />
             </div>
@@ -79,7 +83,9 @@
           v-if="showVersionSelection"
           class="flex items-center gap-3"
         >
-          <span class="text-sm font-medium shrink-0">{{ t('versionSelection.title') }}:</span>
+          <span class="text-sm font-medium shrink-0"
+            >{{ t('versionSelection.title') }}:</span
+          >
 
           <!-- Loading Versions -->
           <UIcon
@@ -108,7 +114,11 @@
             variant="subtle"
             size="xs"
           >
-            {{ t('versionSelection.installedShort', { version: installedVersion }) }}
+            {{
+              t('versionSelection.installedShort', {
+                version: installedVersion,
+              })
+            }}
           </UBadge>
         </div>
 
@@ -196,6 +206,7 @@
           color="error"
           variant="outline"
           class="w-full sm:w-auto"
+          size="lg"
           @click="onDeny"
         />
         <UiButton
@@ -203,6 +214,7 @@
           :label="isUpdate ? t('confirmUpdate') : t('confirm')"
           :color="isUpdate ? 'warning' : 'primary'"
           class="w-full sm:w-auto"
+          size="lg"
           @click="onConfirm"
         />
       </div>
@@ -238,8 +250,10 @@ const props = defineProps<{
 }>()
 
 // Show version selection only when versions are provided
-const showVersionSelection = computed(() =>
-  (props.availableVersions && props.availableVersions.length > 0) || props.isLoadingVersions,
+const showVersionSelection = computed(
+  () =>
+    (props.availableVersions && props.availableVersions.length > 0) ||
+    props.isLoadingVersions,
 )
 
 // Determine if this is an update (extension already installed)
@@ -247,7 +261,8 @@ const isUpdate = computed(() => !!props.installedVersion)
 
 // Internal selected version state, synced with model
 const internalSelectedVersion = computed({
-  get: () => selectedVersion.value || props.availableVersions?.[0]?.version || undefined,
+  get: () =>
+    selectedVersion.value || props.availableVersions?.[0]?.version || undefined,
   set: (value: string | undefined) => {
     selectedVersion.value = value ?? null
   },
@@ -363,7 +378,11 @@ const onDeny = () => {
 
 const onConfirm = () => {
   open.value = false
-  emit('confirm', createDesktopShortcut.value, internalSelectedVersion.value ?? null)
+  emit(
+    'confirm',
+    createDesktopShortcut.value,
+    internalSelectedVersion.value ?? null,
+  )
 }
 </script>
 
@@ -381,8 +400,8 @@ de:
     invalid: Signatur ungültig
   versionSelection:
     title: Version
-    installedVersion: "Aktuell installiert: v{version}"
-    installedShort: "v{version} installiert"
+    installedVersion: 'Aktuell installiert: v{version}'
+    installedShort: 'v{version} installiert'
     latest: Neueste
     installed: Installiert
   permissions:
@@ -408,8 +427,8 @@ en:
     invalid: Invalid signature
   versionSelection:
     title: Version
-    installedVersion: "Currently installed: v{version}"
-    installedShort: "v{version} installed"
+    installedVersion: 'Currently installed: v{version}'
+    installedShort: 'v{version} installed'
     latest: Latest
     installed: Installed
   permissions:

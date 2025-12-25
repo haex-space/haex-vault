@@ -95,6 +95,7 @@
             :label="t('deny')"
             color="error"
             class="w-full sm:flex-1"
+            size="lg"
             @click="onDeny"
           />
           <UiButton
@@ -102,6 +103,7 @@
             :label="t('allow')"
             color="success"
             class="w-full sm:flex-1"
+            size="lg"
             @click="onAllow"
           />
         </div>
@@ -111,7 +113,10 @@
 </template>
 
 <script setup lang="ts">
-import type { PermissionPromptData, PermissionDecision } from '~/composables/usePermissionPrompt'
+import type {
+  PermissionPromptData,
+  PermissionDecision,
+} from '~/composables/usePermissionPrompt'
 
 const { t } = useI18n()
 
@@ -129,11 +134,14 @@ const emit = defineEmits<{
 const rememberDecision = ref(false)
 
 // Reset checkbox when dialog opens
-watch(() => props.open, (isOpen) => {
-  if (isOpen) {
-    rememberDecision.value = false
-  }
-})
+watch(
+  () => props.open,
+  (isOpen) => {
+    if (isOpen) {
+      rememberDecision.value = false
+    }
+  },
+)
 
 const modelOpen = computed({
   get: () => props.open,

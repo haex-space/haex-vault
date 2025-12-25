@@ -8,7 +8,11 @@
     <template #header>
       <div class="flex items-center justify-between w-full">
         <h3 class="text-lg font-semibold">
-          {{ mode === 'update' ? t('update.title', { extensionName: preview?.manifest.name }) : t('reinstall.title', { extensionName: preview?.manifest.name }) }}
+          {{
+            mode === 'update'
+              ? t('update.title', { extensionName: preview?.manifest.name })
+              : t('reinstall.title', { extensionName: preview?.manifest.name })
+          }}
         </h3>
         <UButton
           icon="i-heroicons-x-mark"
@@ -25,7 +29,9 @@
           {{
             mode === 'update'
               ? t('update.question', { extensionName: preview?.manifest.name })
-              : t('reinstall.question', { extensionName: preview?.manifest.name })
+              : t('reinstall.question', {
+                  extensionName: preview?.manifest.name,
+                })
           }}
         </p>
 
@@ -51,9 +57,13 @@
           class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4"
         >
           <div class="flex items-center gap-3">
-            <div class="w-12 h-12 shrink-0 rounded-lg bg-base-200 flex items-center justify-center overflow-hidden">
+            <div
+              class="w-12 h-12 shrink-0 rounded-lg bg-base-200 flex items-center justify-center overflow-hidden"
+            >
               <HaexIcon
-                :name="iconUrl || preview.manifest.icon || 'i-heroicons-puzzle-piece'"
+                :name="
+                  iconUrl || preview.manifest.icon || 'i-heroicons-puzzle-piece'
+                "
                 class="w-full h-full object-contain"
               />
             </div>
@@ -78,13 +88,21 @@
           color="neutral"
           variant="outline"
           class="w-full sm:w-auto"
+          size="lg"
           @click="onDeny"
         />
         <UiButton
-          :icon="mode === 'update' ? 'i-heroicons-arrow-path' : 'i-heroicons-arrow-down-tray'"
-          :label="mode === 'update' ? t('update.confirm') : t('reinstall.confirm')"
+          :icon="
+            mode === 'update'
+              ? 'i-heroicons-arrow-path'
+              : 'i-heroicons-arrow-down-tray'
+          "
+          :label="
+            mode === 'update' ? t('update.confirm') : t('reinstall.confirm')
+          "
           :color="mode === 'update' ? 'primary' : 'error'"
           class="w-full sm:w-auto"
+          size="lg"
           @click="onConfirm"
         />
       </div>
@@ -104,14 +122,17 @@ const preview = defineModel<ExtensionPreview | null>('preview', {
   default: null,
 })
 
-const props = withDefaults(defineProps<{
-  mode?: ReinstallMode
-  /** Icon URL from marketplace (optional - used when manifest icon is not available) */
-  iconUrl?: string | null
-}>(), {
-  mode: 'reinstall',
-  iconUrl: null,
-})
+const props = withDefaults(
+  defineProps<{
+    mode?: ReinstallMode
+    /** Icon URL from marketplace (optional - used when manifest icon is not available) */
+    iconUrl?: string | null
+  }>(),
+  {
+    mode: 'reinstall',
+    iconUrl: null,
+  },
+)
 
 const { iconUrl } = toRefs(props)
 

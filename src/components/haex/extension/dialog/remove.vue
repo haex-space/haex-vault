@@ -36,7 +36,11 @@
         >
           <div class="flex items-center gap-3">
             <HaexIcon
-              :name="extension.iconUrl || extension.icon || 'i-heroicons-puzzle-piece'"
+              :name="
+                extension.iconUrl ||
+                extension.icon ||
+                'i-heroicons-puzzle-piece'
+              "
               class="w-12 h-12"
             />
             <div class="flex-1">
@@ -92,6 +96,7 @@
           color="neutral"
           variant="outline"
           class="w-full sm:w-auto"
+          size="lg"
           @click="onAbort"
         />
         <UiButton
@@ -99,6 +104,7 @@
           :label="t('confirm')"
           color="error"
           class="w-full sm:w-auto"
+          size="lg"
           @click="onConfirm"
         />
       </div>

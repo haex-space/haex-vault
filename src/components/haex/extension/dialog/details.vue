@@ -15,7 +15,7 @@
             :src="extension.iconUrl"
             :alt="extension.name"
             class="w-full h-full object-cover"
-          >
+          />
         </div>
         <div
           v-else
@@ -30,7 +30,9 @@
           <h3 class="text-lg font-semibold truncate">
             {{ extension?.name }}
           </h3>
-          <div class="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+          <div
+            class="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400"
+          >
             <span v-if="extension?.publisher">
               {{ t('by') }} {{ extension.publisher.displayName }}
             </span>
@@ -43,12 +45,15 @@
                 name="i-heroicons-star-solid"
                 class="text-yellow-500"
               />
-              <span v-if="extension?.averageRating">{{ formatRating(extension.averageRating) }}</span>
+              <span v-if="extension?.averageRating">{{
+                formatRating(extension.averageRating)
+              }}</span>
               <span v-else>–</span>
               <span
                 v-if="detail?.reviewCount"
                 class="text-gray-400"
-              >({{ detail.reviewCount }})</span>
+                >({{ detail.reviewCount }})</span
+              >
             </div>
           </div>
         </div>
@@ -63,7 +68,13 @@
           <UiButton
             :color="hasUpdate ? 'warning' : isInstalled ? 'neutral' : 'primary'"
             :disabled="isInstalled && !hasUpdate"
-            :icon="hasUpdate ? 'i-heroicons-arrow-path' : isInstalled ? 'i-heroicons-check' : 'i-heroicons-arrow-down-tray'"
+            :icon="
+              hasUpdate
+                ? 'i-heroicons-arrow-path'
+                : isInstalled
+                  ? 'i-heroicons-check'
+                  : 'i-heroicons-arrow-down-tray'
+            "
             class="sm:hidden"
             @click="onInstall"
           />
@@ -71,7 +82,13 @@
             :label="installButtonLabel"
             :color="hasUpdate ? 'warning' : isInstalled ? 'neutral' : 'primary'"
             :disabled="isInstalled && !hasUpdate"
-            :icon="hasUpdate ? 'i-heroicons-arrow-path' : isInstalled ? 'i-heroicons-check' : 'i-heroicons-arrow-down-tray'"
+            :icon="
+              hasUpdate
+                ? 'i-heroicons-arrow-path'
+                : isInstalled
+                  ? 'i-heroicons-check'
+                  : 'i-heroicons-arrow-down-tray'
+            "
             class="hidden sm:flex"
             @click="onInstall"
           />
@@ -137,7 +154,7 @@
               :src="screenshot.imageUrl"
               :alt="screenshot.caption || ''"
               class="h-40 rounded-lg object-cover"
-            >
+            />
           </div>
         </div>
 
@@ -149,9 +166,7 @@
           <UCard>
             <div class="flex items-center justify-between">
               <div>
-                <p class="font-medium">
-                  v{{ detail.latestVersion.version }}
-                </p>
+                <p class="font-medium">v{{ detail.latestVersion.version }}</p>
                 <p
                   v-if="detail.latestVersion.publishedAt"
                   class="text-sm text-gray-500"
@@ -243,7 +258,8 @@ const isLoading = ref(false)
 
 const isInstalled = computed(() => props.extension?.isInstalled ?? false)
 const hasUpdate = computed(() => {
-  if (!props.extension?.installedVersion || !detail.value?.latestVersion) return false
+  if (!props.extension?.installedVersion || !detail.value?.latestVersion)
+    return false
   return props.extension.installedVersion !== detail.value.latestVersion.version
 })
 
