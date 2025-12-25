@@ -1,10 +1,9 @@
 <template>
   <UTooltip
     :text="buttonProps?.tooltip"
-    class="w-full"
   >
     <UButton
-      class="pointer-events-auto w-full justify-center"
+      class="pointer-events-auto"
       v-bind="{
         ...buttonProps,
         ...$attrs,
