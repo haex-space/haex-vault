@@ -2,6 +2,10 @@
 //!
 //! Tauri commands for extension database operations
 //!
+//! These commands work for both WebView and iframe extensions:
+//! - WebView: extension_id is resolved from the window context
+//! - iframe: extension_id is resolved from public_key/name parameters
+//!           (verified by frontend via origin check)
 
 use crate::database::core::{parse_sql_statements, with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
@@ -18,36 +22,44 @@ use crate::extension::database::queries::{
 use crate::extension::database::types::{DatabaseQueryResult, MigrationResult};
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::validator::SqlPermissionValidator;
+use crate::extension::utils::resolve_extension_id;
 use crate::AppState;
 
 use rusqlite::params_from_iter;
 use serde_json::Value as JsonValue;
 use sqlparser::ast::Statement;
-use tauri::State;
+use tauri::{State, WebviewWindow};
 
 /// Executes a SQL statement for an extension with full permission validation.
 #[tauri::command]
 pub async fn extension_database_execute(
-    sql: &str,
-    params: Vec<JsonValue>,
-    public_key: String,
-    name: String,
+    window: WebviewWindow,
     state: State<'_, AppState>,
+    sql: String,
+    params: Vec<JsonValue>,
+    // Optional parameters for iframe mode (verified by frontend via origin)
+    public_key: Option<String>,
+    name: Option<String>,
 ) -> Result<DatabaseQueryResult, ExtensionError> {
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+
     let extension = state
         .extension_manager
-        .get_extension_by_public_key_and_name(&public_key, &name)?
-        .ok_or_else(|| ExtensionError::NotFound {
-            public_key: public_key.clone(),
-            name: name.clone(),
+        .get_extension(&extension_id)
+        .ok_or_else(|| ExtensionError::ValidationError {
+            reason: format!("Extension with ID {} not found", extension_id),
         })?;
 
     let is_dev_mode = matches!(extension.source, ExtensionSource::Development { .. });
 
-    SqlPermissionValidator::validate_sql(&state, &extension.id, sql).await?;
+    SqlPermissionValidator::validate_sql(&state, &extension_id, &sql).await?;
 
-    let ctx = ExtensionSqlContext::new(public_key, name, is_dev_mode);
-    let rows = execute_sql_with_context(&ctx, sql, &params, state.inner())?;
+    let ctx = ExtensionSqlContext::new(
+        extension.manifest.public_key.clone(),
+        extension.manifest.name.clone(),
+        is_dev_mode,
+    );
+    let rows = execute_sql_with_context(&ctx, &sql, &params, state.inner())?;
 
     Ok(DatabaseQueryResult {
         rows_affected: rows.len(),
@@ -59,21 +71,24 @@ pub async fn extension_database_execute(
 /// Executes a SELECT statement for an extension
 #[tauri::command]
 pub async fn extension_database_query(
-    sql: &str,
-    params: Vec<JsonValue>,
-    public_key: String,
-    name: String,
+    window: WebviewWindow,
     state: State<'_, AppState>,
+    sql: String,
+    params: Vec<JsonValue>,
+    // Optional parameters for iframe mode (verified by frontend via origin)
+    public_key: Option<String>,
+    name: Option<String>,
 ) -> Result<DatabaseQueryResult, ExtensionError> {
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+
     let extension = state
         .extension_manager
-        .get_extension_by_public_key_and_name(&public_key, &name)?
-        .ok_or_else(|| ExtensionError::NotFound {
-            public_key: public_key.clone(),
-            name: name.clone(),
+        .get_extension(&extension_id)
+        .ok_or_else(|| ExtensionError::ValidationError {
+            reason: format!("Extension with ID {} not found", extension_id),
         })?;
 
-    SqlPermissionValidator::validate_sql(&state, &extension.id, sql).await?;
+    SqlPermissionValidator::validate_sql(&state, &extension_id, &sql).await?;
 
     let placeholder_count = sql.matches('?').count();
     if placeholder_count != params.len() {
@@ -86,7 +101,7 @@ pub async fn extension_database_query(
         });
     }
 
-    let mut ast_vec = parse_sql_statements(sql)?;
+    let mut ast_vec = parse_sql_statements(&sql)?;
 
     if ast_vec.is_empty() {
         return Ok(DatabaseQueryResult {
@@ -101,7 +116,8 @@ pub async fn extension_database_query(
             return Err(ExtensionError::Database {
                 source: DatabaseError::ExecutionError {
                     sql: sql.to_string(),
-                    reason: "Only SELECT statements are allowed in extension_database_query".to_string(),
+                    reason: "Only SELECT statements are allowed in extension_database_query"
+                        .to_string(),
                     table: None,
                 },
             });
@@ -158,26 +174,30 @@ pub async fn extension_database_query(
 /// Registers and applies extension migrations
 #[tauri::command]
 pub async fn extension_database_register_migrations(
-    public_key: String,
-    name: String,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
     extension_version: String,
     migrations: Vec<serde_json::Map<String, JsonValue>>,
-    state: State<'_, AppState>,
+    // Optional parameters for iframe mode (verified by frontend via origin)
+    public_key: Option<String>,
+    name: Option<String>,
 ) -> Result<MigrationResult, ExtensionError> {
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+
     let extension = state
         .extension_manager
-        .get_extension_by_public_key_and_name(&public_key, &name)?
-        .ok_or_else(|| ExtensionError::NotFound {
-            public_key: public_key.clone(),
-            name: name.clone(),
+        .get_extension(&extension_id)
+        .ok_or_else(|| ExtensionError::ValidationError {
+            reason: format!("Extension with ID {} not found", extension_id),
         })?;
 
-    let extension_id = extension.id.clone();
+    let ext_public_key = extension.manifest.public_key.clone();
+    let ext_name = extension.manifest.name.clone();
     let is_dev_mode = matches!(extension.source, ExtensionSource::Development { .. });
 
     // Dev mode: Execute migrations directly without database tracking
     if is_dev_mode {
-        return execute_dev_mode_migrations(&public_key, &name, &migrations, state.inner())
+        return execute_dev_mode_migrations(&ext_public_key, &ext_name, &migrations, state.inner())
             .map_err(Into::into);
     }
 
@@ -198,7 +218,7 @@ pub async fn extension_database_register_migrations(
             })?;
 
         let statements = split_migration_statements(sql_statement);
-        let ctx = ExtensionSqlContext::new(public_key.clone(), name.clone(), is_dev_mode);
+        let ctx = ExtensionSqlContext::new(ext_public_key.clone(), ext_name.clone(), is_dev_mode);
 
         for stmt in statements.iter() {
             validate_sql_table_prefix(&ctx, stmt)?;
@@ -238,7 +258,10 @@ pub async fn extension_database_register_migrations(
     })?;
 
     let already_applied_count: usize = with_connection(&state.db, |conn| {
-        let count: i64 = conn.query_row(&SQL_COUNT_APPLIED_MIGRATIONS, [&extension_id], |row| row.get(0))?;
+        let count: i64 =
+            conn.query_row(&SQL_COUNT_APPLIED_MIGRATIONS, [&extension_id], |row| {
+                row.get(0)
+            })?;
         Ok(count as usize)
     })?;
 
@@ -252,7 +275,7 @@ pub async fn extension_database_register_migrations(
 
     // Apply pending migrations
     let mut applied_names: Vec<String> = Vec::new();
-    let exec_ctx = ExtensionSqlContext::new(public_key.clone(), name.clone(), false);
+    let exec_ctx = ExtensionSqlContext::new(ext_public_key.clone(), ext_name.clone(), false);
 
     for (migration_name, sql_content) in &pending_migrations {
         execute_migration_statements(&exec_ctx, sql_content, state.inner())?;

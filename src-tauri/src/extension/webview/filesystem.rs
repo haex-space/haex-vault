@@ -18,7 +18,7 @@ pub struct SaveFileResult {
 }
 
 #[tauri::command]
-pub async fn webview_extension_fs_save_file(
+pub async fn extension_filesystem_save_file(
     window: WebviewWindow,
     _state: State<'_, AppState>,
     data: Vec<u8>,
@@ -88,7 +88,7 @@ pub async fn webview_extension_fs_save_file(
 }
 
 #[tauri::command]
-pub async fn webview_extension_fs_open_file(
+pub async fn extension_filesystem_open_file(
     window: WebviewWindow,
     _state: State<'_, AppState>,
     data: Vec<u8>,

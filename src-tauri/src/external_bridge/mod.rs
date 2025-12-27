@@ -70,7 +70,7 @@ pub fn external_bridge_get_default_port() -> u16 {
 
 /// Get all authorized external clients from database
 #[tauri::command]
-pub fn external_get_authorized_clients(state: State<'_, AppState>) -> Result<Vec<AuthorizedClient>, String> {
+pub fn external_bridge_get_authorized_clients(state: State<'_, AppState>) -> Result<Vec<AuthorizedClient>, String> {
     let rows = select_with_crdt(SQL_GET_ALL_CLIENTS.to_string(), vec![], &state.db)
         .map_err(|e| e.to_string())?;
 
@@ -84,7 +84,7 @@ pub fn external_get_authorized_clients(state: State<'_, AppState>) -> Result<Vec
 
 /// Get all session-based authorizations (for "allow once" - not stored in database)
 #[tauri::command]
-pub async fn external_get_session_authorizations(
+pub async fn external_bridge_get_session_authorizations(
     state: State<'_, AppState>,
 ) -> Result<Vec<SessionAuthorization>, String> {
     let bridge = state.external_bridge.lock().await;
@@ -95,7 +95,7 @@ pub async fn external_get_session_authorizations(
 
 /// Revoke a session authorization (for "allow once")
 #[tauri::command]
-pub async fn external_revoke_session_authorization(
+pub async fn external_bridge_revoke_session_authorization(
     client_id: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
@@ -109,7 +109,7 @@ pub async fn external_revoke_session_authorization(
 
 /// Revoke authorization for an external client (soft delete via CRDT)
 #[tauri::command]
-pub fn external_revoke_client(
+pub fn external_bridge_revoke_client(
     app_handle: AppHandle,
     client_id: String,
     state: State<'_, AppState>,
@@ -132,7 +132,7 @@ pub fn external_revoke_client(
 
 /// Approve a pending external client authorization request
 #[tauri::command]
-pub async fn external_approve_client(
+pub async fn external_bridge_approve_client(
     app_handle: AppHandle,
     client_id: String,
     client_name: String,
@@ -175,7 +175,7 @@ pub async fn external_approve_client(
 
 /// Deny a pending external client authorization request
 #[tauri::command]
-pub async fn external_deny_client(
+pub async fn external_bridge_deny_client(
     client_id: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
@@ -188,7 +188,7 @@ pub async fn external_deny_client(
 
 /// Get pending external client authorization requests
 #[tauri::command]
-pub async fn external_get_pending_authorizations(
+pub async fn external_bridge_get_pending_authorizations(
     state: State<'_, AppState>,
 ) -> Result<Vec<PendingAuthorization>, String> {
     let bridge = state.external_bridge.lock().await;
@@ -200,13 +200,23 @@ pub async fn external_get_pending_authorizations(
 /// Called by haex-vault extensions (via SDK) to send responses
 /// back to external clients (browser extensions, CLI, servers, etc.)
 #[tauri::command]
-pub async fn external_respond(
+pub async fn external_bridge_respond(
     request_id: String,
-    response: JsonValue,
+    success: bool,
+    data: Option<JsonValue>,
+    error: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let bridge = state.external_bridge.lock().await;
     let pending_responses = bridge.get_pending_responses();
+
+    // Build the response JSON
+    let response = serde_json::json!({
+        "requestId": request_id,
+        "success": success,
+        "data": data,
+        "error": error,
+    });
 
     // Get and remove the sender for this request
     let sender = {
@@ -230,7 +240,7 @@ pub async fn external_respond(
 /// If remember is true, the authorization is stored permanently in the database.
 /// If remember is false, the authorization is stored for this session only (cleared when haex-vault restarts).
 #[tauri::command]
-pub async fn external_client_allow(
+pub async fn external_bridge_client_allow(
     app_handle: AppHandle,
     client_id: String,
     client_name: String,
@@ -283,7 +293,7 @@ pub async fn external_client_allow(
 /// If remember is true, the client is permanently blocked in the database.
 /// If remember is false, only this request is denied.
 #[tauri::command]
-pub async fn external_client_block(
+pub async fn external_bridge_client_block(
     app_handle: AppHandle,
     client_id: String,
     client_name: String,
@@ -325,7 +335,7 @@ pub async fn external_client_block(
 
 /// Get all blocked external clients from database
 #[tauri::command]
-pub fn external_get_blocked_clients(state: State<'_, AppState>) -> Result<Vec<BlockedClient>, String> {
+pub fn external_bridge_get_blocked_clients(state: State<'_, AppState>) -> Result<Vec<BlockedClient>, String> {
     let rows = select_with_crdt(SQL_GET_ALL_BLOCKED_CLIENTS.to_string(), vec![], &state.db)
         .map_err(|e| e.to_string())?;
 
@@ -339,7 +349,7 @@ pub fn external_get_blocked_clients(state: State<'_, AppState>) -> Result<Vec<Bl
 
 /// Unblock an external client (remove from blocked list)
 #[tauri::command]
-pub fn external_unblock_client(
+pub fn external_bridge_unblock_client(
     app_handle: AppHandle,
     client_id: String,
     state: State<'_, AppState>,
@@ -362,7 +372,7 @@ pub fn external_unblock_client(
 
 /// Check if a client is blocked
 #[tauri::command]
-pub fn external_is_client_blocked(
+pub fn external_bridge_is_client_blocked(
     client_id: String,
     state: State<'_, AppState>,
 ) -> Result<bool, String> {

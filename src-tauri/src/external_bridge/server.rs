@@ -239,14 +239,33 @@ impl ExternalBridge {
         client_id: &str,
         extension_id: &str,
     ) -> Result<(), BridgeError> {
+        println!(
+            "[ExternalBridge] notify_authorization_granted called for client_id={}, extension_id={}",
+            client_id, extension_id
+        );
+
         let mut clients = self.clients.write().await;
+        println!(
+            "[ExternalBridge] Connected clients: {:?}",
+            clients.keys().collect::<Vec<_>>()
+        );
+
         if let Some(client) = clients.get_mut(client_id) {
             client.authorized = true;
             client.extension_id = Some(extension_id.to_string());
 
             let msg = ProtocolMessage::AuthorizationUpdate { authorized: true };
             let json = serde_json::to_string(&msg)?;
-            let _ = client.tx.send(Message::Text(json.into()));
+            let send_result = client.tx.send(Message::Text(json.into()));
+            println!(
+                "[ExternalBridge] Sent authorization update to client {}: {:?}",
+                client_id, send_result
+            );
+        } else {
+            println!(
+                "[ExternalBridge] WARNING: Client {} not found in connected clients!",
+                client_id
+            );
         }
 
         // Remove from pending

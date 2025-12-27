@@ -2,29 +2,30 @@
 //!
 //! Tauri commands for extension web operations
 //!
+//! These commands work for both WebView and iframe extensions:
+//! - WebView: extension_id is resolved from the window context
+//! - iframe: extension_id is resolved from public_key/name parameters
+//!           (verified by frontend via origin check)
 
 use crate::extension::error::ExtensionError;
+use crate::extension::utils::resolve_extension_id;
 use crate::extension::web::helpers::fetch_web_request;
 use crate::extension::web::types::{WebFetchRequest, WebFetchResponse};
 use crate::AppState;
 use std::collections::HashMap;
-use tauri::State;
+use tauri::{State, WebviewWindow};
 
 #[tauri::command]
 pub async fn extension_web_open(
-    url: String,
-    public_key: String,
-    name: String,
+    window: WebviewWindow,
     state: State<'_, AppState>,
+    url: String,
+    // Optional parameters for iframe mode (verified by frontend via origin)
+    public_key: Option<String>,
+    name: Option<String>,
 ) -> Result<(), ExtensionError> {
-    // Get extension to validate it exists
-    let extension = state
-        .extension_manager
-        .get_extension_by_public_key_and_name(&public_key, &name)?
-        .ok_or_else(|| ExtensionError::NotFound {
-            public_key: public_key.clone(),
-            name: name.clone(),
-        })?;
+    // Resolve extension_id from window (WebView) or parameters (iframe)
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
     // Validate URL format
     let parsed_url = url::Url::parse(&url).map_err(|e| ExtensionError::WebError {
@@ -45,7 +46,7 @@ pub async fn extension_web_open(
     // Check web permissions
     crate::extension::permissions::manager::PermissionManager::check_web_permission(
         &state,
-        &extension.id,
+        &extension_id,
         &url,
     )
     .await?;
@@ -60,24 +61,20 @@ pub async fn extension_web_open(
 
 #[tauri::command]
 pub async fn extension_web_fetch(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
     url: String,
     method: Option<String>,
     headers: Option<HashMap<String, String>>,
     body: Option<String>,
     timeout: Option<u64>,
-    public_key: String,
-    name: String,
     allow_once: Option<bool>,
-    state: State<'_, AppState>,
+    // Optional parameters for iframe mode (verified by frontend via origin)
+    public_key: Option<String>,
+    name: Option<String>,
 ) -> Result<WebFetchResponse, ExtensionError> {
-    // Get extension to validate it exists
-    let extension = state
-        .extension_manager
-        .get_extension_by_public_key_and_name(&public_key, &name)?
-        .ok_or_else(|| ExtensionError::NotFound {
-            public_key: public_key.clone(),
-            name: name.clone(),
-        })?;
+    // Resolve extension_id from window (WebView) or parameters (iframe)
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
     let method_str = method.as_deref().unwrap_or("GET");
 
@@ -86,7 +83,7 @@ pub async fn extension_web_fetch(
         // Check web permissions before making request
         crate::extension::permissions::manager::PermissionManager::check_web_permission(
             &state,
-            &extension.id,
+            &extension_id,
             &url,
         )
         .await?;

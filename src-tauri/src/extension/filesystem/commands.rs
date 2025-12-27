@@ -5,15 +5,19 @@
 //! Permission-checked wrappers around the internal filesystem API.
 //! Extensions must have `fs` permission with appropriate path targets to access the filesystem.
 //!
+//! These commands work for both WebView and iframe extensions:
+//! - WebView: extension_id is resolved from the window context
+//! - iframe: extension_id is resolved from public_key/name parameters
+//!           (verified by frontend via origin check)
 
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{Action, FsAction};
-use crate::extension::utils::get_extension_id;
+use crate::extension::utils::resolve_extension_id;
 use crate::filesystem::{DirEntry, FileStat};
 use crate::AppState;
 use std::path::Path;
-use tauri::State;
+use tauri::{AppHandle, State, WebviewWindow};
 
 // ============================================================================
 // Read Operations (require fs:read permission)
@@ -22,12 +26,14 @@ use tauri::State;
 /// Read file contents as base64 (requires fs:read permission for path)
 #[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_read_file(
-    public_key: String,
-    name: String,
-    path: String,
+    window: WebviewWindow,
     state: State<'_, AppState>,
+    path: String,
+    // Optional parameters for iframe mode (verified by frontend via origin)
+    public_key: Option<String>,
+    name: Option<String>,
 ) -> Result<String, ExtensionError> {
-    let extension_id = get_extension_id(&state, &public_key, &name).await?;
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
     // Check fs permission for this path (read)
     PermissionManager::check_filesystem_permission(
@@ -49,12 +55,14 @@ pub async fn extension_filesystem_read_file(
 /// Read directory contents (requires fs:read permission for path)
 #[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_read_dir(
-    public_key: String,
-    name: String,
-    path: String,
+    window: WebviewWindow,
     state: State<'_, AppState>,
+    path: String,
+    // Optional parameters for iframe mode (verified by frontend via origin)
+    public_key: Option<String>,
+    name: Option<String>,
 ) -> Result<Vec<DirEntry>, ExtensionError> {
-    let extension_id = get_extension_id(&state, &public_key, &name).await?;
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
     // Check fs permission for this path (read)
     PermissionManager::check_filesystem_permission(
@@ -76,12 +84,14 @@ pub async fn extension_filesystem_read_dir(
 /// Check if a path exists (requires fs:read permission for path)
 #[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_exists(
-    public_key: String,
-    name: String,
-    path: String,
+    window: WebviewWindow,
     state: State<'_, AppState>,
+    path: String,
+    // Optional parameters for iframe mode (verified by frontend via origin)
+    public_key: Option<String>,
+    name: Option<String>,
 ) -> Result<bool, ExtensionError> {
-    let extension_id = get_extension_id(&state, &public_key, &name).await?;
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
     // Check fs permission for this path (read)
     PermissionManager::check_filesystem_permission(
@@ -103,12 +113,14 @@ pub async fn extension_filesystem_exists(
 /// Get file/directory metadata (requires fs:read permission for path)
 #[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_stat(
-    public_key: String,
-    name: String,
-    path: String,
+    window: WebviewWindow,
     state: State<'_, AppState>,
+    path: String,
+    // Optional parameters for iframe mode (verified by frontend via origin)
+    public_key: Option<String>,
+    name: Option<String>,
 ) -> Result<FileStat, ExtensionError> {
-    let extension_id = get_extension_id(&state, &public_key, &name).await?;
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
     // Check fs permission for this path (read)
     PermissionManager::check_filesystem_permission(
@@ -134,13 +146,15 @@ pub async fn extension_filesystem_stat(
 /// Write file contents from base64 (requires fs:readWrite permission for path)
 #[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_write_file(
-    public_key: String,
-    name: String,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
     path: String,
     data: String,
-    state: State<'_, AppState>,
+    // Optional parameters for iframe mode (verified by frontend via origin)
+    public_key: Option<String>,
+    name: Option<String>,
 ) -> Result<(), ExtensionError> {
-    let extension_id = get_extension_id(&state, &public_key, &name).await?;
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
     // Check fs permission for this path (write)
     PermissionManager::check_filesystem_permission(
@@ -162,12 +176,14 @@ pub async fn extension_filesystem_write_file(
 /// Create a directory (requires fs:readWrite permission for path)
 #[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_mkdir(
-    public_key: String,
-    name: String,
-    path: String,
+    window: WebviewWindow,
     state: State<'_, AppState>,
+    path: String,
+    // Optional parameters for iframe mode (verified by frontend via origin)
+    public_key: Option<String>,
+    name: Option<String>,
 ) -> Result<(), ExtensionError> {
-    let extension_id = get_extension_id(&state, &public_key, &name).await?;
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
     // Check fs permission for this path (write)
     PermissionManager::check_filesystem_permission(
@@ -189,13 +205,15 @@ pub async fn extension_filesystem_mkdir(
 /// Remove a file or directory (requires fs:readWrite permission for path)
 #[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_remove(
-    public_key: String,
-    name: String,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
     path: String,
     recursive: Option<bool>,
-    state: State<'_, AppState>,
+    // Optional parameters for iframe mode (verified by frontend via origin)
+    public_key: Option<String>,
+    name: Option<String>,
 ) -> Result<(), ExtensionError> {
-    let extension_id = get_extension_id(&state, &public_key, &name).await?;
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
     // Check fs permission for this path (write)
     PermissionManager::check_filesystem_permission(
@@ -217,13 +235,15 @@ pub async fn extension_filesystem_remove(
 /// Rename/move a file or directory (requires fs:readWrite permission for both paths)
 #[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_rename(
-    public_key: String,
-    name: String,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
     from: String,
     to: String,
-    state: State<'_, AppState>,
+    // Optional parameters for iframe mode (verified by frontend via origin)
+    public_key: Option<String>,
+    name: Option<String>,
 ) -> Result<(), ExtensionError> {
-    let extension_id = get_extension_id(&state, &public_key, &name).await?;
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
     // Check fs permission for source path (write - we're removing from here)
     PermissionManager::check_filesystem_permission(
@@ -254,13 +274,15 @@ pub async fn extension_filesystem_rename(
 /// Copy a file (requires fs:read for source, fs:readWrite for destination)
 #[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_copy(
-    public_key: String,
-    name: String,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
     from: String,
     to: String,
-    state: State<'_, AppState>,
+    // Optional parameters for iframe mode (verified by frontend via origin)
+    public_key: Option<String>,
+    name: Option<String>,
 ) -> Result<(), ExtensionError> {
-    let extension_id = get_extension_id(&state, &public_key, &name).await?;
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
     // Check fs permission for source path (read)
     PermissionManager::check_filesystem_permission(
@@ -296,16 +318,17 @@ pub async fn extension_filesystem_copy(
 /// Note: No permission check needed as user explicitly selects the folder
 #[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_select_folder(
-    public_key: String,
-    name: String,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    app_handle: AppHandle,
     title: Option<String>,
     default_path: Option<String>,
-    window: tauri::WebviewWindow,
-    state: State<'_, AppState>,
-    app_handle: tauri::AppHandle,
+    // Optional parameters for iframe mode (verified by frontend via origin)
+    public_key: Option<String>,
+    name: Option<String>,
 ) -> Result<Option<String>, ExtensionError> {
     // Verify extension exists
-    let _extension_id = get_extension_id(&state, &public_key, &name).await?;
+    let _extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
     // Delegate to internal filesystem command (no permission check - user explicitly selects)
     crate::filesystem::filesystem_select_folder(window, title, default_path, app_handle)
@@ -319,18 +342,19 @@ pub async fn extension_filesystem_select_folder(
 /// Note: No permission check needed as user explicitly selects the file
 #[tauri::command(rename_all = "camelCase")]
 pub async fn extension_filesystem_select_file(
-    public_key: String,
-    name: String,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    app_handle: AppHandle,
     title: Option<String>,
     default_path: Option<String>,
     filters: Option<Vec<(String, Vec<String>)>>,
     multiple: Option<bool>,
-    window: tauri::WebviewWindow,
-    state: State<'_, AppState>,
-    app_handle: tauri::AppHandle,
+    // Optional parameters for iframe mode (verified by frontend via origin)
+    public_key: Option<String>,
+    name: Option<String>,
 ) -> Result<Option<Vec<String>>, ExtensionError> {
     // Verify extension exists
-    let _extension_id = get_extension_id(&state, &public_key, &name).await?;
+    let _extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
     // Delegate to internal filesystem command (no permission check - user explicitly selects)
     crate::filesystem::filesystem_select_file(window, title, default_path, filters, multiple, app_handle)

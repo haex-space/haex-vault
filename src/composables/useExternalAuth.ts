@@ -80,7 +80,10 @@ export function useExternalAuth() {
    * Handle user decision from the dialog
    */
   async function handleDecision(decision: ExternalAuthDecision, extensionIds?: string[], remember = false) {
+    console.log('[ExternalAuth] handleDecision called:', { decision, extensionIds, remember, pendingAuth: pendingAuth.value })
+
     if (!pendingAuth.value) {
+      console.warn('[ExternalAuth] No pending auth, returning early')
       return
     }
 
@@ -90,6 +93,7 @@ export function useExternalAuth() {
           if (extensionIds && extensionIds.length > 0) {
             // Allow access for each selected extension
             for (const extensionId of extensionIds) {
+              console.log('[ExternalAuth] Calling clientAllow for extension:', extensionId)
               await invoke(TAURI_COMMANDS.externalBridge.clientAllow, {
                 clientId: pendingAuth.value.clientId,
                 clientName: pendingAuth.value.clientName,
@@ -97,12 +101,15 @@ export function useExternalAuth() {
                 extensionId,
                 remember,
               })
+              console.log('[ExternalAuth] clientAllow succeeded for extension:', extensionId)
             }
             if (remember) {
               console.log('[ExternalAuth] Authorization permanently approved for extensions:', extensionIds)
             } else {
               console.log('[ExternalAuth] Authorization allowed once for extensions:', extensionIds)
             }
+          } else {
+            console.warn('[ExternalAuth] No extensionIds provided for allow decision')
           }
           break
 

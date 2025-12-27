@@ -1,7 +1,5 @@
 <template>
-  <UTooltip
-    :text="buttonProps?.tooltip"
-  >
+  <UTooltip :text="buttonProps?.tooltip">
     <UButton
       class="pointer-events-auto"
       v-bind="{

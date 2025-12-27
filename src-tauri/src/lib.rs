@@ -210,9 +210,6 @@ pub fn run() {
             extension::database::commands::apply_synced_extension_migrations,
             extension::web::commands::extension_web_fetch,
             extension::web::commands::extension_web_open,
-            extension::permissions::commands::check_web_permission,
-            extension::permissions::commands::check_database_permission,
-            extension::permissions::commands::check_filesystem_permission,
             extension::permissions::commands::extension_permissions_check_web,
             extension::permissions::commands::extension_permissions_check_database,
             extension::permissions::commands::extension_permissions_check_filesystem,
@@ -244,37 +241,19 @@ pub fn run() {
             extension::update_extension_webview_window_size,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::close_all_extension_webview_windows,
-            // WebView API commands (for native window extensions, desktop only)
+            // WebView-specific API commands (for native window extensions, desktop only)
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::webview::web::webview_extension_get_info,
+            extension::webview::web::extension_get_info,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::webview::web::webview_extension_context_get,
+            extension::webview::web::extension_context_get,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::webview::web::webview_extension_context_set,
+            extension::webview::web::extension_context_set,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::webview::database::webview_extension_db_query,
+            extension::webview::web::extension_emit_to_all,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::webview::database::webview_extension_db_execute,
+            extension::webview::filesystem::extension_filesystem_save_file,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::webview::database::webview_extension_db_register_migrations,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::webview::web::webview_extension_check_web_permission,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::webview::web::webview_extension_check_database_permission,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::webview::web::webview_extension_check_filesystem_permission,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::webview::web::webview_extension_web_open,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::webview::web::webview_extension_web_request,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::webview::web::webview_extension_emit_to_all,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::webview::filesystem::webview_extension_fs_save_file,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::webview::filesystem::webview_extension_fs_open_file,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::webview::external::webview_extension_external_respond,
+            extension::webview::filesystem::extension_filesystem_open_file,
             // Window management (desktop only)
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             window::focus_main_window,
@@ -297,31 +276,31 @@ pub fn run() {
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             external_bridge::external_bridge_get_default_port,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            external_bridge::external_get_authorized_clients,
+            external_bridge::external_bridge_respond,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            external_bridge::external_get_session_authorizations,
+            external_bridge::external_bridge_get_authorized_clients,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            external_bridge::external_revoke_session_authorization,
+            external_bridge::external_bridge_get_session_authorizations,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            external_bridge::external_revoke_client,
+            external_bridge::external_bridge_revoke_session_authorization,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            external_bridge::external_approve_client,
+            external_bridge::external_bridge_revoke_client,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            external_bridge::external_deny_client,
+            external_bridge::external_bridge_approve_client,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            external_bridge::external_get_pending_authorizations,
+            external_bridge::external_bridge_deny_client,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            external_bridge::external_respond,
+            external_bridge::external_bridge_get_pending_authorizations,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            external_bridge::external_client_allow,
+            external_bridge::external_bridge_client_allow,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            external_bridge::external_client_block,
+            external_bridge::external_bridge_client_block,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            external_bridge::external_get_blocked_clients,
+            external_bridge::external_bridge_get_blocked_clients,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            external_bridge::external_unblock_client,
+            external_bridge::external_bridge_unblock_client,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            external_bridge::external_is_client_blocked,
+            external_bridge::external_bridge_is_client_blocked,
             // Remote Storage API commands (internal - use extension_remote_storage_* for extensions)
             remote_storage::remote_storage_list_backends,
             remote_storage::remote_storage_add_backend,

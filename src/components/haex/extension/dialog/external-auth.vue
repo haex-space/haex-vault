@@ -170,10 +170,13 @@ watch(open, (isOpen) => {
     if (requested.length > 0) {
       const matchedIds = extensionsStore.availableExtensions
         .filter((ext) =>
-          requested.some(
-            (req) =>
-              ext.name === req.name && ext.publicKey === req.extensionPublicKey,
-          ),
+          requested.some((req) => {
+            // For dev extensions, the request has "dev_" prefix but ext.publicKey doesn't
+            const reqPublicKey = req.extensionPublicKey.startsWith('dev_')
+              ? req.extensionPublicKey.slice(4)
+              : req.extensionPublicKey
+            return ext.name === req.name && ext.publicKey === reqPublicKey
+          }),
         )
         .map((ext) => ext.id)
 

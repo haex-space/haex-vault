@@ -9,7 +9,7 @@
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{FileSyncAction, FileSyncTarget};
-use crate::extension::utils::get_extension_id;
+use crate::extension::utils::get_extension_id_by_key_and_name;
 use crate::remote_storage::types::{
     AddStorageBackendRequest, StorageBackendInfo, StorageDeleteRequest, StorageDownloadRequest,
     StorageListRequest, StorageObjectInfo, StorageUploadRequest, UpdateStorageBackendRequest,
@@ -29,7 +29,7 @@ pub async fn extension_remote_storage_list_backends(
     name: String,
     state: State<'_, AppState>,
 ) -> Result<Vec<StorageBackendInfo>, ExtensionError> {
-    let extension_id = get_extension_id(&state, &public_key, &name).await?;
+    let extension_id = get_extension_id_by_key_and_name(&state, &public_key, &name)?;
 
     // Check filesync permission for backends (read)
     PermissionManager::check_filesync_permission(
@@ -54,7 +54,7 @@ pub async fn extension_remote_storage_add_backend(
     request: AddStorageBackendRequest,
     state: State<'_, AppState>,
 ) -> Result<StorageBackendInfo, ExtensionError> {
-    let extension_id = get_extension_id(&state, &public_key, &name).await?;
+    let extension_id = get_extension_id_by_key_and_name(&state, &public_key, &name)?;
 
     // Check filesync permission for backends (write)
     PermissionManager::check_filesync_permission(
@@ -79,7 +79,7 @@ pub async fn extension_remote_storage_update_backend(
     request: UpdateStorageBackendRequest,
     state: State<'_, AppState>,
 ) -> Result<StorageBackendInfo, ExtensionError> {
-    let extension_id = get_extension_id(&state, &public_key, &name).await?;
+    let extension_id = get_extension_id_by_key_and_name(&state, &public_key, &name)?;
 
     // Check filesync permission for backends (write)
     PermissionManager::check_filesync_permission(
@@ -104,7 +104,7 @@ pub async fn extension_remote_storage_remove_backend(
     backend_id: String,
     state: State<'_, AppState>,
 ) -> Result<(), ExtensionError> {
-    let extension_id = get_extension_id(&state, &public_key, &name).await?;
+    let extension_id = get_extension_id_by_key_and_name(&state, &public_key, &name)?;
 
     // Check filesync permission for backends (write)
     PermissionManager::check_filesync_permission(
@@ -129,7 +129,7 @@ pub async fn extension_remote_storage_test_backend(
     backend_id: String,
     state: State<'_, AppState>,
 ) -> Result<(), ExtensionError> {
-    let extension_id = get_extension_id(&state, &public_key, &name).await?;
+    let extension_id = get_extension_id_by_key_and_name(&state, &public_key, &name)?;
 
     // Check filesync permission for backends (read is sufficient for testing)
     PermissionManager::check_filesync_permission(
@@ -158,7 +158,7 @@ pub async fn extension_remote_storage_upload(
     request: StorageUploadRequest,
     state: State<'_, AppState>,
 ) -> Result<(), ExtensionError> {
-    let extension_id = get_extension_id(&state, &public_key, &name).await?;
+    let extension_id = get_extension_id_by_key_and_name(&state, &public_key, &name)?;
 
     // Check filesync permission for backends (write)
     PermissionManager::check_filesync_permission(
@@ -183,7 +183,7 @@ pub async fn extension_remote_storage_download(
     request: StorageDownloadRequest,
     state: State<'_, AppState>,
 ) -> Result<String, ExtensionError> {
-    let extension_id = get_extension_id(&state, &public_key, &name).await?;
+    let extension_id = get_extension_id_by_key_and_name(&state, &public_key, &name)?;
 
     // Check filesync permission for backends (read)
     PermissionManager::check_filesync_permission(
@@ -208,7 +208,7 @@ pub async fn extension_remote_storage_delete(
     request: StorageDeleteRequest,
     state: State<'_, AppState>,
 ) -> Result<(), ExtensionError> {
-    let extension_id = get_extension_id(&state, &public_key, &name).await?;
+    let extension_id = get_extension_id_by_key_and_name(&state, &public_key, &name)?;
 
     // Check filesync permission for backends (write)
     PermissionManager::check_filesync_permission(
@@ -233,7 +233,7 @@ pub async fn extension_remote_storage_list(
     request: StorageListRequest,
     state: State<'_, AppState>,
 ) -> Result<Vec<StorageObjectInfo>, ExtensionError> {
-    let extension_id = get_extension_id(&state, &public_key, &name).await?;
+    let extension_id = get_extension_id_by_key_and_name(&state, &public_key, &name)?;
 
     // Check filesync permission for backends (read)
     PermissionManager::check_filesync_permission(

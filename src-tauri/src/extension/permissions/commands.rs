@@ -1,99 +1,53 @@
 // src-tauri/src/extension/permissions/commands.rs
+//!
+//! Tauri commands for extension permission operations
+//!
+//! These commands work for both WebView and iframe extensions:
+//! - WebView: extension_id is resolved from the window context
+//! - iframe: extension_id is resolved from public_key/name parameters
+//!           (verified by frontend via origin check)
 
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{
     Action, DbAction, ExtensionPermission, FsAction, PermissionStatus, ResourceType, WebAction,
 };
+use crate::extension::utils::resolve_extension_id;
 use crate::AppState;
 use std::path::Path;
-use tauri::State;
-
-#[tauri::command]
-pub async fn check_web_permission(
-    extension_id: String,
-    url: String,
-    state: State<'_, AppState>,
-) -> Result<(), ExtensionError> {
-    PermissionManager::check_web_permission(&state, &extension_id, &url).await
-}
-
-#[tauri::command]
-pub async fn check_database_permission(
-    extension_id: String,
-    resource: String,
-    operation: String,
-    state: State<'_, AppState>,
-) -> Result<(), ExtensionError> {
-    let action = match operation.as_str() {
-        "read" => crate::extension::permissions::types::Action::Database(
-            crate::extension::permissions::types::DbAction::Read,
-        ),
-        "write" => crate::extension::permissions::types::Action::Database(
-            crate::extension::permissions::types::DbAction::ReadWrite,
-        ),
-        _ => {
-            return Err(ExtensionError::ValidationError {
-                reason: format!("Invalid database operation: {}", operation),
-            })
-        }
-    };
-
-    PermissionManager::check_database_permission(&state, &extension_id, action, &resource).await
-}
-
-#[tauri::command]
-pub async fn check_filesystem_permission(
-    extension_id: String,
-    path: String,
-    operation: String,
-    state: State<'_, AppState>,
-) -> Result<(), ExtensionError> {
-    let action = match operation.as_str() {
-        "read" => crate::extension::permissions::types::Action::Filesystem(
-            crate::extension::permissions::types::FsAction::Read,
-        ),
-        "write" => crate::extension::permissions::types::Action::Filesystem(
-            crate::extension::permissions::types::FsAction::ReadWrite,
-        ),
-        _ => {
-            return Err(ExtensionError::ValidationError {
-                reason: format!("Invalid filesystem operation: {}", operation),
-            })
-        }
-    };
-
-    let file_path = Path::new(&path);
-    PermissionManager::check_filesystem_permission(&state, &extension_id, action, file_path).await
-}
+use tauri::{State, WebviewWindow};
 
 // =============================================================================
-// Unified Command Names (SDK v2.5.60+)
-// These commands use the unified naming convention: extension_permissions_<action>
+// Permission Check Commands (unified for WebView and iframe)
 // =============================================================================
 
-/// Check web/fetch permission (unified command name)
+/// Check web/fetch permission
 #[tauri::command]
 pub async fn extension_permissions_check_web(
-    public_key: String,
-    name: String,
-    url: String,
+    window: WebviewWindow,
     state: State<'_, AppState>,
+    url: String,
+    // Optional parameters for iframe mode (verified by frontend via origin)
+    public_key: Option<String>,
+    name: Option<String>,
 ) -> Result<(), ExtensionError> {
-    let extension_id = format!("{}_{}", public_key, name);
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
     PermissionManager::check_web_permission(&state, &extension_id, &url).await
 }
 
-/// Check database permission (unified command name)
+/// Check database permission
 #[tauri::command]
 pub async fn extension_permissions_check_database(
-    public_key: String,
-    name: String,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
     resource: String,
     operation: String,
-    state: State<'_, AppState>,
+    // Optional parameters for iframe mode (verified by frontend via origin)
+    public_key: Option<String>,
+    name: Option<String>,
 ) -> Result<(), ExtensionError> {
-    let extension_id = format!("{}_{}", public_key, name);
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+
     let action = match operation.as_str() {
         "read" => Action::Database(DbAction::Read),
         "write" => Action::Database(DbAction::ReadWrite),
@@ -107,16 +61,19 @@ pub async fn extension_permissions_check_database(
     PermissionManager::check_database_permission(&state, &extension_id, action, &resource).await
 }
 
-/// Check filesystem permission (unified command name)
+/// Check filesystem permission
 #[tauri::command]
 pub async fn extension_permissions_check_filesystem(
-    public_key: String,
-    name: String,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
     path: String,
     operation: String,
-    state: State<'_, AppState>,
+    // Optional parameters for iframe mode (verified by frontend via origin)
+    public_key: Option<String>,
+    name: Option<String>,
 ) -> Result<(), ExtensionError> {
-    let extension_id = format!("{}_{}", public_key, name);
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+
     let action = match operation.as_str() {
         "read" => Action::Filesystem(FsAction::Read),
         "write" => Action::Filesystem(FsAction::ReadWrite),
@@ -132,7 +89,7 @@ pub async fn extension_permissions_check_filesystem(
 }
 
 // =============================================================================
-// Legacy Command Names (kept for backward compatibility)
+// Legacy Commands (for internal use by frontend)
 // =============================================================================
 
 /// Grants or denies a permission for the current session only (not persisted to database)

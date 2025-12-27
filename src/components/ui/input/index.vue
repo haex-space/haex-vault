@@ -37,7 +37,7 @@
         <slot name="trailing" />
 
         <UiButton
-          v-show="withCopyButton"
+          v-if="withCopyButton"
           :color="copied ? 'success' : 'neutral'"
           :tooltip="t('copy')"
           :icon="copied ? 'mdi:check' : 'mdi:content-copy'"

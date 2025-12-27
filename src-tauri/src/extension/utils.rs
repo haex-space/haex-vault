@@ -5,13 +5,15 @@ use crate::extension::error::ExtensionError;
 use crate::AppState;
 use tauri::State;
 
+use tauri::WebviewWindow;
+
 // ============================================================================
 // Extension Identification
 // ============================================================================
 
 /// Get extension ID from public_key and name.
 /// Used by extension commands to identify the calling extension.
-pub async fn get_extension_id(
+pub fn get_extension_id_by_key_and_name(
     state: &State<'_, AppState>,
     public_key: &str,
     name: &str,
@@ -25,6 +27,66 @@ pub async fn get_extension_id(
         })?;
 
     Ok(extension.id)
+}
+
+/// Resolves extension_id from either window context or parameters.
+///
+/// SECURITY: This function prioritizes window-based identification.
+/// If the window is a registered extension window, we ALWAYS use that ID
+/// (cannot be spoofed by the extension). Only if the window is NOT an
+/// extension window (e.g., main window for iframe requests), we fall back
+/// to parameters that were verified by the frontend via origin check.
+///
+/// This allows a single Tauri command to serve both:
+/// - WebView extensions (extension_id from window)
+/// - iframe extensions (extension_id from frontend-verified parameters)
+pub fn resolve_extension_id(
+    #[allow(unused_variables)] window: &WebviewWindow,
+    state: &State<'_, AppState>,
+    public_key: Option<String>,
+    name: Option<String>,
+) -> Result<String, ExtensionError> {
+    // On Desktop: First try to get extension_id from window (WebView case)
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let window_id = window.label();
+        let extension_id_from_window = {
+            let windows = state
+                .extension_webview_manager
+                .windows
+                .lock()
+                .map_err(|e| ExtensionError::MutexPoisoned {
+                    reason: e.to_string(),
+                })?;
+            windows.get(window_id).cloned()
+        };
+
+        if let Some(extension_id) = extension_id_from_window {
+            // Window is a registered extension window - use this ID
+            // (ignoring any parameters that might have been passed)
+            eprintln!(
+                "[resolve_extension_id] Using window-based ID: {}",
+                extension_id
+            );
+            return Ok(extension_id);
+        }
+    }
+
+    // Fallback: Use parameters provided by frontend (after origin verification)
+    // This is used for iframe extensions on all platforms, and is the only
+    // option on mobile where there are no WebView extensions.
+    match (public_key, name) {
+        (Some(pk), Some(n)) => {
+            eprintln!(
+                "[resolve_extension_id] Using parameter-based ID: {}::{}",
+                pk, n
+            );
+            get_extension_id_by_key_and_name(state, &pk, &n)
+        }
+        _ => Err(ExtensionError::ValidationError {
+            reason: "Cannot identify extension: not an extension window and no public_key/name provided".to_string(),
+        }),
+    }
 }
 
 // ============================================================================
