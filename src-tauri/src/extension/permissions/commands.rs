@@ -67,6 +67,74 @@ pub async fn check_filesystem_permission(
     PermissionManager::check_filesystem_permission(&state, &extension_id, action, file_path).await
 }
 
+// =============================================================================
+// Unified Command Names (SDK v2.5.60+)
+// These commands use the unified naming convention: extension_permissions_<action>
+// =============================================================================
+
+/// Check web/fetch permission (unified command name)
+#[tauri::command]
+pub async fn extension_permissions_check_web(
+    public_key: String,
+    name: String,
+    url: String,
+    state: State<'_, AppState>,
+) -> Result<(), ExtensionError> {
+    let extension_id = format!("{}_{}", public_key, name);
+    PermissionManager::check_web_permission(&state, &extension_id, &url).await
+}
+
+/// Check database permission (unified command name)
+#[tauri::command]
+pub async fn extension_permissions_check_database(
+    public_key: String,
+    name: String,
+    resource: String,
+    operation: String,
+    state: State<'_, AppState>,
+) -> Result<(), ExtensionError> {
+    let extension_id = format!("{}_{}", public_key, name);
+    let action = match operation.as_str() {
+        "read" => Action::Database(DbAction::Read),
+        "write" => Action::Database(DbAction::ReadWrite),
+        _ => {
+            return Err(ExtensionError::ValidationError {
+                reason: format!("Invalid database operation: {}", operation),
+            })
+        }
+    };
+
+    PermissionManager::check_database_permission(&state, &extension_id, action, &resource).await
+}
+
+/// Check filesystem permission (unified command name)
+#[tauri::command]
+pub async fn extension_permissions_check_filesystem(
+    public_key: String,
+    name: String,
+    path: String,
+    operation: String,
+    state: State<'_, AppState>,
+) -> Result<(), ExtensionError> {
+    let extension_id = format!("{}_{}", public_key, name);
+    let action = match operation.as_str() {
+        "read" => Action::Filesystem(FsAction::Read),
+        "write" => Action::Filesystem(FsAction::ReadWrite),
+        _ => {
+            return Err(ExtensionError::ValidationError {
+                reason: format!("Invalid filesystem operation: {}", operation),
+            })
+        }
+    };
+
+    let file_path = Path::new(&path);
+    PermissionManager::check_filesystem_permission(&state, &extension_id, action, file_path).await
+}
+
+// =============================================================================
+// Legacy Command Names (kept for backward compatibility)
+// =============================================================================
+
 /// Grants or denies a permission for the current session only (not persisted to database)
 ///
 /// Called by the frontend when user makes a decision without checking "remember".

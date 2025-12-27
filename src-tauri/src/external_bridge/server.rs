@@ -651,12 +651,21 @@ async fn update_client_last_seen(
 }
 
 /// Check if a client is authorized for a specific extension (by extension public_key + name)
+/// For dev extensions (public_key starts with "dev_"), this always returns false
+/// because dev extensions are not stored in the database. Authorization for dev
+/// extensions is handled via session authorization instead.
 async fn check_client_authorized_for_extension(
     app_handle: &AppHandle,
     client_id: &str,
     extension_public_key: &str,
     extension_name: &str,
 ) -> bool {
+    // Dev extensions are not in the database, so we can't check DB authorization
+    // Session authorization is checked separately
+    if extension_public_key.starts_with("dev_") {
+        return false;
+    }
+
     let state = app_handle.state::<AppState>();
     let params = vec![
         JsonValue::String(client_id.to_string()),
@@ -688,12 +697,39 @@ async fn check_client_authorized_for_extension(
 }
 
 /// Get extension ID by public_key and name
+/// First checks dev_extensions in memory, then falls back to database lookup
 async fn get_extension_id_by_public_key_and_name(
     app_handle: &AppHandle,
     extension_public_key: &str,
     extension_name: &str,
 ) -> Option<String> {
     let state = app_handle.state::<AppState>();
+
+    // First, check if this is a dev extension request (public_key starts with "dev_")
+    // Dev extensions are stored in memory, not in the database
+    if extension_public_key.starts_with("dev_") {
+        // Extract the actual public key (remove "dev_" prefix)
+        let actual_public_key = &extension_public_key[4..];
+        // Dev extension ID format: dev_{public_key}_{name}
+        let expected_dev_id = format!("dev_{}_{}", actual_public_key, extension_name);
+
+        let dev_extensions = state.extension_manager.dev_extensions.lock().unwrap();
+        if dev_extensions.contains_key(&expected_dev_id) {
+            eprintln!(
+                "[ExternalBridge] Found dev extension: {}",
+                expected_dev_id
+            );
+            return Some(expected_dev_id);
+        }
+        eprintln!(
+            "[ExternalBridge] Dev extension not found: {} (available: {:?})",
+            expected_dev_id,
+            dev_extensions.keys().collect::<Vec<_>>()
+        );
+        return None;
+    }
+
+    // For production extensions, look up in database
     let params = vec![
         JsonValue::String(extension_public_key.to_string()),
         JsonValue::String(extension_name.to_string()),
@@ -891,9 +927,28 @@ async fn process_request(
     });
 
     // Emit the request to the extension via Tauri event
-    // The extension's SDK will receive this and call the appropriate handler
-    if let Err(e) = app_handle.emit("haextension:external:request", &external_request) {
-        eprintln!("[ExternalBridge] Failed to emit external request: {}", e);
+    // For WebView extensions: emit directly to the extension's webview window
+    // For iframe extensions: emit to main window (frontend will forward via postMessage)
+    let emit_result = {
+        let state = app_handle.state::<AppState>();
+        let manager = &state.extension_webview_manager;
+
+        // Try to emit to extension webviews first
+        let webview_result = manager.emit_to_all_extensions(
+            app_handle,
+            "haextension:external:request",
+            external_request.clone(),
+        );
+
+        // Also emit to main window for iframe-based extensions
+        let main_result = app_handle.emit("haextension:external:request", &external_request);
+
+        // Consider success if either worked
+        webview_result.is_ok() || main_result.is_ok()
+    };
+
+    if !emit_result {
+        eprintln!("[ExternalBridge] Failed to emit external request to any window");
         // Clean up pending response
         let mut pending = pending_responses.write().await;
         pending.remove(&request_id);

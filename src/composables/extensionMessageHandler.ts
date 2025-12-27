@@ -4,7 +4,9 @@ import {
   TAURI_COMMANDS,
   HAEXTENSION_EVENTS,
   HAEXSPACE_MESSAGE_TYPES,
+  EXTERNAL_EVENTS,
 } from '@haex-space/vault-sdk'
+import { listen } from '@tauri-apps/api/event'
 import {
   EXTENSION_PROTOCOL_NAME,
   EXTENSION_PROTOCOL_PREFIX,
@@ -34,6 +36,9 @@ const registerGlobalMessageHandler = () => {
   if (globalHandlerRegistered) return
 
   console.log('[ExtensionHandler] Registering global message handler')
+
+  // Setup external request listener for iframe forwarding
+  setupExternalRequestListener()
 
   window.addEventListener('message', async (event: MessageEvent) => {
     // Log ALL messages first for debugging
@@ -392,3 +397,84 @@ export const broadcastContextToAllExtensions = (context: {
     }
   }
 }
+
+// External request payload from Tauri event
+interface ExternalRequestPayload {
+  requestId: string
+  publicKey: string
+  action: string
+  payload: unknown
+  extensionPublicKey: string
+  extensionName: string
+}
+
+// Forward external requests from Tauri to iframe extensions
+const forwardExternalRequestToIframe = (payload: ExternalRequestPayload) => {
+  const { extensionPublicKey, extensionName } = payload
+
+  console.log(
+    '[ExtensionHandler] Forwarding external request to iframe:',
+    extensionName,
+    'action:',
+    payload.action,
+  )
+
+  // Find all iframes for this extension (by publicKey and name)
+  let forwarded = false
+  for (const [iframe, instance] of iframeRegistry.entries()) {
+    if (
+      instance.extension.publicKey === extensionPublicKey
+      && instance.extension.name === extensionName
+    ) {
+      const win = windowIdToWindowMap.get(instance.windowId) || iframe.contentWindow
+      if (win) {
+        // Send as SDK-compatible event format
+        const message = {
+          type: EXTERNAL_EVENTS.REQUEST,
+          data: {
+            requestId: payload.requestId,
+            publicKey: payload.publicKey,
+            action: payload.action,
+            payload: payload.payload,
+          },
+          timestamp: Date.now(),
+        }
+        console.log(
+          '[ExtensionHandler] Sending external request to:',
+          instance.extension.name,
+          instance.windowId,
+        )
+        win.postMessage(message, '*')
+        forwarded = true
+      }
+    }
+  }
+
+  if (!forwarded) {
+    console.warn(
+      '[ExtensionHandler] No iframe found for extension:',
+      extensionName,
+      extensionPublicKey,
+    )
+  }
+}
+
+// Setup Tauri event listener for external requests (for iframe extensions)
+let externalRequestListenerRegistered = false
+
+const setupExternalRequestListener = async () => {
+  if (externalRequestListenerRegistered) return
+
+  try {
+    await listen<ExternalRequestPayload>(EXTERNAL_EVENTS.REQUEST, (event) => {
+      console.log('[ExtensionHandler] Received external request from Tauri:', event.payload)
+      forwardExternalRequestToIframe(event.payload)
+    })
+    externalRequestListenerRegistered = true
+    console.log('[ExtensionHandler] External request listener registered')
+  }
+  catch (error) {
+    console.error('[ExtensionHandler] Failed to setup external request listener:', error)
+  }
+}
+

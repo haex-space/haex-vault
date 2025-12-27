@@ -35,25 +35,47 @@ impl CrdtColumns {
         }
     }
 
-    /// Erstellt eine WHERE-Bedingung für (haex_tombstone = 0 OR haex_tombstone IS NULL)
-    /// Dies ist notwendig, da haex_tombstone bei neuen Einträgen NULL sein kann
-    fn create_tombstone_filter(&self) -> Expr {
-        // haex_tombstone = 0
-        let eq_zero = Expr::BinaryOp {
-            left: Box::new(Expr::Identifier(Ident::new(self.tombstone))),
-            op: BinaryOperator::Eq,
-            right: Box::new(Expr::Value(Value::Number("0".to_string(), false).into())),
+    /// Erstellt eine WHERE-Bedingung für IFNULL(haex_tombstone, 0) != 1
+    /// Dies behandelt sowohl haex_tombstone = 0 als auch haex_tombstone IS NULL
+    fn create_tombstone_filter(&self, table_qualifier: Option<&str>) -> Expr {
+        // Baue den Spaltenbezeichner (ggf. mit Tabellen-Qualifikator)
+        let column_expr = match table_qualifier {
+            Some(qualifier) => Expr::CompoundIdentifier(vec![
+                Ident::new(qualifier),
+                Ident::new(self.tombstone),
+            ]),
+            None => Expr::Identifier(Ident::new(self.tombstone)),
         };
 
-        // haex_tombstone IS NULL
-        let is_null = Expr::IsNull(Box::new(Expr::Identifier(Ident::new(self.tombstone))));
+        // IFNULL(haex_tombstone, 0)
+        let ifnull_expr = Expr::Function(sqlparser::ast::Function {
+            name: ObjectName(vec![ObjectNamePart::Identifier(Ident::new("IFNULL"))]),
+            args: sqlparser::ast::FunctionArguments::List(sqlparser::ast::FunctionArgumentList {
+                duplicate_treatment: None,
+                args: vec![
+                    sqlparser::ast::FunctionArg::Unnamed(sqlparser::ast::FunctionArgExpr::Expr(
+                        column_expr,
+                    )),
+                    sqlparser::ast::FunctionArg::Unnamed(sqlparser::ast::FunctionArgExpr::Expr(
+                        Expr::Value(Value::Number("0".to_string(), false).into()),
+                    )),
+                ],
+                clauses: vec![],
+            }),
+            filter: None,
+            null_treatment: None,
+            over: None,
+            within_group: vec![],
+            parameters: sqlparser::ast::FunctionArguments::None,
+            uses_odbc_syntax: false,
+        });
 
-        // (haex_tombstone = 0 OR haex_tombstone IS NULL)
-        Expr::Nested(Box::new(Expr::BinaryOp {
-            left: Box::new(eq_zero),
-            op: BinaryOperator::Or,
-            right: Box::new(is_null),
-        }))
+        // IFNULL(haex_tombstone, 0) != 1
+        Expr::BinaryOp {
+            left: Box::new(ifnull_expr),
+            op: BinaryOperator::NotEq,
+            right: Box::new(Expr::Value(Value::Number("1".to_string(), false).into())),
+        }
     }
 
     /// Prüft ob ein Ausdruck bereits eine haex_tombstone Bedingung enthält
@@ -82,9 +104,13 @@ impl CrdtColumns {
         }
     }
 
-    /// Fügt haex_tombstone = 0 zu einer WHERE-Klausel hinzu
+    /// Fügt IFNULL(haex_tombstone, 0) != 1 zu einer WHERE-Klausel hinzu
     /// Nur wenn noch keine haex_tombstone Bedingung vorhanden ist
-    fn add_tombstone_filter_to_where(&self, existing_where: Option<Expr>) -> Option<Expr> {
+    fn add_tombstone_filter_to_where(
+        &self,
+        existing_where: Option<Expr>,
+        table_qualifier: Option<&str>,
+    ) -> Option<Expr> {
         // Prüfe ob bereits eine haex_tombstone Bedingung existiert
         if let Some(ref where_expr) = existing_where {
             if self.has_tombstone_condition(where_expr) {
@@ -93,7 +119,7 @@ impl CrdtColumns {
             }
         }
 
-        let tombstone_filter = self.create_tombstone_filter();
+        let tombstone_filter = self.create_tombstone_filter(table_qualifier);
 
         match existing_where {
             Some(existing) => Some(Expr::BinaryOp {
@@ -186,16 +212,78 @@ impl CrdtTransformer {
         }
     }
 
-    /// Transformiert ein SELECT Statement (fügt WHERE haex_tombstone = 0 hinzu)
-    fn transform_select(&self, select: &mut Select) {
-        // Prüfe ob mindestens eine CRDT-Tabelle in FROM vorhanden ist
-        let has_crdt_table = select.from.iter().any(|t| self.is_crdt_table_with_joins(t));
+    /// Extrahiert den Tabellennamen oder Alias aus einem TableWithJoins
+    fn get_table_qualifier(&self, table: &sqlparser::ast::TableWithJoins) -> Option<String> {
+        if let TableFactor::Table { name, alias, .. } = &table.relation {
+            // Bevorzuge Alias, falls vorhanden
+            if let Some(table_alias) = alias {
+                return Some(table_alias.name.value.clone());
+            }
+            // Sonst den Tabellennamen (letzter Teil des ObjectName)
+            if let Some(last_part) = name.0.last() {
+                match last_part {
+                    ObjectNamePart::Identifier(ident) => return Some(ident.value.clone()),
+                    ObjectNamePart::Function(func) => return Some(func.name.to_string()),
+                }
+            }
+        }
+        None
+    }
 
-        if has_crdt_table {
-            // Füge WHERE haex_tombstone = 0 hinzu (falls noch nicht vorhanden)
+    /// Transformiert ein SELECT Statement (fügt WHERE IFNULL(haex_tombstone, 0) != 1 hinzu)
+    fn transform_select(&self, select: &mut Select) {
+        // Zuerst: Rekursiv Subqueries in FROM-Klausel transformieren
+        for table_with_joins in &mut select.from {
+            self.transform_table_factor(&mut table_with_joins.relation);
+            // Auch JOINs können Subqueries enthalten
+            for join in &mut table_with_joins.joins {
+                self.transform_table_factor(&mut join.relation);
+            }
+        }
+
+        // Finde die erste CRDT-Tabelle und ihren Qualifier
+        let crdt_table_qualifier = select
+            .from
+            .iter()
+            .find(|t| self.is_crdt_table_with_joins(t))
+            .and_then(|t| self.get_table_qualifier(t));
+
+        if crdt_table_qualifier.is_some() || select.from.iter().any(|t| self.is_crdt_table_with_joins(t)) {
+            // Bei JOINs: Qualifier verwenden, sonst None (für einfache Queries ohne JOINs)
+            let has_joins = select.from.iter().any(|t| !t.joins.is_empty());
+            let qualifier = if has_joins {
+                crdt_table_qualifier.as_deref()
+            } else {
+                None
+            };
+
+            // Füge WHERE IFNULL(haex_tombstone, 0) != 1 hinzu (falls noch nicht vorhanden)
             select.selection = self
                 .columns
-                .add_tombstone_filter_to_where(select.selection.take());
+                .add_tombstone_filter_to_where(select.selection.take(), qualifier);
+        }
+    }
+
+    /// Transformiert einen TableFactor rekursiv (für Subqueries in FROM)
+    fn transform_table_factor(&self, table_factor: &mut TableFactor) {
+        match table_factor {
+            TableFactor::Derived { subquery, .. } => {
+                // Rekursiv die Subquery transformieren
+                self.transform_query(subquery);
+            }
+            TableFactor::TableFunction { .. } => {
+                // Table functions können auch Subqueries enthalten, aber das ist selten
+            }
+            TableFactor::NestedJoin { table_with_joins, .. } => {
+                // Nested joins rekursiv behandeln
+                self.transform_table_factor(&mut table_with_joins.relation);
+                for join in &mut table_with_joins.joins {
+                    self.transform_table_factor(&mut join.relation);
+                }
+            }
+            _ => {
+                // Table, UNNEST, etc. - keine weitere Transformation nötig
+            }
         }
     }
 
@@ -274,9 +362,12 @@ impl CrdtTransformer {
                         // Add HLC timestamp assignment
                         assignments.push(self.columns.create_hlc_assignment(hlc_timestamp));
 
-                        // Add WHERE haex_tombstone = 0 to only update non-deleted rows
+                        // Add WHERE IFNULL(haex_tombstone, 0) != 1 to only update non-deleted rows
                         // (unless WHERE haex_tombstone = 1 is already present)
-                        *selection = self.columns.add_tombstone_filter_to_where(selection.take());
+                        // UPDATE statements don't have JOINs in our use case, so no qualifier needed
+                        *selection =
+                            self.columns
+                                .add_tombstone_filter_to_where(selection.take(), None);
                     }
                 }
                 Ok(None)
@@ -329,3 +420,6 @@ impl CrdtTransformer {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
