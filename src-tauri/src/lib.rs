@@ -345,6 +345,10 @@ pub fn run() {
             extension::filesystem::commands::extension_filesystem_select_file,
             extension::filesystem::commands::extension_filesystem_rename,
             extension::filesystem::commands::extension_filesystem_copy,
+            // File watcher commands
+            extension::filesystem::commands::extension_filesystem_watch,
+            extension::filesystem::commands::extension_filesystem_unwatch,
+            extension::filesystem::commands::extension_filesystem_is_watching,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

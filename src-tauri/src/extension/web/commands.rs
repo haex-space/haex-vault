@@ -11,12 +11,14 @@ use crate::extension::error::ExtensionError;
 use crate::extension::utils::resolve_extension_id;
 use crate::extension::web::helpers::fetch_web_request;
 use crate::extension::web::types::{WebFetchRequest, WebFetchResponse};
+use crate::extension::webview::helpers::emit_permission_prompt_if_needed;
 use crate::AppState;
 use std::collections::HashMap;
-use tauri::{State, WebviewWindow};
+use tauri::{AppHandle, State, WebviewWindow};
 
 #[tauri::command]
 pub async fn extension_web_open(
+    app_handle: AppHandle,
     window: WebviewWindow,
     state: State<'_, AppState>,
     url: String,
@@ -44,12 +46,18 @@ pub async fn extension_web_open(
     }
 
     // Check web permissions
-    crate::extension::permissions::manager::PermissionManager::check_web_permission(
-        &state,
-        &extension_id,
-        &url,
-    )
-    .await?;
+    let permission_result =
+        crate::extension::permissions::manager::PermissionManager::check_web_permission(
+            &state,
+            &extension_id,
+            &url,
+        )
+        .await;
+
+    if let Err(ref e) = permission_result {
+        emit_permission_prompt_if_needed(&app_handle, e);
+    }
+    permission_result?;
 
     // Open URL in default browser using tauri-plugin-opener
     tauri_plugin_opener::open_url(&url, None::<&str>).map_err(|e| ExtensionError::WebError {
@@ -61,6 +69,7 @@ pub async fn extension_web_open(
 
 #[tauri::command]
 pub async fn extension_web_fetch(
+    app_handle: AppHandle,
     window: WebviewWindow,
     state: State<'_, AppState>,
     url: String,
@@ -81,12 +90,18 @@ pub async fn extension_web_fetch(
     // Skip permission check if allowOnce is true (user clicked "Allow Once" in dialog)
     if !allow_once.unwrap_or(false) {
         // Check web permissions before making request
-        crate::extension::permissions::manager::PermissionManager::check_web_permission(
-            &state,
-            &extension_id,
-            &url,
-        )
-        .await?;
+        let permission_result =
+            crate::extension::permissions::manager::PermissionManager::check_web_permission(
+                &state,
+                &extension_id,
+                &url,
+            )
+            .await;
+
+        if let Err(ref e) = permission_result {
+            emit_permission_prompt_if_needed(&app_handle, e);
+        }
+        permission_result?;
     }
 
     let request = WebFetchRequest {

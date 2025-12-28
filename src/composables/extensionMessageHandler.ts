@@ -408,6 +408,13 @@ interface ExternalRequestPayload {
   extensionName: string
 }
 
+// File change event payload from Tauri event (from native file watcher)
+interface FileChangePayload {
+  ruleId: string
+  changeType: 'created' | 'modified' | 'removed' | 'any'
+  path?: string
+}
+
 // Forward external requests from Tauri to iframe extensions
 const forwardExternalRequestToIframe = (payload: ExternalRequestPayload) => {
   const { extensionPublicKey, extensionName } = payload
@@ -459,22 +466,62 @@ const forwardExternalRequestToIframe = (payload: ExternalRequestPayload) => {
   }
 }
 
-// Setup Tauri event listener for external requests (for iframe extensions)
-let externalRequestListenerRegistered = false
+// Forward file change events from Tauri to all extension iframes
+// Extensions can filter by ruleId on their side
+const forwardFileChangeToIframes = (payload: FileChangePayload) => {
+  console.log(
+    '[ExtensionHandler] Forwarding file change event:',
+    payload.ruleId,
+    payload.changeType,
+    payload.path,
+  )
+
+  // Send to all registered extension windows
+  for (const [iframe, instance] of iframeRegistry.entries()) {
+    const win = windowIdToWindowMap.get(instance.windowId) || iframe.contentWindow
+    if (win) {
+      // Send as SDK-compatible event format
+      const message = {
+        type: HAEXTENSION_EVENTS.FILE_CHANGED,
+        ruleId: payload.ruleId,
+        changeType: payload.changeType,
+        path: payload.path,
+        timestamp: Date.now(),
+      }
+      console.log(
+        '[ExtensionHandler] Sending file change to:',
+        instance.extension.name,
+        instance.windowId,
+      )
+      win.postMessage(message, '*')
+    }
+  }
+}
+
+// Setup Tauri event listeners for external requests and file changes (for iframe extensions)
+let eventListenersRegistered = false
 
 const setupExternalRequestListener = async () => {
-  if (externalRequestListenerRegistered) return
+  if (eventListenersRegistered) return
 
   try {
+    // Listen for external requests
     await listen<ExternalRequestPayload>(EXTERNAL_EVENTS.REQUEST, (event) => {
       console.log('[ExtensionHandler] Received external request from Tauri:', event.payload)
       forwardExternalRequestToIframe(event.payload)
     })
-    externalRequestListenerRegistered = true
-    console.log('[ExtensionHandler] External request listener registered')
+
+    // Listen for file change events from native file watcher
+    await listen<FileChangePayload>(HAEXTENSION_EVENTS.FILE_CHANGED, (event) => {
+      console.log('[ExtensionHandler] Received file change from Tauri:', event.payload)
+      forwardFileChangeToIframes(event.payload)
+    })
+
+    eventListenersRegistered = true
+    console.log('[ExtensionHandler] Event listeners registered (external requests + file changes)')
   }
   catch (error) {
-    console.error('[ExtensionHandler] Failed to setup external request listener:', error)
+    console.error('[ExtensionHandler] Failed to setup event listeners:', error)
   }
 }
 
