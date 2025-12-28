@@ -2,28 +2,35 @@
   <UiDrawerModal
     v-model:open="open"
     :title="t('title')"
-    :description="path || t('description')"
   >
     <!-- No trigger - this component is opened programmatically -->
     <template #trigger>
       <span class="hidden" />
     </template>
 
+    <!-- Description with clickable path on desktop -->
+    <template #description>
+      <button
+        v-if="path && canRevealInFolder"
+        class="text-primary hover:underline cursor-pointer text-left truncate max-w-full block"
+        :title="path"
+        @click="onRevealInFolder"
+      >
+        {{ shortenedPath }}
+      </button>
+      <span
+        v-else-if="path"
+        class="truncate max-w-full block"
+        :title="path"
+      >
+        {{ shortenedPath }}
+      </span>
+      <span v-else>{{ t('description') }}</span>
+    </template>
+
     <!-- Content -->
     <template #content>
       <div class="space-y-4">
-        <div
-          v-if="path"
-          class="text-sm text-gray-500 dark:text-gray-400"
-        >
-          <button
-            class="text-primary hover:underline cursor-pointer break-all text-left"
-            @click="onRevealInFolder"
-          >
-            {{ path }}
-          </button>
-        </div>
-
         <UForm
           :state="vault"
           class="w-full"
@@ -82,8 +89,9 @@
 <script setup lang="ts">
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import { vaultSchema } from './schema'
-import { isMobile } from '~/utils/platform'
+import { isMobile, isDesktop } from '~/utils/platform'
 import { useBiometry } from '~/composables/useBiometry'
+import { shortenPath } from '~/utils/helper'
 
 const open = defineModel<boolean>('open', { default: false })
 const props = defineProps<{
@@ -94,6 +102,10 @@ const props = defineProps<{
 const { t } = useI18n({
   useScope: 'local',
 })
+
+// Path display helpers
+const canRevealInFolder = computed(() => isDesktop())
+const shortenedPath = computed(() => props.path ? shortenPath(props.path) : '')
 
 const vault = reactive({
   name: '',

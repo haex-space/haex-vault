@@ -216,3 +216,61 @@ export const getFileName = (fullPath: string) => {
   const seperator = platform() === 'windows' ? '\\' : '/'
   return fullPath.split(seperator).pop()
 }
+
+/**
+ * Get the directory path from a full file path
+ */
+export const getDirectoryPath = (fullPath: string) => {
+  const separator = platform() === 'windows' ? '\\' : '/'
+  const parts = fullPath.split(separator)
+  parts.pop() // Remove filename
+  return parts.join(separator)
+}
+
+/**
+ * Shorten a path for display by:
+ * - Replacing home directory with ~
+ * - Truncating middle segments if too long
+ *
+ * @param fullPath The full path to shorten
+ * @param maxLength Maximum length before truncation (default: 40)
+ */
+export const shortenPath = (fullPath: string, maxLength: number = 40): string => {
+  if (!fullPath) return ''
+
+  const isWindows = platform() === 'windows'
+  const separator = isWindows ? '\\' : '/'
+
+  let path = fullPath
+
+  // Replace home directory with ~ (Unix-like systems)
+  if (!isWindows) {
+    const homeDir = '/home/'
+    if (path.startsWith(homeDir)) {
+      const afterHome = path.slice(homeDir.length)
+      const firstSlash = afterHome.indexOf('/')
+      if (firstSlash !== -1) {
+        path = '~' + afterHome.slice(firstSlash)
+      }
+    }
+  }
+
+  // If short enough, return as-is
+  if (path.length <= maxLength) {
+    return path
+  }
+
+  // Split into parts and truncate middle
+  const parts = path.split(separator)
+
+  if (parts.length <= 3) {
+    // Can't really shorten further
+    return path
+  }
+
+  // Keep first part (~ or drive letter) and last 2 parts
+  const first = parts[0]
+  const last = parts.slice(-2).join(separator)
+
+  return `${first}${separator}...${separator}${last}`
+}

@@ -4,7 +4,7 @@
     v-if="isSmallScreen"
     v-model:open="open"
     :title="title"
-    :description="description"
+    :description="$slots.description ? undefined : description"
   >
     <!-- Trigger Button -->
     <slot name="trigger" />
@@ -18,6 +18,12 @@
             <h2 class="text-xl font-semibold">
               {{ title }}
             </h2>
+            <p
+              v-if="$slots.description || description"
+              class="mt-1 text-muted text-sm"
+            >
+              <slot name="description">{{ description }}</slot>
+            </p>
           </slot>
         </div>
 
@@ -42,7 +48,7 @@
     v-else
     v-model:open="open"
     :title="title"
-    :description="description"
+    :description="$slots.description ? undefined : description"
     :ui="ui"
   >
     <!-- Trigger Button -->
@@ -54,6 +60,14 @@
       #header
     >
       <slot name="header" />
+    </template>
+
+    <!-- Custom Description (optional) -->
+    <template
+      v-if="$slots.description"
+      #description
+    >
+      <slot name="description" />
     </template>
 
     <!-- Modal Body -->

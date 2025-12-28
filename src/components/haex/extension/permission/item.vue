@@ -20,7 +20,29 @@
           v-else
           class="font-medium break-all"
         >
-          {{ permissionEntry.target }}
+          <span
+            v-if="isWildcard"
+            class="inline-flex items-center gap-1 text-orange-600 dark:text-orange-400"
+          >
+            <UPopover mode="hover">
+              <button
+                type="button"
+                class="inline-flex items-center"
+              >
+                <UIcon
+                  name="i-heroicons-exclamation-triangle"
+                  class="size-4 shrink-0"
+                />
+              </button>
+              <template #content>
+                <div class="p-2 text-sm max-w-64">
+                  {{ t('wildcardWarning') }}
+                </div>
+              </template>
+            </UPopover>
+            <span class="font-bold">{{ permissionEntry.target }}</span>
+          </span>
+          <template v-else>{{ permissionEntry.target }}</template>
         </div>
         <div
           v-if="permissionEntry.operation && !isEditing"
@@ -71,6 +93,9 @@ import type { PermissionEntry } from '~~/src-tauri/bindings/PermissionEntry'
 import type { PermissionStatus } from '~~/src-tauri/bindings/PermissionStatus'
 
 const permissionEntry = defineModel<PermissionEntry>({ required: true })
+
+// Check if target contains wildcard (full wildcard or pattern like *.example.com)
+const isWildcard = computed(() => permissionEntry.value.target.includes('*'))
 
 const isEditing = ref(false)
 const inputRef = ref<{ input: HTMLInputElement } | null>(null)
@@ -157,6 +182,7 @@ de:
   targetPlaceholder: Ziel eingeben (z.B. *.example.com)
   editTarget: Ziel bearbeiten
   confirmEdit: Bearbeitung abschließen
+  wildcardWarning: Wildcard-Berechtigung – erlaubt Zugriff auf alle Ziele dieses Typs
   status:
     granted: Erlaubt
     ask: Nachfragen
@@ -172,6 +198,7 @@ en:
   targetPlaceholder: Enter target (e.g. *.example.com)
   editTarget: Edit target
   confirmEdit: Confirm edit
+  wildcardWarning: Wildcard permission – allows access to all targets of this type
   status:
     granted: Granted
     ask: Ask
