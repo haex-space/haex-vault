@@ -1,12 +1,13 @@
 <template>
   <UCard
     :ui="{
-      root: 'hover:shadow-lg transition-shadow duration-200 cursor-pointer',
-      body: 'flex flex-col gap-3',
+      root: 'h-full flex flex-col hover:shadow-lg transition-shadow duration-200 cursor-pointer',
+      body: 'flex-1 flex flex-col gap-3',
+      footer: 'mt-auto',
     }"
     @click="$emit('details')"
   >
-    <div class="flex items-start gap-4">
+    <div class="flex items-start gap-4 flex-1">
       <!-- Icon -->
       <div class="shrink-0">
         <div
@@ -31,7 +32,7 @@
       </div>
 
       <!-- Content -->
-      <div class="flex-1 min-w-0">
+      <div class="flex-1 min-w-0 flex flex-col">
         <div class="flex items-start justify-between gap-2">
           <div class="flex-1 min-w-0">
             <h3 class="text-lg font-semibold truncate">
@@ -67,11 +68,8 @@
           </div>
         </div>
 
-        <p
-          v-if="extension.shortDescription"
-          class="hidden @lg:flex text-sm text-gray-600 dark:text-gray-300 mt-2 line-clamp-2"
-        >
-          {{ extension.shortDescription }}
+        <p class="hidden @lg:block text-sm text-gray-600 dark:text-gray-300 mt-2 line-clamp-2 min-h-10">
+          {{ extension.shortDescription || '&nbsp;' }}
         </p>
 
         <!-- Stats -->
@@ -102,12 +100,9 @@
         </div>
 
         <!-- Tags -->
-        <div
-          v-if="extension.tags?.length"
-          class="flex flex-wrap gap-1 mt-2"
-        >
+        <div class="flex flex-wrap gap-1 mt-2 min-h-6">
           <UBadge
-            v-for="tag in extension.tags.slice(0, 3)"
+            v-for="tag in extension.tags?.slice(0, 3)"
             :key="tag"
             :label="tag"
             size="xs"

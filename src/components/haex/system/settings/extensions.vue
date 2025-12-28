@@ -5,7 +5,7 @@
       v-if="selectedExtension"
       :extension="selectedExtension"
       @back="selectedExtension = null"
-      @removed="handleExtensionRemoved"
+      @removed="selectedExtension = null"
     />
 
     <!-- List View -->
@@ -30,7 +30,7 @@
       </div>
 
       <div
-        v-else-if="!allExtensions.length"
+        v-else-if="!availableExtensions.length"
         class="text-center py-8 text-muted"
       >
         {{ t('noExtensions') }}
@@ -38,7 +38,7 @@
 
       <div v-else class="space-y-2">
         <button
-          v-for="ext in allExtensions"
+          v-for="ext in availableExtensions"
           :key="ext.id"
           class="w-full p-4 rounded-lg border border-base-300 bg-base-100 hover:bg-base-200 transition-colors text-left"
           @click="selectedExtension = ext"
@@ -93,28 +93,20 @@ const { add } = useToast()
 const extensionsStore = useExtensionsStore()
 const windowManager = useWindowManagerStore()
 const { availableExtensions } = storeToRefs(extensionsStore)
-const { loadExtensionsAsync } = extensionsStore
 
 const loading = ref(true)
-const allExtensions = ref<IHaexSpaceExtension[]>([])
 const selectedExtension = ref<IHaexSpaceExtension | null>(null)
 
-const loadAllExtensionsAsync = async () => {
+const loadExtensionsAsync = async () => {
   loading.value = true
   try {
-    await loadExtensionsAsync()
-    allExtensions.value = availableExtensions.value
+    await extensionsStore.loadExtensionsAsync()
   } catch (error) {
     console.error('Error loading extensions:', error)
     add({ description: t('loadError'), color: 'error' })
   } finally {
     loading.value = false
   }
-}
-
-const handleExtensionRemoved = async () => {
-  selectedExtension.value = null
-  await loadAllExtensionsAsync()
 }
 
 const openMarketplaceAsync = async () => {
@@ -125,7 +117,7 @@ const openMarketplaceAsync = async () => {
 }
 
 onMounted(async () => {
-  await loadAllExtensionsAsync()
+  await loadExtensionsAsync()
 })
 </script>
 
