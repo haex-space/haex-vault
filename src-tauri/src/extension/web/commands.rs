@@ -8,10 +8,9 @@
 //!           (verified by frontend via origin check)
 
 use crate::extension::error::ExtensionError;
-use crate::extension::utils::resolve_extension_id;
+use crate::extension::utils::{emit_permission_prompt_if_needed, resolve_extension_id};
 use crate::extension::web::helpers::fetch_web_request;
 use crate::extension::web::types::{WebFetchRequest, WebFetchResponse};
-use crate::extension::webview::helpers::emit_permission_prompt_if_needed;
 use crate::AppState;
 use std::collections::HashMap;
 use tauri::{AppHandle, State, WebviewWindow};

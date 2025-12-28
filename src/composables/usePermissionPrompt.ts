@@ -28,8 +28,8 @@ const isOpen = ref(false)
 const promptData = ref<PermissionPromptData | null>(null)
 let resolvePromise: ((result: PermissionDecision) => void) | null = null
 
-// Queue for pending permission prompts
-const promptQueue: QueuedPrompt[] = []
+// Queue for pending permission prompts (reactive for UI updates)
+const promptQueue = ref<QueuedPrompt[]>([])
 
 // Event listener cleanup
 let eventUnlisten: UnlistenFn | null = null
@@ -54,18 +54,18 @@ function isDuplicatePrompt(data: PermissionPromptData): boolean {
   }
 
   // Check queue
-  return promptQueue.some(item => getPromptKey(item.data) === key)
+  return promptQueue.value.some(item => getPromptKey(item.data) === key)
 }
 
 /**
  * Show the next prompt from the queue if available
  */
 function showNextPrompt() {
-  if (promptQueue.length === 0) {
+  if (promptQueue.value.length === 0) {
     return
   }
 
-  const next = promptQueue.shift()
+  const next = promptQueue.value.shift()
   if (next) {
     promptData.value = next.data
     resolvePromise = next.resolve
@@ -150,7 +150,7 @@ export function usePermissionPrompt() {
       if (isOpen.value) {
         // Queue the prompt if one is already open
         console.log('[PermissionPrompt] Queuing prompt:', getPromptKey(data))
-        promptQueue.push({ data, resolve })
+        promptQueue.value.push({ data, resolve })
       } else {
         // Show immediately
         promptData.value = data
@@ -161,19 +161,9 @@ export function usePermissionPrompt() {
   }
 
   /**
-   * Handle user decision from the dialog
-   * Called by the dialog component when user clicks a button
-   *
-   * @param decision - The user's decision (granted or denied)
-   * @param remember - If true, save to database permanently. If false, only save for this session.
+   * Save a permission decision (to database or session)
    */
-  async function handleDecision(decision: PermissionDecision, remember: boolean) {
-    if (!promptData.value) {
-      return
-    }
-
-    const data = promptData.value
-
+  async function saveDecision(data: PermissionPromptData, decision: PermissionDecision, remember: boolean) {
     if (remember) {
       // Save permanently to database
       try {
@@ -200,15 +190,52 @@ export function usePermissionPrompt() {
         console.error('Failed to save session permission:', error)
       }
     }
+  }
 
-    // Close dialog and resolve promise
+  /**
+   * Handle user decision from the dialog
+   * Called by the dialog component when user clicks a button
+   *
+   * @param decision - The user's decision (granted or denied)
+   * @param remember - If true, save to database permanently. If false, only save for this session.
+   * @param applyToAll - If true, apply the same decision to all pending prompts in the queue.
+   */
+  async function handleDecision(decision: PermissionDecision, remember: boolean, applyToAll: boolean = false) {
+    if (!promptData.value) {
+      return
+    }
+
+    const data = promptData.value
+
+    // Save the current decision
+    await saveDecision(data, decision, remember)
+
+    // Close dialog and resolve promise for current prompt
     isOpen.value = false
     resolvePromise?.(decision)
     resolvePromise = null
     promptData.value = null
 
+    // If applyToAll is true, process all queued prompts with the same decision
+    if (applyToAll && promptQueue.value.length > 0) {
+      console.log(`[PermissionPrompt] Applying decision "${decision}" to ${promptQueue.value.length} queued prompts`)
+
+      // Process all queued prompts
+      const queueCopy = [...promptQueue.value]
+      promptQueue.value = [] // Clear the queue
+
+      for (const queuedPrompt of queueCopy) {
+        // Save the decision for each queued prompt
+        await saveDecision(queuedPrompt.data, decision, remember)
+        // Resolve the promise if it exists
+        queuedPrompt.resolve?.(decision)
+      }
+
+      return // Don't show next prompt since we processed them all
+    }
+
     // Show next prompt from queue if available
-    if (promptQueue.length > 0) {
+    if (promptQueue.value.length > 0) {
       // Use nextTick to ensure the dialog closes before opening the next one
       nextTick(() => {
         showNextPrompt()
@@ -226,7 +253,7 @@ export function usePermissionPrompt() {
     promptData.value = null
 
     // Show next prompt from queue if available
-    if (promptQueue.length > 0) {
+    if (promptQueue.value.length > 0) {
       nextTick(() => {
         showNextPrompt()
       })
@@ -265,7 +292,7 @@ export function usePermissionPrompt() {
         if (isOpen.value) {
           // Queue the prompt if one is already open
           console.log('[PermissionPrompt] Queuing prompt from event:', getPromptKey(data))
-          promptQueue.push({ data, resolve: null })
+          promptQueue.value.push({ data, resolve: null })
         } else {
           // Show immediately
           promptData.value = data
@@ -292,7 +319,7 @@ export function usePermissionPrompt() {
   /**
    * Get the number of pending prompts in the queue
    */
-  const pendingCount = computed(() => promptQueue.length)
+  const pendingCount = computed(() => promptQueue.value.length)
 
   return {
     // State

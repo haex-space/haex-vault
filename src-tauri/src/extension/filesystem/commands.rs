@@ -13,8 +13,7 @@
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{Action, FsAction};
-use crate::extension::utils::resolve_extension_id;
-use crate::extension::webview::helpers::emit_permission_prompt_if_needed;
+use crate::extension::utils::{emit_permission_prompt_if_needed, resolve_extension_id};
 use crate::filesystem::{DirEntry, FileStat};
 use crate::AppState;
 use std::path::Path;

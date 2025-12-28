@@ -87,6 +87,12 @@
           v-model="rememberDecision"
           :label="t('rememberDecision')"
         />
+        <!-- Apply to all checkbox (only shown when there are pending prompts) -->
+        <UCheckbox
+          v-if="props.pendingCount && props.pendingCount > 0"
+          v-model="applyToAll"
+          :label="t('applyToAll', { count: props.pendingCount })"
+        />
 
         <!-- Action buttons -->
         <div class="flex flex-col sm:flex-row gap-2 w-full">
@@ -128,17 +134,19 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
-  decision: [value: PermissionDecision, remember: boolean]
+  decision: [value: PermissionDecision, remember: boolean, applyToAll: boolean]
 }>()
 
 const rememberDecision = ref(false)
+const applyToAll = ref(false)
 
-// Reset checkbox when dialog opens
+// Reset checkboxes when dialog opens
 watch(
   () => props.open,
   (isOpen) => {
     if (isOpen) {
       rememberDecision.value = false
+      applyToAll.value = false
     }
   },
 )
@@ -183,15 +191,15 @@ const resourceTypeLabel = computed(() => {
 })
 
 function onAllow() {
-  emit('decision', 'granted', rememberDecision.value)
+  emit('decision', 'granted', rememberDecision.value, applyToAll.value)
 }
 
 function onDeny() {
-  emit('decision', 'denied', rememberDecision.value)
+  emit('decision', 'denied', rememberDecision.value, applyToAll.value)
 }
 
 function onCancel() {
-  emit('decision', 'denied', false)
+  emit('decision', 'denied', false, false)
 }
 </script>
 
@@ -213,6 +221,7 @@ de:
     title: Vorsicht
     description: Erteile nur Berechtigungen für Erweiterungen, denen du vertraust.
   rememberDecision: Entscheidung merken
+  applyToAll: Für alle {count} wartenden Anfragen anwenden
   allow: Erlauben
   deny: Ablehnen
 en:
@@ -232,6 +241,7 @@ en:
     title: Caution
     description: Only grant permissions to extensions you trust.
   rememberDecision: Remember decision
+  applyToAll: Apply to all {count} pending requests
   allow: Allow
   deny: Deny
 </i18n>

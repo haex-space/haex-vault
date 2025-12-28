@@ -9,8 +9,7 @@
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{FileSyncAction, FileSyncTarget};
-use crate::extension::utils::get_extension_id_by_key_and_name;
-use crate::extension::webview::helpers::emit_permission_prompt_if_needed;
+use crate::extension::utils::{emit_permission_prompt_if_needed, get_extension_id_by_key_and_name};
 use crate::remote_storage::types::{
     AddStorageBackendRequest, StorageBackendInfo, StorageDeleteRequest, StorageDownloadRequest,
     StorageListRequest, StorageObjectInfo, StorageUploadRequest, UpdateStorageBackendRequest,
