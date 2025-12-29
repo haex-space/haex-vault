@@ -278,6 +278,10 @@ export const applyAllChangesWithMigrationsAsync = async (
 
   log.info(`Processing ${allChanges.length} changes...`)
 
+  // Log unique tables for debugging
+  const uniqueTables = [...new Set(allChanges.map((c) => c.tableName))]
+  log.debug('Unique tables in changes:', uniqueTables)
+
   // Separate changes into categories with correct application order:
   // 1. haex_extensions (extension registrations - needed for FK in migrations)
   // 2. haex_extension_migrations (migration definitions)
@@ -287,6 +291,8 @@ export const applyAllChangesWithMigrationsAsync = async (
   const otherChanges = allChanges.filter(
     (c) => c.tableName !== 'haex_extensions' && c.tableName !== 'haex_extension_migrations',
   )
+
+  log.debug(`Separated: ${extensionChanges.length} extension, ${migrationChanges.length} migration, ${otherChanges.length} other`)
 
   let maxHlc = ''
 
