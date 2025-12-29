@@ -81,8 +81,8 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       name: 'Settings',
       icon: 'i-mdi-cog',
       component: defineAsyncComponent(
-        () => import('~/components/haex/system/settings/index.vue'),
-      ) as Component,
+        () => import('@/components/haex/system/settings/index.vue'),
+      ),
       defaultWidth: 800,
       defaultHeight: 600,
       resizable: true,
