@@ -1,27 +1,21 @@
 <template>
-  <HaexSystem :is-dragging="isDragging">
-    <template #header>
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <div class="flex items-center gap-2">
-          <UIcon
-            name="i-heroicons-bug-ant"
-            class="w-5 h-5 shrink-0"
-          />
-          <h2 class="text-2xl font-bold">
-            Debug Logs
-          </h2>
-          <span class="text-xs text-gray-500">
-            {{ logs.length }} logs
-          </span>
-        </div>
-        <div class="flex flex-wrap gap-2">
+  <HaexSystemSettingsLayout
+    title="Debug Logs"
+    sticky-header
+  >
+    <template #description>
+      <div class="flex items-center gap-4">
+        <span>{{ logs.length }} logs</span>
+        <div class="flex gap-2">
           <UButton
-            label="Clear Logs"
+            label="Clear"
+            size="lg"
             color="error"
             @click="clearLogs"
           />
           <UButton
             :label="allCopied ? 'Copied!' : 'Copy All'"
+            size="lg"
             :color="allCopied ? 'success' : 'primary'"
             @click="copyAllLogs"
           />
@@ -29,10 +23,8 @@
       </div>
     </template>
 
-    <div class="w-full h-full flex flex-col">
-
     <!-- Filter Buttons -->
-    <div class="flex gap-2 p-4 border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+    <div class="flex gap-2 mb-4 overflow-x-auto">
       <UButton
         v-for="level in ['all', 'log', 'info', 'warn', 'error', 'debug']"
         :key="level"
@@ -45,9 +37,9 @@
     <!-- Logs Container -->
     <div
       ref="logsContainer"
-      class="flex-1 overflow-y-auto p-4 space-y-2 font-mono text-xs"
+      class="space-y-2 font-mono text-xs"
     >
-      <!-- Loading State -->
+        <!-- Loading State -->
       <div
         v-if="isLoading"
         class="flex flex-col items-center justify-center py-16 gap-3"
@@ -126,20 +118,15 @@
         </div>
       </template>
     </div>
-    </div>
-  </HaexSystem>
+  </HaexSystemSettingsLayout>
 </template>
 
 <script setup lang="ts">
 import { globalConsoleLogs } from '~/plugins/console-interceptor'
 import type { ConsoleLog } from '~/plugins/console-interceptor'
 
-defineProps<{
-  isDragging?: boolean
-}>()
-
 const filter = ref<'all' | 'log' | 'info' | 'warn' | 'error' | 'debug'>('all')
-const logsContainer = ref<HTMLDivElement>()
+const logsContainer = ref<HTMLDivElement | null>(null)
 const copiedIndex = ref<number | null>(null)
 const allCopied = ref(false)
 const isLoading = ref(true)
@@ -218,13 +205,6 @@ watch(
     if (!isLoading.value) {
       displayedLogs.value = filteredLogs.value
     }
-    // Auto-scroll to bottom
-    nextTick(() => {
-      if (logsContainer.value) {
-        logsContainer.value.scrollTop = logsContainer.value.scrollHeight
-      }
-    })
   },
-  { immediate: true }
 )
 </script>

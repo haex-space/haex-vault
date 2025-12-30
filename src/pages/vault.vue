@@ -93,24 +93,53 @@ onMounted(async () => {
 
 const waitForInitialSyncAsync = async () => {
   return new Promise<void>((resolve) => {
+    let syncStarted = false
+
     // Poll sync state every 500ms
     const checkInterval = setInterval(() => {
-      const backends = syncBackendsStore.enabledBackends
+      // For initial sync, we need to check the temporary backend state
+      // The temporary backend is used during initial sync before being persisted to DB
+      const tempBackend = syncBackendsStore.temporaryBackend
+      const persistedBackends = syncBackendsStore.enabledBackends
 
-      if (backends.length === 0) {
-        // No backends yet, keep waiting
+      // If we have a temporary backend, check its sync state
+      if (tempBackend) {
+        const syncStates = syncOrchestratorStore.syncStates
+        const tempState = syncStates[tempBackend.id]
+
+        // Track when sync actually starts (has syncState with isSyncing=true)
+        if (tempState?.isSyncing) {
+          syncStarted = true
+        }
+
+        // Wait until sync has started AND completed
+        // This prevents resolving before performInitialPullAsync() is even called
+        if (syncStarted && tempState && !tempState.isSyncing) {
+          console.log('✅ Temporary backend sync completed')
+          clearInterval(checkInterval)
+          resolve()
+          return
+        }
+
+        // Keep waiting for temporary backend to start/finish syncing
         return
       }
 
-      // Check if any backend is still syncing
-      const syncStates = syncOrchestratorStore.syncStates
-      const anySyncing = backends.some(backend => syncStates[backend.id]?.isSyncing)
+      // If no temporary backend but we have persisted backends, check them
+      if (persistedBackends.length > 0) {
+        const syncStates = syncOrchestratorStore.syncStates
+        const anySyncing = persistedBackends.some(backend => syncStates[backend.id]?.isSyncing)
 
-      if (!anySyncing) {
-        // All backends have completed initial sync
-        clearInterval(checkInterval)
-        resolve()
+        if (!anySyncing) {
+          // All backends have completed initial sync
+          console.log('✅ All persisted backends sync completed')
+          clearInterval(checkInterval)
+          resolve()
+          return
+        }
       }
+
+      // No backends yet, keep waiting
     }, 500)
 
     // Timeout after 30 seconds

@@ -300,7 +300,9 @@ pub fn run() {
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             external_bridge::external_bridge_unblock_client,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            external_bridge::external_bridge_is_client_blocked,
+            external_bridge::external_bridge_get_session_blocked_clients,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            external_bridge::external_bridge_unblock_session_client,
             // Remote Storage API commands (internal - use extension_remote_storage_* for extensions)
             remote_storage::remote_storage_list_backends,
             remote_storage::remote_storage_add_backend,

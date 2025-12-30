@@ -113,34 +113,35 @@
           </div>
         </UCard>
 
-        <!-- Session Authorizations Section (Temporary) -->
+        <!-- Session Decisions Section (Temporary) -->
         <UCard>
           <template #header>
             <h3 class="text-lg font-semibold flex items-center gap-2">
               <UIcon name="i-heroicons-clock" class="w-5 h-5 text-warning" />
-              {{ t('sessionAuthorizations') }}
+              {{ t('sessionDecisions') }}
             </h3>
           </template>
 
           <div
-            v-if="!sessionAuthorizations.length"
+            v-if="!sessionAuthorizations.length && !sessionBlockedClients.length"
             class="text-center py-6 text-gray-500 dark:text-gray-400"
           >
-            {{ t('noSessionAuthorizations') }}
+            {{ t('noSessionDecisions') }}
           </div>
 
           <div v-else class="space-y-2">
+            <!-- Session Authorized Clients -->
             <div
               v-for="auth in sessionAuthorizations"
-              :key="auth.clientId"
+              :key="'auth-' + auth.clientId"
               class="p-4 rounded-lg border border-base-300 bg-base-200/50"
             >
               <div class="flex items-start justify-between gap-4">
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2">
                     <span class="font-semibold">{{ t('sessionClient') }}</span>
-                    <UBadge color="warning" variant="subtle" size="xs">
-                      {{ t('sessionOnly') }}
+                    <UBadge color="success" variant="subtle" size="xs">
+                      {{ t('sessionAllowed') }}
                     </UBadge>
                   </div>
                   <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -156,11 +157,44 @@
                 <UButton
                   color="error"
                   variant="ghost"
-                                    :loading="revokingSessionClientId === auth.clientId"
+                  :loading="revokingSessionClientId === auth.clientId"
                   @click="handleRevokeSessionAuth(auth)"
                 >
                   <UIcon name="i-heroicons-x-mark" class="w-4 h-4" />
                   {{ t('revoke') }}
+                </UButton>
+              </div>
+            </div>
+
+            <!-- Session Blocked Clients -->
+            <div
+              v-for="client in sessionBlockedClients"
+              :key="'blocked-' + client.clientId"
+              class="p-4 rounded-lg border border-base-300 bg-base-200/50"
+            >
+              <div class="flex items-start justify-between gap-4">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <span class="font-semibold">{{ client.clientName }}</span>
+                    <UBadge color="error" variant="subtle" size="xs">
+                      {{ t('sessionBlocked') }}
+                    </UBadge>
+                  </div>
+                  <div class="text-xs text-gray-400 dark:text-gray-500 mt-1 font-mono truncate">
+                    {{ client.clientId }}
+                  </div>
+                  <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    {{ t('sessionHint') }}
+                  </div>
+                </div>
+                <UButton
+                  color="success"
+                  variant="ghost"
+                  :loading="unblockingSessionClientId === client.clientId"
+                  @click="handleUnblockSessionClient(client)"
+                >
+                  <UIcon name="i-heroicons-check" class="w-4 h-4" />
+                  {{ t('unblock') }}
                 </UButton>
               </div>
             </div>
@@ -224,10 +258,11 @@
 <script setup lang="ts">
 import { invoke } from '@tauri-apps/api/core'
 import type { AuthorizedClient, BlockedClient, SessionAuthorization } from '@haex-space/vault-sdk'
+import type { SessionBlockedClient } from '~~/src-tauri/bindings/SessionBlockedClient'
 
 const { t } = useI18n()
 const { add } = useToast()
-const { getAuthorizedClients, getBlockedClients, revokeClient, unblockClient, getSessionAuthorizations, revokeSessionAuthorization } = useExternalAuth()
+const { getAuthorizedClients, getBlockedClients, revokeClient, unblockClient, getSessionAuthorizations, revokeSessionAuthorization, getSessionBlockedClients, unblockSessionClient } = useExternalAuth()
 const extensionsStore = useExtensionsStore()
 const vaultSettingsStore = useVaultSettingsStore()
 
@@ -235,9 +270,11 @@ const loading = ref(true)
 const authorizedClients = ref<AuthorizedClient[]>([])
 const blockedClients = ref<BlockedClient[]>([])
 const sessionAuthorizations = ref<SessionAuthorization[]>([])
+const sessionBlockedClients = ref<SessionBlockedClient[]>([])
 const revokingClientId = ref<string | null>(null)
 const revokingSessionClientId = ref<string | null>(null)
 const unblockingClientId = ref<string | null>(null)
+const unblockingSessionClientId = ref<string | null>(null)
 
 // Bridge port configuration
 const bridgePort = ref(19455)
@@ -291,14 +328,16 @@ const handleSavePort = async () => {
 const loadClients = async () => {
   loading.value = true
   try {
-    const [authorized, blocked, sessionAuths] = await Promise.all([
+    const [authorized, blocked, sessionAuths, sessionBlocked] = await Promise.all([
       getAuthorizedClients(),
       getBlockedClients(),
       getSessionAuthorizations(),
+      getSessionBlockedClients(),
     ])
     authorizedClients.value = authorized
     blockedClients.value = blocked
     sessionAuthorizations.value = sessionAuths
+    sessionBlockedClients.value = sessionBlocked
   } catch (error) {
     console.error('Error loading clients:', error)
     add({ description: t('loadError'), color: 'error' })
@@ -362,6 +401,26 @@ const handleRevokeSessionAuth = async (auth: SessionAuthorization) => {
   }
 }
 
+const handleUnblockSessionClient = async (client: SessionBlockedClient) => {
+  unblockingSessionClientId.value = client.clientId
+  try {
+    await unblockSessionClient(client.clientId)
+    add({ description: t('unblockSessionSuccess', { name: client.clientName }), color: 'success' })
+    await loadClients()
+  } catch (error) {
+    console.error('Error unblocking session client:', error)
+    add({ description: t('unblockSessionError'), color: 'error' })
+  } finally {
+    unblockingSessionClientId.value = null
+  }
+}
+
+// Listen for authorization decisions to refresh the list
+const { decisionCounter } = useExternalAuth()
+watch(decisionCounter, () => {
+  loadClients()
+})
+
 onMounted(async () => {
   await Promise.all([
     loadClients(),
@@ -383,14 +442,15 @@ de:
   bridgeConfigPortChanged: 'Port wurde auf {port} geändert'
   bridgeConfigPortChangeError: Fehler beim Ändern des Ports
   authorizedClients: Dauerhaft autorisierte Clients
-  blockedClients: Blockierte Clients
-  sessionAuthorizations: Temporäre Autorisierungen (diese Sitzung)
+  blockedClients: Dauerhaft blockierte Clients
+  sessionDecisions: Temporäre Entscheidungen (diese Sitzung)
   noAuthorizedClients: Keine dauerhaft autorisierten Clients vorhanden.
-  noBlockedClients: Keine blockierten Clients vorhanden.
-  noSessionAuthorizations: Keine temporären Autorisierungen vorhanden.
+  noBlockedClients: Keine dauerhaft blockierten Clients vorhanden.
+  noSessionDecisions: Keine temporären Entscheidungen vorhanden.
   authorized: Dauerhaft
-  blocked: Blockiert
-  sessionOnly: Diese Sitzung
+  blocked: Dauerhaft
+  sessionAllowed: Erlaubt
+  sessionBlocked: Blockiert
   sessionClient: Externer Client
   sessionHint: Wird beim Neustart von haex-vault entfernt
   extension: Erweiterung
@@ -405,6 +465,8 @@ de:
   revokeSessionError: Fehler beim Entziehen der temporären Autorisierung
   unblockSuccess: '"{name}" wurde entsperrt'
   unblockError: Fehler beim Entsperren
+  unblockSessionSuccess: '"{name}" wurde für diese Sitzung entsperrt'
+  unblockSessionError: Fehler beim Entsperren
 en:
   title: External Clients
   description: Manage browser extensions, CLI tools, and other external applications that can access your vault.
@@ -417,14 +479,15 @@ en:
   bridgeConfigPortChanged: 'Port changed to {port}'
   bridgeConfigPortChangeError: Error changing port
   authorizedClients: Permanently Authorized Clients
-  blockedClients: Blocked Clients
-  sessionAuthorizations: Temporary Authorizations (this session)
+  blockedClients: Permanently Blocked Clients
+  sessionDecisions: Temporary Decisions (this session)
   noAuthorizedClients: No permanently authorized clients.
-  noBlockedClients: No blocked clients.
-  noSessionAuthorizations: No temporary authorizations.
+  noBlockedClients: No permanently blocked clients.
+  noSessionDecisions: No temporary decisions.
   authorized: Permanent
-  blocked: Blocked
-  sessionOnly: This session
+  blocked: Permanent
+  sessionAllowed: Allowed
+  sessionBlocked: Blocked
   sessionClient: External Client
   sessionHint: Will be removed when haex-vault restarts
   extension: Extension
@@ -439,4 +502,6 @@ en:
   revokeSessionError: Error revoking temporary authorization
   unblockSuccess: '"{name}" has been unblocked'
   unblockError: Error unblocking client
+  unblockSessionSuccess: '"{name}" has been unblocked for this session'
+  unblockSessionError: Error unblocking client
 </i18n>

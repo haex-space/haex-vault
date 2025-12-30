@@ -10,11 +10,14 @@ import {
   type SessionAuthorization,
   type ExternalAuthDecision,
 } from '@haex-space/vault-sdk'
+import type { SessionBlockedClient } from '~~/src-tauri/bindings/SessionBlockedClient'
 
 // Global state for the authorization prompt
 const isOpen = ref(false)
 const pendingAuth = ref<PendingAuthorization | null>(null)
 const initialized = ref(false)
+// Counter that increments when a decision is made (for reactive updates)
+const decisionCounter = ref(0)
 
 /**
  * Composable for managing external client authorization prompts
@@ -132,9 +135,10 @@ export function useExternalAuth() {
       console.error('[ExternalAuth] Failed to process decision:', error)
     }
 
-    // Close dialog
+    // Close dialog and notify listeners
     isOpen.value = false
     pendingAuth.value = null
+    decisionCounter.value++
   }
 
   /**
@@ -159,6 +163,7 @@ export function useExternalAuth() {
 
     isOpen.value = false
     pendingAuth.value = null
+    decisionCounter.value++
   }
 
   /**
@@ -237,10 +242,37 @@ export function useExternalAuth() {
     }
   }
 
+  /**
+   * Get all session-blocked clients (for "deny once")
+   * These are cleared when haex-vault restarts
+   */
+  async function getSessionBlockedClients(): Promise<SessionBlockedClient[]> {
+    try {
+      return await invoke<SessionBlockedClient[]>('external_bridge_get_session_blocked_clients')
+    } catch (error) {
+      console.error('[ExternalAuth] Failed to get session blocked clients:', error)
+      return []
+    }
+  }
+
+  /**
+   * Unblock a session-blocked client
+   */
+  async function unblockSessionClient(clientId: string): Promise<void> {
+    try {
+      await invoke('external_bridge_unblock_session_client', { clientId })
+      console.log('[ExternalAuth] Session blocked client unblocked:', clientId)
+    } catch (error) {
+      console.error('[ExternalAuth] Failed to unblock session client:', error)
+      throw error
+    }
+  }
+
   return {
     // State
     isOpen: readonly(isOpen),
     pendingAuth: readonly(pendingAuth),
+    decisionCounter: readonly(decisionCounter),
 
     // Methods
     init,
@@ -252,5 +284,7 @@ export function useExternalAuth() {
     unblockClient,
     getSessionAuthorizations,
     revokeSessionAuthorization,
+    getSessionBlockedClients,
+    unblockSessionClient,
   }
 }

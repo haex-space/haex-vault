@@ -155,8 +155,8 @@ export const useDesktopStore = defineStore('desktopStore', () => {
   const addDesktopItemAsync = async (
     itemType: DesktopItemType,
     referenceId: string,
-    positionX: number = 0,
-    positionY: number = 0,
+    positionX?: number,
+    positionY?: number,
     workspaceId?: string,
   ) => {
     if (!currentVault.value?.drizzle) {
@@ -168,17 +168,33 @@ export const useDesktopStore = defineStore('desktopStore', () => {
       throw new Error('Kein Workspace aktiv')
     }
 
+    // If no position provided, find a free position on the grid
+    let finalX = positionX ?? 0
+    let finalY = positionY ?? 0
+    let finalWorkspaceId = targetWorkspaceId
+
+    if (positionX === undefined || positionY === undefined) {
+      const freePos = await findFreePosition(
+        window.innerWidth,
+        window.innerHeight,
+        targetWorkspaceId,
+      )
+      finalX = freePos.x
+      finalY = freePos.y
+      finalWorkspaceId = freePos.workspaceId || targetWorkspaceId
+    }
+
     try {
       const newItem: InsertHaexDesktopItems = {
-        workspaceId: targetWorkspaceId,
+        workspaceId: finalWorkspaceId,
         itemType: itemType,
         extensionId: itemType === 'extension' ? referenceId : null,
         systemWindowId:
           itemType === 'system' || itemType === 'file' || itemType === 'folder'
             ? referenceId
             : null,
-        positionX: positionX,
-        positionY: positionY,
+        positionX: finalX,
+        positionY: finalY,
       }
 
       const result = await currentVault.value.drizzle
@@ -659,14 +675,15 @@ export const useDesktopStore = defineStore('desktopStore', () => {
   }
 
   // Find a free position on the current workspace grid
-  const findFreePosition = (
+  // If no space available, creates a new workspace and returns position there
+  const findFreePosition = async (
     viewportWidth: number,
     viewportHeight: number,
     workspaceId?: string,
-  ) => {
+  ): Promise<{ x: number; y: number; workspaceId: string }> => {
     const targetWorkspaceId = workspaceId || currentWorkspace.value?.id
     if (!targetWorkspaceId) {
-      return snapToGrid(0, 0)
+      return { ...snapToGrid(0, 0), workspaceId: '' }
     }
 
     // Get all items on the target workspace
@@ -697,13 +714,20 @@ export const useDesktopStore = defineStore('desktopStore', () => {
           // Found free position, snap to grid
           const rawX = col * cellSize
           const rawY = row * cellSize
-          return snapToGrid(rawX, rawY)
+          return { ...snapToGrid(rawX, rawY), workspaceId: targetWorkspaceId }
         }
       }
     }
 
-    // Fallback: return (0, 0) if no free position found (grid is full)
-    return snapToGrid(0, 0)
+    // No free position found - create a new workspace
+    const newWorkspace = await workspaceStore.addWorkspaceAsync()
+    if (newWorkspace?.id) {
+      // Return position (0,0) on the new workspace
+      return { ...snapToGrid(0, 0), workspaceId: newWorkspace.id }
+    }
+
+    // Fallback if workspace creation fails
+    return { ...snapToGrid(0, 0), workspaceId: targetWorkspaceId }
   }
 
   const removeSelectedItemsAsync = async () => {

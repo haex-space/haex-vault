@@ -12,14 +12,14 @@ mod server;
 mod tests;
 
 pub use authorization::{AuthorizedClient, BlockedClient, PendingAuthorization};
-pub use server::{ExternalBridge, SessionAuthorization, DEFAULT_BRIDGE_PORT};
+pub use server::{ExternalBridge, SessionAuthorization, SessionBlockedClient, DEFAULT_BRIDGE_PORT};
 
 use crate::database::core::{execute_with_crdt, select_with_crdt};
 use crate::AppState;
 use authorization::{
     parse_authorized_client, parse_blocked_client,
     SQL_DELETE_CLIENT, SQL_GET_ALL_CLIENTS, SQL_INSERT_CLIENT,
-    SQL_GET_ALL_BLOCKED_CLIENTS, SQL_INSERT_BLOCKED_CLIENT, SQL_DELETE_BLOCKED_CLIENT, SQL_IS_BLOCKED,
+    SQL_GET_ALL_BLOCKED_CLIENTS, SQL_INSERT_BLOCKED_CLIENT, SQL_DELETE_BLOCKED_CLIENT,
 };
 use serde_json::Value as JsonValue;
 use tauri::{AppHandle, Emitter, State};
@@ -104,6 +104,27 @@ pub async fn external_bridge_revoke_session_authorization(
     let mut auths = session_auths.write().await;
     auths.remove(&client_id);
     println!("[ExternalAuth] Session authorization revoked for client: {}", client_id);
+    Ok(())
+}
+
+/// Get all session-blocked clients (for "deny once" - not stored in database)
+#[tauri::command]
+pub async fn external_bridge_get_session_blocked_clients(
+    state: State<'_, AppState>,
+) -> Result<Vec<SessionBlockedClient>, String> {
+    let bridge = state.external_bridge.lock().await;
+    Ok(bridge.get_session_blocked_clients().await)
+}
+
+/// Unblock a session-blocked client (for "deny once")
+#[tauri::command]
+pub async fn external_bridge_unblock_session_client(
+    client_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let bridge = state.external_bridge.lock().await;
+    bridge.remove_session_blocked(&client_id).await;
+    println!("[ExternalAuth] Session block removed for client: {}", client_id);
     Ok(())
 }
 
@@ -291,7 +312,7 @@ pub async fn external_bridge_client_allow(
 
 /// Block an external client
 /// If remember is true, the client is permanently blocked in the database.
-/// If remember is false, only this request is denied.
+/// If remember is false, the client is blocked for this session only (cleared when haex-vault restarts).
 #[tauri::command]
 pub async fn external_bridge_client_block(
     app_handle: AppHandle,
@@ -323,6 +344,13 @@ pub async fn external_bridge_client_block(
 
         // Emit event to notify frontend
         let _ = app_handle.emit("crdt:dirty-tables-changed", ());
+    } else {
+        // Add to session blocked list (for "deny once")
+        // This persists for the lifetime of the haex-vault session
+        let bridge = state.external_bridge.lock().await;
+        bridge
+            .add_session_blocked(&client_id, &client_name, &public_key)
+            .await;
     }
 
     // Deny the pending request
@@ -370,24 +398,3 @@ pub fn external_bridge_unblock_client(
     Ok(())
 }
 
-/// Check if a client is blocked
-#[tauri::command]
-pub fn external_bridge_is_client_blocked(
-    client_id: String,
-    state: State<'_, AppState>,
-) -> Result<bool, String> {
-    let rows = select_with_crdt(
-        SQL_IS_BLOCKED.to_string(),
-        vec![JsonValue::String(client_id)],
-        &state.db,
-    )
-    .map_err(|e| e.to_string())?;
-
-    if let Some(row) = rows.first() {
-        if let Some(count) = row.first() {
-            return Ok(count.as_i64().unwrap_or(0) > 0);
-        }
-    }
-
-    Ok(false)
-}

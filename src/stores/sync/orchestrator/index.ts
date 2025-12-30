@@ -4,7 +4,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { listen, emit } from '@tauri-apps/api/event'
 import { log, type BackendSyncState } from './types'
 import { pushToBackendAsync, pushAllDataToBackendAsync } from './push'
 import {
@@ -457,6 +457,15 @@ export const useSyncOrchestratorStore = defineStore(
           if (Object.keys(updates).length > 0) {
             await syncBackendsStore.updateBackendAsync(persistedBackend.id, updates)
           }
+        }
+
+        // Emit sync:tables-updated event for UI refresh
+        // This needs to be done here because initSyncEventsAsync() hasn't been called yet
+        // during initial pull, but stores may still be listening for this event
+        if (allChanges.length > 0) {
+          const tablesAffected = [...new Set(allChanges.map((c) => c.tableName))]
+          log.debug('Emitting sync:tables-updated event for tables:', tablesAffected)
+          await emit('sync:tables-updated', { tables: tablesAffected })
         }
 
         syncStates.value[backendId].isSyncing = false

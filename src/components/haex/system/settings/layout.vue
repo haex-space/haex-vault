@@ -1,15 +1,20 @@
 <template>
-  <div class="@container">
+  <div class="@container h-full overflow-y-auto">
     <!-- Header -->
-    <div class="p-6 border-b border-default">
+    <div
+      :class="[
+        'p-6 border-b border-default',
+        stickyHeader && 'sticky top-0 z-10 bg-default',
+      ]"
+    >
       <div class="flex items-center gap-3">
         <UiButton
           v-if="showBack"
           icon="i-heroicons-arrow-left"
           variant="ghost"
-                    @click="emit('back')"
+          @click="emit('back')"
         />
-        <div>
+        <div class="flex-1">
           <h2 class="text-2xl font-bold">
             <slot name="title">{{ title }}</slot>
           </h2>
@@ -24,7 +29,7 @@
     </div>
 
     <!-- Content -->
-    <div class="p-6 space-y-6">
+    <div class="p-6 space-y-6 flex-1">
       <slot />
     </div>
   </div>
@@ -36,9 +41,11 @@ withDefaults(
     title?: string
     description?: string
     showBack?: boolean
+    stickyHeader?: boolean
   }>(),
   {
     showBack: false,
+    stickyHeader: false,
   },
 )
 

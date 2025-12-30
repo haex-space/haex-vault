@@ -1,5 +1,8 @@
 <template>
-  <HaexSystem :is-dragging="isDragging">
+  <HaexSystem
+    :is-dragging="isDragging"
+    disable-content-scroll
+  >
     <template #sidebar>
       <nav class="flex flex-col gap-1">
         <button
@@ -24,7 +27,7 @@
       </nav>
     </template>
 
-    <div class="flex-1 overflow-y-auto">
+    <div class="h-full">
       <HaexSystemSettingsGeneral v-if="activeCategory === 'general'" />
       <HaexSystemSettingsAppearance v-if="activeCategory === 'appearance'" />
       <HaexSystemSettingsExtensions v-if="activeCategory === 'extensions'" />

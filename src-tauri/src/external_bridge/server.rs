@@ -18,7 +18,7 @@ use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 use super::authorization::{
     PendingAuthorization, SQL_GET_CLIENT_EXTENSION, SQL_GET_EXTENSION_ID_BY_PUBLIC_KEY_AND_NAME,
-    SQL_IS_CLIENT_AUTHORIZED_FOR_EXTENSION, SQL_IS_CLIENT_KNOWN, SQL_UPDATE_LAST_SEEN,
+    SQL_IS_BLOCKED, SQL_IS_CLIENT_AUTHORIZED_FOR_EXTENSION, SQL_IS_CLIENT_KNOWN, SQL_UPDATE_LAST_SEEN,
 };
 use super::crypto::{ServerKeyPair, create_encrypted_response};
 use super::error::BridgeError;
@@ -54,6 +54,19 @@ pub struct SessionAuthorization {
     pub extension_id: String,
 }
 
+/// Session blocked client entry (for "deny once" blocks)
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ts_rs::TS)]
+#[ts(export, rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
+pub struct SessionBlockedClient {
+    /// Unique client identifier (public key fingerprint)
+    pub client_id: String,
+    /// Human-readable client name
+    pub client_name: String,
+    /// Client's public key (base64)
+    pub public_key: String,
+}
+
 /// External Bridge WebSocket Server
 pub struct ExternalBridge {
     running: bool,
@@ -67,6 +80,9 @@ pub struct ExternalBridge {
     /// Session-based authorizations (for "allow once" - cleared when server stops)
     /// Key: client_id, Value: SessionAuthorization
     session_authorizations: Arc<RwLock<HashMap<String, SessionAuthorization>>>,
+    /// Session-based blocked clients (for "deny once" - cleared when server stops)
+    /// Key: client_id, Value: SessionBlockedClient
+    session_blocked: Arc<RwLock<HashMap<String, SessionBlockedClient>>>,
 }
 
 impl Default for ExternalBridge {
@@ -86,6 +102,7 @@ impl ExternalBridge {
             server_keypair: Arc::new(RwLock::new(None)),
             pending_responses: Arc::new(RwLock::new(HashMap::new())),
             session_authorizations: Arc::new(RwLock::new(HashMap::new())),
+            session_blocked: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -119,6 +136,50 @@ impl ExternalBridge {
     pub async fn get_session_authorization(&self, client_id: &str) -> Option<SessionAuthorization> {
         let authorizations = self.session_authorizations.read().await;
         authorizations.get(client_id).cloned()
+    }
+
+    /// Get a clone of the session_blocked map for use in connection handlers
+    pub fn get_session_blocked(&self) -> Arc<RwLock<HashMap<String, SessionBlockedClient>>> {
+        self.session_blocked.clone()
+    }
+
+    /// Add a client to the session blocked list (for "deny once")
+    pub async fn add_session_blocked(&self, client_id: &str, client_name: &str, public_key: &str) {
+        let mut blocked = self.session_blocked.write().await;
+        blocked.insert(
+            client_id.to_string(),
+            SessionBlockedClient {
+                client_id: client_id.to_string(),
+                client_name: client_name.to_string(),
+                public_key: public_key.to_string(),
+            },
+        );
+        println!(
+            "[ExternalBridge] Added client {} to session blocked list",
+            client_id
+        );
+    }
+
+    /// Remove a client from the session blocked list
+    pub async fn remove_session_blocked(&self, client_id: &str) {
+        let mut blocked = self.session_blocked.write().await;
+        blocked.remove(client_id);
+        println!(
+            "[ExternalBridge] Removed client {} from session blocked list",
+            client_id
+        );
+    }
+
+    /// Check if a client is session blocked
+    pub async fn is_session_blocked(&self, client_id: &str) -> bool {
+        let blocked = self.session_blocked.read().await;
+        blocked.contains_key(client_id)
+    }
+
+    /// Get all session blocked clients
+    pub async fn get_session_blocked_clients(&self) -> Vec<SessionBlockedClient> {
+        let blocked = self.session_blocked.read().await;
+        blocked.values().cloned().collect()
     }
 
     pub fn is_running(&self) -> bool {
@@ -158,6 +219,7 @@ impl ExternalBridge {
         let server_keypair = self.server_keypair.clone();
         let pending_responses = self.pending_responses.clone();
         let session_authorizations = self.session_authorizations.clone();
+        let session_blocked = self.session_blocked.clone();
 
         // Spawn the server task
         tokio::spawn(async move {
@@ -173,9 +235,10 @@ impl ExternalBridge {
                                 let keypair = server_keypair.clone();
                                 let pending_resp = pending_responses.clone();
                                 let session_auths = session_authorizations.clone();
+                                let session_blk = session_blocked.clone();
 
                                 tokio::spawn(async move {
-                                    if let Err(e) = handle_connection(stream, app, clients, pending, keypair, pending_resp, session_auths).await {
+                                    if let Err(e) = handle_connection(stream, app, clients, pending, keypair, pending_resp, session_auths, session_blk).await {
                                         eprintln!("[ExternalBridge] Connection error: {}", e);
                                     }
                                 });
@@ -291,6 +354,7 @@ async fn handle_connection(
     server_keypair: Arc<RwLock<Option<ServerKeyPair>>>,
     pending_responses: Arc<RwLock<HashMap<String, ResponseSender>>>,
     session_authorizations: Arc<RwLock<HashMap<String, SessionAuthorization>>>,
+    session_blocked: Arc<RwLock<HashMap<String, SessionBlockedClient>>>,
 ) -> Result<(), BridgeError> {
     let ws_stream = accept_async(stream).await?;
     let (mut write, mut read) = ws_stream.split();
@@ -358,6 +422,30 @@ async fn handle_connection(
                     ProtocolMessage::Handshake(handshake) => {
                         let cid = handshake.client.client_id.clone();
                         client_id = Some(cid.clone());
+
+                        // Check if client is blocked (permanent or session)
+                        let is_db_blocked = check_client_blocked(&app_handle, &cid).await;
+                        let is_session_blocked = {
+                            let blocked = session_blocked.read().await;
+                            blocked.contains_key(&cid)
+                        };
+
+                        if is_db_blocked || is_session_blocked {
+                            println!(
+                                "[ExternalBridge] Client {} is blocked (db={}, session={}), rejecting connection",
+                                cid, is_db_blocked, is_session_blocked
+                            );
+                            let response = ProtocolMessage::HandshakeResponse(HandshakeResponse {
+                                version: PROTOCOL_VERSION,
+                                server_public_key: server_public_key_spki.clone(),
+                                authorized: false,
+                                pending_approval: false,
+                            });
+                            let json = serde_json::to_string(&response)?;
+                            tx.send(Message::Text(json.into()))?;
+                            // Close connection for blocked clients
+                            break;
+                        }
 
                         // Check if client is already authorized in database
                         let db_authorized = check_client_authorized(&app_handle, &cid).await;
@@ -615,6 +703,24 @@ async fn check_client_authorized(app_handle: &AppHandle, client_id: &str) -> boo
     let params = vec![JsonValue::String(client_id.to_string())];
 
     match select_with_crdt(SQL_IS_CLIENT_KNOWN.to_string(), params, &state.db) {
+        Ok(rows) => {
+            if let Some(row) = rows.first() {
+                if let Some(count) = row.first() {
+                    return count.as_i64().unwrap_or(0) > 0;
+                }
+            }
+            false
+        }
+        Err(_) => false,
+    }
+}
+
+/// Check if a client is blocked (via CRDT database query)
+async fn check_client_blocked(app_handle: &AppHandle, client_id: &str) -> bool {
+    let state = app_handle.state::<AppState>();
+    let params = vec![JsonValue::String(client_id.to_string())];
+
+    match select_with_crdt(SQL_IS_BLOCKED.to_string(), params, &state.db) {
         Ok(rows) => {
             if let Some(row) = rows.first() {
                 if let Some(count) = row.first() {

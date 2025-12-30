@@ -38,7 +38,12 @@
       </div>
 
       <!-- Content Section -->
-      <div class="flex-1 overflow-y-auto">
+      <div
+        :class="[
+          'flex-1',
+          !disableContentScroll && 'overflow-y-auto',
+        ]"
+      >
         <slot />
       </div>
     </div>
@@ -55,5 +60,6 @@ defineProps<{
   title?: string
   description?: string
   isDragging?: boolean // Whether the window is currently being dragged
+  disableContentScroll?: boolean // Disable scroll on content area, useful when child handles its own scroll
 }>()
 </script>
