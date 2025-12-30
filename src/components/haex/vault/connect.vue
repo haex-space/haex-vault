@@ -140,9 +140,16 @@ const onWizardCompleteAsync = async (wizardData: {
     console.error('Failed to connect backend and create vault:', error)
     // Clear temporary backend on error
     syncBackendsStore.clearTemporaryBackend()
+
+    // Check if it's a network error and provide user-friendly message
+    const isNetworkError = error instanceof Error && error.message.startsWith('NETWORK_ERROR:')
+    const errorMessage = isNetworkError
+      ? t('error.networkError')
+      : (error instanceof Error ? error.message : 'Unknown error')
+
     add({
-      title: t('error.title'),
-      description: error instanceof Error ? error.message : 'Unknown error',
+      title: isNetworkError ? t('error.networkTitle') : t('error.title'),
+      description: errorMessage,
       color: 'error',
     })
   } finally {
@@ -180,6 +187,8 @@ de:
     description: Vault wurde erstellt und mit Backend synchronisiert
   error:
     title: Verbindung fehlgeschlagen
+    networkTitle: Keine Internetverbindung
+    networkError: Der Sync-Server konnte nicht erreicht werden. Bitte überprüfe deine Internetverbindung und versuche es erneut.
 
 en:
   title: Connect Vault
@@ -202,4 +211,6 @@ en:
     description: Vault created and synced with backend
   error:
     title: Connection Failed
+    networkTitle: No Internet Connection
+    networkError: Unable to reach the sync server. Please check your internet connection and try again.
 </i18n>

@@ -31,6 +31,7 @@
       <HaexSystemSettingsExternalClients v-if="activeCategory === 'externalClients'" />
       <HaexSystemSettingsDatabase v-if="activeCategory === 'database'" />
       <HaexSystemSettingsSync v-if="activeCategory === 'sync'" />
+      <HaexSystemSettingsDevices v-if="activeCategory === 'devices'" />
       <HaexSystemSettingsDeveloper v-if="activeCategory === 'developer'" />
       <HaexSystemDebugLogs v-if="activeCategory === 'debugLogs'" />
     </div>
@@ -102,6 +103,15 @@ const categories = computed(() => [
     },
   },
   {
+    value: 'devices',
+    label: t('categories.devices'),
+    icon: 'i-heroicons-device-phone-mobile',
+    active: activeCategory.value === 'devices',
+    click: () => {
+      activeCategory.value = 'devices'
+    },
+  },
+  {
     value: 'developer',
     label: t('categories.developer'),
     icon: 'i-hugeicons-developer',
@@ -131,6 +141,7 @@ de:
     externalClients: Externe Clients
     database: Datenbank
     sync: Synchronisation
+    devices: Geräte
     developer: Entwickler
     debugLogs: Debug Logs
 en:
@@ -141,6 +152,7 @@ en:
     externalClients: External Clients
     database: Database
     sync: Sync
+    devices: Devices
     developer: Developer
     debugLogs: Debug Logs
 </i18n>

@@ -37,6 +37,10 @@ export const vaultDeviceNameSchema = z.string().min(3).max(255)
 
 export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
   const { currentVault, currentVaultName } = storeToRefs(useVaultStore())
+  const route = useRoute()
+
+  // Check if we're in remote sync mode (don't create settings, wait for sync)
+  const isRemoteSyncMode = computed(() => route.query.remoteSync === 'true')
 
   const {
     public: { haexVault },
@@ -56,7 +60,9 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
           (locale) => locale === currentLocaleRow.value,
         )
         await app.$i18n.setLocale(currentLocale ?? app.$i18n.defaultLocale)
-      } else {
+      } else if (!isRemoteSyncMode.value) {
+        // Only create new settings if NOT in remote sync mode
+        // In remote sync mode, settings should come from the server
         await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
           id: crypto.randomUUID(),
           key: VaultSettingsKeyEnum.locale,
@@ -94,7 +100,9 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
         (theme) => theme.value === currentThemeRow.value,
       )
       currentThemeName.value = theme?.value || defaultTheme.value
-    } else {
+    } else if (!isRemoteSyncMode.value) {
+      // Only create new settings if NOT in remote sync mode
+      // In remote sync mode, settings should come from the server
       await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.theme,
@@ -120,7 +128,9 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     if (currentVaultNameRow?.value) {
       currentVaultName.value =
         currentVaultNameRow.value || haexVault.defaultVaultName || 'HaexSpace'
-    } else {
+    } else if (!isRemoteSyncMode.value) {
+      // Only create new settings if NOT in remote sync mode
+      // In remote sync mode, settings should come from the server
       await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.vaultName,
@@ -192,12 +202,14 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
       })
 
     if (!iconSizeRow?.id) {
-      // Kein Eintrag vorhanden, erstelle einen mit Default (medium)
-      await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
-        key: VaultSettingsKeyEnum.desktopIconSize,
-        type: VaultSettingsTypeEnum.system,
-        value: DesktopIconSizePreset.medium,
-      })
+      // Only create new settings if NOT in remote sync mode
+      if (!isRemoteSyncMode.value) {
+        await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
+          key: VaultSettingsKeyEnum.desktopIconSize,
+          type: VaultSettingsTypeEnum.system,
+          value: DesktopIconSizePreset.medium,
+        })
+      }
       return DesktopIconSizePreset.medium
     }
 

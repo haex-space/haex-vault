@@ -13,6 +13,10 @@ export const useGradientStore = defineStore('gradientStore', () => {
   const gradientEnabled = ref(true)
 
   const { currentVault } = storeToRefs(useVaultStore())
+  const route = useRoute()
+
+  // Check if we're in remote sync mode (don't create settings, wait for sync)
+  const isRemoteSyncMode = computed(() => route.query.remoteSync === 'true')
 
   // Load gradient variant from database
   const syncGradientVariantAsync = async () => {
@@ -27,8 +31,8 @@ export const useGradientStore = defineStore('gradientStore', () => {
 
       if (variantRow?.value && ['gitlab', 'ocean', 'sunset', 'forest'].includes(variantRow.value)) {
         gradientVariant.value = variantRow.value as GradientVariant
-      } else if (!variantRow?.id) {
-        // Create default entry if it doesn't exist
+      } else if (!variantRow?.id && !isRemoteSyncMode.value) {
+        // Only create default entry if NOT in remote sync mode
         await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
           key: GradientSettingsKeyEnum.gradientVariant,
           type: VaultSettingsTypeEnum.settings,
@@ -53,8 +57,8 @@ export const useGradientStore = defineStore('gradientStore', () => {
 
       if (enabledRow?.value !== undefined) {
         gradientEnabled.value = enabledRow.value === 'true'
-      } else if (!enabledRow?.id) {
-        // Create default entry if it doesn't exist
+      } else if (!enabledRow?.id && !isRemoteSyncMode.value) {
+        // Only create default entry if NOT in remote sync mode
         await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
           key: GradientSettingsKeyEnum.gradientEnabled,
           type: VaultSettingsTypeEnum.settings,

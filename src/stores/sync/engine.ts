@@ -56,6 +56,22 @@ interface PullChangesResponse {
   hasMore: boolean
 }
 
+/**
+ * Helper function to wrap fetch with network error handling
+ * Catches network errors and throws a user-friendly error message
+ */
+async function fetchWithNetworkErrorHandling(
+  url: string,
+  options?: RequestInit,
+): Promise<Response> {
+  try {
+    return await fetch(url, options)
+  } catch (networkError) {
+    // Network error (no internet, DNS failure, server unreachable, CORS, etc.)
+    throw new Error('NETWORK_ERROR: Cannot connect to sync server. Please check your internet connection.')
+  }
+}
+
 export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   const { currentVault } = storeToRefs(useVaultStore())
   const syncBackendsStore = useSyncBackendsStore()
@@ -224,7 +240,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     }
 
     // Fetch from server
-    const response = await fetch(
+    const response = await fetchWithNetworkErrorHandling(
       `${backend.serverUrl}/sync/vault-key/${vaultId}`,
       {
         method: 'GET',
@@ -502,10 +518,13 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       throw new Error('Not authenticated')
     }
 
-    const response = await fetch(`${serverUrl}/sync/vault-key/${vaultId}`, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${token}` },
-    })
+    const response = await fetchWithNetworkErrorHandling(
+      `${serverUrl}/sync/vault-key/${vaultId}`,
+      {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` },
+      },
+    )
 
     if (response.status === 404) {
       throw new Error('Vault key not found on server. Cannot connect to vault without existing sync key.')

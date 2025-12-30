@@ -9,6 +9,23 @@
     :title="t('title')"
     :description="t('description')"
   >
+    <template #header>
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-semibold">{{ t('title') }}</h3>
+          <p class="text-sm text-muted">{{ t('description') }}</p>
+        </div>
+        <UButton
+          icon="i-heroicons-x-mark"
+          color="neutral"
+          variant="ghost"
+          size="lg"
+          square
+          @click="isOverviewMode = false"
+        />
+      </div>
+    </template>
+
     <template #body>
       <div class="pl-8 pr-4 py-8">
         <!-- Workspace Cards -->

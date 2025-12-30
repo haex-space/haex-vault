@@ -413,6 +413,10 @@ export const useSyncOrchestratorStore = defineStore(
         } else {
           log.info(`Downloaded ${allChanges.length} changes from server`)
 
+          // Log unique tables for debugging
+          const uniqueTables = [...new Set(allChanges.map((c) => c.tableName))]
+          log.info('INITIAL PULL: Tables in server data:', uniqueTables)
+
           // Apply all changes with proper migration ordering
           // This ensures extension tables are created before their data is applied
           maxHlc = await applyAllChangesWithMigrationsAsync(allChanges, vaultKey, backendId)

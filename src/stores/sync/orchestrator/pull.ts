@@ -201,12 +201,14 @@ export const pullChangesFromServerWithConfigAsync = async (
   lastPullServerTimestamp: string | null,
   syncEngineStore: ReturnType<typeof useSyncEngineStore>,
 ): Promise<PullResult> => {
+  log.info('pullChangesFromServerWithConfigAsync: Starting pull from', serverUrl, 'vault:', vaultId)
   log.debug('pullChangesFromServerWithConfigAsync: Getting auth token...')
   const token = await syncEngineStore.getAuthTokenAsync()
   if (!token) {
     log.error('pullChangesFromServerWithConfigAsync: Not authenticated')
     throw new Error('Not authenticated')
   }
+  log.debug('pullChangesFromServerWithConfigAsync: Got auth token')
 
   const allChanges: ColumnChange[] = []
   let hasMore = true
@@ -218,7 +220,7 @@ export const pullChangesFromServerWithConfigAsync = async (
   while (hasMore) {
     pageCount++
     const url = `${serverUrl}/sync/pull?vaultId=${vaultId}&afterUpdatedAt=${currentCursor || ''}&limit=1000`
-    log.debug(`Fetching page ${pageCount}:`, url)
+    log.info(`Fetching page ${pageCount}:`, url)
 
     const response = await fetch(url, {
       method: 'GET',
@@ -234,6 +236,14 @@ export const pullChangesFromServerWithConfigAsync = async (
     }
 
     const data = await response.json()
+
+    // Debug: Log raw server response for initial pull
+    log.info('Server response: keys=', Object.keys(data), 'changes.length=', data.changes?.length ?? 'undefined')
+    if (data.changes?.length > 0) {
+      const firstChange = data.changes[0]
+      log.debug('First change sample:', { tableName: firstChange.tableName, columnName: firstChange.columnName })
+    }
+
     const changes: ColumnChange[] = data.changes || []
 
     allChanges.push(...changes)
@@ -248,6 +258,7 @@ export const pullChangesFromServerWithConfigAsync = async (
     log.info(`Page ${pageCount}: ${changes.length} changes (total: ${allChanges.length}, hasMore: ${hasMore})`)
   }
 
+  log.info('pullChangesFromServerWithConfigAsync: Complete. Total changes:', allChanges.length)
   return { changes: allChanges, serverTimestamp: lastServerTimestamp }
 }
 

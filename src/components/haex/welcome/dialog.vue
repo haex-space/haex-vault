@@ -263,7 +263,7 @@ const props = defineProps<{
 
 // Stores
 const { hostname } = storeToRefs(useDeviceStore())
-const { addDeviceNameAsync, setAsCurrentDeviceAsync } = useDeviceStore()
+const { addDeviceNameAsync, setAsCurrentDeviceAsync, readDeviceAsync, updateDeviceNameAsync } = useDeviceStore()
 const extensionStore = useExtensionsStore()
 const { serverOptions } = useSyncServerOptions()
 
@@ -600,7 +600,15 @@ const saveDeviceNameAsync = async () => {
       return
     }
 
-    await addDeviceNameAsync({ name: deviceName.value })
+    // Check if device already exists (e.g., from synced data)
+    const existingDevice = await readDeviceAsync()
+    if (existingDevice) {
+      // Device exists from sync, just update the name
+      await updateDeviceNameAsync({ name: deviceName.value })
+    } else {
+      // New device, create it
+      await addDeviceNameAsync({ name: deviceName.value })
+    }
     await setAsCurrentDeviceAsync()
   } catch (error) {
     console.error('Failed to save device name:', error)

@@ -306,6 +306,35 @@ pub async fn extension_database_register_migrations(
 pub fn apply_synced_extension_migrations(
     state: State<'_, AppState>,
 ) -> Result<MigrationResult, ExtensionError> {
+    // Debug: Log counts in both tables before joining
+    with_connection(&state.db, |conn| {
+        let ext_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM haex_extensions WHERE haex_tombstone = 0",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(-1);
+        let mig_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM haex_extension_migrations WHERE haex_tombstone = 0",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(-1);
+        let applied_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM haex_crdt_migrations", [], |row| {
+                row.get(0)
+            })
+            .unwrap_or(-1);
+        eprintln!(
+            "[SYNC MIGRATIONS] Table counts - haex_extensions: {}, haex_extension_migrations: {}, haex_crdt_migrations (applied): {}",
+            ext_count, mig_count, applied_count
+        );
+        Ok::<(), DatabaseError>(())
+    })
+    .ok();
+
     let pending_migrations: Vec<(String, String, String, String, String)> =
         with_connection(&state.db, |conn| {
             let mut stmt = conn.prepare(&SQL_GET_SYNCED_PENDING_MIGRATIONS)?;
@@ -321,6 +350,11 @@ pub fn apply_synced_extension_migrations(
             rows.collect::<Result<Vec<_>, _>>()
                 .map_err(DatabaseError::from)
         })?;
+
+    eprintln!(
+        "[SYNC MIGRATIONS] Found {} pending migrations after JOIN",
+        pending_migrations.len()
+    );
 
     if pending_migrations.is_empty() {
         return Ok(MigrationResult {

@@ -18,31 +18,32 @@
         <!-- Display mode -->
         <div
           v-else
-          class="font-medium break-all"
+          class="font-medium break-all inline-flex items-center gap-1"
         >
-          <span
+          <UPopover
             v-if="isWildcard"
-            class="inline-flex items-center gap-1 text-orange-600 dark:text-orange-400"
+            mode="hover"
           >
-            <UPopover mode="hover">
-              <button
-                type="button"
-                class="inline-flex items-center"
-              >
-                <UIcon
-                  name="i-heroicons-exclamation-triangle"
-                  class="size-4 shrink-0"
-                />
-              </button>
-              <template #content>
-                <div class="p-2 text-sm max-w-64">
-                  {{ t('wildcardWarning') }}
-                </div>
-              </template>
-            </UPopover>
-            <span class="font-bold">{{ permissionEntry.target }}</span>
-          </span>
-          <template v-else>{{ permissionEntry.target }}</template>
+            <button
+              type="button"
+              class="inline-flex items-center shrink-0"
+            >
+              <UIcon
+                name="i-heroicons-exclamation-triangle"
+                class="size-4 text-orange-600 dark:text-orange-400"
+              />
+            </button>
+            <template #content>
+              <div class="p-2 text-sm max-w-64">
+                {{ t('wildcardWarning') }}
+              </div>
+            </template>
+          </UPopover>
+          <span
+            v-for="(part, index) in targetParts"
+            :key="index"
+            :class="part.isWildcard ? 'text-orange-600 dark:text-orange-400 font-bold' : ''"
+          >{{ part.text }}</span>
         </div>
         <div
           v-if="permissionEntry.operation && !isEditing"
@@ -96,6 +97,34 @@ const permissionEntry = defineModel<PermissionEntry>({ required: true })
 
 // Check if target contains wildcard (full wildcard or pattern like *.example.com)
 const isWildcard = computed(() => permissionEntry.value.target.includes('*'))
+
+// Split target into parts, highlighting wildcards
+const targetParts = computed(() => {
+  const target = permissionEntry.value.target
+  const parts: Array<{ text: string; isWildcard: boolean }> = []
+
+  let currentPart = ''
+  for (const char of target) {
+    if (char === '*') {
+      // Save any accumulated non-wildcard text
+      if (currentPart) {
+        parts.push({ text: currentPart, isWildcard: false })
+        currentPart = ''
+      }
+      // Add the wildcard as a separate part
+      parts.push({ text: '*', isWildcard: true })
+    } else {
+      currentPart += char
+    }
+  }
+
+  // Add remaining text
+  if (currentPart) {
+    parts.push({ text: currentPart, isWildcard: false })
+  }
+
+  return parts
+})
 
 const isEditing = ref(false)
 const inputRef = ref<{ input: HTMLInputElement } | null>(null)
@@ -182,7 +211,7 @@ de:
   targetPlaceholder: Ziel eingeben (z.B. *.example.com)
   editTarget: Ziel bearbeiten
   confirmEdit: Bearbeitung abschließen
-  wildcardWarning: Wildcard-Berechtigung – erlaubt Zugriff auf alle Ziele dieses Typs
+  wildcardWarning: Wildcard-Berechtigung – erlaubt Zugriff auf alle Ziele, die diesem Muster entsprechen
   status:
     granted: Erlaubt
     ask: Nachfragen
@@ -198,7 +227,7 @@ en:
   targetPlaceholder: Enter target (e.g. *.example.com)
   editTarget: Edit target
   confirmEdit: Confirm edit
-  wildcardWarning: Wildcard permission – allows access to all targets of this type
+  wildcardWarning: Wildcard permission – allows access to all targets matching this pattern
   status:
     granted: Granted
     ask: Ask
