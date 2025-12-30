@@ -416,6 +416,7 @@ interface FileChangePayload {
 }
 
 // Forward external requests from Tauri to iframe extensions
+// Only sends to the FIRST matching iframe to avoid duplicate processing
 const forwardExternalRequestToIframe = (payload: ExternalRequestPayload) => {
   const { extensionPublicKey, extensionName } = payload
 
@@ -426,8 +427,7 @@ const forwardExternalRequestToIframe = (payload: ExternalRequestPayload) => {
     payload.action,
   )
 
-  // Find all iframes for this extension (by publicKey and name)
-  let forwarded = false
+  // Find the first iframe for this extension (by publicKey and name)
   for (const [iframe, instance] of iframeRegistry.entries()) {
     if (
       instance.extension.publicKey === extensionPublicKey
@@ -452,18 +452,16 @@ const forwardExternalRequestToIframe = (payload: ExternalRequestPayload) => {
           instance.windowId,
         )
         win.postMessage(message, '*')
-        forwarded = true
+        return // Only send to first matching iframe
       }
     }
   }
 
-  if (!forwarded) {
-    console.warn(
-      '[ExtensionHandler] No iframe found for extension:',
-      extensionName,
-      extensionPublicKey,
-    )
-  }
+  console.warn(
+    '[ExtensionHandler] No iframe found for extension:',
+    extensionName,
+    extensionPublicKey,
+  )
 }
 
 // Forward file change events from Tauri to all extension iframes

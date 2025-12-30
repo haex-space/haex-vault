@@ -403,6 +403,69 @@ impl ExtensionWebviewManager {
         Ok(())
     }
 
+    /// Emits an event to a specific extension's webview window
+    /// Returns Ok(true) if event was emitted to a webview, Ok(false) if no webview found
+    pub fn emit_to_extension<S: serde::Serialize + Clone>(
+        &self,
+        app_handle: &AppHandle,
+        extension_id: &str,
+        event: &str,
+        payload: S,
+    ) -> Result<bool, ExtensionError> {
+        let windows = self
+            .windows
+            .lock()
+            .map_err(|e| ExtensionError::MutexPoisoned {
+                reason: e.to_string(),
+            })?;
+
+        // Find the first window for this extension
+        let window_id = windows
+            .iter()
+            .find(|(_, ext_id)| *ext_id == extension_id)
+            .map(|(win_id, _)| win_id.clone());
+
+        drop(windows); // Release lock before emitting
+
+        if let Some(window_id) = window_id {
+            eprintln!(
+                "[Manager] Emitting event '{}' to extension '{}' via window '{}'",
+                event, extension_id, window_id
+            );
+
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            if let Some(window) = app_handle.get_webview_window(&window_id) {
+                match window.emit(event, payload) {
+                    Ok(_) => {
+                        eprintln!(
+                            "[Manager] Successfully emitted event '{}' to window {}",
+                            event, window_id
+                        );
+                        return Ok(true);
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "[Manager] Failed to emit event {} to window {}: {}",
+                            event, window_id, e
+                        );
+                        return Err(ExtensionError::ValidationError {
+                            reason: format!("Failed to emit event: {}", e),
+                        });
+                    }
+                }
+            }
+
+            // Window ID found in registry but window doesn't exist (shouldn't happen normally)
+            eprintln!(
+                "[Manager] Window {} registered but not found in Tauri",
+                window_id
+            );
+        }
+
+        // No webview window found for this extension
+        Ok(false)
+    }
+
     /// Emits an event to all extension webview windows
     pub fn emit_to_all_extensions<S: serde::Serialize + Clone>(
         &self,

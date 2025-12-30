@@ -1052,24 +1052,36 @@ async fn process_request(
     });
 
     // Emit the request to the extension via Tauri event
-    // For WebView extensions: emit directly to the extension's webview window
+    // For WebView extensions: emit directly to the extension's specific webview window
     // For iframe extensions: emit to main window (frontend will forward via postMessage)
+    // IMPORTANT: Only emit to ONE target to avoid duplicate handler execution
     let emit_result = {
         let state = app_handle.state::<AppState>();
         let manager = &state.extension_webview_manager;
 
-        // Try to emit to extension webviews first
-        let webview_result = manager.emit_to_all_extensions(
+        // Try to emit to the specific extension's webview first
+        match manager.emit_to_extension(
             app_handle,
+            &extension_id,
             "haextension:external:request",
             external_request.clone(),
-        );
-
-        // Also emit to main window for iframe-based extensions
-        let main_result = app_handle.emit("haextension:external:request", &external_request);
-
-        // Consider success if either worked
-        webview_result.is_ok() || main_result.is_ok()
+        ) {
+            Ok(true) => {
+                // Successfully emitted to extension webview
+                eprintln!("[ExternalBridge] Emitted request to extension webview: {}", extension_id);
+                true
+            }
+            Ok(false) => {
+                // No webview found for this extension, fall back to main window (iframe mode)
+                eprintln!("[ExternalBridge] No webview for extension {}, emitting to main window", extension_id);
+                app_handle.emit("haextension:external:request", &external_request).is_ok()
+            }
+            Err(e) => {
+                // Error emitting to webview, try main window as fallback
+                eprintln!("[ExternalBridge] Error emitting to webview: {}, trying main window", e);
+                app_handle.emit("haextension:external:request", &external_request).is_ok()
+            }
+        }
     };
 
     if !emit_result {
