@@ -31,6 +31,7 @@
       :label="t('email.label')"
       leading-icon="i-lucide-mail"
       size="lg"
+      :autofocus="autofocus"
       class="w-full"
     />
 
@@ -49,6 +50,7 @@ const { t } = useI18n()
 
 defineProps<{
   items: ISyncServerOption[]
+  autofocus?: boolean
 }>()
 
 const serverUrl = defineModel<string>('serverUrl')

@@ -184,6 +184,7 @@
             v-model:password="syncCredentials.password"
             :items="serverOptions"
             :is-loading="isSyncLoading"
+            autofocus
           />
         </form>
       </div>
