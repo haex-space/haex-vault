@@ -117,15 +117,10 @@ export const useCreateSyncConnection = () => {
 
         console.log('[SYNC] Credentials verified successfully')
 
-        // 4. Enable the backend now that credentials are verified
-        await syncBackendsStore.updateBackendAsync(backendId, {
-          enabled: true,
-        })
-
-        // 5. Reload backends
-        await syncBackendsStore.loadBackendsAsync()
-
-        // 6. Ensure sync key (creates vault on server if it doesn't exist)
+        // 4. Ensure sync key FIRST (creates vault on server if it doesn't exist)
+        // This MUST happen before enabling the backend, because enabling triggers
+        // loadBackendsAsync() which fires DIRTY_TABLES events that start a push.
+        // The push will fail with FK constraint error if vault key isn't on server yet.
         if (!currentVaultPassword.value) {
           throw new Error('Vault password not available')
         }
@@ -137,6 +132,14 @@ export const useCreateSyncConnection = () => {
           undefined,
           credentials.password,
         )
+
+        // 5. Enable the backend now that vault key is on server
+        await syncBackendsStore.updateBackendAsync(backendId, {
+          enabled: true,
+        })
+
+        // 6. Reload backends (triggers DIRTY_TABLES → push, but vault key is ready)
+        await syncBackendsStore.loadBackendsAsync()
 
         // 7. Start sync
         await syncOrchestratorStore.startSyncAsync()
