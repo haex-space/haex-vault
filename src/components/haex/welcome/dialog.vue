@@ -159,9 +159,10 @@
         </div>
 
         <!-- Step 3: Sync Server -->
-        <div
+        <form
           v-if="currentStep === 2"
           class="space-y-4"
+          @submit.prevent="nextStep"
         >
           <div class="text-center space-y-2">
             <UIcon
@@ -181,7 +182,7 @@
             :items="serverOptions"
             :is-loading="isSyncLoading"
           />
-        </div>
+        </form>
       </div>
     </template>
 
