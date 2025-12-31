@@ -344,6 +344,14 @@ export const applyAllChangesWithMigrationsAsync = async (
     log.debug('No pending extension migrations to apply')
   }
 
+  // Step 3b: Ensure all CRDT tables have triggers set up
+  // This is critical for extension tables created via sync - without triggers,
+  // changes to these tables won't be marked as dirty and won't be pushed
+  const triggersCreated = await invoke<number>('ensure_extension_triggers')
+  if (triggersCreated > 0) {
+    log.info(`Created CRDT triggers for ${triggersCreated} extension tables`)
+  }
+
   // Step 4: Now apply all other changes (including extension table data)
   // Extension tables now exist, so data won't be skipped
   if (otherChanges.length > 0) {

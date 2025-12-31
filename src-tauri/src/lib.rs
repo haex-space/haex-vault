@@ -203,6 +203,7 @@ pub fn run() {
             crdt::commands::clear_dirty_table,
             crdt::commands::clear_all_dirty_tables,
             crdt::commands::get_all_crdt_tables,
+            crdt::commands::ensure_extension_triggers,
             crdt::commands::apply_remote_changes_in_transaction,
             extension::database::commands::extension_database_execute,
             extension::database::commands::extension_database_query,

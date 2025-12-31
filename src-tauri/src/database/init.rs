@@ -76,3 +76,51 @@ pub fn ensure_triggers_initialized(conn: &mut Connection) -> Result<bool, Databa
     eprintln!("INFO: ✓ CRDT triggers created successfully (flag pending)");
     Ok(false) // false = wurde gerade initialisiert
 }
+
+/// Ensures all CRDT tables have proper triggers set up.
+/// This is called after applying synced extension migrations to make sure
+/// newly created extension tables have their dirty-table triggers.
+///
+/// Unlike ensure_triggers_initialized(), this function:
+/// - Does NOT check/set the triggers_initialized flag
+/// - Sets up triggers for any table that's missing them
+/// - Is idempotent (can be called multiple times safely)
+pub fn ensure_triggers_for_all_tables(conn: &mut Connection) -> Result<usize, DatabaseError> {
+    let tx = conn.transaction()?;
+
+    // Discover all tables with haex_tombstone column
+    let crdt_tables = discover_crdt_tables(&tx)?;
+    let mut triggers_created = 0;
+
+    for table_name in &crdt_tables {
+        // Check if this table already has dirty-table triggers
+        let trigger_name = format!("z_dirty_{}_insert", table_name);
+        let has_trigger: bool = tx
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type = 'trigger' AND name = ?",
+                [&trigger_name],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
+
+        if !has_trigger {
+            eprintln!(
+                "[SYNC] Setting up missing CRDT triggers for table: {}",
+                table_name
+            );
+            trigger::setup_triggers_for_table(&tx, table_name, false)?;
+            triggers_created += 1;
+        }
+    }
+
+    tx.commit()?;
+
+    if triggers_created > 0 {
+        eprintln!(
+            "[SYNC] ✓ Created triggers for {} extension tables",
+            triggers_created
+        );
+    }
+
+    Ok(triggers_created)
+}

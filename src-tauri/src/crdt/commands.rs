@@ -93,6 +93,17 @@ pub fn get_all_crdt_tables(state: State<'_, AppState>) -> Result<Vec<String>, Da
     with_connection(&state.db, |conn| discover_crdt_tables(conn))
 }
 
+/// Ensures all CRDT tables have proper triggers set up.
+/// This should be called after applying synced extension migrations to make sure
+/// newly created extension tables have their dirty-table triggers.
+/// Returns the number of tables that had triggers created.
+#[tauri::command]
+pub fn ensure_extension_triggers(state: State<'_, AppState>) -> Result<usize, DatabaseError> {
+    use crate::database::init::ensure_triggers_for_all_tables;
+
+    with_connection(&state.db, |conn| ensure_triggers_for_all_tables(conn))
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteColumnChange {
