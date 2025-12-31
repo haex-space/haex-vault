@@ -247,6 +247,7 @@
 </template>
 
 <script setup lang="ts">
+import { useMagicKeys, whenever } from '@vueuse/core'
 import { useMarketplace } from '@haex-space/marketplace-sdk/vue'
 
 const { t } = useI18n()
@@ -576,6 +577,13 @@ const onStepFormSubmit = () => {
     nextStep()
   }
 }
+
+// Global Enter key handler for steps without focusable form inputs (e.g., Step 2)
+const keys = useMagicKeys()
+whenever(
+  () => keys['enter']?.value && open.value && canProceed.value && !isProcessing.value,
+  () => nextStep(),
+)
 
 const nextStep = async () => {
   if (currentStep.value === 0) {
