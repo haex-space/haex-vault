@@ -1978,7 +1978,7 @@ dependencies = [
 
 [[package]]
 name = "haex-space"
-version = "1.4.32"
+version = "1.4.33"
 dependencies = [
  "aes-gcm",
  "async-trait",
