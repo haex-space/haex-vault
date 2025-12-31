@@ -257,12 +257,17 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
           return
         }
 
-        // Singleton check: If already open, activate existing window
+        // Singleton check: If already open, activate existing window and switch to its workspace
         if (systemWindowDef.singleton) {
           const existingWindow = windows.value.find(
             (w) => w.type === 'system' && w.sourceId === sourceId,
           )
           if (existingWindow) {
+            // Switch to the workspace where this window is located
+            const workspaceStore = useWorkspaceStore()
+            if (existingWindow.workspaceId !== workspaceStore.currentWorkspace?.id) {
+              workspaceStore.slideToWorkspace(existingWindow.workspaceId)
+            }
             activateWindow(existingWindow.id)
             return existingWindow.id
           }
