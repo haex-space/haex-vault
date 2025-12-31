@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="h-full">
     <!-- Detail View -->
     <HaexSystemSettingsExtensionDetail
       v-if="selectedExtension"
