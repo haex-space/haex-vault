@@ -28,7 +28,7 @@
         </div>
 
         <!-- Scrollable Content -->
-        <div class="flex-1 overflow-y-auto space-y-4 min-h-0 px-1 pb-4">
+        <div class="flex-1 overflow-y-auto space-y-4 min-h-0 pb-4">
           <slot name="content" />
         </div>
 
