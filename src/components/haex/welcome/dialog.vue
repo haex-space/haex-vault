@@ -13,9 +13,10 @@
         />
 
         <!-- Step 1: Device Name -->
-        <div
+        <form
           v-if="currentStep === 0"
           class="space-y-4"
+          @submit.prevent="onStepFormSubmit"
         >
           <div class="text-center space-y-2">
             <UIcon
@@ -35,7 +36,7 @@
             size="lg"
             class="w-full"
           />
-        </div>
+        </form>
 
         <!-- Step 2: Extension Selection -->
         <div
@@ -162,7 +163,7 @@
         <form
           v-if="currentStep === 2"
           class="space-y-4"
-          @submit.prevent="nextStep"
+          @submit.prevent="onStepFormSubmit"
         >
           <div class="text-center space-y-2">
             <UIcon
@@ -567,6 +568,12 @@ const finishWizardAsync = async (options: { withSync: boolean }) => {
 }
 
 const skipSync = () => finishWizardAsync({ withSync: false })
+
+const onStepFormSubmit = () => {
+  if (canProceed.value && !isProcessing.value) {
+    nextStep()
+  }
+}
 
 const nextStep = async () => {
   if (currentStep.value === 0) {
