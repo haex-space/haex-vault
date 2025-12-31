@@ -188,6 +188,15 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
   }
 
   /**
+   * Resets the store state. Called when closing a vault.
+   */
+  const reset = () => {
+    backends.value = []
+    temporaryBackend.value = null
+    console.log('[SYNC BACKENDS] Store reset')
+  }
+
+  /**
    * Persists the temporary backend to the database after successful initial sync.
    * Checks if backend already exists (from remote data) and updates it if needed.
    */
@@ -248,5 +257,6 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
     setTemporaryBackend,
     clearTemporaryBackend,
     persistTemporaryBackendAsync,
+    reset,
   }
 })

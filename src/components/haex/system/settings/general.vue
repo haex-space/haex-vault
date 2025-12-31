@@ -136,7 +136,7 @@ const { requestNotificationPermissionAsync, checkNotificationAsync } = useNotifi
 // Desktop icon size
 const desktopStore = useDesktopStore()
 const { iconSizePreset } = storeToRefs(desktopStore)
-const { syncDesktopIconSizeAsync, updateDesktopIconSizeAsync } = desktopStore
+const { updateDesktopIconSizeAsync } = desktopStore
 
 const iconSizePresetOptions = computed(() => [
   { label: t('iconSize.presets.small'), value: DesktopIconSizePreset.small },
@@ -276,7 +276,7 @@ const onUpdateDeviceNameAsync = async () => {
 onMounted(async () => {
   await readDeviceNameAsync()
   await checkNotificationAsync()
-  await syncDesktopIconSizeAsync()
+  // Note: syncDesktopIconSizeAsync is already called in vault.vue onMounted
 })
 </script>
 

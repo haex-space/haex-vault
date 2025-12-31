@@ -205,6 +205,7 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
       // Only create new settings if NOT in remote sync mode
       if (!isRemoteSyncMode.value) {
         await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
+          id: crypto.randomUUID(),
           key: VaultSettingsKeyEnum.desktopIconSize,
           type: VaultSettingsTypeEnum.system,
           value: DesktopIconSizePreset.medium,

@@ -281,12 +281,20 @@ export const useVaultStore = defineStore('vaultStore', () => {
     console.log('[VAULT STORE] create_encrypted_database returned path:', vaultPath)
     console.log('[VAULT STORE] Now calling openAsync...')
 
+    // Set the user-provided vault name BEFORE opening
+    // This ensures syncVaultNameAsync uses the correct name when creating the DB entry
+    currentVaultName.value = vaultName
+
     // Pass vaultId to openAsync so it doesn't create a new one from DB
     return await openAsync({ path: vaultPath, password, vaultId })
   }
 
   const closeAsync = async () => {
     if (!currentVaultId.value) return
+
+    // Stop sync first to clear all sync-related state
+    const syncOrchestratorStore = useSyncOrchestratorStore()
+    await syncOrchestratorStore.stopSyncAsync()
 
     // Close all extension windows before closing the vault
     const windowManagerStore = useWindowManagerStore()
