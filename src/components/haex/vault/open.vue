@@ -30,7 +30,7 @@
 
     <!-- Content -->
     <template #content>
-      <div class="space-y-4">
+      <div class="space-y-4 pt-2">
         <UForm
           :state="vault"
           class="w-full"
