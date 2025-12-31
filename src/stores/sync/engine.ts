@@ -616,6 +616,37 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     // 3. Try to load from local DB
     const dbKey = await getSyncKeyFromDbAsync(backendId)
     if (dbKey) {
+      // Verify the key also exists on the server
+      // If not, re-upload it (handles server data loss scenarios)
+      const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
+      if (backend) {
+        try {
+          await getVaultKeyAsync(backendId, vaultId, vaultPassword)
+          console.log('✅ Sync key verified on server')
+        } catch (error) {
+          if (error instanceof Error && error.message.includes('not found')) {
+            // Server lost the vault key - re-upload it
+            console.log('⚠️ Vault key missing on server, re-uploading...')
+            const serverPwd = serverPassword || backend.password
+            if (!serverPwd) {
+              throw new Error('Server password required to re-upload vault key')
+            }
+            await reUploadVaultKeyAsync(
+              backendId,
+              vaultId,
+              dbKey,
+              vaultName,
+              vaultPassword,
+              serverPwd,
+            )
+            console.log('✅ Vault key re-uploaded to server')
+          } else {
+            // Other errors (network, auth) - log but continue with local key
+            console.warn('⚠️ Could not verify vault key on server:', error)
+          }
+        }
+      }
+
       cacheSyncKey(vaultId, dbKey)
       console.log('✅ Sync key loaded from local database')
       return dbKey
