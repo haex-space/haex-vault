@@ -21,6 +21,7 @@
           v-model:password="credentials.password"
           :items="serverOptions"
           :is-loading="isLoading"
+          autofocus
         />
       </div>
 

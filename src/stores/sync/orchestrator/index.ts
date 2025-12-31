@@ -462,6 +462,13 @@ export const useSyncOrchestratorStore = defineStore(
           }
         }
 
+        // Clear ALL dirty tables after initial pull to prevent re-pushing pulled data
+        // This is critical: during initial pull, applying remote changes might trigger
+        // dirty table events (e.g., from extension table creation). We need to clear
+        // these to prevent pushing empty/stale data back to the server.
+        log.info('Clearing all dirty tables after initial pull...')
+        await invoke('clear_all_dirty_tables')
+
         // Emit sync:tables-updated event for UI refresh
         // This needs to be done here because initSyncEventsAsync() hasn't been called yet
         // during initial pull, but stores may still be listening for this event

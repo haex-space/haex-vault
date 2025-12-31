@@ -392,6 +392,7 @@ export const applyRemoteChangesInTransactionAsync = async (
 
     // Decrypt the value
     let decryptedValue
+    let decryptionFailed = false
     if (change.encryptedValue && change.nonce) {
       try {
         const decryptedData = await decryptCrdtData<{ value: unknown }>(
@@ -403,10 +404,18 @@ export const applyRemoteChangesInTransactionAsync = async (
       } catch (err) {
         decryptErrors++
         log.error(`Failed to decrypt change for ${change.tableName}.${change.columnName}:`, err)
-        decryptedValue = null
+        decryptionFailed = true
       }
     } else {
+      // No encrypted value means the value is intentionally null (e.g., cleared field)
       decryptedValue = null
+    }
+
+    // CRITICAL: Skip changes that failed to decrypt to prevent overwriting existing data with null
+    // This can happen if the vault key is incorrect or the data is corrupted
+    if (decryptionFailed) {
+      log.warn(`Skipping change for ${change.tableName}.${change.columnName} due to decryption failure`)
+      continue
     }
 
     decryptedChanges.push({
@@ -422,7 +431,7 @@ export const applyRemoteChangesInTransactionAsync = async (
   }
 
   if (decryptErrors > 0) {
-    log.warn(`${decryptErrors} changes failed to decrypt`)
+    log.warn(`${decryptErrors} changes failed to decrypt and were skipped`)
   }
 
   log.debug(`Decryption complete. Max HLC: ${maxHlc}`)
