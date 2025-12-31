@@ -57,31 +57,15 @@ const onWizardCompleteAsync = async (wizardData: {
 }) => {
   isLoading.value = true
 
+  let localVaultId: string | null = null
+
   try {
     // 1. Validate required password
     if (!wizardData.vaultPassword) {
       throw new Error('Vault password is required')
     }
 
-    // 2. Create minimal vault with remote vault_id (DB + vault_id only)
-    // No workspaces, devices, or backends are created yet
-    console.log('📦 Creating minimal vault:', wizardData.localVaultName)
-    console.log('📦 Using remote vault_id:', wizardData.vaultId)
-
-    const localVaultId = await vaultStore.createAsync({
-      vaultName: wizardData.localVaultName,
-      password: wizardData.vaultPassword,
-      vaultId: wizardData.vaultId, // Pass remote vault_id directly
-    })
-
-    if (!localVaultId) {
-      throw new Error('Failed to create vault')
-    }
-
-    console.log('✅ Vault created with ID:', localVaultId)
-
-    // 3. Set up temporary backend (NOT in DB yet)
-    // This allows us to pull data before persisting the backend
+    // 2. Set up temporary backend FIRST (for vault key fetch)
     console.log('📤 Setting up temporary backend for initial sync')
     syncBackendsStore.setTemporaryBackend({
       id: wizardData.backendId,
@@ -93,11 +77,9 @@ const onWizardCompleteAsync = async (wizardData: {
       enabled: true,
     })
 
-    // 4. Ensure sync key exists (needed for decryption)
-    // Supabase client is already initialized in wizard
-    // Pass serverUrl to fetch directly from server (initial sync mode)
-    // Use vaultPassword for vault key decryption
-    console.log('🔐 Ensuring sync key exists')
+    // 3. Verify vault password by fetching and decrypting the vault key BEFORE creating local vault
+    // This prevents creating orphan vault files if the password is wrong
+    console.log('🔐 Verifying vault password...')
     await syncEngineStore.ensureSyncKeyAsync(
       wizardData.backendId,
       wizardData.vaultId,
@@ -105,6 +87,24 @@ const onWizardCompleteAsync = async (wizardData: {
       wizardData.vaultPassword, // Vault encryption password
       wizardData.serverUrl, // Initial sync: fetch from server directly
     )
+    console.log('✅ Vault password verified')
+
+    // 4. Now create minimal vault with remote vault_id (DB + vault_id only)
+    // No workspaces, devices, or backends are created yet
+    console.log('📦 Creating minimal vault:', wizardData.localVaultName)
+    console.log('📦 Using remote vault_id:', wizardData.vaultId)
+
+    localVaultId = await vaultStore.createAsync({
+      vaultName: wizardData.localVaultName,
+      password: wizardData.vaultPassword,
+      vaultId: wizardData.vaultId, // Pass remote vault_id directly
+    })
+
+    if (!localVaultId) {
+      throw new Error('Failed to create vault')
+    }
+
+    console.log('✅ Vault created with ID:', localVaultId)
 
     // Close drawer before navigating
     open.value = false
@@ -138,6 +138,18 @@ const onWizardCompleteAsync = async (wizardData: {
     })
   } catch (error) {
     console.error('Failed to connect backend and create vault:', error)
+
+    // Clean up: delete the vault file if it was created but a later step failed
+    if (localVaultId) {
+      console.log('🗑️ Cleaning up partially created vault...')
+      try {
+        await vaultStore.deleteAsync(wizardData.localVaultName)
+        console.log('✅ Partial vault cleaned up')
+      } catch (cleanupError) {
+        console.warn('⚠️ Failed to clean up partial vault:', cleanupError)
+      }
+    }
+
     // Clear temporary backend on error
     syncBackendsStore.clearTemporaryBackend()
 

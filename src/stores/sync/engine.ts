@@ -537,12 +537,20 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
 
     const data = await response.json()
 
-    return decryptVaultKey(
-      data.vaultKey.encryptedVaultKey,
-      data.vaultKey.vaultKeySalt,
-      data.vaultKey.vaultKeyNonce,
-      password,
-    )
+    try {
+      return await decryptVaultKey(
+        data.vaultKey.encryptedVaultKey,
+        data.vaultKey.vaultKeySalt,
+        data.vaultKey.vaultKeyNonce,
+        password,
+      )
+    } catch (error) {
+      // WebCrypto throws OperationError for decryption failures (wrong password)
+      if (error instanceof Error && error.name === 'OperationError') {
+        throw new Error('Wrong vault password. Please enter the password you used when you created this vault.')
+      }
+      throw error
+    }
   }
 
   /**
