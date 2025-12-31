@@ -317,13 +317,6 @@ export const useVaultStore = defineStore('vaultStore', () => {
   }
 
   /**
-   * Deletes a vault by name (permanently removes the database file)
-   */
-  const deleteAsync = async (vaultName: string): Promise<void> => {
-    await invoke('delete_vault', { vaultName })
-  }
-
-  /**
    * Changes the vault password.
    * This re-encrypts the local database and updates the vault key on all sync backends.
    *
@@ -424,7 +417,6 @@ export const useVaultStore = defineStore('vaultStore', () => {
     currentVaultId,
     currentVaultName,
     currentVaultPassword,
-    deleteAsync,
     existsVault,
     openAsync,
     openVaults,

@@ -40,6 +40,7 @@ const syncBackendsStore = useSyncBackendsStore()
 const syncEngineStore = useSyncEngineStore()
 const syncOrchestratorStore = useSyncOrchestratorStore()
 const vaultStore = useVaultStore()
+const lastVaultStore = useLastVaultStore()
 
 const wizardRef = ref()
 const isLoading = ref(false)
@@ -143,7 +144,7 @@ const onWizardCompleteAsync = async (wizardData: {
     if (localVaultId) {
       console.log('🗑️ Cleaning up partially created vault...')
       try {
-        await vaultStore.deleteAsync(wizardData.localVaultName)
+        await lastVaultStore.removeVaultAsync(wizardData.localVaultName)
         console.log('✅ Partial vault cleaned up')
       } catch (cleanupError) {
         console.warn('⚠️ Failed to clean up partial vault:', cleanupError)
