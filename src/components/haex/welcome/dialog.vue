@@ -34,14 +34,16 @@
             :placeholder="t('steps.device.placeholder')"
             :rules="vaultDeviceNameSchema"
             size="lg"
+            autofocus
             class="w-full"
           />
         </form>
 
         <!-- Step 2: Extension Selection -->
-        <div
+        <form
           v-if="currentStep === 1"
           class="space-y-4"
+          @submit.prevent="onStepFormSubmit"
         >
           <div class="text-center space-y-2">
             <UIcon
@@ -157,7 +159,7 @@
           <p class="text-xs text-muted text-center">
             {{ t('steps.extensions.hint') }}
           </p>
-        </div>
+        </form>
 
         <!-- Step 3: Sync Server -->
         <form
