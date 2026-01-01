@@ -11,6 +11,7 @@ pub mod stats;
 use crate::crdt::hlc::HlcService;
 use crate::database::core::{execute_with_crdt, with_connection};
 use crate::database::error::DatabaseError;
+use crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED;
 use crate::extension::database::executor::SqlExecutor;
 use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_VAULT_SETTINGS};
 use crate::AppState;
@@ -71,7 +72,7 @@ pub fn sql_execute_with_crdt(
     let result = core::execute_with_crdt(sql, params, &state.db, &hlc_service)?;
 
     // Emit event to notify frontend that dirty tables may have changed
-    let _ = app_handle.emit("crdt:dirty-tables-changed", ());
+    let _ = app_handle.emit(EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
 
     Ok(result)
 }
@@ -98,7 +99,7 @@ pub fn sql_query_with_crdt(
     })?;
 
     // Emit event to notify frontend that dirty tables may have changed
-    let _ = app_handle.emit("crdt:dirty-tables-changed", ());
+    let _ = app_handle.emit(EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
 
     Ok(result)
 }
@@ -137,7 +138,7 @@ pub fn sql_with_crdt(
             let result = core::execute_with_crdt(sql, params, &state.db, &hlc_service)?;
 
             // Emit event to notify frontend that dirty tables may have changed
-            let _ = app_handle.emit("crdt:dirty-tables-changed", ());
+            let _ = app_handle.emit(EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
 
             Ok(result)
         }

@@ -9,6 +9,8 @@ use std::path::Path;
 #[derive(Debug, Deserialize)]
 struct EventNames {
     extension: HashMap<String, String>,
+    #[serde(default)]
+    crdt: HashMap<String, String>,
 }
 
 pub fn generate_event_names() {
@@ -42,6 +44,19 @@ pub fn generate_event_names() {
         ));
     }
     code.push('\n');
+
+    // CRDT Events
+    if !events.crdt.is_empty() {
+        code.push_str("// --- CRDT Events ---\n");
+        for (key, value) in &events.crdt {
+            let const_name = format!("EVENT_CRDT_{}", to_screaming_snake_case(key));
+            code.push_str(&format!(
+                "pub const {}: &str = \"{}\";\n",
+                const_name, value
+            ));
+        }
+        code.push('\n');
+    }
 
     // --- Datei schreiben ---
     let mut f = File::create(&dest_path).expect("Konnte Zieldatei nicht erstellen");

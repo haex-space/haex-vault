@@ -10,6 +10,7 @@
 use crate::crdt::transformer::CrdtTransformer;
 use crate::database::core::{parse_sql_statements, with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
+use crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED;
 use crate::extension::core::types::ExtensionSource;
 use crate::extension::database::executor::SqlExecutor;
 use crate::extension::database::helpers::{
@@ -29,7 +30,7 @@ use crate::AppState;
 use rusqlite::params_from_iter;
 use serde_json::Value as JsonValue;
 use sqlparser::ast::Statement;
-use tauri::{State, WebviewWindow};
+use tauri::{Emitter, Manager, State, WebviewWindow};
 
 /// Executes a SQL statement for an extension with full permission validation.
 #[tauri::command]
@@ -61,6 +62,11 @@ pub async fn extension_database_execute(
         is_dev_mode,
     );
     let rows = execute_sql_with_context(&ctx, &sql, &params, state.inner())?;
+
+    // Emit event to notify frontend that dirty tables may have changed
+    // This triggers the sync orchestrator to push changes to the server
+    let app_handle = window.app_handle();
+    let _ = app_handle.emit(EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
 
     Ok(DatabaseQueryResult {
         rows_affected: rows.len(),

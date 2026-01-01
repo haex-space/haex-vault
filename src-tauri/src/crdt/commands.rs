@@ -26,6 +26,38 @@ fn json_values_to_sql_params(values: &[JsonValue]) -> Result<Vec<SqlValue>, Data
         .collect()
 }
 
+/// Builds a WHERE clause for primary key columns, properly handling NULL values.
+///
+/// In SQL, `column = NULL` is always FALSE because NULL != NULL.
+/// For NULL PK values, we must use `column IS NULL` instead.
+///
+/// Returns a tuple of:
+/// - The WHERE clause string (e.g., `"id" = ? AND "group_id" IS NULL`)
+/// - A Vec of JsonValues containing only the non-NULL values for parameterized queries
+fn build_pk_where_clause(
+    pk_columns: &[&ColumnInfo],
+    row_pks: &serde_json::Map<String, JsonValue>,
+) -> (String, Vec<JsonValue>) {
+    let mut where_parts: Vec<String> = Vec::new();
+    let mut params: Vec<JsonValue> = Vec::new();
+
+    for col in pk_columns {
+        match row_pks.get(&col.name) {
+            Some(JsonValue::Null) | None => {
+                // NULL value - use IS NULL (no parameter needed)
+                where_parts.push(format!("\"{}\" IS NULL", col.name));
+            }
+            Some(v) => {
+                // Non-NULL value - use = ? with parameter
+                where_parts.push(format!("\"{}\" = ?", col.name));
+                params.push(v.clone());
+            }
+        }
+    }
+
+    (where_parts.join(" AND "), params)
+}
+
 #[derive(Debug, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
@@ -362,12 +394,9 @@ pub fn apply_remote_changes_in_transaction(
 
             let pk_columns: Vec<_> = schema.iter().filter(|col| col.is_pk).collect();
 
-            // Build WHERE clause for PKs
-            let pk_where: Vec<String> = pk_columns
-                .iter()
-                .map(|col| format!("{} = ?", col.name))
-                .collect();
-            let pk_where_clause = pk_where.join(" AND ");
+            // Build WHERE clause for PKs, handling NULL values properly
+            let (pk_where_clause, pk_values_for_query) =
+                build_pk_where_clause(&pk_columns, &row_pks);
 
             // Check if row exists and get current HLCs
             let check_sql = format!(
@@ -375,14 +404,9 @@ pub fn apply_remote_changes_in_transaction(
                 first_change.table_name, pk_where_clause
             );
 
-            let pk_values: Vec<JsonValue> = pk_columns
-                .iter()
-                .filter_map(|col| row_pks.get(&col.name).cloned())
-                .collect();
-
             let current_hlcs: Option<String> = {
                 let mut stmt = tx.prepare(&check_sql).map_err(DatabaseError::from)?;
-                let params = json_values_to_sql_params(&pk_values)?;
+                let params = json_values_to_sql_params(&pk_values_for_query)?;
                 let params_refs: Vec<&dyn rusqlite::ToSql> =
                     params.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
 
@@ -463,8 +487,8 @@ pub fn apply_remote_changes_in_transaction(
                     params_vec.push(SqlValue::Text(new_hlcs_json));
                     params_vec.push(SqlValue::Text(max_hlc_for_row.clone()));
 
-                    // Add PK values for WHERE clause
-                    for sql_val in json_values_to_sql_params(&pk_values)? {
+                    // Add PK values for WHERE clause (only non-NULL values, NULL uses IS NULL)
+                    for sql_val in json_values_to_sql_params(&pk_values_for_query)? {
                         params_vec.push(sql_val);
                     }
 

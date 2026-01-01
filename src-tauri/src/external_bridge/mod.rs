@@ -15,6 +15,7 @@ pub use authorization::{AuthorizedClient, BlockedClient, PendingAuthorization};
 pub use server::{ExternalBridge, SessionAuthorization, SessionBlockedClient, DEFAULT_BRIDGE_PORT};
 
 use crate::database::core::{execute_with_crdt, select_with_crdt};
+use crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED;
 use crate::AppState;
 use authorization::{
     parse_authorized_client, parse_blocked_client,
@@ -146,7 +147,7 @@ pub fn external_bridge_revoke_client(
         .map_err(|e| e.to_string())?;
 
     // Emit event to notify frontend
-    let _ = app_handle.emit("crdt:dirty-tables-changed", ());
+    let _ = app_handle.emit(EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
 
     Ok(())
 }
@@ -182,7 +183,7 @@ pub async fn external_bridge_approve_client(
     }
 
     // Emit event to notify frontend
-    let _ = app_handle.emit("crdt:dirty-tables-changed", ());
+    let _ = app_handle.emit(EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
 
     // Notify connected client that authorization was granted
     let bridge = state.external_bridge.lock().await;
@@ -292,7 +293,7 @@ pub async fn external_bridge_client_allow(
         }
 
         // Emit event to notify frontend
-        let _ = app_handle.emit("crdt:dirty-tables-changed", ());
+        let _ = app_handle.emit(EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
     } else {
         // Store session-based authorization (for "allow once")
         // This persists for the lifetime of the haex-vault session
@@ -343,7 +344,7 @@ pub async fn external_bridge_client_block(
         }
 
         // Emit event to notify frontend
-        let _ = app_handle.emit("crdt:dirty-tables-changed", ());
+        let _ = app_handle.emit(EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
     } else {
         // Add to session blocked list (for "deny once")
         // This persists for the lifetime of the haex-vault session
@@ -393,7 +394,7 @@ pub fn external_bridge_unblock_client(
         .map_err(|e| e.to_string())?;
 
     // Emit event to notify frontend
-    let _ = app_handle.emit("crdt:dirty-tables-changed", ());
+    let _ = app_handle.emit(EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
 
     Ok(())
 }
