@@ -1,8 +1,8 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import * as schema from '~/database/schemas/haex'
+import * as crdtSchema from '~/database/schemas/crdt'
 import type { Locale } from 'vue-i18n'
-import { subscribeToSyncUpdates, unsubscribeFromSyncUpdates } from '~/stores/sync/syncEvents'
 import { haexSyncBackends } from '~/database/schemas'
 
 export enum VaultSettingsTypeEnum {
@@ -17,6 +17,7 @@ export enum VaultSettingsKeyEnum {
   desktopIconSize = 'desktopIconSize',
   tombstoneRetentionDays = 'tombstoneRetentionDays',
   externalBridgePort = 'externalBridgePort',
+  initialSyncComplete = 'initial_sync_complete',
 }
 
 export enum DesktopIconSizePreset {
@@ -345,24 +346,61 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     return clampedPort
   }
 
-  // Register for sync updates using the central event system
-  const SUBSCRIPTION_ID = 'vaultSettingsStore'
+  /**
+   * Check if initial sync has completed for this vault on THIS DEVICE.
+   * Uses haex_crdt_configs table which is NOT synchronized between devices.
+   * Each device tracks its own initial sync status independently.
+   */
+  const isInitialSyncCompleteAsync = async (): Promise<boolean> => {
+    const callId = Math.random().toString(36).substring(7)
+    console.log(`[VaultSettings:${callId}] isInitialSyncCompleteAsync called at ${new Date().toISOString()}`)
 
-  const startSyncListener = () => {
-    subscribeToSyncUpdates(
-      SUBSCRIPTION_ID,
-      ['haex_vault_settings'],
-      async () => {
-        console.log('[VaultSettings] Sync update detected, reloading settings...')
-        await syncThemeAsync()
-        await syncLocaleAsync()
-        await syncVaultNameAsync()
-      },
-    )
+    if (!currentVault.value?.drizzle) {
+      console.log(`[VaultSettings:${callId}] No drizzle, returning false`)
+      return false
+    }
+
+    try {
+      // Use haex_crdt_configs which is local-only (not synced)
+      const result = await currentVault.value.drizzle.query.haexCrdtConfigs.findFirst({
+        where: eq(crdtSchema.haexCrdtConfigs.key, 'initial_sync_complete'),
+      })
+
+      const isComplete = result?.value === 'true'
+      console.log(`[VaultSettings:${callId}] haex_crdt_configs result: ${JSON.stringify(result)}, returning ${isComplete}`)
+      return isComplete
+    } catch (error) {
+      console.error(`[VaultSettings:${callId}] Failed to check initial sync status:`, error)
+      return false
+    }
   }
 
-  const stopSyncListener = () => {
-    unsubscribeFromSyncUpdates(SUBSCRIPTION_ID)
+  /**
+   * Mark initial sync as complete for this vault on THIS DEVICE.
+   * Uses haex_crdt_configs table which is NOT synchronized between devices.
+   * Each device tracks its own initial sync status independently.
+   */
+  const setInitialSyncCompleteAsync = async (): Promise<void> => {
+    console.log(`[VaultSettings] setInitialSyncCompleteAsync CALLED at ${new Date().toISOString()}`)
+
+    if (!currentVault.value?.drizzle) {
+      console.log('[VaultSettings] No drizzle, returning early')
+      return
+    }
+
+    try {
+      // Use haex_crdt_configs which is local-only (not synced)
+      // Use raw SQL INSERT OR REPLACE since Drizzle's onConflictDoUpdate has issues with SQLite
+      console.log('[VaultSettings] Setting initial_sync_complete in haex_crdt_configs...')
+
+      await currentVault.value.drizzle.run(
+        sql`INSERT OR REPLACE INTO haex_crdt_configs (key, type, value) VALUES ('initial_sync_complete', 'sync', 'true')`,
+      )
+
+      console.log('[VaultSettings] Initial sync marked as complete in haex_crdt_configs DONE')
+    } catch (error) {
+      console.error('[VaultSettings] Failed to set initial sync complete:', error)
+    }
   }
 
   return {
@@ -379,7 +417,7 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     getExternalBridgePortAsync,
     updateExternalBridgePortAsync,
     DEFAULT_EXTERNAL_BRIDGE_PORT,
-    startSyncListener,
-    stopSyncListener,
+    isInitialSyncCompleteAsync,
+    setInitialSyncCompleteAsync,
   }
 })

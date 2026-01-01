@@ -112,6 +112,7 @@ const onWizardCompleteAsync = async (wizardData: {
 
     // 5. Navigate to vault
     // The vault.vue page will detect remoteSync=true and wait for initial sync
+    console.log('[CONNECT] Navigating to vault...')
     await navigateTo(
       useLocaleRoute()({
         name: 'desktop',
@@ -119,18 +120,23 @@ const onWizardCompleteAsync = async (wizardData: {
         query: { remoteSync: 'true' },
       }),
     )
+    console.log('[CONNECT] Navigation complete (this might not run if component unmounted!)')
 
     // 6. Perform initial pull using temporary backend
     // This pulls ALL data from server before creating any local data
     // After successful pull, the backend is persisted to DB
-    console.log('🔄 Starting initial pull from remote vault')
+    // NOTE: performInitialPullAsync now also reloads stores (extensions, workspaces, desktop items)
+    // before signaling sync complete - this prevents race conditions with vault.vue
+    console.log('[CONNECT] 🔄 Starting performInitialPullAsync...')
     await syncOrchestratorStore.performInitialPullAsync()
+    console.log('[CONNECT] ✅ performInitialPullAsync complete')
 
     // 7. Start normal sync (backend is now in DB from step 6)
-    console.log('🔄 Starting normal sync')
+    console.log('[CONNECT] 🔄 Starting startSyncAsync...')
     await syncOrchestratorStore.startSyncAsync()
+    console.log('[CONNECT] ✅ startSyncAsync complete')
 
-    console.log('✅ Vault created and sync started')
+    console.log('[CONNECT] ✅ Vault created and sync started')
 
     add({
       title: t('success.title'),

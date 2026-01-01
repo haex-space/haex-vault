@@ -302,6 +302,8 @@ fn drop_trigger_sql(trigger_name: String) -> String {
 }
 
 /// Generates SQL for UPDATE trigger - updates column HLCs and marks table as dirty
+/// IMPORTANT: Only marks table as dirty if at least one TRACKED column changed.
+/// This prevents sync loops when only metadata columns (like last_push_hlc_timestamp) are updated.
 fn generate_update_trigger_sql(table_name: &str, cols_to_track: &[String]) -> String {
     let trigger_name = UPDATE_TRIGGER_TPL.replace("{TABLE_NAME}", table_name);
 
@@ -319,6 +321,19 @@ fn generate_update_trigger_sql(table_name: &str, cols_to_track: &[String]) -> St
 
     let all_updates = update_statements.join("\n            ");
 
+    // Generate condition: at least one tracked column must have changed
+    // This prevents marking the table as dirty when only sync metadata columns changed
+    let any_tracked_changed: String = if cols_to_track.is_empty() {
+        // No columns to track - never mark as dirty from updates
+        "0".to_string()
+    } else {
+        cols_to_track
+            .iter()
+            .map(|col| format!("NEW.{col} IS NOT OLD.{col}"))
+            .collect::<Vec<_>>()
+            .join(" OR ")
+    };
+
     format!(
         "CREATE TRIGGER IF NOT EXISTS \"{trigger_name}\"
             AFTER UPDATE ON \"{table_name}\"
@@ -328,8 +343,10 @@ fn generate_update_trigger_sql(table_name: &str, cols_to_track: &[String]) -> St
             BEGIN
             {all_updates}
 
+            -- Only mark as dirty if at least one tracked column changed
             INSERT OR REPLACE INTO haex_crdt_dirty_tables (table_name, last_modified)
-            VALUES ('{table_name}', datetime('now'));
+            SELECT '{table_name}', datetime('now')
+            WHERE ({any_tracked_changed});
             END;"
     )
 }

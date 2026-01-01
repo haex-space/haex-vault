@@ -11,9 +11,6 @@ import type { ExtensionPermissions } from '~~/src-tauri/bindings/ExtensionPermis
 import type { ExtensionInfoResponse } from '~~/src-tauri/bindings/ExtensionInfoResponse'
 import type { DisplayMode } from '~~/src-tauri/bindings/DisplayMode'
 
-/* const manifestFileName = 'manifest.json'
-const logoFileName = 'icon.svg' */
-
 export const useExtensionsStore = defineStore('extensionsStore', () => {
   const availableExtensions = ref<IHaexSpaceExtension[]>([])
   const currentRoute = useRouter().currentRoute
@@ -515,6 +512,16 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
     return 0
   }
 
+  /**
+   * Resets all store state. Called when closing a vault.
+   */
+  const reset = () => {
+    availableExtensions.value = []
+    pendingInstallBytes.value = null
+    preview.value = undefined
+    console.log('[EXTENSIONS STORE] Store reset')
+  }
+
   return {
     availableExtensions,
     checkManifest,
@@ -538,6 +545,8 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
     removeExtensionAsync,
     uninstallExtensionAsync,
     updateDisplayModeAsync,
+    // Reset
+    reset,
   }
 })
 

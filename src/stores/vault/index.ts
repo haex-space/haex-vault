@@ -292,7 +292,10 @@ export const useVaultStore = defineStore('vaultStore', () => {
   const closeAsync = async () => {
     if (!currentVaultId.value) return
 
+    console.log('[VAULT STORE] Closing vault and resetting all stores...')
+
     // Stop sync first to clear all sync-related state
+    // This also calls syncBackendsStore.reset()
     const syncOrchestratorStore = useSyncOrchestratorStore()
     await syncOrchestratorStore.stopSyncAsync()
 
@@ -300,8 +303,30 @@ export const useVaultStore = defineStore('vaultStore', () => {
     const windowManagerStore = useWindowManagerStore()
     await windowManagerStore.closeAllExtensionWindowsAsync()
 
+    // Reset all vault-specific stores to clear cached data
+    // This prevents stale data from appearing when opening a different vault
+    const desktopStore = useDesktopStore()
+    const extensionsStore = useExtensionsStore()
+    const workspaceStore = useWorkspaceStore()
+    const syncEngineStore = useSyncEngineStore()
+
+    desktopStore.reset()
+    extensionsStore.reset()
+    workspaceStore.reset()
+    syncEngineStore.reset()
+
+    // Close the database connection on the Rust side
+    // This clears the DB connection, HLC service, and extension manager caches
+    try {
+      await invoke('close_database')
+      console.log('[VAULT STORE] Database connection closed')
+    } catch (error) {
+      console.error('[VAULT STORE] Failed to close database:', error)
+    }
+
     // Removing vault from openVaults also clears the password from memory
     delete openVaults.value?.[currentVaultId.value]
+    console.log('[VAULT STORE] Vault closed successfully')
   }
 
   const existsVault = () => {

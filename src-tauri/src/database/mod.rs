@@ -561,6 +561,58 @@ pub fn create_encrypted_database(
     Ok(vault_path)
 }
 
+/// Closes the current database connection and resets related state.
+/// This must be called before opening a different vault.
+#[tauri::command]
+pub fn close_database(state: State<'_, AppState>) -> Result<(), DatabaseError> {
+    println!("[CLOSE_DB] Closing database connection...");
+
+    // 1. Close the database connection
+    {
+        let mut db_guard = state.db.0.lock().map_err(|e| DatabaseError::LockError {
+            reason: e.to_string(),
+        })?;
+
+        if let Some(conn) = db_guard.take() {
+            // Close the connection explicitly
+            if let Err((_, e)) = conn.close() {
+                eprintln!("[CLOSE_DB] Warning: Failed to close database cleanly: {}", e);
+            }
+            println!("[CLOSE_DB] Database connection closed");
+        } else {
+            println!("[CLOSE_DB] No database connection to close");
+        }
+    }
+
+    // 2. Reset HLC service
+    {
+        let mut hlc_guard = state.hlc.lock().map_err(|e| DatabaseError::LockError {
+            reason: e.to_string(),
+        })?;
+        *hlc_guard = HlcService::default();
+        println!("[CLOSE_DB] HLC service reset");
+    }
+
+    // 3. Clear extension manager caches
+    {
+        if let Ok(mut prod_exts) = state.extension_manager.production_extensions.lock() {
+            prod_exts.clear();
+            println!("[CLOSE_DB] Production extensions cache cleared");
+        }
+        if let Ok(mut perm_cache) = state.extension_manager.permission_cache.lock() {
+            perm_cache.clear();
+            println!("[CLOSE_DB] Permission cache cleared");
+        }
+        if let Ok(mut missing) = state.extension_manager.missing_extensions.lock() {
+            missing.clear();
+            println!("[CLOSE_DB] Missing extensions list cleared");
+        }
+    }
+
+    println!("[CLOSE_DB] ✅ Database closed and state reset");
+    Ok(())
+}
+
 #[tauri::command]
 pub fn open_encrypted_database(
     app_handle: AppHandle,
@@ -637,7 +689,7 @@ fn initialize_session_post_migration(
             eprintln!("INFO: Setting 'triggers_initialized' flag...");
             conn.execute(
                 &format!(
-                    "INSERT INTO {TABLE_VAULT_SETTINGS} (id, key, type, value) VALUES (?, ?, ?, ?)"
+                    "INSERT INTO {TABLE_VAULT_SETTINGS} (id, key, type, value, haex_tombstone) VALUES (?, ?, ?, ?, 0)"
                 ),
                 rusqlite::params![
                     uuid::Uuid::new_v4().to_string(),

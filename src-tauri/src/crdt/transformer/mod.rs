@@ -39,9 +39,10 @@ impl CrdtColumns {
     /// Dies behandelt sowohl haex_tombstone = 0 als auch haex_tombstone IS NULL
     fn create_tombstone_filter(&self, table_qualifier: Option<&str>) -> Expr {
         // Baue den Spaltenbezeichner (ggf. mit Tabellen-Qualifikator)
+        // Use double quotes for identifiers that may contain special characters (like hyphens)
         let column_expr = match table_qualifier {
             Some(qualifier) => Expr::CompoundIdentifier(vec![
-                Ident::new(qualifier),
+                Ident::with_quote('"', qualifier),
                 Ident::new(self.tombstone),
             ]),
             None => Expr::Identifier(Ident::new(self.tombstone)),

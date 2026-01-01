@@ -4,7 +4,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import { listen, emit } from '@tauri-apps/api/event'
+import { listen } from '@tauri-apps/api/event'
 import { log, type BackendSyncState } from './types'
 import { pushToBackendAsync, pushAllDataToBackendAsync } from './push'
 import {
@@ -16,7 +16,7 @@ import {
   subscribeToBackendAsync,
   unsubscribeFromBackendAsync,
 } from './realtime'
-import { initSyncEventsAsync, stopSyncEvents } from '../syncEvents'
+import { initSyncEventsAsync, stopSyncEvents, registerStoreForTables } from '../syncEvents'
 
 // Re-export types
 export * from './types'
@@ -38,6 +38,7 @@ export const useSyncOrchestratorStore = defineStore(
     let periodicSyncInterval: ReturnType<typeof setInterval> | null = null
     const periodicPullIntervals: Map<string, ReturnType<typeof setInterval>> = new Map()
     let eventUnlisten: (() => void) | null = null
+
 
     /**
      * Wrapper for pushing to a backend
@@ -163,17 +164,34 @@ export const useSyncOrchestratorStore = defineStore(
      * Called after local write operations to push changes
      */
     const onLocalWriteAsync = async (): Promise<void> => {
-      log.debug('onLocalWriteAsync: Triggered')
+      const callId = Math.random().toString(36).substring(7)
+      log.info(`[PUSH:${callId}] onLocalWriteAsync TRIGGERED at ${new Date().toISOString()}`)
+
+      // Don't push until initial sync is complete - all changes are from pulled data
+      const vaultSettingsStore = useVaultSettingsStore()
+      log.info(`[PUSH:${callId}] Querying DB for initial_sync_complete...`)
+      const isInitialSyncComplete = await vaultSettingsStore.isInitialSyncCompleteAsync()
+      log.info(`[PUSH:${callId}] isInitialSyncComplete = ${isInitialSyncComplete}`)
+
+      if (!isInitialSyncComplete) {
+        log.info(`[PUSH:${callId}] BLOCKED - initial sync not complete, returning early`)
+        return
+      }
+
       try {
         // Push to all enabled backends in parallel
         const enabledBackends = syncBackendsStore.enabledBackends
-        log.debug(`onLocalWriteAsync: Pushing to ${enabledBackends.length} backends`)
+        log.info(`[PUSH:${callId}] EXECUTING push to ${enabledBackends.length} backends: ${enabledBackends.map(b => b.id).join(', ')}`)
 
-        await Promise.allSettled(
+        const results = await Promise.allSettled(
           enabledBackends.map((backend) => pushToBackendWrapperAsync(backend.id)),
         )
+
+        const fulfilled = results.filter(r => r.status === 'fulfilled').length
+        const rejected = results.filter(r => r.status === 'rejected').length
+        log.info(`[PUSH:${callId}] Push complete - fulfilled: ${fulfilled}, rejected: ${rejected}`)
       } catch (error) {
-        log.error('onLocalWriteAsync: Failed to push local changes:', error)
+        log.error(`[PUSH:${callId}] Failed to push local changes:`, error)
       }
     }
 
@@ -182,19 +200,22 @@ export const useSyncOrchestratorStore = defineStore(
      * This runs in parallel with periodic pulls
      */
     const onDirtyTablesChangedAsync = async (): Promise<void> => {
+      const eventId = Math.random().toString(36).substring(7)
       const config = syncConfigStore.config
-      log.debug('DIRTY_TABLES: Event received, scheduling push...')
+      log.info(`[DIRTY:${eventId}] Event received from Rust at ${new Date().toISOString()}`)
 
       // Debounce to batch rapid changes before pushing
       if (dirtyTablesDebounceTimer) {
-        log.debug('DIRTY_TABLES: Resetting debounce timer')
+        log.info(`[DIRTY:${eventId}] Clearing existing debounce timer and resetting`)
         clearTimeout(dirtyTablesDebounceTimer)
       }
 
+      log.info(`[DIRTY:${eventId}] Setting new debounce timer for ${config.continuousDebounceMs}ms`)
       dirtyTablesDebounceTimer = setTimeout(async () => {
-        log.info('DIRTY_TABLES: Debounce timer elapsed, triggering push...')
+        log.info(`[DIRTY:${eventId}] Debounce timer ELAPSED after ${config.continuousDebounceMs}ms, calling onLocalWriteAsync...`)
         await onLocalWriteAsync()
         dirtyTablesDebounceTimer = null
+        log.info(`[DIRTY:${eventId}] onLocalWriteAsync returned`)
       }, config.continuousDebounceMs)
     }
 
@@ -204,25 +225,26 @@ export const useSyncOrchestratorStore = defineStore(
      * - Fallback Pull: Periodically fetches to catch missed realtime updates
      */
     const startDirtyTablesWatcherAsync = async (): Promise<void> => {
-      log.info('WATCHER: Starting sync watchers...')
+      log.info('[WATCHER] Starting sync watchers...')
       stopDirtyTablesWatcher()
 
       const config = syncConfigStore.config
-      log.debug('WATCHER: Config:', config)
+      log.info('[WATCHER] Config:', config)
 
       // Start push watcher: Listen to dirty tables events
+      log.info('[WATCHER] Registering listener for crdt:dirty-tables-changed...')
       eventUnlisten = await listen('crdt:dirty-tables-changed', async () => {
         await onDirtyTablesChangedAsync()
       })
-      log.info(`WATCHER: Push started (debounce: ${config.continuousDebounceMs}ms)`)
+      log.info(`[WATCHER] Push listener REGISTERED (debounce: ${config.continuousDebounceMs}ms)`)
 
       // Start fallback pull: Catch missed realtime updates
       periodicSyncInterval = setInterval(async () => {
-        log.debug('WATCHER: Fallback pull timer elapsed')
+        log.info('[WATCHER] Fallback pull timer elapsed')
         await onLocalWriteAsync()
       }, config.periodicIntervalMs)
       log.info(
-        `WATCHER: Fallback pull started (interval: ${config.periodicIntervalMs}ms)`,
+        `[WATCHER] Fallback pull started (interval: ${config.periodicIntervalMs}ms)`,
       )
     }
 
@@ -252,17 +274,19 @@ export const useSyncOrchestratorStore = defineStore(
      * Starts sync for all enabled backends
      */
     const startSyncAsync = async (): Promise<void> => {
-      log.info('========== START SYNC ==========')
+      log.info('[START-SYNC] ========================================')
+      log.info('[START-SYNC] startSyncAsync CALLED at ' + new Date().toISOString())
+      log.info('[START-SYNC] ========================================')
 
       const enabledBackends = syncBackendsStore.enabledBackends
 
       if (enabledBackends.length === 0) {
-        log.info('START: No enabled backends to sync with')
+        log.info('[START-SYNC] No enabled backends to sync with')
         return
       }
 
       log.info(
-        `START: Found ${enabledBackends.length} enabled backends:`,
+        `[START-SYNC] Found ${enabledBackends.length} enabled backends:`,
         enabledBackends.map((b) => ({ id: b.id, name: b.name })),
       )
 
@@ -270,26 +294,84 @@ export const useSyncOrchestratorStore = defineStore(
       log.debug('START: Initializing sync events listener...')
       await initSyncEventsAsync()
 
-      // Start vault settings sync listener
-      const vaultSettingsStore = useVaultSettingsStore()
-      vaultSettingsStore.startSyncListener()
+      // Register all stores for their respective tables
+      // This is the central place where we define which stores reload on which table updates
+      log.debug('START: Registering stores for sync events...')
+      registerStoreForTables(
+        ['haex_extensions', 'haex_extension_migrations'],
+        async () => {
+          const extensionsStore = useExtensionsStore()
+          await extensionsStore.loadExtensionsAsync()
+        },
+      )
+      registerStoreForTables(
+        ['haex_workspaces'],
+        async () => {
+          const workspaceStore = useWorkspaceStore()
+          await workspaceStore.loadWorkspacesAsync()
+        },
+      )
+      registerStoreForTables(
+        ['haex_desktop_items'],
+        async () => {
+          const desktopStore = useDesktopStore()
+          await desktopStore.loadDesktopItemsAsync()
+        },
+      )
+      registerStoreForTables(
+        ['haex_vault_settings'],
+        async () => {
+          const vaultSettingsStore = useVaultSettingsStore()
+          await vaultSettingsStore.syncThemeAsync()
+          await vaultSettingsStore.syncLocaleAsync()
+          await vaultSettingsStore.syncVaultNameAsync()
+        },
+      )
 
       // Load sync configuration
-      log.debug('START: Loading sync configuration...')
+      log.info('[START-SYNC] Loading sync configuration...')
       await syncConfigStore.loadConfigAsync()
 
       // Start dirty tables watcher
+      log.info('[START-SYNC] Starting dirty tables watcher...')
       await startDirtyTablesWatcherAsync()
 
+      log.info('[START-SYNC] Initializing backends...')
       for (const backend of enabledBackends) {
         try {
+          log.info(`[START-SYNC] Initializing backend ${backend.id}...`)
           await initBackendAsync(backend.id)
         } catch (error) {
-          log.error(`START: Failed to init backend ${backend.id}:`, error)
+          log.error(`[START-SYNC] Failed to init backend ${backend.id}:`, error)
         }
       }
 
-      log.info('========== START SYNC COMPLETE ==========')
+      // CRITICAL: Clear dirty tables AFTER all initialization is complete
+      // Store registrations and backend initialization above may trigger dirty table events.
+      // We clear them here to prevent pushing initialization-related changes.
+      log.info('[START-SYNC] Clearing dirty tables after initialization (1st clear)...')
+      await invoke('clear_all_dirty_tables')
+      log.info('[START-SYNC] clear_all_dirty_tables (1st) complete')
+
+      // NOW mark initial sync as complete - pushes will be allowed from this point
+      const vaultSettingsStore = useVaultSettingsStore()
+      log.info('[START-SYNC] Checking if initial sync was already complete...')
+      const wasAlreadyComplete = await vaultSettingsStore.isInitialSyncCompleteAsync()
+      log.info(`[START-SYNC] wasAlreadyComplete = ${wasAlreadyComplete}`)
+      if (!wasAlreadyComplete) {
+        log.info('[START-SYNC] Marking initial sync as COMPLETE now (will trigger DB write)!')
+        await vaultSettingsStore.setInitialSyncCompleteAsync()
+        log.info('[START-SYNC] setInitialSyncCompleteAsync complete')
+        // Clear dirty tables AGAIN after setting the flag, because setInitialSyncCompleteAsync
+        // itself creates a dirty table entry
+        log.info('[START-SYNC] Clearing dirty tables AGAIN after setInitialSyncCompleteAsync (2nd clear)...')
+        await invoke('clear_all_dirty_tables')
+        log.info('[START-SYNC] clear_all_dirty_tables (2nd) complete')
+      }
+
+      log.info('[START-SYNC] ========================================')
+      log.info('[START-SYNC] startSyncAsync COMPLETE at ' + new Date().toISOString())
+      log.info('[START-SYNC] ========================================')
     }
 
     /**
@@ -298,11 +380,7 @@ export const useSyncOrchestratorStore = defineStore(
     const stopSyncAsync = async (): Promise<void> => {
       log.info('========== STOP SYNC ==========')
 
-      // Stop vault settings sync listener
-      const vaultSettingsStore = useVaultSettingsStore()
-      vaultSettingsStore.stopSyncListener()
-
-      // Stop sync events listener
+      // Stop sync events listener (also clears all registered store reload functions)
       stopSyncEvents()
 
       // Stop dirty tables watcher
@@ -362,7 +440,12 @@ export const useSyncOrchestratorStore = defineStore(
      * 3. After successful pull, persists backend to DB (checking for duplicates from synced data)
      */
     const performInitialPullAsync = async (): Promise<void> => {
-      log.info('========== INITIAL PULL START (temporary backend) ==========')
+      log.info('[INITIAL-PULL] ========================================')
+      log.info('[INITIAL-PULL] performInitialPullAsync CALLED at ' + new Date().toISOString())
+      log.info('[INITIAL-PULL] ========================================')
+
+      // Note: Pushes are blocked until initial_sync_complete is set to 'true' in vault settings
+      // This happens at the end of this function via setInitialSyncCompleteAsync()
 
       const tempBackend = syncBackendsStore.temporaryBackend
       if (!tempBackend) {
@@ -460,30 +543,76 @@ export const useSyncOrchestratorStore = defineStore(
           if (Object.keys(updates).length > 0) {
             await syncBackendsStore.updateBackendAsync(persistedBackend.id, updates)
           }
+
+          // CRITICAL: If the persisted backend has a different ID than the temp backend,
+          // we need to transfer the sync state to prevent initBackendAsync from running again.
+          // This can happen when the backend was already synced from the server with a different ID.
+          if (persistedBackend.id !== backendId) {
+            log.info(`Backend ID changed: ${backendId} -> ${persistedBackend.id}, transferring sync state`)
+            syncStates.value[persistedBackend.id] = syncStates.value[backendId]
+            delete syncStates.value[backendId]
+          }
         }
 
-        // Clear ALL dirty tables after initial pull to prevent re-pushing pulled data
-        // This is critical: during initial pull, applying remote changes might trigger
-        // dirty table events (e.g., from extension table creation). We need to clear
-        // these to prevent pushing empty/stale data back to the server.
-        log.info('Clearing all dirty tables after initial pull...')
+        // CRITICAL: Reload all stores with synced data BEFORE setting isSyncing = false
+        // This ensures vault.vue's waitForInitialSyncAsync() doesn't resolve until stores are loaded
+        // Otherwise, desktop/index.vue might load empty stores before sync data is available
+        // Note: We reload stores directly here instead of using sync:tables-updated event
+        // because the event listeners aren't registered yet during initial pull
+        log.info('Reloading stores with synced data (before signaling sync complete)...')
+        try {
+          const extensionsStore = useExtensionsStore()
+          const workspaceStore = useWorkspaceStore()
+          const desktopStore = useDesktopStore()
+          const vaultSettingsStore = useVaultSettingsStore()
+
+          await extensionsStore.loadExtensionsAsync()
+          log.debug(`Extensions loaded: ${extensionsStore.availableExtensions.length}`)
+
+          await workspaceStore.loadWorkspacesAsync()
+          log.debug(`Workspaces loaded: ${workspaceStore.workspaces.length}`)
+
+          await desktopStore.loadDesktopItemsAsync()
+          log.debug(`Desktop items loaded: ${desktopStore.desktopItems.length}`)
+
+          // Also sync vault settings
+          await vaultSettingsStore.syncThemeAsync()
+          await vaultSettingsStore.syncLocaleAsync()
+          await vaultSettingsStore.syncVaultNameAsync()
+        } catch (reloadError) {
+          log.error('Failed to reload stores after initial pull:', reloadError)
+          // Don't throw - the data is in DB, UI can retry loading
+        }
+
+        // Use the persisted backend ID if available (it may be different from tempBackend.id)
+        const finalBackendId = persistedBackend?.id ?? backendId
+        if (syncStates.value[finalBackendId]) {
+          syncStates.value[finalBackendId].isSyncing = false
+        }
+
+        // Clear ALL dirty tables AFTER all store operations to prevent re-pushing pulled data
+        // This is critical: store operations above (updateBackendAsync, syncThemeAsync, etc.)
+        // trigger dirty table events. We clear them here to prevent pushing local-only data.
+        log.info('Clearing all dirty tables after initial pull and store operations...')
         await invoke('clear_all_dirty_tables')
 
-        // Emit sync:tables-updated event for UI refresh
-        // This needs to be done here because initSyncEventsAsync() hasn't been called yet
-        // during initial pull, but stores may still be listening for this event
-        if (allChanges.length > 0) {
-          const tablesAffected = [...new Set(allChanges.map((c) => c.tableName))]
-          log.debug('Emitting sync:tables-updated event for tables:', tablesAffected)
-          await emit('sync:tables-updated', { tables: tablesAffected })
-        }
+        // NOTE: initial_sync_complete is NOT set here anymore.
+        // It will be set at the end of startSyncAsync() AFTER:
+        // 1. The dirty tables watcher is started
+        // 2. All backends are initialized
+        // 3. Dirty tables are cleared again
+        // This ensures no pushes happen during the initialization phase.
 
-        syncStates.value[backendId].isSyncing = false
         log.info(`========== INITIAL PULL SUCCESS: ${allChanges.length} changes applied ==========`)
       } catch (error) {
         log.error('========== INITIAL PULL FAILED ==========', error)
         syncStates.value[backendId].error = error instanceof Error ? error.message : 'Unknown error'
         syncStates.value[backendId].isSyncing = false
+
+        // NOTE: We intentionally do NOT set initial_sync_complete on error.
+        // The caller (connect.vue) will handle the error and clean up the vault.
+        // If the user retries, a fresh initial pull will be attempted.
+
         throw error
       }
     }

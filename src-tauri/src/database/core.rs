@@ -337,6 +337,25 @@ pub fn select_with_crdt(
 
     eprintln!("DEBUG: SELECT (with tombstone filter): {transformed_sql}");
 
+    // DEBUG: For haex_extensions, also show raw tombstone values
+    if sql.contains("haex_extensions") {
+        let _ = with_connection(connection, |conn| {
+            let mut stmt = conn.prepare("SELECT id, name, haex_tombstone FROM haex_extensions")?;
+            let mut rows = stmt.query([])?;
+            eprintln!("DEBUG: === RAW haex_extensions data (no filter) ===");
+            let mut count = 0;
+            while let Some(row) = rows.next()? {
+                let id: String = row.get(0).unwrap_or_default();
+                let name: String = row.get(1).unwrap_or_default();
+                let tombstone: Option<i64> = row.get(2).ok();
+                eprintln!("DEBUG:   id={}, name={}, haex_tombstone={:?}", id, name, tombstone);
+                count += 1;
+            }
+            eprintln!("DEBUG: === Total {} rows in haex_extensions ===", count);
+            Ok::<(), DatabaseError>(())
+        });
+    }
+
     // Convert params and execute
     let params_converted: Vec<RusqliteValue> = params
         .iter()

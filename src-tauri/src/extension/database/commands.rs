@@ -7,6 +7,7 @@
 //! - iframe: extension_id is resolved from public_key/name parameters
 //!           (verified by frontend via origin check)
 
+use crate::crdt::transformer::CrdtTransformer;
 use crate::database::core::{parse_sql_statements, with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
 use crate::extension::core::types::ExtensionSource;
@@ -79,7 +80,9 @@ pub async fn extension_database_query(
     public_key: Option<String>,
     name: Option<String>,
 ) -> Result<DatabaseQueryResult, ExtensionError> {
-    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+    eprintln!("=== [EXT_QUERY] ENTRY === sql: {}", sql);
+    let extension_id = resolve_extension_id(&window, &state, public_key.clone(), name.clone())?;
+    eprintln!("[EXT_QUERY] extension_id: {}, public_key: {:?}, name: {:?}", extension_id, public_key, name);
 
     let extension = state
         .extension_manager
@@ -126,8 +129,18 @@ pub async fn extension_database_query(
 
     let rows = with_connection(&state.db, |conn| {
         let sql_params = ValueConverter::convert_params(&params)?;
-        let stmt_to_execute = ast_vec.pop().unwrap();
+        let mut stmt_to_execute = ast_vec.pop().unwrap();
+
+        // Apply CRDT tombstone filter to SELECT queries
+        // This ensures tombstoned (soft-deleted) rows are filtered out
+        if let Statement::Query(ref mut query) = stmt_to_execute {
+            let transformer = CrdtTransformer::new();
+            transformer.transform_query(query);
+        }
+
         let transformed_sql = stmt_to_execute.to_string();
+        eprintln!("[EXT_QUERY] Original SQL: {}", sql);
+        eprintln!("[EXT_QUERY] Transformed SQL: {}", transformed_sql);
 
         let mut prepared_stmt =
             conn.prepare(&transformed_sql)
@@ -164,6 +177,7 @@ pub async fn extension_database_query(
     })
     .map_err(ExtensionError::from)?;
 
+    eprintln!("[EXT_QUERY] Result: {} rows returned", rows.len());
     Ok(DatabaseQueryResult {
         rows,
         rows_affected: 0,

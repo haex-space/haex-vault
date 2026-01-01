@@ -5,6 +5,16 @@ use crate::crdt::trigger;
 use crate::database::error::DatabaseError;
 use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_VAULT_SETTINGS};
 use rusqlite::{params, Connection};
+use uuid::Uuid;
+
+/// Current version of the CRDT trigger logic.
+/// Increment this whenever the trigger generation code changes significantly.
+/// This forces all existing vaults to recreate their triggers on next open.
+///
+/// Version history:
+/// - 1: Initial trigger implementation
+/// - 2: Fix sync loop: UPDATE trigger only marks table dirty if tracked columns changed
+const TRIGGER_VERSION: i32 = 2;
 
 /// Scans the database for all tables that have a 'haex_tombstone' column
 /// These are the tables that need CRDT triggers
@@ -30,13 +40,24 @@ pub fn discover_crdt_tables(conn: &Connection) -> Result<Vec<String>, DatabaseEr
 /// Sie erstellt alle CRDT-Trigger für die definierten Tabellen und markiert
 /// die Initialisierung in haex_settings.
 ///
-/// Bei Migrations (ALTER TABLE) werden Trigger automatisch neu erstellt,
-/// daher ist kein Versioning nötig.
+/// If the trigger version has changed, triggers are recreated to apply fixes.
 pub fn ensure_triggers_initialized(conn: &mut Connection) -> Result<bool, DatabaseError> {
     let tx = conn.transaction()?;
 
-    // Check if triggers already initialized
+    // Check if triggers already initialized and get version
     let check_sql = format!("SELECT value FROM {TABLE_VAULT_SETTINGS} WHERE key = ? AND type = ?");
+    let current_version: Option<i32> = tx
+        .query_row(
+            &check_sql,
+            params!["trigger_version", "system"],
+            |row| {
+                let val: String = row.get(0)?;
+                Ok(val.parse().unwrap_or(1))
+            },
+        )
+        .ok();
+
+    // Also check old flag for backwards compatibility
     let initialized: Option<String> = tx
         .query_row(
             &check_sql,
@@ -45,13 +66,25 @@ pub fn ensure_triggers_initialized(conn: &mut Connection) -> Result<bool, Databa
         )
         .ok();
 
-    if initialized.is_some() {
-        eprintln!("DEBUG: Triggers already initialized, skipping");
-        tx.commit()?; // Wichtig: Transaktion trotzdem abschließen
-        return Ok(true); // true = war schon initialisiert
-    }
-
-    eprintln!("INFO: Initializing CRDT triggers for database...");
+    let needs_update = match current_version {
+        Some(v) if v >= TRIGGER_VERSION => {
+            eprintln!("DEBUG: Triggers at version {v}, current is {TRIGGER_VERSION}, skipping");
+            tx.commit()?;
+            return Ok(true);
+        }
+        Some(v) => {
+            eprintln!("INFO: Trigger version {v} < {TRIGGER_VERSION}, recreating triggers...");
+            true
+        }
+        None if initialized.is_some() => {
+            eprintln!("INFO: Triggers initialized but no version, upgrading to v{TRIGGER_VERSION}...");
+            true
+        }
+        None => {
+            eprintln!("INFO: First-time trigger initialization (v{TRIGGER_VERSION})...");
+            false
+        }
+    };
 
     // Discover all tables with haex_tombstone column
     let crdt_tables = discover_crdt_tables(&tx)?;
@@ -66,15 +99,45 @@ pub fn ensure_triggers_initialized(conn: &mut Connection) -> Result<bool, Databa
         [],
     )?;
 
-    // Create triggers for all discovered CRDT tables
+    // Create/recreate triggers for all discovered CRDT tables
     for table_name in crdt_tables {
         eprintln!("  - Setting up triggers for: {table_name}");
-        trigger::setup_triggers_for_table(&tx, &table_name, false)?;
+        // Use recreate=true if we need to update existing triggers
+        trigger::setup_triggers_for_table(&tx, &table_name, needs_update)?;
+    }
+
+    // Store trigger version
+    // Check if entry exists first, then INSERT or UPDATE
+    // Note: We can't use ON CONFLICT because the UNIQUE index is partial (WHERE haex_tombstone = 0)
+    // and SQLite's ON CONFLICT doesn't work with partial indexes
+    let existing: Option<String> = tx
+        .query_row(
+            &format!(
+                "SELECT id FROM {TABLE_VAULT_SETTINGS} WHERE key = 'trigger_version' AND type = 'system' AND haex_tombstone = 0"
+            ),
+            [],
+            |row| row.get(0),
+        )
+        .ok();
+
+    if let Some(existing_id) = existing {
+        tx.execute(
+            &format!("UPDATE {TABLE_VAULT_SETTINGS} SET value = ? WHERE id = ?"),
+            params![TRIGGER_VERSION.to_string(), existing_id],
+        )?;
+    } else {
+        let new_id = Uuid::new_v4().to_string();
+        tx.execute(
+            &format!(
+                "INSERT INTO {TABLE_VAULT_SETTINGS} (id, key, type, value, haex_tombstone) VALUES (?, 'trigger_version', 'system', ?, 0)"
+            ),
+            params![new_id, TRIGGER_VERSION.to_string()],
+        )?;
     }
 
     tx.commit()?;
-    eprintln!("INFO: ✓ CRDT triggers created successfully (flag pending)");
-    Ok(false) // false = wurde gerade initialisiert
+    eprintln!("INFO: ✓ CRDT triggers at version {TRIGGER_VERSION}");
+    Ok(false) // false = wurde gerade initialisiert/aktualisiert
 }
 
 /// Ensures all CRDT tables have proper triggers set up.

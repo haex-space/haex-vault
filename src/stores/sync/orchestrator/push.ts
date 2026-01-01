@@ -77,15 +77,20 @@ export const pushToBackendAsync = async (
     log.debug('Device ID:', deviceId)
 
     // Get all dirty tables that need to be synced
-    log.info('Fetching dirty tables...')
+    log.info('[PUSH-SCAN] Fetching dirty tables...')
     const dirtyTables = await getDirtyTablesAsync()
 
     if (dirtyTables.length === 0) {
-      log.info('PUSH COMPLETE: No dirty tables to push')
+      log.info('[PUSH-SCAN] PUSH COMPLETE: No dirty tables to push')
       return
     }
 
-    log.info(`Found ${dirtyTables.length} dirty tables:`, dirtyTables.map((t) => t.tableName))
+    log.info(`[PUSH-SCAN] Found ${dirtyTables.length} dirty tables:`, dirtyTables.map((t) => t.tableName))
+    // Log extra details for haex_vault_settings
+    const hasVaultSettings = dirtyTables.some(t => t.tableName === 'haex_vault_settings')
+    if (hasVaultSettings) {
+      log.info(`[PUSH-SCAN] ⚠️ haex_vault_settings IS DIRTY! Stack trace:`, new Error().stack)
+    }
 
     // Generate a batch ID for this push - all changes in this push belong together
     const batchId = crypto.randomUUID()
@@ -97,8 +102,8 @@ export const pushToBackendAsync = async (
 
     for (const { tableName } of dirtyTables) {
       try {
-        log.info(`Scanning table: ${tableName}`)
-        log.debug(`  lastPushHlc: ${lastPushHlc || '(none)'}`)
+        log.info(`[PUSH-SCAN] Scanning table: ${tableName}`)
+        log.debug(`[PUSH-SCAN]   lastPushHlc: ${lastPushHlc || '(none)'}`)
 
         const tableChanges = await scanTableForChangesAsync(
           tableName,
@@ -117,18 +122,27 @@ export const pushToBackendAsync = async (
           }
         }
 
-        log.info(`  Found ${tableChanges.length} column changes in ${tableName}`)
+        log.info(`[PUSH-SCAN]   Found ${tableChanges.length} column changes in ${tableName}`)
         if (tableChanges.length > 0) {
-          log.debug(
-            `  Sample changes:`,
-            tableChanges.slice(0, 3).map((c) => ({
+          // For haex_vault_settings, log ALL changes to see what's happening
+          if (tableName === 'haex_vault_settings') {
+            log.info(`[PUSH-SCAN] ⚠️ haex_vault_settings CHANGES:`, tableChanges.map((c) => ({
+              rowPks: c.rowPks,
               column: c.columnName,
               hlc: c.hlcTimestamp,
-            })),
-          )
+            })))
+          } else {
+            log.debug(
+              `[PUSH-SCAN]   Sample changes:`,
+              tableChanges.slice(0, 3).map((c) => ({
+                column: c.columnName,
+                hlc: c.hlcTimestamp,
+              })),
+            )
+          }
         }
       } catch (error) {
-        log.error(`Failed to scan table ${tableName}:`, error)
+        log.error(`[PUSH-SCAN] Failed to scan table ${tableName}:`, error)
         // Continue with other tables even if one fails
       }
     }

@@ -45,19 +45,14 @@ impl SqlExecutor {
         // Remove "main." schema prefix that sqlparser adds
         let raw_sql = statement.to_string();
         let sql_str = strip_main_schema_prefix(&raw_sql);
-        eprintln!("DEBUG: [execute_internal_typed] Raw SQL before strip: {raw_sql}");
-        eprintln!("DEBUG: [execute_internal_typed] Transformed execute SQL: {sql_str}");
 
         // Führe Statement aus
-        let rows_affected =
-            tx.execute(&sql_str, params)
-                .map_err(|e| DatabaseError::ExecutionError {
-                    sql: sql_str.clone(),
-                    table: None,
-                    reason: format!("Execute failed: {e}"),
-                })?;
-
-        eprintln!("DEBUG: [execute_internal_typed] Rows affected: {rows_affected}");
+        tx.execute(&sql_str, params)
+            .map_err(|e| DatabaseError::ExecutionError {
+                sql: sql_str.clone(),
+                table: None,
+                reason: format!("Execute failed: {e}"),
+            })?;
 
         Ok(modified_schema_tables)
     }
@@ -90,8 +85,6 @@ impl SqlExecutor {
         // Remove "main." schema prefix that sqlparser adds
         let raw_sql = statement.to_string();
         let sql_str = strip_main_schema_prefix(&raw_sql);
-        eprintln!("DEBUG: [query_internal_typed] Raw SQL before strip: {raw_sql}");
-        eprintln!("DEBUG: [query_internal_typed] Transformed SQL (with RETURNING): {sql_str}");
 
         // Prepare und query ausführen
         let mut stmt = tx
@@ -175,9 +168,6 @@ impl SqlExecutor {
         let stmt_to_execute = SqlExecutionPlanner::parse_single_statement(sql)?;
         let raw_sql = stmt_to_execute.to_string();
         let transformed_sql = strip_main_schema_prefix(&raw_sql);
-
-        eprintln!("DEBUG: [query_select] Raw SQL before strip: {raw_sql}");
-        eprintln!("DEBUG: [query_select] SELECT (after strip): {transformed_sql}");
 
         // Convert JSON params to SQLite values using planner
         let sql_params = SqlExecutionPlanner::convert_params(params)?;

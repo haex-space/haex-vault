@@ -415,6 +415,40 @@ interface FileChangePayload {
   path?: string
 }
 
+/**
+ * Sends a message to the first window of each unique extension.
+ * This ensures each extension receives the message exactly once,
+ * even if multiple windows are open for the same extension.
+ *
+ * @param message - The message object to send via postMessage
+ * @param logPrefix - Prefix for log messages (e.g., 'sync:tables-updated')
+ */
+const broadcastToFirstWindowOfEachExtension = (
+  message: Record<string, unknown>,
+  logPrefix: string,
+) => {
+  // Track which extensions we've already sent to (by publicKey)
+  const sentToExtensions = new Set<string>()
+
+  for (const [iframe, instance] of iframeRegistry.entries()) {
+    // Only send once per extension (first window wins)
+    if (sentToExtensions.has(instance.extension.publicKey)) {
+      continue
+    }
+
+    const win = windowIdToWindowMap.get(instance.windowId) || iframe.contentWindow
+    if (win) {
+      console.log(
+        `[ExtensionHandler] Sending ${logPrefix} to:`,
+        instance.extension.name,
+        instance.windowId,
+      )
+      win.postMessage(message, '*')
+      sentToExtensions.add(instance.extension.publicKey)
+    }
+  }
+}
+
 // Forward external requests from Tauri to iframe extensions
 // Only sends to the FIRST matching iframe to avoid duplicate processing
 const forwardExternalRequestToIframe = (payload: ExternalRequestPayload) => {
@@ -496,6 +530,30 @@ const forwardFileChangeToIframes = (payload: FileChangePayload) => {
   }
 }
 
+// Payload type for sync:tables-updated event
+interface SyncTablesUpdatedPayload {
+  tables: string[]
+}
+
+// Forward sync tables updated events from Tauri to extension iframes
+// Only sends to the FIRST window of each extension to avoid duplicate processing
+const forwardSyncTablesUpdatedToIframes = (payload: SyncTablesUpdatedPayload) => {
+  console.log(
+    '[ExtensionHandler] Forwarding sync:tables-updated event:',
+    payload.tables,
+  )
+
+  const message = {
+    type: HAEXTENSION_EVENTS.SYNC_TABLES_UPDATED,
+    data: {
+      tables: payload.tables,
+    },
+    timestamp: Date.now(),
+  }
+
+  broadcastToFirstWindowOfEachExtension(message, 'sync:tables-updated')
+}
+
 // Setup Tauri event listeners for external requests and file changes (for iframe extensions)
 let eventListenersRegistered = false
 
@@ -515,8 +573,14 @@ const setupExternalRequestListener = async () => {
       forwardFileChangeToIframes(event.payload)
     })
 
+    // Listen for sync tables updated events (from CRDT pull)
+    await listen<SyncTablesUpdatedPayload>('sync:tables-updated', (event) => {
+      console.log('[ExtensionHandler] Received sync:tables-updated from Tauri:', event.payload)
+      forwardSyncTablesUpdatedToIframes(event.payload)
+    })
+
     eventListenersRegistered = true
-    console.log('[ExtensionHandler] Event listeners registered (external requests + file changes)')
+    console.log('[ExtensionHandler] Event listeners registered (external requests + file changes + sync updates)')
   }
   catch (error) {
     console.error('[ExtensionHandler] Failed to setup event listeners:', error)

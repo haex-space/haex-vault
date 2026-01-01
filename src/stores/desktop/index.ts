@@ -123,21 +123,38 @@ export const useDesktopStore = defineStore('desktopStore', () => {
   }
 
   const loadDesktopItemsAsync = async () => {
+    console.log('[DESKTOP] loadDesktopItemsAsync called')
+    console.log('[DESKTOP] currentVault.value?.drizzle:', !!currentVault.value?.drizzle)
+    console.log('[DESKTOP] currentWorkspace.value:', currentWorkspace.value)
+
     if (!currentVault.value?.drizzle) {
-      console.error('Kein Vault geöffnet')
+      console.error('[DESKTOP] Kein Vault geöffnet')
       return
     }
 
     if (!currentWorkspace.value) {
-      console.error('Kein Workspace aktiv')
+      console.error('[DESKTOP] Kein Workspace aktiv - cannot load desktop items')
       return
     }
 
+    console.log('[DESKTOP] Loading desktop items for workspaceId:', currentWorkspace.value.id)
+
     try {
+      // First, let's see ALL desktop items in the database (for debugging)
+      const allItems = await currentVault.value.drizzle
+        .select()
+        .from(haexDesktopItems)
+
+      console.log('[DESKTOP] ALL desktop items in database:', allItems.length)
+      console.log('[DESKTOP] ALL desktop items workspaceIds:', allItems.map(i => i.workspaceId))
+
+      // Now filter by current workspace
       const items = await currentVault.value.drizzle
         .select()
         .from(haexDesktopItems)
         .where(eq(haexDesktopItems.workspaceId, currentWorkspace.value.id))
+
+      console.log('[DESKTOP] Found desktop items for current workspace:', items.length)
 
       desktopItems.value = items.map((item) => ({
         ...item,
@@ -146,8 +163,10 @@ export const useDesktopStore = defineStore('desktopStore', () => {
             ? item.extensionId!
             : item.systemWindowId!,
       }))
+
+      console.log('[DESKTOP] Desktop items loaded successfully:', desktopItems.value.length)
     } catch (error) {
-      console.error('Fehler beim Laden der Desktop-Items:', error)
+      console.error('[DESKTOP] Fehler beim Laden der Desktop-Items:', error)
       throw error
     }
   }
@@ -799,6 +818,19 @@ export const useDesktopStore = defineStore('desktopStore', () => {
     ]
   }
 
+  /**
+   * Resets all store state. Called when closing a vault.
+   */
+  const reset = () => {
+    desktopItems.value = []
+    selectedItemIds.value.clear()
+    isMultiDragging.value = false
+    multiDragOffsets.value.clear()
+    multiDragLeaderId.value = null
+    iconSizePreset.value = DesktopIconSizePreset.medium
+    console.log('[DESKTOP STORE] Store reset')
+  }
+
   return {
     desktopItems,
     selectedItemIds,
@@ -832,5 +864,7 @@ export const useDesktopStore = defineStore('desktopStore', () => {
     findFreePosition,
     // Workspace icons (cached)
     getWorkspaceIcons,
+    // Reset
+    reset,
   }
 })

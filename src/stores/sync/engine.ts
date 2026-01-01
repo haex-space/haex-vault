@@ -1013,9 +1013,20 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     console.log('✅ Vault key re-uploaded to server')
   }
 
+  /**
+   * Resets all store state. Called when closing a vault.
+   */
+  const reset = () => {
+    vaultKeyCache.value = {}
+    supabaseClient.value = null
+    currentBackendId.value = null
+    console.log('[SYNC ENGINE STORE] Store reset')
+  }
+
   return {
     vaultKeyCache,
     supabaseClient,
+    currentBackendId,
     initSupabaseClientAsync,
     getAuthTokenAsync,
     uploadVaultKeyAsync,
@@ -1036,5 +1047,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     getBackendsWithPendingVaultKeyUpdateAsync,
     retryPendingVaultKeyUpdatesAsync,
     reUploadVaultKeyAsync,
+    // Reset
+    reset,
   }
 })

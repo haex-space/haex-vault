@@ -16,6 +16,16 @@ use tauri::State;
 use ts_rs::TS;
 use uuid::Uuid;
 
+/// Converts a vector of JSON values to SQL values for use in queries.
+/// This ensures consistent handling of null values (JsonValue::Null -> SqlValue::Null)
+/// instead of incorrectly converting them to the string "null".
+fn json_values_to_sql_params(values: &[JsonValue]) -> Result<Vec<SqlValue>, DatabaseError> {
+    values
+        .iter()
+        .map(|v| ValueConverter::json_to_rusqlite_value(v))
+        .collect()
+}
+
 #[derive(Debug, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
@@ -330,12 +340,6 @@ pub fn apply_remote_changes_in_transaction(
         for ((_table_name, row_pks_str), row_change_list) in row_changes {
             // Use the first change to get common data
             let first_change = &row_change_list[0];
-            eprintln!(
-                "[SYNC RUST] Processing table: {}, PKs: {}, columns: {}",
-                first_change.table_name,
-                row_pks_str,
-                row_change_list.len()
-            );
 
             // Get table schema to identify PK columns
             // If table doesn't exist (e.g., from a dev extension not installed here), skip it
@@ -378,12 +382,9 @@ pub fn apply_remote_changes_in_transaction(
 
             let current_hlcs: Option<String> = {
                 let mut stmt = tx.prepare(&check_sql).map_err(DatabaseError::from)?;
-                let params: Vec<String> = pk_values
-                    .iter()
-                    .map(|v| v.to_string().trim_matches('"').to_string())
-                    .collect();
+                let params = json_values_to_sql_params(&pk_values)?;
                 let params_refs: Vec<&dyn rusqlite::ToSql> =
-                    params.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+                    params.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
 
                 stmt.query_row(&*params_refs, |row| row.get(0)).ok()
             };
@@ -453,8 +454,9 @@ pub fn apply_remote_changes_in_transaction(
                     let mut params_vec: Vec<SqlValue> = Vec::new();
 
                     // Add column values (convert JSON to SQL values)
-                    for (_, json_value, _) in &columns_to_update {
-                        params_vec.push(ValueConverter::json_to_rusqlite_value(json_value)?);
+                    for (_col_name, json_value, _) in &columns_to_update {
+                        let sql_value = ValueConverter::json_to_rusqlite_value(json_value)?;
+                        params_vec.push(sql_value);
                     }
 
                     // Add HLCs and timestamp
@@ -462,10 +464,8 @@ pub fn apply_remote_changes_in_transaction(
                     params_vec.push(SqlValue::Text(max_hlc_for_row.clone()));
 
                     // Add PK values for WHERE clause
-                    for pk_val in &pk_values {
-                        params_vec.push(SqlValue::Text(
-                            pk_val.to_string().trim_matches('"').to_string(),
-                        ));
+                    for sql_val in json_values_to_sql_params(&pk_values)? {
+                        params_vec.push(sql_val);
                     }
 
                     let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec
@@ -480,35 +480,22 @@ pub fn apply_remote_changes_in_transaction(
                     let mut columns = Vec::new();
                     let mut values: Vec<SqlValue> = Vec::new();
 
-                    // Debug: Log what columns we're about to insert
-                    eprintln!(
-                        "[SYNC RUST] INSERT for table {}: schema={} cols, updating={} cols",
-                        first_change.table_name,
-                        schema.len(),
-                        columns_to_update.len()
-                    );
-                    eprintln!(
-                        "[SYNC RUST]   Column names: {:?}",
-                        columns_to_update
-                            .iter()
-                            .map(|(n, _, _)| n)
-                            .collect::<Vec<_>>()
-                    );
-
-                    // Add PKs first
-                    for col in &pk_columns {
+                    // Add PKs first (use json_values_to_sql_params for consistent null handling)
+                    let pk_json_values: Vec<JsonValue> = pk_columns
+                        .iter()
+                        .filter_map(|col| row_pks.get(&col.name).cloned())
+                        .collect();
+                    let pk_sql_values = json_values_to_sql_params(&pk_json_values)?;
+                    for (col, sql_val) in pk_columns.iter().zip(pk_sql_values.into_iter()) {
                         columns.push(col.name.clone());
-                        if let Some(pk_val) = row_pks.get(&col.name) {
-                            values.push(SqlValue::Text(
-                                pk_val.to_string().trim_matches('"').to_string(),
-                            ));
-                        }
+                        values.push(sql_val);
                     }
 
                     // Add changed columns (convert JSON to SQL values)
                     for (col_name, json_value, _) in &columns_to_update {
                         columns.push(col_name.clone());
-                        values.push(ValueConverter::json_to_rusqlite_value(json_value)?);
+                        let sql_value = ValueConverter::json_to_rusqlite_value(json_value)?;
+                        values.push(sql_value);
                     }
 
                     // Add CRDT metadata

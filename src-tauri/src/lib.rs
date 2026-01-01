@@ -176,6 +176,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            database::close_database,
             database::create_encrypted_database,
             database::delete_vault,
             database::move_vault_to_trash,

@@ -7,6 +7,7 @@ use rusqlite::params_from_iter;
 use serde_json::Value as JsonValue;
 use sqlparser::ast::Statement;
 
+use crate::crdt::transformer::CrdtTransformer;
 use crate::crdt::trigger;
 use crate::database::core::{
     parse_sql_statements, with_connection, ValueConverter, DRIZZLE_STATEMENT_BREAKPOINT,
@@ -154,10 +155,17 @@ pub fn execute_sql_with_context(
         });
     }
 
-    let statement = ast_vec.pop().unwrap();
+    let mut statement = ast_vec.pop().unwrap();
 
-    // If this is a SELECT statement, just execute it
-    if matches!(statement, Statement::Query(_)) {
+    // If this is a SELECT statement, apply tombstone filter and execute
+    if let Statement::Query(ref mut query) = statement {
+        // Apply CRDT tombstone filter to SELECT queries (unless in dev mode)
+        // This ensures tombstoned (soft-deleted) rows are filtered out
+        if !ctx.is_dev_mode {
+            let transformer = CrdtTransformer::new();
+            transformer.transform_query(query);
+        }
+
         return with_connection(&state.db, |conn| {
             let sql_params = ValueConverter::convert_params(params)?;
             let transformed_sql = statement.to_string();
@@ -212,13 +220,10 @@ pub fn execute_sql_with_context(
             .collect();
 
         let statement_sql = statement.to_string();
-        eprintln!("DEBUG: [execute_sql_with_context] Statement SQL: {statement_sql}");
-        eprintln!("DEBUG: [execute_sql_with_context] is_dev_mode: {}", ctx.is_dev_mode);
 
         // Dev mode extensions execute SQL directly without CRDT transformation.
         // Their tables don't have CRDT columns (haex_timestamp, haex_tombstone, haex_column_hlcs).
         let result = if ctx.is_dev_mode {
-            eprintln!("DEBUG: [execute_sql_with_context] DEV MODE - executing SQL directly");
             if has_returning {
                 // Execute with RETURNING clause
                 let mut stmt = tx.prepare(&statement_sql).map_err(|e| DatabaseError::ExecutionError {
@@ -255,13 +260,12 @@ pub fn execute_sql_with_context(
                 result_vec
             } else {
                 // Execute without RETURNING clause
-                let rows_affected = tx.execute(&statement_sql, params_from_iter(param_refs.iter()))
+                tx.execute(&statement_sql, params_from_iter(param_refs.iter()))
                     .map_err(|e| DatabaseError::ExecutionError {
                         sql: statement_sql.clone(),
                         table: None,
                         reason: format!("Execute failed: {e}"),
                     })?;
-                eprintln!("DEBUG: [execute_sql_with_context] DEV MODE - rows affected: {rows_affected}");
                 vec![]
             }
         } else {

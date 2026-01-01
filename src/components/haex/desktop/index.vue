@@ -291,11 +291,16 @@ import 'swiper/css/navigation'
 
 const SwiperNavigation = Navigation
 
+const route = useRoute()
 const desktopStore = useDesktopStore()
 const extensionsStore = useExtensionsStore()
 const windowManager = useWindowManagerStore()
 const workspaceStore = useWorkspaceStore()
+const vaultSettingsStore = useVaultSettingsStore()
 const uiStore = useUiStore()
+
+// Check if this is a remote sync vault (initial connection)
+const isRemoteSyncVault = computed(() => route.query.remoteSync === 'true')
 const { desktopItems } = storeToRefs(desktopStore)
 const { availableExtensions } = storeToRefs(extensionsStore)
 const { isSmallScreen } = storeToRefs(uiStore)
@@ -886,7 +891,52 @@ useEventListener(window, 'keydown', async (e: KeyboardEvent) => {
   }
 })
 
+// Poll for initial sync completion (used for remote vault connections)
+const waitForInitialSyncAsync = async (): Promise<void> => {
+  console.log('[DESKTOP] waitForInitialSyncAsync: Checking if already complete...')
+  const isComplete = await vaultSettingsStore.isInitialSyncCompleteAsync()
+  if (isComplete) {
+    console.log('[DESKTOP] waitForInitialSyncAsync: Already complete, returning immediately')
+    return
+  }
+
+  console.log('[DESKTOP] waitForInitialSyncAsync: Not complete, starting poll (every 500ms, max 60s timeout)...')
+
+  return new Promise((resolve) => {
+    let pollCount = 0
+    const maxPolls = 120 // 60 seconds at 500ms intervals
+    const { pause } = useIntervalFn(async () => {
+      pollCount++
+      // Only log every 10 polls to reduce noise
+      if (pollCount % 10 === 0) {
+        console.log(`[DESKTOP] waitForInitialSyncAsync: Poll #${pollCount}/${maxPolls}, still waiting...`)
+      }
+
+      // Timeout after max polls
+      if (pollCount >= maxPolls) {
+        pause()
+        console.warn(`[DESKTOP] waitForInitialSyncAsync: TIMEOUT after ${pollCount} polls (${maxPolls * 500 / 1000}s). Continuing anyway.`)
+        resolve()
+        return
+      }
+
+      const complete = await vaultSettingsStore.isInitialSyncCompleteAsync()
+      if (complete) {
+        pause()
+        console.log(`[DESKTOP] waitForInitialSyncAsync: Complete after ${pollCount} polls!`)
+        resolve()
+      }
+    }, 500) // 500ms interval
+  })
+}
+
 onMounted(async () => {
+  // For remote sync vaults, wait for initial sync to complete before loading
+  // This prevents creating a default workspace before synced data arrives
+  if (isRemoteSyncVault.value) {
+    await waitForInitialSyncAsync()
+  }
+
   // Load workspaces first
   await workspaceStore.loadWorkspacesAsync()
 

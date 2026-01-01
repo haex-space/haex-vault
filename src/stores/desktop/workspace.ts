@@ -29,30 +29,49 @@ export const useWorkspaceStore = defineStore('workspaceStore', () => {
   // Load workspaces from database
   const loadWorkspacesAsync = async () => {
     if (!currentVault.value?.drizzle) {
-      console.error('Kein Vault geöffnet')
+      console.error('[WORKSPACE] Kein Vault geöffnet')
       return
     }
 
     if (!deviceId.value) {
-      console.error('Keine DeviceId vergeben')
+      console.error('[WORKSPACE] Keine DeviceId vergeben')
       return
     }
 
+    console.log('[WORKSPACE] Loading workspaces for deviceId:', deviceId.value)
+
     try {
+      // First, let's see ALL workspaces in the database (for debugging)
+      const allWorkspaces = await currentVault.value.drizzle
+        .select()
+        .from(haexWorkspaces)
+        .orderBy(asc(haexWorkspaces.position))
+
+      console.log('[WORKSPACE] ALL workspaces in database:', allWorkspaces.length)
+      console.log('[WORKSPACE] ALL workspaces data:', allWorkspaces.map(w => ({ id: w.id, name: w.name, deviceId: w.deviceId })))
+
+      // Now filter by current device
       const items = await currentVault.value.drizzle
         .select()
         .from(haexWorkspaces)
         .where(eq(haexWorkspaces.deviceId, deviceId.value))
         .orderBy(asc(haexWorkspaces.position))
 
+      console.log('[WORKSPACE] Workspaces for this device:', items.length)
+      console.log('[WORKSPACE] Workspace IDs:', items.map(w => ({ id: w.id, name: w.name, deviceId: w.deviceId })))
       workspaces.value = items
 
       // Create default workspace if none exist
       if (items.length === 0) {
+        console.log('[WORKSPACE] No workspaces found, creating default...')
         await addWorkspaceAsync('Workspace 1')
       }
+
+      // Log current workspace after loading
+      console.log('[WORKSPACE] currentWorkspaceIndex:', currentWorkspaceIndex.value)
+      console.log('[WORKSPACE] currentWorkspace:', workspaces.value[currentWorkspaceIndex.value])
     } catch (error) {
-      console.error('Fehler beim Laden der Workspaces:', error)
+      console.error('[WORKSPACE] Fehler beim Laden der Workspaces:', error)
       throw error
     }
   }
@@ -276,6 +295,18 @@ export const useWorkspaceStore = defineStore('workspaceStore', () => {
     ]]
   }
 
+  /**
+   * Resets all store state. Called when closing a vault.
+   */
+  const reset = () => {
+    workspaces.value = []
+    currentWorkspaceIndex.value = 0
+    swiperInstance.value = null
+    allowSwipe.value = true
+    isOverviewMode.value = false
+    console.log('[WORKSPACE STORE] Store reset')
+  }
+
   return {
     addWorkspaceAsync,
     allowSwipe,
@@ -295,5 +326,7 @@ export const useWorkspaceStore = defineStore('workspaceStore', () => {
     switchToWorkspace,
     updateWorkspaceBackgroundAsync,
     workspaces,
+    // Reset
+    reset,
   }
 })

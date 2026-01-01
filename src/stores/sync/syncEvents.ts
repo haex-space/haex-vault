@@ -1,6 +1,9 @@
 /**
  * Sync Events - Central event bus for sync updates
  * Allows stores to register callbacks for specific table updates
+ *
+ * Also provides a central store reloader that automatically reloads
+ * stores when their tables are updated via sync.
  */
 
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -16,6 +19,34 @@ const subscriptions: Map<string, TableSubscription> = new Map()
 let eventUnlisten: UnlistenFn | null = null
 let isInitialized = false
 
+// Central mapping of tables to store reload functions
+// This is populated by registerStoreForTables()
+const tableToReloadFn: Map<string, () => Promise<void>> = new Map()
+
+/**
+ * Register a store's reload function for specific tables.
+ * When any of these tables are updated via sync, the reload function is called.
+ * This is simpler than having each store subscribe individually.
+ */
+export const registerStoreForTables = (
+  tables: string[],
+  reloadFn: () => Promise<void>,
+): void => {
+  for (const table of tables) {
+    tableToReloadFn.set(table, reloadFn)
+  }
+  console.log(`[SyncEvents] Registered reload function for tables:`, tables)
+}
+
+/**
+ * Unregister tables from the central reloader
+ */
+export const unregisterTablesFromReloader = (tables: string[]): void => {
+  for (const table of tables) {
+    tableToReloadFn.delete(table)
+  }
+}
+
 /**
  * Initialize the sync events listener
  * Should be called once when the app starts
@@ -29,7 +60,24 @@ export const initSyncEventsAsync = async (): Promise<void> => {
       const { tables } = event.payload
       console.log('[SyncEvents] Tables updated:', tables)
 
-      // Notify all subscriptions
+      // Track which reload functions we've already called to avoid duplicates
+      const calledFns = new Set<() => Promise<void>>()
+
+      // First, call the central reloader for each affected table
+      for (const table of tables) {
+        const reloadFn = tableToReloadFn.get(table)
+        if (reloadFn && !calledFns.has(reloadFn)) {
+          try {
+            console.log(`[SyncEvents] Reloading store for table: ${table}`)
+            await reloadFn()
+            calledFns.add(reloadFn)
+          } catch (error) {
+            console.error(`[SyncEvents] Error reloading store for table ${table}:`, error)
+          }
+        }
+      }
+
+      // Then notify custom subscriptions (for stores that need special handling)
       for (const [id, subscription] of subscriptions) {
         try {
           // Check if this subscription is interested in any of the updated tables
@@ -68,6 +116,7 @@ export const stopSyncEvents = (): void => {
     eventUnlisten = null
   }
   subscriptions.clear()
+  tableToReloadFn.clear()
   isInitialized = false
   console.log('[SyncEvents] Stopped')
 }
@@ -105,5 +154,7 @@ export const useSyncEvents = () => {
     stopSyncEvents,
     subscribeToSyncUpdates,
     unsubscribeFromSyncUpdates,
+    registerStoreForTables,
+    unregisterTablesFromReloader,
   }
 }

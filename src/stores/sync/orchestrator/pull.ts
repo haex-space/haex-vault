@@ -108,6 +108,7 @@ export const pullFromBackendAsync = async (
     await syncBackendsStore.loadBackendsAsync()
 
     // Step 5: Emit event to notify frontend about changed tables
+    // Stores subscribe to this event and reload themselves - no manual reload needed
     if (tablesAffected.length > 0) {
       log.debug('Emitting sync:tables-updated event for tables:', tablesAffected)
       await emit('sync:tables-updated', { tables: tablesAffected })
@@ -418,7 +419,7 @@ export const applyRemoteChangesInTransactionAsync = async (
       continue
     }
 
-    decryptedChanges.push({
+    const changeObj = {
       tableName: change.tableName,
       rowPks: change.rowPks,
       columnName: change.columnName,
@@ -427,7 +428,9 @@ export const applyRemoteChangesInTransactionAsync = async (
       batchSeq: change.batchSeq || 1, // Default to 1
       batchTotal: change.batchTotal || 1, // Default to 1
       decryptedValue,
-    })
+    }
+
+    decryptedChanges.push(changeObj)
   }
 
   if (decryptErrors > 0) {
