@@ -24,7 +24,8 @@ fn parse_and_transform_query(sql: &str) -> String {
 const TOMBSTONE_FILTER_UNQUALIFIED: &str = "IFNULL(haex_tombstone, 0) <> 1";
 
 fn tombstone_filter_qualified(qualifier: &str) -> String {
-    format!("IFNULL({}.haex_tombstone, 0) <> 1", qualifier)
+    // Note: sqlparser outputs identifiers with double quotes when they were created with with_quote
+    format!("IFNULL(\"{}\".haex_tombstone, 0) <> 1", qualifier)
 }
 
 #[test]
