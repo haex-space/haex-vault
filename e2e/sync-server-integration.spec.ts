@@ -10,7 +10,8 @@
 // - Vault connection and sync
 //
 
-import { test, expect, Page, APIRequestContext } from '@playwright/test'
+import type { Page} from '@playwright/test';
+import { test, expect, APIRequestContext } from '@playwright/test'
 
 // ============================================================================
 // Test Configuration

@@ -548,12 +548,15 @@ const finishWizardAsync = async (options: { withSync: boolean }) => {
   isProcessing.value = true
 
   try {
-    await saveDeviceNameAsync()
-    await installSelectedExtensionsAsync()
-
+    // Sync FIRST - if it fails, user should be able to fix credentials
+    // without having already committed other changes
     if (options.withSync) {
       await setupSyncAsync()
     }
+
+    // Only proceed with other actions after sync succeeds (or was skipped)
+    await saveDeviceNameAsync()
+    await installSelectedExtensionsAsync()
 
     add({
       color: 'success',
@@ -565,7 +568,11 @@ const finishWizardAsync = async (options: { withSync: boolean }) => {
     emit('complete')
   } catch (error) {
     console.error('Failed to complete wizard:', error)
-    add({ color: 'error', description: t('errors.complete') })
+    // Only show generic error if it's not from sync (sync shows its own error toast)
+    if (!options.withSync || !syncError.value) {
+      add({ color: 'error', description: t('errors.complete') })
+    }
+    // Don't close the dialog - user should be able to retry
   } finally {
     isProcessing.value = false
   }
@@ -736,8 +743,9 @@ const setupSyncAsync = async () => {
       title: t('errors.syncSetup'),
       description: syncError.value,
     })
+    // Throw to prevent wizard from closing - user should fix credentials
+    throw new Error(syncError.value)
   }
-  // Don't throw - let the wizard complete even if sync fails
 }
 
 const completeWizardAsync = () => finishWizardAsync({ withSync: true })

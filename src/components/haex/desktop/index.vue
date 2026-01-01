@@ -89,9 +89,9 @@
             <!-- Windows for this workspace - single instance, CSS-transformed in overview -->
             <HaexWindow
               v-for="window in getWorkspaceWindows(workspace.id)"
-              :key="window.id"
               v-show="windowManager.showWindowOverview || !window.isMinimized"
               :id="window.id"
+              :key="window.id"
               v-model:x="window.x"
               v-model:y="window.y"
               v-model:width="window.width"

@@ -146,6 +146,32 @@ pub fn is_extension_table(table_name: &str, public_key: &str, extension_name: &s
     table_name.starts_with(&prefix)
 }
 
+/// Discovers all tables belonging to an extension.
+/// Returns table names that start with the extension's prefix.
+///
+/// This function finds ALL extension tables, regardless of whether they
+/// have CRDT columns or not. This is useful for:
+/// - Upgrading dev-mode tables to production (adding CRDT columns)
+/// - Cleanup on uninstall
+/// - Debugging
+pub fn discover_extension_tables(
+    conn: &rusqlite::Connection,
+    public_key: &str,
+    extension_name: &str,
+) -> Result<Vec<String>, crate::database::error::DatabaseError> {
+    let prefix = get_extension_table_prefix(public_key, extension_name);
+    let pattern = format!("{}%", prefix);
+
+    let mut stmt =
+        conn.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE ?1 ORDER BY name")?;
+
+    let table_names: Vec<String> = stmt
+        .query_map([&pattern], |row| row.get(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(table_names)
+}
+
 /// Drops all tables belonging to an extension
 ///
 /// This function finds all tables with the extension's prefix and drops them.

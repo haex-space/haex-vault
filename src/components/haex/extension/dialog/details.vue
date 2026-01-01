@@ -15,7 +15,7 @@
             :src="extension.iconUrl"
             :alt="extension.name"
             class="w-full h-full object-cover"
-          />
+          >
         </div>
         <div
           v-else
@@ -154,7 +154,7 @@
               :src="screenshot.imageUrl"
               :alt="screenshot.caption || ''"
               class="h-40 rounded-lg object-cover"
-            />
+            >
           </div>
         </div>
 

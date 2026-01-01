@@ -343,10 +343,14 @@ pub fn execute_sql_with_context(
 /// 2. Validates each statement has the correct table prefix
 /// 3. Executes each statement with CRDT support
 /// 4. Sets up triggers for CREATE TABLE (if not dev mode)
+/// 5. After all statements: ensures ALL extension tables have CRDT columns and triggers
 ///
 /// Note: This function is idempotent for schema changes:
 /// - "duplicate column" errors from ALTER TABLE ADD COLUMN are ignored
 /// - "table already exists" errors from CREATE TABLE are ignored
+///
+/// The final step (5) is crucial for upgrading tables that were created in dev mode
+/// (without CRDT columns) to production mode (with CRDT columns and triggers).
 ///
 /// Returns the number of statements executed.
 pub fn execute_migration_statements(
@@ -388,7 +392,77 @@ pub fn execute_migration_statements(
         }
     }
 
+    // After all migrations: ensure ALL extension tables have CRDT columns and triggers.
+    // This is important for tables that were created in dev mode (without CRDT columns).
+    // When the extension is installed in production mode, these tables need to be upgraded.
+    if !ctx.is_dev_mode {
+        ensure_extension_tables_have_crdt(ctx, state)?;
+    }
+
     Ok(statements.len())
+}
+
+/// Ensures all tables of an extension have CRDT columns and triggers.
+///
+/// This function:
+/// 1. Discovers all tables belonging to the extension
+/// 2. For each table, adds missing CRDT columns and triggers
+///
+/// This is called after migrations to handle the case where tables were
+/// created in dev mode (without CRDT columns) and are now being used in
+/// production mode.
+fn ensure_extension_tables_have_crdt(
+    ctx: &ExtensionSqlContext,
+    state: &AppState,
+) -> Result<(), ExtensionError> {
+    use crate::database::core::with_connection;
+    use crate::extension::utils::discover_extension_tables;
+
+    with_connection(&state.db, |conn| {
+        // Find all tables belonging to this extension
+        let tables = discover_extension_tables(conn, &ctx.public_key, &ctx.name)?;
+
+        if tables.is_empty() {
+            return Ok(());
+        }
+
+        let tx = conn.transaction()?;
+
+        let mut total_columns_added = 0;
+        let mut total_triggers_created = 0;
+
+        for table_name in &tables {
+            match trigger::ensure_crdt_columns_and_triggers(&tx, table_name) {
+                Ok((columns_added, triggers_created)) => {
+                    if columns_added {
+                        total_columns_added += 1;
+                    }
+                    if triggers_created {
+                        total_triggers_created += 1;
+                    }
+                }
+                Err(e) => {
+                    eprintln!(
+                        "[CRDT] Warning: Failed to ensure CRDT for table '{}': {}",
+                        table_name, e
+                    );
+                    // Continue with other tables - don't fail the whole migration
+                }
+            }
+        }
+
+        tx.commit()?;
+
+        if total_columns_added > 0 || total_triggers_created > 0 {
+            println!(
+                "[CRDT] Extension '{}::{}': added CRDT columns to {} tables, created triggers for {} tables",
+                ctx.public_key, ctx.name, total_columns_added, total_triggers_created
+            );
+        }
+
+        Ok(())
+    })
+    .map_err(ExtensionError::from)
 }
 
 /// Splits a migration SQL content into individual statements

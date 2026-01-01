@@ -18,7 +18,7 @@
             :src="extension.iconUrl"
             :alt="extension.name"
             class="w-full h-full object-cover"
-          />
+          >
         </div>
         <div
           v-else

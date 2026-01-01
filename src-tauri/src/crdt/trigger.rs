@@ -433,6 +433,55 @@ pub fn ensure_crdt_columns(
     Ok(added_any)
 }
 
+/// Ensures that a table has all required CRDT columns AND triggers.
+/// This is a combined operation that:
+/// 1. Adds missing CRDT columns (haex_timestamp, haex_column_hlcs, haex_tombstone)
+/// 2. Sets up dirty-table triggers if missing
+///
+/// Returns (columns_added, triggers_created) tuple.
+pub fn ensure_crdt_columns_and_triggers(
+    tx: &Transaction,
+    table_name: &str,
+) -> Result<(bool, bool), CrdtSetupError> {
+    // First, ensure CRDT columns exist
+    let columns_added = ensure_crdt_columns(tx, table_name)?;
+
+    // Now check if triggers already exist
+    let trigger_name = format!("z_dirty_{}_insert", table_name);
+    let has_trigger: bool = tx
+        .query_row(
+            "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type = 'trigger' AND name = ?",
+            [&trigger_name],
+            |row| row.get(0),
+        )
+        .unwrap_or(false);
+
+    let triggers_created = if !has_trigger {
+        // Setup triggers (this requires CRDT columns to exist)
+        match setup_triggers_for_table(tx, table_name, false) {
+            Ok(TriggerSetupResult::Success) => {
+                println!(
+                    "[CRDT] Created triggers for table '{}'",
+                    table_name
+                );
+                true
+            }
+            Ok(TriggerSetupResult::TableNotFound) => false,
+            Err(e) => {
+                eprintln!(
+                    "[CRDT] Failed to create triggers for '{}': {}",
+                    table_name, e
+                );
+                return Err(e);
+            }
+        }
+    } else {
+        false
+    };
+
+    Ok((columns_added, triggers_created))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,6 +1,6 @@
 // Re-export types from bindings for backwards compatibility
-export type { ExtensionManifest as IHaexSpaceExtensionManifest } from '~~/src-tauri/bindings/ExtensionManifest'
 import type { ExtensionInfoResponse } from '~~/src-tauri/bindings/ExtensionInfoResponse'
+export type { ExtensionManifest as IHaexSpaceExtensionManifest } from '~~/src-tauri/bindings/ExtensionManifest'
 
 /**
  * Extension with computed icon URL for display

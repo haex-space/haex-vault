@@ -5,7 +5,7 @@
   >
     <div class="flex flex-col items-center gap-6 max-w-md text-center px-4">
       <div class="relative">
-        <div class="loading loading-spinner loading-lg text-primary"></div>
+        <div class="loading loading-spinner loading-lg text-primary"/>
       </div>
       <div class="space-y-2">
         <h2 class="text-2xl font-bold">{{ t('title') }}</h2>

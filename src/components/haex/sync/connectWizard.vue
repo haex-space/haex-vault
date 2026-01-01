@@ -39,7 +39,7 @@
           v-if="isLoadingVaults"
           class="flex items-center justify-center p-8"
         >
-          <span class="loading loading-spinner loading-lg"></span>
+          <span class="loading loading-spinner loading-lg"/>
         </div>
 
         <!-- Vault list -->
@@ -73,7 +73,7 @@
                 v-if="selectedVaultId === vault.vaultId"
                 class="text-primary"
               >
-                <i class="i-lucide-check-circle text-2xl"></i>
+                <i class="i-lucide-check-circle text-2xl"/>
               </div>
             </div>
           </div>
@@ -158,7 +158,7 @@
       >
         {{ t('actions.back') }}
       </UButton>
-      <div class="flex-1"></div>
+      <div class="flex-1"/>
       <UButton
         v-if="currentStepIndex < 2"
         color="primary"

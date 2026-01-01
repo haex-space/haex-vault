@@ -14,7 +14,7 @@
         :src="imageUrl"
         v-bind="$attrs"
         @error="handleImageError"
-      />
+      >
     </UTooltip>
   </div>
 </template>
