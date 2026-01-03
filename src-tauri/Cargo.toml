@@ -1,6 +1,6 @@
 [package]
 name = "haex-space"
-version = "1.4.46"
+version = "1.4.47"
 description = "Secure and privacy friendly data storage"
 authors = ["you"]
 edition = "2021"
@@ -70,6 +70,18 @@ async-trait = "0.1"
 rust-s3 = { version = "0.37", default-features = false, features = ["tokio-native-tls", "fail-on-err", "tags"] }
 # Supabase Storage backend (HTTP client)
 reqwest = { version = "0.12", default-features = false, features = ["json", "native-tls"] }
+
+# LocalSend dependencies (all platforms)
+get_if_addrs = "0.5"
+whoami = "2.0"
+time = "0.3"
+# LocalSend server (all platforms - mobile only active when app in foreground)
+axum = "0.7"
+axum-server = { version = "0.7", features = ["tls-rustls"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors"] }
+rcgen = "0.13"
+rustls = "0.23"
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 trash = "5.2"
