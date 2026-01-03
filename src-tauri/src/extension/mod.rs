@@ -799,7 +799,8 @@ pub async fn extension_emit_filtered_sync_tables(
     };
 
     for extension in all_extensions {
-        let extension_id = format!("{}:{}", extension.manifest.public_key, extension.manifest.name);
+        // Use the database UUID as extension_id (same format as WebviewManager.windows registry)
+        let extension_id = extension.id.clone();
 
         // Get permissions for this extension
         let permissions = PermissionManager::get_permissions(&state, &extension_id).await?;
