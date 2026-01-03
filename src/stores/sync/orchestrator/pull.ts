@@ -107,11 +107,15 @@ export const pullFromBackendAsync = async (
     log.debug('Reloading backend config after pull...')
     await syncBackendsStore.loadBackendsAsync()
 
-    // Step 5: Emit event to notify frontend about changed tables
+    // Step 5: Emit events to notify frontend about changed tables
     // Stores subscribe to this event and reload themselves - no manual reload needed
     if (tablesAffected.length > 0) {
-      log.debug('Emitting sync:tables-updated event for tables:', tablesAffected)
+      log.info('Emitting sync:tables-updated event for tables:', tablesAffected)
+      // Emit for internal stores (syncEvents.ts)
       await emit('sync:tables-updated', { tables: tablesAffected })
+      // Emit for native webview extensions (vault-sdk listens to this)
+      await emit('haextension:sync:tables-updated', { tables: tablesAffected })
+      log.info('sync:tables-updated events emitted successfully')
     }
 
     log.info(`========== PULL SUCCESS: ${allChanges.length} changes applied ==========`)

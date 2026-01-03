@@ -58,7 +58,9 @@ export const initSyncEventsAsync = async (): Promise<void> => {
     'sync:tables-updated',
     async (event) => {
       const { tables } = event.payload
-      console.log('[SyncEvents] Tables updated:', tables)
+      console.log('[SyncEvents] ========== RECEIVED sync:tables-updated ==========')
+      console.log('[SyncEvents] Tables:', tables)
+      console.log('[SyncEvents] Registered tables:', Array.from(tableToReloadFn.keys()))
 
       // Track which reload functions we've already called to avoid duplicates
       const calledFns = new Set<() => Promise<void>>()
@@ -66,10 +68,12 @@ export const initSyncEventsAsync = async (): Promise<void> => {
       // First, call the central reloader for each affected table
       for (const table of tables) {
         const reloadFn = tableToReloadFn.get(table)
+        console.log(`[SyncEvents] Checking table "${table}" - has reload fn: ${!!reloadFn}, already called: ${calledFns.has(reloadFn!)}`)
         if (reloadFn && !calledFns.has(reloadFn)) {
           try {
-            console.log(`[SyncEvents] Reloading store for table: ${table}`)
+            console.log(`[SyncEvents] >>> RELOADING store for table: ${table}`)
             await reloadFn()
+            console.log(`[SyncEvents] <<< RELOAD COMPLETE for table: ${table}`)
             calledFns.add(reloadFn)
           } catch (error) {
             console.error(`[SyncEvents] Error reloading store for table ${table}:`, error)

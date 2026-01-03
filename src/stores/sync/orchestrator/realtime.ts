@@ -79,17 +79,19 @@ const handleRealtimeChangeAsync = async (
   syncBackendsStore: ReturnType<typeof useSyncBackendsStore>,
   syncEngineStore: ReturnType<typeof useSyncEngineStore>,
 ) => {
-  log.debug('REALTIME: Change event received')
+  log.info('REALTIME: Change event received, payload:', JSON.stringify(payload))
 
   // Skip if this change was made by our own device
   // Supabase Realtime returns snake_case column names
   const deviceStore = useDeviceStore()
   const newRecord = payload.new as Record<string, unknown> | undefined
   const deviceId = newRecord?.device_id as string | undefined
+  log.info(`REALTIME: Our deviceId=${deviceStore.deviceId}, event deviceId=${deviceId}`)
   if (deviceId === deviceStore.deviceId) {
-    log.debug('REALTIME: Skipping - change originated from this device')
+    log.info('REALTIME: Skipping - change originated from this device')
     return
   }
+  log.info('REALTIME: Processing change from another device, triggering pull...')
 
   // Trigger a debounced pull
   triggerDebouncedPullAsync(
