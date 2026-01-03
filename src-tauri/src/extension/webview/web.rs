@@ -180,8 +180,24 @@ pub async fn extension_emit_filtered_sync_tables(
         tables.len()
     );
 
+    // Load extensions if not already loaded (same as get_all_extensions command)
+    state
+        .extension_manager
+        .load_installed_extensions(&app_handle, &state)
+        .await?;
+
     // Get all installed extensions
     let all_extensions = state.extension_manager.get_all_extensions()?;
+    eprintln!(
+        "[SyncEvent] Found {} installed extensions in ExtensionManager",
+        all_extensions.len()
+    );
+    for ext in &all_extensions {
+        eprintln!(
+            "[SyncEvent]   - Extension: {}:{} (v{})",
+            ext.manifest.public_key, ext.manifest.name, ext.manifest.version
+        );
+    }
 
     // Track which extensions we've already emitted to (for WebView deduplication)
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
