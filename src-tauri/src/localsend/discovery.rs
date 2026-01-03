@@ -160,8 +160,13 @@ async fn run_discovery(
 
             // Send periodic announcements
             _ = announce_interval.tick() => {
-                if let Err(e) = socket.send_to(&announcement_json, multicast_dest).await {
-                    eprintln!("[LocalSend Discovery] Failed to send announcement: {}", e);
+                match socket.send_to(&announcement_json, multicast_dest).await {
+                    Ok(bytes) => {
+                        println!("[LocalSend Discovery] Sent announcement ({} bytes) to {}", bytes, multicast_dest);
+                    }
+                    Err(e) => {
+                        eprintln!("[LocalSend Discovery] Failed to send announcement: {}", e);
+                    }
                 }
             }
 
@@ -174,6 +179,7 @@ async fn run_discovery(
             result = socket.recv_from(&mut buf) => {
                 match result {
                     Ok((len, src_addr)) => {
+                        println!("[LocalSend Discovery] Received {} bytes from {}", len, src_addr);
                         if let Err(e) = handle_message(
                             &app_handle,
                             &devices,
