@@ -15,7 +15,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use super::crypto::get_local_ip_addresses;
 use super::error::LocalSendError;
 use super::protocol::DeviceAnnouncement;
-use super::types::{now_millis, Device, DeviceType, register_device};
+use super::types::{now_millis, Device, DeviceType};
 use super::{LocalSendState, DEFAULT_PORT, MULTICAST_ADDR, PROTOCOL_VERSION};
 
 // Re-export register_device for backwards compatibility
