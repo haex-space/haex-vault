@@ -4,6 +4,7 @@ mod crdt;
 mod database;
 mod extension;
 mod filesystem;
+mod localsend;
 mod shortcuts;
 mod remote_storage;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -42,6 +43,8 @@ pub struct AppState {
     pub file_watcher: extension::filesystem::watcher::FileWatcherManager,
     /// Session-based permission store (in-memory, cleared on restart)
     pub session_permissions: extension::permissions::session::SessionPermissionStore,
+    /// LocalSend state for file sharing
+    pub localsend: tokio::sync::RwLock<localsend::LocalSendState>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -129,6 +132,7 @@ pub fn run() {
             #[cfg(desktop)]
             file_watcher: extension::filesystem::watcher::FileWatcherManager::new(),
             session_permissions: extension::permissions::session::SessionPermissionStore::new(),
+            localsend: tokio::sync::RwLock::new(localsend::LocalSendState::new()),
         })
         //.manage(ExtensionState::default())
         .plugin(tauri_plugin_dialog::init())
@@ -355,6 +359,30 @@ pub fn run() {
             extension::filesystem::commands::extension_filesystem_watch,
             extension::filesystem::commands::extension_filesystem_unwatch,
             extension::filesystem::commands::extension_filesystem_is_watching,
+            // LocalSend commands (all platforms)
+            localsend::localsend_init,
+            localsend::localsend_get_device_info,
+            localsend::localsend_set_alias,
+            localsend::localsend_get_settings,
+            localsend::localsend_set_settings,
+            localsend::localsend_start_server,
+            localsend::localsend_stop_server,
+            localsend::localsend_get_server_status,
+            localsend::localsend_get_pending_transfers,
+            localsend::localsend_accept_transfer,
+            localsend::localsend_reject_transfer,
+            localsend::localsend_prepare_files,
+            localsend::localsend_send_files,
+            localsend::localsend_cancel_send,
+            localsend::localsend_get_devices,
+            // LocalSend discovery (desktop only - multicast UDP)
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            localsend::localsend_start_discovery,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            localsend::localsend_stop_discovery,
+            // LocalSend network scan (mobile only - HTTP fallback)
+            #[cfg(any(target_os = "android", target_os = "ios"))]
+            localsend::localsend_scan_network,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
