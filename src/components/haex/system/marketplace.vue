@@ -488,6 +488,28 @@ const confirmInstallAsync = async (
 
     await extensionStore.loadExtensionsAsync()
 
+    // Trigger a sync pull to fetch existing extension data from server
+    // This is important when reinstalling an extension - we want to pull
+    // all historical data that was synced from other devices
+    try {
+      const syncOrchestratorStore = useSyncOrchestratorStore()
+      const syncBackendsStore = useSyncBackendsStore()
+      const enabledBackends = syncBackendsStore.enabledBackends
+
+      if (enabledBackends.length > 0) {
+        console.log('[Extension Install] Triggering sync pull to fetch extension data...')
+        await Promise.allSettled(
+          enabledBackends.map((backend) =>
+            syncOrchestratorStore.pullFromBackendAsync(backend.id),
+          ),
+        )
+        console.log('[Extension Install] Sync pull completed')
+      }
+    } catch (error) {
+      // Don't fail installation if sync pull fails
+      console.warn('[Extension Install] Sync pull failed:', error)
+    }
+
     // Automatically add extension to internal HaexVault desktop
     if (installedExtensionId) {
       try {
