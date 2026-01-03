@@ -34,24 +34,22 @@ pub async fn start_discovery(
     app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), LocalSendError> {
-    let ls_state = state.localsend.read().await;
-
     // Check if already running
-    if *ls_state.discovery_running.read().await {
+    if *state.localsend.discovery_running.read().await {
         return Err(LocalSendError::DiscoveryAlreadyRunning);
     }
 
     // Create shutdown channel
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
-    *ls_state.discovery_shutdown.write().await = Some(shutdown_tx);
-    *ls_state.discovery_running.write().await = true;
+    *state.localsend.discovery_shutdown.write().await = Some(shutdown_tx);
+    *state.localsend.discovery_running.write().await = true;
 
     // Get our device info for announcements
-    let device_info = ls_state.device_info.read().await.clone();
+    let device_info = state.localsend.device_info.read().await.clone();
     let our_fingerprint = device_info.fingerprint.clone();
 
     // Clone what we need for the async task
-    let devices = ls_state.devices.clone();
+    let devices = state.localsend.devices.clone();
     let app_handle_clone = app_handle.clone();
 
     // Spawn discovery task
@@ -74,26 +72,23 @@ pub async fn start_discovery(
 
 /// Stop device discovery
 pub async fn stop_discovery(state: State<'_, AppState>) -> Result<(), LocalSendError> {
-    let ls_state = state.localsend.read().await;
-
-    if !*ls_state.discovery_running.read().await {
+    if !*state.localsend.discovery_running.read().await {
         return Err(LocalSendError::DiscoveryNotRunning);
     }
 
     // Send shutdown signal
-    if let Some(tx) = ls_state.discovery_shutdown.write().await.take() {
+    if let Some(tx) = state.localsend.discovery_shutdown.write().await.take() {
         let _ = tx.send(());
     }
 
-    *ls_state.discovery_running.write().await = false;
+    *state.localsend.discovery_running.write().await = false;
 
     Ok(())
 }
 
 /// Get list of discovered devices
 pub async fn get_devices(state: State<'_, AppState>) -> Result<Vec<Device>, LocalSendError> {
-    let ls_state = state.localsend.read().await;
-    let devices = ls_state.devices.read().await;
+    let devices = state.localsend.devices.read().await;
     Ok(devices.values().cloned().collect())
 }
 

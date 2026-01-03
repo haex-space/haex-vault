@@ -8,10 +8,8 @@
 use reqwest::Client;
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::Arc;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
-use tokio::sync::RwLock;
 use tauri::{AppHandle, Emitter, Manager, State};
 use uuid::Uuid;
 
@@ -33,8 +31,7 @@ pub async fn send_files(
     device: Device,
     files: Vec<FileInfo>,
 ) -> Result<String, LocalSendError> {
-    let ls_state = state.localsend.read().await;
-    let device_info = ls_state.device_info.read().await.clone();
+    let device_info = state.localsend.device_info.read().await.clone();
 
     // Create HTTP client that accepts self-signed certificates
     let client = Client::builder()
@@ -115,7 +112,7 @@ pub async fn send_files(
 
     // Store session
     {
-        let mut sessions = ls_state.sessions.write().await;
+        let mut sessions = state.localsend.sessions.write().await;
         sessions.insert(session_id.clone(), session);
     }
 
@@ -247,11 +244,9 @@ pub async fn cancel_send(
     state: State<'_, AppState>,
     session_id: String,
 ) -> Result<(), LocalSendError> {
-    let ls_state = state.localsend.read().await;
-
     // Get session
     let session = {
-        let sessions = ls_state.sessions.read().await;
+        let sessions = state.localsend.sessions.read().await;
         sessions.get(&session_id).cloned()
     };
 
@@ -278,7 +273,7 @@ pub async fn cancel_send(
 
     // Update session state
     {
-        let mut sessions = ls_state.sessions.write().await;
+        let mut sessions = state.localsend.sessions.write().await;
         if let Some(s) = sessions.get_mut(&session_id) {
             s.state = TransferState::Cancelled;
         }

@@ -22,7 +22,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
-use tokio::sync::{oneshot, RwLock};
+use tokio::sync::oneshot;
 use tauri::{AppHandle, Emitter, Manager, State};
 use uuid::Uuid;
 
@@ -43,7 +43,7 @@ pub const EVENT_TRANSFER_FAILED: &str = "localsend:transfer-failed";
 /// Shared state for the Axum server
 struct ServerState {
     app_handle: AppHandle,
-    localsend: Arc<RwLock<LocalSendState>>,
+    localsend: Arc<LocalSendState>,
 }
 
 /// Start the HTTPS server
@@ -52,10 +52,8 @@ pub async fn start_server(
     state: State<'_, AppState>,
     port: Option<u16>,
 ) -> Result<ServerInfo, LocalSendError> {
-    let ls_state = state.localsend.read().await;
-
     // Check if already running
-    if *ls_state.server_running.read().await {
+    if *state.localsend.server_running.read().await {
         return Err(LocalSendError::ServerAlreadyRunning);
     }
 
@@ -63,7 +61,7 @@ pub async fn start_server(
 
     // Generate TLS identity if not exists
     let identity = {
-        let mut tls_guard = ls_state.tls_identity.write().await;
+        let mut tls_guard = state.localsend.tls_identity.write().await;
         if tls_guard.is_none() {
             let new_identity = TlsIdentity::generate()?;
             *tls_guard = Some(new_identity);
@@ -73,15 +71,15 @@ pub async fn start_server(
 
     // Update device info with fingerprint
     {
-        let mut device_info = ls_state.device_info.write().await;
+        let mut device_info = state.localsend.device_info.write().await;
         device_info.fingerprint = identity.fingerprint.clone();
         device_info.port = port;
     }
 
     // Create shutdown channel
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
-    *ls_state.server_shutdown.write().await = Some(shutdown_tx);
-    *ls_state.server_running.write().await = true;
+    *state.localsend.server_shutdown.write().await = Some(shutdown_tx);
+    *state.localsend.server_running.write().await = true;
 
     // Get local addresses
     let addresses = get_local_ip_addresses().unwrap_or_default();
@@ -92,19 +90,10 @@ pub async fn start_server(
         addresses: addresses.clone(),
     };
 
-    // Clone state for server
-    let localsend_state = Arc::new(RwLock::new(LocalSendState::new()));
-    // Copy over existing data
-    {
-        let new_state = localsend_state.write().await;
-        *new_state.device_info.write().await = ls_state.device_info.read().await.clone();
-        *new_state.settings.write().await = ls_state.settings.read().await.clone();
-        *new_state.tls_identity.write().await = ls_state.tls_identity.read().await.clone();
-    }
-
+    // Share the same state with the Axum server
     let server_state = Arc::new(ServerState {
         app_handle: app_handle.clone(),
-        localsend: localsend_state,
+        localsend: state.localsend.clone(),
     });
 
     // Create router
@@ -149,29 +138,26 @@ pub async fn start_server(
 
 /// Stop the HTTPS server
 pub async fn stop_server(state: State<'_, AppState>) -> Result<(), LocalSendError> {
-    let ls_state = state.localsend.read().await;
-
-    if !*ls_state.server_running.read().await {
+    if !*state.localsend.server_running.read().await {
         return Err(LocalSendError::ServerNotRunning);
     }
 
     // Send shutdown signal
-    if let Some(tx) = ls_state.server_shutdown.write().await.take() {
+    if let Some(tx) = state.localsend.server_shutdown.write().await.take() {
         let _ = tx.send(());
     }
 
-    *ls_state.server_running.write().await = false;
+    *state.localsend.server_running.write().await = false;
 
     Ok(())
 }
 
 /// Get server status
 pub async fn get_server_status(state: State<'_, AppState>) -> Result<ServerStatus, LocalSendError> {
-    let ls_state = state.localsend.read().await;
-    let running = *ls_state.server_running.read().await;
+    let running = *state.localsend.server_running.read().await;
 
     if running {
-        let device_info = ls_state.device_info.read().await;
+        let device_info = state.localsend.device_info.read().await;
         let addresses = get_local_ip_addresses().unwrap_or_default();
 
         Ok(ServerStatus {
@@ -194,8 +180,7 @@ pub async fn get_server_status(state: State<'_, AppState>) -> Result<ServerStatu
 pub async fn get_pending_transfers(
     state: State<'_, AppState>,
 ) -> Result<Vec<PendingTransfer>, LocalSendError> {
-    let ls_state = state.localsend.read().await;
-    let sessions = ls_state.sessions.read().await;
+    let sessions = state.localsend.sessions.read().await;
 
     let pending: Vec<PendingTransfer> = sessions
         .values()
@@ -215,13 +200,12 @@ pub async fn get_pending_transfers(
 
 /// Accept an incoming transfer
 pub async fn accept_transfer(
-    app_handle: AppHandle,
+    _app_handle: AppHandle,
     state: State<'_, AppState>,
     session_id: String,
     save_dir: String,
 ) -> Result<(), LocalSendError> {
-    let ls_state = state.localsend.read().await;
-    let mut sessions = ls_state.sessions.write().await;
+    let mut sessions = state.localsend.sessions.write().await;
 
     let session = sessions
         .get_mut(&session_id)
@@ -245,8 +229,7 @@ pub async fn reject_transfer(
     state: State<'_, AppState>,
     session_id: String,
 ) -> Result<(), LocalSendError> {
-    let ls_state = state.localsend.read().await;
-    let mut sessions = ls_state.sessions.write().await;
+    let mut sessions = state.localsend.sessions.write().await;
 
     let session = sessions
         .get_mut(&session_id)
@@ -265,8 +248,7 @@ pub async fn reject_transfer(
 async fn handle_info(
     AxumState(state): AxumState<Arc<ServerState>>,
 ) -> impl IntoResponse {
-    let ls_state = state.localsend.read().await;
-    let device_info = ls_state.device_info.read().await;
+    let device_info = state.localsend.device_info.read().await;
 
     let response = DeviceAnnouncement {
         alias: device_info.alias.clone(),
@@ -289,19 +271,17 @@ async fn handle_register(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(announcement): Json<DeviceAnnouncement>,
 ) -> impl IntoResponse {
-    let ls_state = state.localsend.read().await;
-
     // Register the device
     let _ = register_device(
         &state.app_handle,
-        &ls_state.devices,
+        &state.localsend.devices,
         announcement.clone(),
         addr.ip().to_string(),
     )
     .await;
 
     // Return our device info
-    let device_info = ls_state.device_info.read().await;
+    let device_info = state.localsend.device_info.read().await;
 
     let response = DeviceAnnouncement {
         alias: device_info.alias.clone(),
@@ -325,8 +305,7 @@ async fn handle_prepare_upload(
     Query(params): Query<HashMap<String, String>>,
     Json(request): Json<PrepareUploadRequest>,
 ) -> Response {
-    let ls_state = state.localsend.read().await;
-    let settings = ls_state.settings.read().await;
+    let settings = state.localsend.settings.read().await;
 
     // Check PIN if required
     if settings.require_pin {
@@ -396,7 +375,7 @@ async fn handle_prepare_upload(
 
     // Store session
     {
-        let mut sessions = ls_state.sessions.write().await;
+        let mut sessions = state.localsend.sessions.write().await;
         sessions.insert(session_id.clone(), session);
     }
 
@@ -427,11 +406,9 @@ async fn handle_upload(
     Query(params): Query<UploadQuery>,
     body: Body,
 ) -> Response {
-    let ls_state = state.localsend.read().await;
-
     // Find session
     let session = {
-        let sessions = ls_state.sessions.read().await;
+        let sessions = state.localsend.sessions.read().await;
         sessions.get(&params.session_id).cloned()
     };
 
@@ -550,8 +527,7 @@ async fn handle_cancel(
     AxumState(state): AxumState<Arc<ServerState>>,
     Query(params): Query<CancelQuery>,
 ) -> Response {
-    let ls_state = state.localsend.read().await;
-    let mut sessions = ls_state.sessions.write().await;
+    let mut sessions = state.localsend.sessions.write().await;
 
     if let Some(session) = sessions.get_mut(&params.session_id) {
         session.state = TransferState::Cancelled;

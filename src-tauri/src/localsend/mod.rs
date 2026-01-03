@@ -235,8 +235,7 @@ pub async fn localsend_prepare_files(
 pub async fn localsend_get_settings(
     state: State<'_, AppState>,
 ) -> Result<LocalSendSettings, LocalSendError> {
-    let ls_state = state.localsend.read().await;
-    let settings = ls_state.settings.read().await.clone();
+    let settings = state.localsend.settings.read().await.clone();
     Ok(settings)
 }
 
@@ -246,8 +245,7 @@ pub async fn localsend_set_settings(
     state: State<'_, AppState>,
     settings: LocalSendSettings,
 ) -> Result<(), LocalSendError> {
-    let ls_state = state.localsend.read().await;
-    *ls_state.settings.write().await = settings;
+    *state.localsend.settings.write().await = settings;
     Ok(())
 }
 
@@ -256,8 +254,7 @@ pub async fn localsend_set_settings(
 pub async fn localsend_get_device_info(
     state: State<'_, AppState>,
 ) -> Result<DeviceInfo, LocalSendError> {
-    let ls_state = state.localsend.read().await;
-    let device_info = ls_state.device_info.read().await.clone();
+    let device_info = state.localsend.device_info.read().await.clone();
     Ok(device_info)
 }
 
@@ -267,8 +264,7 @@ pub async fn localsend_set_alias(
     state: State<'_, AppState>,
     alias: String,
 ) -> Result<(), LocalSendError> {
-    let ls_state = state.localsend.read().await;
-    ls_state.device_info.write().await.alias = alias;
+    state.localsend.device_info.write().await.alias = alias;
     Ok(())
 }
 
@@ -277,9 +273,8 @@ pub async fn localsend_set_alias(
 pub async fn localsend_init(
     state: State<'_, AppState>,
 ) -> Result<DeviceInfo, LocalSendError> {
-    let ls_state = state.localsend.read().await;
-    ls_state.init_identity().await?;
-    let device_info = ls_state.device_info.read().await.clone();
+    state.localsend.init_identity().await?;
+    let device_info = state.localsend.device_info.read().await.clone();
     Ok(device_info)
 }
 
@@ -291,7 +286,7 @@ pub async fn localsend_init(
 #[cfg(any(target_os = "android", target_os = "ios"))]
 #[tauri::command]
 pub async fn localsend_scan_network(
-    app_handle: AppHandle,
+    _app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<Device>, LocalSendError> {
     // Get local IP to determine network range
@@ -301,8 +296,7 @@ pub async fn localsend_scan_network(
         return Ok(vec![]);
     }
 
-    let ls_state = state.localsend.read().await;
-    let device_info = ls_state.device_info.read().await.clone();
+    let device_info = state.localsend.device_info.read().await.clone();
 
     // Create our announcement for registration
     let our_info = DeviceAnnouncement {
@@ -384,7 +378,7 @@ pub async fn localsend_scan_network(
 
     // Store discovered devices
     {
-        let mut devices_guard = ls_state.devices.write().await;
+        let mut devices_guard = state.localsend.devices.write().await;
         for device in &devices {
             devices_guard.insert(device.fingerprint.clone(), device.clone());
         }
@@ -399,7 +393,6 @@ pub async fn localsend_scan_network(
 pub async fn localsend_get_devices(
     state: State<'_, AppState>,
 ) -> Result<Vec<Device>, LocalSendError> {
-    let ls_state = state.localsend.read().await;
-    let devices = ls_state.devices.read().await;
+    let devices = state.localsend.devices.read().await;
     Ok(devices.values().cloned().collect())
 }

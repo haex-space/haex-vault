@@ -43,8 +43,8 @@ pub struct AppState {
     pub file_watcher: extension::filesystem::watcher::FileWatcherManager,
     /// Session-based permission store (in-memory, cleared on restart)
     pub session_permissions: extension::permissions::session::SessionPermissionStore,
-    /// LocalSend state for file sharing
-    pub localsend: tokio::sync::RwLock<localsend::LocalSendState>,
+    /// LocalSend state for file sharing (Arc for sharing with Axum server)
+    pub localsend: Arc<localsend::LocalSendState>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -132,7 +132,7 @@ pub fn run() {
             #[cfg(desktop)]
             file_watcher: extension::filesystem::watcher::FileWatcherManager::new(),
             session_permissions: extension::permissions::session::SessionPermissionStore::new(),
-            localsend: tokio::sync::RwLock::new(localsend::LocalSendState::new()),
+            localsend: Arc::new(localsend::LocalSendState::new()),
         })
         //.manage(ExtensionState::default())
         .plugin(tauri_plugin_dialog::init())
