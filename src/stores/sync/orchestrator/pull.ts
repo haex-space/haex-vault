@@ -4,10 +4,10 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import { emit } from '@tauri-apps/api/event'
 import { decryptCrdtData } from '@haex-space/vault-sdk'
 import type { ColumnChange } from '../tableScanner'
 import { log, type BackendSyncState, type PullResult } from './types'
+import { forwardFilteredSyncTablesToIframes } from '~/composables/extensionMessageHandler'
 
 /**
  * Pulls changes from a specific backend using column-level HLC comparison
@@ -107,15 +107,26 @@ export const pullFromBackendAsync = async (
     log.debug('Reloading backend config after pull...')
     await syncBackendsStore.loadBackendsAsync()
 
-    // Step 5: Emit events to notify frontend about changed tables
-    // Stores subscribe to this event and reload themselves - no manual reload needed
+    // Step 5: Emit filtered sync events to extensions
+    // - Internal stores receive unfiltered 'sync:tables-updated' event
+    // - WebView extensions receive filtered events directly from Rust
+    // - iframe extensions receive filtered events via postMessage (handled by extensionMessageHandler)
     if (tablesAffected.length > 0) {
-      log.info('Emitting sync:tables-updated event for tables:', tablesAffected)
-      // Emit for internal stores (syncEvents.ts)
-      await emit('sync:tables-updated', { tables: tablesAffected })
-      // Emit for native webview extensions (vault-sdk listens to this)
-      await emit('haextension:sync:tables-updated', { tables: tablesAffected })
-      log.info('sync:tables-updated events emitted successfully')
+      log.info('Emitting filtered sync:tables-updated events for tables:', tablesAffected)
+
+      // Call Rust command that:
+      // 1. Emits internal 'sync:tables-updated' event (for stores)
+      // 2. Emits filtered events to WebView extensions
+      // 3. Returns filtered table lists for iframe forwarding
+      const result = await invoke<{ extensions: Record<string, string[]> }>(
+        'extension_emit_filtered_sync_tables',
+        { tables: tablesAffected },
+      )
+
+      // Forward filtered events to iframe extensions
+      forwardFilteredSyncTablesToIframes(result.extensions)
+
+      log.info('Filtered sync:tables-updated events emitted successfully')
     }
 
     log.info(`========== PULL SUCCESS: ${allChanges.length} changes applied ==========`)

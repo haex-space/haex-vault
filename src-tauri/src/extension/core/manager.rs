@@ -411,6 +411,31 @@ impl ExtensionManager {
         prod_extensions.get(extension_id).cloned()
     }
 
+    /// Get all installed extensions (both dev and production)
+    pub fn get_all_extensions(&self) -> Result<Vec<Extension>, ExtensionError> {
+        let mut extensions = Vec::new();
+
+        // Collect dev extensions
+        let dev_extensions = self
+            .dev_extensions
+            .lock()
+            .map_err(|e| ExtensionError::MutexPoisoned {
+                reason: e.to_string(),
+            })?;
+        extensions.extend(dev_extensions.values().cloned());
+
+        // Collect production extensions
+        let prod_extensions = self
+            .production_extensions
+            .lock()
+            .map_err(|e| ExtensionError::MutexPoisoned {
+                reason: e.to_string(),
+            })?;
+        extensions.extend(prod_extensions.values().cloned());
+
+        Ok(extensions)
+    }
+
     /// Find extension ID by public_key and name (checks dev extensions first, then production)
     fn find_extension_id_by_public_key_and_name(
         &self,

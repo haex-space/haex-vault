@@ -415,40 +415,6 @@ interface FileChangePayload {
   path?: string
 }
 
-/**
- * Sends a message to the first window of each unique extension.
- * This ensures each extension receives the message exactly once,
- * even if multiple windows are open for the same extension.
- *
- * @param message - The message object to send via postMessage
- * @param logPrefix - Prefix for log messages (e.g., 'sync:tables-updated')
- */
-const broadcastToFirstWindowOfEachExtension = (
-  message: Record<string, unknown>,
-  logPrefix: string,
-) => {
-  // Track which extensions we've already sent to (by publicKey)
-  const sentToExtensions = new Set<string>()
-
-  for (const [iframe, instance] of iframeRegistry.entries()) {
-    // Only send once per extension (first window wins)
-    if (sentToExtensions.has(instance.extension.publicKey)) {
-      continue
-    }
-
-    const win = windowIdToWindowMap.get(instance.windowId) || iframe.contentWindow
-    if (win) {
-      console.log(
-        `[ExtensionHandler] Sending ${logPrefix} to:`,
-        instance.extension.name,
-        instance.windowId,
-      )
-      win.postMessage(message, '*')
-      sentToExtensions.add(instance.extension.publicKey)
-    }
-  }
-}
-
 // Forward external requests from Tauri to iframe extensions
 // Only sends to the FIRST matching iframe to avoid duplicate processing
 const forwardExternalRequestToIframe = (payload: ExternalRequestPayload) => {
@@ -530,28 +496,60 @@ const forwardFileChangeToIframes = (payload: FileChangePayload) => {
   }
 }
 
-// Payload type for sync:tables-updated event
-interface SyncTablesUpdatedPayload {
-  tables: string[]
-}
-
-// Forward sync tables updated events from Tauri to extension iframes
-// Only sends to the FIRST window of each extension to avoid duplicate processing
-const forwardSyncTablesUpdatedToIframes = (payload: SyncTablesUpdatedPayload) => {
+/**
+ * Forwards filtered sync:tables-updated events to iframe extensions.
+ * Each extension only receives table names they have database permissions for.
+ *
+ * @param filteredExtensions - Map of extension_id -> allowed table names
+ *                             (returned by extension_emit_filtered_sync_tables command)
+ */
+export const forwardFilteredSyncTablesToIframes = (
+  filteredExtensions: Record<string, string[]>,
+) => {
   console.log(
-    '[ExtensionHandler] Forwarding sync:tables-updated event:',
-    payload.tables,
+    '[ExtensionHandler] Forwarding filtered sync:tables-updated to iframes:',
+    Object.keys(filteredExtensions).length,
+    'extensions',
   )
 
-  const message = {
-    type: HAEXTENSION_EVENTS.SYNC_TABLES_UPDATED,
-    data: {
-      tables: payload.tables,
-    },
-    timestamp: Date.now(),
-  }
+  // Track which extensions we've already sent to (by publicKey:name)
+  const sentToExtensions = new Set<string>()
 
-  broadcastToFirstWindowOfEachExtension(message, 'sync:tables-updated')
+  for (const [iframe, instance] of iframeRegistry.entries()) {
+    const extensionId = `${instance.extension.publicKey}:${instance.extension.name}`
+
+    // Only send once per extension (first window wins)
+    if (sentToExtensions.has(extensionId)) {
+      continue
+    }
+
+    // Get filtered tables for this extension
+    const allowedTables = filteredExtensions[extensionId]
+    if (!allowedTables || allowedTables.length === 0) {
+      // Extension has no permissions for any of the updated tables
+      continue
+    }
+
+    const win = windowIdToWindowMap.get(instance.windowId) || iframe.contentWindow
+    if (win) {
+      const message = {
+        type: HAEXTENSION_EVENTS.SYNC_TABLES_UPDATED,
+        data: {
+          tables: allowedTables,
+        },
+        timestamp: Date.now(),
+      }
+
+      console.log(
+        '[ExtensionHandler] Sending filtered sync:tables-updated to:',
+        instance.extension.name,
+        'tables:',
+        allowedTables.length,
+      )
+      win.postMessage(message, '*')
+      sentToExtensions.add(extensionId)
+    }
+  }
 }
 
 // Setup Tauri event listeners for external requests and file changes (for iframe extensions)
@@ -573,14 +571,12 @@ const setupExternalRequestListener = async () => {
       forwardFileChangeToIframes(event.payload)
     })
 
-    // Listen for sync tables updated events (from CRDT pull)
-    await listen<SyncTablesUpdatedPayload>('sync:tables-updated', (event) => {
-      console.log('[ExtensionHandler] Received sync:tables-updated from Tauri:', event.payload)
-      forwardSyncTablesUpdatedToIframes(event.payload)
-    })
+    // Note: sync:tables-updated events are now handled via forwardFilteredSyncTablesToIframes()
+    // called directly from pull.ts after extension_emit_filtered_sync_tables command
+    // This ensures each extension only sees tables they have permissions for
 
     eventListenersRegistered = true
-    console.log('[ExtensionHandler] Event listeners registered (external requests + file changes + sync updates)')
+    console.log('[ExtensionHandler] Event listeners registered (external requests + file changes)')
   }
   catch (error) {
     console.error('[ExtensionHandler] Failed to setup event listeners:', error)
