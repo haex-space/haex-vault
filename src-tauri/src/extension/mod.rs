@@ -772,8 +772,11 @@ pub async fn extension_emit_filtered_sync_tables(
     tables: Vec<String>,
 ) -> Result<FilteredSyncTablesResult, ExtensionError> {
     eprintln!(
-        "[SyncEvent] Emitting filtered sync:tables-updated for {} tables",
-        tables.len()
+        "[SyncEvent] ========== EMITTING FILTERED SYNC EVENTS =========="
+    );
+    eprintln!(
+        "[SyncEvent] Tables to broadcast: {:?}",
+        tables
     );
 
     // Load extensions if not already loaded
@@ -785,9 +788,27 @@ pub async fn extension_emit_filtered_sync_tables(
     // Get all installed extensions
     let all_extensions = state.extension_manager.get_all_extensions()?;
     eprintln!(
-        "[SyncEvent] Found {} installed extensions in ExtensionManager",
+        "[SyncEvent] Found {} installed extensions",
         all_extensions.len()
     );
+    for ext in &all_extensions {
+        eprintln!(
+            "[SyncEvent]   - Extension: id={}, name={}",
+            ext.id,
+            ext.manifest.name
+        );
+    }
+
+    // Debug: Show current WebView windows
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        if let Ok(windows) = state.extension_webview_manager.windows.lock() {
+            eprintln!("[SyncEvent] Current WebView windows: {} registered", windows.len());
+            for (window_id, ext_id) in windows.iter() {
+                eprintln!("[SyncEvent]   - Window: {} -> Extension: {}", window_id, ext_id);
+            }
+        }
+    }
 
     // Track which extensions we've already emitted to (for WebView deduplication, desktop only)
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
