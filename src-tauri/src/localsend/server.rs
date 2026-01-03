@@ -27,10 +27,9 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use uuid::Uuid;
 
 use super::crypto::{get_local_ip_addresses, TlsIdentity};
-use super::discovery::register_device;
 use super::error::LocalSendError;
 use super::protocol::*;
-use super::types::*;
+use super::types::{register_device, *};
 use super::{LocalSendState, DEFAULT_PORT, PROTOCOL_VERSION};
 use crate::AppState;
 

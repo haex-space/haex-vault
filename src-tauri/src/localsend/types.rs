@@ -275,3 +275,49 @@ pub fn now_millis() -> u64 {
         .unwrap_or_default()
         .as_millis() as u64
 }
+
+use super::error::LocalSendError;
+use super::protocol::DeviceAnnouncement;
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter};
+use tokio::sync::RwLock;
+
+/// Event name for device discovery
+pub const EVENT_DEVICE_DISCOVERED: &str = "localsend:device-discovered";
+
+/// Manually register a device (for HTTP fallback discovery and server /register endpoint)
+pub async fn register_device(
+    app_handle: &AppHandle,
+    devices: &Arc<RwLock<HashMap<String, Device>>>,
+    announcement: DeviceAnnouncement,
+    address: String,
+) -> Result<(), LocalSendError> {
+    let device = Device {
+        alias: announcement.alias,
+        version: announcement.version,
+        device_model: announcement.device_model,
+        device_type: announcement.device_type.unwrap_or(DeviceType::Desktop),
+        fingerprint: announcement.fingerprint.clone(),
+        address,
+        port: announcement.port,
+        protocol: announcement.protocol,
+        download: announcement.download,
+        last_seen: now_millis(),
+    };
+
+    let is_new = {
+        let devices_read = devices.read().await;
+        !devices_read.contains_key(&device.fingerprint)
+    };
+
+    {
+        let mut devices_write = devices.write().await;
+        devices_write.insert(device.fingerprint.clone(), device.clone());
+    }
+
+    if is_new {
+        let _ = app_handle.emit(EVENT_DEVICE_DISCOVERED, &device);
+    }
+
+    Ok(())
+}

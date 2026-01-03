@@ -15,8 +15,11 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use super::crypto::get_local_ip_addresses;
 use super::error::LocalSendError;
 use super::protocol::DeviceAnnouncement;
-use super::types::{now_millis, Device, DeviceType};
+use super::types::{now_millis, Device, DeviceType, register_device};
 use super::{LocalSendState, DEFAULT_PORT, MULTICAST_ADDR, PROTOCOL_VERSION};
+
+// Re-export register_device for backwards compatibility
+pub use super::types::register_device;
 use crate::AppState;
 
 /// How often to send discovery announcements (in seconds)
@@ -311,39 +314,3 @@ async fn cleanup_stale_devices(
     }
 }
 
-/// Manually register a device (for HTTP fallback discovery)
-pub async fn register_device(
-    app_handle: &AppHandle,
-    devices: &Arc<tokio::sync::RwLock<std::collections::HashMap<String, Device>>>,
-    announcement: DeviceAnnouncement,
-    address: String,
-) -> Result<(), LocalSendError> {
-    let device = Device {
-        alias: announcement.alias,
-        version: announcement.version,
-        device_model: announcement.device_model,
-        device_type: announcement.device_type.unwrap_or(DeviceType::Desktop),
-        fingerprint: announcement.fingerprint.clone(),
-        address,
-        port: announcement.port,
-        protocol: announcement.protocol,
-        download: announcement.download,
-        last_seen: now_millis(),
-    };
-
-    let is_new = {
-        let devices_read = devices.read().await;
-        !devices_read.contains_key(&device.fingerprint)
-    };
-
-    {
-        let mut devices_write = devices.write().await;
-        devices_write.insert(device.fingerprint.clone(), device.clone());
-    }
-
-    if is_new {
-        let _ = app_handle.emit(EVENT_DEVICE_DISCOVERED, &device);
-    }
-
-    Ok(())
-}
