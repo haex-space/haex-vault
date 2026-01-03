@@ -252,8 +252,8 @@ pub fn run() {
             extension::webview::web::extension_context_set,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::webview::web::extension_emit_to_all,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::webview::web::extension_emit_filtered_sync_tables,
+            // Filtered sync event emission - needed for all platforms (mobile uses iframe forwarding)
+            extension::extension_emit_filtered_sync_tables,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::webview::filesystem::extension_filesystem_save_file,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
