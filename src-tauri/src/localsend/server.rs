@@ -52,6 +52,10 @@ pub async fn start_server(
     state: State<'_, AppState>,
     port: Option<u16>,
 ) -> Result<ServerInfo, LocalSendError> {
+    // Install the ring crypto provider for rustls (must be done before TLS config)
+    // This is idempotent - calling it multiple times is safe
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     // Check if already running
     if *state.localsend.server_running.read().await {
         return Err(LocalSendError::ServerAlreadyRunning);
