@@ -174,11 +174,36 @@ jobs:
           script: |
             const fs = require('fs');
             const releaseNotes = fs.readFileSync('release_notes.md', 'utf8');
+            const tagName = `v${process.env.PACKAGE_VERSION}`;
+
+            // Check if a release already exists for this tag
+            let existingRelease = null;
+            try {
+              const { data: releases } = await github.rest.repos.listReleases({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per_page: 10
+              });
+              existingRelease = releases.find(r => r.tag_name === tagName);
+            } catch (e) {
+              console.log('No existing releases found');
+            }
+
+            if (existingRelease) {
+              console.log(`Found existing release for ${tagName}: ${existingRelease.id} (draft: ${existingRelease.draft})`);
+              // Delete existing release to start fresh
+              await github.rest.repos.deleteRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: existingRelease.id
+              });
+              console.log('Deleted existing release');
+            }
 
             const { data } = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              tag_name: `v${process.env.PACKAGE_VERSION}`,
+              tag_name: tagName,
               name: `haex-vault v${process.env.PACKAGE_VERSION}`,
               body: releaseNotes,
               draft: true,
