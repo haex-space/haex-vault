@@ -743,19 +743,19 @@ const onConfirmDeleteRemoteVaultAsync = async () => {
       backendId: backend.id,
     })
 
-    // If this is the current vault, stop sync first
-    if (isCurrentVault) {
-      await syncOrchestratorStore.stopSyncAsync()
-    }
-
-    // Delete remote vault from server
+    // Step 1: Delete remote vault from server FIRST (while backend store is still available)
+    console.log('[SYNC DELETE] Deleting remote vault from server...')
     await syncEngineStore.deleteRemoteVaultAsync(backend.id, vaultId)
+    console.log('[SYNC DELETE] Remote vault deleted from server')
 
-    // If this is the current vault, also delete the backend connection
+    // Step 2: If this is the current vault, stop sync and delete local backend
     if (isCurrentVault) {
-      console.log('[SYNC DELETE] Deleting backend...', backend.id)
+      console.log('[SYNC DELETE] Stopping sync...')
+      await syncOrchestratorStore.stopSyncAsync()
+
+      console.log('[SYNC DELETE] Deleting local backend...', backend.id)
       await syncBackendsStore.deleteBackendAsync(backend.id)
-      console.log('[SYNC DELETE] Backend deleted')
+      console.log('[SYNC DELETE] Local backend deleted')
 
       add({
         title: t('success.syncConnectionDeleted'),

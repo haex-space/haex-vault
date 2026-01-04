@@ -709,14 +709,24 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   /**
    * Deletes a remote vault from the sync backend
    * This will delete all CRDT changes, vault keys, and vault configuration from the server
+   *
+   * @param backendId - The backend ID (used to find serverUrl if not provided)
+   * @param vaultId - The vault ID to delete
+   * @param serverUrl - Optional: Direct server URL (use when backend store may be unavailable, e.g., after stopSync)
    */
   const deleteRemoteVaultAsync = async (
     backendId: string,
     vaultId: string,
+    serverUrl?: string,
   ): Promise<void> => {
-    const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
-    if (!backend) {
-      throw new Error('Backend not found')
+    // Use provided serverUrl or look up from backend
+    let resolvedServerUrl = serverUrl
+    if (!resolvedServerUrl) {
+      const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
+      if (!backend) {
+        throw new Error('Backend not found')
+      }
+      resolvedServerUrl = backend.serverUrl
     }
 
     // Get auth token
@@ -727,7 +737,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
 
     // Send delete request to server
     const response = await fetch(
-      `${backend.serverUrl}/sync/vault/${vaultId}`,
+      `${resolvedServerUrl}/sync/vault/${vaultId}`,
       {
         method: 'DELETE',
         headers: {
