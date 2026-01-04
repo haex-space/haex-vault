@@ -208,21 +208,40 @@ pub async fn accept_transfer(
     session_id: String,
     save_dir: String,
 ) -> Result<(), LocalSendError> {
-    let mut sessions = state.localsend.sessions.write().await;
+    // Check if session exists and is pending
+    {
+        let sessions = state.localsend.sessions.read().await;
+        let session = sessions
+            .get(&session_id)
+            .ok_or_else(|| LocalSendError::SessionNotFound(session_id.clone()))?;
 
-    let session = sessions
-        .get_mut(&session_id)
-        .ok_or_else(|| LocalSendError::SessionNotFound(session_id.clone()))?;
-
-    if session.state != TransferState::Pending {
-        return Err(LocalSendError::ProtocolError(format!(
-            "Session {} is not pending",
-            session_id
-        )));
+        if session.state != TransferState::Pending {
+            return Err(LocalSendError::ProtocolError(format!(
+                "Session {} is not pending",
+                session_id
+            )));
+        }
     }
 
-    session.state = TransferState::InProgress;
-    session.save_dir = Some(save_dir);
+    // Send acceptance response through the channel
+    // This unblocks the prepare-upload handler
+    let tx = {
+        let mut pending = state.localsend.pending_responses.write().await;
+        pending.remove(&session_id)
+    };
+
+    if let Some(tx) = tx {
+        // Send the save_dir to indicate acceptance
+        let _ = tx.send(Some(save_dir));
+    } else {
+        // No pending response - this might be an auto-accept situation or race condition
+        // Update session directly
+        let mut sessions = state.localsend.sessions.write().await;
+        if let Some(session) = sessions.get_mut(&session_id) {
+            session.state = TransferState::InProgress;
+            session.save_dir = Some(save_dir);
+        }
+    }
 
     Ok(())
 }
@@ -232,13 +251,31 @@ pub async fn reject_transfer(
     state: State<'_, AppState>,
     session_id: String,
 ) -> Result<(), LocalSendError> {
-    let mut sessions = state.localsend.sessions.write().await;
+    // Check if session exists
+    {
+        let sessions = state.localsend.sessions.read().await;
+        if !sessions.contains_key(&session_id) {
+            return Err(LocalSendError::SessionNotFound(session_id.clone()));
+        }
+    }
 
-    let session = sessions
-        .get_mut(&session_id)
-        .ok_or_else(|| LocalSendError::SessionNotFound(session_id.clone()))?;
+    // Send rejection response through the channel
+    // This unblocks the prepare-upload handler
+    let tx = {
+        let mut pending = state.localsend.pending_responses.write().await;
+        pending.remove(&session_id)
+    };
 
-    session.state = TransferState::Rejected;
+    if let Some(tx) = tx {
+        // Send None to indicate rejection
+        let _ = tx.send(None);
+    } else {
+        // No pending response - update session directly
+        let mut sessions = state.localsend.sessions.write().await;
+        if let Some(session) = sessions.get_mut(&session_id) {
+            session.state = TransferState::Rejected;
+        }
+    }
 
     Ok(())
 }
@@ -301,6 +338,9 @@ async fn handle_register(
     Json(response)
 }
 
+/// Timeout for waiting for user acceptance (60 seconds)
+const ACCEPT_TIMEOUT_SECS: u64 = 60;
+
 /// POST /api/localsend/v2/prepare-upload
 async fn handle_prepare_upload(
     AxumState(state): AxumState<Arc<ServerState>>,
@@ -309,6 +349,8 @@ async fn handle_prepare_upload(
     Json(request): Json<PrepareUploadRequest>,
 ) -> Response {
     let settings = state.localsend.settings.read().await;
+    let auto_accept = settings.auto_accept;
+    let default_save_dir = settings.save_directory.clone();
 
     // Check PIN if required
     if settings.require_pin {
@@ -326,6 +368,9 @@ async fn handle_prepare_upload(
                 .into_response();
         }
     }
+
+    // Drop the settings lock before async operations
+    drop(settings);
 
     // Create session
     let session_id = Uuid::new_v4().to_string();
@@ -351,14 +396,60 @@ async fn handle_prepare_upload(
         last_seen: now_millis(),
     };
 
-    // Convert files
+    // Convert files and calculate total size
     let files: Vec<FileInfo> = request
         .files
         .into_values()
         .map(|f| f.into())
         .collect();
+    let total_size: u64 = files.iter().map(|f| f.size).sum();
 
-    // Create session
+    // Determine save directory
+    let save_dir = if let Some(ref dir) = default_save_dir {
+        dir.clone()
+    } else {
+        // Fall back to platform-specific default directory
+        super::get_default_save_directory(&state.app_handle)
+            .unwrap_or_else(|| ".".to_string())
+    };
+
+    println!("[LocalSend Server] Transfer request from {} - save_dir: {}", sender.alias, save_dir);
+
+    // If auto_accept is enabled, accept immediately
+    if auto_accept {
+        // Create session with InProgress state
+        let session = TransferSession {
+            session_id: session_id.clone(),
+            direction: TransferDirection::Incoming,
+            state: TransferState::InProgress,
+            device: sender.clone(),
+            files: files.clone(),
+            file_tokens: file_tokens.clone(),
+            save_dir: Some(save_dir),
+            pin: None,
+            created_at: now_millis(),
+            progress: HashMap::new(),
+        };
+
+        // Store session
+        {
+            let mut sessions = state.localsend.sessions.write().await;
+            sessions.insert(session_id.clone(), session);
+        }
+
+        // Return response with tokens
+        let response = PrepareUploadResponse {
+            session_id,
+            files: file_tokens,
+        };
+
+        return Json(response).into_response();
+    }
+
+    // Create a channel to wait for user response
+    let (tx, rx) = oneshot::channel::<super::TransferResponse>();
+
+    // Create session with Pending state
     let session = TransferSession {
         session_id: session_id.clone(),
         direction: TransferDirection::Incoming,
@@ -367,40 +458,99 @@ async fn handle_prepare_upload(
         files: files.clone(),
         file_tokens: file_tokens.clone(),
         save_dir: None,
-        pin: if settings.require_pin {
-            settings.pin.clone()
-        } else {
-            None
-        },
+        pin: None,
         created_at: now_millis(),
         progress: HashMap::new(),
     };
 
-    // Store session
+    // Store session and response channel
     {
         let mut sessions = state.localsend.sessions.write().await;
         sessions.insert(session_id.clone(), session);
     }
+    {
+        let mut pending = state.localsend.pending_responses.write().await;
+        pending.insert(session_id.clone(), tx);
+    }
 
-    // Emit event for pending transfer
-    let pending = PendingTransfer {
+    // Emit event for pending transfer (UI should show accept/reject dialog)
+    let pending_transfer = PendingTransfer {
         session_id: session_id.clone(),
         sender,
         files,
-        total_size: 0, // TODO: calculate
-        pin_required: settings.require_pin,
+        total_size,
+        pin_required: false,
         created_at: now_millis(),
     };
 
-    let _ = state.app_handle.emit(EVENT_TRANSFER_REQUEST, &pending);
+    let _ = state.app_handle.emit(EVENT_TRANSFER_REQUEST, &pending_transfer);
 
-    // Return response
-    let response = PrepareUploadResponse {
-        session_id,
-        files: file_tokens,
-    };
+    // Wait for user response with timeout
+    let response = tokio::time::timeout(
+        std::time::Duration::from_secs(ACCEPT_TIMEOUT_SECS),
+        rx,
+    ).await;
 
-    Json(response).into_response()
+    // Clean up pending response entry
+    {
+        let mut pending = state.localsend.pending_responses.write().await;
+        pending.remove(&session_id);
+    }
+
+    match response {
+        Ok(Ok(Some(accepted_save_dir))) => {
+            // User accepted - update session state
+            {
+                let mut sessions = state.localsend.sessions.write().await;
+                if let Some(session) = sessions.get_mut(&session_id) {
+                    session.state = TransferState::InProgress;
+                    session.save_dir = Some(accepted_save_dir);
+                }
+            }
+
+            // Return success with tokens
+            let response = PrepareUploadResponse {
+                session_id,
+                files: file_tokens,
+            };
+            Json(response).into_response()
+        }
+        Ok(Ok(None)) => {
+            // User rejected
+            {
+                let mut sessions = state.localsend.sessions.write().await;
+                if let Some(session) = sessions.get_mut(&session_id) {
+                    session.state = TransferState::Rejected;
+                }
+            }
+            (StatusCode::FORBIDDEN, "Transfer rejected by user").into_response()
+        }
+        Ok(Err(_)) => {
+            // Channel closed (shouldn't happen)
+            {
+                let mut sessions = state.localsend.sessions.write().await;
+                sessions.remove(&session_id);
+            }
+            (StatusCode::INTERNAL_SERVER_ERROR, "Internal error").into_response()
+        }
+        Err(_) => {
+            // Timeout - treat as rejection
+            {
+                let mut sessions = state.localsend.sessions.write().await;
+                if let Some(session) = sessions.get_mut(&session_id) {
+                    session.state = TransferState::Rejected;
+                }
+            }
+            let _ = state.app_handle.emit(
+                EVENT_TRANSFER_FAILED,
+                serde_json::json!({
+                    "sessionId": session_id,
+                    "error": "Timeout waiting for user acceptance"
+                }),
+            );
+            (StatusCode::REQUEST_TIMEOUT, "Timeout waiting for acceptance").into_response()
+        }
+    }
 }
 
 /// POST /api/localsend/v2/upload
@@ -448,21 +598,18 @@ async fn handle_upload(
         }
     };
 
-    // Determine save path - use session save_dir, or settings save_directory, or Downloads folder
+    // Determine save path - use session save_dir, or settings save_directory, or platform default
     let save_dir = if let Some(ref dir) = session.save_dir {
         dir.clone()
     } else {
-        // Try to get settings save_directory or fall back to Downloads
+        // Try to get settings save_directory or fall back to platform default
         let settings = state.localsend.settings.read().await;
         if let Some(ref dir) = settings.save_directory {
             dir.clone()
         } else {
-            // Fall back to Downloads directory
-            state.app_handle
-                .path()
-                .download_dir()
-                .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_else(|_| ".".to_string())
+            // Fall back to platform-specific default directory
+            super::get_default_save_directory(&state.app_handle)
+                .unwrap_or_else(|| ".".to_string())
         }
     };
     let mut save_path = PathBuf::from(&save_dir);
@@ -535,6 +682,32 @@ async fn handle_upload(
         "[LocalSend Server] Received file: {} ({} bytes)",
         file_info.file_name, bytes_written
     );
+
+    // Update session progress and check if all files received
+    let all_files_received = {
+        let mut sessions = state.localsend.sessions.write().await;
+        if let Some(session) = sessions.get_mut(&params.session_id) {
+            // Mark this file as completed
+            session.progress.insert(params.file_id.clone(), file_info.size);
+
+            // Check if all files have been received
+            session.files.iter().all(|f| session.progress.contains_key(&f.id))
+        } else {
+            false
+        }
+    };
+
+    // Emit transfer complete if all files received
+    if all_files_received {
+        println!("[LocalSend Server] All files received for session: {}", params.session_id);
+        let _ = state.app_handle.emit(EVENT_TRANSFER_COMPLETE, &params.session_id);
+
+        // Update session state to completed
+        let mut sessions = state.localsend.sessions.write().await;
+        if let Some(session) = sessions.get_mut(&params.session_id) {
+            session.state = TransferState::Completed;
+        }
+    }
 
     StatusCode::OK.into_response()
 }

@@ -49,6 +49,9 @@ pub const MULTICAST_ADDR: &str = "224.0.0.167";
 /// Protocol version we implement
 pub const PROTOCOL_VERSION: &str = "2.1";
 
+/// Response from user for pending transfer (accept with save_dir, or reject)
+pub type TransferResponse = Option<String>; // Some(save_dir) = accept, None = reject
+
 /// LocalSend service state
 pub struct LocalSendState {
     /// Our device info
@@ -69,6 +72,12 @@ pub struct LocalSendState {
     pub discovery_shutdown: RwLock<Option<tokio::sync::oneshot::Sender<()>>>,
     /// Settings
     pub settings: RwLock<LocalSendSettings>,
+    /// Pending responses for transfer requests (session_id -> response channel)
+    pub pending_responses: RwLock<HashMap<String, tokio::sync::oneshot::Sender<TransferResponse>>>,
+    /// Registered extension ID for event routing (only one extension can handle LocalSend)
+    pub registered_extension_id: RwLock<Option<String>>,
+    /// Cache of prepared files (file_id -> local_path) for sending
+    pub prepared_files: RwLock<HashMap<String, String>>,
 }
 
 impl LocalSendState {
@@ -83,6 +92,9 @@ impl LocalSendState {
             server_shutdown: RwLock::new(None),
             discovery_shutdown: RwLock::new(None),
             settings: RwLock::new(LocalSendSettings::default()),
+            pending_responses: RwLock::new(HashMap::new()),
+            registered_extension_id: RwLock::new(None),
+            prepared_files: RwLock::new(HashMap::new()),
         }
     }
 
@@ -225,9 +237,22 @@ pub async fn localsend_cancel_send(
 /// Prepare files for sending - collect metadata (all platforms)
 #[tauri::command]
 pub async fn localsend_prepare_files(
+    state: State<'_, AppState>,
     paths: Vec<String>,
 ) -> Result<Vec<FileInfo>, LocalSendError> {
-    client::prepare_files_for_send(paths).await
+    let files = client::prepare_files_for_send(paths).await?;
+
+    // Cache local paths for later use in send_files
+    {
+        let mut prepared = state.localsend.prepared_files.write().await;
+        for file in &files {
+            if let Some(ref local_path) = file.local_path {
+                prepared.insert(file.id.clone(), local_path.clone());
+            }
+        }
+    }
+
+    Ok(files)
 }
 
 /// Get current settings (all platforms)
@@ -268,12 +293,45 @@ pub async fn localsend_set_alias(
     Ok(())
 }
 
+/// Get the default save directory for the current platform
+pub fn get_default_save_directory(app_handle: &AppHandle) -> Option<String> {
+    // Try download directory first (works on Desktop, may work on Android with permissions)
+    if let Ok(download_dir) = app_handle.path().download_dir() {
+        return Some(download_dir.to_string_lossy().to_string());
+    }
+
+    // Fallback to document directory
+    if let Ok(doc_dir) = app_handle.path().document_dir() {
+        return Some(doc_dir.to_string_lossy().to_string());
+    }
+
+    // Last resort: app data directory (always available, including Android)
+    if let Ok(app_data_dir) = app_handle.path().app_data_dir() {
+        let localsend_dir = app_data_dir.join("LocalSend");
+        // Create the directory if it doesn't exist
+        let _ = std::fs::create_dir_all(&localsend_dir);
+        return Some(localsend_dir.to_string_lossy().to_string());
+    }
+
+    None
+}
+
 /// Initialize LocalSend (generate identity, etc.) - call on app start
 #[tauri::command]
 pub async fn localsend_init(
+    app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<DeviceInfo, LocalSendError> {
     state.localsend.init_identity().await?;
+
+    // Set default save directory if not already set
+    {
+        let mut settings = state.localsend.settings.write().await;
+        if settings.save_directory.is_none() {
+            settings.save_directory = get_default_save_directory(&app_handle);
+        }
+    }
+
     let device_info = state.localsend.device_info.read().await.clone();
     Ok(device_info)
 }

@@ -6,6 +6,7 @@ export { handlePermissionsMethodAsync } from './permissions'
 export { handleContextMethodAsync, setContextGetters } from './context'
 export { handleWebStorageMethodAsync } from './webStorage'
 export { handleRemoteStorageMethodAsync } from './remoteStorage'
+export { handleLocalSendMethodAsync } from './localsend'
 
 // Export shared types
 export type { ExtensionRequest, ExtensionInstance } from './types'

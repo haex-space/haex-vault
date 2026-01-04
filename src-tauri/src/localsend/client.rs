@@ -19,19 +19,29 @@ use super::types::*;
 use super::PROTOCOL_VERSION;
 use crate::AppState;
 
-/// Event names for outgoing transfers
-pub const EVENT_SEND_PROGRESS: &str = "localsend:send-progress";
-pub const EVENT_SEND_COMPLETE: &str = "localsend:send-complete";
-pub const EVENT_SEND_FAILED: &str = "localsend:send-failed";
+// Use the same event names as server.rs for consistency
+use super::server::{EVENT_TRANSFER_PROGRESS, EVENT_TRANSFER_COMPLETE, EVENT_TRANSFER_FAILED};
 
 /// Send files to a device
 pub async fn send_files(
     app_handle: AppHandle,
     state: State<'_, AppState>,
     device: Device,
-    files: Vec<FileInfo>,
+    mut files: Vec<FileInfo>,
 ) -> Result<String, LocalSendError> {
     let device_info = state.localsend.device_info.read().await.clone();
+
+    // Restore local_path from cache (since it's not serialized from frontend)
+    {
+        let prepared = state.localsend.prepared_files.read().await;
+        for file in &mut files {
+            if file.local_path.is_none() {
+                if let Some(path) = prepared.get(&file.id) {
+                    file.local_path = Some(path.clone());
+                }
+            }
+        }
+    }
 
     // Create HTTP client that accepts self-signed certificates
     let client = Client::builder()
@@ -136,11 +146,11 @@ pub async fn send_files(
 
         match result {
             Ok(()) => {
-                let _ = app_handle_clone.emit(EVENT_SEND_COMPLETE, &session_id_clone);
+                let _ = app_handle_clone.emit(EVENT_TRANSFER_COMPLETE, &session_id_clone);
             }
             Err(e) => {
                 let _ = app_handle_clone.emit(
-                    EVENT_SEND_FAILED,
+                    EVENT_TRANSFER_FAILED,
                     serde_json::json!({
                         "sessionId": session_id_clone,
                         "error": e.to_string()
@@ -228,7 +238,7 @@ async fn upload_files(
             total_bytes: total_size,
             speed: 0, // TODO: calculate
         };
-        let _ = app_handle.emit(EVENT_SEND_PROGRESS, &progress);
+        let _ = app_handle.emit(EVENT_TRANSFER_PROGRESS, &progress);
 
         println!(
             "[LocalSend Client] Sent file: {} ({} bytes)",

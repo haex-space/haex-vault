@@ -5,6 +5,7 @@ import {
   HAEXTENSION_EVENTS,
   HAEXSPACE_MESSAGE_TYPES,
   EXTERNAL_EVENTS,
+  LOCALSEND_EVENTS,
 } from '@haex-space/vault-sdk'
 import { listen } from '@tauri-apps/api/event'
 import {
@@ -19,6 +20,7 @@ import {
   handleContextMethodAsync,
   handleWebStorageMethodAsync,
   handleRemoteStorageMethodAsync,
+  handleLocalSendMethodAsync,
   setContextGetters,
   type ExtensionRequest,
   type ExtensionInstance,
@@ -27,6 +29,9 @@ import {
 // Globaler Handler - nur einmal registriert
 let globalHandlerRegistered = false
 const iframeRegistry = new Map<HTMLIFrameElement, ExtensionInstance>()
+
+// Registered extension for LocalSend events (only one extension can handle LocalSend)
+let registeredLocalSendExtension: ExtensionInstance | null = null
 // Map event.source (WindowProxy) to extension instance for sandbox-compatible matching
 const sourceRegistry = new Map<Window, ExtensionInstance>()
 // Reverse map: window ID to Window for broadcasting (supports multiple windows per extension)
@@ -225,6 +230,13 @@ const registerGlobalMessageHandler = () => {
         result = await handlePermissionsMethodAsync(request, instance.extension)
       } else if (request.method.startsWith('extension_remote_storage_')) {
         result = await handleRemoteStorageMethodAsync(request, instance.extension)
+      } else if (request.method.startsWith('localsend_')) {
+        // Register this extension for LocalSend events on init
+        if (request.method === TAURI_COMMANDS.localsend.init) {
+          registeredLocalSendExtension = instance
+          console.log('[ExtensionHandler] Registered extension for LocalSend events:', instance.extension.name)
+        }
+        result = await handleLocalSendMethodAsync(request, instance.extension)
       } else {
         throw new Error(`Unknown method: ${request.method}`)
       }
@@ -552,6 +564,40 @@ export const forwardFilteredSyncTablesToIframes = (
   }
 }
 
+/**
+ * Forwards LocalSend events to the registered extension iframe.
+ * Only the extension that called localsend_init receives these events.
+ */
+const forwardLocalSendEventToIframe = (
+  eventType: string,
+  payload: unknown,
+) => {
+  if (!registeredLocalSendExtension) {
+    console.warn('[ExtensionHandler] No extension registered for LocalSend events')
+    return
+  }
+
+  const win = windowIdToWindowMap.get(registeredLocalSendExtension.windowId)
+  if (win) {
+    const message = {
+      type: eventType,
+      data: payload,
+      timestamp: Date.now(),
+    }
+    console.log(
+      '[ExtensionHandler] Sending LocalSend event to:',
+      registeredLocalSendExtension.extension.name,
+      eventType,
+    )
+    win.postMessage(message, '*')
+  } else {
+    console.warn(
+      '[ExtensionHandler] No window found for registered LocalSend extension:',
+      registeredLocalSendExtension.extension.name,
+    )
+  }
+}
+
 // Setup Tauri event listeners for external requests and file changes (for iframe extensions)
 let eventListenersRegistered = false
 
@@ -571,12 +617,42 @@ const setupExternalRequestListener = async () => {
       forwardFileChangeToIframes(event.payload)
     })
 
+    // Listen for LocalSend events and forward to registered extension
+    await listen(LOCALSEND_EVENTS.transferRequest, (event) => {
+      console.log('[ExtensionHandler] Received LocalSend transfer request:', event.payload)
+      forwardLocalSendEventToIframe(LOCALSEND_EVENTS.transferRequest, event.payload)
+    })
+
+    await listen(LOCALSEND_EVENTS.transferProgress, (event) => {
+      forwardLocalSendEventToIframe(LOCALSEND_EVENTS.transferProgress, event.payload)
+    })
+
+    await listen(LOCALSEND_EVENTS.transferComplete, (event) => {
+      console.log('[ExtensionHandler] Received LocalSend transfer complete:', event.payload)
+      forwardLocalSendEventToIframe(LOCALSEND_EVENTS.transferComplete, event.payload)
+    })
+
+    await listen(LOCALSEND_EVENTS.transferFailed, (event) => {
+      console.log('[ExtensionHandler] Received LocalSend transfer failed:', event.payload)
+      forwardLocalSendEventToIframe(LOCALSEND_EVENTS.transferFailed, event.payload)
+    })
+
+    await listen(LOCALSEND_EVENTS.deviceDiscovered, (event) => {
+      console.log('[ExtensionHandler] Received LocalSend device discovered:', event.payload)
+      forwardLocalSendEventToIframe(LOCALSEND_EVENTS.deviceDiscovered, event.payload)
+    })
+
+    await listen(LOCALSEND_EVENTS.deviceLost, (event) => {
+      console.log('[ExtensionHandler] Received LocalSend device lost:', event.payload)
+      forwardLocalSendEventToIframe(LOCALSEND_EVENTS.deviceLost, event.payload)
+    })
+
     // Note: sync:tables-updated events are now handled via forwardFilteredSyncTablesToIframes()
     // called directly from pull.ts after extension_emit_filtered_sync_tables command
     // This ensures each extension only sees tables they have permissions for
 
     eventListenersRegistered = true
-    console.log('[ExtensionHandler] Event listeners registered (external requests + file changes)')
+    console.log('[ExtensionHandler] Event listeners registered (external requests + file changes + LocalSend)')
   }
   catch (error) {
     console.error('[ExtensionHandler] Failed to setup event listeners:', error)
