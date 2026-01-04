@@ -513,10 +513,23 @@ const confirmInstallAsync = async (
     // Automatically add extension to internal HaexVault desktop
     if (installedExtensionId) {
       try {
-        await useDesktopStore().addDesktopItemAsync(
+        const desktopStore = useDesktopStore()
+        const workspaceStore = useWorkspaceStore()
+
+        // Ensure workspaces are loaded before adding desktop item
+        if (!workspaceStore.currentWorkspace) {
+          console.log('[Extension Install] No workspace loaded, loading workspaces...')
+          await workspaceStore.loadWorkspacesAsync()
+        }
+
+        console.log('[Extension Install] Adding desktop item for extension:', installedExtensionId)
+        console.log('[Extension Install] Current workspace:', workspaceStore.currentWorkspace?.id)
+
+        await desktopStore.addDesktopItemAsync(
           'extension',
           installedExtensionId,
         )
+        console.log('[Extension Install] Desktop item added successfully')
       } catch (error) {
         // Ignore errors for dev extensions (they can't be persisted)
         const isDevExtensionError =
