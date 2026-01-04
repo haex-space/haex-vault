@@ -131,8 +131,19 @@ export const pullFromBackendAsync = async (
 
     log.info(`========== PULL SUCCESS: ${allChanges.length} changes applied ==========`)
   } catch (error) {
-    log.error(`========== PULL FAILED ==========`, error)
-    state.error = error instanceof Error ? error.message : 'Unknown error'
+    // Extract detailed error message for better debugging
+    let errorMessage = 'Unknown error'
+    if (error instanceof Error) {
+      errorMessage = error.message
+      // Check if it's a Tauri invoke error with more details
+      if ('cause' in error && error.cause) {
+        errorMessage += ` (cause: ${JSON.stringify(error.cause)})`
+      }
+    } else if (typeof error === 'object' && error !== null) {
+      errorMessage = JSON.stringify(error)
+    }
+    log.error(`========== PULL FAILED ==========`, { message: errorMessage, error })
+    state.error = errorMessage
     throw error
   } finally {
     state.isSyncing = false
@@ -456,12 +467,18 @@ export const applyRemoteChangesInTransactionAsync = async (
   log.info(`Invoking Rust: apply_remote_changes_in_transaction (${decryptedChanges.length} changes)`)
 
   // Call Tauri command to apply changes in a transaction
-  await invoke('apply_remote_changes_in_transaction', {
-    changes: decryptedChanges,
-    backendId,
-    maxHlc,
-  })
+  try {
+    await invoke('apply_remote_changes_in_transaction', {
+      changes: decryptedChanges,
+      backendId,
+      maxHlc,
+    })
+    log.debug('Rust command completed successfully')
+  } catch (invokeError) {
+    // Log detailed error from Rust
+    log.error('Rust command apply_remote_changes_in_transaction failed:', invokeError)
+    throw invokeError
+  }
 
-  log.debug('Rust command completed successfully')
   return maxHlc
 }
