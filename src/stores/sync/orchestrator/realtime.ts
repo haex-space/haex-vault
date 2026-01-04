@@ -114,6 +114,7 @@ export const subscribeToBackendAsync = async (
   syncEngineStore: ReturnType<typeof useSyncEngineStore>,
 ): Promise<void> => {
   log.info(`SUBSCRIBE: Setting up realtime subscription for backend ${backendId}`)
+  log.info(`SUBSCRIBE: Platform info - userAgent: ${navigator.userAgent.substring(0, 100)}`)
 
   if (!currentVaultId) {
     log.error('SUBSCRIBE: No vault opened')
@@ -204,7 +205,7 @@ export const subscribeToBackendAsync = async (
         },
       )
       .subscribe((status, err) => {
-        log.debug(`SUBSCRIBE: Channel status changed to ${status}`, err ? `Error: ${JSON.stringify(err)}` : '')
+        log.info(`SUBSCRIBE: Channel status changed to ${status}`, err ? `Error: ${JSON.stringify(err)}` : '')
         if (status === 'SUBSCRIBED') {
           state.isConnected = true
           // Reset retry count on successful subscription

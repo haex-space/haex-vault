@@ -142,7 +142,7 @@ export const useSyncOrchestratorStore = defineStore(
         const periodicPullInterval = setInterval(
           async () => {
             try {
-              log.debug(`PERIODIC: Pull for backend ${backendId}`)
+              log.info(`PERIODIC: Pull triggered for backend ${backendId} at ${new Date().toISOString()}`)
               await pullFromBackendWrapperAsync(backendId)
             } catch (error) {
               log.error(`PERIODIC: Pull failed for backend ${backendId}:`, error)
