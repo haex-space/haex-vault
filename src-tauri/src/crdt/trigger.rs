@@ -136,15 +136,15 @@ pub fn setup_triggers_for_table(
 
     // Calculate columns to track: all columns EXCEPT:
     // - PKs
-    // - CRDT columns (haex_timestamp, haex_column_hlcs, haex_tombstone)
+    // - CRDT columns (haex_timestamp, haex_column_hlcs)
     // - Sync metadata columns (to prevent trigger loops)
+    // NOTE: haex_tombstone IS tracked to enable sync of soft-deletes
     let cols_to_track: Vec<String> = columns
         .iter()
         .filter(|c| {
             !c.is_pk
                 && c.name != HLC_TIMESTAMP_COLUMN
                 && c.name != COLUMN_HLCS_COLUMN
-                && c.name != TOMBSTONE_COLUMN
                 && c.name != LAST_PUSH_HLC_COLUMN
                 && c.name != LAST_PULL_SERVER_TIMESTAMP_COLUMN
                 && c.name != UPDATED_AT_COLUMN
