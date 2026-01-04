@@ -367,8 +367,6 @@ pub fn apply_remote_changes_in_transaction(
         }
 
         // Apply changes grouped by row
-        eprintln!("[SYNC RUST] Applying {} rows total", row_changes.len());
-
         for ((_table_name, row_pks_str), row_change_list) in row_changes {
             // Use the first change to get common data
             let first_change = &row_change_list[0];
@@ -554,6 +552,31 @@ pub fn apply_remote_changes_in_transaction(
                             );
                             eprintln!("[SYNC RUST] Failed INSERT SQL: {}", insert_sql);
                             eprintln!("[SYNC RUST] Values: {:?}", values);
+
+                            // Check if it's a NOT NULL constraint violation
+                            if error_msg.contains("NOT NULL constraint failed") {
+                                eprintln!(
+                                    "[SYNC RUST] ⚠️ NOT NULL constraint failed! This usually means the sync data is incomplete."
+                                );
+                                eprintln!(
+                                    "[SYNC RUST] Columns in INSERT: {:?}",
+                                    columns
+                                );
+                                eprintln!(
+                                    "[SYNC RUST] Received {} changes for this row: {:?}",
+                                    row_change_list.len(),
+                                    row_change_list.iter().map(|c| &c.column_name).collect::<Vec<_>>()
+                                );
+                                // Re-throw with detailed error
+                                return Err(DatabaseError::ExecutionError {
+                                    sql: insert_sql,
+                                    reason: format!(
+                                        "NOT NULL constraint failed. Received columns: {:?}. This indicates incomplete sync data - the server may not have all columns for this row.",
+                                        row_change_list.iter().map(|c| &c.column_name).collect::<Vec<_>>()
+                                    ),
+                                    table: Some(first_change.table_name.clone()),
+                                });
+                            }
 
                             // Check if it's a UNIQUE constraint violation
                             if error_msg.contains("UNIQUE constraint failed") {

@@ -524,11 +524,12 @@ export const forwardFilteredSyncTablesToIframes = (
     'extensions',
   )
 
-  // Track which extensions we've already sent to (by publicKey:name)
+  // Track which extensions we've already sent to (by extension UUID)
   const sentToExtensions = new Set<string>()
 
   for (const [iframe, instance] of iframeRegistry.entries()) {
-    const extensionId = `${instance.extension.publicKey}:${instance.extension.name}`
+    // Use the extension's database UUID (same format as Rust returns)
+    const extensionId = instance.extension.id
 
     // Only send once per extension (first window wins)
     if (sentToExtensions.has(extensionId)) {

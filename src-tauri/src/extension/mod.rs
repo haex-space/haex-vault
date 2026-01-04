@@ -823,14 +823,25 @@ pub async fn extension_emit_filtered_sync_tables(
         // Use the database UUID as extension_id (same format as WebviewManager.windows registry)
         let extension_id = extension.id.clone();
 
-        // Get permissions for this extension
+        // Get permissions for this extension (for access to other extensions' tables)
         let permissions = PermissionManager::get_permissions(&state, &extension_id).await?;
 
-        // Filter tables based on database permissions
+        // Filter tables based on:
+        // 1. Extension's own tables (prefix match) - always allowed without explicit permissions
+        // 2. Explicit database permissions for other tables
         let allowed_tables: Vec<String> = tables
             .iter()
             .filter(|table_name| {
-                // Check if extension has any DB permission for this table
+                // Extensions always have implicit access to their own tables
+                if crate::extension::utils::is_extension_table(
+                    table_name,
+                    &extension.manifest.public_key,
+                    &extension.manifest.name,
+                ) {
+                    return true;
+                }
+
+                // Check if extension has explicit DB permission for this table
                 permissions.iter().any(|perm| {
                     if perm.resource_type != ResourceType::Db {
                         return false;
