@@ -14,7 +14,8 @@ use uuid::Uuid;
 /// Version history:
 /// - 1: Initial trigger implementation
 /// - 2: Fix sync loop: UPDATE trigger only marks table dirty if tracked columns changed
-const TRIGGER_VERSION: i32 = 2;
+/// - 3: Track haex_tombstone column to enable proper sync of soft-deletes
+const TRIGGER_VERSION: i32 = 3;
 
 /// Scans the database for all tables that have a 'haex_tombstone' column
 /// These are the tables that need CRDT triggers
