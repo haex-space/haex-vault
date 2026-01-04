@@ -448,10 +448,24 @@ async fn handle_upload(
         }
     };
 
-    // Determine save path
-    let default_dir = ".".to_string();
-    let save_dir = session.save_dir.as_ref().unwrap_or(&default_dir);
-    let mut save_path = PathBuf::from(save_dir);
+    // Determine save path - use session save_dir, or settings save_directory, or Downloads folder
+    let save_dir = if let Some(ref dir) = session.save_dir {
+        dir.clone()
+    } else {
+        // Try to get settings save_directory or fall back to Downloads
+        let settings = state.localsend.settings.read().await;
+        if let Some(ref dir) = settings.save_directory {
+            dir.clone()
+        } else {
+            // Fall back to Downloads directory
+            state.app_handle
+                .path()
+                .download_dir()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|_| ".".to_string())
+        }
+    };
+    let mut save_path = PathBuf::from(&save_dir);
 
     // Handle relative path for folders
     if let Some(ref rel_path) = file_info.relative_path {
