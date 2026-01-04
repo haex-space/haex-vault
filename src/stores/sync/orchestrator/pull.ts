@@ -475,8 +475,14 @@ export const applyRemoteChangesInTransactionAsync = async (
     })
     log.debug('Rust command completed successfully')
   } catch (invokeError) {
-    // Log detailed error from Rust
-    log.error('Rust command apply_remote_changes_in_transaction failed:', invokeError)
+    // Log detailed error from Rust - extract message for better visibility
+    const errorMessage = invokeError instanceof Error
+      ? invokeError.message
+      : typeof invokeError === 'object' && invokeError !== null
+        ? JSON.stringify(invokeError, null, 2)
+        : String(invokeError)
+    log.error('Rust command apply_remote_changes_in_transaction failed:', errorMessage)
+    log.error('Full error object:', invokeError)
     throw invokeError
   }
 
