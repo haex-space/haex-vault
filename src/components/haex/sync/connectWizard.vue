@@ -45,7 +45,7 @@
         <!-- Vault list -->
         <div
           v-else-if="availableVaults.length > 0"
-          class="space-y-2"
+          class="space-y-2 px-1"
         >
           <div
             v-for="vault in availableVaults"
