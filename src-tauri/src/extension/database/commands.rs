@@ -15,7 +15,8 @@ use crate::extension::core::types::ExtensionSource;
 use crate::extension::database::executor::SqlExecutor;
 use crate::extension::database::helpers::{
     execute_dev_mode_migrations, execute_migration_statements, execute_sql_with_context,
-    split_migration_statements, validate_sql_table_prefix, ExtensionSqlContext,
+    is_allowed_pragma, is_pragma_statement, split_migration_statements, validate_sql_table_prefix,
+    ExtensionSqlContext,
 };
 use crate::extension::database::queries::{
     SQL_COUNT_APPLIED_MIGRATIONS, SQL_GET_PENDING_MIGRATIONS, SQL_GET_SYNCED_PENDING_MIGRATIONS,
@@ -241,6 +242,19 @@ pub async fn extension_database_register_migrations(
         let ctx = ExtensionSqlContext::new(ext_public_key.clone(), ext_name.clone(), is_dev_mode);
 
         for stmt in statements.iter() {
+            // Skip PRAGMA validation (handled separately during execution)
+            // but still verify allowed PRAGMAs here for early rejection
+            if is_pragma_statement(stmt) {
+                if !is_allowed_pragma(stmt) {
+                    return Err(ExtensionError::ValidationError {
+                        reason: format!(
+                            "PRAGMA statement not allowed: '{}'. Only 'PRAGMA foreign_keys=OFF/ON' is permitted for migrations.",
+                            stmt.chars().take(50).collect::<String>()
+                        ),
+                    });
+                }
+                continue; // Skip table prefix validation for allowed PRAGMAs
+            }
             validate_sql_table_prefix(&ctx, stmt)?;
         }
 

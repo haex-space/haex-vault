@@ -43,6 +43,9 @@ impl ExtensionSqlContext {
 /// Validates that a SQL statement only affects tables with the correct extension prefix.
 /// This is a simpler validation used for migrations during installation when the extension
 /// is not yet in the ExtensionManager.
+///
+/// Also allows temporary tables with `__new_` prefix used by Drizzle for table reconstruction
+/// when changing primary keys or foreign key constraints.
 pub fn validate_sql_table_prefix(
     ctx: &ExtensionSqlContext,
     sql: &str,
@@ -75,7 +78,17 @@ pub fn validate_sql_table_prefix(
 
     for table_name in table_names {
         let clean_name = table_name.trim_matches('"').trim_matches('`');
-        if !clean_name.starts_with(&expected_prefix) {
+
+        // Check if the table name starts with the expected extension prefix
+        // Also allow Drizzle's temporary tables that use __new_ prefix for table reconstruction
+        // (e.g., when changing PKs or FKs, Drizzle creates __new_<tablename>, copies data, drops old, renames)
+        let is_valid = clean_name.starts_with(&expected_prefix)
+            || (clean_name.starts_with("__new_")
+                && clean_name
+                    .strip_prefix("__new_")
+                    .is_some_and(|rest| rest.starts_with(&expected_prefix)));
+
+        if !is_valid {
             return Err(ExtensionError::ValidationError {
                 reason: format!(
                     "Extension can only operate on tables with prefix '{}'. Got: '{}'",
@@ -336,18 +349,74 @@ pub fn execute_sql_with_context(
     .map_err(ExtensionError::from)
 }
 
+/// Checks if a SQL statement is any PRAGMA statement.
+pub fn is_pragma_statement(sql: &str) -> bool {
+    sql.trim().to_uppercase().starts_with("PRAGMA")
+}
+
+/// Checks if a PRAGMA statement is allowed for extension migrations.
+/// Only PRAGMA foreign_keys=OFF/ON is permitted - used by Drizzle for table reconstruction.
+/// All other PRAGMAs are rejected for security reasons.
+pub fn is_allowed_pragma(sql: &str) -> bool {
+    let normalized = sql
+        .trim()
+        .to_uppercase()
+        .replace(" ", "")
+        .replace(";", "");
+
+    // Only allow foreign_keys pragma for table reconstruction
+    normalized == "PRAGMAFOREIGN_KEYS=OFF" || normalized == "PRAGMAFOREIGN_KEYS=ON"
+}
+
+/// Executes an allowed PRAGMA statement directly.
+/// PRAGMA statements don't go through the SQL parser because sqlparser doesn't support them.
+///
+/// SECURITY: Only PRAGMA foreign_keys=OFF/ON is allowed. This is needed for Drizzle migrations
+/// that reconstruct tables with foreign keys. All other PRAGMAs are rejected to prevent:
+/// - PRAGMA key/rekey (encryption key manipulation - though SQLCipher handles this separately)
+/// - PRAGMA writable_schema (direct schema manipulation)
+/// - PRAGMA database_list (information disclosure)
+/// - PRAGMA table_info (information disclosure about other tables)
+/// - Other potentially dangerous PRAGMAs
+fn execute_pragma_statement(sql: &str, state: &AppState) -> Result<(), ExtensionError> {
+    // Security check: only allow specific PRAGMAs
+    if !is_allowed_pragma(sql) {
+        return Err(ExtensionError::ValidationError {
+            reason: format!(
+                "PRAGMA statement not allowed: '{}'. Only 'PRAGMA foreign_keys=OFF/ON' is permitted for migrations.",
+                sql.chars().take(50).collect::<String>()
+            ),
+        });
+    }
+
+    with_connection(&state.db, |conn| {
+        conn.execute(sql, [])
+            .map_err(|e| DatabaseError::ExecutionError {
+                sql: sql.to_string(),
+                table: None,
+                reason: format!("PRAGMA execution failed: {e}"),
+            })?;
+        Ok(())
+    })
+    .map_err(ExtensionError::from)
+}
+
 /// Executes all statements from a migration SQL string.
 ///
 /// This helper function:
 /// 1. Splits the SQL by statement breakpoint (`--> statement-breakpoint`)
-/// 2. Validates each statement has the correct table prefix
-/// 3. Executes each statement with CRDT support
+/// 2. Validates each statement has the correct table prefix (skipped for PRAGMA)
+/// 3. Executes each statement with CRDT support (PRAGMA executed directly)
 /// 4. Sets up triggers for CREATE TABLE (if not dev mode)
 /// 5. After all statements: ensures ALL extension tables have CRDT columns and triggers
 ///
 /// Note: This function is idempotent for schema changes:
 /// - "duplicate column" errors from ALTER TABLE ADD COLUMN are ignored
 /// - "table already exists" errors from CREATE TABLE are ignored
+///
+/// PRAGMA statements (like `PRAGMA foreign_keys=OFF/ON`) are executed directly
+/// without going through the SQL parser, as they are used by Drizzle for table
+/// reconstruction but are not supported by sqlparser-rs.
 ///
 /// The final step (5) is crucial for upgrading tables that were created in dev mode
 /// (without CRDT columns) to production mode (with CRDT columns and triggers).
@@ -366,6 +435,17 @@ pub fn execute_migration_statements(
         .collect();
 
     for statement in &statements {
+        // Handle PRAGMA statements separately (not supported by sqlparser)
+        // PRAGMA is used by Drizzle for table reconstruction with foreign keys
+        if is_pragma_statement(statement) {
+            println!(
+                "[MIGRATION] Executing PRAGMA: {}",
+                statement.chars().take(50).collect::<String>()
+            );
+            execute_pragma_statement(statement, state)?;
+            continue;
+        }
+
         // Validate table prefix
         validate_sql_table_prefix(ctx, statement)?;
 
