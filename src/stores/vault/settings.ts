@@ -5,34 +5,20 @@ import * as crdtSchema from '~/database/schemas/crdt'
 import type { Locale } from 'vue-i18n'
 import { haexSyncBackends } from '~/database/schemas'
 
-export enum VaultSettingsTypeEnum {
-  settings = 'settings',
-  system = 'system',
-}
+// Re-export constants from dedicated module for backwards compatibility
+export {
+  VaultSettingsTypeEnum,
+  VaultSettingsKeyEnum,
+  DesktopIconSizePreset,
+  iconSizePresetValues,
+} from '~/config/vault-settings'
 
-export enum VaultSettingsKeyEnum {
-  locale = 'locale',
-  theme = 'theme',
-  vaultName = 'vaultName',
-  desktopIconSize = 'desktopIconSize',
-  tombstoneRetentionDays = 'tombstoneRetentionDays',
-  externalBridgePort = 'externalBridgePort',
-  initialSyncComplete = 'initial_sync_complete',
-}
-
-export enum DesktopIconSizePreset {
-  small = 'small',
-  medium = 'medium',
-  large = 'large',
-  extraLarge = 'extra-large',
-}
-
-export const iconSizePresetValues: Record<DesktopIconSizePreset, number> = {
-  [DesktopIconSizePreset.small]: 60,
-  [DesktopIconSizePreset.medium]: 80,
-  [DesktopIconSizePreset.large]: 120,
-  [DesktopIconSizePreset.extraLarge]: 160,
-}
+// Import for local use
+import {
+  VaultSettingsTypeEnum,
+  VaultSettingsKeyEnum,
+  DesktopIconSizePreset,
+} from '~/config/vault-settings'
 
 export const vaultDeviceNameSchema = z.string().min(3).max(255)
 

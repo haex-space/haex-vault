@@ -1,5 +1,6 @@
 // src-tauri/src/database/mod.rs
 
+pub mod constants;
 pub mod core;
 pub mod error;
 pub mod generated;
@@ -14,6 +15,7 @@ use crate::database::error::DatabaseError;
 use crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED;
 use crate::extension::database::executor::SqlExecutor;
 use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_VAULT_SETTINGS};
+use constants::{vault_settings_key, vault_settings_type};
 use crate::AppState;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -541,8 +543,10 @@ pub fn create_encrypted_database(
         })?;
         let row_id = uuid::Uuid::new_v4().to_string();
         let insert_sql = format!(
-            "INSERT INTO {} (id, key, type, value) VALUES (?, 'vault_id', 'string', ?)",
-            TABLE_VAULT_SETTINGS
+            "INSERT INTO {} (id, key, type, value) VALUES (?, '{}', '{}', ?)",
+            TABLE_VAULT_SETTINGS,
+            vault_settings_key::VAULT_ID,
+            vault_settings_type::SYSTEM,
         );
         with_connection(&state.db, |conn| {
             let tx = conn.transaction().map_err(DatabaseError::from)?;
@@ -751,30 +755,12 @@ fn initialize_session(
     // eine Referenz auf die Guard erwartet.
 
     // 5. NEUER SCHRITT: Setze das Flag via CRDT, falls nötig
-    if !triggers_were_already_initialized {
-        eprintln!("INFO: Setting 'triggers_initialized' flag via CRDT...");
-
-        let insert_sql = format!(
-            "INSERT INTO {TABLE_VAULT_SETTINGS} (id, key, type, value) VALUES (?, ?, ?, ?)"
-        );
-
-        // execute_with_crdt erwartet Vec<JsonValue>, kein params!-Makro
-        let params_vec: Vec<JsonValue> = vec![
-            JsonValue::String(uuid::Uuid::new_v4().to_string()),
-            JsonValue::String("triggers_initialized".to_string()),
-            JsonValue::String("system".to_string()),
-            JsonValue::String("1".to_string()),
-        ];
-
-        // Jetzt können wir 'execute_with_crdt' sicher aufrufen,
-        // da der AppState initialisiert ist.
-        execute_with_crdt(
-            insert_sql, params_vec, &state.db,  // Das &DbConnection (der Mutex)
-            &hlc_guard, // Die gehaltene MutexGuard
-        )?;
-
-        eprintln!("INFO: ✓ 'triggers_initialized' flag set.");
-    }
+    // Note: We skip this step entirely because ensure_triggers_initialized already handles
+    // the triggers_initialized flag via direct SQL (without CRDT).
+    // The direct INSERT in ensure_triggers_initialized is correct because this flag
+    // should NOT be synced between devices - each device tracks its own trigger state.
+    // Previously this code would fail with UNIQUE constraint if triggers_initialized
+    // already existed from a previous open attempt.
 
     Ok(())
 }

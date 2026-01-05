@@ -2,6 +2,7 @@
 // Database initialization utilities (trigger setup, etc.)
 
 use crate::crdt::trigger;
+use crate::database::constants::{vault_settings_key, vault_settings_type};
 use crate::database::error::DatabaseError;
 use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_VAULT_SETTINGS};
 use rusqlite::{params, Connection};
@@ -50,7 +51,7 @@ pub fn ensure_triggers_initialized(conn: &mut Connection) -> Result<bool, Databa
     let current_version: Option<i32> = tx
         .query_row(
             &check_sql,
-            params!["trigger_version", "system"],
+            params![vault_settings_key::TRIGGER_VERSION, vault_settings_type::SYSTEM],
             |row| {
                 let val: String = row.get(0)?;
                 Ok(val.parse().unwrap_or(1))
@@ -62,7 +63,7 @@ pub fn ensure_triggers_initialized(conn: &mut Connection) -> Result<bool, Databa
     let initialized: Option<String> = tx
         .query_row(
             &check_sql,
-            params!["triggers_initialized", "system"],
+            params![vault_settings_key::TRIGGERS_INITIALIZED, vault_settings_type::SYSTEM],
             |row| row.get(0),
         )
         .ok();
@@ -114,7 +115,9 @@ pub fn ensure_triggers_initialized(conn: &mut Connection) -> Result<bool, Databa
     let existing: Option<String> = tx
         .query_row(
             &format!(
-                "SELECT id FROM {TABLE_VAULT_SETTINGS} WHERE key = 'trigger_version' AND type = 'system' AND haex_tombstone = 0"
+                "SELECT id FROM {TABLE_VAULT_SETTINGS} WHERE key = '{}' AND type = '{}' AND haex_tombstone = 0",
+                vault_settings_key::TRIGGER_VERSION,
+                vault_settings_type::SYSTEM
             ),
             [],
             |row| row.get(0),
@@ -130,7 +133,9 @@ pub fn ensure_triggers_initialized(conn: &mut Connection) -> Result<bool, Databa
         let new_id = Uuid::new_v4().to_string();
         tx.execute(
             &format!(
-                "INSERT INTO {TABLE_VAULT_SETTINGS} (id, key, type, value, haex_tombstone) VALUES (?, 'trigger_version', 'system', ?, 0)"
+                "INSERT INTO {TABLE_VAULT_SETTINGS} (id, key, type, value, haex_tombstone) VALUES (?, '{}', '{}', ?, 0)",
+                vault_settings_key::TRIGGER_VERSION,
+                vault_settings_type::SYSTEM
             ),
             params![new_id, TRIGGER_VERSION.to_string()],
         )?;
