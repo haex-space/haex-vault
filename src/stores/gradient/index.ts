@@ -1,12 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import * as schema from '~/database/schemas/haex'
 import type { GradientVariant } from '~/types/gradient'
-import { VaultSettingsTypeEnum } from '~/stores/vault/settings'
-
-export enum GradientSettingsKeyEnum {
-  gradientVariant = 'gradientVariant',
-  gradientEnabled = 'gradientEnabled',
-}
+import { VaultSettingsTypeEnum, VaultSettingsKeyEnum } from '~/stores/vault/settings'
 
 export const useGradientStore = defineStore('gradientStore', () => {
   const gradientVariant = ref<GradientVariant>('gitlab')
@@ -24,7 +19,7 @@ export const useGradientStore = defineStore('gradientStore', () => {
       const variantRow =
         await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
           where: and(
-            eq(schema.haexVaultSettings.key, GradientSettingsKeyEnum.gradientVariant),
+            eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.gradientVariant),
             eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.settings),
           ),
         })
@@ -34,7 +29,7 @@ export const useGradientStore = defineStore('gradientStore', () => {
       } else if (!variantRow?.id && !isRemoteSyncMode.value) {
         // Only create default entry if NOT in remote sync mode
         await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
-          key: GradientSettingsKeyEnum.gradientVariant,
+          key: VaultSettingsKeyEnum.gradientVariant,
           type: VaultSettingsTypeEnum.settings,
           value: 'gitlab',
         })
@@ -50,7 +45,7 @@ export const useGradientStore = defineStore('gradientStore', () => {
       const enabledRow =
         await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
           where: and(
-            eq(schema.haexVaultSettings.key, GradientSettingsKeyEnum.gradientEnabled),
+            eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.gradientEnabled),
             eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.settings),
           ),
         })
@@ -60,7 +55,7 @@ export const useGradientStore = defineStore('gradientStore', () => {
       } else if (!enabledRow?.id && !isRemoteSyncMode.value) {
         // Only create default entry if NOT in remote sync mode
         await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
-          key: GradientSettingsKeyEnum.gradientEnabled,
+          key: VaultSettingsKeyEnum.gradientEnabled,
           type: VaultSettingsTypeEnum.settings,
           value: 'true',
         })
@@ -78,7 +73,7 @@ export const useGradientStore = defineStore('gradientStore', () => {
         .set({ value: variant })
         .where(
           and(
-            eq(schema.haexVaultSettings.key, GradientSettingsKeyEnum.gradientVariant),
+            eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.gradientVariant),
             eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.settings),
           ),
         )
@@ -97,7 +92,7 @@ export const useGradientStore = defineStore('gradientStore', () => {
         .set({ value: String(enabled) })
         .where(
           and(
-            eq(schema.haexVaultSettings.key, GradientSettingsKeyEnum.gradientEnabled),
+            eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.gradientEnabled),
             eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.settings),
           ),
         )
