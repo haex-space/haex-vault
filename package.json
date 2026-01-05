@@ -1,7 +1,7 @@
 {
   "name": "haex-vault",
   "private": true,
-  "version": "1.4.57",
+  "version": "1.4.58",
   "type": "module",
   "scripts": {
     "build": "nuxt build",
