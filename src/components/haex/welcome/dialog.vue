@@ -646,6 +646,13 @@ const saveDeviceNameAsync = async () => {
 const installSelectedExtensionsAsync = async () => {
   if (selectedExtensions.value.length === 0) return
 
+  // Ensure workspaces are loaded before adding desktop items
+  // This is needed because desktop items require a workspace ID
+  const workspaceStore = useWorkspaceStore()
+  if (!workspaceStore.currentWorkspace) {
+    await workspaceStore.loadWorkspacesAsync()
+  }
+
   for (const slug of selectedExtensions.value) {
     try {
       // Get selected version (or undefined for latest)
@@ -703,8 +710,9 @@ const installSelectedExtensionsAsync = async () => {
       if (extensionId) {
         try {
           await useDesktopStore().addDesktopItemAsync('extension', extensionId)
-        } catch {
-          // Ignore desktop errors
+        } catch (desktopError) {
+          // Log but don't fail the installation if desktop icon creation fails
+          console.warn(`Failed to add desktop icon for extension ${slug}:`, desktopError)
         }
       }
 
