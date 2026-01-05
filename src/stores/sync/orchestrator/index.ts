@@ -92,66 +92,84 @@ export const useSyncOrchestratorStore = defineStore(
     const initBackendAsync = async (backendId: string): Promise<void> => {
       log.info(`========== INIT BACKEND START (${backendId}) ==========`)
 
-      if (syncStates.value[backendId]) {
-        log.debug(`INIT: Backend ${backendId} already initialized`)
-        return
+      // Check if state already exists (from performInitialPullAsync)
+      const existingState = syncStates.value[backendId]
+      const skipInitialSync = !!existingState
+
+      if (skipInitialSync) {
+        log.info(`INIT: Backend ${backendId} already has state from initial pull, skipping pull/push steps`)
       }
 
-      // Initialize state
-      syncStates.value[backendId] = {
-        isConnected: false,
-        isSyncing: false,
-        error: null,
-        subscription: null,
+      // Initialize state if not exists
+      if (!existingState) {
+        syncStates.value[backendId] = {
+          isConnected: false,
+          isSyncing: false,
+          error: null,
+          subscription: null,
+        }
+        log.debug('INIT: State initialized')
       }
-      log.debug('INIT: State initialized')
 
       try {
-        // Initial pull to get all existing data from server
-        log.info('INIT: Step 1 - Initial pull from server')
-        try {
-          await pullFromBackendWrapperAsync(backendId)
-        } catch (pullError) {
-          log.error(`INIT: Initial pull failed:`, pullError)
-          addToast({
-            color: 'error',
-            description: `Sync pull failed: ${pullError instanceof Error ? pullError.message : 'Unknown error'}`,
-          })
-          throw pullError
+        // Only do initial pull/push if this is a fresh init (not from performInitialPullAsync)
+        if (!skipInitialSync) {
+          // Initial pull to get all existing data from server
+          log.info('INIT: Step 1 - Initial pull from server')
+          try {
+            await pullFromBackendWrapperAsync(backendId)
+          } catch (pullError) {
+            log.error(`INIT: Initial pull failed:`, pullError)
+            addToast({
+              color: 'error',
+              description: `Sync pull failed: ${pullError instanceof Error ? pullError.message : 'Unknown error'}`,
+            })
+            throw pullError
+          }
+
+          // Push any pending local changes (dirty tables)
+          log.info('INIT: Step 2 - Push pending local changes')
+          try {
+            await pushToBackendWrapperAsync(backendId)
+          } catch (pushError) {
+            log.error(`INIT: Push failed:`, pushError)
+            addToast({
+              color: 'error',
+              description: `Sync push failed: ${pushError instanceof Error ? pushError.message : 'Unknown error'}`,
+            })
+            throw pushError
+          }
         }
 
-        // Push any pending local changes (dirty tables)
-        log.info('INIT: Step 2 - Push pending local changes')
-        try {
-          await pushToBackendWrapperAsync(backendId)
-        } catch (pushError) {
-          log.error(`INIT: Push failed:`, pushError)
-          addToast({
-            color: 'error',
-            description: `Sync push failed: ${pushError instanceof Error ? pushError.message : 'Unknown error'}`,
-          })
-          throw pushError
+        // Always subscribe to realtime changes (even if initial pull was already done)
+        // Skip if already subscribed
+        if (!syncStates.value[backendId]?.subscription) {
+          log.info('INIT: Step 3 - Subscribe to realtime changes')
+          await subscribeToBackendWrapperAsync(backendId)
+        } else {
+          log.info('INIT: Step 3 - Skipping realtime (already subscribed)')
         }
 
-        // Subscribe to realtime changes
-        log.info('INIT: Step 3 - Subscribe to realtime changes')
-        await subscribeToBackendWrapperAsync(backendId)
+        // Always start periodic pull as fallback (even if initial pull was already done)
+        // Skip if already running
+        if (!periodicPullIntervals.has(backendId)) {
+          log.info('INIT: Step 4 - Setting up periodic pull (every 5 min)')
+          const periodicPullInterval = setInterval(
+            async () => {
+              try {
+                log.info(`PERIODIC: Pull triggered for backend ${backendId} at ${new Date().toISOString()}`)
+                await pullFromBackendWrapperAsync(backendId)
+              } catch (error) {
+                log.error(`PERIODIC: Pull failed for backend ${backendId}:`, error)
+              }
+            },
+            5 * 60 * 1000,
+          ) // 5 minutes
 
-        // Start periodic pull as fallback (every 5 minutes)
-        log.info('INIT: Step 4 - Setting up periodic pull (every 5 min)')
-        const periodicPullInterval = setInterval(
-          async () => {
-            try {
-              log.info(`PERIODIC: Pull triggered for backend ${backendId} at ${new Date().toISOString()}`)
-              await pullFromBackendWrapperAsync(backendId)
-            } catch (error) {
-              log.error(`PERIODIC: Pull failed for backend ${backendId}:`, error)
-            }
-          },
-          5 * 60 * 1000,
-        ) // 5 minutes
-
-        periodicPullIntervals.set(backendId, periodicPullInterval)
+          periodicPullIntervals.set(backendId, periodicPullInterval)
+        } else {
+          log.info('INIT: Step 4 - Skipping periodic pull (already running)')
+        }
 
         log.info(`========== INIT BACKEND SUCCESS (${backendId}) ==========`)
       } catch (error) {
@@ -240,8 +258,15 @@ export const useSyncOrchestratorStore = defineStore(
 
       // Start fallback pull: Catch missed realtime updates
       periodicSyncInterval = setInterval(async () => {
-        log.info('[WATCHER] Fallback pull timer elapsed')
-        await onLocalWriteAsync()
+        log.info('[WATCHER] Fallback pull timer elapsed - pulling from all backends')
+        const enabledBackends = syncBackendsStore.enabledBackends
+        for (const backend of enabledBackends) {
+          try {
+            await pullFromBackendWrapperAsync(backend.id)
+          } catch (error) {
+            log.error(`[WATCHER] Fallback pull failed for backend ${backend.id}:`, error)
+          }
+        }
       }, config.periodicIntervalMs)
       log.info(
         `[WATCHER] Fallback pull started (interval: ${config.periodicIntervalMs}ms)`,
