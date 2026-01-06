@@ -384,6 +384,7 @@ export const broadcastContextToAllExtensions = (context: {
   theme: string
   locale: string
   platform?: string
+  deviceId?: string
 }) => {
   const message = {
     type: HAEXTENSION_EVENTS.CONTEXT_CHANGED,
@@ -397,8 +398,9 @@ export const broadcastContextToAllExtensions = (context: {
   )
 
   // Send to all registered extension windows
-  for (const [_, instance] of iframeRegistry.entries()) {
-    const win = windowIdToWindowMap.get(instance.windowId)
+  // Use windowIdToWindowMap if available, otherwise fallback to iframe.contentWindow
+  for (const [iframe, instance] of iframeRegistry.entries()) {
+    const win = windowIdToWindowMap.get(instance.windowId) || iframe.contentWindow
     if (win) {
       console.log(
         '[ExtensionHandler] Sending context to:',

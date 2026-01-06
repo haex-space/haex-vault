@@ -33,8 +33,10 @@ pub struct AppState {
     pub extension_manager: ExtensionManager,
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     pub extension_webview_manager: ExtensionWebviewManager,
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    pub context: Arc<Mutex<extension::webview::web::ApplicationContext>>,
+    /// Application context (theme, locale, platform, device_id) shared with extensions.
+    /// On desktop: accessed via Tauri commands for native webviews.
+    /// On mobile: shared via postMessage to iframes.
+    pub context: Arc<Mutex<extension::core::context::ApplicationContext>>,
     /// External bridge for WebSocket connections (desktop only)
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     pub external_bridge: tokio::sync::Mutex<ExternalBridge>,
@@ -119,8 +121,7 @@ pub fn run() {
             extension_manager: ExtensionManager::new(),
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension_webview_manager: ExtensionWebviewManager::new(),
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            context: Arc::new(Mutex::new(extension::webview::web::ApplicationContext {
+            context: Arc::new(Mutex::new(extension::core::context::ApplicationContext {
                 theme: "dark".to_string(),
                 locale: "en".to_string(),
                 platform: std::env::consts::OS.to_string(),
@@ -250,12 +251,13 @@ pub fn run() {
             // WebView-specific API commands (for native window extensions, desktop only)
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::webview::web::extension_get_info,
+            // Context commands (from core::context module)
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::webview::web::extension_context_get,
+            extension::core::context::extension_context_get,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::webview::web::extension_context_set,
+            extension::core::context::extension_context_set,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::webview::web::extension_emit_to_all,
+            extension::core::context::extension_emit_to_all,
             // Filtered sync event emission - needed for all platforms (mobile uses iframe forwarding)
             extension::extension_emit_filtered_sync_tables,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]

@@ -318,6 +318,15 @@ pub fn execute_sql_with_context(
                     "[DEV] Table '{}' created by dev extension - NO CRDT triggers (local-only)",
                     table_name_str
                 );
+            } else if table_name_str.starts_with("__new_") {
+                // Skip CRDT setup for Drizzle's temporary tables used during table reconstruction.
+                // These tables are created with `__new_` prefix, have data copied into them,
+                // then the original table is dropped and the __new_ table is renamed.
+                // Creating triggers for them would leave orphan triggers after the rename.
+                println!(
+                    "[CRDT] Skipping triggers for temporary table '{}' (Drizzle table reconstruction)",
+                    table_name_str
+                );
             } else {
                 // For CREATE TABLE IF NOT EXISTS: The table might already exist without CRDT columns
                 // (e.g., from a previous dev mode installation). Ensure CRDT columns exist.

@@ -1,6 +1,6 @@
 import { breakpointsTailwind } from '@vueuse/core'
 import { invoke } from '@tauri-apps/api/core'
-import { HAEXTENSION_EVENTS } from '@haex-space/vault-sdk'
+import { HAEXTENSION_EVENTS, TAURI_COMMANDS } from '@haex-space/vault-sdk'
 import { broadcastContextToAllExtensions } from '~/composables/extensionMessageHandler'
 
 import de from './de.json'
@@ -64,8 +64,11 @@ export const useUiStore = defineStore('uiStore', () => {
   })
 
   // Broadcast theme and locale changes to extensions (including initial state)
-  watch([currentThemeName, locale], async () => {
-    const deviceStore = useDeviceStore()
+  // Also watch deviceId to update context when it becomes available
+  const deviceStore = useDeviceStore()
+  const { deviceId } = storeToRefs(deviceStore)
+
+  watch([currentThemeName, locale, deviceId], async () => {
     const context = {
       theme: currentThemeName.value,
       locale: locale.value,
@@ -73,22 +76,26 @@ export const useUiStore = defineStore('uiStore', () => {
       deviceId: deviceStore.deviceId,
     }
 
+    console.log('[UI Store] Watch triggered - broadcasting context:', context)
+
     // Broadcast to iframe extensions (existing)
     broadcastContextToAllExtensions(context)
 
     // Update Tauri state and emit event for webview extensions
     try {
-      await invoke('webview_extension_context_set', { context })
+      console.log('[UI Store] Calling extension_context_set...')
+      await invoke(TAURI_COMMANDS.extension.setContext, { context })
       console.log('[UI Store] Context set in Tauri state:', context)
       // Broadcast event to all webview extensions
-      await invoke('webview_extension_emit_to_all', {
+      console.log('[UI Store] Calling extension_emit_to_all...')
+      await invoke(TAURI_COMMANDS.extension.emitToAll, {
         event: HAEXTENSION_EVENTS.CONTEXT_CHANGED,
         payload: { context }
       })
       console.log('[UI Store] Broadcasted context change event to webview extensions:', context)
     } catch (error) {
-      // Ignore error if not running in Tauri (e.g., browser mode)
-      console.debug('[UI Store] Failed to update Tauri context:', error)
+      // Log error - could be browser mode or Tauri not ready
+      console.error('[UI Store] Failed to update Tauri context:', error)
     }
   }, { immediate: true })
 

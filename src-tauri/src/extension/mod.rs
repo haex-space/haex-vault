@@ -728,6 +728,10 @@ pub fn close_all_extension_webview_windows(
         .close_all_extension_windows(&app_handle)
 }
 
+// Re-export context commands from core::context
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub use core::context::{extension_context_get, extension_context_set, extension_emit_to_all};
+
 // ============================================================================
 // Filtered Sync Event Emission (Cross-platform)
 // ============================================================================
