@@ -1,13 +1,21 @@
 // composables/extensionMessageHandler.ts
+/**
+ * Extension Message Handler
+ *
+ * Handles incoming postMessage requests from extension iframes.
+ * Routes requests to appropriate handlers (database, filesystem, web, etc.)
+ *
+ * Broadcasting is handled by the extensionBroadcastStore.
+ * This composable only handles:
+ * - Iframe registration (delegates to broadcast store)
+ * - Message reception and routing
+ * - Response sending
+ */
 import type { IHaexSpaceExtension } from '~/types/haexspace'
 import {
   TAURI_COMMANDS,
-  HAEXTENSION_EVENTS,
   HAEXSPACE_MESSAGE_TYPES,
-  EXTERNAL_EVENTS,
-  LOCALSEND_EVENTS,
 } from '@haex-space/vault-sdk'
-import { listen } from '@tauri-apps/api/event'
 import {
   EXTENSION_PROTOCOL_NAME,
   EXTENSION_PROTOCOL_PREFIX,
@@ -25,25 +33,21 @@ import {
   type ExtensionRequest,
   type ExtensionInstance,
 } from './handlers'
+import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
 
 // Globaler Handler - nur einmal registriert
 let globalHandlerRegistered = false
-const iframeRegistry = new Map<HTMLIFrameElement, ExtensionInstance>()
-
-// Registered extension for LocalSend events (only one extension can handle LocalSend)
-let registeredLocalSendExtension: ExtensionInstance | null = null
-// Map event.source (WindowProxy) to extension instance for sandbox-compatible matching
-const sourceRegistry = new Map<Window, ExtensionInstance>()
-// Reverse map: window ID to Window for broadcasting (supports multiple windows per extension)
-const windowIdToWindowMap = new Map<string, Window>()
 
 const registerGlobalMessageHandler = () => {
   if (globalHandlerRegistered) return
 
   console.log('[ExtensionHandler] Registering global message handler')
 
-  // Setup external request listener for iframe forwarding
-  setupExternalRequestListener()
+  // Get broadcast store for registry access and event listener setup
+  const broadcastStore = useExtensionBroadcastStore()
+
+  // Setup Tauri event listeners for forwarding to iframes
+  broadcastStore.setupEventListeners()
 
   window.addEventListener('message', async (event: MessageEvent) => {
     // Log ALL messages first for debugging
@@ -74,15 +78,12 @@ const registerGlobalMessageHandler = () => {
       hasSource: !!event.source,
     })
 
-    // Find extension instance by decoding event.origin (works with sandboxed iframes)
-    // Origin formats:
-    // - Desktop: haex-extension://<base64>
-    // - Android: http://haex-extension.localhost (need to check request URL for base64)
+    // Find extension instance using broadcast store
     let instance: ExtensionInstance | undefined
 
     // Debug: Find which extension sent this message
     let sourceInfo = 'unknown source'
-    for (const [iframe, inst] of iframeRegistry.entries()) {
+    for (const [iframe, inst] of broadcastStore.iframeRegistry.entries()) {
       if (iframe.contentWindow === event.source) {
         sourceInfo = `${inst.extension.name} (${inst.windowId})`
         break
@@ -115,13 +116,12 @@ const registerGlobalMessageHandler = () => {
           `[ExtensionHandler] Android format detected (http://${EXTENSION_PROTOCOL_NAME}.localhost)`,
         )
         // Fallback to single iframe mode
-        if (iframeRegistry.size === 1) {
-          const entry = Array.from(iframeRegistry.entries())[0]
+        if (broadcastStore.iframeRegistry.size === 1) {
+          const entry = Array.from(broadcastStore.iframeRegistry.entries())[0]
           if (entry) {
             const [_, inst] = entry
             instance = inst
-            sourceRegistry.set(event.source as Window, inst)
-            windowIdToWindowMap.set(inst.windowId, event.source as Window)
+            broadcastStore.sourceCache.set(event.source as Window, inst)
           }
         }
       }
@@ -135,16 +135,15 @@ const registerGlobalMessageHandler = () => {
           }
 
           // Find matching extension in registry
-          for (const [_, inst] of iframeRegistry.entries()) {
+          for (const [_, inst] of broadcastStore.iframeRegistry.entries()) {
             if (
               inst.extension.name === decodedInfo.name &&
               inst.extension.publicKey === decodedInfo.publicKey &&
               inst.extension.version === decodedInfo.version
             ) {
               instance = inst
-              // Register for future lookups
-              sourceRegistry.set(event.source as Window, inst)
-              windowIdToWindowMap.set(inst.windowId, event.source as Window)
+              // Cache for future lookups
+              broadcastStore.sourceCache.set(event.source as Window, inst)
               break
             }
           }
@@ -156,16 +155,15 @@ const registerGlobalMessageHandler = () => {
 
     // Fallback: Try to find extension instance by event.source (for localhost origin or legacy)
     if (!instance) {
-      instance = sourceRegistry.get(event.source as Window)
+      instance = broadcastStore.sourceCache.get(event.source as Window)
 
-      // If not registered yet, find by matching iframe.contentWindow to event.source
+      // If not cached yet, find by matching iframe.contentWindow to event.source
       if (!instance) {
-        for (const [iframe, inst] of iframeRegistry.entries()) {
+        for (const [iframe, inst] of broadcastStore.iframeRegistry.entries()) {
           if (iframe.contentWindow === event.source) {
             instance = inst
-            // Register for future lookups
-            sourceRegistry.set(event.source as Window, inst)
-            windowIdToWindowMap.set(inst.windowId, event.source as Window)
+            // Cache for future lookups
+            broadcastStore.sourceCache.set(event.source as Window, inst)
             console.log(
               '[ExtensionHandler] Registered instance via contentWindow match:',
               inst.windowId,
@@ -173,9 +171,6 @@ const registerGlobalMessageHandler = () => {
             break
           }
         }
-      } else if (instance && !windowIdToWindowMap.has(instance.windowId)) {
-        // Also register in reverse map for broadcasting
-        windowIdToWindowMap.set(instance.windowId, event.source as Window)
       }
     }
 
@@ -183,7 +178,7 @@ const registerGlobalMessageHandler = () => {
       console.warn(
         '[ExtensionHandler] Could not identify extension instance from event.source.',
         'Registered iframes:',
-        iframeRegistry.size,
+        broadcastStore.iframeRegistry.size,
       )
       return // Message ist nicht von einem registrierten IFrame
     }
@@ -231,11 +226,6 @@ const registerGlobalMessageHandler = () => {
       } else if (request.method.startsWith('extension_remote_storage_')) {
         result = await handleRemoteStorageMethodAsync(request, instance.extension)
       } else if (request.method.startsWith('localsend_')) {
-        // Register this extension for LocalSend events on init
-        if (request.method === TAURI_COMMANDS.localsend.init) {
-          registeredLocalSendExtension = instance
-          console.log('[ExtensionHandler] Registered extension for LocalSend events:', instance.extension.name)
-        }
         result = await handleLocalSendMethodAsync(request, instance.extension)
       } else {
         throw new Error(`Unknown method: ${request.method}`)
@@ -281,6 +271,9 @@ export const useExtensionMessageHandler = (
   extension: ComputedRef<IHaexSpaceExtension | undefined | null>,
   windowId: Ref<string>,
 ) => {
+  // Get broadcast store for registration
+  const broadcastStore = useExtensionBroadcastStore()
+
   // Initialize context getters (can use composables here because we're in setup)
   const { currentTheme } = storeToRefs(useUiStore())
   const { locale } = useI18n()
@@ -296,30 +289,17 @@ export const useExtensionMessageHandler = (
   // Registriere globalen Handler beim ersten Aufruf
   registerGlobalMessageHandler()
 
-  // Registriere dieses IFrame
+  // Registriere dieses IFrame via broadcast store
   watchEffect(() => {
     if (iframeRef.value && extension.value) {
-      iframeRegistry.set(iframeRef.value, {
-        extension: extension.value,
-        windowId: windowId.value,
-      })
+      broadcastStore.registerIframe(iframeRef.value, extension.value, windowId.value)
     }
   })
 
   // Cleanup beim Unmount
   onUnmounted(() => {
     if (iframeRef.value) {
-      const instance = iframeRegistry.get(iframeRef.value)
-      if (instance) {
-        // Remove from all maps
-        windowIdToWindowMap.delete(instance.windowId)
-        for (const [source, inst] of sourceRegistry.entries()) {
-          if (inst.windowId === instance.windowId) {
-            sourceRegistry.delete(source)
-          }
-        }
-      }
-      iframeRegistry.delete(iframeRef.value)
+      broadcastStore.unregisterIframe(iframeRef.value)
     }
   })
 }
@@ -333,332 +313,15 @@ export const registerExtensionIFrame = (
   // Stelle sicher, dass der globale Handler registriert ist
   registerGlobalMessageHandler()
 
-  // Note: Context getters should be initialized via useExtensionMessageHandler first
-
-  iframeRegistry.set(iframe, { extension, windowId })
+  // Register via broadcast store
+  const broadcastStore = useExtensionBroadcastStore()
+  broadcastStore.registerIframe(iframe, extension, windowId)
 }
 
 export const unregisterExtensionIFrame = (iframe: HTMLIFrameElement) => {
-  // Also remove from source registry and instance map
-  const instance = iframeRegistry.get(iframe)
-  if (instance) {
-    // Find and remove all sources pointing to this instance
-    for (const [source, inst] of sourceRegistry.entries()) {
-      if (inst.windowId === instance.windowId) {
-        sourceRegistry.delete(source)
-      }
-    }
-    // Remove from instance-to-window map
-    windowIdToWindowMap.delete(instance.windowId)
-  }
-  iframeRegistry.delete(iframe)
+  const broadcastStore = useExtensionBroadcastStore()
+  broadcastStore.unregisterIframe(iframe)
 }
 
-// Export function to get Window for a specific instance (for broadcasting)
-export const getInstanceWindow = (windowId: string): Window | undefined => {
-  return windowIdToWindowMap.get(windowId)
-}
-
-// Get all windows for an extension (all instances)
-export const getAllInstanceWindows = (extensionId: string): Window[] => {
-  const windows: Window[] = []
-  for (const [_, instance] of iframeRegistry.entries()) {
-    if (instance.extension.id === extensionId) {
-      const win = windowIdToWindowMap.get(instance.windowId)
-      if (win) {
-        windows.push(win)
-      }
-    }
-  }
-  return windows
-}
-
-// Deprecated - kept for backwards compatibility
-export const getExtensionWindow = (extensionId: string): Window | undefined => {
-  // Return first window for this extension
-  return getAllInstanceWindows(extensionId)[0]
-}
-
-// Broadcast context changes to all extension instances
-export const broadcastContextToAllExtensions = (context: {
-  theme: string
-  locale: string
-  platform?: string
-  deviceId?: string
-}) => {
-  const message = {
-    type: HAEXTENSION_EVENTS.CONTEXT_CHANGED,
-    data: { context },
-    timestamp: Date.now(),
-  }
-
-  console.log(
-    '[ExtensionHandler] Broadcasting context to all extensions:',
-    context,
-  )
-
-  // Send to all registered extension windows
-  // Use windowIdToWindowMap if available, otherwise fallback to iframe.contentWindow
-  for (const [iframe, instance] of iframeRegistry.entries()) {
-    const win = windowIdToWindowMap.get(instance.windowId) || iframe.contentWindow
-    if (win) {
-      console.log(
-        '[ExtensionHandler] Sending context to:',
-        instance.extension.name,
-        instance.windowId,
-      )
-      win.postMessage(message, '*')
-    }
-  }
-}
-
-// External request payload from Tauri event
-interface ExternalRequestPayload {
-  requestId: string
-  publicKey: string
-  action: string
-  payload: unknown
-  extensionPublicKey: string
-  extensionName: string
-}
-
-// File change event payload from Tauri event (from native file watcher)
-interface FileChangePayload {
-  ruleId: string
-  changeType: 'created' | 'modified' | 'removed' | 'any'
-  path?: string
-}
-
-// Forward external requests from Tauri to iframe extensions
-// Only sends to the FIRST matching iframe to avoid duplicate processing
-const forwardExternalRequestToIframe = (payload: ExternalRequestPayload) => {
-  const { extensionPublicKey, extensionName } = payload
-
-  console.log(
-    '[ExtensionHandler] Forwarding external request to iframe:',
-    extensionName,
-    'action:',
-    payload.action,
-  )
-
-  // Find the first iframe for this extension (by publicKey and name)
-  for (const [iframe, instance] of iframeRegistry.entries()) {
-    if (
-      instance.extension.publicKey === extensionPublicKey
-      && instance.extension.name === extensionName
-    ) {
-      const win = windowIdToWindowMap.get(instance.windowId) || iframe.contentWindow
-      if (win) {
-        // Send as SDK-compatible event format
-        const message = {
-          type: EXTERNAL_EVENTS.REQUEST,
-          data: {
-            requestId: payload.requestId,
-            publicKey: payload.publicKey,
-            action: payload.action,
-            payload: payload.payload,
-          },
-          timestamp: Date.now(),
-        }
-        console.log(
-          '[ExtensionHandler] Sending external request to:',
-          instance.extension.name,
-          instance.windowId,
-        )
-        win.postMessage(message, '*')
-        return // Only send to first matching iframe
-      }
-    }
-  }
-
-  console.warn(
-    '[ExtensionHandler] No iframe found for extension:',
-    extensionName,
-    extensionPublicKey,
-  )
-}
-
-// Forward file change events from Tauri to all extension iframes
-// Extensions can filter by ruleId on their side
-const forwardFileChangeToIframes = (payload: FileChangePayload) => {
-  console.log(
-    '[ExtensionHandler] Forwarding file change event:',
-    payload.ruleId,
-    payload.changeType,
-    payload.path,
-  )
-
-  // Send to all registered extension windows
-  for (const [iframe, instance] of iframeRegistry.entries()) {
-    const win = windowIdToWindowMap.get(instance.windowId) || iframe.contentWindow
-    if (win) {
-      // Send as SDK-compatible event format
-      const message = {
-        type: HAEXTENSION_EVENTS.FILE_CHANGED,
-        ruleId: payload.ruleId,
-        changeType: payload.changeType,
-        path: payload.path,
-        timestamp: Date.now(),
-      }
-      console.log(
-        '[ExtensionHandler] Sending file change to:',
-        instance.extension.name,
-        instance.windowId,
-      )
-      win.postMessage(message, '*')
-    }
-  }
-}
-
-/**
- * Forwards filtered sync:tables-updated events to iframe extensions.
- * Each extension only receives table names they have database permissions for.
- *
- * @param filteredExtensions - Map of extension_id -> allowed table names
- *                             (returned by extension_emit_filtered_sync_tables command)
- */
-export const forwardFilteredSyncTablesToIframes = (
-  filteredExtensions: Record<string, string[]>,
-) => {
-  console.log(
-    '[ExtensionHandler] Forwarding filtered sync:tables-updated to iframes:',
-    Object.keys(filteredExtensions).length,
-    'extensions',
-  )
-
-  // Track which extensions we've already sent to (by extension UUID)
-  const sentToExtensions = new Set<string>()
-
-  for (const [iframe, instance] of iframeRegistry.entries()) {
-    // Use the extension's database UUID (same format as Rust returns)
-    const extensionId = instance.extension.id
-
-    // Only send once per extension (first window wins)
-    if (sentToExtensions.has(extensionId)) {
-      continue
-    }
-
-    // Get filtered tables for this extension
-    const allowedTables = filteredExtensions[extensionId]
-    if (!allowedTables || allowedTables.length === 0) {
-      // Extension has no permissions for any of the updated tables
-      continue
-    }
-
-    const win = windowIdToWindowMap.get(instance.windowId) || iframe.contentWindow
-    if (win) {
-      const message = {
-        type: HAEXTENSION_EVENTS.SYNC_TABLES_UPDATED,
-        data: {
-          tables: allowedTables,
-        },
-        timestamp: Date.now(),
-      }
-
-      console.log(
-        '[ExtensionHandler] Sending filtered sync:tables-updated to:',
-        instance.extension.name,
-        'tables:',
-        allowedTables.length,
-      )
-      win.postMessage(message, '*')
-      sentToExtensions.add(extensionId)
-    }
-  }
-}
-
-/**
- * Forwards LocalSend events to the registered extension iframe.
- * Only the extension that called localsend_init receives these events.
- */
-const forwardLocalSendEventToIframe = (
-  eventType: string,
-  payload: unknown,
-) => {
-  if (!registeredLocalSendExtension) {
-    console.warn('[ExtensionHandler] No extension registered for LocalSend events')
-    return
-  }
-
-  const win = windowIdToWindowMap.get(registeredLocalSendExtension.windowId)
-  if (win) {
-    const message = {
-      type: eventType,
-      data: payload,
-      timestamp: Date.now(),
-    }
-    console.log(
-      '[ExtensionHandler] Sending LocalSend event to:',
-      registeredLocalSendExtension.extension.name,
-      eventType,
-    )
-    win.postMessage(message, '*')
-  } else {
-    console.warn(
-      '[ExtensionHandler] No window found for registered LocalSend extension:',
-      registeredLocalSendExtension.extension.name,
-    )
-  }
-}
-
-// Setup Tauri event listeners for external requests and file changes (for iframe extensions)
-let eventListenersRegistered = false
-
-const setupExternalRequestListener = async () => {
-  if (eventListenersRegistered) return
-
-  try {
-    // Listen for external requests
-    await listen<ExternalRequestPayload>(EXTERNAL_EVENTS.REQUEST, (event) => {
-      console.log('[ExtensionHandler] Received external request from Tauri:', event.payload)
-      forwardExternalRequestToIframe(event.payload)
-    })
-
-    // Listen for file change events from native file watcher
-    await listen<FileChangePayload>(HAEXTENSION_EVENTS.FILE_CHANGED, (event) => {
-      console.log('[ExtensionHandler] Received file change from Tauri:', event.payload)
-      forwardFileChangeToIframes(event.payload)
-    })
-
-    // Listen for LocalSend events and forward to registered extension
-    await listen(LOCALSEND_EVENTS.transferRequest, (event) => {
-      console.log('[ExtensionHandler] Received LocalSend transfer request:', event.payload)
-      forwardLocalSendEventToIframe(LOCALSEND_EVENTS.transferRequest, event.payload)
-    })
-
-    await listen(LOCALSEND_EVENTS.transferProgress, (event) => {
-      forwardLocalSendEventToIframe(LOCALSEND_EVENTS.transferProgress, event.payload)
-    })
-
-    await listen(LOCALSEND_EVENTS.transferComplete, (event) => {
-      console.log('[ExtensionHandler] Received LocalSend transfer complete:', event.payload)
-      forwardLocalSendEventToIframe(LOCALSEND_EVENTS.transferComplete, event.payload)
-    })
-
-    await listen(LOCALSEND_EVENTS.transferFailed, (event) => {
-      console.log('[ExtensionHandler] Received LocalSend transfer failed:', event.payload)
-      forwardLocalSendEventToIframe(LOCALSEND_EVENTS.transferFailed, event.payload)
-    })
-
-    await listen(LOCALSEND_EVENTS.deviceDiscovered, (event) => {
-      console.log('[ExtensionHandler] Received LocalSend device discovered:', event.payload)
-      forwardLocalSendEventToIframe(LOCALSEND_EVENTS.deviceDiscovered, event.payload)
-    })
-
-    await listen(LOCALSEND_EVENTS.deviceLost, (event) => {
-      console.log('[ExtensionHandler] Received LocalSend device lost:', event.payload)
-      forwardLocalSendEventToIframe(LOCALSEND_EVENTS.deviceLost, event.payload)
-    })
-
-    // Note: sync:tables-updated events are now handled via forwardFilteredSyncTablesToIframes()
-    // called directly from pull.ts after extension_emit_filtered_sync_tables command
-    // This ensures each extension only sees tables they have permissions for
-
-    eventListenersRegistered = true
-    console.log('[ExtensionHandler] Event listeners registered (external requests + file changes + LocalSend)')
-  }
-  catch (error) {
-    console.error('[ExtensionHandler] Failed to setup event listeners:', error)
-  }
-}
-
+// Re-export types for backwards compatibility
+export type { ExtensionInstance }

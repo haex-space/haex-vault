@@ -730,7 +730,10 @@ pub fn close_all_extension_webview_windows(
 
 // Re-export context commands from core::context
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
-pub use core::context::{extension_context_get, extension_context_set, extension_emit_to_all};
+pub use core::context::{
+    extension_context_get, extension_context_set, extension_webview_broadcast,
+    extension_webview_emit,
+};
 
 // ============================================================================
 // Filtered Sync Event Emission (Cross-platform)
@@ -754,7 +757,7 @@ pub struct SyncTablesPayload {
     pub tables: Vec<String>,
 }
 
-/// Result containing filtered tables per extension (for iframe forwarding)
+/// Result containing filtered tables per extension
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FilteredSyncTablesResult {
@@ -762,24 +765,24 @@ pub struct FilteredSyncTablesResult {
     pub extensions: HashMap<String, Vec<String>>,
 }
 
-/// Emits filtered sync:tables-updated events to extensions.
+/// Filter sync tables by extension permissions.
 ///
 /// Each extension only receives the table names they have database permissions for.
 /// This prevents extensions from seeing activity in tables they don't have access to.
 ///
-/// On Desktop: Emits directly to WebView windows and returns filtered list for iframes.
-/// On Mobile: Only returns filtered list for iframe forwarding via postMessage.
+/// Returns a map of extension_id -> allowed table names.
+/// This function does NOT emit any events - use extension_emit_sync_tables for webviews.
 #[tauri::command]
-pub async fn extension_emit_filtered_sync_tables(
+pub async fn extension_filter_sync_tables(
     app_handle: AppHandle,
     state: State<'_, AppState>,
     tables: Vec<String>,
 ) -> Result<FilteredSyncTablesResult, ExtensionError> {
     eprintln!(
-        "[SyncEvent] ========== EMITTING FILTERED SYNC EVENTS =========="
+        "[SyncEvent] ========== FILTERING SYNC TABLES =========="
     );
     eprintln!(
-        "[SyncEvent] Tables to broadcast: {:?}",
+        "[SyncEvent] Tables to filter: {:?}",
         tables
     );
 
@@ -795,39 +798,15 @@ pub async fn extension_emit_filtered_sync_tables(
         "[SyncEvent] Found {} installed extensions",
         all_extensions.len()
     );
-    for ext in &all_extensions {
-        eprintln!(
-            "[SyncEvent]   - Extension: id={}, name={}",
-            ext.id,
-            ext.manifest.name
-        );
-    }
 
-    // Debug: Show current WebView windows
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    {
-        if let Ok(windows) = state.extension_webview_manager.windows.lock() {
-            eprintln!("[SyncEvent] Current WebView windows: {} registered", windows.len());
-            for (window_id, ext_id) in windows.iter() {
-                eprintln!("[SyncEvent]   - Window: {} -> Extension: {}", window_id, ext_id);
-            }
-        }
-    }
-
-    // Track which extensions we've already emitted to (for WebView deduplication, desktop only)
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    let mut emitted_to_webviews: std::collections::HashSet<String> = std::collections::HashSet::new();
-
-    // Result for iframe forwarding
     let mut result = FilteredSyncTablesResult {
         extensions: HashMap::new(),
     };
 
     for extension in all_extensions {
-        // Use the database UUID as extension_id (same format as WebviewManager.windows registry)
         let extension_id = extension.id.clone();
 
-        // Get permissions for this extension (for access to other extensions' tables)
+        // Get permissions for this extension
         let permissions = PermissionManager::get_permissions(&state, &extension_id).await?;
 
         // Filter tables based on:
@@ -851,85 +830,90 @@ pub async fn extension_emit_filtered_sync_tables(
                         return false;
                     }
 
-                    // Check if target matches (wildcard or exact/prefix match)
                     let target = &perm.target;
                     if target == "*" {
                         return true;
                     }
 
-                    // Check prefix match (e.g., "publickey__extname__*" matches "publickey__extname__table")
                     if target.ends_with('*') {
                         let prefix = &target[..target.len() - 1];
                         return table_name.starts_with(prefix);
                     }
 
-                    // Exact match
                     target == *table_name
                 })
             })
             .cloned()
             .collect();
 
-        // Skip if no tables are allowed for this extension
+        if !allowed_tables.is_empty() {
+            eprintln!(
+                "[SyncEvent] Extension {} can see {} of {} tables",
+                extension_id,
+                allowed_tables.len(),
+                tables.len()
+            );
+            result.extensions.insert(extension_id, allowed_tables);
+        }
+    }
+
+    Ok(result)
+}
+
+/// Emit sync:tables-updated events to webview extensions.
+///
+/// Takes a pre-filtered map of extension_id -> tables and emits to each extension's webviews.
+/// Desktop only - on mobile, use postMessage for iframes from the frontend.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+#[tauri::command]
+pub async fn extension_emit_sync_tables(
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+    filtered_extensions: FilteredSyncTablesResult,
+) -> Result<(), ExtensionError> {
+    eprintln!(
+        "[SyncEvent] ========== EMITTING SYNC TABLES TO WEBVIEWS =========="
+    );
+    eprintln!(
+        "[SyncEvent] Extensions to emit to: {}",
+        filtered_extensions.extensions.len()
+    );
+
+    for (extension_id, allowed_tables) in filtered_extensions.extensions {
         if allowed_tables.is_empty() {
             continue;
         }
 
-        eprintln!(
-            "[SyncEvent] Extension {} can see {} of {} tables",
-            extension_id,
-            allowed_tables.len(),
-            tables.len()
-        );
+        let payload = SyncTablesPayload {
+            tables: allowed_tables.clone(),
+        };
 
-        // Store for iframe forwarding (used on all platforms)
-        result.extensions.insert(extension_id.clone(), allowed_tables.clone());
-
-        // Emit to WebView if this extension has one (desktop only)
-        #[cfg(not(any(target_os = "android", target_os = "ios")))]
-        {
-            // Skip if we already emitted to a WebView for this extension
-            if emitted_to_webviews.contains(&extension_id) {
-                continue;
+        match state.extension_webview_manager.emit_to_all_extension_windows(
+            &app_handle,
+            &extension_id,
+            SYNC_TABLES_EVENT,
+            &payload,
+        ) {
+            Ok(true) => {
+                eprintln!(
+                    "[SyncEvent] Emitted to WebView(s) for extension: {}",
+                    extension_id
+                );
             }
-
-            let payload = SyncTablesPayload {
-                tables: allowed_tables,
-            };
-
-            // Try to emit to this extension's WebView
-            match state.extension_webview_manager.emit_to_extension(
-                &app_handle,
-                &extension_id,
-                SYNC_TABLES_EVENT,
-                &payload,
-            ) {
-                Ok(true) => {
-                    emitted_to_webviews.insert(extension_id.clone());
-                    eprintln!(
-                        "[SyncEvent] Emitted to WebView for extension: {}",
-                        extension_id
-                    );
-                }
-                Ok(false) => {
-                    // No WebView for this extension - iframe mode, will be handled by frontend
-                    eprintln!(
-                        "[SyncEvent] No WebView for extension: {} (will use iframe)",
-                        extension_id
-                    );
-                }
-                Err(e) => {
-                    eprintln!(
-                        "[SyncEvent] Error emitting to WebView for {}: {}",
-                        extension_id, e
-                    );
-                }
+            Ok(false) => {
+                eprintln!(
+                    "[SyncEvent] No WebView for extension: {} (iframe mode)",
+                    extension_id
+                );
+            }
+            Err(e) => {
+                eprintln!(
+                    "[SyncEvent] Error emitting to WebView(s) for {}: {}",
+                    extension_id, e
+                );
             }
         }
     }
 
-    // Emit internal event for main window stores (unfiltered, internal use only)
-    let _ = app_handle.emit(SYNC_TABLES_INTERNAL_EVENT, SyncTablesPayload { tables });
-
-    Ok(result)
+    Ok(())
 }

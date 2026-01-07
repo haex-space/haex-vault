@@ -7,7 +7,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { decryptCrdtData } from '@haex-space/vault-sdk'
 import type { ColumnChange } from '../tableScanner'
 import { log, type BackendSyncState, type PullResult } from './types'
-import { forwardFilteredSyncTablesToIframes } from '~/composables/extensionMessageHandler'
+import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
 
 /**
  * Pulls changes from a specific backend using column-level HLC comparison
@@ -108,23 +108,13 @@ export const pullFromBackendAsync = async (
     await syncBackendsStore.loadBackendsAsync()
 
     // Step 5: Emit filtered sync events to extensions
-    // - Internal stores receive unfiltered 'sync:tables-updated' event
-    // - WebView extensions receive filtered events directly from Rust
-    // - iframe extensions receive filtered events via postMessage (handled by extensionMessageHandler)
+    // Each extension only receives table names they have database permissions for
     if (tablesAffected.length > 0) {
       log.info('Emitting filtered sync:tables-updated events for tables:', tablesAffected)
 
-      // Call Rust command that:
-      // 1. Emits internal 'sync:tables-updated' event (for stores)
-      // 2. Emits filtered events to WebView extensions
-      // 3. Returns filtered table lists for iframe forwarding
-      const result = await invoke<{ extensions: Record<string, string[]> }>(
-        'extension_emit_filtered_sync_tables',
-        { tables: tablesAffected },
-      )
-
-      // Forward filtered events to iframe extensions
-      forwardFilteredSyncTablesToIframes(result.extensions)
+      // Use broadcast store to filter and emit to all extensions (iframes + webviews)
+      const broadcastStore = useExtensionBroadcastStore()
+      await broadcastStore.broadcastSyncTablesUpdated(tablesAffected)
 
       log.info('Filtered sync:tables-updated events emitted successfully')
     }

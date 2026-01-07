@@ -257,9 +257,14 @@ pub fn run() {
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::core::context::extension_context_set,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            extension::core::context::extension_emit_to_all,
-            // Filtered sync event emission - needed for all platforms (mobile uses iframe forwarding)
-            extension::extension_emit_filtered_sync_tables,
+            extension::core::context::extension_webview_broadcast,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            extension::core::context::extension_webview_emit,
+            // Sync table filtering - needed for all platforms (mobile uses iframe forwarding)
+            extension::extension_filter_sync_tables,
+            // Sync table emission to webviews - desktop only
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            extension::extension_emit_sync_tables,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension::webview::filesystem::extension_filesystem_save_file,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]

@@ -1,7 +1,7 @@
 import { breakpointsTailwind } from '@vueuse/core'
 import { invoke } from '@tauri-apps/api/core'
-import { HAEXTENSION_EVENTS, TAURI_COMMANDS } from '@haex-space/vault-sdk'
-import { broadcastContextToAllExtensions } from '~/composables/extensionMessageHandler'
+import { TAURI_COMMANDS } from '@haex-space/vault-sdk'
+import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
 
 import de from './de.json'
 import en from './en.json'
@@ -67,10 +67,11 @@ export const useUiStore = defineStore('uiStore', () => {
   // Also watch deviceId to update context when it becomes available
   const deviceStore = useDeviceStore()
   const { deviceId } = storeToRefs(deviceStore)
+  const broadcastStore = useExtensionBroadcastStore()
 
   watch([currentThemeName, locale, deviceId], async () => {
     const context = {
-      theme: currentThemeName.value,
+      theme: currentThemeName.value as 'light' | 'dark' | 'system',
       locale: locale.value,
       platform: deviceStore.platform,
       deviceId: deviceStore.deviceId,
@@ -78,25 +79,17 @@ export const useUiStore = defineStore('uiStore', () => {
 
     console.log('[UI Store] Watch triggered - broadcasting context:', context)
 
-    // Broadcast to iframe extensions (existing)
-    broadcastContextToAllExtensions(context)
-
-    // Update Tauri state and emit event for webview extensions
+    // Store context in Tauri state (for webview extensions to query on init)
     try {
-      console.log('[UI Store] Calling extension_context_set...')
       await invoke(TAURI_COMMANDS.extension.setContext, { context })
-      console.log('[UI Store] Context set in Tauri state:', context)
-      // Broadcast event to all webview extensions
-      console.log('[UI Store] Calling extension_emit_to_all...')
-      await invoke(TAURI_COMMANDS.extension.emitToAll, {
-        event: HAEXTENSION_EVENTS.CONTEXT_CHANGED,
-        payload: { context }
-      })
-      console.log('[UI Store] Broadcasted context change event to webview extensions:', context)
+      console.log('[UI Store] Context stored in Tauri state')
     } catch (error) {
       // Log error - could be browser mode or Tauri not ready
-      console.error('[UI Store] Failed to update Tauri context:', error)
+      console.error('[UI Store] Failed to store context:', error)
     }
+
+    // Broadcast to all extensions (iframes + webviews)
+    await broadcastStore.broadcastContext(context)
   }, { immediate: true })
 
   const viewportHeightWithoutHeader = ref(0)

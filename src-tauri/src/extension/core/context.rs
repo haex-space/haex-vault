@@ -84,11 +84,12 @@ pub fn extension_context_set(
     Ok(())
 }
 
-/// Emits an event to all extension webview windows.
-/// Used to broadcast context changes, sync events, etc. to native webview extensions.
+/// Broadcasts an event to ALL extension webview windows.
+/// Only use for events that should go to ALL extensions (e.g., context changes).
+/// For permission-filtered events, use extension_webview_emit instead.
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tauri::command]
-pub fn extension_emit_to_all(
+pub fn extension_webview_broadcast(
     app_handle: AppHandle,
     state: State<'_, AppState>,
     event: String,
@@ -97,7 +98,7 @@ pub fn extension_emit_to_all(
     use tauri::Emitter;
 
     eprintln!(
-        "[Extension] Emitting event '{}' to all webview windows",
+        "[Extension] Broadcasting event '{}' to all webview windows",
         event
     );
 
@@ -110,12 +111,34 @@ pub fn extension_emit_to_all(
     // (e.g., embedded webviews within the main window)
     if let Err(e) = app_handle.emit(&event, payload) {
         eprintln!(
-            "[Extension] Failed to emit event '{}' globally: {}",
+            "[Extension] Failed to broadcast event '{}' globally: {}",
             event, e
         );
     } else {
-        eprintln!("[Extension] Event '{}' emitted globally", event);
+        eprintln!("[Extension] Event '{}' broadcasted globally", event);
     }
 
     Ok(())
+}
+
+/// Emits an event to ALL webview windows of a specific extension.
+/// Used for permission-filtered events that should only go to authorized extensions.
+/// Returns true if event was sent to at least one webview, false if extension has no webview.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+#[tauri::command]
+pub fn extension_webview_emit(
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+    extension_id: String,
+    event: String,
+    payload: serde_json::Value,
+) -> Result<bool, ExtensionError> {
+    eprintln!(
+        "[Extension] Emitting event '{}' to all webviews of extension '{}'",
+        event, extension_id
+    );
+
+    state
+        .extension_webview_manager
+        .emit_to_all_extension_windows(&app_handle, &extension_id, &event, payload)
 }

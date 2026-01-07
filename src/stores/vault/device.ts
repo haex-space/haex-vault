@@ -21,6 +21,15 @@ export const useDeviceStore = defineStore('vaultDeviceStore', () => {
 
   const platform = computedAsync(() => tauriPlatform())
 
+  /** True for mobile platforms (iOS, Android) */
+  const isMobile = computed(() => {
+    const p = platform.value
+    return p === 'ios' || p === 'android'
+  })
+
+  /** True for desktop platforms (everything except iOS/Android) */
+  const isDesktop = computed(() => !isMobile.value)
+
   const hostname = computedAsync(() => tauriHostname())
 
   const deviceName = ref<string>()
@@ -159,7 +168,9 @@ export const useDeviceStore = defineStore('vaultDeviceStore', () => {
     deviceName,
     getDeviceIdAsync,
     hostname,
+    isDesktop,
     isKnownDeviceAsync,
+    isMobile,
     platform,
     readDeviceAsync,
     readDeviceNameAsync,
