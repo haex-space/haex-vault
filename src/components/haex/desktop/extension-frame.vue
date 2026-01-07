@@ -161,23 +161,13 @@ const retryLoad = () => {
 // Initialize extension message handler to set up context
 useExtensionMessageHandler(iframeRef, extension, windowIdRef)
 
-// Additional explicit registration on mount to ensure iframe is registered
 onMounted(() => {
-  // Wait for iframe to be ready
-  if (iframeRef.value && extension.value) {
-    console.log(
-      '[ExtensionFrame] Component MOUNTED',
-      extension.value.name,
-      'windowId:',
-      props.windowId,
-    )
-    registerExtensionIFrame(iframeRef.value, extension.value, props.windowId)
-  } else {
-    console.warn('[ExtensionFrame] Component mounted but missing iframe or extension:', {
-      hasIframe: !!iframeRef.value,
-      hasExtension: !!extension.value,
-    })
-  }
+  console.log(
+    '[ExtensionFrame] Component MOUNTED',
+    extension.value?.name,
+    'windowId:',
+    props.windowId,
+  )
 })
 
 // Explicit cleanup before unmount

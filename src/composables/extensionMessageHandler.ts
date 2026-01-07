@@ -249,12 +249,20 @@ export const useExtensionMessageHandler = (
   // Registriere globalen Handler beim ersten Aufruf
   registerGlobalMessageHandler()
 
-  // Registriere dieses IFrame via broadcast store
-  watchEffect(() => {
-    if (iframeRef.value && extension.value) {
-      broadcastStore.registerIframe(iframeRef.value, extension.value, windowId.value)
-    }
-  })
+  // Track if we've already registered this iframe
+  let registeredIframe: HTMLIFrameElement | null = null
+
+  // Registriere dieses IFrame via broadcast store - only once when iframe becomes available
+  watch(
+    [iframeRef, extension],
+    ([iframe, ext]) => {
+      if (iframe && ext && iframe !== registeredIframe) {
+        registeredIframe = iframe
+        broadcastStore.registerIframe(iframe, ext, windowId.value)
+      }
+    },
+    { immediate: true },
+  )
 
   // Cleanup beim Unmount
   onUnmounted(() => {
