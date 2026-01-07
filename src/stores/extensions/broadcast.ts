@@ -67,8 +67,16 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
     extension: IHaexSpaceExtension,
     windowId: string,
   ) => {
+    console.log('[BroadcastStore] registerIframe called:', {
+      extensionId: extension.id,
+      extensionName: extension.name,
+      windowId,
+      hasContentWindow: !!iframe.contentWindow,
+      iframeConnected: iframe.isConnected,
+      currentRegistrySize: iframeRegistry.size,
+    })
     iframeRegistry.set(iframe, { extension, windowId })
-    console.log('[BroadcastStore] Registered iframe:', extension.name, windowId)
+    console.log('[BroadcastStore] Registered iframe - new registry size:', iframeRegistry.size)
   }
 
   /**
@@ -76,6 +84,12 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
    */
   const unregisterIframe = (iframe: HTMLIFrameElement) => {
     const instance = iframeRegistry.get(iframe)
+    console.log('[BroadcastStore] unregisterIframe called:', {
+      hasInstance: !!instance,
+      extensionName: instance?.extension.name,
+      windowId: instance?.windowId,
+      currentRegistrySize: iframeRegistry.size,
+    })
     if (instance) {
       // Remove from source cache
       for (const [source, inst] of sourceCache.entries()) {
@@ -86,6 +100,7 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
       console.log('[BroadcastStore] Unregistered iframe:', instance.extension.name, instance.windowId)
     }
     iframeRegistry.delete(iframe)
+    console.log('[BroadcastStore] After unregister - registry size:', iframeRegistry.size)
   }
 
   /**
@@ -167,7 +182,9 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
    * NOTE: This only broadcasts. Context storage is handled by the caller (uiStore).
    */
   const broadcastContext = async (context: ApplicationContext) => {
-    console.log('[BroadcastStore] Broadcasting context to all extensions:', context)
+    console.log('[BroadcastStore] broadcastContext called with:', context)
+    console.log('[BroadcastStore] iframeRegistry size:', iframeRegistry.size)
+    console.log('[BroadcastStore] isDesktop:', isDesktop.value)
 
     const message = {
       type: HAEXTENSION_EVENTS.CONTEXT_CHANGED,
@@ -176,12 +193,23 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
     }
 
     // Send to ALL iframe extension instances
+    let iframeSentCount = 0
     for (const [iframe, instance] of iframeRegistry.entries()) {
+      console.log('[BroadcastStore] Checking iframe:', {
+        extensionName: instance.extension.name,
+        windowId: instance.windowId,
+        hasContentWindow: !!iframe.contentWindow,
+        iframeConnected: iframe.isConnected,
+      })
       if (iframe.contentWindow) {
         console.log('[BroadcastStore] Sending context to iframe:', instance.extension.name, instance.windowId)
         iframe.contentWindow.postMessage(message, '*')
+        iframeSentCount++
+      } else {
+        console.warn('[BroadcastStore] Iframe has no contentWindow:', instance.extension.name, instance.windowId)
       }
     }
+    console.log('[BroadcastStore] Sent context to', iframeSentCount, 'iframes')
 
     // On desktop, also broadcast to webview extensions
     if (isDesktop.value) {
