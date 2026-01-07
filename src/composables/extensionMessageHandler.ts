@@ -30,6 +30,7 @@ import {
   handleRemoteStorageMethodAsync,
   handleLocalSendMethodAsync,
   setContextGetters,
+  isContextGettersInitialized,
   type ExtensionRequest,
   type ExtensionInstance,
 } from './handlers'
@@ -42,6 +43,7 @@ const registerGlobalMessageHandler = () => {
   if (globalHandlerRegistered) return
 
   console.log('[ExtensionHandler] Registering global message handler')
+  console.log('[ExtensionHandler] contextGetters available:', isContextGettersInitialized())
 
   // Get broadcast store for registry access and event listener setup
   const broadcastStore = useExtensionBroadcastStore()
@@ -193,6 +195,7 @@ const registerGlobalMessageHandler = () => {
 
       // Check specific methods first, then use direct routing to handlers
       if (request.method === TAURI_COMMANDS.extension.getContext) {
+        console.log('[ExtensionHandler] Handling getContext, contextGetters available:', isContextGettersInitialized())
         result = await handleContextMethodAsync(request)
       } else if (
         request.method === TAURI_COMMANDS.webStorage.getItem ||

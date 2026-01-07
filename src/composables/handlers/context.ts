@@ -16,7 +16,12 @@ export function setContextGetters(getters: {
   getPlatform: () => Platform | undefined
   getDeviceId: () => string | undefined
 }) {
+  console.log('[ContextHandler] setContextGetters called')
   contextGetters = getters
+}
+
+export function isContextGettersInitialized(): boolean {
+  return contextGetters !== null
 }
 
 export async function handleContextMethodAsync(request: ExtensionRequest) {
