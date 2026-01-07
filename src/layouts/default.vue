@@ -70,6 +70,11 @@ const { currentVaultId } = storeToRefs(useVaultStore())
 const windowManager = useWindowManagerStore()
 const workspaceStore = useWorkspaceStore()
 
+// Initialize extension context store to enable context broadcasting to WebView extensions
+// This must be done at the app level so context changes (theme, locale) are broadcasted
+// even when no iframe extensions are open
+useExtensionContextStore()
+
 // Toggle combined overview (workspace sidebar + window overview)
 const toggleOverview = () => {
   const newState = !windowManager.showWindowOverview

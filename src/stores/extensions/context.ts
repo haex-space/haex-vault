@@ -25,7 +25,7 @@ export const useExtensionContextStore = defineStore('extensionContextStore', () 
   // Get dependencies
   const deviceStore = useDeviceStore()
   const uiStore = useUiStore()
-  const { currentTheme } = storeToRefs(uiStore)
+  const { currentThemeName } = storeToRefs(uiStore)
   const { locale } = useI18n()
   const { deviceId } = storeToRefs(deviceStore)
 
@@ -34,7 +34,7 @@ export const useExtensionContextStore = defineStore('extensionContextStore', () 
    */
   const buildContext = (): ApplicationContext => {
     return {
-      theme: (currentTheme.value?.value || 'dark') as 'light' | 'dark' | 'system',
+      theme: (currentThemeName.value || 'dark') as 'light' | 'dark' | 'system',
       locale: locale.value,
       platform: deviceStore.platform,
       deviceId: deviceStore.deviceId,
@@ -75,8 +75,11 @@ export const useExtensionContextStore = defineStore('extensionContextStore', () 
   }
 
   // Watch for changes in theme, locale, or deviceId and update context
+  // Note: We watch currentThemeName (string ref) instead of currentTheme (computed object)
+  // because watching a computed that returns an object from a static array won't trigger
+  // when the underlying value changes (same object reference)
   watch(
-    [currentTheme, locale, deviceId],
+    [currentThemeName, locale, deviceId],
     () => {
       console.log('[ExtensionContext] Dependency changed, updating context')
       // Call async function with proper error handling to avoid unhandled rejections
