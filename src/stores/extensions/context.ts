@@ -26,8 +26,12 @@ export const useExtensionContextStore = defineStore('extensionContextStore', () 
   const deviceStore = useDeviceStore()
   const uiStore = useUiStore()
   const { currentThemeName } = storeToRefs(uiStore)
-  const { locale } = useI18n()
   const { deviceId } = storeToRefs(deviceStore)
+
+  // Use global i18n instance from Nuxt app for proper reactivity
+  // useI18n() in a Pinia store may not be reactive to global locale changes
+  const { $i18n } = useNuxtApp()
+  const locale = computed(() => $i18n.locale.value)
 
   /**
    * Build the current context from all sources
