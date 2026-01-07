@@ -26,7 +26,7 @@
     "nightly": "node scripts/nightly.js",
     "tauri:build:debug": "tauri build --debug",
     "tauri": "tauri",
-    "android:init": "rm -rf src-tauri/gen/android && tauri android init && sed -i 's/kotlin-gradle-plugin:1.9.25/kotlin-gradle-plugin:2.1.0/' src-tauri/gen/android/build.gradle.kts",
+    "android:init": "node scripts/android-init.js",
     "android:dev": "pnpm android:init && tauri android dev",
     "android:build": "pnpm android:init && tauri android build"
   },
