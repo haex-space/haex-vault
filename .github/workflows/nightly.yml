@@ -1,0 +1,564 @@
+name: Nightly Build
+
+on:
+  schedule:
+    # Run at 2:00 UTC every day
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  # Check if there are new commits since last nightly
+  check-changes:
+    runs-on: ubuntu-22.04
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+      short_sha: ${{ steps.check.outputs.short_sha }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for new commits
+        id: check
+        run: |
+          # Get the last nightly tag
+          LAST_NIGHTLY=$(git tag -l 'nightly-*' --sort=-creatordate | head -1)
+          echo "Last nightly tag: $LAST_NIGHTLY"
+
+          # Get short SHA for this build
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+
+          if [ -z "$LAST_NIGHTLY" ]; then
+            echo "No previous nightly found, building"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          else
+            # Get commit SHA of last nightly
+            LAST_NIGHTLY_SHA=$(git rev-list -n 1 "$LAST_NIGHTLY" 2>/dev/null || echo "")
+
+            if [ "$LAST_NIGHTLY_SHA" = "$(git rev-parse HEAD)" ]; then
+              echo "No new commits since last nightly"
+              echo "should_build=false" >> $GITHUB_OUTPUT
+            else
+              echo "New commits found since $LAST_NIGHTLY"
+              echo "should_build=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+  # Run tests first before creating nightly
+  test:
+    needs: check-changes
+    if: needs.check-changes.outputs.should_build == 'true'
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies (Ubuntu)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Rust tests
+        run: cd src-tauri && cargo test
+
+      - name: Run TypeScript tests
+        run: pnpm test
+
+  create-nightly:
+    needs: [check-changes, test]
+    if: needs.check-changes.outputs.should_build == 'true'
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    outputs:
+      release_id: ${{ steps.create-release.outputs.release_id }}
+      upload_url: ${{ steps.create-release.outputs.upload_url }}
+      nightly_tag: ${{ steps.create-release.outputs.nightly_tag }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get version info
+        run: |
+          echo "PACKAGE_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
+          echo "BUILD_DATE=$(date +'%Y%m%d')" >> $GITHUB_ENV
+          echo "SHORT_SHA=${{ needs.check-changes.outputs.short_sha }}" >> $GITHUB_ENV
+
+      - name: Generate nightly notes
+        id: nightly-notes
+        run: |
+          # Get commits since last release tag
+          LAST_RELEASE=$(git tag -l 'v*' --sort=-v:refname | head -1)
+          echo "Last release: $LAST_RELEASE"
+
+          if [ -z "$LAST_RELEASE" ]; then
+            COMMITS=$(git log --oneline -20)
+          else
+            COMMITS=$(git log ${LAST_RELEASE}..HEAD --oneline)
+          fi
+
+          # Build nightly notes
+          cat > nightly_notes.md << EOF
+          ## 🌙 Nightly Build
+
+          **Base Version:** ${PACKAGE_VERSION}
+          **Build Date:** $(date +'%Y-%m-%d %H:%M UTC')
+          **Commit:** ${SHORT_SHA}
+
+          > ⚠️ **Warning:** This is an automated nightly build and may be unstable.
+          > For stable releases, please download from the [Releases](https://github.com/${{ github.repository }}/releases) page.
+
+          ### Changes since last release (${LAST_RELEASE:-"initial"})
+
+          \`\`\`
+          ${COMMITS}
+          \`\`\`
+
+          ---
+
+          📥 **Downloads**: See assets below for your platform.
+          EOF
+
+          echo "Generated nightly notes:"
+          cat nightly_notes.md
+
+      - name: Delete old nightly releases
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Get all releases
+            const { data: releases } = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100
+            });
+
+            // Find and delete old nightly releases (keep last 3)
+            const nightlyReleases = releases
+              .filter(r => r.tag_name.startsWith('nightly-'))
+              .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+            for (const release of nightlyReleases.slice(3)) {
+              console.log(`Deleting old nightly release: ${release.tag_name}`);
+              await github.rest.repos.deleteRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release.id
+              });
+
+              // Also delete the tag
+              try {
+                await github.rest.git.deleteRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `tags/${release.tag_name}`
+                });
+              } catch (e) {
+                console.log(`Could not delete tag ${release.tag_name}: ${e.message}`);
+              }
+            }
+
+      - name: Create nightly release
+        id: create-release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const releaseNotes = fs.readFileSync('nightly_notes.md', 'utf8');
+            const nightlyTag = `nightly-${process.env.BUILD_DATE}-${process.env.SHORT_SHA}`;
+
+            const { data } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: nightlyTag,
+              target_commitish: context.sha,
+              name: `Nightly Build ${process.env.BUILD_DATE}`,
+              body: releaseNotes,
+              draft: true,
+              prerelease: true
+            });
+
+            core.setOutput('release_id', data.id);
+            core.setOutput('upload_url', data.upload_url);
+            core.setOutput('nightly_tag', nightlyTag);
+            return data.id;
+
+  build-desktop:
+    needs: create-nightly
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            args: '--target aarch64-apple-darwin'
+          - platform: 'macos-latest'
+            args: '--target x86_64-apple-darwin'
+          - platform: 'ubuntu-22.04'
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Install dependencies (Ubuntu)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and release Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          releaseId: ${{ needs.create-nightly.outputs.release_id }}
+          args: ${{ matrix.args }}
+
+  build-android:
+    needs: create-nightly
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          df -h
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust Android targets
+        run: |
+          rustup target add aarch64-linux-android
+          rustup target add armv7-linux-androideabi
+          rustup target add i686-linux-android
+          rustup target add x86_64-linux-android
+
+      - name: Setup NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26d
+        id: setup-ndk
+
+      - name: Setup Android NDK environment for OpenSSL
+        run: |
+          echo "ANDROID_NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
+          echo "NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
+
+          # Add all Android toolchains to PATH for OpenSSL cross-compilation
+          echo "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
+
+          # Set CC, AR, RANLIB for each target
+          echo "CC_aarch64_linux_android=aarch64-linux-android24-clang" >> $GITHUB_ENV
+          echo "AR_aarch64_linux_android=llvm-ar" >> $GITHUB_ENV
+          echo "RANLIB_aarch64_linux_android=llvm-ranlib" >> $GITHUB_ENV
+
+          echo "CC_armv7_linux_androideabi=armv7a-linux-androideabi24-clang" >> $GITHUB_ENV
+          echo "AR_armv7_linux_androideabi=llvm-ar" >> $GITHUB_ENV
+          echo "RANLIB_armv7_linux_androideabi=llvm-ranlib" >> $GITHUB_ENV
+
+          echo "CC_i686_linux_android=i686-linux-android24-clang" >> $GITHUB_ENV
+          echo "AR_i686_linux_android=llvm-ar" >> $GITHUB_ENV
+          echo "RANLIB_i686_linux_android=llvm-ranlib" >> $GITHUB_ENV
+
+          echo "CC_x86_64_linux_android=x86_64-linux-android24-clang" >> $GITHUB_ENV
+          echo "AR_x86_64_linux_android=llvm-ar" >> $GITHUB_ENV
+          echo "RANLIB_x86_64_linux_android=llvm-ranlib" >> $GITHUB_ENV
+
+      - name: Install build dependencies for OpenSSL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y perl make
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-android-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-android-pnpm-store-
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          prefix-key: android
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Initialize Android project
+        run: |
+          rm -rf src-tauri/gen/android
+          pnpm tauri android init
+
+      - name: Update Kotlin version for biometry plugin
+        run: |
+          sed -i 's/kotlin-gradle-plugin:1.9.25/kotlin-gradle-plugin:2.1.0/' src-tauri/gen/android/build.gradle.kts
+
+      - name: Generate app icons
+        run: pnpm tauri icon app-icon.json
+
+      - name: Setup Keystore and Signing Config
+        run: |
+          # Decode keystore from base64 secret
+          echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > /tmp/keystore.jks
+
+          # Verify keystore was created
+          ls -la /tmp/keystore.jks
+
+          # Create keystore.properties for Gradle signing config
+          echo "storeFile=/tmp/keystore.jks" > src-tauri/gen/android/keystore.properties
+          echo "storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> src-tauri/gen/android/keystore.properties
+          echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> src-tauri/gen/android/keystore.properties
+          echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> src-tauri/gen/android/keystore.properties
+
+          # Debug: show keystore.properties content (without passwords)
+          echo "=== keystore.properties ==="
+          cat src-tauri/gen/android/keystore.properties | sed 's/Password=.*/Password=***/'
+
+          # Replace build.gradle.kts with version that includes signing config
+          cat > src-tauri/gen/android/app/build.gradle.kts << 'GRADLE'
+          import java.util.Properties
+
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+              id("rust")
+          }
+
+          val tauriProperties = Properties().apply {
+              val propFile = file("tauri.properties")
+              if (propFile.exists()) {
+                  propFile.inputStream().use { load(it) }
+              }
+          }
+
+          val keystoreProperties = Properties().apply {
+              val propFile = rootProject.file("keystore.properties")
+              if (propFile.exists()) {
+                  propFile.inputStream().use { load(it) }
+              }
+          }
+
+          android {
+              compileSdk = 36
+              namespace = "space.haex.vault"
+
+              signingConfigs {
+                  create("release") {
+                      storeFile = file(keystoreProperties.getProperty("storeFile") ?: "")
+                      storePassword = keystoreProperties.getProperty("storePassword")
+                      keyAlias = keystoreProperties.getProperty("keyAlias")
+                      keyPassword = keystoreProperties.getProperty("keyPassword")
+                  }
+              }
+
+              defaultConfig {
+                  manifestPlaceholders["usesCleartextTraffic"] = "false"
+                  applicationId = "space.haex.vault"
+                  minSdk = 24
+                  targetSdk = 36
+                  versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
+                  versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+              }
+              buildTypes {
+                  getByName("debug") {
+                      manifestPlaceholders["usesCleartextTraffic"] = "true"
+                      isDebuggable = true
+                      isJniDebuggable = true
+                      isMinifyEnabled = false
+                      packaging {
+                          jniLibs.keepDebugSymbols.add("*/arm64-v8a/*.so")
+                          jniLibs.keepDebugSymbols.add("*/armeabi-v7a/*.so")
+                          jniLibs.keepDebugSymbols.add("*/x86/*.so")
+                          jniLibs.keepDebugSymbols.add("*/x86_64/*.so")
+                      }
+                  }
+                  getByName("release") {
+                      signingConfig = signingConfigs.getByName("release")
+                      isMinifyEnabled = true
+                      proguardFiles(
+                          *fileTree(".") { include("**/*.pro") }
+                              .plus(getDefaultProguardFile("proguard-android-optimize.txt"))
+                              .toList().toTypedArray()
+                      )
+                  }
+              }
+              kotlinOptions {
+                  jvmTarget = "1.8"
+              }
+              buildFeatures {
+                  buildConfig = true
+              }
+          }
+
+          rust {
+              rootDirRel = "../../../"
+          }
+
+          dependencies {
+              implementation("androidx.webkit:webkit:1.14.0")
+              implementation("androidx.appcompat:appcompat:1.7.1")
+              implementation("androidx.activity:activity-ktx:1.10.1")
+              implementation("com.google.android.material:material:1.12.0")
+              testImplementation("junit:junit:4.13.2")
+              androidTestImplementation("androidx.test.ext:junit:1.1.4")
+              androidTestImplementation("androidx.test.espresso:espresso-core:3.5.0")
+          }
+
+          apply(from = "tauri.build.gradle.kts")
+          GRADLE
+
+          # Remove leading spaces from gradle file
+          sed -i 's/^          //' src-tauri/gen/android/app/build.gradle.kts
+
+          # Debug: show signing config
+          echo "=== build.gradle.kts signing config ==="
+          grep -A 8 "signingConfigs" src-tauri/gen/android/app/build.gradle.kts
+
+      - name: Build Android APK and AAB (signed)
+        run: pnpm tauri android build
+
+      - name: Get version info
+        run: |
+          echo "PACKAGE_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
+          echo "BUILD_DATE=$(date +'%Y%m%d')" >> $GITHUB_ENV
+
+      - name: Rename Android artifacts
+        run: |
+          mv src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk \
+             src-tauri/gen/android/app/build/outputs/apk/universal/release/haex-vault_nightly-${BUILD_DATE}_universal.apk
+          mv src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab \
+             src-tauri/gen/android/app/build/outputs/bundle/universalRelease/haex-vault_nightly-${BUILD_DATE}_universal.aab
+
+      - name: Upload Android artifacts to Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ needs.create-nightly.outputs.nightly_tag }} \
+            src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk \
+            src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab \
+            --clobber
+
+  publish-nightly:
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    needs: [create-nightly, build-desktop, build-android]
+
+    steps:
+      - name: Publish nightly release
+        id: publish-release
+        uses: actions/github-script@v7
+        env:
+          release_id: ${{ needs.create-nightly.outputs.release_id }}
+        with:
+          script: |
+            github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: process.env.release_id,
+              draft: false,
+              prerelease: true
+            })
