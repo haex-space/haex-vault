@@ -16,6 +16,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { TAURI_COMMANDS, type ApplicationContext } from '@haex-space/vault-sdk'
 import { useExtensionBroadcastStore } from './broadcast'
+import { isDesktop } from '~/utils/platform'
 
 export const useExtensionContextStore = defineStore('extensionContextStore', () => {
   // Current context - cached so we can send it to newly registered iframes
@@ -50,12 +51,15 @@ export const useExtensionContextStore = defineStore('extensionContextStore', () 
     console.log('[ExtensionContext] Context updated:', newContext)
 
     // Store context in Tauri state (for webview extensions to query on init)
-    try {
-      await invoke(TAURI_COMMANDS.extension.setContext, { context: newContext })
-      console.log('[ExtensionContext] Context stored in Tauri state')
-    } catch (error) {
-      // Log error - could be browser mode, Android, or Tauri not ready
-      console.error('[ExtensionContext] Failed to store context in Tauri:', error)
+    // This is only needed on Desktop where WebView extensions use Tauri invoke
+    // On mobile, extensions use iframes with postMessage and get context via broadcast
+    if (isDesktop()) {
+      try {
+        await invoke(TAURI_COMMANDS.extension.setContext, { context: newContext })
+        console.log('[ExtensionContext] Context stored in Tauri state')
+      } catch (error) {
+        console.error('[ExtensionContext] Failed to store context in Tauri:', error)
+      }
     }
 
     // Broadcast to all extensions (iframes + webviews)
@@ -75,7 +79,10 @@ export const useExtensionContextStore = defineStore('extensionContextStore', () 
     [currentTheme, locale, deviceId],
     () => {
       console.log('[ExtensionContext] Dependency changed, updating context')
-      updateContext()
+      // Call async function with proper error handling to avoid unhandled rejections
+      updateContext().catch((error) => {
+        console.error('[ExtensionContext] Failed to update context:', error)
+      })
     },
     { immediate: true },
   )

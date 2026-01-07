@@ -52,16 +52,19 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
   // ============================================================================
 
   // Map iframe element to extension instance
-  const iframeRegistry = new Map<HTMLIFrameElement, ExtensionInstance>()
+  // Use markRaw to prevent Vue reactivity from trying to proxy DOM elements
+  const iframeRegistry = markRaw(new Map<HTMLIFrameElement, ExtensionInstance>())
 
   // Cache: event.source Window -> extension instance (performance optimization)
   // On Android, origin doesn't contain extension info, so we use contentWindow
   // matching on first message and cache the result for faster subsequent lookups.
-  const sourceCache = new Map<Window, ExtensionInstance>()
+  // IMPORTANT: Use markRaw to prevent Vue from trying to access properties on
+  // cross-origin Window objects (which would throw SecurityError)
+  const sourceCache = markRaw(new Map<Window, ExtensionInstance>())
 
   /**
    * Register an iframe for message handling.
-   * Also sends the current context to the newly registered iframe.
+   * Context will be sent when the iframe requests it via extension_context_get.
    */
   const registerIframe = (
     iframe: HTMLIFrameElement,
@@ -78,36 +81,6 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
     })
     iframeRegistry.set(iframe, { extension, windowId })
     console.log('[BroadcastStore] Registered iframe - new registry size:', iframeRegistry.size)
-
-    // Send current context to newly registered iframe
-    // This ensures the extension gets context even if it was registered after the initial broadcast
-    if (iframe.contentWindow) {
-      sendInitialContextToIframe(iframe)
-    }
-  }
-
-  /**
-   * Send current context to a specific iframe.
-   * Used when an iframe is newly registered to ensure it has the current context.
-   */
-  const sendInitialContextToIframe = (iframe: HTMLIFrameElement) => {
-    // Import dynamically to avoid circular dependency
-    const contextStore = useExtensionContextStore()
-    const context = contextStore.getContext()
-
-    if (!context) {
-      console.log('[BroadcastStore] No context available yet, skipping initial send')
-      return
-    }
-
-    const message = {
-      type: HAEXTENSION_EVENTS.CONTEXT_CHANGED,
-      data: { context },
-      timestamp: Date.now(),
-    }
-
-    console.log('[BroadcastStore] Sending initial context to new iframe:', context)
-    iframe.contentWindow?.postMessage(message, '*')
   }
 
   /**
