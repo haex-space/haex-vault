@@ -25,13 +25,21 @@ jobs:
       - name: Check for new commits
         id: check
         run: |
-          # Get the last nightly tag
-          LAST_NIGHTLY=$(git tag -l 'nightly-*' --sort=-creatordate | head -1)
-          echo "Last nightly tag: $LAST_NIGHTLY"
-
           # Get short SHA for this build
           SHORT_SHA=$(git rev-parse --short HEAD)
           echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+
+          # If triggered by tag push, always build
+          if [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" == refs/tags/nightly-* ]]; then
+            echo "Triggered by nightly tag push, building"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # For scheduled runs and manual dispatch, check for new commits
+          # Get the last nightly tag
+          LAST_NIGHTLY=$(git tag -l 'nightly-*' --sort=-creatordate | head -1)
+          echo "Last nightly tag: $LAST_NIGHTLY"
 
           if [ -z "$LAST_NIGHTLY" ]; then
             echo "No previous nightly found, building"
