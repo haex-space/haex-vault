@@ -1,6 +1,9 @@
 name: Nightly Build
 
 on:
+  push:
+    tags:
+      - 'nightly-*'
   schedule:
     # Run at 2:00 UTC every day
     - cron: '0 2 * * *'
