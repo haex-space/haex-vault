@@ -1,3 +1,4 @@
+use crate::crdt::trigger;
 use crate::crdt::trigger::{
     get_table_schema as get_table_schema_internal, ColumnInfo, COLUMN_HLCS_COLUMN,
     HLC_TIMESTAMP_COLUMN,
@@ -382,6 +383,32 @@ pub fn apply_remote_changes_in_transaction(
                     first_change.table_name
                 );
                 continue;
+            }
+
+            // Ensure table has CRDT columns (haex_timestamp, haex_column_hlcs, haex_tombstone)
+            // This handles tables created in dev mode that don't have CRDT columns yet.
+            // When sync data arrives, we know it's from a production extension, so we need CRDT.
+            let has_hlcs_column = schema.iter().any(|col| col.name == "haex_column_hlcs");
+            if !has_hlcs_column {
+                eprintln!(
+                    "[SYNC RUST] Table '{}' missing CRDT columns (created in dev mode?) - upgrading now",
+                    first_change.table_name
+                );
+                match trigger::ensure_crdt_columns_and_triggers(&tx, &first_change.table_name) {
+                    Ok((columns_added, triggers_created)) => {
+                        eprintln!(
+                            "[SYNC RUST] Upgraded '{}': columns={}, triggers={}",
+                            first_change.table_name, columns_added, triggers_created
+                        );
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "[SYNC RUST] Failed to upgrade '{}': {} - skipping this table",
+                            first_change.table_name, e
+                        );
+                        continue;
+                    }
+                }
             }
 
             // Parse row PKs (same for all changes in this row)
