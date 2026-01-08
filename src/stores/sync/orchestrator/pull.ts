@@ -4,10 +4,12 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
+import { emit } from '@tauri-apps/api/event'
 import { decryptCrdtData } from '@haex-space/vault-sdk'
 import type { ColumnChange } from '../tableScanner'
 import { log, type BackendSyncState, type PullResult } from './types'
 import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
+import { SYNC_TABLES_INTERNAL_EVENT } from '../syncEvents'
 
 /**
  * Pulls changes from a specific backend using column-level HLC comparison
@@ -107,16 +109,21 @@ export const pullFromBackendAsync = async (
     log.debug('Reloading backend config after pull...')
     await syncBackendsStore.loadBackendsAsync()
 
-    // Step 5: Emit filtered sync events to extensions
-    // Each extension only receives table names they have database permissions for
+    // Step 5: Emit sync events for store reloading and extensions
     if (tablesAffected.length > 0) {
-      log.info('Emitting filtered sync:tables-updated events for tables:', tablesAffected)
+      log.info('Emitting sync:tables-updated events for tables:', tablesAffected)
 
-      // Use broadcast store to filter and emit to all extensions (iframes + webviews)
+      // Emit internal event for main window stores (theme, locale, etc.)
+      // This triggers the reload functions registered in syncEvents.ts
+      await emit(SYNC_TABLES_INTERNAL_EVENT, { tables: tablesAffected })
+      log.info('Internal sync:tables-updated event emitted for store reloading')
+
+      // Emit filtered events to extensions (iframes + webviews)
+      // Each extension only receives table names they have database permissions for
       const broadcastStore = useExtensionBroadcastStore()
       await broadcastStore.broadcastSyncTablesUpdated(tablesAffected)
 
-      log.info('Filtered sync:tables-updated events emitted successfully')
+      log.info('Filtered sync:tables-updated events emitted to extensions')
     }
 
     log.info(`========== PULL SUCCESS: ${allChanges.length} changes applied ==========`)

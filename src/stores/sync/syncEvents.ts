@@ -8,6 +8,9 @@
 
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
+// Internal event name for store reloading after sync pull
+export const SYNC_TABLES_INTERNAL_EVENT = 'sync:tables-updated'
+
 type SyncUpdateCallback = (tables: string[]) => void | Promise<void>
 
 interface TableSubscription {
@@ -55,7 +58,7 @@ export const initSyncEventsAsync = async (): Promise<void> => {
   if (isInitialized) return
 
   eventUnlisten = await listen<{ tables: string[] }>(
-    'sync:tables-updated',
+    SYNC_TABLES_INTERNAL_EVENT,
     async (event) => {
       const { tables } = event.payload
       console.log('[SyncEvents] ========== RECEIVED sync:tables-updated ==========')
