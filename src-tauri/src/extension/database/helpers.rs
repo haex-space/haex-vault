@@ -234,6 +234,78 @@ pub fn execute_sql_with_context(
 
         let statement_sql = statement.to_string();
 
+        // Handle ALTER TABLE with column changes - drop triggers BEFORE executing
+        // This is necessary because SQLite checks triggers during ALTER TABLE execution.
+        // If a trigger references a column being dropped, the ALTER TABLE fails.
+        let alter_table_info: Option<(String, bool)> = if let Statement::AlterTable { name, operations, .. } = &statement {
+            let raw_name = name.to_string();
+            let table_name_str = raw_name.trim_matches('"').trim_matches('`').to_string();
+
+            // Skip temporary tables used by Drizzle for table reconstruction
+            if table_name_str.starts_with("__new_") {
+                None
+            } else {
+                // Check for DROP COLUMN on non-existent columns (simulate IF EXISTS)
+                // SQLite doesn't support DROP COLUMN IF EXISTS, so we check manually
+                for op in operations.iter() {
+                    if let sqlparser::ast::AlterTableOperation::DropColumn { column_names, .. } = op {
+                        for column_name in column_names {
+                            let col_name = column_name.value.trim_matches('"').trim_matches('`');
+                            // Check if column exists
+                            let column_exists: bool = tx
+                                .prepare(&format!("SELECT 1 FROM pragma_table_info('{}') WHERE name = ?", table_name_str))
+                                .and_then(|mut stmt| {
+                                    stmt.query_row([col_name], |_| Ok(true))
+                                })
+                                .unwrap_or(false);
+
+                            if !column_exists {
+                                println!(
+                                    "[CRDT] DROP COLUMN '{}' on '{}' skipped - column does not exist",
+                                    col_name, table_name_str
+                                );
+                                // Skip this ALTER TABLE entirely - column doesn't exist
+                                tx.commit().map_err(DatabaseError::from)?;
+                                return Ok(vec![]);
+                            }
+                        }
+                    }
+                }
+
+                let has_column_change = operations.iter().any(|op| {
+                    use sqlparser::ast::AlterTableOperation;
+                    matches!(
+                        op,
+                        AlterTableOperation::AddColumn { .. }
+                            | AlterTableOperation::DropColumn { .. }
+                            | AlterTableOperation::RenameColumn { .. }
+                            | AlterTableOperation::AlterColumn { .. }
+                    )
+                });
+
+                if has_column_change {
+                    // ALWAYS drop and recreate triggers on column changes.
+                    // This is necessary because:
+                    // 1. Triggers reference column names directly in their SQL
+                    // 2. If a column is dropped, the trigger fails with "no such column"
+                    // 3. Even in dev mode, tables may have triggers from previous production installs
+                    // 4. Recreating triggers ensures they match the current schema
+                    println!(
+                        "[CRDT] ALTER TABLE on '{}' affects columns - dropping triggers before execution...",
+                        table_name_str
+                    );
+                    // Drop triggers BEFORE executing ALTER TABLE to avoid "no such column" errors
+                    // This is safe even if triggers don't exist (DROP TRIGGER IF EXISTS)
+                    trigger::drop_triggers_for_table(&tx, &table_name_str)?;
+                    Some((table_name_str, true)) // Always recreate triggers
+                } else {
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         // Dev mode extensions execute SQL directly without CRDT transformation.
         // Their tables don't have CRDT columns (haex_timestamp, haex_tombstone, haex_column_hlcs).
         let result = if ctx.is_dev_mode {
@@ -348,6 +420,22 @@ pub fn execute_sql_with_context(
                     table_name_str
                 );
             }
+        }
+
+        // Handle ALTER TABLE - recreate triggers AFTER column changes (only for production extensions)
+        // Triggers were dropped before ALTER TABLE execution to avoid "no such column" errors.
+        // Now recreate them with the updated column list.
+        if let Some((table_name_str, _)) = alter_table_info {
+            println!(
+                "[CRDT] ALTER TABLE on '{}' completed - recreating triggers with new schema...",
+                table_name_str
+            );
+            // Recreate triggers with updated column list (recreate=false since we already dropped them)
+            trigger::setup_triggers_for_table(&tx, &table_name_str, false)?;
+            println!(
+                "[CRDT] Triggers for table '{}' recreated successfully.",
+                table_name_str
+            );
         }
 
         // Commit transaction
