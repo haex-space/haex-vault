@@ -558,13 +558,25 @@ async fn handle_connection(
                             envelope.extension_name
                         );
 
-                        // Check authorization - either from handshake or session (allow once)
-                        // Session authorization may have been granted AFTER the handshake
-                        let is_authorized = if authorized {
-                            true
-                        } else if let Some(cid) = &client_id {
-                            let session_auth = session_authorizations.read().await;
-                            session_auth.contains_key(cid)
+                        // Check authorization - from clients map or session (allow once)
+                        // Authorization may have been granted AFTER the handshake via notify_authorization_granted()
+                        let is_authorized = if let Some(cid) = &client_id {
+                            // First check if client is authorized in the shared clients map
+                            // This catches authorization granted after handshake
+                            let clients_guard = clients.read().await;
+                            let client_authorized = clients_guard
+                                .get(cid)
+                                .map(|c| c.authorized)
+                                .unwrap_or(false);
+                            drop(clients_guard);
+
+                            if client_authorized {
+                                true
+                            } else {
+                                // Fall back to session authorization (allow once)
+                                let session_auth = session_authorizations.read().await;
+                                session_auth.contains_key(cid)
+                            }
                         } else {
                             false
                         };
