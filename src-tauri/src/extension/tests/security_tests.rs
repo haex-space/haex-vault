@@ -140,7 +140,7 @@ mod sql_injection_attacks {
 
     #[test]
     fn test_extension_cannot_spoof_another_prefix() {
-        let ctx = ExtensionSqlContext::new("pubkey".to_string(), "myext".to_string(), false);
+        let ctx = ExtensionSqlContext::new("pubkey".to_string(), "myext".to_string());
         let expected_prefix = ctx.get_table_prefix();
 
         // Attacker tries to access other extension's tables
@@ -386,16 +386,8 @@ mod cross_extension_isolation {
     #[test]
     fn test_table_prefix_uniqueness() {
         // Different extensions should have different prefixes
-        let ctx_a = ExtensionSqlContext::new(
-            "pubkey_a".to_string(),
-            "extension".to_string(),
-            false,
-        );
-        let ctx_b = ExtensionSqlContext::new(
-            "pubkey_b".to_string(),
-            "extension".to_string(),
-            false,
-        );
+        let ctx_a = ExtensionSqlContext::new("pubkey_a".to_string(), "extension".to_string());
+        let ctx_b = ExtensionSqlContext::new("pubkey_b".to_string(), "extension".to_string());
 
         assert_ne!(ctx_a.get_table_prefix(), ctx_b.get_table_prefix());
     }
@@ -403,16 +395,10 @@ mod cross_extension_isolation {
     #[test]
     fn test_same_name_different_pubkey_isolated() {
         // Two extensions with same name but different pubkeys are isolated
-        let ctx_1 = ExtensionSqlContext::new(
-            "developer1".to_string(),
-            "password-manager".to_string(),
-            false,
-        );
-        let ctx_2 = ExtensionSqlContext::new(
-            "developer2".to_string(),
-            "password-manager".to_string(),
-            false,
-        );
+        let ctx_1 =
+            ExtensionSqlContext::new("developer1".to_string(), "password-manager".to_string());
+        let ctx_2 =
+            ExtensionSqlContext::new("developer2".to_string(), "password-manager".to_string());
 
         let prefix_1 = ctx_1.get_table_prefix();
         let prefix_2 = ctx_2.get_table_prefix();
@@ -476,7 +462,6 @@ mod malformed_input_tests {
         let ctx = ExtensionSqlContext::new(
             "pubkey".to_string(),
             "extension-日本語".to_string(),
-            false,
         );
 
         let prefix = ctx.get_table_prefix();

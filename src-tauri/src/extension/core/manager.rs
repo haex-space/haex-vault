@@ -50,7 +50,6 @@ struct ExtensionDataFromDb {
 #[derive(Default)]
 pub struct ExtensionManager {
     pub production_extensions: Mutex<HashMap<String, Extension>>,
-    pub dev_extensions: Mutex<HashMap<String, Extension>>,
     pub permission_cache: Mutex<HashMap<String, CachedPermission>>,
     pub missing_extensions: Mutex<Vec<MissingExtension>>,
 }
@@ -382,81 +381,28 @@ impl ExtensionManager {
         }
     }
 
-    pub fn add_dev_extension(&self, extension: Extension) -> Result<(), ExtensionError> {
-        if extension.id.is_empty() {
-            return Err(ExtensionError::ValidationError {
-                reason: "Extension ID cannot be empty".to_string(),
-            });
-        }
-
-        match &extension.source {
-            ExtensionSource::Development { .. } => {
-                let mut extensions = self.dev_extensions.lock().unwrap();
-                extensions.insert(extension.id.clone(), extension);
-                Ok(())
-            }
-            _ => Err(ExtensionError::ValidationError {
-                reason: "Expected Development source".to_string(),
-            }),
-        }
-    }
-
     pub fn get_extension(&self, extension_id: &str) -> Option<Extension> {
-        let dev_extensions = self.dev_extensions.lock().unwrap();
-        if let Some(extension) = dev_extensions.get(extension_id) {
-            return Some(extension.clone());
-        }
-
         let prod_extensions = self.production_extensions.lock().unwrap();
         prod_extensions.get(extension_id).cloned()
     }
 
-    /// Get all installed extensions (both dev and production)
+    /// Get all installed extensions
     pub fn get_all_extensions(&self) -> Result<Vec<Extension>, ExtensionError> {
-        let mut extensions = Vec::new();
-
-        // Collect dev extensions
-        let dev_extensions = self
-            .dev_extensions
-            .lock()
-            .map_err(|e| ExtensionError::MutexPoisoned {
-                reason: e.to_string(),
-            })?;
-        extensions.extend(dev_extensions.values().cloned());
-
-        // Collect production extensions
         let prod_extensions = self
             .production_extensions
             .lock()
             .map_err(|e| ExtensionError::MutexPoisoned {
                 reason: e.to_string(),
             })?;
-        extensions.extend(prod_extensions.values().cloned());
-
-        Ok(extensions)
+        Ok(prod_extensions.values().cloned().collect())
     }
 
-    /// Find extension ID by public_key and name (checks dev extensions first, then production)
+    /// Find extension ID by public_key and name
     fn find_extension_id_by_public_key_and_name(
         &self,
         public_key: &str,
         name: &str,
     ) -> Result<Option<(String, Extension)>, ExtensionError> {
-        // 1. Check dev extensions first (higher priority)
-        let dev_extensions =
-            self.dev_extensions
-                .lock()
-                .map_err(|e| ExtensionError::MutexPoisoned {
-                    reason: e.to_string(),
-                })?;
-
-        for (id, ext) in dev_extensions.iter() {
-            if ext.manifest.public_key == public_key && ext.manifest.name == name {
-                return Ok(Some((id.clone(), ext.clone())));
-            }
-        }
-
-        // 2. Check production extensions
         let prod_extensions =
             self.production_extensions
                 .lock()
@@ -492,85 +438,53 @@ impl ExtensionManager {
                 name: name.to_string(),
             })?;
 
-        // Remove from dev extensions first
-        {
-            let mut dev_extensions =
-                self.dev_extensions
-                    .lock()
-                    .map_err(|e| ExtensionError::MutexPoisoned {
-                        reason: e.to_string(),
-                    })?;
-            if dev_extensions.remove(&id).is_some() {
-                return Ok(());
-            }
-        }
-
-        // Remove from production extensions
-        {
-            let mut prod_extensions =
-                self.production_extensions
-                    .lock()
-                    .map_err(|e| ExtensionError::MutexPoisoned {
-                        reason: e.to_string(),
-                    })?;
-            prod_extensions.remove(&id);
-        }
+        let mut prod_extensions =
+            self.production_extensions
+                .lock()
+                .map_err(|e| ExtensionError::MutexPoisoned {
+                    reason: e.to_string(),
+                })?;
+        prod_extensions.remove(&id);
 
         Ok(())
     }
 
-    /// Update the display mode of an extension (works for both dev and production extensions)
-    /// For production extensions, also persists the change to the database.
+    /// Update the display mode of an extension.
+    /// Persists the change to the database.
     pub fn update_display_mode(
         &self,
         extension_id: &str,
         display_mode: crate::extension::core::manifest::DisplayMode,
         state: &State<'_, AppState>,
     ) -> Result<(), ExtensionError> {
-        // Try dev extensions first (in-memory only, no database persistence)
-        {
-            let mut dev_extensions =
-                self.dev_extensions
-                    .lock()
-                    .map_err(|e| ExtensionError::MutexPoisoned {
-                        reason: e.to_string(),
-                    })?;
-            if let Some(extension) = dev_extensions.get_mut(extension_id) {
-                extension.manifest.display_mode = Some(display_mode);
-                return Ok(());
-            }
-        }
-
-        // Try production extensions (update in-memory + persist to database)
-        {
-            let mut prod_extensions =
-                self.production_extensions
-                    .lock()
-                    .map_err(|e| ExtensionError::MutexPoisoned {
-                        reason: e.to_string(),
-                    })?;
-            if let Some(extension) = prod_extensions.get_mut(extension_id) {
-                // Persist to database using CRDT-aware update
-                let display_mode_str = format!("{:?}", display_mode).to_lowercase();
-
-                // Update in-memory state
-                extension.manifest.display_mode = Some(display_mode);
-                let sql = format!(
-                    "UPDATE {} SET display_mode = ? WHERE id = ?",
-                    TABLE_EXTENSIONS
-                );
-                let params = vec![
-                    JsonValue::String(display_mode_str),
-                    JsonValue::String(extension_id.to_string()),
-                ];
-
-                let hlc_guard = state.hlc.lock().map_err(|e| ExtensionError::MutexPoisoned {
-                    reason: format!("Failed to lock HLC: {}", e),
+        let mut prod_extensions =
+            self.production_extensions
+                .lock()
+                .map_err(|e| ExtensionError::MutexPoisoned {
+                    reason: e.to_string(),
                 })?;
-                execute_with_crdt(sql, params, &state.db, &hlc_guard)?;
 
-                return Ok(());
-            }
+        if let Some(extension) = prod_extensions.get_mut(extension_id) {
+            // Persist to database using CRDT-aware update
+            let display_mode_str = format!("{:?}", display_mode).to_lowercase();
+
+            // Update in-memory state
+            extension.manifest.display_mode = Some(display_mode);
+            let sql = format!(
+                "UPDATE {} SET display_mode = ? WHERE id = ?",
+                TABLE_EXTENSIONS
+            );
+            let params = vec![
+                JsonValue::String(display_mode_str),
+                JsonValue::String(extension_id.to_string()),
+            ];
+
+            let hlc_guard = state.hlc.lock().map_err(|e| ExtensionError::MutexPoisoned {
+                reason: format!("Failed to lock HLC: {}", e),
+            })?;
+            execute_with_crdt(sql, params, &state.db, &hlc_guard)?;
+
+            return Ok(());
         }
 
         Err(ExtensionError::ValidationError {
@@ -1400,11 +1314,10 @@ impl ExtensionManager {
 
             eprintln!("[INSTALL_MIGRATIONS] Processing migration: {}", entry.tag);
 
-            // Create context for SQL execution (production mode for installed extensions)
+            // Create context for SQL execution
             let ctx = ExtensionSqlContext::new(
                 manifest.public_key.clone(),
                 manifest.name.clone(),
-                false, // is_dev_mode = false for production installations
             );
 
             // Execute all statements using the helper function

@@ -822,7 +822,7 @@ async fn check_client_authorized_for_extension(
 }
 
 /// Get extension ID by public_key and name
-/// First checks dev_extensions in memory, then falls back to database lookup
+/// Looks up extension in database (dev extensions are now also stored in DB)
 async fn get_extension_id_by_public_key_and_name(
     app_handle: &AppHandle,
     extension_public_key: &str,
@@ -830,33 +830,16 @@ async fn get_extension_id_by_public_key_and_name(
 ) -> Option<String> {
     let state = app_handle.state::<AppState>();
 
-    // First, check if this is a dev extension request (public_key starts with "dev_")
-    // Dev extensions are stored in memory, not in the database
-    if extension_public_key.starts_with("dev_") {
-        // Extract the actual public key (remove "dev_" prefix)
-        let actual_public_key = &extension_public_key[4..];
-        // Dev extension ID format: dev_{public_key}_{name}
-        let expected_dev_id = format!("dev_{}_{}", actual_public_key, extension_name);
+    // Handle dev_ prefix for backwards compatibility
+    let actual_public_key = if extension_public_key.starts_with("dev_") {
+        &extension_public_key[4..]
+    } else {
+        extension_public_key
+    };
 
-        let dev_extensions = state.extension_manager.dev_extensions.lock().unwrap();
-        if dev_extensions.contains_key(&expected_dev_id) {
-            eprintln!(
-                "[ExternalBridge] Found dev extension: {}",
-                expected_dev_id
-            );
-            return Some(expected_dev_id);
-        }
-        eprintln!(
-            "[ExternalBridge] Dev extension not found: {} (available: {:?})",
-            expected_dev_id,
-            dev_extensions.keys().collect::<Vec<_>>()
-        );
-        return None;
-    }
-
-    // For production extensions, look up in database
+    // Look up extension in database
     let params = vec![
-        JsonValue::String(extension_public_key.to_string()),
+        JsonValue::String(actual_public_key.to_string()),
         JsonValue::String(extension_name.to_string()),
     ];
 

@@ -11,11 +11,10 @@ use crate::crdt::transformer::CrdtTransformer;
 use crate::database::core::{parse_sql_statements, with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
 use crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED;
-use crate::extension::core::types::ExtensionSource;
 use crate::extension::database::executor::SqlExecutor;
 use crate::extension::database::helpers::{
-    execute_dev_mode_migrations, execute_migration_statements, execute_sql_with_context,
-    is_allowed_pragma, is_pragma_statement, split_migration_statements, validate_sql_table_prefix,
+    execute_migration_statements, execute_sql_with_context, is_allowed_pragma,
+    is_pragma_statement, split_migration_statements, validate_sql_table_prefix,
     ExtensionSqlContext,
 };
 use crate::extension::database::queries::{
@@ -53,14 +52,11 @@ pub async fn extension_database_execute(
             reason: format!("Extension with ID {} not found", extension_id),
         })?;
 
-    let is_dev_mode = matches!(extension.source, ExtensionSource::Development { .. });
-
     SqlPermissionValidator::validate_sql(&state, &extension_id, &sql).await?;
 
     let ctx = ExtensionSqlContext::new(
         extension.manifest.public_key.clone(),
         extension.manifest.name.clone(),
-        is_dev_mode,
     );
     let rows = execute_sql_with_context(&ctx, &sql, &params, state.inner())?;
 
@@ -214,15 +210,8 @@ pub async fn extension_database_register_migrations(
 
     let ext_public_key = extension.manifest.public_key.clone();
     let ext_name = extension.manifest.name.clone();
-    let is_dev_mode = matches!(extension.source, ExtensionSource::Development { .. });
 
-    // Dev mode: Execute migrations directly without database tracking
-    if is_dev_mode {
-        return execute_dev_mode_migrations(&ext_public_key, &ext_name, &migrations, state.inner())
-            .map_err(Into::into);
-    }
-
-    // Production mode: Store and track migrations in database
+    // Store and track migrations in database
     for migration_obj in &migrations {
         let migration_name = migration_obj
             .get("name")
@@ -239,7 +228,7 @@ pub async fn extension_database_register_migrations(
             })?;
 
         let statements = split_migration_statements(sql_statement);
-        let ctx = ExtensionSqlContext::new(ext_public_key.clone(), ext_name.clone(), is_dev_mode);
+        let ctx = ExtensionSqlContext::new(ext_public_key.clone(), ext_name.clone());
 
         for stmt in statements.iter() {
             // Skip PRAGMA validation (handled separately during execution)
@@ -309,7 +298,7 @@ pub async fn extension_database_register_migrations(
 
     // Apply pending migrations
     let mut applied_names: Vec<String> = Vec::new();
-    let exec_ctx = ExtensionSqlContext::new(ext_public_key.clone(), ext_name.clone(), false);
+    let exec_ctx = ExtensionSqlContext::new(ext_public_key.clone(), ext_name.clone());
 
     for (migration_name, sql_content) in &pending_migrations {
         execute_migration_statements(&exec_ctx, sql_content, state.inner())?;
@@ -401,7 +390,7 @@ pub fn apply_synced_extension_migrations(
     let mut applied_names: Vec<String> = Vec::new();
 
     for (extension_id, migration_name, sql_content, public_key, ext_name) in &pending_migrations {
-        let ctx = ExtensionSqlContext::new(public_key.clone(), ext_name.clone(), false);
+        let ctx = ExtensionSqlContext::new(public_key.clone(), ext_name.clone());
         execute_migration_statements(&ctx, sql_content, state.inner())?;
 
         with_connection(&state.db, |conn| {

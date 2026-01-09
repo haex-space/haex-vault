@@ -372,7 +372,7 @@ mod sql_context_tests {
 
     #[test]
     fn test_table_prefix_format() {
-        let ctx = ExtensionSqlContext::new("mypubkey".to_string(), "myext".to_string(), false);
+        let ctx = ExtensionSqlContext::new("mypubkey".to_string(), "myext".to_string());
         let prefix = ctx.get_table_prefix();
 
         // Prefix should be pubkey__sanitized_name__
@@ -384,7 +384,7 @@ mod sql_context_tests {
     fn test_table_prefix_preserves_name() {
         // Extension name with hyphens is NOT sanitized - preserved as-is
         let ctx =
-            ExtensionSqlContext::new("pubkey".to_string(), "my-cool-extension".to_string(), false);
+            ExtensionSqlContext::new("pubkey".to_string(), "my-cool-extension".to_string());
         let prefix = ctx.get_table_prefix();
 
         // Hyphens are preserved
@@ -393,28 +393,18 @@ mod sql_context_tests {
 
     #[test]
     fn test_different_extensions_have_different_prefixes() {
-        let ctx1 = ExtensionSqlContext::new("pubkey1".to_string(), "ext".to_string(), false);
-        let ctx2 = ExtensionSqlContext::new("pubkey2".to_string(), "ext".to_string(), false);
+        let ctx1 = ExtensionSqlContext::new("pubkey1".to_string(), "ext".to_string());
+        let ctx2 = ExtensionSqlContext::new("pubkey2".to_string(), "ext".to_string());
 
         assert_ne!(ctx1.get_table_prefix(), ctx2.get_table_prefix());
     }
 
     #[test]
     fn test_same_extension_same_prefix() {
-        let ctx1 = ExtensionSqlContext::new("pubkey".to_string(), "myext".to_string(), false);
-        let ctx2 = ExtensionSqlContext::new("pubkey".to_string(), "myext".to_string(), false);
+        let ctx1 = ExtensionSqlContext::new("pubkey".to_string(), "myext".to_string());
+        let ctx2 = ExtensionSqlContext::new("pubkey".to_string(), "myext".to_string());
 
         assert_eq!(ctx1.get_table_prefix(), ctx2.get_table_prefix());
-    }
-
-    #[test]
-    fn test_dev_mode_flag() {
-        let prod_ctx = ExtensionSqlContext::new("pubkey".to_string(), "ext".to_string(), false);
-        let dev_ctx = ExtensionSqlContext::new("pubkey".to_string(), "ext".to_string(), true);
-
-        // Both should generate valid prefixes
-        assert!(!prod_ctx.get_table_prefix().is_empty());
-        assert!(!dev_ctx.get_table_prefix().is_empty());
     }
 }
 

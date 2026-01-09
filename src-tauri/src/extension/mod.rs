@@ -74,7 +74,7 @@ pub async fn get_all_extensions(
 
     let mut extensions = Vec::new();
 
-    // Production Extensions
+    // All Extensions
     {
         let prod_exts = state
             .extension_manager
@@ -82,14 +82,6 @@ pub async fn get_all_extensions(
             .lock()
             .unwrap();
         for ext in prod_exts.values() {
-            extensions.push(ExtensionInfoResponse::from_extension(ext)?);
-        }
-    }
-
-    // Dev Extensions
-    {
-        let dev_exts = state.extension_manager.dev_extensions.lock().unwrap();
-        for ext in dev_exts.values() {
             extensions.push(ExtensionInfoResponse::from_extension(ext)?);
         }
     }
@@ -283,15 +275,24 @@ async fn check_dev_server_health(url: &str) -> bool {
     false
 }
 
+/// Load a dev extension from a local path.
+/// Dev extensions are now treated like production extensions:
+/// - Registered in the database (with CRDT support)
+/// - Have CRDT columns and triggers on their tables
+/// - Can sync across devices
 #[tauri::command]
 pub async fn load_dev_extension(
     extension_path: String,
     state: State<'_, AppState>,
 ) -> Result<String, ExtensionError> {
+    use crate::database::core::with_connection;
+    use crate::database::error::DatabaseError;
     use crate::extension::core::{
         manifest::ExtensionManifest,
         types::{Extension, ExtensionSource},
     };
+    use crate::extension::database::executor::SqlExecutor;
+    use crate::table_names::TABLE_EXTENSIONS;
     use std::path::PathBuf;
     use std::time::SystemTime;
 
@@ -386,12 +387,12 @@ pub async fn load_dev_extension(
     )?;
 
     let manifest = ExtensionManifest {
-        name,
-        version,
+        name: name.clone(),
+        version: version.clone(),
         author,
         entry: partial_manifest.entry,
         icon: resolved_icon,
-        public_key: partial_manifest.public_key,
+        public_key: partial_manifest.public_key.clone(),
         signature: partial_manifest.signature,
         permissions: partial_manifest.permissions,
         homepage,
@@ -404,25 +405,109 @@ pub async fn load_dev_extension(
     // 3.5. Validate public key format
     utils::validate_public_key(&manifest.public_key)?;
 
-    // 4. Generate a unique ID for dev extension: dev_<public_key>_<name>
-    let extension_id = format!("dev_{}_{}", manifest.public_key, manifest.name);
+    // 4. Check if extension already exists in DB (UPSERT pattern)
+    let check_sql = format!(
+        "SELECT id FROM {TABLE_EXTENSIONS} WHERE public_key = ? AND name = ? AND haex_tombstone = 0"
+    );
 
-    // 5. Check if dev extension already exists (allow reload)
-    if let Some(existing) = state
+    let existing_id: Option<String> = with_connection(&state.db, |conn| {
+        let mut stmt = conn.prepare(&check_sql)?;
+        let result: Result<String, _> = stmt.query_row(
+            rusqlite::params![&manifest.public_key, &name],
+            |row| row.get(0),
+        );
+        Ok(result.ok())
+    })?;
+
+    // 5. Insert or update in database
+    let extension_id = with_connection(&state.db, |conn| {
+        let tx = conn.transaction().map_err(DatabaseError::from)?;
+
+        let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
+            reason: "Failed to lock HLC service".to_string(),
+        })?;
+
+        let actual_id = if let Some(existing_id) = existing_id {
+            // Update existing extension
+            eprintln!(
+                "[DEV] Updating existing extension {}::{} with id {}",
+                manifest.public_key, name, existing_id
+            );
+            let update_sql = format!(
+                "UPDATE {TABLE_EXTENSIONS} SET version = ?, author = ?, entry = ?, icon = ?, signature = ?, homepage = ?, description = ?, enabled = ?, single_instance = ?, display_mode = ? WHERE id = ?"
+            );
+
+            SqlExecutor::execute_internal_typed(
+                &tx,
+                &hlc_service,
+                &update_sql,
+                rusqlite::params![
+                    manifest.version,
+                    manifest.author,
+                    manifest.entry,
+                    manifest.icon,
+                    manifest.signature,
+                    manifest.homepage,
+                    manifest.description,
+                    true, // enabled
+                    manifest.single_instance.unwrap_or(false),
+                    manifest
+                        .display_mode
+                        .as_ref()
+                        .map(|dm| format!("{:?}", dm).to_lowercase())
+                        .unwrap_or_else(|| "auto".to_string()),
+                    existing_id,
+                ],
+            )?;
+            existing_id
+        } else {
+            // Insert new extension
+            let new_id = uuid::Uuid::new_v4().to_string();
+            eprintln!(
+                "[DEV] Inserting new extension {}::{} with id {}",
+                manifest.public_key, name, new_id
+            );
+            let insert_sql = format!(
+                "INSERT INTO {TABLE_EXTENSIONS} (id, name, version, author, entry, icon, public_key, signature, homepage, description, enabled, single_instance, display_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            );
+
+            SqlExecutor::execute_internal_typed(
+                &tx,
+                &hlc_service,
+                &insert_sql,
+                rusqlite::params![
+                    new_id,
+                    manifest.name,
+                    manifest.version,
+                    manifest.author,
+                    manifest.entry,
+                    manifest.icon,
+                    manifest.public_key,
+                    manifest.signature,
+                    manifest.homepage,
+                    manifest.description,
+                    true, // enabled
+                    manifest.single_instance.unwrap_or(false),
+                    manifest
+                        .display_mode
+                        .as_ref()
+                        .map(|dm| format!("{:?}", dm).to_lowercase())
+                        .unwrap_or_else(|| "auto".to_string()),
+                ],
+            )?;
+            new_id
+        };
+
+        tx.commit().map_err(DatabaseError::from)?;
+        Ok::<String, DatabaseError>(actual_id)
+    })?;
+
+    // 6. Remove from in-memory manager if already exists (to allow reload)
+    let _ = state
         .extension_manager
-        .get_extension_by_public_key_and_name(&manifest.public_key, &manifest.name)?
-    {
-        // If it's already a dev extension, remove it first (to allow reload)
-        if let ExtensionSource::Development { .. } = &existing.source {
-            state
-                .extension_manager
-                .remove_extension(&manifest.public_key, &manifest.name)?;
-        }
-        // Note: Production extensions can coexist with dev extensions
-        // Dev extensions have priority during lookup
-    }
+        .remove_extension(&manifest.public_key, &manifest.name);
 
-    // 6. Create dev extension
+    // 7. Create extension and add to in-memory manager
     let extension = Extension {
         id: extension_id.clone(),
         source: ExtensionSource::Development {
@@ -435,8 +520,7 @@ pub async fn load_dev_extension(
         last_accessed: SystemTime::now(),
     };
 
-    // 7. Add to dev extensions (no database entry for dev extensions)
-    state.extension_manager.add_dev_extension(extension)?;
+    state.extension_manager.add_production_extension(extension)?;
 
     eprintln!(
         "✅ Dev extension loaded: {} v{} ({})",
@@ -446,77 +530,106 @@ pub async fn load_dev_extension(
     Ok(extension_id)
 }
 
+/// Remove a dev extension.
+/// Dev extensions are now treated like production extensions,
+/// so this removes from both memory and database.
 #[tauri::command]
 pub fn remove_dev_extension(
     public_key: String,
     name: String,
     state: State<'_, AppState>,
 ) -> Result<(), ExtensionError> {
-    // Only remove from dev_extensions, not production_extensions
-    let mut dev_exts = state.extension_manager.dev_extensions.lock().map_err(|e| {
-        ExtensionError::MutexPoisoned {
-            reason: e.to_string(),
-        }
-    })?;
+    use crate::extension::database::executor::SqlExecutor;
+    use crate::extension::permissions::manager::PermissionManager;
+    use crate::table_names::TABLE_EXTENSIONS;
 
-    // Find and remove by public_key and name
-    let to_remove = dev_exts
-        .iter()
-        .find(|(_, ext)| ext.manifest.public_key == public_key && ext.manifest.name == name)
-        .map(|(id, _)| id.clone());
-
-    if let Some(id) = to_remove {
-        dev_exts.remove(&id);
-
-        // Drop all tables created by this dev extension
-        // (Dev extension tables have no CRDT triggers, so they're local-only)
-        db::core::with_connection(&state.db, |conn| {
-            // Disable foreign key constraints BEFORE starting the transaction
-            // (PRAGMA changes don't take effect within an active transaction)
-            conn.execute("PRAGMA foreign_keys = OFF", [])
-                .map_err(db::error::DatabaseError::from)?;
-
-            let tx = conn.transaction().map_err(db::error::DatabaseError::from)?;
-            let dropped = utils::drop_extension_tables(&tx, &public_key, &name)?;
-            let commit_result = tx.commit().map_err(db::error::DatabaseError::from);
-
-            // Re-enable foreign key constraints after transaction
-            conn.execute("PRAGMA foreign_keys = ON", [])
-                .map_err(db::error::DatabaseError::from)?;
-
-            commit_result?;
-
-            if !dropped.is_empty() {
-                eprintln!(
-                    "[DEV] Dropped {} tables for dev extension {}::{}",
-                    dropped.len(),
-                    public_key,
-                    name
-                );
-            }
-            Ok::<(), db::error::DatabaseError>(())
+    // Find extension by public_key and name
+    let extension = state
+        .extension_manager
+        .get_extension_by_public_key_and_name(&public_key, &name)?
+        .ok_or_else(|| ExtensionError::NotFound {
+            public_key: public_key.clone(),
+            name: name.clone(),
         })?;
 
-        eprintln!("✅ Dev extension removed: {name}");
-        Ok(())
-    } else {
-        Err(ExtensionError::NotFound { public_key, name })
-    }
+    let extension_id = extension.id.clone();
+
+    // Remove from database (with CRDT tombstone)
+    db::core::with_connection(&state.db, |conn| {
+        // Disable foreign key constraints BEFORE starting the transaction
+        conn.execute("PRAGMA foreign_keys = OFF", [])
+            .map_err(db::error::DatabaseError::from)?;
+
+        let tx = conn.transaction().map_err(db::error::DatabaseError::from)?;
+
+        let hlc_service = state.hlc.lock().map_err(|_| db::error::DatabaseError::MutexPoisoned {
+            reason: "Failed to lock HLC service".to_string(),
+        })?;
+
+        // Delete permissions for this extension
+        PermissionManager::delete_permissions_in_transaction(&tx, &hlc_service, &extension_id)?;
+
+        // Drop all tables created by this extension
+        let dropped = utils::drop_extension_tables(&tx, &public_key, &name)?;
+        if !dropped.is_empty() {
+            eprintln!(
+                "[DEV] Dropped {} tables for extension {}::{}",
+                dropped.len(),
+                public_key,
+                name
+            );
+        }
+
+        // Delete the extension entry itself
+        let delete_sql = format!("DELETE FROM {TABLE_EXTENSIONS} WHERE id = ?");
+        SqlExecutor::execute_internal_typed(
+            &tx,
+            &hlc_service,
+            &delete_sql,
+            rusqlite::params![&extension_id],
+        )?;
+
+        let commit_result = tx.commit().map_err(db::error::DatabaseError::from);
+
+        // Re-enable foreign key constraints after transaction
+        conn.execute("PRAGMA foreign_keys = ON", [])
+            .map_err(db::error::DatabaseError::from)?;
+
+        commit_result
+    })?;
+
+    // Remove from in-memory manager
+    state
+        .extension_manager
+        .remove_extension(&public_key, &name)?;
+
+    eprintln!("✅ Dev extension removed: {name}");
+    Ok(())
 }
 
+/// Get all dev extensions (extensions with Development source).
+/// Since dev extensions are now stored in the same manager as production,
+/// this filters by ExtensionSource::Development.
 #[tauri::command]
 pub fn get_all_dev_extensions(
     state: State<'_, AppState>,
 ) -> Result<Vec<ExtensionInfoResponse>, ExtensionError> {
-    let dev_exts = state.extension_manager.dev_extensions.lock().map_err(|e| {
-        ExtensionError::MutexPoisoned {
+    use crate::extension::core::types::ExtensionSource;
+
+    let prod_exts = state
+        .extension_manager
+        .production_extensions
+        .lock()
+        .map_err(|e| ExtensionError::MutexPoisoned {
             reason: e.to_string(),
-        }
-    })?;
+        })?;
 
     let mut extensions = Vec::new();
-    for ext in dev_exts.values() {
-        extensions.push(ExtensionInfoResponse::from_extension(ext)?);
+    for ext in prod_exts.values() {
+        // Filter only dev extensions
+        if matches!(ext.source, ExtensionSource::Development { .. }) {
+            extensions.push(ExtensionInfoResponse::from_extension(ext)?);
+        }
     }
 
     Ok(extensions)

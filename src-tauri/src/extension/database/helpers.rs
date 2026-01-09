@@ -22,16 +22,11 @@ use crate::AppState;
 pub struct ExtensionSqlContext {
     pub public_key: String,
     pub name: String,
-    pub is_dev_mode: bool,
 }
 
 impl ExtensionSqlContext {
-    pub fn new(public_key: String, name: String, is_dev_mode: bool) -> Self {
-        Self {
-            public_key,
-            name,
-            is_dev_mode,
-        }
+    pub fn new(public_key: String, name: String) -> Self {
+        Self { public_key, name }
     }
 
     /// Get the expected table prefix for this extension
@@ -172,12 +167,10 @@ pub fn execute_sql_with_context(
 
     // If this is a SELECT statement, apply tombstone filter and execute
     if let Statement::Query(ref mut query) = statement {
-        // Apply CRDT tombstone filter to SELECT queries (unless in dev mode)
+        // Apply CRDT tombstone filter to SELECT queries
         // This ensures tombstoned (soft-deleted) rows are filtered out
-        if !ctx.is_dev_mode {
-            let transformer = CrdtTransformer::new();
-            transformer.transform_query(query);
-        }
+        let transformer = CrdtTransformer::new();
+        transformer.transform_query(query);
 
         return with_connection(&state.db, |conn| {
             let sql_params = ValueConverter::convert_params(params)?;
@@ -306,91 +299,37 @@ pub fn execute_sql_with_context(
             None
         };
 
-        // Dev mode extensions execute SQL directly without CRDT transformation.
-        // Their tables don't have CRDT columns (haex_timestamp, haex_tombstone, haex_column_hlcs).
-        let result = if ctx.is_dev_mode {
-            if has_returning {
-                // Execute with RETURNING clause
-                let mut stmt = tx.prepare(&statement_sql).map_err(|e| DatabaseError::ExecutionError {
-                    sql: statement_sql.clone(),
-                    table: None,
-                    reason: e.to_string(),
-                })?;
-                let num_columns = stmt.column_count();
-                let mut rows = stmt.query(params_from_iter(param_refs.iter())).map_err(|e| {
-                    DatabaseError::ExecutionError {
-                        sql: statement_sql.clone(),
-                        table: None,
-                        reason: e.to_string(),
-                    }
-                })?;
-                let mut result_vec: Vec<Vec<JsonValue>> = Vec::new();
-                while let Some(row) = rows.next().map_err(|e| DatabaseError::ExecutionError {
-                    sql: statement_sql.clone(),
-                    table: None,
-                    reason: e.to_string(),
-                })? {
-                    let mut row_values: Vec<JsonValue> = Vec::new();
-                    for i in 0..num_columns {
-                        let value_ref = row.get_ref(i).map_err(|e| DatabaseError::ExecutionError {
-                            sql: statement_sql.clone(),
-                            table: None,
-                            reason: e.to_string(),
-                        })?;
-                        let json_value = crate::database::core::convert_value_ref_to_json(value_ref)?;
-                        row_values.push(json_value);
-                    }
-                    result_vec.push(row_values);
-                }
-                result_vec
-            } else {
-                // Execute without RETURNING clause
-                tx.execute(&statement_sql, params_from_iter(param_refs.iter()))
-                    .map_err(|e| DatabaseError::ExecutionError {
-                        sql: statement_sql.clone(),
-                        table: None,
-                        reason: format!("Execute failed: {e}"),
-                    })?;
-                vec![]
-            }
+        // Use CRDT-aware execution for all extensions (dev and production)
+        // Get HLC service reference
+        let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
+            reason: "Failed to lock HLC service".to_string(),
+        })?;
+
+        // Note: CRDT transformation (adding haex_timestamp) is handled by
+        // SqlExecutor::execute_internal_typed / query_internal_typed.
+        // Do NOT transform here to avoid double transformation!
+
+        let result = if has_returning {
+            eprintln!(
+                "DEBUG: [execute_sql_with_context] Using query_internal_typed (has RETURNING)"
+            );
+            let (_, rows) =
+                SqlExecutor::query_internal_typed(&tx, &hlc_service, &statement_sql, &param_refs)?;
+            rows
         } else {
-            // Production mode: Use CRDT-aware execution
-            // Get HLC service reference
-            let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-                reason: "Failed to lock HLC service".to_string(),
-            })?;
-
-            // Note: CRDT transformation (adding haex_timestamp) is handled by
-            // SqlExecutor::execute_internal_typed / query_internal_typed.
-            // Do NOT transform here to avoid double transformation!
-
-            if has_returning {
-                eprintln!(
-                    "DEBUG: [execute_sql_with_context] Using query_internal_typed (has RETURNING)"
-                );
-                let (_, rows) =
-                    SqlExecutor::query_internal_typed(&tx, &hlc_service, &statement_sql, &param_refs)?;
-                rows
-            } else {
-                eprintln!(
-                    "DEBUG: [execute_sql_with_context] Using execute_internal_typed (no RETURNING)"
-                );
-                SqlExecutor::execute_internal_typed(&tx, &hlc_service, &statement_sql, &param_refs)?;
-                vec![]
-            }
+            eprintln!(
+                "DEBUG: [execute_sql_with_context] Using execute_internal_typed (no RETURNING)"
+            );
+            SqlExecutor::execute_internal_typed(&tx, &hlc_service, &statement_sql, &param_refs)?;
+            vec![]
         };
 
-        // Handle CREATE TABLE trigger setup (only for production extensions)
+        // Handle CREATE TABLE trigger setup for all extensions
         if let Statement::CreateTable(ref create_table_details) = statement {
             let raw_name = create_table_details.name.to_string();
             let table_name_str = raw_name.trim_matches('"').trim_matches('`').to_string();
 
-            if ctx.is_dev_mode {
-                println!(
-                    "[DEV] Table '{}' created by dev extension - NO CRDT triggers (local-only)",
-                    table_name_str
-                );
-            } else if table_name_str.starts_with("__new_") {
+            if table_name_str.starts_with("__new_") {
                 // Skip CRDT setup for Drizzle's temporary tables used during table reconstruction.
                 // These tables are created with `__new_` prefix, have data copied into them,
                 // then the original table is dropped and the __new_ table is renamed.
@@ -400,8 +339,8 @@ pub fn execute_sql_with_context(
                     table_name_str
                 );
             } else {
-                // For CREATE TABLE IF NOT EXISTS: The table might already exist without CRDT columns
-                // (e.g., from a previous dev mode installation). Ensure CRDT columns exist.
+                // For CREATE TABLE IF NOT EXISTS: The table might already exist without CRDT columns.
+                // Ensure CRDT columns exist.
                 let columns_added = trigger::ensure_crdt_columns(&tx, &table_name_str)?;
                 if columns_added {
                     println!(
@@ -422,7 +361,7 @@ pub fn execute_sql_with_context(
             }
         }
 
-        // Handle ALTER TABLE - recreate triggers AFTER column changes (only for production extensions)
+        // Handle ALTER TABLE - recreate triggers AFTER column changes.
         // Triggers were dropped before ALTER TABLE execution to avoid "no such column" errors.
         // Now recreate them with the updated column list.
         if let Some((table_name_str, _)) = alter_table_info {
@@ -570,11 +509,8 @@ pub fn execute_migration_statements(
     }
 
     // After all migrations: ensure ALL extension tables have CRDT columns and triggers.
-    // This is important for tables that were created in dev mode (without CRDT columns).
-    // When the extension is installed in production mode, these tables need to be upgraded.
-    if !ctx.is_dev_mode {
-        ensure_extension_tables_have_crdt(ctx, state)?;
-    }
+    // This handles any edge cases where tables might not have been properly set up.
+    ensure_extension_tables_have_crdt(ctx, state)?;
 
     Ok(statements.len())
 }
@@ -585,9 +521,8 @@ pub fn execute_migration_statements(
 /// 1. Discovers all tables belonging to the extension
 /// 2. For each table, adds missing CRDT columns and triggers
 ///
-/// This is called after migrations to handle the case where tables were
-/// created in dev mode (without CRDT columns) and are now being used in
-/// production mode.
+/// This is called after migrations to handle any edge cases where tables
+/// might not have been properly set up.
 fn ensure_extension_tables_have_crdt(
     ctx: &ExtensionSqlContext,
     state: &AppState,
@@ -650,65 +585,3 @@ pub fn split_migration_statements(sql: &str) -> Vec<&str> {
         .collect()
 }
 
-/// Execute migrations for dev mode extensions without database tracking
-///
-/// Dev extensions are not persisted to haex_extensions table, so we cannot
-/// store migrations in haex_extension_migrations (foreign key constraint).
-/// Instead, we validate and execute all migrations directly.
-/// CREATE TABLE IF NOT EXISTS ensures idempotency across hot reloads.
-pub fn execute_dev_mode_migrations(
-    public_key: &str,
-    extension_name: &str,
-    migrations: &[serde_json::Map<String, serde_json::Value>],
-    state: &AppState,
-) -> Result<crate::extension::database::types::MigrationResult, ExtensionError> {
-    use crate::extension::database::types::MigrationResult;
-
-    // Create context for dev mode (no CRDT triggers)
-    let ctx = ExtensionSqlContext::new(public_key.to_string(), extension_name.to_string(), true);
-
-    let mut applied_names: Vec<String> = Vec::new();
-
-    for migration_obj in migrations {
-        let migration_name = migration_obj
-            .get("name")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| ExtensionError::ValidationError {
-                reason: "Migration must have a 'name' field".to_string(),
-            })?;
-
-        let sql_statement = migration_obj
-            .get("sql")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| ExtensionError::ValidationError {
-                reason: "Migration must have a 'sql' field".to_string(),
-            })?;
-
-        println!(
-            "[EXT_MIGRATIONS/DEV] Processing migration: {}",
-            migration_name
-        );
-
-        // Execute all statements using the helper function
-        // CREATE TABLE IF NOT EXISTS handles idempotency for dev hot reloads
-        let stmt_count = execute_migration_statements(&ctx, sql_statement, state)?;
-
-        println!(
-            "[EXT_MIGRATIONS/DEV] Migration '{}' executed ({} statements)",
-            migration_name, stmt_count
-        );
-
-        applied_names.push(migration_name.to_string());
-    }
-
-    println!(
-        "[EXT_MIGRATIONS/DEV] Executed {} migrations (no DB tracking in dev mode)",
-        applied_names.len()
-    );
-
-    Ok(MigrationResult {
-        applied_count: applied_names.len(),
-        already_applied_count: 0, // Can't track in dev mode
-        applied_migrations: applied_names,
-    })
-}

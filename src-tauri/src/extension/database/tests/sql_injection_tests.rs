@@ -15,11 +15,7 @@ use crate::extension::permissions::checker::{is_system_table, matches_target, Pe
 // ============================================================================
 
 fn create_test_context() -> ExtensionSqlContext {
-    ExtensionSqlContext::new(
-        "testpublickey".to_string(),
-        "testextension".to_string(),
-        false,
-    )
+    ExtensionSqlContext::new("testpublickey".to_string(), "testextension".to_string())
 }
 
 fn get_expected_prefix() -> String {
