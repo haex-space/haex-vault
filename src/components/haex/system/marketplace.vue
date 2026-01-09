@@ -531,15 +531,7 @@ const confirmInstallAsync = async (
         )
         console.log('[Extension Install] Desktop item added successfully')
       } catch (error) {
-        // Ignore errors for dev extensions (they can't be persisted)
-        const isDevExtensionError =
-          error &&
-          typeof error === 'object' &&
-          'code' in error &&
-          error.code === 'DEV_EXTENSION_NOT_PERSISTABLE'
-        if (!isDevExtensionError) {
-          console.warn('Could not add extension to desktop:', error)
-        }
+        console.warn('Could not add extension to desktop:', error)
       }
 
       // Create native desktop shortcut if requested (only on desktop platforms)

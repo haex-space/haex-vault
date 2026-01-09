@@ -32,7 +32,6 @@ const emit = defineEmits<{
 }>()
 
 const desktopStore = useDesktopStore()
-const toast = useToast()
 
 const { elementRef, isOvered } = useDroppable({
   groups: ['launcher-item'],
@@ -75,22 +74,7 @@ const { elementRef, isOvered } = useDroppable({
 
         return true
       } catch (error) {
-        if (
-          error &&
-          typeof error === 'object' &&
-          'code' in error &&
-          error.code === 'DEV_EXTENSION_NOT_PERSISTABLE'
-        ) {
-          toast.add({
-            title: 'Dev-Extension kann nicht hinzugefügt werden',
-            description:
-              'Dev-Extensions existieren nur zur Laufzeit und können nicht auf dem Desktop platziert werden.',
-            color: 'warning',
-            icon: 'i-heroicons-exclamation-triangle',
-          })
-        } else {
-          console.error('Failed to create desktop icon:', error)
-        }
+        console.error('Failed to create desktop icon:', error)
         return false
       }
     },

@@ -207,7 +207,6 @@ de:
   error:
     noWorkspace: Kein Workspace aktiv
     addToDesktop: Konnte nicht zum Desktop hinzugefügt werden
-    devExtension: Dev-Extensions können nicht auf dem Desktop platziert werden
   uninstall:
     confirm:
       title: Erweiterung deinstallieren
@@ -231,7 +230,6 @@ en:
   error:
     noWorkspace: No workspace active
     addToDesktop: Could not add to Desktop
-    devExtension: Dev extensions cannot be placed on the Desktop
   uninstall:
     confirm:
       title: Uninstall Extension
