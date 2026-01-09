@@ -2,11 +2,10 @@
 // Database initialization utilities (trigger setup, etc.)
 
 use crate::crdt::trigger;
-use crate::database::constants::{vault_settings_key, vault_settings_type};
+use crate::database::constants::vault_settings_key;
 use crate::database::error::DatabaseError;
-use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_VAULT_SETTINGS};
+use crate::table_names::{COL_CRDT_CONFIGS_KEY, COL_CRDT_CONFIGS_TYPE, COL_CRDT_CONFIGS_VALUE, TABLE_CRDT_CONFIGS};
 use rusqlite::{params, Connection};
-use uuid::Uuid;
 
 /// Current version of the CRDT trigger logic.
 /// Increment this whenever the trigger generation code changes significantly.
@@ -40,18 +39,20 @@ pub fn discover_crdt_tables(conn: &Connection) -> Result<Vec<String>, DatabaseEr
 ///
 /// Diese Funktion wird beim ersten Öffnen einer Template-DB aufgerufen.
 /// Sie erstellt alle CRDT-Trigger für die definierten Tabellen und markiert
-/// die Initialisierung in haex_settings.
+/// die Initialisierung in haex_crdt_configs (local-only, not synced).
 ///
 /// If the trigger version has changed, triggers are recreated to apply fixes.
 pub fn ensure_triggers_initialized(conn: &mut Connection) -> Result<bool, DatabaseError> {
     let tx = conn.transaction()?;
 
-    // Check if triggers already initialized and get version
-    let check_sql = format!("SELECT value FROM {TABLE_VAULT_SETTINGS} WHERE key = ? AND type = ?");
+    // Check if triggers already initialized and get version from haex_crdt_configs (local-only, not synced)
+    let check_sql = format!(
+        "SELECT {COL_CRDT_CONFIGS_VALUE} FROM {TABLE_CRDT_CONFIGS} WHERE {COL_CRDT_CONFIGS_KEY} = ?"
+    );
     let current_version: Option<i32> = tx
         .query_row(
             &check_sql,
-            params![vault_settings_key::TRIGGER_VERSION, vault_settings_type::SYSTEM],
+            params![vault_settings_key::TRIGGER_VERSION],
             |row| {
                 let val: String = row.get(0)?;
                 Ok(val.parse().unwrap_or(1))
@@ -63,7 +64,7 @@ pub fn ensure_triggers_initialized(conn: &mut Connection) -> Result<bool, Databa
     let initialized: Option<String> = tx
         .query_row(
             &check_sql,
-            params![vault_settings_key::TRIGGERS_INITIALIZED, vault_settings_type::SYSTEM],
+            params![vault_settings_key::TRIGGERS_INITIALIZED],
             |row| row.get(0),
         )
         .ok();
@@ -108,38 +109,13 @@ pub fn ensure_triggers_initialized(conn: &mut Connection) -> Result<bool, Databa
         trigger::setup_triggers_for_table(&tx, &table_name, needs_update)?;
     }
 
-    // Store trigger version
-    // Check if entry exists first, then INSERT or UPDATE
-    // Note: We can't use ON CONFLICT because the UNIQUE index is partial (WHERE haex_tombstone = 0)
-    // and SQLite's ON CONFLICT doesn't work with partial indexes
-    let existing: Option<String> = tx
-        .query_row(
-            &format!(
-                "SELECT id FROM {TABLE_VAULT_SETTINGS} WHERE key = '{}' AND type = '{}' AND haex_tombstone = 0",
-                vault_settings_key::TRIGGER_VERSION,
-                vault_settings_type::SYSTEM
-            ),
-            [],
-            |row| row.get(0),
-        )
-        .ok();
-
-    if let Some(existing_id) = existing {
-        tx.execute(
-            &format!("UPDATE {TABLE_VAULT_SETTINGS} SET value = ? WHERE id = ?"),
-            params![TRIGGER_VERSION.to_string(), existing_id],
-        )?;
-    } else {
-        let new_id = Uuid::new_v4().to_string();
-        tx.execute(
-            &format!(
-                "INSERT INTO {TABLE_VAULT_SETTINGS} (id, key, type, value, haex_tombstone) VALUES (?, '{}', '{}', ?, 0)",
-                vault_settings_key::TRIGGER_VERSION,
-                vault_settings_type::SYSTEM
-            ),
-            params![new_id, TRIGGER_VERSION.to_string()],
-        )?;
-    }
+    // Store trigger version in haex_crdt_configs (local-only, not synced)
+    tx.execute(
+        &format!(
+            "INSERT OR REPLACE INTO {TABLE_CRDT_CONFIGS} ({COL_CRDT_CONFIGS_KEY}, {COL_CRDT_CONFIGS_TYPE}, {COL_CRDT_CONFIGS_VALUE}) VALUES (?, ?, ?)"
+        ),
+        params![vault_settings_key::TRIGGER_VERSION, "system", TRIGGER_VERSION.to_string()],
+    )?;
 
     tx.commit()?;
     eprintln!("INFO: ✓ CRDT triggers at version {TRIGGER_VERSION}");

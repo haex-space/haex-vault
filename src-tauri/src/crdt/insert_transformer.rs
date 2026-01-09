@@ -56,7 +56,7 @@ impl InsertTransformer {
         insert_stmt: &mut Insert,
         timestamp: &Timestamp,
     ) -> Result<(), DatabaseError> {
-        // Add haex_timestamp  column if not exists
+        // Add haex_timestamp column if not exists
         let hlc_col_index =
             Self::find_or_add_column(&mut insert_stmt.columns, self.hlc_timestamp_column);
 

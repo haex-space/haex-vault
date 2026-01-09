@@ -14,7 +14,7 @@ use crate::database::core::{execute_with_crdt, with_connection};
 use crate::database::error::DatabaseError;
 use crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED;
 use crate::extension::database::executor::SqlExecutor;
-use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_VAULT_SETTINGS};
+use crate::table_names::{COL_CRDT_CONFIGS_KEY, COL_CRDT_CONFIGS_TYPE, COL_CRDT_CONFIGS_VALUE, TABLE_CRDT_CONFIGS, TABLE_VAULT_SETTINGS};
 use constants::{vault_settings_key, vault_settings_type};
 use crate::AppState;
 use rusqlite::Connection;
@@ -689,16 +689,15 @@ fn initialize_session_post_migration(
         *hlc_guard = hlc_service;
         drop(hlc_guard);
 
-        // 4. Set triggers_initialized flag if needed
+        // 4. Set triggers_initialized flag if needed (in haex_crdt_configs, local-only, not synced)
         if !triggers_were_already_initialized {
             eprintln!("INFO: Setting 'triggers_initialized' flag...");
             conn.execute(
                 &format!(
-                    "INSERT INTO {TABLE_VAULT_SETTINGS} (id, key, type, value, haex_tombstone) VALUES (?, ?, ?, ?, 0)"
+                    "INSERT OR REPLACE INTO {TABLE_CRDT_CONFIGS} ({COL_CRDT_CONFIGS_KEY}, {COL_CRDT_CONFIGS_TYPE}, {COL_CRDT_CONFIGS_VALUE}) VALUES (?, ?, ?)"
                 ),
                 rusqlite::params![
-                    uuid::Uuid::new_v4().to_string(),
-                    "triggers_initialized",
+                    vault_settings_key::TRIGGERS_INITIALIZED,
                     "system",
                     "1"
                 ],
