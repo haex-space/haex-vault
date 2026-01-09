@@ -152,49 +152,6 @@ pub fn external_bridge_revoke_client(
     Ok(())
 }
 
-/// Approve a pending external client authorization request
-#[tauri::command]
-pub async fn external_bridge_approve_client(
-    app_handle: AppHandle,
-    client_id: String,
-    client_name: String,
-    public_key: String,
-    extension_id: String,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
-    // Insert into database via CRDT (in a block to drop hlc_guard before await)
-    {
-        let hlc_guard = state
-            .hlc
-            .lock()
-            .map_err(|e| format!("Failed to lock HLC: {}", e))?;
-
-        let row_id = uuid::Uuid::new_v4().to_string();
-        let params = vec![
-            JsonValue::String(row_id),
-            JsonValue::String(client_id.clone()),
-            JsonValue::String(client_name),
-            JsonValue::String(public_key),
-            JsonValue::String(extension_id.clone()),
-        ];
-
-        execute_with_crdt(SQL_INSERT_CLIENT.to_string(), params, &state.db, &hlc_guard)
-            .map_err(|e| e.to_string())?;
-    }
-
-    // Emit event to notify frontend
-    let _ = app_handle.emit(EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
-
-    // Notify connected client that authorization was granted
-    let bridge = state.external_bridge.lock().await;
-    bridge
-        .notify_authorization_granted(&client_id, &extension_id)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
-}
-
 /// Deny a pending external client authorization request
 #[tauri::command]
 pub async fn external_bridge_deny_client(

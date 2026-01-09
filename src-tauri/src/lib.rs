@@ -301,8 +301,6 @@ pub fn run() {
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             external_bridge::external_bridge_revoke_client,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            external_bridge::external_bridge_approve_client,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             external_bridge::external_bridge_deny_client,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             external_bridge::external_bridge_get_pending_authorizations,
