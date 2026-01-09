@@ -776,21 +776,12 @@ async fn update_client_last_seen(
 }
 
 /// Check if a client is authorized for a specific extension (by extension public_key + name)
-/// For dev extensions (public_key starts with "dev_"), this always returns false
-/// because dev extensions are not stored in the database. Authorization for dev
-/// extensions is handled via session authorization instead.
 async fn check_client_authorized_for_extension(
     app_handle: &AppHandle,
     client_id: &str,
     extension_public_key: &str,
     extension_name: &str,
 ) -> bool {
-    // Dev extensions are not in the database, so we can't check DB authorization
-    // Session authorization is checked separately
-    if extension_public_key.starts_with("dev_") {
-        return false;
-    }
-
     let state = app_handle.state::<AppState>();
     let params = vec![
         JsonValue::String(client_id.to_string()),
@@ -822,7 +813,6 @@ async fn check_client_authorized_for_extension(
 }
 
 /// Get extension ID by public_key and name
-/// Looks up extension in database (dev extensions are now also stored in DB)
 async fn get_extension_id_by_public_key_and_name(
     app_handle: &AppHandle,
     extension_public_key: &str,
@@ -830,16 +820,8 @@ async fn get_extension_id_by_public_key_and_name(
 ) -> Option<String> {
     let state = app_handle.state::<AppState>();
 
-    // Handle dev_ prefix for backwards compatibility
-    let actual_public_key = if extension_public_key.starts_with("dev_") {
-        &extension_public_key[4..]
-    } else {
-        extension_public_key
-    };
-
-    // Look up extension in database
     let params = vec![
-        JsonValue::String(actual_public_key.to_string()),
+        JsonValue::String(extension_public_key.to_string()),
         JsonValue::String(extension_name.to_string()),
     ];
 

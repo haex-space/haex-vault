@@ -240,29 +240,6 @@ export const useDesktopStore = defineStore('desktopStore', () => {
         workspaceId: targetWorkspaceId,
         position: { x: positionX, y: positionY },
       })
-
-      // Check if it's a FOREIGN KEY constraint error for dev extensions
-      const isDevExtension =
-        itemType === 'extension' && referenceId.startsWith('dev_')
-      const isForeignKeyError =
-        error &&
-        typeof error === 'object' &&
-        'cause' in error &&
-        error.cause &&
-        typeof error.cause === 'object' &&
-        'details' in error.cause &&
-        error.cause.details &&
-        typeof error.cause.details === 'object' &&
-        'reason' in error.cause.details &&
-        error.cause.details.reason === 'FOREIGN KEY constraint failed'
-
-      if (isDevExtension && isForeignKeyError) {
-        // Throw a custom error that the component can catch
-        const devExtensionError = new Error('DEV_EXTENSION_NOT_PERSISTABLE')
-        ;(devExtensionError as any).code = 'DEV_EXTENSION_NOT_PERSISTABLE'
-        throw devExtensionError
-      }
-
       throw error
     }
   }
