@@ -692,24 +692,7 @@ pub async fn get_extension_permissions(
     extension_id: String,
     state: State<'_, AppState>,
 ) -> Result<EditablePermissions, ExtensionError> {
-    use crate::extension::core::types::ExtensionSource;
-
-    // Check if this is a dev extension - if so, get permissions from manifest
-    if let Some(extension) = state.extension_manager.get_extension(&extension_id) {
-        match &extension.source {
-            ExtensionSource::Development { .. } => {
-                // Dev extension - return permissions from manifest with Granted status
-                return Ok(extension.manifest.to_editable_permissions());
-            }
-            ExtensionSource::Production { .. } => {
-                // Production extension - load from database
-                let permissions = PermissionManager::get_permissions(&state, &extension_id).await?;
-                return Ok(convert_to_editable_permissions(permissions));
-            }
-        }
-    }
-
-    // Extension not found in memory, try loading from database anyway
+    // Load permissions from database (same for dev and production extensions)
     let permissions = PermissionManager::get_permissions(&state, &extension_id).await?;
     Ok(convert_to_editable_permissions(permissions))
 }

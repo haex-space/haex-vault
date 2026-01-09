@@ -1,7 +1,6 @@
 use crate::database::core::{select_with_crdt, with_connection};
 use crate::database::error::DatabaseError;
 use crate::database::generated::HaexExtensionPermissions;
-use crate::extension::core::types::ExtensionSource;
 use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::checker::PermissionChecker;
@@ -338,66 +337,45 @@ impl PermissionManager {
             })?
             .clone();
 
-        // Load permissions - for dev extensions, get from manifest; for production, from database
-        let permissions: Vec<ExtensionPermission> = match &extension.source {
-            ExtensionSource::Development { .. } => {
-                // Dev extension - get web permissions from manifest
-                extension
-                    .manifest
-                    .permissions
-                    .to_internal_permissions(extension_id)
-                    .into_iter()
-                    .filter(|p| p.resource_type == ResourceType::Web)
-                    .map(|mut p| {
-                        // Dev extensions have all permissions granted by default
-                        p.status = PermissionStatus::Granted;
-                        p
-                    })
-                    .collect()
-            }
-            ExtensionSource::Production { .. } => {
-                // Production extension - load from database using select_with_crdt
-                // to automatically filter out tombstoned (soft-deleted) entries
-                let sql = format!(
-                    "SELECT id, extension_id, resource_type, action, target, constraints, status, haex_timestamp FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ? AND resource_type = 'web'"
-                );
-                let params = vec![JsonValue::String(extension_id.to_string())];
+        // Load permissions from database (same for dev and production extensions)
+        let sql = format!(
+            "SELECT id, extension_id, resource_type, action, target, constraints, status, haex_timestamp FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ? AND resource_type = 'web'"
+        );
+        let params = vec![JsonValue::String(extension_id.to_string())];
 
-                let results = select_with_crdt(sql, params, &app_state.db)?;
+        let results = select_with_crdt(sql, params, &app_state.db)?;
 
-                results
-                    .into_iter()
-                    .map(|row| {
-                        let resource_type = row[2]
-                            .as_str()
-                            .and_then(|s| ResourceType::from_str(s).ok())
-                            .unwrap_or(ResourceType::Web);
-                        let action = row[3]
-                            .as_str()
-                            .and_then(|s| Action::from_str(&resource_type, s).ok())
-                            .unwrap_or(Action::Web(crate::extension::permissions::types::WebAction::Get));
-                        let status = row[6]
-                            .as_str()
-                            .and_then(|s| PermissionStatus::from_str(s).ok())
-                            .unwrap_or(PermissionStatus::Denied);
-                        let constraints: Option<PermissionConstraints> = row[5]
-                            .as_str()
-                            .and_then(|s| serde_json::from_str(s).ok());
+        let permissions: Vec<ExtensionPermission> = results
+            .into_iter()
+            .map(|row| {
+                let resource_type = row[2]
+                    .as_str()
+                    .and_then(|s| ResourceType::from_str(s).ok())
+                    .unwrap_or(ResourceType::Web);
+                let action = row[3]
+                    .as_str()
+                    .and_then(|s| Action::from_str(&resource_type, s).ok())
+                    .unwrap_or(Action::Web(crate::extension::permissions::types::WebAction::Get));
+                let status = row[6]
+                    .as_str()
+                    .and_then(|s| PermissionStatus::from_str(s).ok())
+                    .unwrap_or(PermissionStatus::Denied);
+                let constraints: Option<PermissionConstraints> = row[5]
+                    .as_str()
+                    .and_then(|s| serde_json::from_str(s).ok());
 
-                        ExtensionPermission {
-                            id: row[0].as_str().unwrap_or_default().to_string(),
-                            extension_id: row[1].as_str().unwrap_or_default().to_string(),
-                            resource_type,
-                            action,
-                            target: row[4].as_str().unwrap_or_default().to_string(),
-                            constraints,
-                            status,
-                            haex_timestamp: row[7].as_str().map(String::from),
-                        }
-                    })
-                    .collect()
-            }
-        };
+                ExtensionPermission {
+                    id: row[0].as_str().unwrap_or_default().to_string(),
+                    extension_id: row[1].as_str().unwrap_or_default().to_string(),
+                    resource_type,
+                    action,
+                    target: row[4].as_str().unwrap_or_default().to_string(),
+                    constraints,
+                    status,
+                    haex_timestamp: row[7].as_str().map(String::from),
+                }
+            })
+            .collect();
 
         let url_parsed = url::Url::parse(url).map_err(|e| ExtensionError::ValidationError {
             reason: format!("Invalid URL: {}", e),
