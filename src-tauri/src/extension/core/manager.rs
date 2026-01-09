@@ -362,23 +362,18 @@ impl ExtensionManager {
         Ok(specific_extension_dir)
     }
 
-    pub fn add_production_extension(&self, extension: Extension) -> Result<(), ExtensionError> {
+    /// Add an extension to the in-memory manager.
+    /// Accepts both Production and Development sources.
+    pub fn add_extension(&self, extension: Extension) -> Result<(), ExtensionError> {
         if extension.id.is_empty() {
             return Err(ExtensionError::ValidationError {
                 reason: "Extension ID cannot be empty".to_string(),
             });
         }
 
-        match &extension.source {
-            ExtensionSource::Production { .. } => {
-                let mut extensions = self.production_extensions.lock().unwrap();
-                extensions.insert(extension.id.clone(), extension);
-                Ok(())
-            }
-            _ => Err(ExtensionError::ValidationError {
-                reason: "Expected Production source".to_string(),
-            }),
-        }
+        let mut extensions = self.production_extensions.lock().unwrap();
+        extensions.insert(extension.id.clone(), extension);
+        Ok(())
     }
 
     pub fn get_extension(&self, extension_id: &str) -> Option<Extension> {
@@ -876,7 +871,7 @@ impl ExtensionManager {
             last_accessed: SystemTime::now(),
         };
 
-        self.add_production_extension(extension)?;
+        self.add_extension(extension)?;
 
         Ok(extensions_dir)
     }
@@ -1205,7 +1200,7 @@ impl ExtensionManager {
             };
 
             loaded_extension_ids.push(extension_id.clone());
-            self.add_production_extension(extension)?;
+            self.add_extension(extension)?;
         }
 
         Ok(loaded_extension_ids)

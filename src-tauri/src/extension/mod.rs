@@ -520,7 +520,7 @@ pub async fn load_dev_extension(
         last_accessed: SystemTime::now(),
     };
 
-    state.extension_manager.add_production_extension(extension)?;
+    state.extension_manager.add_extension(extension)?;
 
     eprintln!(
         "✅ Dev extension loaded: {} v{} ({})",
