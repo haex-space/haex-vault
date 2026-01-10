@@ -5,7 +5,7 @@ use crate::crdt::trigger::{
 };
 use crate::database::core::{with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
-use crate::table_names::TABLE_CRDT_CONFIGS;
+use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
 use crate::AppState;
 use rusqlite::params;
 use rusqlite::types::Value as SqlValue;
@@ -83,7 +83,7 @@ pub fn get_table_schema(
 pub fn get_dirty_tables(state: State<'_, AppState>) -> Result<Vec<DirtyTable>, DatabaseError> {
     with_connection(&state.db, |conn| {
         let mut stmt = conn
-            .prepare("SELECT table_name, last_modified FROM haex_crdt_dirty_tables ORDER BY last_modified ASC")
+            .prepare(&format!("SELECT table_name, last_modified FROM {TABLE_CRDT_DIRTY_TABLES} ORDER BY last_modified ASC"))
             .map_err(DatabaseError::from)?;
 
         let rows = stmt
@@ -108,7 +108,7 @@ pub fn clear_dirty_table(
 ) -> Result<(), DatabaseError> {
     with_connection(&state.db, |conn| {
         conn.execute(
-            "DELETE FROM haex_crdt_dirty_tables WHERE table_name = ?1",
+            &format!("DELETE FROM {TABLE_CRDT_DIRTY_TABLES} WHERE table_name = ?1"),
             [&table_name],
         )
         .map_err(DatabaseError::from)?;
@@ -121,7 +121,7 @@ pub fn clear_dirty_table(
 #[tauri::command]
 pub fn clear_all_dirty_tables(state: State<'_, AppState>) -> Result<(), DatabaseError> {
     with_connection(&state.db, |conn| {
-        conn.execute("DELETE FROM haex_crdt_dirty_tables", [])
+        conn.execute(&format!("DELETE FROM {TABLE_CRDT_DIRTY_TABLES}"), [])
             .map_err(DatabaseError::from)?;
 
         Ok(())

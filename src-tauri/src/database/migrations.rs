@@ -1,6 +1,7 @@
 // src-tauri/src/database/migrations.rs
 // Core migration system for system tables
 
+use crate::crdt::transformer::CrdtTransformer;
 use crate::database::core::{with_connection, DRIZZLE_STATEMENT_BREAKPOINT};
 use crate::database::error::DatabaseError;
 use crate::database::generated::HaexCrdtMigrationsNoSync;
@@ -479,6 +480,10 @@ fn apply_single_migration(
         statements.len()
     );
 
+    // Create CrdtTransformer for CREATE TABLE transformation
+    // This automatically adds CRDT columns to syncable tables
+    let transformer = CrdtTransformer::new();
+
     // Execute each statement
     for (idx, statement) in statements.iter().enumerate() {
         println!(
@@ -493,14 +498,27 @@ fn apply_single_migration(
             stmt_preview
         );
 
-        tx.execute(statement, [])
+        // Transform CREATE TABLE statements to add CRDT columns
+        // Other statements pass through unchanged
+        let final_sql = transformer
+            .transform_ddl_statement(statement)
+            .unwrap_or_else(|_| statement.to_string());
+
+        if final_sql != *statement {
+            println!(
+                "[MIGRATIONS] apply_single_migration: CRDT transformed SQL: {}...",
+                final_sql.chars().take(150).collect::<String>()
+            );
+        }
+
+        tx.execute(&final_sql, [])
             .map_err(|e| DatabaseError::MigrationError {
                 reason: format!(
                     "Failed to execute statement {} in migration '{}': {}. Statement: {}",
                     idx + 1,
                     migration_name,
                     e,
-                    statement
+                    final_sql
                 ),
             })?;
 

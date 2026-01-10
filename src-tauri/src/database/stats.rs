@@ -3,6 +3,7 @@
 use crate::crdt::trigger::TOMBSTONE_COLUMN;
 use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
+use crate::table_names::TABLE_CRDT_DIRTY_TABLES;
 use crate::AppState;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -289,7 +290,7 @@ fn get_pending_sync(conn: &Connection) -> Result<Vec<PendingSyncInfo>, DatabaseE
     let mut pending = Vec::new();
 
     let mut stmt = conn
-        .prepare("SELECT table_name, last_modified FROM haex_crdt_dirty_tables ORDER BY last_modified DESC")
+        .prepare(&format!("SELECT table_name, last_modified FROM {TABLE_CRDT_DIRTY_TABLES} ORDER BY last_modified DESC"))
         .map_err(|e| DatabaseError::ExecutionError {
             sql: "SELECT dirty_tables".to_string(),
             reason: e.to_string(),

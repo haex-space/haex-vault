@@ -449,6 +449,61 @@ impl CrdtTransformer {
             _ => Ok(None),
         }
     }
+
+    /// Transforms a DDL statement (CREATE TABLE, CREATE INDEX) to add CRDT columns.
+    /// Used by migrations to ensure all syncable tables have CRDT columns.
+    ///
+    /// Returns the transformed SQL string, or the original if no transformation was needed.
+    pub fn transform_ddl_statement(&self, sql: &str) -> Result<String, DatabaseError> {
+        use sqlparser::dialect::SQLiteDialect;
+        use sqlparser::parser::Parser;
+
+        let dialect = SQLiteDialect {};
+        let mut statements = Parser::parse_sql(&dialect, sql).map_err(|e| {
+            DatabaseError::ParseError {
+                reason: e.to_string(),
+                sql: sql.to_string(),
+            }
+        })?;
+
+        if statements.is_empty() {
+            return Ok(sql.to_string());
+        }
+
+        // We only transform the first statement (migrations should have one statement per breakpoint)
+        let stmt = &mut statements[0];
+
+        match stmt {
+            Statement::CreateTable(create_table) => {
+                if self.is_crdt_sync_table(&create_table.name) {
+                    self.columns
+                        .add_to_table_definition(&mut create_table.columns);
+                    // Return the modified SQL
+                    return Ok(stmt.to_string());
+                }
+            }
+            Statement::CreateIndex(create_index) => {
+                // For UNIQUE indices on CRDT tables, add WHERE haex_tombstone = 0
+                if create_index.unique && self.is_crdt_sync_table(&create_index.table_name) {
+                    let already_has_tombstone_condition = create_index
+                        .predicate
+                        .as_ref()
+                        .is_some_and(|p| self.columns.has_tombstone_condition(p));
+
+                    if !already_has_tombstone_condition {
+                        create_index.predicate = self
+                            .columns
+                            .add_tombstone_filter_to_where(create_index.predicate.take(), None);
+                        return Ok(stmt.to_string());
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        // No transformation needed
+        Ok(sql.to_string())
+    }
 }
 
 #[cfg(test)]

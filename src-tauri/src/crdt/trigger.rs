@@ -3,7 +3,7 @@
 // New approach: Instead of logging changes to haex_crdt_changes table,
 // we just mark tables as "dirty" in haex_crdt_dirty_tables.
 // Actual sync happens by scanning the dirty tables directly.
-use crate::table_names::TABLE_CRDT_CONFIGS;
+use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
 use rusqlite::{Connection, Result as RusqliteResult, Row, Transaction};
 use serde::Serialize;
 use std::error::Error;
@@ -290,7 +290,7 @@ fn generate_insert_trigger_sql(table_name: &str, cols_to_track: &[String]) -> St
             SET haex_column_hlcs = {json_object}
             WHERE rowid = NEW.rowid;
 
-            INSERT OR REPLACE INTO haex_crdt_dirty_tables (table_name, last_modified)
+            INSERT OR REPLACE INTO {TABLE_CRDT_DIRTY_TABLES} (table_name, last_modified)
             VALUES ('{table_name}', datetime('now'));
             END;"
     )
@@ -344,7 +344,7 @@ fn generate_update_trigger_sql(table_name: &str, cols_to_track: &[String]) -> St
             {all_updates}
 
             -- Only mark as dirty if at least one tracked column changed
-            INSERT OR REPLACE INTO haex_crdt_dirty_tables (table_name, last_modified)
+            INSERT OR REPLACE INTO {TABLE_CRDT_DIRTY_TABLES} (table_name, last_modified)
             SELECT '{table_name}', datetime('now')
             WHERE ({any_tracked_changed});
             END;"
@@ -361,7 +361,7 @@ fn generate_delete_trigger_sql(table_name: &str) -> String {
             FOR EACH ROW
             WHEN (SELECT COALESCE(value, '1') FROM {TABLE_CRDT_CONFIGS} WHERE key = 'triggers_enabled') = '1'
             BEGIN
-            INSERT OR REPLACE INTO haex_crdt_dirty_tables (table_name, last_modified)
+            INSERT OR REPLACE INTO {TABLE_CRDT_DIRTY_TABLES} (table_name, last_modified)
             VALUES ('{table_name}', datetime('now'));
             END;"
     )

@@ -2,6 +2,7 @@
 // Utility functions for extension management
 
 use crate::extension::error::ExtensionError;
+use crate::table_names::TABLE_CRDT_DIRTY_TABLES;
 use crate::AppState;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State, WebviewWindow};
@@ -202,12 +203,12 @@ pub fn drop_extension_tables(
     // (PRAGMA changes don't take effect within an active transaction)
     // The caller is responsible for setting PRAGMA foreign_keys = OFF before calling this function
 
-    // First, clean up haex_crdt_dirty_tables for ANY tables with this prefix
+    // First, clean up dirty_tables for ANY tables with this prefix
     // This must happen BEFORE we query sqlite_master, because dirty_tables might
     // reference tables that were never created or have been partially created
     let dirty_pattern = format!("{}%", prefix);
     tx.execute(
-        "DELETE FROM haex_crdt_dirty_tables WHERE table_name LIKE ?1",
+        &format!("DELETE FROM {TABLE_CRDT_DIRTY_TABLES} WHERE table_name LIKE ?1"),
         [&dirty_pattern],
     )?;
     println!(

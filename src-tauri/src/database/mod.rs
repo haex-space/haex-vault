@@ -537,25 +537,29 @@ pub fn create_encrypted_database(
         let new_vault_id = uuid::Uuid::new_v4().to_string();
         println!("[CREATE_DB] Generating new vault_id: {}", new_vault_id);
 
-        // Use direct INSERT without CRDT transformation - haex_vault_settings is a system table
-        // that doesn't have CRDT columns (haex_timestamp, haex_column_hlcs, haex_tombstone)
+        // Use HLC service to insert with proper CRDT timestamps
+        let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
+            reason: "Failed to lock HLC service".to_string(),
+        })?;
         let row_id = uuid::Uuid::new_v4().to_string();
         let insert_sql = format!(
-            "INSERT INTO {} (id, key, type, value) VALUES (?1, '{}', '{}', ?2)",
+            "INSERT INTO {} (id, key, type, value) VALUES (?, '{}', '{}', ?)",
             TABLE_VAULT_SETTINGS,
             vault_settings_key::VAULT_ID,
             vault_settings_type::SYSTEM,
         );
         with_connection(&state.db, |conn| {
-            conn.execute(&insert_sql, rusqlite::params![row_id, new_vault_id])
-                .map_err(|e| DatabaseError::ExecutionError {
-                    sql: insert_sql.clone(),
-                    reason: e.to_string(),
-                    table: Some(TABLE_VAULT_SETTINGS.to_string()),
-                })?;
+            let tx = conn.transaction().map_err(DatabaseError::from)?;
+            SqlExecutor::execute_internal_typed(
+                &tx,
+                &hlc_service,
+                &insert_sql,
+                rusqlite::params![row_id, new_vault_id],
+            )?;
+            tx.commit().map_err(DatabaseError::from)?;
             Ok(())
         })?;
-        println!("[CREATE_DB] ✅ vault_id set successfully");
+        println!("[CREATE_DB] ✅ vault_id set successfully with CRDT timestamp");
     }
 
     println!("[CREATE_DB] ========== create_encrypted_database COMPLETE ==========");
