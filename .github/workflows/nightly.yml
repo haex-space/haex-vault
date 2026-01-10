@@ -98,6 +98,18 @@ jobs:
       - name: Run TypeScript tests
         run: pnpm test
 
+  # Run E2E tests after unit tests (non-blocking for nightly builds)
+  e2e-tests:
+    needs: [check-changes, test]
+    if: needs.check-changes.outputs.should_build == 'true'
+    uses: haex-space/haex-e2e-tests/.github/workflows/e2e-tests.yml@main
+    with:
+      build_type: nightly
+      haex_vault_version: ${{ github.sha }}
+      haextension_version: main
+      vault_sdk_version: main
+      sync_server_version: main
+
   create-nightly:
     needs: [check-changes, test]
     if: needs.check-changes.outputs.should_build == 'true'
