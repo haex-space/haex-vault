@@ -71,7 +71,6 @@ fn create_db_permission(
         target: target.to_string(),
         constraints: None,
         status,
-        haex_timestamp: Some("0".to_string()),
     }
 }
 

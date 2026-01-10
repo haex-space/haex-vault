@@ -3,7 +3,7 @@
 
 use crate::database::core::{with_connection, DRIZZLE_STATEMENT_BREAKPOINT};
 use crate::database::error::DatabaseError;
-use crate::database::generated::HaexCrdtMigrations;
+use crate::database::generated::HaexCrdtMigrationsNoSync;
 use crate::table_names::TABLE_CRDT_MIGRATIONS;
 use crate::AppState;
 use rusqlite::{params, Connection};
@@ -134,7 +134,7 @@ pub fn apply_core_migrations(
 #[tauri::command]
 pub fn get_applied_core_migrations(
     state: State<'_, AppState>,
-) -> Result<Vec<HaexCrdtMigrations>, DatabaseError> {
+) -> Result<Vec<HaexCrdtMigrationsNoSync>, DatabaseError> {
     println!("[MIGRATIONS] get_applied_core_migrations called");
 
     with_connection(&state.db, |conn| {
@@ -151,17 +151,18 @@ pub fn get_applied_core_migrations(
 
         let mut stmt = conn
             .prepare(&format!(
-                "SELECT id, migration_name, migration_content, applied_at FROM {TABLE_CRDT_MIGRATIONS} ORDER BY applied_at"
+                "SELECT id, extension_id, migration_name, migration_content, applied_at FROM {TABLE_CRDT_MIGRATIONS} ORDER BY applied_at"
             ))
             .map_err(DatabaseError::from)?;
 
         let migrations = stmt
             .query_map([], |row| {
-                Ok(HaexCrdtMigrations {
+                Ok(HaexCrdtMigrationsNoSync {
                     id: row.get(0)?,
-                    migration_name: row.get(1)?,
-                    migration_content: row.get(2)?,
-                    applied_at: row.get(3)?,
+                    extension_id: row.get(1)?,
+                    migration_name: row.get(2)?,
+                    migration_content: row.get(3)?,
+                    applied_at: row.get(4)?,
                 })
             })
             .map_err(DatabaseError::from)?

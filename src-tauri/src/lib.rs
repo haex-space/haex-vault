@@ -47,6 +47,8 @@ pub struct AppState {
     pub session_permissions: extension::permissions::session::SessionPermissionStore,
     /// LocalSend state for file sharing (Arc for sharing with Axum server)
     pub localsend: Arc<localsend::LocalSendState>,
+    /// Extension resource limits service (database, filesystem, web)
+    pub limits: extension::limits::LimitsService,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -134,6 +136,7 @@ pub fn run() {
             file_watcher: extension::filesystem::watcher::FileWatcherManager::new(),
             session_permissions: extension::permissions::session::SessionPermissionStore::new(),
             localsend: Arc::new(localsend::LocalSendState::new()),
+            limits: extension::limits::LimitsService::new(),
         })
         //.manage(ExtensionState::default())
         .plugin(tauri_plugin_dialog::init())
@@ -222,6 +225,9 @@ pub fn run() {
             extension::permissions::commands::extension_permissions_check_filesystem,
             extension::permissions::commands::resolve_permission_prompt,
             extension::permissions::commands::grant_session_permission,
+            extension::limits::commands::get_extension_limits,
+            extension::limits::commands::update_extension_limits,
+            extension::limits::commands::reset_extension_limits,
             extension::get_all_dev_extensions,
             extension::get_all_extensions,
             extension::get_extension_info,

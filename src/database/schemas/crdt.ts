@@ -78,8 +78,8 @@ export const haexCrdtConflicts = sqliteTable(
     resolvedAt: text(crdtTableNames.conflicts.columns.resolvedAt),
   },
   (table) => [
-    index('haex_crdt_conflicts_table_name_idx').on(table.tableName),
-    index('haex_crdt_conflicts_resolved_idx').on(table.resolved),
+    index('haex_crdt_conflicts_no_sync_table_name_idx').on(table.tableName),
+    index('haex_crdt_conflicts_no_sync_resolved_idx').on(table.resolved),
   ],
 )
 export type InsertHaexCrdtConflicts = typeof haexCrdtConflicts.$inferInsert
@@ -113,7 +113,7 @@ export const haexCrdtMigrations = sqliteTable(
   (table) => [
     // Unique index on (extensionId, migrationName) - each extension can have its own migrations
     // Core migrations have extensionId = NULL, extension migrations have their extension_id
-    uniqueIndex('haex_crdt_migrations_ext_name_unique').on(
+    uniqueIndex('haex_crdt_migrations_no_sync_ext_name_unique').on(
       table.extensionId,
       table.migrationName,
     ),

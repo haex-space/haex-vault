@@ -7,6 +7,7 @@ use crate::crdt::transformer::CrdtTransformer;
 use sqlparser::ast::Statement;
 use sqlparser::dialect::SQLiteDialect;
 use sqlparser::parser::Parser;
+use uhlc::HLC;
 
 fn parse_and_transform_query(sql: &str) -> String {
     let dialect = SQLiteDialect {};
@@ -16,6 +17,20 @@ fn parse_and_transform_query(sql: &str) -> String {
     if let Statement::Query(ref mut query) = statements[0] {
         transformer.transform_query(query);
     }
+
+    statements[0].to_string()
+}
+
+fn parse_and_transform_execute(sql: &str) -> String {
+    let dialect = SQLiteDialect {};
+    let mut statements = Parser::parse_sql(&dialect, sql).unwrap();
+    let transformer = CrdtTransformer::new();
+    let hlc = HLC::default();
+    let timestamp = hlc.new_timestamp();
+
+    transformer
+        .transform_execute_statement(&mut statements[0], &timestamp)
+        .unwrap();
 
     statements[0].to_string()
 }
@@ -118,14 +133,14 @@ fn test_select_with_multiple_joins_uses_first_table() {
 }
 
 #[test]
-fn test_select_excludes_crdt_internal_tables() {
-    let sql = "SELECT * FROM haex_crdt_changes";
+fn test_select_excludes_no_sync_tables() {
+    let sql = "SELECT * FROM haex_crdt_configs_no_sync";
     let result = parse_and_transform_query(sql);
 
-    // Should NOT add tombstone filter for internal CRDT tables
+    // Should NOT add tombstone filter for _no_sync tables
     assert!(
         !result.contains("haex_tombstone"),
-        "Should not add tombstone filter for internal CRDT table: {}",
+        "Should not add tombstone filter for _no_sync table: {}",
         result
     );
 }
@@ -261,6 +276,137 @@ fn test_subquery_in_join() {
     assert_eq!(
         ifnull_count, 2,
         "Both outer and inner queries should have tombstone filters: {}",
+        result
+    );
+}
+
+// =============================================================================
+// CREATE INDEX TRANSFORMATION TESTS
+// =============================================================================
+
+#[test]
+fn test_unique_index_adds_tombstone_predicate() {
+    let sql = "CREATE UNIQUE INDEX idx_items_name ON items(name)";
+    let result = parse_and_transform_execute(sql);
+
+    // Should add WHERE IFNULL(haex_tombstone, 0) <> 1
+    assert!(
+        result.contains(TOMBSTONE_FILTER_UNQUALIFIED),
+        "Unique index should get tombstone predicate: {}",
+        result
+    );
+}
+
+#[test]
+fn test_non_unique_index_no_tombstone_predicate() {
+    let sql = "CREATE INDEX idx_items_name ON items(name)";
+    let result = parse_and_transform_execute(sql);
+
+    // Should NOT add tombstone predicate for non-unique indices
+    assert!(
+        !result.contains("haex_tombstone"),
+        "Non-unique index should not get tombstone predicate: {}",
+        result
+    );
+}
+
+#[test]
+fn test_unique_index_with_existing_predicate_merges() {
+    let sql = "CREATE UNIQUE INDEX idx_items_active ON items(name) WHERE active = 1";
+    let result = parse_and_transform_execute(sql);
+
+    // Should keep original predicate AND add tombstone filter
+    assert!(
+        result.contains("active = 1"),
+        "Should preserve original predicate: {}",
+        result
+    );
+    assert!(
+        result.contains(TOMBSTONE_FILTER_UNQUALIFIED),
+        "Should add tombstone predicate: {}",
+        result
+    );
+}
+
+#[test]
+fn test_unique_index_with_existing_tombstone_condition_not_duplicated() {
+    let sql = "CREATE UNIQUE INDEX idx_items_name ON items(name) WHERE haex_tombstone = 0";
+    let result = parse_and_transform_execute(sql);
+
+    // Should NOT add another tombstone condition
+    let tombstone_count = result.matches("haex_tombstone").count();
+    assert_eq!(
+        tombstone_count, 1,
+        "Should not duplicate tombstone condition: {}",
+        result
+    );
+}
+
+#[test]
+fn test_unique_index_on_no_sync_internal_table_no_predicate() {
+    let sql = "CREATE UNIQUE INDEX idx_crdt_test ON haex_crdt_configs_no_sync(key)";
+    let result = parse_and_transform_execute(sql);
+
+    // Should NOT add tombstone predicate for _no_sync tables
+    assert!(
+        !result.contains("IFNULL"),
+        "_no_sync table index should not get tombstone predicate: {}",
+        result
+    );
+}
+
+#[test]
+fn test_unique_index_multi_column() {
+    let sql = "CREATE UNIQUE INDEX idx_items_compound ON items(category_id, name)";
+    let result = parse_and_transform_execute(sql);
+
+    // Should add tombstone predicate
+    assert!(
+        result.contains(TOMBSTONE_FILTER_UNQUALIFIED),
+        "Multi-column unique index should get tombstone predicate: {}",
+        result
+    );
+}
+
+// =============================================================================
+// NO_SYNC SUFFIX TESTS
+// =============================================================================
+
+#[test]
+fn test_no_sync_suffix_excludes_from_crdt_select() {
+    let sql = "SELECT * FROM items_no_sync";
+    let result = parse_and_transform_query(sql);
+
+    // Should NOT add tombstone filter for _no_sync tables
+    assert!(
+        !result.contains("haex_tombstone"),
+        "No-sync table should not get tombstone filter: {}",
+        result
+    );
+}
+
+#[test]
+fn test_regular_table_gets_crdt() {
+    let sql = "SELECT * FROM items";
+    let result = parse_and_transform_query(sql);
+
+    // Should add tombstone filter for regular tables
+    assert!(
+        result.contains(TOMBSTONE_FILTER_UNQUALIFIED),
+        "Regular table should get tombstone filter: {}",
+        result
+    );
+}
+
+#[test]
+fn test_unique_index_on_no_sync_table_no_predicate() {
+    let sql = "CREATE UNIQUE INDEX idx_test ON cache_data_no_sync(key)";
+    let result = parse_and_transform_execute(sql);
+
+    // Should NOT add tombstone predicate for _no_sync tables
+    assert!(
+        !result.contains("IFNULL"),
+        "No-sync table index should not get tombstone predicate: {}",
         result
     );
 }

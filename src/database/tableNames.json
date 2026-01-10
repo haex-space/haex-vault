@@ -21,9 +21,7 @@
         "id": "id",
         "key": "key",
         "type": "type",
-        "value": "value",
-
-        "haexTimestamp": "haex_timestamp"
+        "value": "value"
       }
     },
     "extensions": {
@@ -42,9 +40,7 @@
         "url": "url",
         "version": "version",
         "createdAt": "created_at",
-        "updatedAt": "updated_at",
-
-        "haexTimestamp": "haex_timestamp"
+        "updatedAt": "updated_at"
       }
     },
     "extension_permissions": {
@@ -58,9 +54,7 @@
         "constraints": "constraints",
         "status": "status",
         "createdAt": "created_at",
-        "updateAt": "updated_at",
-
-        "haexTimestamp": "haex_timestamp"
+        "updateAt": "updated_at"
       }
     },
     "notifications": {
@@ -75,9 +69,7 @@
         "source": "source",
         "text": "text",
         "title": "title",
-        "type": "type",
-
-        "haexTimestamp": "haex_timestamp"
+        "type": "type"
       }
     },
     "workspaces": {
@@ -87,9 +79,7 @@
         "deviceId": "device_id",
         "name": "name",
         "position": "position",
-        "createdAt": "created_at",
-
-        "haexTimestamp": "haex_timestamp"
+        "createdAt": "created_at"
       }
     },
     "desktop_items": {
@@ -101,9 +91,7 @@
         "extensionId": "extension_id",
         "systemWindowId": "system_window_id",
         "positionX": "position_x",
-        "positionY": "position_y",
-
-        "haexTimestamp": "haex_timestamp"
+        "positionY": "position_y"
       }
     },
     "devices": {
@@ -114,9 +102,7 @@
         "name": "name",
         "current": "current",
         "createdAt": "created_at",
-        "updatedAt": "updated_at",
-
-        "haexTimestamp": "haex_timestamp"
+        "updatedAt": "updated_at"
       }
     },
     "sync_backends": {
@@ -136,9 +122,7 @@
         "lastPullServerTimestamp": "last_pull_server_timestamp",
         "pendingVaultKeyUpdate": "pending_vault_key_update",
         "createdAt": "created_at",
-        "updatedAt": "updated_at",
-
-        "haexTimestamp": "haex_timestamp"
+        "updatedAt": "updated_at"
       }
     },
     "extension_migrations": {
@@ -148,9 +132,7 @@
         "extensionId": "extension_id",
         "extensionVersion": "extension_version",
         "migrationName": "migration_name",
-        "sqlStatement": "sql_statement",
-
-        "haexTimestamp": "haex_timestamp"
+        "sqlStatement": "sql_statement"
       }
     },
     "external_authorized_clients": {
@@ -162,9 +144,7 @@
         "publicKey": "public_key",
         "extensionId": "extension_id",
         "authorizedAt": "authorized_at",
-        "lastSeen": "last_seen",
-
-        "haexTimestamp": "haex_timestamp"
+        "lastSeen": "last_seen"
       }
     },
     "external_blocked_clients": {
@@ -174,9 +154,20 @@
         "clientId": "client_id",
         "clientName": "client_name",
         "publicKey": "public_key",
-        "blockedAt": "blocked_at",
-
-        "haexTimestamp": "haex_timestamp"
+        "blockedAt": "blocked_at"
+      }
+    },
+    "extension_limits": {
+      "name": "haex_extension_limits",
+      "columns": {
+        "id": "id",
+        "extensionId": "extension_id",
+        "queryTimeoutMs": "query_timeout_ms",
+        "maxResultRows": "max_result_rows",
+        "maxConcurrentQueries": "max_concurrent_queries",
+        "maxQuerySizeBytes": "max_query_size_bytes",
+        "createdAt": "created_at",
+        "updatedAt": "updated_at"
       }
     },
     "storage_backends": {
@@ -187,15 +178,13 @@
         "name": "name",
         "config": "config",
         "enabled": "enabled",
-        "createdAt": "created_at",
-
-        "haexTimestamp": "haex_timestamp"
+        "createdAt": "created_at"
       }
     },
 
     "crdt": {
       "changes": {
-        "name": "haex_crdt_changes",
+        "name": "haex_crdt_changes_no_sync",
         "columns": {
           "tableName": "table_name",
           "rowPks": "row_pks",
@@ -208,7 +197,7 @@
         }
       },
       "snapshots": {
-        "name": "haex_crdt_snapshots",
+        "name": "haex_crdt_snapshots_no_sync",
         "columns": {
           "snapshotId": "snapshot_id",
           "created": "created",
@@ -218,7 +207,7 @@
         }
       },
       "configs": {
-        "name": "haex_crdt_configs",
+        "name": "haex_crdt_configs_no_sync",
         "columns": {
           "key": "key",
           "type": "type",
@@ -226,7 +215,7 @@
         }
       },
       "sync_status": {
-        "name": "haex_crdt_sync_status",
+        "name": "haex_crdt_sync_status_no_sync",
         "columns": {
           "id": "id",
           "backendId": "backend_id",
@@ -237,7 +226,7 @@
         }
       },
       "conflicts": {
-        "name": "haex_crdt_conflicts",
+        "name": "haex_crdt_conflicts_no_sync",
         "columns": {
           "id": "id",
           "tableName": "table_name",
@@ -256,14 +245,14 @@
         }
       },
       "dirty_tables": {
-        "name": "haex_crdt_dirty_tables",
+        "name": "haex_crdt_dirty_tables_no_sync",
         "columns": {
           "tableName": "table_name",
           "lastModified": "last_modified"
         }
       },
       "migrations": {
-        "name": "haex_crdt_migrations",
+        "name": "haex_crdt_migrations_no_sync",
         "columns": {
           "id": "id",
           "extensionId": "extension_id",

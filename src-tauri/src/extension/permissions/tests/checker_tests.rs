@@ -50,7 +50,6 @@ fn create_permission(action: DbAction, target: &str) -> ExtensionPermission {
         target: target.to_string(),
         constraints: None,
         status: PermissionStatus::Granted,
-        haex_timestamp: Some("0".to_string()),
     }
 }
 

@@ -215,7 +215,6 @@ pub async fn resolve_permission_prompt(
             target,
             constraints: None,
             status,
-            haex_timestamp: None,
         };
 
         PermissionManager::save_permissions(&state, &[new_permission]).await?;

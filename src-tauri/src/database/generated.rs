@@ -13,10 +13,6 @@ pub struct HaexVaultSettings {
     pub r#type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub haex_timestamp: Option<String>,
-    pub haex_column_hlcs: String,
-    pub haex_tombstone: bool,
 }
 
 impl HaexVaultSettings {
@@ -26,9 +22,6 @@ impl HaexVaultSettings {
             key: row.get(1)?,
             r#type: row.get(2)?,
             value: row.get(3)?,
-            haex_timestamp: row.get(4)?,
-            haex_column_hlcs: row.get(5)?,
-            haex_tombstone: row.get(6)?,
         })
     }
 }
@@ -61,10 +54,6 @@ pub struct HaexExtensions {
     pub created_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub haex_timestamp: Option<String>,
-    pub haex_column_hlcs: String,
-    pub haex_tombstone: bool,
 }
 
 impl HaexExtensions {
@@ -85,9 +74,6 @@ impl HaexExtensions {
             display_mode: row.get(12)?,
             created_at: row.get(13)?,
             updated_at: row.get(14)?,
-            haex_timestamp: row.get(15)?,
-            haex_column_hlcs: row.get(16)?,
-            haex_tombstone: row.get(17)?,
         })
     }
 }
@@ -110,10 +96,6 @@ pub struct HaexExtensionPermissions {
     pub created_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub haex_timestamp: Option<String>,
-    pub haex_column_hlcs: String,
-    pub haex_tombstone: bool,
 }
 
 impl HaexExtensionPermissions {
@@ -128,23 +110,20 @@ impl HaexExtensionPermissions {
             status: row.get(6)?,
             created_at: row.get(7)?,
             updated_at: row.get(8)?,
-            haex_timestamp: row.get(9)?,
-            haex_column_hlcs: row.get(10)?,
-            haex_tombstone: row.get(11)?,
         })
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct HaexCrdtConfigs {
+pub struct HaexCrdtConfigsNoSync {
     pub key: String,
     #[serde(rename = "type")]
     pub r#type: String,
     pub value: String,
 }
 
-impl HaexCrdtConfigs {
+impl HaexCrdtConfigsNoSync {
     pub fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
         Ok(Self {
             key: row.get(0)?,
@@ -166,10 +145,6 @@ pub struct HaexDesktopItems {
     pub system_window_id: Option<String>,
     pub position_x: i64,
     pub position_y: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub haex_timestamp: Option<String>,
-    pub haex_column_hlcs: String,
-    pub haex_tombstone: bool,
 }
 
 impl HaexDesktopItems {
@@ -182,9 +157,6 @@ impl HaexDesktopItems {
             system_window_id: row.get(4)?,
             position_x: row.get(5)?,
             position_y: row.get(6)?,
-            haex_timestamp: row.get(7)?,
-            haex_column_hlcs: row.get(8)?,
-            haex_tombstone: row.get(9)?,
         })
     }
 }
@@ -198,10 +170,6 @@ pub struct HaexWorkspaces {
     pub position: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub background: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub haex_timestamp: Option<String>,
-    pub haex_column_hlcs: String,
-    pub haex_tombstone: bool,
 }
 
 impl HaexWorkspaces {
@@ -212,29 +180,60 @@ impl HaexWorkspaces {
             name: row.get(2)?,
             position: row.get(3)?,
             background: row.get(4)?,
-            haex_timestamp: row.get(5)?,
-            haex_column_hlcs: row.get(6)?,
-            haex_tombstone: row.get(7)?,
         })
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct HaexCrdtMigrations {
+pub struct HaexCrdtMigrationsNoSync {
     pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_id: Option<String>,
     pub migration_name: String,
     pub migration_content: String,
     pub applied_at: String,
 }
 
-impl HaexCrdtMigrations {
+impl HaexCrdtMigrationsNoSync {
     pub fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
         Ok(Self {
             id: row.get(0)?,
-            migration_name: row.get(1)?,
-            migration_content: row.get(2)?,
-            applied_at: row.get(3)?,
+            extension_id: row.get(1)?,
+            migration_name: row.get(2)?,
+            migration_content: row.get(3)?,
+            applied_at: row.get(4)?,
         })
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HaexExtensionLimits {
+    pub id: String,
+    pub extension_id: String,
+    pub query_timeout_ms: i64,
+    pub max_result_rows: i64,
+    pub max_concurrent_queries: i64,
+    pub max_query_size_bytes: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+}
+
+impl HaexExtensionLimits {
+    pub fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            id: row.get(0)?,
+            extension_id: row.get(1)?,
+            query_timeout_ms: row.get(2)?,
+            max_result_rows: row.get(3)?,
+            max_concurrent_queries: row.get(4)?,
+            max_query_size_bytes: row.get(5)?,
+            created_at: row.get(6)?,
+            updated_at: row.get(7)?,
+        })
+    }
+}
+

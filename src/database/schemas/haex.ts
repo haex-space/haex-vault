@@ -6,52 +6,16 @@ import {
   text,
   uniqueIndex,
   type AnySQLiteColumn,
-  type SQLiteColumnBuilderBase,
 } from 'drizzle-orm/sqlite-core'
 import tableNames from '@/database/tableNames.json'
 
-const crdtColumnNames = tableNames.crdt.columns
-
-// Helper function to add common CRDT columns (haexTimestamp, haexColumnHlcs, haexTombstone)
-export const withCrdtColumns = <
-  T extends Record<string, SQLiteColumnBuilderBase>,
->(
-  columns: T,
-) => ({
-  ...columns,
-  haexTimestamp: text(crdtColumnNames.haexTimestamp),
-  haexColumnHlcs: text(crdtColumnNames.haexColumnHlcs).notNull().default('{}'),
-  haexTombstone: integer(crdtColumnNames.haexTombstone, { mode: 'boolean' })
-    .notNull()
-    .default(false),
-})
-
-// Helper to create standard timestamp columns (createdAt, updatedAt)
-export const timestampColumns = (createdAtCol: string, updatedAtCol: string) => ({
-  createdAt: text(createdAtCol).default(sql`(CURRENT_TIMESTAMP)`),
-  updatedAt: text(updatedAtCol),
-})
-
-// Combined helper for CRDT + timestamps (for tables that need both)
-export const withCrdtAndTimestamps = <
-  T extends Record<string, SQLiteColumnBuilderBase>,
->(
-  columns: T,
-  createdAtCol: string,
-  updatedAtCol: string,
-) => ({
-  ...columns,
-  ...timestampColumns(createdAtCol, updatedAtCol),
-  haexTimestamp: text(crdtColumnNames.haexTimestamp),
-  haexColumnHlcs: text(crdtColumnNames.haexColumnHlcs).notNull().default('{}'),
-  haexTombstone: integer(crdtColumnNames.haexTombstone, { mode: 'boolean' })
-    .notNull()
-    .default(false),
-})
+// Note: CRDT columns (haex_timestamp, haex_column_hlcs, haex_tombstone) are added
+// automatically by the Rust CrdtTransformer when CREATE TABLE is executed.
+// The WHERE haex_tombstone = 0 condition for UNIQUE indices is also added automatically.
 
 export const haexDevices = sqliteTable(
   tableNames.haex.devices.name,
-  withCrdtColumns({
+  {
     id: text(tableNames.haex.devices.columns.id)
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
@@ -68,11 +32,9 @@ export const haexDevices = sqliteTable(
     updatedAt: integer(tableNames.haex.devices.columns.updatedAt, {
       mode: 'timestamp',
     }).$onUpdate(() => new Date()),
-  }),
+  },
   (table) => [
-    uniqueIndex('haex_devices_device_id_unique')
-      .on(table.deviceId)
-      .where(sql`${table.haexTombstone} = 0`),
+    uniqueIndex('haex_devices_device_id_unique').on(table.deviceId),
   ],
 )
 export type InsertHaexDevices = typeof haexDevices.$inferInsert
@@ -80,18 +42,16 @@ export type SelectHaexDevices = typeof haexDevices.$inferSelect
 
 export const haexVaultSettings = sqliteTable(
   tableNames.haex.vault_settings.name,
-  withCrdtColumns({
+  {
     id: text(tableNames.haex.vault_settings.columns.id)
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
     key: text(tableNames.haex.vault_settings.columns.key).notNull(),
     type: text(tableNames.haex.vault_settings.columns.type).notNull(),
     value: text(tableNames.haex.vault_settings.columns.value),
-  }),
+  },
   (table) => [
-    uniqueIndex('haex_vault_settings_key_type_unique')
-      .on(table.key, table.type)
-      .where(sql`${table.haexTombstone} = 0`),
+    uniqueIndex('haex_vault_settings_key_type_unique').on(table.key, table.type),
   ],
 )
 export type InsertHaexVaultSettings = typeof haexVaultSettings.$inferInsert
@@ -99,7 +59,7 @@ export type SelectHaexVaultSettings = typeof haexVaultSettings.$inferSelect
 
 export const haexExtensions = sqliteTable(
   tableNames.haex.extensions.name,
-  withCrdtColumns({
+  {
     id: text()
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
@@ -121,12 +81,9 @@ export const haexExtensions = sqliteTable(
     updatedAt: integer(tableNames.haex.extensions.columns.updatedAt, {
       mode: 'timestamp',
     }).$onUpdate(() => new Date()),
-  }),
+  },
   (table) => [
-    // UNIQUE constraint: Pro Developer (public_key) kann nur eine Extension mit diesem Namen existieren
-    uniqueIndex('haex_extensions_public_key_name_unique')
-      .on(table.public_key, table.name)
-      .where(sql`${table.haexTombstone} = 0`),
+    uniqueIndex('haex_extensions_public_key_name_unique').on(table.public_key, table.name),
   ],
 )
 export type InsertHaexExtensions = typeof haexExtensions.$inferInsert
@@ -134,7 +91,7 @@ export type SelectHaexExtensions = typeof haexExtensions.$inferSelect
 
 export const haexExtensionPermissions = sqliteTable(
   tableNames.haex.extension_permissions.name,
-  withCrdtColumns({
+  {
     id: text()
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
@@ -156,11 +113,10 @@ export const haexExtensionPermissions = sqliteTable(
     updateAt: integer('updated_at', { mode: 'timestamp' }).$onUpdate(
       () => new Date(),
     ),
-  }),
+  },
   (table) => [
     uniqueIndex('haex_extension_permissions_extension_id_resource_type_action_target_unique')
-      .on(table.extensionId, table.resourceType, table.action, table.target)
-      .where(sql`${table.haexTombstone} = 0`),
+      .on(table.extensionId, table.resourceType, table.action, table.target),
   ],
 )
 export type InserthaexExtensionPermissions =
@@ -170,7 +126,7 @@ export type SelecthaexExtensionPermissions =
 
 export const haexNotifications = sqliteTable(
   tableNames.haex.notifications.name,
-  withCrdtColumns({
+  {
     id: text()
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
@@ -185,14 +141,14 @@ export const haexNotifications = sqliteTable(
     type: text({
       enum: ['error', 'success', 'warning', 'info', 'log'],
     }).notNull(),
-  }),
+  },
 )
 export type InsertHaexNotifications = typeof haexNotifications.$inferInsert
 export type SelectHaexNotifications = typeof haexNotifications.$inferSelect
 
 export const haexWorkspaces = sqliteTable(
   tableNames.haex.workspaces.name,
-  withCrdtColumns({
+  {
     id: text(tableNames.haex.workspaces.columns.id)
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
@@ -202,11 +158,9 @@ export const haexWorkspaces = sqliteTable(
       .notNull()
       .default(0),
     background: text(),
-  }),
+  },
   (table) => [
-    uniqueIndex('haex_workspaces_device_position_unique')
-      .on(table.deviceId, table.position)
-      .where(sql`${table.haexTombstone} = 0`),
+    uniqueIndex('haex_workspaces_device_position_unique').on(table.deviceId, table.position),
   ],
 )
 export type InsertHaexWorkspaces = typeof haexWorkspaces.$inferInsert
@@ -214,7 +168,7 @@ export type SelectHaexWorkspaces = typeof haexWorkspaces.$inferSelect
 
 export const haexDesktopItems = sqliteTable(
   tableNames.haex.desktop_items.name,
-  withCrdtColumns({
+  {
     id: text(tableNames.haex.desktop_items.columns.id)
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
@@ -238,7 +192,7 @@ export const haexDesktopItems = sqliteTable(
     positionY: integer(tableNames.haex.desktop_items.columns.positionY)
       .notNull()
       .default(0),
-  }),
+  },
   (table) => [
     check(
       'item_reference',
@@ -251,7 +205,7 @@ export type SelectHaexDesktopItems = typeof haexDesktopItems.$inferSelect
 
 export const haexSyncBackends = sqliteTable(
   tableNames.haex.sync_backends.name,
-  withCrdtColumns({
+  {
     id: text(tableNames.haex.sync_backends.columns.id)
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
@@ -283,11 +237,9 @@ export const haexSyncBackends = sqliteTable(
     updatedAt: integer(tableNames.haex.sync_backends.columns.updatedAt, {
       mode: 'timestamp',
     }).$onUpdate(() => new Date()),
-  }),
+  },
   (table) => [
-    uniqueIndex('haex_sync_backends_server_url_email_unique')
-      .on(table.serverUrl, table.email)
-      .where(sql`${table.haexTombstone} = 0`),
+    uniqueIndex('haex_sync_backends_server_url_email_unique').on(table.serverUrl, table.email),
   ],
 )
 export type InsertHaexSyncBackends = typeof haexSyncBackends.$inferInsert
@@ -295,7 +247,7 @@ export type SelectHaexSyncBackends = typeof haexSyncBackends.$inferSelect
 
 export const haexExtensionMigrations = sqliteTable(
   tableNames.haex.extension_migrations.name,
-  withCrdtColumns({
+  {
     id: text(tableNames.haex.extension_migrations.columns.id)
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
@@ -307,11 +259,10 @@ export const haexExtensionMigrations = sqliteTable(
     extensionVersion: text(tableNames.haex.extension_migrations.columns.extensionVersion).notNull(),
     migrationName: text(tableNames.haex.extension_migrations.columns.migrationName).notNull(),
     sqlStatement: text(tableNames.haex.extension_migrations.columns.sqlStatement).notNull(),
-  }),
+  },
   (table) => [
     uniqueIndex('haex_extension_migrations_extension_id_migration_name_unique')
-      .on(table.extensionId, table.migrationName)
-      .where(sql`${table.haexTombstone} = 0`),
+      .on(table.extensionId, table.migrationName),
   ],
 )
 export type InsertHaexExtensionMigrations = typeof haexExtensionMigrations.$inferInsert
@@ -320,7 +271,7 @@ export type SelectHaexExtensionMigrations = typeof haexExtensionMigrations.$infe
 // External authorized clients (browser extensions, CLI tools, servers, etc.)
 export const haexExternalAuthorizedClients = sqliteTable(
   tableNames.haex.external_authorized_clients.name,
-  withCrdtColumns({
+  {
     id: text(tableNames.haex.external_authorized_clients.columns.id)
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
@@ -336,13 +287,10 @@ export const haexExternalAuthorizedClients = sqliteTable(
       sql`(CURRENT_TIMESTAMP)`,
     ),
     lastSeen: text(tableNames.haex.external_authorized_clients.columns.lastSeen),
-  }),
+  },
   (table) => [
-    // A client can be authorized for multiple extensions
-    // The combination of client_id + extension_id must be unique
     uniqueIndex('haex_external_authorized_clients_client_extension_unique')
-      .on(table.clientId, table.extensionId)
-      .where(sql`${table.haexTombstone} = 0`),
+      .on(table.clientId, table.extensionId),
   ],
 )
 export type InsertHaexExternalAuthorizedClients = typeof haexExternalAuthorizedClients.$inferInsert
@@ -351,7 +299,7 @@ export type SelectHaexExternalAuthorizedClients = typeof haexExternalAuthorizedC
 // External blocked clients (permanently denied)
 export const haexExternalBlockedClients = sqliteTable(
   tableNames.haex.external_blocked_clients.name,
-  withCrdtColumns({
+  {
     id: text(tableNames.haex.external_blocked_clients.columns.id)
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
@@ -361,12 +309,49 @@ export const haexExternalBlockedClients = sqliteTable(
     blockedAt: text(tableNames.haex.external_blocked_clients.columns.blockedAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),
-  }),
+  },
   (table) => [
-    uniqueIndex('haex_external_blocked_clients_client_id_unique')
-      .on(table.clientId)
-      .where(sql`${table.haexTombstone} = 0`),
+    uniqueIndex('haex_external_blocked_clients_client_id_unique').on(table.clientId),
   ],
 )
 export type InsertHaexExternalBlockedClients = typeof haexExternalBlockedClients.$inferInsert
 export type SelectHaexExternalBlockedClients = typeof haexExternalBlockedClients.$inferSelect
+
+// Extension resource limits (query timeouts, result size limits, etc.)
+export const haexExtensionLimits = sqliteTable(
+  tableNames.haex.extension_limits.name,
+  {
+    id: text(tableNames.haex.extension_limits.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    extensionId: text(tableNames.haex.extension_limits.columns.extensionId)
+      .notNull()
+      .references((): AnySQLiteColumn => haexExtensions.id, {
+        onDelete: 'cascade',
+      }),
+    // Query timeout in milliseconds (default: 30000 = 30 seconds)
+    queryTimeoutMs: integer(tableNames.haex.extension_limits.columns.queryTimeoutMs)
+      .notNull()
+      .default(30000),
+    // Maximum number of rows returned per query (default: 10000)
+    maxResultRows: integer(tableNames.haex.extension_limits.columns.maxResultRows)
+      .notNull()
+      .default(10000),
+    // Maximum concurrent queries per extension (default: 5)
+    maxConcurrentQueries: integer(tableNames.haex.extension_limits.columns.maxConcurrentQueries)
+      .notNull()
+      .default(5),
+    // Maximum query SQL size in bytes (default: 1MB)
+    maxQuerySizeBytes: integer(tableNames.haex.extension_limits.columns.maxQuerySizeBytes)
+      .notNull()
+      .default(1048576),
+    createdAt: text(tableNames.haex.extension_limits.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
+    updatedAt: integer(tableNames.haex.extension_limits.columns.updatedAt, { mode: 'timestamp' })
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex('haex_extension_limits_extension_id_unique').on(table.extensionId),
+  ],
+)
+export type InsertHaexExtensionLimits = typeof haexExtensionLimits.$inferInsert
+export type SelectHaexExtensionLimits = typeof haexExtensionLimits.$inferSelect

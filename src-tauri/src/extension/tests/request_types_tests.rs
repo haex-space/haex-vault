@@ -353,7 +353,6 @@ mod permission_types_tests {
             target: "other__ext__*".to_string(),
             constraints: None,
             status: PermissionStatus::Granted,
-            haex_timestamp: Some("1234567890".to_string()),
         };
 
         assert_eq!(permission.id, "perm_123");

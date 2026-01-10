@@ -6,7 +6,6 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core'
 import tableNames from '@/database/tableNames.json'
-import { withCrdtColumns } from './haex'
 
 /**
  * Storage Backends (WITH CRDT - synced between devices)
@@ -17,12 +16,15 @@ import { withCrdtColumns } from './haex'
  * Note: Config is stored as plain JSON (not encrypted) because
  * SQLite database is already encrypted with SQLCipher at file level.
  *
+ * Note: CRDT columns and UNIQUE index WHERE conditions are added automatically
+ * by the Rust CrdtTransformer.
+ *
  * Supported types: 's3' (later: 'webdav', etc.)
  * Config structure depends on type - validated at runtime.
  */
 export const haexStorageBackends = sqliteTable(
   tableNames.haex.storage_backends.name,
-  withCrdtColumns({
+  {
     id: text(tableNames.haex.storage_backends.columns.id)
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
@@ -42,12 +44,9 @@ export const haexStorageBackends = sqliteTable(
     createdAt: text(tableNames.haex.storage_backends.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),
-  }),
+  },
   (table) => [
-    // Name must be unique (excluding tombstoned entries)
-    uniqueIndex('haex_storage_backends_name_unique')
-      .on(table.name)
-      .where(sql`${table.haexTombstone} = 0`),
+    uniqueIndex('haex_storage_backends_name_unique').on(table.name),
   ],
 )
 export type InsertHaexStorageBackends = typeof haexStorageBackends.$inferInsert

@@ -23,6 +23,7 @@ use crate::extension::database::queries::{
 };
 use crate::extension::database::types::{DatabaseQueryResult, MigrationResult};
 use crate::extension::error::ExtensionError;
+use crate::extension::limits::LimitError;
 use crate::extension::permissions::validator::SqlPermissionValidator;
 use crate::extension::utils::resolve_extension_id;
 use crate::AppState;
@@ -51,6 +52,25 @@ pub async fn extension_database_execute(
         .ok_or_else(|| ExtensionError::ValidationError {
             reason: format!("Extension with ID {} not found", extension_id),
         })?;
+
+    // Get extension limits
+    let limits = with_connection(&state.db, |conn| {
+        state.limits.get_limits(conn, &extension_id)
+    })?;
+
+    // Validate query size
+    state
+        .limits
+        .database()
+        .validate_query_size(&sql, &limits.database)
+        .map_err(|e: LimitError| ExtensionError::Database { source: e.into() })?;
+
+    // Acquire concurrent query slot (released when guard is dropped)
+    let _query_guard = state
+        .limits
+        .database()
+        .acquire_query_slot(&extension_id, &limits.database)
+        .map_err(|e: LimitError| ExtensionError::Database { source: e.into() })?;
 
     SqlPermissionValidator::validate_sql(&state, &extension_id, &sql).await?;
 
@@ -87,12 +107,31 @@ pub async fn extension_database_query(
     let extension_id = resolve_extension_id(&window, &state, public_key.clone(), name.clone())?;
     eprintln!("[EXT_QUERY] extension_id: {}, public_key: {:?}, name: {:?}", extension_id, public_key, name);
 
-    let extension = state
+    let _extension = state
         .extension_manager
         .get_extension(&extension_id)
         .ok_or_else(|| ExtensionError::ValidationError {
             reason: format!("Extension with ID {} not found", extension_id),
         })?;
+
+    // Get extension limits
+    let limits = with_connection(&state.db, |conn| {
+        state.limits.get_limits(conn, &extension_id)
+    })?;
+
+    // Validate query size
+    state
+        .limits
+        .database()
+        .validate_query_size(&sql, &limits.database)
+        .map_err(|e: LimitError| ExtensionError::Database { source: e.into() })?;
+
+    // Acquire concurrent query slot (released when guard is dropped)
+    let _query_guard = state
+        .limits
+        .database()
+        .acquire_query_slot(&extension_id, &limits.database)
+        .map_err(|e: LimitError| ExtensionError::Database { source: e.into() })?;
 
     SqlPermissionValidator::validate_sql(&state, &extension_id, &sql).await?;
 
@@ -130,6 +169,9 @@ pub async fn extension_database_query(
         }
     }
 
+    // Store max_result_rows for use inside the closure
+    let max_result_rows = limits.database.max_result_rows;
+
     let rows = with_connection(&state.db, |conn| {
         let sql_params = ValueConverter::convert_params(&params)?;
         let mut stmt_to_execute = ast_vec.pop().unwrap();
@@ -165,6 +207,17 @@ pub async fn extension_database_query(
         while let Some(row) = rows.next().map_err(|e| DatabaseError::QueryError {
             reason: e.to_string(),
         })? {
+            // Check result row limit
+            if result_vec.len() as i64 >= max_result_rows {
+                return Err(DatabaseError::LimitExceeded {
+                    reason: format!(
+                        "Query result exceeds maximum rows: {} (limit: {})",
+                        result_vec.len() + 1,
+                        max_result_rows
+                    ),
+                });
+            }
+
             let mut row_values: Vec<JsonValue> = Vec::new();
             for i in 0..num_columns {
                 let value_ref = row.get_ref(i).map_err(|e| DatabaseError::QueryError {

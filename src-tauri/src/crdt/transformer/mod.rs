@@ -175,12 +175,23 @@ impl CrdtTransformer {
     }
 
     /// Prüft, ob eine Tabelle CRDT-Synchronisation unterstützen soll
+    ///
+    /// Tables are excluded from CRDT if they end with `_no_sync`.
+    ///
+    /// This applies to both:
+    /// - Internal tables (e.g., `haex_crdt_configs_no_sync`)
+    /// - Extension tables (e.g., `ext_myapp_session_no_sync`)
+    ///
+    /// Examples:
+    /// - `haex_extensions` → CRDT-enabled (synced)
+    /// - `haex_crdt_configs_no_sync` → No CRDT (internal metadata)
+    /// - `ext_myapp_settings` → CRDT-enabled (synced)
+    /// - `ext_myapp_cache_no_sync` → No CRDT (local cache)
     fn is_crdt_sync_table(&self, name: &ObjectName) -> bool {
         let table_name = self.normalize_table_name(name);
 
-        // Exclude all haex_crdt_* tables (internal CRDT metadata)
-        // This includes: haex_crdt_changes, haex_crdt_configs, haex_crdt_snapshots, haex_crdt_sync_status
-        if table_name.starts_with("haex_crdt_") {
+        // Exclude tables ending with _no_sync
+        if table_name.ends_with("_no_sync") {
             return false;
         }
 
@@ -416,6 +427,24 @@ impl CrdtTransformer {
                 } else {
                     Ok(None)
                 }
+            }
+            Statement::CreateIndex(create_index) => {
+                // For UNIQUE indices on CRDT tables, add WHERE haex_tombstone = 0
+                // to ensure tombstoned rows don't block new inserts
+                if create_index.unique && self.is_crdt_sync_table(&create_index.table_name) {
+                    // Only add if no haex_tombstone condition already exists
+                    let already_has_tombstone_condition = create_index
+                        .predicate
+                        .as_ref()
+                        .is_some_and(|p| self.columns.has_tombstone_condition(p));
+
+                    if !already_has_tombstone_condition {
+                        create_index.predicate = self
+                            .columns
+                            .add_tombstone_filter_to_where(create_index.predicate.take(), None);
+                    }
+                }
+                Ok(None)
             }
             _ => Ok(None),
         }

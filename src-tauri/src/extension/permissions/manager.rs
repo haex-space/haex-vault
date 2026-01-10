@@ -218,7 +218,6 @@ impl PermissionManager {
                     target: row[4].as_str().unwrap_or_default().to_string(),
                     constraints,
                     status,
-                    haex_timestamp: row[7].as_str().map(String::from),
                 }
             })
             .collect();
@@ -372,7 +371,6 @@ impl PermissionManager {
                     target: row[4].as_str().unwrap_or_default().to_string(),
                     constraints,
                     status,
-                    haex_timestamp: row[7].as_str().map(String::from),
                 }
             })
             .collect();

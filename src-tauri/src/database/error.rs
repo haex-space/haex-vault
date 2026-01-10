@@ -105,6 +105,9 @@ pub enum DatabaseError {
 
     #[error("Validation error: {reason}")]
     ValidationError { reason: String },
+
+    #[error("Limit exceeded: {reason}")]
+    LimitExceeded { reason: String },
 }
 
 impl From<rusqlite::Error> for DatabaseError {

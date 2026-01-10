@@ -1,1 +1,0 @@
-ALTER TABLE `haex_extension_migrations` DROP COLUMN `applied_at`;

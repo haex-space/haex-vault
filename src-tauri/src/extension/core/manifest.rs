@@ -248,7 +248,6 @@ impl ExtensionPermissions {
                 .as_ref()
                 .and_then(|c| serde_json::from_value::<PermissionConstraints>(c.clone()).ok()),
             status: p.status.clone().unwrap_or(PermissionStatus::Ask),
-            haex_timestamp: None,
         })
     }
 }

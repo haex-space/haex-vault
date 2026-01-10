@@ -243,8 +243,6 @@ pub struct ExtensionPermission {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub constraints: Option<PermissionConstraints>,
     pub status: PermissionStatus,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub haex_timestamp: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash, TS)]
@@ -437,9 +435,6 @@ impl From<&ExtensionPermission> for crate::database::generated::HaexExtensionPer
             status: perm.status.as_str().to_string(),
             created_at: None,
             updated_at: None,
-            haex_timestamp: perm.haex_timestamp.clone(),
-            haex_column_hlcs: "{}".to_string(),
-            haex_tombstone: false,
         }
     }
 }
@@ -474,7 +469,6 @@ impl From<crate::database::generated::HaexExtensionPermissions> for ExtensionPer
             target: db_perm.target.unwrap_or_default(),
             constraints,
             status,
-            haex_timestamp: db_perm.haex_timestamp,
         }
     }
 }

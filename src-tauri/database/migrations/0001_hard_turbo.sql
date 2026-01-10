@@ -1,1 +1,0 @@
-ALTER TABLE `haex_sync_backends` RENAME COLUMN "last_pull_hlc_timestamp" TO "last_pull_server_timestamp";

@@ -59,7 +59,6 @@ fn create_db_permission(extension_id: &str, action: DbAction, target: &str, stat
         target: target.to_string(),
         constraints: None,
         status,
-        haex_timestamp: Some("0".to_string()),
     }
 }
 
@@ -72,7 +71,6 @@ fn create_fs_permission(extension_id: &str, action: FsAction, target: &str, stat
         target: target.to_string(),
         constraints: None,
         status,
-        haex_timestamp: Some("0".to_string()),
     }
 }
 
@@ -85,7 +83,6 @@ fn create_web_permission(extension_id: &str, target: &str, status: PermissionSta
         target: target.to_string(),
         constraints: None,
         status,
-        haex_timestamp: Some("0".to_string()),
     }
 }
 
@@ -98,7 +95,6 @@ fn create_filesync_permission(extension_id: &str, action: FileSyncAction, target
         target: target.to_string(),
         constraints: None,
         status,
-        haex_timestamp: Some("0".to_string()),
     }
 }
 

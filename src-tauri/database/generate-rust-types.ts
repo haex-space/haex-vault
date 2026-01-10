@@ -177,6 +177,10 @@ use serde::{Deserialize, Serialize};
       name: tablesNames.haex.crdt.migrations.name,
       table: schema.haexCrdtMigrations,
     },
+    {
+      name: tablesNames.haex.extension_limits.name,
+      table: schema.haexExtensionLimits,
+    },
   ]
 
   for (const { name, table } of schemas) {
