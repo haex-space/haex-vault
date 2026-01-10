@@ -568,7 +568,7 @@ jobs:
     permissions:
       contents: write
     runs-on: ubuntu-22.04
-    needs: [create-nightly, build-desktop, build-android]
+    needs: [create-nightly, build-desktop, build-android, e2e-tests]
 
     steps:
       - name: Publish nightly release
