@@ -10,7 +10,7 @@ pub mod row;
 pub mod stats;
 
 use crate::crdt::hlc::HlcService;
-use crate::database::core::{execute_with_crdt, with_connection};
+use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
 use crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED;
 use crate::extension::database::executor::SqlExecutor;
@@ -537,29 +537,25 @@ pub fn create_encrypted_database(
         let new_vault_id = uuid::Uuid::new_v4().to_string();
         println!("[CREATE_DB] Generating new vault_id: {}", new_vault_id);
 
-        // Use HLC service to insert with proper CRDT timestamps
-        let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-            reason: "Failed to lock HLC service".to_string(),
-        })?;
+        // Use direct INSERT without CRDT transformation - haex_vault_settings is a system table
+        // that doesn't have CRDT columns (haex_timestamp, haex_column_hlcs, haex_tombstone)
         let row_id = uuid::Uuid::new_v4().to_string();
         let insert_sql = format!(
-            "INSERT INTO {} (id, key, type, value) VALUES (?, '{}', '{}', ?)",
+            "INSERT INTO {} (id, key, type, value) VALUES (?1, '{}', '{}', ?2)",
             TABLE_VAULT_SETTINGS,
             vault_settings_key::VAULT_ID,
             vault_settings_type::SYSTEM,
         );
         with_connection(&state.db, |conn| {
-            let tx = conn.transaction().map_err(DatabaseError::from)?;
-            SqlExecutor::execute_internal_typed(
-                &tx,
-                &hlc_service,
-                &insert_sql,
-                rusqlite::params![row_id, new_vault_id],
-            )?;
-            tx.commit().map_err(DatabaseError::from)?;
+            conn.execute(&insert_sql, rusqlite::params![row_id, new_vault_id])
+                .map_err(|e| DatabaseError::ExecutionError {
+                    sql: insert_sql.clone(),
+                    reason: e.to_string(),
+                    table: Some(TABLE_VAULT_SETTINGS.to_string()),
+                })?;
             Ok(())
         })?;
-        println!("[CREATE_DB] ✅ vault_id set successfully with CRDT timestamp");
+        println!("[CREATE_DB] ✅ vault_id set successfully");
     }
 
     println!("[CREATE_DB] ========== create_encrypted_database COMPLETE ==========");
