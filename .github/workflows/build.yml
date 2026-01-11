@@ -75,14 +75,19 @@ jobs:
       - name: Run TypeScript tests
         run: pnpm test
 
-  # Run E2E tests after unit tests
+  # Run E2E tests after desktop and Android builds complete (uses pre-built artifacts)
   e2e-tests:
-    needs: [test, check-skip]
+    needs: [test, check-skip, build-desktop, build-android]
     if: needs.check-skip.outputs.should_skip != 'true'
     uses: haex-space/haex-e2e-tests/.github/workflows/e2e-tests.yml@main
     with:
       build_type: build
-      haex_vault_version: ${{ github.sha }}
+      # Use pre-built binary from build-desktop job
+      haex_vault_artifact: haex-vault-linux-e2e
+      haex_vault_artifact_run_id: ${{ github.run_id }}
+      # Use pre-built APK from build-android job
+      haex_vault_android_artifact: haex-vault-android-e2e
+      # Other components built from source
       haextension_version: main
       vault_sdk_version: main
       sync_server_version: main
@@ -162,6 +167,15 @@ jobs:
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/appimage/*.AppImage
             src-tauri/target/release/bundle/rpm/*.rpm
+
+      # Upload Linux binary as artifact for E2E tests
+      - name: Upload Linux binary for E2E tests
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: actions/upload-artifact@v4
+        with:
+          name: haex-vault-linux-e2e
+          path: src-tauri/target/release/haex-space
+          retention-days: 1
 
       - name: Upload artifacts (Windows)
         if: matrix.platform == 'windows-latest'
@@ -301,3 +315,11 @@ jobs:
           path: |
             src-tauri/gen/android/app/build/outputs/apk/**/*.apk
             src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
+
+      # Upload Android APK as artifact for E2E tests
+      - name: Upload Android APK for E2E tests
+        uses: actions/upload-artifact@v4
+        with:
+          name: haex-vault-android-e2e
+          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+          retention-days: 1
