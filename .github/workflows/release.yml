@@ -283,6 +283,15 @@ jobs:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
 
+      # Upload Linux binary as artifact for E2E tests
+      - name: Upload Linux binary for E2E tests
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: actions/upload-artifact@v4
+        with:
+          name: haex-vault-linux-e2e
+          path: src-tauri/target/release/haex-space
+          retention-days: 1
+
   build-android:
     needs: create-release
     permissions:
@@ -537,13 +546,16 @@ jobs:
             src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab \
             --clobber
 
-  # Run E2E tests in parallel with builds (blocking for releases)
+  # Run E2E tests after Linux build completes (uses the actual release binary)
   e2e-tests:
-    needs: create-release
+    needs: [create-release, build-desktop]
     uses: haex-space/haex-e2e-tests/.github/workflows/e2e-tests.yml@main
     with:
       build_type: release
-      haex_vault_version: ${{ github.sha }}
+      # Use pre-built binary from build-desktop job
+      haex_vault_artifact: haex-vault-linux-e2e
+      haex_vault_artifact_run_id: ${{ github.run_id }}
+      # Other components built from source
       haextension_version: main
       vault_sdk_version: main
       sync_server_version: main
