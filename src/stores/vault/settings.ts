@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import * as schema from '~/database/schemas/haex'
 import * as crdtSchema from '~/database/schemas/crdt'
@@ -334,7 +334,7 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
 
   /**
    * Check if initial sync has completed for this vault on THIS DEVICE.
-   * Uses haex_crdt_configs table which is NOT synchronized between devices.
+   * Uses haex_crdt_configs_no_sync table which is NOT synchronized between devices.
    * Each device tracks its own initial sync status independently.
    */
   const isInitialSyncCompleteAsync = async (): Promise<boolean> => {
@@ -347,13 +347,13 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     }
 
     try {
-      // Use haex_crdt_configs which is local-only (not synced)
+      // Use haex_crdt_configs_no_sync which is local-only (not synced)
       const result = await currentVault.value.drizzle.query.haexCrdtConfigs.findFirst({
         where: eq(crdtSchema.haexCrdtConfigs.key, 'initial_sync_complete'),
       })
 
       const isComplete = result?.value === 'true'
-      console.log(`[VaultSettings:${callId}] haex_crdt_configs result: ${JSON.stringify(result)}, returning ${isComplete}`)
+      console.log(`[VaultSettings:${callId}] haex_crdt_configs_no_sync result: ${JSON.stringify(result)}, returning ${isComplete}`)
       return isComplete
     } catch (error) {
       console.error(`[VaultSettings:${callId}] Failed to check initial sync status:`, error)
@@ -363,7 +363,7 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
 
   /**
    * Mark initial sync as complete for this vault on THIS DEVICE.
-   * Uses haex_crdt_configs table which is NOT synchronized between devices.
+   * Uses haex_crdt_configs_no_sync table which is NOT synchronized between devices.
    * Each device tracks its own initial sync status independently.
    */
   const setInitialSyncCompleteAsync = async (): Promise<void> => {
@@ -375,15 +375,22 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     }
 
     try {
-      // Use haex_crdt_configs which is local-only (not synced)
-      // Use raw SQL INSERT OR REPLACE since Drizzle's onConflictDoUpdate has issues with SQLite
-      console.log('[VaultSettings] Setting initial_sync_complete in haex_crdt_configs...')
+      // Use haex_crdt_configs_no_sync which is local-only (not synced)
+      console.log('[VaultSettings] Setting initial_sync_complete in haex_crdt_configs_no_sync...')
 
-      await currentVault.value.drizzle.run(
-        sql`INSERT OR REPLACE INTO haex_crdt_configs (key, type, value) VALUES ('initial_sync_complete', 'sync', 'true')`,
-      )
+      await currentVault.value.drizzle
+        .insert(crdtSchema.haexCrdtConfigs)
+        .values({
+          key: 'initial_sync_complete',
+          type: 'sync',
+          value: 'true',
+        })
+        .onConflictDoUpdate({
+          target: crdtSchema.haexCrdtConfigs.key,
+          set: { value: 'true' },
+        })
 
-      console.log('[VaultSettings] Initial sync marked as complete in haex_crdt_configs DONE')
+      console.log('[VaultSettings] Initial sync marked as complete in haex_crdt_configs_no_sync DONE')
     } catch (error) {
       console.error('[VaultSettings] Failed to set initial sync complete:', error)
     }

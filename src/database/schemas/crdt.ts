@@ -9,7 +9,7 @@ import {
 import tableNames from '@/database/tableNames.json'
 import { haexExtensions } from './haex'
 
-const crdtTableNames = tableNames.haex.crdt
+export const crdtTableNames = tableNames.haex.crdt
 
 // Most CRDT metadata tables removed:
 // - haexCrdtChanges: Sync now works by scanning actual tables directly
