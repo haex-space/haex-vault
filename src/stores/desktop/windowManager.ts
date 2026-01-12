@@ -233,15 +233,28 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
 
       // Mobile: Full UI-based window management (original logic)
       // Wenn kein workspaceId angegeben ist, nutze die current workspace
-      const targetWorkspaceId =
-        workspaceId || useWorkspaceStore().currentWorkspace?.id
+      const workspaceStore = useWorkspaceStore()
+      let targetWorkspaceId = workspaceId || workspaceStore.currentWorkspace?.id
 
+      // If no workspace is available yet (e.g., during initial sync), try to load/create one
       if (!targetWorkspaceId) {
-        console.error('Cannot open window: No active workspace')
-        return
+        console.warn('[windowManager] No active workspace - attempting to load/create workspaces')
+        try {
+          await workspaceStore.loadWorkspacesAsync()
+          targetWorkspaceId = workspaceStore.currentWorkspace?.id
+
+          if (!targetWorkspaceId) {
+            console.error('[windowManager] Cannot open window: Failed to create workspace')
+            return
+          }
+          console.log('[windowManager] Workspace loaded/created successfully:', targetWorkspaceId)
+        } catch (error) {
+          console.error('[windowManager] Cannot open window: Failed to load/create workspace:', error)
+          return
+        }
       }
 
-      const workspace = useWorkspaceStore().workspaces?.find(
+      const workspace = workspaceStore.workspaces?.find(
         (w) => w.id === targetWorkspaceId,
       )
       if (!workspace) {

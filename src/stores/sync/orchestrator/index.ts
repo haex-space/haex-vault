@@ -6,6 +6,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { log, type BackendSyncState } from './types'
+import { enterBulkMode, exitBulkMode } from '@/stores/logging'
 import { pushToBackendAsync, pushAllDataToBackendAsync } from './push'
 import {
   pullFromBackendAsync,
@@ -38,6 +39,14 @@ export const useSyncOrchestratorStore = defineStore(
     let periodicSyncInterval: ReturnType<typeof setInterval> | null = null
     const periodicPullIntervals: Map<string, ReturnType<typeof setInterval>> = new Map()
     let eventUnlisten: (() => void) | null = null
+
+    // Adaptive debouncing for bulk operations
+    // Tracks event frequency to detect bulk imports and increase debounce accordingly
+    const EVENT_WINDOW_MS = 1000 // Time window to count events
+    const BULK_THRESHOLD = 10 // Events in window to trigger bulk mode
+    const MAX_DEBOUNCE_MS = 5000 // Maximum debounce time during bulk operations
+    let eventTimestamps: number[] = []
+    let currentDebounceMs: number | null = null // null = use config default
 
 
     /**
@@ -213,28 +222,97 @@ export const useSyncOrchestratorStore = defineStore(
       }
     }
 
+    // Track whether we're currently in bulk mode for logging
+    let isInBulkMode = false
+
+    /**
+     * Calculates adaptive debounce time based on event frequency.
+     * During bulk operations (like KeePass import), events flood in rapidly.
+     * We detect this and increase debounce to prevent UI blocking.
+     * Also activates bulk logging mode to suppress verbose logs.
+     */
+    const getAdaptiveDebounceMs = (): number => {
+      const now = Date.now()
+      const config = syncConfigStore.config
+
+      // Add current timestamp
+      eventTimestamps.push(now)
+
+      // Remove old timestamps outside the window
+      eventTimestamps = eventTimestamps.filter(t => now - t < EVENT_WINDOW_MS)
+
+      // Calculate event rate
+      const eventsInWindow = eventTimestamps.length
+
+      if (eventsInWindow >= BULK_THRESHOLD) {
+        // Bulk operation detected - scale debounce based on event rate
+        // More events = longer debounce (up to MAX_DEBOUNCE_MS)
+        const scaleFactor = Math.min(eventsInWindow / BULK_THRESHOLD, 5)
+        currentDebounceMs = Math.min(config.continuousDebounceMs * scaleFactor, MAX_DEBOUNCE_MS)
+
+        // Enter bulk logging mode to suppress verbose logs
+        if (!isInBulkMode) {
+          isInBulkMode = true
+          enterBulkMode()
+        }
+
+        return currentDebounceMs
+      }
+
+      // Normal operation - use config default
+      currentDebounceMs = null
+
+      // Exit bulk logging mode if we were in it
+      if (isInBulkMode) {
+        isInBulkMode = false
+        exitBulkMode()
+      }
+
+      return config.continuousDebounceMs
+    }
+
     /**
      * Handles dirty tables event from Rust - triggers push with debounce
      * This runs in parallel with periodic pulls
+     *
+     * Uses adaptive debouncing: During bulk operations (many events in short time),
+     * the debounce interval is automatically increased to prevent UI blocking.
      */
     const onDirtyTablesChangedAsync = async (): Promise<void> => {
-      const eventId = Math.random().toString(36).substring(7)
       const config = syncConfigStore.config
-      log.info(`[DIRTY:${eventId}] Event received from Rust at ${new Date().toISOString()}`)
+      const adaptiveDebounce = getAdaptiveDebounceMs()
+      const isBulkMode = adaptiveDebounce > config.continuousDebounceMs
+
+      // Only log occasionally during bulk operations to reduce console spam
+      if (!isBulkMode || eventTimestamps.length % 50 === 0) {
+        const eventId = Math.random().toString(36).substring(7)
+        if (isBulkMode) {
+          log.info(`[DIRTY:${eventId}] Bulk operation detected (${eventTimestamps.length} events) - using ${adaptiveDebounce}ms debounce`)
+        } else {
+          log.debug(`[DIRTY:${eventId}] Event received, debounce: ${adaptiveDebounce}ms`)
+        }
+      }
 
       // Debounce to batch rapid changes before pushing
       if (dirtyTablesDebounceTimer) {
-        log.info(`[DIRTY:${eventId}] Clearing existing debounce timer and resetting`)
         clearTimeout(dirtyTablesDebounceTimer)
       }
 
-      log.info(`[DIRTY:${eventId}] Setting new debounce timer for ${config.continuousDebounceMs}ms`)
       dirtyTablesDebounceTimer = setTimeout(async () => {
-        log.info(`[DIRTY:${eventId}] Debounce timer ELAPSED after ${config.continuousDebounceMs}ms, calling onLocalWriteAsync...`)
+        // Reset event tracking after debounce fires
+        eventTimestamps = []
+        currentDebounceMs = null
+
+        // Exit bulk logging mode
+        if (isInBulkMode) {
+          isInBulkMode = false
+          exitBulkMode()
+        }
+
+        log.info(`[DIRTY] Debounce elapsed after ${adaptiveDebounce}ms, pushing changes...`)
         await onLocalWriteAsync()
         dirtyTablesDebounceTimer = null
-        log.info(`[DIRTY:${eventId}] onLocalWriteAsync returned`)
-      }, config.continuousDebounceMs)
+      }, adaptiveDebounce)
     }
 
     /**

@@ -4,6 +4,9 @@ import {
   type InsertHaexSyncBackends,
   type SelectHaexSyncBackends,
 } from '~/database/schemas'
+import { createLogger } from '@/stores/logging'
+
+const log = createLogger('SYNC BACKENDS')
 
 export interface ISyncServerOption {
   label: string
@@ -47,7 +50,7 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
   // Load all sync backends from database
   const loadBackendsAsync = async () => {
     if (!currentVault.value?.drizzle) {
-      console.error('No vault opened')
+      log.error('No vault opened')
       return
     }
 
@@ -58,7 +61,7 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
 
       backends.value = result
     } catch (error) {
-      console.error('Failed to load sync backends:', error)
+      log.error('Failed to load sync backends:', error)
       throw error
     }
   }
@@ -80,7 +83,7 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
         return result[0]
       }
     } catch (error) {
-      console.error('Failed to add sync backend:', error)
+      log.error('Failed to add sync backend:', error)
       throw error
     }
   }
@@ -109,7 +112,7 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
         return result[0]
       }
     } catch (error) {
-      console.error('Failed to update sync backend:', error)
+      log.error('Failed to update sync backend:', error)
       throw error
     }
   }
@@ -127,7 +130,7 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
 
       backends.value = backends.value.filter((b) => b.id !== id)
     } catch (error) {
-      console.error('Failed to delete sync backend:', error)
+      log.error('Failed to delete sync backend:', error)
       throw error
     }
   }
@@ -165,7 +168,7 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
 
       return result[0] ?? null
     } catch (error) {
-      console.error('Failed to find backend by credentials:', error)
+      log.error('Failed to find backend by credentials:', error)
       throw error
     }
   }
@@ -176,7 +179,7 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
    */
   const setTemporaryBackend = (backend: TemporaryBackend | null) => {
     temporaryBackend.value = backend
-    console.log('[SYNC BACKENDS] Temporary backend set:', backend?.id ?? 'null')
+    log.debug('Temporary backend set:', backend?.id ?? 'null')
   }
 
   /**
@@ -184,7 +187,7 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
    */
   const clearTemporaryBackend = () => {
     temporaryBackend.value = null
-    console.log('[SYNC BACKENDS] Temporary backend cleared')
+    log.debug('Temporary backend cleared')
   }
 
   /**
@@ -193,7 +196,7 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
   const reset = () => {
     backends.value = []
     temporaryBackend.value = null
-    console.log('[SYNC BACKENDS] Store reset')
+    log.debug('Store reset')
   }
 
   /**
@@ -202,7 +205,7 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
    */
   const persistTemporaryBackendAsync = async (): Promise<void> => {
     if (!temporaryBackend.value) {
-      console.log('[SYNC BACKENDS] No temporary backend to persist')
+      log.debug('No temporary backend to persist')
       return
     }
 
@@ -216,14 +219,14 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
 
     if (existingBackend) {
       // Backend exists from remote sync - update password if needed
-      console.log('[SYNC BACKENDS] Backend already exists from sync, updating password')
+      log.debug('Backend already exists from sync, updating password')
       await updateBackendAsync(existingBackend.id, {
         password: temp.password,
         vaultId: temp.vaultId,
       })
     } else {
       // Backend doesn't exist - add it
-      console.log('[SYNC BACKENDS] Backend not found in synced data, adding new')
+      log.debug('Backend not found in synced data, adding new')
       await addBackendAsync({
         id: temp.id,
         name: temp.name,

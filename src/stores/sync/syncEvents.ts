@@ -7,9 +7,12 @@
  */
 
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { createLogger } from '@/stores/logging'
 
 // Internal event name for store reloading after sync pull
 export const SYNC_TABLES_INTERNAL_EVENT = 'sync:tables-updated'
+
+const log = createLogger('SYNC EVENTS')
 
 type SyncUpdateCallback = (tables: string[]) => void | Promise<void>
 
@@ -38,7 +41,7 @@ export const registerStoreForTables = (
   for (const table of tables) {
     tableToReloadFn.set(table, reloadFn)
   }
-  console.log(`[SyncEvents] Registered reload function for tables:`, tables)
+  log.debug('Registered reload function for tables:', tables)
 }
 
 /**
@@ -61,9 +64,10 @@ export const initSyncEventsAsync = async (): Promise<void> => {
     SYNC_TABLES_INTERNAL_EVENT,
     async (event) => {
       const { tables } = event.payload
-      console.log('[SyncEvents] ========== RECEIVED sync:tables-updated ==========')
-      console.log('[SyncEvents] Tables:', tables)
-      console.log('[SyncEvents] Registered tables:', Array.from(tableToReloadFn.keys()))
+
+      log.debug('========== RECEIVED sync:tables-updated ==========')
+      log.debug('Tables:', tables)
+      log.debug('Registered tables:', Array.from(tableToReloadFn.keys()))
 
       // Track which reload functions we've already called to avoid duplicates
       const calledFns = new Set<() => Promise<void>>()
@@ -71,15 +75,12 @@ export const initSyncEventsAsync = async (): Promise<void> => {
       // First, call the central reloader for each affected table
       for (const table of tables) {
         const reloadFn = tableToReloadFn.get(table)
-        console.log(`[SyncEvents] Checking table "${table}" - has reload fn: ${!!reloadFn}, already called: ${calledFns.has(reloadFn!)}`)
         if (reloadFn && !calledFns.has(reloadFn)) {
           try {
-            console.log(`[SyncEvents] >>> RELOADING store for table: ${table}`)
             await reloadFn()
-            console.log(`[SyncEvents] <<< RELOAD COMPLETE for table: ${table}`)
             calledFns.add(reloadFn)
           } catch (error) {
-            console.error(`[SyncEvents] Error reloading store for table ${table}:`, error)
+            log.error(`Error reloading store for table ${table}:`, error)
           }
         }
       }
@@ -99,18 +100,18 @@ export const initSyncEventsAsync = async (): Promise<void> => {
                 ? tables
                 : tables.filter((t) => subscription.tables.includes(t))
 
-            console.log(`[SyncEvents] Notifying subscription '${id}' for tables:`, relevantTables)
+            log.debug(`Notifying subscription '${id}' for tables:`, relevantTables)
             await subscription.callback(relevantTables)
           }
         } catch (error) {
-          console.error(`[SyncEvents] Error in subscription '${id}':`, error)
+          log.error(`Error in subscription '${id}':`, error)
         }
       }
     },
   )
 
   isInitialized = true
-  console.log('[SyncEvents] Initialized')
+  log.info('Initialized')
 }
 
 /**
@@ -125,7 +126,7 @@ export const stopSyncEvents = (): void => {
   subscriptions.clear()
   tableToReloadFn.clear()
   isInitialized = false
-  console.log('[SyncEvents] Stopped')
+  log.info('Stopped')
 }
 
 /**
@@ -140,7 +141,7 @@ export const subscribeToSyncUpdates = (
   callback: SyncUpdateCallback,
 ): void => {
   subscriptions.set(id, { tables, callback })
-  console.log(`[SyncEvents] Subscription '${id}' registered for tables:`, tables)
+  log.debug(`Subscription '${id}' registered for tables:`, tables)
 }
 
 /**
@@ -149,7 +150,7 @@ export const subscribeToSyncUpdates = (
  */
 export const unsubscribeFromSyncUpdates = (id: string): void => {
   subscriptions.delete(id)
-  console.log(`[SyncEvents] Subscription '${id}' removed`)
+  log.debug(`Subscription '${id}' removed`)
 }
 
 /**

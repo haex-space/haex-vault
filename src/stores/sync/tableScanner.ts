@@ -8,17 +8,12 @@ import type { ColumnInfo } from '@bindings/ColumnInfo'
 import type { DirtyTable } from '@bindings/DirtyTable'
 import { encryptCrdtData } from '@haex-space/vault-sdk'
 import tableNames from '@/database/tableNames.json'
+import { createLogger } from '@/stores/logging'
 
 const CRDT_COLUMNS = tableNames.crdt.columns
 const SYNC_METADATA_COLUMNS = tableNames.sync_metadata.columns
 
-// Structured logging helper
-const log = {
-  info: (...args: unknown[]) => console.log('[SYNC SCANNER]', ...args),
-  warn: (...args: unknown[]) => console.warn('[SYNC SCANNER]', ...args),
-  error: (...args: unknown[]) => console.error('[SYNC SCANNER]', ...args),
-  debug: (...args: unknown[]) => console.log('[SYNC SCANNER DEBUG]', ...args),
-}
+const log = createLogger('SYNC SCANNER')
 
 export interface ColumnChange {
   tableName: string

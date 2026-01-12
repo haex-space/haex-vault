@@ -5,6 +5,7 @@
 
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import type { ColumnChange } from '../tableScanner'
+import { createLogger } from '@/stores/logging'
 
 export interface SyncState {
   isConnected: boolean
@@ -26,11 +27,6 @@ export interface PullResult {
 }
 
 /**
- * Structured logging helper
+ * Structured logging helper using central logger
  */
-export const log = {
-  info: (...args: unknown[]) => console.log('[SYNC]', ...args),
-  warn: (...args: unknown[]) => console.warn('[SYNC]', ...args),
-  error: (...args: unknown[]) => console.error('[SYNC]', ...args),
-  debug: (...args: unknown[]) => console.log('[SYNC DEBUG]', ...args),
-}
+export const log = createLogger('SYNC')
