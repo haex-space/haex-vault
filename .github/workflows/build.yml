@@ -306,7 +306,18 @@ jobs:
           fi
 
       - name: Build Android APK and AAB (unsigned if no keystore)
-        run: pnpm tauri android build
+        run: |
+          # Build universal APK (all architectures in one APK) - required for Play Store
+          # Without --split-per-abi, Tauri builds a universal APK
+          pnpm tauri android build --apk true --aab true
+
+      - name: List generated APK files
+        run: |
+          echo "=== Generated APK files ==="
+          find src-tauri/gen/android/app/build/outputs -name "*.apk" -type f 2>/dev/null || echo "No APK files found"
+          echo ""
+          echo "=== Generated AAB files ==="
+          find src-tauri/gen/android/app/build/outputs -name "*.aab" -type f 2>/dev/null || echo "No AAB files found"
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
@@ -317,9 +328,36 @@ jobs:
             src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
 
       # Upload Android APK as artifact for E2E tests
+      # E2E tests run on x86_64 emulator - universal APK works on all architectures
+      - name: Find and upload Android APK for E2E tests
+        run: |
+          echo "Looking for APK files for E2E tests..."
+
+          # Find universal APK first (preferred), then any release APK
+          APK_PATH=""
+          if [ -f "src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk" ]; then
+            APK_PATH="src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk"
+          elif [ -f "src-tauri/gen/android/app/build/outputs/apk/release/app-release.apk" ]; then
+            APK_PATH="src-tauri/gen/android/app/build/outputs/apk/release/app-release.apk"
+          else
+            # Find any release APK as fallback
+            APK_PATH=$(find src-tauri/gen/android/app/build/outputs/apk -name "*release*.apk" -type f 2>/dev/null | head -1)
+          fi
+
+          if [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then
+            echo "Using APK for E2E: $APK_PATH"
+            mkdir -p e2e-apk
+            cp "$APK_PATH" e2e-apk/
+            echo "APK_FOUND=true" >> $GITHUB_ENV
+          else
+            echo "WARNING: No release APK found for E2E tests"
+            echo "APK_FOUND=false" >> $GITHUB_ENV
+          fi
+
       - name: Upload Android APK for E2E tests
+        if: env.APK_FOUND == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: haex-vault-android-e2e
-          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+          path: e2e-apk/*.apk
           retention-days: 1
