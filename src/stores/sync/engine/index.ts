@@ -17,6 +17,7 @@ import {
   getSupabaseClient,
   getCurrentBackendId,
   resetSupabaseClient,
+  setSupabaseClient as setClient,
 } from './supabase'
 import {
   getVaultKeyCache,
@@ -84,6 +85,17 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   const initSupabaseClientAsync = async (backendId: string): Promise<void> => {
     const backend = findBackend(backendId)
     await initClient(backendId, backend.serverUrl)
+  }
+
+  /**
+   * Sets an existing Supabase client (for cases where client is created externally)
+   * This is used in the connect wizard where the client is already authenticated
+   */
+  const setSupabaseClient = (
+    client: Parameters<typeof setClient>[0],
+    backendId: string,
+  ): void => {
+    setClient(client, backendId)
   }
 
   /**
@@ -480,6 +492,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     supabaseClient,
     currentBackendId,
     initSupabaseClientAsync,
+    setSupabaseClient,
     getAuthTokenAsync,
     uploadVaultKeyAsync: uploadVaultKeyToServerAsync,
     getVaultKeyAsync,

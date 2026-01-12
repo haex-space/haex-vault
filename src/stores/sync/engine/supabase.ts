@@ -89,6 +89,28 @@ export const getAuthTokenAsync = async (): Promise<string | null> => {
 }
 
 /**
+ * Sets an existing Supabase client (for cases where client is created externally, e.g., connect wizard)
+ * This is used when the client is already authenticated and we want to reuse it
+ */
+export const setSupabaseClient = (
+  client: SupabaseClient,
+  backendId: string,
+): void => {
+  supabaseClient = client
+  currentBackendId = backendId
+
+  // Listen for auth state changes to keep realtime connection authenticated
+  client.auth.onAuthStateChange((event, session) => {
+    if (event === 'TOKEN_REFRESHED' && session?.access_token) {
+      log.info('Auth token refreshed, updating realtime connection')
+      supabaseClient?.realtime.setAuth(session.access_token)
+    } else if (event === 'SIGNED_OUT') {
+      log.info('User signed out, realtime will disconnect')
+    }
+  })
+}
+
+/**
  * Resets the Supabase client state
  */
 export const resetSupabaseClient = (): void => {
