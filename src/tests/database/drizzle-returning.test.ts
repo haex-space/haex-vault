@@ -124,14 +124,12 @@ describe('Drizzle RETURNING clause', () => {
   })
 
   it('should handle multiple inserts with RETURNING', async () => {
-    const ids = [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()]
-
     const result = await db
       .insert(testTable)
       .values([
-        { id: ids[0]!, name: 'First' },
-        { id: ids[1]!, name: 'Second' },
-        { id: ids[2]!, name: 'Third' },
+        { id: crypto.randomUUID(), name: 'First' },
+        { id: crypto.randomUUID(), name: 'Second' },
+        { id: crypto.randomUUID(), name: 'Third' },
       ])
       .returning()
 
