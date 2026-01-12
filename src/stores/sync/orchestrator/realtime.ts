@@ -222,7 +222,12 @@ export const subscribeToBackendAsync = async (
             const delay = RETRY_BASE_DELAY_MS * Math.pow(2, retryCount)
             log.warn(`SUBSCRIBE: Subscription failed for ${backendId}: ${status}. Retrying in ${delay}ms (attempt ${retryCount + 1}/${MAX_SUBSCRIPTION_RETRIES})`)
 
-            // Clear existing subscription before retry
+            // Properly cleanup the failed channel before retry (fire and forget)
+            channel.unsubscribe().then(() => {
+              log.debug(`SUBSCRIBE: Cleaned up failed channel for ${backendId}`)
+            }).catch((cleanupError) => {
+              log.debug(`SUBSCRIBE: Channel cleanup error (expected): ${cleanupError}`)
+            })
             state.subscription = null
 
             // Schedule retry

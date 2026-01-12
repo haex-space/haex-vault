@@ -128,6 +128,17 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       },
     })
     currentBackendId.value = backendId
+
+    // Listen for auth state changes to keep realtime connection authenticated
+    // This is critical: when the token refreshes, we must update the realtime connection
+    supabaseClient.value.auth.onAuthStateChange((event, session) => {
+      if (event === 'TOKEN_REFRESHED' && session?.access_token) {
+        console.log('[SYNC ENGINE] Auth token refreshed, updating realtime connection')
+        supabaseClient.value?.realtime.setAuth(session.access_token)
+      } else if (event === 'SIGNED_OUT') {
+        console.log('[SYNC ENGINE] User signed out, realtime will disconnect')
+      }
+    })
   }
 
   /**
