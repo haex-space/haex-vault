@@ -12,7 +12,7 @@ import { describe, it, expect } from 'vitest'
 import {
   VaultSettingsTypeEnum,
   VaultSettingsKeyEnum,
-} from '../../src/config/vault-settings'
+} from '@/config/vault-settings'
 
 describe('VaultSettings Constants Synchronization', () => {
   describe('VaultSettingsTypeEnum', () => {
