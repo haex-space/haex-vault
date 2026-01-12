@@ -129,9 +129,9 @@ describe('Drizzle RETURNING clause', () => {
     const result = await db
       .insert(testTable)
       .values([
-        { id: ids[0], name: 'First' },
-        { id: ids[1], name: 'Second' },
-        { id: ids[2], name: 'Third' },
+        { id: ids[0]!, name: 'First' },
+        { id: ids[1]!, name: 'Second' },
+        { id: ids[2]!, name: 'Third' },
       ])
       .returning()
 
