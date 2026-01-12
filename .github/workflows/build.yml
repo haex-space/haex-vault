@@ -311,6 +311,12 @@ jobs:
           # Without --split-per-abi, Tauri builds a universal APK
           pnpm tauri android build --apk true --aab true
 
+      - name: Build Debug APK for E2E tests
+        run: |
+          # Build debug APK - automatically signed with debug keystore
+          # Required because unsigned release APKs can't be installed on Android 11+
+          pnpm tauri android build --debug --apk true
+
       - name: List generated APK files
         run: |
           echo "=== Generated APK files ==="
@@ -327,30 +333,27 @@ jobs:
             src-tauri/gen/android/app/build/outputs/apk/**/*.apk
             src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
 
-      # Upload Android APK as artifact for E2E tests
-      # E2E tests run on x86_64 emulator - universal APK works on all architectures
+      # Upload debug APK for E2E tests (signed with debug keystore)
       - name: Find and upload Android APK for E2E tests
         run: |
-          echo "Looking for APK files for E2E tests..."
+          echo "Looking for debug APK files for E2E tests..."
 
-          # Find universal APK first (preferred), then any release APK
+          # Find debug APK (automatically signed with debug keystore)
           APK_PATH=""
-          if [ -f "src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk" ]; then
-            APK_PATH="src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk"
-          elif [ -f "src-tauri/gen/android/app/build/outputs/apk/release/app-release.apk" ]; then
-            APK_PATH="src-tauri/gen/android/app/build/outputs/apk/release/app-release.apk"
+          if [ -f "src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk" ]; then
+            APK_PATH="src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk"
           else
-            # Find any release APK as fallback
-            APK_PATH=$(find src-tauri/gen/android/app/build/outputs/apk -name "*release*.apk" -type f 2>/dev/null | head -1)
+            # Find any debug APK as fallback
+            APK_PATH=$(find src-tauri/gen/android/app/build/outputs/apk -name "*debug*.apk" -type f 2>/dev/null | head -1)
           fi
 
           if [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then
-            echo "Using APK for E2E: $APK_PATH"
+            echo "Using debug APK for E2E: $APK_PATH"
             mkdir -p e2e-apk
             cp "$APK_PATH" e2e-apk/
             echo "APK_FOUND=true" >> $GITHUB_ENV
           else
-            echo "WARNING: No release APK found for E2E tests"
+            echo "WARNING: No debug APK found for E2E tests"
             echo "APK_FOUND=false" >> $GITHUB_ENV
           fi
 
