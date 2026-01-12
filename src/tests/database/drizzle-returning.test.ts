@@ -59,11 +59,11 @@ describe('Drizzle RETURNING clause', () => {
 
     expect(result).toHaveLength(1)
     expect(result[0]).toBeDefined()
-    expect(result[0]!.id).toBe(id)
-    expect(result[0]!.name).toBe('Test Item')
-    expect(result[0]!.counter).toBe(0) // Default value
-    expect(result[0]!.createdAt).toBeDefined() // DB-generated timestamp
-    expect(result[0]!.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}/) // ISO date format
+    expect(result[0]?.id).toBe(id)
+    expect(result[0]?.name).toBe('Test Item')
+    expect(result[0]?.counter).toBe(0) // Default value
+    expect(result[0]?.createdAt).toBeDefined() // DB-generated timestamp
+    expect(result[0]?.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}/) // ISO date format
   })
 
   it('should return specific columns with RETURNING', async () => {
@@ -76,11 +76,11 @@ describe('Drizzle RETURNING clause', () => {
       .returning({ id: testTable.id, createdAt: testTable.createdAt })
 
     expect(result).toHaveLength(1)
-    expect(result[0]!.id).toBe(id)
-    expect(result[0]!.createdAt).toBeDefined()
+    expect(result[0]?.id).toBe(id)
+    expect(result[0]?.createdAt).toBeDefined()
     // Should NOT have name or counter since we didn't request them
-    expect('name' in result[0]!).toBe(false)
-    expect('counter' in result[0]!).toBe(false)
+    expect(result[0] && 'name' in result[0]).toBe(false)
+    expect(result[0] && 'counter' in result[0]).toBe(false)
   })
 
   it('should return updated row with RETURNING', async () => {
@@ -97,9 +97,9 @@ describe('Drizzle RETURNING clause', () => {
       .returning()
 
     expect(result).toHaveLength(1)
-    expect(result[0]!.name).toBe('Updated')
-    expect(result[0]!.counter).toBe(42)
-    expect(result[0]!.createdAt).toBeDefined() // Original timestamp preserved
+    expect(result[0]?.name).toBe('Updated')
+    expect(result[0]?.counter).toBe(42)
+    expect(result[0]?.createdAt).toBeDefined() // Original timestamp preserved
   })
 
   it('should return deleted row with RETURNING', async () => {
@@ -115,8 +115,8 @@ describe('Drizzle RETURNING clause', () => {
       .returning()
 
     expect(result).toHaveLength(1)
-    expect(result[0]!.id).toBe(id)
-    expect(result[0]!.name).toBe('To Delete')
+    expect(result[0]?.id).toBe(id)
+    expect(result[0]?.name).toBe('To Delete')
 
     // Verify it's actually deleted
     const remaining = await db.select().from(testTable)
