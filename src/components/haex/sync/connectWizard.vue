@@ -517,14 +517,8 @@ const completeSetupAsync = async () => {
   if (!selectedVault) return
 
   // Emit complete event with all necessary data
-  if (!supabaseClient.value) {
-    throw new Error('Supabase client not initialized')
-  }
-
-  // Store Supabase client in syncEngineStore for later use
-  const syncEngineStore = useSyncEngineStore()
-  syncEngineStore.supabaseClient = supabaseClient.value
-
+  // Note: The Supabase client will be initialized by initSupabaseClientAsync
+  // when the backend is set up, so we don't need to pass it here
   emit('complete', {
     backendId: crypto.randomUUID(),
     vaultId: selectedVault.vaultId,

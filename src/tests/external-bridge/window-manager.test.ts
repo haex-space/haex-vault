@@ -370,7 +370,7 @@ describe('Window State Management', () => {
       ]
       const result = removeWindowById(windows, 'win-1')
       expect(result.length).toBe(1)
-      expect(result[0].id).toBe('win-2')
+      expect(result[0]!.id).toBe('win-2')
     })
 
     it('should return same array if window not found', () => {
