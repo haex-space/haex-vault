@@ -521,7 +521,10 @@ const drizzleCallback = (async (
   }
 
   if (method === 'get') {
-    return rows.length > 0 ? { rows: rows.at(0) } : { rows }
+    // For 'get' method (used by findFirst), return the first row or undefined
+    // IMPORTANT: Must return undefined (not empty array) when no rows found,
+    // otherwise Drizzle interprets [] as a valid result and returns {}
+    return { rows: rows.at(0) }
   }
   return { rows }
 }) satisfies AsyncRemoteCallback

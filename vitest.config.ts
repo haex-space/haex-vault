@@ -5,7 +5,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['tests/**/*.test.ts', 'tests/**/*.spec.ts'],
+    include: ['src/tests/**/*.test.ts', 'src/tests/**/*.spec.ts'],
     exclude: ['node_modules', 'dist', '.nuxt', 'src-tauri'],
     testTimeout: 30000,
     hookTimeout: 30000,
