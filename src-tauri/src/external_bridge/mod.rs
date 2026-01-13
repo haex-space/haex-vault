@@ -228,11 +228,6 @@ pub async fn external_bridge_client_allow(
     remember: bool,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    println!(
-        "[ExternalBridge] external_bridge_client_allow: client_id={}, extension_id={}, remember={}",
-        client_id, extension_id, remember
-    );
-
     if remember {
         // Insert into database via CRDT for permanent authorization
         {
@@ -243,17 +238,12 @@ pub async fn external_bridge_client_allow(
 
             let row_id = uuid::Uuid::new_v4().to_string();
             let params = vec![
-                JsonValue::String(row_id.clone()),
+                JsonValue::String(row_id),
                 JsonValue::String(client_id.clone()),
-                JsonValue::String(client_name.clone()),
-                JsonValue::String(public_key.clone()),
+                JsonValue::String(client_name),
+                JsonValue::String(public_key),
                 JsonValue::String(extension_id.clone()),
             ];
-
-            println!(
-                "[ExternalBridge] Inserting authorization: row_id={}, client_id={}, extension_id={}",
-                row_id, client_id, extension_id
-            );
 
             execute_with_crdt(SQL_INSERT_CLIENT.to_string(), params, &state.db, &hlc_guard)
                 .map_err(|e| e.to_string())?;
