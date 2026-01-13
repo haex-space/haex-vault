@@ -845,4 +845,74 @@ mod tests {
         let result2 = wait2.await.unwrap();
         assert!(result2, "ext-2 should be signaled");
     }
+
+    /// Tests the scenario where an extension signals ready immediately after
+    /// being set up to wait (simulates the "no pending migrations" case).
+    ///
+    /// This test verifies the fix for the bug where extensions that had already
+    /// completed their migrations would never signal ready, causing ExternalBridge
+    /// to timeout waiting for them.
+    #[tokio::test]
+    async fn test_extension_ready_signal_immediate_after_wait_setup() {
+        use super::super::server::ExternalBridge;
+        use std::sync::Arc;
+
+        let bridge = Arc::new(ExternalBridge::new());
+        let extension_id = "already-migrated-extension";
+
+        // Simulate the ExternalBridge waiting for an extension to be ready
+        // (this happens in ensure_extension_loaded)
+        let bridge_clone = bridge.clone();
+        let ext_id = extension_id.to_string();
+        let wait_handle = tokio::spawn(async move {
+            bridge_clone.wait_for_extension_ready(&ext_id, 5000).await
+        });
+
+        // Give the wait task time to set up (minimal delay)
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+
+        // Immediately signal ready - simulates what happens when
+        // extension_database_register_migrations finds no pending migrations
+        // and signals ready in the early return path
+        bridge.signal_extension_ready(extension_id).await;
+
+        // The wait should complete successfully (not timeout)
+        let result = wait_handle.await.unwrap();
+        assert!(
+            result,
+            "Extension with no pending migrations should still signal ready and unblock waiters"
+        );
+    }
+
+    /// Tests that signaling ready multiple times for the same extension is safe
+    /// (idempotent behavior - important for robustness)
+    #[tokio::test]
+    async fn test_extension_ready_signal_idempotent() {
+        use super::super::server::ExternalBridge;
+        use std::sync::Arc;
+
+        let bridge = Arc::new(ExternalBridge::new());
+        let extension_id = "idempotent-extension";
+
+        // Start waiting
+        let bridge_clone = bridge.clone();
+        let ext_id = extension_id.to_string();
+        let wait_handle = tokio::spawn(async move {
+            bridge_clone.wait_for_extension_ready(&ext_id, 5000).await
+        });
+
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+        // Signal ready multiple times (should not panic or cause issues)
+        bridge.signal_extension_ready(extension_id).await;
+        bridge.signal_extension_ready(extension_id).await;
+        bridge.signal_extension_ready(extension_id).await;
+
+        // Wait should complete on first signal
+        let result = wait_handle.await.unwrap();
+        assert!(result, "First signal should unblock the waiter");
+
+        // Additional signals after wait completed should be safe (no-op)
+        bridge.signal_extension_ready(extension_id).await;
+    }
 }
