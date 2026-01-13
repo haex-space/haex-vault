@@ -801,17 +801,26 @@ async fn check_client_authorized_for_extension(
         JsonValue::String(extension_name.to_string()),
     ];
 
+    println!(
+        "[ExternalBridge] check_client_authorized_for_extension: client_id={}, ext_pk={}, ext_name={}",
+        client_id, extension_public_key, extension_name
+    );
+
     match select_with_crdt(
         SQL_IS_CLIENT_AUTHORIZED_FOR_EXTENSION.to_string(),
         params,
         &state.db,
     ) {
         Ok(rows) => {
+            println!("[ExternalBridge] Query returned {} rows", rows.len());
             if let Some(row) = rows.first() {
                 if let Some(count) = row.first() {
-                    return count.as_i64().unwrap_or(0) > 0;
+                    let count_val = count.as_i64().unwrap_or(0);
+                    println!("[ExternalBridge] Authorization count: {}", count_val);
+                    return count_val > 0;
                 }
             }
+            println!("[ExternalBridge] No authorization found");
             false
         }
         Err(e) => {
