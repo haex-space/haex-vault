@@ -342,6 +342,18 @@ pub async fn extension_database_register_migrations(
     })?;
 
     if pending_migrations.is_empty() {
+        // Signal extension ready even if no migrations to apply
+        // This is crucial for ExternalBridge to know the extension is ready
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        {
+            let bridge = state.external_bridge.lock().await;
+            bridge.signal_extension_ready(&extension_id).await;
+            eprintln!(
+                "[ExtensionDatabase] Extension {} signaled ready (no pending migrations)",
+                extension_id
+            );
+        }
+
         return Ok(MigrationResult {
             applied_count: 0,
             already_applied_count,
