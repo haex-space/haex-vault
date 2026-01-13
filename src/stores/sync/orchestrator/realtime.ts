@@ -148,11 +148,29 @@ export const subscribeToBackendAsync = async (
     // Ensure auth token is set for realtime connection
     const token = await syncEngineStore.getAuthTokenAsync()
     if (token) {
+      // Decode JWT to check expiration (for debugging)
+      try {
+        const tokenParts = token.split('.')
+        const payloadPart = tokenParts[1]
+        if (!payloadPart) throw new Error('Invalid token format')
+        const payload = JSON.parse(atob(payloadPart))
+        const exp = payload.exp ? new Date(payload.exp * 1000) : null
+        const now = new Date()
+        const expiresIn = exp ? Math.round((exp.getTime() - now.getTime()) / 1000) : 'unknown'
+        log.info(`SUBSCRIBE: Auth token present, expires in ${expiresIn}s (at ${exp?.toISOString() ?? 'unknown'})`)
+        log.info(`SUBSCRIBE: Token sub=${payload.sub}, role=${payload.role}, aud=${payload.aud}`)
+      } catch (decodeErr) {
+        log.warn('SUBSCRIBE: Could not decode token for debugging:', decodeErr)
+      }
       log.info('SUBSCRIBE: Setting auth token for realtime connection')
       client.realtime.setAuth(token)
     } else {
       log.error('SUBSCRIBE: No auth token available for realtime connection - subscription will likely fail')
     }
+
+    // Log realtime connection state
+    log.info(`SUBSCRIBE: Realtime connection state: ${client.realtime.connectionState}`)
+    log.info(`SUBSCRIBE: Realtime channels count: ${client.realtime.channels.length}`)
 
     // The sync_changes table is partitioned by vault_id
     // Each partition is named: sync_changes_<vault_id_with_underscores>
@@ -206,6 +224,8 @@ export const subscribeToBackendAsync = async (
       )
       .subscribe((status, err) => {
         log.info(`SUBSCRIBE: Channel status changed to ${status}`, err ? `Error: ${JSON.stringify(err)}` : '')
+        // Log additional channel state for debugging
+        log.info(`SUBSCRIBE: Channel state - topic=${channel.topic}, state=${channel.state}`)
         if (status === 'SUBSCRIBED') {
           state.isConnected = true
           // Reset retry count on successful subscription
@@ -215,6 +235,16 @@ export const subscribeToBackendAsync = async (
           state.isConnected = false
           const errorDetails = err ? JSON.stringify(err) : 'unknown'
           state.error = `Subscription error: ${status} - ${errorDetails}`
+
+          // Log detailed error information for debugging
+          log.error(`SUBSCRIBE: ${status} details - errorDetails=${errorDetails}`)
+          if (err && typeof err === 'object') {
+            log.error(`SUBSCRIBE: Error object keys: ${Object.keys(err).join(', ')}`)
+            log.error(`SUBSCRIBE: Error message: ${(err as { message?: string }).message ?? 'none'}`)
+            log.error(`SUBSCRIBE: Error context: ${JSON.stringify((err as { context?: unknown }).context ?? 'none')}`)
+          }
+          // Log realtime connection state at time of error
+          log.error(`SUBSCRIBE: Realtime connection state at error: ${client.realtime.connectionState}`)
 
           // Attempt retry with exponential backoff
           const retryCount = subscriptionRetryCounts.get(backendId) ?? 0
