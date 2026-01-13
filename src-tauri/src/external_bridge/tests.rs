@@ -720,4 +720,129 @@ mod tests {
         assert!(msg_json.contains("\"type\":\"handshake\""));
         assert!(msg_json.contains("requestedExtensions"));
     }
+
+    // ============================================================================
+    // Extension Ready Signaling Tests
+    // ============================================================================
+
+    #[tokio::test]
+    async fn test_extension_ready_signal_no_waiter() {
+        use super::super::server::ExternalBridge;
+
+        let bridge = ExternalBridge::new();
+        let extension_id = "non-existent-extension";
+
+        // Signal ready for an extension that no one is waiting for
+        // This should not panic
+        bridge.signal_extension_ready(extension_id).await;
+    }
+
+    #[tokio::test]
+    async fn test_extension_ready_wait_with_immediate_signal() {
+        use super::super::server::ExternalBridge;
+        use std::sync::Arc;
+
+        let bridge = Arc::new(ExternalBridge::new());
+        let extension_id = "test-extension-456";
+
+        // Spawn a task that waits for the extension to be ready
+        let bridge_clone = bridge.clone();
+        let ext_id = extension_id.to_string();
+        let wait_handle = tokio::spawn(async move {
+            bridge_clone.wait_for_extension_ready(&ext_id, 5000).await
+        });
+
+        // Give the wait task time to set up
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+        // Signal that the extension is ready
+        bridge.signal_extension_ready(extension_id).await;
+
+        // The wait should complete successfully
+        let result = wait_handle.await.unwrap();
+        assert!(result, "wait_for_extension_ready should return true when signaled");
+    }
+
+    #[tokio::test]
+    async fn test_extension_ready_wait_timeout() {
+        use super::super::server::ExternalBridge;
+
+        let bridge = ExternalBridge::new();
+        let extension_id = "timeout-extension";
+
+        // Wait for an extension that never signals ready (with short timeout)
+        let result = bridge.wait_for_extension_ready(extension_id, 50).await;
+
+        assert!(!result, "wait_for_extension_ready should return false on timeout");
+    }
+
+    #[tokio::test]
+    async fn test_extension_ready_signal_cleans_up() {
+        use super::super::server::ExternalBridge;
+        use std::sync::Arc;
+
+        let bridge = Arc::new(ExternalBridge::new());
+        let extension_id = "cleanup-extension";
+
+        // Start waiting (this creates an entry in extension_ready_signals)
+        let bridge_clone = bridge.clone();
+        let ext_id = extension_id.to_string();
+        let wait_handle = tokio::spawn(async move {
+            bridge_clone.wait_for_extension_ready(&ext_id, 5000).await
+        });
+
+        // Give the wait task time to set up
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+        // Signal ready
+        bridge.signal_extension_ready(extension_id).await;
+
+        // Wait for the task to complete
+        let result = wait_handle.await.unwrap();
+        assert!(result, "Extension should have been signaled ready");
+
+        // After wait completes, the entry should be cleaned up
+        // We verify this by checking that a new wait would need to set up a new entry
+        // (the previous entry was cleaned up)
+        let signals = bridge.get_extension_ready_signals();
+        let signals_read = signals.read().await;
+        assert!(!signals_read.contains_key(extension_id), "Signal entry should be cleaned up after wait completes");
+    }
+
+    #[tokio::test]
+    async fn test_multiple_extensions_ready_independently() {
+        use super::super::server::ExternalBridge;
+        use std::sync::Arc;
+
+        let bridge = Arc::new(ExternalBridge::new());
+
+        // Start waiting for two different extensions
+        let bridge1 = bridge.clone();
+        let bridge2 = bridge.clone();
+
+        let wait1 = tokio::spawn(async move {
+            bridge1.wait_for_extension_ready("ext-1", 5000).await
+        });
+
+        let wait2 = tokio::spawn(async move {
+            bridge2.wait_for_extension_ready("ext-2", 5000).await
+        });
+
+        // Give wait tasks time to set up
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+        // Signal only ext-1
+        bridge.signal_extension_ready("ext-1").await;
+
+        // ext-1 should complete successfully
+        let result1 = wait1.await.unwrap();
+        assert!(result1, "ext-1 should be signaled");
+
+        // Signal ext-2
+        bridge.signal_extension_ready("ext-2").await;
+
+        // ext-2 should also complete successfully
+        let result2 = wait2.await.unwrap();
+        assert!(result2, "ext-2 should be signaled");
+    }
 }

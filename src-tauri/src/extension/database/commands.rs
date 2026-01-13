@@ -370,6 +370,18 @@ pub async fn extension_database_register_migrations(
         applied_names.push(migration_name.clone());
     }
 
+    // Signal that the extension is ready after successful migration registration
+    // This is for native webview mode - iframe mode signals from the frontend
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let bridge = state.external_bridge.lock().await;
+        bridge.signal_extension_ready(&extension_id).await;
+        eprintln!(
+            "[ExtensionDatabase] Extension {} signaled ready after migrations",
+            extension_id
+        );
+    }
+
     Ok(MigrationResult {
         applied_count: applied_names.len(),
         already_applied_count,

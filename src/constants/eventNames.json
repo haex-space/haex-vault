@@ -1,7 +1,8 @@
 {
   "extension": {
     "windowClosed": "extension:window-closed",
-    "autoStartRequest": "extension:auto-start-request"
+    "autoStartRequest": "extension:auto-start-request",
+    "ready": "extension:ready"
   },
   "crdt": {
     "dirtyTablesChanged": "crdt:dirty-tables-changed"

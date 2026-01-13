@@ -13,7 +13,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::net::{TcpListener, TcpStream};
 use std::time::Duration;
-use tokio::sync::{mpsc, oneshot, RwLock};
+use tokio::sync::{mpsc, oneshot, Notify, RwLock};
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 use super::authorization::{
@@ -83,6 +83,9 @@ pub struct ExternalBridge {
     /// Session-based blocked clients (for "deny once" - cleared when server stops)
     /// Key: client_id, Value: SessionBlockedClient
     session_blocked: Arc<RwLock<HashMap<String, SessionBlockedClient>>>,
+    /// Extension ready signals - notifies when an extension has completed initialization
+    /// Key: extension_id, Value: Notify that fires when extension is ready
+    extension_ready_signals: Arc<RwLock<HashMap<String, Arc<Notify>>>>,
 }
 
 impl Default for ExternalBridge {
@@ -103,6 +106,7 @@ impl ExternalBridge {
             pending_responses: Arc::new(RwLock::new(HashMap::new())),
             session_authorizations: Arc::new(RwLock::new(HashMap::new())),
             session_blocked: Arc::new(RwLock::new(HashMap::new())),
+            extension_ready_signals: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -180,6 +184,49 @@ impl ExternalBridge {
     pub async fn get_session_blocked_clients(&self) -> Vec<SessionBlockedClient> {
         let blocked = self.session_blocked.read().await;
         blocked.values().cloned().collect()
+    }
+
+    /// Signal that an extension has completed initialization and is ready to handle requests.
+    /// This notifies any waiting `ensure_extension_loaded` calls.
+    pub async fn signal_extension_ready(&self, extension_id: &str) {
+        let signals = self.extension_ready_signals.read().await;
+        if let Some(notify) = signals.get(extension_id) {
+            eprintln!("[ExternalBridge] Extension {} signaled ready", extension_id);
+            notify.notify_waiters();
+        }
+    }
+
+    /// Wait for an extension to signal that it's ready, with a timeout.
+    /// Returns true if the extension signaled ready, false if timeout occurred.
+    pub async fn wait_for_extension_ready(&self, extension_id: &str, timeout_ms: u64) -> bool {
+        // Get or create a Notify for this extension
+        let notify = {
+            let mut signals = self.extension_ready_signals.write().await;
+            signals
+                .entry(extension_id.to_string())
+                .or_insert_with(|| Arc::new(Notify::new()))
+                .clone()
+        };
+
+        // Wait for notification with timeout
+        let result = tokio::time::timeout(
+            Duration::from_millis(timeout_ms),
+            notify.notified(),
+        )
+        .await;
+
+        // Cleanup the signal entry
+        {
+            let mut signals = self.extension_ready_signals.write().await;
+            signals.remove(extension_id);
+        }
+
+        result.is_ok()
+    }
+
+    /// Get a clone of the extension_ready_signals map
+    pub fn get_extension_ready_signals(&self) -> Arc<RwLock<HashMap<String, Arc<Notify>>>> {
+        self.extension_ready_signals.clone()
     }
 
     pub fn is_running(&self) -> bool {
@@ -857,13 +904,16 @@ async fn get_extension_id_by_public_key_and_name(
     }
 }
 
+/// Maximum time to wait for an extension to signal ready (in milliseconds)
+const EXTENSION_READY_TIMEOUT_MS: u64 = 30000;
+
 /// Ensure an extension is loaded (auto-start if needed)
 /// Returns Ok(()) if extension is loaded or was successfully started
 ///
 /// This function:
 /// 1. Checks if extension already has an open window (Desktop only)
 /// 2. If not, emits an event to the frontend to request extension loading
-/// 3. Waits for the extension to be ready
+/// 3. Waits for the extension to signal it's ready (via extension_signal_ready)
 async fn ensure_extension_loaded(
     app_handle: &AppHandle,
     extension_id: &str,
@@ -891,6 +941,28 @@ async fn ensure_extension_loaded(
         extension_id
     );
 
+    // Get the ExternalBridge to set up the ready signal BEFORE emitting the auto-start event
+    // This ensures we don't miss the signal if the extension starts very quickly
+    let state = app_handle.state::<AppState>();
+    let bridge = state.external_bridge.lock().await;
+
+    // Pre-create the notify for this extension so we can wait on it
+    {
+        let mut signals = bridge.extension_ready_signals.write().await;
+        signals
+            .entry(extension_id.to_string())
+            .or_insert_with(|| Arc::new(Notify::new()));
+    }
+
+    // Get the notify handle before dropping the lock
+    let notify = {
+        let signals = bridge.extension_ready_signals.read().await;
+        signals.get(extension_id).cloned()
+    };
+
+    // Drop the bridge lock so the signal can be sent
+    drop(bridge);
+
     // Emit event to frontend to start the extension
     // The frontend will handle this based on the extension's display_mode
     let payload = serde_json::json!({
@@ -901,10 +973,42 @@ async fn ensure_extension_loaded(
         return Err(format!("Failed to emit auto-start request: {}", e));
     }
 
-    // Wait for extension to initialize
-    // TODO: Implement proper signaling mechanism where extension confirms it's ready
-    // For now, we wait a fixed time which should be enough for most extensions
-    tokio::time::sleep(Duration::from_millis(1000)).await;
+    // Wait for extension to signal ready (with timeout)
+    // The extension will call extension_signal_ready after completing its initialization
+    // (migrations, setup hook, etc.)
+    if let Some(notify) = notify {
+        eprintln!(
+            "[ExternalBridge] Waiting for extension {} to signal ready (timeout: {}ms)...",
+            extension_id, EXTENSION_READY_TIMEOUT_MS
+        );
+
+        let result = tokio::time::timeout(
+            Duration::from_millis(EXTENSION_READY_TIMEOUT_MS),
+            notify.notified(),
+        )
+        .await;
+
+        // Cleanup the signal entry
+        {
+            let bridge = state.external_bridge.lock().await;
+            let mut signals = bridge.extension_ready_signals.write().await;
+            signals.remove(extension_id);
+        }
+
+        if result.is_err() {
+            eprintln!(
+                "[ExternalBridge] Timeout waiting for extension {} to signal ready",
+                extension_id
+            );
+            // Don't fail - the extension might still be usable, just slow to initialize
+            // The request will timeout naturally if the extension truly isn't working
+        } else {
+            eprintln!(
+                "[ExternalBridge] Extension {} signaled ready",
+                extension_id
+            );
+        }
+    }
 
     // Verify extension is now loaded (Desktop only)
     #[cfg(not(any(target_os = "android", target_os = "ios")))]

@@ -3,6 +3,7 @@ import { TAURI_COMMANDS } from '@haex-space/vault-sdk'
 import type { IHaexSpaceExtension } from '~/types/haexspace'
 import type { ExtensionRequest } from './types'
 import { invokeWithPermissionPrompt } from './invoke'
+import { useExtensionReadyStore } from '~/stores/extensions/ready'
 
 interface DatabaseQueryResult {
   rows: unknown[]
@@ -90,6 +91,13 @@ export async function handleDatabaseMethodAsync(
         extensionVersion: migrationParams.extensionVersion,
         migrations: migrationParams.migrations,
       })
+
+      // Signal that the extension is ready after successful migration registration
+      // This unblocks:
+      // - ExternalBridge waiting for extension to handle requests (Desktop)
+      // - Other extensions waiting for this extension to be ready (all platforms)
+      const extensionReadyStore = useExtensionReadyStore()
+      await extensionReadyStore.signalReady(extension.id)
 
       return result
     }

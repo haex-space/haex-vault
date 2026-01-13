@@ -356,3 +356,16 @@ pub fn external_bridge_unblock_client(
     Ok(())
 }
 
+/// Signal that an extension has completed initialization and is ready to handle requests.
+/// This is called by the frontend after an extension has finished its setup (migrations, etc.)
+/// and unblocks any waiting `ensure_extension_loaded` calls in the ExternalBridge.
+#[tauri::command]
+pub async fn extension_signal_ready(
+    extension_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let bridge = state.external_bridge.lock().await;
+    bridge.signal_extension_ready(&extension_id).await;
+    Ok(())
+}
+
