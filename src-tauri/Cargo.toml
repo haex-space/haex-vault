@@ -1,6 +1,6 @@
 [package]
 name = "haex-space"
-version = "1.5.19"
+version = "1.5.20"
 description = "Secure and privacy friendly data storage"
 authors = ["you"]
 edition = "2021"
