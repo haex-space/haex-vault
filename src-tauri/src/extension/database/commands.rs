@@ -410,14 +410,14 @@ pub fn apply_synced_extension_migrations(
     with_connection(&state.db, |conn| {
         let ext_count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM haex_extensions WHERE haex_tombstone = 0",
+                "SELECT COUNT(*) FROM haex_extensions WHERE haex_tombstone = 0 OR haex_tombstone IS NULL",
                 [],
                 |row| row.get(0),
             )
             .unwrap_or(-1);
         let mig_count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM haex_extension_migrations WHERE haex_tombstone = 0",
+                "SELECT COUNT(*) FROM haex_extension_migrations WHERE haex_tombstone = 0 OR haex_tombstone IS NULL",
                 [],
                 |row| row.get(0),
             )

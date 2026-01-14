@@ -152,7 +152,7 @@ fn get_database_size(conn: &Connection) -> Result<u64, DatabaseError> {
 /// Get all installed extensions from haex_extensions table
 fn get_installed_extensions(conn: &Connection) -> Result<Vec<InstalledExtension>, DatabaseError> {
     let mut stmt = conn
-        .prepare("SELECT id, public_key, name FROM haex_extensions WHERE haex_tombstone = 0")
+        .prepare("SELECT id, public_key, name FROM haex_extensions WHERE haex_tombstone = 0 OR haex_tombstone IS NULL")
         .map_err(|e| DatabaseError::ExecutionError {
             sql: "SELECT extensions".to_string(),
             reason: e.to_string(),

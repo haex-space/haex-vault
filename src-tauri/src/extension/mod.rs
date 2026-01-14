@@ -408,7 +408,7 @@ pub async fn load_dev_extension(
 
     // 4. Check if extension already exists in DB (UPSERT pattern)
     let check_sql = format!(
-        "SELECT id FROM {TABLE_EXTENSIONS} WHERE public_key = ? AND name = ? AND haex_tombstone = 0"
+        "SELECT id FROM {TABLE_EXTENSIONS} WHERE public_key = ? AND name = ? AND (haex_tombstone = 0 OR haex_tombstone IS NULL)"
     );
 
     let existing_id: Option<String> = with_connection(&state.db, |conn| {
