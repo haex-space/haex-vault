@@ -36,6 +36,9 @@ import {
 } from '@haex-space/vault-sdk'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type { IHaexSpaceExtension } from '~/types/haexspace'
+import { createLogger } from '~/stores/logging'
+
+const log = createLogger('BROADCAST')
 
 // Extension instance info for iframe registry
 interface ExtensionInstance {
@@ -71,16 +74,15 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
     extension: IHaexSpaceExtension,
     windowId: string,
   ) => {
-    console.log('[BroadcastStore] registerIframe called:', {
-      extensionId: extension.id,
-      extensionName: extension.name,
-      windowId,
-      hasContentWindow: !!iframe.contentWindow,
-      iframeConnected: iframe.isConnected,
-      currentRegistrySize: iframeRegistry.size,
-    })
+    log.info(`========== REGISTERING IFRAME ==========`)
+    log.info(`Extension: ${extension.name} (ID: ${extension.id})`)
+    log.info(`Window ID: ${windowId}`)
+    log.debug('Extension publicKey:', extension.publicKey)
+    log.debug('Has contentWindow:', !!iframe.contentWindow)
+    log.debug('Iframe connected:', iframe.isConnected)
+    log.debug('Current registry size:', iframeRegistry.size)
     iframeRegistry.set(iframe, { extension, windowId })
-    console.log('[BroadcastStore] Registered iframe - new registry size:', iframeRegistry.size)
+    log.info(`Iframe registered - new registry size: ${iframeRegistry.size}`)
   }
 
   /**
@@ -88,12 +90,11 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
    */
   const unregisterIframe = (iframe: HTMLIFrameElement) => {
     const instance = iframeRegistry.get(iframe)
-    console.log('[BroadcastStore] unregisterIframe called:', {
-      hasInstance: !!instance,
-      extensionName: instance?.extension.name,
-      windowId: instance?.windowId,
-      currentRegistrySize: iframeRegistry.size,
-    })
+    log.info(`========== UNREGISTERING IFRAME ==========`)
+    log.debug('Has instance:', !!instance)
+    log.debug('Extension name:', instance?.extension.name)
+    log.debug('Window ID:', instance?.windowId)
+    log.debug('Current registry size:', iframeRegistry.size)
     if (instance) {
       // Remove from source cache
       for (const [source, inst] of sourceCache.entries()) {
@@ -101,10 +102,10 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
           sourceCache.delete(source)
         }
       }
-      console.log('[BroadcastStore] Unregistered iframe:', instance.extension.name, instance.windowId)
+      log.info(`Unregistered iframe: ${instance.extension.name} (windowId: ${instance.windowId})`)
     }
     iframeRegistry.delete(iframe)
-    console.log('[BroadcastStore] After unregister - registry size:', iframeRegistry.size)
+    log.info(`After unregister - registry size: ${iframeRegistry.size}`)
   }
 
   /**
@@ -322,7 +323,22 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
   const forwardExternalRequest = (payload: ExternalRequestPayload) => {
     const { extensionPublicKey, extensionName } = payload
 
-    console.log('[BroadcastStore] Forwarding external request to:', extensionName, 'action:', payload.action)
+    log.info(`Forwarding external request to: ${extensionName}, action: ${payload.action}`)
+    log.debug('Looking for extension with publicKey:', extensionPublicKey)
+    log.debug('Iframe registry size:', iframeRegistry.size)
+
+    // Log all registered iframes for debugging
+    let iframeIndex = 0
+    for (const [iframe, instance] of iframeRegistry.entries()) {
+      log.debug(`Registered iframe ${iframeIndex}:`, {
+        extensionName: instance.extension.name,
+        extensionPublicKey: instance.extension.publicKey,
+        windowId: instance.windowId,
+        hasContentWindow: !!iframe.contentWindow,
+        iframeConnected: iframe.isConnected,
+      })
+      iframeIndex++
+    }
 
     // Find first iframe for this extension (external requests need single handler)
     for (const [iframe, instance] of iframeRegistry.entries()) {
@@ -330,6 +346,7 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
         instance.extension.publicKey === extensionPublicKey
         && instance.extension.name === extensionName
       ) {
+        log.info(`Found matching extension iframe: ${instance.extension.name}`)
         if (iframe.contentWindow) {
           const message = {
             type: EXTERNAL_EVENTS.REQUEST,
@@ -341,14 +358,17 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
             },
             timestamp: Date.now(),
           }
-          console.log('[BroadcastStore] Sent external request to:', instance.extension.name, instance.windowId)
+          log.info(`Sent external request to: ${instance.extension.name} (windowId: ${instance.windowId})`)
           iframe.contentWindow.postMessage(message, '*')
           return // Only send to first matching iframe (request expects single response)
+        }
+        else {
+          log.warn('Iframe has no contentWindow!')
         }
       }
     }
 
-    console.warn('[BroadcastStore] No iframe found for extension:', extensionName, extensionPublicKey)
+    log.warn(`No iframe found for extension: ${extensionName} (publicKey: ${extensionPublicKey})`)
   }
 
   /**
@@ -383,14 +403,26 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
    * Setup Tauri event listeners for forwarding to iframes
    */
   const setupEventListeners = async () => {
-    if (eventListenersRegistered) return
+    if (eventListenersRegistered) {
+      log.debug('Event listeners already registered, skipping')
+      return
+    }
     eventListenersRegistered = true
+
+    log.info('========== SETTING UP EVENT LISTENERS ==========')
+    log.debug('EXTERNAL_EVENTS.REQUEST:', EXTERNAL_EVENTS.REQUEST)
+    log.debug('isDesktop:', isDesktop.value)
 
     try {
       // Listen for external requests
       unlistenFns.push(
         await listen<ExternalRequestPayload>(EXTERNAL_EVENTS.REQUEST, (event) => {
-          console.log('[BroadcastStore] Received external request from Tauri:', event.payload)
+          log.info('========== EXTERNAL REQUEST RECEIVED ==========')
+          log.info(`Extension: ${event.payload.extensionName}`)
+          log.info(`Action: ${event.payload.action}`)
+          log.debug('Request ID:', event.payload.requestId)
+          log.debug('Full payload:', JSON.stringify(event.payload))
+          log.debug('Current iframe registry size:', iframeRegistry.size)
           forwardExternalRequest(event.payload)
         }),
       )

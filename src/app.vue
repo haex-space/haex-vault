@@ -24,7 +24,16 @@
 
 <script setup lang="ts">
 import * as locales from '@nuxt/ui/locale'
+import { setDebugEnabled, setModuleDebug } from '~/stores/logging'
+
 const { locale } = useI18n()
+
+// Enable debug logging for troubleshooting E2E tests
+// TODO: Remove after fixing nightly build issues
+setDebugEnabled(true)
+setModuleDebug('WINDOW_MGR', true)
+setModuleDebug('BROADCAST', true)
+setModuleDebug('EXT_BRIDGE', true)
 
 // Handle Android back button
 useAndroidBackButton()

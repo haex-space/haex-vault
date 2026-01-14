@@ -4,6 +4,9 @@ import { isDesktop } from '~/utils/platform'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { EXTENSION_AUTO_START_REQUEST, EXTENSION_WINDOW_CLOSED } from '~/constants/events'
+import { createLogger } from '~/stores/logging'
+
+const log = createLogger('WINDOW_MGR')
 
 export interface IWindow {
   id: string
@@ -596,12 +599,16 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
   const setupDesktopEventListenersAsync = async () => {
     if (!isDesktop()) return
 
+    log.info('Setting up desktop event listeners...')
+    log.debug('EXTENSION_WINDOW_CLOSED event:', EXTENSION_WINDOW_CLOSED)
+    log.debug('EXTENSION_AUTO_START_REQUEST event:', EXTENSION_AUTO_START_REQUEST)
+
     // Listen for native WebviewWindow close events from backend
     await listen<string>(
       EXTENSION_WINDOW_CLOSED,
       (event) => {
         const windowId = event.payload
-        console.log(`Native extension window closed: ${windowId}`)
+        log.info(`Native extension window closed: ${windowId}`)
 
         // Remove from frontend tracking (read-only mirror of backend state)
         const index = windows.value.findIndex((w) => w.id === windowId)
@@ -618,32 +625,43 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       EXTENSION_AUTO_START_REQUEST,
       async (event) => {
         const { extensionId } = event.payload
-        console.log(`[windowManager] Auto-start request for extension: ${extensionId}`)
+        log.info('========== AUTO-START REQUEST RECEIVED ==========')
+        log.info(`Extension ID: ${extensionId}`)
+        log.debug('Event payload:', JSON.stringify(event.payload))
+        log.debug(`Current windows count: ${windows.value.length}`)
+        log.debug('Current windows:', windows.value.map(w => ({ id: w.id, type: w.type, sourceId: w.sourceId })))
 
         // Check if extension is already open
         const existingWindow = windows.value.find(
           w => w.type === 'extension' && w.sourceId === extensionId,
         )
         if (existingWindow) {
-          console.log(`[windowManager] Extension ${extensionId} already has an open window`)
+          log.info(`Extension ${extensionId} already has an open window: ${existingWindow.id}`)
           return
         }
+
+        log.info('No existing window found, opening new window...')
 
         // Open the extension window minimized (auto-start runs in background)
         // This will respect the extension's display_mode setting
         try {
+          log.debug(`Calling openWindowAsync for extension ${extensionId}...`)
           await openWindowAsync({
             type: 'extension',
             sourceId: extensionId,
             minimized: true,
           })
-          console.log(`[windowManager] Extension ${extensionId} started successfully (minimized)`)
+          log.info(`Extension ${extensionId} started successfully (minimized)`)
+          log.debug(`Windows after open: ${windows.value.length}`)
         }
         catch (error) {
-          console.error(`[windowManager] Failed to auto-start extension ${extensionId}:`, error)
+          log.error(`Failed to auto-start extension ${extensionId}:`, error)
         }
+        log.info('========== AUTO-START REQUEST COMPLETE ==========')
       },
     )
+
+    log.info('Desktop event listeners setup complete')
   }
 
   // Setup listeners on store creation (only on desktop)
