@@ -77,7 +77,15 @@ export const useWorkspaceStore = defineStore('workspaceStore', () => {
   }
 
   const currentWorkspace = computed(() => {
-    return workspaces.value[currentWorkspaceIndex.value]
+    const ws = workspaces.value[currentWorkspaceIndex.value]
+    if (!ws && workspaces.value.length > 0) {
+      console.warn('[WORKSPACE] currentWorkspace is undefined but workspaces exist!', {
+        currentWorkspaceIndex: currentWorkspaceIndex.value,
+        workspacesLength: workspaces.value.length,
+        workspaceIds: workspaces.value.map(w => w.id),
+      })
+    }
+    return ws
   })
 
   const addWorkspaceAsync = async (name?: string) => {
@@ -167,12 +175,25 @@ export const useWorkspaceStore = defineStore('workspaceStore', () => {
   }
 
   const switchToWorkspace = (workspaceId?: string) => {
+    // Guard: If no workspaces loaded yet, ignore the call
+    if (workspaces.value.length === 0) {
+      console.log('[WORKSPACE] switchToWorkspace called but no workspaces loaded yet, ignoring')
+      return currentWorkspaceIndex.value
+    }
+
+    // Guard: If no workspaceId provided, stay on current workspace
+    if (!workspaceId) {
+      console.log('[WORKSPACE] switchToWorkspace called with undefined workspaceId, staying on current')
+      return currentWorkspaceIndex.value
+    }
+
     const workspace = workspaces.value.find((w) => w.id === workspaceId)
 
-    console.log('switchToWorkspace', workspace)
+    console.log('[WORKSPACE] switchToWorkspace', { workspaceId, found: !!workspace, workspacesCount: workspaces.value.length })
     if (workspace) {
-      currentWorkspaceIndex.value = workspace?.position
+      currentWorkspaceIndex.value = workspace.position
     } else {
+      console.warn('[WORKSPACE] Workspace not found, defaulting to index 0:', workspaceId)
       currentWorkspaceIndex.value = 0
     }
 

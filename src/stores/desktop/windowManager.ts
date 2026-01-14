@@ -236,6 +236,16 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       const workspaceStore = useWorkspaceStore()
       let targetWorkspaceId = workspaceId || workspaceStore.currentWorkspace?.id
 
+      console.log('[windowManager] openWindowAsync:', {
+        sourceId,
+        type,
+        providedWorkspaceId: workspaceId,
+        currentWorkspaceId: workspaceStore.currentWorkspace?.id,
+        targetWorkspaceId,
+        workspacesCount: workspaceStore.workspaces?.length,
+        currentWorkspaceIndex: workspaceStore.currentWorkspaceIndex,
+      })
+
       // If no workspace is available yet (e.g., during initial sync), try to load/create one
       if (!targetWorkspaceId) {
         console.warn('[windowManager] No active workspace - attempting to load/create workspaces')
@@ -244,7 +254,10 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
           targetWorkspaceId = workspaceStore.currentWorkspace?.id
 
           if (!targetWorkspaceId) {
-            console.error('[windowManager] Cannot open window: Failed to create workspace')
+            console.error('[windowManager] Cannot open window: Failed to create workspace after loading', {
+              workspacesCount: workspaceStore.workspaces?.length,
+              currentWorkspaceIndex: workspaceStore.currentWorkspaceIndex,
+            })
             return
           }
           console.log('[windowManager] Workspace loaded/created successfully:', targetWorkspaceId)
@@ -258,7 +271,10 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
         (w) => w.id === targetWorkspaceId,
       )
       if (!workspace) {
-        console.error('Cannot open window: Invalid workspace')
+        console.error('[windowManager] Cannot open window: Invalid workspace', {
+          targetWorkspaceId,
+          availableWorkspaceIds: workspaceStore.workspaces?.map(w => w.id),
+        })
         return
       }
 

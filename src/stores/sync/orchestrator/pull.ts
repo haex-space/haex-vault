@@ -67,10 +67,9 @@ export const pullFromBackendAsync = async (
     // Step 1: Download ALL changes from server (with pagination)
     log.info('Downloading changes from server...')
     const pullResult = await pullChangesFromServerAsync(
-      backendId,
+      backend.serverUrl,
       backend.vaultId,
       lastPullServerTimestamp,
-      syncBackendsStore,
       syncEngineStore,
     )
 
@@ -149,41 +148,50 @@ export const pullFromBackendAsync = async (
 
 /**
  * Pulls column-level changes from server with pagination
- * Uses server timestamps (afterUpdatedAt) instead of HLC for cursor
+ * Uses server timestamps (afterUpdatedAt) and secondary cursors (tableName, rowPks) for stable pagination
  * Returns both the changes and the server timestamp for storing as cursor
+ *
+ * @param serverUrl - Sync server URL
+ * @param vaultId - Vault ID to pull changes for
+ * @param lastPullServerTimestamp - Cursor for incremental sync (null for full sync)
+ * @param syncEngineStore - Sync engine store for auth token
  */
 export const pullChangesFromServerAsync = async (
-  backendId: string,
+  serverUrl: string,
   vaultId: string,
   lastPullServerTimestamp: string | null | undefined,
-  syncBackendsStore: ReturnType<typeof useSyncBackendsStore>,
   syncEngineStore: ReturnType<typeof useSyncEngineStore>,
 ): Promise<PullResult> => {
-  log.debug('pullChangesFromServerAsync: Getting auth token...')
+  log.info('pullChangesFromServerAsync: Starting pull from', serverUrl, 'vault:', vaultId)
   const token = await syncEngineStore.getAuthTokenAsync()
   if (!token) {
     log.error('pullChangesFromServerAsync: Not authenticated')
     throw new Error('Not authenticated')
   }
 
-  const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
-  if (!backend) {
-    log.error('pullChangesFromServerAsync: Backend not found')
-    throw new Error('Backend not found')
-  }
-
   const allChanges: ColumnChange[] = []
   let hasMore = true
   let currentCursor: string | null = lastPullServerTimestamp || null
+  let currentTableName: string | null = null
+  let currentRowPks: string | null = null
   let pageCount = 0
   let lastServerTimestamp: string | null = null
 
   // Pagination loop - download ALL changes before applying
+  log.info(`[PAGINATION] Starting pagination loop. Initial cursor: ${currentCursor || '(none)'}`)
   while (hasMore) {
     pageCount++
-    // Use afterUpdatedAt (server timestamp) instead of since (HLC)
-    const url = `${backend.serverUrl}/sync/pull?vaultId=${vaultId}&afterUpdatedAt=${currentCursor || ''}&limit=1000`
-    log.debug(`Fetching page ${pageCount}:`, url)
+    // Build URL with all cursor parameters for stable pagination
+    const params = new URLSearchParams({
+      vaultId,
+      limit: '1000',
+    })
+    if (currentCursor) params.set('afterUpdatedAt', currentCursor)
+    if (currentTableName) params.set('afterTableName', currentTableName)
+    if (currentRowPks) params.set('afterRowPks', currentRowPks)
+
+    const url = `${serverUrl}/sync/pull?${params.toString()}`
+    log.info(`[PAGINATION] Fetching page ${pageCount} with cursor: ${currentCursor || '(none)'}, tableName: ${currentTableName || '(none)'}, rowPks: ${currentRowPks || '(none)'}`)
 
     const response = await fetch(url, {
       method: 'GET',
@@ -201,90 +209,32 @@ export const pullChangesFromServerAsync = async (
     const data = await response.json()
     const changes: ColumnChange[] = data.changes || []
 
+    // Debug: Log full pagination response details
+    log.info(`[PAGINATION DEBUG] Response: changes=${changes.length}, hasMore=${data.hasMore}, serverTimestamp=${data.serverTimestamp}, lastTableName=${data.lastTableName}, lastRowPks=${data.lastRowPks}`)
+
     allChanges.push(...changes)
 
     // Check if there are more pages
     hasMore = data.hasMore === true
 
-    // Use serverTimestamp from response as cursor for next page and final storage
+    // Update all cursor components for next page
     lastServerTimestamp = data.serverTimestamp || null
     currentCursor = lastServerTimestamp
+    currentTableName = data.lastTableName || null
+    currentRowPks = data.lastRowPks || null
 
     log.info(`Page ${pageCount}: ${changes.length} changes (total: ${allChanges.length}, hasMore: ${hasMore})`)
   }
 
+  log.info(`[PAGINATION] Loop complete. Total pages: ${pageCount}, Total changes: ${allChanges.length}`)
   return { changes: allChanges, serverTimestamp: lastServerTimestamp }
 }
 
 /**
- * Pulls changes from server using explicit config (for initial pull with temporary backend)
+ * @deprecated Use pullChangesFromServerAsync directly
+ * Kept for backwards compatibility - just forwards to pullChangesFromServerAsync
  */
-export const pullChangesFromServerWithConfigAsync = async (
-  serverUrl: string,
-  vaultId: string,
-  lastPullServerTimestamp: string | null,
-  syncEngineStore: ReturnType<typeof useSyncEngineStore>,
-): Promise<PullResult> => {
-  log.info('pullChangesFromServerWithConfigAsync: Starting pull from', serverUrl, 'vault:', vaultId)
-  log.debug('pullChangesFromServerWithConfigAsync: Getting auth token...')
-  const token = await syncEngineStore.getAuthTokenAsync()
-  if (!token) {
-    log.error('pullChangesFromServerWithConfigAsync: Not authenticated')
-    throw new Error('Not authenticated')
-  }
-  log.debug('pullChangesFromServerWithConfigAsync: Got auth token')
-
-  const allChanges: ColumnChange[] = []
-  let hasMore = true
-  let currentCursor: string | null = lastPullServerTimestamp
-  let pageCount = 0
-  let lastServerTimestamp: string | null = null
-
-  // Pagination loop - download ALL changes before applying
-  while (hasMore) {
-    pageCount++
-    const url = `${serverUrl}/sync/pull?vaultId=${vaultId}&afterUpdatedAt=${currentCursor || ''}&limit=1000`
-    log.info(`Fetching page ${pageCount}:`, url)
-
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      log.error('Server returned error:', { status: response.status, error })
-      throw new Error(`Failed to pull changes: ${error.error || response.statusText}`)
-    }
-
-    const data = await response.json()
-
-    // Debug: Log raw server response for initial pull
-    log.info('Server response: keys=', Object.keys(data), 'changes.length=', data.changes?.length ?? 'undefined')
-    if (data.changes?.length > 0) {
-      const firstChange = data.changes[0]
-      log.debug('First change sample:', { tableName: firstChange.tableName, columnName: firstChange.columnName })
-    }
-
-    const changes: ColumnChange[] = data.changes || []
-
-    allChanges.push(...changes)
-
-    // Check if there are more pages
-    hasMore = data.hasMore === true
-
-    // Use serverTimestamp from response as cursor for next page and final storage
-    lastServerTimestamp = data.serverTimestamp || null
-    currentCursor = lastServerTimestamp
-
-    log.info(`Page ${pageCount}: ${changes.length} changes (total: ${allChanges.length}, hasMore: ${hasMore})`)
-  }
-
-  log.info('pullChangesFromServerWithConfigAsync: Complete. Total changes:', allChanges.length)
-  return { changes: allChanges, serverTimestamp: lastServerTimestamp }
-}
+export const pullChangesFromServerWithConfigAsync = pullChangesFromServerAsync
 
 /**
  * Applies all remote changes with proper ordering for extension tables
@@ -401,14 +351,23 @@ export const applyRemoteChangesInTransactionAsync = async (
   vaultKey: Uint8Array,
   backendId: string,
 ): Promise<string> => {
-  log.debug(`Decrypting ${changes.length} changes...`)
+  const startTime = performance.now()
+  log.info(`[PERF] Starting decryption of ${changes.length} changes...`)
 
   // Calculate max HLC and decrypt all changes
   let maxHlc = ''
   const decryptedChanges = []
   let decryptErrors = 0
+  let decryptCount = 0
 
   for (const change of changes) {
+    decryptCount++
+    // Log every 100 changes for better visibility with smaller batches
+    if (decryptCount % 100 === 0 || decryptCount === changes.length) {
+      const elapsed = (performance.now() - startTime) / 1000
+      const rate = decryptCount / elapsed
+      log.info(`[PERF] Decrypted ${decryptCount}/${changes.length} (${elapsed.toFixed(1)}s, ${rate.toFixed(0)} changes/s)`)
+    }
     // Track max HLC
     if (change.hlcTimestamp > maxHlc) {
       maxHlc = change.hlcTimestamp
@@ -460,17 +419,20 @@ export const applyRemoteChangesInTransactionAsync = async (
     log.warn(`${decryptErrors} changes failed to decrypt and were skipped`)
   }
 
-  log.debug(`Decryption complete. Max HLC: ${maxHlc}`)
-  log.info(`Invoking Rust: apply_remote_changes_in_transaction (${decryptedChanges.length} changes)`)
+  const decryptionTime = (performance.now() - startTime) / 1000
+  log.info(`[PERF] Decryption complete in ${decryptionTime.toFixed(1)}s. Max HLC: ${maxHlc}`)
+  log.info(`[PERF] Invoking Rust: apply_remote_changes_in_transaction (${decryptedChanges.length} changes)`)
 
   // Call Tauri command to apply changes in a transaction
+  const rustStartTime = performance.now()
   try {
     await invoke('apply_remote_changes_in_transaction', {
       changes: decryptedChanges,
       backendId,
       maxHlc,
     })
-    log.debug('Rust command completed successfully')
+    const rustTime = (performance.now() - rustStartTime) / 1000
+    log.info(`[PERF] Rust command completed in ${rustTime.toFixed(1)}s`)
   } catch (invokeError) {
     // Log detailed error from Rust - extract message for better visibility
     const errorMessage = invokeError instanceof Error
