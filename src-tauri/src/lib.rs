@@ -207,6 +207,8 @@ pub fn run() {
             database::migrations::get_applied_core_migrations,
             database::migrations::get_unapplied_core_migrations,
             database::migrations::get_all_core_migrations,
+            database::migrations::get_pending_columns,
+            database::migrations::clear_pending_column,
             crdt::commands::get_table_schema,
             crdt::commands::get_dirty_tables,
             crdt::commands::clear_dirty_table,

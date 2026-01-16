@@ -5,7 +5,7 @@ use crate::crdt::trigger::{
 };
 use crate::database::core::{with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
-use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
+use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES, TABLE_CRDT_PENDING_COLUMNS};
 use crate::AppState;
 use rusqlite::params;
 use rusqlite::types::Value as SqlValue;
@@ -449,11 +449,43 @@ pub fn apply_remote_changes_in_transaction(
                     serde_json::Map::new()
                 };
 
+            // Build a set of existing column names for quick lookup
+            let existing_columns: std::collections::HashSet<&str> =
+                schema.iter().map(|col| col.name.as_str()).collect();
+
             // Collect all column changes that are newer than current
             let mut columns_to_update: Vec<(String, JsonValue, String)> = Vec::new(); // (column_name, json_value, hlc)
             let mut max_hlc_for_row = first_change.hlc_timestamp.clone();
 
             for change in &row_change_list {
+                // Skip columns that don't exist in the local schema
+                // This handles schema version differences between devices
+                if !existing_columns.contains(change.column_name.as_str()) {
+                    eprintln!(
+                        "[SYNC RUST] Skipping unknown column '{}' in table '{}' - column not in local schema (older app version?)",
+                        change.column_name, first_change.table_name
+                    );
+
+                    // Track this as a pending column that needs to be pulled after migration
+                    // Uses INSERT OR IGNORE to avoid duplicates (composite PK on table_name, column_name)
+                    // Only stores table_name + column_name - row PKs come from server during re-pull
+                    tx.execute(
+                        &format!(
+                            "INSERT OR IGNORE INTO {} (table_name, column_name) VALUES (?, ?)",
+                            TABLE_CRDT_PENDING_COLUMNS
+                        ),
+                        params![&first_change.table_name, &change.column_name],
+                    ).map_err(DatabaseError::from)?;
+
+                    // Still track the HLC for this column so we know we've "seen" this change
+                    // This prevents re-processing when the column is later added via migration
+                    column_hlcs.insert(
+                        change.column_name.clone(),
+                        JsonValue::String(change.hlc_timestamp.clone()),
+                    );
+                    continue;
+                }
+
                 let current_hlc = column_hlcs
                     .get(&change.column_name)
                     .and_then(|v| v.as_str())

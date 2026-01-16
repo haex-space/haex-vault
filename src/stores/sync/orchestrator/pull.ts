@@ -10,6 +10,7 @@ import type { ColumnChange } from '../tableScanner'
 import { log, type BackendSyncState, type PullResult } from './types'
 import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
 import { SYNC_TABLES_INTERNAL_EVENT } from '../syncEvents'
+import type { PendingColumn } from '@bindings/PendingColumn'
 
 /**
  * Pulls changes from a specific backend using column-level HLC comparison
@@ -95,6 +96,21 @@ export const pullFromBackendAsync = async (
 
     // Step 2: Apply all changes with proper migration ordering
     await applyAllChangesWithMigrationsAsync(allChanges, vaultKey, backendId)
+
+    // Step 2b: Check for and pull any pending columns
+    // This handles schema version differences - if we previously skipped columns
+    // that didn't exist locally (older app version), and now we have those columns
+    // after an app update, we pull all data for them from the server
+    const pendingColumnsPulled = await pullPendingColumnsAsync(
+      backend.serverUrl,
+      backend.vaultId,
+      vaultKey,
+      backendId,
+      syncEngineStore,
+    )
+    if (pendingColumnsPulled > 0) {
+      log.info(`Pulled ${pendingColumnsPulled} pending column changes`)
+    }
 
     // Step 3: Update lastPullServerTimestamp with the server timestamp
     if (serverTimestamp) {
@@ -446,4 +462,104 @@ export const applyRemoteChangesInTransactionAsync = async (
   }
 
   return maxHlc
+}
+
+/**
+ * Pulls data for pending columns that were skipped during sync
+ *
+ * When a device has an older schema version and receives changes with unknown columns,
+ * those columns are tracked in haex_crdt_pending_columns_no_sync. After the app updates
+ * and migrations add those columns, this function fetches ALL data for them from the server.
+ *
+ * @param serverUrl - Sync server URL
+ * @param vaultId - Vault ID to pull data for
+ * @param vaultKey - Vault encryption key for decryption
+ * @param backendId - Backend ID for applying changes
+ * @param syncEngineStore - Sync engine store for auth token
+ * @returns Number of columns successfully pulled
+ */
+export const pullPendingColumnsAsync = async (
+  serverUrl: string,
+  vaultId: string,
+  vaultKey: Uint8Array,
+  backendId: string,
+  syncEngineStore: ReturnType<typeof useSyncEngineStore>,
+): Promise<number> => {
+  // Step 1: Get list of pending columns from local database
+  const pendingColumns = await invoke<PendingColumn[]>('get_pending_columns')
+
+  if (pendingColumns.length === 0) {
+    log.debug('No pending columns to pull')
+    return 0
+  }
+
+  log.info(`Found ${pendingColumns.length} pending columns to pull:`, pendingColumns)
+
+  const token = await syncEngineStore.getAuthTokenAsync()
+  if (!token) {
+    throw new Error('Not authenticated')
+  }
+
+  // Step 2: Pull data for each column from server (with pagination)
+  let totalPulled = 0
+
+  for (const pendingCol of pendingColumns) {
+    log.info(`Pulling data for column: ${pendingCol.tableName}.${pendingCol.columnName}`)
+
+    const allChanges: ColumnChange[] = []
+    let hasMore = true
+    let lastTableName: string | undefined
+    let lastRowPks: string | undefined
+
+    // Pagination loop for this column
+    while (hasMore) {
+      const response = await fetch(`${serverUrl}/sync/pull-columns`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          vaultId,
+          columns: [{ tableName: pendingCol.tableName, columnName: pendingCol.columnName }],
+          limit: 1000,
+          afterTableName: lastTableName,
+          afterRowPks: lastRowPks,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        log.error(`Failed to pull column ${pendingCol.tableName}.${pendingCol.columnName}:`, error)
+        throw new Error(`Failed to pull column data: ${error.error || response.statusText}`)
+      }
+
+      const data = await response.json()
+      const changes: ColumnChange[] = data.changes || []
+
+      allChanges.push(...changes)
+      hasMore = data.hasMore === true
+      lastTableName = data.lastTableName
+      lastRowPks = data.lastRowPks
+
+      log.debug(`Fetched ${changes.length} changes for ${pendingCol.tableName}.${pendingCol.columnName} (total: ${allChanges.length}, hasMore: ${hasMore})`)
+    }
+
+    // Step 3: Apply the pulled changes
+    if (allChanges.length > 0) {
+      log.info(`Applying ${allChanges.length} changes for ${pendingCol.tableName}.${pendingCol.columnName}`)
+      await applyRemoteChangesInTransactionAsync(allChanges, vaultKey, backendId)
+      totalPulled += allChanges.length
+    }
+
+    // Step 4: Clear this pending column from tracking table
+    await invoke('clear_pending_column', {
+      tableName: pendingCol.tableName,
+      columnName: pendingCol.columnName,
+    })
+    log.info(`Cleared pending column: ${pendingCol.tableName}.${pendingCol.columnName}`)
+  }
+
+  log.info(`Finished pulling pending columns. Total changes applied: ${totalPulled}`)
+  return totalPulled
 }

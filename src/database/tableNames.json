@@ -260,6 +260,13 @@
           "migrationContent": "migration_content",
           "appliedAt": "applied_at"
         }
+      },
+      "pending_columns": {
+        "name": "haex_crdt_pending_columns_no_sync",
+        "columns": {
+          "tableName": "table_name",
+          "columnName": "column_name"
+        }
       }
     }
   }

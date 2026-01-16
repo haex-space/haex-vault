@@ -5,12 +5,13 @@ use crate::crdt::transformer::CrdtTransformer;
 use crate::database::core::{with_connection, DRIZZLE_STATEMENT_BREAKPOINT};
 use crate::database::error::DatabaseError;
 use crate::database::generated::HaexCrdtMigrationsNoSync;
-use crate::table_names::TABLE_CRDT_MIGRATIONS;
+use crate::table_names::{TABLE_CRDT_MIGRATIONS, TABLE_CRDT_PENDING_COLUMNS};
 use crate::AppState;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use tauri::{path::BaseDirectory, Manager, State};
 use tauri_plugin_fs::FsExt;
+use ts_rs::TS;
 
 /// Drizzle migration journal entry
 #[derive(Debug, Deserialize)]
@@ -575,4 +576,66 @@ fn apply_single_migration(
         migration_name
     );
     Ok(())
+}
+
+// ===== Pending Columns Commands =====
+
+/// Represents a pending column that was skipped during sync
+#[derive(Debug, Serialize, Clone, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingColumn {
+    pub table_name: String,
+    pub column_name: String,
+}
+
+/// Gets all pending columns that were skipped during sync
+///
+/// These are columns that existed on remote devices but not locally
+/// (due to schema version differences). After the app is updated and
+/// migrations add these columns, we need to pull all data for them.
+#[tauri::command]
+pub fn get_pending_columns(state: State<'_, AppState>) -> Result<Vec<PendingColumn>, DatabaseError> {
+    with_connection(&state.db, |conn| {
+        let mut stmt = conn
+            .prepare(&format!(
+                "SELECT table_name, column_name FROM {}",
+                TABLE_CRDT_PENDING_COLUMNS
+            ))
+            .map_err(DatabaseError::from)?;
+
+        let columns = stmt
+            .query_map([], |row| {
+                Ok(PendingColumn {
+                    table_name: row.get(0)?,
+                    column_name: row.get(1)?,
+                })
+            })
+            .map_err(DatabaseError::from)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(DatabaseError::from)?;
+
+        Ok(columns)
+    })
+}
+
+/// Clears a specific pending column after its data has been successfully pulled
+#[tauri::command]
+pub fn clear_pending_column(
+    state: State<'_, AppState>,
+    table_name: String,
+    column_name: String,
+) -> Result<(), DatabaseError> {
+    with_connection(&state.db, |conn| {
+        conn.execute(
+            &format!(
+                "DELETE FROM {} WHERE table_name = ? AND column_name = ?",
+                TABLE_CRDT_PENDING_COLUMNS
+            ),
+            params![table_name, column_name],
+        )
+        .map_err(DatabaseError::from)?;
+
+        Ok(())
+    })
 }

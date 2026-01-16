@@ -1,6 +1,7 @@
 import {
   index,
   integer,
+  primaryKey,
   sqliteTable,
   text,
   uniqueIndex,
@@ -121,3 +122,27 @@ export const haexCrdtMigrations = sqliteTable(
 )
 export type InsertHaexCrdtMigrations = typeof haexCrdtMigrations.$inferInsert
 export type SelectHaexCrdtMigrations = typeof haexCrdtMigrations.$inferSelect
+
+/**
+ * Pending Columns (WITHOUT CRDT - local-only tracking)
+ * Tracks columns that were skipped during sync because they don't exist locally.
+ * This happens when a remote device has a newer schema version with additional columns.
+ * After the local device updates and migrations add the missing columns,
+ * we need to pull ALL data for these columns from the server.
+ *
+ * Only stores (table_name, column_name) - the actual row PKs come from the server
+ * during the re-pull after migration.
+ */
+export const haexCrdtPendingColumns = sqliteTable(
+  crdtTableNames.pending_columns.name,
+  {
+    tableName: text(crdtTableNames.pending_columns.columns.tableName).notNull(),
+    columnName: text(crdtTableNames.pending_columns.columns.columnName).notNull(),
+  },
+  (table) => [
+    // Composite primary key on (table_name, column_name)
+    primaryKey({ columns: [table.tableName, table.columnName] }),
+  ],
+)
+export type InsertHaexCrdtPendingColumns = typeof haexCrdtPendingColumns.$inferInsert
+export type SelectHaexCrdtPendingColumns = typeof haexCrdtPendingColumns.$inferSelect
