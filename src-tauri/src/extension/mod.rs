@@ -1,19 +1,28 @@
 /// src-tauri/src/extension/mod.rs
 use crate::{
-    database as db,
+    database::{self as db, core::with_connection, error::DatabaseError},
     extension::{
         core::{
-            manager::ExtensionManager, EditablePermissions, ExtensionInfoResponse,
-            ExtensionManifest, ExtensionPreview, PermissionEntry,
+            find_icon,
+            manager::ExtensionManager,
+            manifest::DisplayMode,
+            path_utils::validate_path_in_directory,
+            types::{Extension, ExtensionSource},
+            EditablePermissions, ExtensionInfoResponse, ExtensionManifest, ExtensionPreview,
+            PermissionEntry,
         },
+        database::executor::SqlExecutor,
         error::ExtensionError,
         permissions::{
             manager::PermissionManager,
             types::{ExtensionPermission, ResourceType},
         },
     },
+    table_names::TABLE_EXTENSIONS,
     AppState,
 };
+use std::path::PathBuf;
+use std::time::SystemTime;
 use tauri::{AppHandle, State};
 pub mod core;
 pub mod crypto;
@@ -54,35 +63,21 @@ pub async fn get_all_extensions(
     app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<ExtensionInfoResponse>, String> {
-    // Check if extensions are loaded, if not load them first
-    /*  let needs_loading = {
-        let prod_exts = state
-            .extension_manager
-            .production_extensions
-            .lock()
-            .unwrap();
-        let dev_exts = state.extension_manager.dev_extensions.lock().unwrap();
-        prod_exts.is_empty() && dev_exts.is_empty()
-    }; */
-
-    /* if needs_loading { */
     state
         .extension_manager
         .load_installed_extensions(&app_handle, &state)
         .await
         .map_err(|e| format!("Failed to load extensions: {e:?}"))?;
-    /* } */
 
     let mut extensions = Vec::new();
 
-    // All Extensions
     {
-        let prod_exts = state
+        let available_exts = state
             .extension_manager
-            .production_extensions
+            .available_extensions
             .lock()
             .unwrap();
-        for ext in prod_exts.values() {
+        for ext in available_exts.values() {
             extensions.push(ExtensionInfoResponse::from_extension(ext)?);
         }
     }
@@ -283,20 +278,10 @@ async fn check_dev_server_health(url: &str) -> bool {
 /// - Can sync across devices
 #[tauri::command]
 pub async fn load_dev_extension(
+    app_handle: AppHandle,
     extension_path: String,
     state: State<'_, AppState>,
 ) -> Result<String, ExtensionError> {
-    use crate::database::core::with_connection;
-    use crate::database::error::DatabaseError;
-    use crate::extension::core::{
-        manifest::ExtensionManifest,
-        types::{Extension, ExtensionSource},
-    };
-    use crate::extension::database::executor::SqlExecutor;
-    use crate::table_names::TABLE_EXTENSIONS;
-    use std::path::PathBuf;
-    use std::time::SystemTime;
-
     let extension_path_buf = PathBuf::from(&extension_path);
 
     // 1. Read haextension.config.json to get dev server config and haextension directory
@@ -334,7 +319,7 @@ pub async fn load_dev_extension(
 
     // 2. Validate and build path to manifest: <extension_path>/<haextension_dir>/manifest.json
     let manifest_relative_path = format!("{haextension_dir}/manifest.json");
-    let manifest_path = ExtensionManager::validate_path_in_directory(
+    let manifest_path = validate_path_in_directory(
         &extension_path_buf,
         &manifest_relative_path,
         true,
@@ -380,12 +365,17 @@ pub async fn load_dev_extension(
     let author = partial_manifest.author.or(package_json.author);
     let homepage = partial_manifest.homepage.or(package_json.homepage);
 
-    // Resolve icon path with fallback to favicon.ico
-    let resolved_icon = ExtensionManager::validate_and_resolve_icon_path(
+    // Resolve icon path with fallback to favicon.ico (returns relative path like for prod extensions)
+    let resolved_icon = find_icon(
+        &app_handle,
         &extension_path_buf,
         &haextension_dir,
         partial_manifest.icon.as_deref(),
-    )?;
+    );
+    eprintln!(
+        "[DEV] Icon resolution: manifest.icon={:?}, resolved_icon={:?}",
+        partial_manifest.icon, resolved_icon
+    );
 
     let manifest = ExtensionManifest {
         name: name.clone(),
@@ -435,7 +425,7 @@ pub async fn load_dev_extension(
                 manifest.public_key, name, existing_id
             );
             let update_sql = format!(
-                "UPDATE {TABLE_EXTENSIONS} SET version = ?, author = ?, entry = ?, icon = ?, signature = ?, homepage = ?, description = ?, enabled = ?, single_instance = ?, display_mode = ? WHERE id = ?"
+                "UPDATE {TABLE_EXTENSIONS} SET version = ?, author = ?, entry = ?, icon = ?, signature = ?, homepage = ?, description = ?, enabled = ?, single_instance = ?, display_mode = ?, dev_path = ? WHERE id = ?"
             );
 
             SqlExecutor::execute_internal_typed(
@@ -457,6 +447,7 @@ pub async fn load_dev_extension(
                         .as_ref()
                         .map(|dm| format!("{:?}", dm).to_lowercase())
                         .unwrap_or_else(|| "auto".to_string()),
+                    extension_path, // dev_path
                     existing_id,
                 ],
             )?;
@@ -469,7 +460,7 @@ pub async fn load_dev_extension(
                 manifest.public_key, name, new_id
             );
             let insert_sql = format!(
-                "INSERT INTO {TABLE_EXTENSIONS} (id, name, version, author, entry, icon, public_key, signature, homepage, description, enabled, single_instance, display_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                "INSERT INTO {TABLE_EXTENSIONS} (id, name, version, author, entry, icon, public_key, signature, homepage, description, enabled, single_instance, display_mode, dev_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
 
             SqlExecutor::execute_internal_typed(
@@ -494,6 +485,7 @@ pub async fn load_dev_extension(
                         .as_ref()
                         .map(|dm| format!("{:?}", dm).to_lowercase())
                         .unwrap_or_else(|| "auto".to_string()),
+                    extension_path, // dev_path
                 ],
             )?;
             new_id
@@ -617,16 +609,16 @@ pub fn get_all_dev_extensions(
 ) -> Result<Vec<ExtensionInfoResponse>, ExtensionError> {
     use crate::extension::core::types::ExtensionSource;
 
-    let prod_exts = state
+    let available_exts = state
         .extension_manager
-        .production_extensions
+        .available_extensions
         .lock()
         .map_err(|e| ExtensionError::MutexPoisoned {
             reason: e.to_string(),
         })?;
 
     let mut extensions = Vec::new();
-    for ext in prod_exts.values() {
+    for ext in available_exts.values() {
         // Filter only dev extensions
         if matches!(ext.source, ExtensionSource::Development { .. }) {
             extensions.push(ExtensionInfoResponse::from_extension(ext)?);

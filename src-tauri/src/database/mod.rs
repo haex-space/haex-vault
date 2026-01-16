@@ -600,9 +600,9 @@ pub fn close_database(state: State<'_, AppState>) -> Result<(), DatabaseError> {
 
     // 3. Clear extension manager caches
     {
-        if let Ok(mut prod_exts) = state.extension_manager.production_extensions.lock() {
-            prod_exts.clear();
-            println!("[CLOSE_DB] Production extensions cache cleared");
+        if let Ok(mut available_exts) = state.extension_manager.available_extensions.lock() {
+            available_exts.clear();
+            println!("[CLOSE_DB] Available extensions cache cleared");
         }
         if let Ok(mut perm_cache) = state.extension_manager.permission_cache.lock() {
             perm_cache.clear();

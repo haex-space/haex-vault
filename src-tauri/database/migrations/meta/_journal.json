@@ -8,6 +8,13 @@
       "when": 1768042422819,
       "tag": "0000_condemned_slayback",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1768577400000,
+      "tag": "0001_add_dev_path",
+      "breakpoints": true
     }
   ]
 }

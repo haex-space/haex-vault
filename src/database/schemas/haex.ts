@@ -75,6 +75,8 @@ export const haexExtensions = sqliteTable(
     signature: text().notNull(),
     single_instance: integer({ mode: 'boolean' }).default(false),
     display_mode: text().default('auto'),
+    // path to dev extension project folder (if set, this is a dev extension)
+    dev_path: text(),
     createdAt: text(tableNames.haex.extensions.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),
