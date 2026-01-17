@@ -25,6 +25,10 @@ accessKeyId: string,
  */
 secretAccessKey: string, 
 /**
+ * Session token for temporary credentials (e.g., Supabase S3 with user JWT for RLS)
+ */
+sessionToken: string | null, 
+/**
  * Use path-style URLs instead of virtual-hosted-style
  */
 pathStyle: boolean | null, };
