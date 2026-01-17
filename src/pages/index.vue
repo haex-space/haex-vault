@@ -38,18 +38,18 @@
           </div>
 
           <div
-            class="relative border-default divide-default flex w-full flex-col divide-y rounded-md border overflow-hidden"
+            class="relative flex w-full flex-col gap-1.5"
           >
             <div
               v-for="vault in lastVaults"
               :key="vault.name"
-              class="flex items-center justify-between group overflow-x-hidden"
+              class="flex items-center justify-between group overflow-x-hidden rounded-lg bg-white/5 ring-1 ring-white/10 hover:bg-white/10 hover:ring-white/20 transition-all"
             >
               <UiButtonContext
                 variant="ghost"
                 color="neutral"
                 size="xl"
-                class="flex items-center no-underline justify-between text-nowrap text-sm shrink w-full hover:bg-default/40"
+                class="flex items-center no-underline justify-between text-nowrap text-sm shrink w-full"
                 :context-menu-items="[
                   {
                     icon: 'mdi:trash-can-outline',
