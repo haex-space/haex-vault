@@ -43,7 +43,7 @@
             <div
               v-for="vault in lastVaults"
               :key="vault.name"
-              class="flex items-center justify-between group overflow-x-hidden rounded-lg bg-white/5 ring-1 ring-white/10 hover:bg-white/10 hover:ring-white/20 transition-all"
+              class="flex items-center justify-between group overflow-x-hidden rounded-lg bg-black/5 dark:bg-white/5 ring-1 ring-black/10 dark:ring-white/10 hover:bg-black/10 dark:hover:bg-white/10 hover:ring-black/20 dark:hover:ring-white/20 transition-all"
             >
               <UiButtonContext
                 variant="ghost"
