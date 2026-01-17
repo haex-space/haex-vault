@@ -25,7 +25,7 @@
         <UCard>
           <div class="flex items-start gap-4">
             <div
-              class="w-16 h-16 shrink-0 rounded-lg bg-base-200 flex items-center justify-center overflow-hidden"
+              class="w-16 h-16 shrink-0 rounded-lg bg-elevated flex items-center justify-center overflow-hidden"
             >
               <HaexIcon
                 :name="

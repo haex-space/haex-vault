@@ -30,7 +30,7 @@
         v-else-if="currentStepIndex === 1"
         class="space-y-4"
       >
-        <p class="text-sm text-base-content/60">
+        <p class="text-sm text-muted">
           {{ t('steps.selectVault.description') }}
         </p>
 
@@ -44,18 +44,18 @@
 
         <!-- Vault list -->
         <div
-          v-else-if="availableVaults.length > 0"
+          v-else
           class="space-y-2 px-1"
         >
           <div
             v-for="vault in availableVaults"
             :key="vault.vaultId"
-            class="card bg-base-200 p-4 cursor-pointer hover:bg-base-300 transition-colors"
+            class="card bg-elevated rounded-lg p-4 cursor-pointer hover:bg-muted transition-colors"
             :class="{
-              'ring-2 ring-primary': selectedVaultId === vault.vaultId,
-              'ring-2 ring-error': step2Error && !selectedVaultId,
+              'ring-2 ring-primary': selectedVaultId === vault.vaultId && !isCreatingNewVault,
+              'ring-2 ring-error': step2Error && !selectedVaultId && !isCreatingNewVault,
             }"
-            @click="selectedVaultId = vault.vaultId; step2Error = ''"
+            @click="selectedVaultId = vault.vaultId; isCreatingNewVault = false; step2Error = ''"
           >
             <div class="flex items-center justify-between">
               <div>
@@ -64,13 +64,39 @@
                     vault.decryptedName || t('steps.selectVault.encryptedVault')
                   }}
                 </p>
-                <p class="text-sm text-base-content/60">
+                <p class="text-sm text-muted">
                   {{ t('steps.selectVault.createdAt') }}:
                   {{ formatDate(vault.createdAt) }}
                 </p>
               </div>
               <div
-                v-if="selectedVaultId === vault.vaultId"
+                v-if="selectedVaultId === vault.vaultId && !isCreatingNewVault"
+                class="text-primary"
+              >
+                <i class="i-lucide-check-circle text-2xl"/>
+              </div>
+            </div>
+          </div>
+
+          <!-- Create new vault option -->
+          <div
+            class="card bg-elevated rounded-lg p-4 cursor-pointer hover:bg-muted transition-colors"
+            :class="{
+              'ring-2 ring-primary': isCreatingNewVault,
+            }"
+            @click="isCreatingNewVault = true; selectedVaultId = null; step2Error = ''"
+          >
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="font-medium">
+                  {{ t('steps.selectVault.createNew') }}
+                </p>
+                <p class="text-sm text-muted">
+                  {{ t('steps.selectVault.createNewDescription') }}
+                </p>
+              </div>
+              <div
+                v-if="isCreatingNewVault"
                 class="text-primary"
               >
                 <i class="i-lucide-check-circle text-2xl"/>
@@ -86,14 +112,6 @@
             {{ step2Error }}
           </p>
         </div>
-
-        <!-- No vaults -->
-        <div
-          v-else
-          class="text-center p-8 text-base-content/60"
-        >
-          <p>{{ t('steps.selectVault.noVaults') }}</p>
-        </div>
       </div>
 
       <!-- Step 3: Enter Vault Password -->
@@ -101,7 +119,7 @@
         v-else-if="currentStepIndex === 2"
         class="space-y-4"
       >
-        <p class="text-sm text-base-content/60">
+        <p class="text-sm text-muted">
           {{ t('steps.enterVaultPassword.description') }}
         </p>
 
@@ -128,13 +146,33 @@
             v-model="vaultPassword"
             v-model:errors="step3Errors.password"
             :label="t('steps.enterVaultPassword.vaultPassword')"
-            :description="t('steps.enterVaultPassword.vaultPasswordDescription')"
+            :description="isCreatingNewVault ? t('steps.enterVaultPassword.vaultPasswordDescriptionNew') : t('steps.enterVaultPassword.vaultPasswordDescription')"
             :schema="wizardSchema.vaultPassword"
             :check="check"
             leading-icon="i-lucide-lock"
             size="lg"
             class="w-full"
           />
+
+          <!-- Password confirmation for new vault -->
+          <UiInputPassword
+            v-if="isCreatingNewVault"
+            v-model="vaultPasswordConfirm"
+            v-model:errors="step3Errors.passwordConfirm"
+            :label="t('steps.enterVaultPassword.confirmPassword')"
+            :description="t('steps.enterVaultPassword.confirmPasswordDescription')"
+            :schema="wizardSchema.vaultPassword"
+            :check="check"
+            leading-icon="i-lucide-lock"
+            size="lg"
+            class="w-full"
+          />
+          <p
+            v-if="isCreatingNewVault && vaultPasswordConfirm && vaultPassword !== vaultPasswordConfirm"
+            class="text-sm text-error -mt-3"
+          >
+            {{ t('steps.enterVaultPassword.passwordMismatch') }}
+          </p>
         </div>
       </div>
     </div>
@@ -223,6 +261,7 @@ const emit = defineEmits<{
       email: string
       serverPassword: string
       vaultPassword: string
+      isNewVault: boolean
     },
   ]
   cancel: []
@@ -282,14 +321,17 @@ const availableVaults = ref<VaultInfo[]>([])
 const selectedVaultId = ref<string | null>(null)
 const isLoadingVaults = ref(false)
 const step2Error = ref('')
+const isCreatingNewVault = ref(false)
 
 // Step 3: Enter Vault Password
 const localVaultName = ref('')
 const vaultNameExists = ref(false)
 const vaultPassword = ref('')
+const vaultPasswordConfirm = ref('')
 const step3Errors = reactive({
   vaultName: [] as string[],
   password: [] as string[],
+  passwordConfirm: [] as string[],
 })
 
 // Computed for step validation
@@ -298,19 +340,29 @@ const canProceed = computed(() => {
     return isLoginFormValid.value
   }
   if (currentStepIndex.value === 1) {
-    return selectedVaultId.value !== null
+    return selectedVaultId.value !== null || isCreatingNewVault.value
   }
   return false
 })
 
 const isStep3Valid = computed(() => {
-  return (
+  const baseValid =
     localVaultName.value !== '' &&
     !vaultNameExists.value &&
     vaultPassword.value !== '' &&
     step3Errors.vaultName.length === 0 &&
     step3Errors.password.length === 0
-  )
+
+  // For new vault: also check password confirmation
+  if (isCreatingNewVault.value) {
+    return (
+      baseValid &&
+      vaultPasswordConfirm.value !== '' &&
+      vaultPassword.value === vaultPasswordConfirm.value
+    )
+  }
+
+  return baseValid
 })
 
 // Keyboard shortcuts handlers
@@ -333,20 +385,26 @@ const nextStep = async () => {
   if (currentStepIndex.value === 0) {
     await loginAsync()
   } else if (currentStepIndex.value === 1) {
-    // Validate Step 2 (vault selection)
-    if (!selectedVaultId.value) {
+    // Validate Step 2 (vault selection or new vault)
+    if (!selectedVaultId.value && !isCreatingNewVault.value) {
       step2Error.value = t('errors.vaultSelectionRequired')
       return
     }
 
-    // Pre-fill local vault name with the decrypted name from backend
-    const selectedVault = availableVaults.value.find(
-      (v) => v.vaultId === selectedVaultId.value,
-    )
-    if (selectedVault?.decryptedName) {
-      localVaultName.value = selectedVault.decryptedName
-      // Check if this name already exists locally
-      await checkVaultNameExistsAsync()
+    if (isCreatingNewVault.value) {
+      // New vault: set default vault name
+      localVaultName.value = 'HaexVault'
+      vaultPasswordConfirm.value = ''
+    } else {
+      // Existing vault: Pre-fill local vault name with the decrypted name from backend
+      const selectedVault = availableVaults.value.find(
+        (v) => v.vaultId === selectedVaultId.value,
+      )
+      if (selectedVault?.decryptedName) {
+        localVaultName.value = selectedVault.decryptedName
+        // Check if this name already exists locally
+        await checkVaultNameExistsAsync()
+      }
     }
 
     currentStepIndex.value++
@@ -509,12 +567,8 @@ const completeSetupAsync = async () => {
     return
   }
 
-  if (!selectedVaultId.value) return
-
-  const selectedVault = availableVaults.value.find(
-    (v) => v.vaultId === selectedVaultId.value,
-  )
-  if (!selectedVault) return
+  // For existing vault: must have selectedVaultId
+  if (!isCreatingNewVault.value && !selectedVaultId.value) return
 
   if (!supabaseClient.value) {
     throw new Error('Supabase client not initialized')
@@ -526,17 +580,38 @@ const completeSetupAsync = async () => {
   const syncEngineStore = useSyncEngineStore()
   syncEngineStore.setSupabaseClient(supabaseClient.value, backendId)
 
-  // Emit complete event with all necessary data
-  emit('complete', {
-    backendId,
-    vaultId: selectedVault.vaultId,
-    vaultName: selectedVault.decryptedName || selectedVault.vaultId,
-    localVaultName: localVaultName.value,
-    serverUrl: credentials.value.serverUrl,
-    email: credentials.value.email,
-    serverPassword: credentials.value.password,
-    vaultPassword: vaultPassword.value,
-  })
+  if (isCreatingNewVault.value) {
+    // New vault: generate new vaultId, use localVaultName as vault name
+    emit('complete', {
+      backendId,
+      vaultId: crypto.randomUUID(),
+      vaultName: localVaultName.value,
+      localVaultName: localVaultName.value,
+      serverUrl: credentials.value.serverUrl,
+      email: credentials.value.email,
+      serverPassword: credentials.value.password,
+      vaultPassword: vaultPassword.value,
+      isNewVault: true,
+    })
+  } else {
+    // Existing vault
+    const selectedVault = availableVaults.value.find(
+      (v) => v.vaultId === selectedVaultId.value,
+    )
+    if (!selectedVault) return
+
+    emit('complete', {
+      backendId,
+      vaultId: selectedVault.vaultId,
+      vaultName: selectedVault.decryptedName || selectedVault.vaultId,
+      localVaultName: localVaultName.value,
+      serverUrl: credentials.value.serverUrl,
+      email: credentials.value.email,
+      serverPassword: credentials.value.password,
+      vaultPassword: vaultPassword.value,
+      isNewVault: false,
+    })
+  }
 }
 
 const cancel = () => {
@@ -552,8 +627,10 @@ const clearForm = () => {
   }
   availableVaults.value = []
   selectedVaultId.value = null
+  isCreatingNewVault.value = false
   localVaultName.value = ''
   vaultPassword.value = ''
+  vaultPasswordConfirm.value = ''
   vaultNameExists.value = false
   supabaseClient.value = null
 }
@@ -578,6 +655,8 @@ de:
       encryptedVault: Verschlüsselter Vault
       createdAt: Erstellt am
       noVaults: Keine Vaults gefunden
+      createNew: Neuen Vault erstellen
+      createNewDescription: Erstelle einen neuen Vault auf dem Server
     enterVaultPassword:
       title: Vault-Passwort
       description: Gib das Passwort deines Vaults ein, um die Synchronisierung einzurichten
@@ -586,6 +665,10 @@ de:
       vaultNameExists: Ein Vault mit diesem Namen existiert bereits
       vaultPassword: Vault-Passwort
       vaultPasswordDescription: Das Passwort, mit dem du deinen Vault ursprünglich erstellt hast
+      vaultPasswordDescriptionNew: Wähle ein sicheres Passwort für deinen Vault
+      confirmPassword: Passwort bestätigen
+      confirmPasswordDescription: Bestätige dein Vault-Passwort
+      passwordMismatch: Passwörter stimmen nicht überein
   actions:
     login: Anmelden
     back: Zurück
@@ -617,6 +700,8 @@ en:
       encryptedVault: Encrypted Vault
       createdAt: Created at
       noVaults: No vaults found
+      createNew: Create new vault
+      createNewDescription: Create a new vault on the server
     enterVaultPassword:
       title: Vault Password
       description: Enter your vault password to set up synchronization
@@ -625,6 +710,10 @@ en:
       vaultNameExists: A vault with this name already exists
       vaultPassword: Vault Password
       vaultPasswordDescription: The password you used to originally create your vault
+      vaultPasswordDescriptionNew: Choose a secure password for your vault
+      confirmPassword: Confirm password
+      confirmPasswordDescription: Confirm your vault password
+      passwordMismatch: Passwords do not match
   actions:
     login: Login
     back: Back

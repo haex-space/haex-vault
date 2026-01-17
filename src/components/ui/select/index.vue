@@ -18,7 +18,7 @@
       </slot>
     </button>
     <button
-      class="flex items-center p-2 hover:shadow rounded-md hover:bg-primary hover:text-base-content"
+      class="flex items-center p-2 hover:shadow rounded-md hover:bg-primary"
       :disabled="read_only"
       @click.prevent="toogleMenu"
     >
@@ -43,7 +43,7 @@ class="absolute advance-select-menu max-h-44 top-full opened" -->
       <li
         v-for="(option, index) in options"
         :key="index"
-        class="advance-select-option selected:active font-semibold text-base-content"
+        class="advance-select-option selected:active font-semibold"
         @click=";(value = option), (show = false)"
       >
         <slot

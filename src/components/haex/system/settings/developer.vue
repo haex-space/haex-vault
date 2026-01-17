@@ -52,7 +52,7 @@
           <div
             v-for="ext in devExtensions"
             :key="ext.id"
-            class="p-4 rounded-lg border border-base-300 bg-base-200/50 flex flex-col gap-3"
+            class="p-4 rounded-lg border border-default bg-elevated flex flex-col gap-3"
           >
             <div class="space-y-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap">

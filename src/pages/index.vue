@@ -38,7 +38,7 @@
           </div>
 
           <div
-            class="relative border-base-content/25 divide-base-content/25 flex w-full flex-col divide-y rounded-md border overflow-hidden"
+            class="relative border-default divide-default flex w-full flex-col divide-y rounded-md border overflow-hidden"
           >
             <div
               v-for="vault in lastVaults"

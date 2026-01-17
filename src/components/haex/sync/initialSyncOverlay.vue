@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="isVisible"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-base-100/95 backdrop-blur-sm"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-default/95 backdrop-blur-sm"
   >
     <div class="flex flex-col items-center gap-6 max-w-md text-center px-4">
       <div class="relative">
@@ -9,7 +9,7 @@
       </div>
       <div class="space-y-2">
         <h2 class="text-2xl font-bold">{{ t('title') }}</h2>
-        <p class="text-base-content/70">{{ t('description') }}</p>
+        <p class="text-muted">{{ t('description') }}</p>
       </div>
       <div
         v-if="progress"

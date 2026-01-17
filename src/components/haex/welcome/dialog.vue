@@ -69,7 +69,7 @@
           <!-- Extension List -->
           <div
             v-else
-            class="space-y-3 max-h-80 overflow-y-auto"
+            class="space-y-3"
           >
             <div
               v-for="ext in recommendedExtensions"

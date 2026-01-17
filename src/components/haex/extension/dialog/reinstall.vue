@@ -58,7 +58,7 @@
         >
           <div class="flex items-center gap-3">
             <div
-              class="w-12 h-12 shrink-0 rounded-lg bg-base-200 flex items-center justify-center overflow-hidden"
+              class="w-12 h-12 shrink-0 rounded-lg bg-elevated flex items-center justify-center overflow-hidden"
             >
               <HaexIcon
                 :name="

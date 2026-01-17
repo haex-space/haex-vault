@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="menuEntry"
-    class="flex flex-col gap-2 p-3 rounded-lg border border-base-300 bg-base-100"
+    class="flex flex-col gap-2 p-3 rounded-lg border border-default bg-default"
   >
     <div class="flex items-center gap-2">
       <div class="flex-1 min-w-0">

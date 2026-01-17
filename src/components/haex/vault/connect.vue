@@ -55,6 +55,7 @@ const onWizardCompleteAsync = async (wizardData: {
   email: string
   serverPassword: string
   vaultPassword: string
+  isNewVault: boolean
 }) => {
   isLoading.value = true
 
@@ -66,7 +67,7 @@ const onWizardCompleteAsync = async (wizardData: {
       throw new Error('Vault password is required')
     }
 
-    // 2. Set up temporary backend FIRST (for vault key fetch)
+    // 2. Set up temporary backend FIRST (for vault key fetch/upload)
     console.log('📤 Setting up temporary backend for initial sync')
     syncBackendsStore.setTemporaryBackend({
       id: wizardData.backendId,
@@ -78,27 +79,53 @@ const onWizardCompleteAsync = async (wizardData: {
       enabled: true,
     })
 
-    // 3. Verify vault password by fetching and decrypting the vault key BEFORE creating local vault
-    // This prevents creating orphan vault files if the password is wrong
-    console.log('🔐 Verifying vault password...')
-    await syncEngineStore.ensureSyncKeyAsync(
-      wizardData.backendId,
-      wizardData.vaultId,
-      wizardData.vaultName,
-      wizardData.vaultPassword, // Vault encryption password
-      wizardData.serverUrl, // Initial sync: fetch from server directly
-    )
-    console.log('✅ Vault password verified')
+    if (wizardData.isNewVault) {
+      // NEW VAULT: Generate key and upload to server
+      console.log('🆕 Creating new vault on server...')
 
-    // 4. Now create minimal vault with remote vault_id (DB + vault_id only)
+      // Import functions from vaultKey module
+      const { generateNewVaultKey, uploadVaultKeyAsync, cacheSyncKey } = await import('@/stores/sync/engine/vaultKey')
+
+      // Generate new vault key
+      const vaultKey = generateNewVaultKey()
+      console.log('🔑 Generated new vault key')
+
+      // Upload vault key to server
+      await uploadVaultKeyAsync(
+        wizardData.serverUrl,
+        wizardData.vaultId,
+        vaultKey,
+        wizardData.vaultName,
+        wizardData.vaultPassword,
+        wizardData.serverPassword,
+      )
+      console.log('✅ Vault key uploaded to server')
+
+      // Cache the vault key for immediate use
+      cacheSyncKey(wizardData.vaultId, vaultKey)
+    } else {
+      // EXISTING VAULT: Verify password by fetching and decrypting the vault key
+      // This prevents creating orphan vault files if the password is wrong
+      console.log('🔐 Verifying vault password...')
+      await syncEngineStore.ensureSyncKeyAsync(
+        wizardData.backendId,
+        wizardData.vaultId,
+        wizardData.vaultName,
+        wizardData.vaultPassword, // Vault encryption password
+        wizardData.serverUrl, // Initial sync: fetch from server directly
+      )
+      console.log('✅ Vault password verified')
+    }
+
+    // 4. Now create minimal vault with vault_id (DB + vault_id only)
     // No workspaces, devices, or backends are created yet
     console.log('📦 Creating minimal vault:', wizardData.localVaultName)
-    console.log('📦 Using remote vault_id:', wizardData.vaultId)
+    console.log('📦 Using vault_id:', wizardData.vaultId)
 
     localVaultId = await vaultStore.createAsync({
       vaultName: wizardData.localVaultName,
       password: wizardData.vaultPassword,
-      vaultId: wizardData.vaultId, // Pass remote vault_id directly
+      vaultId: wizardData.vaultId, // Pass vault_id directly
     })
 
     if (!localVaultId) {
@@ -123,7 +150,8 @@ const onWizardCompleteAsync = async (wizardData: {
     console.log('[CONNECT] Navigation complete (this might not run if component unmounted!)')
 
     // 6. Perform initial pull using temporary backend
-    // This pulls ALL data from server before creating any local data
+    // For new vaults: this will be empty but sets up the sync infrastructure
+    // For existing vaults: this pulls ALL data from server
     // After successful pull, the backend is persisted to DB
     // NOTE: performInitialPullAsync now also reloads stores (extensions, workspaces, desktop items)
     // before signaling sync complete - this prevents race conditions with vault.vue
@@ -139,8 +167,8 @@ const onWizardCompleteAsync = async (wizardData: {
     console.log('[CONNECT] ✅ Vault created and sync started')
 
     add({
-      title: t('success.title'),
-      description: t('success.description'),
+      title: wizardData.isNewVault ? t('success.titleNew') : t('success.title'),
+      description: wizardData.isNewVault ? t('success.descriptionNew') : t('success.description'),
       color: 'success',
     })
   } catch (error) {
@@ -202,8 +230,10 @@ de:
   success:
     loginTitle: Backend-Login erfolgreich
     loginDescription: Anmeldung am Backend war erfolgreich
-    title: Vault erstellt
-    description: Vault wurde erstellt und mit Backend synchronisiert
+    title: Vault verbunden
+    description: Vault wurde verbunden und mit Backend synchronisiert
+    titleNew: Vault erstellt
+    descriptionNew: Neuer Vault wurde erstellt und mit Backend synchronisiert
   error:
     title: Verbindung fehlgeschlagen
     networkTitle: Keine Internetverbindung
@@ -226,8 +256,10 @@ en:
   success:
     loginTitle: Backend login successful
     loginDescription: Successfully signed in to backend
-    title: Vault created
-    description: Vault created and synced with backend
+    title: Vault connected
+    description: Vault connected and synced with backend
+    titleNew: Vault created
+    descriptionNew: New vault created and synced with backend
   error:
     title: Connection Failed
     networkTitle: No Internet Connection

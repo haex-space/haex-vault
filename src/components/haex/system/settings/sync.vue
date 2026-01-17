@@ -7,11 +7,11 @@
         <!-- Loading Overlay -->
         <div
           v-if="isLoading"
-          class="absolute inset-0 z-10 flex items-center justify-center bg-base-100/80 backdrop-blur-sm rounded-lg"
+          class="absolute inset-0 z-10 flex items-center justify-center bg-default/80 backdrop-blur-sm rounded-lg"
         >
           <div class="flex flex-col items-center gap-3">
             <div class="loading loading-spinner loading-lg text-primary" />
-            <span class="text-sm text-base-content/70">
+            <span class="text-sm text-muted">
               {{ t('addBackend.connecting') }}
             </span>
           </div>

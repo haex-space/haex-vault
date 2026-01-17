@@ -79,7 +79,7 @@
             <div
               v-for="client in authorizedClients"
               :key="client.id"
-              class="p-4 rounded-lg border border-base-300 bg-base-200/50"
+              class="p-4 rounded-lg border border-default bg-elevated"
             >
               <div class="flex items-start justify-between gap-4">
                 <div class="flex-1 min-w-0">
@@ -134,7 +134,7 @@
             <div
               v-for="auth in sessionAuthorizations"
               :key="'auth-' + auth.clientId"
-              class="p-4 rounded-lg border border-base-300 bg-base-200/50"
+              class="p-4 rounded-lg border border-default bg-elevated"
             >
               <div class="flex items-start justify-between gap-4">
                 <div class="flex-1 min-w-0">
@@ -170,7 +170,7 @@
             <div
               v-for="client in sessionBlockedClients"
               :key="'blocked-' + client.clientId"
-              class="p-4 rounded-lg border border-base-300 bg-base-200/50"
+              class="p-4 rounded-lg border border-default bg-elevated"
             >
               <div class="flex items-start justify-between gap-4">
                 <div class="flex-1 min-w-0">
@@ -221,7 +221,7 @@
             <div
               v-for="client in blockedClients"
               :key="client.id"
-              class="p-4 rounded-lg border border-base-300 bg-base-200/50"
+              class="p-4 rounded-lg border border-default bg-elevated"
             >
               <div class="flex items-start justify-between gap-4">
                 <div class="flex-1 min-w-0">

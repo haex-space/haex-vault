@@ -40,12 +40,12 @@
         <button
           v-for="ext in availableExtensions"
           :key="ext.id"
-          class="w-full p-4 rounded-lg border border-base-300 bg-base-100 hover:bg-base-200 transition-colors text-left"
+          class="w-full p-4 rounded-lg border border-default bg-default hover:bg-muted transition-colors text-left"
           @click="selectedExtension = ext"
         >
           <div class="flex items-center gap-3">
             <div
-              class="w-10 h-10 shrink-0 rounded-lg bg-base-200 flex items-center justify-center overflow-hidden"
+              class="w-10 h-10 shrink-0 rounded-lg bg-elevated flex items-center justify-center overflow-hidden"
             >
               <HaexIcon
                 :name="ext.iconUrl || 'i-heroicons-puzzle-piece'"
