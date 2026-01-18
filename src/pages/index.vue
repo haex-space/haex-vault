@@ -1,5 +1,9 @@
 <template>
   <div class="h-full relative">
+    <!-- Version display in bottom right corner -->
+    <span class="absolute bottom-2 right-3 text-xs text-muted opacity-50">
+      v{{ appVersion }}
+    </span>
     <NuxtLayout>
       <div
         class="flex flex-col justify-center items-center gap-5 mx-auto h-full overflow-auto"
@@ -111,6 +115,7 @@
 
 <script setup lang="ts">
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { getVersion } from '@tauri-apps/api/app'
 
 import type { VaultInfo } from '@bindings/VaultInfo'
 
@@ -119,6 +124,8 @@ definePageMeta({
 })
 
 const { t } = useI18n()
+
+const appVersion = ref('')
 
 const isCreateDrawerOpen = ref(false)
 const isImportDrawerOpen = ref(false)
@@ -188,6 +195,7 @@ const onConfirmRemoveAsync = async () => {
 
 onMounted(async () => {
   try {
+    appVersion.value = await getVersion()
     await syncLastVaultsAsync()
     await syncDeviceIdAsync()
   } catch (error) {

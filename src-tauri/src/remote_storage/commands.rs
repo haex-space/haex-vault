@@ -78,6 +78,7 @@ fn parse_public_config(config_str: &str) -> Option<super::types::S3PublicConfig>
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string(),
+        path_style: config.get("pathStyle").and_then(|v| v.as_bool()),
     })
 }
 
@@ -142,6 +143,7 @@ pub async fn remote_storage_add_backend(
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string(),
+        path_style: request.config.get("pathStyle").and_then(|v| v.as_bool()),
     });
 
     Ok(StorageBackendInfo {
@@ -188,36 +190,64 @@ pub async fn remote_storage_test_backend(
 }
 
 /// Update a remote storage backend
-/// The frontend is responsible for merging configs (preserving credentials if not provided)
+/// If credentials are not provided in the update, existing credentials are preserved
 #[tauri::command]
 pub async fn remote_storage_update_backend(
     state: State<'_, AppState>,
     request: UpdateStorageBackendRequest,
 ) -> Result<StorageBackendInfo, StorageError> {
-    // Validate the new config by trying to create a backend
-    if let Some(ref config) = request.config {
-        // Get the backend type first
-        let existing_rows = core::select_with_crdt(
-            SQL_GET_BACKEND_CONFIG.clone(),
-            vec![JsonValue::String(request.backend_id.clone())],
-            &state.db,
-        )
-        .map_err(|e| StorageError::DatabaseError {
-            reason: e.to_string(),
-        })?;
+    // Get existing backend config first
+    let existing_rows = core::select_with_crdt(
+        SQL_GET_BACKEND_CONFIG.clone(),
+        vec![JsonValue::String(request.backend_id.clone())],
+        &state.db,
+    )
+    .map_err(|e| StorageError::DatabaseError {
+        reason: e.to_string(),
+    })?;
 
-        if existing_rows.is_empty() {
-            return Err(StorageError::BackendNotFound {
-                id: request.backend_id.clone(),
-            });
+    if existing_rows.is_empty() {
+        return Err(StorageError::BackendNotFound {
+            id: request.backend_id.clone(),
+        });
+    }
+
+    let backend_type = get_string(&existing_rows[0], 0);
+    let existing_config_str = get_string(&existing_rows[0], 1);
+
+    // Merge: use new config but preserve credentials from existing if not provided
+    let merged_config = if let Some(ref new_config) = request.config {
+        let existing_config: serde_json::Value =
+            serde_json::from_str(&existing_config_str).unwrap_or(serde_json::json!({}));
+
+        let mut merged = new_config.clone();
+        if let Some(merged_obj) = merged.as_object_mut() {
+            if let Some(existing_obj) = existing_config.as_object() {
+                // Only preserve credentials if not provided in new config
+                if !merged_obj.contains_key("accessKeyId") {
+                    if let Some(val) = existing_obj.get("accessKeyId") {
+                        merged_obj.insert("accessKeyId".to_string(), val.clone());
+                    }
+                }
+                if !merged_obj.contains_key("secretAccessKey") {
+                    if let Some(val) = existing_obj.get("secretAccessKey") {
+                        merged_obj.insert("secretAccessKey".to_string(), val.clone());
+                    }
+                }
+            }
         }
+        Some(merged)
+    } else {
+        None
+    };
 
-        let backend_type = get_string(&existing_rows[0], 0);
+    // Validate the merged config by trying to create a backend
+    if let Some(ref config) = merged_config {
         let _backend = create_backend(&backend_type, config).await?;
     }
 
     // Build update query dynamically based on what's provided
-    let (query, params) = build_update_query(&request)?;
+    let (query, params) = build_update_query(&request, merged_config)?;
 
     let hlc_service = state.hlc.lock().map_err(|_| StorageError::Internal {
         reason: "Failed to lock HLC service".to_string(),
@@ -252,6 +282,7 @@ pub async fn remote_storage_update_backend(
 /// Build UPDATE query based on which fields are provided
 fn build_update_query(
     request: &UpdateStorageBackendRequest,
+    merged_config: Option<serde_json::Value>,
 ) -> Result<(String, Vec<JsonValue>), StorageError> {
     use crate::table_names::*;
 
@@ -265,7 +296,8 @@ fn build_update_query(
         param_index += 1;
     }
 
-    if let Some(ref config) = request.config {
+    // Use merged config (with preserved credentials) instead of request.config
+    if let Some(ref config) = merged_config {
         let config_json =
             serde_json::to_string(config).map_err(|e| StorageError::InvalidConfig {
                 reason: format!("Failed to serialize config: {}", e),

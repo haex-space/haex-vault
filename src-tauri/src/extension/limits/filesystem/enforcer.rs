@@ -1,11 +1,12 @@
 // src-tauri/src/extension/limits/filesystem/enforcer.rs
 //!
-//! Filesystem limit enforcement implementation (placeholder)
+//! Filesystem limit enforcement implementation
 
 use crate::extension::limits::types::{FilesystemLimits, LimitError};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
 
 /// Tracks concurrent file operations per extension
 #[derive(Debug, Default)]
@@ -76,17 +77,87 @@ impl Drop for FileOpGuard<'_> {
     }
 }
 
+/// Rate limit window for tracking operations per minute
+#[derive(Debug)]
+struct RateLimitWindow {
+    count: AtomicUsize,
+    window_start: RwLock<Instant>,
+}
+
+impl RateLimitWindow {
+    fn new() -> Self {
+        Self {
+            count: AtomicUsize::new(0),
+            window_start: RwLock::new(Instant::now()),
+        }
+    }
+
+    fn reset_if_expired(&self, window_duration: Duration) {
+        let mut window_start = self.window_start.write().unwrap();
+        if window_start.elapsed() >= window_duration {
+            self.count.store(0, Ordering::SeqCst);
+            *window_start = Instant::now();
+        }
+    }
+
+    fn increment_count(&self) -> usize {
+        self.count.fetch_add(1, Ordering::SeqCst) + 1
+    }
+
+    fn get_count(&self) -> usize {
+        self.count.load(Ordering::SeqCst)
+    }
+}
+
 /// Filesystem limit enforcer
 #[derive(Debug, Default)]
 pub struct FilesystemLimitEnforcer {
     concurrency: FileOpTracker,
+    rate_limits: RwLock<HashMap<String, Arc<RateLimitWindow>>>,
 }
 
 impl FilesystemLimitEnforcer {
     pub fn new() -> Self {
         Self {
             concurrency: FileOpTracker::new(),
+            rate_limits: RwLock::new(HashMap::new()),
         }
+    }
+
+    fn get_or_create_rate_limit(&self, extension_id: &str) -> Arc<RateLimitWindow> {
+        {
+            let rate_limits = self.rate_limits.read().unwrap();
+            if let Some(window) = rate_limits.get(extension_id) {
+                return Arc::clone(window);
+            }
+        }
+
+        let mut rate_limits = self.rate_limits.write().unwrap();
+        let window = rate_limits
+            .entry(extension_id.to_string())
+            .or_insert_with(|| Arc::new(RateLimitWindow::new()));
+        Arc::clone(window)
+    }
+
+    /// Check and record a filesystem operation for rate limiting
+    pub fn check_rate_limit(
+        &self,
+        extension_id: &str,
+        limits: &FilesystemLimits,
+    ) -> Result<(), LimitError> {
+        let window = self.get_or_create_rate_limit(extension_id);
+        window.reset_if_expired(Duration::from_secs(60));
+
+        let current = window.get_count();
+        if current as i64 >= limits.max_operations_per_minute {
+            return Err(LimitError::FilesystemRateLimitExceeded {
+                operations: current,
+                max: limits.max_operations_per_minute,
+            });
+        }
+
+        window.increment_count();
+        Ok(())
     }
 
     /// Validate file size against limits

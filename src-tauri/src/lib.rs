@@ -227,6 +227,8 @@ pub fn run() {
             extension::permissions::commands::extension_permissions_check_filesystem,
             extension::permissions::commands::resolve_permission_prompt,
             extension::permissions::commands::grant_session_permission,
+            extension::permissions::commands::get_extension_session_permissions,
+            extension::permissions::commands::remove_extension_session_permission,
             extension::limits::commands::get_extension_limits,
             extension::limits::commands::update_extension_limits,
             extension::limits::commands::reset_extension_limits,

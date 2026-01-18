@@ -183,6 +183,7 @@ export function usePermissionPrompt() {
         await invoke('grant_session_permission', {
           extensionId: data.extensionId,
           resourceType: data.resourceType,
+          action: data.action,
           target: data.target,
           decision,
         })

@@ -38,6 +38,8 @@ pub struct FilesystemLimits {
     pub max_file_size_bytes: i64,
     /// Maximum concurrent file operations (default: 10)
     pub max_concurrent_operations: i64,
+    /// Maximum filesystem operations per minute (default: 120)
+    pub max_operations_per_minute: i64,
 }
 
 impl Default for FilesystemLimits {
@@ -46,6 +48,7 @@ impl Default for FilesystemLimits {
             max_storage_bytes: 100 * 1024 * 1024,  // 100MB
             max_file_size_bytes: 50 * 1024 * 1024, // 50MB
             max_concurrent_operations: 10,
+            max_operations_per_minute: 120,
         }
     }
 }
@@ -133,6 +136,8 @@ pub enum LimitError {
     FileTooLarge { size: i64, max: i64 },
     /// Too many concurrent file operations
     TooManyConcurrentFileOps { current: usize, max: i64 },
+    /// Filesystem operations rate limit exceeded
+    FilesystemRateLimitExceeded { operations: usize, max: i64 },
 
     // === Web request limit errors ===
     /// Rate limit exceeded
@@ -187,6 +192,13 @@ impl std::fmt::Display for LimitError {
                     f,
                     "Too many concurrent file operations: {} (limit: {})",
                     current, max
+                )
+            }
+            LimitError::FilesystemRateLimitExceeded { operations, max } => {
+                write!(
+                    f,
+                    "Filesystem rate limit exceeded: {} operations (limit: {} per minute)",
+                    operations, max
                 )
             }
             // Web errors

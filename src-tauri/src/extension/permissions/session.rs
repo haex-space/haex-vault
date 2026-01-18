@@ -5,7 +5,7 @@
 //! These permissions are granted for the current session only and are cleared
 //! when the application restarts.
 
-use super::types::{PermissionStatus, ResourceType};
+use super::types::{ExtensionPermission, PermissionStatus, ResourceType};
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -20,8 +20,8 @@ struct SessionPermissionKey {
 /// Session permission store - holds permissions that are only valid for the current session
 #[derive(Debug, Default)]
 pub struct SessionPermissionStore {
-    /// Map of permission key to decision (granted/denied)
-    permissions: Mutex<HashMap<SessionPermissionKey, PermissionStatus>>,
+    /// Map of permission key to full permission entry
+    permissions: Mutex<HashMap<SessionPermissionKey, ExtensionPermission>>,
 }
 
 impl SessionPermissionStore {
@@ -31,22 +31,16 @@ impl SessionPermissionStore {
         }
     }
 
-    /// Grant or deny a permission for the current session
-    pub fn set_permission(
-        &self,
-        extension_id: &str,
-        resource_type: ResourceType,
-        target: &str,
-        status: PermissionStatus,
-    ) {
+    /// Store a permission for the current session
+    pub fn set_permission(&self, permission: ExtensionPermission) {
         let key = SessionPermissionKey {
-            extension_id: extension_id.to_string(),
-            resource_type,
-            target: target.to_string(),
+            extension_id: permission.extension_id.clone(),
+            resource_type: permission.resource_type,
+            target: permission.target.clone(),
         };
 
         if let Ok(mut perms) = self.permissions.lock() {
-            perms.insert(key, status);
+            perms.insert(key, permission);
         }
     }
 
@@ -67,7 +61,7 @@ impl SessionPermissionStore {
         self.permissions
             .lock()
             .ok()
-            .and_then(|perms| perms.get(&key).cloned())
+            .and_then(|perms| perms.get(&key).map(|p| p.status))
     }
 
     /// Check if a session permission grants access (returns true if granted)
@@ -103,6 +97,39 @@ impl SessionPermissionStore {
     pub fn clear_all(&self) {
         if let Ok(mut perms) = self.permissions.lock() {
             perms.clear();
+        }
+    }
+
+    /// Get all session permissions for a specific extension
+    pub fn get_permissions_for_extension(&self, extension_id: &str) -> Vec<ExtensionPermission> {
+        self.permissions
+            .lock()
+            .ok()
+            .map(|perms| {
+                perms
+                    .iter()
+                    .filter(|(k, _)| k.extension_id == extension_id)
+                    .map(|(_, v)| v.clone())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Remove a specific session permission
+    pub fn remove_permission(
+        &self,
+        extension_id: &str,
+        resource_type: ResourceType,
+        target: &str,
+    ) {
+        let key = SessionPermissionKey {
+            extension_id: extension_id.to_string(),
+            resource_type,
+            target: target.to_string(),
+        };
+
+        if let Ok(mut perms) = self.permissions.lock() {
+            perms.remove(&key);
         }
     }
 }

@@ -37,6 +37,9 @@ pub struct S3PublicConfig {
     pub region: String,
     /// Bucket name
     pub bucket: String,
+    /// Use path-style URLs instead of virtual-hosted-style
+    #[serde(default)]
+    pub path_style: Option<bool>,
 }
 
 /// S3-compatible backend configuration

@@ -210,6 +210,11 @@
                 v-model="editablePermissions.shell"
               />
             </template>
+            <template #filesync>
+              <HaexExtensionPermissionList
+                v-model="editablePermissions.filesync"
+              />
+            </template>
           </UAccordion>
 
           <div
@@ -229,6 +234,62 @@
               :disabled="!hasPermissionChanges"
               @click="savePermissionsAsync"
             />
+          </div>
+        </div>
+      </UCard>
+
+      <!-- Session Permissions Section -->
+      <UCard v-if="sessionPermissions.length > 0">
+        <template #header>
+          <h3 class="text-lg font-semibold flex items-center gap-2">
+            <UIcon name="i-heroicons-clock" class="w-5 h-5 text-warning" />
+            {{ t('sessionPermissions') }}
+          </h3>
+        </template>
+
+        <div class="space-y-2">
+          <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            {{ t('sessionPermissionsDescription') }}
+          </p>
+
+          <div
+            v-for="permission in sessionPermissions"
+            :key="`${permission.resourceType}-${permission.target}`"
+            class="p-4 rounded-lg border border-default bg-elevated"
+          >
+            <div class="flex items-start justify-between gap-4">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <UIcon
+                    :name="getPermissionIcon(permission.resourceType)"
+                    class="w-4 h-4"
+                  />
+                  <span class="font-medium">{{ t(`permissionTypes.${getPermissionTypeKey(permission.resourceType)}`) }}</span>
+                  <UBadge
+                    :color="permission.status === 'granted' ? 'success' : 'error'"
+                    variant="subtle"
+                    size="xs"
+                  >
+                    {{ permission.status === 'granted' ? t('sessionGranted') : t('sessionDenied') }}
+                  </UBadge>
+                </div>
+                <div class="text-sm text-gray-500 dark:text-gray-400 mt-1 font-mono truncate">
+                  {{ permission.target }}
+                </div>
+                <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                  {{ t('sessionHint') }}
+                </div>
+              </div>
+              <UButton
+                color="error"
+                variant="ghost"
+                :loading="revokingSessionPermission === `${permission.resourceType}-${permission.target}`"
+                @click="revokeSessionPermissionAsync(permission)"
+              >
+                <UIcon name="i-heroicons-x-mark" class="w-4 h-4" />
+                {{ t('revoke') }}
+              </UButton>
+            </div>
           </div>
         </div>
       </UCard>
@@ -257,6 +318,7 @@ import { useMarketplace } from '@haex-space/marketplace-sdk/vue'
 import type { IHaexSpaceExtension } from '~/types/haexspace'
 import type { PermissionEntry } from '~~/src-tauri/bindings/PermissionEntry'
 import type { DisplayMode } from '~~/src-tauri/bindings/DisplayMode'
+import type { ExtensionPermission } from '~~/src-tauri/bindings/ExtensionPermission'
 import { useExtensionUpdate } from '~/composables/useExtensionUpdate'
 
 interface ExtensionPermissionsEditable {
@@ -264,6 +326,7 @@ interface ExtensionPermissionsEditable {
   filesystem?: PermissionEntry[] | null
   http?: PermissionEntry[] | null
   shell?: PermissionEntry[] | null
+  filesync?: PermissionEntry[] | null
 }
 
 const props = defineProps<{
@@ -417,13 +480,19 @@ const originalPermissions = ref<ExtensionPermissionsEditable>({
   filesystem: null,
   http: null,
   shell: null,
+  filesync: null,
 })
 const editablePermissions = ref<ExtensionPermissionsEditable>({
   database: null,
   filesystem: null,
   http: null,
   shell: null,
+  filesync: null,
 })
+
+// Session permissions (in-memory, not persisted)
+const sessionPermissions = ref<ExtensionPermission[]>([])
+const revokingSessionPermission = ref<string | null>(null)
 
 // Remove dialog
 const removeDialogOpen = ref(false)
@@ -442,7 +511,8 @@ const hasAnyPermissions = computed(() => {
     (editablePermissions.value.database?.length ?? 0) > 0 ||
     (editablePermissions.value.filesystem?.length ?? 0) > 0 ||
     (editablePermissions.value.http?.length ?? 0) > 0 ||
-    (editablePermissions.value.shell?.length ?? 0) > 0
+    (editablePermissions.value.shell?.length ?? 0) > 0 ||
+    (editablePermissions.value.filesync?.length ?? 0) > 0
   )
 })
 
@@ -461,7 +531,8 @@ const hasPermissionChanges = computed(() => {
     !compareArrays(editablePermissions.value.database, originalPermissions.value.database) ||
     !compareArrays(editablePermissions.value.filesystem, originalPermissions.value.filesystem) ||
     !compareArrays(editablePermissions.value.http, originalPermissions.value.http) ||
-    !compareArrays(editablePermissions.value.shell, originalPermissions.value.shell)
+    !compareArrays(editablePermissions.value.shell, originalPermissions.value.shell) ||
+    !compareArrays(editablePermissions.value.filesync, originalPermissions.value.filesync)
   )
 })
 
@@ -501,8 +572,70 @@ const permissionAccordionItems = computed(() => {
     })
   }
 
+  if ((editablePermissions.value.filesync?.length ?? 0) > 0) {
+    items.push({
+      label: t('permissionTypes.filesync'),
+      icon: 'i-heroicons-cloud-arrow-up',
+      slot: 'filesync',
+    })
+  }
+
   return items
 })
+
+// Helper functions for session permissions
+const getPermissionIcon = (resourceType: string): string => {
+  const icons: Record<string, string> = {
+    db: 'i-heroicons-circle-stack',
+    fs: 'i-heroicons-folder',
+    web: 'i-heroicons-globe-alt',
+    shell: 'i-heroicons-command-line',
+    filesync: 'i-heroicons-cloud-arrow-up',
+  }
+  return icons[resourceType] || 'i-heroicons-shield-check'
+}
+
+const getPermissionTypeKey = (resourceType: string): string => {
+  const keys: Record<string, string> = {
+    db: 'database',
+    fs: 'filesystem',
+    web: 'http',
+    shell: 'shell',
+    filesync: 'filesync',
+  }
+  return keys[resourceType] || resourceType
+}
+
+const loadSessionPermissionsAsync = async () => {
+  try {
+    sessionPermissions.value = await invoke<ExtensionPermission[]>(
+      'get_extension_session_permissions',
+      { extensionId: props.extension.id },
+    )
+  } catch (error) {
+    console.error('Error loading session permissions:', error)
+    sessionPermissions.value = []
+  }
+}
+
+const revokeSessionPermissionAsync = async (permission: ExtensionPermission) => {
+  const key = `${permission.resourceType}-${permission.target}`
+  revokingSessionPermission.value = key
+  try {
+    await invoke('remove_extension_session_permission', {
+      extensionId: props.extension.id,
+      resourceType: permission.resourceType,
+      target: permission.target,
+    })
+    add({ description: t('sessionPermissionRevoked'), color: 'success' })
+    await loadSessionPermissionsAsync()
+  } catch (error) {
+    console.error('Error revoking session permission:', error)
+    add({ description: t('sessionPermissionRevokeError'), color: 'error' })
+  } finally {
+    revokingSessionPermission.value = null
+  }
+}
 
 const loadPermissionsAsync = async () => {
   loadingPermissions.value = true
@@ -585,7 +718,7 @@ const handleRemoveAsync = async (deleteMode: 'device' | 'complete') => {
 }
 
 onMounted(async () => {
-  await Promise.all([loadPermissionsAsync(), fetchLatestVersionAsync()])
+  await Promise.all([loadPermissionsAsync(), loadSessionPermissionsAsync(), fetchLatestVersionAsync()])
 })
 </script>
 
@@ -624,6 +757,7 @@ de:
     filesystem: Dateisystem
     http: Internet
     shell: Systembefehle
+    filesync: Dateisynchronisierung
   noPermissions: Diese Erweiterung hat keine Berechtigungen.
   savePermissions: Berechtigungen speichern
   dangerZone: Gefahrenzone
@@ -635,6 +769,14 @@ de:
   permissionsLoadError: Fehler beim Laden der Berechtigungen
   permissionsSaved: Berechtigungen gespeichert
   permissionsSaveError: Fehler beim Speichern der Berechtigungen
+  sessionPermissions: Temporäre Berechtigungen (diese Sitzung)
+  sessionPermissionsDescription: Diese Berechtigungen wurden für diese Sitzung erteilt oder verweigert und werden beim Neustart von haex-vault entfernt.
+  sessionGranted: Erlaubt
+  sessionDenied: Verweigert
+  sessionHint: Wird beim Neustart von haex-vault entfernt
+  sessionPermissionRevoked: Temporäre Berechtigung wurde widerrufen
+  sessionPermissionRevokeError: Fehler beim Widerrufen der Berechtigung
+  revoke: Widerrufen
   removeSuccess: Erweiterung erfolgreich entfernt
   removeError: Fehler beim Entfernen der Erweiterung
 en:
@@ -671,6 +813,7 @@ en:
     filesystem: Filesystem
     http: Internet
     shell: Shell Commands
+    filesync: File Sync
   noPermissions: This extension has no permissions.
   savePermissions: Save Permissions
   dangerZone: Danger Zone
@@ -682,6 +825,14 @@ en:
   permissionsLoadError: Error loading permissions
   permissionsSaved: Permissions saved
   permissionsSaveError: Error saving permissions
+  sessionPermissions: Temporary Permissions (this session)
+  sessionPermissionsDescription: These permissions were granted or denied for this session and will be removed when haex-vault restarts.
+  sessionGranted: Allowed
+  sessionDenied: Denied
+  sessionHint: Will be removed when haex-vault restarts
+  sessionPermissionRevoked: Temporary permission revoked
+  sessionPermissionRevokeError: Error revoking permission
+  revoke: Revoke
   removeSuccess: Extension successfully removed
   removeError: Error removing extension
 </i18n>

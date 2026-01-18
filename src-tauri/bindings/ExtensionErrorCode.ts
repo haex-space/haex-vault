@@ -3,4 +3,4 @@
 /**
  * Error codes for frontend handling
  */
-export type ExtensionErrorCode = "SecurityViolation" | "NotFound" | "PermissionDenied" | "MutexPoisoned" | "PermissionPromptRequired" | "Database" | "Filesystem" | "FilesystemWithPath" | "Http" | "Web" | "Shell" | "Manifest" | "Validation" | "InvalidPublicKey" | "InvalidSignature" | "InvalidActionString" | "SignatureVerificationFailed" | "CalculateHash" | "Installation" | "Storage";
+export type ExtensionErrorCode = "SecurityViolation" | "NotFound" | "PermissionDenied" | "MutexPoisoned" | "PermissionPromptRequired" | "Database" | "Filesystem" | "FilesystemWithPath" | "Http" | "Web" | "Shell" | "Manifest" | "Validation" | "InvalidPublicKey" | "InvalidSignature" | "InvalidActionString" | "SignatureVerificationFailed" | "CalculateHash" | "Installation" | "Storage" | "LimitExceeded";

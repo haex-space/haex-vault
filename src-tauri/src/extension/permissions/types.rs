@@ -72,6 +72,17 @@ impl DbAction {
             DbAction::ReadWrite | DbAction::Create | DbAction::Delete
         )
     }
+
+    /// Returns the action as a lowercase string for serialization
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            DbAction::Read => "read",
+            DbAction::ReadWrite => "readWrite",
+            DbAction::Create => "create",
+            DbAction::Delete => "delete",
+            DbAction::AlterDrop => "alterDrop",
+        }
+    }
 }
 
 impl FromStr for DbAction {
@@ -110,6 +121,14 @@ impl FsAction {
     /// Prüft, ob diese Aktion Schreibzugriff gewährt.
     pub fn allows_write(&self) -> bool {
         matches!(self, FsAction::ReadWrite)
+    }
+
+    /// Returns the action as a string for serialization
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            FsAction::Read => "read",
+            FsAction::ReadWrite => "readWrite",
+        }
     }
 }
 
@@ -233,7 +252,9 @@ pub enum Action {
 }
 
 /// Die interne Repräsentation einer einzelnen, gewährten Berechtigung.
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub struct ExtensionPermission {
     pub id: String,
     pub extension_id: String,

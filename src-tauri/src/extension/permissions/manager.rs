@@ -276,14 +276,14 @@ impl PermissionManager {
                 PermissionStatus::Granted => Ok(()),
                 PermissionStatus::Denied => Err(ExtensionError::permission_denied(
                     extension_id,
-                    &format!("{db_action:?}"),
+                    db_action.as_str(),
                     &format!("database table '{table_name}'"),
                 )),
                 PermissionStatus::Ask => Err(ExtensionError::permission_prompt_required(
                     extension_id,
                     &extension.manifest.name,
                     "db",
-                    &format!("{db_action:?}"),
+                    db_action.as_str(),
                     table_name,
                 )),
             },
@@ -301,7 +301,7 @@ impl PermissionManager {
                 {
                     return Err(ExtensionError::permission_denied(
                         extension_id,
-                        &format!("{db_action:?}"),
+                        db_action.as_str(),
                         &format!("database table '{table_name}'"),
                     ));
                 }
@@ -311,7 +311,7 @@ impl PermissionManager {
                     extension_id,
                     &extension.manifest.name,
                     "db",
-                    &format!("{db_action:?}"),
+                    db_action.as_str(),
                     table_name,
                 ))
             }
@@ -502,14 +502,14 @@ impl PermissionManager {
                     PermissionStatus::Granted => Ok(()),
                     PermissionStatus::Denied => Err(ExtensionError::permission_denied(
                         extension_id,
-                        &format!("{:?}", action),
+                        &action.as_str(),
                         &format!("filesystem path '{}'", file_path_str),
                     )),
                     PermissionStatus::Ask => Err(ExtensionError::permission_prompt_required(
                         extension_id,
                         &extension.manifest.name,
                         "fs",
-                        &format!("{:?}", action),
+                        &action.as_str(),
                         &file_path_str,
                     )),
                 }
@@ -528,7 +528,7 @@ impl PermissionManager {
                 {
                     return Err(ExtensionError::permission_denied(
                         extension_id,
-                        &format!("{:?}", action),
+                        &action.as_str(),
                         &format!("filesystem path '{}'", file_path_str),
                     ));
                 }
@@ -538,7 +538,7 @@ impl PermissionManager {
                     extension_id,
                     &extension.manifest.name,
                     "fs",
-                    &format!("{:?}", action),
+                    &action.as_str(),
                     &file_path_str,
                 ))
             }

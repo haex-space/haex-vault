@@ -29,6 +29,7 @@ pub enum ExtensionErrorCode {
     CalculateHash = 4003,
     Installation = 5000,
     Storage = 6000,
+    LimitExceeded = 7000,
 }
 
 /// Serialized representation of ExtensionError for TypeScript
@@ -141,6 +142,9 @@ pub enum ExtensionError {
 
     #[error("Filesystem operation failed: {reason}")]
     FilesystemError { reason: String },
+
+    #[error("Rate/resource limit exceeded: {reason}")]
+    LimitExceeded { reason: String },
 }
 
 impl ExtensionError {
@@ -172,6 +176,7 @@ impl ExtensionError {
             ExtensionError::InvalidActionString { .. } => ExtensionErrorCode::InvalidActionString,
             ExtensionError::StorageError { .. } => ExtensionErrorCode::Storage,
             ExtensionError::FilesystemError { .. } => ExtensionErrorCode::Filesystem,
+            ExtensionError::LimitExceeded { .. } => ExtensionErrorCode::LimitExceeded,
         }
     }
 

@@ -11,6 +11,7 @@
 //!           (verified by frontend via origin check)
 
 use crate::extension::error::ExtensionError;
+use crate::extension::limits::types::LimitError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{Action, FsAction};
 use crate::extension::utils::{emit_permission_prompt_if_needed, resolve_extension_id};
@@ -18,6 +19,26 @@ use crate::filesystem::{DirEntry, FileStat};
 use crate::AppState;
 use std::path::Path;
 use tauri::{AppHandle, State, WebviewWindow};
+
+/// Check filesystem rate limits for an extension
+fn check_filesystem_limits(state: &AppState, extension_id: &str) -> Result<(), ExtensionError> {
+    let limits = state.limits.defaults().filesystem.clone();
+    state
+        .limits
+        .filesystem()
+        .check_rate_limit(extension_id, &limits)
+        .map_err(|e| ExtensionError::LimitExceeded {
+            reason: e.to_string(),
+        })
+}
+
+impl From<LimitError> for ExtensionError {
+    fn from(e: LimitError) -> Self {
+        ExtensionError::LimitExceeded {
+            reason: e.to_string(),
+        }
+    }
+}
 
 // ============================================================================
 // Read Operations (require fs:read permission)
@@ -35,6 +56,9 @@ pub async fn extension_filesystem_read_file(
     name: Option<String>,
 ) -> Result<String, ExtensionError> {
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+
+    // Check rate limits
+    check_filesystem_limits(&state, &extension_id)?;
 
     // Check fs permission for this path (read)
     let permission_result = PermissionManager::check_filesystem_permission(
@@ -71,6 +95,9 @@ pub async fn extension_filesystem_read_dir(
 ) -> Result<Vec<DirEntry>, ExtensionError> {
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
+    // Check rate limits
+    check_filesystem_limits(&state, &extension_id)?;
+
     // Check fs permission for this path (read)
     let permission_result = PermissionManager::check_filesystem_permission(
         &state,
@@ -106,6 +133,9 @@ pub async fn extension_filesystem_exists(
 ) -> Result<bool, ExtensionError> {
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
+    // Check rate limits
+    check_filesystem_limits(&state, &extension_id)?;
+
     // Check fs permission for this path (read)
     let permission_result = PermissionManager::check_filesystem_permission(
         &state,
@@ -140,6 +170,9 @@ pub async fn extension_filesystem_stat(
     name: Option<String>,
 ) -> Result<FileStat, ExtensionError> {
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+
+    // Check rate limits
+    check_filesystem_limits(&state, &extension_id)?;
 
     // Check fs permission for this path (read)
     let permission_result = PermissionManager::check_filesystem_permission(
@@ -181,6 +214,9 @@ pub async fn extension_filesystem_write_file(
 ) -> Result<(), ExtensionError> {
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
+    // Check rate limits
+    check_filesystem_limits(&state, &extension_id)?;
+
     // Check fs permission for this path (write)
     let permission_result = PermissionManager::check_filesystem_permission(
         &state,
@@ -215,6 +251,9 @@ pub async fn extension_filesystem_mkdir(
     name: Option<String>,
 ) -> Result<(), ExtensionError> {
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+
+    // Check rate limits
+    check_filesystem_limits(&state, &extension_id)?;
 
     // Check fs permission for this path (write)
     let permission_result = PermissionManager::check_filesystem_permission(
@@ -252,6 +291,9 @@ pub async fn extension_filesystem_remove(
 ) -> Result<(), ExtensionError> {
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
+    // Check rate limits
+    check_filesystem_limits(&state, &extension_id)?;
+
     // Check fs permission for this path (write)
     let permission_result = PermissionManager::check_filesystem_permission(
         &state,
@@ -287,6 +329,9 @@ pub async fn extension_filesystem_rename(
     name: Option<String>,
 ) -> Result<(), ExtensionError> {
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+
+    // Check rate limits
+    check_filesystem_limits(&state, &extension_id)?;
 
     // Check fs permission for source path (write - we're removing from here)
     let permission_result = PermissionManager::check_filesystem_permission(
@@ -337,6 +382,9 @@ pub async fn extension_filesystem_copy(
     name: Option<String>,
 ) -> Result<(), ExtensionError> {
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+
+    // Check rate limits
+    check_filesystem_limits(&state, &extension_id)?;
 
     // Check fs permission for source path (read)
     let permission_result = PermissionManager::check_filesystem_permission(
@@ -446,6 +494,9 @@ pub async fn extension_filesystem_watch(
     name: Option<String>,
 ) -> Result<(), ExtensionError> {
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+
+    // Check rate limits
+    check_filesystem_limits(&state, &extension_id)?;
 
     // Check fs permission for this path (read - we're watching for changes)
     let permission_result = PermissionManager::check_filesystem_permission(

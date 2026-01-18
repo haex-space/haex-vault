@@ -15,4 +15,8 @@ region: string,
 /**
  * Bucket name
  */
-bucket: string, };
+bucket: string, 
+/**
+ * Use path-style URLs instead of virtual-hosted-style
+ */
+pathStyle: boolean | null, };

@@ -100,16 +100,26 @@ pub async fn extension_permissions_check_filesystem(
 pub fn grant_session_permission(
     extension_id: String,
     resource_type: String,
+    action: String,
     target: String,
     decision: String,
     state: State<'_, AppState>,
 ) -> Result<(), ExtensionError> {
     let resource_type_enum = ResourceType::from_str(&resource_type)?;
     let status = PermissionStatus::from_str(&decision)?;
+    let action_enum = Action::from_str(&resource_type_enum, &action)?;
 
-    state
-        .session_permissions
-        .set_permission(&extension_id, resource_type_enum, &target, status);
+    let permission = ExtensionPermission {
+        id: format!("session-{}", uuid::Uuid::new_v4()),
+        extension_id: extension_id.clone(),
+        resource_type: resource_type_enum,
+        action: action_enum,
+        target: target.clone(),
+        constraints: None,
+        status,
+    };
+
+    state.session_permissions.set_permission(permission);
 
     eprintln!(
         "[SessionPermission] Set {} permission for extension {} on {}: {:?}",
@@ -219,6 +229,49 @@ pub async fn resolve_permission_prompt(
 
         PermissionManager::save_permissions(&state, &[new_permission]).await?;
     }
+
+    Ok(())
+}
+
+// =============================================================================
+// Session Permission Commands (for frontend settings view)
+// =============================================================================
+
+/// Get all session permissions for an extension
+///
+/// Returns all in-memory permissions that are only valid for the current session.
+/// Used by the extension settings UI to display temporary permissions.
+#[tauri::command]
+pub fn get_extension_session_permissions(
+    extension_id: String,
+    state: State<'_, AppState>,
+) -> Vec<ExtensionPermission> {
+    state
+        .session_permissions
+        .get_permissions_for_extension(&extension_id)
+}
+
+/// Remove a session permission for an extension
+///
+/// Removes a specific in-memory permission. Used when user wants to revoke
+/// a temporary permission from the settings UI.
+#[tauri::command]
+pub fn remove_extension_session_permission(
+    extension_id: String,
+    resource_type: String,
+    target: String,
+    state: State<'_, AppState>,
+) -> Result<(), ExtensionError> {
+    let resource_type_enum = ResourceType::from_str(&resource_type)?;
+
+    state
+        .session_permissions
+        .remove_permission(&extension_id, resource_type_enum, &target);
+
+    eprintln!(
+        "[SessionPermission] Removed {} permission for extension {} on {}",
+        resource_type, extension_id, target
+    );
 
     Ok(())
 }

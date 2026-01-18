@@ -309,7 +309,7 @@ const openEditForm = (backend: StorageBackendInfo) => {
   // Credentials are not returned from the backend for security
   formData.accessKeyId = ''
   formData.secretAccessKey = ''
-  formData.pathStyle = false // TODO: Add pathStyle to S3PublicConfig if needed
+  formData.pathStyle = backend.config?.pathStyle || false
   showBackendForm.value = true
 }
 
@@ -389,9 +389,8 @@ const onUpdateBackendAsync = async () => {
       config.endpoint = formData.endpoint.trim()
     }
 
-    if (formData.pathStyle) {
-      config.pathStyle = true
-    }
+    // Always send pathStyle (both true and false)
+    config.pathStyle = formData.pathStyle
 
     // Only include credentials if provided (otherwise keep existing)
     if (formData.accessKeyId.trim()) {

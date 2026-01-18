@@ -495,6 +495,23 @@ pub async fn load_dev_extension(
         Ok::<String, DatabaseError>(actual_id)
     })?;
 
+    // 5.5. Register permissions from manifest (if any)
+    // This ensures dev extensions have their permissions available in the UI
+    // Use the same conversion as production extensions (to_editable_permissions)
+    let editable_permissions = manifest.to_editable_permissions();
+    let internal_permissions = editable_permissions.to_internal_permissions(&extension_id);
+    if !internal_permissions.is_empty() {
+        // Delete any existing permissions first (in case of reload)
+        PermissionManager::delete_permissions(&state, &extension_id).await?;
+
+        eprintln!(
+            "[DEV] Registering {} permissions from manifest for extension {}",
+            internal_permissions.len(),
+            extension_id
+        );
+        PermissionManager::save_permissions(&state, &internal_permissions).await?;
+    }
+
     // 6. Remove from in-memory manager if already exists (to allow reload)
     let _ = state
         .extension_manager

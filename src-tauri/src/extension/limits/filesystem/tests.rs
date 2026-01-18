@@ -47,6 +47,7 @@ fn test_validate_file_size_valid() {
         max_storage_bytes: 100 * 1024 * 1024,
         max_file_size_bytes: 10 * 1024 * 1024, // 10MB
         max_concurrent_operations: 10,
+        max_operations_per_minute: 120,
     };
 
     assert!(enforcer.validate_file_size(5 * 1024 * 1024, &limits).is_ok());
@@ -59,6 +60,7 @@ fn test_validate_file_size_at_limit() {
         max_storage_bytes: 100 * 1024 * 1024,
         max_file_size_bytes: 10 * 1024 * 1024,
         max_concurrent_operations: 10,
+        max_operations_per_minute: 120,
     };
 
     assert!(enforcer.validate_file_size(10 * 1024 * 1024, &limits).is_ok());
@@ -71,6 +73,7 @@ fn test_validate_file_size_too_large() {
         max_storage_bytes: 100 * 1024 * 1024,
         max_file_size_bytes: 10 * 1024 * 1024,
         max_concurrent_operations: 10,
+        max_operations_per_minute: 120,
     };
 
     let result = enforcer.validate_file_size(15 * 1024 * 1024, &limits);
@@ -84,6 +87,7 @@ fn test_validate_storage_quota_valid() {
         max_storage_bytes: 100 * 1024 * 1024,
         max_file_size_bytes: 50 * 1024 * 1024,
         max_concurrent_operations: 10,
+        max_operations_per_minute: 120,
     };
 
     assert!(enforcer
@@ -98,6 +102,7 @@ fn test_validate_storage_quota_exceeded() {
         max_storage_bytes: 100 * 1024 * 1024,
         max_file_size_bytes: 50 * 1024 * 1024,
         max_concurrent_operations: 10,
+        max_operations_per_minute: 120,
     };
 
     let result = enforcer.validate_storage_quota(90 * 1024 * 1024, 20 * 1024 * 1024, &limits);
@@ -111,6 +116,7 @@ fn test_acquire_op_slot_success() {
         max_storage_bytes: 100 * 1024 * 1024,
         max_file_size_bytes: 50 * 1024 * 1024,
         max_concurrent_operations: 2,
+        max_operations_per_minute: 120,
     };
 
     let guard1 = enforcer.acquire_op_slot("ext1", &limits);
@@ -127,6 +133,7 @@ fn test_acquire_op_slot_at_limit() {
         max_storage_bytes: 100 * 1024 * 1024,
         max_file_size_bytes: 50 * 1024 * 1024,
         max_concurrent_operations: 2,
+        max_operations_per_minute: 120,
     };
 
     let _guard1 = enforcer.acquire_op_slot("ext1", &limits).unwrap();
@@ -146,6 +153,7 @@ fn test_acquire_op_slot_after_release() {
         max_storage_bytes: 100 * 1024 * 1024,
         max_file_size_bytes: 50 * 1024 * 1024,
         max_concurrent_operations: 1,
+        max_operations_per_minute: 120,
     };
 
     {

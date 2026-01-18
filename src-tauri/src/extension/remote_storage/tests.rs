@@ -29,6 +29,7 @@ mod tests {
                 endpoint: Some("https://s3.example.com".to_string()),
                 region: "us-west-2".to_string(),
                 bucket: "my-bucket".to_string(),
+                path_style: None,
             }),
         };
 

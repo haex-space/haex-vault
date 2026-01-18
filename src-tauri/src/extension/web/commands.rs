@@ -7,6 +7,7 @@
 //! - iframe: extension_id is resolved from public_key/name parameters
 //!           (verified by frontend via origin check)
 
+use crate::database::core::with_connection;
 use crate::extension::error::ExtensionError;
 use crate::extension::utils::{emit_permission_prompt_if_needed, resolve_extension_id};
 use crate::extension::web::helpers::fetch_web_request;
@@ -14,6 +15,21 @@ use crate::extension::web::types::{WebFetchRequest, WebFetchResponse};
 use crate::AppState;
 use std::collections::HashMap;
 use tauri::{AppHandle, State, WebviewWindow};
+
+/// Check web limits (rate limit and concurrent requests) for an extension
+fn check_web_limits(state: &AppState, extension_id: &str) -> Result<(), ExtensionError> {
+    let limits = with_connection(&state.db, |conn| {
+        state.limits.get_limits(conn, extension_id)
+    })?;
+
+    state
+        .limits
+        .web()
+        .check_rate_limit(extension_id, &limits.web)
+        .map_err(|e| ExtensionError::LimitExceeded {
+            reason: e.to_string(),
+        })
+}
 
 #[tauri::command]
 pub async fn extension_web_open(
@@ -27,6 +43,9 @@ pub async fn extension_web_open(
 ) -> Result<(), ExtensionError> {
     // Resolve extension_id from window (WebView) or parameters (iframe)
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+
+    // Check web limits (rate limit)
+    check_web_limits(&state, &extension_id)?;
 
     // Validate URL format
     let parsed_url = url::Url::parse(&url).map_err(|e| ExtensionError::WebError {
@@ -83,6 +102,9 @@ pub async fn extension_web_fetch(
 ) -> Result<WebFetchResponse, ExtensionError> {
     // Resolve extension_id from window (WebView) or parameters (iframe)
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+
+    // Check web limits (rate limit)
+    check_web_limits(&state, &extension_id)?;
 
     let method_str = method.as_deref().unwrap_or("GET");
 
