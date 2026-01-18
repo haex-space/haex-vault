@@ -75,6 +75,14 @@
           />
         </UFormField>
 
+        <UFormField :label="t('form.sessionToken.label')" :description="t('form.sessionToken.description')">
+          <UiInput
+            v-model="formData.sessionToken"
+            type="password"
+            :placeholder="isEditMode ? t('form.sessionToken.keepExisting') : t('form.sessionToken.placeholder')"
+          />
+        </UFormField>
+
         <UFormField>
           <UCheckbox
             v-model="formData.pathStyle"
@@ -241,6 +249,7 @@ const formData = reactive({
   region: 'auto',
   accessKeyId: '',
   secretAccessKey: '',
+  sessionToken: '',
   pathStyle: false,
 })
 
@@ -288,6 +297,7 @@ const resetForm = () => {
   formData.region = 'auto'
   formData.accessKeyId = ''
   formData.secretAccessKey = ''
+  formData.sessionToken = ''
   formData.pathStyle = false
   isEditMode.value = false
   editingBackendId.value = null
@@ -309,6 +319,7 @@ const openEditForm = (backend: StorageBackendInfo) => {
   // Credentials are not returned from the backend for security
   formData.accessKeyId = ''
   formData.secretAccessKey = ''
+  formData.sessionToken = ''
   formData.pathStyle = false // TODO: Add pathStyle to S3PublicConfig if needed
   showBackendForm.value = true
 }
@@ -345,6 +356,10 @@ const onAddBackendAsync = async () => {
 
     if (formData.endpoint.trim()) {
       config.endpoint = formData.endpoint.trim()
+    }
+
+    if (formData.sessionToken.trim()) {
+      config.sessionToken = formData.sessionToken.trim()
     }
 
     if (formData.pathStyle) {
@@ -399,6 +414,9 @@ const onUpdateBackendAsync = async () => {
     }
     if (formData.secretAccessKey.trim()) {
       config.secretAccessKey = formData.secretAccessKey.trim()
+    }
+    if (formData.sessionToken.trim()) {
+      config.sessionToken = formData.sessionToken.trim()
     }
 
     const request: UpdateStorageBackendRequest = {
@@ -516,6 +534,11 @@ de:
       label: Secret Access Key
       placeholder: "********"
       keepExisting: Leer lassen um bestehendes Secret zu behalten
+    sessionToken:
+      label: Session Token
+      placeholder: JWT Token für RLS-Zugriff
+      description: Für Supabase S3 mit RLS. Der Token läuft ab und muss bei erneuter Anmeldung aktualisiert werden.
+      keepExisting: Leer lassen um bestehenden Token zu behalten
     pathStyle:
       label: Path-Style URLs verwenden
       description: Aktivieren für MinIO und andere S3-kompatible Dienste
@@ -576,6 +599,11 @@ en:
       label: Secret Access Key
       placeholder: "********"
       keepExisting: Leave empty to keep existing secret
+    sessionToken:
+      label: Session Token
+      placeholder: JWT token for RLS access
+      description: For Supabase S3 with RLS. Token expires and needs to be updated on re-login.
+      keepExisting: Leave empty to keep existing token
     pathStyle:
       label: Use path-style URLs
       description: Enable for MinIO and other S3-compatible services
