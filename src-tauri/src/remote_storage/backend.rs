@@ -75,7 +75,7 @@ impl S3Backend {
         let credentials = Credentials::new(
             Some(&config.access_key_id),
             Some(&config.secret_access_key),
-            None, // No session token - proxy handles auth
+            None,
             None,
             None,
         )
@@ -147,13 +147,13 @@ impl StorageBackend for S3Backend {
     }
 
     async fn download(&self, key: &str) -> Result<Vec<u8>, StorageError> {
-        let response = self
-            .bucket
-            .get_object(key)
-            .await
-            .map_err(|e| StorageError::DownloadFailed {
-                reason: format!("S3 download failed: {}", e),
-            })?;
+        let response =
+            self.bucket
+                .get_object(key)
+                .await
+                .map_err(|e| StorageError::DownloadFailed {
+                    reason: format!("S3 download failed: {}", e),
+                })?;
         Ok(response.to_vec())
     }
 
@@ -186,13 +186,13 @@ impl StorageBackend for S3Backend {
     async fn list(&self, prefix: Option<&str>) -> Result<Vec<StorageObjectInfo>, StorageError> {
         let prefix_str = prefix.unwrap_or("").to_string();
 
-        let results = self
-            .bucket
-            .list(prefix_str, None)
-            .await
-            .map_err(|e| StorageError::Internal {
-                reason: format!("S3 list failed: {}", e),
-            })?;
+        let results =
+            self.bucket
+                .list(prefix_str, None)
+                .await
+                .map_err(|e| StorageError::Internal {
+                    reason: format!("S3 list failed: {}", e),
+                })?;
 
         let objects = results
             .into_iter()
@@ -215,10 +215,11 @@ pub async fn create_backend(
 ) -> Result<Box<dyn StorageBackend>, StorageError> {
     match backend_type {
         "s3" => {
-            let s3_config: S3Config =
-                serde_json::from_value(config.clone()).map_err(|e| StorageError::InvalidConfig {
+            let s3_config: S3Config = serde_json::from_value(config.clone()).map_err(|e| {
+                StorageError::InvalidConfig {
                     reason: format!("Invalid S3 config: {}", e),
-                })?;
+                }
+            })?;
             let backend = S3Backend::new(&s3_config).await?;
             Ok(Box::new(backend))
         }
