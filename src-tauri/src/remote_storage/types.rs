@@ -54,9 +54,6 @@ pub struct S3Config {
     pub access_key_id: String,
     /// Secret access key
     pub secret_access_key: String,
-    /// Session token for temporary credentials (e.g., Supabase S3 with user JWT for RLS)
-    #[serde(default)]
-    pub session_token: Option<String>,
     /// Use path-style URLs instead of virtual-hosted-style
     #[serde(default)]
     pub path_style: Option<bool>,

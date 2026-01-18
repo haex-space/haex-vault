@@ -75,7 +75,7 @@ impl S3Backend {
         let credentials = Credentials::new(
             Some(&config.access_key_id),
             Some(&config.secret_access_key),
-            config.session_token.as_deref(),
+            None, // No session token - proxy handles auth
             None,
             None,
         )

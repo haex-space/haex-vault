@@ -86,7 +86,6 @@ mod tests {
             bucket: "my-bucket".to_string(),
             access_key_id: "AKIAIOSFODNN7EXAMPLE".to_string(),
             secret_access_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY".to_string(),
-            session_token: None,
             path_style: Some(true),
         };
 
