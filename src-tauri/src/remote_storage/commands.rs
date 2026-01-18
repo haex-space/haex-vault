@@ -7,7 +7,6 @@ use super::backend::create_backend;
 use super::error::StorageError;
 use super::queries::{
     SQL_DELETE_BACKEND, SQL_GET_BACKEND_CONFIG, SQL_INSERT_BACKEND, SQL_LIST_BACKENDS,
-    SQL_UPDATE_BACKEND,
 };
 use super::types::{
     AddStorageBackendRequest, StorageBackendInfo, StorageDeleteRequest, StorageDownloadRequest,
@@ -29,9 +28,11 @@ use tauri::State;
 pub async fn remote_storage_list_backends(
     state: State<'_, AppState>,
 ) -> Result<Vec<StorageBackendInfo>, StorageError> {
-    let rows = core::select_with_crdt(SQL_LIST_BACKENDS.clone(), vec![], &state.db)
-        .map_err(|e| StorageError::DatabaseError {
-            reason: e.to_string(),
+    let rows =
+        core::select_with_crdt(SQL_LIST_BACKENDS.clone(), vec![], &state.db).map_err(|e| {
+            StorageError::DatabaseError {
+                reason: e.to_string(),
+            }
         })?;
 
     let backends = rows
@@ -63,9 +64,20 @@ fn parse_public_config(config_str: &str) -> Option<super::types::S3PublicConfig>
     let config: serde_json::Value = serde_json::from_str(config_str).ok()?;
 
     Some(super::types::S3PublicConfig {
-        endpoint: config.get("endpoint").and_then(|v| v.as_str()).map(String::from),
-        region: config.get("region").and_then(|v| v.as_str()).unwrap_or("auto").to_string(),
-        bucket: config.get("bucket").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        endpoint: config
+            .get("endpoint")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        region: config
+            .get("region")
+            .and_then(|v| v.as_str())
+            .unwrap_or("auto")
+            .to_string(),
+        bucket: config
+            .get("bucket")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
     })
 }
 
@@ -79,11 +91,10 @@ pub async fn remote_storage_add_backend(
     let _backend = create_backend(&request.r#type, &request.config).await?;
 
     let id = uuid::Uuid::new_v4().to_string();
-    let config_json = serde_json::to_string(&request.config).map_err(|e| {
-        StorageError::InvalidConfig {
+    let config_json =
+        serde_json::to_string(&request.config).map_err(|e| StorageError::InvalidConfig {
             reason: format!("Failed to serialize config: {}", e),
-        }
-    })?;
+        })?;
 
     let hlc_service = state.hlc.lock().map_err(|_| StorageError::Internal {
         reason: "Failed to lock HLC service".to_string(),
@@ -114,9 +125,23 @@ pub async fn remote_storage_add_backend(
 
     // Extract public config from the request
     let public_config = Some(super::types::S3PublicConfig {
-        endpoint: request.config.get("endpoint").and_then(|v| v.as_str()).map(String::from),
-        region: request.config.get("region").and_then(|v| v.as_str()).unwrap_or("auto").to_string(),
-        bucket: request.config.get("bucket").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        endpoint: request
+            .config
+            .get("endpoint")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        region: request
+            .config
+            .get("region")
+            .and_then(|v| v.as_str())
+            .unwrap_or("auto")
+            .to_string(),
+        bucket: request
+            .config
+            .get("bucket")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
     });
 
     Ok(StorageBackendInfo {
@@ -241,9 +266,10 @@ fn build_update_query(
     }
 
     if let Some(ref config) = request.config {
-        let config_json = serde_json::to_string(config).map_err(|e| StorageError::InvalidConfig {
-            reason: format!("Failed to serialize config: {}", e),
-        })?;
+        let config_json =
+            serde_json::to_string(config).map_err(|e| StorageError::InvalidConfig {
+                reason: format!("Failed to serialize config: {}", e),
+            })?;
         set_clauses.push(format!(
             "{} = ?{}",
             COL_STORAGE_BACKENDS_CONFIG, param_index

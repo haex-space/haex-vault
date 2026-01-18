@@ -223,6 +223,7 @@
 
 <script setup lang="ts">
 import { createClient } from '@supabase/supabase-js'
+import { type AppSupabaseClient } from '~/stores/sync/engine/supabase'
 import {
   decryptString,
   deriveKeyFromPassword,
@@ -298,7 +299,7 @@ const credentials = ref({
   email: '',
   password: '',
 })
-const supabaseClient = ref<ReturnType<typeof createClient> | null>(null)
+const supabaseClient = shallowRef<AppSupabaseClient | null>(null)
 const step1Errors = reactive({
   serverUrl: [] as string[],
   email: [] as string[],

@@ -3,17 +3,20 @@
  * Handles Supabase client initialization and authentication
  */
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js'
 import { log } from './types'
 
+// Use the actual return type of createClient for consistency across the codebase
+export type AppSupabaseClient = ReturnType<typeof createClient>
+
 // Module state
-let supabaseClient: SupabaseClient | null = null
+let supabaseClient: AppSupabaseClient | null = null
 let currentBackendId: string | null = null
 
 /**
  * Gets the current Supabase client
  */
-export const getSupabaseClient = (): SupabaseClient | null => supabaseClient
+export const getSupabaseClient = (): AppSupabaseClient | null => supabaseClient
 
 /**
  * Gets the current backend ID
@@ -93,7 +96,7 @@ export const getAuthTokenAsync = async (): Promise<string | null> => {
  * This is used when the client is already authenticated and we want to reuse it
  */
 export const setSupabaseClient = (
-  client: SupabaseClient,
+  client: AppSupabaseClient,
   backendId: string,
 ): void => {
   supabaseClient = client

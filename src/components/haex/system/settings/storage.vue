@@ -1,7 +1,7 @@
 <template>
   <HaexSystemSettingsLayout :title="t('title')" :description="t('description')">
-    <!-- Add Backend Form -->
-    <UCard v-if="showAddBackendForm" class="relative">
+    <!-- Add/Edit Backend Form -->
+    <UCard v-if="showBackendForm" class="relative">
       <!-- Loading Overlay -->
       <div
         v-if="isLoading"
@@ -10,7 +10,7 @@
         <div class="flex flex-col items-center gap-3">
           <div class="loading loading-spinner loading-lg text-primary" />
           <span class="text-sm text-muted">
-            {{ t('addBackend.connecting') }}
+            {{ t('form.connecting') }}
           </span>
         </div>
       </div>
@@ -18,7 +18,7 @@
       <template #header>
         <div class="flex justify-between px-1">
           <h3 class="text-lg font-semibold">
-            {{ t('addBackend.title') }}
+            {{ isEditMode ? t('editBackend.title') : t('addBackend.title') }}
           </h3>
 
           <UiButton
@@ -26,58 +26,58 @@
             variant="ghost"
             color="neutral"
             :disabled="isLoading"
-            @click="showAddBackendForm = false"
+            @click="closeForm"
           />
         </div>
       </template>
 
-      <form class="space-y-4" @submit.prevent="onAddBackendAsync">
+      <form class="space-y-4" @submit.prevent="onSubmitFormAsync">
         <UFormField :label="t('form.name.label')" required>
           <UiInput
-            v-model="newBackend.name"
+            v-model="formData.name"
             :placeholder="t('form.name.placeholder')"
           />
         </UFormField>
 
         <UFormField :label="t('form.endpoint.label')" :description="t('form.endpoint.description')">
           <UiInput
-            v-model="newBackend.endpoint"
+            v-model="formData.endpoint"
             :placeholder="t('form.endpoint.placeholder')"
           />
         </UFormField>
 
         <UFormField :label="t('form.bucket.label')" required>
           <UiInput
-            v-model="newBackend.bucket"
+            v-model="formData.bucket"
             :placeholder="t('form.bucket.placeholder')"
           />
         </UFormField>
 
         <UFormField :label="t('form.region.label')" required>
           <UiInput
-            v-model="newBackend.region"
+            v-model="formData.region"
             :placeholder="t('form.region.placeholder')"
           />
         </UFormField>
 
-        <UFormField :label="t('form.accessKeyId.label')" required>
+        <UFormField :label="t('form.accessKeyId.label')" :required="!isEditMode">
           <UiInput
-            v-model="newBackend.accessKeyId"
-            :placeholder="t('form.accessKeyId.placeholder')"
+            v-model="formData.accessKeyId"
+            :placeholder="isEditMode ? t('form.accessKeyId.keepExisting') : t('form.accessKeyId.placeholder')"
           />
         </UFormField>
 
-        <UFormField :label="t('form.secretAccessKey.label')" required>
+        <UFormField :label="t('form.secretAccessKey.label')" :required="!isEditMode">
           <UiInput
-            v-model="newBackend.secretAccessKey"
+            v-model="formData.secretAccessKey"
             type="password"
-            :placeholder="t('form.secretAccessKey.placeholder')"
+            :placeholder="isEditMode ? t('form.secretAccessKey.keepExisting') : t('form.secretAccessKey.placeholder')"
           />
         </UFormField>
 
         <UFormField>
           <UCheckbox
-            v-model="newBackend.pathStyle"
+            v-model="formData.pathStyle"
             :label="t('form.pathStyle.label')"
             :description="t('form.pathStyle.description')"
           />
@@ -90,18 +90,18 @@
             color="neutral"
             variant="outline"
             :disabled="isLoading"
-            @click="cancelAddBackend"
+            @click="closeForm"
           >
             {{ t('actions.cancel') }}
           </UiButton>
 
           <UiButton
-            icon="mdi-plus"
+            :icon="isEditMode ? 'i-lucide-save' : 'mdi-plus'"
             :disabled="isLoading || !isFormValid"
-            @click="onAddBackendAsync"
+            @click="onSubmitFormAsync"
           >
             <span class="hidden @sm:inline">
-              {{ t('actions.add') }}
+              {{ isEditMode ? t('actions.save') : t('actions.add') }}
             </span>
           </UiButton>
         </div>
@@ -109,7 +109,7 @@
     </UCard>
 
     <!-- Storage Backends List -->
-    <UCard v-if="!showAddBackendForm || storageBackends.length">
+    <UCard v-if="!showBackendForm || storageBackends.length">
       <template #header>
         <div class="flex items-center justify-between">
           <div>
@@ -119,9 +119,9 @@
             </p>
           </div>
           <UiButton
-            v-if="!showAddBackendForm"
+            v-if="!showBackendForm"
             icon="i-lucide-plus"
-            @click="showAddBackendForm = true"
+            @click="openAddForm"
           >
             <span class="hidden @sm:inline">
               {{ t('actions.add') }}
@@ -176,6 +176,13 @@
                 {{ t('actions.test') }}
               </UiButton>
               <UiButton
+                color="neutral"
+                variant="ghost"
+                icon="i-lucide-pencil"
+                size="sm"
+                @click="openEditForm(backend)"
+              />
+              <UiButton
                 color="error"
                 variant="ghost"
                 icon="i-lucide-trash-2"
@@ -212,19 +219,22 @@
 import { invoke } from '@tauri-apps/api/core'
 import type { StorageBackendInfo } from '~/../src-tauri/bindings/StorageBackendInfo'
 import type { AddStorageBackendRequest } from '~/../src-tauri/bindings/AddStorageBackendRequest'
+import type { UpdateStorageBackendRequest } from '~/../src-tauri/bindings/UpdateStorageBackendRequest'
 
 const { t } = useI18n()
 const { add } = useToast()
 
 // State
 const storageBackends = ref<StorageBackendInfo[]>([])
-const showAddBackendForm = ref(false)
+const showBackendForm = ref(false)
+const isEditMode = ref(false)
+const editingBackendId = ref<string | null>(null)
 const isLoading = ref(false)
 const testingBackendId = ref<string | null>(null)
 const showDeleteDialog = ref(false)
 const backendToDelete = ref<StorageBackendInfo | null>(null)
 
-const newBackend = reactive({
+const formData = reactive({
   name: '',
   endpoint: '',
   bucket: '',
@@ -235,12 +245,21 @@ const newBackend = reactive({
 })
 
 const isFormValid = computed(() => {
+  const baseValid =
+    formData.name.trim() !== '' &&
+    formData.bucket.trim() !== '' &&
+    formData.region.trim() !== ''
+
+  // In edit mode, credentials are optional (keep existing)
+  if (isEditMode.value) {
+    return baseValid
+  }
+
+  // In add mode, credentials are required
   return (
-    newBackend.name.trim() !== '' &&
-    newBackend.bucket.trim() !== '' &&
-    newBackend.region.trim() !== '' &&
-    newBackend.accessKeyId.trim() !== '' &&
-    newBackend.secretAccessKey.trim() !== ''
+    baseValid &&
+    formData.accessKeyId.trim() !== '' &&
+    formData.secretAccessKey.trim() !== ''
   )
 })
 
@@ -263,43 +282,77 @@ const loadBackendsAsync = async () => {
 }
 
 const resetForm = () => {
-  newBackend.name = ''
-  newBackend.endpoint = ''
-  newBackend.bucket = ''
-  newBackend.region = 'auto'
-  newBackend.accessKeyId = ''
-  newBackend.secretAccessKey = ''
-  newBackend.pathStyle = false
+  formData.name = ''
+  formData.endpoint = ''
+  formData.bucket = ''
+  formData.region = 'auto'
+  formData.accessKeyId = ''
+  formData.secretAccessKey = ''
+  formData.pathStyle = false
+  isEditMode.value = false
+  editingBackendId.value = null
 }
 
-const cancelAddBackend = () => {
-  showAddBackendForm.value = false
+const openAddForm = () => {
+  resetForm()
+  showBackendForm.value = true
+}
+
+const openEditForm = (backend: StorageBackendInfo) => {
+  resetForm()
+  isEditMode.value = true
+  editingBackendId.value = backend.id
+  formData.name = backend.name
+  formData.endpoint = backend.config?.endpoint || ''
+  formData.bucket = backend.config?.bucket || ''
+  formData.region = backend.config?.region || 'auto'
+  // Credentials are not returned from the backend for security
+  formData.accessKeyId = ''
+  formData.secretAccessKey = ''
+  formData.pathStyle = false // TODO: Add pathStyle to S3PublicConfig if needed
+  showBackendForm.value = true
+}
+
+const closeForm = () => {
+  showBackendForm.value = false
   resetForm()
 }
 
-const onAddBackendAsync = async () => {
+const onSubmitFormAsync = async () => {
   if (!isFormValid.value) return
 
   isLoading.value = true
 
   try {
+    if (isEditMode.value && editingBackendId.value) {
+      await onUpdateBackendAsync()
+    } else {
+      await onAddBackendAsync()
+    }
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const onAddBackendAsync = async () => {
+  try {
     const config: Record<string, unknown> = {
-      bucket: newBackend.bucket,
-      region: newBackend.region,
-      accessKeyId: newBackend.accessKeyId,
-      secretAccessKey: newBackend.secretAccessKey,
+      bucket: formData.bucket,
+      region: formData.region,
+      accessKeyId: formData.accessKeyId,
+      secretAccessKey: formData.secretAccessKey,
     }
 
-    if (newBackend.endpoint.trim()) {
-      config.endpoint = newBackend.endpoint.trim()
+    if (formData.endpoint.trim()) {
+      config.endpoint = formData.endpoint.trim()
     }
 
-    if (newBackend.pathStyle) {
+    if (formData.pathStyle) {
       config.pathStyle = true
     }
 
     const request: AddStorageBackendRequest = {
-      name: newBackend.name,
+      name: formData.name,
       type: 's3',
       config,
     }
@@ -312,7 +365,7 @@ const onAddBackendAsync = async () => {
     })
 
     await loadBackendsAsync()
-    cancelAddBackend()
+    closeForm()
   } catch (error) {
     console.error('Failed to add storage backend:', error)
     add({
@@ -320,8 +373,56 @@ const onAddBackendAsync = async () => {
       description: error instanceof Error ? error.message : String(error),
       color: 'error',
     })
-  } finally {
-    isLoading.value = false
+  }
+}
+
+const onUpdateBackendAsync = async () => {
+  if (!editingBackendId.value) return
+
+  try {
+    const config: Record<string, unknown> = {
+      bucket: formData.bucket,
+      region: formData.region,
+    }
+
+    if (formData.endpoint.trim()) {
+      config.endpoint = formData.endpoint.trim()
+    }
+
+    if (formData.pathStyle) {
+      config.pathStyle = true
+    }
+
+    // Only include credentials if provided (otherwise keep existing)
+    if (formData.accessKeyId.trim()) {
+      config.accessKeyId = formData.accessKeyId.trim()
+    }
+    if (formData.secretAccessKey.trim()) {
+      config.secretAccessKey = formData.secretAccessKey.trim()
+    }
+
+    const request: UpdateStorageBackendRequest = {
+      backendId: editingBackendId.value,
+      name: formData.name,
+      config,
+    }
+
+    await invoke('remote_storage_update_backend', { request })
+
+    add({
+      title: t('success.backendUpdated'),
+      color: 'success',
+    })
+
+    await loadBackendsAsync()
+    closeForm()
+  } catch (error) {
+    console.error('Failed to update storage backend:', error)
+    add({
+      title: t('errors.updateFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+    })
   }
 }
 
@@ -383,7 +484,8 @@ de:
   description: Verwalte S3-kompatible Storage Backends für Erweiterungen
   addBackend:
     title: Storage Backend hinzufügen
-    connecting: Verbindung wird getestet...
+  editBackend:
+    title: Storage Backend bearbeiten
   backends:
     title: Storage Backends
     description: S3-kompatible Speicherdienste für Datei-Uploads
@@ -392,6 +494,7 @@ de:
     enabled: Aktiviert
     disabled: Deaktiviert
   form:
+    connecting: Verbindung wird getestet...
     name:
       label: Name
       placeholder: Mein S3 Speicher
@@ -408,14 +511,17 @@ de:
     accessKeyId:
       label: Access Key ID
       placeholder: AKIAIOSFODNN7EXAMPLE
+      keepExisting: Leer lassen um bestehenden Key zu behalten
     secretAccessKey:
       label: Secret Access Key
       placeholder: "********"
+      keepExisting: Leer lassen um bestehendes Secret zu behalten
     pathStyle:
       label: Path-Style URLs verwenden
       description: Aktivieren für MinIO und andere S3-kompatible Dienste
   actions:
     add: Hinzufügen
+    save: Speichern
     cancel: Abbrechen
     test: Testen
     delete: Löschen
@@ -424,11 +530,13 @@ de:
     description: Möchtest du das Backend "{name}" wirklich löschen? Erweiterungen können dann nicht mehr auf dieses Backend zugreifen.
   success:
     backendAdded: Storage Backend hinzugefügt
+    backendUpdated: Storage Backend aktualisiert
     backendDeleted: Storage Backend gelöscht
     connectionOk: Verbindung erfolgreich
   errors:
     loadFailed: Backends konnten nicht geladen werden
     addFailed: Backend konnte nicht hinzugefügt werden
+    updateFailed: Backend konnte nicht aktualisiert werden
     deleteFailed: Backend konnte nicht gelöscht werden
     testFailed: Verbindungstest fehlgeschlagen
 en:
@@ -436,7 +544,8 @@ en:
   description: Manage S3-compatible storage backends for extensions
   addBackend:
     title: Add Storage Backend
-    connecting: Testing connection...
+  editBackend:
+    title: Edit Storage Backend
   backends:
     title: Storage Backends
     description: S3-compatible storage services for file uploads
@@ -445,6 +554,7 @@ en:
     enabled: Enabled
     disabled: Disabled
   form:
+    connecting: Testing connection...
     name:
       label: Name
       placeholder: My S3 Storage
@@ -461,14 +571,17 @@ en:
     accessKeyId:
       label: Access Key ID
       placeholder: AKIAIOSFODNN7EXAMPLE
+      keepExisting: Leave empty to keep existing key
     secretAccessKey:
       label: Secret Access Key
       placeholder: "********"
+      keepExisting: Leave empty to keep existing secret
     pathStyle:
       label: Use path-style URLs
       description: Enable for MinIO and other S3-compatible services
   actions:
     add: Add
+    save: Save
     cancel: Cancel
     test: Test
     delete: Delete
@@ -477,11 +590,13 @@ en:
     description: Do you really want to delete the backend "{name}"? Extensions will no longer be able to access this backend.
   success:
     backendAdded: Storage backend added
+    backendUpdated: Storage backend updated
     backendDeleted: Storage backend deleted
     connectionOk: Connection successful
   errors:
     loadFailed: Failed to load backends
     addFailed: Failed to add backend
+    updateFailed: Failed to update backend
     deleteFailed: Failed to delete backend
     testFailed: Connection test failed
 </i18n>
