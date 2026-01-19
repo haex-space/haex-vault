@@ -55,6 +55,7 @@
             <UiButton
               icon="mdi-plus"
               :disabled="isLoading"
+              data-testid="sync-submit-button"
               @click="onWizardCompleteAsync"
             >
               <span class="hidden @sm:inline">
@@ -79,6 +80,7 @@
               v-if="!showAddBackendForm"
               color="primary"
               icon="i-lucide-plus"
+              data-testid="sync-add-backend-button"
               @click="showAddBackendForm = true"
             >
               <span class="hidden @sm:inline">

@@ -36,6 +36,7 @@
             size="lg"
             autofocus
             class="w-full"
+            data-testid="welcome-device-name-input"
           />
         </form>
 
@@ -197,6 +198,7 @@
           v-if="currentStep > 0"
           color="neutral"
           variant="outline"
+          data-testid="welcome-back-button"
           @click="previousStep"
         >
           {{ t('actions.back') }}
@@ -209,6 +211,7 @@
           v-if="currentStep === 1"
           color="neutral"
           variant="ghost"
+          data-testid="welcome-skip-extensions-button"
           @click="skipExtensions"
         >
           {{ t('actions.skip') }}
@@ -220,6 +223,7 @@
           color="neutral"
           variant="ghost"
           :disabled="isProcessing"
+          data-testid="welcome-skip-sync-button"
           @click="skipSync"
         >
           {{ t('actions.skip') }}
@@ -230,6 +234,7 @@
           color="primary"
           :loading="isProcessing"
           :disabled="!canProceed"
+          data-testid="welcome-next-button"
           @click="nextStep"
         >
           {{ currentStep === lastStepIndex ? t('actions.finish') : t('actions.next') }}
