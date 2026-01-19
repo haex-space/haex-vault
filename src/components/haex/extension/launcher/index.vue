@@ -9,19 +9,19 @@
     :handle-only="true"
     :dismissible="true"
   >
-    <div
+    <span
       ref="launcherButtonWrapperRef"
       class="inline-block"
-      data-testid="launcher-button"
     >
       <UButton
+        v-testid="'launcher-button'"
         icon="material-symbols:apps"
         color="neutral"
         variant="outline"
         v-bind="$attrs"
         size="lg"
       />
-    </div>
+    </span>
 
     <template #body>
       <div class="flex flex-wrap">
