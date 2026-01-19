@@ -12,6 +12,7 @@
     <div
       ref="launcherButtonWrapperRef"
       class="inline-block"
+      data-testid="launcher-button"
     >
       <UButton
         icon="material-symbols:apps"
@@ -19,7 +20,6 @@
         variant="outline"
         v-bind="$attrs"
         size="lg"
-        data-testid="launcher-button"
       />
     </div>
 
