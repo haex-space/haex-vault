@@ -16,6 +16,7 @@
               : 'text-highlighted hover:bg-muted',
           ]"
           :title="category.label"
+          :data-testid="`settings-category-${category.value}`"
           @click="category.click"
         >
           <UIcon

@@ -19,6 +19,7 @@
         variant="outline"
         v-bind="$attrs"
         size="lg"
+        data-testid="launcher-button"
       />
     </div>
 

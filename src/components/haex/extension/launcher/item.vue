@@ -4,6 +4,7 @@
     class="size-24 flex flex-wrap text-sm items-center justify-center overflow-visible select-none rounded-lg transition-colors"
     :class="isDragging ? 'opacity-50' : 'cursor-grab hover:bg-gray-100 dark:hover:bg-gray-800'"
     :style="{ touchAction: 'none' }"
+    :data-testid="`launcher-item-${type}-${id}`"
     @pointerdown="onPointerDown"
     @pointerup="onPointerUp"
     @pointercancel="onPointerCancel"
