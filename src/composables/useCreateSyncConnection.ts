@@ -110,19 +110,20 @@ export const useCreateSyncConnection = () => {
         const loginData = await loginResponse.json()
 
         // Set the session from the server response
-        const { error: sessionError } = await syncEngineStore.supabaseClient.auth.setSession({
-          access_token: loginData.access_token,
-          refresh_token: loginData.refresh_token,
-        })
+        const { data: sessionData, error: sessionError } =
+          await syncEngineStore.supabaseClient.auth.setSession({
+            access_token: loginData.access_token,
+            refresh_token: loginData.refresh_token,
+          })
 
         if (sessionError) {
           throw new Error(`Failed to set session: ${sessionError.message}`)
         }
 
-        // Verify the session was set correctly
-        const token = await syncEngineStore.getAuthTokenAsync()
-        if (!token) {
-          throw new Error('Session was set but auth token is not available')
+        // Verify the session was set correctly - use session data directly from setSession response
+        // instead of calling getSession, which can fail due to storage timing issues
+        if (!sessionData.session?.access_token) {
+          throw new Error('Session was set but no access token in response')
         }
 
         console.log('[SYNC] Credentials verified successfully')
