@@ -12,9 +12,9 @@
     <span
       ref="launcherButtonWrapperRef"
       class="inline-block"
+      data-testid="launcher-button"
     >
       <UButton
-        v-testid="'launcher-button'"
         icon="material-symbols:apps"
         color="neutral"
         variant="outline"
