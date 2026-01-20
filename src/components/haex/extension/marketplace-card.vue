@@ -1,5 +1,6 @@
 <template>
   <UCard
+    :data-testid="`marketplace-extension-${extension.slug || extension.name}`"
     :ui="{
       root: 'h-full flex flex-col hover:shadow-lg transition-shadow duration-200 cursor-pointer',
       body: 'flex-1 flex flex-col gap-3',
@@ -127,6 +128,7 @@
           <!-- Update button (shown when update is available) -->
           <UButton
             v-if="hasUpdate"
+            :data-testid="`marketplace-update-button-${extension.slug || extension.name}`"
             :label="t('update')"
             color="warning"
             icon="i-heroicons-arrow-path"
@@ -136,6 +138,7 @@
           <!-- Install button (shown when not installed) -->
           <UButton
             v-else-if="!extension.isInstalled"
+            :data-testid="`marketplace-install-button-${extension.slug || extension.name}`"
             :label="t('install')"
             color="primary"
             icon="i-heroicons-arrow-down-tray"

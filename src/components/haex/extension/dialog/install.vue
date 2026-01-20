@@ -1,6 +1,7 @@
 <template>
   <UiDrawerModal
     v-model:open="open"
+    data-testid="extension-install-dialog"
     :ui="{
       content: 'sm:max-w-2xl sm:mx-auto',
     }"
@@ -210,6 +211,7 @@
           @click="onDeny"
         />
         <UiButton
+          data-testid="extension-install-confirm"
           :icon="isUpdate ? 'i-heroicons-arrow-path' : 'i-heroicons-check'"
           :label="isUpdate ? t('confirmUpdate') : t('confirm')"
           :color="isUpdate ? 'warning' : 'primary'"
