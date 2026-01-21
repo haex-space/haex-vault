@@ -7,6 +7,7 @@
         :items
         size="lg"
         class="w-full"
+        data-testid="sync-server-select"
       >
         <template #item="{ item }">
           <UUser
