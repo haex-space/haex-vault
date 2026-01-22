@@ -43,6 +43,17 @@
     "http:allow-fetch-send",
     "http:allow-fetch",
     "http:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://*.haex.space" },
+        { "url": "https://*.haex.space/**" },
+        { "url": "http://localhost:*" },
+        { "url": "http://localhost:*/**" },
+        { "url": "http://127.0.0.1:*" },
+        { "url": "http://127.0.0.1:*/**" }
+      ]
+    },
     "notification:allow-create-channel",
     "notification:allow-list-channels",
     "notification:allow-notify",

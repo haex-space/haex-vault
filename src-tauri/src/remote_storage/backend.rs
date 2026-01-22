@@ -98,19 +98,7 @@ impl S3Backend {
             }
         })?;
 
-        // Determine if path-style should be used
-        let endpoint_needs_path_style = config
-            .endpoint
-            .as_ref()
-            .map(|e| {
-                e.contains("supabase.co")
-                    || e.contains("supabase.in")
-                    || e.contains("/s3/")
-                    || e.contains("/storage/")
-            })
-            .unwrap_or(false);
-
-        let use_path_style = config.path_style.unwrap_or(false) || endpoint_needs_path_style;
+        let use_path_style = config.path_style.unwrap_or(false);
 
         if use_path_style {
             bucket = bucket.with_path_style();
