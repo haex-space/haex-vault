@@ -238,6 +238,9 @@
         </div>
       </UCard>
 
+      <!-- Limits Section -->
+      <HaexExtensionLimitsCard :extension-id="extension.id" />
+
       <!-- Session Permissions Section -->
       <UCard v-if="sessionPermissions.length > 0">
         <template #header>
@@ -493,6 +496,7 @@ const editablePermissions = ref<ExtensionPermissionsEditable>({
 // Session permissions (in-memory, not persisted)
 const sessionPermissions = ref<ExtensionPermission[]>([])
 const revokingSessionPermission = ref<string | null>(null)
+
 
 // Remove dialog
 const removeDialogOpen = ref(false)
