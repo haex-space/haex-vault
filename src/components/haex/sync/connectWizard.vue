@@ -223,7 +223,7 @@
 
 <script setup lang="ts">
 import { createClient } from '@supabase/supabase-js'
-import { type AppSupabaseClient } from '~/stores/sync/engine/supabase'
+import type { AppSupabaseClient } from '~/stores/sync/engine/supabase'
 import {
   decryptString,
   deriveKeyFromPassword,

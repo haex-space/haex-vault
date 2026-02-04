@@ -28,7 +28,7 @@
 <script setup lang="ts">
 const props = withDefaults(
   defineProps<{
-    data: Record<string, any> | null
+    data: Record<string, unknown> | null
     title?: string
     dismissible?: boolean
   }>(),

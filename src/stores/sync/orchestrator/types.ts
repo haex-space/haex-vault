@@ -29,4 +29,4 @@ export interface PullResult {
 /**
  * Structured logging helper using central logger
  */
-export const log = createLogger('SYNC')
+export const orchestratorLog = createLogger('SYNC')

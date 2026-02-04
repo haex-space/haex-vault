@@ -4,7 +4,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
-import { log } from './types'
+import { engineLog as log } from './types'
 
 // Use the actual return type of createClient for consistency across the codebase
 export type AppSupabaseClient = ReturnType<typeof createClient>

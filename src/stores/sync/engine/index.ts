@@ -10,7 +10,7 @@
  * - server.ts: Server API operations
  */
 
-import { log, type VaultKeyCache } from './types'
+import { engineLog, type VaultKeyCache } from './types'
 import {
   initSupabaseClientAsync as initClient,
   getAuthTokenAsync as getToken,
@@ -43,6 +43,8 @@ import {
   deleteRemoteVaultAsync as deleteRemote,
   updateVaultNameOnServerAsync as updateName,
 } from './server'
+
+const log = engineLog
 
 // Re-export types
 export * from './types'

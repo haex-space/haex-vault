@@ -6,7 +6,7 @@
 import { deriveKeyFromPassword, encryptString, base64ToArrayBuffer } from '@haex-space/vault-sdk'
 import { getAuthTokenAsync } from './supabase'
 import { clearVaultKeyCache } from './vaultKey'
-import { log } from './types'
+import { engineLog as log } from './types'
 
 /**
  * Health check - verifies server is reachable

@@ -720,7 +720,7 @@ fn initialize_session(
     let mut conn = core::open_and_init_db(path, key, false)?;
 
     // 2. Ensure CRDT triggers are initialized
-    let triggers_were_already_initialized = init::ensure_triggers_initialized(&mut conn)?;
+    let _triggers_were_already_initialized = init::ensure_triggers_initialized(&mut conn)?;
 
     // 3. Initialize the HLC service
     let hlc_service = HlcService::try_initialize(&conn, app_handle).map_err(|e| {

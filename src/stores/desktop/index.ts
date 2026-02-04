@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import { haexDesktopItems, haexDevices } from '~/database/schemas'
+import { haexDesktopItems } from '~/database/schemas'
 import type {
   InsertHaexDesktopItems,
   SelectHaexDesktopItems,
@@ -24,7 +24,6 @@ export const useDesktopStore = defineStore('desktopStore', () => {
   const workspaceStore = useWorkspaceStore()
   const { currentWorkspace } = storeToRefs(workspaceStore)
   const { $i18n } = useNuxtApp()
-  const deviceStore = useDeviceStore()
   const settingsStore = useVaultSettingsStore()
 
   $i18n.setLocaleMessage('de', { desktop: de })
@@ -44,19 +43,6 @@ export const useDesktopStore = defineStore('desktopStore', () => {
   const iconSizePreset = ref<DesktopIconSizePreset>(
     DesktopIconSizePreset.medium,
   )
-
-  // Get device internal ID from DB
-  const getDeviceInternalIdAsync = async () => {
-    if (!deviceStore.deviceId || !currentVault.value?.drizzle) return undefined
-
-    const device = await currentVault.value.drizzle.query.haexDevices.findFirst(
-      {
-        where: eq(haexDevices.deviceId, deviceStore.deviceId),
-      },
-    )
-
-    return device?.id ? device.id : undefined
-  }
 
   // Sync icon size from DB
   const syncDesktopIconSizeAsync = async () => {

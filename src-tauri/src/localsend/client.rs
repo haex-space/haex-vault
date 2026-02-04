@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
 
 use super::error::LocalSendError;
@@ -196,13 +196,10 @@ async fn upload_files(
         let metadata = file_handle.metadata().await?;
         let total_size = metadata.len();
 
-        // Read file in chunks and upload
-        let mut buffer = vec![0u8; 1024 * 1024]; // 1MB chunks
-        let mut bytes_sent: u64 = 0;
-
-        // For now, read entire file (TODO: streaming upload)
+        // For now, read entire file (TODO: streaming upload with chunks)
         let mut file_data = Vec::new();
         file_handle.read_to_end(&mut file_data).await?;
+        let mut bytes_sent: u64 = 0;
 
         // Build upload URL with query params
         let url = format!(

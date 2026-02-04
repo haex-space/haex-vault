@@ -5,7 +5,6 @@ use crate::{
         core::{
             find_icon,
             manager::ExtensionManager,
-            manifest::DisplayMode,
             path_utils::validate_path_in_directory,
             types::{Extension, ExtensionSource},
             EditablePermissions, ExtensionInfoResponse, ExtensionManifest, ExtensionPreview,
@@ -835,11 +834,6 @@ pub fn close_all_extension_webview_windows(
 }
 
 // Re-export context commands from core::context
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-pub use core::context::{
-    extension_context_get, extension_context_set, extension_webview_broadcast,
-    extension_webview_emit,
-};
 
 // ============================================================================
 // Filtered Sync Event Emission (Cross-platform)
@@ -847,14 +841,10 @@ pub use core::context::{
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tauri::Emitter;
 
 /// Event for sync tables updated - sent to extensions after CRDT pull
 /// Matches HAEXTENSION_EVENTS.SYNC_TABLES_UPDATED in vault-sdk
 pub const SYNC_TABLES_EVENT: &str = "haextension:sync:tables-updated";
-
-/// Internal event for sync tables updated - used by main window stores
-pub const SYNC_TABLES_INTERNAL_EVENT: &str = "sync:tables-updated";
 
 /// Payload for sync tables updated event
 #[derive(Debug, Clone, Serialize, Deserialize)]

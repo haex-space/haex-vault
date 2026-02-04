@@ -10,16 +10,14 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::UdpSocket;
 use tokio::sync::oneshot;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 
-use super::crypto::get_local_ip_addresses;
 use super::error::LocalSendError;
 use super::protocol::DeviceAnnouncement;
 use super::types::{now_millis, Device, DeviceType};
-use super::{LocalSendState, DEFAULT_PORT, MULTICAST_ADDR, PROTOCOL_VERSION};
+use super::{DEFAULT_PORT, MULTICAST_ADDR, PROTOCOL_VERSION};
 
 // Re-export register_device for backwards compatibility
-pub use super::types::register_device;
 use crate::AppState;
 
 /// How often to send discovery announcements (in seconds)

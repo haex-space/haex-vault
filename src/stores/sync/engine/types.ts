@@ -53,11 +53,11 @@ export async function fetchWithNetworkErrorHandling(
 ): Promise<Response> {
   try {
     return await fetch(url, options)
-  } catch (_networkError) {
+  } catch {
     throw new Error(
       'NETWORK_ERROR: Cannot connect to sync server. Please check your internet connection.',
     )
   }
 }
 
-export const log = createLogger('SYNC ENGINE')
+export const engineLog = createLogger('SYNC ENGINE')

@@ -45,10 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import type { SelectHaexSyncBackends } from '~/database/schemas'
-
-const props = defineProps<{
-  backend: SelectHaexSyncBackends | null
+defineProps<{
   loading: boolean
 }>()
 

@@ -8,7 +8,7 @@
  */
 
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
-import { log, type BackendSyncState } from './types'
+import { orchestratorLog as log, type BackendSyncState } from './types'
 import { pullFromBackendAsync } from './pull'
 
 /** Debounce timers per backend */

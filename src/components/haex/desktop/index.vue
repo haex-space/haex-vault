@@ -551,7 +551,7 @@ const handleDrop = async (event: DragEvent, workspaceId: string) => {
       snapped.y,
       workspaceId,
     )
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to create desktop icon:', error)
   }
 }

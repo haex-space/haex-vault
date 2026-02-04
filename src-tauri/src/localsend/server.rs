@@ -10,7 +10,7 @@
 use axum::{
     body::Body,
     extract::{ConnectInfo, Query, State as AxumState},
-    http::{header, StatusCode},
+    http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -23,7 +23,7 @@ use std::sync::Arc;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::oneshot;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
 
 use super::crypto::{get_local_ip_addresses, TlsIdentity};

@@ -7,7 +7,7 @@ import { encryptCrdtData, decryptCrdtData } from '@haex-space/vault-sdk'
 import { getAuthTokenAsync } from './supabase'
 import { getVaultKeyCache } from './vaultKey'
 import {
-  log,
+  engineLog as log,
   type CrdtChange,
   type SyncChangeData,
   type PullChangesResponse,

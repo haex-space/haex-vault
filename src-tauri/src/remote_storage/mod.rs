@@ -14,4 +14,3 @@ pub mod types;
 
 pub use commands::*;
 pub use error::StorageError;
-pub use types::*;

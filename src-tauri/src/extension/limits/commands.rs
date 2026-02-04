@@ -2,7 +2,6 @@
 //!
 //! Tauri commands for extension limit configuration
 
-use crate::crdt::hlc::HlcService;
 use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
 use crate::extension::database::executor::SqlExecutor;

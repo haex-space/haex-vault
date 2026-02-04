@@ -45,7 +45,7 @@ async function checkWebPermissionAsync(
   }
 
   try {
-    await invoke<void>('check_web_permission', {
+    await invoke<undefined>('check_web_permission', {
       extensionId: extension.id,
       method,
       url,
@@ -86,7 +86,7 @@ async function checkDatabasePermissionAsync(
   }
 
   try {
-    await invoke<void>('check_database_permission', {
+    await invoke<undefined>('check_database_permission', {
       extensionId: extension.id,
       resource,
       operation,
@@ -125,7 +125,7 @@ async function checkFilesystemPermissionAsync(
   }
 
   try {
-    await invoke<void>('check_filesystem_permission', {
+    await invoke<undefined>('check_filesystem_permission', {
       extensionId: extension.id,
       path,
       operation,

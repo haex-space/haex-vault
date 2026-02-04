@@ -12,7 +12,7 @@ import {
   arrayBufferToBase64,
 } from '@haex-space/vault-sdk'
 import { getAuthTokenAsync } from './supabase'
-import { fetchWithNetworkErrorHandling, log, type VaultKeyCache } from './types'
+import { fetchWithNetworkErrorHandling, engineLog as log, type VaultKeyCache } from './types'
 
 // In-memory cache for decrypted vault keys (cleared on logout/vault close)
 const vaultKeyCache: VaultKeyCache = {}
@@ -37,9 +37,9 @@ export const cacheSyncKey = (vaultId: string, syncKey: Uint8Array): void => {
  */
 export const clearVaultKeyCache = (vaultId?: string): void => {
   if (vaultId) {
-    delete vaultKeyCache[vaultId]
+    Reflect.deleteProperty(vaultKeyCache, vaultId)
   } else {
-    Object.keys(vaultKeyCache).forEach((key) => delete vaultKeyCache[key])
+    Object.keys(vaultKeyCache).forEach((key) => Reflect.deleteProperty(vaultKeyCache, key))
   }
 }
 

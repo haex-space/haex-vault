@@ -5,7 +5,7 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { log, type BackendSyncState } from './types'
+import { orchestratorLog as log, type BackendSyncState } from './types'
 import { enterBulkMode, exitBulkMode } from '@/stores/logging'
 import { pushToBackendAsync, pushAllDataToBackendAsync } from './push'
 import {
@@ -653,7 +653,7 @@ export const useSyncOrchestratorStore = defineStore(
           if (persistedBackend.id !== backendId) {
             log.info(`Backend ID changed: ${backendId} -> ${persistedBackend.id}, transferring sync state`)
             syncStates.value[persistedBackend.id] = syncStates.value[backendId]
-            delete syncStates.value[backendId]
+            Reflect.deleteProperty(syncStates.value, backendId)
           }
         }
 

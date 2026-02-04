@@ -20,19 +20,15 @@ import {
   EXTENSION_PROTOCOL_NAME,
   EXTENSION_PROTOCOL_PREFIX,
 } from '~/config/constants'
-import {
-  handleDatabaseMethodAsync,
-  handleFilesystemMethodAsync,
-  handleWebMethodAsync,
-  handlePermissionsMethodAsync,
-  handleContextMethodAsync,
-  handleWebStorageMethodAsync,
-  handleRemoteStorageMethodAsync,
-  handleLocalSendMethodAsync,
-  setContextGetters,
-  type ExtensionRequest,
-  type ExtensionInstance,
-} from './handlers'
+import { handleDatabaseMethodAsync } from './handlers/database'
+import { handleFilesystemMethodAsync } from './handlers/filesystem'
+import { handleWebMethodAsync } from './handlers/web'
+import { handlePermissionsMethodAsync } from './handlers/permissions'
+import { handleContextMethodAsync, setContextGetters } from './handlers/context'
+import { handleWebStorageMethodAsync } from './handlers/webStorage'
+import { handleRemoteStorageMethodAsync } from './handlers/remoteStorage'
+import { handleLocalSendMethodAsync } from './handlers/localsend'
+import type { ExtensionRequest, ExtensionInstance } from './handlers/types'
 import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
 
 // Globaler Handler - nur einmal registriert
@@ -291,5 +287,3 @@ export const unregisterExtensionIFrame = (iframe: HTMLIFrameElement) => {
   broadcastStore.unregisterIframe(iframe)
 }
 
-// Re-export types for backwards compatibility
-export type { ExtensionInstance }

@@ -135,7 +135,13 @@ fn test_validate_query_size_too_large() {
 
     let large_sql = "x".repeat(150);
     let result = enforcer.validate_query_size(&large_sql, &limits);
-    assert!(matches!(result, Err(LimitError::QueryTooLarge { size: 150, max_size: 100 })));
+    assert!(matches!(
+        result,
+        Err(LimitError::QueryTooLarge {
+            size: 150,
+            max_size: 100
+        })
+    ));
 }
 
 #[test]
@@ -175,7 +181,13 @@ fn test_validate_result_rows_over_limit() {
     };
 
     let result = enforcer.validate_result_rows(150, &limits);
-    assert!(matches!(result, Err(LimitError::ResultTooLarge { rows: 150, max_rows: 100 })));
+    assert!(matches!(
+        result,
+        Err(LimitError::ResultTooLarge {
+            rows: 150,
+            max_rows: 100
+        })
+    ));
 }
 
 #[test]

@@ -6,7 +6,7 @@
 import { eq } from 'drizzle-orm'
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
 import { haexSyncBackends } from '~/database/schemas'
-import { schema } from '~/database'
+import type { schema } from '~/database'
 
 type DrizzleDatabase = SqliteRemoteDatabase<typeof schema>
 

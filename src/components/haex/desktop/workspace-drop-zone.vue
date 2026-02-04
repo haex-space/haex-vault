@@ -28,7 +28,7 @@ const emit = defineEmits<{
   areaSelectStart: [event: MouseEvent]
   dragOver: [event: DragEvent]
   drop: [event: DragEvent]
-  dndDrop: [workspaceId: string, data: any, pointerPosition: { x: number; y: number }]
+  dndDrop: [workspaceId: string, data: unknown, pointerPosition: { x: number; y: number }]
 }>()
 
 const desktopStore = useDesktopStore()

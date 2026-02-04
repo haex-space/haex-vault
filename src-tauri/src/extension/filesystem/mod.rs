@@ -7,7 +7,4 @@
 //!
 
 pub mod commands;
-pub mod file_io;
-#[cfg(test)]
-mod tests;
 pub mod watcher;

@@ -420,7 +420,6 @@ async fn handle_connection(
 
     let mut client_id: Option<String> = None;
     let mut client_public_key_spki: Option<String> = None;
-    let mut authorized = false;
 
     // Get server public key for handshake responses
     let server_public_key_spki = {
@@ -512,8 +511,6 @@ async fn handle_connection(
 
                         if is_authorized {
                             // Client is authorized (either permanently or for this session)
-                            authorized = true;
-
                             if session_auth.is_some() {
                                 println!(
                                     "[ExternalBridge] Client {} authorized via session (allow once)",

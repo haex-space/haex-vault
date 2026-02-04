@@ -34,7 +34,6 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 pub use error::LocalSendError;
-pub use protocol::*;
 pub use types::*;
 
 use tauri::{AppHandle, Manager, State};

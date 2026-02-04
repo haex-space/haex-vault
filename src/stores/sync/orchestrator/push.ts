@@ -10,7 +10,7 @@ import {
   clearDirtyTableAsync,
   type ColumnChange,
 } from '../tableScanner'
-import { log, type BackendSyncState } from './types'
+import { orchestratorLog as log, type BackendSyncState } from './types'
 
 /**
  * Pushes local changes to a specific backend using table-scanning approach

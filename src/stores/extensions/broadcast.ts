@@ -385,7 +385,7 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
     }
 
     // Send to ALL iframe extension instances (TODO: Filter by localsend permission)
-    for (const [iframe, instance] of iframeRegistry.entries()) {
+    for (const [iframe] of iframeRegistry.entries()) {
       if (iframe.contentWindow) {
         iframe.contentWindow.postMessage(message, '*')
       }
