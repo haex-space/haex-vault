@@ -10,7 +10,7 @@ import {
   clearDirtyTableAsync,
   type ColumnChange,
 } from '../tableScanner'
-import { orchestratorLog as log, type BackendSyncState } from './types'
+import { orchestratorLog as log, type BackendSyncState, syncMutex } from './types'
 
 /**
  * Pushes local changes to a specific backend using table-scanning approach
@@ -35,8 +35,14 @@ export const pushToBackendAsync = async (
     throw new Error('Backend not initialized')
   }
 
+  // Acquire mutex lock to prevent concurrent sync operations
+  // This replaces the non-atomic check-then-set pattern
+  const releaseLock = await syncMutex.acquire(backendId)
+
+  // Double-check after acquiring lock (another operation might have just finished)
   if (state.isSyncing) {
     log.debug(`PUSH SKIPPED: Already syncing with backend ${backendId}`)
+    releaseLock()
     return
   }
 
@@ -86,11 +92,13 @@ export const pushToBackendAsync = async (
     }
 
     log.info(`[PUSH-SCAN] Found ${dirtyTables.length} dirty tables:`, dirtyTables.map((t) => t.tableName))
-    // Log extra details for haex_vault_settings
-    const hasVaultSettings = dirtyTables.some(t => t.tableName === 'haex_vault_settings')
-    if (hasVaultSettings) {
-      log.info(`[PUSH-SCAN] ⚠️ haex_vault_settings IS DIRTY! Stack trace:`, new Error().stack)
-    }
+
+    // Capture the max last_modified timestamp from dirty tables BEFORE scanning
+    // This ensures we only clear entries that existed at scan start, not new ones added during push
+    const maxDirtyTimestamp = dirtyTables.reduce((max, t) => {
+      return t.lastModified > max ? t.lastModified : max
+    }, '')
+    log.debug(`[PUSH-SCAN] Max dirty timestamp at scan start: ${maxDirtyTimestamp}`)
 
     // Generate a batch ID for this push - all changes in this push belong together
     const batchId = crypto.randomUUID()
@@ -158,8 +166,9 @@ export const pushToBackendAsync = async (
     if (allChanges.length === 0) {
       log.info('PUSH COMPLETE: No changes after scanning (tables may already be synced)')
       // Clear dirty tables even if no changes (they might have been synced already)
+      // Only clear entries that existed at scan start
       for (const { tableName } of dirtyTables) {
-        await clearDirtyTableAsync(tableName)
+        await clearDirtyTableAsync(tableName, maxDirtyTimestamp)
       }
       return
     }
@@ -194,9 +203,11 @@ export const pushToBackendAsync = async (
     await syncBackendsStore.updateBackendAsync(backendId, updateData)
 
     // Clear dirty tables after successful push
-    log.debug('Clearing dirty tables...')
+    // IMPORTANT: Only clear entries that existed at scan start (before maxDirtyTimestamp)
+    // This prevents clearing entries added AFTER we started scanning (which would cause data loss)
+    log.debug(`Clearing dirty tables with timestamp <= ${maxDirtyTimestamp}...`)
     for (const { tableName } of dirtyTables) {
-      await clearDirtyTableAsync(tableName)
+      await clearDirtyTableAsync(tableName, maxDirtyTimestamp)
     }
 
     log.info(`========== PUSH SUCCESS: ${allChanges.length} changes pushed ==========`)
@@ -206,6 +217,7 @@ export const pushToBackendAsync = async (
     throw error
   } finally {
     state.isSyncing = false
+    releaseLock()
   }
 }
 

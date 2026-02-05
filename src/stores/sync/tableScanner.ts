@@ -217,12 +217,15 @@ export async function scanTableForChangesAsync(
 }
 
 /**
- * Clears a table from the dirty tables tracker
+ * Clears a table from the dirty tables tracker.
+ * If beforeTimestamp is provided, only clears entries with last_modified <= that timestamp.
+ * This prevents clearing entries that were added AFTER the sync scan started.
  */
 export async function clearDirtyTableAsync(
   tableName: string,
+  beforeTimestamp?: string,
 ): Promise<void> {
-  await invoke('clear_dirty_table', { tableName })
+  await invoke('clear_dirty_table', { tableName, beforeTimestamp })
 }
 
 /**

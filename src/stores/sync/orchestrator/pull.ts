@@ -7,7 +7,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { emit } from '@tauri-apps/api/event'
 import { decryptCrdtData } from '@haex-space/vault-sdk'
 import type { ColumnChange } from '../tableScanner'
-import { orchestratorLog as log, type BackendSyncState, type PullResult } from './types'
+import { orchestratorLog as log, type BackendSyncState, type PullResult, syncMutex } from './types'
 import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
 import { SYNC_TABLES_INTERNAL_EVENT } from '../syncEvents'
 import type { PendingColumn } from '@bindings/PendingColumn'
@@ -36,8 +36,14 @@ export const pullFromBackendAsync = async (
     throw new Error('Backend not initialized')
   }
 
+  // Acquire mutex lock to prevent concurrent sync operations
+  // This replaces the non-atomic check-then-set pattern
+  const releaseLock = await syncMutex.acquire(backendId)
+
+  // Double-check after acquiring lock (another operation might have just finished)
   if (state.isSyncing) {
     log.debug(`PULL SKIPPED: Already syncing with backend ${backendId}`)
+    releaseLock()
     return
   }
 
@@ -159,6 +165,7 @@ export const pullFromBackendAsync = async (
     throw error
   } finally {
     state.isSyncing = false
+    releaseLock()
   }
 }
 
@@ -373,8 +380,8 @@ export const applyRemoteChangesInTransactionAsync = async (
   // Calculate max HLC and decrypt all changes
   let maxHlc = ''
   const decryptedChanges = []
-  let decryptErrors = 0
   let decryptCount = 0
+  const failedDecryptions: Array<{ tableName: string; columnName: string; error: unknown }> = []
 
   for (const change of changes) {
     decryptCount++
@@ -391,7 +398,6 @@ export const applyRemoteChangesInTransactionAsync = async (
 
     // Decrypt the value
     let decryptedValue
-    let decryptionFailed = false
     if (change.encryptedValue && change.nonce) {
       try {
         const decryptedData = await decryptCrdtData<{ value: unknown }>(
@@ -401,20 +407,19 @@ export const applyRemoteChangesInTransactionAsync = async (
         )
         decryptedValue = decryptedData.value
       } catch (err) {
-        decryptErrors++
+        // CRITICAL: Collect decryption failures - we will abort the entire transaction
+        // Skipping individual changes would cause data inconsistency
+        failedDecryptions.push({
+          tableName: change.tableName,
+          columnName: change.columnName,
+          error: err,
+        })
         log.error(`Failed to decrypt change for ${change.tableName}.${change.columnName}:`, err)
-        decryptionFailed = true
+        continue
       }
     } else {
       // No encrypted value means the value is intentionally null (e.g., cleared field)
       decryptedValue = null
-    }
-
-    // CRITICAL: Skip changes that failed to decrypt to prevent overwriting existing data with null
-    // This can happen if the vault key is incorrect or the data is corrupted
-    if (decryptionFailed) {
-      log.warn(`Skipping change for ${change.tableName}.${change.columnName} due to decryption failure`)
-      continue
     }
 
     const changeObj = {
@@ -431,8 +436,20 @@ export const applyRemoteChangesInTransactionAsync = async (
     decryptedChanges.push(changeObj)
   }
 
-  if (decryptErrors > 0) {
-    log.warn(`${decryptErrors} changes failed to decrypt and were skipped`)
+  // CRITICAL: If ANY decryption failed, abort the entire transaction
+  // This ensures data consistency - we don't want to partially apply changes
+  if (failedDecryptions.length > 0) {
+    const errorDetails = failedDecryptions
+      .slice(0, 5) // Show first 5 failures
+      .map((f) => `${f.tableName}.${f.columnName}`)
+      .join(', ')
+    const moreCount = failedDecryptions.length > 5 ? ` (+${failedDecryptions.length - 5} more)` : ''
+
+    throw new Error(
+      `Decryption failed for ${failedDecryptions.length} change(s): ${errorDetails}${moreCount}. ` +
+      `Transaction aborted to maintain data consistency. ` +
+      `This may indicate an incorrect vault key or corrupted data on the server.`,
+    )
   }
 
   const decryptionTime = (performance.now() - startTime) / 1000

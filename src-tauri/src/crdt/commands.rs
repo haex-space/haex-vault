@@ -100,18 +100,34 @@ pub fn get_dirty_tables(state: State<'_, AppState>) -> Result<Vec<DirtyTable>, D
     })
 }
 
-/// Clears a specific table from the dirty tables tracker
+/// Clears a specific table from the dirty tables tracker.
+/// If before_timestamp is provided, only clears entries with last_modified <= that timestamp.
+/// This prevents clearing entries that were added AFTER the sync scan started.
 #[tauri::command]
 pub fn clear_dirty_table(
     table_name: String,
+    before_timestamp: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<(), DatabaseError> {
     with_connection(&state.db, |conn| {
-        conn.execute(
-            &format!("DELETE FROM {TABLE_CRDT_DIRTY_TABLES} WHERE table_name = ?1"),
-            [&table_name],
-        )
-        .map_err(DatabaseError::from)?;
+        match before_timestamp {
+            Some(ts) => {
+                conn.execute(
+                    &format!(
+                        "DELETE FROM {TABLE_CRDT_DIRTY_TABLES} WHERE table_name = ?1 AND last_modified <= ?2"
+                    ),
+                    [&table_name, &ts],
+                )
+                .map_err(DatabaseError::from)?;
+            }
+            None => {
+                conn.execute(
+                    &format!("DELETE FROM {TABLE_CRDT_DIRTY_TABLES} WHERE table_name = ?1"),
+                    [&table_name],
+                )
+                .map_err(DatabaseError::from)?;
+            }
+        }
 
         Ok(())
     })
