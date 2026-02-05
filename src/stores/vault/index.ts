@@ -124,16 +124,20 @@ export const useVaultStore = defineStore('vaultStore', () => {
 
           // Ensure sync key exists
           // Use vault password (from memory) for sync key decryption
-          if (currentVaultId.value && currentVault.value?.name && currentVaultPassword.value) {
+          // IMPORTANT: Use backend.vaultId (remote vault ID) to match what pullFromBackendAsync expects
+          if (backend.vaultId && currentVault.value?.name && currentVaultPassword.value) {
             await syncEngineStore.ensureSyncKeyAsync(
               backend.id,
-              currentVaultId.value,
+              backend.vaultId,
               currentVault.value.name,
               currentVaultPassword.value, // Vault password for sync key decryption
             )
+          } else if (!backend.vaultId) {
+            console.warn(`[HaexSpace] Backend ${backend.name} has no vaultId configured`)
           }
         } catch (error) {
-          console.error(`[HaexSpace] Auto-login error for ${backend.name}:`, error)
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          console.error(`[HaexSpace] Auto-login error for ${backend.name}:`, errorMessage)
         }
       }
 
