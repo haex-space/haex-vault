@@ -36,6 +36,7 @@ use tokio::sync::RwLock;
 pub use error::LocalSendError;
 pub use types::*;
 
+use protocol::DeviceAnnouncement;
 use tauri::{AppHandle, Manager, State};
 use crate::AppState;
 
