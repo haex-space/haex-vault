@@ -2,6 +2,8 @@
 // DO NOT EDIT MANUALLY
 // Run 'pnpm generate:rust-types' to regenerate
 
+#![allow(dead_code)]
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,6 +53,8 @@ pub struct HaexExtensions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_mode: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub dev_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
@@ -72,8 +76,9 @@ impl HaexExtensions {
             signature: row.get(10)?,
             single_instance: row.get(11)?,
             display_mode: row.get(12)?,
-            created_at: row.get(13)?,
-            updated_at: row.get(14)?,
+            dev_path: row.get(13)?,
+            created_at: row.get(14)?,
+            updated_at: row.get(15)?,
         })
     }
 }

@@ -11,6 +11,7 @@ pub enum ShortcutError {
     #[error("Extension not found: {extension_id}")]
     ExtensionNotFound { extension_id: String },
 
+    #[allow(dead_code)]
     #[error("Platform not supported for desktop shortcuts")]
     PlatformNotSupported,
 

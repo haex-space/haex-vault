@@ -5,12 +5,14 @@
 // Run `pnpm test:constants` to verify synchronization
 
 /// Vault settings type values
+#[allow(dead_code)]
 pub mod vault_settings_type {
     pub const SETTINGS: &str = "settings";
     pub const SYSTEM: &str = "system";
 }
 
 /// Vault settings key values (all snake_case for consistency)
+#[allow(dead_code)]
 pub mod vault_settings_key {
     pub const LOCALE: &str = "locale";
     pub const THEME: &str = "theme";

@@ -3,6 +3,7 @@
 //! Tests for filesystem limit enforcement
 
 use super::*;
+use crate::extension::limits::filesystem::enforcer::{FileOpGuard, FileOpTracker};
 use crate::extension::limits::types::{FilesystemLimits, LimitError};
 
 #[test]

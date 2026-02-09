@@ -11,11 +11,13 @@ use crate::extension::utils;
 ///
 /// This struct contains all the data needed for permission checks,
 /// allowing us to test the permission logic without mocking AppState.
+#[allow(dead_code)]
 pub struct PermissionChecker {
     pub extension: Extension,
     pub permissions: Vec<ExtensionPermission>,
 }
 
+#[allow(dead_code)]
 impl PermissionChecker {
     /// Creates a new PermissionChecker
     pub fn new(extension: Extension, permissions: Vec<ExtensionPermission>) -> Self {

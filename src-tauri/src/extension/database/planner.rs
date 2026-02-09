@@ -47,6 +47,7 @@ impl SqlExecutionPlanner {
     }
 
     /// Extracts table name from CREATE TABLE statement
+    #[allow(dead_code)]
     pub fn extract_create_table_name(statement: &Statement) -> Option<String> {
         if let Statement::CreateTable(create_table) = statement {
             let raw_name = create_table.name.to_string();

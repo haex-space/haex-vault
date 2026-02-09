@@ -64,6 +64,7 @@ impl PermissionManager {
     }
 
     /// Aktualisiert eine Permission
+    #[allow(dead_code)]
     pub async fn update_permission(
         app_state: &State<'_, AppState>,
         permission: &ExtensionPermission,
@@ -124,6 +125,7 @@ impl PermissionManager {
     }
 
     /// Löscht alle Permissions einer Extension
+    #[allow(dead_code)]
     pub async fn delete_permission(
         app_state: &State<'_, AppState>,
         permission_id: &str,
@@ -548,6 +550,7 @@ impl PermissionManager {
     /// Prüft Shell-Berechtigungen
     /// Returns PermissionPromptRequired if status is Ask or no permission exists
     /// Returns PermissionDenied if status is explicitly Denied
+    #[allow(dead_code)]
     pub async fn check_shell_permission(
         app_state: &State<'_, AppState>,
         extension_id: &str,
@@ -774,6 +777,7 @@ impl PermissionManager {
     }
 
     // Helper-Methoden - müssen DatabaseError statt ExtensionError zurückgeben
+    #[allow(dead_code)]
     pub fn parse_resource_type(s: &str) -> Result<ResourceType, DatabaseError> {
         match s {
             "fs" => Ok(ResourceType::Fs),

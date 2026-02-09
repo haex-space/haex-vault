@@ -36,6 +36,7 @@ use tokio::sync::RwLock;
 pub use error::LocalSendError;
 pub use types::*;
 
+#[cfg(any(target_os = "android", target_os = "ios"))]
 use protocol::DeviceAnnouncement;
 use tauri::{AppHandle, Manager, State};
 use crate::AppState;

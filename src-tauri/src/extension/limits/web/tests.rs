@@ -4,6 +4,7 @@
 
 use super::*;
 use crate::extension::limits::types::{LimitError, WebLimits};
+use crate::extension::limits::web::enforcer::{WebRequestGuard, WebRequestTracker};
 
 #[test]
 fn test_web_request_tracker_initial_count() {

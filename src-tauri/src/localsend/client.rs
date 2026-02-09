@@ -199,7 +199,6 @@ async fn upload_files(
         // For now, read entire file (TODO: streaming upload with chunks)
         let mut file_data = Vec::new();
         file_handle.read_to_end(&mut file_data).await?;
-        let mut bytes_sent: u64 = 0;
 
         // Build upload URL with query params
         let url = format!(
@@ -224,14 +223,12 @@ async fn upload_files(
             )));
         }
 
-        bytes_sent = total_size;
-
         // Emit progress
         let progress = TransferProgress {
             session_id: session_id.to_string(),
             file_id: file.id.clone(),
             file_name: file.file_name.clone(),
-            bytes_transferred: bytes_sent,
+            bytes_transferred: total_size,
             total_bytes: total_size,
             speed: 0, // TODO: calculate
         };
@@ -239,7 +236,7 @@ async fn upload_files(
 
         println!(
             "[LocalSend Client] Sent file: {} ({} bytes)",
-            file.file_name, bytes_sent
+            file.file_name, total_size
         );
     }
 

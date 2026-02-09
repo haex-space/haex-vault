@@ -7,4 +7,4 @@ mod enforcer;
 #[cfg(test)]
 mod tests;
 
-pub use enforcer::{ConcurrencyTracker, DatabaseLimitEnforcer, QueryGuard};
+pub use enforcer::DatabaseLimitEnforcer;

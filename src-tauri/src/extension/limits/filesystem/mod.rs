@@ -7,4 +7,4 @@ mod enforcer;
 #[cfg(test)]
 mod tests;
 
-pub use enforcer::{FileOpGuard, FileOpTracker, FilesystemLimitEnforcer};
+pub use enforcer::FilesystemLimitEnforcer;

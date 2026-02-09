@@ -47,7 +47,7 @@ impl ServerKeyPair {
         let shared_secret = self.secret.diffie_hellman(client_public_key);
         let bytes = shared_secret.raw_secret_bytes();
         let mut result = [0u8; 32];
-        result.copy_from_slice(bytes.as_slice());
+        result.copy_from_slice(&bytes[..]);
         result
     }
 }
@@ -71,10 +71,10 @@ pub fn encrypt_message(plaintext: &[u8], shared_key: &[u8; 32]) -> Result<(Vec<u
 
     let mut iv = [0u8; IV_LENGTH];
     rand::RngCore::fill_bytes(&mut OsRng, &mut iv);
-    let nonce = Nonce::from_slice(&iv);
+    let nonce = Nonce::from(iv);
 
     let ciphertext = cipher
-        .encrypt(nonce, plaintext)
+        .encrypt(&nonce, plaintext)
         .map_err(|e| BridgeError::Crypto(format!("Encryption failed: {}", e)))?;
 
     Ok((ciphertext, iv))
@@ -89,10 +89,10 @@ pub fn decrypt_message(
     let cipher = Aes256Gcm::new_from_slice(shared_key)
         .map_err(|e| BridgeError::Crypto(format!("Invalid key: {}", e)))?;
 
-    let nonce = Nonce::from_slice(iv);
+    let nonce = Nonce::from(*iv);
 
     cipher
-        .decrypt(nonce, ciphertext)
+        .decrypt(&nonce, ciphertext)
         .map_err(|e| BridgeError::Crypto(format!("Decryption failed: {}", e)))
 }
 

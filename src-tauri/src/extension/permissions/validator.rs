@@ -11,6 +11,7 @@ use tauri::State;
 
 pub struct SqlPermissionValidator;
 
+#[allow(dead_code)]
 impl SqlPermissionValidator {
     /// Validiert ein SQL-Statement gegen die Permissions einer Extension
     pub async fn validate_sql(

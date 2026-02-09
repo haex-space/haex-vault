@@ -11,6 +11,7 @@ use s3::region::Region;
 use s3::Bucket;
 
 /// Progress update for uploads/downloads
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct TransferProgress {
     pub bytes_transferred: u64,
@@ -21,6 +22,7 @@ pub struct TransferProgress {
 ///
 /// All storage backends must implement this trait.
 /// Implementations should be thread-safe (Send + Sync).
+#[allow(dead_code)]
 #[async_trait]
 pub trait StorageBackend: Send + Sync {
     /// Get the backend type identifier

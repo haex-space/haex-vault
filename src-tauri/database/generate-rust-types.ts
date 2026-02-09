@@ -153,6 +153,8 @@ function main() {
 // DO NOT EDIT MANUALLY
 // Run 'pnpm generate:rust-types' to regenerate
 
+#![allow(dead_code)]
+
 use serde::{Deserialize, Serialize};
 
 `

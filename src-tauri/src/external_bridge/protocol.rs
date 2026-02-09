@@ -112,6 +112,7 @@ pub enum ProtocolMessage {
     Error { code: String, message: String },
 }
 
+#[allow(dead_code)]
 impl BridgeResponse {
     pub fn success(id: String, data: serde_json::Value) -> Self {
         Self {

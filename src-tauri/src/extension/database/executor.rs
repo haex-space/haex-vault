@@ -159,6 +159,7 @@ impl SqlExecutor {
     }
 
     /// Query für SELECT-Statements (read-only, kein CRDT nötig außer Filter)
+    #[allow(dead_code)]
     pub fn query_select(
         conn: &rusqlite::Connection,
         sql: &str,

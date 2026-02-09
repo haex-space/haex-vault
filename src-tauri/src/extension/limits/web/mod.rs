@@ -7,4 +7,4 @@ mod enforcer;
 #[cfg(test)]
 mod tests;
 
-pub use enforcer::{WebLimitEnforcer, WebRequestGuard, WebRequestTracker};
+pub use enforcer::WebLimitEnforcer;

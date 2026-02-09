@@ -39,6 +39,7 @@ pub enum FsError {
     #[error("Not a file: {path}")]
     NotAFile { path: String },
 
+    #[allow(dead_code)]
     #[error("Dialog cancelled by user")]
     DialogCancelled,
 }

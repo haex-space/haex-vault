@@ -34,6 +34,7 @@ const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 30;
 type ResponseSender = oneshot::Sender<serde_json::Value>;
 
 /// Connected client state
+#[allow(dead_code)]
 struct ConnectedClient {
     client_id: String,
     client_name: String,

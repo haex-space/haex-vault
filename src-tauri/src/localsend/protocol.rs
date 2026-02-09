@@ -40,9 +40,6 @@ pub struct DeviceAnnouncement {
     pub announce: bool,
 }
 
-/// Response to /api/localsend/v2/info
-pub type InfoResponse = DeviceAnnouncement;
-
 // ============================================================================
 // File Transfer Messages
 // ============================================================================
