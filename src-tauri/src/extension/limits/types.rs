@@ -23,7 +23,7 @@ impl Default for DatabaseLimits {
         Self {
             query_timeout_ms: 30_000,
             max_result_rows: 10_000,
-            max_concurrent_queries: 5,
+            max_concurrent_queries: 20,
             max_query_size_bytes: 1_048_576,
         }
     }
@@ -246,7 +246,7 @@ mod tests {
         let limits = DatabaseLimits::default();
         assert_eq!(limits.query_timeout_ms, 30_000);
         assert_eq!(limits.max_result_rows, 10_000);
-        assert_eq!(limits.max_concurrent_queries, 5);
+        assert_eq!(limits.max_concurrent_queries, 20);
         assert_eq!(limits.max_query_size_bytes, 1_048_576);
     }
 
