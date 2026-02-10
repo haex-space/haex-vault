@@ -318,7 +318,7 @@ jobs:
       - name: Build Android APK and AAB
         run: |
           # Build universal APK (all architectures in one APK) - required for Play Store
-          pnpm tauri android build --apk true --aab true
+          pnpm tauri android build --apk --aab
 
       - name: List generated APK files
         run: |
