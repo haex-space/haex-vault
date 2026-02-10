@@ -1,0 +1,133 @@
+# Dependabot configuration
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  # NPM dependencies
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - "dependencies"
+      - "npm"
+    # Group minor and patch updates together
+    groups:
+      nuxt:
+        patterns:
+          - "@nuxt/*"
+          - "nuxt"
+        update-types:
+          - "minor"
+          - "patch"
+      tauri:
+        patterns:
+          - "@tauri-apps/*"
+        update-types:
+          - "minor"
+          - "patch"
+      vue:
+        patterns:
+          - "vue"
+          - "vue-*"
+          - "@vue/*"
+          - "@vueuse/*"
+        update-types:
+          - "minor"
+          - "patch"
+      testing:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+          - "@playwright/*"
+        update-types:
+          - "minor"
+          - "patch"
+      icons:
+        patterns:
+          - "@iconify/*"
+          - "@iconify-json/*"
+        update-types:
+          - "minor"
+          - "patch"
+      dev-tools:
+        patterns:
+          - "eslint*"
+          - "prettier"
+          - "typescript"
+          - "vite"
+          - "@vitejs/*"
+        update-types:
+          - "minor"
+          - "patch"
+    # Ignore packages with breaking changes that need manual migration
+    ignore:
+      # ESLint 10 has major breaking changes with plugin compatibility
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      # Zod 4 has breaking API changes
+      - dependency-name: "zod"
+        update-types: ["version-update:semver-major"]
+      # vue-router 5 has breaking changes
+      - dependency-name: "vue-router"
+        update-types: ["version-update:semver-major"]
+      # vue-dnd-kit alpha versions
+      - dependency-name: "@vue-dnd-kit/*"
+        update-types: ["version-update:semver-major"]
+
+  # Rust/Cargo dependencies
+  - package-ecosystem: "cargo"
+    directory: "/src-tauri"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - "dependencies"
+      - "rust"
+    groups:
+      tauri-plugins:
+        patterns:
+          - "tauri-plugin-*"
+        update-types:
+          - "minor"
+          - "patch"
+      tauri-core:
+        patterns:
+          - "tauri"
+          - "tauri-build"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
+    labels:
+      - "dependencies"
+      - "ci"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
