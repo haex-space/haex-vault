@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Haex Space",
-  "version": "1.5.55",
+  "version": "1.5.56",
   "identifier": "space.haex.vault",
   "build": {
     "beforeDevCommand": "pnpm dev",
