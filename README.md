@@ -1,166 +1,265 @@
-# 🧩 HaexSpace – The European “Everything App”
+# Haex Vault
 
-## 🌍 Vision
+**Build once. Run everywhere. Sync automatically.**
 
-We are living in the **computer age** — nearly everyone owns multiple devices: a smartphone, a laptop, perhaps even a desktop PC or tablet.  
-Each of these runs its own **operating system** — Windows, macOS, Linux, Android, iOS — and hosts a unique mix of **apps and data**.
+One web app. All platforms. Local encryption and conflict-free synchronization out-of-the-box.
 
-Unfortunately, **interoperability** between these devices is often poor or even impossible.  
-The reasons are many:
-
-- **Platform lock-in**: Vendors like Microsoft, Apple, or Google design systems that make it easy to _enter_ their ecosystem but difficult to _leave_.
-- **Fragmented software development**: Developers face high technical and financial hurdles to support multiple platforms at once.
-
-Creating and maintaining one secure, high-quality app for _all_ systems can be almost impossible — especially for small teams, startups, and indie developers.
-
-And then there’s **distribution**: each platform requires its own build, packaging, signing, and publishing process.  
-What if you could build your app **once** and deploy it **everywhere**?
-
-> **HaexSpace** makes that possible — giving every web app or PWA **superpowers**.
-
-With HaexSpace, developers can extend functionality via **extensions** that run securely inside the app, with carefully controlled permissions for accessing system features (files, shell, database, etc.).
+<p align="center">
+  <img src="docs/images/welcome.png" alt="Haex Vault Welcome Screen" width="400" />
+  <img src="docs/images/settings.png" alt="Haex Vault Settings" width="400" />
+</p>
 
 ---
 
-## 🚀 Enter HaexSpace
+## What is Haex Vault?
 
-HaexSpace provides a **framework** for building and running modular, sandboxed **web extensions** — web apps that run in an isolated environment but can communicate securely with the host.
+Haex Vault is the **core of the Haex Space ecosystem** – a runtime for web apps with native capabilities.
 
-Each extension:
+Think of it like Android: Haex Vault is the operating system, Haextensions are the apps.
 
-- Runs inside an **IFrame**.
-- Uses **postMessage APIs** to communicate with HaexSpace.
-- Declares required **permissions** in a manifest file.
-- Can be added or removed at runtime.
-
-Without explicit permission, extensions cannot access the file system, network, or external resources — ensuring **privacy and security** by default.  
-Once granted, however, extensions can unlock full desktop-like capabilities:  
-access files, execute commands, or interact with SQLite databases.
-
-Imagine a **web-based VS Code** that can directly access your local shell and file system — something that current web IDEs can’t do.  
-With HaexSpace’s permission model, such power is possible, but **always under user control**.
-
-HaexSpace itself is **cross-platform** and runs on:
-
-- 💻 Windows, macOS, Linux
-- 📱 Android, iOS
-- 🧠 Desktops, laptops, tablets, smartphones
-
-All user and extension data is stored in a **locally encrypted SQLite database**.  
-To sync across devices, HaexSpace can connect to a **synchronization server** — which you can even **self-host** for maximum independence.
-
-> 🛡️ HaexSpace is built on the principles of **privacy, security, and digital sovereignty**.
-
-The user is always in control of their data — deciding what to share, and with whom.
-
----
-
-## 🧠 Technical Foundations
-
-HaexSpace is powered by **[Tauri](https://v2.tauri.app/)** — a secure, efficient framework for building native apps from web technologies.
-
-Unlike Electron (used by apps like VS Code), Tauri:
-
-- Uses **native rendering engines** (WebView2, WKWebView, WebKitGTK)
-- Produces **smaller, faster apps**
-- Enforces **strong sandboxing and permission models**
-
-HaexSpace builds upon Tauri’s security features, extending them to third-party extensions.
-
-### 🏡 Local-first by Design
-
-HaexSpace follows a **strict local-first architecture**:
-
-- Works **offline** without accounts or internet.
-- Stores data locally in **encrypted SQLite**.
-- Uses **CRDTs (Conflict-free Replicated Data Types)** for safe synchronization across devices — even with encrypted data.
-
-Unlike many “local-first” apps, HaexSpace doesn’t just cache data in the browser.  
-Your data truly resides **on your disk**, not under a browser’s limited storage policy.
-
-Optionally, HaexSpace can sync databases via a backend service — self-hosted or external — with optional **end-to-end encryption**.
-
----
-
-## 🧩 Extensions
-
-Extensions are the heart of HaexSpace.
-
-Everything the user interacts with — from password management to file syncing — will be implemented as **extensions**.
-
-There are two types:
-
-- **Official/Core Extensions**
-- **Third-Party Extensions**
-
-Each extension is a **web app** bundled via your preferred frontend stack:
-
-> Vue, React, Svelte, Angular, Vite, Webpack, Rollup — you name it.
-
-### 🔐 Example: Password Manager
-
-A first official extension will be a **Password Manager**, built with **Vue/Nuxt**:
-
-- Declares database permissions via its manifest.
-- Manages login credentials locally in encrypted SQLite.
-- Can tag entries (e.g. “Email”) for use by other extensions — such as an email client.
-
-### 🗂 Example: File Synchronization
-
-Another planned core extension will handle **file synchronization**:
-
-- Syncs files/folders between devices and cloud providers (e.g. S3, Google Drive, Dropbox).
-- Lets users define sync rules per device.
-- Stores configuration securely in the local database.
-
-### 💬 Future Extensions
-
-- Calendar & Contacts
-- Collaborative document management
-- Messenger
-- Browser & Payment Services (e.g., GNU Taler integration)
-
-With this modular design, HaexSpace can evolve into a true **European alternative to WeChat** — but open, federated, and privacy-first.
-
----
-
-## 🧰 Installation & Setup
-
-### 📦 Prerequisites
-
-Install the following dependencies:
-
-- [Node.js / nvm](https://nodejs.org/en/download)
-- [Tauri](https://v2.tauri.app/start/prerequisites/)
-- [Rust](https://v2.tauri.app/start/prerequisites/#rust)
-- [Android Studio](https://developer.android.com/studio?hl=de)
-- WebKit2GTK + GTK3
-
-#### 🐧 Debian / Ubuntu
-
-```bash
-sudo apt update
-sudo apt install \
-  libwebkit2gtk-4.1-dev \
-  libgtk-3-dev \
-  libayatana-appindicator3-dev \
-  librsvg2-dev
+```
+                    ┌──────────────────────┐
+                    │  Browser Extension   │
+                    │  (e.g. Autofill)     │
+                    └──────────┬───────────┘
+                               │ WebSocket
+                               ▼
+┌─────────────────────────────────────────────────────┐
+│                   Haex Space                        │
+│                   (Ecosystem)                       │
+│                                                     │
+│  ┌─────────────────────────────────────────────┐   │
+│  │              Haex Marketplace               │   │
+│  │          (Discover Haextensions)            │   │
+│  └─────────────────────────────────────────────┘   │
+│                        │                           │
+│                        ▼                           │
+│  ┌─────────────────────────────────────────────┐   │
+│  │               Haex Vault                    │   │
+│  │            (this project)                   │   │
+│  │                                             │   │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐       │   │
+│  │  │ Password│ │  Notes  │ │  Mail   │  ...  │   │
+│  │  │ Manager │ │   App   │ │ Client  │       │   │
+│  │  └────┬────┘ └────┬────┘ └────┬────┘       │   │
+│  │       └───────────┼───────────┘            │   │
+│  │                   ▼                        │   │
+│  │  ┌─────────────────────────────────────┐   │   │
+│  │  │  • Encrypted SQLite (SQLCipher)     │   │   │
+│  │  │  • Permission System                │   │   │
+│  │  │  • Native APIs                      │   │   │
+│  │  │  • CRDT Sync Engine                 │   │   │
+│  │  │  • WebSocket API (external)         │   │   │
+│  │  └─────────────────────────────────────┘   │   │
+│  └─────────────────────────────────────────────┘   │
+│                        │                           │
+│                        ▼ (optional)                │
+│  ┌─────────────────────────────────────────────┐   │
+│  │            Haex Sync Server(s)              │   │
+│  │             (self-hostable)                 │   │
+│  └─────────────────────────────────────────────┘   │
+│                                                     │
+│  Runs on: Windows │ macOS │ Linux │ Android │ iOS  │
+└─────────────────────────────────────────────────────┘
 ```
 
-#### 🦊 Fedora
+### What does Haex Vault do?
 
-```bash
-sudo dnf install \
-  webkit2gtk4.1-devel \
-  gtk3-devel \
-  libappindicator-gtk3 \
-  librsvg2-devel
+| Task | Description |
+|------|-------------|
+| **Manage Haextensions** | Install, update, remove |
+| **Enforce permissions** | Fine-grained control over all access |
+| **Manage database** | Encrypted SQLite for all Haextensions |
+| **Synchronization** | Conflict-free sync across devices and servers |
+| **External interface** | WebSocket API for browser extensions and other services |
+
+---
+
+## For Users
+
+**Haex Vault works offline.** No internet connection required, no account needed.
+
+Internet is only required when:
+- A Haextension needs it (e.g. mail client)
+- You want to sync your data across devices
+
+### Your Benefits
+
+**Your data, your control**
+Everything is stored locally on your device, encrypted with AES-256. You decide if and where to sync.
+
+**Fine-grained permissions**
+You control exactly what each Haextension can do:
+- Which database tables?
+- Which file paths?
+- Which URLs?
+- Which shell commands?
+
+**Multi-device sync**
+Use Haex Vault on multiple devices. Changes are automatically merged – without conflicts.
+
+**Browser integration**
+Browser extensions can communicate with Haex Vault – e.g. for password autofill. As always: only with your permission.
+
+---
+
+## For Developers
+
+### The Key Benefit
+
+You get the power of a **distributed SQL application** that syncs data across any number of clients – without having to deal with CRDTs, merge conflicts, or sync logic.
+
+**Haex Vault handles that for you.**
+
+### What you write
+
+A web app. With Vue, React, Svelte, or whatever you prefer.
+
+### What you get
+
+- **All platforms**: Windows, macOS, Linux, Android, iOS – one codebase
+- **Native APIs**: Filesystem, SQLite database, shell, notifications, ...
+- **Automatic sync**: Save to the database, Haex Vault synchronizes
+- **Encryption included**: Local and during sync
+- **External accessibility**: Your Haextension can be accessed from outside
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     Haex Vault                          │
+│                                                         │
+│  ┌─────────────────┐      ┌─────────────────────────┐  │
+│  │  Haextension    │      │  External Clients       │  │
+│  │  (IFrame)       │      │  (Browser Extension,    │  │
+│  │                 │      │   other services)       │  │
+│  └────────┬────────┘      └────────────┬────────────┘  │
+│           │ postMessage                │ WebSocket     │
+│           └──────────────┬─────────────┘               │
+│                          ▼                             │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │              Haex Vault Core                     │  │
+│  │                                                  │  │
+│  │  ┌────────────┐  ┌────────────┐  ┌───────────┐  │  │
+│  │  │ Permission │  │  Database  │  │   Sync    │  │  │
+│  │  │   System   │  │   (SQLite) │  │  Engine   │  │  │
+│  │  └────────────┘  └────────────┘  └───────────┘  │  │
+│  └──────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
 ```
 
-#### ⚙️ Development
+### Internal API (Haextensions)
 
-Make sure port 3003 is available (or adjust it in `nuxt.config.ts` and `src-tauri/tauri.conf.json`).
+Haextensions run in an isolated IFrame and communicate via postMessage:
 
+```typescript
+// In your Haextension
+const result = await haex.db.query('SELECT * FROM passwords WHERE domain = ?', [domain])
+const file = await haex.fs.read('/documents/notes.txt')
+```
+
+### External API (WebSocket)
+
+External clients (e.g. browser extensions) connect via WebSocket:
+
+```typescript
+// In a browser extension
+const ws = new WebSocket('ws://localhost:PORT')
+ws.send(JSON.stringify({
+  action: 'query',
+  extension: 'password-manager',
+  method: 'getCredentials',
+  params: { domain: 'example.com' }
+}))
+```
+
+The Haextension decides which methods to expose externally. Haex Vault enforces permissions.
+
+### Declaring permissions
+
+In the manifest, you specify what your Haextension needs:
+
+```json
+{
+  "name": "My Password Manager",
+  "permissions": {
+    "database": {
+      "tables": ["passwords", "categories"]
+    },
+    "network": {
+      "urls": ["https://haveibeenpwned.com/api/*"]
+    },
+    "external": {
+      "methods": ["getCredentials", "saveCredentials"]
+    }
+  }
+}
+```
+
+### Publishing
+
+Make your Haextension available to other users on the **Haex Marketplace**.
+
+---
+
+## Technical Details
+
+### Offline-first
+
+Haex Vault works completely without internet:
+- All data is stored locally
+- No server needed to get started
+- Sync server is optional and can be added later
+
+### Encryption
+
+**Local**: The entire SQLite database is encrypted with SQLCipher (AES-256).
+
+**Sync**: The payload of each row is end-to-end encrypted. Table and column names remain visible to the server so it can detect changes – but your actual data is only visible to you.
+
+### Synchronization
+
+Haex Vault uses CRDTs (Conflict-free Replicated Data Types):
+
+- **Offline-first**: Changes are stored locally
+- **Conflict-free**: Automatic merging without data loss
+- **Multi-server**: Connect multiple sync servers (including self-hosted)
+- **Add later**: Start without sync, add it when needed
+
+### Tech Stack
+
+- **Runtime**: [Tauri](https://tauri.app) (Rust backend, native WebViews)
+- **Database**: SQLite with SQLCipher
+- **Sync**: Custom CRDT implementation
+- **External API**: WebSocket
+- **Haextensions**: Any web technology
+
+---
+
+## Installation
+
+### Downloads
+
+Pre-built binaries: [Releases](https://github.com/haex-space/haex-vault/releases)
+
+### Building from source
+
+**Prerequisites:**
+- [Node.js](https://nodejs.org/) + pnpm
+- [Rust](https://www.rust-lang.org/tools/install)
+- [Tauri Prerequisites](https://tauri.app/start/prerequisites/)
+
+**Linux (Debian/Ubuntu):**
+```bash
+sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+```
+
+**Linux (Fedora):**
+```bash
+sudo dnf install webkit2gtk4.1-devel gtk3-devel libappindicator-gtk3 librsvg2-devel
+```
+
+**Start development:**
 ```bash
 git clone https://github.com/haex-space/haex-vault.git
 cd haex-vault
@@ -168,39 +267,26 @@ pnpm install
 pnpm tauri dev
 ```
 
-#### 📦 Release Process
-
-Create a new release using the automated scripts:
-
+**Create a release:**
 ```bash
-# Patch release (0.1.13 → 0.1.14)
-pnpm release:patch
-
-# Minor release (0.1.13 → 0.2.0)
-pnpm release:minor
-
-# Major release (0.1.13 → 1.0.0)
-pnpm release:major
+pnpm release:patch  # 1.0.0 → 1.0.1
+pnpm release:minor  # 1.0.0 → 1.1.0
+pnpm release:major  # 1.0.0 → 2.0.0
 ```
 
-The script automatically:
-1. Updates version in `package.json`
-2. Creates a git commit
-3. Creates a git tag
-4. Pushes to remote
+---
 
-GitHub Actions will then automatically:
-- Build desktop apps (macOS, Linux, Windows)
-- Build Android apps (APK and AAB)
-- Create and publish a GitHub release
+## Haex Space Ecosystem
 
-#### 🧭 Summary
+| Project | Description |
+|---------|-------------|
+| **Haex Vault** | The runtime (this repo) |
+| **Haex Sync Server** | Self-hostable sync server |
+| **Haex Marketplace** | Platform for Haextensions |
+| **Haextensions** | The apps (Password Manager, Notes, ...) |
 
-HaexSpace aims to:
+---
 
-- Simplify cross-platform app development
-- Empower users with local-first privacy
-- Enable developers to create modular, permissioned extensions
-- Bridge the gap between web and native worlds
+## License
 
-HaexSpace is the foundation for a decentralized, privacy-friendly, European “everything app.”
+[MIT](LICENSE)
