@@ -1,7 +1,7 @@
 [package]
-name = "haex-space"
+name = "haex-vault"
 version = "1.5.57"
-description = "Secure and privacy friendly data storage"
+description = "Build once. Run everywhere. Sync automatically"
 authors = ["Haex"]
 edition = "2021"
 
@@ -11,7 +11,7 @@ edition = "2021"
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "haex_space_lib"
+name = "haex_vault_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -67,9 +67,16 @@ rand = "0.8"
 chacha20poly1305 = "0.10"
 async-trait = "0.1"
 # S3 backend - using native-tls (works on Android without cmake/aws-lc-rs issues)
-rust-s3 = { version = "0.37", default-features = false, features = ["tokio-native-tls", "fail-on-err", "tags"] }
+rust-s3 = { version = "0.37", default-features = false, features = [
+  "tokio-native-tls",
+  "fail-on-err",
+  "tags",
+] }
 # Supabase Storage backend (HTTP client)
-reqwest = { version = "0.12", default-features = false, features = ["json", "native-tls"] }
+reqwest = { version = "0.12", default-features = false, features = [
+  "json",
+  "native-tls",
+] }
 
 # LocalSend dependencies (all platforms)
 get_if_addrs = "0.5"
@@ -81,7 +88,11 @@ axum-server = { version = "0.7", features = ["tls-rustls-no-provider"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["cors"] }
 rcgen = "0.14"
-rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls = { version = "0.23", default-features = false, features = [
+  "ring",
+  "std",
+  "tls12",
+] }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 trash = "5.2"

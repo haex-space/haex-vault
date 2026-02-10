@@ -2131,7 +2131,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "haex-space"
+name = "haex-vault"
 version = "1.5.57"
 dependencies = [
  "aes-gcm",
