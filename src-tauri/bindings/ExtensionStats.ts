@@ -20,12 +20,12 @@ tables: Array<TableStats>,
 /**
  * Total rows across all tables
  */
-totalRows: number, 
+totalRows: bigint, 
 /**
  * Total active rows across all tables
  */
-activeRows: number, 
+activeRows: bigint, 
 /**
  * Total tombstone rows across all tables
  */
-tombstoneRows: number, };
+tombstoneRows: bigint, };

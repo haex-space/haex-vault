@@ -4,8 +4,9 @@ use crate::crdt::insert_transformer::InsertTransformer;
 use crate::crdt::trigger::{COLUMN_HLCS_COLUMN, HLC_TIMESTAMP_COLUMN, TOMBSTONE_COLUMN};
 use crate::database::error::DatabaseError;
 use sqlparser::ast::{
-    Assignment, AssignmentTarget, BinaryOperator, ColumnDef, DataType, Expr, FromTable, Ident,
-    ObjectName, ObjectNamePart, Query, Select, SetExpr, Statement, TableFactor, TableObject, Value,
+    helpers::attached_token::AttachedToken, AlterTable, Assignment, AssignmentTarget,
+    BinaryOperator, ColumnDef, DataType, Expr, FromTable, Ident, ObjectName, ObjectNamePart,
+    Query, Select, SetExpr, Statement, TableFactor, TableObject, Update, Value,
 };
 use std::borrow::Cow;
 use uhlc::Timestamp;
@@ -363,23 +364,18 @@ impl CrdtTransformer {
                 }
                 Ok(None)
             }
-            Statement::Update {
-                table,
-                assignments,
-                selection,
-                ..
-            } => {
-                if let TableFactor::Table { name, .. } = &table.relation {
+            Statement::Update(update) => {
+                if let TableFactor::Table { name, .. } = &update.table.relation {
                     if self.is_crdt_sync_table(name) {
                         // Add HLC timestamp assignment
-                        assignments.push(self.columns.create_hlc_assignment(hlc_timestamp));
+                        update.assignments.push(self.columns.create_hlc_assignment(hlc_timestamp));
 
                         // Add WHERE IFNULL(haex_tombstone, 0) != 1 to only update non-deleted rows
                         // (unless WHERE haex_tombstone = 1 is already present)
                         // UPDATE statements don't have JOINs in our use case, so no qualifier needed
-                        *selection =
+                        update.selection =
                             self.columns
-                                .add_tombstone_filter_to_where(selection.take(), None);
+                                .add_tombstone_filter_to_where(update.selection.take(), None);
                     }
                 }
                 Ok(None)
@@ -407,7 +403,8 @@ impl CrdtTransformer {
                             let hlc_assignment = self.columns.create_hlc_assignment(hlc_timestamp);
 
                             // Transform DELETE into UPDATE
-                            *stmt = Statement::Update {
+                            *stmt = Statement::Update(Update {
+                                update_token: AttachedToken::empty(),
                                 table: from_table.clone(),
                                 assignments: vec![tombstone_assignment, hlc_assignment],
                                 from: None,
@@ -415,13 +412,13 @@ impl CrdtTransformer {
                                 returning: None,
                                 or: None,
                                 limit: None,
-                            };
+                            });
                         }
                     }
                 }
                 Ok(None)
             }
-            Statement::AlterTable { name, .. } => {
+            Statement::AlterTable(AlterTable { name, .. }) => {
                 if self.is_crdt_sync_table(name) {
                     Ok(Some(self.normalize_table_name(name).into_owned()))
                 } else {

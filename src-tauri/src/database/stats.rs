@@ -20,11 +20,11 @@ pub struct TableStats {
     /// Table name
     pub name: String,
     /// Total number of rows
-    pub total_rows: usize,
+    pub total_rows: i64,
     /// Number of active (non-tombstoned) rows
-    pub active_rows: usize,
+    pub active_rows: i64,
     /// Number of tombstoned (soft-deleted) rows
-    pub tombstone_rows: usize,
+    pub tombstone_rows: i64,
 }
 
 /// Statistics grouped by extension or system
@@ -39,11 +39,11 @@ pub struct ExtensionStats {
     /// Tables belonging to this extension
     pub tables: Vec<TableStats>,
     /// Total rows across all tables
-    pub total_rows: usize,
+    pub total_rows: i64,
     /// Total active rows across all tables
-    pub active_rows: usize,
+    pub active_rows: i64,
     /// Total tombstone rows across all tables
-    pub tombstone_rows: usize,
+    pub tombstone_rows: i64,
 }
 
 /// Tombstone entry for display
@@ -69,7 +69,7 @@ pub struct PendingSyncInfo {
     /// When the table was last modified
     pub last_modified: String,
     /// Number of rows that need to be synced (estimated)
-    pub pending_rows: usize,
+    pub pending_rows: i64,
 }
 
 /// Comprehensive database information
@@ -86,15 +86,15 @@ pub struct DatabaseInfo {
     /// Pending sync information
     pub pending_sync: Vec<PendingSyncInfo>,
     /// Total pending sync entries
-    pub total_pending_sync: usize,
+    pub total_pending_sync: i64,
     /// Tombstone entries (limited to most recent)
     pub tombstones: Vec<TombstoneEntry>,
     /// Total tombstone count across all tables
-    pub total_tombstones: usize,
+    pub total_tombstones: i64,
     /// Total entries across all CRDT tables
-    pub total_entries: usize,
+    pub total_entries: i64,
     /// Total active entries
-    pub total_active: usize,
+    pub total_active: i64,
 }
 
 /// Installed extension info from haex_extensions table
@@ -243,7 +243,7 @@ fn get_table_statistics(conn: &Connection) -> Result<Vec<TableStats>, DatabaseEr
         }
 
         // Count rows
-        let total_rows: usize = conn
+        let total_rows: i64 = conn
             .query_row(
                 &format!("SELECT COUNT(*) FROM \"{}\"", table_name),
                 [],
@@ -251,7 +251,7 @@ fn get_table_statistics(conn: &Connection) -> Result<Vec<TableStats>, DatabaseEr
             )
             .unwrap_or(0);
 
-        let active_rows: usize = conn
+        let active_rows: i64 = conn
             .query_row(
                 &format!(
                     "SELECT COUNT(*) FROM \"{}\" WHERE {} = 0 OR {} IS NULL",
@@ -263,7 +263,7 @@ fn get_table_statistics(conn: &Connection) -> Result<Vec<TableStats>, DatabaseEr
             .unwrap_or(0);
 
         // Count actual tombstones (haex_tombstone = 1), not just non-active
-        let tombstone_rows: usize = conn
+        let tombstone_rows: i64 = conn
             .query_row(
                 &format!(
                     "SELECT COUNT(*) FROM \"{}\" WHERE {} = 1",
@@ -312,7 +312,7 @@ fn get_pending_sync(conn: &Connection) -> Result<Vec<PendingSyncInfo>, DatabaseE
 
         // Estimate pending rows (rows modified since last sync)
         // This is an approximation - we count all non-tombstoned rows for simplicity
-        let pending_rows: usize = conn
+        let pending_rows: i64 = conn
             .query_row(
                 &format!(
                     "SELECT COUNT(*) FROM \"{}\" WHERE {} = 0",
@@ -394,7 +394,7 @@ fn get_tombstone_entries(
             })?;
 
         let rows = stmt
-            .query_map([remaining], |row| {
+            .query_map([remaining as i64], |row| {
                 // Build PK JSON
                 let mut pk_values = serde_json::Map::new();
                 for (i, col) in pk_columns.iter().enumerate() {
@@ -495,15 +495,15 @@ pub fn get_database_info(state: State<'_, AppState>) -> Result<DatabaseInfo, Dat
 
         // Get pending sync
         let pending_sync = get_pending_sync(conn)?;
-        let total_pending_sync: usize = pending_sync.iter().map(|p| p.pending_rows).sum();
+        let total_pending_sync: i64 = pending_sync.iter().map(|p| p.pending_rows).sum();
 
         // Get tombstones (limit to 100)
         let tombstones = get_tombstone_entries(conn, &table_stats, 100)?;
-        let total_tombstones: usize = table_stats.iter().map(|t| t.tombstone_rows).sum();
+        let total_tombstones: i64 = table_stats.iter().map(|t| t.tombstone_rows).sum();
 
         // Calculate totals
-        let total_entries: usize = table_stats.iter().map(|t| t.total_rows).sum();
-        let total_active: usize = table_stats.iter().map(|t| t.active_rows).sum();
+        let total_entries: i64 = table_stats.iter().map(|t| t.total_rows).sum();
+        let total_active: i64 = table_stats.iter().map(|t| t.active_rows).sum();
 
         Ok(DatabaseInfo {
             file_size_bytes,

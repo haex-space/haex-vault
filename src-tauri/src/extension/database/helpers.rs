@@ -59,8 +59,8 @@ pub fn validate_sql_table_prefix(
         Statement::CreateTable(create_table) => {
             vec![create_table.name.to_string()]
         }
-        Statement::AlterTable { name, .. } => {
-            vec![name.to_string()]
+        Statement::AlterTable(alter) => {
+            vec![alter.name.to_string()]
         }
         Statement::Drop { names, .. } => names.iter().map(|n| n.to_string()).collect(),
         Statement::CreateIndex(create_index) => {
@@ -230,8 +230,8 @@ pub fn execute_sql_with_context(
         // Handle ALTER TABLE with column changes - drop triggers BEFORE executing
         // This is necessary because SQLite checks triggers during ALTER TABLE execution.
         // If a trigger references a column being dropped, the ALTER TABLE fails.
-        let alter_table_info: Option<(String, bool)> = if let Statement::AlterTable { name, operations, .. } = &statement {
-            let raw_name = name.to_string();
+        let alter_table_info: Option<(String, bool)> = if let Statement::AlterTable(alter) = &statement {
+            let raw_name = alter.name.to_string();
             let table_name_str = raw_name.trim_matches('"').trim_matches('`').to_string();
 
             // Skip temporary tables used by Drizzle for table reconstruction
@@ -240,7 +240,7 @@ pub fn execute_sql_with_context(
             } else {
                 // Check for DROP COLUMN on non-existent columns (simulate IF EXISTS)
                 // SQLite doesn't support DROP COLUMN IF EXISTS, so we check manually
-                for op in operations.iter() {
+                for op in alter.operations.iter() {
                     if let sqlparser::ast::AlterTableOperation::DropColumn { column_names, .. } = op {
                         for column_name in column_names {
                             let col_name = column_name.value.trim_matches('"').trim_matches('`');
@@ -265,7 +265,7 @@ pub fn execute_sql_with_context(
                     }
                 }
 
-                let has_column_change = operations.iter().any(|op| {
+                let has_column_change = alter.operations.iter().any(|op| {
                     use sqlparser::ast::AlterTableOperation;
                     matches!(
                         op,

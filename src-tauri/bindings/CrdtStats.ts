@@ -7,28 +7,28 @@ export type CrdtStats = {
 /**
  * Total number of rows across all CRDT tables
  */
-totalEntries: number, 
+totalEntries: bigint, 
 /**
  * Number of tables with dirty changes (kept for backwards compatibility)
  */
-pendingUpload: number, 
+pendingUpload: bigint, 
 /**
  * Number of CRDT-enabled tables (kept for backwards compatibility)
  */
-pendingApply: number, 
+pendingApply: bigint, 
 /**
  * Number of non-tombstoned entries
  */
-applied: number, 
+applied: bigint, 
 /**
  * Total count across all tables (kept for backwards compatibility)
  */
-insertCount: number, 
+insertCount: bigint, 
 /**
  * Number of non-tombstoned entries (kept for backwards compatibility)
  */
-updateCount: number, 
+updateCount: bigint, 
 /**
  * Number of tombstoned (soft-deleted) entries
  */
-deleteCount: number, };
+deleteCount: bigint, };

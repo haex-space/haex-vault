@@ -11,12 +11,12 @@ name: string,
 /**
  * Total number of rows
  */
-totalRows: number, 
+totalRows: bigint, 
 /**
  * Number of active (non-tombstoned) rows
  */
-activeRows: number, 
+activeRows: bigint, 
 /**
  * Number of tombstoned (soft-deleted) rows
  */
-tombstoneRows: number, };
+tombstoneRows: bigint, };

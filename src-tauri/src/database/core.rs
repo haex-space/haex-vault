@@ -138,7 +138,7 @@ pub fn parse_sql_statements(sql: &str) -> Result<Vec<Statement>, DatabaseError> 
 pub fn statement_has_returning(statement: &Statement) -> bool {
     match statement {
         Statement::Insert(insert) => insert.returning.is_some(),
-        Statement::Update { returning, .. } => returning.is_some(),
+        Statement::Update(update) => update.returning.is_some(),
         Statement::Delete(delete) => delete.returning.is_some(),
         _ => false,
     }
@@ -405,8 +405,8 @@ pub fn extract_table_names_from_statement(statement: &Statement) -> Vec<String> 
                 tables.push(name.to_string());
             }
         }
-        Statement::Update { table, .. } => {
-            extract_tables_from_table_factor(&table.relation, &mut tables);
+        Statement::Update(update) => {
+            extract_tables_from_table_factor(&update.table.relation, &mut tables);
         }
         Statement::Delete(delete) => {
             use sqlparser::ast::FromTable;
@@ -425,8 +425,8 @@ pub fn extract_table_names_from_statement(statement: &Statement) -> Vec<String> 
         Statement::CreateTable(create) => {
             tables.push(create.name.to_string());
         }
-        Statement::AlterTable { name, .. } => {
-            tables.push(name.to_string());
+        Statement::AlterTable(alter) => {
+            tables.push(alter.name.to_string());
         }
         Statement::Drop { names, .. } => {
             for name in names {
@@ -436,8 +436,8 @@ pub fn extract_table_names_from_statement(statement: &Statement) -> Vec<String> 
         Statement::CreateIndex(create_index) => {
             tables.push(create_index.table_name.to_string());
         }
-        Statement::Truncate { table_names, .. } => {
-            for table_name in table_names {
+        Statement::Truncate(truncate) => {
+            for table_name in &truncate.table_names {
                 tables.push(table_name.to_string());
             }
         }

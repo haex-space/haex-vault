@@ -190,14 +190,14 @@ impl SqlPermissionValidator {
     ) -> Result<Vec<String>, ExtensionError> {
         match statement {
             Statement::Insert(insert) => Ok(vec![Self::extract_table_name_from_insert(insert)?]),
-            Statement::Update { table, .. } => {
+            Statement::Update(update) => {
                 Ok(vec![Self::extract_table_name_from_table_factor(
-                    &table.relation,
+                    &update.table.relation,
                 )?])
             }
             Statement::Delete(delete) => Ok(vec![Self::extract_table_name_from_delete(delete)?]),
             Statement::CreateTable(create_table) => Ok(vec![create_table.name.to_string()]),
-            Statement::AlterTable { name, .. } => Ok(vec![name.to_string()]),
+            Statement::AlterTable(alter) => Ok(vec![alter.name.to_string()]),
             Statement::Drop { names, .. } => {
                 Ok(names.iter().map(|name| name.to_string()).collect())
             }

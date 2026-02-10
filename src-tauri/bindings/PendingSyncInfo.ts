@@ -15,4 +15,4 @@ lastModified: string,
 /**
  * Number of rows that need to be synced (estimated)
  */
-pendingRows: number, };
+pendingRows: bigint, };

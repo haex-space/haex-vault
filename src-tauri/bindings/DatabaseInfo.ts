@@ -26,7 +26,7 @@ pendingSync: Array<PendingSyncInfo>,
 /**
  * Total pending sync entries
  */
-totalPendingSync: number, 
+totalPendingSync: bigint, 
 /**
  * Tombstone entries (limited to most recent)
  */
@@ -34,12 +34,12 @@ tombstones: Array<TombstoneEntry>,
 /**
  * Total tombstone count across all tables
  */
-totalTombstones: number, 
+totalTombstones: bigint, 
 /**
  * Total entries across all CRDT tables
  */
-totalEntries: number, 
+totalEntries: bigint, 
 /**
  * Total active entries
  */
-totalActive: number, };
+totalActive: bigint, };

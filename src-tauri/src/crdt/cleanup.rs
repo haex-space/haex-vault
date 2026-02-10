@@ -99,15 +99,16 @@ fn cleanup_tombstones_internal(
             rusqlite::Error::InvalidQuery
         })?;
 
-        // Extract the time component as u64 (NTP64 nanoseconds)
+        // Extract the time component as u64 (NTP64 nanoseconds) and convert to i64 for SQLite
+        // NTP64 timestamps are always positive and fit within i64 range
         let current_hlc_num = current_timestamp.get_time().as_u64();
 
         // Calculate cutoff: subtract retention_days worth of nanoseconds
         let retention_ns = retention_days as u64 * 24 * 60 * 60 * 1_000_000_000;
-        current_hlc_num.saturating_sub(retention_ns)
+        current_hlc_num.saturating_sub(retention_ns) as i64
     } else {
         // Force delete mode: cutoff not needed, will delete all tombstones
-        0
+        0i64
     };
 
     // Get all table names from database
@@ -175,26 +176,26 @@ fn cleanup_tombstones_internal(
 #[serde(rename_all = "camelCase")]
 pub struct CrdtStats {
     /// Total number of rows across all CRDT tables
-    pub total_entries: usize,
+    pub total_entries: i64,
     /// Number of tables with dirty changes (kept for backwards compatibility)
-    pub pending_upload: usize,
+    pub pending_upload: i64,
     /// Number of CRDT-enabled tables (kept for backwards compatibility)
-    pub pending_apply: usize,
+    pub pending_apply: i64,
     /// Number of non-tombstoned entries
-    pub applied: usize,
+    pub applied: i64,
     /// Total count across all tables (kept for backwards compatibility)
-    pub insert_count: usize,
+    pub insert_count: i64,
     /// Number of non-tombstoned entries (kept for backwards compatibility)
-    pub update_count: usize,
+    pub update_count: i64,
     /// Number of tombstoned (soft-deleted) entries
-    pub delete_count: usize,
+    pub delete_count: i64,
 }
 
 pub fn get_crdt_stats(conn: &Connection) -> Result<CrdtStats, rusqlite::Error> {
-    let mut total_entries = 0;
-    let mut non_tombstoned = 0;
-    let mut tombstoned = 0;
-    let mut crdt_table_count = 0;
+    let mut total_entries: i64 = 0;
+    let mut non_tombstoned: i64 = 0;
+    let mut tombstoned: i64 = 0;
+    let mut crdt_table_count: i64 = 0;
 
     // Get all table names from database
     let mut stmt = conn.prepare(
@@ -224,7 +225,7 @@ pub fn get_crdt_stats(conn: &Connection) -> Result<CrdtStats, rusqlite::Error> {
         crdt_table_count += 1;
 
         // Count total entries
-        let count: usize = conn.query_row(
+        let count: i64 = conn.query_row(
             &format!("SELECT COUNT(*) FROM \"{}\"", table_name),
             [],
             |row| row.get(0),
@@ -232,7 +233,7 @@ pub fn get_crdt_stats(conn: &Connection) -> Result<CrdtStats, rusqlite::Error> {
         total_entries += count;
 
         // Count non-tombstoned entries
-        let active_count: usize = conn.query_row(
+        let active_count: i64 = conn.query_row(
             &format!(
                 "SELECT COUNT(*) FROM \"{}\" WHERE {} = 0",
                 table_name, TOMBSTONE_COLUMN
@@ -243,7 +244,7 @@ pub fn get_crdt_stats(conn: &Connection) -> Result<CrdtStats, rusqlite::Error> {
         non_tombstoned += active_count;
 
         // Count tombstoned entries
-        let tombstone_count: usize = conn.query_row(
+        let tombstone_count: i64 = conn.query_row(
             &format!(
                 "SELECT COUNT(*) FROM \"{}\" WHERE {} = 1",
                 table_name, TOMBSTONE_COLUMN
