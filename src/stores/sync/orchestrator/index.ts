@@ -16,6 +16,8 @@ import {
 import {
   subscribeToBackendAsync,
   unsubscribeFromBackendAsync,
+  setupVisibilityListener,
+  removeVisibilityListener,
 } from './realtime'
 import { initSyncEventsAsync, stopSyncEvents, registerStoreForTables } from '../syncEvents'
 
@@ -439,6 +441,10 @@ export const useSyncOrchestratorStore = defineStore(
       log.info('[START-SYNC] Starting dirty tables watcher...')
       await startDirtyTablesWatcherAsync()
 
+      // Setup visibility listener for mobile reconnection (Android/iOS)
+      log.info('[START-SYNC] Setting up visibility listener for mobile reconnection...')
+      setupVisibilityListener()
+
       log.info('[START-SYNC] Initializing backends...')
       for (const backend of enabledBackends) {
         try {
@@ -482,6 +488,9 @@ export const useSyncOrchestratorStore = defineStore(
      */
     const stopSyncAsync = async (): Promise<void> => {
       log.info('========== STOP SYNC ==========')
+
+      // Remove visibility listener for mobile reconnection
+      removeVisibilityListener()
 
       // Stop sync events listener (also clears all registered store reload functions)
       stopSyncEvents()
