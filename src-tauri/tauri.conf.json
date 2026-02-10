@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Haex Space",
+  "productName": "Haex Vault",
   "version": "1.5.56",
   "identifier": "space.haex.vault",
   "build": {
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Haex Space",
+        "title": "Haex Vault",
         "width": 800,
         "height": 600
       }
