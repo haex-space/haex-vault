@@ -50,7 +50,7 @@ defineProps<{
 
 const { t } = useI18n()
 
-const activeCategory = ref('general')
+const activeCategory = defineModel<string>('category', { default: 'general' })
 
 const categories = computed(() => [
   {

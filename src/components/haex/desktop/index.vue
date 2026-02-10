@@ -138,6 +138,7 @@
                 v-if="window.type === 'system'"
                 :is-dragging="windowManager.draggingWindowId === window.id"
                 :window-params="window.params"
+                :category="window.params?.category"
               />
 
               <!-- Native WebView: Show icon placeholder (actual content is in separate OS window) -->
