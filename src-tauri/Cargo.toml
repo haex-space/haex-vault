@@ -16,7 +16,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 serde_json = "1.0"
-tauri-build = { version = "2.5", features = [] }
+tauri-build = { version = "2.5.5", features = [] }
 serde = { version = "1.0", features = ["derive"] }
 
 [dependencies]
@@ -32,17 +32,17 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
 sqlparser = { version = "0.59", features = ["visitor"] }
-tauri = { version = "2.9", features = ["protocol-asset", "devtools", "test"] }
-tauri-plugin-dialog = "2.4"
-tauri-plugin-fs = "2.4"
-tauri-plugin-http = "2.5"
-tauri-plugin-notification = "2.3"
-tauri-plugin-opener = "2.5"
+tauri = { version = "2.10", features = ["protocol-asset", "devtools", "test"] }
+tauri-plugin-dialog = "2.6"
+tauri-plugin-fs = "2.4.5"
+tauri-plugin-http = "2.5.7"
+tauri-plugin-notification = "2.3.3"
+tauri-plugin-opener = "2.5.3"
 tauri-plugin-os = "2.3"
-tauri-plugin-persisted-scope = "2.3"
-tauri-plugin-store = "2.4"
-tauri-plugin-deep-link = "2.4"
-tauri-plugin-single-instance = "2.3"
+tauri-plugin-persisted-scope = "2.3.5"
+tauri-plugin-store = "2.4.2"
+tauri-plugin-deep-link = "2.4.7"
+tauri-plugin-single-instance = "2.4"
 thiserror = "2.0"
 ts-rs = { version = "11.1", features = ["serde-compat"] }
 uhlc = "0.8"
