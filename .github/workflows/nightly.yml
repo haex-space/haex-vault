@@ -319,7 +319,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: haex-vault-linux-e2e
-          path: src-tauri/target/release/haex-space
+          path: src-tauri/target/release/haex-vault
           retention-days: 1
 
   build-android:
