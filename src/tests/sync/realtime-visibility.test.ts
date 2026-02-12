@@ -278,8 +278,8 @@ describe('Visibility-based Reconnection', () => {
           isSyncing: false,
           error: null,
           subscription: {
-            unsubscribe: () => subscribePromise,
-          },
+            unsubscribe: () => subscribePromise as unknown as Promise<'ok'>,
+          } as unknown as typeof context.syncStates[string]['subscription'],
         },
       }
 

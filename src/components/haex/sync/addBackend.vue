@@ -23,6 +23,7 @@
         :label="t('customUrl.label')"
         size="lg"
         class="w-full"
+        data-testid="sync-custom-url-input"
       />
     </div>
 

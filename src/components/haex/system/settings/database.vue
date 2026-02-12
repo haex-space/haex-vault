@@ -309,7 +309,7 @@ const extensionItems = computed(() => {
       modifiedRows: pendingSyncMap.value.get(table.name) ?? 0,
     }))
     const modifiedRows = tablesWithModified.reduce(
-      (sum, t) => sum + t.modifiedRows,
+      (sum, t) => sum + Number(t.modifiedRows),
       0,
     )
 
