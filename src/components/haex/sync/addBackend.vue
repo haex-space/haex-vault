@@ -2,13 +2,13 @@
   <div class="space-y-4">
     <!-- Server URL Selection -->
     <div class="flex flex-col space-y-2">
-      <USelectMenu
-        v-model="selectedServerOption"
-        :items
-        size="lg"
-        class="w-full"
-        data-testid="sync-server-select"
-      >
+      <div data-testid="sync-server-select">
+        <USelectMenu
+          v-model="selectedServerOption"
+          :items
+          size="lg"
+          class="w-full"
+        >
         <template #item="{ item }">
           <UUser
             :name="item.label"
@@ -16,6 +16,7 @@
           />
         </template>
       </USelectMenu>
+      </div>
 
       <UiInput
         v-if="selectedServerOption.value === 'custom'"
