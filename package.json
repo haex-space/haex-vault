@@ -35,7 +35,7 @@
     "@haex-space/marketplace-sdk": "^0.1.6",
     "@haex-space/vault-sdk": "^2.5.106",
     "@nuxt/eslint": "1.15.1",
-    "@nuxt/fonts": "0.13.0",
+    "@nuxt/fonts": "0.14.0",
     "@nuxt/icon": "2.2.1",
     "@nuxt/ui": "4.4.0",
     "@nuxtjs/i18n": "10.2.3",
