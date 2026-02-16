@@ -80,7 +80,7 @@ reqwest = { version = "0.12", default-features = false, features = [
 
 # LocalSend dependencies (all platforms)
 get_if_addrs = "0.5"
-whoami = "2.0"
+whoami = "2.1"
 time = "0.3"
 # LocalSend server (all platforms - mobile only active when app in foreground)
 axum = "0.8"
