@@ -59,7 +59,7 @@
     "nuxt-zod-i18n": "^1.12.1",
     "swiper": "^12.1.0",
     "tailwindcss": "^4.1.18",
-    "vue": "^3.5.28"
+    "vue": "^3.5.29"
   },
   "devDependencies": {
     "@iconify-json/heroicons": "^1.2.3",
@@ -75,7 +75,7 @@
     "@vitejs/plugin-vue": "6.0.4",
     "@vitest/ui": "^4.0.18",
     "@vue-dnd-kit/core": "1.7.0",
-    "@vue/compiler-sfc": "^3.5.28",
+    "@vue/compiler-sfc": "^3.5.29",
     "drizzle-kit": "^0.31.9",
     "eslint": "^9.39.2",
     "globals": "^17.3.0",
@@ -89,7 +89,7 @@
     "vite": "^7.3.1",
     "vitest": "^4.0.18",
     "vue-router": "^4.6.4",
-    "vue-tsc": "3.2.4",
+    "vue-tsc": "3.2.5",
     "zod": "^3.25.76"
   },
   "prettier": {
