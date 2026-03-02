@@ -354,12 +354,45 @@ jobs:
           if [ -f "src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk" ]; then
             APK_PATH="src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk"
           else
-            # Find any release APK as fallback
-            APK_PATH=$(find src-tauri/gen/android/app/build/outputs/apk -name "*release*.apk" -type f 2>/dev/null | head -1)
+            # Find any release APK as fallback (prefer signed over unsigned)
+            APK_PATH=$(find src-tauri/gen/android/app/build/outputs/apk -name "*release*.apk" -not -name "*unsigned*" -type f 2>/dev/null | head -1)
+            if [ -z "$APK_PATH" ]; then
+              APK_PATH=$(find src-tauri/gen/android/app/build/outputs/apk -name "*release*.apk" -type f 2>/dev/null | head -1)
+            fi
           fi
 
           if [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then
-            echo "Using release APK for E2E: $APK_PATH"
+            # Check if APK is unsigned (no keystore was configured)
+            if [[ "$APK_PATH" == *"unsigned"* ]]; then
+              echo "APK is unsigned, signing with debug key for E2E tests..."
+              # Generate a temporary debug keystore
+              keytool -genkey -v \
+                -keystore /tmp/debug.keystore \
+                -storepass android \
+                -alias androiddebugkey \
+                -keypass android \
+                -keyalg RSA -keysize 2048 -validity 10000 \
+                -dname "CN=Android Debug,O=Android,C=US" \
+                -noprompt
+
+              SIGNED_APK="${APK_PATH/unsigned/debug-signed}"
+              cp "$APK_PATH" "$SIGNED_APK"
+
+              # Sign with debug key
+              jarsigner -verbose \
+                -sigalg SHA256withRSA -digestalg SHA-256 \
+                -keystore /tmp/debug.keystore \
+                -storepass android -keypass android \
+                "$SIGNED_APK" androiddebugkey
+
+              # Zipalign
+              ALIGNED_APK="/tmp/app-e2e.apk"
+              zipalign -v 4 "$SIGNED_APK" "$ALIGNED_APK"
+              APK_PATH="$ALIGNED_APK"
+              echo "Debug-signed APK ready: $APK_PATH"
+            fi
+
+            echo "Using APK for E2E: $APK_PATH"
             mkdir -p e2e-apk
             cp "$APK_PATH" e2e-apk/
             echo "APK_FOUND=true" >> $GITHUB_ENV
