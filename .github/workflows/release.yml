@@ -168,7 +168,7 @@ jobs:
 
       - name: Create release
         id: create-release
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
@@ -477,7 +477,7 @@ jobs:
     steps:
       - name: Publish release
         id: publish-release
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           release_id: ${{ needs.create-release.outputs.release_id }}
         with:
