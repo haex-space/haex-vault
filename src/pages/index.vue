@@ -22,6 +22,8 @@
           <HaexVaultCreate v-model:open="isCreateDrawerOpen" />
 
           <HaexVaultImport v-model:open="isImportDrawerOpen" />
+
+          <HaexVaultConnect v-model:open="isConnectBackendDrawerOpen" />
         </div>
 
         <!-- Hidden component for opening vaults from the list -->
@@ -128,6 +130,7 @@ const appVersion = ref('')
 const isCreateDrawerOpen = ref(false)
 const isImportDrawerOpen = ref(false)
 const isOpenDrawerOpen = ref(false)
+const isConnectBackendDrawerOpen = ref(false)
 const selectedVault = ref<VaultInfo>()
 
 // Ensure only one drawer is open at a time
@@ -135,6 +138,7 @@ watch(isCreateDrawerOpen, (isOpen) => {
   if (isOpen) {
     isImportDrawerOpen.value = false
     isOpenDrawerOpen.value = false
+    isConnectBackendDrawerOpen.value = false
   }
 })
 
@@ -142,6 +146,7 @@ watch(isImportDrawerOpen, (isOpen) => {
   if (isOpen) {
     isCreateDrawerOpen.value = false
     isOpenDrawerOpen.value = false
+    isConnectBackendDrawerOpen.value = false
   }
 })
 
@@ -149,6 +154,15 @@ watch(isOpenDrawerOpen, (isOpen) => {
   if (isOpen) {
     isCreateDrawerOpen.value = false
     isImportDrawerOpen.value = false
+    isConnectBackendDrawerOpen.value = false
+  }
+})
+
+watch(isConnectBackendDrawerOpen, (isOpen) => {
+  if (isOpen) {
+    isCreateDrawerOpen.value = false
+    isImportDrawerOpen.value = false
+    isOpenDrawerOpen.value = false
   }
 })
 

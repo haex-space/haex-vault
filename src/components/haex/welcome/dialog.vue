@@ -162,32 +162,6 @@
           </p>
         </form>
 
-        <!-- Step 3: Sync Server -->
-        <form
-          v-if="currentStep === 2"
-          class="space-y-4"
-          @submit.prevent="onStepFormSubmit"
-        >
-          <div class="text-center space-y-2">
-            <UIcon
-              name="i-heroicons-cloud"
-              class="w-12 h-12 text-primary mx-auto"
-            />
-            <p class="text-muted">
-              {{ t('steps.sync.description') }}
-            </p>
-          </div>
-
-          <!-- Sync Form -->
-          <HaexSyncAddBackend
-            v-model:server-url="syncCredentials.serverUrl"
-            v-model:email="syncCredentials.email"
-            v-model:password="syncCredentials.password"
-            :items="serverOptions"
-            :is-loading="isSyncLoading"
-            autofocus
-          />
-        </form>
       </div>
     </template>
 
@@ -213,18 +187,6 @@
           variant="ghost"
           data-testid="welcome-skip-extensions-button"
           @click="skipExtensions"
-        >
-          {{ t('actions.skip') }}
-        </UButton>
-
-        <!-- Skip Button (Step 3: Sync) -->
-        <UButton
-          v-if="currentStep === 2"
-          color="neutral"
-          variant="ghost"
-          :disabled="isProcessing"
-          data-testid="welcome-skip-sync-button"
-          @click="skipSync"
         >
           {{ t('actions.skip') }}
         </UButton>
@@ -268,40 +230,22 @@ const emit = defineEmits<{
 // Props
 const props = defineProps<{
   initialDeviceName?: string
-  /** If true, skip the sync step (already connected to remote vault) */
-  isConnectedToRemote?: boolean
 }>()
 
 // Stores
 const { hostname } = storeToRefs(useDeviceStore())
 const { addDeviceNameAsync, setAsCurrentDeviceAsync, readDeviceAsync, updateDeviceNameAsync } = useDeviceStore()
 const extensionStore = useExtensionsStore()
-const { serverOptions } = useSyncServerOptions()
-
-// Sync connection composable
-const { isLoading: isSyncLoading, error: syncError, createConnectionAsync } =
-  useCreateSyncConnection()
 
 // Step management
 const currentStep = ref(0)
 
-// Total steps depends on whether we're connected to remote
-const totalSteps = computed(() => props.isConnectedToRemote ? 2 : 3)
-const lastStepIndex = computed(() => totalSteps.value - 1)
+const lastStepIndex = 1
 
-const stepItems = computed(() => {
-  const items = [
-    { title: t('steps.device.title'), icon: 'i-heroicons-device-phone-mobile' },
-    { title: t('steps.extensions.title'), icon: 'i-heroicons-puzzle-piece' },
-  ]
-
-  // Only add sync step if not already connected to remote
-  if (!props.isConnectedToRemote) {
-    items.push({ title: t('steps.sync.title'), icon: 'i-heroicons-cloud' })
-  }
-
-  return items
-})
+const stepItems = computed(() => [
+  { title: t('steps.device.title'), icon: 'i-heroicons-device-phone-mobile' },
+  { title: t('steps.extensions.title'), icon: 'i-heroicons-puzzle-piece' },
+])
 
 const currentStepTitle = computed(() => {
   switch (currentStep.value) {
@@ -309,8 +253,6 @@ const currentStepTitle = computed(() => {
       return t('steps.device.title')
     case 1:
       return t('steps.extensions.title')
-    case 2:
-      return props.isConnectedToRemote ? t('title') : t('steps.sync.title')
     default:
       return t('title')
   }
@@ -501,13 +443,6 @@ const onPermissionsDeny = () => {
   extensionStore.clearPendingInstall()
 }
 
-// Step 3: Sync
-const syncCredentials = ref({
-  serverUrl: 'https://sync.haex.space',
-  email: '',
-  password: '',
-})
-
 // Processing state
 const isProcessing = ref(false)
 
@@ -520,13 +455,6 @@ const canProceed = computed(() => {
       return deviceName.value.trim().length >= 2
     case 1:
       return true // Extensions are optional
-    case 2:
-      // Sync credentials must be filled to connect
-      return (
-        syncCredentials.value.serverUrl.trim() !== '' &&
-        syncCredentials.value.email.trim() !== '' &&
-        syncCredentials.value.password.trim() !== ''
-      )
     default:
       return false
   }
@@ -541,25 +469,13 @@ const previousStep = () => {
 
 const skipExtensions = () => {
   selectedExtensions.value = []
-  // If connected to remote, finish immediately. Otherwise go to sync step.
-  if (props.isConnectedToRemote) {
-    finishWizardAsync({ withSync: false })
-  } else {
-    currentStep.value = 2
-  }
+  finishWizardAsync()
 }
 
-const finishWizardAsync = async (options: { withSync: boolean }) => {
+const finishWizardAsync = async () => {
   isProcessing.value = true
 
   try {
-    // Sync FIRST - if it fails, user should be able to fix credentials
-    // without having already committed other changes
-    if (options.withSync) {
-      await setupSyncAsync()
-    }
-
-    // Only proceed with other actions after sync succeeds (or was skipped)
     await saveDeviceNameAsync()
     await installSelectedExtensionsAsync()
 
@@ -573,17 +489,12 @@ const finishWizardAsync = async (options: { withSync: boolean }) => {
     emit('complete')
   } catch (error) {
     console.error('Failed to complete wizard:', error)
-    // Only show generic error if it's not from sync (sync shows its own error toast)
-    if (!options.withSync || !syncError.value) {
-      add({ color: 'error', description: t('errors.complete') })
-    }
+    add({ color: 'error', description: t('errors.complete') })
     // Don't close the dialog - user should be able to retry
   } finally {
     isProcessing.value = false
   }
 }
-
-const skipSync = () => finishWizardAsync({ withSync: false })
 
 const onStepFormSubmit = () => {
   if (canProceed.value && !isProcessing.value) {
@@ -610,15 +521,7 @@ const nextStep = async () => {
     // Load extensions when entering step 2
     await loadRecommendedExtensionsAsync()
   } else if (currentStep.value === 1) {
-    // If connected to remote, finish. Otherwise go to sync step.
-    if (props.isConnectedToRemote) {
-      await finishWizardAsync({ withSync: false })
-    } else {
-      currentStep.value = 2
-    }
-  } else if (currentStep.value === 2) {
-    // Complete the wizard with sync
-    await completeWizardAsync()
+    await finishWizardAsync()
   }
 }
 
@@ -738,42 +641,12 @@ const installSelectedExtensionsAsync = async () => {
   await extensionStore.loadExtensionsAsync()
 }
 
-const setupSyncAsync = async () => {
-  const backendId = await createConnectionAsync({
-    serverUrl: syncCredentials.value.serverUrl,
-    email: syncCredentials.value.email,
-    password: syncCredentials.value.password,
-  })
-
-  if (backendId) {
-    add({
-      color: 'success',
-      title: t('success.syncConfigured'),
-    })
-  } else if (syncError.value) {
-    add({
-      color: 'error',
-      title: t('errors.syncSetup'),
-      description: syncError.value,
-    })
-    // Throw to prevent wizard from closing - user should fix credentials
-    throw new Error(syncError.value)
-  }
-}
-
-const completeWizardAsync = () => finishWizardAsync({ withSync: true })
-
 // Watch for open state to reset
 watch(open, (isOpen) => {
   if (isOpen) {
     currentStep.value = 0
     deviceName.value = props.initialDeviceName || hostname.value || 'unknown'
     selectedExtensions.value = []
-    syncCredentials.value = {
-      serverUrl: 'https://sync.haex.space',
-      email: '',
-      password: '',
-    }
   }
 })
 </script>
@@ -798,13 +671,6 @@ de:
       selectVersion: Version
       latest: Neueste
       permissions: Berechtigungen
-    sync:
-      title: Synchronisierung
-      description: Synchronisiere deine Vault mit anderen Geräten über einen Sync-Server.
-      skipTitle: Später einrichten
-      skipDescription: Die Synchronisierung kann jederzeit in den Einstellungen eingerichtet werden.
-      enableTitle: Jetzt verbinden
-      enableDescription: Verbinde dich mit einem Sync-Server, um deine Daten zu synchronisieren.
   actions:
     back: Zurück
     next: Weiter
@@ -813,11 +679,9 @@ de:
   success:
     complete: Einrichtung abgeschlossen
     completeDescription: Deine Vault ist jetzt einsatzbereit!
-    syncConfigured: Synchronisierung eingerichtet
   errors:
     invalidDeviceName: Ungültiger Gerätename
     saveDeviceName: Gerätename konnte nicht gespeichert werden
-    syncSetup: Synchronisierung konnte nicht eingerichtet werden
     complete: Einrichtung konnte nicht abgeschlossen werden
     loadPermissions: Berechtigungen konnten nicht geladen werden
     extensionInstall: "Fehler bei Installation von {name}"
@@ -841,13 +705,6 @@ en:
       selectVersion: Version
       latest: Latest
       permissions: Permissions
-    sync:
-      title: Synchronization
-      description: Sync your vault with other devices via a sync server.
-      skipTitle: Set up later
-      skipDescription: Synchronization can be set up anytime in settings.
-      enableTitle: Connect now
-      enableDescription: Connect to a sync server to synchronize your data.
   actions:
     back: Back
     next: Next
@@ -856,11 +713,9 @@ en:
   success:
     complete: Setup Complete
     completeDescription: Your vault is now ready to use!
-    syncConfigured: Sync configured
   errors:
     invalidDeviceName: Invalid device name
     saveDeviceName: Could not save device name
-    syncSetup: Could not set up synchronization
     complete: Could not complete setup
     loadPermissions: Could not load permissions
     extensionInstall: "Failed to install {name}"
