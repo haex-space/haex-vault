@@ -7,17 +7,10 @@ import { invoke } from '@tauri-apps/api/core'
 import { emit } from '@tauri-apps/api/event'
 import { decryptCrdtData } from '@haex-space/vault-sdk'
 import type { ColumnChange } from '../tableScanner'
-import { orchestratorLog as log, type BackendSyncState, type PullResult, syncMutex } from './types'
+import { orchestratorLog as log, type BackendSyncState, type PullResult, syncMutex, SpaceUnavailableError } from './types'
 import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
 import { SYNC_TABLES_INTERNAL_EVENT } from '../syncEvents'
 import type { PendingColumn } from '@bindings/PendingColumn'
-
-class SpaceUnavailableError extends Error {
-  constructor(public status: number, message: string) {
-    super(message)
-    this.name = 'SpaceUnavailableError'
-  }
-}
 
 /**
  * Pulls changes from a specific backend using column-level HLC comparison
@@ -68,7 +61,10 @@ export const pullFromBackendAsync = async (
 
     // Get encryption key: space key for space backends, vault key for personal
     let encryptionKey: Uint8Array
-    if (isSpaceBackend && backend.spaceId) {
+    if (isSpaceBackend) {
+      if (!backend.spaceId) {
+        throw new Error('Space backend is missing spaceId configuration')
+      }
       const spacesStore = useSpacesStore()
       const spaceKey = spacesStore.getSpaceKey(backend.spaceId, 1) // TODO: proper generation lookup
       if (!spaceKey) {
@@ -604,6 +600,12 @@ export const pullPendingColumnsAsync = async (
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({}))
+        if (spaceToken && (response.status === 401 || response.status === 404)) {
+          throw new SpaceUnavailableError(
+            response.status,
+            `Space backend unavailable during pending column pull (HTTP ${response.status})`,
+          )
+        }
         log.error(`Failed to pull column ${pendingCol.tableName}.${pendingCol.columnName}:`, error)
         throw new Error(`Failed to pull column data: ${error.error || response.statusText}`)
       }

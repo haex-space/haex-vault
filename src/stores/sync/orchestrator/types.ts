@@ -82,3 +82,10 @@ export class SyncMutex {
  * Global sync mutex instance - shared across all sync operations
  */
 export const syncMutex = new SyncMutex()
+
+export class SpaceUnavailableError extends Error {
+  constructor(public status: number, message: string) {
+    super(message)
+    this.name = 'SpaceUnavailableError'
+  }
+}

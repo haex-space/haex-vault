@@ -10,7 +10,7 @@ import {
   clearDirtyTableAsync,
   type ColumnChange,
 } from '../tableScanner'
-import { orchestratorLog as log, type BackendSyncState, syncMutex } from './types'
+import { orchestratorLog as log, type BackendSyncState, syncMutex, SpaceUnavailableError } from './types'
 
 /**
  * Pushes local changes to a specific backend using table-scanning approach
@@ -69,7 +69,10 @@ export const pushToBackendAsync = async (
 
     // Get encryption key: space key for space backends, vault key for personal
     let encryptionKey: Uint8Array
-    if (isSpaceBackend && backend.spaceId) {
+    if (isSpaceBackend) {
+      if (!backend.spaceId) {
+        throw new Error('Space backend is missing spaceId configuration')
+      }
       const spacesStore = useSpacesStore()
       const spaceKey = spacesStore.getSpaceKey(backend.spaceId, 1) // TODO: proper generation lookup
       if (!spaceKey) {
@@ -232,6 +235,12 @@ export const pushToBackendAsync = async (
 
     log.info(`========== PUSH SUCCESS: ${allChanges.length} changes pushed ==========`)
   } catch (error) {
+    if (error instanceof SpaceUnavailableError) {
+      log.warn(`Space backend ${backendId} unavailable (${error.status}), disabling. Local data is preserved.`)
+      await syncBackendsStore.updateBackendAsync(backendId, { enabled: false })
+      state.error = error.message
+      return
+    }
     log.error(`========== PUSH FAILED ==========`, error)
     state.error = error instanceof Error ? error.message : 'Unknown error'
     throw error
@@ -264,6 +273,11 @@ export const pushChangesToServerAsync = async (
   const deviceStore = useDeviceStore()
   const deviceId = deviceStore.deviceId
 
+  // Hoist dynamic import outside per-change loop
+  const signRecordAsync = isSpaceBackend
+    ? (await import('@haex-space/vault-sdk')).signRecordAsync
+    : null
+
   // Format changes for server API, with optional signing for space backends
   const formattedChanges = await Promise.all(changes.map(async (change) => {
     const base = {
@@ -279,13 +293,12 @@ export const pushChangesToServerAsync = async (
       nonce: change.nonce,
     }
 
-    if (isSpaceBackend) {
+    if (isSpaceBackend && signRecordAsync) {
       const userKeypairStore = useUserKeypairStore()
       if (!userKeypairStore.privateKeyBase64 || !userKeypairStore.publicKeyBase64) {
         throw new Error('User keypair not available for signing')
       }
 
-      const { signRecordAsync } = await import('@haex-space/vault-sdk')
       const signature = await signRecordAsync(
         {
           tableName: change.tableName,
@@ -339,6 +352,12 @@ export const pushChangesToServerAsync = async (
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
+    if (backend.spaceToken && (response.status === 401 || response.status === 404)) {
+      throw new SpaceUnavailableError(
+        response.status,
+        `Space backend unavailable (HTTP ${response.status}): ${error.error || response.statusText}`,
+      )
+    }
     log.error('Server returned error:', { status: response.status, error })
     throw new Error(`Failed to push changes: ${error.error || response.statusText}`)
   }
@@ -386,7 +405,10 @@ export const pushAllDataToBackendAsync = async (
 
   // Get encryption key: space key for space backends, vault key for personal
   let encryptionKey: Uint8Array
-  if (isSpaceBackend && backend.spaceId) {
+  if (isSpaceBackend) {
+    if (!backend.spaceId) {
+      throw new Error('Space backend is missing spaceId configuration')
+    }
     const spacesStore = useSpacesStore()
     const spaceKey = spacesStore.getSpaceKey(backend.spaceId, 1) // TODO: proper generation lookup
     if (!spaceKey) {
