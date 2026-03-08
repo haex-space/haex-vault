@@ -71,7 +71,7 @@
             </div>
             <div class="flex gap-2 @xs:shrink-0">
               <UButton
-                v-if="space.role === 'admin' || space.role === 'member'"
+                v-if="space.role === 'admin'"
                 color="primary"
                 variant="ghost"
                 icon="i-lucide-user-plus"
@@ -269,7 +269,7 @@ import type { SharedSpace, SpaceInvite, SpaceRole } from '@haex-space/vault-sdk'
 
 const { t } = useI18n()
 const { add } = useToast()
-const { copy, copied } = useClipboard()
+const { copy } = useClipboard()
 
 const spacesStore = useSpacesStore()
 const syncBackendsStore = useSyncBackendsStore()
@@ -332,12 +332,6 @@ const roleOptions = computed(() => [
   { label: t('roles.viewer'), value: 'viewer' },
 ])
 
-// Helper: get password for a server URL from existing backends
-const getPasswordForServer = (serverUrl: string): string | null => {
-  const backend = syncBackends.value.find(b => b.serverUrl === serverUrl && b.password)
-  return backend?.password ?? null
-}
-
 // Helper: badge color for role
 const roleBadgeColor = (role: SpaceRole) => {
   switch (role) {
@@ -383,12 +377,8 @@ const onCreateSpaceAsync = async () => {
 
   isCreating.value = true
   try {
-    const password = getPasswordForServer(createForm.serverUrl)
-    if (!password) {
-      throw new Error(t('errors.noPassword'))
-    }
-
-    await spacesStore.createSpaceAsync(createForm.serverUrl, createForm.name, password)
+    // TODO: password parameter is accepted by the store but not used internally
+    const createdSpace = await spacesStore.createSpaceAsync(createForm.serverUrl, createForm.name, '')
 
     add({
       title: t('success.created'),
@@ -396,8 +386,12 @@ const onCreateSpaceAsync = async () => {
     })
 
     showCreateDialog.value = false
+    const serverUrl = createForm.serverUrl
     createForm.name = ''
     createForm.serverUrl = ''
+
+    // Open invite dialog for the newly created space
+    openInviteDialog({ ...createdSpace, role: 'admin' as SpaceRole }, serverUrl)
   } catch (error) {
     console.error('Failed to create space:', error)
     add({
@@ -416,7 +410,17 @@ const onJoinSpaceAsync = async () => {
 
   isJoining.value = true
   try {
-    const invite: SpaceInvite = JSON.parse(joinInviteJson.value)
+    let invite: SpaceInvite
+    try {
+      invite = JSON.parse(joinInviteJson.value)
+    } catch {
+      add({ title: t('errors.invalidJson'), color: 'error' })
+      return
+    }
+    if (!invite.spaceId || !invite.serverUrl || !invite.accessToken || !invite.encryptedSpaceKey) {
+      add({ title: t('errors.invalidInvite'), color: 'error' })
+      return
+    }
 
     const { spaceId } = await spacesStore.joinSpaceFromInviteAsync(invite)
 
@@ -424,6 +428,7 @@ const onJoinSpaceAsync = async () => {
     await syncBackendsStore.addBackendAsync({
       name: `Space ${spaceId.slice(0, 8)}`,
       serverUrl: invite.serverUrl,
+      vaultId: invite.spaceId,
       type: 'space',
       spaceId: invite.spaceId,
       spaceToken: invite.accessToken,
@@ -453,15 +458,22 @@ const onJoinSpaceAsync = async () => {
 }
 
 // Open invite dialog
-const openInviteDialog = (space: SharedSpace) => {
+const openInviteDialog = (space: SharedSpace, knownServerUrl?: string) => {
   inviteSpaceId.value = space.id
   inviteForm.userId = ''
   inviteForm.role = 'member'
   inviteResult.value = ''
 
-  // Find the server URL for this space from backends
-  const backend = syncBackends.value.find(b => b.spaceId === space.id)
-  inviteServerUrl.value = backend?.serverUrl || syncBackends.value[0]?.serverUrl || ''
+  if (knownServerUrl) {
+    inviteServerUrl.value = knownServerUrl
+  } else {
+    const serverUrl = getServerUrlForSpace(space.id)
+    if (!serverUrl) {
+      add({ title: t('errors.noServerUrl'), color: 'error' })
+      return
+    }
+    inviteServerUrl.value = serverUrl
+  }
 
   showInviteDialog.value = true
 }
@@ -524,9 +536,9 @@ const prepareLeaveSpace = (space: SharedSpace) => {
 }
 
 // Find server URL for a space
-const getServerUrlForSpace = (spaceId: string): string => {
+const getServerUrlForSpace = (spaceId: string): string | null => {
   const backend = syncBackends.value.find(b => b.spaceId === spaceId)
-  return backend?.serverUrl || syncBackends.value[0]?.serverUrl || ''
+  return backend?.serverUrl ?? null
 }
 
 // Confirm delete
@@ -535,6 +547,10 @@ const onConfirmDeleteAsync = async () => {
 
   try {
     const serverUrl = getServerUrlForSpace(targetSpace.value.id)
+    if (!serverUrl) {
+      add({ title: t('errors.noServerUrl'), color: 'error' })
+      return
+    }
     await spacesStore.deleteSpaceAsync(serverUrl, targetSpace.value.id)
 
     // Remove associated sync backend
@@ -566,6 +582,10 @@ const onConfirmLeaveAsync = async () => {
 
   try {
     const serverUrl = getServerUrlForSpace(targetSpace.value.id)
+    if (!serverUrl) {
+      add({ title: t('errors.noServerUrl'), color: 'error' })
+      return
+    }
     await spacesStore.leaveSpaceAsync(serverUrl, targetSpace.value.id)
 
     // Remove associated sync backend
@@ -650,6 +670,9 @@ de:
     deleteFailed: Löschen fehlgeschlagen
     leaveFailed: Verlassen fehlgeschlagen
     noPassword: Kein Passwort für diesen Server gefunden
+    invalidJson: Ungültiges JSON-Format
+    invalidInvite: Unvollständige Einladung
+    noServerUrl: Server-URL für diesen Space nicht gefunden
 en:
   title: Spaces
   description: Create, manage and join shared spaces
@@ -707,4 +730,7 @@ en:
     deleteFailed: Failed to delete space
     leaveFailed: Failed to leave space
     noPassword: No password found for this server
+    invalidJson: Invalid JSON format
+    invalidInvite: Invalid or incomplete invitation
+    noServerUrl: Server URL for this space not found
 </i18n>
