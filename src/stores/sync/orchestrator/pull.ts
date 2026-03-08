@@ -12,6 +12,13 @@ import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
 import { SYNC_TABLES_INTERNAL_EVENT } from '../syncEvents'
 import type { PendingColumn } from '@bindings/PendingColumn'
 
+class SpaceUnavailableError extends Error {
+  constructor(public status: number, message: string) {
+    super(message)
+    this.name = 'SpaceUnavailableError'
+  }
+}
+
 /**
  * Pulls changes from a specific backend using column-level HLC comparison
  * Downloads ALL changes first, then applies them atomically in a transaction
@@ -163,8 +170,21 @@ export const pullFromBackendAsync = async (
       log.info('Filtered sync:tables-updated events emitted to extensions')
     }
 
+    // TODO: Client-side signature verification for space backends (defense-in-depth)
+    // The server already verifies signatures on push, but pulled records from space
+    // backends should also be verified client-side once the member public key cache
+    // is available. This requires resolving each signer's public key locally.
+
     log.info(`========== PULL SUCCESS: ${allChanges.length} changes applied ==========`)
   } catch (error) {
+    // Handle space backend unavailability by disabling the backend
+    if (error instanceof SpaceUnavailableError) {
+      log.warn(`Space backend ${backendId} is unavailable (${error.status}), disabling backend. Local data is preserved.`)
+      await syncBackendsStore.updateBackendAsync(backendId, { enabled: false })
+      state.error = error.message
+      return
+    }
+
     // Extract detailed error message for better debugging
     let errorMessage = 'Unknown error'
     if (error instanceof Error) {
@@ -248,10 +268,12 @@ export const pullChangesFromServerAsync = async (
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
-      // For space backends, treat 401/404 as unavailable rather than fatal
+      // For space backends, treat 401/404 as unavailable
       if (spaceToken && (response.status === 401 || response.status === 404)) {
-        log.warn(`Space backend unavailable (${response.status}), skipping pull`)
-        return { changes: [], serverTimestamp: null }
+        throw new SpaceUnavailableError(
+          response.status,
+          `Space backend unavailable (HTTP ${response.status}): ${error.error || response.statusText}`,
+        )
       }
       log.error('Server returned error:', { status: response.status, error })
       throw new Error(`Failed to pull changes: ${error.error || response.statusText}`)

@@ -97,6 +97,12 @@ export const pushToBackendAsync = async (
     log.debug('Device ID:', deviceId)
 
     // Get all dirty tables that need to be synced
+    // TODO: Table filtering for space vs personal backends
+    // Currently ALL dirty tables are pushed to ANY backend. Once extension space table
+    // registration exists (Task 13+), this needs to be filtered:
+    // - Personal backends: push only non-space tables (tables not claimed by any space)
+    // - Space backends: push only tables registered for this specific space
+    // Until then, all dirty tables are pushed to all backends (current behavior).
     log.info('[PUSH-SCAN] Fetching dirty tables...')
     const dirtyTables = await getDirtyTablesAsync()
 
