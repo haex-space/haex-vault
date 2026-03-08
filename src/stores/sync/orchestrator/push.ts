@@ -57,21 +57,35 @@ export const pushToBackendAsync = async (
       throw new Error('Backend vaultId not configured')
     }
 
+    const isSpaceBackend = backend.type === 'space'
     const lastPushHlc = backend.lastPushHlcTimestamp
     log.debug('Backend config:', {
       backendId,
       vaultId: backend.vaultId,
       serverUrl: backend.serverUrl,
       lastPushHlc: lastPushHlc || '(none)',
+      type: backend.type || 'personal',
     })
 
-    // Get vault key from cache
-    const vaultKey = syncEngineStore.vaultKeyCache[backend.vaultId]?.vaultKey
-    if (!vaultKey) {
-      log.error('PUSH FAILED: Vault key not available')
-      throw new Error('Vault key not available. Please unlock vault first.')
+    // Get encryption key: space key for space backends, vault key for personal
+    let encryptionKey: Uint8Array
+    if (isSpaceBackend && backend.spaceId) {
+      const spacesStore = useSpacesStore()
+      const spaceKey = spacesStore.getSpaceKey(backend.spaceId, 1) // TODO: proper generation lookup
+      if (!spaceKey) {
+        log.error('PUSH FAILED: Space key not available')
+        throw new Error('Space key not available')
+      }
+      encryptionKey = spaceKey
+    } else {
+      const vaultKey = syncEngineStore.vaultKeyCache[backend.vaultId]?.vaultKey
+      if (!vaultKey) {
+        log.error('PUSH FAILED: Vault key not available')
+        throw new Error('Vault key not available. Please unlock vault first.')
+      }
+      encryptionKey = vaultKey
     }
-    log.debug('Vault key available: true')
+    log.debug('Encryption key available: true')
 
     // Get current device ID
     const deviceStore = useDeviceStore()
@@ -116,7 +130,7 @@ export const pushToBackendAsync = async (
         const tableChanges = await scanTableForChangesAsync(
           tableName,
           lastPushHlc,
-          vaultKey,
+          encryptionKey,
           batchId,
           deviceId,
         )
@@ -232,48 +246,85 @@ export const pushChangesToServerAsync = async (
   syncBackendsStore: ReturnType<typeof useSyncBackendsStore>,
   syncEngineStore: ReturnType<typeof useSyncEngineStore>,
 ): Promise<string | null> => {
-  log.debug('pushChangesToServerAsync: Getting auth token...')
-  const token = await syncEngineStore.getAuthTokenAsync()
-  if (!token) {
-    log.error('pushChangesToServerAsync: Not authenticated')
-    throw new Error('Not authenticated')
-  }
-
   const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
   if (!backend) {
     log.error('pushChangesToServerAsync: Backend not found')
     throw new Error('Backend not found')
   }
 
+  const isSpaceBackend = backend.type === 'space'
+
   // Get current device ID
   const deviceStore = useDeviceStore()
   const deviceId = deviceStore.deviceId
 
-  // Format changes for server API
-  const formattedChanges = changes.map((change) => ({
-    tableName: change.tableName,
-    rowPks: change.rowPks,
-    columnName: change.columnName,
-    hlcTimestamp: change.hlcTimestamp,
-    batchId: change.batchId,
-    batchSeq: change.batchSeq,
-    batchTotal: change.batchTotal,
-    deviceId,
-    encryptedValue: change.encryptedValue,
-    nonce: change.nonce,
+  // Format changes for server API, with optional signing for space backends
+  const formattedChanges = await Promise.all(changes.map(async (change) => {
+    const base = {
+      tableName: change.tableName,
+      rowPks: change.rowPks,
+      columnName: change.columnName,
+      hlcTimestamp: change.hlcTimestamp,
+      batchId: change.batchId,
+      batchSeq: change.batchSeq,
+      batchTotal: change.batchTotal,
+      deviceId,
+      encryptedValue: change.encryptedValue,
+      nonce: change.nonce,
+    }
+
+    if (isSpaceBackend) {
+      const userKeypairStore = useUserKeypairStore()
+      if (!userKeypairStore.privateKeyBase64 || !userKeypairStore.publicKeyBase64) {
+        throw new Error('User keypair not available for signing')
+      }
+
+      const { signRecordAsync } = await import('@haex-space/vault-sdk')
+      const signature = await signRecordAsync(
+        {
+          tableName: change.tableName,
+          rowPks: change.rowPks,
+          columnName: change.columnName,
+          encryptedValue: change.encryptedValue,
+          hlcTimestamp: change.hlcTimestamp,
+        },
+        userKeypairStore.privateKeyBase64,
+      )
+
+      return {
+        ...base,
+        signature,
+        signedBy: userKeypairStore.publicKeyBase64,
+      }
+    }
+
+    return base
   }))
+
+  // Use appropriate auth header
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+
+  if (backend.spaceToken) {
+    headers['X-Space-Token'] = backend.spaceToken
+  } else {
+    const token = await syncEngineStore.getAuthTokenAsync()
+    if (!token) {
+      log.error('pushChangesToServerAsync: Not authenticated')
+      throw new Error('Not authenticated')
+    }
+    headers.Authorization = `Bearer ${token}`
+  }
 
   const url = `${backend.serverUrl}/sync/push`
   log.debug('Sending POST to:', url)
-  log.debug('Request payload:', { vaultId, changesCount: formattedChanges.length })
+  log.debug('Request payload:', { vaultId, changesCount: formattedChanges.length, isSpaceBackend })
 
   // Send to server
   const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
+    headers,
     body: JSON.stringify({
       vaultId,
       changes: formattedChanges,
@@ -319,19 +370,33 @@ export const pushAllDataToBackendAsync = async (
     throw new Error('Backend vaultId not configured')
   }
 
+  const isSpaceBackend = backend.type === 'space'
   log.debug('Backend config:', {
     backendId,
     vaultId: backend.vaultId,
     serverUrl: backend.serverUrl,
+    type: backend.type || 'personal',
   })
 
-  // Get vault key from cache
-  const vaultKey = syncEngineStore.vaultKeyCache[backend.vaultId]?.vaultKey
-  if (!vaultKey) {
-    log.error('FULL PUSH FAILED: Vault key not available')
-    throw new Error('Vault key not available. Please unlock vault first.')
+  // Get encryption key: space key for space backends, vault key for personal
+  let encryptionKey: Uint8Array
+  if (isSpaceBackend && backend.spaceId) {
+    const spacesStore = useSpacesStore()
+    const spaceKey = spacesStore.getSpaceKey(backend.spaceId, 1) // TODO: proper generation lookup
+    if (!spaceKey) {
+      log.error('FULL PUSH FAILED: Space key not available')
+      throw new Error('Space key not available')
+    }
+    encryptionKey = spaceKey
+  } else {
+    const vaultKey = syncEngineStore.vaultKeyCache[backend.vaultId]?.vaultKey
+    if (!vaultKey) {
+      log.error('FULL PUSH FAILED: Vault key not available')
+      throw new Error('Vault key not available. Please unlock vault first.')
+    }
+    encryptionKey = vaultKey
   }
-  log.debug('Vault key available: true')
+  log.debug('Encryption key available: true')
 
   // Get current device ID
   const deviceStore = useDeviceStore()
@@ -368,7 +433,7 @@ export const pushAllDataToBackendAsync = async (
       const tableChanges = await scanTableForChangesAsync(
         tableName,
         null, // null = scan ALL data, not just newer than lastPushHlc
-        vaultKey,
+        encryptionKey,
         batchId,
         deviceId,
       )

@@ -218,6 +218,9 @@ export const haexSyncBackends = sqliteTable(
     password: text(tableNames.haex.sync_backends.columns.password),
     syncKey: text(tableNames.haex.sync_backends.columns.syncKey),
     vaultKeySalt: text(tableNames.haex.sync_backends.columns.vaultKeySalt),
+    type: text(tableNames.haex.sync_backends.columns.type).default('personal').notNull(), // 'personal' | 'space'
+    spaceId: text(tableNames.haex.sync_backends.columns.spaceId), // Space ID if type='space'
+    spaceToken: text(tableNames.haex.sync_backends.columns.spaceToken), // Access token for federated spaces
     enabled: integer(tableNames.haex.sync_backends.columns.enabled, {
       mode: 'boolean',
     })

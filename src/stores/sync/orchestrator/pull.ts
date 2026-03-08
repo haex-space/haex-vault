@@ -57,11 +57,25 @@ export const pullFromBackendAsync = async (
       throw new Error('Backend vaultId not configured')
     }
 
-    // Get vault key from cache
-    const vaultKey = syncEngineStore.vaultKeyCache[backend.vaultId]?.vaultKey
-    if (!vaultKey) {
-      log.error('PULL FAILED: Vault key not available')
-      throw new Error('Vault key not available. Please unlock vault first.')
+    const isSpaceBackend = backend.type === 'space'
+
+    // Get encryption key: space key for space backends, vault key for personal
+    let encryptionKey: Uint8Array
+    if (isSpaceBackend && backend.spaceId) {
+      const spacesStore = useSpacesStore()
+      const spaceKey = spacesStore.getSpaceKey(backend.spaceId, 1) // TODO: proper generation lookup
+      if (!spaceKey) {
+        log.error('PULL FAILED: Space key not available')
+        throw new Error('Space key not available')
+      }
+      encryptionKey = spaceKey
+    } else {
+      const vaultKey = syncEngineStore.vaultKeyCache[backend.vaultId]?.vaultKey
+      if (!vaultKey) {
+        log.error('PULL FAILED: Vault key not available')
+        throw new Error('Vault key not available. Please unlock vault first.')
+      }
+      encryptionKey = vaultKey
     }
 
     const lastPullServerTimestamp = backend.lastPullServerTimestamp
@@ -78,6 +92,7 @@ export const pullFromBackendAsync = async (
       backend.vaultId,
       lastPullServerTimestamp,
       syncEngineStore,
+      backend.spaceToken,
     )
 
     const { changes: allChanges, serverTimestamp } = pullResult
@@ -101,7 +116,7 @@ export const pullFromBackendAsync = async (
     log.debug('Tables affected:', tablesAffected)
 
     // Step 2: Apply all changes with proper migration ordering
-    await applyAllChangesWithMigrationsAsync(allChanges, vaultKey, backendId)
+    await applyAllChangesWithMigrationsAsync(allChanges, encryptionKey, backendId)
 
     // Step 2b: Check for and pull any pending columns
     // This handles schema version differences - if we previously skipped columns
@@ -110,9 +125,10 @@ export const pullFromBackendAsync = async (
     const pendingColumnsPulled = await pullPendingColumnsAsync(
       backend.serverUrl,
       backend.vaultId,
-      vaultKey,
+      encryptionKey,
       backendId,
       syncEngineStore,
+      backend.spaceToken,
     )
     if (pendingColumnsPulled > 0) {
       log.info(`Pulled ${pendingColumnsPulled} pending column changes`)
@@ -184,12 +200,21 @@ export const pullChangesFromServerAsync = async (
   vaultId: string,
   lastPullServerTimestamp: string | null | undefined,
   syncEngineStore: ReturnType<typeof useSyncEngineStore>,
+  spaceToken?: string | null,
 ): Promise<PullResult> => {
   log.info('pullChangesFromServerAsync: Starting pull from', serverUrl, 'vault:', vaultId)
-  const token = await syncEngineStore.getAuthTokenAsync()
-  if (!token) {
-    log.error('pullChangesFromServerAsync: Not authenticated')
-    throw new Error('Not authenticated')
+
+  // Build auth headers: space token or bearer JWT
+  const authHeaders: Record<string, string> = {}
+  if (spaceToken) {
+    authHeaders['X-Space-Token'] = spaceToken
+  } else {
+    const token = await syncEngineStore.getAuthTokenAsync()
+    if (!token) {
+      log.error('pullChangesFromServerAsync: Not authenticated')
+      throw new Error('Not authenticated')
+    }
+    authHeaders.Authorization = `Bearer ${token}`
   }
 
   const allChanges: ColumnChange[] = []
@@ -218,13 +243,16 @@ export const pullChangesFromServerAsync = async (
 
     const response = await fetch(url, {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: authHeaders,
     })
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
+      // For space backends, treat 401/404 as unavailable rather than fatal
+      if (spaceToken && (response.status === 401 || response.status === 404)) {
+        log.warn(`Space backend unavailable (${response.status}), skipping pull`)
+        return { changes: [], serverTimestamp: null }
+      }
       log.error('Server returned error:', { status: response.status, error })
       throw new Error(`Failed to pull changes: ${error.error || response.statusText}`)
     }
@@ -501,6 +529,7 @@ export const pullPendingColumnsAsync = async (
   vaultKey: Uint8Array,
   backendId: string,
   syncEngineStore: ReturnType<typeof useSyncEngineStore>,
+  spaceToken?: string | null,
 ): Promise<number> => {
   // Step 1: Get list of pending columns from local database
   const pendingColumns = await invoke<PendingColumn[]>('get_pending_columns')
@@ -512,9 +541,18 @@ export const pullPendingColumnsAsync = async (
 
   log.info(`Found ${pendingColumns.length} pending columns to pull:`, pendingColumns)
 
-  const token = await syncEngineStore.getAuthTokenAsync()
-  if (!token) {
-    throw new Error('Not authenticated')
+  // Build auth headers: space token or bearer JWT
+  const authHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (spaceToken) {
+    authHeaders['X-Space-Token'] = spaceToken
+  } else {
+    const token = await syncEngineStore.getAuthTokenAsync()
+    if (!token) {
+      throw new Error('Not authenticated')
+    }
+    authHeaders.Authorization = `Bearer ${token}`
   }
 
   // Step 2: Pull data for each column from server (with pagination)
@@ -532,10 +570,7 @@ export const pullPendingColumnsAsync = async (
     while (hasMore) {
       const response = await fetch(`${serverUrl}/sync/pull-columns`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers: authHeaders,
         body: JSON.stringify({
           vaultId,
           columns: [{ tableName: pendingCol.tableName, columnName: pendingCol.columnName }],
