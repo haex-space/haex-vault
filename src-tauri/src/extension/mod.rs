@@ -31,6 +31,7 @@ pub mod filesystem;
 pub mod limits;
 pub mod permissions;
 pub mod remote_storage;
+pub mod spaces;
 pub mod utils;
 pub mod web;
 

@@ -68,21 +68,10 @@ export function extractPrimaryKeys(
 }
 
 /**
- * Scans a table for rows that are newer than lastPushHlcTimestamp
- * Returns column-level changes for all modified columns
- * Note: batchSeq and batchTotal will be 0 and need to be set by the caller
+ * Gets the table schema split into PK columns and data columns (excluding CRDT/sync metadata).
+ * Throws if the table has no primary key.
  */
-export async function scanTableForChangesAsync(
-  tableName: string,
-  lastPushHlcTimestamp: string | null,
-  vaultKey: Uint8Array,
-  batchId: string,
-  deviceId: string,
-): Promise<Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[]> {
-  log.info(`Scanning table: ${tableName}`)
-  log.debug(`  lastPushHlcTimestamp: ${lastPushHlcTimestamp || '(none - full scan)'}`)
-
-  // Get table schema
+async function getTableColumnsAsync(tableName: string) {
   const schema = await getTableSchemaAsync(tableName)
   const pkColumns = schema.filter((col) => col.isPk)
   const dataColumns = schema.filter(
@@ -95,43 +84,38 @@ export async function scanTableForChangesAsync(
       col.name !== SYNC_METADATA_COLUMNS.updatedAt &&
       col.name !== SYNC_METADATA_COLUMNS.createdAt,
   )
-  // Note: haex_tombstone is included in dataColumns and will be synced like any other column
-
-  log.debug(`  Schema: ${schema.length} columns, ${pkColumns.length} PKs, ${dataColumns.length} data columns`)
 
   if (pkColumns.length === 0) {
     log.error(`Table ${tableName} has no primary key`)
     throw new Error(`Table ${tableName} has no primary key`)
   }
 
-  // Build SQL query with explicit column list (so we know the order)
-  // Include PKs, data columns, haex_timestamp, and haex_column_hlcs
+  // The full list of columns to select (PKs + data + CRDT metadata)
   const allColumns = [
     ...pkColumns.map((c) => c.name),
     ...dataColumns.map((c) => c.name),
     CRDT_COLUMNS.haexTimestamp,
     CRDT_COLUMNS.haexColumnHlcs,
   ]
-  const columnList = allColumns.map((c) => `"${c}"`).join(', ')
 
-  // Note: We scan ALL rows (including tombstoned ones) that are newer than lastPushHlcTimestamp
-  const whereClause = lastPushHlcTimestamp
-    ? `WHERE ${CRDT_COLUMNS.haexTimestamp} > ?`
-    : ''
-  const query = `SELECT ${columnList} FROM "${tableName}" ${whereClause}`
-  const params = lastPushHlcTimestamp ? [lastPushHlcTimestamp] : []
+  return { schema, pkColumns, dataColumns, allColumns }
+}
 
-  log.debug(`  SQL: ${query}`)
-  log.debug(`  Params: ${JSON.stringify(params)}`)
-
-  // Execute query using Tauri SQL command
-  const result = await invoke<unknown[][]>('sql_select', {
-    sql: query,
-    params,
-  })
-
-  log.info(`  Query returned ${result.length} rows`)
-
+/**
+ * Converts raw SQL result rows into Record objects using the known column order,
+ * then processes each row into column-level changes with encryption.
+ */
+async function processRowsToChangesAsync(
+  result: unknown[][],
+  allColumns: string[],
+  pkColumns: ColumnInfo[],
+  dataColumns: ColumnInfo[],
+  lastPushHlcTimestamp: string | null,
+  tableName: string,
+  vaultKey: Uint8Array,
+  batchId: string,
+  deviceId: string,
+): Promise<Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[]> {
   // Convert result to rows - we know the column order from allColumns
   const rows: Array<Record<string, unknown>> = []
 
@@ -211,7 +195,131 @@ export async function scanTableForChangesAsync(
     }
   }
 
-  log.info(`  Generated ${changes.length} column changes from ${rows.length} rows`)
+  return changes
+}
+
+/**
+ * Scans a table for rows that are newer than lastPushHlcTimestamp
+ * Returns column-level changes for all modified columns
+ * Note: batchSeq and batchTotal will be 0 and need to be set by the caller
+ */
+export async function scanTableForChangesAsync(
+  tableName: string,
+  lastPushHlcTimestamp: string | null,
+  vaultKey: Uint8Array,
+  batchId: string,
+  deviceId: string,
+): Promise<Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[]> {
+  log.info(`Scanning table: ${tableName}`)
+  log.debug(`  lastPushHlcTimestamp: ${lastPushHlcTimestamp || '(none - full scan)'}`)
+
+  const { schema, pkColumns, dataColumns, allColumns } = await getTableColumnsAsync(tableName)
+  // Note: haex_tombstone is included in dataColumns and will be synced like any other column
+
+  log.debug(`  Schema: ${schema.length} columns, ${pkColumns.length} PKs, ${dataColumns.length} data columns`)
+
+  const columnList = allColumns.map((c) => `"${c}"`).join(', ')
+
+  // Note: We scan ALL rows (including tombstoned ones) that are newer than lastPushHlcTimestamp
+  const whereClause = lastPushHlcTimestamp
+    ? `WHERE "${CRDT_COLUMNS.haexTimestamp}" > ?`
+    : ''
+  const query = `SELECT ${columnList} FROM "${tableName}" ${whereClause}`
+  const params = lastPushHlcTimestamp ? [lastPushHlcTimestamp] : []
+
+  log.debug(`  SQL: ${query}`)
+  log.debug(`  Params: ${JSON.stringify(params)}`)
+
+  // Execute query using Tauri SQL command
+  const result = await invoke<unknown[][]>('sql_select', {
+    sql: query,
+    params,
+  })
+
+  log.info(`  Query returned ${result.length} rows`)
+
+  const changes = await processRowsToChangesAsync(
+    result, allColumns, pkColumns, dataColumns,
+    lastPushHlcTimestamp, tableName, vaultKey, batchId, deviceId,
+  )
+
+  log.info(`  Generated ${changes.length} column changes from ${result.length} rows`)
+
+  return changes
+}
+
+/**
+ * Scans a table for rows assigned to a specific shared space that are newer than lastPushHlcTimestamp.
+ * Uses INNER JOIN with haex_shared_space_sync to filter only rows belonging to the space.
+ * Returns empty array if no rows are assigned to this space in this table.
+ */
+export async function scanTableForSpaceChangesAsync(
+  tableName: string,
+  spaceId: string,
+  lastPushHlcTimestamp: string | null,
+  vaultKey: Uint8Array,
+  batchId: string,
+  deviceId: string,
+): Promise<Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[]> {
+  log.info(`Scanning table for space: ${tableName} (spaceId: ${spaceId})`)
+  log.debug(`  lastPushHlcTimestamp: ${lastPushHlcTimestamp || '(none - full scan)'}`)
+
+  // Check if this table has any assignments for this space
+  const assignmentCheck = await invoke<unknown[][]>('sql_select', {
+    sql: 'SELECT 1 FROM "haex_shared_space_sync" WHERE "table_name" = ? AND "space_id" = ? LIMIT 1',
+    params: [tableName, spaceId],
+  })
+
+  if (assignmentCheck.length === 0) {
+    log.debug(`  No space assignments for table ${tableName}, skipping`)
+    return []
+  }
+
+  const { schema, pkColumns, dataColumns, allColumns } = await getTableColumnsAsync(tableName)
+
+  log.debug(`  Schema: ${schema.length} columns, ${pkColumns.length} PKs, ${dataColumns.length} data columns`)
+
+  // Build column list with table alias prefix
+  const columnList = allColumns.map((c) => `t."${c}"`).join(', ')
+
+  // Build the json_object expression for PK matching
+  // e.g. json_object('id', t."id") or json_object('pk1', t."pk1", 'pk2', t."pk2")
+  const jsonObjectArgs = pkColumns
+    .map((pk) => `'${pk.name}', t."${pk.name}"`)
+    .join(', ')
+  const jsonObjectExpr = `json_object(${jsonObjectArgs})`
+
+  // Build WHERE clause for HLC filtering
+  const hlcFilter = lastPushHlcTimestamp
+    ? `AND t."${CRDT_COLUMNS.haexTimestamp}" > ?`
+    : ''
+
+  const query = `SELECT ${columnList} FROM "${tableName}" t `
+    + `INNER JOIN "haex_shared_space_sync" a `
+    + `ON a."table_name" = ? AND a."space_id" = ? AND a."row_pks" = ${jsonObjectExpr} `
+    + `WHERE 1=1 ${hlcFilter}`
+
+  const params: unknown[] = [tableName, spaceId]
+  if (lastPushHlcTimestamp) {
+    params.push(lastPushHlcTimestamp)
+  }
+
+  log.debug(`  SQL: ${query}`)
+  log.debug(`  Params: ${JSON.stringify(params)}`)
+
+  const result = await invoke<unknown[][]>('sql_select', {
+    sql: query,
+    params,
+  })
+
+  log.info(`  Query returned ${result.length} rows for space ${spaceId}`)
+
+  const changes = await processRowsToChangesAsync(
+    result, allColumns, pkColumns, dataColumns,
+    lastPushHlcTimestamp, tableName, vaultKey, batchId, deviceId,
+  )
+
+  log.info(`  Generated ${changes.length} column changes from ${result.length} rows`)
 
   return changes
 }

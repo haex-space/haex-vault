@@ -7,6 +7,7 @@ import {
   getDirtyTablesAsync,
   getAllCrdtTablesAsync,
   scanTableForChangesAsync,
+  scanTableForSpaceChangesAsync,
   clearDirtyTableAsync,
   type ColumnChange,
 } from '../tableScanner'
@@ -101,12 +102,6 @@ export const pushToBackendAsync = async (
     log.debug('Device ID:', deviceId)
 
     // Get all dirty tables that need to be synced
-    // TODO: Table filtering for space vs personal backends
-    // Currently ALL dirty tables are pushed to ANY backend. Once extension space table
-    // registration exists (Task 13+), this needs to be filtered:
-    // - Personal backends: push only non-space tables (tables not claimed by any space)
-    // - Space backends: push only tables registered for this specific space
-    // Until then, all dirty tables are pushed to all backends (current behavior).
     log.info('[PUSH-SCAN] Fetching dirty tables...')
     const dirtyTables = await getDirtyTablesAsync()
 
@@ -137,13 +132,9 @@ export const pushToBackendAsync = async (
         log.info(`[PUSH-SCAN] Scanning table: ${tableName}`)
         log.debug(`[PUSH-SCAN]   lastPushHlc: ${lastPushHlc || '(none)'}`)
 
-        const tableChanges = await scanTableForChangesAsync(
-          tableName,
-          lastPushHlc,
-          encryptionKey,
-          batchId,
-          deviceId,
-        )
+        const tableChanges = isSpaceBackend
+          ? await scanTableForSpaceChangesAsync(tableName, backend.spaceId!, lastPushHlc, encryptionKey, batchId, deviceId)
+          : await scanTableForChangesAsync(tableName, lastPushHlc, encryptionKey, batchId, deviceId)
 
         partialChanges.push(...tableChanges)
 
@@ -190,9 +181,11 @@ export const pushToBackendAsync = async (
     if (allChanges.length === 0) {
       log.info('PUSH COMPLETE: No changes after scanning (tables may already be synced)')
       // Clear dirty tables even if no changes (they might have been synced already)
-      // Only clear entries that existed at scan start
-      for (const { tableName } of dirtyTables) {
-        await clearDirtyTableAsync(tableName, maxDirtyTimestamp)
+      // Only clear entries that existed at scan start — but only for personal backends
+      if (!isSpaceBackend) {
+        for (const { tableName } of dirtyTables) {
+          await clearDirtyTableAsync(tableName, maxDirtyTimestamp)
+        }
       }
       return
     }
@@ -226,12 +219,17 @@ export const pushToBackendAsync = async (
     log.debug('Updating backend timestamps:', updateData)
     await syncBackendsStore.updateBackendAsync(backendId, updateData)
 
-    // Clear dirty tables after successful push
-    // IMPORTANT: Only clear entries that existed at scan start (before maxDirtyTimestamp)
-    // This prevents clearing entries added AFTER we started scanning (which would cause data loss)
-    log.debug(`Clearing dirty tables with timestamp <= ${maxDirtyTimestamp}...`)
-    for (const { tableName } of dirtyTables) {
-      await clearDirtyTableAsync(tableName, maxDirtyTimestamp)
+    // Clear dirty tables after successful push (only for personal backends)
+    // Space backends must NOT clear dirty tables — the personal backend still needs them
+    if (!isSpaceBackend) {
+      // IMPORTANT: Only clear entries that existed at scan start (before maxDirtyTimestamp)
+      // This prevents clearing entries added AFTER we started scanning (which would cause data loss)
+      log.debug(`Clearing dirty tables with timestamp <= ${maxDirtyTimestamp}...`)
+      for (const { tableName } of dirtyTables) {
+        await clearDirtyTableAsync(tableName, maxDirtyTimestamp)
+      }
+    } else {
+      log.debug('Skipping dirty table clearing for space backend (personal backend handles this)')
     }
 
     log.info(`========== PUSH SUCCESS: ${allChanges.length} changes pushed ==========`)
@@ -452,13 +450,9 @@ export const pushAllDataToBackendAsync = async (
     try {
       log.info(`Scanning table: ${tableName} (full scan)`)
 
-      const tableChanges = await scanTableForChangesAsync(
-        tableName,
-        null, // null = scan ALL data, not just newer than lastPushHlc
-        encryptionKey,
-        batchId,
-        deviceId,
-      )
+      const tableChanges = isSpaceBackend
+        ? await scanTableForSpaceChangesAsync(tableName, backend.spaceId!, null, encryptionKey, batchId, deviceId)
+        : await scanTableForChangesAsync(tableName, null, encryptionKey, batchId, deviceId)
 
       partialChanges.push(...tableChanges)
 
@@ -515,11 +509,16 @@ export const pushAllDataToBackendAsync = async (
   log.debug('Updating backend timestamps:', updateData)
   await syncBackendsStore.updateBackendAsync(backendId, updateData)
 
-  // Clear all dirty tables after successful push
-  log.debug('Clearing all dirty tables...')
-  const dirtyTables = await getDirtyTablesAsync()
-  for (const { tableName } of dirtyTables) {
-    await clearDirtyTableAsync(tableName)
+  // Clear all dirty tables after successful push (only for personal backends)
+  // Space backends must NOT clear dirty tables — the personal backend still needs them
+  if (!isSpaceBackend) {
+    log.debug('Clearing all dirty tables...')
+    const dirtyTables = await getDirtyTablesAsync()
+    for (const { tableName } of dirtyTables) {
+      await clearDirtyTableAsync(tableName)
+    }
+  } else {
+    log.debug('Skipping dirty table clearing for space backend (personal backend handles this)')
   }
 
   log.info(`========== FULL PUSH SUCCESS: ${allChanges.length} changes pushed ==========`)

@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm'
 import {
   check,
   integer,
+  primaryKey,
   sqliteTable,
   text,
   uniqueIndex,
@@ -360,3 +361,22 @@ export const haexExtensionLimits = sqliteTable(
 )
 export type InsertHaexExtensionLimits = typeof haexExtensionLimits.$inferInsert
 export type SelectHaexExtensionLimits = typeof haexExtensionLimits.$inferSelect
+
+// ---------------------------------------------------------------------------
+// Shared Space Sync — maps rows to shared spaces for space-backend filtering
+// ---------------------------------------------------------------------------
+
+export const haexSharedSpaceSync = sqliteTable(
+  tableNames.haex.shared_space_sync.name,
+  {
+    tableName: text(tableNames.haex.shared_space_sync.columns.tableName).notNull(),
+    rowPks: text(tableNames.haex.shared_space_sync.columns.rowPks, { mode: 'json' }).notNull(),
+    spaceId: text(tableNames.haex.shared_space_sync.columns.spaceId).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tableName, table.rowPks, table.spaceId] }),
+  ],
+)
+
+export type InsertHaexSharedSpaceSync = typeof haexSharedSpaceSync.$inferInsert
+export type SelectHaexSharedSpaceSync = typeof haexSharedSpaceSync.$inferSelect

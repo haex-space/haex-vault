@@ -28,6 +28,7 @@ import { handleContextMethodAsync, setContextGetters } from './handlers/context'
 import { handleWebStorageMethodAsync } from './handlers/webStorage'
 import { handleRemoteStorageMethodAsync } from './handlers/remoteStorage'
 import { handleLocalSendMethodAsync } from './handlers/localsend'
+import { handleSpacesMethodAsync } from './handlers/spaces'
 import type { ExtensionRequest, ExtensionInstance } from './handlers/types'
 import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
 
@@ -177,6 +178,8 @@ const registerGlobalMessageHandler = () => {
         result = await handlePermissionsMethodAsync(request, instance.extension)
       } else if (request.method.startsWith('extension_remote_storage_')) {
         result = await handleRemoteStorageMethodAsync(request, instance.extension)
+      } else if (request.method.startsWith('extension_space_')) {
+        result = await handleSpacesMethodAsync(request, instance.extension)
       } else if (request.method.startsWith('localsend_')) {
         result = await handleLocalSendMethodAsync(request, instance.extension)
       } else {

@@ -184,6 +184,14 @@
         "createdAt": "created_at"
       }
     },
+    "shared_space_sync": {
+      "name": "haex_shared_space_sync",
+      "columns": {
+        "tableName": "table_name",
+        "rowPks": "row_pks",
+        "spaceId": "space_id"
+      }
+    },
 
     "crdt": {
       "changes": {
