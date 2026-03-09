@@ -1,8 +1,10 @@
 import {
-  generateUserKeypairAsync,
-  exportUserKeypairAsync,
-  encryptPrivateKeyAsync,
-  decryptPrivateKeyAsync,
+  generatePasskeyPairAsync,
+  exportKeyPairAsync,
+  deriveKeyFromPassword,
+  encryptString,
+  decryptString,
+  base64ToArrayBuffer,
 } from '@haex-space/vault-sdk'
 import { createLogger } from '@/stores/logging'
 import { getAuthTokenAsync } from '@/stores/sync/engine/supabase'
@@ -37,11 +39,12 @@ export const useUserKeypairStore = defineStore('userKeypairStore', () => {
       const data = await response.json()
       publicKeyBase64.value = data.publicKey
 
-      const decryptedPrivateKey = await decryptPrivateKeyAsync(
+      const salt = base64ToArrayBuffer(data.privateKeySalt)
+      const derivedKey = await deriveKeyFromPassword(password, salt)
+      const decryptedPrivateKey = await decryptString(
         data.encryptedPrivateKey,
         data.privateKeyNonce,
-        data.privateKeySalt,
-        password,
+        derivedKey,
       )
       privateKeyBase64.value = decryptedPrivateKey
       isRegistered.value = true
@@ -55,11 +58,14 @@ export const useUserKeypairStore = defineStore('userKeypairStore', () => {
 
     // No keypair yet - generate and register
     log.info('No keypair found, generating new one...')
-    const keypair = await generateUserKeypairAsync()
-    const exported = await exportUserKeypairAsync(keypair)
+    const keypair = await generatePasskeyPairAsync()
+    const exported = await exportKeyPairAsync(keypair)
 
     // Encrypt private key with server password
-    const encrypted = await encryptPrivateKeyAsync(exported.privateKey, password)
+    const salt = crypto.getRandomValues(new Uint8Array(16))
+    const derivedKey = await deriveKeyFromPassword(password, salt)
+    const encrypted = await encryptString(exported.privateKeyBase64, derivedKey)
+    const saltBase64 = btoa(String.fromCharCode(...salt))
 
     // Register on server
     const registerResponse = await fetch(`${serverUrl}/keypairs`, {
@@ -69,10 +75,10 @@ export const useUserKeypairStore = defineStore('userKeypairStore', () => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        publicKey: exported.publicKey,
-        encryptedPrivateKey: encrypted.encryptedPrivateKey,
+        publicKey: exported.publicKeyBase64,
+        encryptedPrivateKey: encrypted.encryptedData,
         privateKeyNonce: encrypted.nonce,
-        privateKeySalt: encrypted.salt,
+        privateKeySalt: saltBase64,
       }),
     })
 
@@ -81,8 +87,8 @@ export const useUserKeypairStore = defineStore('userKeypairStore', () => {
       throw new Error(`Failed to register keypair: ${error.error || registerResponse.statusText}`)
     }
 
-    publicKeyBase64.value = exported.publicKey
-    privateKeyBase64.value = exported.privateKey
+    publicKeyBase64.value = exported.publicKeyBase64
+    privateKeyBase64.value = exported.privateKeyBase64
     isRegistered.value = true
     log.info('Generated and registered new keypair')
   }
