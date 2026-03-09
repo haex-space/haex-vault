@@ -8,6 +8,7 @@ import { emit } from '@tauri-apps/api/event'
 import { decryptCrdtData } from '@haex-space/vault-sdk'
 import type { ColumnChange } from '../tableScanner'
 import { orchestratorLog as log, type BackendSyncState, type PullResult, syncMutex, SpaceUnavailableError } from './types'
+import { buildAuthHeadersAsync } from './spaceAuth'
 import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
 import { SYNC_TABLES_INTERNAL_EVENT } from '../syncEvents'
 import type { PendingColumn } from '@bindings/PendingColumn'
@@ -96,6 +97,7 @@ export const pullFromBackendAsync = async (
       lastPullServerTimestamp,
       syncEngineStore,
       backend.spaceToken,
+      backend.spaceId,
     )
 
     const { changes: allChanges, serverTimestamp } = pullResult
@@ -132,6 +134,7 @@ export const pullFromBackendAsync = async (
       backendId,
       syncEngineStore,
       backend.spaceToken,
+      backend.spaceId,
     )
     if (pendingColumnsPulled > 0) {
       log.info(`Pulled ${pendingColumnsPulled} pending column changes`)
@@ -217,21 +220,13 @@ export const pullChangesFromServerAsync = async (
   lastPullServerTimestamp: string | null | undefined,
   syncEngineStore: ReturnType<typeof useSyncEngineStore>,
   spaceToken?: string | null,
+  spaceId?: string | null,
 ): Promise<PullResult> => {
   log.info('pullChangesFromServerAsync: Starting pull from', serverUrl, 'vault:', vaultId)
 
-  // Build auth headers: space token or bearer JWT
-  const authHeaders: Record<string, string> = {}
-  if (spaceToken) {
-    authHeaders['X-Space-Token'] = spaceToken
-  } else {
-    const token = await syncEngineStore.getAuthTokenAsync()
-    if (!token) {
-      log.error('pullChangesFromServerAsync: Not authenticated')
-      throw new Error('Not authenticated')
-    }
-    authHeaders.Authorization = `Bearer ${token}`
-  }
+  const authHeaders = await buildAuthHeadersAsync(
+    spaceToken, spaceId, () => syncEngineStore.getAuthTokenAsync(),
+  )
 
   const allChanges: ColumnChange[] = []
   let hasMore = true
@@ -548,6 +543,7 @@ export const pullPendingColumnsAsync = async (
   backendId: string,
   syncEngineStore: ReturnType<typeof useSyncEngineStore>,
   spaceToken?: string | null,
+  spaceId?: string | null,
 ): Promise<number> => {
   // Step 1: Get list of pending columns from local database
   const pendingColumns = await invoke<PendingColumn[]>('get_pending_columns')
@@ -559,19 +555,9 @@ export const pullPendingColumnsAsync = async (
 
   log.info(`Found ${pendingColumns.length} pending columns to pull:`, pendingColumns)
 
-  // Build auth headers: space token or bearer JWT
-  const authHeaders: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-  if (spaceToken) {
-    authHeaders['X-Space-Token'] = spaceToken
-  } else {
-    const token = await syncEngineStore.getAuthTokenAsync()
-    if (!token) {
-      throw new Error('Not authenticated')
-    }
-    authHeaders.Authorization = `Bearer ${token}`
-  }
+  const authHeaders = await buildAuthHeadersAsync(
+    spaceToken, spaceId, () => syncEngineStore.getAuthTokenAsync(),
+  )
 
   // Step 2: Pull data for each column from server (with pagination)
   let totalPulled = 0

@@ -7,6 +7,13 @@
  * 3. Multiple backends reconnecting together
  */
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import {
+  setupVisibilityListener,
+  removeVisibilityListener,
+  _getReconnectionContext,
+  _resetReconnectionContext,
+  _reconnectAllBackendsAsync,
+} from '@/stores/sync/orchestrator/realtime'
 
 // Mock the pull module to avoid deep dependency chain
 vi.mock('@/stores/sync/orchestrator/pull', () => ({
@@ -37,14 +44,6 @@ vi.stubGlobal('useSyncEngineStore', vi.fn(() => ({
 vi.stubGlobal('useDeviceStore', vi.fn(() => ({
   deviceId: 'test-device-id',
 })))
-
-import {
-  setupVisibilityListener,
-  removeVisibilityListener,
-  _getReconnectionContext,
-  _resetReconnectionContext,
-  _reconnectAllBackendsAsync,
-} from '@/stores/sync/orchestrator/realtime'
 
 // Mock document.visibilityState
 let mockVisibilityState: DocumentVisibilityState = 'visible'

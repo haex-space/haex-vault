@@ -46,60 +46,14 @@
         v-else-if="spaces.length"
         class="space-y-3"
       >
-        <div
+        <SpaceListItem
           v-for="space in spaces"
           :key="space.id"
-          class="flex flex-col gap-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50"
-        >
-          <div class="flex flex-col @xs:flex-row @xs:items-center @xs:justify-between gap-2">
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2 flex-wrap">
-                <p class="font-medium text-sm truncate">
-                  Space {{ space.id.slice(0, 8) }}
-                </p>
-                <UBadge
-                  :color="roleBadgeColor(space.role)"
-                  variant="subtle"
-                  size="xs"
-                >
-                  {{ t(`roles.${space.role}`) }}
-                </UBadge>
-              </div>
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                {{ t('list.createdAt') }}: {{ formatDate(space.createdAt) }}
-              </p>
-            </div>
-            <div class="flex gap-2 @xs:shrink-0">
-              <UButton
-                v-if="space.role === 'admin'"
-                color="primary"
-                variant="ghost"
-                icon="i-lucide-user-plus"
-                size="sm"
-                :title="t('actions.invite')"
-                @click="openInviteDialog(space)"
-              />
-              <UButton
-                v-if="space.role === 'admin'"
-                color="error"
-                variant="ghost"
-                icon="i-lucide-trash-2"
-                size="sm"
-                :title="t('actions.delete')"
-                @click="prepareDeleteSpace(space)"
-              />
-              <UButton
-                v-else
-                color="warning"
-                variant="ghost"
-                icon="i-lucide-log-out"
-                size="sm"
-                :title="t('actions.leave')"
-                @click="prepareLeaveSpace(space)"
-              />
-            </div>
-          </div>
-        </div>
+          :space="space"
+          @invite="openInviteDialog"
+          @delete="prepareDeleteSpace"
+          @leave="prepareLeaveSpace"
+        />
       </div>
 
       <!-- Empty state -->
@@ -142,7 +96,7 @@
           <UiButton
             icon="i-lucide-plus"
             :loading="isCreating"
-            :disabled="!createForm.name || !createForm.serverUrl"
+            :disabled="!createForm.name || !createForm.serverUrl?.value"
             @click="onCreateSpaceAsync"
           >
             {{ t('actions.create') }}
@@ -161,7 +115,7 @@
         <UiTextarea
           v-model="joinInviteJson"
           :label="t('join.inviteLabel')"
-          rows="8"
+          :rows="8"
         />
       </template>
       <template #footer>
@@ -186,65 +140,12 @@
     </UiDrawerModal>
 
     <!-- Invite Member Dialog -->
-    <UiDrawerModal
+    <SpaceInviteDialog
       v-model:open="showInviteDialog"
-      :title="t('invite.title')"
-      :description="t('invite.description')"
-    >
-      <template #content>
-        <template v-if="!inviteResult">
-          <UiInput
-            v-model="inviteForm.userId"
-            :label="t('invite.userIdLabel')"
-            @keydown.enter.prevent="onInviteMemberAsync"
-          />
-          <USelectMenu
-            v-model="inviteForm.role"
-            :items="roleOptions"
-            :placeholder="t('invite.roleLabel')"
-            class="w-full"
-          />
-        </template>
-        <template v-else>
-          <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">
-            {{ t('invite.resultDescription') }}
-          </p>
-          <UiTextarea
-            :model-value="inviteResult"
-            read-only
-            rows="10"
-            :label="t('invite.resultLabel')"
-          />
-        </template>
-      </template>
-      <template #footer>
-        <div class="flex justify-between gap-4">
-          <UButton
-            color="neutral"
-            variant="outline"
-            @click="closeInviteDialog"
-          >
-            {{ inviteResult ? t('actions.close') : t('actions.cancel') }}
-          </UButton>
-          <UiButton
-            v-if="!inviteResult"
-            icon="i-lucide-user-plus"
-            :loading="isInviting"
-            :disabled="!inviteForm.userId || !inviteForm.role"
-            @click="onInviteMemberAsync"
-          >
-            {{ t('actions.invite') }}
-          </UiButton>
-          <UiButton
-            v-else
-            icon="mdi:content-copy"
-            @click="copyInvite"
-          >
-            {{ t('actions.copy') }}
-          </UiButton>
-        </div>
-      </template>
-    </UiDrawerModal>
+      :space-id="inviteSpaceId"
+      :server-url="inviteServerUrl"
+      :is-admin="inviteSpaceIsAdmin"
+    />
 
     <!-- Delete Space Confirmation -->
     <UiDialogConfirm
@@ -266,10 +167,11 @@
 
 <script setup lang="ts">
 import type { SharedSpace, SpaceInvite, SpaceRole } from '@haex-space/vault-sdk'
+import SpaceListItem from './spaces/SpaceListItem.vue'
+import SpaceInviteDialog from './spaces/SpaceInviteDialog.vue'
 
 const { t } = useI18n()
 const { add } = useToast()
-const { copy } = useClipboard()
 
 const spacesStore = useSpacesStore()
 const syncBackendsStore = useSyncBackendsStore()
@@ -281,7 +183,6 @@ const { backends: syncBackends } = storeToRefs(syncBackendsStore)
 const isLoadingSpaces = ref(false)
 const isCreating = ref(false)
 const isJoining = ref(false)
-const isInviting = ref(false)
 
 // Dialog visibility
 const showCreateDialog = ref(false)
@@ -293,20 +194,16 @@ const showLeaveConfirm = ref(false)
 // Create form
 const createForm = reactive({
   name: '',
-  serverUrl: '',
+  serverUrl: undefined as { label: string; value: string } | undefined,
 })
 
 // Join form
 const joinInviteJson = ref('')
 
-// Invite form
-const inviteForm = reactive({
-  userId: '',
-  role: 'member' as SpaceRole,
-})
-const inviteResult = ref('')
+// Invite dialog state
 const inviteSpaceId = ref('')
 const inviteServerUrl = ref('')
+const inviteSpaceIsAdmin = ref(false)
 
 // Delete/Leave target
 const targetSpace = ref<SharedSpace | null>(null)
@@ -325,27 +222,6 @@ const serverUrlOptions = computed(() => {
   }))
 })
 
-// Role options for invite
-const roleOptions = computed(() => [
-  { label: t('roles.admin'), value: 'admin' },
-  { label: t('roles.member'), value: 'member' },
-  { label: t('roles.viewer'), value: 'viewer' },
-])
-
-// Helper: badge color for role
-const roleBadgeColor = (role: SpaceRole) => {
-  switch (role) {
-    case 'admin': return 'error' as const
-    case 'member': return 'primary' as const
-    case 'viewer': return 'neutral' as const
-  }
-}
-
-// Format date
-const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString()
-}
-
 // Load spaces on mount
 onMounted(async () => {
   await loadSpacesAsync()
@@ -354,7 +230,6 @@ onMounted(async () => {
 const loadSpacesAsync = async () => {
   isLoadingSpaces.value = true
   try {
-    // Load from all backends that have a serverUrl
     const urls = new Set<string>()
     for (const backend of syncBackends.value) {
       if (backend.serverUrl) {
@@ -373,12 +248,12 @@ const loadSpacesAsync = async () => {
 
 // Create space
 const onCreateSpaceAsync = async () => {
-  if (!createForm.name || !createForm.serverUrl) return
+  if (!createForm.name || !createForm.serverUrl?.value) return
 
   isCreating.value = true
   try {
-    // TODO: password parameter is accepted by the store but not used internally
-    const createdSpace = await spacesStore.createSpaceAsync(createForm.serverUrl, createForm.name, '')
+    const serverUrl = createForm.serverUrl.value
+    const createdSpace = await spacesStore.createSpaceAsync(serverUrl, createForm.name, t('create.defaultSelfLabel'))
 
     add({
       title: t('success.created'),
@@ -386,12 +261,11 @@ const onCreateSpaceAsync = async () => {
     })
 
     showCreateDialog.value = false
-    const serverUrl = createForm.serverUrl
     createForm.name = ''
-    createForm.serverUrl = ''
+    createForm.serverUrl = undefined
 
     // Open invite dialog for the newly created space
-    openInviteDialog({ ...createdSpace, role: 'admin' as SpaceRole }, serverUrl)
+    openInviteDialog({ ...createdSpace, role: 'admin' as SpaceRole, canInvite: true }, serverUrl)
   } catch (error) {
     console.error('Failed to create space:', error)
     add({
@@ -443,7 +317,6 @@ const onJoinSpaceAsync = async () => {
     showJoinDialog.value = false
     joinInviteJson.value = ''
 
-    // Reload spaces
     await loadSpacesAsync()
   } catch (error) {
     console.error('Failed to join space:', error)
@@ -460,9 +333,7 @@ const onJoinSpaceAsync = async () => {
 // Open invite dialog
 const openInviteDialog = (space: SharedSpace, knownServerUrl?: string) => {
   inviteSpaceId.value = space.id
-  inviteForm.userId = ''
-  inviteForm.role = 'member'
-  inviteResult.value = ''
+  inviteSpaceIsAdmin.value = space.role === 'admin'
 
   if (knownServerUrl) {
     inviteServerUrl.value = knownServerUrl
@@ -476,52 +347,6 @@ const openInviteDialog = (space: SharedSpace, knownServerUrl?: string) => {
   }
 
   showInviteDialog.value = true
-}
-
-// Invite member
-const onInviteMemberAsync = async () => {
-  if (!inviteForm.userId || !inviteForm.role || !inviteSpaceId.value) return
-
-  isInviting.value = true
-  try {
-    const invite = await spacesStore.inviteMemberAsync(
-      inviteServerUrl.value,
-      inviteSpaceId.value,
-      inviteForm.userId,
-      inviteForm.role,
-    )
-
-    inviteResult.value = JSON.stringify(invite, null, 2)
-
-    add({
-      title: t('success.invited'),
-      color: 'success',
-    })
-  } catch (error) {
-    console.error('Failed to invite member:', error)
-    add({
-      title: t('errors.inviteFailed'),
-      description: error instanceof Error ? error.message : 'Unknown error',
-      color: 'error',
-    })
-  } finally {
-    isInviting.value = false
-  }
-}
-
-// Copy invite JSON
-const copyInvite = () => {
-  copy(inviteResult.value)
-  add({
-    title: t('success.copied'),
-    color: 'success',
-  })
-}
-
-// Close invite dialog
-const closeInviteDialog = () => {
-  showInviteDialog.value = false
-  inviteResult.value = ''
 }
 
 // Prepare delete/leave
@@ -620,27 +445,16 @@ de:
     title: Deine Spaces
     description: Geteilte Spaces für die Zusammenarbeit mit anderen
     empty: Keine Spaces vorhanden
-    createdAt: Erstellt am
-  roles:
-    admin: Admin
-    member: Mitglied
-    viewer: Betrachter
   create:
     title: Space erstellen
     description: Erstelle einen neuen geteilten Space
     nameLabel: Name
     serverLabel: Server auswählen
+    defaultSelfLabel: Ich
   join:
     title: Space beitreten
     description: Tritt einem Space mit einer Einladung bei
     inviteLabel: Einladungs-JSON einfügen
-  invite:
-    title: Mitglied einladen
-    description: Lade einen Benutzer in diesen Space ein
-    userIdLabel: Benutzer-ID
-    roleLabel: Rolle auswählen
-    resultDescription: Teile dieses Einladungs-JSON mit dem Benutzer
-    resultLabel: Einladungs-JSON
   delete:
     title: Space löschen
     description: Möchtest du diesen Space wirklich löschen? Alle Daten werden unwiderruflich entfernt.
@@ -650,26 +464,17 @@ de:
   actions:
     create: Erstellen
     join: Beitreten
-    invite: Einladen
-    leave: Verlassen
-    delete: Löschen
     cancel: Abbrechen
-    close: Schließen
-    copy: Kopieren
   success:
     created: Space erstellt
     joined: Space beigetreten
-    invited: Einladung erstellt
     deleted: Space gelöscht
     left: Space verlassen
-    copied: In Zwischenablage kopiert
   errors:
     createFailed: Space konnte nicht erstellt werden
     joinFailed: Beitritt fehlgeschlagen
-    inviteFailed: Einladung fehlgeschlagen
     deleteFailed: Löschen fehlgeschlagen
     leaveFailed: Verlassen fehlgeschlagen
-    noPassword: Kein Passwort für diesen Server gefunden
     invalidJson: Ungültiges JSON-Format
     invalidInvite: Unvollständige Einladung
     noServerUrl: Server-URL für diesen Space nicht gefunden
@@ -680,27 +485,16 @@ en:
     title: Your Spaces
     description: Shared spaces for collaboration with others
     empty: No spaces found
-    createdAt: Created at
-  roles:
-    admin: Admin
-    member: Member
-    viewer: Viewer
   create:
     title: Create Space
     description: Create a new shared space
     nameLabel: Name
     serverLabel: Select server
+    defaultSelfLabel: Me
   join:
     title: Join Space
     description: Join a space using an invitation
     inviteLabel: Paste invite JSON
-  invite:
-    title: Invite Member
-    description: Invite a user to this space
-    userIdLabel: User ID
-    roleLabel: Select role
-    resultDescription: Share this invite JSON with the user
-    resultLabel: Invite JSON
   delete:
     title: Delete Space
     description: Do you really want to delete this space? All data will be permanently removed.
@@ -710,26 +504,17 @@ en:
   actions:
     create: Create
     join: Join
-    invite: Invite
-    leave: Leave
-    delete: Delete
     cancel: Cancel
-    close: Close
-    copy: Copy
   success:
     created: Space created
     joined: Joined space
-    invited: Invitation created
     deleted: Space deleted
     left: Left space
-    copied: Copied to clipboard
   errors:
     createFailed: Failed to create space
     joinFailed: Failed to join space
-    inviteFailed: Failed to invite member
     deleteFailed: Failed to delete space
     leaveFailed: Failed to leave space
-    noPassword: No password found for this server
     invalidJson: Invalid JSON format
     invalidInvite: Invalid or incomplete invitation
     noServerUrl: Server URL for this space not found

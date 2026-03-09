@@ -230,6 +230,7 @@ const emit = defineEmits<{
 // Props
 const props = defineProps<{
   initialDeviceName?: string
+  isConnectedToRemote?: boolean
 }>()
 
 // Stores

@@ -11,6 +11,7 @@ import {
   type ColumnChange,
 } from '../tableScanner'
 import { orchestratorLog as log, type BackendSyncState, syncMutex, SpaceUnavailableError } from './types'
+import { buildAuthHeadersAsync } from './spaceAuth'
 
 /**
  * Pushes local changes to a specific backend using table-scanning approach
@@ -304,7 +305,7 @@ export const pushChangesToServerAsync = async (
           tableName: change.tableName,
           rowPks: change.rowPks,
           columnName: change.columnName,
-          encryptedValue: change.encryptedValue,
+          encryptedValue: change.encryptedValue ?? null,
           hlcTimestamp: change.hlcTimestamp,
         },
         userKeypairStore.privateKeyBase64,
@@ -321,19 +322,12 @@ export const pushChangesToServerAsync = async (
   }))
 
   // Use appropriate auth header
+  const authHeaders = await buildAuthHeadersAsync(
+    backend.spaceToken ?? null, backend.spaceId ?? null, () => syncEngineStore.getAuthTokenAsync(),
+  )
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-  }
-
-  if (backend.spaceToken) {
-    headers['X-Space-Token'] = backend.spaceToken
-  } else {
-    const token = await syncEngineStore.getAuthTokenAsync()
-    if (!token) {
-      log.error('pushChangesToServerAsync: Not authenticated')
-      throw new Error('Not authenticated')
-    }
-    headers.Authorization = `Bearer ${token}`
+    ...authHeaders,
   }
 
   const url = `${backend.serverUrl}/sync/push`
