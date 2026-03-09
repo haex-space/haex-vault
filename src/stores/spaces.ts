@@ -2,10 +2,16 @@ import {
   generateSpaceKey,
   encryptSpaceKeyForRecipientAsync,
   decryptSpaceKeyAsync,
-  encryptString,
+  encryptSpaceNameAsync,
+  decryptSpaceNameAsync,
+  arrayBufferToBase64,
+  base64ToArrayBuffer,
   type SharedSpace,
   type SpaceInvite,
+  type DecryptedSpace,
 } from '@haex-space/vault-sdk'
+import { eq, and } from 'drizzle-orm'
+import { haexSpaceKeys } from '~/database/schemas'
 import { createLogger } from '@/stores/logging'
 import { getAuthTokenAsync } from '@/stores/sync/engine/supabase'
 
@@ -13,8 +19,9 @@ const log = createLogger('SPACES')
 
 export const useSpacesStore = defineStore('spacesStore', () => {
   const userKeypairStore = useUserKeypairStore()
+  const { currentVault } = storeToRefs(useVaultStore())
 
-  // Space key cache: Map<`${spaceId}:${generation}`, Uint8Array>
+  // In-memory read-through cache (backed by DB)
   const spaceKeyCache = new Map<string, Uint8Array>()
 
   const spaces = ref<SharedSpace[]>([])
@@ -45,13 +52,108 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     })
   }
 
+  // =========================================================================
+  // Space Key Management (DB-backed with in-memory cache)
+  // =========================================================================
+
   const getSpaceKey = (spaceId: string, generation: number): Uint8Array | undefined => {
     return spaceKeyCache.get(`${spaceId}:${generation}`)
   }
 
-  const cacheSpaceKey = (spaceId: string, generation: number, key: Uint8Array) => {
+  const getSpaceKeyAsync = async (spaceId: string, generation: number): Promise<Uint8Array | undefined> => {
+    // Check memory cache first
+    const cached = spaceKeyCache.get(`${spaceId}:${generation}`)
+    if (cached) return cached
+
+    // Load from DB
+    if (!currentVault.value?.drizzle) return undefined
+    const rows = await currentVault.value.drizzle
+      .select()
+      .from(haexSpaceKeys)
+      .where(and(
+        eq(haexSpaceKeys.spaceId, spaceId),
+        eq(haexSpaceKeys.generation, generation),
+      ))
+      .limit(1)
+
+    const row = rows[0]
+    if (!row) return undefined
+
+    const key = new Uint8Array(base64ToArrayBuffer(row.key))
     spaceKeyCache.set(`${spaceId}:${generation}`, key)
+    return key
   }
+
+  const persistSpaceKeyAsync = async (spaceId: string, generation: number, key: Uint8Array) => {
+    // Update memory cache
+    spaceKeyCache.set(`${spaceId}:${generation}`, key)
+
+    // Persist to DB
+    if (!currentVault.value?.drizzle) return
+    const keyBase64 = arrayBufferToBase64(key.buffer as ArrayBuffer)
+    await currentVault.value.drizzle
+      .insert(haexSpaceKeys)
+      .values({ spaceId, generation, key: keyBase64 })
+      .onConflictDoUpdate({
+        target: [haexSpaceKeys.spaceId, haexSpaceKeys.generation],
+        set: { key: keyBase64 },
+      })
+  }
+
+  const deleteSpaceKeysAsync = async (spaceId: string) => {
+    // Clear memory cache
+    for (const cacheKey of spaceKeyCache.keys()) {
+      if (cacheKey.startsWith(`${spaceId}:`)) {
+        spaceKeyCache.delete(cacheKey)
+      }
+    }
+
+    // Delete from DB
+    if (!currentVault.value?.drizzle) return
+    await currentVault.value.drizzle
+      .delete(haexSpaceKeys)
+      .where(eq(haexSpaceKeys.spaceId, spaceId))
+  }
+
+  // =========================================================================
+  // Space Name Decryption
+  // =========================================================================
+
+  /**
+   * Decrypt a space name using the persisted space key.
+   */
+  const resolveSpaceNameAsync = async (space: SharedSpace): Promise<string> => {
+    const spaceKey = await getSpaceKeyAsync(space.id, space.currentKeyGeneration)
+    if (!spaceKey) {
+      return `Space ${space.id.slice(0, 8)}`
+    }
+    try {
+      return await decryptSpaceNameAsync(spaceKey, space.encryptedName, space.nameNonce)
+    } catch {
+      return `Space ${space.id.slice(0, 8)}`
+    }
+  }
+
+  /**
+   * List spaces from a server with decrypted names.
+   */
+  const listDecryptedSpacesAsync = async (serverUrl: string): Promise<DecryptedSpace[]> => {
+    const rawSpaces = await listSpacesAsync(serverUrl)
+    return Promise.all(
+      rawSpaces.map(async (space) => ({
+        id: space.id,
+        name: await resolveSpaceNameAsync(space),
+        role: space.role,
+        canInvite: space.canInvite,
+        serverUrl,
+        createdAt: space.createdAt,
+      })),
+    )
+  }
+
+  // =========================================================================
+  // Space CRUD
+  // =========================================================================
 
   /**
    * Create a new shared space
@@ -65,10 +167,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const spaceKey = generateSpaceKey()
 
     // Encrypt space name with space key
-    const cryptoKey = await crypto.subtle.importKey(
-      'raw', spaceKey, { name: 'AES-GCM' }, false, ['encrypt'],
-    )
-    const { encryptedData, nonce } = await encryptString(spaceName, cryptoKey)
+    const { encryptedName, nameNonce } = await encryptSpaceNameAsync(spaceKey, spaceName)
 
     // Encrypt space key for self (ECDH)
     const keyGrant = await encryptSpaceKeyForRecipientAsync(
@@ -79,8 +178,8 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const response = await fetchWithAuth(`${serverUrl}/spaces`, {
       method: 'POST',
       body: JSON.stringify({
-        encryptedName: encryptedData,
-        nameNonce: nonce,
+        encryptedName,
+        nameNonce,
         label: selfLabel,
         keyGrant: {
           encryptedSpaceKey: keyGrant.encryptedSpaceKey,
@@ -97,8 +196,8 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
     const data = await response.json()
 
-    // Cache space key
-    cacheSpaceKey(data.space.id, 1, spaceKey)
+    // Persist space key
+    await persistSpaceKeyAsync(data.space.id, 1, spaceKey)
 
     log.info(`Created space ${data.space.id}`)
     await listSpacesAsync(serverUrl)
@@ -137,11 +236,13 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const grants = await grantsResponse.json()
 
     // Find the latest generation grant
-    const latestGrant = grants.sort((a: { generation: number }, b: { generation: number }) => b.generation - a.generation)[0]
+    const latestGrant = grants.sort(
+      (first: { generation: number }, second: { generation: number }) => second.generation - first.generation,
+    )[0]
     if (!latestGrant) throw new Error('No key grants found')
 
-    // Decrypt space key if not cached
-    let spaceKey = getSpaceKey(spaceId, latestGrant.generation)
+    // Get space key (from DB/cache, or decrypt from server grant)
+    let spaceKey = await getSpaceKeyAsync(spaceId, latestGrant.generation)
     if (!spaceKey) {
       spaceKey = await decryptSpaceKeyAsync(
         {
@@ -151,7 +252,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
         },
         userKeypairStore.privateKeyBase64,
       )
-      cacheSpaceKey(spaceId, latestGrant.generation, spaceKey)
+      await persistSpaceKeyAsync(spaceId, latestGrant.generation, spaceKey)
     }
 
     // Encrypt space key for invitee
@@ -234,8 +335,8 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       userKeypairStore.privateKeyBase64,
     )
 
-    // Cache space key
-    cacheSpaceKey(invite.spaceId, invite.generation, spaceKey)
+    // Persist space key
+    await persistSpaceKeyAsync(invite.spaceId, invite.generation, spaceKey)
 
     log.info(`Joined space ${invite.spaceId} via invite`)
     return { spaceId: invite.spaceId, spaceKey }
@@ -260,14 +361,10 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     }
 
     // Remove from local list
-    spaces.value = spaces.value.filter(s => s.id !== spaceId)
+    spaces.value = spaces.value.filter(space => space.id !== spaceId)
 
-    // Clear cached space keys for this space
-    for (const key of spaceKeyCache.keys()) {
-      if (key.startsWith(`${spaceId}:`)) {
-        spaceKeyCache.delete(key)
-      }
-    }
+    // Delete persisted keys
+    await deleteSpaceKeysAsync(spaceId)
 
     log.info(`Left space ${spaceId}`)
   }
@@ -286,14 +383,10 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     }
 
     // Remove from local list
-    spaces.value = spaces.value.filter(s => s.id !== spaceId)
+    spaces.value = spaces.value.filter(space => space.id !== spaceId)
 
-    // Clear cached keys
-    for (const key of spaceKeyCache.keys()) {
-      if (key.startsWith(`${spaceId}:`)) {
-        spaceKeyCache.delete(key)
-      }
-    }
+    // Delete persisted keys
+    await deleteSpaceKeysAsync(spaceId)
 
     log.info(`Deleted space ${spaceId}`)
   }
@@ -306,9 +399,12 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   return {
     spaces,
     getSpaceKey,
-    cacheSpaceKey,
+    getSpaceKeyAsync,
+    persistSpaceKeyAsync,
     createSpaceAsync,
     listSpacesAsync,
+    listDecryptedSpacesAsync,
+    resolveSpaceNameAsync,
     inviteMemberAsync,
     joinSpaceFromInviteAsync,
     leaveSpaceAsync,

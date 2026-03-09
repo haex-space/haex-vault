@@ -380,3 +380,22 @@ export const haexSharedSpaceSync = sqliteTable(
 
 export type InsertHaexSharedSpaceSync = typeof haexSharedSpaceSync.$inferInsert
 export type SelectHaexSharedSpaceSync = typeof haexSharedSpaceSync.$inferSelect
+
+// ---------------------------------------------------------------------------
+// Space Keys — persisted space decryption keys (device-local, not synced)
+// ---------------------------------------------------------------------------
+
+export const haexSpaceKeys = sqliteTable(
+  tableNames.haex.space_keys.name,
+  {
+    spaceId: text(tableNames.haex.space_keys.columns.spaceId).notNull(),
+    generation: integer(tableNames.haex.space_keys.columns.generation).notNull(),
+    key: text(tableNames.haex.space_keys.columns.key).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.spaceId, table.generation] }),
+  ],
+)
+
+export type InsertHaexSpaceKeys = typeof haexSpaceKeys.$inferInsert
+export type SelectHaexSpaceKeys = typeof haexSpaceKeys.$inferSelect

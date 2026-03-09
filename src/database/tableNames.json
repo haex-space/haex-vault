@@ -192,6 +192,14 @@
         "spaceId": "space_id"
       }
     },
+    "space_keys": {
+      "name": "haex_space_keys_no_sync",
+      "columns": {
+        "spaceId": "space_id",
+        "generation": "generation",
+        "key": "key"
+      }
+    },
 
     "crdt": {
       "changes": {
