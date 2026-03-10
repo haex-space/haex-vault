@@ -23,21 +23,12 @@ pub async fn fetch_web_request(request: WebFetchRequest) -> Result<WebFetchRespo
             reason: format!("Failed to create HTTP client: {}", e),
         })?;
 
-    // Build request
-    let mut req_builder = match method_str.to_uppercase().as_str() {
-        "GET" => client.get(&request.url),
-        "POST" => client.post(&request.url),
-        "PUT" => client.put(&request.url),
-        "DELETE" => client.delete(&request.url),
-        "PATCH" => client.patch(&request.url),
-        "HEAD" => client.head(&request.url),
-        "OPTIONS" => client.request(reqwest::Method::OPTIONS, &request.url),
-        _ => {
-            return Err(ExtensionError::WebError {
-                reason: format!("Unsupported HTTP method: {}", method_str),
-            })
-        }
-    };
+    // Build request — support any valid HTTP method (including WebDAV: PROPFIND, REPORT, etc.)
+    let method = reqwest::Method::from_bytes(method_str.to_uppercase().as_bytes())
+        .map_err(|e| ExtensionError::WebError {
+            reason: format!("Invalid HTTP method '{}': {}", method_str, e),
+        })?;
+    let mut req_builder = client.request(method, &request.url);
 
     // Add headers
     if let Some(headers) = request.headers {
