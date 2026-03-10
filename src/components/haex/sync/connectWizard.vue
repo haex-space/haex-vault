@@ -9,7 +9,7 @@
 
     <!-- Step Content -->
     <div>
-      <!-- Step 1: Login -->
+      <!-- Step 1: Identity Auth -->
       <div
         v-if="currentStepIndex === 0"
         class="space-y-4"
@@ -17,8 +17,8 @@
         <HaexSyncAddBackend
           ref="connectRef"
           v-model:server-url="credentials.serverUrl"
-          v-model:email="credentials.email"
-          v-model:password="credentials.password"
+          v-model:identity-id="credentials.identityId"
+          v-model:approved-claims="credentials.approvedClaims"
           :items="serverOptions"
           :is-loading="isLoading"
           autofocus
@@ -60,9 +60,7 @@
             <div class="flex items-center justify-between">
               <div>
                 <p class="font-medium">
-                  {{
-                    vault.decryptedName || t('steps.selectVault.encryptedVault')
-                  }}
+                  {{ t('steps.selectVault.encryptedVault') }}
                 </p>
                 <p class="text-sm text-muted">
                   {{ t('steps.selectVault.createdAt') }}:
@@ -224,11 +222,6 @@
 <script setup lang="ts">
 import { createClient } from '@supabase/supabase-js'
 import type { AppSupabaseClient } from '~/stores/sync/engine/supabase'
-import {
-  decryptString,
-  deriveKeyFromPassword,
-  base64ToArrayBuffer,
-} from '@haex-space/vault-sdk'
 import { createConnectWizardSchema } from './connectWizardSchema'
 
 const { t } = useI18n()
@@ -238,13 +231,14 @@ const { add } = useToast()
 // Create validation schema with i18n
 const wizardSchema = computed(() => createConnectWizardSchema(t))
 
+const { loginAsync: challengeLoginAsync } = useCreateSyncConnection()
+
 interface VaultInfo {
   vaultId: string
   encryptedVaultName: string
   vaultNameNonce: string
   vaultNameSalt: string
   createdAt: string
-  decryptedName?: string
 }
 
 defineProps<{
@@ -259,8 +253,7 @@ const emit = defineEmits<{
       vaultName: string
       localVaultName: string
       serverUrl: string
-      email: string
-      serverPassword: string
+      identityId: string
       vaultPassword: string
       isNewVault: boolean
     },
@@ -293,27 +286,18 @@ const steps = computed(() => [
 const isLoading = ref(false)
 const check = ref(false)
 
-// Step 1: Login
+// Step 1: Identity Auth
 const credentials = ref({
   serverUrl: 'https://sync.haex.space',
-  email: '',
-  password: '',
+  identityId: '',
+  approvedClaims: {} as Record<string, string>,
 })
 const supabaseClient = shallowRef<AppSupabaseClient | null>(null)
-const step1Errors = reactive({
-  serverUrl: [] as string[],
-  email: [] as string[],
-  password: [] as string[],
-})
 
 const isLoginFormValid = computed(() => {
   return (
     credentials.value.serverUrl !== '' &&
-    credentials.value.email !== '' &&
-    credentials.value.password !== '' &&
-    step1Errors.serverUrl.length === 0 &&
-    step1Errors.email.length === 0 &&
-    step1Errors.password.length === 0
+    credentials.value.identityId !== ''
   )
 })
 
@@ -397,15 +381,10 @@ const nextStep = async () => {
       localVaultName.value = 'HaexVault'
       vaultPasswordConfirm.value = ''
     } else {
-      // Existing vault: Pre-fill local vault name with the decrypted name from backend
-      const selectedVault = availableVaults.value.find(
-        (v) => v.vaultId === selectedVaultId.value,
-      )
-      if (selectedVault?.decryptedName) {
-        localVaultName.value = selectedVault.decryptedName
-        // Check if this name already exists locally
-        await checkVaultNameExistsAsync()
-      }
+      // Existing vault: use vault ID as placeholder name
+      localVaultName.value = 'HaexVault'
+      // Check if this name already exists locally
+      await checkVaultNameExistsAsync()
     }
 
     currentStepIndex.value++
@@ -432,41 +411,28 @@ const loginAsync = async () => {
 
     const serverInfo = await response.json()
 
-    // 2. Sign in via server-side endpoint (bypasses Turnstile captcha)
-    const loginResponse = await fetch(`${credentials.value.serverUrl}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email: credentials.value.email,
-        password: credentials.value.password,
-      }),
-    })
-
-    if (!loginResponse.ok) {
-      const errorData = await loginResponse.json()
-      throw new Error(errorData.error || 'Login failed')
-    }
-
-    const loginData = await loginResponse.json()
-
-    // 3. Create Supabase client and set session from server response
+    // 2. Create Supabase client
     supabaseClient.value = createClient(
       serverInfo.supabaseUrl,
       serverInfo.supabaseAnonKey,
     )
 
-    // Set the session from the server response
+    // 3. Challenge-response login
+    const session = await challengeLoginAsync(
+      credentials.value.serverUrl,
+      credentials.value.identityId,
+    )
+
+    // 4. Set session
     await supabaseClient.value.auth.setSession({
-      access_token: loginData.access_token,
-      refresh_token: loginData.refresh_token,
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
     })
 
-    // 4. Load available vaults
+    // 5. Load available vaults
     await loadVaultsAsync()
 
-    // 5. Move to next step
+    // 6. Move to next step
     currentStepIndex.value = 1
   } catch (error) {
     console.error('Login failed:', error)
@@ -508,26 +474,6 @@ const loadVaultsAsync = async () => {
 
     const data = await response.json()
     availableVaults.value = data.vaults
-
-    // Decrypt vault names using server password and vaultNameSalt
-    for (const vault of availableVaults.value) {
-      try {
-        const vaultNameSalt = base64ToArrayBuffer(vault.vaultNameSalt)
-        const derivedKey = await deriveKeyFromPassword(
-          credentials.value.password, // Server password
-          vaultNameSalt,
-        )
-        const decryptedName = await decryptString(
-          vault.encryptedVaultName,
-          vault.vaultNameNonce,
-          derivedKey,
-        )
-        vault.decryptedName = decryptedName
-      } catch (error) {
-        console.error('Failed to decrypt vault name:', vault.vaultId, error)
-        // Keep vault in list but without decrypted name
-      }
-    }
   } catch (error) {
     console.error('Failed to load vaults:', error)
     add({
@@ -589,8 +535,7 @@ const completeSetupAsync = async () => {
       vaultName: localVaultName.value,
       localVaultName: localVaultName.value,
       serverUrl: credentials.value.serverUrl,
-      email: credentials.value.email,
-      serverPassword: credentials.value.password,
+      identityId: credentials.value.identityId,
       vaultPassword: vaultPassword.value,
       isNewVault: true,
     })
@@ -604,11 +549,10 @@ const completeSetupAsync = async () => {
     emit('complete', {
       backendId,
       vaultId: selectedVault.vaultId,
-      vaultName: selectedVault.decryptedName || selectedVault.vaultId,
+      vaultName: localVaultName.value,
       localVaultName: localVaultName.value,
       serverUrl: credentials.value.serverUrl,
-      email: credentials.value.email,
-      serverPassword: credentials.value.password,
+      identityId: credentials.value.identityId,
       vaultPassword: vaultPassword.value,
       isNewVault: false,
     })
@@ -623,8 +567,8 @@ const clearForm = () => {
   currentStepIndex.value = 0
   credentials.value = {
     serverUrl: 'https://sync.haex.space',
-    email: '',
-    password: '',
+    identityId: '',
+    approvedClaims: {},
   }
   availableVaults.value = []
   selectedVaultId.value = null
@@ -671,7 +615,6 @@ de:
       confirmPasswordDescription: Bestätige dein Vault-Passwort
       passwordMismatch: Passwörter stimmen nicht überein
   actions:
-    login: Anmelden
     back: Zurück
     next: Weiter
     complete: Abschließen
@@ -684,9 +627,6 @@ de:
   validation:
     serverUrlRequired: Server-URL ist erforderlich
     serverUrlInvalid: Muss eine gültige URL sein
-    emailRequired: E-Mail ist erforderlich
-    emailInvalid: Muss eine gültige E-Mail sein
-    passwordRequired: Passwort ist erforderlich
     vaultNameRequired: Vault-Name ist erforderlich
     vaultNameTooLong: Vault-Name ist zu lang (max. 255 Zeichen)
     vaultPasswordMinLength: Passwort muss mindestens 6 Zeichen lang sein
@@ -716,7 +656,6 @@ en:
       confirmPasswordDescription: Confirm your vault password
       passwordMismatch: Passwords do not match
   actions:
-    login: Login
     back: Back
     next: Next
     complete: Complete
@@ -729,9 +668,6 @@ en:
   validation:
     serverUrlRequired: Server URL is required
     serverUrlInvalid: Must be a valid URL
-    emailRequired: Email is required
-    emailInvalid: Must be a valid email
-    passwordRequired: Password is required
     vaultNameRequired: Vault name is required
     vaultNameTooLong: Vault name is too long (max. 255 characters)
     vaultPasswordMinLength: Password must be at least 6 characters

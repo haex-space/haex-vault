@@ -6,13 +6,6 @@ export const createConnectWizardSchema = (t: (key: string) => string) => ({
     .string()
     .min(1, { message: t('validation.serverUrlRequired') })
     .url({ message: t('validation.serverUrlInvalid') }),
-  email: z
-    .string()
-    .min(1, { message: t('validation.emailRequired') })
-    .email({ message: t('validation.emailInvalid') }),
-  password: z
-    .string()
-    .min(1, { message: t('validation.passwordRequired') }),
   vaultName: z
     .string()
     .min(1, { message: t('validation.vaultNameRequired') })

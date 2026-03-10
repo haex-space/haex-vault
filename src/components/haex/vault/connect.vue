@@ -52,8 +52,7 @@ const onWizardCompleteAsync = async (wizardData: {
   vaultName: string
   localVaultName: string
   serverUrl: string
-  spaceId?: string
-  identityId?: string
+  identityId: string
   vaultPassword: string
   isNewVault: boolean
 }) => {
@@ -74,8 +73,8 @@ const onWizardCompleteAsync = async (wizardData: {
       name: new URL(wizardData.serverUrl).host,
       serverUrl: wizardData.serverUrl,
       vaultId: wizardData.vaultId,
-      spaceId: wizardData.spaceId ?? '',
-      identityId: wizardData.identityId ?? '',
+      spaceId: '',
+      identityId: wizardData.identityId,
       enabled: true,
     })
 
