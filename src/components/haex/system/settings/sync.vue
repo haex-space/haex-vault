@@ -34,8 +34,8 @@
         </template>
 
         <HaexSyncAddBackend
-          v-model:email="newBackend.email"
-          v-model:password="newBackend.password"
+          v-model:identity-id="newBackend.identityId"
+          v-model:approved-claims="newBackend.approvedClaims"
           v-model:server-url="newBackend.serverUrl"
           :items="serverOptions"
           @keydown.enter.prevent="onWizardCompleteAsync"
@@ -407,10 +407,9 @@ const isLoading = computed(
 )
 
 const newBackend = reactive({
-  email: '',
   serverUrl: '',
-  password: '',
-  id: '',
+  identityId: '',
+  approvedClaims: {} as Record<string, string>,
 })
 
 const { serverOptions } = useSyncServerOptions()
@@ -507,17 +506,17 @@ const savePeriodicIntervalAsync = async () => {
 // Cancel add backend
 const cancelAddBackend = () => {
   showAddBackendForm.value = false
-  newBackend.email = ''
-  newBackend.password = ''
   newBackend.serverUrl = ''
+  newBackend.identityId = ''
+  newBackend.approvedClaims = {}
 }
 
 // Handle wizard completion
 const onWizardCompleteAsync = async () => {
   const backendId = await createConnectionAsync({
     serverUrl: newBackend.serverUrl,
-    email: newBackend.email,
-    password: newBackend.password,
+    identityId: newBackend.identityId,
+    approvedClaims: newBackend.approvedClaims,
   })
 
   if (backendId) {

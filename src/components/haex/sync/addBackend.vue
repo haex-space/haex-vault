@@ -26,27 +26,113 @@
       />
     </div>
 
-    <UiInput
-      v-model="email"
-      type="email"
-      :label="t('email.label')"
-      leading-icon="i-lucide-mail"
-      size="lg"
-      :autofocus="autofocus"
-      class="w-full"
-    />
+    <!-- Identity Selector -->
+    <div class="flex flex-col space-y-2">
+      <label class="text-sm font-medium">{{ t('identity.label') }}</label>
+      <USelectMenu
+        v-model="selectedIdentityId"
+        :items="identityOptions"
+        size="lg"
+        class="w-full"
+        :placeholder="t('identity.placeholder')"
+      />
+      <p
+        v-if="identities.length === 0"
+        class="text-xs text-amber-500"
+      >
+        {{ t('identity.noIdentities') }}
+      </p>
+    </div>
 
-    <UiInputPassword
-      v-model="password"
-      :label="t('password.label')"
-      leading-icon="i-lucide-lock"
-      size="lg"
-      class="w-full"
-    />
+    <!-- Check Requirements Button -->
+    <div v-if="selectedIdentityId && serverUrl">
+      <UButton
+        v-if="!requirements"
+        :loading="isLoadingRequirements"
+        :disabled="isLoadingRequirements"
+        icon="i-lucide-shield-check"
+        variant="outline"
+        class="w-full"
+        @click="checkRequirementsAsync"
+      >
+        {{ t('requirements.check') }}
+      </UButton>
+
+      <!-- Requirements Error -->
+      <UAlert
+        v-if="requirementsError"
+        color="error"
+        icon="i-lucide-alert-circle"
+        :description="requirementsError"
+        class="mt-2"
+      />
+    </div>
+
+    <!-- Server Requirements Display -->
+    <div
+      v-if="requirements"
+      class="space-y-3"
+    >
+      <div class="flex items-center gap-2">
+        <UBadge
+          color="info"
+          variant="subtle"
+        >
+          {{ requirements.serverName }}
+        </UBadge>
+      </div>
+
+      <p class="text-sm text-muted">
+        {{ t('requirements.description') }}
+      </p>
+
+      <!-- Claim Consent Checkboxes -->
+      <div
+        v-for="claim in requirements.claims"
+        :key="claim.type"
+        class="flex items-start gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50"
+      >
+        <UCheckbox
+          :model-value="claimApproval[claim.type] ?? false"
+          :disabled="claim.required"
+          @update:model-value="toggleClaim(claim.type, $event as boolean)"
+        />
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-medium">{{ claim.label }}</span>
+            <UBadge
+              v-if="claim.required"
+              color="error"
+              variant="subtle"
+              size="xs"
+            >
+              {{ t('requirements.required') }}
+            </UBadge>
+          </div>
+          <p class="text-xs text-muted mt-1">
+            {{ t('requirements.claimType') }}: {{ claim.type }}
+          </p>
+          <p
+            v-if="matchedClaims[claim.type]"
+            class="text-xs text-success mt-1"
+          >
+            {{ t('requirements.value') }}: {{ matchedClaims[claim.type] }}
+          </p>
+          <p
+            v-else
+            class="text-xs text-amber-500 mt-1"
+          >
+            {{ t('requirements.missingClaim') }}
+          </p>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import type { ServerRequirements } from '~/composables/useCreateSyncConnection'
+
 const { t } = useI18n()
 
 defineProps<{
@@ -55,20 +141,42 @@ defineProps<{
 }>()
 
 const serverUrl = defineModel<string>('serverUrl')
-const email = defineModel<string>('email')
-const password = defineModel<string>('password')
+const identityId = defineModel<string>('identityId')
+const approvedClaims = defineModel<Record<string, string>>('approvedClaims')
 
-// Predefined server options
+const identityStore = useIdentityStore()
+const { identities } = storeToRefs(identityStore)
 
-// Default server option
+// Load identities on mount
+onMounted(async () => {
+  await identityStore.loadIdentitiesAsync()
+})
+
+// Identity options for selector
+const identityOptions = computed(() =>
+  identities.value.map((id) => ({
+    label: `${id.label} (${id.did.slice(0, 24)}...)`,
+    value: id.id,
+  })),
+)
+
+const selectedIdentityId = computed({
+  get: () => identityId.value,
+  set: (val) => {
+    identityId.value = val
+    // Reset requirements when identity changes
+    requirements.value = null
+    requirementsError.value = null
+  },
+})
+
+// Server URL handling
 const defaultServerOption: ISyncServerOption = {
   label: 'HaexSpace',
   value: 'https://sync.haex.space',
 }
 
-// Form state
 const selectedServerOption = ref<ISyncServerOption>(defaultServerOption)
-
 const customServerUrl = ref()
 
 watch(
@@ -80,9 +188,92 @@ watch(
       customServerUrl.value = ''
       serverUrl.value = selectedServerOption.value.value
     }
+    // Reset requirements when server changes
+    requirements.value = null
+    requirementsError.value = null
   },
   { immediate: true },
 )
+
+// Requirements state
+const requirements = ref<ServerRequirements | null>(null)
+const requirementsError = ref<string | null>(null)
+const isLoadingRequirements = ref(false)
+const claimApproval = ref<Record<string, boolean>>({})
+
+const { fetchRequirementsAsync } = useCreateSyncConnection()
+
+// Matched claims from identity
+const matchedClaims = computed<Record<string, string>>(() => {
+  // We'll need the claims from the selected identity — load them reactively
+  return identityClaimsMap.value
+})
+
+// Identity claims loaded separately
+const identityClaimsMap = ref<Record<string, string>>({})
+
+watch(
+  () => identityId.value,
+  async (newId) => {
+    if (!newId) {
+      identityClaimsMap.value = {}
+      return
+    }
+    const claims = await identityStore.getClaimsAsync(newId)
+    const map: Record<string, string> = {}
+    for (const c of claims) {
+      map[c.type] = c.value
+    }
+    identityClaimsMap.value = map
+  },
+  { immediate: true },
+)
+
+// Check requirements
+const checkRequirementsAsync = async () => {
+  if (!serverUrl.value) return
+  isLoadingRequirements.value = true
+  requirementsError.value = null
+
+  try {
+    const reqs = await fetchRequirementsAsync(serverUrl.value)
+    requirements.value = reqs
+
+    // Auto-approve required claims and pre-approve optional ones that we have
+    const approval: Record<string, boolean> = {}
+    for (const claim of reqs.claims) {
+      if (claim.required) {
+        approval[claim.type] = true
+      } else {
+        approval[claim.type] = !!identityClaimsMap.value[claim.type]
+      }
+    }
+    claimApproval.value = approval
+
+    updateApprovedClaims()
+  } catch (e) {
+    requirementsError.value = e instanceof Error ? e.message : 'Unknown error'
+  } finally {
+    isLoadingRequirements.value = false
+  }
+}
+
+// Toggle claim approval
+const toggleClaim = (type: string, approved: boolean) => {
+  claimApproval.value[type] = approved
+  updateApprovedClaims()
+}
+
+// Update the approved claims model
+const updateApprovedClaims = () => {
+  const result: Record<string, string> = {}
+  for (const [type, approved] of Object.entries(claimApproval.value)) {
+    if (approved && identityClaimsMap.value[type]) {
+      result[type] = identityClaimsMap.value[type]
+    }
+  }
+  approvedClaims.value = result
+}
 </script>
 
 <i18n lang="yaml">
@@ -94,14 +285,17 @@ de:
     label: Benutzerdefinierte Server-URL
     description: Gib die URL deines eigenen Sync-Servers ein
     placeholder: https://dein-server.de
-  email:
-    label: E-Mail
-    description: Deine E-Mail-Adresse für die Anmeldung
-    placeholder: beispiel{'@'}email.de
-  password:
-    label: Passwort
-    description: Dein Passwort für die Anmeldung
-    placeholder: Passwort eingeben
+  identity:
+    label: Identität
+    placeholder: Identität auswählen...
+    noIdentities: Keine Identitäten vorhanden. Erstelle zuerst eine Identität in den Einstellungen.
+  requirements:
+    check: Server-Anforderungen prüfen
+    description: Der Server benötigt folgende Informationen. Wähle aus, welche Daten du teilen möchtest.
+    required: Pflicht
+    claimType: Typ
+    value: Wert
+    missingClaim: Kein passender Claim vorhanden
   actions:
     connect: Verbinden
     cancel: Abbrechen
@@ -114,14 +308,17 @@ en:
     label: Custom Server URL
     description: Enter the URL of your own sync server
     placeholder: https://your-server.com
-  email:
-    label: Email
-    description: Your email address for authentication
-    placeholder: example{'@'}email.com
-  password:
-    label: Password
-    description: Your password for authentication
-    placeholder: Enter password
+  identity:
+    label: Identity
+    placeholder: Select identity...
+    noIdentities: No identities found. Create an identity in settings first.
+  requirements:
+    check: Check Server Requirements
+    description: The server requires the following information. Choose which data you want to share.
+    required: Required
+    claimType: Type
+    value: Value
+    missingClaim: No matching claim available
   actions:
     connect: Connect
     cancel: Cancel

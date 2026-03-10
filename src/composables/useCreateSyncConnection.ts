@@ -1,12 +1,63 @@
+import {
+  importUserPrivateKeyAsync,
+  encryptPrivateKeyAsync,
+} from '@haex-space/vault-sdk'
+
+export interface ServerRequirements {
+  serverName: string
+  claims: { type: string; required: boolean; label: string }[]
+  didMethods: string[]
+}
+
+interface SignedClaimPresentation {
+  did: string
+  publicKey: string
+  claims: Record<string, string>
+  timestamp: string
+  signature: string
+}
+
+/**
+ * Signs a claim presentation for selective disclosure.
+ * Canonical form: did\0timestamp\0type1=value1\0type2=value2\0...
+ */
+async function signClaimPresentation(
+  did: string,
+  publicKeyBase64: string,
+  claims: Record<string, string>,
+  privateKeyBase64: string,
+): Promise<SignedClaimPresentation> {
+  const timestamp = new Date().toISOString()
+  const sortedEntries = Object.entries(claims).sort(([a], [b]) => a.localeCompare(b))
+  const canonical = [did, timestamp, ...sortedEntries.map(([k, v]) => `${k}=${v}`)].join('\0')
+
+  const privateKey = await importUserPrivateKeyAsync(privateKeyBase64)
+  const data = new TextEncoder().encode(canonical)
+  const sig = await crypto.subtle.sign(
+    { name: 'ECDSA', hash: 'SHA-256' },
+    privateKey,
+    data,
+  )
+
+  return {
+    did,
+    publicKey: publicKeyBase64,
+    claims,
+    timestamp,
+    signature: btoa(String.fromCharCode(...new Uint8Array(sig))),
+  }
+}
+
 /**
  * Composable for creating a new sync connection to the current vault.
- * Used by both the Welcome Wizard and the Sync Settings view.
+ * Uses identity-based (DID) challenge-response authentication.
  */
 export const useCreateSyncConnection = () => {
   const syncBackendsStore = useSyncBackendsStore()
   const syncEngineStore = useSyncEngineStore()
   const syncOrchestratorStore = useSyncOrchestratorStore()
   const vaultStore = useVaultStore()
+  const identityStore = useIdentityStore()
   const { currentVaultId, currentVaultName, currentVaultPassword } =
     storeToRefs(vaultStore)
 
@@ -29,23 +80,82 @@ export const useCreateSyncConnection = () => {
   }
 
   /**
-   * Creates a new sync connection to the current vault.
+   * Fetches server requirements (required claims, supported DID methods).
+   */
+  const fetchRequirementsAsync = async (serverUrl: string): Promise<ServerRequirements> => {
+    const res = await fetch(`${serverUrl}/identity-auth/requirements`)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: 'Unknown error' }))
+      throw new Error(`Failed to fetch requirements: ${data.error || res.statusText}`)
+    }
+    return res.json()
+  }
+
+  /**
+   * Performs challenge-response login and sets the Supabase session.
+   * Returns the session tokens.
+   */
+  const loginAsync = async (serverUrl: string, identityId: string): Promise<{ access_token: string; refresh_token: string }> => {
+    const identity = await identityStore.getIdentityAsync(identityId)
+    if (!identity) {
+      throw new Error('Identity not found')
+    }
+
+    // 1. Request challenge
+    const challengeRes = await fetch(`${serverUrl}/identity-auth/challenge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ did: identity.did }),
+    })
+
+    if (!challengeRes.ok) {
+      const errorData = await challengeRes.json().catch(() => ({ error: 'Unknown error' }))
+      throw new Error(`Challenge failed: ${errorData.error || 'Unknown error'}`)
+    }
+
+    const { nonce } = await challengeRes.json()
+
+    // 2. Sign nonce with identity's private key
+    const privateKey = await importUserPrivateKeyAsync(identity.privateKey)
+    const sig = await crypto.subtle.sign(
+      { name: 'ECDSA', hash: 'SHA-256' },
+      privateKey,
+      new TextEncoder().encode(nonce),
+    )
+    const signature = btoa(String.fromCharCode(...new Uint8Array(sig)))
+
+    // 3. Verify and get JWT
+    const verifyRes = await fetch(`${serverUrl}/identity-auth/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ did: identity.did, nonce, signature }),
+    })
+
+    if (!verifyRes.ok) {
+      const errorData = await verifyRes.json().catch(() => ({ error: 'Unknown error' }))
+      throw new Error(`Verification failed: ${errorData.error || 'Unknown error'}`)
+    }
+
+    return verifyRes.json()
+  }
+
+  /**
+   * Creates a new sync connection to the current vault using identity-based auth.
    *
    * This function:
-   * 1. Creates a temporary backend entry (disabled)
-   * 2. Initializes Supabase client
-   * 3. Verifies credentials by signing in
-   * 4. Enables the backend
+   * 1. Signs a claim presentation with the user's identity
+   * 2. Registers with the server via POST /identity-auth/register
+   * 3. Logs in via challenge-response
+   * 4. Creates sync backend entry
    * 5. Ensures sync key (creates vault on server if needed)
    * 6. Starts sync
    *
-   * @param credentials - Server URL, email, and password
    * @returns The created backend ID on success, null on failure
    */
-  const createConnectionAsync = async (credentials: {
+  const createConnectionAsync = async (params: {
     serverUrl: string
-    email: string
-    password: string
+    identityId: string
+    approvedClaims: Record<string, string>
   }): Promise<string | null> => {
     isLoading.value = true
     error.value = null
@@ -55,24 +165,70 @@ export const useCreateSyncConnection = () => {
 
       // Check if we already have a connection to this server
       const existingBackend = backends.value.find(
-        (b) => b.serverUrl === credentials.serverUrl,
+        (b) => b.serverUrl === params.serverUrl,
       )
 
       if (existingBackend) {
-        error.value = `A connection to ${credentials.serverUrl} already exists`
+        error.value = `A connection to ${params.serverUrl} already exists`
         return null
       }
 
-      const backendName = getBackendNameFromUrl(credentials.serverUrl)
+      const identity = await identityStore.getIdentityAsync(params.identityId)
+      if (!identity) {
+        throw new Error('Identity not found')
+      }
 
-      // 1. Create a temporary backend entry (disabled until verified)
+      // 1. Sign claim presentation
+      const presentation = await signClaimPresentation(
+        identity.did,
+        identity.publicKey,
+        params.approvedClaims,
+        identity.privateKey,
+      )
+
+      // 2. Build registration body
+      const registrationBody: Record<string, unknown> = { presentation }
+
+      // Encrypt private key for recovery if vault password is available
+      if (currentVaultPassword.value) {
+        try {
+          const recovery = await encryptPrivateKeyAsync(
+            identity.privateKey,
+            currentVaultPassword.value,
+          )
+          registrationBody.encryptedPrivateKey = recovery.encryptedPrivateKey
+          registrationBody.privateKeyNonce = recovery.nonce
+          registrationBody.privateKeySalt = recovery.salt
+        } catch (e) {
+          console.warn('[SYNC] Could not encrypt private key for recovery:', e)
+        }
+      }
+
+      // 3. Register with the server
+      const registerRes = await fetch(`${params.serverUrl}/identity-auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(registrationBody),
+      })
+
+      if (!registerRes.ok) {
+        const errorData = await registerRes.json().catch(() => ({ error: 'Unknown error' }))
+        // 409 means already registered — that's ok, proceed to login
+        if (registerRes.status !== 409) {
+          throw new Error(`Registration failed: ${errorData.error || 'Unknown error'}`)
+        }
+        console.log('[SYNC] Already registered, proceeding to login')
+      }
+
+      const backendName = getBackendNameFromUrl(params.serverUrl)
+
+      // 4. Create backend entry (disabled until verified)
       const tempBackend = await syncBackendsStore.addBackendAsync({
         name: backendName,
-        serverUrl: credentials.serverUrl,
-        email: credentials.email,
-        password: credentials.password,
+        serverUrl: params.serverUrl,
         enabled: false,
         vaultId: currentVaultId.value,
+        identityId: params.identityId,
       })
 
       if (!tempBackend) {
@@ -82,56 +238,32 @@ export const useCreateSyncConnection = () => {
       const backendId = tempBackend.id
 
       try {
-        // 2. Initialize Supabase client with the backend ID
+        // 5. Initialize Supabase client
         console.log('[SYNC] Initializing Supabase client...')
         await syncEngineStore.initSupabaseClientAsync(backendId)
 
-        // 3. Verify credentials by signing in via server-side endpoint (bypasses Turnstile)
         if (!syncEngineStore.supabaseClient) {
           throw new Error('Supabase client not initialized')
         }
 
-        const loginResponse = await fetch(`${credentials.serverUrl}/auth/login`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: credentials.email,
-            password: credentials.password,
-          }),
-        })
-
-        if (!loginResponse.ok) {
-          const errorData = await loginResponse.json()
-          throw new Error(`Authentication failed: ${errorData.error || 'Unknown error'}`)
-        }
-
-        const loginData = await loginResponse.json()
+        // 6. Login via challenge-response
+        console.log('[SYNC] Challenge-response login...')
+        const session = await loginAsync(params.serverUrl, params.identityId)
 
         // Set the session from the server response
-        const { data: sessionData, error: sessionError } =
+        const { error: sessionError } =
           await syncEngineStore.supabaseClient.auth.setSession({
-            access_token: loginData.access_token,
-            refresh_token: loginData.refresh_token,
+            access_token: session.access_token,
+            refresh_token: session.refresh_token,
           })
 
         if (sessionError) {
           throw new Error(`Failed to set session: ${sessionError.message}`)
         }
 
-        // Verify the session was set correctly - use session data directly from setSession response
-        // instead of calling getSession, which can fail due to storage timing issues
-        if (!sessionData.session?.access_token) {
-          throw new Error('Session was set but no access token in response')
-        }
-
         console.log('[SYNC] Credentials verified successfully')
 
-        // 4. Ensure sync key FIRST (creates vault on server if it doesn't exist)
-        // This MUST happen before enabling the backend, because enabling triggers
-        // loadBackendsAsync() which fires DIRTY_TABLES events that start a push.
-        // The push will fail with FK constraint error if vault key isn't on server yet.
+        // 7. Ensure sync key FIRST (creates vault on server if it doesn't exist)
         if (!currentVaultPassword.value) {
           throw new Error('Vault password not available')
         }
@@ -140,26 +272,24 @@ export const useCreateSyncConnection = () => {
           currentVaultId.value!,
           currentVaultName.value,
           currentVaultPassword.value,
-          undefined,
-          credentials.password,
         )
 
-        // 5. Enable the backend now that vault key is on server
+        // 8. Enable the backend now that vault key is on server
         await syncBackendsStore.updateBackendAsync(backendId, {
           enabled: true,
         })
 
-        // 6. Reload backends (triggers DIRTY_TABLES → push, but vault key is ready)
+        // 9. Reload backends
         await syncBackendsStore.loadBackendsAsync()
 
-        // 7. Start sync
+        // 10. Start sync
         await syncOrchestratorStore.startSyncAsync()
 
         console.log('[SYNC] Connection created and sync started successfully')
 
         return backendId
       } catch (err) {
-        // If authentication fails, delete the backend entry
+        // If setup fails, delete the backend entry
         console.error('[SYNC] Connection setup failed, removing backend entry')
         await syncBackendsStore.deleteBackendAsync(backendId)
         throw err
@@ -177,6 +307,8 @@ export const useCreateSyncConnection = () => {
     isLoading: readonly(isLoading),
     error: readonly(error),
     createConnectionAsync,
+    fetchRequirementsAsync,
+    loginAsync,
     getBackendNameFromUrl,
   }
 }
