@@ -119,6 +119,7 @@
         "type": "type",
         "spaceId": "space_id",
         "spaceToken": "space_token",
+        "identityId": "identity_id",
         "enabled": "enabled",
         "priority": "priority",
         "lastPushHlcTimestamp": "last_push_hlc_timestamp",
@@ -190,6 +191,29 @@
         "tableName": "table_name",
         "rowPks": "row_pks",
         "spaceId": "space_id"
+      }
+    },
+    "identities": {
+      "name": "haex_identities",
+      "columns": {
+        "id": "id",
+        "label": "label",
+        "did": "did",
+        "publicKey": "public_key",
+        "privateKey": "private_key",
+        "createdAt": "created_at"
+      }
+    },
+    "identity_claims": {
+      "name": "haex_identity_claims",
+      "columns": {
+        "id": "id",
+        "identityId": "identity_id",
+        "type": "type",
+        "value": "value",
+        "verifiedAt": "verified_at",
+        "verifiedBy": "verified_by",
+        "createdAt": "created_at"
       }
     },
     "space_keys": {

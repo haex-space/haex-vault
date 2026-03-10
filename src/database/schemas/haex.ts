@@ -222,6 +222,7 @@ export const haexSyncBackends = sqliteTable(
     type: text(tableNames.haex.sync_backends.columns.type).default('personal').notNull(), // 'personal' | 'space'
     spaceId: text(tableNames.haex.sync_backends.columns.spaceId), // Space ID if type='space'
     spaceToken: text(tableNames.haex.sync_backends.columns.spaceToken), // Access token for federated spaces
+    identityId: text(tableNames.haex.sync_backends.columns.identityId), // FK → haex_identities.id (for space auth)
     enabled: integer(tableNames.haex.sync_backends.columns.enabled, {
       mode: 'boolean',
     })
@@ -361,6 +362,56 @@ export const haexExtensionLimits = sqliteTable(
 )
 export type InsertHaexExtensionLimits = typeof haexExtensionLimits.$inferInsert
 export type SelectHaexExtensionLimits = typeof haexExtensionLimits.$inferSelect
+
+// ---------------------------------------------------------------------------
+// Identities — user-managed keypairs for space authentication (did:key)
+// ---------------------------------------------------------------------------
+
+export const haexIdentities = sqliteTable(
+  tableNames.haex.identities.name,
+  {
+    id: text(tableNames.haex.identities.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    label: text(tableNames.haex.identities.columns.label).notNull(),
+    did: text(tableNames.haex.identities.columns.did).notNull(), // did:key:zDn...
+    publicKey: text(tableNames.haex.identities.columns.publicKey).notNull(), // Base64 SPKI
+    privateKey: text(tableNames.haex.identities.columns.privateKey).notNull(), // Base64 PKCS8
+    createdAt: text(tableNames.haex.identities.columns.createdAt).default(
+      sql`(CURRENT_TIMESTAMP)`,
+    ),
+  },
+  (table) => [
+    uniqueIndex('haex_identities_did_unique').on(table.did),
+  ],
+)
+export type InsertHaexIdentities = typeof haexIdentities.$inferInsert
+export type SelectHaexIdentities = typeof haexIdentities.$inferSelect
+
+// ---------------------------------------------------------------------------
+// Identity Claims — local-only attributes for selective disclosure
+// ---------------------------------------------------------------------------
+
+export const haexIdentityClaims = sqliteTable(
+  tableNames.haex.identity_claims.name,
+  {
+    id: text(tableNames.haex.identity_claims.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    identityId: text(tableNames.haex.identity_claims.columns.identityId)
+      .notNull()
+      .references(() => haexIdentities.id, { onDelete: 'cascade' }),
+    type: text(tableNames.haex.identity_claims.columns.type).notNull(),
+    value: text(tableNames.haex.identity_claims.columns.value).notNull(),
+    verifiedAt: text(tableNames.haex.identity_claims.columns.verifiedAt),
+    verifiedBy: text(tableNames.haex.identity_claims.columns.verifiedBy),
+    createdAt: text(tableNames.haex.identity_claims.columns.createdAt).default(
+      sql`(CURRENT_TIMESTAMP)`,
+    ),
+  },
+)
+export type InsertHaexIdentityClaims = typeof haexIdentityClaims.$inferInsert
+export type SelectHaexIdentityClaims = typeof haexIdentityClaims.$inferSelect
 
 // ---------------------------------------------------------------------------
 // Shared Space Sync — maps rows to shared spaces for space-backend filtering
