@@ -159,17 +159,18 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     })
 
     for (const backend of backends) {
-      if (!backend.vaultId || !backend.password) {
-        console.log(`[VaultSettings] Skipping ${backend.name}: missing vaultId or server password`)
+      if (!backend.vaultId) {
+        console.log(`[VaultSettings] Skipping ${backend.name}: missing vaultId`)
         continue
       }
 
       try {
+        // TODO: vault name encryption needs to use space key instead of password
         await syncEngineStore.updateVaultNameOnServerAsync(
           backend.id,
           backend.vaultId,
           newVaultName,
-          backend.password, // Server password for vault name encryption
+          '', // Legacy: server password no longer used
         )
         console.log(`[VaultSettings] Vault name updated on server: ${backend.name}`)
       } catch (error) {

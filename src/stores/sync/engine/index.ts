@@ -271,10 +271,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
           if (error instanceof Error && error.message.includes('not found')) {
             // Server lost the vault key - re-upload it
             log.warn('Vault key missing on server, re-uploading...')
-            const serverPwd = serverPassword || backend.password
-            if (!serverPwd) {
-              throw new Error('Server password required to re-upload vault key')
-            }
+            const serverPwd = serverPassword || ''
             await reUploadVaultKeyAsync(
               backendId,
               vaultId,

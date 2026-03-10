@@ -10,7 +10,7 @@ import { enterBulkMode, exitBulkMode } from '@/stores/logging'
 import { pushToBackendAsync, pushAllDataToBackendAsync } from './push'
 import {
   pullFromBackendAsync,
-  pullChangesFromServerWithConfigAsync,
+  pullChangesFromServerAsync,
   applyAllChangesWithMigrationsAsync,
 } from './pull'
 import {
@@ -596,7 +596,7 @@ export const useSyncOrchestratorStore = defineStore(
 
         // Pull ALL changes (no cursor since this is initial sync)
         log.info('Downloading all changes from server...')
-        const pullResult = await pullChangesFromServerWithConfigAsync(
+        const pullResult = await pullChangesFromServerAsync(
           tempBackend.serverUrl,
           tempBackend.vaultId,
           null, // No lastPullServerTimestamp - get everything
@@ -631,9 +631,9 @@ export const useSyncOrchestratorStore = defineStore(
         await syncBackendsStore.loadBackendsAsync()
 
         // Find the backend (could have different ID if it existed from sync)
-        const persistedBackend = await syncBackendsStore.findBackendByCredentialsAsync(
+        const persistedBackend = await syncBackendsStore.findBackendBySpaceAsync(
           tempBackend.serverUrl,
-          tempBackend.email,
+          tempBackend.spaceId,
         )
 
         if (persistedBackend) {

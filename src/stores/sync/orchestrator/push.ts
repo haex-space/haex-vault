@@ -6,7 +6,6 @@
 import {
   getDirtyTablesAsync,
   getAllCrdtTablesAsync,
-  scanTableForChangesAsync,
   scanTableForSpaceChangesAsync,
   clearDirtyTableAsync,
   type ColumnChange,
@@ -59,37 +58,26 @@ export const pushToBackendAsync = async (
       throw new Error('Backend vaultId not configured')
     }
 
-    const isSpaceBackend = backend.type === 'space'
     const lastPushHlc = backend.lastPushHlcTimestamp
     log.debug('Backend config:', {
       backendId,
       vaultId: backend.vaultId,
       serverUrl: backend.serverUrl,
       lastPushHlc: lastPushHlc || '(none)',
-      type: backend.type || 'personal',
+      spaceId: backend.spaceId || '(none)',
     })
 
-    // Get encryption key: space key for space backends, vault key for personal
-    let encryptionKey: Uint8Array
-    if (isSpaceBackend) {
-      if (!backend.spaceId) {
-        throw new Error('Space backend is missing spaceId configuration')
-      }
-      const spacesStore = useSpacesStore()
-      const spaceKey = spacesStore.getSpaceKey(backend.spaceId, 1) // TODO: proper generation lookup
-      if (!spaceKey) {
-        log.error('PUSH FAILED: Space key not available')
-        throw new Error('Space key not available')
-      }
-      encryptionKey = spaceKey
-    } else {
-      const vaultKey = syncEngineStore.vaultKeyCache[backend.vaultId]?.vaultKey
-      if (!vaultKey) {
-        log.error('PUSH FAILED: Vault key not available')
-        throw new Error('Vault key not available. Please unlock vault first.')
-      }
-      encryptionKey = vaultKey
+    // Get encryption key: space key (all backends are space-based)
+    if (!backend.spaceId) {
+      throw new Error('Backend is missing spaceId configuration')
     }
+    const spacesStore = useSpacesStore()
+    const spaceKey = spacesStore.getSpaceKey(backend.spaceId, 1) // TODO: proper generation lookup
+    if (!spaceKey) {
+      log.error('PUSH FAILED: Space key not available')
+      throw new Error('Space key not available')
+    }
+    const encryptionKey = spaceKey
     log.debug('Encryption key available: true')
 
     // Get current device ID
@@ -132,9 +120,7 @@ export const pushToBackendAsync = async (
         log.info(`[PUSH-SCAN] Scanning table: ${tableName}`)
         log.debug(`[PUSH-SCAN]   lastPushHlc: ${lastPushHlc || '(none)'}`)
 
-        const tableChanges = isSpaceBackend
-          ? await scanTableForSpaceChangesAsync(tableName, backend.spaceId!, lastPushHlc, encryptionKey, batchId, deviceId)
-          : await scanTableForChangesAsync(tableName, lastPushHlc, encryptionKey, batchId, deviceId)
+        const tableChanges = await scanTableForSpaceChangesAsync(tableName, backend.spaceId!, lastPushHlc, encryptionKey, batchId, deviceId)
 
         partialChanges.push(...tableChanges)
 
@@ -181,11 +167,8 @@ export const pushToBackendAsync = async (
     if (allChanges.length === 0) {
       log.info('PUSH COMPLETE: No changes after scanning (tables may already be synced)')
       // Clear dirty tables even if no changes (they might have been synced already)
-      // Only clear entries that existed at scan start — but only for personal backends
-      if (!isSpaceBackend) {
-        for (const { tableName } of dirtyTables) {
-          await clearDirtyTableAsync(tableName, maxDirtyTimestamp)
-        }
+      for (const { tableName } of dirtyTables) {
+        await clearDirtyTableAsync(tableName, maxDirtyTimestamp)
       }
       return
     }
@@ -219,17 +202,12 @@ export const pushToBackendAsync = async (
     log.debug('Updating backend timestamps:', updateData)
     await syncBackendsStore.updateBackendAsync(backendId, updateData)
 
-    // Clear dirty tables after successful push (only for personal backends)
-    // Space backends must NOT clear dirty tables — the personal backend still needs them
-    if (!isSpaceBackend) {
-      // IMPORTANT: Only clear entries that existed at scan start (before maxDirtyTimestamp)
-      // This prevents clearing entries added AFTER we started scanning (which would cause data loss)
-      log.debug(`Clearing dirty tables with timestamp <= ${maxDirtyTimestamp}...`)
-      for (const { tableName } of dirtyTables) {
-        await clearDirtyTableAsync(tableName, maxDirtyTimestamp)
-      }
-    } else {
-      log.debug('Skipping dirty table clearing for space backend (personal backend handles this)')
+    // Clear dirty tables after successful push
+    // IMPORTANT: Only clear entries that existed at scan start (before maxDirtyTimestamp)
+    // This prevents clearing entries added AFTER we started scanning (which would cause data loss)
+    log.debug(`Clearing dirty tables with timestamp <= ${maxDirtyTimestamp}...`)
+    for (const { tableName } of dirtyTables) {
+      await clearDirtyTableAsync(tableName, maxDirtyTimestamp)
     }
 
     log.info(`========== PUSH SUCCESS: ${allChanges.length} changes pushed ==========`)
@@ -266,18 +244,26 @@ export const pushChangesToServerAsync = async (
     throw new Error('Backend not found')
   }
 
-  const isSpaceBackend = backend.type === 'space'
-
   // Get current device ID
   const deviceStore = useDeviceStore()
   const deviceId = deviceStore.deviceId
 
-  // Hoist dynamic import outside per-change loop
-  const signRecordAsync = isSpaceBackend
-    ? (await import('@haex-space/vault-sdk')).signRecordAsync
-    : null
+  // Resolve identity for record signing + auth (every backend has an identity)
+  let identityPrivateKey: string | null = null
+  let identityPublicKey: string | null = null
+  if (backend.identityId) {
+    const identityStore = useIdentityStore()
+    const identity = await identityStore.getIdentityAsync(backend.identityId)
+    if (identity) {
+      identityPrivateKey = identity.privateKey
+      identityPublicKey = identity.publicKey
+    }
+  }
 
-  // Format changes for server API, with optional signing for space backends
+  // Import signing function — all backends sign records
+  const { signRecordAsync } = await import('@haex-space/vault-sdk')
+
+  // Format changes for server API, always signing records
   const formattedChanges = await Promise.all(changes.map(async (change) => {
     const base = {
       tableName: change.tableName,
@@ -292,12 +278,7 @@ export const pushChangesToServerAsync = async (
       nonce: change.nonce,
     }
 
-    if (isSpaceBackend && signRecordAsync) {
-      const userKeypairStore = useUserKeypairStore()
-      if (!userKeypairStore.privateKeyBase64 || !userKeypairStore.publicKeyBase64) {
-        throw new Error('User keypair not available for signing')
-      }
-
+    if (signRecordAsync && identityPrivateKey && identityPublicKey) {
       const signature = await signRecordAsync(
         {
           tableName: change.tableName,
@@ -306,13 +287,13 @@ export const pushChangesToServerAsync = async (
           encryptedValue: change.encryptedValue ?? null,
           hlcTimestamp: change.hlcTimestamp,
         },
-        userKeypairStore.privateKeyBase64,
+        identityPrivateKey,
       )
 
       return {
         ...base,
         signature,
-        signedBy: userKeypairStore.publicKeyBase64,
+        signedBy: identityPublicKey,
       }
     }
 
@@ -322,6 +303,7 @@ export const pushChangesToServerAsync = async (
   // Use appropriate auth header
   const authHeaders = await buildAuthHeadersAsync(
     backend.spaceToken ?? null, backend.spaceId ?? null, () => syncEngineStore.getAuthTokenAsync(),
+    identityPrivateKey,
   )
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -330,7 +312,7 @@ export const pushChangesToServerAsync = async (
 
   const url = `${backend.serverUrl}/sync/push`
   log.debug('Sending POST to:', url)
-  log.debug('Request payload:', { vaultId, changesCount: formattedChanges.length, isSpaceBackend })
+  log.debug('Request payload:', { vaultId, changesCount: formattedChanges.length })
 
   // Send to server
   const response = await fetch(url, {
@@ -387,35 +369,24 @@ export const pushAllDataToBackendAsync = async (
     throw new Error('Backend vaultId not configured')
   }
 
-  const isSpaceBackend = backend.type === 'space'
   log.debug('Backend config:', {
     backendId,
     vaultId: backend.vaultId,
     serverUrl: backend.serverUrl,
-    type: backend.type || 'personal',
+    spaceId: backend.spaceId || '(none)',
   })
 
-  // Get encryption key: space key for space backends, vault key for personal
-  let encryptionKey: Uint8Array
-  if (isSpaceBackend) {
-    if (!backend.spaceId) {
-      throw new Error('Space backend is missing spaceId configuration')
-    }
-    const spacesStore = useSpacesStore()
-    const spaceKey = spacesStore.getSpaceKey(backend.spaceId, 1) // TODO: proper generation lookup
-    if (!spaceKey) {
-      log.error('FULL PUSH FAILED: Space key not available')
-      throw new Error('Space key not available')
-    }
-    encryptionKey = spaceKey
-  } else {
-    const vaultKey = syncEngineStore.vaultKeyCache[backend.vaultId]?.vaultKey
-    if (!vaultKey) {
-      log.error('FULL PUSH FAILED: Vault key not available')
-      throw new Error('Vault key not available. Please unlock vault first.')
-    }
-    encryptionKey = vaultKey
+  // Get encryption key: space key (all backends are space-based)
+  if (!backend.spaceId) {
+    throw new Error('Backend is missing spaceId configuration')
   }
+  const spacesStore = useSpacesStore()
+  const spaceKey = spacesStore.getSpaceKey(backend.spaceId, 1) // TODO: proper generation lookup
+  if (!spaceKey) {
+    log.error('FULL PUSH FAILED: Space key not available')
+    throw new Error('Space key not available')
+  }
+  const encryptionKey = spaceKey
   log.debug('Encryption key available: true')
 
   // Get current device ID
@@ -450,9 +421,7 @@ export const pushAllDataToBackendAsync = async (
     try {
       log.info(`Scanning table: ${tableName} (full scan)`)
 
-      const tableChanges = isSpaceBackend
-        ? await scanTableForSpaceChangesAsync(tableName, backend.spaceId!, null, encryptionKey, batchId, deviceId)
-        : await scanTableForChangesAsync(tableName, null, encryptionKey, batchId, deviceId)
+      const tableChanges = await scanTableForSpaceChangesAsync(tableName, backend.spaceId!, null, encryptionKey, batchId, deviceId)
 
       partialChanges.push(...tableChanges)
 
@@ -509,16 +478,11 @@ export const pushAllDataToBackendAsync = async (
   log.debug('Updating backend timestamps:', updateData)
   await syncBackendsStore.updateBackendAsync(backendId, updateData)
 
-  // Clear all dirty tables after successful push (only for personal backends)
-  // Space backends must NOT clear dirty tables — the personal backend still needs them
-  if (!isSpaceBackend) {
-    log.debug('Clearing all dirty tables...')
-    const dirtyTables = await getDirtyTablesAsync()
-    for (const { tableName } of dirtyTables) {
-      await clearDirtyTableAsync(tableName)
-    }
-  } else {
-    log.debug('Skipping dirty table clearing for space backend (personal backend handles this)')
+  // Clear all dirty tables after successful push
+  log.debug('Clearing all dirty tables...')
+  const dirtyTables = await getDirtyTablesAsync()
+  for (const { tableName } of dirtyTables) {
+    await clearDirtyTableAsync(tableName)
   }
 
   log.info(`========== FULL PUSH SUCCESS: ${allChanges.length} changes pushed ==========`)

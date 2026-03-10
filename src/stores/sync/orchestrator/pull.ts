@@ -58,28 +58,24 @@ export const pullFromBackendAsync = async (
       throw new Error('Backend vaultId not configured')
     }
 
-    const isSpaceBackend = backend.type === 'space'
+    // Get encryption key: space key (all backends are space-based)
+    if (!backend.spaceId) {
+      throw new Error('Backend is missing spaceId configuration')
+    }
+    const spacesStore = useSpacesStore()
+    const spaceKey = spacesStore.getSpaceKey(backend.spaceId, 1) // TODO: proper generation lookup
+    if (!spaceKey) {
+      log.error('PULL FAILED: Space key not available')
+      throw new Error('Space key not available')
+    }
+    const encryptionKey = spaceKey
 
-    // Get encryption key: space key for space backends, vault key for personal
-    let encryptionKey: Uint8Array
-    if (isSpaceBackend) {
-      if (!backend.spaceId) {
-        throw new Error('Space backend is missing spaceId configuration')
-      }
-      const spacesStore = useSpacesStore()
-      const spaceKey = spacesStore.getSpaceKey(backend.spaceId, 1) // TODO: proper generation lookup
-      if (!spaceKey) {
-        log.error('PULL FAILED: Space key not available')
-        throw new Error('Space key not available')
-      }
-      encryptionKey = spaceKey
-    } else {
-      const vaultKey = syncEngineStore.vaultKeyCache[backend.vaultId]?.vaultKey
-      if (!vaultKey) {
-        log.error('PULL FAILED: Vault key not available')
-        throw new Error('Vault key not available. Please unlock vault first.')
-      }
-      encryptionKey = vaultKey
+    // Resolve identity private key for auth (every backend has an identity)
+    let identityPrivateKey: string | null = null
+    if (backend.identityId) {
+      const identityStore = useIdentityStore()
+      const identity = await identityStore.getIdentityAsync(backend.identityId)
+      identityPrivateKey = identity?.privateKey ?? null
     }
 
     const lastPullServerTimestamp = backend.lastPullServerTimestamp
@@ -98,6 +94,7 @@ export const pullFromBackendAsync = async (
       syncEngineStore,
       backend.spaceToken,
       backend.spaceId,
+      identityPrivateKey,
     )
 
     const { changes: allChanges, serverTimestamp } = pullResult
@@ -135,6 +132,7 @@ export const pullFromBackendAsync = async (
       syncEngineStore,
       backend.spaceToken,
       backend.spaceId,
+      identityPrivateKey,
     )
     if (pendingColumnsPulled > 0) {
       log.info(`Pulled ${pendingColumnsPulled} pending column changes`)
@@ -221,11 +219,13 @@ export const pullChangesFromServerAsync = async (
   syncEngineStore: ReturnType<typeof useSyncEngineStore>,
   spaceToken?: string | null,
   spaceId?: string | null,
+  identityPrivateKey?: string | null,
 ): Promise<PullResult> => {
   log.info('pullChangesFromServerAsync: Starting pull from', serverUrl, 'vault:', vaultId)
 
   const authHeaders = await buildAuthHeadersAsync(
     spaceToken, spaceId, () => syncEngineStore.getAuthTokenAsync(),
+    identityPrivateKey,
   )
 
   const allChanges: ColumnChange[] = []
@@ -294,11 +294,6 @@ export const pullChangesFromServerAsync = async (
   return { changes: allChanges, serverTimestamp: lastServerTimestamp }
 }
 
-/**
- * @deprecated Use pullChangesFromServerAsync directly
- * Kept for backwards compatibility - just forwards to pullChangesFromServerAsync
- */
-export const pullChangesFromServerWithConfigAsync = pullChangesFromServerAsync
 
 /**
  * Applies all remote changes with proper ordering for extension tables
@@ -544,6 +539,7 @@ export const pullPendingColumnsAsync = async (
   syncEngineStore: ReturnType<typeof useSyncEngineStore>,
   spaceToken?: string | null,
   spaceId?: string | null,
+  identityPrivateKey?: string | null,
 ): Promise<number> => {
   // Step 1: Get list of pending columns from local database
   const pendingColumns = await invoke<PendingColumn[]>('get_pending_columns')
@@ -557,6 +553,7 @@ export const pullPendingColumnsAsync = async (
 
   const authHeaders = await buildAuthHeadersAsync(
     spaceToken, spaceId, () => syncEngineStore.getAuthTokenAsync(),
+    identityPrivateKey,
   )
 
   // Step 2: Pull data for each column from server (with pagination)

@@ -22,8 +22,8 @@ export interface TemporaryBackend {
   name: string
   serverUrl: string
   vaultId: string
-  email: string
-  password: string
+  spaceId: string
+  identityId: string
   enabled: boolean
 }
 
@@ -145,10 +145,10 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
     return updateBackendAsync(id, { priority })
   }
 
-  // Find backend by server URL and email (for checking duplicates)
-  const findBackendByCredentialsAsync = async (
+  // Find backend by server URL and space ID (for checking duplicates)
+  const findBackendBySpaceAsync = async (
     serverUrl: string,
-    email: string,
+    spaceId: string,
   ): Promise<SelectHaexSyncBackends | null> => {
     if (!currentVault.value?.drizzle) {
       throw new Error('No vault opened')
@@ -161,14 +161,14 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
         .where(
           and(
             eq(haexSyncBackends.serverUrl, serverUrl),
-            eq(haexSyncBackends.email, email),
+            eq(haexSyncBackends.spaceId, spaceId),
           ),
         )
         .limit(1)
 
       return result[0] ?? null
     } catch (error) {
-      log.error('Failed to find backend by credentials:', error)
+      log.error('Failed to find backend by space:', error)
       throw error
     }
   }
@@ -212,16 +212,16 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
     const temp = temporaryBackend.value
 
     // Check if backend already exists in DB (from synced data)
-    const existingBackend = await findBackendByCredentialsAsync(
+    const existingBackend = await findBackendBySpaceAsync(
       temp.serverUrl,
-      temp.email,
+      temp.spaceId,
     )
 
     if (existingBackend) {
-      // Backend exists from remote sync - update password if needed
-      log.debug('Backend already exists from sync, updating password')
+      // Backend exists from remote sync - update identityId if needed
+      log.debug('Backend already exists from sync, updating')
       await updateBackendAsync(existingBackend.id, {
-        password: temp.password,
+        identityId: temp.identityId,
         vaultId: temp.vaultId,
       })
     } else {
@@ -232,8 +232,8 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
         name: temp.name,
         serverUrl: temp.serverUrl,
         vaultId: temp.vaultId,
-        email: temp.email,
-        password: temp.password,
+        spaceId: temp.spaceId,
+        identityId: temp.identityId,
         enabled: temp.enabled,
       })
     }
@@ -256,7 +256,7 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
     deleteBackendAsync,
     toggleBackendAsync,
     updatePriorityAsync,
-    findBackendByCredentialsAsync,
+    findBackendBySpaceAsync,
     setTemporaryBackend,
     clearTemporaryBackend,
     persistTemporaryBackendAsync,

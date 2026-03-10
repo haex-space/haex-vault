@@ -58,16 +58,20 @@ export const useVaultStore = defineStore('vaultStore', () => {
   )
 
   /**
-   * Attempts to auto-login and start sync for all enabled backends with saved credentials
+   * Attempts to auto-login via challenge-response and start sync for all enabled backends
    */
   const autoLoginAndStartSyncAsync = async () => {
     try {
       const syncBackendsStore = useSyncBackendsStore()
       const syncEngineStore = useSyncEngineStore()
       const syncOrchestratorStore = useSyncOrchestratorStore()
+      const identityStore = useIdentityStore()
 
       // Load all backends from database
       await syncBackendsStore.loadBackendsAsync()
+
+      // Ensure identities are loaded
+      await identityStore.loadIdentitiesAsync()
 
       const enabledBackends = syncBackendsStore.enabledBackends
 
@@ -78,13 +82,19 @@ export const useVaultStore = defineStore('vaultStore', () => {
 
       for (const backend of enabledBackends) {
         try {
-          // Check if backend has credentials
-          if (!backend.email || !backend.password) {
-            console.log(`[HaexSpace] No credentials for backend ${backend.name}`)
+          // Check if backend has an identity for auth
+          if (!backend.identityId) {
+            console.log(`[HaexSpace] No identity for backend ${backend.name}, skipping`)
             continue
           }
 
-          console.log(`[HaexSpace] Auto-login for backend ${backend.name}...`)
+          const identity = await identityStore.getIdentityAsync(backend.identityId)
+          if (!identity) {
+            console.log(`[HaexSpace] Identity ${backend.identityId} not found for backend ${backend.name}`)
+            continue
+          }
+
+          console.log(`[HaexSpace] Challenge-response login for backend ${backend.name}...`)
 
           // Initialize Supabase client
           await syncEngineStore.initSupabaseClientAsync(backend.id)
@@ -94,43 +104,61 @@ export const useVaultStore = defineStore('vaultStore', () => {
             continue
           }
 
-          // Attempt login via server-side endpoint (bypasses Turnstile)
-          const loginResponse = await fetch(`${backend.serverUrl}/auth/login`, {
+          // 1. Request challenge
+          const challengeRes = await fetch(`${backend.serverUrl}/identity-auth/challenge`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              email: backend.email,
-              password: backend.password,
-            }),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ did: identity.did }),
           })
 
-          if (!loginResponse.ok) {
-            const errorData = await loginResponse.json().catch(() => ({ error: 'Unknown error' }))
-            console.error(`[HaexSpace] Auto-login failed for ${backend.name}:`, errorData.error)
+          if (!challengeRes.ok) {
+            const errorData = await challengeRes.json().catch(() => ({ error: 'Unknown error' }))
+            console.error(`[HaexSpace] Challenge request failed for ${backend.name}:`, errorData.error)
             continue
           }
 
-          const loginData = await loginResponse.json()
+          const { nonce } = await challengeRes.json()
+
+          // 2. Sign nonce with identity's private key
+          const { importUserPrivateKeyAsync } = await import('@haex-space/vault-sdk')
+          const privateKey = await importUserPrivateKeyAsync(identity.privateKey)
+          const sig = await crypto.subtle.sign(
+            { name: 'ECDSA', hash: 'SHA-256' },
+            privateKey,
+            new TextEncoder().encode(nonce),
+          )
+          const signature = btoa(String.fromCharCode(...new Uint8Array(sig)))
+
+          // 3. Verify and get JWT
+          const verifyRes = await fetch(`${backend.serverUrl}/identity-auth/verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ did: identity.did, nonce, signature }),
+          })
+
+          if (!verifyRes.ok) {
+            const errorData = await verifyRes.json().catch(() => ({ error: 'Unknown error' }))
+            console.error(`[HaexSpace] Verify failed for ${backend.name}:`, errorData.error)
+            continue
+          }
+
+          const session = await verifyRes.json()
 
           // Set the session from the server response
           await syncEngineStore.supabaseClient.auth.setSession({
-            access_token: loginData.access_token,
-            refresh_token: loginData.refresh_token,
+            access_token: session.access_token,
+            refresh_token: session.refresh_token,
           })
 
-          console.log(`[HaexSpace] ✅ Auto-login successful for ${backend.name}`)
+          console.log(`[HaexSpace] Challenge-response login successful for ${backend.name}`)
 
           // Ensure sync key exists
-          // Use vault password (from memory) for sync key decryption
-          // IMPORTANT: Use backend.vaultId (remote vault ID) to match what pullFromBackendAsync expects
           if (backend.vaultId && currentVault.value?.name && currentVaultPassword.value) {
             await syncEngineStore.ensureSyncKeyAsync(
               backend.id,
               backend.vaultId,
               currentVault.value.name,
-              currentVaultPassword.value, // Vault password for sync key decryption
+              currentVaultPassword.value,
             )
           } else if (!backend.vaultId) {
             console.warn(`[HaexSpace] Backend ${backend.name} has no vaultId configured`)
@@ -150,12 +178,11 @@ export const useVaultStore = defineStore('vaultStore', () => {
           )
 
           if (successCount > 0) {
-            console.log(`[HaexSpace] ✅ Retried vault key update for ${successCount} backend(s)`)
+            console.log(`[HaexSpace] Retried vault key update for ${successCount} backend(s)`)
           }
 
           if (failedBackendIds.length > 0) {
-            console.warn(`[HaexSpace] ⚠️ Vault key update still pending for ${failedBackendIds.length} backend(s)`)
-            // Show toast to user
+            console.warn(`[HaexSpace] Vault key update still pending for ${failedBackendIds.length} backend(s)`)
             const { add } = useToast()
             add({
               color: 'warning',
@@ -171,7 +198,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
       // Start sync after all logins are attempted
       if (enabledBackends.length > 0) {
         await syncOrchestratorStore.startSyncAsync()
-        console.log('[HaexSpace] ✅ Sync started with auto-login')
+        console.log('[HaexSpace] Sync started with auto-login')
       }
     } catch (error) {
       console.error('[HaexSpace] Auto-login and sync start error:', error)
