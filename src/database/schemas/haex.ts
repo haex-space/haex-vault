@@ -389,7 +389,7 @@ export type InsertHaexIdentities = typeof haexIdentities.$inferInsert
 export type SelectHaexIdentities = typeof haexIdentities.$inferSelect
 
 // ---------------------------------------------------------------------------
-// Identity Claims — local-only attributes for selective disclosure
+// Identity Claims — attributes for selective disclosure to servers
 // ---------------------------------------------------------------------------
 
 export const haexIdentityClaims = sqliteTable(
