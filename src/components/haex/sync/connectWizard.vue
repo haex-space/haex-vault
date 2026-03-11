@@ -14,7 +14,29 @@
         v-if="currentStepIndex === 0"
         class="space-y-4"
       >
+        <!-- Mode Toggle -->
+        <div class="flex gap-2 mb-4">
+          <UButton
+            :color="!isRecoveryMode ? 'primary' : 'neutral'"
+            :variant="!isRecoveryMode ? 'solid' : 'outline'"
+            size="sm"
+            @click="isRecoveryMode = false"
+          >
+            {{ t('steps.login.modeLocal') }}
+          </UButton>
+          <UButton
+            :color="isRecoveryMode ? 'primary' : 'neutral'"
+            :variant="isRecoveryMode ? 'solid' : 'outline'"
+            size="sm"
+            @click="isRecoveryMode = true"
+          >
+            {{ t('steps.login.modeRecovery') }}
+          </UButton>
+        </div>
+
+        <!-- Standard: Local Identity -->
         <HaexSyncAddBackend
+          v-if="!isRecoveryMode"
           ref="connectRef"
           v-model:server-url="credentials.serverUrl"
           v-model:identity-id="credentials.identityId"
@@ -22,6 +44,12 @@
           :items="serverOptions"
           :is-loading="isLoading"
           autofocus
+        />
+
+        <!-- Recovery: Email + OTP -->
+        <HaexSyncRecoveryLogin
+          v-else
+          @recovered="onRecoveryComplete"
         />
       </div>
 
@@ -308,6 +336,10 @@ const isLoadingVaults = ref(false)
 const step2Error = ref('')
 const isCreatingNewVault = ref(false)
 
+// Recovery mode
+const isRecoveryMode = ref(false)
+const recoveredVaultPassword = ref('')
+
 // Step 3: Enter Vault Password
 const localVaultName = ref('')
 const vaultNameExists = ref(false)
@@ -322,6 +354,8 @@ const step3Errors = reactive({
 // Computed for step validation
 const canProceed = computed(() => {
   if (currentStepIndex.value === 0) {
+    // In recovery mode, progression is handled by RecoveryLogin component
+    if (isRecoveryMode.value) return false
     return isLoginFormValid.value
   }
   if (currentStepIndex.value === 1) {
@@ -388,6 +422,11 @@ const nextStep = async () => {
     }
 
     currentStepIndex.value++
+
+    // Pre-fill vault password from recovery if available
+    if (recoveredVaultPassword.value) {
+      vaultPassword.value = recoveredVaultPassword.value
+    }
   }
 }
 
@@ -563,6 +602,20 @@ const cancel = () => {
   emit('cancel')
 }
 
+const onRecoveryComplete = async (data: {
+  identityId: string
+  serverUrl: string
+  vaultPassword: string
+}) => {
+  // Set credentials from recovery
+  credentials.value.serverUrl = data.serverUrl
+  credentials.value.identityId = data.identityId
+  recoveredVaultPassword.value = data.vaultPassword
+
+  // Continue with normal flow: login and load vaults
+  await loginAsync()
+}
+
 const clearForm = () => {
   currentStepIndex.value = 0
   credentials.value = {
@@ -573,6 +626,8 @@ const clearForm = () => {
   availableVaults.value = []
   selectedVaultId.value = null
   isCreatingNewVault.value = false
+  isRecoveryMode.value = false
+  recoveredVaultPassword.value = ''
   localVaultName.value = ''
   vaultPassword.value = ''
   vaultPasswordConfirm.value = ''
@@ -594,6 +649,8 @@ de:
   steps:
     login:
       title: Verbinden
+      modeLocal: Identität vorhanden
+      modeRecovery: Per E-Mail wiederherstellen
     selectVault:
       title: Vault auswählen
       description: Wähle einen Vault, den du synchronisieren möchtest
@@ -635,6 +692,8 @@ en:
   steps:
     login:
       title: Connect
+      modeLocal: Identity available
+      modeRecovery: Recover via email
     selectVault:
       title: Select Vault
       description: Choose a vault you want to synchronize
