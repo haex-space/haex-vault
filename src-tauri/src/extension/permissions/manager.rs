@@ -5,8 +5,8 @@ use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::checker::PermissionChecker;
 use crate::extension::permissions::types::{
-    Action, ExtensionPermission, FileSyncAction, FileSyncTarget, PermissionConstraints,
-    PermissionStatus, ResourceType,
+    Action, ExtensionPermission, FileSyncAction, FileSyncTarget, IdentityAction,
+    PermissionConstraints, PermissionStatus, ResourceType, SpaceAction,
 };
 use crate::table_names::TABLE_EXTENSION_PERMISSIONS;
 use crate::AppState;
@@ -776,6 +776,155 @@ impl PermissionManager {
         }
     }
 
+    /// Prüft Shared-Spaces-Berechtigungen.
+    /// Read = Spaces lesen/anzeigen, ReadWrite = zusätzlich Spaces anlegen.
+    pub async fn check_spaces_permission(
+        app_state: &State<'_, AppState>,
+        extension_id: &str,
+        action: SpaceAction,
+    ) -> Result<(), ExtensionError> {
+        let extension = app_state
+            .extension_manager
+            .get_extension(extension_id)
+            .ok_or_else(|| ExtensionError::ValidationError {
+                reason: format!("Extension not found: {}", extension_id),
+            })?
+            .clone();
+
+        let permissions = Self::get_permissions(app_state, extension_id).await?;
+
+        let action_allows = |perm_action: &Action, required: &SpaceAction| -> bool {
+            match perm_action {
+                Action::Spaces(space_action) => match (space_action, required) {
+                    (a, b) if a == b => true,
+                    (SpaceAction::ReadWrite, SpaceAction::Read) => true,
+                    _ => false,
+                },
+                _ => false,
+            }
+        };
+
+        let matching_permission = permissions.iter().find(|perm| {
+            perm.resource_type == ResourceType::Spaces && action_allows(&perm.action, &action)
+        });
+
+        let action_str = match action {
+            SpaceAction::Read => "read",
+            SpaceAction::ReadWrite => "readWrite",
+        };
+
+        match matching_permission {
+            Some(perm) => match perm.status {
+                PermissionStatus::Granted => Ok(()),
+                PermissionStatus::Denied => Err(ExtensionError::permission_denied(
+                    extension_id,
+                    action_str,
+                    "spaces:*",
+                )),
+                PermissionStatus::Ask => Err(ExtensionError::permission_prompt_required(
+                    extension_id,
+                    &extension.manifest.name,
+                    "spaces",
+                    action_str,
+                    "*",
+                )),
+            },
+            None => {
+                if app_state
+                    .session_permissions
+                    .is_granted(extension_id, ResourceType::Spaces, "*")
+                {
+                    return Ok(());
+                }
+                if app_state
+                    .session_permissions
+                    .is_denied(extension_id, ResourceType::Spaces, "*")
+                {
+                    return Err(ExtensionError::permission_denied(
+                        extension_id,
+                        action_str,
+                        "spaces:*",
+                    ));
+                }
+
+                Err(ExtensionError::permission_prompt_required(
+                    extension_id,
+                    &extension.manifest.name,
+                    "spaces",
+                    action_str,
+                    "*",
+                ))
+            }
+        }
+    }
+
+    /// Prüft Identitäten-Berechtigungen.
+    /// Extensions können Identitäten nur lesen (auflisten/anzeigen).
+    /// Erstellen und Löschen bleibt haex-vault vorbehalten.
+    pub async fn check_identities_permission(
+        app_state: &State<'_, AppState>,
+        extension_id: &str,
+    ) -> Result<(), ExtensionError> {
+        let extension = app_state
+            .extension_manager
+            .get_extension(extension_id)
+            .ok_or_else(|| ExtensionError::ValidationError {
+                reason: format!("Extension not found: {}", extension_id),
+            })?
+            .clone();
+
+        let permissions = Self::get_permissions(app_state, extension_id).await?;
+
+        let matching_permission = permissions.iter().find(|perm| {
+            perm.resource_type == ResourceType::Identities
+                && matches!(perm.action, Action::Identities(IdentityAction::Read))
+        });
+
+        match matching_permission {
+            Some(perm) => match perm.status {
+                PermissionStatus::Granted => Ok(()),
+                PermissionStatus::Denied => Err(ExtensionError::permission_denied(
+                    extension_id,
+                    "read",
+                    "identities:*",
+                )),
+                PermissionStatus::Ask => Err(ExtensionError::permission_prompt_required(
+                    extension_id,
+                    &extension.manifest.name,
+                    "identities",
+                    "read",
+                    "*",
+                )),
+            },
+            None => {
+                if app_state
+                    .session_permissions
+                    .is_granted(extension_id, ResourceType::Identities, "*")
+                {
+                    return Ok(());
+                }
+                if app_state
+                    .session_permissions
+                    .is_denied(extension_id, ResourceType::Identities, "*")
+                {
+                    return Err(ExtensionError::permission_denied(
+                        extension_id,
+                        "read",
+                        "identities:*",
+                    ));
+                }
+
+                Err(ExtensionError::permission_prompt_required(
+                    extension_id,
+                    &extension.manifest.name,
+                    "identities",
+                    "read",
+                    "*",
+                ))
+            }
+        }
+    }
+
     // Helper-Methoden - müssen DatabaseError statt ExtensionError zurückgeben
     #[allow(dead_code)]
     pub fn parse_resource_type(s: &str) -> Result<ResourceType, DatabaseError> {
@@ -785,6 +934,8 @@ impl PermissionManager {
             "db" => Ok(ResourceType::Db),
             "shell" => Ok(ResourceType::Shell),
             "filesync" => Ok(ResourceType::Filesync),
+            "spaces" => Ok(ResourceType::Spaces),
+            "identities" => Ok(ResourceType::Identities),
             _ => Err(DatabaseError::SerializationError {
                 reason: format!("Unknown resource type: {s}"),
             }),

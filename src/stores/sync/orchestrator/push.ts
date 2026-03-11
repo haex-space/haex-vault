@@ -6,12 +6,11 @@
 import {
   getDirtyTablesAsync,
   getAllCrdtTablesAsync,
-  scanTableForSpaceChangesAsync,
+  scanTableForChangesAsync,
   clearDirtyTableAsync,
   type ColumnChange,
 } from '../tableScanner'
-import { orchestratorLog as log, type BackendSyncState, syncMutex, SpaceUnavailableError } from './types'
-import { buildAuthHeadersAsync } from './spaceAuth'
+import { orchestratorLog as log, type BackendSyncState, syncMutex } from './types'
 
 /**
  * Pushes local changes to a specific backend using table-scanning approach
@@ -64,20 +63,14 @@ export const pushToBackendAsync = async (
       vaultId: backend.vaultId,
       serverUrl: backend.serverUrl,
       lastPushHlc: lastPushHlc || '(none)',
-      spaceId: backend.spaceId || '(none)',
     })
 
-    // Get encryption key: space key (all backends are space-based)
-    if (!backend.spaceId) {
-      throw new Error('Backend is missing spaceId configuration')
+    // Get encryption key: vault sync key from local DB
+    const encryptionKey = await syncEngineStore.getSyncKeyFromDbAsync(backendId)
+    if (!encryptionKey) {
+      log.error('PUSH FAILED: Vault sync key not available')
+      throw new Error('Vault sync key not available')
     }
-    const spacesStore = useSpacesStore()
-    const spaceKey = spacesStore.getSpaceKey(backend.spaceId, 1) // TODO: proper generation lookup
-    if (!spaceKey) {
-      log.error('PUSH FAILED: Space key not available')
-      throw new Error('Space key not available')
-    }
-    const encryptionKey = spaceKey
     log.debug('Encryption key available: true')
 
     // Get current device ID
@@ -120,7 +113,7 @@ export const pushToBackendAsync = async (
         log.info(`[PUSH-SCAN] Scanning table: ${tableName}`)
         log.debug(`[PUSH-SCAN]   lastPushHlc: ${lastPushHlc || '(none)'}`)
 
-        const tableChanges = await scanTableForSpaceChangesAsync(tableName, backend.spaceId!, lastPushHlc, encryptionKey, batchId, deviceId)
+        const tableChanges = await scanTableForChangesAsync(tableName, lastPushHlc, encryptionKey, batchId, deviceId)
 
         partialChanges.push(...tableChanges)
 
@@ -212,12 +205,6 @@ export const pushToBackendAsync = async (
 
     log.info(`========== PUSH SUCCESS: ${allChanges.length} changes pushed ==========`)
   } catch (error) {
-    if (error instanceof SpaceUnavailableError) {
-      log.warn(`Space backend ${backendId} unavailable (${error.status}), disabling. Local data is preserved.`)
-      await syncBackendsStore.updateBackendAsync(backendId, { enabled: false })
-      state.error = error.message
-      return
-    }
     log.error(`========== PUSH FAILED ==========`, error)
     state.error = error instanceof Error ? error.message : 'Unknown error'
     throw error
@@ -300,11 +287,12 @@ export const pushChangesToServerAsync = async (
     return base
   }))
 
-  // Use appropriate auth header
-  const authHeaders = await buildAuthHeadersAsync(
-    backend.spaceToken ?? null, backend.spaceId ?? null, () => syncEngineStore.getAuthTokenAsync(),
-    identityPrivateKey,
-  )
+  // Auth header: JWT Bearer token
+  const token = await syncEngineStore.getAuthTokenAsync()
+  if (!token) {
+    throw new Error('Not authenticated')
+  }
+  const authHeaders: Record<string, string> = { Authorization: `Bearer ${token}` }
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...authHeaders,
@@ -326,12 +314,6 @@ export const pushChangesToServerAsync = async (
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
-    if (backend.spaceToken && (response.status === 401 || response.status === 404)) {
-      throw new SpaceUnavailableError(
-        response.status,
-        `Space backend unavailable (HTTP ${response.status}): ${error.error || response.statusText}`,
-      )
-    }
     log.error('Server returned error:', { status: response.status, error })
     throw new Error(`Failed to push changes: ${error.error || response.statusText}`)
   }
@@ -373,20 +355,14 @@ export const pushAllDataToBackendAsync = async (
     backendId,
     vaultId: backend.vaultId,
     serverUrl: backend.serverUrl,
-    spaceId: backend.spaceId || '(none)',
   })
 
-  // Get encryption key: space key (all backends are space-based)
-  if (!backend.spaceId) {
-    throw new Error('Backend is missing spaceId configuration')
+  // Get encryption key: vault sync key from local DB
+  const encryptionKey = await syncEngineStore.getSyncKeyFromDbAsync(backendId)
+  if (!encryptionKey) {
+    log.error('FULL PUSH FAILED: Vault sync key not available')
+    throw new Error('Vault sync key not available')
   }
-  const spacesStore = useSpacesStore()
-  const spaceKey = spacesStore.getSpaceKey(backend.spaceId, 1) // TODO: proper generation lookup
-  if (!spaceKey) {
-    log.error('FULL PUSH FAILED: Space key not available')
-    throw new Error('Space key not available')
-  }
-  const encryptionKey = spaceKey
   log.debug('Encryption key available: true')
 
   // Get current device ID
@@ -421,7 +397,7 @@ export const pushAllDataToBackendAsync = async (
     try {
       log.info(`Scanning table: ${tableName} (full scan)`)
 
-      const tableChanges = await scanTableForSpaceChangesAsync(tableName, backend.spaceId!, null, encryptionKey, batchId, deviceId)
+      const tableChanges = await scanTableForChangesAsync(tableName, null, encryptionKey, batchId, deviceId)
 
       partialChanges.push(...tableChanges)
 

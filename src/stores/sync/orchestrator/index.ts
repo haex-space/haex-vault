@@ -123,6 +123,28 @@ export const useSyncOrchestratorStore = defineStore(
       }
 
       try {
+        // Ensure Supabase client is initialized for this backend
+        if (!syncEngineStore.supabaseClient || syncEngineStore.currentBackendId !== backendId) {
+          log.info('INIT: Initializing Supabase client...')
+          await syncEngineStore.initSupabaseClientAsync(backendId)
+        }
+
+        // Ensure vault key exists before any pull/push
+        const vaultStore = useVaultStore()
+        const { currentVaultPassword } = storeToRefs(vaultStore)
+        const vaultName = vaultStore.currentVault?.name ?? 'Unknown'
+        const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
+        if (currentVaultId.value && currentVaultPassword.value && backend) {
+          log.info('INIT: Ensuring sync key exists...')
+          await syncEngineStore.ensureSyncKeyAsync(
+            backendId,
+            currentVaultId.value,
+            vaultName,
+            currentVaultPassword.value,
+            backend.serverUrl,
+          )
+        }
+
         // Only do initial pull/push if this is a fresh init (not from performInitialPullAsync)
         if (!skipInitialSync) {
           // Initial pull to get all existing data from server
@@ -631,9 +653,8 @@ export const useSyncOrchestratorStore = defineStore(
         await syncBackendsStore.loadBackendsAsync()
 
         // Find the backend (could have different ID if it existed from sync)
-        const persistedBackend = await syncBackendsStore.findBackendBySpaceAsync(
+        const persistedBackend = await syncBackendsStore.findBackendByServerUrlAsync(
           tempBackend.serverUrl,
-          tempBackend.spaceId,
         )
 
         if (persistedBackend) {

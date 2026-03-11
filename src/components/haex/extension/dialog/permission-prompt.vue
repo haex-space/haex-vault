@@ -168,6 +168,8 @@ const resourceTypeIcon = computed(() => {
       return 'i-heroicons-command-line'
     case 'filesync':
       return 'i-heroicons-cloud-arrow-up'
+    case 'spaces':
+      return 'i-heroicons-user-group'
     default:
       return 'i-heroicons-question-mark-circle'
   }
@@ -185,6 +187,8 @@ const resourceTypeLabel = computed(() => {
       return t('resourceType.shell')
     case 'filesync':
       return t('resourceType.filesync')
+    case 'spaces':
+      return t('resourceType.spaces')
     default:
       return t('resourceType.unknown')
   }
@@ -216,6 +220,7 @@ de:
     fs: Dateisystemzugriff
     shell: Shell-Befehl
     filesync: Dateisynchronisation
+    spaces: Shared Spaces
     unknown: Unbekannt
   warning:
     title: Vorsicht
@@ -236,6 +241,7 @@ en:
     fs: Filesystem Access
     shell: Shell Command
     filesync: File Sync
+    spaces: Shared Spaces
     unknown: Unknown
   warning:
     title: Caution

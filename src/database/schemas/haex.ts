@@ -217,8 +217,6 @@ export const haexSyncBackends = sqliteTable(
     vaultId: text(tableNames.haex.sync_backends.columns.vaultId),
     syncKey: text(tableNames.haex.sync_backends.columns.syncKey),
     vaultKeySalt: text(tableNames.haex.sync_backends.columns.vaultKeySalt),
-    spaceId: text(tableNames.haex.sync_backends.columns.spaceId), // Space ID on the server
-    spaceToken: text(tableNames.haex.sync_backends.columns.spaceToken), // Access token for federated spaces
     identityId: text(tableNames.haex.sync_backends.columns.identityId), // FK → haex_identities.id (for auth)
     enabled: integer(tableNames.haex.sync_backends.columns.enabled, {
       mode: 'boolean',
@@ -243,7 +241,7 @@ export const haexSyncBackends = sqliteTable(
     }).$onUpdate(() => new Date()),
   },
   (table) => [
-    uniqueIndex('haex_sync_backends_server_url_space_unique').on(table.serverUrl, table.spaceId),
+    uniqueIndex('haex_sync_backends_server_url_unique').on(table.serverUrl),
   ],
 )
 export type InsertHaexSyncBackends = typeof haexSyncBackends.$inferInsert

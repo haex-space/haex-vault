@@ -5,19 +5,21 @@ import { orchestratorLog as log } from './types'
  * Builds auth headers for sync requests.
  * - Personal backends: Bearer JWT from Supabase session
  * - Space backends: X-Space-Token + signed challenge (X-Space-Timestamp + X-Space-Signature)
+ *
+ * @param privateKeyBase64 - Private key for challenge signing (from the backend's linked identity)
  */
 export const buildAuthHeadersAsync = async (
   spaceToken: string | null | undefined,
   spaceId: string | null | undefined,
   getAuthTokenAsync: () => Promise<string | null | undefined>,
+  privateKeyBase64?: string | null,
 ): Promise<Record<string, string>> => {
   if (spaceToken) {
-    const userKeypairStore = useUserKeypairStore()
-    if (!userKeypairStore.privateKeyBase64) {
-      throw new Error('User keypair not available for space challenge signing')
+    if (!privateKeyBase64) {
+      throw new Error('No identity linked to this space backend — assign an identity to sign challenges')
     }
 
-    const challenge = await signSpaceChallengeAsync(spaceId!, userKeypairStore.privateKeyBase64)
+    const challenge = await signSpaceChallengeAsync(spaceId!, privateKeyBase64)
     log.debug('Signed space challenge for', spaceId)
 
     return {

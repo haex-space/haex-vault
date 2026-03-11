@@ -58,7 +58,7 @@ async function checkWebPermissionAsync(
       const promptData = extractPromptData(error)!
       const decision = await promptForPermission(promptData)
 
-      if (decision === 'granted' || decision === 'ask') {
+      if (decision === 'granted') {
         return { status: 'granted' }
       }
       return { status: 'denied' }
@@ -99,7 +99,7 @@ async function checkDatabasePermissionAsync(
       const promptData = extractPromptData(error)!
       const decision = await promptForPermission(promptData)
 
-      if (decision === 'granted' || decision === 'ask') {
+      if (decision === 'granted') {
         return { status: 'granted' }
       }
       return { status: 'denied' }
@@ -138,7 +138,7 @@ async function checkFilesystemPermissionAsync(
       const promptData = extractPromptData(error)!
       const decision = await promptForPermission(promptData)
 
-      if (decision === 'granted' || decision === 'ask') {
+      if (decision === 'granted') {
         return { status: 'granted' }
       }
       return { status: 'denied' }

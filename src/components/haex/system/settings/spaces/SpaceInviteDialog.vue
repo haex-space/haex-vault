@@ -24,7 +24,7 @@
           class="w-full"
         />
         <div class="flex items-center gap-2 mt-2">
-          <UToggle v-model="inviteForm.canInvite" />
+          <UiToggle v-model="inviteForm.canInvite" />
           <span class="text-sm">{{ t('invite.canInviteLabel') }}</span>
         </div>
       </template>
@@ -77,6 +77,7 @@ const props = defineProps<{
   spaceId: string
   serverUrl: string
   isAdmin: boolean
+  identityId: string
 }>()
 
 const { t } = useI18n()
@@ -126,6 +127,7 @@ const onInviteMemberAsync = async () => {
       inviteForm.label,
       inviteForm.role.value as 'member' | 'viewer',
       inviteForm.canInvite,
+      props.identityId,
     )
 
     inviteResult.value = JSON.stringify(invite, null, 2)

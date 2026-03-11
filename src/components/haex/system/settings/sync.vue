@@ -33,7 +33,44 @@
           </div>
         </template>
 
+        <!-- Verification Code Input -->
+        <div
+          v-if="verificationPending"
+          class="space-y-4"
+        >
+          <UAlert
+            color="info"
+            icon="i-lucide-mail"
+            :title="t('verification.title')"
+            :description="t('verification.description')"
+          />
+
+          <div class="flex gap-2">
+            <UInput
+              v-model="verificationCode"
+              :placeholder="t('verification.placeholder')"
+              size="lg"
+              class="flex-1 font-mono text-center text-lg tracking-widest"
+              maxlength="6"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              @keydown.enter.prevent="onVerifyCodeAsync"
+            />
+          </div>
+
+          <UButton
+            variant="link"
+            size="xs"
+            :disabled="isLoading"
+            @click="onResendCodeAsync"
+          >
+            {{ t('verification.resend') }}
+          </UButton>
+        </div>
+
+        <!-- Add Backend Form -->
         <HaexSyncAddBackend
+          v-else
           v-model:identity-id="newBackend.identityId"
           v-model:approved-claims="newBackend.approvedClaims"
           v-model:server-url="newBackend.serverUrl"
@@ -53,6 +90,17 @@
             </UButton>
 
             <UiButton
+              v-if="verificationPending"
+              icon="mdi-check"
+              :disabled="isLoading || verificationCode.length !== 6"
+              @click="onVerifyCodeAsync"
+            >
+              <span class="hidden @sm:inline">
+                {{ t('verification.verify') }}
+              </span>
+            </UiButton>
+            <UiButton
+              v-else
               icon="mdi-plus"
               :disabled="isLoading"
               data-testid="sync-submit-button"
@@ -365,7 +413,24 @@
       "
       confirm-label="Löschen"
       @confirm="onConfirmDeleteRemoteVaultAsync"
-    />
+    >
+      <template #body>
+        <label class="flex items-start gap-3 cursor-pointer mt-4 p-3 rounded-lg border border-error/30 bg-error/5">
+          <UCheckbox
+            v-model="deleteAllServerData"
+            color="error"
+          />
+          <div>
+            <p class="text-sm font-medium text-error">
+              {{ t('deleteAllData.label') }}
+            </p>
+            <p class="text-xs text-muted mt-0.5">
+              {{ t('deleteAllData.description') }}
+            </p>
+          </div>
+        </label>
+      </template>
+    </UiDialogConfirm>
 
     <!-- Re-Upload Confirmation Dialog -->
     <HaexSyncReUploadDialog
@@ -378,6 +443,7 @@
 </template>
 
 <script setup lang="ts">
+import { decryptVaultName } from '@haex-space/vault-sdk'
 import type { SelectHaexSyncBackends } from '~/database/schemas'
 
 const { t } = useI18n()
@@ -390,7 +456,7 @@ const syncConfigStore = useSyncConfigStore()
 const vaultStore = useVaultStore()
 
 const { backends: syncBackends } = storeToRefs(syncBackendsStore)
-const { currentVaultId } = storeToRefs(vaultStore)
+const { currentVaultId, currentVaultPassword } = storeToRefs(vaultStore)
 const { config: syncConfig } = storeToRefs(syncConfigStore)
 
 // Sync connection composable
@@ -398,6 +464,9 @@ const {
   isLoading: isConnectionLoading,
   error: connectionError,
   createConnectionAsync,
+  verifyEmailAsync,
+  resendVerificationAsync,
+  completeConnectionAsync,
 } = useCreateSyncConnection()
 
 // Local state
@@ -412,11 +481,21 @@ const newBackend = reactive({
   approvedClaims: {} as Record<string, string>,
 })
 
+// Verification state
+const verificationPending = ref<{
+  did: string
+  serverUrl: string
+  identityId: string
+  approvedClaims: Record<string, string>
+} | null>(null)
+const verificationCode = ref('')
+
 const { serverOptions } = useSyncServerOptions()
 
 // Delete remote vault state
 const showDeleteDialog = ref(false)
 const backendToDelete = ref<SelectHaexSyncBackends | null>(null)
+const deleteAllServerData = ref(false)
 
 // Re-upload state
 const showReUploadDialog = ref(false)
@@ -509,44 +588,110 @@ const cancelAddBackend = () => {
   newBackend.serverUrl = ''
   newBackend.identityId = ''
   newBackend.approvedClaims = {}
+  verificationPending.value = null
+  verificationCode.value = ''
 }
 
 // Handle wizard completion
 const onWizardCompleteAsync = async () => {
-  const backendId = await createConnectionAsync({
+  const result = await createConnectionAsync({
     serverUrl: newBackend.serverUrl,
     identityId: newBackend.identityId,
     approvedClaims: newBackend.approvedClaims,
   })
 
-  if (backendId) {
-    // Reload server vaults after sync has started
-    await loadAllServerVaultsAsync()
+  if (!result) {
+    if (connectionError.value) {
+      if (connectionError.value.includes('already exists')) {
+        add({
+          title: t('errors.backendAlreadyExists'),
+          description: t('errors.backendAlreadyExistsDescription', {
+            serverUrl: newBackend.serverUrl,
+          }),
+          color: 'warning',
+        })
+      } else {
+        add({
+          title: t('errors.addBackendFailed'),
+          description: connectionError.value,
+          color: 'error',
+        })
+      }
+    }
+    return
+  }
 
+  if (result.status === 'verification_pending') {
+    verificationPending.value = {
+      did: result.did,
+      serverUrl: result.serverUrl,
+      identityId: result.identityId,
+      approvedClaims: result.approvedClaims,
+    }
     add({
-      title: t('success.backendAdded'),
-      color: 'success',
+      title: t('verification.codeSent'),
+      description: t('verification.checkEmail'),
+      color: 'info',
     })
+    return
+  }
 
-    // Reset form and close
+  // Connected successfully
+  await loadAllServerVaultsAsync()
+  add({ title: t('success.backendAdded'), color: 'success' })
+  cancelAddBackend()
+}
+
+// Handle OTP verification
+const onVerifyCodeAsync = async () => {
+  if (!verificationPending.value || !verificationCode.value) return
+
+  const { did, serverUrl, identityId } = verificationPending.value
+
+  const verified = await verifyEmailAsync(serverUrl, did, verificationCode.value)
+  if (!verified) {
+    add({
+      title: t('verification.failed'),
+      description: connectionError.value || '',
+      color: 'error',
+    })
+    return
+  }
+
+  // Verification succeeded — complete the connection
+  const backendId = await completeConnectionAsync({ serverUrl, identityId })
+
+  if (backendId) {
+    await loadAllServerVaultsAsync()
+    add({ title: t('success.backendAdded'), color: 'success' })
+    verificationPending.value = null
+    verificationCode.value = ''
     cancelAddBackend()
   } else if (connectionError.value) {
-    // Check if it's a duplicate backend error
-    if (connectionError.value.includes('already exists')) {
-      add({
-        title: t('errors.backendAlreadyExists'),
-        description: t('errors.backendAlreadyExistsDescription', {
-          serverUrl: newBackend.serverUrl,
-        }),
-        color: 'warning',
-      })
-    } else {
-      add({
-        title: t('errors.addBackendFailed'),
-        description: connectionError.value,
-        color: 'error',
-      })
-    }
+    add({
+      title: t('errors.addBackendFailed'),
+      description: connectionError.value,
+      color: 'error',
+    })
+  }
+}
+
+// Resend verification code
+const onResendCodeAsync = async () => {
+  if (!verificationPending.value) return
+  const { serverUrl, did } = verificationPending.value
+  const sent = await resendVerificationAsync(serverUrl, did)
+  if (sent) {
+    add({
+      title: t('verification.codeResent'),
+      color: 'success',
+    })
+  } else {
+    add({
+      title: t('verification.resendFailed'),
+      description: connectionError.value || '',
+      color: 'error',
+    })
   }
 }
 
@@ -631,7 +776,23 @@ const loadVaultsForBackendAsync = async (
     const data = await response.json()
     const vaults: ServerVault[] = data.vaults
 
-    // TODO: vault name decryption needs to use space key instead of password
+    // Decrypt vault names using vault password
+    if (currentVaultPassword.value) {
+      await Promise.all(
+        vaults.map(async (vault) => {
+          try {
+            vault.decryptedName = await decryptVaultName(
+              vault.encryptedVaultName,
+              vault.vaultNameNonce,
+              vault.vaultNameSalt,
+              currentVaultPassword.value!,
+            )
+          } catch (e) {
+            console.warn('[SYNC] Failed to decrypt vault name:', e)
+          }
+        }),
+      )
+    }
 
     return vaults
   } catch (error) {
@@ -695,6 +856,7 @@ const prepareDeleteServerVault = (
     ...backend,
     vaultId: vault.vaultId,
   }
+  deleteAllServerData.value = false
   showDeleteDialog.value = true
 }
 
@@ -712,26 +874,17 @@ const onConfirmDeleteRemoteVaultAsync = async () => {
 
     const isCurrentVault = vaultId === currentVaultId.value
 
-    console.log('[SYNC DELETE]', {
-      vaultId,
-      currentVaultId: currentVaultId.value,
-      isCurrentVault,
-      backendId: backend.id,
-    })
+    // Step 1: Delete data from server FIRST (while backend store is still available)
+    if (deleteAllServerData.value) {
+      await syncEngineStore.deleteAllVaultDataAsync(backend.id)
+    } else {
+      await syncEngineStore.deleteRemoteVaultAsync(backend.id, vaultId)
+    }
 
-    // Step 1: Delete remote vault from server FIRST (while backend store is still available)
-    console.log('[SYNC DELETE] Deleting remote vault from server...')
-    await syncEngineStore.deleteRemoteVaultAsync(backend.id, vaultId)
-    console.log('[SYNC DELETE] Remote vault deleted from server')
-
-    // Step 2: If this is the current vault, stop sync and delete local backend
+    // Step 2: Delete backend from DB first, then stop sync if needed
     if (isCurrentVault) {
-      console.log('[SYNC DELETE] Stopping sync...')
-      await syncOrchestratorStore.stopSyncAsync()
-
-      console.log('[SYNC DELETE] Deleting local backend...', backend.id)
       await syncBackendsStore.deleteBackendAsync(backend.id)
-      console.log('[SYNC DELETE] Local backend deleted')
+      await syncOrchestratorStore.stopSyncAsync()
 
       add({
         title: t('success.syncConnectionDeleted'),
@@ -747,9 +900,7 @@ const onConfirmDeleteRemoteVaultAsync = async () => {
     }
 
     // Reload backends to update the list
-    console.log('[SYNC DELETE] Reloading backends...')
     await syncBackendsStore.loadBackendsAsync()
-    console.log('[SYNC DELETE] Backends reloaded:', syncBackends.value.length)
 
     // Refresh all server vaults
     await loadAllServerVaultsAsync()
@@ -779,7 +930,7 @@ const prepareReUpload = (backend: SelectHaexSyncBackends) => {
 }
 
 // Confirm re-upload
-const onConfirmReUploadAsync = async (serverPassword: string) => {
+const onConfirmReUploadAsync = async () => {
   const backend = reUploadBackend.value
   if (!backend || !currentVaultId.value) return
 
@@ -805,7 +956,6 @@ const onConfirmReUploadAsync = async (serverPassword: string) => {
       vaultKey,
       currentVault.value.name,
       currentVaultPassword.value,
-      serverPassword,
     )
 
     // Push all local data to server
@@ -896,6 +1046,9 @@ de:
   deleteCurrentVaultSync:
     title: Sync-Verbindung löschen
     description: Möchtest du die Sync-Verbindung für die aktuell geöffnete Vault wirklich löschen? Alle Daten dieser Vault werden vom Server "{vaultName}" entfernt und die Sync-Verbindung wird getrennt. Deine lokalen Daten bleiben erhalten.
+  deleteAllData:
+    label: Alle Vault-Daten auf dem Server löschen
+    description: Löscht sämtliche Vault-Daten auf diesem Server (alle Vaults und Sync-Daten). Dein Account bleibt bestehen. Diese Aktion kann nicht rückgängig gemacht werden.
   success:
     signedIn: Erfolgreich angemeldet
     signedOut: Erfolgreich abgemeldet
@@ -909,6 +1062,17 @@ de:
     remoteVaultDeletedDescription: Die Remote-Vault wurde erfolgreich vom Server gelöscht
     syncConnectionDeleted: Sync-Verbindung gelöscht
     syncConnectionDeletedDescription: Die Sync-Verbindung wurde getrennt und alle Server-Daten wurden gelöscht
+  verification:
+    title: E-Mail-Verifizierung
+    description: Ein 6-stelliger Bestätigungscode wurde an deine E-Mail gesendet. Gib den Code ein, um dein Konto zu verifizieren.
+    placeholder: "000000"
+    verify: Verifizieren
+    resend: Code erneut senden
+    codeSent: Code gesendet
+    checkEmail: Prüfe dein E-Mail-Postfach für den Bestätigungscode.
+    codeResent: Code erneut gesendet
+    failed: Verifizierung fehlgeschlagen
+    resendFailed: Code konnte nicht erneut gesendet werden
   reUpload:
     warning:
       title: Vault nicht auf Server gefunden
@@ -994,6 +1158,9 @@ en:
   deleteCurrentVaultSync:
     title: Delete Sync Connection
     description: Do you really want to delete the sync connection for the currently opened vault? All data of this vault will be removed from the server "{vaultName}" and the sync connection will be disconnected. Your local data will remain intact.
+  deleteAllData:
+    label: Delete all vault data on the server
+    description: Deletes all vault data on this server (all vaults and sync data). Your account remains intact. This action cannot be undone.
   success:
     signedIn: Successfully signed in
     signedOut: Successfully signed out
@@ -1007,6 +1174,17 @@ en:
     remoteVaultDeletedDescription: The remote vault was successfully deleted from the server
     syncConnectionDeleted: Sync connection deleted
     syncConnectionDeletedDescription: The sync connection was disconnected and all server data was deleted
+  verification:
+    title: Email Verification
+    description: A 6-digit verification code was sent to your email. Enter the code to verify your account.
+    placeholder: "000000"
+    verify: Verify
+    resend: Resend code
+    codeSent: Code sent
+    checkEmail: Check your email inbox for the verification code.
+    codeResent: Code resent
+    failed: Verification failed
+    resendFailed: Could not resend code
   reUpload:
     warning:
       title: Vault not found on server

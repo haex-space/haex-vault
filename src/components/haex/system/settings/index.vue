@@ -36,6 +36,7 @@
       <HaexSystemSettingsDatabase v-if="activeCategory === 'database'" />
       <HaexSystemSettingsSync v-if="activeCategory === 'sync'" />
       <HaexSystemSettingsSpaces v-if="activeCategory === 'spaces'" />
+      <HaexSystemSettingsIdentities v-if="activeCategory === 'identities'" />
       <HaexSystemSettingsStorage v-if="activeCategory === 'storage'" />
       <HaexSystemSettingsDevices v-if="activeCategory === 'devices'" />
       <HaexSystemSettingsDeveloper v-if="activeCategory === 'developer'" />
@@ -118,6 +119,15 @@ const categories = computed(() => [
     },
   },
   {
+    value: 'identities',
+    label: t('categories.identities'),
+    icon: 'i-lucide-fingerprint',
+    active: activeCategory.value === 'identities',
+    click: () => {
+      activeCategory.value = 'identities'
+    },
+  },
+  {
     value: 'storage',
     label: t('categories.storage'),
     icon: 'i-heroicons-cloud',
@@ -166,6 +176,7 @@ de:
     database: Datenbank
     sync: Synchronisation
     spaces: Spaces
+    identities: Identitäten
     storage: Storage
     devices: Geräte
     developer: Entwickler
@@ -179,6 +190,7 @@ en:
     database: Database
     sync: Sync
     spaces: Spaces
+    identities: Identities
     storage: Storage
     devices: Devices
     developer: Developer

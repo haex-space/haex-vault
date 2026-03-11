@@ -56,22 +56,21 @@ export const uploadVaultKeyAsync = async (
   vaultKey: Uint8Array,
   vaultName: string,
   vaultPassword: string,
-  serverPassword: string,
 ): Promise<{ vaultKeySalt: string }> => {
   // Encrypt vault key with vault password
   const encryptedVaultKeyData = await encryptVaultKey(vaultKey, vaultPassword)
 
-  // Generate separate salt for vault name encryption (server password)
+  // Generate separate salt for vault name encryption
   const vaultNameSalt = crypto.getRandomValues(new Uint8Array(32))
-  const derivedServerKey = await deriveKeyFromPassword(
-    serverPassword,
+  const derivedKey = await deriveKeyFromPassword(
+    vaultPassword,
     vaultNameSalt,
   )
 
-  // Encrypt vault name with server password derived key
+  // Encrypt vault name with vault password derived key
   const encryptedVaultNameData = await encryptString(
     vaultName,
-    derivedServerKey,
+    derivedKey,
   )
 
   // Get auth token

@@ -1,7 +1,7 @@
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::types::{
-    Action, DbAction, ExtensionPermission, FileSyncAction, FsAction, PermissionConstraints,
-    PermissionStatus, ResourceType, ShellAction, WebAction,
+    Action, DbAction, ExtensionPermission, FileSyncAction, FsAction, IdentityAction,
+    PermissionConstraints, PermissionStatus, ResourceType, ShellAction, SpaceAction, WebAction,
 };
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -84,6 +84,10 @@ pub struct ExtensionPermissions {
     pub shell: Option<Vec<PermissionEntry>>,
     #[serde(default)]
     pub filesync: Option<Vec<PermissionEntry>>,
+    #[serde(default)]
+    pub spaces: Option<Vec<PermissionEntry>>,
+    #[serde(default)]
+    pub identities: Option<Vec<PermissionEntry>>,
 }
 
 /// Typ-Alias für bessere Lesbarkeit, wenn die Struktur als UI-Modell verwendet wird.
@@ -161,6 +165,8 @@ impl ExtensionManifest {
         set_status_for_list(editable.http.as_mut());
         set_status_for_list(editable.shell.as_mut());
         set_status_for_list(editable.filesync.as_mut());
+        set_status_for_list(editable.spaces.as_mut());
+        set_status_for_list(editable.identities.as_mut());
 
         editable
     }
@@ -206,6 +212,20 @@ impl ExtensionPermissions {
                 }
             }
         }
+        if let Some(entries) = &self.spaces {
+            for p in entries {
+                if let Some(perm) = Self::create_internal(extension_id, ResourceType::Spaces, p) {
+                    permissions.push(perm);
+                }
+            }
+        }
+        if let Some(entries) = &self.identities {
+            for p in entries {
+                if let Some(perm) = Self::create_internal(extension_id, ResourceType::Identities, p) {
+                    permissions.push(perm);
+                }
+            }
+        }
 
         permissions
     }
@@ -234,6 +254,12 @@ impl ExtensionPermissions {
             ResourceType::Shell => ShellAction::from_str(operation_str).ok().map(Action::Shell),
             ResourceType::Filesync => {
                 FileSyncAction::from_str(operation_str).ok().map(Action::FileSync)
+            }
+            ResourceType::Spaces => {
+                SpaceAction::from_str(operation_str).ok().map(Action::Spaces)
+            }
+            ResourceType::Identities => {
+                IdentityAction::from_str(operation_str).ok().map(Action::Identities)
             }
         };
 

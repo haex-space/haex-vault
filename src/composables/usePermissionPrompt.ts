@@ -4,7 +4,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 export interface PermissionPromptData {
   extensionId: string
   extensionName: string
-  resourceType: 'db' | 'web' | 'fs' | 'shell' | 'filesync'
+  resourceType: 'db' | 'web' | 'fs' | 'shell' | 'filesync' | 'spaces'
   action: string
   target: string
 }
@@ -31,6 +31,9 @@ let resolvePromise: ((result: PermissionDecision) => void) | null = null
 // Queue for pending permission prompts (reactive for UI updates)
 const promptQueue = ref<QueuedPrompt[]>([])
 
+// Waiters for duplicate prompts - resolved when the original prompt resolves
+const duplicateWaiters = new Map<string, ((decision: PermissionDecision) => void)[]>()
+
 // Event listener cleanup
 let eventUnlisten: UnlistenFn | null = null
 let isInitialized = false
@@ -55,6 +58,21 @@ function isDuplicatePrompt(data: PermissionPromptData): boolean {
 
   // Check queue
   return promptQueue.value.some(item => getPromptKey(item.data) === key)
+}
+
+/**
+ * Resolve all duplicate waiters for a given prompt key
+ */
+function resolveDuplicateWaiters(data: PermissionPromptData, decision: PermissionDecision) {
+  const key = getPromptKey(data)
+  const waiters = duplicateWaiters.get(key)
+  if (waiters && waiters.length > 0) {
+    console.log(`[PermissionPrompt] Resolving ${waiters.length} duplicate waiters for:`, key)
+    for (const waiter of waiters) {
+      waiter(decision)
+    }
+    duplicateWaiters.delete(key)
+  }
 }
 
 /**
@@ -122,7 +140,7 @@ export function extractPromptData(error: unknown): PermissionPromptData | null {
  * } catch (error) {
  *   if (isPermissionPromptRequired(error)) {
  *     const decision = await promptForPermission(extractPromptData(error)!)
- *     if (decision === 'granted' || decision === 'ask') {
+ *     if (decision === 'granted') {
  *       // Retry the request
  *       return await invoke('some_command', { ... })
  *     }
@@ -139,17 +157,23 @@ export function usePermissionPrompt() {
    * If a dialog is already open, the prompt is queued and shown after the current one is resolved.
    */
   async function promptForPermission(data: PermissionPromptData): Promise<PermissionDecision> {
-    // Skip duplicate prompts
+    const key = getPromptKey(data)
+
+    // Duplicate prompt: wait for the original to resolve instead of returning 'ask'
     if (isDuplicatePrompt(data)) {
-      console.log('[PermissionPrompt] Skipping duplicate prompt:', getPromptKey(data))
-      // Return 'ask' to indicate the prompt is pending - caller should wait/retry
-      return 'ask'
+      console.log('[PermissionPrompt] Waiting for duplicate prompt resolution:', key)
+      return new Promise<PermissionDecision>((resolve) => {
+        if (!duplicateWaiters.has(key)) {
+          duplicateWaiters.set(key, [])
+        }
+        duplicateWaiters.get(key)!.push(resolve)
+      })
     }
 
     return new Promise<PermissionDecision>((resolve) => {
       if (isOpen.value) {
         // Queue the prompt if one is already open
-        console.log('[PermissionPrompt] Queuing prompt:', getPromptKey(data))
+        console.log('[PermissionPrompt] Queuing prompt:', key)
         promptQueue.value.push({ data, resolve })
       } else {
         // Show immediately
@@ -217,6 +241,9 @@ export function usePermissionPrompt() {
     resolvePromise = null
     promptData.value = null
 
+    // Resolve any duplicate waiters that were waiting for this exact prompt
+    resolveDuplicateWaiters(data, decision)
+
     // If applyToAll is true, process all queued prompts with the same decision
     if (applyToAll && promptQueue.value.length > 0) {
       console.log(`[PermissionPrompt] Applying decision "${decision}" to ${promptQueue.value.length} queued prompts`)
@@ -230,6 +257,8 @@ export function usePermissionPrompt() {
         await saveDecision(queuedPrompt.data, decision, remember)
         // Resolve the promise if it exists
         queuedPrompt.resolve?.(decision)
+        // Resolve any duplicate waiters for this queued prompt
+        resolveDuplicateWaiters(queuedPrompt.data, decision)
       }
 
       return // Don't show next prompt since we processed them all
@@ -248,10 +277,16 @@ export function usePermissionPrompt() {
    * Cancel the prompt (equivalent to deny for this request only)
    */
   function cancelPrompt() {
+    const data = promptData.value
     isOpen.value = false
     resolvePromise?.('denied')
     resolvePromise = null
     promptData.value = null
+
+    // Resolve any duplicate waiters as denied
+    if (data) {
+      resolveDuplicateWaiters(data, 'denied')
+    }
 
     // Show next prompt from queue if available
     if (promptQueue.value.length > 0) {

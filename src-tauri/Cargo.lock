@@ -2147,6 +2147,7 @@ dependencies = [
  "get_if_addrs",
  "gtk",
  "hex",
+ "hkdf",
  "lazy_static",
  "mime",
  "mime_guess",

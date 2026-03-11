@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import {
   haexSyncBackends,
   type InsertHaexSyncBackends,
@@ -22,7 +22,6 @@ export interface TemporaryBackend {
   name: string
   serverUrl: string
   vaultId: string
-  spaceId: string
   identityId: string
   enabled: boolean
 }
@@ -145,10 +144,9 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
     return updateBackendAsync(id, { priority })
   }
 
-  // Find backend by server URL and space ID (for checking duplicates)
-  const findBackendBySpaceAsync = async (
+  // Find backend by server URL (for checking duplicates)
+  const findBackendByServerUrlAsync = async (
     serverUrl: string,
-    spaceId: string,
   ): Promise<SelectHaexSyncBackends | null> => {
     if (!currentVault.value?.drizzle) {
       throw new Error('No vault opened')
@@ -158,17 +156,12 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
       const result = await currentVault.value.drizzle
         .select()
         .from(haexSyncBackends)
-        .where(
-          and(
-            eq(haexSyncBackends.serverUrl, serverUrl),
-            eq(haexSyncBackends.spaceId, spaceId),
-          ),
-        )
+        .where(eq(haexSyncBackends.serverUrl, serverUrl))
         .limit(1)
 
       return result[0] ?? null
     } catch (error) {
-      log.error('Failed to find backend by space:', error)
+      log.error('Failed to find backend by server URL:', error)
       throw error
     }
   }
@@ -212,10 +205,7 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
     const temp = temporaryBackend.value
 
     // Check if backend already exists in DB (from synced data)
-    const existingBackend = await findBackendBySpaceAsync(
-      temp.serverUrl,
-      temp.spaceId,
-    )
+    const existingBackend = await findBackendByServerUrlAsync(temp.serverUrl)
 
     if (existingBackend) {
       // Backend exists from remote sync - update identityId if needed
@@ -232,7 +222,6 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
         name: temp.name,
         serverUrl: temp.serverUrl,
         vaultId: temp.vaultId,
-        spaceId: temp.spaceId,
         identityId: temp.identityId,
         enabled: temp.enabled,
       })
@@ -256,7 +245,7 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
     deleteBackendAsync,
     toggleBackendAsync,
     updatePriorityAsync,
-    findBackendBySpaceAsync,
+    findBackendByServerUrlAsync,
     setTemporaryBackend,
     clearTemporaryBackend,
     persistTemporaryBackendAsync,

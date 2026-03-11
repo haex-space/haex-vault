@@ -145,6 +145,7 @@
       :space-id="inviteSpaceId"
       :server-url="inviteServerUrl"
       :is-admin="inviteSpaceIsAdmin"
+      :identity-id="inviteIdentityId"
     />
 
     <!-- Delete Space Confirmation -->
@@ -195,7 +196,11 @@ const showLeaveConfirm = ref(false)
 const createForm = reactive({
   name: '',
   serverUrl: undefined as { label: string; value: string } | undefined,
+  identityId: undefined as string | undefined,
 })
+
+// Identity store
+const identityStore = useIdentityStore()
 
 // Join form
 const joinInviteJson = ref('')
@@ -204,6 +209,7 @@ const joinInviteJson = ref('')
 const inviteSpaceId = ref('')
 const inviteServerUrl = ref('')
 const inviteSpaceIsAdmin = ref(false)
+const inviteIdentityId = ref('')
 
 // Delete/Leave target
 const targetSpace = ref<SharedSpace | null>(null)
@@ -253,7 +259,19 @@ const onCreateSpaceAsync = async () => {
   isCreating.value = true
   try {
     const serverUrl = createForm.serverUrl.value
-    const createdSpace = await spacesStore.createSpaceAsync(serverUrl, createForm.name, t('create.defaultSelfLabel'))
+
+    // Use selected identity or first available
+    let identityId = createForm.identityId
+    if (!identityId) {
+      await identityStore.loadIdentitiesAsync()
+      identityId = identityStore.identities[0]?.id
+    }
+    if (!identityId) {
+      add({ title: t('errors.noIdentity', 'No identity available. Create one first.'), color: 'error' })
+      return
+    }
+
+    const createdSpace = await spacesStore.createSpaceAsync(serverUrl, createForm.name, t('create.defaultSelfLabel'), identityId)
 
     add({
       title: t('success.created'),
@@ -296,9 +314,17 @@ const onJoinSpaceAsync = async () => {
       return
     }
 
-    const { spaceId } = await spacesStore.joinSpaceFromInviteAsync(invite)
+    // Use first available identity (TODO: let user pick)
+    await identityStore.loadIdentitiesAsync()
+    const identityId = identityStore.identities[0]?.id
+    if (!identityId) {
+      add({ title: t('errors.noIdentity', 'No identity available. Create one first.'), color: 'error' })
+      return
+    }
 
-    // Create a sync backend for this space
+    const { spaceId } = await spacesStore.joinSpaceFromInviteAsync(invite, identityId)
+
+    // Create a sync backend for this space with linked identity
     await syncBackendsStore.addBackendAsync({
       name: `Space ${spaceId.slice(0, 8)}`,
       serverUrl: invite.serverUrl,
@@ -306,6 +332,7 @@ const onJoinSpaceAsync = async () => {
       type: 'space',
       spaceId: invite.spaceId,
       spaceToken: invite.accessToken,
+      identityId,
       enabled: true,
     })
 
@@ -345,6 +372,10 @@ const openInviteDialog = (space: SharedSpace, knownServerUrl?: string) => {
     }
     inviteServerUrl.value = serverUrl
   }
+
+  // Find identity linked to this space's backend
+  const backend = syncBackends.value.find(b => b.spaceId === space.id)
+  inviteIdentityId.value = backend?.identityId ?? ''
 
   showInviteDialog.value = true
 }
@@ -411,10 +442,15 @@ const onConfirmLeaveAsync = async () => {
       add({ title: t('errors.noServerUrl'), color: 'error' })
       return
     }
-    await spacesStore.leaveSpaceAsync(serverUrl, targetSpace.value.id)
-
-    // Remove associated sync backend
+    // Find backend to get identityId
     const backend = syncBackends.value.find(b => b.spaceId === targetSpace.value!.id)
+    const identityId = backend?.identityId
+    if (!identityId) {
+      add({ title: t('errors.noIdentity', 'No identity linked to this space.'), color: 'error' })
+      return
+    }
+
+    await spacesStore.leaveSpaceAsync(serverUrl, targetSpace.value.id, identityId)
     if (backend) {
       await syncBackendsStore.deleteBackendAsync(backend.id)
     }

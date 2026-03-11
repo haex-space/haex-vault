@@ -144,6 +144,8 @@ const registerGlobalMessageHandler = () => {
     try {
       let result: unknown
 
+      console.log('[ExtensionHandler] Incoming request:', request.method, 'id:', request.id, 'params:', JSON.stringify(request.params).slice(0, 200))
+
       // Check specific methods first, then use direct routing to handlers
       if (request.method === TAURI_COMMANDS.extension.getContext) {
         result = await handleContextMethodAsync(request)

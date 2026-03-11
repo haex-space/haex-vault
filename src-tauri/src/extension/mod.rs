@@ -656,6 +656,8 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
     let mut http = Vec::new();
     let mut shell = Vec::new();
     let mut filesync = Vec::new();
+    let mut spaces = Vec::new();
+    let mut identities = Vec::new();
 
     for perm in permissions {
         let entry = PermissionEntry {
@@ -673,6 +675,8 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
             ResourceType::Web => http.push(entry),
             ResourceType::Shell => shell.push(entry),
             ResourceType::Filesync => filesync.push(entry),
+            ResourceType::Spaces => spaces.push(entry),
+            ResourceType::Identities => identities.push(entry),
         }
     }
 
@@ -693,6 +697,16 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
             None
         } else {
             Some(filesync)
+        },
+        spaces: if spaces.is_empty() {
+            None
+        } else {
+            Some(spaces)
+        },
+        identities: if identities.is_empty() {
+            None
+        } else {
+            Some(identities)
         },
     }
 }

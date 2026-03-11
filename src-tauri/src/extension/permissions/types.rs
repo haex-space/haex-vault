@@ -238,6 +238,71 @@ impl FromStr for FileSyncAction {
     }
 }
 
+/// Definiert Aktionen, die auf Shared Spaces angewendet werden können.
+/// Read = Spaces lesen/anzeigen, ReadWrite = zusätzlich Spaces anlegen.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum SpaceAction {
+    Read,
+    ReadWrite,
+}
+
+/// Definiert Aktionen, die auf Identitäten angewendet werden können.
+/// Read-only: Extensions können Identitäten nur auflisten/anzeigen.
+/// Erstellen und Löschen bleibt haex-vault vorbehalten.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum IdentityAction {
+    Read,
+}
+
+impl SpaceAction {
+    pub fn allows_read(&self) -> bool {
+        matches!(self, SpaceAction::Read | SpaceAction::ReadWrite)
+    }
+
+    pub fn allows_write(&self) -> bool {
+        matches!(self, SpaceAction::ReadWrite)
+    }
+}
+
+impl FromStr for SpaceAction {
+    type Err = ExtensionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "read" => Ok(SpaceAction::Read),
+            "readwrite" | "read_write" => Ok(SpaceAction::ReadWrite),
+            _ => Err(ExtensionError::InvalidActionString {
+                input: s.to_string(),
+                resource_type: "spaces".to_string(),
+            }),
+        }
+    }
+}
+
+impl IdentityAction {
+    pub fn allows_read(&self) -> bool {
+        matches!(self, IdentityAction::Read)
+    }
+}
+
+impl FromStr for IdentityAction {
+    type Err = ExtensionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "read" => Ok(IdentityAction::Read),
+            _ => Err(ExtensionError::InvalidActionString {
+                input: s.to_string(),
+                resource_type: "identities".to_string(),
+            }),
+        }
+    }
+}
+
 // --- Haupt-Typen für Berechtigungen ---
 
 /// Ein typsicherer Container, der die spezifische Aktion für einen Ressourcentyp enthält.
@@ -249,6 +314,8 @@ pub enum Action {
     Web(WebAction),
     Shell(ShellAction),
     FileSync(FileSyncAction),
+    Spaces(SpaceAction),
+    Identities(IdentityAction),
 }
 
 /// Die interne Repräsentation einer einzelnen, gewährten Berechtigung.
@@ -275,6 +342,8 @@ pub enum ResourceType {
     Db,
     Shell,
     Filesync,
+    Spaces,
+    Identities,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, TS)]
@@ -357,6 +426,8 @@ impl ResourceType {
             ResourceType::Db => "db",
             ResourceType::Shell => "shell",
             ResourceType::Filesync => "filesync",
+            ResourceType::Spaces => "spaces",
+            ResourceType::Identities => "identities",
         }
     }
 
@@ -367,6 +438,8 @@ impl ResourceType {
             "db" => Ok(ResourceType::Db),
             "shell" => Ok(ResourceType::Shell),
             "filesync" => Ok(ResourceType::Filesync),
+            "spaces" => Ok(ResourceType::Spaces),
+            "identities" => Ok(ResourceType::Identities),
             _ => Err(ExtensionError::ValidationError {
                 reason: format!("Unknown resource type: {s}"),
             }),
@@ -397,6 +470,14 @@ impl Action {
                 .unwrap_or_default()
                 .trim_matches('"')
                 .to_string(),
+            Action::Spaces(action) => serde_json::to_string(action)
+                .unwrap_or_default()
+                .trim_matches('"')
+                .to_string(),
+            Action::Identities(action) => serde_json::to_string(action)
+                .unwrap_or_default()
+                .trim_matches('"')
+                .to_string(),
         }
     }
 
@@ -416,6 +497,8 @@ impl Action {
             }
             ResourceType::Shell => Ok(Action::Shell(ShellAction::from_str(s)?)),
             ResourceType::Filesync => Ok(Action::FileSync(FileSyncAction::from_str(s)?)),
+            ResourceType::Spaces => Ok(Action::Spaces(SpaceAction::from_str(s)?)),
+            ResourceType::Identities => Ok(Action::Identities(IdentityAction::from_str(s)?)),
         }
     }
 }

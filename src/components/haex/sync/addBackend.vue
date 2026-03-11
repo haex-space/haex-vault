@@ -32,6 +32,7 @@
       <USelectMenu
         v-model="selectedIdentityId"
         :items="identityOptions"
+        value-key="value"
         size="lg"
         class="w-full"
         :placeholder="t('identity.placeholder')"
@@ -147,6 +148,12 @@ const approvedClaims = defineModel<Record<string, string>>('approvedClaims')
 const identityStore = useIdentityStore()
 const { identities } = storeToRefs(identityStore)
 
+// Requirements state (declared early — used by watchers below)
+const requirements = ref<ServerRequirements | null>(null)
+const requirementsError = ref<string | null>(null)
+const isLoadingRequirements = ref(false)
+const claimApproval = ref<Record<string, boolean>>({})
+
 // Load identities on mount
 onMounted(async () => {
   await identityStore.loadIdentitiesAsync()
@@ -195,12 +202,6 @@ watch(
   { immediate: true },
 )
 
-// Requirements state
-const requirements = ref<ServerRequirements | null>(null)
-const requirementsError = ref<string | null>(null)
-const isLoadingRequirements = ref(false)
-const claimApproval = ref<Record<string, boolean>>({})
-
 const { fetchRequirementsAsync } = useCreateSyncConnection()
 
 // Matched claims from identity
@@ -236,6 +237,16 @@ const checkRequirementsAsync = async () => {
   requirementsError.value = null
 
   try {
+    // Reload claims fresh (user may have added claims since last load)
+    if (identityId.value) {
+      const claims = await identityStore.getClaimsAsync(identityId.value)
+      const map: Record<string, string> = {}
+      for (const c of claims) {
+        map[c.type] = c.value
+      }
+      identityClaimsMap.value = map
+    }
+
     const reqs = await fetchRequirementsAsync(serverUrl.value)
     requirements.value = reqs
 

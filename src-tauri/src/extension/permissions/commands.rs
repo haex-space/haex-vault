@@ -165,6 +165,8 @@ pub async fn resolve_permission_prompt(
         "fs" => ResourceType::Fs,
         "shell" => ResourceType::Shell,
         "filesync" => ResourceType::Filesync,
+        "spaces" => ResourceType::Spaces,
+        "identities" => ResourceType::Identities,
         _ => {
             return Err(ExtensionError::ValidationError {
                 reason: format!("Invalid resource type: {}", resource_type),
@@ -202,6 +204,17 @@ pub async fn resolve_permission_prompt(
                 _ => crate::extension::permissions::types::FileSyncAction::Read,
             };
             Action::FileSync(filesync_action)
+        }
+        ResourceType::Spaces => {
+            let space_action = match action.to_lowercase().as_str() {
+                "read" => crate::extension::permissions::types::SpaceAction::Read,
+                "readwrite" | "read_write" => crate::extension::permissions::types::SpaceAction::ReadWrite,
+                _ => crate::extension::permissions::types::SpaceAction::Read,
+            };
+            Action::Spaces(space_action)
+        }
+        ResourceType::Identities => {
+            Action::Identities(crate::extension::permissions::types::IdentityAction::Read)
         }
     };
 

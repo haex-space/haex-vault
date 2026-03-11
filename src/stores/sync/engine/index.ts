@@ -14,10 +14,11 @@ import { engineLog, type VaultKeyCache } from './types'
 import {
   initSupabaseClientAsync as initClient,
   getAuthTokenAsync as getToken,
-  getSupabaseClient,
-  getCurrentBackendId,
+  supabaseClientRef,
+  currentBackendIdRef,
   resetSupabaseClient,
   setSupabaseClient as setClient,
+  cacheAccessToken,
 } from './supabase'
 import {
   getVaultKeyCache,
@@ -41,6 +42,7 @@ import {
 import {
   healthCheckAsync as healthCheck,
   deleteRemoteVaultAsync as deleteRemote,
+  deleteAllVaultDataAsync as deleteAllVaults,
   updateVaultNameOnServerAsync as updateName,
 } from './server'
 
@@ -56,9 +58,9 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   // Expose cache as ref for reactivity
   const vaultKeyCache = ref<VaultKeyCache>(getVaultKeyCache())
 
-  // Expose Supabase client state as computed
-  const supabaseClient = computed(() => getSupabaseClient())
-  const currentBackendId = computed(() => getCurrentBackendId())
+  // Expose Supabase client state as reactive refs (imported from supabase.ts)
+  const supabaseClient = supabaseClientRef
+  const currentBackendId = currentBackendIdRef
 
   /**
    * Helper to get drizzle instance
@@ -116,7 +118,6 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     vaultKey: Uint8Array,
     vaultName: string,
     vaultPassword: string,
-    serverPassword: string,
   ): Promise<void> => {
     const backend = findBackend(backendId)
     const { vaultKeySalt } = await uploadVaultKeyAsync(
@@ -125,7 +126,6 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       vaultKey,
       vaultName,
       vaultPassword,
-      serverPassword,
     )
     // Save vault key salt locally
     await saveVaultKeySaltAsync(getDrizzle(), backendId, vaultKeySalt)
@@ -206,7 +206,6 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     vaultId: string,
     vaultName: string,
     vaultPassword: string,
-    serverPassword: string,
   ): Promise<Uint8Array> => {
     log.info('Generating new sync key...')
     const syncKey = generateNewVaultKey()
@@ -219,7 +218,6 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       syncKey,
       vaultName,
       vaultPassword,
-      serverPassword,
     )
 
     log.info('New sync key generated, uploaded to server, and saved locally')
@@ -235,27 +233,58 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     vaultName: string,
     vaultPassword: string,
     serverUrl?: string,
-    serverPassword?: string,
   ): Promise<Uint8Array> => {
     // 1. Check cache first
     const cache = getVaultKeyCache()
     const cached = cache[vaultId]
     if (cached) {
-      log.info('Sync key found in cache')
+      // Ensure the key is also saved in DB for this backend
+      const dbKey = await getSyncKeyFromDb(backendId)
+      if (!dbKey) {
+        log.info('Sync key found in cache but not in DB for this backend, saving...')
+        await saveSyncKeyToDb(backendId, cached.vaultKey)
+      }
+      // Verify the key exists on the server, re-upload if missing
+      const resolvedServerUrl = serverUrl ?? syncBackendsStore.backends.find((b) => b.id === backendId)?.serverUrl
+      if (resolvedServerUrl) {
+        try {
+          await fetchSyncKeyFromServerAsync(resolvedServerUrl, vaultId, vaultPassword)
+        } catch (error) {
+          if (error instanceof Error && error.message.includes('not found')) {
+            log.warn('Vault key missing on server, re-uploading...')
+            await uploadVaultKeyToServerAsync(backendId, vaultId, cached.vaultKey, vaultName, vaultPassword)
+          }
+        }
+      }
+      log.info('Sync key ready')
       return cached.vaultKey
     }
 
     // 2. Initial sync mode: fetch directly from server
     if (serverUrl) {
       log.info('Initial sync mode: Fetching sync key from server...')
-      const syncKey = await fetchSyncKeyFromServerAsync(
-        serverUrl,
-        vaultId,
-        vaultPassword,
-      )
-      cacheSyncKey(vaultId, syncKey)
-      log.info('Sync key downloaded from server and cached')
-      return syncKey
+      try {
+        const syncKey = await fetchSyncKeyFromServerAsync(
+          serverUrl,
+          vaultId,
+          vaultPassword,
+        )
+        cacheSyncKey(vaultId, syncKey)
+        log.info('Sync key downloaded from server and cached')
+        return syncKey
+      } catch (error) {
+        // First-time connection: no key on server yet — generate one
+        if (error instanceof Error && error.message.includes('not found')) {
+          log.info('No sync key on server yet, generating new one...')
+          return generateAndUploadSyncKeyAsync(
+            backendId,
+            vaultId,
+            vaultName,
+            vaultPassword,
+          )
+        }
+        throw error
+      }
     }
 
     // 3. Try to load from local DB
@@ -271,14 +300,12 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
           if (error instanceof Error && error.message.includes('not found')) {
             // Server lost the vault key - re-upload it
             log.warn('Vault key missing on server, re-uploading...')
-            const serverPwd = serverPassword || ''
             await reUploadVaultKeyAsync(
               backendId,
               vaultId,
               dbKey,
               vaultName,
               vaultPassword,
-              serverPwd,
             )
             log.info('Vault key re-uploaded to server')
           } else {
@@ -302,15 +329,11 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     } catch (error) {
       // 5. Generate new key if not found on server
       if (error instanceof Error && error.message.includes('not found')) {
-        if (!serverPassword) {
-          throw new Error('Server password required to generate new sync key')
-        }
         return generateAndUploadSyncKeyAsync(
           backendId,
           vaultId,
           vaultName,
           vaultPassword,
-          serverPassword,
         )
       }
       throw error
@@ -345,16 +368,31 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   }
 
   /**
+   * Deletes all vault data (vault keys + sync changes) from the sync server
+   */
+  const deleteAllVaultDataAsync = async (
+    backendId: string,
+    serverUrl?: string,
+  ): Promise<void> => {
+    let resolvedServerUrl = serverUrl
+    if (!resolvedServerUrl) {
+      const backend = findBackend(backendId)
+      resolvedServerUrl = backend.serverUrl
+    }
+    return deleteAllVaults(resolvedServerUrl)
+  }
+
+  /**
    * Updates the vault name on the server
    */
   const updateVaultNameOnServerAsync = async (
     backendId: string,
     vaultId: string,
     newVaultName: string,
-    serverPassword: string,
+    vaultPassword: string,
   ): Promise<void> => {
     const backend = findBackend(backendId)
-    return updateName(backend.serverUrl, vaultId, newVaultName, serverPassword)
+    return updateName(backend.serverUrl, vaultId, newVaultName, vaultPassword)
   }
 
   /**
@@ -458,7 +496,6 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     vaultKey: Uint8Array,
     vaultName: string,
     vaultPassword: string,
-    serverPassword: string,
   ): Promise<void> => {
     log.info('Re-uploading vault key to server...')
 
@@ -468,7 +505,6 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       vaultKey,
       vaultName,
       vaultPassword,
-      serverPassword,
     )
 
     cacheSyncKey(vaultId, vaultKey)
@@ -505,12 +541,14 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     clearVaultKeyCache,
     healthCheckAsync,
     deleteRemoteVaultAsync,
+    deleteAllVaultDataAsync,
     updateVaultNameOnServerAsync,
     reEncryptVaultKeyOnBackendAsync,
     markBackendPendingVaultKeyUpdateAsync,
     getBackendsWithPendingVaultKeyUpdateAsync,
     retryPendingVaultKeyUpdatesAsync,
     reUploadVaultKeyAsync,
+    cacheAccessToken,
     reset,
   }
 })

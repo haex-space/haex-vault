@@ -3,25 +3,27 @@
  * Handles Supabase client initialization and authentication
  */
 
+import { shallowRef } from 'vue'
 import { createClient } from '@supabase/supabase-js'
 import { engineLog as log } from './types'
 
 // Use the actual return type of createClient for consistency across the codebase
 export type AppSupabaseClient = ReturnType<typeof createClient>
 
-// Module state
-let supabaseClient: AppSupabaseClient | null = null
-let currentBackendId: string | null = null
+// Module state — using shallowRef so Vue computed() can track changes
+export const supabaseClientRef = shallowRef<AppSupabaseClient | null>(null)
+export const currentBackendIdRef = shallowRef<string | null>(null)
+let cachedAccessToken: string | null = null
 
 /**
  * Gets the current Supabase client
  */
-export const getSupabaseClient = (): AppSupabaseClient | null => supabaseClient
+export const getSupabaseClient = (): AppSupabaseClient | null => supabaseClientRef.value
 
 /**
  * Gets the current backend ID
  */
-export const getCurrentBackendId = (): string | null => currentBackendId
+export const getCurrentBackendId = (): string | null => currentBackendIdRef.value
 
 /**
  * Initializes Supabase client for a specific backend
@@ -32,7 +34,7 @@ export const initSupabaseClientAsync = async (
   serverUrl: string,
 ): Promise<void> => {
   // If client already exists for this backend, reuse it
-  if (supabaseClient && currentBackendId === backendId) {
+  if (supabaseClientRef.value && currentBackendIdRef.value === backendId) {
     return
   }
 
@@ -51,7 +53,7 @@ export const initSupabaseClientAsync = async (
   }
 
   // Create new client
-  supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+  const client = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       // Use backend-specific storage key to avoid conflicts
       storageKey: `sb-${backendId}-auth-token`,
@@ -63,16 +65,21 @@ export const initSupabaseClientAsync = async (
       heartbeatIntervalMs: 15000,
     },
   })
-  currentBackendId = backendId
+  supabaseClientRef.value = client
+  currentBackendIdRef.value = backendId
 
   // Listen for auth state changes to keep realtime connection authenticated
   // This is critical: when the token refreshes, we must update the realtime connection
-  supabaseClient.auth.onAuthStateChange((event, session) => {
+  client.auth.onAuthStateChange((event, session) => {
+    if (session?.access_token) {
+      cachedAccessToken = session.access_token
+    }
     if (event === 'TOKEN_REFRESHED' && session?.access_token) {
       log.info('Auth token refreshed, updating realtime connection')
-      supabaseClient?.realtime.setAuth(session.access_token)
+      supabaseClientRef.value?.realtime.setAuth(session.access_token)
     } else if (event === 'SIGNED_OUT') {
       log.info('User signed out, realtime will disconnect')
+      cachedAccessToken = null
     }
   })
 }
@@ -81,14 +88,25 @@ export const initSupabaseClientAsync = async (
  * Gets the current Supabase auth token
  */
 export const getAuthTokenAsync = async (): Promise<string | null> => {
-  if (!supabaseClient) {
-    return null
+  if (!supabaseClientRef.value) {
+    return cachedAccessToken
   }
 
   const {
     data: { session },
-  } = await supabaseClient.auth.getSession()
-  return session?.access_token ?? null
+  } = await supabaseClientRef.value.auth.getSession()
+  const token = session?.access_token ?? cachedAccessToken
+  if (token) {
+    cachedAccessToken = token
+  }
+  return token
+}
+
+/**
+ * Caches an access token directly (workaround for Supabase getSession timing issues)
+ */
+export const cacheAccessToken = (token: string): void => {
+  cachedAccessToken = token
 }
 
 /**
@@ -99,16 +117,20 @@ export const setSupabaseClient = (
   client: AppSupabaseClient,
   backendId: string,
 ): void => {
-  supabaseClient = client
-  currentBackendId = backendId
+  supabaseClientRef.value = client
+  currentBackendIdRef.value = backendId
 
   // Listen for auth state changes to keep realtime connection authenticated
   client.auth.onAuthStateChange((event, session) => {
+    if (session?.access_token) {
+      cachedAccessToken = session.access_token
+    }
     if (event === 'TOKEN_REFRESHED' && session?.access_token) {
       log.info('Auth token refreshed, updating realtime connection')
-      supabaseClient?.realtime.setAuth(session.access_token)
+      supabaseClientRef.value?.realtime.setAuth(session.access_token)
     } else if (event === 'SIGNED_OUT') {
       log.info('User signed out, realtime will disconnect')
+      cachedAccessToken = null
     }
   })
 }
@@ -117,6 +139,7 @@ export const setSupabaseClient = (
  * Resets the Supabase client state
  */
 export const resetSupabaseClient = (): void => {
-  supabaseClient = null
-  currentBackendId = null
+  supabaseClientRef.value = null
+  currentBackendIdRef.value = null
+  cachedAccessToken = null
 }

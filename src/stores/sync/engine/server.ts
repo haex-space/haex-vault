@@ -56,6 +56,35 @@ export const deleteRemoteVaultAsync = async (
 }
 
 /**
+ * Deletes all vault data (vault keys + sync changes) from the sync server.
+ * Keeps the account (identity, spaces, etc.) intact.
+ */
+export const deleteAllVaultDataAsync = async (
+  serverUrl: string,
+): Promise<void> => {
+  const token = await getAuthTokenAsync()
+  if (!token) {
+    throw new Error('Not authenticated')
+  }
+
+  const response = await fetch(`${serverUrl}/sync/vaults`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(
+      `Failed to delete vault data: ${error.error || response.statusText}`,
+    )
+  }
+
+  log.info('All vault data deleted from server')
+}
+
+/**
  * Updates the vault name on the server
  * Fetches vaultNameSalt from server and uses server password to encrypt
  */
@@ -63,7 +92,7 @@ export const updateVaultNameOnServerAsync = async (
   serverUrl: string,
   vaultId: string,
   newVaultName: string,
-  serverPassword: string,
+  vaultPassword: string,
 ): Promise<void> => {
   // Get auth token
   const token = await getAuthTokenAsync()
@@ -95,10 +124,10 @@ export const updateVaultNameOnServerAsync = async (
     )
   }
 
-  // Derive key from server password using vaultNameSalt
+  // Derive key from vault password using vaultNameSalt
   const vaultNameSalt = base64ToArrayBuffer(vaultNameSaltBase64)
   const derivedKey = await deriveKeyFromPassword(
-    serverPassword,
+    vaultPassword,
     vaultNameSalt,
   )
 

@@ -18,8 +18,8 @@ importers:
         specifier: ^0.1.6
         version: 0.1.6(vue@3.5.28(typescript@5.9.3))
       '@haex-space/vault-sdk':
-        specifier: ^2.5.115
-        version: 2.5.115(@libsql/client@0.17.0)(@nuxt/kit@4.3.1(magicast@0.5.2))(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.5.0)(vite@7.3.1(@types/node@25.2.2)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))(vue@3.5.28(typescript@5.9.3))
+        specifier: ^2.5.118
+        version: 2.5.118(@libsql/client@0.17.0)(@nuxt/kit@4.3.1(magicast@0.5.2))(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.5.0)(vite@7.3.1(@types/node@25.2.2)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))(vue@3.5.28(typescript@5.9.3))
       '@nuxt/eslint':
         specifier: 1.15.1
         version: 1.15.1(@typescript-eslint/utils@8.55.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(@vue/compiler-sfc@3.5.28)(eslint@9.39.2(jiti@2.6.1))(magicast@0.5.2)(typescript@5.9.3)(vite@7.3.1(@types/node@25.2.2)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
@@ -56,6 +56,9 @@ importers:
       '@tauri-apps/plugin-fs':
         specifier: ^2.4.5
         version: 2.4.5
+      '@tauri-apps/plugin-http':
+        specifier: ^2.5.7
+        version: 2.5.7
       '@tauri-apps/plugin-notification':
         specifier: 2.3.3
         version: 2.3.3
@@ -1059,8 +1062,8 @@ packages:
       vue:
         optional: true
 
-  '@haex-space/vault-sdk@2.5.115':
-    resolution: {integrity: sha512-pmJ1kbLwTYtkOu/WaG5hicg9/16f805iWtxY59WXNTU6rT/X/ddX30BWFt/CFd+DA2xeECH8n/RHj4iCYMX9dA==}
+  '@haex-space/vault-sdk@2.5.118':
+    resolution: {integrity: sha512-qcVLgwnYHhr41KQMgI2tlM9+erPtZUnUvUbgNheMW4ofi0m88CmX50CVEQGhlkOIn4Znr5PDHh7Eq7xVsSSiCw==}
     hasBin: true
     peerDependencies:
       '@nuxt/kit': ^3.0.0 || ^4.0.0
@@ -2650,6 +2653,9 @@ packages:
 
   '@tauri-apps/plugin-fs@2.4.5':
     resolution: {integrity: sha512-dVxWWGE6VrOxC7/jlhyE+ON/Cc2REJlM35R3PJX3UvFw2XwYhLGQVAIyrehenDdKjotipjYEVc4YjOl3qq90fA==}
+
+  '@tauri-apps/plugin-http@2.5.7':
+    resolution: {integrity: sha512-+F2lEH/c9b0zSsOXKq+5hZNcd9F4IIKCK1T17RqMwpCmVnx2aoqY8yIBccCd25HTYUb3j6NPVbRax/m00hKG8A==}
 
   '@tauri-apps/plugin-notification@2.3.3':
     resolution: {integrity: sha512-Zw+ZH18RJb41G4NrfHgIuofJiymusqN+q8fGUIIV7vyCH+5sSn5coqRv/MWB9qETsUs97vmU045q7OyseCV3Qg==}
@@ -7853,7 +7859,7 @@ snapshots:
     optionalDependencies:
       vue: 3.5.28(typescript@5.9.3)
 
-  '@haex-space/vault-sdk@2.5.115(@libsql/client@0.17.0)(@nuxt/kit@4.3.1(magicast@0.5.2))(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.5.0)(vite@7.3.1(@types/node@25.2.2)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))(vue@3.5.28(typescript@5.9.3))':
+  '@haex-space/vault-sdk@2.5.118(@libsql/client@0.17.0)(@nuxt/kit@4.3.1(magicast@0.5.2))(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.5.0)(vite@7.3.1(@types/node@25.2.2)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))(vue@3.5.28(typescript@5.9.3))':
     dependencies:
       archiver: 7.0.1
       commander: 14.0.3
@@ -9687,6 +9693,10 @@ snapshots:
       '@tauri-apps/api': 2.10.1
 
   '@tauri-apps/plugin-fs@2.4.5':
+    dependencies:
+      '@tauri-apps/api': 2.10.1
+
+  '@tauri-apps/plugin-http@2.5.7':
     dependencies:
       '@tauri-apps/api': 2.10.1
 

@@ -18,13 +18,20 @@ import { getAuthTokenAsync } from '@/stores/sync/engine/supabase'
 const log = createLogger('SPACES')
 
 export const useSpacesStore = defineStore('spacesStore', () => {
-  const userKeypairStore = useUserKeypairStore()
   const { currentVault } = storeToRefs(useVaultStore())
 
   // In-memory read-through cache (backed by DB)
   const spaceKeyCache = new Map<string, Uint8Array>()
 
   const spaces = ref<SharedSpace[]>([])
+
+  // Helper: resolve identity keys from identityId
+  const resolveIdentityAsync = async (identityId: string) => {
+    const identityStore = useIdentityStore()
+    const identity = await identityStore.getIdentityAsync(identityId)
+    if (!identity) throw new Error(`Identity ${identityId} not found`)
+    return identity
+  }
 
   // Helper: fetch with auth
   const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
@@ -61,11 +68,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   }
 
   const getSpaceKeyAsync = async (spaceId: string, generation: number): Promise<Uint8Array | undefined> => {
-    // Check memory cache first
     const cached = spaceKeyCache.get(`${spaceId}:${generation}`)
     if (cached) return cached
 
-    // Load from DB
     if (!currentVault.value?.drizzle) return undefined
     const rows = await currentVault.value.drizzle
       .select()
@@ -85,10 +90,8 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   }
 
   const persistSpaceKeyAsync = async (spaceId: string, generation: number, key: Uint8Array) => {
-    // Update memory cache
     spaceKeyCache.set(`${spaceId}:${generation}`, key)
 
-    // Persist to DB
     if (!currentVault.value?.drizzle) return
     const keyBase64 = arrayBufferToBase64(key.buffer as ArrayBuffer)
     await currentVault.value.drizzle
@@ -101,14 +104,12 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   }
 
   const deleteSpaceKeysAsync = async (spaceId: string) => {
-    // Clear memory cache
     for (const cacheKey of spaceKeyCache.keys()) {
       if (cacheKey.startsWith(`${spaceId}:`)) {
         spaceKeyCache.delete(cacheKey)
       }
     }
 
-    // Delete from DB
     if (!currentVault.value?.drizzle) return
     await currentVault.value.drizzle
       .delete(haexSpaceKeys)
@@ -119,9 +120,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   // Space Name Decryption
   // =========================================================================
 
-  /**
-   * Decrypt a space name using the persisted space key.
-   */
   const resolveSpaceNameAsync = async (space: SharedSpace): Promise<string> => {
     const spaceKey = await getSpaceKeyAsync(space.id, space.currentKeyGeneration)
     if (!spaceKey) {
@@ -134,9 +132,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     }
   }
 
-  /**
-   * List spaces from a server with decrypted names.
-   */
   const listDecryptedSpacesAsync = async (serverUrl: string): Promise<DecryptedSpace[]> => {
     const rawSpaces = await listSpacesAsync(serverUrl)
     return Promise.all(
@@ -155,29 +150,20 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   // Space CRUD
   // =========================================================================
 
-  /**
-   * Create a new shared space
-   */
-  const createSpaceAsync = async (serverUrl: string, spaceName: string, selfLabel: string) => {
-    if (!userKeypairStore.publicKeyBase64 || !userKeypairStore.privateKeyBase64) {
-      throw new Error('User keypair not available')
-    }
+  const createSpaceAsync = async (serverUrl: string, spaceName: string, selfLabel: string, identityId: string) => {
+    const identity = await resolveIdentityAsync(identityId)
 
-    // Generate space key (AES-256)
+    const spaceId = crypto.randomUUID()
     const spaceKey = generateSpaceKey()
-
-    // Encrypt space name with space key
     const { encryptedName, nameNonce } = await encryptSpaceNameAsync(spaceKey, spaceName)
 
-    // Encrypt space key for self (ECDH)
-    const keyGrant = await encryptSpaceKeyForRecipientAsync(
-      spaceKey, userKeypairStore.publicKeyBase64,
-    )
+    // Encrypt space key for self (ECDH with own public key)
+    const keyGrant = await encryptSpaceKeyForRecipientAsync(spaceKey, identity.publicKey)
 
-    // Create on server
     const response = await fetchWithAuth(`${serverUrl}/spaces`, {
       method: 'POST',
       body: JSON.stringify({
+        id: spaceId,
         encryptedName,
         nameNonce,
         label: selfLabel,
@@ -191,22 +177,16 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
-      throw new Error(`Failed to create space: ${error.error || response.statusText}`)
+      throw new Error(`Failed to create space: ${error.error || JSON.stringify(error) || response.statusText}`)
     }
 
-    const data = await response.json()
+    await persistSpaceKeyAsync(spaceId, 1, spaceKey)
 
-    // Persist space key
-    await persistSpaceKeyAsync(data.space.id, 1, spaceKey)
-
-    log.info(`Created space ${data.space.id}`)
+    log.info(`Created space ${spaceId}`)
     await listSpacesAsync(serverUrl)
-    return data.space
+    return { id: spaceId }
   }
 
-  /**
-   * List all spaces the user is a member of
-   */
   const listSpacesAsync = async (serverUrl: string) => {
     const response = await fetchWithAuth(`${serverUrl}/spaces`)
     if (!response.ok) throw new Error('Failed to list spaces')
@@ -215,33 +195,28 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     return data as SharedSpace[]
   }
 
-  /**
-   * Invite a member to a space by their public key
-   */
   const inviteMemberAsync = async (
     serverUrl: string,
     spaceId: string,
     inviteePublicKey: string,
     label: string,
     role: 'member' | 'viewer',
-    canInvite: boolean = false,
+    canInvite: boolean,
+    identityId: string,
   ): Promise<SpaceInvite> => {
-    if (!userKeypairStore.privateKeyBase64) {
-      throw new Error('User keypair not available')
-    }
+    const identity = await resolveIdentityAsync(identityId)
 
-    // Get current space key (need own key grants to decrypt it first)
+    // Get key grants to decrypt current space key
     const grantsResponse = await fetchWithAuth(`${serverUrl}/spaces/${spaceId}/key-grants`)
     if (!grantsResponse.ok) throw new Error('Failed to get key grants')
     const grants = await grantsResponse.json()
 
-    // Find the latest generation grant
     const latestGrant = grants.sort(
       (first: { generation: number }, second: { generation: number }) => second.generation - first.generation,
     )[0]
     if (!latestGrant) throw new Error('No key grants found')
 
-    // Get space key (from DB/cache, or decrypt from server grant)
+    // Get space key (from cache or decrypt from grant)
     let spaceKey = await getSpaceKeyAsync(spaceId, latestGrant.generation)
     if (!spaceKey) {
       spaceKey = await decryptSpaceKeyAsync(
@@ -250,7 +225,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
           keyNonce: latestGrant.keyNonce,
           ephemeralPublicKey: latestGrant.ephemeralPublicKey,
         },
-        userKeypairStore.privateKeyBase64,
+        identity.privateKey,
       )
       await persistSpaceKeyAsync(spaceId, latestGrant.generation, spaceKey)
     }
@@ -258,7 +233,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     // Encrypt space key for invitee
     const keyGrant = await encryptSpaceKeyForRecipientAsync(new Uint8Array(spaceKey), inviteePublicKey)
 
-    // Add member + key grant on server
     const memberResponse = await fetchWithAuth(`${serverUrl}/spaces/${spaceId}/members`, {
       method: 'POST',
       body: JSON.stringify({
@@ -280,7 +254,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       throw new Error(`Failed to invite member: ${error.error || memberResponse.statusText}`)
     }
 
-    // Create access token for invitee
     const tokenResponse = await fetchWithAuth(`${serverUrl}/spaces/${spaceId}/tokens`, {
       method: 'POST',
       body: JSON.stringify({
@@ -295,12 +268,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     }
 
     const { token: accessToken } = await tokenResponse.json()
-
-    // Get space details for the invite
     const spaceResponse = await fetchWithAuth(`${serverUrl}/spaces/${spaceId}`)
     const spaceData = await spaceResponse.json()
 
-    // Build invite payload
     const invite: SpaceInvite = {
       spaceId,
       serverUrl,
@@ -317,61 +287,41 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     return invite
   }
 
-  /**
-   * Join a space from an invite
-   */
-  const joinSpaceFromInviteAsync = async (invite: SpaceInvite) => {
-    if (!userKeypairStore.privateKeyBase64) {
-      throw new Error('User keypair not available')
-    }
+  const joinSpaceFromInviteAsync = async (invite: SpaceInvite, identityId: string) => {
+    const identity = await resolveIdentityAsync(identityId)
 
-    // Decrypt the space key
     const spaceKey = await decryptSpaceKeyAsync(
       {
         encryptedSpaceKey: invite.encryptedSpaceKey,
         keyNonce: invite.keyNonce,
         ephemeralPublicKey: invite.ephemeralPublicKey,
       },
-      userKeypairStore.privateKeyBase64,
+      identity.privateKey,
     )
 
-    // Persist space key
     await persistSpaceKeyAsync(invite.spaceId, invite.generation, spaceKey)
 
     log.info(`Joined space ${invite.spaceId} via invite`)
     return { spaceId: invite.spaceId, spaceKey }
   }
 
-  /**
-   * Leave a space (removes membership on server, keeps local data)
-   */
-  const leaveSpaceAsync = async (serverUrl: string, spaceId: string) => {
-    if (!userKeypairStore.publicKeyBase64) {
-      throw new Error('User keypair not available')
-    }
+  const leaveSpaceAsync = async (serverUrl: string, spaceId: string, identityId: string) => {
+    const identity = await resolveIdentityAsync(identityId)
 
     const response = await fetchWithAuth(
-      `${serverUrl}/spaces/${spaceId}/members/${encodeURIComponent(userKeypairStore.publicKeyBase64)}`,
+      `${serverUrl}/spaces/${spaceId}/members/${encodeURIComponent(identity.publicKey)}`,
       { method: 'DELETE' },
     )
 
-    // 404 means already left, which is fine
     if (!response.ok && response.status !== 404) {
       throw new Error('Failed to leave space')
     }
 
-    // Remove from local list
     spaces.value = spaces.value.filter(space => space.id !== spaceId)
-
-    // Delete persisted keys
     await deleteSpaceKeysAsync(spaceId)
-
     log.info(`Left space ${spaceId}`)
   }
 
-  /**
-   * Delete a space (admin only)
-   */
   const deleteSpaceAsync = async (serverUrl: string, spaceId: string) => {
     const response = await fetchWithAuth(`${serverUrl}/spaces/${spaceId}`, {
       method: 'DELETE',
@@ -382,12 +332,8 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       throw new Error(`Failed to delete space: ${error.error || response.statusText}`)
     }
 
-    // Remove from local list
     spaces.value = spaces.value.filter(space => space.id !== spaceId)
-
-    // Delete persisted keys
     await deleteSpaceKeysAsync(spaceId)
-
     log.info(`Deleted space ${spaceId}`)
   }
 
