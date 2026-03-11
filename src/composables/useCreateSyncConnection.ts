@@ -184,8 +184,10 @@ export const useCreateSyncConnection = () => {
           registrationBody.privateKeyNonce = recovery.nonce
           registrationBody.privateKeySalt = recovery.salt
         } catch (e) {
-          console.warn('[SYNC] Could not encrypt private key for recovery:', e)
+          console.error('[SYNC] Failed to encrypt private key for recovery — account recovery will not be available:', e)
         }
+      } else {
+        console.warn('[SYNC] No vault password available — recovery key will not be uploaded. Account recovery from another device will not be possible.')
       }
 
       const registerRes = await fetch(`${params.serverUrl}/identity-auth/register`, {
