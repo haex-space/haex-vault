@@ -379,6 +379,8 @@ fn test_permission_checker_cross_extension() {
                 http: None,
                 shell: None,
                 filesync: None,
+                spaces: None,
+                identities: None,
             },
             homepage: None,
             description: None,
