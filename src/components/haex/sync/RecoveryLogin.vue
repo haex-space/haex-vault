@@ -144,13 +144,13 @@ const serverUrl = computed(() =>
     : selectedServer.value,
 )
 
-// Email validation with Zod
-const emailSchema = z.string().email()
+// Email validation with Zod (custom message avoids zodI18n locale lookup)
+const emailSchema = z.string().email({ message: 'Invalid email' })
 
 // State machine
 const phase = ref<'email' | 'otp' | 'password'>('email')
 const email = ref('')
-const otpParts = ref<string[]>([])
+const otpParts = ref<number[]>([])
 const vaultPassword = ref('')
 const recoveredKeyData = ref<RecoveryKeyData | null>(null)
 
