@@ -61,7 +61,7 @@
     "nuxt-zod-i18n": "^1.12.1",
     "qrcode": "^1.5.4",
     "swiper": "^12.1.0",
-    "tailwindcss": "^4.1.18",
+    "tailwindcss": "^4.2.1",
     "vue": "^3.5.28"
   },
   "devDependencies": {
