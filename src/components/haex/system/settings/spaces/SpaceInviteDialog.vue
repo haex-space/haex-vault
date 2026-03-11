@@ -6,22 +6,48 @@
   >
     <template #content>
       <template v-if="!inviteResult">
-        <UiInput
-          v-model="inviteForm.label"
-          :label="t('invite.labelLabel')"
-          :placeholder="t('invite.labelPlaceholder')"
-        />
-        <UiTextarea
-          v-model="inviteForm.publicKey"
-          :label="t('invite.publicKeyLabel')"
-          :placeholder="t('invite.publicKeyPlaceholder')"
-          :rows="3"
-        />
+        <!-- Contact selection -->
+        <div class="flex gap-2">
+          <USelectMenu
+            v-model="selectedContactId"
+            :items="contactOptions"
+            value-key="value"
+            :placeholder="t('invite.selectContact')"
+            class="flex-1"
+          >
+            <template #empty>
+              {{ t('invite.noContacts') }}
+            </template>
+          </USelectMenu>
+          <UButton
+            icon="i-lucide-contact"
+            color="neutral"
+            variant="outline"
+            :title="t('invite.manageContacts')"
+            @click="navigateToContacts"
+          />
+        </div>
+
+        <!-- Selected contact info -->
+        <div
+          v-if="selectedContact"
+          class="mt-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50"
+        >
+          <div class="flex items-center gap-2">
+            <UIcon name="i-lucide-user" class="w-4 h-4 text-primary shrink-0" />
+            <span class="font-medium text-sm">{{ selectedContact.label }}</span>
+          </div>
+          <code class="block text-xs text-muted mt-1 truncate">
+            {{ selectedContact.publicKey }}
+          </code>
+        </div>
+
+        <!-- Role selection -->
         <USelectMenu
           v-model="inviteForm.role"
           :items="roleOptions"
           :placeholder="t('invite.roleLabel')"
-          class="w-full"
+          class="w-full mt-3"
         />
       </template>
       <template v-else>
@@ -49,7 +75,7 @@
           v-if="!inviteResult"
           icon="i-lucide-user-plus"
           :loading="isInviting"
-          :disabled="!inviteForm.publicKey || !inviteForm.label || !inviteForm.role?.value"
+          :disabled="!selectedContact || !inviteForm.role?.value"
           @click="onInviteMemberAsync"
         >
           {{ t('actions.invite') }}
@@ -68,6 +94,7 @@
 
 <script setup lang="ts">
 import type { SpaceRole } from '@haex-space/vault-sdk'
+import type { SelectHaexContacts } from '~/database/schemas'
 
 const open = defineModel<boolean>('open', { required: true })
 
@@ -82,54 +109,67 @@ const { t } = useI18n()
 const { add } = useToast()
 const { copy } = useClipboard()
 
+const windowManager = useWindowManagerStore()
 const spacesStore = useSpacesStore()
+const contactsStore = useContactsStore()
+const { contacts } = storeToRefs(contactsStore)
 
 const isInviting = ref(false)
 const inviteResult = ref('')
+const selectedContactId = ref<string>('')
 
 const inviteForm = reactive({
-  publicKey: '',
-  label: '',
   role: undefined as { label: string; value: SpaceRole } | undefined,
 })
 
+const contactOptions = computed(() =>
+  contacts.value.map(c => ({
+    label: c.label,
+    value: c.id,
+  })),
+)
+
+const selectedContact = computed<SelectHaexContacts | undefined>(() =>
+  contacts.value.find(c => c.id === selectedContactId.value),
+)
+
 const roleOptions = computed(() => {
-  const options: { label: string; value: SpaceRole }[] = []
+  const options: { label: string; value: SpaceRole; description: string }[] = []
 
   if (props.callerRole === 'admin') {
-    options.push({ label: t('roles.owner'), value: 'owner' })
+    options.push({ label: t('roles.owner'), value: 'owner', description: t('roles.ownerDesc') })
   }
   options.push(
-    { label: t('roles.member'), value: 'member' },
-    { label: t('roles.reader'), value: 'reader' },
+    { label: t('roles.member'), value: 'member', description: t('roles.memberDesc') },
+    { label: t('roles.reader'), value: 'reader', description: t('roles.readerDesc') },
   )
 
   return options
 })
 
 const resetForm = () => {
-  inviteForm.publicKey = ''
-  inviteForm.label = ''
+  selectedContactId.value = ''
   inviteForm.role = undefined
   inviteResult.value = ''
 }
 
-watch(open, (isOpen) => {
+watch(open, async (isOpen) => {
   if (isOpen) {
     resetForm()
+    await contactsStore.loadContactsAsync()
   }
 })
 
 const onInviteMemberAsync = async () => {
-  if (!inviteForm.publicKey || !inviteForm.label || !inviteForm.role?.value || !props.spaceId) return
+  if (!selectedContact.value || !inviteForm.role?.value || !props.spaceId) return
 
   isInviting.value = true
   try {
     const invite = await spacesStore.inviteMemberAsync(
       props.serverUrl,
       props.spaceId,
-      inviteForm.publicKey.trim(),
-      inviteForm.label,
+      selectedContact.value.publicKey,
+      selectedContact.value.label,
       inviteForm.role.value,
       props.identityId,
     )
@@ -160,6 +200,15 @@ const copyInvite = () => {
   })
 }
 
+const navigateToContacts = () => {
+  open.value = false
+  windowManager.openWindowAsync({
+    type: 'system',
+    sourceId: 'settings',
+    params: { category: 'contacts' },
+  })
+}
+
 const closeDialog = () => {
   open.value = false
   inviteResult.value = ''
@@ -170,18 +219,20 @@ const closeDialog = () => {
 de:
   invite:
     title: Mitglied einladen
-    description: Lade jemanden in diesen Space ein
-    labelLabel: Name
-    labelPlaceholder: z.B. Alice, Team-Lead, ...
-    publicKeyLabel: Public Key
-    publicKeyPlaceholder: Base64-kodierten Public Key einfügen
+    description: Lade einen Kontakt in diesen Space ein
+    selectContact: Kontakt auswählen
+    noContacts: Keine Kontakte vorhanden
+    manageContacts: Kontakte verwalten
     roleLabel: Rolle auswählen
     resultDescription: Teile dieses Einladungs-JSON mit der Person
     resultLabel: Einladungs-JSON
   roles:
     owner: Eigentümer
+    ownerDesc: Vollzugriff inkl. Space-Verwaltung und Mitglieder-Einladung
     member: Mitglied
+    memberDesc: Kann Inhalte lesen, erstellen und bearbeiten
     reader: Leser
+    readerDesc: Kann Inhalte nur lesen, keine Änderungen möglich
   actions:
     invite: Einladen
     cancel: Abbrechen
@@ -195,18 +246,20 @@ de:
 en:
   invite:
     title: Invite Member
-    description: Invite someone to this space
-    labelLabel: Name
-    labelPlaceholder: e.g. Alice, Team Lead, ...
-    publicKeyLabel: Public Key
-    publicKeyPlaceholder: Paste Base64-encoded public key
+    description: Invite a contact to this space
+    selectContact: Select contact
+    noContacts: No contacts found
+    manageContacts: Manage contacts
     roleLabel: Select role
     resultDescription: Share this invite JSON with the person
     resultLabel: Invite JSON
   roles:
     owner: Owner
+    ownerDesc: Full access including space management and member invitations
     member: Member
+    memberDesc: Can read, create, and edit content
     reader: Reader
+    readerDesc: Read-only access, no modifications allowed
   actions:
     invite: Invite
     cancel: Cancel

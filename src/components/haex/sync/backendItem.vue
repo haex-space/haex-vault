@@ -3,7 +3,7 @@
     <div class="flex flex-col gap-3">
       <!-- Header row: Info and button -->
       <div class="flex flex-col @sm:flex-row @sm:items-center justify-between gap-3">
-        <div class="flex-1 min-w-0">
+        <div class="flex-1 min-w-0 transition-opacity duration-200" :class="{ 'opacity-50': !backend.enabled }">
           <p class="font-medium">{{ backend.name }}</p>
           <p class="text-sm text-gray-500 dark:text-gray-400 truncate">
             {{ backend.serverUrl }}
@@ -29,7 +29,8 @@
     <!-- Optional content slot (e.g., for vaults list) -->
     <div
       v-if="$slots.default"
-      class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700"
+      class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 transition-opacity duration-200"
+      :class="{ 'opacity-50': !backend.enabled }"
     >
       <slot />
     </div>

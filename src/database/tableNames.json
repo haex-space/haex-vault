@@ -216,6 +216,26 @@
         "createdAt": "created_at"
       }
     },
+    "contacts": {
+      "name": "haex_contacts",
+      "columns": {
+        "id": "id",
+        "label": "label",
+        "publicKey": "public_key",
+        "notes": "notes",
+        "createdAt": "created_at"
+      }
+    },
+    "contact_claims": {
+      "name": "haex_contact_claims",
+      "columns": {
+        "id": "id",
+        "contactId": "contact_id",
+        "type": "type",
+        "value": "value",
+        "createdAt": "created_at"
+      }
+    },
     "space_keys": {
       "name": "haex_space_keys_no_sync",
       "columns": {

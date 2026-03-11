@@ -43,6 +43,13 @@
       "when": 1741804800000,
       "tag": "0005_identity_claims",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1741891200000,
+      "tag": "0006_contacts",
+      "breakpoints": true
     }
   ]
 }

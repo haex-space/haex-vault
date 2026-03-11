@@ -2132,7 +2132,7 @@ dependencies = [
 
 [[package]]
 name = "haex-vault"
-version = "1.5.75"
+version = "1.5.76"
 dependencies = [
  "aes-gcm",
  "async-trait",
@@ -2191,6 +2191,7 @@ dependencies = [
  "uhlc",
  "url",
  "uuid",
+ "webkit2gtk",
  "whoami",
  "zip",
 ]

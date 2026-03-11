@@ -150,6 +150,28 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         // Auto-start browser bridge on desktop and register main window close handler
         .setup(|app| {
+            // Enable camera/media stream access in WebKitGTK on Linux
+            #[cfg(target_os = "linux")]
+            {
+                if let Some(main_window) = app.get_webview_window("main") {
+                    main_window.with_webview(|webview| {
+                        use webkit2gtk::{WebViewExt, SettingsExt, PermissionRequestExt};
+                        let wv = webview.inner();
+
+                        if let Some(settings) = wv.settings() {
+                            settings.set_enable_media_stream(true);
+                            settings.set_enable_webrtc(true);
+                            settings.set_media_playback_requires_user_gesture(false);
+                        }
+
+                        wv.connect_permission_request(|_, request| {
+                            request.allow();
+                            true
+                        });
+                    }).ok();
+                }
+            }
+
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             {
                 let app_handle = app.handle().clone();

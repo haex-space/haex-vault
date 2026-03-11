@@ -29,14 +29,24 @@
     <!-- Identity Selector -->
     <div class="flex flex-col space-y-2">
       <label class="text-sm font-medium">{{ t('identity.label') }}</label>
-      <USelectMenu
-        v-model="selectedIdentityId"
-        :items="identityOptions"
-        value-key="value"
-        size="lg"
-        class="w-full"
-        :placeholder="t('identity.placeholder')"
-      />
+      <div class="flex gap-2">
+        <USelectMenu
+          v-model="selectedIdentityId"
+          :items="identityOptions"
+          value-key="value"
+          size="lg"
+          class="flex-1"
+          :placeholder="t('identity.placeholder')"
+        />
+        <UButton
+          icon="i-lucide-user"
+          color="neutral"
+          variant="outline"
+          size="lg"
+          :title="t('identity.manage')"
+          @click="navigateToIdentities"
+        />
+      </div>
       <p
         v-if="identities.length === 0"
         class="text-xs text-amber-500"
@@ -45,29 +55,24 @@
       </p>
     </div>
 
-    <!-- Check Requirements Button -->
-    <div v-if="selectedIdentityId && serverUrl">
-      <UButton
-        v-if="!requirements"
-        :loading="isLoadingRequirements"
-        :disabled="isLoadingRequirements"
-        icon="i-lucide-shield-check"
-        variant="outline"
-        class="w-full"
-        @click="checkRequirementsAsync"
-      >
-        {{ t('requirements.check') }}
-      </UButton>
-
-      <!-- Requirements Error -->
-      <UAlert
-        v-if="requirementsError"
-        color="error"
-        icon="i-lucide-alert-circle"
-        :description="requirementsError"
-        class="mt-2"
+    <!-- Requirements Loading -->
+    <div
+      v-if="isLoadingRequirements"
+      class="flex items-center justify-center py-4"
+    >
+      <UIcon
+        name="i-lucide-loader-2"
+        class="w-5 h-5 animate-spin text-primary"
       />
     </div>
+
+    <!-- Requirements Error -->
+    <UAlert
+      v-if="requirementsError"
+      color="error"
+      icon="i-lucide-alert-circle"
+      :description="requirementsError"
+    />
 
     <!-- Server Requirements Display -->
     <div
@@ -145,6 +150,7 @@ const serverUrl = defineModel<string>('serverUrl')
 const identityId = defineModel<string>('identityId')
 const approvedClaims = defineModel<Record<string, string>>('approvedClaims')
 
+const windowManager = useWindowManagerStore()
 const identityStore = useIdentityStore()
 const { identities } = storeToRefs(identityStore)
 
@@ -176,6 +182,24 @@ const selectedIdentityId = computed({
     requirementsError.value = null
   },
 })
+
+// Auto-fetch requirements when both identity and server URL are set
+watch(
+  [() => identityId.value, () => serverUrl.value],
+  async ([newIdentityId, newServerUrl]) => {
+    if (newIdentityId && newServerUrl) {
+      await checkRequirementsAsync()
+    }
+  },
+)
+
+const navigateToIdentities = () => {
+  windowManager.openWindowAsync({
+    type: 'system',
+    sourceId: 'settings',
+    params: { category: 'identities' },
+  })
+}
 
 // Server URL handling
 const defaultServerOption: ISyncServerOption = {
@@ -299,6 +323,7 @@ de:
   identity:
     label: Identität
     placeholder: Identität auswählen...
+    manage: Identitäten verwalten
     noIdentities: Keine Identitäten vorhanden. Erstelle zuerst eine Identität in den Einstellungen.
   requirements:
     check: Server-Anforderungen prüfen
@@ -322,6 +347,7 @@ en:
   identity:
     label: Identity
     placeholder: Select identity...
+    manage: Manage identities
     noIdentities: No identities found. Create an identity in settings first.
   requirements:
     check: Check Server Requirements

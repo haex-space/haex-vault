@@ -1,6 +1,6 @@
 [package]
 name = "haex-vault"
-version = "1.5.75"
+version = "1.5.76"
 description = "Build once. Run everywhere. Sync automatically"
 authors = ["Haex"]
 edition = "2021"
@@ -102,6 +102,7 @@ notify-debouncer-mini = "0.7"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
+webkit2gtk = "2.0"
 
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 tauri-plugin-biometry = "0.2"

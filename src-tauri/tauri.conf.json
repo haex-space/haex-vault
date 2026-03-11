@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Haex Vault",
-  "version": "1.5.75",
+  "version": "1.5.76",
   "identifier": "space.haex.vault",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -88,7 +88,9 @@
           "https://tauri.localhost",
           "asset:",
           "haex-extension:",
-          "http://haex-extension.localhost"
+          "http://haex-extension.localhost",
+          "blob:",
+          "mediastream:"
         ],
         "frame-src": [
           "haex-extension:",

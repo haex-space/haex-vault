@@ -3,7 +3,7 @@
     <!-- Spaces List -->
     <UCard>
       <template #header>
-        <div class="flex items-center justify-between">
+        <div class="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 class="text-lg font-semibold">{{ t('list.title') }}</h3>
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">

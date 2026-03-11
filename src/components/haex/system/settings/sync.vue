@@ -45,18 +45,17 @@
             :description="t('verification.description')"
           />
 
-          <div class="flex gap-2">
-            <UInput
-              v-model="verificationCode"
-              :placeholder="t('verification.placeholder')"
-              size="lg"
-              class="flex-1 font-mono text-center text-lg tracking-widest"
-              maxlength="6"
-              inputmode="numeric"
-              autocomplete="one-time-code"
-              @keydown.enter.prevent="onVerifyCodeAsync"
-            />
-          </div>
+          <UPinInput
+            v-model="verificationCodeParts"
+            :length="6"
+            otp
+            type="number"
+            size="xl"
+            :autofocus="true"
+            class="justify-center"
+            :ui="{ base: 'w-12 h-12 text-center text-lg' }"
+            @complete="onVerifyCodeAsync"
+          />
 
           <UButton
             variant="link"
@@ -117,7 +116,7 @@
       <!-- Sync Backends List (merged with Vault Overview) -->
       <UCard v-if="!showAddBackendForm || syncBackends.length">
         <template #header>
-          <div class="flex items-center justify-between">
+          <div class="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 class="text-lg font-semibold">{{ t('backends.title') }}</h3>
               <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -173,12 +172,23 @@
               </UBadge>
             </template>
             <template #actions>
-              <UButton
-                                :color="backend.enabled ? 'neutral' : 'primary'"
-                @click="toggleBackendAsync(backend.id)"
-              >
-                {{ backend.enabled ? t('actions.disable') : t('actions.enable') }}
-              </UButton>
+              <div class="flex gap-2">
+                <UButton
+                  :color="backend.enabled ? 'neutral' : 'primary'"
+                  icon="i-lucide-power"
+                  :title="backend.enabled ? t('actions.disable') : t('actions.enable')"
+                  @click="toggleBackendAsync(backend.id)"
+                >
+                  {{ backend.enabled ? t('actions.disable') : t('actions.enable') }}
+                </UButton>
+                <UButton
+                  color="error"
+                  variant="ghost"
+                  icon="i-lucide-trash-2"
+                  :title="t('actions.deleteBackend')"
+                  @click="prepareDeleteBackend(backend)"
+                />
+              </div>
             </template>
 
             <!-- Server Vaults for this backend -->
@@ -432,6 +442,15 @@
       </template>
     </UiDialogConfirm>
 
+    <!-- Delete Backend Confirmation Dialog -->
+    <UiDialogConfirm
+      v-model:open="showDeleteBackendDialog"
+      :title="t('deleteBackend.title')"
+      :description="t('deleteBackend.description', { name: backendToDeleteCompletely?.name })"
+      confirm-label="Löschen"
+      @confirm="onConfirmDeleteBackendAsync"
+    />
+
     <!-- Re-Upload Confirmation Dialog -->
     <HaexSyncReUploadDialog
       v-model:open="showReUploadDialog"
@@ -467,6 +486,7 @@ const {
   verifyEmailAsync,
   resendVerificationAsync,
   completeConnectionAsync,
+  loginAsync,
 } = useCreateSyncConnection()
 
 // Local state
@@ -488,7 +508,8 @@ const verificationPending = ref<{
   identityId: string
   approvedClaims: Record<string, string>
 } | null>(null)
-const verificationCode = ref('')
+const verificationCodeParts = ref<string[]>([])
+const verificationCode = computed(() => verificationCodeParts.value.join(''))
 
 const { serverOptions } = useSyncServerOptions()
 
@@ -496,6 +517,10 @@ const { serverOptions } = useSyncServerOptions()
 const showDeleteDialog = ref(false)
 const backendToDelete = ref<SelectHaexSyncBackends | null>(null)
 const deleteAllServerData = ref(false)
+
+// Delete backend state
+const showDeleteBackendDialog = ref(false)
+const backendToDeleteCompletely = ref<SelectHaexSyncBackends | null>(null)
 
 // Re-upload state
 const showReUploadDialog = ref(false)
@@ -589,7 +614,7 @@ const cancelAddBackend = () => {
   newBackend.identityId = ''
   newBackend.approvedClaims = {}
   verificationPending.value = null
-  verificationCode.value = ''
+  verificationCodeParts.value = []
 }
 
 // Handle wizard completion
@@ -665,7 +690,7 @@ const onVerifyCodeAsync = async () => {
     await loadAllServerVaultsAsync()
     add({ title: t('success.backendAdded'), color: 'success' })
     verificationPending.value = null
-    verificationCode.value = ''
+    verificationCodeParts.value = []
     cancelAddBackend()
   } else if (connectionError.value) {
     add({
@@ -730,10 +755,86 @@ const toggleBackendAsync = async (backendId: string) => {
         color: 'success',
       })
     }
+
+    // Refresh server vaults list
+    await loadAllServerVaultsAsync()
   } catch (error) {
     console.error('Failed to toggle backend:', error)
     add({
       title: t('errors.toggleFailed'),
+      description: error instanceof Error ? error.message : 'Unknown error',
+      color: 'error',
+    })
+  }
+}
+
+// Prepare delete backend
+const prepareDeleteBackend = (backend: SelectHaexSyncBackends) => {
+  backendToDeleteCompletely.value = backend
+  showDeleteBackendDialog.value = true
+}
+
+// Confirm delete backend
+const onConfirmDeleteBackendAsync = async () => {
+  const backend = backendToDeleteCompletely.value
+  if (!backend) return
+
+  try {
+    // Stop sync if this backend is active
+    if (backend.enabled) {
+      await syncOrchestratorStore.stopSyncAsync()
+    }
+
+    // Delete all server data for this backend
+    try {
+      await syncEngineStore.initSupabaseClientAsync(backend.id)
+
+      // Login to get a fresh auth token
+      if (backend.identityId) {
+        const session = await loginAsync(backend.serverUrl, backend.identityId)
+        const token = session.access_token
+
+        // Delete all spaces where user is admin (server validates role)
+        try {
+          await fetch(`${backend.serverUrl}/spaces/my-admin-spaces`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        } catch (e) {
+          console.warn('[SYNC] Could not delete admin spaces:', e)
+        }
+
+        // Set session so deleteAllVaultDataAsync can authenticate
+        await syncEngineStore.supabaseClient?.auth.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        })
+        syncEngineStore.cacheAccessToken(session.access_token)
+      }
+
+      await syncEngineStore.deleteAllVaultDataAsync(backend.id)
+    } catch (e) {
+      console.warn('[SYNC] Could not delete server data (may already be cleaned up):', e)
+    }
+
+    // Delete backend from local DB
+    await syncBackendsStore.deleteBackendAsync(backend.id)
+
+    add({
+      title: t('success.backendDeleted'),
+      color: 'success',
+    })
+
+    // Reload backends and vaults
+    await syncBackendsStore.loadBackendsAsync()
+    await loadAllServerVaultsAsync()
+
+    showDeleteBackendDialog.value = false
+    backendToDeleteCompletely.value = null
+  } catch (error) {
+    console.error('Failed to delete backend:', error)
+    add({
+      title: t('errors.deleteBackendFailed'),
       description: error instanceof Error ? error.message : 'Unknown error',
       color: 'error',
     })
@@ -807,18 +908,30 @@ const loadAllServerVaultsAsync = async () => {
     return
   }
 
-  // Initialize grouped vaults structure
-  groupedServerVaults.value = syncBackends.value.map((backend) => ({
-    backend,
-    vaults: [],
-    isLoading: true,
-    error: null,
-    currentVaultMissingOnServer: false,
-  }))
+  // Initialize grouped vaults structure, preserving existing data for disabled backends
+  const previousGroups = groupedServerVaults.value
+  groupedServerVaults.value = syncBackends.value.map((backend) => {
+    const existing = previousGroups.find((g) => g.backend.id === backend.id)
+    if (!backend.enabled && existing && !existing.isLoading) {
+      // Keep previously loaded vaults for disabled backends
+      return { ...existing, backend }
+    }
+    return {
+      backend,
+      vaults: [],
+      isLoading: backend.enabled,
+      error: null,
+      currentVaultMissingOnServer: false,
+    }
+  })
 
-  // Load vaults for each backend in parallel
+  // Load vaults for each enabled backend in parallel
   await Promise.allSettled(
     groupedServerVaults.value.map(async (group) => {
+      if (!group.backend.enabled) {
+        return
+      }
+
       try {
         const vaults = await loadVaultsForBackendAsync(group.backend)
 
@@ -881,23 +994,16 @@ const onConfirmDeleteRemoteVaultAsync = async () => {
       await syncEngineStore.deleteRemoteVaultAsync(backend.id, vaultId)
     }
 
-    // Step 2: Delete backend from DB first, then stop sync if needed
+    // Step 2: Stop sync if deleting the currently synced vault
     if (isCurrentVault) {
-      await syncBackendsStore.deleteBackendAsync(backend.id)
       await syncOrchestratorStore.stopSyncAsync()
-
-      add({
-        title: t('success.syncConnectionDeleted'),
-        description: t('success.syncConnectionDeletedDescription'),
-        color: 'success',
-      })
-    } else {
-      add({
-        title: t('success.remoteVaultDeleted'),
-        description: t('success.remoteVaultDeletedDescription'),
-        color: 'success',
-      })
     }
+
+    add({
+      title: t('success.remoteVaultDeleted'),
+      description: t('success.remoteVaultDeletedDescription'),
+      color: 'success',
+    })
 
     // Reload backends to update the list
     await syncBackendsStore.loadBackendsAsync()
@@ -1028,6 +1134,7 @@ de:
     enable: Aktivieren
     disable: Deaktivieren
     delete: Löschen
+    deleteBackend: Backend löschen
     deleteWithSync: Sync löschen
     close: Schließen
     manageServerVaults: Server-Vaults verwalten
@@ -1046,6 +1153,9 @@ de:
   deleteCurrentVaultSync:
     title: Sync-Verbindung löschen
     description: Möchtest du die Sync-Verbindung für die aktuell geöffnete Vault wirklich löschen? Alle Daten dieser Vault werden vom Server "{vaultName}" entfernt und die Sync-Verbindung wird getrennt. Deine lokalen Daten bleiben erhalten.
+  deleteBackend:
+    title: Backend löschen
+    description: Möchtest du das Backend "{name}" wirklich löschen? Alle Vault-Daten auf dem Server und die lokale Verbindung werden entfernt. Diese Aktion kann nicht rückgängig gemacht werden.
   deleteAllData:
     label: Alle Vault-Daten auf dem Server löschen
     description: Löscht sämtliche Vault-Daten auf diesem Server (alle Vaults und Sync-Daten). Dein Account bleibt bestehen. Diese Aktion kann nicht rückgängig gemacht werden.
@@ -1058,6 +1168,7 @@ de:
     backendDisabled: Backend deaktiviert
     syncStarted: Synchronisation gestartet
     syncStopped: Synchronisation gestoppt
+    backendDeleted: Backend gelöscht
     remoteVaultDeleted: Remote-Vault gelöscht
     remoteVaultDeletedDescription: Die Remote-Vault wurde erfolgreich vom Server gelöscht
     syncConnectionDeleted: Sync-Verbindung gelöscht
@@ -1091,6 +1202,7 @@ de:
     signOutFailed: Abmeldung fehlgeschlagen
     addBackendFailed: Backend konnte nicht hinzugefügt werden
     toggleFailed: Status konnte nicht geändert werden
+    deleteBackendFailed: Backend konnte nicht gelöscht werden
     deleteRemoteVaultFailed: Remote-Vault konnte nicht gelöscht werden
     noVaultId: Keine Vault-ID für dieses Backend konfiguriert
     loadServerVaultsFailed: Server-Vaults konnten nicht geladen werden
@@ -1138,6 +1250,7 @@ en:
     enable: Enable
     disable: Disable
     delete: Delete
+    deleteBackend: Delete backend
     deleteWithSync: Delete Sync
     close: Close
     manageServerVaults: Manage Server Vaults
@@ -1158,6 +1271,9 @@ en:
   deleteCurrentVaultSync:
     title: Delete Sync Connection
     description: Do you really want to delete the sync connection for the currently opened vault? All data of this vault will be removed from the server "{vaultName}" and the sync connection will be disconnected. Your local data will remain intact.
+  deleteBackend:
+    title: Delete Backend
+    description: Do you really want to delete the backend "{name}"? All vault data on the server and the local connection will be removed. This action cannot be undone.
   deleteAllData:
     label: Delete all vault data on the server
     description: Deletes all vault data on this server (all vaults and sync data). Your account remains intact. This action cannot be undone.
@@ -1170,6 +1286,7 @@ en:
     backendDisabled: Backend disabled
     syncStarted: Sync started
     syncStopped: Sync stopped
+    backendDeleted: Backend deleted
     remoteVaultDeleted: Remote vault deleted
     remoteVaultDeletedDescription: The remote vault was successfully deleted from the server
     syncConnectionDeleted: Sync connection deleted
@@ -1203,6 +1320,7 @@ en:
     signOutFailed: Sign out failed
     addBackendFailed: Failed to add backend
     toggleFailed: Failed to toggle status
+    deleteBackendFailed: Failed to delete backend
     deleteRemoteVaultFailed: Failed to delete remote vault
     noVaultId: No vault ID configured for this backend
     loadServerVaultsFailed: Failed to load server vaults

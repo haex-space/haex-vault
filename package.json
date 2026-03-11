@@ -1,7 +1,7 @@
 {
   "name": "haex-vault",
   "private": true,
-  "version": "1.5.75",
+  "version": "1.5.76",
   "type": "module",
   "scripts": {
     "build": "nuxt build",
@@ -56,8 +56,10 @@
     "@vueuse/gesture": "^2.0.0",
     "@vueuse/nuxt": "^14.2.1",
     "drizzle-orm": "^0.45.1",
+    "html5-qrcode": "^2.3.8",
     "md-editor-v3": "^6.3.1",
     "nuxt-zod-i18n": "^1.12.1",
+    "qrcode": "^1.5.4",
     "swiper": "^12.1.0",
     "tailwindcss": "^4.1.18",
     "vue": "^3.5.28"
@@ -73,6 +75,7 @@
     "@playwright/test": "^1.58.2",
     "@tauri-apps/cli": "^2.10.0",
     "@types/node": "^25.2.2",
+    "@types/qrcode": "^1.5.6",
     "@vitejs/plugin-vue": "6.0.4",
     "@vitest/ui": "^4.0.18",
     "@vue-dnd-kit/core": "1.7.0",

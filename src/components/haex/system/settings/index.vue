@@ -37,6 +37,7 @@
       <HaexSystemSettingsSync v-if="activeCategory === 'sync'" />
       <HaexSystemSettingsSpaces v-if="activeCategory === 'spaces'" />
       <HaexSystemSettingsIdentities v-if="activeCategory === 'identities'" />
+      <HaexSystemSettingsContacts v-if="activeCategory === 'contacts'" />
       <HaexSystemSettingsStorage v-if="activeCategory === 'storage'" />
       <HaexSystemSettingsDevices v-if="activeCategory === 'devices'" />
       <HaexSystemSettingsDeveloper v-if="activeCategory === 'developer'" />
@@ -46,13 +47,18 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+const props = defineProps<{
   isDragging?: boolean
+  category?: string
 }>()
 
 const { t } = useI18n()
 
-const activeCategory = defineModel<string>('category', { default: 'general' })
+const activeCategory = ref(props.category || 'general')
+
+watch(() => props.category, (newCategory) => {
+  if (newCategory) activeCategory.value = newCategory
+})
 
 const categories = computed(() => [
   {
@@ -128,6 +134,15 @@ const categories = computed(() => [
     },
   },
   {
+    value: 'contacts',
+    label: t('categories.contacts'),
+    icon: 'i-lucide-contact',
+    active: activeCategory.value === 'contacts',
+    click: () => {
+      activeCategory.value = 'contacts'
+    },
+  },
+  {
     value: 'storage',
     label: t('categories.storage'),
     icon: 'i-heroicons-cloud',
@@ -177,6 +192,7 @@ de:
     sync: Synchronisation
     spaces: Spaces
     identities: Identitäten
+    contacts: Kontakte
     storage: Storage
     devices: Geräte
     developer: Entwickler
@@ -191,6 +207,7 @@ en:
     sync: Sync
     spaces: Spaces
     identities: Identities
+    contacts: Contacts
     storage: Storage
     devices: Devices
     developer: Developer

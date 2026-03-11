@@ -298,6 +298,10 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
             (w) => w.type === 'system' && w.sourceId === sourceId && w.workspaceId && !w.isClosing,
           )
           if (existingWindow) {
+            // Update params if provided (e.g. navigating to a different settings category)
+            if (params) {
+              existingWindow.params = { ...existingWindow.params, ...params }
+            }
             // Switch to the workspace where this window is located
             const workspaceStore = useWorkspaceStore()
             if (existingWindow.workspaceId !== workspaceStore.currentWorkspace?.id) {

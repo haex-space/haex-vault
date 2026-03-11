@@ -326,9 +326,12 @@ export const useVaultStore = defineStore('vaultStore', () => {
     console.log('[VAULT STORE] Closing vault and resetting all stores...')
 
     // Stop sync first to clear all sync-related state
-    // This also calls syncBackendsStore.reset()
     const syncOrchestratorStore = useSyncOrchestratorStore()
     await syncOrchestratorStore.stopSyncAsync()
+
+    // Reset backends store (separate from stopSync so disabling a backend doesn't clear the list)
+    const syncBackendsStore = useSyncBackendsStore()
+    syncBackendsStore.reset()
 
     // Close all extension windows before closing the vault
     const windowManagerStore = useWindowManagerStore()

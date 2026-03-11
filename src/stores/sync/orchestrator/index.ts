@@ -531,9 +531,6 @@ export const useSyncOrchestratorStore = defineStore(
       }
 
       syncStates.value = {}
-
-      // Reset backends store to clear cached backends
-      syncBackendsStore.reset()
     }
 
     /**

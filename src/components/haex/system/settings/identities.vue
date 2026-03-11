@@ -3,7 +3,7 @@
     <!-- Identities List -->
     <UCard>
       <template #header>
-        <div class="flex items-center justify-between">
+        <div class="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 class="text-lg font-semibold">{{ t('list.title') }}</h3>
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -51,114 +51,108 @@
           :key="identity.id"
           class="p-3 rounded-lg border border-default"
         >
-          <div class="flex items-center justify-between">
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2">
-                <UIcon name="i-lucide-fingerprint" class="w-4 h-4 text-primary shrink-0" />
-                <span class="font-medium truncate">{{ identity.label }}</span>
-              </div>
-              <div class="mt-1 flex items-center gap-2">
-                <code class="text-xs text-muted truncate max-w-[300px]">{{ identity.did }}</code>
-                <UButton
-                  size="xs"
-                  variant="ghost"
-                  icon="i-lucide-copy"
-                  :title="t('actions.copyDid')"
-                  @click="copyDid(identity.did)"
-                />
-              </div>
-              <p v-if="identity.createdAt" class="text-xs text-muted mt-1">
-                {{ t('list.created') }}: {{ formatDate(identity.createdAt) }}
-              </p>
+          <div>
+            <div class="flex items-center gap-2">
+              <UIcon name="i-lucide-fingerprint" class="w-4 h-4 text-primary shrink-0" />
+              <span class="font-medium truncate">{{ identity.label }}</span>
             </div>
-
-            <div class="flex items-center gap-1 shrink-0 ml-4">
-              <UButton
-                size="xs"
-                variant="ghost"
-                :icon="expandedIdentity === identity.id ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
-                :title="t('actions.toggleClaims')"
-                @click="toggleExpand(identity.id)"
-              />
-              <UButton
-                size="xs"
-                variant="ghost"
-                icon="i-lucide-download"
-                :title="t('actions.export')"
-                @click="onExport(identity)"
-              />
-              <UButton
-                size="xs"
-                variant="ghost"
-                icon="i-lucide-pencil"
-                :title="t('actions.rename')"
-                @click="openRenameDialog(identity)"
-              />
-              <UButton
-                size="xs"
-                variant="ghost"
-                color="error"
-                icon="i-lucide-trash-2"
-                :title="t('actions.delete')"
-                @click="prepareDelete(identity)"
-              />
-            </div>
-          </div>
-
-          <!-- Claims Section (expandable) -->
-          <div
-            v-if="expandedIdentity === identity.id"
-            class="mt-3 pt-3 border-t border-default space-y-2"
-          >
-            <div class="flex items-center justify-between">
-              <span class="text-sm font-medium">{{ t('claims.title') }}</span>
-              <UButton
-                size="xs"
-                variant="outline"
-                icon="i-lucide-plus"
-                @click="openAddClaim(identity.id)"
-              >
-                {{ t('claims.add') }}
-              </UButton>
-            </div>
-
-            <div
-              v-if="identityClaims[identity.id]?.length"
-              class="space-y-1"
-            >
-              <div
-                v-for="claim in identityClaims[identity.id]"
-                :key="claim.id"
-                class="flex items-center justify-between p-2 rounded bg-gray-50 dark:bg-gray-800/50"
-              >
-                <div class="min-w-0 flex-1">
-                  <span class="text-xs font-medium text-muted">{{ claim.type }}</span>
-                  <p class="text-sm truncate">{{ claim.value }}</p>
-                </div>
-                <div class="flex gap-1 shrink-0 ml-2">
-                  <UButton
-                    size="xs"
-                    variant="ghost"
-                    icon="i-lucide-pencil"
-                    @click="openEditClaim(claim)"
-                  />
-                  <UButton
-                    size="xs"
-                    variant="ghost"
-                    color="error"
-                    icon="i-lucide-trash-2"
-                    @click="deleteClaimAsync(claim.id, identity.id)"
-                  />
-                </div>
-              </div>
-            </div>
-            <p
-              v-else
-              class="text-xs text-muted"
-            >
-              {{ t('claims.empty') }}
+            <code class="block text-xs text-muted truncate mt-1">{{ identity.did }}</code>
+            <p v-if="identity.createdAt" class="text-xs text-muted mt-1">
+              {{ t('list.created') }}: {{ formatDate(identity.createdAt) }}
             </p>
           </div>
+
+          <div class="flex flex-wrap items-center gap-1 mt-2">
+            <UButton
+              variant="ghost"
+              icon="i-lucide-copy"
+              :title="t('actions.copyDid')"
+              @click="copyDid(identity.did)"
+            />
+            <UButton
+              variant="ghost"
+              icon="i-lucide-download"
+              :title="t('actions.export')"
+              @click="onExport(identity)"
+            />
+            <UButton
+              variant="ghost"
+              icon="i-lucide-pencil"
+              :title="t('actions.rename')"
+              @click="openRenameDialog(identity)"
+            />
+            <UButton
+              variant="ghost"
+              color="error"
+              icon="i-lucide-trash-2"
+              :title="t('actions.delete')"
+              @click="prepareDelete(identity)"
+            />
+            <div class="flex-1" />
+            <UButton
+              variant="ghost"
+              :icon="expandedIdentity === identity.id ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+              :title="t('actions.toggleClaims')"
+              @click="toggleExpand(identity.id)"
+            />
+          </div>
+
+          <!-- Claims Section (collapsible) -->
+          <UCollapsible
+            :open="expandedIdentity === identity.id"
+            :unmount-on-hide="false"
+          >
+
+            <template #content>
+              <div class="mt-3 pt-3 border-t border-default space-y-2">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <span class="text-sm font-medium">{{ t('claims.title') }}</span>
+                  <UButton
+                    variant="outline"
+                    icon="i-lucide-plus"
+                    @click="openAddClaim(identity.id)"
+                  >
+                    {{ t('claims.add') }}
+                  </UButton>
+                </div>
+
+                <div
+                  v-if="identityClaims[identity.id]?.length"
+                  class="space-y-1"
+                >
+                  <div
+                    v-for="claim in identityClaims[identity.id]"
+                    :key="claim.id"
+                    class="flex flex-wrap items-center justify-between gap-2 p-2 rounded bg-gray-50 dark:bg-gray-800/50"
+                  >
+                    <div class="min-w-0 flex-1">
+                      <span class="text-xs font-medium text-muted">{{ claim.type }}</span>
+                      <p class="text-sm truncate">{{ claim.value }}</p>
+                    </div>
+                    <div class="flex gap-1 shrink-0">
+                      <UButton
+                        variant="ghost"
+                        icon="i-lucide-pencil"
+                        @click="openEditClaim(claim)"
+                      />
+                      <UButton
+                        variant="ghost"
+                        color="error"
+                        icon="i-lucide-trash-2"
+                        @click="deleteClaimAsync(claim.id, identity.id)"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <p
+                  v-else
+                  class="text-xs text-muted"
+                >
+                  {{ t('claims.empty') }}
+                </p>
+              </div>
+            </template>
+          </UCollapsible>
         </div>
       </div>
 
@@ -334,7 +328,6 @@
           />
           <UiInput
             v-model="claimValue"
-            :label="t('claims.value')"
             :placeholder="claimValuePlaceholder"
             size="lg"
             @keydown.enter.prevent="onSaveClaimAsync"
@@ -558,6 +551,8 @@ const claimTypeOptions = computed(() => {
   return [
     { label: 'Email', value: 'email', disabled: existingTypes.has('email') },
     { label: 'Name', value: 'name', disabled: existingTypes.has('name') },
+    { label: t('claims.phone'), value: 'phone', disabled: existingTypes.has('phone') },
+    { label: t('claims.address'), value: 'address', disabled: existingTypes.has('address') },
     { label: t('claims.custom'), value: 'custom' },
   ]
 })
@@ -566,6 +561,8 @@ const claimValuePlaceholder = computed(() => {
   if (editingClaim.value) return ''
   if (claimType.value === 'email') return 'user@example.com'
   if (claimType.value === 'name') return 'Max Mustermann'
+  if (claimType.value === 'phone') return '+49 123 456789'
+  if (claimType.value === 'address') return 'Musterstraße 1, 12345 Berlin'
   return ''
 })
 
@@ -676,6 +673,8 @@ de:
     editTitle: Claim bearbeiten
     type: Typ
     customType: Benutzerdefinierter Typ
+    phone: Telefon
+    address: Adresse
     custom: Benutzerdefiniert
     value: Wert
     empty: Keine Claims vorhanden. Füge Email, Name oder andere Daten hinzu.
@@ -746,6 +745,8 @@ en:
     editTitle: Edit Claim
     type: Type
     customType: Custom Type
+    phone: Phone
+    address: Address
     custom: Custom
     value: Value
     empty: No claims yet. Add email, name or other data.

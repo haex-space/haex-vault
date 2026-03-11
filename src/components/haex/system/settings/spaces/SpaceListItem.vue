@@ -24,7 +24,6 @@
           color="primary"
           variant="ghost"
           icon="i-lucide-user-plus"
-          size="sm"
           :title="t('actions.invite')"
           @click="$emit('invite', space)"
         />
@@ -33,7 +32,6 @@
           color="error"
           variant="ghost"
           icon="i-lucide-trash-2"
-          size="sm"
           :title="t('actions.delete')"
           @click="$emit('delete', space)"
         />
@@ -42,7 +40,6 @@
           color="warning"
           variant="ghost"
           icon="i-lucide-log-out"
-          size="sm"
           :title="t('actions.leave')"
           @click="$emit('leave', space)"
         />

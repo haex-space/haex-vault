@@ -409,6 +409,49 @@ export type InsertHaexIdentityClaims = typeof haexIdentityClaims.$inferInsert
 export type SelectHaexIdentityClaims = typeof haexIdentityClaims.$inferSelect
 
 // ---------------------------------------------------------------------------
+// Contacts — external people's public keys and metadata (address book)
+// ---------------------------------------------------------------------------
+
+export const haexContacts = sqliteTable(
+  tableNames.haex.contacts.name,
+  {
+    id: text(tableNames.haex.contacts.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    label: text(tableNames.haex.contacts.columns.label).notNull(),
+    publicKey: text(tableNames.haex.contacts.columns.publicKey).notNull(),
+    notes: text(tableNames.haex.contacts.columns.notes),
+    createdAt: text(tableNames.haex.contacts.columns.createdAt).default(
+      sql`(CURRENT_TIMESTAMP)`,
+    ),
+  },
+  (table) => [
+    uniqueIndex('haex_contacts_public_key_unique').on(table.publicKey),
+  ],
+)
+export type InsertHaexContacts = typeof haexContacts.$inferInsert
+export type SelectHaexContacts = typeof haexContacts.$inferSelect
+
+export const haexContactClaims = sqliteTable(
+  tableNames.haex.contact_claims.name,
+  {
+    id: text(tableNames.haex.contact_claims.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    contactId: text(tableNames.haex.contact_claims.columns.contactId)
+      .notNull()
+      .references(() => haexContacts.id, { onDelete: 'cascade' }),
+    type: text(tableNames.haex.contact_claims.columns.type).notNull(),
+    value: text(tableNames.haex.contact_claims.columns.value).notNull(),
+    createdAt: text(tableNames.haex.contact_claims.columns.createdAt).default(
+      sql`(CURRENT_TIMESTAMP)`,
+    ),
+  },
+)
+export type InsertHaexContactClaims = typeof haexContactClaims.$inferInsert
+export type SelectHaexContactClaims = typeof haexContactClaims.$inferSelect
+
+// ---------------------------------------------------------------------------
 // Shared Space Sync — maps rows to shared spaces for space-backend filtering
 // ---------------------------------------------------------------------------
 
