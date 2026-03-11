@@ -7,6 +7,7 @@ import {
   arrayBufferToBase64,
   base64ToArrayBuffer,
   type SharedSpace,
+  type SpaceRole,
   type SpaceInvite,
   type DecryptedSpace,
 } from '@haex-space/vault-sdk'
@@ -23,7 +24,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   // In-memory read-through cache (backed by DB)
   const spaceKeyCache = new Map<string, Uint8Array>()
 
-  const spaces = ref<SharedSpace[]>([])
+  const spaces = ref<DecryptedSpace[]>([])
 
   // Helper: resolve identity keys from identityId
   const resolveIdentityAsync = async (identityId: string) => {
@@ -94,13 +95,32 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
     if (!currentVault.value?.drizzle) return
     const keyBase64 = arrayBufferToBase64(key.buffer as ArrayBuffer)
-    await currentVault.value.drizzle
-      .insert(haexSpaceKeys)
-      .values({ spaceId, generation, key: keyBase64 })
-      .onConflictDoUpdate({
-        target: [haexSpaceKeys.spaceId, haexSpaceKeys.generation],
-        set: { key: keyBase64 },
-      })
+
+    // Drizzle's onConflictDoUpdate generates table-qualified column names in ON CONFLICT
+    // which SQLite doesn't support — use check-then-insert/update instead
+    const existing = await currentVault.value.drizzle
+      .select()
+      .from(haexSpaceKeys)
+      .where(and(
+        eq(haexSpaceKeys.spaceId, spaceId),
+        eq(haexSpaceKeys.generation, generation),
+      ))
+      .limit(1)
+
+    if (existing.length > 0) {
+      await currentVault.value.drizzle
+        .update(haexSpaceKeys)
+        .set({ key: keyBase64 })
+        .where(and(
+          eq(haexSpaceKeys.spaceId, spaceId),
+          eq(haexSpaceKeys.generation, generation),
+        ))
+    }
+    else {
+      await currentVault.value.drizzle
+        .insert(haexSpaceKeys)
+        .values({ spaceId, generation, key: keyBase64 })
+    }
   }
 
   const deleteSpaceKeysAsync = async (spaceId: string) => {
@@ -130,20 +150,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     } catch {
       return `Space ${space.id.slice(0, 8)}`
     }
-  }
-
-  const listDecryptedSpacesAsync = async (serverUrl: string): Promise<DecryptedSpace[]> => {
-    const rawSpaces = await listSpacesAsync(serverUrl)
-    return Promise.all(
-      rawSpaces.map(async (space) => ({
-        id: space.id,
-        name: await resolveSpaceNameAsync(space),
-        role: space.role,
-        canInvite: space.canInvite,
-        serverUrl,
-        createdAt: space.createdAt,
-      })),
-    )
   }
 
   // =========================================================================
@@ -190,9 +196,22 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   const listSpacesAsync = async (serverUrl: string) => {
     const response = await fetchWithAuth(`${serverUrl}/spaces`)
     if (!response.ok) throw new Error('Failed to list spaces')
-    const data = await response.json()
-    spaces.value = data
-    return data as SharedSpace[]
+    const rawSpaces = await response.json() as SharedSpace[]
+
+    const decrypted = await Promise.all(
+      rawSpaces.map(async (space) => ({
+        id: space.id,
+        name: await resolveSpaceNameAsync(space),
+        role: space.role,
+        serverUrl,
+        createdAt: space.createdAt,
+      })),
+    )
+
+    // Merge with existing spaces from other servers
+    const otherSpaces = spaces.value.filter(s => s.serverUrl !== serverUrl)
+    spaces.value = [...otherSpaces, ...decrypted]
+    return decrypted
   }
 
   const inviteMemberAsync = async (
@@ -200,8 +219,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     spaceId: string,
     inviteePublicKey: string,
     label: string,
-    role: 'member' | 'viewer',
-    canInvite: boolean,
+    role: SpaceRole,
     identityId: string,
   ): Promise<SpaceInvite> => {
     const identity = await resolveIdentityAsync(identityId)
@@ -239,7 +257,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
         publicKey: inviteePublicKey,
         label,
         role,
-        canInvite,
         keyGrant: {
           encryptedSpaceKey: keyGrant.encryptedSpaceKey,
           keyNonce: keyGrant.keyNonce,
@@ -349,7 +366,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     persistSpaceKeyAsync,
     createSpaceAsync,
     listSpacesAsync,
-    listDecryptedSpacesAsync,
     resolveSpaceNameAsync,
     inviteMemberAsync,
     joinSpaceFromInviteAsync,

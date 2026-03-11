@@ -23,10 +23,6 @@
           :placeholder="t('invite.roleLabel')"
           class="w-full"
         />
-        <div class="flex items-center gap-2 mt-2">
-          <UiToggle v-model="inviteForm.canInvite" />
-          <span class="text-sm">{{ t('invite.canInviteLabel') }}</span>
-        </div>
       </template>
       <template v-else>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">
@@ -71,12 +67,14 @@
 </template>
 
 <script setup lang="ts">
+import type { SpaceRole } from '@haex-space/vault-sdk'
+
 const open = defineModel<boolean>('open', { required: true })
 
 const props = defineProps<{
   spaceId: string
   serverUrl: string
-  isAdmin: boolean
+  callerRole: SpaceRole
   identityId: string
 }>()
 
@@ -92,20 +90,27 @@ const inviteResult = ref('')
 const inviteForm = reactive({
   publicKey: '',
   label: '',
-  role: undefined as { label: string; value: string } | undefined,
-  canInvite: false,
+  role: undefined as { label: string; value: SpaceRole } | undefined,
 })
 
-const roleOptions = computed(() => [
-  { label: t('roles.member'), value: 'member' },
-  { label: t('roles.viewer'), value: 'viewer' },
-])
+const roleOptions = computed(() => {
+  const options: { label: string; value: SpaceRole }[] = []
+
+  if (props.callerRole === 'admin') {
+    options.push({ label: t('roles.owner'), value: 'owner' })
+  }
+  options.push(
+    { label: t('roles.member'), value: 'member' },
+    { label: t('roles.reader'), value: 'reader' },
+  )
+
+  return options
+})
 
 const resetForm = () => {
   inviteForm.publicKey = ''
   inviteForm.label = ''
   inviteForm.role = undefined
-  inviteForm.canInvite = false
   inviteResult.value = ''
 }
 
@@ -125,8 +130,7 @@ const onInviteMemberAsync = async () => {
       props.spaceId,
       inviteForm.publicKey.trim(),
       inviteForm.label,
-      inviteForm.role.value as 'member' | 'viewer',
-      inviteForm.canInvite,
+      inviteForm.role.value,
       props.identityId,
     )
 
@@ -172,12 +176,12 @@ de:
     publicKeyLabel: Public Key
     publicKeyPlaceholder: Base64-kodierten Public Key einfügen
     roleLabel: Rolle auswählen
-    canInviteLabel: Darf weitere Mitglieder einladen
     resultDescription: Teile dieses Einladungs-JSON mit der Person
     resultLabel: Einladungs-JSON
   roles:
+    owner: Eigentümer
     member: Mitglied
-    viewer: Betrachter
+    reader: Leser
   actions:
     invite: Einladen
     cancel: Abbrechen
@@ -197,12 +201,12 @@ en:
     publicKeyLabel: Public Key
     publicKeyPlaceholder: Paste Base64-encoded public key
     roleLabel: Select role
-    canInviteLabel: Can invite other members
     resultDescription: Share this invite JSON with the person
     resultLabel: Invite JSON
   roles:
+    owner: Owner
     member: Member
-    viewer: Viewer
+    reader: Reader
   actions:
     invite: Invite
     cancel: Cancel

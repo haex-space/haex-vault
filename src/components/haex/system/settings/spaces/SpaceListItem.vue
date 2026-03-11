@@ -4,7 +4,7 @@
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2 flex-wrap">
           <p class="font-medium text-sm truncate">
-            Space {{ space.id.slice(0, 8) }}
+            {{ space.name }}
           </p>
           <UBadge
             :color="roleBadgeColor"
@@ -13,14 +13,6 @@
           >
             {{ t(`roles.${space.role}`) }}
           </UBadge>
-          <UBadge
-            v-if="space.canInvite && space.role !== 'admin'"
-            color="info"
-            variant="subtle"
-            size="xs"
-          >
-            {{ t('canInvite') }}
-          </UBadge>
         </div>
         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
           {{ t('createdAt') }}: {{ formatDate(space.createdAt) }}
@@ -28,7 +20,7 @@
       </div>
       <div class="flex gap-2 @xs:shrink-0">
         <UButton
-          v-if="space.role === 'admin' || space.canInvite"
+          v-if="space.role === 'admin' || space.role === 'owner'"
           color="primary"
           variant="ghost"
           icon="i-lucide-user-plus"
@@ -60,16 +52,16 @@
 </template>
 
 <script setup lang="ts">
-import type { SharedSpace } from '@haex-space/vault-sdk'
+import type { DecryptedSpace } from '@haex-space/vault-sdk'
 
 const props = defineProps<{
-  space: SharedSpace
+  space: DecryptedSpace
 }>()
 
 defineEmits<{
-  invite: [space: SharedSpace]
-  delete: [space: SharedSpace]
-  leave: [space: SharedSpace]
+  invite: [space: DecryptedSpace]
+  delete: [space: DecryptedSpace]
+  leave: [space: DecryptedSpace]
 }>()
 
 const { t } = useI18n()
@@ -77,8 +69,9 @@ const { t } = useI18n()
 const roleBadgeColor = computed(() => {
   switch (props.space.role) {
     case 'admin': return 'error' as const
+    case 'owner': return 'warning' as const
     case 'member': return 'primary' as const
-    case 'viewer': return 'neutral' as const
+    case 'reader': return 'neutral' as const
   }
 })
 
@@ -91,9 +84,9 @@ const formatDate = (dateStr: string) => {
 de:
   roles:
     admin: Admin
+    owner: Eigentümer
     member: Mitglied
-    viewer: Betrachter
-  canInvite: Kann einladen
+    reader: Leser
   createdAt: Erstellt am
   actions:
     invite: Einladen
@@ -102,9 +95,9 @@ de:
 en:
   roles:
     admin: Admin
+    owner: Owner
     member: Member
-    viewer: Viewer
-  canInvite: Can invite
+    reader: Reader
   createdAt: Created at
   actions:
     invite: Invite

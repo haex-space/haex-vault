@@ -144,7 +144,7 @@
       v-model:open="showInviteDialog"
       :space-id="inviteSpaceId"
       :server-url="inviteServerUrl"
-      :is-admin="inviteSpaceIsAdmin"
+      :caller-role="inviteSpaceCallerRole"
       :identity-id="inviteIdentityId"
     />
 
@@ -167,7 +167,7 @@
 </template>
 
 <script setup lang="ts">
-import type { SharedSpace, SpaceInvite, SpaceRole } from '@haex-space/vault-sdk'
+import type { DecryptedSpace, SpaceInvite, SpaceRole } from '@haex-space/vault-sdk'
 import SpaceListItem from './spaces/SpaceListItem.vue'
 import SpaceInviteDialog from './spaces/SpaceInviteDialog.vue'
 
@@ -208,11 +208,11 @@ const joinInviteJson = ref('')
 // Invite dialog state
 const inviteSpaceId = ref('')
 const inviteServerUrl = ref('')
-const inviteSpaceIsAdmin = ref(false)
+const inviteSpaceCallerRole = ref<SpaceRole>('member')
 const inviteIdentityId = ref('')
 
 // Delete/Leave target
-const targetSpace = ref<SharedSpace | null>(null)
+const targetSpace = ref<DecryptedSpace | null>(null)
 
 // Server URL options from existing sync backends
 const serverUrlOptions = computed(() => {
@@ -283,7 +283,7 @@ const onCreateSpaceAsync = async () => {
     createForm.serverUrl = undefined
 
     // Open invite dialog for the newly created space
-    openInviteDialog({ ...createdSpace, role: 'admin' as SpaceRole, canInvite: true }, serverUrl)
+    openInviteDialog({ ...createdSpace, name: createForm.name, role: 'admin' as SpaceRole, serverUrl, createdAt: new Date().toISOString() })
   } catch (error) {
     console.error('Failed to create space:', error)
     add({
@@ -329,9 +329,6 @@ const onJoinSpaceAsync = async () => {
       name: `Space ${spaceId.slice(0, 8)}`,
       serverUrl: invite.serverUrl,
       vaultId: invite.spaceId,
-      type: 'space',
-      spaceId: invite.spaceId,
-      spaceToken: invite.accessToken,
       identityId,
       enabled: true,
     })
@@ -357,44 +354,30 @@ const onJoinSpaceAsync = async () => {
   }
 }
 
+// Find the identity linked to a space via its sync backend
+const getIdentityForSpace = (spaceServerUrl: string): string | undefined => {
+  const backend = syncBackends.value.find(b => b.serverUrl === spaceServerUrl)
+  return backend?.identityId ?? undefined
+}
+
 // Open invite dialog
-const openInviteDialog = (space: SharedSpace, knownServerUrl?: string) => {
+const openInviteDialog = (space: DecryptedSpace) => {
   inviteSpaceId.value = space.id
-  inviteSpaceIsAdmin.value = space.role === 'admin'
-
-  if (knownServerUrl) {
-    inviteServerUrl.value = knownServerUrl
-  } else {
-    const serverUrl = getServerUrlForSpace(space.id)
-    if (!serverUrl) {
-      add({ title: t('errors.noServerUrl'), color: 'error' })
-      return
-    }
-    inviteServerUrl.value = serverUrl
-  }
-
-  // Find identity linked to this space's backend
-  const backend = syncBackends.value.find(b => b.spaceId === space.id)
-  inviteIdentityId.value = backend?.identityId ?? ''
-
+  inviteSpaceCallerRole.value = space.role
+  inviteServerUrl.value = space.serverUrl
+  inviteIdentityId.value = getIdentityForSpace(space.serverUrl) ?? ''
   showInviteDialog.value = true
 }
 
 // Prepare delete/leave
-const prepareDeleteSpace = (space: SharedSpace) => {
+const prepareDeleteSpace = (space: DecryptedSpace) => {
   targetSpace.value = space
   showDeleteConfirm.value = true
 }
 
-const prepareLeaveSpace = (space: SharedSpace) => {
+const prepareLeaveSpace = (space: DecryptedSpace) => {
   targetSpace.value = space
   showLeaveConfirm.value = true
-}
-
-// Find server URL for a space
-const getServerUrlForSpace = (spaceId: string): string | null => {
-  const backend = syncBackends.value.find(b => b.spaceId === spaceId)
-  return backend?.serverUrl ?? null
 }
 
 // Confirm delete
@@ -402,18 +385,7 @@ const onConfirmDeleteAsync = async () => {
   if (!targetSpace.value) return
 
   try {
-    const serverUrl = getServerUrlForSpace(targetSpace.value.id)
-    if (!serverUrl) {
-      add({ title: t('errors.noServerUrl'), color: 'error' })
-      return
-    }
-    await spacesStore.deleteSpaceAsync(serverUrl, targetSpace.value.id)
-
-    // Remove associated sync backend
-    const backend = syncBackends.value.find(b => b.spaceId === targetSpace.value!.id)
-    if (backend) {
-      await syncBackendsStore.deleteBackendAsync(backend.id)
-    }
+    await spacesStore.deleteSpaceAsync(targetSpace.value.serverUrl, targetSpace.value.id)
 
     add({
       title: t('success.deleted'),
@@ -437,23 +409,13 @@ const onConfirmLeaveAsync = async () => {
   if (!targetSpace.value) return
 
   try {
-    const serverUrl = getServerUrlForSpace(targetSpace.value.id)
-    if (!serverUrl) {
-      add({ title: t('errors.noServerUrl'), color: 'error' })
-      return
-    }
-    // Find backend to get identityId
-    const backend = syncBackends.value.find(b => b.spaceId === targetSpace.value!.id)
-    const identityId = backend?.identityId
+    const identityId = getIdentityForSpace(targetSpace.value.serverUrl)
     if (!identityId) {
       add({ title: t('errors.noIdentity', 'No identity linked to this space.'), color: 'error' })
       return
     }
 
-    await spacesStore.leaveSpaceAsync(serverUrl, targetSpace.value.id, identityId)
-    if (backend) {
-      await syncBackendsStore.deleteBackendAsync(backend.id)
-    }
+    await spacesStore.leaveSpaceAsync(targetSpace.value.serverUrl, targetSpace.value.id, identityId)
 
     add({
       title: t('success.left'),
