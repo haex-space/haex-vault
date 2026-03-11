@@ -9,46 +9,12 @@
 
     <!-- Step Content -->
     <div>
-      <!-- Step 1: Identity Auth -->
+      <!-- Step 1: Identity Recovery via Email + OTP -->
       <div
         v-if="currentStepIndex === 0"
         class="space-y-4"
       >
-        <!-- Mode Toggle -->
-        <div class="flex gap-2 mb-4">
-          <UButton
-            :color="!isRecoveryMode ? 'primary' : 'neutral'"
-            :variant="!isRecoveryMode ? 'solid' : 'outline'"
-            size="sm"
-            @click="isRecoveryMode = false"
-          >
-            {{ t('steps.login.modeLocal') }}
-          </UButton>
-          <UButton
-            :color="isRecoveryMode ? 'primary' : 'neutral'"
-            :variant="isRecoveryMode ? 'solid' : 'outline'"
-            size="sm"
-            @click="isRecoveryMode = true"
-          >
-            {{ t('steps.login.modeRecovery') }}
-          </UButton>
-        </div>
-
-        <!-- Standard: Local Identity -->
-        <HaexSyncAddBackend
-          v-if="!isRecoveryMode"
-          ref="connectRef"
-          v-model:server-url="credentials.serverUrl"
-          v-model:identity-id="credentials.identityId"
-          v-model:approved-claims="credentials.approvedClaims"
-          :items="serverOptions"
-          :is-loading="isLoading"
-          autofocus
-        />
-
-        <!-- Recovery: Email + OTP -->
         <HaexSyncRecoveryLogin
-          v-else
           @recovered="onRecoveryComplete"
         />
       </div>
@@ -337,7 +303,6 @@ const step2Error = ref('')
 const isCreatingNewVault = ref(false)
 
 // Recovery mode
-const isRecoveryMode = ref(false)
 const recoveredVaultPassword = ref('')
 
 // Step 3: Enter Vault Password
@@ -354,9 +319,8 @@ const step3Errors = reactive({
 // Computed for step validation
 const canProceed = computed(() => {
   if (currentStepIndex.value === 0) {
-    // In recovery mode, progression is handled by RecoveryLogin component
-    if (isRecoveryMode.value) return false
-    return isLoginFormValid.value
+    // Step 0 progression is handled by RecoveryLogin component
+    return false
   }
   if (currentStepIndex.value === 1) {
     return selectedVaultId.value !== null || isCreatingNewVault.value
@@ -626,7 +590,6 @@ const clearForm = () => {
   availableVaults.value = []
   selectedVaultId.value = null
   isCreatingNewVault.value = false
-  isRecoveryMode.value = false
   recoveredVaultPassword.value = ''
   localVaultName.value = ''
   vaultPassword.value = ''
@@ -649,8 +612,6 @@ de:
   steps:
     login:
       title: Verbinden
-      modeLocal: Identität vorhanden
-      modeRecovery: Per E-Mail wiederherstellen
     selectVault:
       title: Vault auswählen
       description: Wähle einen Vault, den du synchronisieren möchtest
@@ -692,8 +653,6 @@ en:
   steps:
     login:
       title: Connect
-      modeLocal: Identity available
-      modeRecovery: Recover via email
     selectVault:
       title: Select Vault
       description: Choose a vault you want to synchronize
