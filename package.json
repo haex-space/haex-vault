@@ -60,7 +60,7 @@
     "md-editor-v3": "^6.3.1",
     "nuxt-zod-i18n": "^1.12.1",
     "qrcode": "^1.5.4",
-    "swiper": "^12.1.0",
+    "swiper": "^12.1.2",
     "tailwindcss": "^4.1.18",
     "vue": "^3.5.28"
   },

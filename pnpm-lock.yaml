@@ -99,8 +99,8 @@ importers:
         specifier: ^1.5.4
         version: 1.5.4
       swiper:
-        specifier: ^12.1.0
-        version: 12.1.0
+        specifier: ^12.1.2
+        version: 12.1.2
       tailwindcss:
         specifier: ^4.1.18
         version: 4.1.18
@@ -5359,8 +5359,8 @@ packages:
       xml2js:
         optional: true
 
-  node-abi@3.87.0:
-    resolution: {integrity: sha512-+CGM1L1CgmtheLcBuleyYOn7NWPVu0s0EJH2C4puxgEZb9h8QpR9G2dBfZJOAUhi7VQxuBPMd0hiISWcTyiYyQ==}
+  node-abi@3.88.0:
+    resolution: {integrity: sha512-At6b4UqIEVudaqPsXjmUO1r/N5BUr4yhDGs5PkBE8/oG5+TfLPhFechiskFsnT6Ql0VfUXbalUUCbfXxtj7K+w==}
     engines: {node: '>=10'}
 
   node-addon-api@7.1.1:
@@ -6324,8 +6324,8 @@ packages:
     engines: {node: '>=16'}
     hasBin: true
 
-  swiper@12.1.0:
-    resolution: {integrity: sha512-BD4CpAOOyEvZ2f0CDx362ea+vmOwukVcmbsQx+0BhRIaBUz8wvcCd//E7RFmvBZCrfyqXCHUVqmgUwts6ywlxw==}
+  swiper@12.1.2:
+    resolution: {integrity: sha512-4gILrI3vXZqoZh71I1PALqukCFgk+gpOwe1tOvz5uE9kHtl2gTDzmYflYCwWvR4LOvCrJi6UEEU+gnuW5BtkgQ==}
     engines: {node: '>= 4.7.0'}
 
   symbol-tree@3.2.4:
@@ -6372,6 +6372,7 @@ packages:
   tar@7.5.7:
     resolution: {integrity: sha512-fov56fJiRuThVFXD6o6/Q354S7pnWMJIVlDBYijsTNx6jKSE4pvrDTs6lUnmGvNyfJwFQQwWy3owKz1ucIhveQ==}
     engines: {node: '>=18'}
+    deprecated: Old versions of tar are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
 
   terser@5.46.0:
     resolution: {integrity: sha512-jTwoImyr/QbOWFFso3YoU3ik0jBBDJ6JTOQiy/J2YxVJdZCc+5u7skhNwiOR3FQIygFqVUPHl7qbbxtjW2K3Qg==}
@@ -6563,6 +6564,7 @@ packages:
 
   unplugin-vue-router@0.16.2:
     resolution: {integrity: sha512-lE6ZjnHaXfS2vFI/PSEwdKcdOo5RwAbCKUnPBIN9YwLgSWas3x+qivzQvJa/uxhKzJldE6WK43aDKjGj9Rij9w==}
+    deprecated: 'Merged into vuejs/router. Migrate: https://router.vuejs.org/guide/migration/v4-to-v5.html'
     peerDependencies:
       '@vue/compiler-sfc': ^3.5.17
       vue-router: ^4.6.0
@@ -6572,6 +6574,7 @@ packages:
 
   unplugin-vue-router@0.19.2:
     resolution: {integrity: sha512-u5dgLBarxE5cyDK/hzJGfpCTLIAyiTXGlo85COuD4Nssj6G7NxS+i9mhCWz/1p/ud1eMwdcUbTXehQe41jYZUA==}
+    deprecated: 'Merged into vuejs/router. Migrate: https://router.vuejs.org/guide/migration/v4-to-v5.html'
     peerDependencies:
       '@vue/compiler-sfc': ^3.5.17
       vue-router: ^4.6.0
@@ -12710,7 +12713,7 @@ snapshots:
       - supports-color
       - uploadthing
 
-  node-abi@3.87.0:
+  node-abi@3.88.0:
     dependencies:
       semver: 7.7.4
     optional: true
@@ -13354,7 +13357,7 @@ snapshots:
       minimist: 1.2.8
       mkdirp-classic: 0.5.3
       napi-build-utils: 2.0.0
-      node-abi: 3.87.0
+      node-abi: 3.88.0
       pump: 3.0.4
       rc: 1.2.8
       simple-get: 4.0.1
@@ -13905,7 +13908,7 @@ snapshots:
       picocolors: 1.1.1
       sax: 1.4.4
 
-  swiper@12.1.0: {}
+  swiper@12.1.2: {}
 
   symbol-tree@3.2.4: {}
 
