@@ -6,24 +6,24 @@
     <template #sidebar>
       <nav class="flex flex-col gap-1">
         <button
-          v-for="category in categories"
-          :key="category.value"
+          v-for="cat in categories"
+          :key="cat.value"
           :class="[
             'flex items-center gap-3 p-2.5 text-sm font-medium rounded-md transition-colors',
             'justify-center @xl:justify-start',
-            category.active
+            cat.active
               ? 'bg-primary text-white'
               : 'text-highlighted hover:bg-muted',
           ]"
-          :title="category.label"
-          :data-testid="`settings-category-${category.value}`"
-          @click="category.click"
+          :title="cat.label"
+          :data-testid="`settings-category-${cat.value}`"
+          @click="cat.click"
         >
           <UIcon
-            :name="category.icon"
+            :name="cat.icon"
             class="w-5 h-5 shrink-0"
           />
-          <span class="hidden @xl:block">{{ category.label }}</span>
+          <span class="hidden @xl:block">{{ cat.label }}</span>
         </button>
       </nav>
     </template>

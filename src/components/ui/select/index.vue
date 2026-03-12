@@ -6,7 +6,7 @@
     <button
       :id
       class="advance-select-toogle flex justify-between grow p-3"
-      :disabled="read_only"
+      :disabled="readOnly"
       @click.prevent="toogleMenu"
     >
       <slot
@@ -19,7 +19,7 @@
     </button>
     <button
       class="flex items-center p-2 hover:shadow rounded-md hover:bg-primary"
-      :disabled="read_only"
+      :disabled="readOnly"
       @click.prevent="toogleMenu"
     >
       <i class="i-[material-symbols--keyboard-arrow-down] size-4" />
@@ -64,12 +64,12 @@ import { onClickOutside } from '@vueuse/core'
 const id = useId()
 
 defineProps({
-  label: String,
+  label: { type: String, default: undefined },
   options: {
     type: Array as PropType<T[]>,
     default: () => [],
   },
-  read_only: Boolean,
+  readOnly: Boolean,
 })
 const value = defineModel<T>()
 

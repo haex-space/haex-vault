@@ -44,6 +44,8 @@ withDefaults(
     stickyHeader?: boolean
   }>(),
   {
+    title: undefined,
+    description: undefined,
     showBack: false,
     stickyHeader: false,
   },

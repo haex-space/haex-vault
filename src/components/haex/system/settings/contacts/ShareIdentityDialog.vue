@@ -51,7 +51,7 @@
             :src="qrDataUrl"
             :alt="t('qrAlt')"
             class="w-64 h-64 rounded-lg border border-default"
-          />
+          >
           <p class="text-sm text-muted text-center">
             {{ t('scanHint') }}
           </p>

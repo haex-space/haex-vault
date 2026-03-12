@@ -5,7 +5,7 @@
     :check-input="checkInput"
     :label="label || t('url')"
     :placeholder="placeholder || t('url')"
-    :read_only
+    :read-only="readOnly"
     :rules
     :with-copy-button
     @keyup="(e) => $emit('keyup', e)"
@@ -33,13 +33,13 @@ const { t } = useI18n()
 const value = defineModel<string | null | undefined>()
 
 defineProps({
-  label: String,
-  placeholder: String,
+  label: { type: String, default: undefined },
+  placeholder: { type: String, default: undefined },
   checkInput: Boolean,
-  rules: Object as PropType<ZodSchema>,
+  rules: { type: Object as PropType<ZodSchema>, default: undefined },
   autofocus: Boolean,
   withCopyButton: Boolean,
-  read_only: Boolean,
+  readOnly: Boolean,
 })
 
 defineEmits<{
