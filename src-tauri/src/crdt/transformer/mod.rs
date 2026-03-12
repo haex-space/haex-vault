@@ -412,6 +412,7 @@ impl CrdtTransformer {
                                 returning: None,
                                 or: None,
                                 limit: None,
+                                optimizer_hint: None,
                             });
                         }
                     }

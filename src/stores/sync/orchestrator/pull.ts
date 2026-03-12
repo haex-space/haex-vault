@@ -64,14 +64,6 @@ export const pullFromBackendAsync = async (
       throw new Error('Vault sync key not available')
     }
 
-    // Resolve identity private key for auth (every backend has an identity)
-    let identityPrivateKey: string | null = null
-    if (backend.identityId) {
-      const identityStore = useIdentityStore()
-      const identity = await identityStore.getIdentityAsync(backend.identityId)
-      identityPrivateKey = identity?.privateKey ?? null
-    }
-
     const lastPullServerTimestamp = backend.lastPullServerTimestamp
     log.debug('Pull config:', {
       backendId,
@@ -86,7 +78,6 @@ export const pullFromBackendAsync = async (
       backend.vaultId,
       lastPullServerTimestamp,
       syncEngineStore,
-      identityPrivateKey,
     )
 
     const { changes: allChanges, serverTimestamp } = pullResult
@@ -122,7 +113,6 @@ export const pullFromBackendAsync = async (
       encryptionKey,
       backendId,
       syncEngineStore,
-      identityPrivateKey,
     )
     if (pendingColumnsPulled > 0) {
       log.info(`Pulled ${pendingColumnsPulled} pending column changes`)
@@ -199,7 +189,6 @@ export const pullChangesFromServerAsync = async (
   vaultId: string,
   lastPullServerTimestamp: string | null | undefined,
   syncEngineStore: ReturnType<typeof useSyncEngineStore>,
-  identityPrivateKey?: string | null,
 ): Promise<PullResult> => {
   log.info('pullChangesFromServerAsync: Starting pull from', serverUrl, 'vault:', vaultId)
 
@@ -511,7 +500,6 @@ export const pullPendingColumnsAsync = async (
   vaultKey: Uint8Array,
   backendId: string,
   syncEngineStore: ReturnType<typeof useSyncEngineStore>,
-  identityPrivateKey?: string | null,
 ): Promise<number> => {
   // Step 1: Get list of pending columns from local database
   const pendingColumns = await invoke<PendingColumn[]>('get_pending_columns')

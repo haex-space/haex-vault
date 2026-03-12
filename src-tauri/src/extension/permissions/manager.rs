@@ -5,7 +5,7 @@ use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::checker::PermissionChecker;
 use crate::extension::permissions::types::{
-    Action, ExtensionPermission, FileSyncAction, FileSyncTarget, IdentityAction,
+    Action, ExtensionPermission, FileSyncAction, FileSyncTarget,
     PermissionConstraints, PermissionStatus, ResourceType, SpaceAction,
 };
 use crate::table_names::TABLE_EXTENSION_PERMISSIONS;
@@ -852,73 +852,6 @@ impl PermissionManager {
                     &extension.manifest.name,
                     "spaces",
                     action_str,
-                    "*",
-                ))
-            }
-        }
-    }
-
-    /// Prüft Identitäten-Berechtigungen.
-    /// Extensions können Identitäten nur lesen (auflisten/anzeigen).
-    /// Erstellen und Löschen bleibt haex-vault vorbehalten.
-    pub async fn check_identities_permission(
-        app_state: &State<'_, AppState>,
-        extension_id: &str,
-    ) -> Result<(), ExtensionError> {
-        let extension = app_state
-            .extension_manager
-            .get_extension(extension_id)
-            .ok_or_else(|| ExtensionError::ValidationError {
-                reason: format!("Extension not found: {}", extension_id),
-            })?
-            .clone();
-
-        let permissions = Self::get_permissions(app_state, extension_id).await?;
-
-        let matching_permission = permissions.iter().find(|perm| {
-            perm.resource_type == ResourceType::Identities
-                && matches!(perm.action, Action::Identities(IdentityAction::Read))
-        });
-
-        match matching_permission {
-            Some(perm) => match perm.status {
-                PermissionStatus::Granted => Ok(()),
-                PermissionStatus::Denied => Err(ExtensionError::permission_denied(
-                    extension_id,
-                    "read",
-                    "identities:*",
-                )),
-                PermissionStatus::Ask => Err(ExtensionError::permission_prompt_required(
-                    extension_id,
-                    &extension.manifest.name,
-                    "identities",
-                    "read",
-                    "*",
-                )),
-            },
-            None => {
-                if app_state
-                    .session_permissions
-                    .is_granted(extension_id, ResourceType::Identities, "*")
-                {
-                    return Ok(());
-                }
-                if app_state
-                    .session_permissions
-                    .is_denied(extension_id, ResourceType::Identities, "*")
-                {
-                    return Err(ExtensionError::permission_denied(
-                        extension_id,
-                        "read",
-                        "identities:*",
-                    ));
-                }
-
-                Err(ExtensionError::permission_prompt_required(
-                    extension_id,
-                    &extension.manifest.name,
-                    "identities",
-                    "read",
                     "*",
                 ))
             }

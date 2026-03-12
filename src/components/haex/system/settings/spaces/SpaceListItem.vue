@@ -28,7 +28,7 @@
           @click="$emit('invite', space)"
         />
         <UButton
-          v-if="space.role === 'admin'"
+          v-if="space.role === 'admin' || space.role === 'owner'"
           color="error"
           variant="ghost"
           icon="i-lucide-trash-2"
@@ -69,6 +69,7 @@ const roleBadgeColor = computed(() => {
     case 'owner': return 'warning' as const
     case 'member': return 'primary' as const
     case 'reader': return 'neutral' as const
+    default: return 'neutral' as const
   }
 })
 
