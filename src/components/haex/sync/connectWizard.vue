@@ -218,9 +218,11 @@ import { createClient } from '@supabase/supabase-js'
 import { decryptString, deriveKeyFromPassword, base64ToArrayBuffer } from '@haex-space/vault-sdk'
 import type { AppSupabaseClient } from '~/stores/sync/engine/supabase'
 import { createConnectWizardSchema } from './connectWizardSchema'
+import type { RecoveryKeyData } from '~/composables/useIdentityRecovery'
 
 const { t } = useI18n()
 const { add } = useToast()
+const { decryptAndVerifyAsync } = useIdentityRecovery()
 
 // Create validation schema with i18n
 const wizardSchema = computed(() => createConnectWizardSchema(t))
@@ -278,6 +280,8 @@ const steps = computed(() => [
 const isLoading = ref(false)
 const check = ref(false)
 
+const { currentVaultPassword } = storeToRefs(useVaultStore())
+
 // Step 1: Identity Auth (via Recovery)
 const credentials = ref({
   serverUrl: 'https://sync.haex.space',
@@ -293,8 +297,8 @@ const step2Error = ref('')
 const isCreatingNewVault = ref(false)
 const decryptedVaultNames = ref<Record<string, string>>({})
 
-// Recovery mode
-const recoveredVaultPassword = ref('')
+// Recovery mode: stores encrypted private key data from OTP verification
+const recoveredKeyData = ref<RecoveryKeyData | null>(null)
 
 // Step 3: Enter Vault Password
 const localVaultName = ref('')
@@ -368,6 +372,17 @@ const nextStep = async () => {
     }
 
     currentStepIndex.value++
+
+    // Auto-attempt with current vault password — most users share vault and identity password.
+    // Try silently; if it fails, show Step 3 for manual entry without an error toast.
+    if (!isCreatingNewVault.value && currentVaultPassword.value && recoveredKeyData.value) {
+      const valid = await decryptAndVerifyAsync(recoveredKeyData.value, currentVaultPassword.value)
+      if (valid) {
+        vaultPassword.value = currentVaultPassword.value
+        await completeSetupAsync()
+      }
+      // Silently fall through to Step 3 on failure — user enters password manually
+    }
   }
 }
 
@@ -406,10 +421,7 @@ const loadVaultsAsync = async () => {
     const data = await response.json()
     availableVaults.value = data.vaults
 
-    // Decrypt vault names if vault password is available (e.g. from recovery flow)
-    if (recoveredVaultPassword.value) {
-      await decryptVaultNamesAsync(recoveredVaultPassword.value)
-    }
+    // Vault names will be decrypted once the user enters their vault password in Step 3
   } catch (error) {
     console.error('Failed to load vaults:', error)
     add({
@@ -467,6 +479,17 @@ const completeSetupAsync = async () => {
   // For existing vault: must have selectedVaultId
   if (!isCreatingNewVault.value && !selectedVaultId.value) return
 
+  // Validate vault password against recovered private key (proves correct password)
+  if (recoveredKeyData.value) {
+    const valid = await decryptAndVerifyAsync(recoveredKeyData.value, vaultPassword.value)
+    if (!valid) {
+      add({ title: t('errors.wrongPassword'), color: 'error' })
+      return
+    }
+    // Decrypt vault names now that we have the correct password
+    await decryptVaultNamesAsync(vaultPassword.value)
+  }
+
   if (!supabaseClient.value) {
     throw new Error('Supabase client not initialized')
   }
@@ -496,16 +519,10 @@ const completeSetupAsync = async () => {
     )
     if (!selectedVault) return
 
-    // Try to resolve the actual vault name using the entered vault password
-    try {
-      const salt = base64ToArrayBuffer(selectedVault.vaultNameSalt)
-      const derivedKey = await deriveKeyFromPassword(vaultPassword.value, salt)
-      const decryptedName = await decryptString(selectedVault.encryptedVaultName, selectedVault.vaultNameNonce, derivedKey)
-      if (decryptedName && localVaultName.value === (decryptedVaultNames.value[selectedVault.vaultId] || 'HaexVault')) {
-        localVaultName.value = decryptedName
-      }
-    } catch {
-      // Wrong password or decryption failed — vault name stays as user typed
+    // Auto-fill vault name with decrypted name if user left the default placeholder
+    const decryptedName = decryptedVaultNames.value[selectedVault.vaultId]
+    if (decryptedName && localVaultName.value === 'HaexVault') {
+      localVaultName.value = decryptedName
     }
 
     emit('complete', {
@@ -527,7 +544,7 @@ const cancel = () => {
 
 const onRecoveryComplete = async (data: {
   serverUrl: string
-  vaultPassword: string
+  recoveryKeyData: RecoveryKeyData
   session: { access_token: string; refresh_token: string; expires_in: number; expires_at: number }
   identity: { id: string; did: string; tier: string }
 }) => {
@@ -536,7 +553,7 @@ const onRecoveryComplete = async (data: {
   try {
     credentials.value.serverUrl = data.serverUrl
     credentials.value.identityId = data.identity.id
-    recoveredVaultPassword.value = data.vaultPassword
+    recoveredKeyData.value = data.recoveryKeyData
 
     // Connect to server and get Supabase config
     const response = await fetch(data.serverUrl)
@@ -575,7 +592,7 @@ const clearForm = () => {
   selectedVaultId.value = null
   isCreatingNewVault.value = false
   decryptedVaultNames.value = {}
-  recoveredVaultPassword.value = ''
+  recoveredKeyData.value = null
   localVaultName.value = ''
   vaultPassword.value = ''
   vaultPasswordConfirm.value = ''
@@ -627,6 +644,7 @@ de:
     loginFailed: Anmeldung fehlgeschlagen
     loadVaultsFailed: Vaults konnten nicht geladen werden
     vaultSelectionRequired: Bitte wähle einen Vault aus
+    wrongPassword: Falsches Passwort – Vault konnte nicht entschlüsselt werden
   validation:
     serverUrlRequired: Server-URL ist erforderlich
     serverUrlInvalid: Muss eine gültige URL sein
@@ -668,6 +686,7 @@ en:
     loginFailed: Login failed
     loadVaultsFailed: Failed to load vaults
     vaultSelectionRequired: Please select a vault
+    wrongPassword: Wrong password — could not decrypt vault
   validation:
     serverUrlRequired: Server URL is required
     serverUrlInvalid: Must be a valid URL

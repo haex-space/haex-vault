@@ -75,33 +75,6 @@
       </div>
     </div>
 
-    <!-- Phase 3: Vault Password to Decrypt Key -->
-    <div v-else-if="phase === 'password'" class="space-y-4">
-      <UAlert
-        color="success"
-        icon="i-lucide-check-circle"
-        :title="t('password.verified')"
-      />
-      <UiInputPassword
-        v-model="vaultPassword"
-        :label="t('password.label')"
-        :description="t('password.description')"
-        leading-icon="i-lucide-lock"
-        size="lg"
-        autofocus
-      />
-      <UButton
-        color="primary"
-        size="lg"
-        block
-        :disabled="!vaultPassword"
-        :loading="isLoading"
-        @click="onDecryptAsync"
-      >
-        {{ t('password.submit') }}
-      </UButton>
-    </div>
-
     <!-- Error display -->
     <UAlert
       v-if="recoveryError"
@@ -125,7 +98,7 @@ const { add } = useToast()
 const emit = defineEmits<{
   recovered: [{
     serverUrl: string
-    vaultPassword: string
+    recoveryKeyData: RecoveryKeyData
     session: { access_token: string; refresh_token: string; expires_in: number; expires_at: number }
     identity: { id: string; did: string; tier: string }
   }]
@@ -136,7 +109,6 @@ const {
   error: recoveryError,
   requestOtpAsync,
   verifyOtpAsync,
-  decryptAndVerifyAsync,
   resendOtpAsync,
 } = useIdentityRecovery()
 
@@ -153,11 +125,9 @@ const serverUrl = computed(() =>
 const emailSchema = z.string().email({ message: 'Invalid email' })
 
 // State machine
-const phase = ref<'email' | 'otp' | 'password'>('email')
+const phase = ref<'email' | 'otp'>('email')
 const email = ref('')
 const otpParts = ref<number[]>([])
-const vaultPassword = ref('')
-const recoveredKeyData = ref<RecoveryKeyData | null>(null)
 
 const isEmailValid = computed(() => {
   return emailSchema.safeParse(email.value).success
@@ -176,7 +146,14 @@ const onVerifyOtpAsync = async () => {
   const data = await verifyOtpAsync(serverUrl.value, email.value, code)
   if (data) {
     recoveredKeyData.value = data
-    phase.value = 'password'
+    if (data.session && data.identity) {
+      emit('recovered', {
+        serverUrl: serverUrl.value,
+        recoveryKeyData: data,
+        session: data.session,
+        identity: data.identity,
+      })
+    }
   } else {
     // Check if the error is specifically about missing recovery key
     if (recoveryError.value?.includes('No recovery key')) {
@@ -200,23 +177,6 @@ const onResendAsync = async () => {
   }
 }
 
-const onDecryptAsync = async () => {
-  if (!recoveredKeyData.value) return
-
-  const success = await decryptAndVerifyAsync(
-    recoveredKeyData.value,
-    vaultPassword.value,
-  )
-
-  if (success && recoveredKeyData.value.session && recoveredKeyData.value.identity) {
-    emit('recovered', {
-      serverUrl: serverUrl.value,
-      vaultPassword: vaultPassword.value,
-      session: recoveredKeyData.value.session,
-      identity: recoveredKeyData.value.identity,
-    })
-  }
-}
 </script>
 
 <i18n lang="yaml">
@@ -231,11 +191,6 @@ de:
     resend: Code erneut senden
     resent: Code wurde erneut gesendet
     changeEmail: Andere E-Mail verwenden
-  password:
-    verified: E-Mail erfolgreich verifiziert
-    label: Vault-Passwort
-    description: Gib dein Vault-Passwort ein, um deinen Schlüssel zu entschlüsseln
-    submit: Schlüssel entschlüsseln
   error:
     title: Fehler
     noRecoveryKey: Kein Wiederherstellungsschlüssel vorhanden
@@ -252,11 +207,6 @@ en:
     resend: Resend code
     resent: Code was resent
     changeEmail: Use different email
-  password:
-    verified: Email verified successfully
-    label: Vault Password
-    description: Enter your vault password to decrypt your key
-    submit: Decrypt key
   error:
     title: Error
     noRecoveryKey: No recovery key available
