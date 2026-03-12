@@ -1,8 +1,11 @@
 <template>
-  <div>
+  <div
+    @focusin="isFocused = true"
+    @focusout="isFocused = false"
+  >
     <UInput
       v-model="value"
-      :placeholder="placeholder || ' '"
+      :placeholder="effectivePlaceholder"
       :disabled="readOnly"
       :leading-icon
       :size
@@ -11,7 +14,7 @@
       class="w-full"
       :ui="{ base: 'peer', root: 'group' }"
       :data-size="size || 'md'"
-      v-bind="$attrs"
+      v-bind="filteredAttrs"
       @change="(e) => $emit('change', e)"
       @blur="(e) => $emit('blur', e)"
       @keyup="(e: KeyboardEvent) => $emit('keyup', e)"
@@ -101,7 +104,6 @@ const props = defineProps<
 >()
 
 const {
-  placeholder,
   size,
   type,
   withCopyButton,
@@ -109,6 +111,21 @@ const {
   label,
   leadingIcon,
 } = toRefs(props)
+
+const attrs = useAttrs()
+const placeholder = computed(() => attrs.placeholder as string | undefined)
+const filteredAttrs = computed(() => {
+  const { placeholder: _, ...rest } = attrs
+  return rest
+})
+
+const hasDistinctPlaceholder = computed(() => !!label?.value && !!placeholder.value && placeholder.value !== ' ')
+
+const isFocused = ref(false)
+const effectivePlaceholder = computed(() => {
+  if (hasDistinctPlaceholder.value && !isFocused.value) return ' '
+  return placeholder.value || ' '
+})
 
 defineEmits<{
   change: [Event]
