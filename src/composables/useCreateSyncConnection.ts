@@ -199,10 +199,10 @@ export const useCreateSyncConnection = () => {
       const registerData = await registerRes.json().catch(() => ({ error: 'Unknown error' }))
 
       if (!registerRes.ok) {
-        if (registerRes.status !== 409) {
+        if (registerRes.status !== 409 || registerData.error?.includes('another identity')) {
           throw new Error(`Registration failed: ${registerData.error || 'Unknown error'}`)
         }
-        // 409 = already registered and verified — proceed to login
+        // 409 with 'DID already registered' = already registered and verified — proceed to login
         console.log('[SYNC] Already registered and verified, proceeding to login')
       } else if (registerData.status === 'verification_pending') {
         // New registration or re-registration (not yet verified)
