@@ -71,8 +71,27 @@
         <UForm
           v-if="selectedPath"
           :state="vault"
-          class="w-full"
+          class="w-full space-y-4"
         >
+          <UiInput
+            v-model="vault.name"
+            v-model:errors="errors.name"
+            :label="t('name.label')"
+            :description="t('name.description')"
+            :schema="vaultSchema.name"
+            :check="check"
+            leading-icon="i-lucide-folder"
+            size="lg"
+            class="w-full"
+            @blur="checkVaultNameExistsAsync"
+          />
+          <p
+            v-if="vaultNameExists"
+            class="text-sm text-error -mt-3"
+          >
+            {{ t('error.nameExists') }}
+          </p>
+
           <UiInputPassword
             v-model="vault.password"
             v-model:errors="errors.password"
@@ -81,7 +100,6 @@
             :check="check"
             leading-icon="i-lucide-lock"
             size="lg"
-            autofocus
             class="w-full"
             @keyup.enter="onImportAsync"
           />
@@ -128,12 +146,15 @@ const { t } = useI18n({
 const selectedPath = ref<string | null>(null)
 const isLoading = ref(false)
 const dropZoneRef = ref<HTMLElement | null>(null)
+const vaultNameExists = ref(false)
 
 const vault = reactive({
+  name: '',
   password: '',
 })
 
 const errors = reactive({
+  name: [] as string[],
   password: [] as string[],
 })
 
@@ -162,6 +183,7 @@ const onDrop = (files: File[] | null) => {
 
   if (filePath) {
     selectedPath.value = filePath
+    vault.name = deriveVaultName(file.name)
   } else {
     add({
       color: 'warning',
@@ -189,6 +211,7 @@ const onSelectFileAsync = async () => {
 
     if (file) {
       selectedPath.value = file
+      vault.name = deriveVaultName(file)
       open.value = true
     }
   } catch (error) {
@@ -200,6 +223,23 @@ const onSelectFileAsync = async () => {
   }
 }
 
+const deriveVaultName = (pathOrName: string) => {
+  const fileName = pathOrName.split('/').pop()?.split('\\').pop() || pathOrName
+  return fileName.replace(/\.db$/, '')
+}
+
+const checkVaultNameExistsAsync = async () => {
+  if (!vault.name) {
+    vaultNameExists.value = false
+    return
+  }
+  try {
+    vaultNameExists.value = await invoke<boolean>('vault_exists', { vaultName: vault.name })
+  } catch {
+    vaultNameExists.value = false
+  }
+}
+
 const onImportAsync = async () => {
   if (!selectedPath.value) return
 
@@ -208,7 +248,7 @@ const onImportAsync = async () => {
   await nextTick()
 
   // Check for validation errors
-  if (errors.password.length > 0) {
+  if (errors.name.length > 0 || errors.password.length > 0 || vaultNameExists.value) {
     return
   }
 
@@ -218,6 +258,7 @@ const onImportAsync = async () => {
     // 1. Import the vault file (copy to vaults directory)
     const importedPath = await invoke<string>('import_vault', {
       sourcePath: selectedPath.value,
+      vaultName: vault.name || null,
     })
 
     // 2. Try to open the vault with the provided password
@@ -297,8 +338,11 @@ const onImportAsync = async () => {
 
 const onClose = () => {
   selectedPath.value = null
+  vault.name = ''
   vault.password = ''
+  errors.name = []
   errors.password = []
+  vaultNameExists.value = false
   check.value = false
   open.value = false
 }
@@ -307,8 +351,11 @@ const onClose = () => {
 watch(open, (isOpen) => {
   if (!isOpen) {
     selectedPath.value = null
+    vault.name = ''
     vault.password = ''
+    errors.name = []
     errors.password = []
+    vaultNameExists.value = false
     check.value = false
   }
 })
@@ -324,6 +371,9 @@ de:
     text: Datei hierher ziehen oder klicken zum Auswählen
     hint: Nur .db Dateien
   selectedFile: Ausgewählte Datei
+  name:
+    label: Vault-Name
+    description: Name unter dem die Vault lokal gespeichert wird
   password:
     label: Passwort
     placeholder: Passwort eingeben
@@ -334,6 +384,7 @@ de:
     open: Vault konnte nicht geöffnet werden
     invalidFile: Bitte wähle eine .db Datei aus
     dragNotSupported: Drag & Drop wird nicht unterstützt. Bitte klicke zum Auswählen.
+    nameExists: Eine Vault mit diesem Namen existiert bereits
     alreadyExists:
       title: Vault existiert bereits
       description: Eine Vault mit dem Namen "{vaultName}" existiert bereits. Bitte lösche sie zuerst oder benenne die zu importierende Datei um.
@@ -350,6 +401,9 @@ en:
     text: Drag file here or click to select
     hint: Only .db files
   selectedFile: Selected file
+  name:
+    label: Vault Name
+    description: Name under which the vault will be stored locally
   password:
     label: Password
     placeholder: Enter password
@@ -360,6 +414,7 @@ en:
     open: Vault could not be opened
     invalidFile: Please select a .db file
     dragNotSupported: Drag & drop is not supported. Please click to select.
+    nameExists: A vault with this name already exists
     alreadyExists:
       title: Vault already exists
       description: A vault named "{vaultName}" already exists. Please delete it first or rename the file to import.

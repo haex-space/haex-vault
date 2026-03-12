@@ -276,7 +276,7 @@ pub fn vault_exists(app_handle: AppHandle, vault_name: String) -> Result<bool, D
 /// Returns the new path of the imported vault.
 /// Fails if a vault with the same name already exists.
 #[tauri::command]
-pub fn import_vault(app_handle: AppHandle, source_path: String) -> Result<String, DatabaseError> {
+pub fn import_vault(app_handle: AppHandle, source_path: String, vault_name: Option<String>) -> Result<String, DatabaseError> {
     let source = Path::new(&source_path);
 
     // Validate source file exists
@@ -294,18 +294,21 @@ pub fn import_vault(app_handle: AppHandle, source_path: String) -> Result<String
         });
     }
 
-    // Get the file name from the source path
-    let file_name = source.file_name().and_then(|n| n.to_str()).ok_or_else(|| {
-        DatabaseError::ValidationError {
-            reason: "Could not extract file name from source path".to_string(),
+    // Use provided vault_name or derive from file name
+    let vault_name = match vault_name {
+        Some(name) if !name.trim().is_empty() => name.trim().to_string(),
+        _ => {
+            let file_name = source.file_name().and_then(|n| n.to_str()).ok_or_else(|| {
+                DatabaseError::ValidationError {
+                    reason: "Could not extract file name from source path".to_string(),
+                }
+            })?;
+            file_name.trim_end_matches(VAULT_EXTENSION).to_string()
         }
-    })?;
-
-    // Get the vault name (without .db extension)
-    let vault_name = file_name.trim_end_matches(VAULT_EXTENSION);
+    };
 
     // Check if vault already exists
-    let target_path = get_vault_path(&app_handle, vault_name)?;
+    let target_path = get_vault_path(&app_handle, &vault_name)?;
     if Path::new(&target_path).exists() {
         return Err(DatabaseError::VaultAlreadyExists {
             vault_name: vault_name.to_string(),
