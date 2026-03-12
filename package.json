@@ -60,8 +60,13 @@
     "md-editor-v3": "^6.3.1",
     "nuxt-zod-i18n": "^1.12.1",
     "qrcode": "^1.5.4",
+<<<<<<< HEAD
     "swiper": "^12.1.2",
     "tailwindcss": "^4.1.18",
+=======
+    "swiper": "^12.1.0",
+    "tailwindcss": "^4.2.1",
+>>>>>>> origin/dependabot/npm_and_yarn/tailwindcss-4.2.0
     "vue": "^3.5.28"
   },
   "devDependencies": {
