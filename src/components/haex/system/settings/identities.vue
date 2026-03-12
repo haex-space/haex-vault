@@ -172,12 +172,40 @@
       :description="t('create.description')"
     >
       <template #content>
-        <UiInput
-          v-model="createLabel"
-          :label="t('create.labelField')"
-          :placeholder="t('create.labelPlaceholder')"
-          @keydown.enter.prevent="onCreateAsync"
-        />
+        <div class="space-y-4">
+          <UiInput
+            v-model="createLabel"
+            :label="t('create.labelField')"
+            :placeholder="t('create.labelPlaceholder')"
+          />
+
+          <USeparator :label="t('create.claimsOptional')" />
+
+          <UiInput
+            v-model="createClaims.email"
+            label="Email"
+            placeholder="user@example.com"
+            leading-icon="i-lucide-mail"
+          />
+          <UiInput
+            v-model="createClaims.name"
+            label="Name"
+            placeholder="Max Mustermann"
+            leading-icon="i-lucide-user"
+          />
+          <UiInput
+            v-model="createClaims.phone"
+            :label="t('claims.phone')"
+            placeholder="+49 123 456789"
+            leading-icon="i-lucide-phone"
+          />
+          <UiInput
+            v-model="createClaims.address"
+            :label="t('claims.address')"
+            placeholder="Musterstraße 1, 12345 Berlin"
+            leading-icon="i-lucide-map-pin"
+          />
+        </div>
       </template>
       <template #footer>
         <div class="flex justify-between gap-4">
@@ -386,6 +414,12 @@ const showImportDialog = ref(false)
 const showExportDialog = ref(false)
 
 const createLabel = ref('')
+const createClaims = reactive({
+  email: '',
+  name: '',
+  phone: '',
+  address: '',
+})
 const renameLabel = ref('')
 const renameTarget = ref<SelectHaexIdentities | null>(null)
 const deleteTarget = ref<SelectHaexIdentities | null>(null)
@@ -406,10 +440,21 @@ const onCreateAsync = async () => {
 
   isCreating.value = true
   try {
-    await identityStore.createIdentityAsync(createLabel.value.trim())
+    const identity = await identityStore.createIdentityAsync(createLabel.value.trim())
+
+    // Save non-empty claims
+    const claimEntries = Object.entries(createClaims).filter(([, value]) => value.trim())
+    for (const [type, value] of claimEntries) {
+      await identityStore.addClaimAsync(identity.id, type, value.trim())
+    }
+
     add({ title: t('success.created'), color: 'success' })
     showCreateDialog.value = false
     createLabel.value = ''
+    createClaims.email = ''
+    createClaims.name = ''
+    createClaims.phone = ''
+    createClaims.address = ''
   } catch (error) {
     console.error('Failed to create identity:', error)
     add({
@@ -650,6 +695,7 @@ de:
     description: Erstelle eine neue kryptographische Identität. Jede Identität hat ihren eigenen Schlüssel und kann unabhängig in verschiedenen Spaces genutzt werden.
     labelField: Name
     labelPlaceholder: z.B. Persönlich, Arbeit, Anonym
+    claimsOptional: Claims (optional)
   import:
     title: Identität importieren
     description: Importiere eine zuvor exportierte Identität. Der DID wird automatisch verifiziert.
@@ -722,6 +768,7 @@ en:
     description: Create a new cryptographic identity. Each identity has its own key and can be used independently in different Spaces.
     labelField: Name
     labelPlaceholder: e.g. Personal, Work, Anonymous
+    claimsOptional: Claims (optional)
   import:
     title: Import Identity
     description: Import a previously exported identity. The DID will be automatically verified.
