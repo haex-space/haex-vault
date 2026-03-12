@@ -4,170 +4,190 @@
     <UStepper
       v-model="currentStepIndex"
       :items="steps"
-      class="mb-6"
-    />
-
-    <!-- Step Content -->
-    <div>
-      <!-- Step 1: Identity Recovery via Email + OTP -->
-      <div
-        v-if="currentStepIndex === 0"
-        class="space-y-4"
-      >
-        <HaexSyncRecoveryLogin
-          @recovered="onRecoveryComplete"
-        />
-      </div>
-
-      <!-- Step 2: Select Vault -->
-      <div
-        v-else-if="currentStepIndex === 1"
-        class="space-y-4"
-      >
-        <p class="text-sm text-muted">
-          {{ t('steps.selectVault.description') }}
-        </p>
-
-        <!-- Loading state -->
-        <div
-          v-if="isLoadingVaults"
-          class="flex items-center justify-center p-8"
-        >
-          <span class="loading loading-spinner loading-lg"/>
-        </div>
-
-        <!-- Vault list -->
-        <div
-          v-else
-          class="space-y-2 px-1"
-        >
-          <div
-            v-for="vault in availableVaults"
-            :key="vault.vaultId"
-            class="card bg-elevated rounded-lg p-4 cursor-pointer hover:bg-muted transition-colors"
-            :class="{
-              'ring-2 ring-primary': selectedVaultId === vault.vaultId && !isCreatingNewVault,
-              'ring-2 ring-error': step2Error && !selectedVaultId && !isCreatingNewVault,
-            }"
-            @click="selectedVaultId = vault.vaultId; isCreatingNewVault = false; step2Error = ''"
-          >
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="font-medium">
-                  {{ decryptedVaultNames[vault.vaultId] || t('steps.selectVault.encryptedVault') }}
-                </p>
-                <p class="text-sm text-muted">
-                  {{ t('steps.selectVault.createdAt') }}:
-                  {{ formatDate(vault.createdAt) }}
-                </p>
-              </div>
-              <div
-                v-if="selectedVaultId === vault.vaultId && !isCreatingNewVault"
-                class="text-primary"
-              >
-                <i class="i-lucide-check-circle text-2xl"/>
-              </div>
-            </div>
-          </div>
-
-          <!-- Create new vault option -->
-          <div
-            class="card bg-elevated rounded-lg p-4 cursor-pointer hover:bg-muted transition-colors"
-            :class="{
-              'ring-2 ring-primary': isCreatingNewVault,
-            }"
-            @click="isCreatingNewVault = true; selectedVaultId = null; step2Error = ''"
-          >
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="font-medium">
-                  {{ t('steps.selectVault.createNew') }}
-                </p>
-                <p class="text-sm text-muted">
-                  {{ t('steps.selectVault.createNewDescription') }}
-                </p>
-              </div>
-              <div
-                v-if="isCreatingNewVault"
-                class="text-primary"
-              >
-                <i class="i-lucide-check-circle text-2xl"/>
-              </div>
-            </div>
-          </div>
-
-          <!-- Error message -->
-          <p
-            v-if="step2Error"
-            class="text-sm text-error mt-2"
-          >
-            {{ step2Error }}
-          </p>
-        </div>
-      </div>
-
-      <!-- Step 3: Enter Vault Password -->
-      <div
-        v-else-if="currentStepIndex === 2"
-        class="space-y-4"
-      >
-        <p class="text-sm text-muted">
-          {{ t('steps.enterVaultPassword.description') }}
-        </p>
-
+      :linear="false"
+    >
+      <template #loginEmail>
         <div class="space-y-4">
-          <UiInput
-            v-model="localVaultName"
-            v-model:errors="step3Errors.vaultName"
-            :label="t('steps.enterVaultPassword.vaultName')"
-            :description="t('steps.enterVaultPassword.vaultNameDescription')"
-            :schema="wizardSchema.vaultName"
-            :check="check"
-            size="lg"
-            class="w-full"
-            @blur="checkVaultNameExistsAsync"
-          />
-          <p
-            v-if="vaultNameExists"
-            class="text-sm text-error -mt-3"
-          >
-            {{ t('steps.enterVaultPassword.vaultNameExists') }}
-          </p>
-
-          <UiInputPassword
-            v-model="vaultPassword"
-            v-model:errors="step3Errors.password"
-            :label="t('steps.enterVaultPassword.vaultPassword')"
-            :description="isCreatingNewVault ? t('steps.enterVaultPassword.vaultPasswordDescriptionNew') : t('steps.enterVaultPassword.vaultPasswordDescription')"
-            :schema="wizardSchema.vaultPassword"
-            :check="check"
-            leading-icon="i-lucide-lock"
-            size="lg"
-            class="w-full"
-          />
-
-          <!-- Password confirmation for new vault -->
-          <UiInputPassword
-            v-if="isCreatingNewVault"
-            v-model="vaultPasswordConfirm"
-            v-model:errors="step3Errors.passwordConfirm"
-            :label="t('steps.enterVaultPassword.confirmPassword')"
-            :description="t('steps.enterVaultPassword.confirmPasswordDescription')"
-            :schema="wizardSchema.vaultPassword"
-            :check="check"
-            leading-icon="i-lucide-lock"
-            size="lg"
-            class="w-full"
-          />
-          <p
-            v-if="isCreatingNewVault && vaultPasswordConfirm && vaultPassword !== vaultPasswordConfirm"
-            class="text-sm text-error -mt-3"
-          >
-            {{ t('steps.enterVaultPassword.passwordMismatch') }}
-          </p>
+          <HaexSyncRecoveryLogin @otp-requested="onOtpRequested" />
         </div>
-      </div>
-    </div>
+      </template>
+
+      <template #loginOtp>
+        <div class="space-y-4">
+          <HaexSyncRecoveryLoginOtp
+            :server-url="otpServerUrl"
+            :email="otpEmail"
+            @recovered="onRecoveryComplete"
+            @change-email="currentStepIndex = 0"
+          />
+        </div>
+      </template>
+
+      <template #selectVault>
+        <div class="space-y-4">
+          <p class="text-sm text-muted">
+            {{ t('steps.selectVault.description') }}
+          </p>
+
+          <!-- Loading state -->
+          <div
+            v-if="isLoadingVaults"
+            class="flex items-center justify-center p-8"
+          >
+            <span class="loading loading-spinner loading-lg" />
+          </div>
+
+          <!-- Vault list -->
+          <div
+            v-else
+            class="space-y-2 px-1"
+          >
+            <div
+              v-for="vault in availableVaults"
+              :key="vault.vaultId"
+              class="card bg-elevated rounded-lg p-4 cursor-pointer hover:bg-muted transition-colors"
+              :class="{
+                'ring-2 ring-primary':
+                  selectedVaultId === vault.vaultId && !isCreatingNewVault,
+                'ring-2 ring-error':
+                  step2Error && !selectedVaultId && !isCreatingNewVault,
+              }"
+              @click="selectVault(vault.vaultId)"
+            >
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="font-medium">
+                    {{
+                      decryptedVaultNames[vault.vaultId] ||
+                      t('steps.selectVault.encryptedVault')
+                    }}
+                  </p>
+                  <p class="text-sm text-muted">
+                    {{ t('steps.selectVault.createdAt') }}:
+                    {{ formatDate(vault.createdAt) }}
+                  </p>
+                </div>
+                <div
+                  v-if="
+                    selectedVaultId === vault.vaultId && !isCreatingNewVault
+                  "
+                  class="text-primary"
+                >
+                  <i class="i-lucide-check-circle text-2xl" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Create new vault option -->
+            <div
+              class="card bg-elevated rounded-lg p-4 cursor-pointer hover:bg-muted transition-colors"
+              :class="{
+                'ring-2 ring-primary': isCreatingNewVault,
+              }"
+              @click="selectNewVault()"
+            >
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="font-medium">
+                    {{ t('steps.selectVault.createNew') }}
+                  </p>
+                  <p class="text-sm text-muted">
+                    {{ t('steps.selectVault.createNewDescription') }}
+                  </p>
+                </div>
+                <div
+                  v-if="isCreatingNewVault"
+                  class="text-primary"
+                >
+                  <i class="i-lucide-check-circle text-2xl" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Error message -->
+            <p
+              v-if="step2Error"
+              class="text-sm text-error mt-2"
+            >
+              {{ step2Error }}
+            </p>
+          </div>
+        </div>
+      </template>
+
+      <template #vaultPassword>
+        <div
+          ref="step3Container"
+          class="space-y-4"
+        >
+          <p class="text-sm text-muted">
+            {{ t('steps.enterVaultPassword.description') }}
+          </p>
+
+          <div class="space-y-4">
+            <UiInput
+              v-model="localVaultName"
+              v-model:errors="step3Errors.vaultName"
+              :label="t('steps.enterVaultPassword.vaultName')"
+              :description="t('steps.enterVaultPassword.vaultNameDescription')"
+              :schema="wizardSchema.vaultName"
+              :check="check"
+              size="lg"
+              class="w-full"
+              @blur="checkVaultNameExistsAsync"
+            />
+            <p
+              v-if="vaultNameExists"
+              class="text-sm text-error -mt-3"
+            >
+              {{ t('steps.enterVaultPassword.vaultNameExists') }}
+            </p>
+
+            <UiInputPassword
+              v-model="vaultPassword"
+              v-model:errors="step3Errors.password"
+              :label="t('steps.enterVaultPassword.vaultPassword')"
+              :description="
+                isCreatingNewVault
+                  ? t('steps.enterVaultPassword.vaultPasswordDescriptionNew')
+                  : t('steps.enterVaultPassword.vaultPasswordDescription')
+              "
+              :schema="wizardSchema.vaultPassword"
+              :check="check"
+              leading-icon="i-lucide-lock"
+              size="lg"
+              class="w-full"
+            />
+
+            <!-- Password confirmation for new vault -->
+            <UiInputPassword
+              v-if="isCreatingNewVault"
+              v-model="vaultPasswordConfirm"
+              v-model:errors="step3Errors.passwordConfirm"
+              :label="t('steps.enterVaultPassword.confirmPassword')"
+              :description="
+                t('steps.enterVaultPassword.confirmPasswordDescription')
+              "
+              :schema="wizardSchema.vaultPassword"
+              :check="check"
+              leading-icon="i-lucide-lock"
+              size="lg"
+              class="w-full"
+            />
+            <p
+              v-if="
+                isCreatingNewVault &&
+                vaultPasswordConfirm &&
+                vaultPassword !== vaultPasswordConfirm
+              "
+              class="text-sm text-error -mt-3"
+            >
+              {{ t('steps.enterVaultPassword.passwordMismatch') }}
+            </p>
+          </div>
+        </div>
+      </template>
+    </UStepper>
 
     <!-- Actions -->
     <div class="flex gap-3 mt-6">
@@ -188,9 +208,9 @@
       >
         {{ t('actions.back') }}
       </UButton>
-      <div class="flex-1"/>
+      <div class="flex-1" />
       <UButton
-        v-if="currentStepIndex < 2"
+        v-if="currentStepIndex < 3"
         color="primary"
         size="lg"
         :disabled="!canProceed"
@@ -215,7 +235,12 @@
 
 <script setup lang="ts">
 import { createClient } from '@supabase/supabase-js'
-import { decryptString, deriveKeyFromPassword, base64ToArrayBuffer } from '@haex-space/vault-sdk'
+import {
+  decryptString,
+  deriveKeyFromPassword,
+  base64ToArrayBuffer,
+} from '@haex-space/vault-sdk'
+import type { StepperItem } from '@nuxt/ui'
 import type { AppSupabaseClient } from '~/stores/sync/engine/supabase'
 import { createConnectWizardSchema } from './connectWizardSchema'
 import type { RecoveryKeyData } from '~/composables/useIdentityRecovery'
@@ -255,27 +280,53 @@ const emit = defineEmits<{
   cancel: []
 }>()
 
+// Template refs
+const step3Container = useTemplateRef<HTMLElement>('step3Container')
+
+// Stepper state
+const currentStepIndex = ref(0)
+
+// OTP step data (passed from email step)
+const otpServerUrl = ref('')
+const otpEmail = ref('')
+
 // Keyboard shortcuts with VueUse
 const keys = useMagicKeys()
 const escape = computed(() => keys.escape?.value ?? false)
 const enter = computed(() => keys.enter?.value ?? false)
 
-// Stepper state
-const currentStepIndex = ref(0)
-const steps = computed(() => [
-  {
-    label: t('steps.login.title'),
-    icon: 'i-lucide-log-in',
-  },
-  {
-    label: t('steps.selectVault.title'),
-    icon: 'i-lucide-folder',
-  },
-  {
-    label: t('steps.enterVaultPassword.title'),
-    icon: 'i-lucide-key',
-  },
-])
+// Auto-focus first input when entering step 3
+watch(currentStepIndex, async (newIndex) => {
+  if (newIndex === 3) {
+    await nextTick()
+    step3Container.value?.querySelector<HTMLInputElement>('input')?.focus()
+  }
+})
+const steps = computed(
+  () =>
+    [
+      {
+        slot: 'loginEmail' as const,
+        label: t('steps.loginEmail.title'),
+        icon: 'i-lucide-mail',
+      },
+      {
+        slot: 'loginOtp' as const,
+        label: t('steps.loginOtp.title'),
+        icon: 'i-lucide-shield-check',
+      },
+      {
+        slot: 'selectVault' as const,
+        label: t('steps.selectVault.title'),
+        icon: 'i-lucide-folder',
+      },
+      {
+        slot: 'vaultPassword' as const,
+        label: t('steps.enterVaultPassword.title'),
+        icon: 'i-lucide-key',
+      },
+    ] satisfies StepperItem[],
+)
 
 const isLoading = ref(false)
 const check = ref(false)
@@ -313,7 +364,7 @@ const step3Errors = reactive({
 
 // Computed for step validation
 const canProceed = computed(() => {
-  if (currentStepIndex.value === 1) {
+  if (currentStepIndex.value === 2) {
     return selectedVaultId.value !== null || isCreatingNewVault.value
   }
   return false
@@ -347,17 +398,27 @@ whenever(escape, () => {
 
 // Enter to proceed to next step
 whenever(enter, () => {
-  if (currentStepIndex.value < 2 && canProceed.value && !isLoading.value) {
+  if (currentStepIndex.value < 3 && canProceed.value && !isLoading.value) {
     nextStep()
-  } else if (currentStepIndex.value === 2 && isStep3Valid.value && !isLoading.value) {
+  } else if (
+    currentStepIndex.value === 3 &&
+    isStep3Valid.value &&
+    !isLoading.value
+  ) {
     completeSetupAsync()
   }
 })
 
 // Methods
+const onOtpRequested = (data: { serverUrl: string; email: string }) => {
+  otpServerUrl.value = data.serverUrl
+  otpEmail.value = data.email
+  currentStepIndex.value = 1
+}
+
 const nextStep = async () => {
-  if (currentStepIndex.value === 1) {
-    // Validate Step 2 (vault selection or new vault)
+  if (currentStepIndex.value === 2) {
+    // Validate Step 3 (vault selection or new vault)
     if (!selectedVaultId.value && !isCreatingNewVault.value) {
       step2Error.value = t('errors.vaultSelectionRequired')
       return
@@ -367,29 +428,35 @@ const nextStep = async () => {
       localVaultName.value = 'HaexVault'
       vaultPasswordConfirm.value = ''
     } else {
-      localVaultName.value = decryptedVaultNames.value[selectedVaultId.value!] || 'HaexVault'
+      localVaultName.value =
+        decryptedVaultNames.value[selectedVaultId.value!] || 'HaexVault'
       await checkVaultNameExistsAsync()
     }
 
     currentStepIndex.value++
 
     // Auto-attempt with current vault password — most users share vault and identity password.
-    // Try silently; if it fails, show Step 3 for manual entry without an error toast.
-    if (!isCreatingNewVault.value && currentVaultPassword.value && recoveredKeyData.value) {
-      const valid = await decryptAndVerifyAsync(recoveredKeyData.value, currentVaultPassword.value)
+    // Try silently; if it fails, show Step 4 for manual entry without an error toast.
+    if (
+      !isCreatingNewVault.value &&
+      currentVaultPassword.value &&
+      recoveredKeyData.value
+    ) {
+      const valid = await decryptAndVerifyAsync(
+        recoveredKeyData.value,
+        currentVaultPassword.value,
+      )
       if (valid) {
         vaultPassword.value = currentVaultPassword.value
         await completeSetupAsync()
       }
-      // Silently fall through to Step 3 on failure — user enters password manually
+      // Silently fall through to Step 4 on failure — user enters password manually
     }
   }
 }
 
 const previousStep = () => {
-  if (currentStepIndex.value > 0) {
-    currentStepIndex.value--
-  }
+  currentStepIndex.value--
 }
 
 const loadVaultsAsync = async () => {
@@ -440,7 +507,11 @@ const decryptVaultNamesAsync = async (password: string) => {
     try {
       const salt = base64ToArrayBuffer(vault.vaultNameSalt)
       const derivedKey = await deriveKeyFromPassword(password, salt)
-      names[vault.vaultId] = await decryptString(vault.encryptedVaultName, vault.vaultNameNonce, derivedKey)
+      names[vault.vaultId] = await decryptString(
+        vault.encryptedVaultName,
+        vault.vaultNameNonce,
+        derivedKey,
+      )
     } catch {
       // Decryption failed — keep showing fallback
     }
@@ -481,7 +552,10 @@ const completeSetupAsync = async () => {
 
   // Validate vault password against recovered private key (proves correct password)
   if (recoveredKeyData.value) {
-    const valid = await decryptAndVerifyAsync(recoveredKeyData.value, vaultPassword.value)
+    const valid = await decryptAndVerifyAsync(
+      recoveredKeyData.value,
+      vaultPassword.value,
+    )
     if (!valid) {
       add({ title: t('errors.wrongPassword'), color: 'error' })
       return
@@ -538,6 +612,18 @@ const completeSetupAsync = async () => {
   }
 }
 
+const selectVault = (vaultId: string) => {
+  selectedVaultId.value = vaultId
+  isCreatingNewVault.value = false
+  step2Error.value = ''
+}
+
+const selectNewVault = () => {
+  isCreatingNewVault.value = true
+  selectedVaultId.value = null
+  step2Error.value = ''
+}
+
 const cancel = () => {
   emit('cancel')
 }
@@ -545,7 +631,12 @@ const cancel = () => {
 const onRecoveryComplete = async (data: {
   serverUrl: string
   recoveryKeyData: RecoveryKeyData
-  session: { access_token: string; refresh_token: string; expires_in: number; expires_at: number }
+  session: {
+    access_token: string
+    refresh_token: string
+    expires_in: number
+    expires_at: number
+  }
   identity: { id: string; did: string; tier: string }
 }) => {
   isLoading.value = true
@@ -561,15 +652,18 @@ const onRecoveryComplete = async (data: {
     const serverInfo = await response.json()
 
     // Create Supabase client with the session from recovery (no challenge-response needed)
-    supabaseClient.value = createClient(serverInfo.supabaseUrl, serverInfo.supabaseAnonKey)
+    supabaseClient.value = createClient(
+      serverInfo.supabaseUrl,
+      serverInfo.supabaseAnonKey,
+    )
     await supabaseClient.value.auth.setSession({
       access_token: data.session.access_token,
       refresh_token: data.session.refresh_token,
     })
 
-    // Load available vaults and move to step 2
+    // Load available vaults and move to vault selection step
     await loadVaultsAsync()
-    currentStepIndex.value = 1
+    currentStepIndex.value = 2
   } catch (error) {
     console.error('Recovery login failed:', error)
     add({
@@ -584,6 +678,8 @@ const onRecoveryComplete = async (data: {
 
 const clearForm = () => {
   currentStepIndex.value = 0
+  otpServerUrl.value = ''
+  otpEmail.value = ''
   credentials.value = {
     serverUrl: 'https://sync.haex.space',
     identityId: '',
@@ -606,14 +702,17 @@ const formatDate = (dateStr: string) => {
 
 defineExpose({
   clearForm,
+  currentStepIndex,
 })
 </script>
 
 <i18n lang="yaml">
 de:
   steps:
-    login:
-      title: Verbinden
+    loginEmail:
+      title: E-Mail
+    loginOtp:
+      title: Code bestätigen
     selectVault:
       title: Vault auswählen
       description: Wähle einen Vault, den du synchronisieren möchtest
@@ -654,8 +753,10 @@ de:
     vaultPasswordTooLong: Passwort ist zu lang (max. 255 Zeichen)
 en:
   steps:
-    login:
-      title: Connect
+    loginEmail:
+      title: Email
+    loginOtp:
+      title: Verify Code
     selectVault:
       title: Select Vault
       description: Choose a vault you want to synchronize

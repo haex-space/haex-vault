@@ -1,6 +1,6 @@
 <template>
   <div class="space-y-4">
-    <!-- Server URL Selection (reuse existing pattern) -->
+    <!-- Server URL Selection -->
     <USelectMenu
       v-model="selectedServer"
       :items="serverOptions"
@@ -15,65 +15,26 @@
       size="lg"
     />
 
-    <!-- Phase 1: Email Input -->
-    <div v-if="phase === 'email'" class="space-y-4">
-      <UiInput
-        v-model="email"
-        :label="t('email.label')"
-        :description="t('email.description')"
-        type="email"
-        leading-icon="i-lucide-mail"
-        size="lg"
-        autofocus
-      />
-      <UButton
-        color="primary"
-        size="lg"
-        block
-        :disabled="!isEmailValid"
-        :loading="isLoading"
-        @click="onRequestOtpAsync"
-      >
-        {{ t('email.submit') }}
-      </UButton>
-    </div>
-
-    <!-- Phase 2: OTP Verification -->
-    <div v-else-if="phase === 'otp'" class="space-y-4">
-      <UAlert
-        color="info"
-        icon="i-lucide-mail"
-        :title="t('otp.title')"
-        :description="t('otp.description', { email })"
-      />
-      <UPinInput
-        v-model="otpParts"
-        :length="6"
-        otp
-        type="number"
-        size="xl"
-        :autofocus="true"
-        class="justify-center"
-        :ui="{ base: 'w-12 h-12 text-center text-lg' }"
-        @complete="onVerifyOtpAsync"
-      />
-      <div class="flex justify-between items-center">
-        <UButton
-          variant="link"
-          size="xs"
-          @click="onResendAsync"
-        >
-          {{ t('otp.resend') }}
-        </UButton>
-        <UButton
-          variant="link"
-          size="xs"
-          @click="phase = 'email'"
-        >
-          {{ t('otp.changeEmail') }}
-        </UButton>
-      </div>
-    </div>
+    <!-- Email Input -->
+    <UiInput
+      v-model="email"
+      :label="t('email.label')"
+      :description="t('email.description')"
+      type="email"
+      leading-icon="i-lucide-mail"
+      size="lg"
+      autofocus
+    />
+    <UButton
+      color="primary"
+      size="lg"
+      block
+      :disabled="!isEmailValid"
+      :loading="isLoading"
+      @click="onRequestOtpAsync"
+    >
+      {{ t('email.submit') }}
+    </UButton>
 
     <!-- Error display -->
     <UAlert
@@ -89,27 +50,27 @@
 
 <script setup lang="ts">
 import { z } from 'zod'
-import type { RecoveryKeyData } from '~/composables/useIdentityRecovery'
 
 const { t } = useI18n()
 const { serverOptions } = useSyncServerOptions()
-const { add } = useToast()
+
+const keys = useMagicKeys()
+const enter = computed(() => keys.enter?.value ?? false)
+
+whenever(enter, () => {
+  if (isEmailValid.value && !isLoading.value) {
+    onRequestOtpAsync()
+  }
+})
 
 const emit = defineEmits<{
-  recovered: [{
-    serverUrl: string
-    recoveryKeyData: RecoveryKeyData
-    session: { access_token: string; refresh_token: string; expires_in: number; expires_at: number }
-    identity: { id: string; did: string; tier: string }
-  }]
+  otpRequested: [{ serverUrl: string; email: string }]
 }>()
 
 const {
   isLoading,
   error: recoveryError,
   requestOtpAsync,
-  verifyOtpAsync,
-  resendOtpAsync,
 } = useIdentityRecovery()
 
 // Server selection
@@ -124,10 +85,7 @@ const serverUrl = computed(() =>
 // Email validation with Zod (custom message avoids zodI18n locale lookup)
 const emailSchema = z.string().email({ message: 'Invalid email' })
 
-// State machine
-const phase = ref<'email' | 'otp'>('email')
 const email = ref('')
-const otpParts = ref<number[]>([])
 
 const isEmailValid = computed(() => {
   return emailSchema.safeParse(email.value).success
@@ -136,47 +94,9 @@ const isEmailValid = computed(() => {
 const onRequestOtpAsync = async () => {
   const success = await requestOtpAsync(serverUrl.value, email.value)
   if (success) {
-    phase.value = 'otp'
-    otpParts.value = []
+    emit('otpRequested', { serverUrl: serverUrl.value, email: email.value })
   }
 }
-
-const onVerifyOtpAsync = async () => {
-  const code = otpParts.value.join('')
-  const data = await verifyOtpAsync(serverUrl.value, email.value, code)
-  if (data) {
-    recoveredKeyData.value = data
-    if (data.session && data.identity) {
-      emit('recovered', {
-        serverUrl: serverUrl.value,
-        recoveryKeyData: data,
-        session: data.session,
-        identity: data.identity,
-      })
-    }
-  } else {
-    // Check if the error is specifically about missing recovery key
-    if (recoveryError.value?.includes('No recovery key')) {
-      add({
-        title: t('error.noRecoveryKey'),
-        description: t('error.noRecoveryKeyDescription'),
-        color: 'warning',
-      })
-    }
-    otpParts.value = []
-  }
-}
-
-const onResendAsync = async () => {
-  const success = await resendOtpAsync(serverUrl.value, email.value)
-  if (success) {
-    add({
-      title: t('otp.resent'),
-      color: 'success',
-    })
-  }
-}
-
 </script>
 
 <i18n lang="yaml">
@@ -185,30 +105,14 @@ de:
     label: E-Mail-Adresse
     description: Die E-Mail-Adresse, mit der du dich beim Sync-Server registriert hast
     submit: Bestätigungscode senden
-  otp:
-    title: E-Mail-Verifizierung
-    description: "Ein 6-stelliger Code wurde an {email} gesendet"
-    resend: Code erneut senden
-    resent: Code wurde erneut gesendet
-    changeEmail: Andere E-Mail verwenden
   error:
     title: Fehler
-    noRecoveryKey: Kein Wiederherstellungsschlüssel vorhanden
-    noRecoveryKeyDescription: Für dieses Konto wurde kein Wiederherstellungsschlüssel gespeichert. Du benötigst Zugang zu einem Gerät, auf dem deine Identität noch vorhanden ist.
 
 en:
   email:
     label: Email Address
     description: The email address you used to register with the sync server
     submit: Send verification code
-  otp:
-    title: Email Verification
-    description: "A 6-digit code was sent to {email}"
-    resend: Resend code
-    resent: Code was resent
-    changeEmail: Use different email
   error:
     title: Error
-    noRecoveryKey: No recovery key available
-    noRecoveryKeyDescription: No recovery key was stored for this account. You need access to a device where your identity still exists.
 </i18n>

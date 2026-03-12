@@ -3,6 +3,7 @@
     v-model:open="open"
     :title="t('title')"
     :description="t('description')"
+    :dismissible="isDismissible"
   >
     <!-- Trigger Button -->
     <template #trigger>
@@ -44,6 +45,11 @@ const lastVaultStore = useLastVaultStore()
 
 const wizardRef = ref()
 const isLoading = ref(false)
+
+// Prevent accidental close during login steps (email + OTP)
+const isDismissible = computed(
+  () => (wizardRef.value?.currentStepIndex?.value ?? 0) > 1,
+)
 
 // Handle wizard completion
 const onWizardCompleteAsync = async (wizardData: {
@@ -204,9 +210,9 @@ const onWizardCompleteAsync = async (wizardData: {
   }
 }
 
-// Watch for drawer close to reset wizard
+// Watch for drawer close — only reset if past the login steps (email + OTP)
 watch(open, (isOpen) => {
-  if (!isOpen) {
+  if (!isOpen && (wizardRef.value?.currentStepIndex ?? 0) > 1) {
     wizardRef.value?.clearForm()
   }
 })

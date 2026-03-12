@@ -45,17 +45,18 @@
             :description="t('verification.description')"
           />
 
-          <UPinInput
-            v-model="verificationCodeParts"
-            :length="6"
-            otp
-            type="number"
-            size="xl"
-            :autofocus="true"
-            class="justify-center"
-            :ui="{ base: 'w-12 h-12 text-center text-lg' }"
-            @complete="onVerifyCodeAsync"
-          />
+          <div class="flex justify-center">
+            <UPinInput
+              v-model="verificationCodeParts"
+              :length="6"
+              otp
+              type="number"
+              size="xl"
+              :autofocus="true"
+              :ui="{ base: 'w-12 h-12 text-center text-lg' }"
+              @complete="onVerifyCodeAsync"
+            />
+          </div>
 
           <UButton
             variant="link"
