@@ -123,7 +123,12 @@ const { serverOptions } = useSyncServerOptions()
 const { add } = useToast()
 
 const emit = defineEmits<{
-  recovered: [{ identityId: string; serverUrl: string; vaultPassword: string }]
+  recovered: [{
+    serverUrl: string
+    vaultPassword: string
+    session: { access_token: string; refresh_token: string; expires_in: number; expires_at: number }
+    identity: { id: string; did: string; tier: string }
+  }]
 }>()
 
 const {
@@ -131,7 +136,7 @@ const {
   error: recoveryError,
   requestOtpAsync,
   verifyOtpAsync,
-  decryptAndImportAsync,
+  decryptAndVerifyAsync,
   resendOtpAsync,
 } = useIdentityRecovery()
 
@@ -198,16 +203,17 @@ const onResendAsync = async () => {
 const onDecryptAsync = async () => {
   if (!recoveredKeyData.value) return
 
-  const identityId = await decryptAndImportAsync(
+  const success = await decryptAndVerifyAsync(
     recoveredKeyData.value,
     vaultPassword.value,
   )
 
-  if (identityId) {
+  if (success && recoveredKeyData.value.session && recoveredKeyData.value.identity) {
     emit('recovered', {
-      identityId,
       serverUrl: serverUrl.value,
       vaultPassword: vaultPassword.value,
+      session: recoveredKeyData.value.session,
+      identity: recoveredKeyData.value.identity,
     })
   }
 }

@@ -54,7 +54,7 @@
             <div class="flex items-center justify-between">
               <div>
                 <p class="font-medium">
-                  {{ t('steps.selectVault.encryptedVault') }}
+                  {{ decryptedVaultNames[vault.vaultId] || t('steps.selectVault.encryptedVault') }}
                 </p>
                 <p class="text-sm text-muted">
                   {{ t('steps.selectVault.createdAt') }}:
@@ -215,17 +215,15 @@
 
 <script setup lang="ts">
 import { createClient } from '@supabase/supabase-js'
+import { decryptString, deriveKeyFromPassword, base64ToArrayBuffer } from '@haex-space/vault-sdk'
 import type { AppSupabaseClient } from '~/stores/sync/engine/supabase'
 import { createConnectWizardSchema } from './connectWizardSchema'
 
 const { t } = useI18n()
-const { serverOptions } = useSyncServerOptions()
 const { add } = useToast()
 
 // Create validation schema with i18n
 const wizardSchema = computed(() => createConnectWizardSchema(t))
-
-const { loginAsync: challengeLoginAsync } = useCreateSyncConnection()
 
 interface VaultInfo {
   vaultId: string
@@ -280,20 +278,12 @@ const steps = computed(() => [
 const isLoading = ref(false)
 const check = ref(false)
 
-// Step 1: Identity Auth
+// Step 1: Identity Auth (via Recovery)
 const credentials = ref({
   serverUrl: 'https://sync.haex.space',
   identityId: '',
-  approvedClaims: {} as Record<string, string>,
 })
 const supabaseClient = shallowRef<AppSupabaseClient | null>(null)
-
-const isLoginFormValid = computed(() => {
-  return (
-    credentials.value.serverUrl !== '' &&
-    credentials.value.identityId !== ''
-  )
-})
 
 // Step 2: Select Vault
 const availableVaults = ref<VaultInfo[]>([])
@@ -301,6 +291,7 @@ const selectedVaultId = ref<string | null>(null)
 const isLoadingVaults = ref(false)
 const step2Error = ref('')
 const isCreatingNewVault = ref(false)
+const decryptedVaultNames = ref<Record<string, string>>({})
 
 // Recovery mode
 const recoveredVaultPassword = ref('')
@@ -318,10 +309,6 @@ const step3Errors = reactive({
 
 // Computed for step validation
 const canProceed = computed(() => {
-  if (currentStepIndex.value === 0) {
-    // Step 0 progression is handled by RecoveryLogin component
-    return false
-  }
   if (currentStepIndex.value === 1) {
     return selectedVaultId.value !== null || isCreatingNewVault.value
   }
@@ -365,9 +352,7 @@ whenever(enter, () => {
 
 // Methods
 const nextStep = async () => {
-  if (currentStepIndex.value === 0) {
-    await loginAsync()
-  } else if (currentStepIndex.value === 1) {
+  if (currentStepIndex.value === 1) {
     // Validate Step 2 (vault selection or new vault)
     if (!selectedVaultId.value && !isCreatingNewVault.value) {
       step2Error.value = t('errors.vaultSelectionRequired')
@@ -375,19 +360,16 @@ const nextStep = async () => {
     }
 
     if (isCreatingNewVault.value) {
-      // New vault: set default vault name
       localVaultName.value = 'HaexVault'
       vaultPasswordConfirm.value = ''
     } else {
-      // Existing vault: use vault ID as placeholder name
-      localVaultName.value = 'HaexVault'
-      // Check if this name already exists locally
+      localVaultName.value = decryptedVaultNames.value[selectedVaultId.value!] || 'HaexVault'
       await checkVaultNameExistsAsync()
     }
 
     currentStepIndex.value++
 
-    // Pre-fill vault password from recovery if available
+    // Pre-fill vault password from recovery
     if (recoveredVaultPassword.value) {
       vaultPassword.value = recoveredVaultPassword.value
     }
@@ -397,55 +379,6 @@ const nextStep = async () => {
 const previousStep = () => {
   if (currentStepIndex.value > 0) {
     currentStepIndex.value--
-  }
-}
-
-const loginAsync = async () => {
-  if (!isLoginFormValid.value) return
-
-  isLoading.value = true
-
-  try {
-    // 1. Connect to server and get Supabase config
-    const response = await fetch(credentials.value.serverUrl)
-    if (!response.ok) {
-      throw new Error(t('errors.serverConnection'))
-    }
-
-    const serverInfo = await response.json()
-
-    // 2. Create Supabase client
-    supabaseClient.value = createClient(
-      serverInfo.supabaseUrl,
-      serverInfo.supabaseAnonKey,
-    )
-
-    // 3. Challenge-response login
-    const session = await challengeLoginAsync(
-      credentials.value.serverUrl,
-      credentials.value.identityId,
-    )
-
-    // 4. Set session
-    await supabaseClient.value.auth.setSession({
-      access_token: session.access_token,
-      refresh_token: session.refresh_token,
-    })
-
-    // 5. Load available vaults
-    await loadVaultsAsync()
-
-    // 6. Move to next step
-    currentStepIndex.value = 1
-  } catch (error) {
-    console.error('Login failed:', error)
-    add({
-      title: t('errors.loginFailed'),
-      description: error instanceof Error ? error.message : 'Unknown error',
-      color: 'error',
-    })
-  } finally {
-    isLoading.value = false
   }
 }
 
@@ -477,6 +410,11 @@ const loadVaultsAsync = async () => {
 
     const data = await response.json()
     availableVaults.value = data.vaults
+
+    // Decrypt vault names if vault password is available (e.g. from recovery flow)
+    if (recoveredVaultPassword.value) {
+      await decryptVaultNamesAsync(recoveredVaultPassword.value)
+    }
   } catch (error) {
     console.error('Failed to load vaults:', error)
     add({
@@ -487,6 +425,20 @@ const loadVaultsAsync = async () => {
   } finally {
     isLoadingVaults.value = false
   }
+}
+
+const decryptVaultNamesAsync = async (password: string) => {
+  const names: Record<string, string> = {}
+  for (const vault of availableVaults.value) {
+    try {
+      const salt = base64ToArrayBuffer(vault.vaultNameSalt)
+      const derivedKey = await deriveKeyFromPassword(password, salt)
+      names[vault.vaultId] = await decryptString(vault.encryptedVaultName, vault.vaultNameNonce, derivedKey)
+    } catch {
+      // Decryption failed — keep showing fallback
+    }
+  }
+  decryptedVaultNames.value = names
 }
 
 const checkVaultNameExistsAsync = async () => {
@@ -567,17 +519,43 @@ const cancel = () => {
 }
 
 const onRecoveryComplete = async (data: {
-  identityId: string
   serverUrl: string
   vaultPassword: string
+  session: { access_token: string; refresh_token: string; expires_in: number; expires_at: number }
+  identity: { id: string; did: string; tier: string }
 }) => {
-  // Set credentials from recovery
-  credentials.value.serverUrl = data.serverUrl
-  credentials.value.identityId = data.identityId
-  recoveredVaultPassword.value = data.vaultPassword
+  isLoading.value = true
 
-  // Continue with normal flow: login and load vaults
-  await loginAsync()
+  try {
+    credentials.value.serverUrl = data.serverUrl
+    credentials.value.identityId = data.identity.id
+    recoveredVaultPassword.value = data.vaultPassword
+
+    // Connect to server and get Supabase config
+    const response = await fetch(data.serverUrl)
+    if (!response.ok) throw new Error(t('errors.serverConnection'))
+    const serverInfo = await response.json()
+
+    // Create Supabase client with the session from recovery (no challenge-response needed)
+    supabaseClient.value = createClient(serverInfo.supabaseUrl, serverInfo.supabaseAnonKey)
+    await supabaseClient.value.auth.setSession({
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+    })
+
+    // Load available vaults and move to step 2
+    await loadVaultsAsync()
+    currentStepIndex.value = 1
+  } catch (error) {
+    console.error('Recovery login failed:', error)
+    add({
+      title: t('errors.loginFailed'),
+      description: error instanceof Error ? error.message : 'Unknown error',
+      color: 'error',
+    })
+  } finally {
+    isLoading.value = false
+  }
 }
 
 const clearForm = () => {
@@ -585,11 +563,11 @@ const clearForm = () => {
   credentials.value = {
     serverUrl: 'https://sync.haex.space',
     identityId: '',
-    approvedClaims: {},
   }
   availableVaults.value = []
   selectedVaultId.value = null
   isCreatingNewVault.value = false
+  decryptedVaultNames.value = {}
   recoveredVaultPassword.value = ''
   localVaultName.value = ''
   vaultPassword.value = ''

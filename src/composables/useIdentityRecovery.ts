@@ -9,6 +9,17 @@ export interface RecoveryKeyData {
   encryptedPrivateKey: string
   privateKeyNonce: string
   privateKeySalt: string
+  session?: {
+    access_token: string
+    refresh_token: string
+    expires_in: number
+    expires_at: number
+  }
+  identity?: {
+    id: string
+    did: string
+    tier: string
+  }
 }
 
 /**
@@ -20,8 +31,6 @@ export interface RecoveryKeyData {
  * 3. decryptAndImportAsync(recoveryData, vaultPassword) -> imports identity locally
  */
 export const useIdentityRecovery = () => {
-  const identityStore = useIdentityStore()
-
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
@@ -97,19 +106,20 @@ export const useIdentityRecovery = () => {
   }
 
   /**
-   * Decrypt the recovered private key with the vault password and import as local identity.
-   * Returns the local identity ID.
+   * Decrypt the recovered private key with the vault password to verify it works.
+   * Does NOT import into local vault (vault isn't open yet at this stage).
+   * Returns true if decryption succeeded.
    */
-  const decryptAndImportAsync = async (
+  const decryptAndVerifyAsync = async (
     recoveryData: RecoveryKeyData,
     vaultPassword: string,
-  ): Promise<string | null> => {
+  ): Promise<boolean> => {
     isLoading.value = true
     error.value = null
 
     try {
-      // Decrypt private key using vault password
-      const privateKeyBase64 = await decryptPrivateKeyAsync(
+      // Decrypt private key using vault password (verifies password is correct)
+      await decryptPrivateKeyAsync(
         recoveryData.encryptedPrivateKey,
         recoveryData.privateKeyNonce,
         recoveryData.privateKeySalt,
@@ -122,30 +132,11 @@ export const useIdentityRecovery = () => {
         throw new Error('DID mismatch: recovered key does not match expected identity')
       }
 
-      // Check if identity already exists locally
-      const existingIdentities = identityStore.identities
-      const existingIdentity = existingIdentities.find(
-        (i) => i.did === recoveryData.did,
-      )
-
-      if (existingIdentity) {
-        // Identity already exists locally, just return its ID
-        return existingIdentity.id
-      }
-
-      // Import identity into local store
-      const identity = await identityStore.importIdentityAsync({
-        did: recoveryData.did,
-        label: 'Recovered Identity',
-        publicKey: recoveryData.publicKey,
-        privateKey: privateKeyBase64,
-      })
-
-      return identity.id
+      return true
     } catch (err) {
-      console.error('[RECOVERY] Decrypt/import failed:', err)
+      console.error('[RECOVERY] Decrypt/verify failed:', err)
       error.value = err instanceof Error ? err.message : 'Unknown error'
-      return null
+      return false
     } finally {
       isLoading.value = false
     }
@@ -166,7 +157,7 @@ export const useIdentityRecovery = () => {
     error: readonly(error),
     requestOtpAsync,
     verifyOtpAsync,
-    decryptAndImportAsync,
+    decryptAndVerifyAsync,
     resendOtpAsync,
   }
 }
