@@ -368,11 +368,6 @@ const nextStep = async () => {
     }
 
     currentStepIndex.value++
-
-    // Pre-fill vault password from recovery
-    if (recoveredVaultPassword.value) {
-      vaultPassword.value = recoveredVaultPassword.value
-    }
   }
 }
 
@@ -495,11 +490,23 @@ const completeSetupAsync = async () => {
       isNewVault: true,
     })
   } else {
-    // Existing vault
+    // Existing vault: try to decrypt vault name with entered password
     const selectedVault = availableVaults.value.find(
       (v) => v.vaultId === selectedVaultId.value,
     )
     if (!selectedVault) return
+
+    // Try to resolve the actual vault name using the entered vault password
+    try {
+      const salt = base64ToArrayBuffer(selectedVault.vaultNameSalt)
+      const derivedKey = await deriveKeyFromPassword(vaultPassword.value, salt)
+      const decryptedName = await decryptString(selectedVault.encryptedVaultName, selectedVault.vaultNameNonce, derivedKey)
+      if (decryptedName && localVaultName.value === (decryptedVaultNames.value[selectedVault.vaultId] || 'HaexVault')) {
+        localVaultName.value = decryptedName
+      }
+    } catch {
+      // Wrong password or decryption failed — vault name stays as user typed
+    }
 
     emit('complete', {
       backendId,

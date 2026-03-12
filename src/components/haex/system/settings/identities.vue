@@ -179,14 +179,39 @@
             :placeholder="t('create.labelPlaceholder')"
           />
 
-          <USeparator :label="t('create.claimsOptional')" />
+          <USeparator :label="t('create.syncCredentials')" />
 
           <UiInput
             v-model="createClaims.email"
             label="Email"
             placeholder="user@example.com"
             leading-icon="i-lucide-mail"
+            type="email"
+            required
           />
+
+          <UiInputPassword
+            v-model="createIdentityPassword"
+            :label="t('create.identityPassword')"
+            :description="t('create.identityPasswordDescription')"
+            leading-icon="i-lucide-lock"
+            size="lg"
+          />
+          <UiInputPassword
+            v-model="createIdentityPasswordConfirm"
+            :label="t('create.identityPasswordConfirm')"
+            leading-icon="i-lucide-lock"
+            size="lg"
+          />
+          <p
+            v-if="createIdentityPasswordConfirm && createIdentityPassword !== createIdentityPasswordConfirm"
+            class="text-sm text-error -mt-3"
+          >
+            {{ t('create.passwordMismatch') }}
+          </p>
+
+          <USeparator :label="t('create.claimsOptional')" />
+
           <UiInput
             v-model="createClaims.name"
             label="Name"
@@ -219,7 +244,7 @@
           <UiButton
             icon="i-lucide-plus"
             :loading="isCreating"
-            :disabled="!createLabel.trim()"
+            :disabled="!canCreateIdentity"
             @click="onCreateAsync"
           >
             {{ t('actions.create') }}
@@ -414,12 +439,21 @@ const showImportDialog = ref(false)
 const showExportDialog = ref(false)
 
 const createLabel = ref('')
+const createIdentityPassword = ref('')
+const createIdentityPasswordConfirm = ref('')
 const createClaims = reactive({
   email: '',
   name: '',
   phone: '',
   address: '',
 })
+
+const canCreateIdentity = computed(() =>
+  createLabel.value.trim() !== '' &&
+  createClaims.email.trim() !== '' &&
+  createIdentityPassword.value.length >= 8 &&
+  createIdentityPassword.value === createIdentityPasswordConfirm.value,
+)
 const renameLabel = ref('')
 const renameTarget = ref<SelectHaexIdentities | null>(null)
 const deleteTarget = ref<SelectHaexIdentities | null>(null)
@@ -451,6 +485,8 @@ const onCreateAsync = async () => {
     add({ title: t('success.created'), color: 'success' })
     showCreateDialog.value = false
     createLabel.value = ''
+    createIdentityPassword.value = ''
+    createIdentityPasswordConfirm.value = ''
     createClaims.email = ''
     createClaims.name = ''
     createClaims.phone = ''
@@ -695,7 +731,12 @@ de:
     description: Erstelle eine neue kryptographische Identität. Jede Identität hat ihren eigenen Schlüssel und kann unabhängig in verschiedenen Spaces genutzt werden.
     labelField: Name
     labelPlaceholder: z.B. Persönlich, Arbeit, Anonym
-    claimsOptional: Claims (optional)
+    syncCredentials: Sync-Zugangsdaten
+    identityPassword: Identity-Passwort
+    identityPasswordDescription: Dieses Passwort schützt deinen privaten Schlüssel auf dem Sync-Server. Merke es dir gut – es wird für die Wiederherstellung benötigt.
+    identityPasswordConfirm: Identity-Passwort bestätigen
+    passwordMismatch: Passwörter stimmen nicht überein
+    claimsOptional: Weitere Angaben (optional)
   import:
     title: Identität importieren
     description: Importiere eine zuvor exportierte Identität. Der DID wird automatisch verifiziert.
@@ -768,7 +809,12 @@ en:
     description: Create a new cryptographic identity. Each identity has its own key and can be used independently in different Spaces.
     labelField: Name
     labelPlaceholder: e.g. Personal, Work, Anonymous
-    claimsOptional: Claims (optional)
+    syncCredentials: Sync credentials
+    identityPassword: Identity password
+    identityPasswordDescription: This password protects your private key on the sync server. Remember it well — it is required for account recovery.
+    identityPasswordConfirm: Confirm identity password
+    passwordMismatch: Passwords do not match
+    claimsOptional: Additional info (optional)
   import:
     title: Import Identity
     description: Import a previously exported identity. The DID will be automatically verified.
