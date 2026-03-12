@@ -78,7 +78,7 @@
             <UButton
               variant="ghost"
               icon="i-lucide-pencil"
-              :title="t('actions.rename')"
+              :title="t('actions.edit')"
               @click="openRenameDialog(identity)"
             />
             <UButton
@@ -324,17 +324,42 @@
       </template>
     </UiDrawerModal>
 
-    <!-- Rename Identity Dialog -->
+    <!-- Edit Identity Dialog -->
     <UiDrawerModal
       v-model:open="showRenameDialog"
-      :title="t('rename.title')"
+      :title="t('edit.title')"
     >
       <template #content>
-        <UiInput
-          v-model="renameLabel"
-          :label="t('rename.labelField')"
-          @keydown.enter.prevent="onRenameAsync"
-        />
+        <div class="space-y-4">
+          <UiInput
+            v-model="renameLabel"
+            :label="t('edit.labelField')"
+            @keydown.enter.prevent="onRenameAsync"
+          />
+
+          <USeparator :label="t('edit.changePassword')" />
+
+          <UiInputPassword
+            v-model="editIdentityPassword"
+            :label="t('create.identityPassword')"
+            :description="t('edit.passwordOptional')"
+            leading-icon="i-lucide-lock"
+            size="lg"
+          />
+          <UiInputPassword
+            v-if="editIdentityPassword"
+            v-model="editIdentityPasswordConfirm"
+            :label="t('create.identityPasswordConfirm')"
+            leading-icon="i-lucide-lock"
+            size="lg"
+          />
+          <p
+            v-if="editIdentityPasswordConfirm && editIdentityPassword !== editIdentityPasswordConfirm"
+            class="text-sm text-error -mt-3"
+          >
+            {{ t('create.passwordMismatch') }}
+          </p>
+        </div>
       </template>
       <template #footer>
         <div class="flex justify-between gap-4">
@@ -348,7 +373,7 @@
           <UiButton
             icon="i-lucide-check"
             :loading="isRenaming"
-            :disabled="!renameLabel.trim()"
+            :disabled="!canSaveEdit"
             @click="onRenameAsync"
           >
             {{ t('actions.save') }}
@@ -420,11 +445,13 @@
 <script setup lang="ts">
 import type { SelectHaexIdentities } from '~/database/schemas'
 import type { ExportedIdentity } from '@/stores/identity'
+import { useUpdateIdentityPassword } from '@/composables/useUpdateIdentityPassword'
 
 const { t } = useI18n()
 const { add } = useToast()
 
 const identityStore = useIdentityStore()
+const { updatePasswordAsync } = useUpdateIdentityPassword()
 const { identities } = storeToRefs(identityStore)
 
 const isLoading = ref(false)
@@ -456,6 +483,16 @@ const canCreateIdentity = computed(() =>
 )
 const renameLabel = ref('')
 const renameTarget = ref<SelectHaexIdentities | null>(null)
+const editIdentityPassword = ref('')
+const editIdentityPasswordConfirm = ref('')
+
+const canSaveEdit = computed(() => {
+  if (!renameLabel.value.trim()) return false
+  if (editIdentityPassword.value) {
+    return editIdentityPassword.value.length >= 8 && editIdentityPassword.value === editIdentityPasswordConfirm.value
+  }
+  return true
+})
 const deleteTarget = ref<SelectHaexIdentities | null>(null)
 const importJson = ref('')
 const exportJson = ref('')
@@ -554,6 +591,8 @@ const copyExport = async () => {
 const openRenameDialog = (identity: SelectHaexIdentities) => {
   renameTarget.value = identity
   renameLabel.value = identity.label
+  editIdentityPassword.value = ''
+  editIdentityPasswordConfirm.value = ''
   showRenameDialog.value = true
 }
 
@@ -563,12 +602,23 @@ const onRenameAsync = async () => {
   isRenaming.value = true
   try {
     await identityStore.updateLabelAsync(renameTarget.value.id, renameLabel.value.trim())
-    add({ title: t('success.renamed'), color: 'success' })
+
+    if (editIdentityPassword.value) {
+      const ok = await updatePasswordAsync(renameTarget.value.id, editIdentityPassword.value)
+      if (!ok) {
+        add({ title: t('errors.passwordUpdateFailed'), color: 'error' })
+        return
+      }
+    }
+
+    add({ title: t('success.saved'), color: 'success' })
     showRenameDialog.value = false
+    editIdentityPassword.value = ''
+    editIdentityPasswordConfirm.value = ''
   } catch (error) {
-    console.error('Failed to rename identity:', error)
+    console.error('Failed to edit identity:', error)
     add({
-      title: t('errors.renameFailed'),
+      title: t('errors.editFailed'),
       description: error instanceof Error ? error.message : undefined,
       color: 'error',
     })
@@ -747,9 +797,11 @@ de:
     description: Kopiere diese Daten, um die Identität auf einem anderen Gerät zu importieren.
     jsonLabel: Identitäts-JSON
     warning: "Achtung: Dieses JSON enthält deinen privaten Schlüssel. Teile es nur über sichere Kanäle und lösche es nach dem Import."
-  rename:
-    title: Identität umbenennen
+  edit:
+    title: Identität bearbeiten
     labelField: Name
+    changePassword: Passwort ändern (optional)
+    passwordOptional: Leer lassen, um das Passwort beizubehalten
   delete:
     title: Identität löschen
     description: Möchtest du diese Identität wirklich löschen? Spaces, die diese Identität nutzen, werden den Zugriff verlieren. Diese Aktion kann nicht rückgängig gemacht werden.
@@ -777,7 +829,7 @@ de:
     cancel: Abbrechen
     close: Schließen
     save: Speichern
-    rename: Umbenennen
+    edit: Bearbeiten
     delete: Löschen
     copyDid: DID kopieren
     copyExport: JSON kopieren
@@ -785,7 +837,7 @@ de:
   success:
     created: Identität erstellt
     imported: Identität importiert
-    renamed: Identität umbenannt
+    saved: Identität gespeichert
     deleted: Identität gelöscht
     copied: Kopiert
   errors:
@@ -793,7 +845,8 @@ de:
     importFailed: Import fehlgeschlagen
     invalidJson: Ungültiges JSON-Format
     invalidIdentityData: Unvollständige Identitätsdaten (did, publicKey und privateKey erforderlich)
-    renameFailed: Umbenennung fehlgeschlagen
+    editFailed: Speichern fehlgeschlagen
+    passwordUpdateFailed: Passwort konnte nicht auf dem Server aktualisiert werden
     deleteFailed: Löschen fehlgeschlagen
     copyFailed: Kopieren fehlgeschlagen
 en:
@@ -825,9 +878,11 @@ en:
     description: Copy this data to import the identity on another device.
     jsonLabel: Identity JSON
     warning: "Warning: This JSON contains your private key. Only share it through secure channels and delete it after import."
-  rename:
-    title: Rename Identity
+  edit:
+    title: Edit Identity
     labelField: Name
+    changePassword: Change password (optional)
+    passwordOptional: Leave empty to keep the current password
   delete:
     title: Delete Identity
     description: Do you really want to delete this identity? Spaces using this identity will lose access. This action cannot be undone.
@@ -855,7 +910,7 @@ en:
     cancel: Cancel
     close: Close
     save: Save
-    rename: Rename
+    edit: Edit
     delete: Delete
     copyDid: Copy DID
     copyExport: Copy JSON
@@ -863,7 +918,7 @@ en:
   success:
     created: Identity created
     imported: Identity imported
-    renamed: Identity renamed
+    saved: Identity saved
     deleted: Identity deleted
     copied: Copied
   errors:
@@ -871,7 +926,8 @@ en:
     importFailed: Failed to import identity
     invalidJson: Invalid JSON format
     invalidIdentityData: Incomplete identity data (did, publicKey, and privateKey required)
-    renameFailed: Failed to rename identity
+    editFailed: Failed to save identity
+    passwordUpdateFailed: Failed to update password on the server
     deleteFailed: Failed to delete identity
     copyFailed: Failed to copy
 </i18n>
