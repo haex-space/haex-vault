@@ -17,6 +17,19 @@ export const useIdentityStore = defineStore('identityStore', () => {
 
   const identities = ref<SelectHaexIdentities[]>([])
 
+  // Session-only: identity passwords set during creation, consumed on first backend registration
+  const _identityPasswords = new Map<string, string>()
+
+  const setIdentityPassword = (id: string, password: string) => {
+    _identityPasswords.set(id, password)
+  }
+
+  const consumeIdentityPassword = (id: string): string | undefined => {
+    const pw = _identityPasswords.get(id)
+    _identityPasswords.delete(id)
+    return pw
+  }
+
   const loadIdentitiesAsync = async () => {
     if (!currentVault.value?.drizzle) return
     identities.value = await currentVault.value.drizzle
@@ -192,5 +205,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
     updateClaimAsync,
     deleteClaimAsync,
     markClaimVerifiedAsync,
+    setIdentityPassword,
+    consumeIdentityPassword,
   }
 })

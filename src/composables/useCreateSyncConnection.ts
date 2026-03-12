@@ -174,11 +174,12 @@ export const useCreateSyncConnection = () => {
 
       const registrationBody: Record<string, unknown> = { presentation }
 
-      if (currentVaultPassword.value) {
+      const identityPassword = identityStore.consumeIdentityPassword(params.identityId) ?? currentVaultPassword.value
+      if (identityPassword) {
         try {
           const recovery = await encryptPrivateKeyAsync(
             identity.privateKey,
-            currentVaultPassword.value,
+            identityPassword,
           )
           registrationBody.encryptedPrivateKey = recovery.encryptedPrivateKey
           registrationBody.privateKeyNonce = recovery.nonce

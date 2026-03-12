@@ -190,25 +190,32 @@
             required
           />
 
-          <UiInputPassword
-            v-model="createIdentityPassword"
-            :label="t('create.identityPassword')"
-            :description="t('create.identityPasswordDescription')"
-            leading-icon="i-lucide-lock"
-            size="lg"
+          <UCheckbox
+            v-model="useVaultPasswordForIdentity"
+            :label="t('create.useVaultPassword')"
           />
-          <UiInputPassword
-            v-model="createIdentityPasswordConfirm"
-            :label="t('create.identityPasswordConfirm')"
-            leading-icon="i-lucide-lock"
-            size="lg"
-          />
-          <p
-            v-if="createIdentityPasswordConfirm && createIdentityPassword !== createIdentityPasswordConfirm"
-            class="text-sm text-error -mt-3"
-          >
-            {{ t('create.passwordMismatch') }}
-          </p>
+
+          <template v-if="!useVaultPasswordForIdentity">
+            <UiInputPassword
+              v-model="createIdentityPassword"
+              :label="t('create.identityPassword')"
+              :description="t('create.identityPasswordDescription')"
+              leading-icon="i-lucide-lock"
+              size="lg"
+            />
+            <UiInputPassword
+              v-model="createIdentityPasswordConfirm"
+              :label="t('create.identityPasswordConfirm')"
+              leading-icon="i-lucide-lock"
+              size="lg"
+            />
+            <p
+              v-if="createIdentityPasswordConfirm && createIdentityPassword !== createIdentityPasswordConfirm"
+              class="text-sm text-error -mt-3"
+            >
+              {{ t('create.passwordMismatch') }}
+            </p>
+          </template>
 
           <USeparator :label="t('create.claimsOptional')" />
 
@@ -453,6 +460,7 @@ const { add } = useToast()
 const identityStore = useIdentityStore()
 const { updatePasswordAsync } = useUpdateIdentityPassword()
 const { identities } = storeToRefs(identityStore)
+const { currentVaultPassword } = storeToRefs(useVaultStore())
 
 const isLoading = ref(false)
 const isCreating = ref(false)
@@ -466,6 +474,7 @@ const showImportDialog = ref(false)
 const showExportDialog = ref(false)
 
 const createLabel = ref('')
+const useVaultPasswordForIdentity = ref(true)
 const createIdentityPassword = ref('')
 const createIdentityPasswordConfirm = ref('')
 const createClaims = reactive({
@@ -475,12 +484,16 @@ const createClaims = reactive({
   address: '',
 })
 
-const canCreateIdentity = computed(() =>
-  createLabel.value.trim() !== '' &&
-  createClaims.email.trim() !== '' &&
-  createIdentityPassword.value.length >= 8 &&
-  createIdentityPassword.value === createIdentityPasswordConfirm.value,
+const effectiveCreatePassword = computed(() =>
+  useVaultPasswordForIdentity.value ? (currentVaultPassword.value ?? '') : createIdentityPassword.value,
 )
+
+const canCreateIdentity = computed(() => {
+  if (!createLabel.value.trim() || !createClaims.email.trim()) return false
+  if (useVaultPasswordForIdentity.value) return !!currentVaultPassword.value
+  return createIdentityPassword.value.length >= 8 &&
+    createIdentityPassword.value === createIdentityPasswordConfirm.value
+})
 const renameLabel = ref('')
 const renameTarget = ref<SelectHaexIdentities | null>(null)
 const editIdentityPassword = ref('')
@@ -513,6 +526,11 @@ const onCreateAsync = async () => {
   try {
     const identity = await identityStore.createIdentityAsync(createLabel.value.trim())
 
+    // Store identity password for use when connecting to a sync backend
+    if (effectiveCreatePassword.value) {
+      identityStore.setIdentityPassword(identity.id, effectiveCreatePassword.value)
+    }
+
     // Save non-empty claims
     const claimEntries = Object.entries(createClaims).filter(([, value]) => value.trim())
     for (const [type, value] of claimEntries) {
@@ -522,6 +540,7 @@ const onCreateAsync = async () => {
     add({ title: t('success.created'), color: 'success' })
     showCreateDialog.value = false
     createLabel.value = ''
+    useVaultPasswordForIdentity.value = true
     createIdentityPassword.value = ''
     createIdentityPasswordConfirm.value = ''
     createClaims.email = ''
@@ -782,6 +801,7 @@ de:
     labelField: Name
     labelPlaceholder: z.B. Persönlich, Arbeit, Anonym
     syncCredentials: Sync-Zugangsdaten
+    useVaultPassword: Gleiches Passwort wie Vault verwenden
     identityPassword: Identity-Passwort
     identityPasswordDescription: Dieses Passwort schützt deinen privaten Schlüssel auf dem Sync-Server. Merke es dir gut – es wird für die Wiederherstellung benötigt.
     identityPasswordConfirm: Identity-Passwort bestätigen
@@ -863,6 +883,7 @@ en:
     labelField: Name
     labelPlaceholder: e.g. Personal, Work, Anonymous
     syncCredentials: Sync credentials
+    useVaultPassword: Use same password as vault
     identityPassword: Identity password
     identityPasswordDescription: This password protects your private key on the sync server. Remember it well — it is required for account recovery.
     identityPasswordConfirm: Confirm identity password
