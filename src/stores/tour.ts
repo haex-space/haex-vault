@@ -1,10 +1,7 @@
-import { hostname as tauriHostname } from '@tauri-apps/plugin-os'
 import { driver } from 'driver.js'
 import type { Driver } from 'driver.js'
 import de from './tour.de.json'
 import en from './tour.en.json'
-
-const STORAGE_KEY = 'haex-tour-completed'
 
 type TourMessages = typeof de
 
@@ -18,9 +15,7 @@ export const useTourStore = defineStore('tourStore', () => {
   const { $i18n } = useNuxtApp()
   const windowManager = useWindowManagerStore()
   const launcherStore = useLauncherStore()
-  const deviceStore = useDeviceStore()
 
-  const isCompleted = ref(localStorage.getItem(STORAGE_KEY) === 'true')
   const isActive = ref(false)
   let driverInstance: Driver | null = null
 
@@ -41,21 +36,13 @@ export const useTourStore = defineStore('tourStore', () => {
   }
 
   const complete = () => {
-    localStorage.setItem(STORAGE_KEY, 'true')
     isActive.value = false
-    isCompleted.value = true
     driverInstance?.destroy()
     driverInstance = null
   }
 
   const start = async () => {
-    if (isCompleted.value) return
-
-    // Register device immediately so the tour doesn't repeat on next login.
-    // Even if the user aborts, the device is now known.
-    const name = (await tauriHostname()) || 'My Device'
-    await deviceStore.addDeviceNameAsync({ name })
-    await deviceStore.setAsCurrentDeviceAsync()
+    if (isActive.value) return
 
     isActive.value = true
 
@@ -171,5 +158,5 @@ export const useTourStore = defineStore('tourStore', () => {
     driverInstance.drive()
   }
 
-  return { isCompleted, isActive, start, complete }
+  return { isActive, start, complete }
 })

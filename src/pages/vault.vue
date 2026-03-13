@@ -25,7 +25,7 @@ const syncProgress = ref<{ synced: number; total: number } | undefined>()
 const isRemoteSyncVault = computed(() => route.query.remoteSync === 'true')
 
 const { readNotificationsAsync } = useNotificationStore()
-const { isKnownDeviceAsync, setAsCurrentDeviceAsync } = useDeviceStore()
+const { hasAnyDeviceAsync, setAsCurrentDeviceAsync } = useDeviceStore()
 const tourStore = useTourStore()
 const { loadExtensionsAsync } = useExtensionsStore()
 const { syncLocaleAsync, syncThemeAsync, syncVaultNameAsync } =
@@ -66,15 +66,15 @@ onMounted(async () => {
       readNotificationsAsync(),
     ])
 
-    const knownDevice = await isKnownDeviceAsync()
-
-    if (!knownDevice) {
-      console.log('New device detected - starting onboarding tour')
+    // Show onboarding tour only for brand new vaults (no devices registered yet)
+    const hasDevices = await hasAnyDeviceAsync()
+    if (!hasDevices) {
+      console.log('New vault detected - starting onboarding tour')
       await tourStore.start()
-    } else {
-      // Device is known, set it as current device
-      await setAsCurrentDeviceAsync()
     }
+
+    // Always set this device as current
+    await setAsCurrentDeviceAsync()
   } catch (error) {
     console.error('vault mount error:', error)
   }

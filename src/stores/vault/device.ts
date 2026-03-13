@@ -60,6 +60,12 @@ export const useDeviceStore = defineStore('vaultDeviceStore', () => {
     return !!device
   }
 
+  const hasAnyDeviceAsync = async () => {
+    const { currentVault } = useVaultStore()
+    const device = await currentVault?.drizzle?.query.haexDevices.findFirst()
+    return !!device?.id
+  }
+
   const readDeviceAsync = async (id?: string) => {
     const { currentVault } = useVaultStore()
 
@@ -101,12 +107,19 @@ export const useDeviceStore = defineStore('vaultDeviceStore', () => {
 
     deviceName.value = name
 
-    return currentVault?.drizzle
-      ?.update(haexDevices)
-      .set({
+    const existing = await readDeviceAsync(_id)
+    if (existing) {
+      await currentVault?.drizzle
+        ?.update(haexDevices)
+        .set({ name })
+        .where(eq(haexDevices.deviceId, _id))
+    } else {
+      await currentVault?.drizzle?.insert(haexDevices).values({
+        deviceId: _id,
         name,
       })
-      .where(eq(haexDevices.deviceId, _id))
+      await setAsCurrentDeviceAsync(_id)
+    }
   }
 
   const addDeviceNameAsync = async ({
@@ -167,6 +180,7 @@ export const useDeviceStore = defineStore('vaultDeviceStore', () => {
     deviceId,
     deviceName,
     getDeviceIdAsync,
+    hasAnyDeviceAsync,
     hostname,
     isDesktop,
     isKnownDeviceAsync,
