@@ -1,22 +1,15 @@
 import { driver } from 'driver.js'
 import type { Driver } from 'driver.js'
-import de from './tour.de.json'
-import en from './tour.en.json'
 
 const STORAGE_KEY = 'haex-tour-completed'
 
 export const useTourStore = defineStore('tourStore', () => {
-  const { $i18n } = useNuxtApp()
-  $i18n.setLocaleMessage('de', { tour: de })
-  $i18n.setLocaleMessage('en', { tour: en })
-
+  const { t } = useI18n()
   const windowManager = useWindowManagerStore()
   const launcherStore = useLauncherStore()
 
   const isCompleted = ref(localStorage.getItem(STORAGE_KEY) === 'true')
   let driverInstance: Driver | null = null
-
-  const t = (key: string) => $i18n.t(key)
 
   const navigateSettings = async (category: string) => {
     await windowManager.openWindowAsync({
