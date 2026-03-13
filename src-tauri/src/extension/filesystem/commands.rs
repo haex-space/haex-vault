@@ -512,8 +512,7 @@ pub async fn extension_filesystem_watch(
     }
     permission_result?;
 
-    // Start watching the directory
-    #[cfg(desktop)]
+    // Start watching the directory (no-op on Android)
     state
         .file_watcher
         .watch(app_handle, rule_id, path)
@@ -535,8 +534,7 @@ pub async fn extension_filesystem_unwatch(
     // Verify extension exists
     let _extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
-    // Stop watching
-    #[cfg(desktop)]
+    // Stop watching (no-op on Android)
     state
         .file_watcher
         .unwatch(&rule_id)
@@ -558,13 +556,5 @@ pub async fn extension_filesystem_is_watching(
     // Verify extension exists
     let _extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
-    #[cfg(desktop)]
-    {
-        Ok(state.file_watcher.is_watching(&rule_id))
-    }
-
-    #[cfg(not(desktop))]
-    {
-        Ok(false)
-    }
+    Ok(state.file_watcher.is_watching(&rule_id))
 }

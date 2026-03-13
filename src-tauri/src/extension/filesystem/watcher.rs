@@ -52,6 +52,7 @@ pub enum FileChangeType {
 }
 
 /// Event name for file change events
+#[cfg(desktop)]
 pub const FILE_CHANGE_EVENT: &str = "filesync:file-changed";
 
 #[cfg(desktop)]

@@ -1,10 +1,11 @@
 /// src-tauri/src/extension/mod.rs
+#[cfg(desktop)]
+use crate::extension::core::manager::ExtensionManager;
 use crate::{
     database::{self as db, core::with_connection, error::DatabaseError},
     extension::{
         core::{
             find_icon,
-            manager::ExtensionManager,
             path_utils::validate_path_in_directory,
             types::{Extension, ExtensionSource},
             EditablePermissions, ExtensionInfoResponse, ExtensionManifest, ExtensionPreview,
@@ -862,6 +863,7 @@ use std::collections::HashMap;
 
 /// Event for sync tables updated - sent to extensions after CRDT pull
 /// Matches HAEXTENSION_EVENTS.SYNC_TABLES_UPDATED in vault-sdk
+#[cfg(desktop)]
 pub const SYNC_TABLES_EVENT: &str = "haextension:sync:tables-updated";
 
 /// Payload for sync tables updated event

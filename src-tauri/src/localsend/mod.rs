@@ -45,6 +45,7 @@ use crate::AppState;
 pub const DEFAULT_PORT: u16 = 53317;
 
 /// Multicast address for device discovery
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub const MULTICAST_ADDR: &str = "224.0.0.167";
 
 /// Protocol version we implement

@@ -92,7 +92,7 @@ impl ExtensionWebviewManager {
                     "publicKey": extension.manifest.public_key,
                     "name": extension.manifest.name,
                     "version": match &extension.source {
-                        ExtensionSource::Production { version, .. } => version,
+                        ExtensionSource::Production { version, .. } => version.as_str(),
                         _ => "",
                     }
                 });

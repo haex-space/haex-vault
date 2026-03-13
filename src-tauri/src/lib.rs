@@ -5,6 +5,7 @@ mod database;
 mod extension;
 mod filesystem;
 mod localsend;
+#[cfg(desktop)]
 mod shortcuts;
 mod remote_storage;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -17,7 +18,9 @@ use crate::{crdt::hlc::HlcService, database::DbConnection, extension::core::Exte
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use crate::extension::webview::ExtensionWebviewManager;
 use std::sync::{Arc, Mutex};
-use tauri::{Emitter, Manager};
+#[cfg(desktop)]
+use tauri::Emitter;
+use tauri::Manager;
 
 pub mod table_names {
     include!(concat!(env!("OUT_DIR"), "/tableNames.rs"));
@@ -40,8 +43,7 @@ pub struct AppState {
     /// External bridge for WebSocket connections (desktop only)
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     pub external_bridge: tokio::sync::Mutex<ExternalBridge>,
-    /// File watcher for sync rules (desktop only)
-    #[cfg(desktop)]
+    /// File watcher for sync rules (no-op on Android)
     pub file_watcher: extension::filesystem::watcher::FileWatcherManager,
     /// Session-based permission store (in-memory, cleared on restart)
     pub session_permissions: extension::permissions::session::SessionPermissionStore,
@@ -132,7 +134,6 @@ pub fn run() {
             })),
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             external_bridge: tokio::sync::Mutex::new(ExternalBridge::new()),
-            #[cfg(desktop)]
             file_watcher: extension::filesystem::watcher::FileWatcherManager::new(),
             session_permissions: extension::permissions::session::SessionPermissionStore::new(),
             localsend: Arc::new(localsend::LocalSendState::new()),
@@ -150,6 +151,7 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         // Auto-start browser bridge on desktop and register main window close handler
         .setup(|app| {
+            let _ = &app;
             // Enable camera/media stream access in WebKitGTK on Linux
             #[cfg(target_os = "linux")]
             {

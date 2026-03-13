@@ -4,9 +4,12 @@
 //! that is shared with extensions. Extensions can query this context
 //! and receive updates when it changes.
 
+#[cfg(desktop)]
 use crate::extension::error::ExtensionError;
+#[cfg(desktop)]
 use crate::AppState;
 use serde::{Deserialize, Serialize};
+#[cfg(desktop)]
 use tauri::{AppHandle, State};
 
 // ============================================================================
