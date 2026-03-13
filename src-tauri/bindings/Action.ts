@@ -2,10 +2,12 @@
 import type { DbAction } from "./DbAction";
 import type { FileSyncAction } from "./FileSyncAction";
 import type { FsAction } from "./FsAction";
+import type { IdentityAction } from "./IdentityAction";
 import type { ShellAction } from "./ShellAction";
+import type { SpaceAction } from "./SpaceAction";
 import type { WebAction } from "./WebAction";
 
 /**
  * Ein typsicherer Container, der die spezifische Aktion für einen Ressourcentyp enthält.
  */
-export type Action = { "Database": DbAction } | { "Filesystem": FsAction } | { "Web": WebAction } | { "Shell": ShellAction } | { "FileSync": FileSyncAction };
+export type Action = { "Database": DbAction } | { "Filesystem": FsAction } | { "Web": WebAction } | { "Shell": ShellAction } | { "FileSync": FileSyncAction } | { "Spaces": SpaceAction } | { "Identities": IdentityAction };
