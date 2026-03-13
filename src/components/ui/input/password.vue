@@ -29,7 +29,6 @@
 </template>
 
 <script setup lang="ts">
-import type { AcceptableValue } from '@nuxt/ui/runtime/types/utils.js'
 import type { InputProps } from '@nuxt/ui'
 import type { ZodSchema } from 'zod'
 
@@ -43,7 +42,7 @@ defineProps<{
   schema?: ZodSchema
   check?: boolean
 }>()
-const value = defineModel<AcceptableValue | undefined>()
+const value = defineModel<string | number | undefined>()
 const errors = defineModel<string[]>('errors', { default: () => [] })
 
 const show = ref(false)

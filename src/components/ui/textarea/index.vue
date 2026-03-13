@@ -52,7 +52,7 @@ const props = defineProps<ITextareaProps>()
 
 const id = useId()
 
-const value = defineModel<string | null | undefined>()
+const value = defineModel<string | undefined>()
 
 const { copy, copied } = useClipboard()
 

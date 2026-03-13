@@ -256,7 +256,7 @@ const loadCameras = async () => {
     const devices = await Html5Qrcode.getCameras()
     cameras.value = devices.map(d => ({ id: d.id, label: d.label }))
     if (cameras.value.length > 0 && !cameras.value.some(c => c.id === selectedCameraId.value)) {
-      selectedCameraId.value = cameras.value[0].id
+      selectedCameraId.value = cameras.value[0]?.id ?? ''
     }
   } catch (error) {
     console.error('Failed to enumerate cameras:', error)

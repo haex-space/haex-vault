@@ -119,7 +119,7 @@ const inviteResult = ref('')
 const selectedContactId = ref<string>('')
 
 const inviteForm = reactive({
-  role: undefined as { label: string; value: SpaceRole } | undefined,
+  role: undefined as { label: string; value: SpaceRole; description: string } | undefined,
 })
 
 const contactOptions = computed(() =>

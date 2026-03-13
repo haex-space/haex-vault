@@ -30,7 +30,7 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 
 const { t } = useI18n()
 
-const value = defineModel<string | null | undefined>()
+const value = defineModel<string | undefined>()
 
 defineProps({
   label: { type: String, default: undefined },

@@ -80,7 +80,7 @@ import type { InputProps } from '@nuxt/ui'
 import type { AcceptableValue } from '@nuxt/ui/runtime/types/utils.js'
 import type { ZodSchema } from 'zod'
 
-const value = defineModel<AcceptableValue | undefined>()
+const value = defineModel<string | number | undefined>()
 const errors = defineModel<string[]>('errors', { default: () => [] })
 
 interface IInputProps extends /* @vue-ignore */ InputProps {
