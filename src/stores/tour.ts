@@ -19,6 +19,7 @@ export const useTourStore = defineStore('tourStore', () => {
   const launcherStore = useLauncherStore()
 
   const isCompleted = ref(localStorage.getItem(STORAGE_KEY) === 'true')
+  const isActive = ref(false)
   let driverInstance: Driver | null = null
 
   const t = (key: string): string => {
@@ -39,6 +40,7 @@ export const useTourStore = defineStore('tourStore', () => {
 
   const complete = () => {
     localStorage.setItem(STORAGE_KEY, 'true')
+    isActive.value = false
     isCompleted.value = true
     driverInstance?.destroy()
     driverInstance = null
@@ -46,6 +48,8 @@ export const useTourStore = defineStore('tourStore', () => {
 
   const start = async () => {
     if (isCompleted.value) return
+
+    isActive.value = true
 
     driverInstance = driver({
       animate: true,
@@ -159,5 +163,5 @@ export const useTourStore = defineStore('tourStore', () => {
     driverInstance.drive()
   }
 
-  return { isCompleted, start, complete }
+  return { isCompleted, isActive, start, complete }
 })

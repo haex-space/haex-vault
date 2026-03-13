@@ -7,7 +7,7 @@
     :overlay="false"
     :modal="false"
     :handle-only="true"
-    :dismissible="true"
+    :dismissible="!tourStore.isActive"
   >
     <span
       ref="launcherButtonWrapperRef"
@@ -79,6 +79,7 @@ defineOptions({
 
 const extensionStore = useExtensionsStore()
 const windowManagerStore = useWindowManagerStore()
+const tourStore = useTourStore()
 
 const { t } = useI18n()
 
