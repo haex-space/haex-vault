@@ -5,16 +5,27 @@ import en from './tour.en.json'
 
 const STORAGE_KEY = 'haex-tour-completed'
 
+type TourMessages = typeof de
+
+function getNestedValue(obj: Record<string, unknown>, path: string): string {
+  return path.split('.').reduce((acc: unknown, key) => {
+    return acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[key] : undefined
+  }, obj) as string ?? path
+}
+
 export const useTourStore = defineStore('tourStore', () => {
   const { $i18n } = useNuxtApp()
-  $i18n.setLocaleMessage('de', { tour: de })
-  $i18n.setLocaleMessage('en', { tour: en })
-
   const windowManager = useWindowManagerStore()
   const launcherStore = useLauncherStore()
 
   const isCompleted = ref(localStorage.getItem(STORAGE_KEY) === 'true')
   let driverInstance: Driver | null = null
+
+  const t = (key: string): string => {
+    const locale = $i18n.locale.value as 'de' | 'en'
+    const messages: TourMessages = locale === 'de' ? de : en
+    return getNestedValue(messages as unknown as Record<string, unknown>, key)
+  }
 
   const navigateSettings = async (category: string) => {
     await windowManager.openWindowAsync({
@@ -36,17 +47,15 @@ export const useTourStore = defineStore('tourStore', () => {
   const start = async () => {
     if (isCompleted.value) return
 
-    const t = (key: string) => $i18n.t(key)
-
     driverInstance = driver({
       animate: true,
       overlayColor: 'rgba(0,0,0,0.6)',
       allowClose: false,
       stagePadding: 6,
       popoverClass: 'haex-tour-popover',
-      nextBtnText: t('tour.next'),
-      prevBtnText: t('tour.prev'),
-      doneBtnText: t('tour.done'),
+      nextBtnText: t('next'),
+      prevBtnText: t('prev'),
+      doneBtnText: t('done'),
       onDestroyStarted: () => {
         complete()
         driverInstance?.destroy()
@@ -55,12 +64,11 @@ export const useTourStore = defineStore('tourStore', () => {
         {
           element: '[data-testid="launcher-button"]',
           popover: {
-            title: t('tour.steps.launcher.title'),
-            description: t('tour.steps.launcher.description'),
+            title: t('steps.launcher.title'),
+            description: t('steps.launcher.description'),
             onNextClick: async () => {
               launcherStore.isOpen = true
-              await nextTick()
-              await nextTick()
+              await new Promise(resolve => setTimeout(resolve, 300))
               driverInstance?.moveNext()
             },
           },
@@ -68,8 +76,8 @@ export const useTourStore = defineStore('tourStore', () => {
         {
           element: '[data-tour="launcher-settings-item"]',
           popover: {
-            title: t('tour.steps.launcherSettings.title'),
-            description: t('tour.steps.launcherSettings.description'),
+            title: t('steps.launcherSettings.title'),
+            description: t('steps.launcherSettings.description'),
             onNextClick: async () => {
               launcherStore.isOpen = false
               await navigateSettings('general')
@@ -80,15 +88,15 @@ export const useTourStore = defineStore('tourStore', () => {
         {
           element: '[data-tour="settings-nav-general"]',
           popover: {
-            title: t('tour.steps.general.title'),
-            description: t('tour.steps.general.description'),
+            title: t('steps.general.title'),
+            description: t('steps.general.description'),
           },
         },
         {
           element: '[data-tour="settings-device-name"]',
           popover: {
-            title: t('tour.steps.deviceName.title'),
-            description: t('tour.steps.deviceName.description'),
+            title: t('steps.deviceName.title'),
+            description: t('steps.deviceName.description'),
             onNextClick: async () => {
               await navigateSettings('extensions')
               driverInstance?.moveNext()
@@ -98,15 +106,15 @@ export const useTourStore = defineStore('tourStore', () => {
         {
           element: '[data-tour="settings-nav-extensions"]',
           popover: {
-            title: t('tour.steps.extensionsNav.title'),
-            description: t('tour.steps.extensionsNav.description'),
+            title: t('steps.extensionsNav.title'),
+            description: t('steps.extensionsNav.description'),
           },
         },
         {
           element: '[data-tour="settings-extensions-install"]',
           popover: {
-            title: t('tour.steps.extensions.title'),
-            description: t('tour.steps.extensions.description'),
+            title: t('steps.extensions.title'),
+            description: t('steps.extensions.description'),
             onNextClick: async () => {
               await navigateSettings('identities')
               driverInstance?.moveNext()
@@ -116,15 +124,15 @@ export const useTourStore = defineStore('tourStore', () => {
         {
           element: '[data-tour="settings-nav-identities"]',
           popover: {
-            title: t('tour.steps.identitiesNav.title'),
-            description: t('tour.steps.identitiesNav.description'),
+            title: t('steps.identitiesNav.title'),
+            description: t('steps.identitiesNav.description'),
           },
         },
         {
           element: '[data-tour="settings-identities-create"]',
           popover: {
-            title: t('tour.steps.identity.title'),
-            description: t('tour.steps.identity.description'),
+            title: t('steps.identity.title'),
+            description: t('steps.identity.description'),
             onNextClick: async () => {
               await navigateSettings('sync')
               driverInstance?.moveNext()
@@ -134,15 +142,15 @@ export const useTourStore = defineStore('tourStore', () => {
         {
           element: '[data-tour="settings-nav-sync"]',
           popover: {
-            title: t('tour.steps.syncNav.title'),
-            description: t('tour.steps.syncNav.description'),
+            title: t('steps.syncNav.title'),
+            description: t('steps.syncNav.description'),
           },
         },
         {
           element: '[data-tour="settings-sync-add-backend"]',
           popover: {
-            title: t('tour.steps.sync.title'),
-            description: t('tour.steps.sync.description'),
+            title: t('steps.sync.title'),
+            description: t('steps.sync.description'),
           },
         },
       ],
