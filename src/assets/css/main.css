@@ -59,14 +59,13 @@
   --spacing-header: 3.5rem; /* 72px - oder dein Wunschwert */
 }
 
-/* Driver.js sets pointer-events:none on all body children during a tour.
-   Re-enable pointer events for teleported drawers and dialogs so the user
-   can interact with modals while the tour is active. */
-.driver-active [vaul-drawer],
-.driver-active [vaul-drawer] *,
-.driver-active [role='dialog'],
-.driver-active [role='dialog'] *,
-.driver-active [role='alertdialog'],
-.driver-active [role='alertdialog'] * {
+/* During the onboarding tour, allow full interaction with all UI elements.
+   Driver.js blocks everything via .driver-active * { pointer-events: none }
+   but we want users to be able to use the app while being guided.
+   Only the overlay background itself stays non-interactive. */
+.driver-active * {
   pointer-events: auto !important;
+}
+.driver-overlay {
+  pointer-events: none !important;
 }
