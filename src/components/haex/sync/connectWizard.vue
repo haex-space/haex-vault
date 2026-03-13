@@ -23,6 +23,29 @@
         </div>
       </template>
 
+      <template #didPassword>
+        <div class="space-y-4">
+          <p class="text-sm text-muted">
+            {{ t('steps.didPassword.description') }}
+          </p>
+
+          <UiInputPassword
+            v-model="didPassword"
+            :label="t('steps.didPassword.label')"
+            leading-icon="i-lucide-fingerprint"
+            size="lg"
+            class="w-full"
+          />
+
+          <p
+            v-if="didPasswordError"
+            class="text-sm text-error"
+          >
+            {{ didPasswordError }}
+          </p>
+        </div>
+      </template>
+
       <template #selectVault>
         <div class="space-y-4">
           <p class="text-sm text-muted">
@@ -50,7 +73,7 @@
                 'ring-2 ring-primary':
                   selectedVaultId === vault.vaultId && !isCreatingNewVault,
                 'ring-2 ring-error':
-                  step2Error && !selectedVaultId && !isCreatingNewVault,
+                  step3Error && !selectedVaultId && !isCreatingNewVault,
               }"
               @click="selectVault(vault.vaultId)"
             >
@@ -71,9 +94,19 @@
                   v-if="
                     selectedVaultId === vault.vaultId && !isCreatingNewVault
                   "
-                  class="text-primary"
                 >
-                  <i class="i-lucide-check-circle text-2xl" />
+                  <span
+                    v-if="isCheckingVaultPassword"
+                    class="loading loading-spinner loading-sm"
+                  />
+                  <i
+                    v-else-if="vaultPasswordVerified"
+                    class="i-lucide-check-circle text-2xl text-primary"
+                  />
+                  <i
+                    v-else-if="needsVaultPassword"
+                    class="i-lucide-lock text-2xl text-warning"
+                  />
                 </div>
               </div>
             </div>
@@ -106,30 +139,23 @@
 
             <!-- Error message -->
             <p
-              v-if="step2Error"
+              v-if="step3Error"
               class="text-sm text-error mt-2"
             >
-              {{ step2Error }}
+              {{ step3Error }}
             </p>
           </div>
-        </div>
-      </template>
 
-      <template #vaultPassword>
-        <div
-          ref="step3Container"
-          class="space-y-4"
-        >
-          <p class="text-sm text-muted">
-            {{ t('steps.enterVaultPassword.description') }}
-          </p>
-
-          <div class="space-y-4">
+          <!-- Local vault name (always shown when vault selected) -->
+          <div
+            v-if="selectedVaultId || isCreatingNewVault"
+            class="space-y-4 pt-2"
+          >
             <UiInput
               v-model="localVaultName"
               v-model:errors="step3Errors.vaultName"
-              :label="t('steps.enterVaultPassword.vaultName')"
-              :description="t('steps.enterVaultPassword.vaultNameDescription')"
+              :label="t('steps.selectVault.vaultName')"
+              :description="t('steps.selectVault.vaultNameDescription')"
               :schema="wizardSchema.vaultName"
               :check="check"
               size="lg"
@@ -140,50 +166,51 @@
               v-if="vaultNameExists"
               class="text-sm text-error -mt-3"
             >
-              {{ t('steps.enterVaultPassword.vaultNameExists') }}
+              {{ t('steps.selectVault.vaultNameExists') }}
             </p>
 
-            <UiInputPassword
-              v-model="vaultPassword"
-              v-model:errors="step3Errors.password"
-              :label="t('steps.enterVaultPassword.vaultPassword')"
-              :description="
-                isCreatingNewVault
-                  ? t('steps.enterVaultPassword.vaultPasswordDescriptionNew')
-                  : t('steps.enterVaultPassword.vaultPasswordDescription')
-              "
-              :schema="wizardSchema.vaultPassword"
-              :check="check"
-              leading-icon="i-lucide-lock"
-              size="lg"
-              class="w-full"
-            />
+            <!-- Vault password: shown for new vaults or when DID password didn't match -->
+            <template v-if="needsVaultPassword || isCreatingNewVault">
+              <UiInputPassword
+                v-model="vaultPassword"
+                v-model:errors="step3Errors.password"
+                :label="t('steps.selectVault.vaultPassword')"
+                :description="
+                  isCreatingNewVault
+                    ? t('steps.selectVault.vaultPasswordDescriptionNew')
+                    : t('steps.selectVault.vaultPasswordDescription')
+                "
+                :schema="wizardSchema.vaultPassword"
+                :check="check"
+                leading-icon="i-lucide-lock"
+                size="lg"
+                class="w-full"
+              />
 
-            <!-- Password confirmation for new vault -->
-            <UiInputPassword
-              v-if="isCreatingNewVault"
-              v-model="vaultPasswordConfirm"
-              v-model:errors="step3Errors.passwordConfirm"
-              :label="t('steps.enterVaultPassword.confirmPassword')"
-              :description="
-                t('steps.enterVaultPassword.confirmPasswordDescription')
-              "
-              :schema="wizardSchema.vaultPassword"
-              :check="check"
-              leading-icon="i-lucide-lock"
-              size="lg"
-              class="w-full"
-            />
-            <p
-              v-if="
-                isCreatingNewVault &&
-                vaultPasswordConfirm &&
-                vaultPassword !== vaultPasswordConfirm
-              "
-              class="text-sm text-error -mt-3"
-            >
-              {{ t('steps.enterVaultPassword.passwordMismatch') }}
-            </p>
+              <!-- Password confirmation for new vault -->
+              <UiInputPassword
+                v-if="isCreatingNewVault"
+                v-model="vaultPasswordConfirm"
+                v-model:errors="step3Errors.passwordConfirm"
+                :label="t('steps.selectVault.confirmPassword')"
+                :description="t('steps.selectVault.confirmPasswordDescription')"
+                :schema="wizardSchema.vaultPassword"
+                :check="check"
+                leading-icon="i-lucide-lock"
+                size="lg"
+                class="w-full"
+              />
+              <p
+                v-if="
+                  isCreatingNewVault &&
+                  vaultPasswordConfirm &&
+                  vaultPassword !== vaultPasswordConfirm
+                "
+                class="text-sm text-error -mt-3"
+              >
+                {{ t('steps.selectVault.passwordMismatch') }}
+              </p>
+            </template>
           </div>
         </div>
       </template>
@@ -223,11 +250,11 @@
         v-else
         color="primary"
         size="lg"
-        :disabled="!isStep3Valid || isLoading"
-        :loading="isLoading"
+        :disabled="!canComplete || isCheckingVaultPassword"
+        :loading="isLoading || isCheckingVaultPassword"
         @click="completeSetupAsync"
       >
-        {{ t('actions.complete') }}
+        {{ vaultPasswordVerified ? t('actions.open') : t('actions.complete') }}
       </UButton>
     </div>
   </div>
@@ -238,6 +265,7 @@ import { createClient } from '@supabase/supabase-js'
 import {
   decryptWithPrivateKeyAsync,
   decryptPrivateKeyAsync,
+  decryptVaultKey,
 } from '@haex-space/vault-sdk'
 import type { StepperItem } from '@nuxt/ui'
 import type { AppSupabaseClient } from '~/stores/sync/engine/supabase'
@@ -280,9 +308,6 @@ const emit = defineEmits<{
   cancel: []
 }>()
 
-// Template refs
-const step3Container = useTemplateRef<HTMLElement>('step3Container')
-
 // Stepper state
 const currentStepIndex = ref(0)
 
@@ -294,14 +319,6 @@ const otpEmail = ref('')
 const keys = useMagicKeys()
 const escape = computed(() => keys.escape?.value ?? false)
 const enter = computed(() => keys.enter?.value ?? false)
-
-// Auto-focus first input when entering step 3
-watch(currentStepIndex, async (newIndex) => {
-  if (newIndex === 3) {
-    await nextTick()
-    step3Container.value?.querySelector<HTMLInputElement>('input')?.focus()
-  }
-})
 
 const steps = computed(
   () =>
@@ -317,14 +334,14 @@ const steps = computed(
         icon: 'i-lucide-shield-check',
       },
       {
+        slot: 'didPassword' as const,
+        label: t('steps.didPassword.title'),
+        icon: 'i-lucide-fingerprint',
+      },
+      {
         slot: 'selectVault' as const,
         label: t('steps.selectVault.title'),
         icon: 'i-lucide-folder',
-      },
-      {
-        slot: 'vaultPassword' as const,
-        label: t('steps.enterVaultPassword.title'),
-        icon: 'i-lucide-key',
       },
     ] satisfies StepperItem[],
 )
@@ -341,18 +358,24 @@ const credentials = ref({
 })
 const supabaseClient = shallowRef<AppSupabaseClient | null>(null)
 
-// Step 2: Select Vault
-const availableVaults = ref<VaultInfo[]>([])
-const selectedVaultId = ref<string | null>(null)
-const isLoadingVaults = ref(false)
-const step2Error = ref('')
-const isCreatingNewVault = ref(false)
-const decryptedVaultNames = ref<Record<string, string>>({})
-
 // Recovery mode: stores encrypted private key data from OTP verification
 const recoveredKeyData = ref<RecoveryKeyData | null>(null)
 
-// Step 3: Enter Vault Password
+// Step 2: DID Password (decrypt identity private key)
+const didPassword = ref('')
+const didPasswordError = ref('')
+const decryptedPrivateKey = ref<string | null>(null)
+
+// Step 3: Select Vault + optional vault password
+const availableVaults = ref<VaultInfo[]>([])
+const selectedVaultId = ref<string | null>(null)
+const isLoadingVaults = ref(false)
+const step3Error = ref('')
+const isCreatingNewVault = ref(false)
+const decryptedVaultNames = ref<Record<string, string>>({})
+const needsVaultPassword = ref(false)
+const isCheckingVaultPassword = ref(false)
+const vaultPasswordVerified = ref(false)
 const localVaultName = ref('')
 const vaultNameExists = ref(false)
 const vaultPassword = ref('')
@@ -366,44 +389,48 @@ const step3Errors = reactive({
 // Computed for step validation
 const canProceed = computed(() => {
   if (currentStepIndex.value === 2) {
-    return selectedVaultId.value !== null || isCreatingNewVault.value
+    return didPassword.value.length > 0
   }
   return false
 })
 
-const isStep3Valid = computed(() => {
-  const baseValid =
-    localVaultName.value !== '' &&
-    !vaultNameExists.value &&
-    vaultPassword.value !== '' &&
-    step3Errors.vaultName.length === 0 &&
-    step3Errors.password.length === 0
+const canComplete = computed(() => {
+  // Must have a vault selected or creating new
+  if (!selectedVaultId.value && !isCreatingNewVault.value) return false
+  // Must have a local vault name
+  if (!localVaultName.value || vaultNameExists.value) return false
+  if (step3Errors.vaultName.length > 0) return false
 
-  // For new vault: also check password confirmation
+  // For new vault: need password + confirmation
   if (isCreatingNewVault.value) {
     return (
-      baseValid &&
+      vaultPassword.value !== '' &&
       vaultPasswordConfirm.value !== '' &&
-      vaultPassword.value === vaultPasswordConfirm.value
+      vaultPassword.value === vaultPasswordConfirm.value &&
+      step3Errors.password.length === 0
     )
   }
 
-  return baseValid
+  // For existing vault with separate password: need password
+  if (needsVaultPassword.value) {
+    return vaultPassword.value !== '' && step3Errors.password.length === 0
+  }
+
+  // For existing vault: DID password must be verified
+  return vaultPasswordVerified.value
 })
 
 // Keyboard shortcuts handlers
-// ESC to cancel/close
 whenever(escape, () => {
   cancel()
 })
 
-// Enter to proceed to next step
 whenever(enter, () => {
   if (currentStepIndex.value < 3 && canProceed.value && !isLoading.value) {
     nextStep()
   } else if (
     currentStepIndex.value === 3 &&
-    isStep3Valid.value &&
+    canComplete.value &&
     !isLoading.value
   ) {
     completeSetupAsync()
@@ -418,40 +445,39 @@ const onOtpRequested = (data: { serverUrl: string; email: string }) => {
 }
 
 const nextStep = async () => {
+  // Step 2: DID password → decrypt private key, load & decrypt vault names
   if (currentStepIndex.value === 2) {
-    // Validate Step 3 (vault selection or new vault)
-    if (!selectedVaultId.value && !isCreatingNewVault.value) {
-      step2Error.value = t('errors.vaultSelectionRequired')
-      return
-    }
+    if (!recoveredKeyData.value) return
+    isLoading.value = true
+    didPasswordError.value = ''
 
-    if (isCreatingNewVault.value) {
-      localVaultName.value = 'HaexVault'
-      vaultPasswordConfirm.value = ''
-    } else {
-      localVaultName.value =
-        decryptedVaultNames.value[selectedVaultId.value!] || 'HaexVault'
-      await checkVaultNameExistsAsync()
-    }
-
-    currentStepIndex.value++
-
-    // Auto-attempt with current vault password — most users share vault and identity password.
-    // Try silently; if it fails, show Step 4 for manual entry without an error toast.
-    if (
-      !isCreatingNewVault.value &&
-      currentVaultPassword.value &&
-      recoveredKeyData.value
-    ) {
+    try {
       const valid = await decryptAndVerifyAsync(
         recoveredKeyData.value,
-        currentVaultPassword.value,
+        didPassword.value,
       )
-      if (valid) {
-        vaultPassword.value = currentVaultPassword.value
-        await completeSetupAsync()
+      if (!valid) {
+        didPasswordError.value = t('errors.wrongDidPassword')
+        return
       }
-      // Silently fall through to Step 4 on failure — user enters password manually
+
+      // Decrypt private key and store for vault name decryption
+      decryptedPrivateKey.value = await decryptPrivateKeyAsync(
+        recoveredKeyData.value.encryptedPrivateKey,
+        recoveredKeyData.value.privateKeyNonce,
+        recoveredKeyData.value.privateKeySalt,
+        didPassword.value,
+      )
+
+      // Load vaults and decrypt names
+      await loadVaultsAsync()
+      await decryptVaultNamesAsync(decryptedPrivateKey.value)
+
+      currentStepIndex.value++
+    } catch {
+      didPasswordError.value = t('errors.wrongDidPassword')
+    } finally {
+      isLoading.value = false
     }
   }
 }
@@ -488,8 +514,6 @@ const loadVaultsAsync = async () => {
 
     const data = await response.json()
     availableVaults.value = data.vaults
-
-    // Vault names will be decrypted once the user enters their vault password in Step 3
   } catch (error) {
     console.error('Failed to load vaults:', error)
     add({
@@ -539,52 +563,27 @@ const checkVaultNameExistsAsync = async () => {
 }
 
 const completeSetupAsync = async () => {
-  // Trigger validation for Step 3
   check.value = true
-
-  // Wait for validation to complete
   await nextTick()
 
-  // Check if validation passed
-  if (!isStep3Valid.value) {
-    return
-  }
-
-  // For existing vault: must have selectedVaultId
+  if (!canComplete.value) return
   if (!isCreatingNewVault.value && !selectedVaultId.value) return
-
-  // Validate vault password against recovered private key (proves correct password)
-  if (recoveredKeyData.value) {
-    const valid = await decryptAndVerifyAsync(
-      recoveredKeyData.value,
-      vaultPassword.value,
-    )
-    if (!valid) {
-      add({ title: t('errors.wrongPassword'), color: 'error' })
-      return
-    }
-    // Decrypt private key, then decrypt vault names
-    const privateKey = await decryptPrivateKeyAsync(
-      recoveredKeyData.value.encryptedPrivateKey,
-      recoveredKeyData.value.privateKeyNonce,
-      recoveredKeyData.value.privateKeySalt,
-      vaultPassword.value,
-    )
-    await decryptVaultNamesAsync(privateKey)
-  }
 
   if (!supabaseClient.value) {
     throw new Error('Supabase client not initialized')
   }
 
+  // Determine effective vault password
+  const effectivePassword = needsVaultPassword.value || isCreatingNewVault.value
+    ? vaultPassword.value
+    : didPassword.value
+
   // Store Supabase client in syncEngineStore for later use
-  // This is needed so ensureSyncKeyAsync can authenticate with the server
   const backendId = crypto.randomUUID()
   const syncEngineStore = useSyncEngineStore()
   syncEngineStore.setSupabaseClient(supabaseClient.value, backendId)
 
   if (isCreatingNewVault.value) {
-    // New vault: generate new vaultId, use localVaultName as vault name
     emit('complete', {
       backendId,
       vaultId: crypto.randomUUID(),
@@ -593,21 +592,14 @@ const completeSetupAsync = async () => {
       serverUrl: credentials.value.serverUrl,
       identityId: credentials.value.identityId,
       identityPublicKey: recoveredKeyData.value!.publicKey,
-      vaultPassword: vaultPassword.value,
+      vaultPassword: effectivePassword,
       isNewVault: true,
     })
   } else {
-    // Existing vault: try to decrypt vault name with entered password
     const selectedVault = availableVaults.value.find(
       (v) => v.vaultId === selectedVaultId.value,
     )
     if (!selectedVault) return
-
-    // Auto-fill vault name with decrypted name if user left the default placeholder
-    const decryptedName = decryptedVaultNames.value[selectedVault.vaultId]
-    if (decryptedName && localVaultName.value === 'HaexVault') {
-      localVaultName.value = decryptedName
-    }
 
     emit('complete', {
       backendId,
@@ -617,22 +609,79 @@ const completeSetupAsync = async () => {
       serverUrl: credentials.value.serverUrl,
       identityId: credentials.value.identityId,
       identityPublicKey: recoveredKeyData.value!.publicKey,
-      vaultPassword: vaultPassword.value,
+      vaultPassword: effectivePassword,
       isNewVault: false,
     })
   }
 }
 
-const selectVault = (vaultId: string) => {
+const selectVault = async (vaultId: string) => {
   selectedVaultId.value = vaultId
   isCreatingNewVault.value = false
-  step2Error.value = ''
+  needsVaultPassword.value = false
+  vaultPasswordVerified.value = false
+  vaultPassword.value = ''
+  step3Error.value = ''
+
+  // Auto-fill local vault name with decrypted name
+  localVaultName.value = decryptedVaultNames.value[vaultId] || 'HaexVault'
+  checkVaultNameExistsAsync()
+
+  // Try DID password as vault password in background
+  await tryDIDPasswordAsVaultPasswordAsync(vaultId)
+}
+
+const tryDIDPasswordAsVaultPasswordAsync = async (vaultId: string) => {
+  if (!supabaseClient.value) return
+
+  isCheckingVaultPassword.value = true
+
+  try {
+    const { data: { session } } = await supabaseClient.value.auth.getSession()
+    if (!session?.access_token) return
+
+    // Fetch encrypted vault key from server
+    const response = await fetch(
+      `${credentials.value.serverUrl}/sync/vault-key/${vaultId}`,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      },
+    )
+
+    if (!response.ok) return
+
+    const data = await response.json()
+
+    // Try decrypting vault key with DID password
+    await decryptVaultKey(
+      data.vaultKey.encryptedVaultKey,
+      data.vaultKey.vaultKeySalt,
+      data.vaultKey.vaultKeyNonce,
+      didPassword.value,
+    )
+
+    // Success — DID password works as vault password
+    vaultPasswordVerified.value = true
+  } catch (error) {
+    // OperationError = wrong password → show vault password field
+    if (error instanceof Error && error.name === 'OperationError') {
+      needsVaultPassword.value = true
+    }
+  } finally {
+    isCheckingVaultPassword.value = false
+  }
 }
 
 const selectNewVault = () => {
   isCreatingNewVault.value = true
   selectedVaultId.value = null
-  step2Error.value = ''
+  needsVaultPassword.value = false
+  vaultPassword.value = ''
+  vaultPasswordConfirm.value = ''
+  step3Error.value = ''
+  localVaultName.value = 'HaexVault'
+  checkVaultNameExistsAsync()
 }
 
 const cancel = () => {
@@ -662,34 +711,29 @@ const onRecoveryComplete = async (data: {
     if (!response.ok) throw new Error(t('errors.serverConnection'))
     const serverInfo = await response.json()
 
-    // Create Supabase client with the session from recovery (no challenge-response needed)
+    // Create Supabase client with the session from recovery
+    // Disable auto-refresh and persistence — this is a temporary client for the wizard only
     supabaseClient.value = createClient(
       serverInfo.supabaseUrl,
       serverInfo.supabaseAnonKey,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      },
     )
     await supabaseClient.value.auth.setSession({
       access_token: data.session.access_token,
       refresh_token: data.session.refresh_token,
     })
 
-    // Load available vaults and move to vault selection step
-    await loadVaultsAsync()
-
-    // Try to decrypt vault names early if local vault is already open
-    if (currentVaultPassword.value && recoveredKeyData.value) {
-      try {
-        const privateKey = await decryptPrivateKeyAsync(
-          recoveredKeyData.value.encryptedPrivateKey,
-          recoveredKeyData.value.privateKeyNonce,
-          recoveredKeyData.value.privateKeySalt,
-          currentVaultPassword.value,
-        )
-        await decryptVaultNamesAsync(privateKey)
-      } catch {
-        // Password doesn't match recovery key — vault names stay encrypted
-      }
+    // Pre-fill DID password with current vault password if available
+    if (currentVaultPassword.value) {
+      didPassword.value = currentVaultPassword.value
     }
 
+    // Move to DID password step
     currentStepIndex.value = 2
   } catch (error) {
     console.error('Recovery login failed:', error)
@@ -716,6 +760,12 @@ const clearForm = () => {
   isCreatingNewVault.value = false
   decryptedVaultNames.value = {}
   recoveredKeyData.value = null
+  didPassword.value = ''
+  didPasswordError.value = ''
+  decryptedPrivateKey.value = null
+  needsVaultPassword.value = false
+  isCheckingVaultPassword.value = false
+  vaultPasswordVerified.value = false
   localVaultName.value = ''
   vaultPassword.value = ''
   vaultPasswordConfirm.value = ''
@@ -740,6 +790,10 @@ de:
       title: E-Mail
     loginOtp:
       title: Code bestätigen
+    didPassword:
+      title: Identität entschlüsseln
+      description: Gib das Passwort ein, mit dem deine Identität verschlüsselt wurde.
+      label: Identitäts-Passwort
     selectVault:
       title: Vault auswählen
       description: Wähle einen Vault, den du synchronisieren möchtest
@@ -748,14 +802,11 @@ de:
       noVaults: Keine Vaults gefunden
       createNew: Neuen Vault erstellen
       createNewDescription: Erstelle einen neuen Vault auf dem Server
-    enterVaultPassword:
-      title: Vault-Passwort
-      description: Gib das Passwort deines Vaults ein, um die Synchronisierung einzurichten
       vaultName: Lokaler Vault-Name
-      vaultNameDescription: Gib einen Namen für deinen lokalen Vault ein
+      vaultNameDescription: Name unter dem der Vault lokal gespeichert wird
       vaultNameExists: Ein Vault mit diesem Namen existiert bereits
       vaultPassword: Vault-Passwort
-      vaultPasswordDescription: Das Passwort, mit dem du deinen Vault ursprünglich erstellt hast
+      vaultPasswordDescription: Das Vault-Passwort unterscheidet sich von deinem Identitäts-Passwort
       vaultPasswordDescriptionNew: Wähle ein sicheres Passwort für deinen Vault
       confirmPassword: Passwort bestätigen
       confirmPasswordDescription: Bestätige dein Vault-Passwort
@@ -764,6 +815,7 @@ de:
     back: Zurück
     next: Weiter
     complete: Abschließen
+    open: Öffnen
     cancel: Abbrechen
   errors:
     serverConnection: Verbindung zum Server fehlgeschlagen
@@ -771,6 +823,7 @@ de:
     loadVaultsFailed: Vaults konnten nicht geladen werden
     vaultSelectionRequired: Bitte wähle einen Vault aus
     wrongPassword: Falsches Passwort – Vault konnte nicht entschlüsselt werden
+    wrongDidPassword: Falsches Passwort – Identität konnte nicht entschlüsselt werden
   validation:
     serverUrlRequired: Server-URL ist erforderlich
     serverUrlInvalid: Muss eine gültige URL sein
@@ -784,6 +837,10 @@ en:
       title: Email
     loginOtp:
       title: Verify Code
+    didPassword:
+      title: Decrypt Identity
+      description: Enter the password used to encrypt your identity.
+      label: Identity Password
     selectVault:
       title: Select Vault
       description: Choose a vault you want to synchronize
@@ -792,14 +849,11 @@ en:
       noVaults: No vaults found
       createNew: Create new vault
       createNewDescription: Create a new vault on the server
-    enterVaultPassword:
-      title: Vault Password
-      description: Enter your vault password to set up synchronization
       vaultName: Local Vault Name
-      vaultNameDescription: Enter a name for your local vault
+      vaultNameDescription: Name under which the vault will be stored locally
       vaultNameExists: A vault with this name already exists
       vaultPassword: Vault Password
-      vaultPasswordDescription: The password you used to originally create your vault
+      vaultPasswordDescription: The vault password differs from your identity password
       vaultPasswordDescriptionNew: Choose a secure password for your vault
       confirmPassword: Confirm password
       confirmPasswordDescription: Confirm your vault password
@@ -808,6 +862,7 @@ en:
     back: Back
     next: Next
     complete: Complete
+    open: Open
     cancel: Cancel
   errors:
     serverConnection: Failed to connect to server
@@ -815,6 +870,7 @@ en:
     loadVaultsFailed: Failed to load vaults
     vaultSelectionRequired: Please select a vault
     wrongPassword: Wrong password — could not decrypt vault
+    wrongDidPassword: Wrong password — could not decrypt identity
   validation:
     serverUrlRequired: Server URL is required
     serverUrlInvalid: Must be a valid URL
