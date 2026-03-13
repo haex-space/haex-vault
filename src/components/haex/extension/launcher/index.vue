@@ -33,6 +33,7 @@
           :type="item.type"
           :name="item.name"
           :icon="item.icon"
+          :data-tour="item.type === 'system' && item.id === 'settings' ? 'launcher-settings-item' : undefined"
           @click="openItem(item)"
           @drag-move="handleLauncherDragMove"
         />
@@ -81,7 +82,7 @@ const windowManagerStore = useWindowManagerStore()
 
 const { t } = useI18n()
 
-const open = ref(false)
+const { isOpen: open } = storeToRefs(useLauncherStore())
 const launcherButtonWrapperRef = useTemplateRef<HTMLElement>(
   'launcherButtonWrapperRef',
 )

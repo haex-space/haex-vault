@@ -3,6 +3,14 @@
   "prev": "Zurück",
   "done": "Fertig",
   "steps": {
+    "launcher": {
+      "title": "App Launcher",
+      "description": "Über den App Launcher erreichst du alle Apps und Systemeinstellungen deiner Vault."
+    },
+    "launcherSettings": {
+      "title": "Einstellungen",
+      "description": "Über diesen Eintrag öffnest du die Einstellungen. Lass uns einen kurzen Rundgang machen."
+    },
     "general": {
       "title": "Allgemeine Einstellungen",
       "description": "Hier findest du grundlegende Einstellungen wie Sprache, Aussehen und Gerätenamen."

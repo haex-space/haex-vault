@@ -3,6 +3,14 @@
   "prev": "Back",
   "done": "Done",
   "steps": {
+    "launcher": {
+      "title": "App Launcher",
+      "description": "The App Launcher gives you access to all apps and system settings in your vault."
+    },
+    "launcherSettings": {
+      "title": "Settings",
+      "description": "This opens the Settings. Let's take a quick tour."
+    },
     "general": {
       "title": "General Settings",
       "description": "Here you'll find basic settings like language, appearance, and device name."

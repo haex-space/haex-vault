@@ -6,23 +6,24 @@ import en from './tour.en.json'
 const STORAGE_KEY = 'haex-tour-completed'
 
 export const useTourStore = defineStore('tourStore', () => {
-  const { t } = useI18n()
   const { $i18n } = useNuxtApp()
-  $i18n.mergeLocaleMessage('de', { tour: de })
-  $i18n.mergeLocaleMessage('en', { tour: en })
+  $i18n.setLocaleMessage('de', { tour: de })
+  $i18n.setLocaleMessage('en', { tour: en })
 
   const windowManager = useWindowManagerStore()
+  const launcherStore = useLauncherStore()
 
   const isCompleted = ref(localStorage.getItem(STORAGE_KEY) === 'true')
   let driverInstance: Driver | null = null
 
-  const navigateTo = async (category: string) => {
+  const t = (key: string) => $i18n.t(key)
+
+  const navigateSettings = async (category: string) => {
     await windowManager.openWindowAsync({
       type: 'system',
       sourceId: 'settings',
       params: { category },
     })
-    // Two ticks: one for Vue reactivity, one for DOM render
     await nextTick()
     await nextTick()
   }
@@ -36,9 +37,6 @@ export const useTourStore = defineStore('tourStore', () => {
 
   const start = async () => {
     if (isCompleted.value) return
-
-    // Open settings at general tab first, wait for DOM
-    await navigateTo('general')
 
     driverInstance = driver({
       animate: true,
@@ -55,6 +53,31 @@ export const useTourStore = defineStore('tourStore', () => {
       },
       steps: [
         {
+          element: '[data-testid="launcher-button"]',
+          popover: {
+            title: t('tour.steps.launcher.title'),
+            description: t('tour.steps.launcher.description'),
+            onNextClick: async () => {
+              launcherStore.isOpen = true
+              await nextTick()
+              await nextTick()
+              driverInstance?.moveNext()
+            },
+          },
+        },
+        {
+          element: '[data-tour="launcher-settings-item"]',
+          popover: {
+            title: t('tour.steps.launcherSettings.title'),
+            description: t('tour.steps.launcherSettings.description'),
+            onNextClick: async () => {
+              launcherStore.isOpen = false
+              await navigateSettings('general')
+              driverInstance?.moveNext()
+            },
+          },
+        },
+        {
           element: '[data-tour="settings-nav-general"]',
           popover: {
             title: t('tour.steps.general.title'),
@@ -67,7 +90,7 @@ export const useTourStore = defineStore('tourStore', () => {
             title: t('tour.steps.deviceName.title'),
             description: t('tour.steps.deviceName.description'),
             onNextClick: async () => {
-              await navigateTo('extensions')
+              await navigateSettings('extensions')
               driverInstance?.moveNext()
             },
           },
@@ -85,7 +108,7 @@ export const useTourStore = defineStore('tourStore', () => {
             title: t('tour.steps.extensions.title'),
             description: t('tour.steps.extensions.description'),
             onNextClick: async () => {
-              await navigateTo('identities')
+              await navigateSettings('identities')
               driverInstance?.moveNext()
             },
           },
@@ -103,7 +126,7 @@ export const useTourStore = defineStore('tourStore', () => {
             title: t('tour.steps.identity.title'),
             description: t('tour.steps.identity.description'),
             onNextClick: async () => {
-              await navigateTo('sync')
+              await navigateSettings('sync')
               driverInstance?.moveNext()
             },
           },
