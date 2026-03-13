@@ -47,6 +47,7 @@ fn create_test_extension(public_key: &str, name: &str) -> Extension {
             single_instance: None,
             display_mode: Some(DisplayMode::Iframe),
             migrations_dir: None,
+            i18n: None,
         },
         source: ExtensionSource::Production {
             path: PathBuf::from("/tmp/test"),
@@ -113,6 +114,7 @@ mod manifest_tests {
             single_instance: Some(true),
             display_mode: Some(DisplayMode::Window),
             migrations_dir: Some("migrations".to_string()),
+            i18n: None,
         };
 
         assert_eq!(manifest.name, "test");
@@ -145,6 +147,7 @@ mod manifest_tests {
             single_instance: None,
             display_mode: None,
             migrations_dir: None,
+            i18n: None,
         };
 
         assert!(manifest.permissions.database.is_none());

@@ -52,8 +52,8 @@
             label: 'w-full',
           }"
           :icon="extension.iconUrl || extension.icon || 'i-heroicons-puzzle-piece-solid'"
-          :label="extension.name"
-          :tooltip="`${extension.name} (${t('disabled')})`"
+          :label="localizedName(extension.name, extension.i18n)"
+          :tooltip="`${localizedName(extension.name, extension.i18n)} (${t('disabled')})`"
         />
       </div>
     </template>
@@ -82,6 +82,7 @@ const windowManagerStore = useWindowManagerStore()
 const tourStore = useTourStore()
 
 const { t } = useI18n()
+const { localizedName } = useExtensionI18n()
 
 const { isOpen: open } = storeToRefs(useLauncherStore())
 const launcherButtonWrapperRef = useTemplateRef<HTMLElement>(
@@ -140,7 +141,7 @@ const launcherItems = computed(() => {
   enabledExtensions.forEach((ext) => {
     items.push({
       id: ext.id,
-      name: ext.name,
+      name: localizedName(ext.name, ext.i18n),
       icon: ext.iconUrl || 'i-heroicons-puzzle-piece-solid',
       type: 'extension',
     })

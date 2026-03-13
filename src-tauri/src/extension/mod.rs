@@ -248,6 +248,8 @@ struct PartialManifest {
     display_mode: Option<core::manifest::DisplayMode>,
     #[serde(default)]
     migrations_dir: Option<String>,
+    #[serde(default)]
+    i18n: Option<std::collections::HashMap<String, core::manifest::ManifestI18nEntry>>,
 }
 
 /// Check if a dev server is reachable by making a simple HTTP request
@@ -391,6 +393,7 @@ pub async fn load_dev_extension(
         single_instance: partial_manifest.single_instance,
         display_mode: partial_manifest.display_mode,
         migrations_dir: partial_manifest.migrations_dir,
+        i18n: partial_manifest.i18n,
     };
 
     // 3.5. Validate public key format

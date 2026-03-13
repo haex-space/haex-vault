@@ -157,6 +157,8 @@ impl ExtensionManager {
                 // migrations_dir is not stored in DB - it's only used during installation
                 // from the manifest.json file
                 migrations_dir: None,
+                // i18n is not stored in DB yet - loaded from manifest at install time
+                i18n: None,
             };
 
             let enabled = row[10]

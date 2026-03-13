@@ -4,6 +4,7 @@ use crate::extension::permissions::types::{
     PermissionConstraints, PermissionStatus, ResourceType, ShellAction, SpaceAction, WebAction,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::str::FromStr;
 use ts_rs::TS;
 
@@ -111,6 +112,15 @@ impl Default for DisplayMode {
     }
 }
 
+/// Localized fields for a specific locale (e.g. "de", "en")
+#[derive(Serialize, Deserialize, Clone, Debug, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct ManifestI18nEntry {
+    pub name: Option<String>,
+    pub description: Option<String>,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
@@ -136,6 +146,10 @@ pub struct ExtensionManifest {
     /// Example: "database/migrations"
     #[serde(default)]
     pub migrations_dir: Option<String>,
+    /// Locale-specific overrides for name, description, etc.
+    /// Key is locale code (e.g. "de", "en"), value contains localized fields.
+    #[serde(default)]
+    pub i18n: Option<HashMap<String, ManifestI18nEntry>>,
 }
 
 fn default_entry_value() -> Option<String> {
@@ -296,6 +310,8 @@ pub struct ExtensionInfoResponse {
     pub display_mode: Option<DisplayMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dev_server_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub i18n: Option<HashMap<String, ManifestI18nEntry>>,
 }
 
 impl ExtensionInfoResponse {
@@ -323,6 +339,7 @@ impl ExtensionInfoResponse {
             single_instance: extension.manifest.single_instance,
             display_mode: extension.manifest.display_mode.clone(),
             dev_server_url,
+            i18n: extension.manifest.i18n.clone(),
         })
     }
 }
