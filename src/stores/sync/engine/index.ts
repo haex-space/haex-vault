@@ -84,6 +84,22 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   }
 
   /**
+   * Resolves the identity public key for a backend from its identityId
+   */
+  const getIdentityPublicKeyAsync = async (backendId: string): Promise<string> => {
+    const backend = findBackend(backendId)
+    if (!backend.identityId) {
+      throw new Error(`Backend ${backendId} has no identity configured`)
+    }
+    const identityStore = useIdentityStore()
+    const identity = await identityStore.getIdentityAsync(backend.identityId)
+    if (!identity?.publicKey) {
+      throw new Error(`Identity not found or missing public key for backend ${backendId}`)
+    }
+    return identity.publicKey
+  }
+
+  /**
    * Initializes Supabase client for a specific backend
    */
   const initSupabaseClientAsync = async (backendId: string): Promise<void> => {
@@ -120,12 +136,14 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     vaultPassword: string,
   ): Promise<void> => {
     const backend = findBackend(backendId)
+    const identityPublicKey = await getIdentityPublicKeyAsync(backendId)
     const { vaultKeySalt } = await uploadVaultKeyAsync(
       backend.serverUrl,
       vaultId,
       vaultKey,
       vaultName,
       vaultPassword,
+      identityPublicKey,
     )
     // Save vault key salt locally
     await saveVaultKeySaltAsync(getDrizzle(), backendId, vaultKeySalt)
@@ -389,10 +407,10 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     backendId: string,
     vaultId: string,
     newVaultName: string,
-    vaultPassword: string,
   ): Promise<void> => {
     const backend = findBackend(backendId)
-    return updateName(backend.serverUrl, vaultId, newVaultName, vaultPassword)
+    const identityPublicKey = await getIdentityPublicKeyAsync(backendId)
+    return updateName(backend.serverUrl, vaultId, newVaultName, identityPublicKey)
   }
 
   /**

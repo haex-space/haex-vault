@@ -142,7 +142,7 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
 
   /**
    * Updates the vault name on all enabled sync backends
-   * Uses the server password (stored in backend) to encrypt the vault name
+   * Encrypts vault name with the identity's public key (ECDH)
    */
   const updateVaultNameOnServersAsync = async (newVaultName: string) => {
     const { currentVaultId } = storeToRefs(useVaultStore())
@@ -165,12 +165,10 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
       }
 
       try {
-        // TODO: vault name encryption needs to use space key instead of password
         await syncEngineStore.updateVaultNameOnServerAsync(
           backend.id,
           backend.vaultId,
           newVaultName,
-          '', // Legacy: server password no longer used
         )
         console.log(`[VaultSettings] Vault name updated on server: ${backend.name}`)
       } catch (error) {

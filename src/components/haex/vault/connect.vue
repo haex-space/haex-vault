@@ -59,6 +59,7 @@ const onWizardCompleteAsync = async (wizardData: {
   localVaultName: string
   serverUrl: string
   identityId: string
+  identityPublicKey: string
   vaultPassword: string
   isNewVault: boolean
 }) => {
@@ -79,7 +80,6 @@ const onWizardCompleteAsync = async (wizardData: {
       name: new URL(wizardData.serverUrl).host,
       serverUrl: wizardData.serverUrl,
       vaultId: wizardData.vaultId,
-      spaceId: '',
       identityId: wizardData.identityId,
       enabled: true,
     })
@@ -96,14 +96,13 @@ const onWizardCompleteAsync = async (wizardData: {
       console.log('🔑 Generated new vault key')
 
       // Upload vault key to server
-      // TODO: vault key upload needs to use space key encryption instead of password
       await uploadVaultKeyAsync(
         wizardData.serverUrl,
         wizardData.vaultId,
         vaultKey,
         wizardData.vaultName,
         wizardData.vaultPassword,
-        wizardData.vaultPassword, // Legacy: server password no longer separate
+        wizardData.identityPublicKey,
       )
       console.log('✅ Vault key uploaded to server')
 
@@ -117,8 +116,8 @@ const onWizardCompleteAsync = async (wizardData: {
         wizardData.backendId,
         wizardData.vaultId,
         wizardData.vaultName,
-        wizardData.vaultPassword, // Vault encryption password
-        wizardData.serverUrl, // Initial sync: fetch from server directly
+        wizardData.vaultPassword,
+        wizardData.serverUrl,
       )
       console.log('✅ Vault password verified')
     }

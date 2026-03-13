@@ -1,7 +1,7 @@
 import {
   generateSpaceKey,
-  encryptSpaceKeyForRecipientAsync,
-  decryptSpaceKeyAsync,
+  encryptWithPublicKeyAsync,
+  decryptWithPrivateKeyAsync,
   encryptSpaceNameAsync,
   decryptSpaceNameAsync,
   arrayBufferToBase64,
@@ -164,7 +164,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const { encryptedName, nameNonce } = await encryptSpaceNameAsync(spaceKey, spaceName)
 
     // Encrypt space key for self (ECDH with own public key)
-    const keyGrant = await encryptSpaceKeyForRecipientAsync(spaceKey, identity.publicKey)
+    const keyGrant = await encryptWithPublicKeyAsync(spaceKey, identity.publicKey)
 
     const response = await fetchWithAuth(`${serverUrl}/spaces`, {
       method: 'POST',
@@ -174,8 +174,8 @@ export const useSpacesStore = defineStore('spacesStore', () => {
         nameNonce,
         label: selfLabel,
         keyGrant: {
-          encryptedSpaceKey: keyGrant.encryptedSpaceKey,
-          keyNonce: keyGrant.keyNonce,
+          encryptedSpaceKey: keyGrant.encryptedData,
+          keyNonce: keyGrant.nonce,
           ephemeralPublicKey: keyGrant.ephemeralPublicKey,
         },
       }),
@@ -237,10 +237,10 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     // Get space key (from cache or decrypt from grant)
     let spaceKey = await getSpaceKeyAsync(spaceId, latestGrant.generation)
     if (!spaceKey) {
-      spaceKey = await decryptSpaceKeyAsync(
+      spaceKey = await decryptWithPrivateKeyAsync(
         {
-          encryptedSpaceKey: latestGrant.encryptedSpaceKey,
-          keyNonce: latestGrant.keyNonce,
+          encryptedData: latestGrant.encryptedSpaceKey,
+          nonce: latestGrant.keyNonce,
           ephemeralPublicKey: latestGrant.ephemeralPublicKey,
         },
         identity.privateKey,
@@ -249,7 +249,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     }
 
     // Encrypt space key for invitee
-    const keyGrant = await encryptSpaceKeyForRecipientAsync(new Uint8Array(spaceKey), inviteePublicKey)
+    const keyGrant = await encryptWithPublicKeyAsync(new Uint8Array(spaceKey), inviteePublicKey)
 
     const memberResponse = await fetchWithAuth(`${serverUrl}/spaces/${spaceId}/members`, {
       method: 'POST',
@@ -258,8 +258,8 @@ export const useSpacesStore = defineStore('spacesStore', () => {
         label,
         role,
         keyGrant: {
-          encryptedSpaceKey: keyGrant.encryptedSpaceKey,
-          keyNonce: keyGrant.keyNonce,
+          encryptedSpaceKey: keyGrant.encryptedData,
+          keyNonce: keyGrant.nonce,
           ephemeralPublicKey: keyGrant.ephemeralPublicKey,
           generation: latestGrant.generation,
         },
@@ -293,8 +293,8 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       serverUrl,
       spaceName: spaceData.encryptedName,
       accessToken,
-      encryptedSpaceKey: keyGrant.encryptedSpaceKey,
-      keyNonce: keyGrant.keyNonce,
+      encryptedSpaceKey: keyGrant.encryptedData,
+      keyNonce: keyGrant.nonce,
       ephemeralPublicKey: keyGrant.ephemeralPublicKey,
       generation: latestGrant.generation,
       role,
@@ -307,10 +307,10 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   const joinSpaceFromInviteAsync = async (invite: SpaceInvite, identityId: string) => {
     const identity = await resolveIdentityAsync(identityId)
 
-    const spaceKey = await decryptSpaceKeyAsync(
+    const spaceKey = await decryptWithPrivateKeyAsync(
       {
-        encryptedSpaceKey: invite.encryptedSpaceKey,
-        keyNonce: invite.keyNonce,
+        encryptedData: invite.encryptedSpaceKey,
+        nonce: invite.keyNonce,
         ephemeralPublicKey: invite.ephemeralPublicKey,
       },
       identity.privateKey,

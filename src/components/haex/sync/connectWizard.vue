@@ -236,9 +236,8 @@
 <script setup lang="ts">
 import { createClient } from '@supabase/supabase-js'
 import {
-  decryptString,
-  deriveKeyFromPassword,
-  base64ToArrayBuffer,
+  decryptWithPrivateKeyAsync,
+  decryptPrivateKeyAsync,
 } from '@haex-space/vault-sdk'
 import type { StepperItem } from '@nuxt/ui'
 import type { AppSupabaseClient } from '~/stores/sync/engine/supabase'
@@ -256,7 +255,7 @@ interface VaultInfo {
   vaultId: string
   encryptedVaultName: string
   vaultNameNonce: string
-  vaultNameSalt: string
+  ephemeralPublicKey: string
   createdAt: string
 }
 
@@ -273,6 +272,7 @@ const emit = defineEmits<{
       localVaultName: string
       serverUrl: string
       identityId: string
+      identityPublicKey: string
       vaultPassword: string
       isNewVault: boolean
     },
@@ -302,6 +302,7 @@ watch(currentStepIndex, async (newIndex) => {
     step3Container.value?.querySelector<HTMLInputElement>('input')?.focus()
   }
 })
+
 const steps = computed(
   () =>
     [
@@ -501,17 +502,19 @@ const loadVaultsAsync = async () => {
   }
 }
 
-const decryptVaultNamesAsync = async (password: string) => {
+const decryptVaultNamesAsync = async (privateKeyBase64: string) => {
   const names: Record<string, string> = {}
   for (const vault of availableVaults.value) {
     try {
-      const salt = base64ToArrayBuffer(vault.vaultNameSalt)
-      const derivedKey = await deriveKeyFromPassword(password, salt)
-      names[vault.vaultId] = await decryptString(
-        vault.encryptedVaultName,
-        vault.vaultNameNonce,
-        derivedKey,
+      const decryptedBytes = await decryptWithPrivateKeyAsync(
+        {
+          encryptedData: vault.encryptedVaultName,
+          nonce: vault.vaultNameNonce,
+          ephemeralPublicKey: vault.ephemeralPublicKey,
+        },
+        privateKeyBase64,
       )
+      names[vault.vaultId] = new TextDecoder().decode(decryptedBytes)
     } catch {
       // Decryption failed — keep showing fallback
     }
@@ -560,8 +563,14 @@ const completeSetupAsync = async () => {
       add({ title: t('errors.wrongPassword'), color: 'error' })
       return
     }
-    // Decrypt vault names now that we have the correct password
-    await decryptVaultNamesAsync(vaultPassword.value)
+    // Decrypt private key, then decrypt vault names
+    const privateKey = await decryptPrivateKeyAsync(
+      recoveredKeyData.value.encryptedPrivateKey,
+      recoveredKeyData.value.privateKeyNonce,
+      recoveredKeyData.value.privateKeySalt,
+      vaultPassword.value,
+    )
+    await decryptVaultNamesAsync(privateKey)
   }
 
   if (!supabaseClient.value) {
@@ -583,6 +592,7 @@ const completeSetupAsync = async () => {
       localVaultName: localVaultName.value,
       serverUrl: credentials.value.serverUrl,
       identityId: credentials.value.identityId,
+      identityPublicKey: recoveredKeyData.value!.publicKey,
       vaultPassword: vaultPassword.value,
       isNewVault: true,
     })
@@ -606,6 +616,7 @@ const completeSetupAsync = async () => {
       localVaultName: localVaultName.value,
       serverUrl: credentials.value.serverUrl,
       identityId: credentials.value.identityId,
+      identityPublicKey: recoveredKeyData.value!.publicKey,
       vaultPassword: vaultPassword.value,
       isNewVault: false,
     })
@@ -663,6 +674,22 @@ const onRecoveryComplete = async (data: {
 
     // Load available vaults and move to vault selection step
     await loadVaultsAsync()
+
+    // Try to decrypt vault names early if local vault is already open
+    if (currentVaultPassword.value && recoveredKeyData.value) {
+      try {
+        const privateKey = await decryptPrivateKeyAsync(
+          recoveredKeyData.value.encryptedPrivateKey,
+          recoveredKeyData.value.privateKeyNonce,
+          recoveredKeyData.value.privateKeySalt,
+          currentVaultPassword.value,
+        )
+        await decryptVaultNamesAsync(privateKey)
+      } catch {
+        // Password doesn't match recovery key — vault names stay encrypted
+      }
+    }
+
     currentStepIndex.value = 2
   } catch (error) {
     console.error('Recovery login failed:', error)

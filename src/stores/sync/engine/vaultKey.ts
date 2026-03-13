@@ -7,9 +7,7 @@ import {
   encryptVaultKey,
   decryptVaultKey,
   generateVaultKey,
-  deriveKeyFromPassword,
-  encryptString,
-  arrayBufferToBase64,
+  encryptWithPublicKeyAsync,
 } from '@haex-space/vault-sdk'
 import { getAuthTokenAsync } from './supabase'
 import { fetchWithNetworkErrorHandling, engineLog as log, type VaultKeyCache } from './types'
@@ -46,9 +44,9 @@ export const clearVaultKeyCache = (vaultId?: string): void => {
 /**
  * Uploads encrypted vault key to the server and saves salts locally
  *
- * Uses two different passwords for encryption:
- * - Vault password: encrypts the vault key (for data access)
- * - Server password: encrypts the vault name (visible after login)
+ * Encryption:
+ * - Vault key: encrypted with vault password (symmetric, for data access)
+ * - Vault name: encrypted with identity public key (ECDH, readable after login)
  */
 export const uploadVaultKeyAsync = async (
   serverUrl: string,
@@ -56,22 +54,14 @@ export const uploadVaultKeyAsync = async (
   vaultKey: Uint8Array,
   vaultName: string,
   vaultPassword: string,
+  identityPublicKey: string,
 ): Promise<{ vaultKeySalt: string }> => {
   // Encrypt vault key with vault password
   const encryptedVaultKeyData = await encryptVaultKey(vaultKey, vaultPassword)
 
-  // Generate separate salt for vault name encryption
-  const vaultNameSalt = crypto.getRandomValues(new Uint8Array(32))
-  const derivedKey = await deriveKeyFromPassword(
-    vaultPassword,
-    vaultNameSalt,
-  )
-
-  // Encrypt vault name with vault password derived key
-  const encryptedVaultNameData = await encryptString(
-    vaultName,
-    derivedKey,
-  )
+  // Encrypt vault name with identity public key (ECDH)
+  const encodedName = new TextEncoder().encode(vaultName)
+  const sealedName = await encryptWithPublicKeyAsync(encodedName, identityPublicKey)
 
   // Get auth token
   const token = await getAuthTokenAsync()
@@ -89,11 +79,11 @@ export const uploadVaultKeyAsync = async (
     body: JSON.stringify({
       vaultId,
       encryptedVaultKey: encryptedVaultKeyData.encryptedVaultKey,
-      encryptedVaultName: encryptedVaultNameData.encryptedData,
+      encryptedVaultName: sealedName.encryptedData,
       vaultKeySalt: encryptedVaultKeyData.salt,
-      vaultNameSalt: arrayBufferToBase64(vaultNameSalt),
+      ephemeralPublicKey: sealedName.ephemeralPublicKey,
       vaultKeyNonce: encryptedVaultKeyData.vaultKeyNonce,
-      vaultNameNonce: encryptedVaultNameData.nonce,
+      vaultNameNonce: sealedName.nonce,
     }),
   })
 

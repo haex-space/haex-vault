@@ -65,7 +65,7 @@ export const initSupabaseClientAsync = async (
       heartbeatIntervalMs: 15000,
     },
   })
-  supabaseClientRef.value = client
+  supabaseClientRef.value = client as AppSupabaseClient
   currentBackendIdRef.value = backendId
 
   // Listen for auth state changes to keep realtime connection authenticated

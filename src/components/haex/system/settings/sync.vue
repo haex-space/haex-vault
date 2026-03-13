@@ -464,7 +464,7 @@
 </template>
 
 <script setup lang="ts">
-import { decryptVaultName } from '@haex-space/vault-sdk'
+import { decryptWithPrivateKeyAsync } from '@haex-space/vault-sdk'
 import type { SelectHaexSyncBackends } from '~/database/schemas'
 
 const { t } = useI18n()
@@ -534,7 +534,7 @@ interface ServerVault {
   vaultId: string
   encryptedVaultName: string
   vaultNameNonce: string
-  vaultNameSalt: string
+  ephemeralPublicKey: string
   createdAt: string
   decryptedName?: string
 }
@@ -879,22 +879,29 @@ const loadVaultsForBackendAsync = async (
     const data = await response.json()
     const vaults: ServerVault[] = data.vaults
 
-    // Decrypt vault names using vault password
-    if (currentVaultPassword.value) {
-      await Promise.all(
-        vaults.map(async (vault) => {
-          try {
-            vault.decryptedName = await decryptVaultName(
-              vault.encryptedVaultName,
-              vault.vaultNameNonce,
-              vault.vaultNameSalt,
-              currentVaultPassword.value!,
-            )
-          } catch (e) {
-            console.warn('[SYNC] Failed to decrypt vault name:', e)
-          }
-        }),
-      )
+    // Decrypt vault names using identity private key
+    if (backend.identityId) {
+      const identityStore = useIdentityStore()
+      const identity = await identityStore.getIdentityAsync(backend.identityId)
+      if (identity?.privateKey) {
+        await Promise.all(
+          vaults.map(async (vault) => {
+            try {
+              const decryptedBytes = await decryptWithPrivateKeyAsync(
+                {
+                  encryptedData: vault.encryptedVaultName,
+                  nonce: vault.vaultNameNonce,
+                  ephemeralPublicKey: vault.ephemeralPublicKey,
+                },
+                identity.privateKey,
+              )
+              vault.decryptedName = new TextDecoder().decode(decryptedBytes)
+            } catch (e) {
+              console.warn('[SYNC] Failed to decrypt vault name:', e)
+            }
+          }),
+        )
+      }
     }
 
     return vaults
