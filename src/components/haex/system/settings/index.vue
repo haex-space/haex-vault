@@ -92,21 +92,22 @@ const categories = computed(() => [
     },
   },
   {
-    value: 'externalClients',
-    label: t('categories.externalClients'),
-    icon: 'i-heroicons-globe-alt',
-    active: activeCategory.value === 'externalClients',
+    value: 'contacts',
+    label: t('categories.contacts'),
+    icon: 'i-lucide-contact',
+    active: activeCategory.value === 'contacts',
     click: () => {
-      activeCategory.value = 'externalClients'
+      activeCategory.value = 'contacts'
     },
   },
   {
-    value: 'database',
-    label: t('categories.database'),
-    icon: 'i-heroicons-circle-stack',
-    active: activeCategory.value === 'database',
+    value: 'identities',
+    label: t('categories.identities'),
+    icon: 'i-lucide-fingerprint',
+    active: activeCategory.value === 'identities',
+    tourId: 'settings-nav-identities',
     click: () => {
-      activeCategory.value = 'database'
+      activeCategory.value = 'identities'
     },
   },
   {
@@ -129,31 +130,30 @@ const categories = computed(() => [
     },
   },
   {
-    value: 'identities',
-    label: t('categories.identities'),
-    icon: 'i-lucide-fingerprint',
-    active: activeCategory.value === 'identities',
-    tourId: 'settings-nav-identities',
-    click: () => {
-      activeCategory.value = 'identities'
-    },
-  },
-  {
-    value: 'contacts',
-    label: t('categories.contacts'),
-    icon: 'i-lucide-contact',
-    active: activeCategory.value === 'contacts',
-    click: () => {
-      activeCategory.value = 'contacts'
-    },
-  },
-  {
     value: 'storage',
     label: t('categories.storage'),
     icon: 'i-heroicons-cloud',
     active: activeCategory.value === 'storage',
     click: () => {
       activeCategory.value = 'storage'
+    },
+  },
+  {
+    value: 'externalClients',
+    label: t('categories.externalClients'),
+    icon: 'i-heroicons-globe-alt',
+    active: activeCategory.value === 'externalClients',
+    click: () => {
+      activeCategory.value = 'externalClients'
+    },
+  },
+  {
+    value: 'database',
+    label: t('categories.database'),
+    icon: 'i-heroicons-circle-stack',
+    active: activeCategory.value === 'database',
+    click: () => {
+      activeCategory.value = 'database'
     },
   },
   {
