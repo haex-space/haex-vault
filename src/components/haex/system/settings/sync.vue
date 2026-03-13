@@ -129,6 +129,7 @@
               color="primary"
               icon="i-lucide-plus"
               data-testid="sync-add-backend-button"
+              data-tour="settings-sync-add-backend"
               @click="showAddBackendForm = true"
             >
               <span class="hidden @sm:inline">
@@ -509,7 +510,7 @@ const verificationPending = ref<{
   identityId: string
   approvedClaims: Record<string, string>
 } | null>(null)
-const verificationCodeParts = ref<string[]>([])
+const verificationCodeParts = ref<number[]>([])
 const verificationCode = computed(() => verificationCodeParts.value.join(''))
 
 const { serverOptions } = useSyncServerOptions()

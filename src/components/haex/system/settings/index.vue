@@ -17,6 +17,7 @@
           ]"
           :title="cat.label"
           :data-testid="`settings-category-${cat.value}`"
+          :data-tour="cat.tourId"
           @click="cat.click"
         >
           <UIcon
@@ -66,6 +67,7 @@ const categories = computed(() => [
     label: t('categories.general'),
     icon: 'i-heroicons-cog-6-tooth',
     active: activeCategory.value === 'general',
+    tourId: 'settings-nav-general',
     click: () => {
       activeCategory.value = 'general'
     },
@@ -84,6 +86,7 @@ const categories = computed(() => [
     label: t('categories.extensions'),
     icon: 'i-heroicons-puzzle-piece',
     active: activeCategory.value === 'extensions',
+    tourId: 'settings-nav-extensions',
     click: () => {
       activeCategory.value = 'extensions'
     },
@@ -111,6 +114,7 @@ const categories = computed(() => [
     label: t('categories.sync'),
     icon: 'i-heroicons-arrow-path',
     active: activeCategory.value === 'sync',
+    tourId: 'settings-nav-sync',
     click: () => {
       activeCategory.value = 'sync'
     },
@@ -129,6 +133,7 @@ const categories = computed(() => [
     label: t('categories.identities'),
     icon: 'i-lucide-fingerprint',
     active: activeCategory.value === 'identities',
+    tourId: 'settings-nav-identities',
     click: () => {
       activeCategory.value = 'identities'
     },

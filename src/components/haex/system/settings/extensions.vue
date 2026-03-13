@@ -14,7 +14,7 @@
       :title="t('title')"
       :description="t('description')"
     >
-      <div class="flex justify-end">
+      <div class="flex justify-end" data-tour="settings-extensions-install">
         <UiButton
           :label="t('openMarketplace')"
           icon="i-mdi-store"

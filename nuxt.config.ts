@@ -57,7 +57,7 @@ export default defineNuxtConfig({
     ],
   },
 
-  css: ['./assets/css/main.css'],
+  css: ['./assets/css/main.css', 'driver.js/dist/driver.css'],
 
   icon: {
     // Use local bundles only - no runtime fetching from external servers

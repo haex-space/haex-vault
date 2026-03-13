@@ -22,6 +22,7 @@
             <UButton
               color="primary"
               icon="i-lucide-plus"
+              data-tour="settings-identities-create"
               @click="showCreateDialog = true"
             >
               <span class="hidden @sm:inline">{{ t('actions.create') }}</span>

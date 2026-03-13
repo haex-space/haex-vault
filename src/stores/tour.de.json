@@ -1,0 +1,39 @@
+{
+  "next": "Weiter",
+  "prev": "Zurück",
+  "done": "Fertig",
+  "steps": {
+    "general": {
+      "title": "Allgemeine Einstellungen",
+      "description": "Hier findest du grundlegende Einstellungen wie Sprache, Aussehen und Gerätenamen."
+    },
+    "deviceName": {
+      "title": "Gerätename",
+      "description": "Gib diesem Gerät einen Namen. So kannst du später nachverfolgen, welche Änderungen von welchem Gerät stammen."
+    },
+    "extensionsNav": {
+      "title": "Erweiterungen",
+      "description": "Hier verwaltest du installierte Erweiterungen und findest neue im Marketplace."
+    },
+    "extensions": {
+      "title": "Marketplace",
+      "description": "Öffne den Marketplace, um Erweiterungen wie haex-pass für Passwörter oder haex-notes für Notizen zu installieren."
+    },
+    "identitiesNav": {
+      "title": "Identitäten",
+      "description": "Hier verwaltest du deine kryptografischen Identitäten für die verschlüsselte Synchronisation."
+    },
+    "identity": {
+      "title": "Identität erstellen",
+      "description": "Erstelle deine erste Identität. Sie wird für die Ende-zu-Ende-verschlüsselte Verbindung mit einem Sync-Server benötigt."
+    },
+    "syncNav": {
+      "title": "Synchronisation",
+      "description": "Hier richtest du die Verbindung zu einem Sync-Server ein, um deine Vault auf mehreren Geräten zu nutzen."
+    },
+    "sync": {
+      "title": "Backend hinzufügen",
+      "description": "Verbinde einen Sync-Server, um deine Vault geräteübergreifend zu synchronisieren."
+    }
+  }
+}

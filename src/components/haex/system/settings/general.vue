@@ -18,6 +18,7 @@
       <UFormField
         :label="t('deviceName.label')"
         :description="t('deviceName.description')"
+        data-tour="settings-device-name"
       >
         <UiInput
           v-model="deviceName"

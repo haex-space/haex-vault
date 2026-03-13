@@ -10,13 +10,6 @@
       <NuxtPage />
     </NuxtLayout>
 
-    <!-- Welcome Dialog for new devices -->
-    <HaexWelcomeDialog
-      v-model:open="showWelcomeDialog"
-      :initial-device-name="initialDeviceName"
-      :is-connected-to-remote="isRemoteSyncVault"
-      @complete="onWelcomeComplete"
-    />
   </div>
 </template>
 
@@ -27,16 +20,13 @@ definePageMeta({
 
 const route = useRoute()
 
-const showWelcomeDialog = ref(false)
-const initialDeviceName = ref<string>('unknown')
 const isWaitingForInitialSync = ref(false)
 const syncProgress = ref<{ synced: number; total: number } | undefined>()
 const isRemoteSyncVault = computed(() => route.query.remoteSync === 'true')
 
-const { hostname } = storeToRefs(useDeviceStore())
-
 const { readNotificationsAsync } = useNotificationStore()
 const { isKnownDeviceAsync, setAsCurrentDeviceAsync } = useDeviceStore()
+const tourStore = useTourStore()
 const { loadExtensionsAsync } = useExtensionsStore()
 const { syncLocaleAsync, syncThemeAsync, syncVaultNameAsync } =
   useVaultSettingsStore()
@@ -79,9 +69,8 @@ onMounted(async () => {
     const knownDevice = await isKnownDeviceAsync()
 
     if (!knownDevice) {
-      console.log('New device detected - showing welcome dialog')
-      initialDeviceName.value = hostname.value ?? 'unknown'
-      showWelcomeDialog.value = true
+      console.log('New device detected - starting onboarding tour')
+      await tourStore.start()
     } else {
       // Device is known, set it as current device
       await setAsCurrentDeviceAsync()
@@ -151,9 +140,6 @@ const waitForInitialSyncAsync = async () => {
   })
 }
 
-const onWelcomeComplete = () => {
-  console.log('Welcome wizard completed')
-}
 </script>
 
 <i18n lang="yaml">

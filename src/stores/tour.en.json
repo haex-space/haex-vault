@@ -1,0 +1,39 @@
+{
+  "next": "Next",
+  "prev": "Back",
+  "done": "Done",
+  "steps": {
+    "general": {
+      "title": "General Settings",
+      "description": "Here you'll find basic settings like language, appearance, and device name."
+    },
+    "deviceName": {
+      "title": "Device Name",
+      "description": "Give this device a name. This helps you track which changes came from which device."
+    },
+    "extensionsNav": {
+      "title": "Extensions",
+      "description": "Here you manage installed extensions and discover new ones in the Marketplace."
+    },
+    "extensions": {
+      "title": "Marketplace",
+      "description": "Open the Marketplace to install extensions like haex-pass for passwords or haex-notes for notes."
+    },
+    "identitiesNav": {
+      "title": "Identities",
+      "description": "Here you manage your cryptographic identities for encrypted synchronization."
+    },
+    "identity": {
+      "title": "Create Identity",
+      "description": "Create your first identity. It's required for the end-to-end encrypted connection with a sync server."
+    },
+    "syncNav": {
+      "title": "Sync",
+      "description": "Here you configure the connection to a sync server to use your vault across multiple devices."
+    },
+    "sync": {
+      "title": "Add Backend",
+      "description": "Connect a sync server to synchronize your vault across devices."
+    }
+  }
+}
