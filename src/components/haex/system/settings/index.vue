@@ -36,7 +36,7 @@
       <HaexSystemSettingsExternalClients v-if="activeCategory === 'externalClients'" />
       <HaexSystemSettingsDatabase v-if="activeCategory === 'database'" />
       <HaexSystemSettingsSync v-if="activeCategory === 'sync'" />
-      <HaexSystemSettingsSpaces v-if="activeCategory === 'spaces'" />
+      <HaexSystemSettingsSpaces v-if="activeCategory === 'spaces'" :invite-link="props.inviteLink" />
       <HaexSystemSettingsIdentities v-if="activeCategory === 'identities'" />
       <HaexSystemSettingsContacts v-if="activeCategory === 'contacts'" />
       <HaexSystemSettingsStorage v-if="activeCategory === 'storage'" />
@@ -52,6 +52,7 @@
 const props = defineProps<{
   isDragging?: boolean
   category?: string
+  inviteLink?: string
 }>()
 
 const { t } = useI18n()

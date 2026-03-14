@@ -11,9 +11,11 @@
 import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link'
 import { listen } from '@tauri-apps/api/event'
 import { isDesktop } from '~/utils/platform'
+import { isInviteLink } from '~/utils/inviteLink'
 
 // Store pending deep-link outside of composable for persistence across component mounts
 const pendingExtensionId = ref<string | null>(null)
+const pendingInviteLink = ref<string | null>(null)
 
 export const useDeepLink = () => {
   const windowManager = useWindowManagerStore()
@@ -37,10 +39,22 @@ export const useDeepLink = () => {
 
   /**
    * Handle a deep-link URL
-   * If the vault is locked, stores the extension ID for later processing
+   * Supports: haexvault://extension/{id} and haexvault://invite/{base58}
+   * If the vault is locked, stores the action for later processing
    */
   const handleDeepLink = async (url: string) => {
     console.log('[DeepLink] Received URL:', url)
+
+    if (isInviteLink(url)) {
+      console.log('[DeepLink] Invite link detected')
+      if (!isVaultOpen.value) {
+        console.log('[DeepLink] Vault is locked, storing invite for later')
+        pendingInviteLink.value = url
+        return
+      }
+      await openInviteJoinDialog(url)
+      return
+    }
 
     const extensionId = parseDeepLinkUrl(url)
     if (!extensionId) {
@@ -50,14 +64,12 @@ export const useDeepLink = () => {
 
     console.log('[DeepLink] Parsed extension ID:', extensionId)
 
-    // Check if vault is open
     if (!isVaultOpen.value) {
       console.log('[DeepLink] Vault is locked, storing extension ID for later:', extensionId)
       pendingExtensionId.value = extensionId
       return
     }
 
-    // Vault is open, open the extension window
     await openExtensionWindow(extensionId)
   }
 
@@ -80,15 +92,37 @@ export const useDeepLink = () => {
   }
 
   /**
+   * Open settings to the Spaces page with the invite link pre-filled
+   */
+  const openInviteJoinDialog = async (url: string) => {
+    try {
+      console.log('[DeepLink] Opening Spaces settings with invite link')
+      await windowManager.openWindowAsync({
+        type: 'system',
+        sourceId: 'settings',
+        params: { category: 'spaces', inviteLink: url },
+      })
+    } catch (error) {
+      console.error('[DeepLink] Failed to open invite dialog:', error)
+    }
+  }
+
+  /**
    * Process any pending deep-link after vault unlock
    */
   const processPendingDeepLink = async () => {
+    if (pendingInviteLink.value) {
+      console.log('[DeepLink] Processing pending invite link')
+      const link = pendingInviteLink.value
+      pendingInviteLink.value = null
+      await openInviteJoinDialog(link)
+      return
+    }
+
     if (pendingExtensionId.value) {
       console.log('[DeepLink] Processing pending extension:', pendingExtensionId.value)
-
       const extensionId = pendingExtensionId.value
       pendingExtensionId.value = null
-
       await openExtensionWindow(extensionId)
     }
   }

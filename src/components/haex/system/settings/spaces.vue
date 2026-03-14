@@ -126,10 +126,10 @@
       :description="t('join.description')"
     >
       <template #content>
-        <UiTextarea
-          v-model="joinInviteJson"
+        <UiInput
+          v-model="joinInviteLink"
           :label="t('join.inviteLabel')"
-          :rows="8"
+          :placeholder="t('join.invitePlaceholder')"
         />
       </template>
       <template #footer>
@@ -144,7 +144,7 @@
           <UiButton
             icon="i-lucide-log-in"
             :loading="isJoining"
-            :disabled="!joinInviteJson"
+            :disabled="!joinInviteLink"
             @click="onJoinSpaceAsync"
           >
             {{ t('actions.join') }}
@@ -184,6 +184,11 @@
 import type { DecryptedSpace, SpaceInvite, SpaceRole } from '@haex-space/vault-sdk'
 import SpaceListItem from './spaces/SpaceListItem.vue'
 import SpaceInviteDialog from './spaces/SpaceInviteDialog.vue'
+import { decodeInviteLink } from '~/utils/inviteLink'
+
+const props = defineProps<{
+  inviteLink?: string
+}>()
 
 const { t } = useI18n()
 const { add } = useToast()
@@ -218,7 +223,7 @@ const createForm = reactive({
 const identityStore = useIdentityStore()
 
 // Join form
-const joinInviteJson = ref('')
+const joinInviteLink = ref('')
 
 // Invite dialog state
 const inviteSpaceId = ref('')
@@ -254,6 +259,12 @@ const onNavigateToSync = () => {
 // Load spaces on mount
 onMounted(async () => {
   await loadSpacesAsync()
+
+  // Auto-open join dialog if launched with an invite link
+  if (props.inviteLink) {
+    joinInviteLink.value = props.inviteLink
+    showJoinDialog.value = true
+  }
 })
 
 const loadSpacesAsync = async () => {
@@ -321,15 +332,15 @@ const onCreateSpaceAsync = async () => {
 
 // Join space
 const onJoinSpaceAsync = async () => {
-  if (!joinInviteJson.value) return
+  if (!joinInviteLink.value) return
 
   isJoining.value = true
   try {
     let invite: SpaceInvite
     try {
-      invite = JSON.parse(joinInviteJson.value)
+      invite = decodeInviteLink(joinInviteLink.value.trim())
     } catch {
-      add({ title: t('errors.invalidJson'), color: 'error' })
+      add({ title: t('errors.invalidInviteLink'), color: 'error' })
       return
     }
     if (!invite.spaceId || !invite.serverUrl || !invite.accessToken || !invite.encryptedSpaceKey) {
@@ -362,7 +373,7 @@ const onJoinSpaceAsync = async () => {
     })
 
     showJoinDialog.value = false
-    joinInviteJson.value = ''
+    joinInviteLink.value = ''
 
     await loadSpacesAsync()
   } catch (error) {
@@ -475,8 +486,9 @@ de:
     defaultSelfLabel: Ich
   join:
     title: Space beitreten
-    description: Tritt einem Space mit einer Einladung bei
-    inviteLabel: Einladungs-JSON einfügen
+    description: Tritt einem Space mit einem Einladungslink bei
+    inviteLabel: Einladungslink
+    invitePlaceholder: haexvault://invite/...
   delete:
     title: Space löschen
     description: Möchtest du diesen Space wirklich löschen? Alle Daten werden unwiderruflich entfernt.
@@ -497,7 +509,7 @@ de:
     joinFailed: Beitritt fehlgeschlagen
     deleteFailed: Löschen fehlgeschlagen
     leaveFailed: Verlassen fehlgeschlagen
-    invalidJson: Ungültiges JSON-Format
+    invalidInviteLink: Ungültiger Einladungslink
     invalidInvite: Unvollständige Einladung
     noServerUrl: Server-URL für diesen Space nicht gefunden
 en:
@@ -516,8 +528,9 @@ en:
     defaultSelfLabel: Me
   join:
     title: Join Space
-    description: Join a space using an invitation
-    inviteLabel: Paste invite JSON
+    description: Join a space using an invite link
+    inviteLabel: Invite link
+    invitePlaceholder: haexvault://invite/...
   delete:
     title: Delete Space
     description: Do you really want to delete this space? All data will be permanently removed.
@@ -538,7 +551,7 @@ en:
     joinFailed: Failed to join space
     deleteFailed: Failed to delete space
     leaveFailed: Failed to leave space
-    invalidJson: Invalid JSON format
+    invalidInviteLink: Invalid invite link
     invalidInvite: Invalid or incomplete invitation
     noServerUrl: Server URL for this space not found
 </i18n>

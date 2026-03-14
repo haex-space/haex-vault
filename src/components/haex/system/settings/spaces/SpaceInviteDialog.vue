@@ -51,15 +51,24 @@
         />
       </template>
       <template v-else>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+        <p class="text-sm text-muted mb-3">
           {{ t('invite.resultDescription') }}
         </p>
-        <UiTextarea
-          :model-value="inviteResult"
-          read-only
-          :rows="10"
-          :label="t('invite.resultLabel')"
-        />
+
+        <!-- QR Code -->
+        <div class="flex justify-center p-4 bg-white rounded-lg">
+          <canvas ref="qrCanvas" />
+        </div>
+
+        <!-- Invite Link -->
+        <div class="mt-3">
+          <UiInput
+            :model-value="inviteLink"
+            read-only
+            :label="t('invite.resultLabel')"
+            with-copy-button
+          />
+        </div>
       </template>
     </template>
     <template #footer>
@@ -83,9 +92,9 @@
         <UiButton
           v-else
           icon="mdi:content-copy"
-          @click="copyInvite"
+          @click="copyInviteLink"
         >
-          {{ t('actions.copy') }}
+          {{ t('actions.copyLink') }}
         </UiButton>
       </div>
     </template>
@@ -93,8 +102,10 @@
 </template>
 
 <script setup lang="ts">
+import QRCode from 'qrcode'
 import type { SpaceRole } from '@haex-space/vault-sdk'
 import type { SelectHaexContacts } from '~/database/schemas'
+import { encodeInviteLink } from '~/utils/inviteLink'
 
 const open = defineModel<boolean>('open', { required: true })
 
@@ -115,8 +126,10 @@ const contactsStore = useContactsStore()
 const { contacts } = storeToRefs(contactsStore)
 
 const isInviting = ref(false)
-const inviteResult = ref('')
+const inviteLink = ref('')
 const selectedContactId = ref<string>('')
+const qrCanvas = ref<HTMLCanvasElement>()
+
 
 const inviteForm = reactive({
   role: undefined as { label: string; value: SpaceRole; description: string } | undefined,
@@ -150,7 +163,7 @@ const roleOptions = computed(() => {
 const resetForm = () => {
   selectedContactId.value = ''
   inviteForm.role = undefined
-  inviteResult.value = ''
+  inviteLink.value = ''
 }
 
 watch(open, async (isOpen) => {
@@ -174,7 +187,16 @@ const onInviteMemberAsync = async () => {
       props.identityId,
     )
 
-    inviteResult.value = JSON.stringify(invite, null, 2)
+    inviteLink.value = encodeInviteLink(invite)
+
+    await nextTick()
+    if (qrCanvas.value) {
+      await QRCode.toCanvas(qrCanvas.value, inviteLink.value, {
+        width: 200,
+        margin: 1,
+        color: { dark: '#000000', light: '#ffffff' },
+      })
+    }
 
     add({
       title: t('success.invited'),
@@ -192,8 +214,8 @@ const onInviteMemberAsync = async () => {
   }
 }
 
-const copyInvite = () => {
-  copy(inviteResult.value)
+const copyInviteLink = () => {
+  copy(inviteLink.value)
   add({
     title: t('success.copied'),
     color: 'success',
@@ -211,7 +233,7 @@ const navigateToContacts = () => {
 
 const closeDialog = () => {
   open.value = false
-  inviteResult.value = ''
+  inviteLink.value = ''
 }
 </script>
 
@@ -224,8 +246,8 @@ de:
     noContacts: Keine Kontakte vorhanden
     manageContacts: Kontakte verwalten
     roleLabel: Rolle auswählen
-    resultDescription: Teile dieses Einladungs-JSON mit der Person
-    resultLabel: Einladungs-JSON
+    resultDescription: Teile diesen Einladungslink oder scanne den QR-Code
+    resultLabel: Einladungslink
   roles:
     owner: Eigentümer
     ownerDesc: Vollzugriff inkl. Space-Verwaltung und Mitglieder-Einladung
@@ -237,7 +259,7 @@ de:
     invite: Einladen
     cancel: Abbrechen
     close: Schließen
-    copy: Kopieren
+    copyLink: Link kopieren
   success:
     invited: Einladung erstellt
     copied: In Zwischenablage kopiert
@@ -251,8 +273,8 @@ en:
     noContacts: No contacts found
     manageContacts: Manage contacts
     roleLabel: Select role
-    resultDescription: Share this invite JSON with the person
-    resultLabel: Invite JSON
+    resultDescription: Share this invite link or scan the QR code
+    resultLabel: Invite link
   roles:
     owner: Owner
     ownerDesc: Full access including space management and member invitations
@@ -264,7 +286,7 @@ en:
     invite: Invite
     cancel: Cancel
     close: Close
-    copy: Copy
+    copyLink: Copy link
   success:
     invited: Invitation created
     copied: Copied to clipboard
