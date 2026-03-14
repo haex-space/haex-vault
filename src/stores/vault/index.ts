@@ -249,10 +249,8 @@ export const useVaultStore = defineStore('vaultStore', () => {
         },
       }
 
-      // Initialize device identity key (non-blocking)
-      invoke('device_init_key').catch((error) => {
-        console.warn('[HaexSpace] Device key init failed:', error)
-      })
+      // Initialize device identity key and populate device store
+      await useDeviceStore().initDeviceIdAsync()
 
       // Automatic cleanup on vault open (non-blocking)
       performAutomaticCleanupAsync().catch((error) => {

@@ -1,5 +1,4 @@
 import { and, eq } from 'drizzle-orm'
-import { z } from 'zod'
 import * as schema from '~/database/schemas/haex'
 import * as crdtSchema from '~/database/schemas/crdt'
 import type { Locale } from 'vue-i18n'
@@ -19,8 +18,6 @@ export {
   DesktopIconSizePreset,
   iconSizePresetValues,
 } from '~/config/vault-settings'
-
-export const vaultDeviceNameSchema = z.string().min(3).max(255)
 
 export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
   const { currentVault, currentVaultName } = storeToRefs(useVaultStore())

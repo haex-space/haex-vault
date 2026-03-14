@@ -274,20 +274,17 @@
             :items="claimTypeOptions"
             value-key="value"
             :label="t('claims.type')"
-            size="lg"
           />
           <UiInput
             v-if="claimType === 'custom' && !editingClaim"
             v-model="claimCustomType"
             :label="t('claims.customType')"
             placeholder="z.B. phone, company"
-            size="lg"
           />
           <UiInput
             v-model="claimValue"
             :label="t('claims.value')"
             :placeholder="claimValuePlaceholder"
-            size="lg"
             @keydown.enter.prevent="onSaveClaimAsync"
           />
         </div>

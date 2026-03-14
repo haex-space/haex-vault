@@ -12,7 +12,6 @@
             :icon="store.running ? 'i-lucide-power-off' : 'i-lucide-power'"
             :color="store.running ? 'error' : 'primary'"
             :loading="isToggling"
-            size="lg"
             @click="onToggleEndpointAsync"
           >
             {{ store.running ? t('endpoint.stop') : t('endpoint.start') }}

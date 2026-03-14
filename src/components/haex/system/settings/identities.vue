@@ -202,13 +202,11 @@
               :label="t('create.identityPassword')"
               :description="t('create.identityPasswordDescription')"
               leading-icon="i-lucide-lock"
-              size="lg"
             />
             <UiInputPassword
               v-model="createIdentityPasswordConfirm"
               :label="t('create.identityPasswordConfirm')"
               leading-icon="i-lucide-lock"
-              size="lg"
             />
             <p
               v-if="createIdentityPasswordConfirm && createIdentityPassword !== createIdentityPasswordConfirm"
@@ -352,14 +350,12 @@
             :label="t('create.identityPassword')"
             :description="t('edit.passwordOptional')"
             leading-icon="i-lucide-lock"
-            size="lg"
           />
           <UiInputPassword
             v-if="editIdentityPassword"
             v-model="editIdentityPasswordConfirm"
             :label="t('create.identityPasswordConfirm')"
             leading-icon="i-lucide-lock"
-            size="lg"
           />
           <p
             v-if="editIdentityPasswordConfirm && editIdentityPassword !== editIdentityPasswordConfirm"
@@ -403,19 +399,16 @@
             :items="claimTypeOptions"
             value-key="value"
             :label="t('claims.type')"
-            size="lg"
           />
           <UiInput
             v-if="claimType === 'custom' && !editingClaim"
             v-model="claimCustomType"
             :label="t('claims.customType')"
             placeholder="z.B. phone, company"
-            size="lg"
           />
           <UiInput
             v-model="claimValue"
             :placeholder="claimValuePlaceholder"
-            size="lg"
             @keydown.enter.prevent="onSaveClaimAsync"
           />
         </div>

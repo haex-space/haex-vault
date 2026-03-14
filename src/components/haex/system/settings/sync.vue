@@ -297,7 +297,6 @@
                         color="error"
                         variant="ghost"
                         icon="i-lucide-trash-2"
-                        size="lg"
                         class="w-full @xs:w-auto justify-center"
                         @click="prepareDeleteServerVault(backend, vault)"
                       />

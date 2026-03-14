@@ -16,18 +16,6 @@
       </UFormField>
 
       <UFormField
-        :label="t('deviceName.label')"
-        :description="t('deviceName.description')"
-        data-tour="settings-device-name"
-      >
-        <UiInput
-          v-model="deviceName"
-          :placeholder="t('deviceName.label')"
-          @change="onUpdateDeviceNameAsync"
-        />
-      </UFormField>
-
-      <UFormField
         :label="t('notifications.label')"
         :description="t('notifications.description')"
       >
@@ -127,9 +115,6 @@ const { add } = useToast()
 const { currentVaultName } = storeToRefs(useVaultStore())
 const { changePasswordAsync } = useVaultStore()
 const { updateVaultNameAsync, updateLocaleAsync } = useVaultSettingsStore()
-
-const { deviceName } = storeToRefs(useDeviceStore())
-const { updateDeviceNameAsync, readDeviceNameAsync } = useDeviceStore()
 
 const { isNotificationAllowed } = storeToRefs(useNotificationStore())
 const { requestNotificationPermissionAsync, checkNotificationAsync } = useNotificationStore()
@@ -262,20 +247,7 @@ const onSetVaultNameAsync = async () => {
   }
 }
 
-const onUpdateDeviceNameAsync = async () => {
-  const check = vaultDeviceNameSchema.safeParse(deviceName.value)
-  if (!check.success) return
-  try {
-    await updateDeviceNameAsync({ name: deviceName.value })
-    add({ description: t('deviceName.update.success'), color: 'success' })
-  } catch (error) {
-    console.log(error)
-    add({ description: t('deviceName.update.error'), color: 'error' })
-  }
-}
-
 onMounted(async () => {
-  await readDeviceNameAsync()
   await checkNotificationAsync()
   // Note: syncDesktopIconSizeAsync is already called in vault.vue onMounted
 })
@@ -292,12 +264,6 @@ de:
     update:
       success: Vaultname erfolgreich aktualisiert
       error: Vaultname konnte nicht aktualisiert werden
-  deviceName:
-    label: Gerätename
-    description: Ein Name für dieses Gerät zur besseren Identifikation
-    update:
-      success: Gerätename wurde erfolgreich aktualisiert
-      error: Gerätename konnte nich aktualisiert werden
   notifications:
     label: Benachrichtigungen
     description: Erlaube Benachrichtigungen für diese App
@@ -345,12 +311,6 @@ en:
     update:
       success: Vault Name successfully updated
       error: Vault name could not be updated
-  deviceName:
-    label: Device name
-    description: A name for this device for better identification
-    update:
-      success: Device name has been successfully updated
-      error: Device name could not be updated
   notifications:
     label: Notifications
     description: Allow notifications for this app

@@ -89,6 +89,10 @@ export const useTourStore = defineStore('tourStore', () => {
           popover: {
             title: t('steps.general.title'),
             description: t('steps.general.description'),
+            onNextClick: async () => {
+              await navigateSettings('devices')
+              driverInstance?.moveNext()
+            },
           },
         },
         {

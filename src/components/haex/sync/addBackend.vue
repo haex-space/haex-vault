@@ -5,7 +5,6 @@
       <USelectMenu
         v-model="selectedServerOption"
         :items
-        size="lg"
         class="w-full"
       >
         <template #item="{ item }">
@@ -20,7 +19,6 @@
         v-if="selectedServerOption.value === 'custom'"
         v-model="customServerUrl"
         :label="t('customUrl.label')"
-        size="lg"
         class="w-full"
         data-testid="sync-custom-url-input"
       />
@@ -34,7 +32,6 @@
           v-model="selectedIdentityId"
           :items="identityOptions"
           value-key="value"
-          size="lg"
           class="flex-1"
           :placeholder="t('identity.placeholder')"
         />
@@ -42,7 +39,6 @@
           icon="i-lucide-user"
           color="neutral"
           variant="outline"
-          size="lg"
           :title="t('identity.manage')"
           @click="navigateToIdentities"
         />

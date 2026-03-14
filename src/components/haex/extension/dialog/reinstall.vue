@@ -88,7 +88,6 @@
           color="neutral"
           variant="outline"
           class="w-full sm:w-auto"
-          size="lg"
           @click="onDeny"
         />
         <UiButton
@@ -102,7 +101,6 @@
           "
           :color="mode === 'update' ? 'primary' : 'error'"
           class="w-full sm:w-auto"
-          size="lg"
           @click="onConfirm"
         />
       </div>

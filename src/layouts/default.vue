@@ -24,7 +24,6 @@
               color="neutral"
               variant="outline"
               icon="i-bi-person-workspace"
-              size="lg"
               :tooltip="t('workspaces.label')"
               @click="toggleOverview"
             />

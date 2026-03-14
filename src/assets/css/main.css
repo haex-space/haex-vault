@@ -69,3 +69,17 @@
 .driver-overlay {
   pointer-events: none !important;
 }
+
+/* Tour popover: larger buttons and controls */
+.haex-tour-popover .driver-popover-footer button,
+.haex-tour-popover .driver-popover-close-btn {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9375rem;
+  border-radius: 0.5rem;
+}
+.haex-tour-popover .driver-popover-close-btn {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  font-size: 1.25rem;
+}

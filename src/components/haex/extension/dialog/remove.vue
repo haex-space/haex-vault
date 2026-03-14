@@ -96,7 +96,6 @@
           color="neutral"
           variant="outline"
           class="w-full sm:w-auto"
-          size="lg"
           @click="onAbort"
         />
         <UiButton
@@ -104,7 +103,6 @@
           :label="t('confirm')"
           color="error"
           class="w-full sm:w-auto"
-          size="lg"
           @click="onConfirm"
         />
       </div>

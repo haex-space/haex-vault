@@ -207,7 +207,6 @@
           color="error"
           variant="outline"
           class="w-full sm:w-auto"
-          size="lg"
           @click="onDeny"
         />
         <UiButton
@@ -216,7 +215,6 @@
           :label="isUpdate ? t('confirmUpdate') : t('confirm')"
           :color="isUpdate ? 'warning' : 'primary'"
           class="w-full sm:w-auto"
-          size="lg"
           @click="onConfirm"
         />
       </div>

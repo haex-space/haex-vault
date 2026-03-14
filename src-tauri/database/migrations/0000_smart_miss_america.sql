@@ -75,16 +75,6 @@ CREATE TABLE `haex_desktop_items` (
 	CONSTRAINT "item_reference" CHECK(("haex_desktop_items"."item_type" = 'extension' AND "haex_desktop_items"."extension_id" IS NOT NULL AND "haex_desktop_items"."system_window_id" IS NULL) OR ("haex_desktop_items"."item_type" = 'system' AND "haex_desktop_items"."system_window_id" IS NOT NULL AND "haex_desktop_items"."extension_id" IS NULL) OR ("haex_desktop_items"."item_type" = 'file' AND "haex_desktop_items"."system_window_id" IS NOT NULL AND "haex_desktop_items"."extension_id" IS NULL) OR ("haex_desktop_items"."item_type" = 'folder' AND "haex_desktop_items"."system_window_id" IS NOT NULL AND "haex_desktop_items"."extension_id" IS NULL))
 );
 --> statement-breakpoint
-CREATE TABLE `haex_devices` (
-	`id` text PRIMARY KEY NOT NULL,
-	`device_id` text NOT NULL,
-	`name` text NOT NULL,
-	`current` integer DEFAULT false NOT NULL,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` integer
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `haex_devices_device_id_unique` ON `haex_devices` (`device_id`);--> statement-breakpoint
 CREATE TABLE `haex_extension_limits` (
 	`id` text PRIMARY KEY NOT NULL,
 	`extension_id` text NOT NULL,

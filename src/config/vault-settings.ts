@@ -23,6 +23,7 @@ export enum VaultSettingsKeyEnum {
   initialSyncComplete = 'initial_sync_complete',
   gradientVariant = 'gradient_variant',
   gradientEnabled = 'gradient_enabled',
+  onboardingCompleted = 'onboarding_completed',
 }
 
 export enum DesktopIconSizePreset {

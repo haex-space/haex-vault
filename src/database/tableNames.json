@@ -94,17 +94,6 @@
         "positionY": "position_y"
       }
     },
-    "devices": {
-      "name": "haex_devices",
-      "columns": {
-        "id": "id",
-        "deviceId": "device_id",
-        "name": "name",
-        "current": "current",
-        "createdAt": "created_at",
-        "updatedAt": "updated_at"
-      }
-    },
     "sync_backends": {
       "name": "haex_sync_backends",
       "columns": {

@@ -33,7 +33,6 @@
             v-model="didPassword"
             :label="t('steps.didPassword.label')"
             leading-icon="i-lucide-fingerprint"
-            size="lg"
             class="w-full"
           />
 
@@ -158,7 +157,6 @@
               :description="t('steps.selectVault.vaultNameDescription')"
               :schema="wizardSchema.vaultName"
               :check="check"
-              size="lg"
               class="w-full"
               @blur="checkVaultNameExistsAsync"
             />
@@ -183,7 +181,6 @@
                 :schema="wizardSchema.vaultPassword"
                 :check="check"
                 leading-icon="i-lucide-lock"
-                size="lg"
                 class="w-full"
               />
 
@@ -197,7 +194,6 @@
                 :schema="wizardSchema.vaultPassword"
                 :check="check"
                 leading-icon="i-lucide-lock"
-                size="lg"
                 class="w-full"
               />
               <p
@@ -221,7 +217,6 @@
       <UButton
         color="neutral"
         variant="outline"
-        size="lg"
         @click="cancel"
       >
         {{ t('actions.cancel') }}
@@ -230,7 +225,6 @@
         v-if="currentStepIndex > 0"
         color="neutral"
         variant="outline"
-        size="lg"
         @click="previousStep"
       >
         {{ t('actions.back') }}
@@ -239,7 +233,6 @@
       <UButton
         v-if="currentStepIndex < 3"
         color="primary"
-        size="lg"
         :disabled="!canProceed"
         :loading="isLoading"
         @click="nextStep"
@@ -249,7 +242,6 @@
       <UButton
         v-else
         color="primary"
-        size="lg"
         :disabled="!canComplete || isCheckingVaultPassword"
         :loading="isLoading || isCheckingVaultPassword"
         @click="completeSetupAsync"

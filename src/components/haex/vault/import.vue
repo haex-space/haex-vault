@@ -12,7 +12,6 @@
           base: 'px-4 py-3',
         }"
         icon="mdi:folder-open-outline"
-        size="lg"
         variant="outline"
         block
         :loading="isLoading"
@@ -81,7 +80,6 @@
             :schema="vaultSchema.name"
             :check="check"
             leading-icon="i-lucide-folder"
-            size="lg"
             class="w-full"
             @blur="checkVaultNameExistsAsync"
           />
@@ -99,7 +97,6 @@
             :schema="vaultSchema.password"
             :check="check"
             leading-icon="i-lucide-lock"
-            size="lg"
             class="w-full"
             @keyup.enter="onImportAsync"
           />
@@ -110,7 +107,6 @@
             color="neutral"
             variant="outline"
             block
-            size="lg"
             @click="onClose"
           >
             {{ t('cancel') }}
@@ -118,7 +114,6 @@
           <UButton
             color="primary"
             block
-            size="lg"
             :disabled="!selectedPath"
             :loading="isLoading"
             @click="onImportAsync"

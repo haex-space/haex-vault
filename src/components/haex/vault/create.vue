@@ -11,7 +11,6 @@
         base: 'px-4 py-3',
       }"
       icon="mdi:plus"
-      size="lg"
       variant="outline"
       block
     />
@@ -37,7 +36,6 @@
           :check="check"
           :custom-validators="[checkVaultNameExists]"
           autofocus
-          size="lg"
           class="w-full"
         />
 
@@ -48,7 +46,6 @@
           :schema="vaultSchema.password"
           :check="check"
           leading-icon="i-lucide-lock"
-          size="lg"
           class="w-full"
         />
 
@@ -58,7 +55,6 @@
           :label="t('passwordConfirm.placeholder')"
           :check="check"
           leading-icon="i-lucide-lock"
-          size="lg"
           class="w-full"
         />
       </UForm>
@@ -70,7 +66,6 @@
           color="neutral"
           variant="outline"
           block
-          size="lg"
           @click="open = false"
         >
           {{ t('cancel') }}
@@ -78,7 +73,6 @@
         <UButton
           color="primary"
           block
-          size="lg"
           @click="onCreateAsync"
         >
           {{ t('create') }}
@@ -99,7 +93,6 @@
         base: 'px-4 py-3 ',
       }"
       icon="mdi:plus"
-      size="lg"
       variant="outline"
       block
     />
@@ -120,7 +113,6 @@
             :check="check"
             :custom-validators="[checkVaultNameExists]"
             autofocus
-            size="lg"
             class="w-full"
           />
 
@@ -131,7 +123,6 @@
             :schema="vaultSchema.password"
             :check="check"
             leading-icon="i-lucide-lock"
-            size="lg"
             class="w-full"
           />
 
@@ -141,7 +132,6 @@
             :label="t('passwordConfirm.label')"
             :check="check"
             leading-icon="i-lucide-lock"
-            size="lg"
             class="w-full"
           />
         </UForm>
@@ -154,7 +144,6 @@
           color="neutral"
           variant="outline"
           block
-          size="lg"
           @click="open = false"
         >
           {{ t('cancel') }}
@@ -162,7 +151,6 @@
         <UButton
           color="primary"
           block
-          size="lg"
           @click="onCreateAsync"
         >
           {{ t('create') }}

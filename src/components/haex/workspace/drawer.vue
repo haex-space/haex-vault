@@ -19,7 +19,6 @@
           icon="i-heroicons-x-mark"
           color="neutral"
           variant="ghost"
-          size="lg"
           square
           @click="isOverviewMode = false"
         />

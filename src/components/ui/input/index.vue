@@ -151,7 +151,7 @@ const labelLeftClass = computed(() => {
   }
 
   return (
-    leftPositions[props.size || 'md'] || 'group-has-placeholder-shown:left-7'
+    leftPositions[props.size || 'lg'] || 'group-has-placeholder-shown:left-7'
   )
 })
 
@@ -165,7 +165,7 @@ const labelTopClass = computed(() => {
     xl: 'group-has-placeholder-shown:top-2.5',
   }
 
-  return topPositions[props.size || 'md'] || 'group-has-placeholder-shown:top-2'
+  return topPositions[props.size || 'lg'] || 'group-has-placeholder-shown:top-2'
 })
 
 const filteredSlots = computed(() => {

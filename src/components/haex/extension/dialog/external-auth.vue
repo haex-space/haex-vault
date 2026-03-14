@@ -97,7 +97,6 @@
           :label="t('deny')"
           color="error"
           class="w-full sm:flex-1"
-          size="lg"
           @click="onDeny"
         />
         <UiButton
@@ -106,7 +105,6 @@
           color="success"
           class="w-full sm:flex-1"
           :disabled="selectedExtensionIds.length === 0"
-          size="lg"
           @click="onAllow"
         />
       </div>

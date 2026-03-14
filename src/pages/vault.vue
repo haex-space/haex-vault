@@ -24,8 +24,11 @@ const isWaitingForInitialSync = ref(false)
 const syncProgress = ref<{ synced: number; total: number } | undefined>()
 const isRemoteSyncVault = computed(() => route.query.remoteSync === 'true')
 
+import { eq } from 'drizzle-orm'
+import { haexVaultSettings } from '~/database/schemas'
+import { VaultSettingsKeyEnum, VaultSettingsTypeEnum } from '~/config/vault-settings'
+
 const { readNotificationsAsync } = useNotificationStore()
-const { hasAnyDeviceAsync, setAsCurrentDeviceAsync } = useDeviceStore()
 const tourStore = useTourStore()
 const { loadExtensionsAsync } = useExtensionsStore()
 const { syncLocaleAsync, syncThemeAsync, syncVaultNameAsync } =
@@ -34,6 +37,7 @@ const { syncDesktopIconSizeAsync } = useDesktopStore()
 const { syncGradientVariantAsync, syncGradientEnabledAsync } = useGradientStore()
 const syncOrchestratorStore = useSyncOrchestratorStore()
 const syncBackendsStore = useSyncBackendsStore()
+const { currentVault } = storeToRefs(useVaultStore())
 
 onMounted(async () => {
   try {
@@ -66,15 +70,20 @@ onMounted(async () => {
       readNotificationsAsync(),
     ])
 
-    // Show onboarding tour only for brand new vaults (no devices registered yet)
-    const hasDevices = await hasAnyDeviceAsync()
-    if (!hasDevices) {
+    // Show onboarding tour for new vaults (no onboarding_completed setting)
+    const onboarding = await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
+      where: eq(haexVaultSettings.key, VaultSettingsKeyEnum.onboardingCompleted),
+    })
+    if (!onboarding?.value) {
       console.log('New vault detected - starting onboarding tour')
+      await currentVault.value?.drizzle.insert(haexVaultSettings).values({
+        id: crypto.randomUUID(),
+        key: VaultSettingsKeyEnum.onboardingCompleted,
+        type: VaultSettingsTypeEnum.settings,
+        value: 'true',
+      })
       await tourStore.start()
     }
-
-    // Always set this device as current
-    await setAsCurrentDeviceAsync()
   } catch (error) {
     console.error('vault mount error:', error)
   }

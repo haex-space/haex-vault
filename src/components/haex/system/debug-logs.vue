@@ -9,13 +9,11 @@
         <div class="flex gap-2">
           <UButton
             label="Clear"
-            size="lg"
             color="error"
             @click="clearLogs"
           />
           <UButton
             :label="allCopied ? 'Copied!' : 'Copy All'"
-            size="lg"
             :color="allCopied ? 'success' : 'primary'"
             @click="copyAllLogs"
           />

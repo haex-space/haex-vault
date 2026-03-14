@@ -14,33 +14,6 @@ import tableNames from '@/database/tableNames.json'
 // automatically by the Rust CrdtTransformer when CREATE TABLE is executed.
 // The WHERE haex_tombstone = 0 condition for UNIQUE indices is also added automatically.
 
-export const haexDevices = sqliteTable(
-  tableNames.haex.devices.name,
-  {
-    id: text(tableNames.haex.devices.columns.id)
-      .$defaultFn(() => crypto.randomUUID())
-      .primaryKey(),
-    deviceId: text(tableNames.haex.devices.columns.deviceId).notNull(),
-    name: text(tableNames.haex.devices.columns.name).notNull(),
-    current: integer(tableNames.haex.devices.columns.current, {
-      mode: 'boolean',
-    })
-      .default(false)
-      .notNull(),
-    createdAt: text(tableNames.haex.devices.columns.createdAt).default(
-      sql`(CURRENT_TIMESTAMP)`,
-    ),
-    updatedAt: integer(tableNames.haex.devices.columns.updatedAt, {
-      mode: 'timestamp',
-    }).$onUpdate(() => new Date()),
-  },
-  (table) => [
-    uniqueIndex('haex_devices_device_id_unique').on(table.deviceId),
-  ],
-)
-export type InsertHaexDevices = typeof haexDevices.$inferInsert
-export type SelectHaexDevices = typeof haexDevices.$inferSelect
-
 export const haexVaultSettings = sqliteTable(
   tableNames.haex.vault_settings.name,
   {

@@ -12,7 +12,6 @@
       v-model="customServerUrl"
       label="Server URL"
       placeholder="https://..."
-      size="lg"
     />
 
     <!-- Email Input -->
@@ -22,12 +21,10 @@
       :description="t('email.description')"
       type="email"
       leading-icon="i-lucide-mail"
-      size="lg"
       autofocus
     />
     <UButton
       color="primary"
-      size="lg"
       block
       :disabled="!isEmailValid"
       :loading="isLoading"

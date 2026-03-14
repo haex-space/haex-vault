@@ -101,7 +101,6 @@
             :label="t('deny')"
             color="error"
             class="w-full sm:flex-1"
-            size="lg"
             @click="onDeny"
           />
           <UiButton
@@ -109,7 +108,6 @@
             :label="t('allow')"
             color="success"
             class="w-full sm:flex-1"
-            size="lg"
             @click="onAllow"
           />
         </div>

@@ -13,7 +13,6 @@
           base: 'px-4 py-3',
         }"
         icon="i-lucide-cloud-download"
-        size="lg"
         variant="outline"
         block
       />

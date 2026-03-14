@@ -171,7 +171,6 @@ const showRemoveDialog = ref(false)
 const { lastVaults } = storeToRefs(useLastVaultStore())
 
 const { syncLastVaultsAsync, moveVaultToTrashAsync } = useLastVaultStore()
-const { syncDeviceIdAsync } = useDeviceStore()
 
 const vaultToBeRemoved = ref('')
 const prepareRemoveVault = (vaultName: string) => {
@@ -197,7 +196,6 @@ onMounted(async () => {
   try {
     appVersion.value = await getVersion()
     await syncLastVaultsAsync()
-    await syncDeviceIdAsync()
   } catch (error) {
     console.error('ERROR: ', error)
   }
