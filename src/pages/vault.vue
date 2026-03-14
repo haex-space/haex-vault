@@ -84,6 +84,16 @@ onMounted(async () => {
       })
       await tourStore.start()
     }
+
+    // Auto-start P2P endpoint if configured
+    const peerAutostart = await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
+      where: eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageAutostart),
+    })
+    if (peerAutostart?.value === 'true') {
+      usePeerStorageStore().startAsync().catch((error) => {
+        console.warn('[P2P] Autostart failed:', error)
+      })
+    }
   } catch (error) {
     console.error('vault mount error:', error)
   }

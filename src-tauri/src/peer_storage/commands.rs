@@ -1,5 +1,6 @@
 //! Tauri commands for peer storage
 
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use tauri::State;
 
@@ -8,11 +9,11 @@ use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::protocol::FileEntry;
 
 /// Load shares for the current device from the database.
-/// Returns a list of (id, name, local_path) tuples.
+/// Returns a list of (id, name, local_path, space_id) tuples.
 fn load_shares_from_db(
     state: &AppState,
     endpoint_id: &str,
-) -> Result<Vec<(String, String, PathBuf)>, PeerStorageError> {
+) -> Result<Vec<(String, String, PathBuf, String)>, PeerStorageError> {
     let db_guard = state.db.0.lock().map_err(|e| PeerStorageError::Database {
         reason: format!("DB lock error: {e}"),
     })?;
@@ -22,7 +23,7 @@ fn load_shares_from_db(
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, name, local_path FROM haex_peer_shares \
+            "SELECT id, name, local_path, space_id FROM haex_peer_shares \
              WHERE device_endpoint_id = ?1 AND IFNULL(haex_tombstone, 0) != 1",
         )
         .map_err(|e| PeerStorageError::Database {
@@ -35,6 +36,7 @@ fn load_shares_from_db(
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
                 PathBuf::from(row.get::<_, String>(2)?),
+                row.get::<_, String>(3)?,
             ))
         })
         .map_err(|e| PeerStorageError::Database {
@@ -48,20 +50,68 @@ fn load_shares_from_db(
     Ok(shares)
 }
 
-/// Start the peer storage endpoint and load shares for this device from DB
-#[tauri::command]
-pub async fn peer_storage_start(
-    state: State<'_, AppState>,
-) -> Result<String, PeerStorageError> {
-    let mut endpoint = state.peer_storage.lock().await;
+/// Load allowed peers from haex_space_devices.
+/// Returns a map: remote EndpointId (string) -> set of space_ids they may access.
+/// Excludes our own endpoint ID.
+fn load_allowed_peers_from_db(
+    state: &AppState,
+    own_endpoint_id: &str,
+) -> Result<HashMap<String, HashSet<String>>, PeerStorageError> {
+    let db_guard = state.db.0.lock().map_err(|e| PeerStorageError::Database {
+        reason: format!("DB lock error: {e}"),
+    })?;
+    let conn = db_guard.as_ref().ok_or_else(|| PeerStorageError::Database {
+        reason: "No database connection — vault not open".to_string(),
+    })?;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT device_endpoint_id, space_id FROM haex_space_devices \
+             WHERE device_endpoint_id != ?1 AND IFNULL(haex_tombstone, 0) != 1",
+        )
+        .map_err(|e| PeerStorageError::Database {
+            reason: format!("Failed to prepare allowed peers query: {e}"),
+        })?;
+
+    let mut allowed: HashMap<String, HashSet<String>> = HashMap::new();
+
+    let rows = stmt
+        .query_map([own_endpoint_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+            ))
+        })
+        .map_err(|e| PeerStorageError::Database {
+            reason: format!("Failed to query space devices: {e}"),
+        })?;
+
+    for row in rows {
+        let (endpoint_id, space_id) = row.map_err(|e| PeerStorageError::Database {
+            reason: format!("Failed to read space device row: {e}"),
+        })?;
+        allowed.entry(endpoint_id).or_default().insert(space_id);
+    }
+
+    Ok(allowed)
+}
+
+/// Reload shares and allowed peers into the endpoint from DB.
+async fn reload_state_from_db(
+    state: &AppState,
+    endpoint: &crate::peer_storage::endpoint::PeerEndpoint,
+) -> Result<usize, PeerStorageError> {
     let endpoint_id = endpoint.endpoint_id().to_string();
 
-    // Load shares from DB before starting
-    let shares = load_shares_from_db(&state, &endpoint_id)?;
-    endpoint.clear_shares();
-    for (id, name, local_path) in &shares {
+    let shares = load_shares_from_db(state, &endpoint_id)?;
+    let allowed_peers = load_allowed_peers_from_db(state, &endpoint_id)?;
+
+    endpoint.clear_shares().await;
+    let mut loaded = 0;
+    for (id, name, local_path, space_id) in &shares {
         if local_path.exists() && local_path.is_dir() {
-            endpoint.add_share(id.clone(), name.clone(), local_path.clone());
+            endpoint.add_share(id.clone(), name.clone(), local_path.clone(), space_id.clone()).await;
+            loaded += 1;
         } else {
             eprintln!(
                 "[PeerStorage] Skipping share '{}': path does not exist: {}",
@@ -71,8 +121,26 @@ pub async fn peer_storage_start(
         }
     }
 
+    endpoint.set_allowed_peers(allowed_peers).await;
+
+    eprintln!("[PeerStorage] Loaded {loaded}/{} shares from DB", shares.len());
+    Ok(loaded)
+}
+
+/// Start the peer storage endpoint and load shares for this device from DB
+#[tauri::command]
+pub async fn peer_storage_start(
+    state: State<'_, AppState>,
+) -> Result<String, PeerStorageError> {
+    let endpoint = state.peer_storage.lock().await;
+
+    // Load shares and allowed peers from DB before starting
+    reload_state_from_db(&state, &endpoint).await?;
+
+    drop(endpoint);
+
+    let mut endpoint = state.peer_storage.lock().await;
     let node_id = endpoint.start().await?;
-    eprintln!("[PeerStorage] Started with {} shares loaded from DB", shares.len());
     Ok(node_id.to_string())
 }
 
@@ -97,33 +165,14 @@ pub async fn peer_storage_status(
     })
 }
 
-/// Reload shares from DB into the running endpoint.
-/// Called by the frontend after adding/removing shares via Drizzle.
+/// Reload shares and allowed peers from DB into the running endpoint.
+/// Called by the frontend after adding/removing shares or space devices via Drizzle.
 #[tauri::command]
 pub async fn peer_storage_reload_shares(
     state: State<'_, AppState>,
 ) -> Result<usize, PeerStorageError> {
-    let mut endpoint = state.peer_storage.lock().await;
-    let endpoint_id = endpoint.endpoint_id().to_string();
-
-    let shares = load_shares_from_db(&state, &endpoint_id)?;
-    endpoint.clear_shares();
-    let mut loaded = 0;
-    for (id, name, local_path) in &shares {
-        if local_path.exists() && local_path.is_dir() {
-            endpoint.add_share(id.clone(), name.clone(), local_path.clone());
-            loaded += 1;
-        } else {
-            eprintln!(
-                "[PeerStorage] Skipping share '{}': path does not exist: {}",
-                name,
-                local_path.display()
-            );
-        }
-    }
-
-    eprintln!("[PeerStorage] Reloaded {loaded}/{} shares from DB", shares.len());
-    Ok(loaded)
+    let endpoint = state.peer_storage.lock().await;
+    reload_state_from_db(&state, &endpoint).await
 }
 
 /// Browse a remote peer's shared files

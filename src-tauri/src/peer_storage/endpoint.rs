@@ -1,9 +1,10 @@
 //! iroh Endpoint management
 //!
 //! Manages the iroh QUIC endpoint: starting, stopping, accepting connections,
-//! and handling incoming file requests.
+//! and handling incoming file requests. Access control ensures only peers
+//! registered in the same Space can access shared folders.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -24,6 +25,17 @@ pub struct SharedFolder {
     pub name: String,
     /// Local filesystem path
     pub local_path: PathBuf,
+    /// Space this share belongs to (for access control)
+    pub space_id: String,
+}
+
+/// State shared between PeerEndpoint methods and the accept loop
+#[derive(Debug, Default)]
+pub struct PeerState {
+    /// Shared folders (share_id -> folder)
+    pub shares: HashMap<String, SharedFolder>,
+    /// Access control: remote EndpointId (string) -> set of space_ids they may access
+    pub allowed_peers: HashMap<String, HashSet<String>>,
 }
 
 /// Peer storage endpoint state
@@ -32,8 +44,8 @@ pub struct PeerEndpoint {
     endpoint: Option<Endpoint>,
     /// Secret key for this node
     secret_key: SecretKey,
-    /// Shared folders (id -> folder)
-    shares: HashMap<String, SharedFolder>,
+    /// Shared state (accessible by both endpoint methods and accept loop)
+    state: Arc<RwLock<PeerState>>,
     /// Handle to the accept loop task
     accept_task: Option<tokio::task::JoinHandle<()>>,
 }
@@ -44,16 +56,13 @@ impl PeerEndpoint {
         Self {
             endpoint: None,
             secret_key,
-            shares: HashMap::new(),
+            state: Arc::new(RwLock::new(PeerState::default())),
             accept_task: None,
         }
     }
 
     /// Create a PeerEndpoint with a temporary random key (for testing or pre-init state).
     pub fn new_ephemeral() -> Self {
-        // TODO: Replace with SecretKey::generate() once p256 upgrades to rand_core 0.9
-        // Currently iroh uses rand_core 0.9 but p256 uses rand_core 0.6 (via rand 0.8).
-        // Track: when p256 >= 0.14 ships with rand_core 0.9, upgrade rand to 0.9 project-wide.
         let mut bytes = [0u8; 32];
         rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut bytes);
         Self::new(SecretKey::from_bytes(&bytes))
@@ -97,12 +106,12 @@ impl PeerEndpoint {
         let id = endpoint.id();
         eprintln!("[PeerStorage] Endpoint started with ID: {id}");
 
-        // Spawn accept loop
+        // Spawn accept loop with shared state
         let ep = endpoint.clone();
-        let shares = Arc::new(RwLock::new(self.shares.clone()));
+        let state = self.state.clone();
 
         let accept_task = tokio::spawn(async move {
-            accept_loop(ep, shares).await;
+            accept_loop(ep, state).await;
         });
 
         self.endpoint = Some(endpoint);
@@ -126,24 +135,30 @@ impl PeerEndpoint {
     }
 
     /// Add a shared folder
-    pub fn add_share(&mut self, id: String, name: String, local_path: PathBuf) {
-        eprintln!("[PeerStorage] Added share '{name}' at {}", local_path.display());
-        self.shares.insert(id, SharedFolder { name, local_path });
+    pub async fn add_share(&self, id: String, name: String, local_path: PathBuf, space_id: String) {
+        eprintln!("[PeerStorage] Added share '{name}' at {} (space: {space_id})", local_path.display());
+        self.state.write().await.shares.insert(id, SharedFolder { name, local_path, space_id });
     }
 
     /// Remove a shared folder
-    pub fn remove_share(&mut self, id: &str) -> bool {
-        self.shares.remove(id).is_some()
+    pub async fn remove_share(&self, id: &str) -> bool {
+        self.state.write().await.shares.remove(id).is_some()
     }
 
     /// List shared folders
-    pub fn list_shares(&self) -> Vec<(String, SharedFolder)> {
-        self.shares.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+    pub async fn list_shares(&self) -> Vec<(String, SharedFolder)> {
+        self.state.read().await.shares.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
     }
 
     /// Clear all shares (used before reloading from DB)
-    pub fn clear_shares(&mut self) {
-        self.shares.clear();
+    pub async fn clear_shares(&self) {
+        self.state.write().await.shares.clear();
+    }
+
+    /// Update the allowed peers map (remote EndpointId -> set of space_ids)
+    pub async fn set_allowed_peers(&self, allowed: HashMap<String, HashSet<String>>) {
+        eprintln!("[PeerStorage] Updated allowed peers: {} peers across spaces", allowed.len());
+        self.state.write().await.allowed_peers = allowed;
     }
 
     /// Connect to a remote peer and list a directory
@@ -261,18 +276,34 @@ impl PeerEndpoint {
 }
 
 // ============================================================================
-// Accept loop — handles incoming connections
+// Accept loop — handles incoming connections with access control
 // ============================================================================
 
-async fn accept_loop(endpoint: Endpoint, shares: Arc<RwLock<HashMap<String, SharedFolder>>>) {
+async fn accept_loop(endpoint: Endpoint, state: Arc<RwLock<PeerState>>) {
     while let Some(incoming) = endpoint.accept().await {
-        let shares = shares.clone();
+        let state = state.clone();
         tokio::spawn(async move {
             match incoming.await {
                 Ok(conn) => {
                     let remote = conn.remote_id();
-                    eprintln!("[PeerStorage] Accepted connection from {remote}");
-                    handle_connection(conn, shares).await;
+                    let remote_str = remote.to_string();
+
+                    // Check access control: which spaces is this peer allowed to access?
+                    let allowed_spaces = {
+                        let s = state.read().await;
+                        s.allowed_peers.get(&remote_str).cloned()
+                    };
+
+                    match allowed_spaces {
+                        Some(spaces) if !spaces.is_empty() => {
+                            eprintln!("[PeerStorage] Accepted connection from {remote} (access to {} spaces)", spaces.len());
+                            handle_connection(conn, state, spaces).await;
+                        }
+                        _ => {
+                            eprintln!("[PeerStorage] Rejected connection from {remote}: not registered in any shared space");
+                            // Connection will be dropped, closing it
+                        }
+                    }
                 }
                 Err(e) => {
                     eprintln!("[PeerStorage] Failed to accept connection: {e}");
@@ -284,16 +315,18 @@ async fn accept_loop(endpoint: Endpoint, shares: Arc<RwLock<HashMap<String, Shar
 
 async fn handle_connection(
     conn: iroh::endpoint::Connection,
-    shares: Arc<RwLock<HashMap<String, SharedFolder>>>,
+    state: Arc<RwLock<PeerState>>,
+    allowed_spaces: HashSet<String>,
 ) {
     let remote = conn.remote_id();
 
     loop {
         match conn.accept_bi().await {
             Ok((send, mut recv)) => {
-                let shares = shares.clone();
+                let state = state.clone();
+                let allowed_spaces = allowed_spaces.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = handle_stream(send, &mut recv, &shares).await {
+                    if let Err(e) = handle_stream(send, &mut recv, &state, &allowed_spaces).await {
                         eprintln!("[PeerStorage] Stream error from {remote}: {e}");
                     }
                 });
@@ -309,7 +342,8 @@ async fn handle_connection(
 async fn handle_stream(
     mut send: iroh::endpoint::SendStream,
     recv: &mut iroh::endpoint::RecvStream,
-    shares: &RwLock<HashMap<String, SharedFolder>>,
+    state: &RwLock<PeerState>,
+    allowed_spaces: &HashSet<String>,
 ) -> Result<(), PeerStorageError> {
     let request = protocol::read_request(recv)
         .await
@@ -318,10 +352,10 @@ async fn handle_stream(
         })?;
 
     let response = match request {
-        Request::List { path } => handle_list(shares, &path).await,
-        Request::Stat { path } => handle_stat(shares, &path).await,
+        Request::List { path } => handle_list(state, &path, allowed_spaces).await,
+        Request::Stat { path } => handle_stat(state, &path, allowed_spaces).await,
         Request::Read { path, range } => {
-            return handle_read(&mut send, shares, &path, range).await;
+            return handle_read(&mut send, state, &path, range, allowed_spaces).await;
         }
     };
 
@@ -343,11 +377,23 @@ async fn handle_stream(
 }
 
 // ============================================================================
-// Request handlers
+// Request handlers (with space-based access control)
 // ============================================================================
 
-fn resolve_path(
+/// Filter shares to only those the remote peer is allowed to access
+fn filter_shares<'a>(
+    shares: &'a HashMap<String, SharedFolder>,
+    allowed_spaces: &HashSet<String>,
+) -> HashMap<&'a String, &'a SharedFolder> {
+    shares
+        .iter()
+        .filter(|(_, share)| allowed_spaces.contains(&share.space_id))
+        .collect()
+}
+
+fn resolve_path_filtered(
     shares: &HashMap<String, SharedFolder>,
+    allowed_spaces: &HashSet<String>,
     request_path: &str,
 ) -> Result<PathBuf, Response> {
     let trimmed = request_path.trim_start_matches('/');
@@ -356,6 +402,13 @@ fn resolve_path(
     let share = shares.get(share_id).ok_or_else(|| Response::Error {
         message: format!("Share not found: {share_id}"),
     })?;
+
+    // Access control: check if the peer is allowed to access this share's space
+    if !allowed_spaces.contains(&share.space_id) {
+        return Err(Response::Error {
+            message: "Access denied".to_string(),
+        });
+    }
 
     let full_path = share.local_path.join(sub_path);
 
@@ -377,13 +430,16 @@ fn resolve_path(
 }
 
 async fn handle_list(
-    shares: &RwLock<HashMap<String, SharedFolder>>,
+    state: &RwLock<PeerState>,
     path: &str,
+    allowed_spaces: &HashSet<String>,
 ) -> Response {
-    let shares = shares.read().await;
+    let state = state.read().await;
 
     if path.is_empty() || path == "/" {
-        let entries: Vec<FileEntry> = shares
+        // Only list shares the peer is allowed to access
+        let filtered = filter_shares(&state.shares, allowed_spaces);
+        let entries: Vec<FileEntry> = filtered
             .iter()
             .map(|(id, share)| FileEntry {
                 name: format!("{id} — {}", share.name),
@@ -395,7 +451,7 @@ async fn handle_list(
         return Response::List { entries };
     }
 
-    let local_path = match resolve_path(&shares, path) {
+    let local_path = match resolve_path_filtered(&state.shares, allowed_spaces, path) {
         Ok(p) => p,
         Err(resp) => return resp,
     };
@@ -415,11 +471,12 @@ async fn handle_list(
 }
 
 async fn handle_stat(
-    shares: &RwLock<HashMap<String, SharedFolder>>,
+    state: &RwLock<PeerState>,
     path: &str,
+    allowed_spaces: &HashSet<String>,
 ) -> Response {
-    let shares = shares.read().await;
-    let local_path = match resolve_path(&shares, path) {
+    let state = state.read().await;
+    let local_path = match resolve_path_filtered(&state.shares, allowed_spaces, path) {
         Ok(p) => p,
         Err(resp) => return resp,
     };
@@ -434,13 +491,14 @@ async fn handle_stat(
 
 async fn handle_read(
     send: &mut iroh::endpoint::SendStream,
-    shares: &RwLock<HashMap<String, SharedFolder>>,
+    state: &RwLock<PeerState>,
     path: &str,
     range: Option<[u64; 2]>,
+    allowed_spaces: &HashSet<String>,
 ) -> Result<(), PeerStorageError> {
     let local_path = {
-        let shares = shares.read().await;
-        match resolve_path(&shares, path) {
+        let state = state.read().await;
+        match resolve_path_filtered(&state.shares, allowed_spaces, path) {
             Ok(p) => p,
             Err(resp) => {
                 let resp_bytes = protocol::encode_response(&resp)

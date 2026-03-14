@@ -3,7 +3,7 @@
     <UCard>
       <template #header>
         <div class="flex items-center gap-3">
-          <UIcon name="i-heroicons-device-phone-mobile" class="w-5 h-5 text-primary" />
+          <UIcon name="i-heroicons-device-phone-mobile" class="w-5 h-5 text-primary shrink-0" />
           <div>
             <h3 class="text-lg font-semibold">{{ t('currentDevice.title') }}</h3>
             <p class="text-sm text-muted">{{ t('currentDevice.description') }}</p>
@@ -14,15 +14,22 @@
       <div class="space-y-4">
         <UFormField
           :label="t('currentDevice.name')"
-          :description="hasSpaceDeviceEntry ? t('currentDevice.nameDescription') : t('currentDevice.nameNoSpace')"
           data-tour="settings-device-name"
         >
-          <UiInput
-            v-model="deviceName"
-            :placeholder="t('currentDevice.namePlaceholder')"
-            :disabled="!hasSpaceDeviceEntry"
-            @change="onUpdateDeviceNameAsync"
-          />
+          <div class="flex items-center gap-2">
+            <UiInput
+              v-model="deviceName"
+              :placeholder="t('currentDevice.namePlaceholder')"
+              class="flex-1"
+            />
+            <UiButton
+              icon="i-mdi-content-save"
+              color="primary"
+              :loading="isSaving"
+              :disabled="!deviceName?.trim()"
+              @click="onUpdateDeviceNameAsync"
+            />
+          </div>
         </UFormField>
 
         <div class="flex items-center justify-between">
@@ -55,22 +62,31 @@ const deviceStore = useDeviceStore()
 const { deviceId, hostname, platform, deviceName } = storeToRefs(deviceStore)
 const { currentVault } = storeToRefs(useVaultStore())
 
-const hasSpaceDeviceEntry = ref(false)
+const isSaving = ref(false)
 
 const onUpdateDeviceNameAsync = async () => {
   const name = deviceName.value?.trim()
   if (!name || !currentVault.value?.drizzle || !deviceId.value) return
 
+  isSaving.value = true
   try {
-    await currentVault.value.drizzle
-      .update(haexSpaceDevices)
-      .set({ deviceName: name })
-      .where(eq(haexSpaceDevices.deviceEndpointId, deviceId.value))
+    const existing = await currentVault.value.drizzle.query.haexSpaceDevices.findFirst({
+      where: eq(haexSpaceDevices.deviceEndpointId, deviceId.value),
+    })
+
+    if (existing) {
+      await currentVault.value.drizzle
+        .update(haexSpaceDevices)
+        .set({ deviceName: name })
+        .where(eq(haexSpaceDevices.deviceEndpointId, deviceId.value))
+    }
 
     add({ description: t('deviceName.success'), color: 'success' })
   } catch (error) {
     console.error('Failed to update device name:', error)
     add({ description: t('deviceName.error'), color: 'error' })
+  } finally {
+    isSaving.value = false
   }
 }
 
@@ -81,7 +97,6 @@ const loadDeviceNameAsync = async () => {
     where: eq(haexSpaceDevices.deviceEndpointId, deviceId.value),
   })
 
-  hasSpaceDeviceEntry.value = !!entry
   deviceName.value = entry?.deviceName ?? ''
 }
 
@@ -99,8 +114,6 @@ de:
     title: Aktuelles Gerät
     description: Dieses Gerät wird automatisch über einen kryptographischen Schlüssel identifiziert
     name: Gerätename
-    nameDescription: Wird in allen Spaces aktualisiert, in denen dieses Gerät registriert ist
-    nameNoSpace: Registriere dieses Gerät zuerst in einem Space, um einen Namen zu vergeben
     namePlaceholder: z.B. Mein Laptop
     endpointId: Endpoint-ID
     hostname: Hostname
@@ -119,8 +132,6 @@ en:
     title: Current Device
     description: This device is automatically identified via a cryptographic key
     name: Device Name
-    nameDescription: Updates across all Spaces this device is registered in
-    nameNoSpace: Register this device in a Space first to set a name
     namePlaceholder: e.g. My Laptop
     endpointId: Endpoint ID
     hostname: Hostname

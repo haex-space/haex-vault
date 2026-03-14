@@ -14,10 +14,7 @@
       <template v-else-if="dbInfo">
         <!-- Overview Stats -->
         <div class="space-y-4">
-          <h3 class="text-lg font-semibold">
-            {{ t('overview.title') }}
-          </h3>
-          <div class="grid grid-cols-2 @2xl:grid-cols-4 gap-4">
+          <div class="grid grid-cols-1 @sm:grid-cols-2 @2xl:grid-cols-4 gap-4">
             <UiStatCard
               :label="t('overview.fileSize')"
               :value="dbInfo.fileSizeFormatted"
@@ -156,53 +153,17 @@
                 {{ t('retention.description') }}
               </div>
             </div>
-            <div
-              class="flex flex-col @sm:flex-row items-stretch @sm:items-center gap-2 shrink-0 w-full @sm:w-auto"
-            >
-              <div class="flex items-center gap-2">
-                <USelectMenu
-                  v-model="retentionDays"
-                  :items="retentionOptions"
-                  value-key="value"
-                  class="w-20"
-                />
-                <span class="text-muted whitespace-nowrap">{{
-                  t('retention.days')
-                }}</span>
-              </div>
-              <UButton
-                :loading="isSavingRetention"
-                :disabled="!hasUnsavedRetentionChanges || isSavingRetention"
-                class="w-full @sm:w-28 justify-center"
-                @click="onSaveRetentionAsync"
-              >
-                {{ t('retention.save') }}
-              </UButton>
+            <div class="flex items-center gap-2 shrink-0">
+              <USelectMenu
+                v-model="retentionDays"
+                :items="retentionOptions"
+                value-key="value"
+                class="w-28"
+              />
+              <span class="text-muted whitespace-nowrap">{{
+                t('retention.days')
+              }}</span>
             </div>
-          </div>
-
-          <!-- Cleanup old tombstones -->
-          <div
-            class="flex flex-col @sm:flex-row @sm:items-center @sm:justify-between gap-3"
-          >
-            <div class="flex-1 min-w-0">
-              <div class="font-medium">
-                {{ t('actions.cleanup.label') }}
-              </div>
-              <div class="text-sm text-muted">
-                {{
-                  t('actions.cleanup.description', { days: savedRetentionDays })
-                }}
-              </div>
-            </div>
-            <UButton
-              :loading="isCleaningUp"
-              :disabled="isCleaningUp || isForceDeleting"
-              class="w-full @sm:w-28 shrink-0 justify-center"
-              @click="onCleanupAsync"
-            >
-              {{ t('actions.cleanup.button') }}
-            </UButton>
           </div>
 
           <!-- Force delete all tombstones -->
@@ -219,7 +180,7 @@
             </div>
             <UButton
               :loading="isForceDeleting"
-              :disabled="isForceDeleting || isCleaningUp || !hasTombstones"
+              :disabled="isForceDeleting || !hasTombstones"
               color="error"
               variant="soft"
               class="w-full @sm:w-28 shrink-0 justify-center"
@@ -263,15 +224,9 @@ const extensionsStore = useExtensionsStore()
 const isLoading = ref(true)
 const dbInfo = ref<DatabaseInfo | null>(null)
 const retentionDays = ref(30)
-const savedRetentionDays = ref(30)
-const isCleaningUp = ref(false)
 const isForceDeleting = ref(false)
-const isSavingRetention = ref(false)
 const lastCleanupResult = ref<CleanupResult | null>(null)
 
-const hasUnsavedRetentionChanges = computed(
-  () => retentionDays.value !== savedRetentionDays.value,
-)
 const hasTombstones = computed(() => (dbInfo.value?.totalTombstones ?? 0) > 0)
 
 const retentionOptions = [
@@ -344,7 +299,6 @@ const loadDatabaseInfoAsync = async () => {
     const persistedRetentionDays =
       await vaultSettingsStore.getTombstoneRetentionDaysAsync()
     retentionDays.value = persistedRetentionDays
-    savedRetentionDays.value = persistedRetentionDays
   } catch (error) {
     console.error('Failed to load database info:', error)
     add({ description: t('errors.loadFailed'), color: 'error' })
@@ -353,45 +307,15 @@ const loadDatabaseInfoAsync = async () => {
   }
 }
 
-const onSaveRetentionAsync = async () => {
-  isSavingRetention.value = true
+watch(retentionDays, async (newValue) => {
   try {
-    await vaultSettingsStore.updateTombstoneRetentionDaysAsync(
-      retentionDays.value,
-    )
-    savedRetentionDays.value = retentionDays.value
+    await vaultSettingsStore.updateTombstoneRetentionDaysAsync(newValue)
     add({ description: t('retention.saved'), color: 'success' })
   } catch (error) {
     console.error('Failed to save retention days:', error)
     add({ description: t('retention.saveError'), color: 'error' })
-  } finally {
-    isSavingRetention.value = false
   }
-}
-
-const onCleanupAsync = async () => {
-  isCleaningUp.value = true
-  lastCleanupResult.value = null
-
-  try {
-    // 1. Cleanup tombstones older than retention period
-    const result = await invoke<CleanupResult>('crdt_cleanup_tombstones', {
-      retentionDays: savedRetentionDays.value,
-    })
-    lastCleanupResult.value = result
-
-    // 2. Vacuum to reclaim disk space
-    await invoke('database_vacuum')
-
-    add({ description: t('cleanup.success'), color: 'success' })
-    await loadDatabaseInfoAsync()
-  } catch (error) {
-    console.error('Cleanup failed:', error)
-    add({ description: t('cleanup.error'), color: 'error' })
-  } finally {
-    isCleaningUp.value = false
-  }
-}
+})
 
 const onForceDeleteAsync = async () => {
   isForceDeleting.value = true
@@ -424,9 +348,8 @@ onMounted(async () => {
 
 <i18n lang="yaml">
 de:
-  title: Datenbank
+  title: Vault
   overview:
-    title: Übersicht
     fileSize: Dateigröße
     totalEntries: Einträge insgesamt
     activeEntries: Aktive Einträge
@@ -441,18 +364,13 @@ de:
     label: Aufbewahrungszeit
     description: Gelöschte Einträge werden für diese Zeit aufbewahrt, damit alle Geräte die Löschung synchronisieren können.
     days: Tage
-    save: Speichern
     saved: Aufbewahrungszeit gespeichert
     saveError: Fehler beim Speichern der Aufbewahrungszeit
   actions:
     title: Datenbankoptimierung
-    cleanup:
-      label: Alte Löschmarkierungen entfernen
-      description: 'Entfernt Löschmarkierungen die älter als {days} Tage sind. Diese Löschungen wurden bereits an alle Geräte synchronisiert.'
-      button: Bereinigen
     forceDelete:
       label: Alle Löschmarkierungen sofort entfernen
-      description: 'Achtung: Geräte die noch nicht synchronisiert haben, werden diese Löschungen nicht mehr erhalten. Gelöschte Einträge könnten dort wieder auftauchen.'
+      description: 'Achtung: Geräte die noch nicht synchronisiert haben, könnten die gelöschten Einträge beim nächsten Sync wieder in diese Vault zurückschreiben.'
       button: Sofort löschen
   cleanup:
     success: Bereinigung erfolgreich abgeschlossen
@@ -465,9 +383,8 @@ de:
     loadFailed: Datenbankinformationen konnten nicht geladen werden
 
 en:
-  title: Database
+  title: Vault
   overview:
-    title: Overview
     fileSize: File Size
     totalEntries: Total Entries
     activeEntries: Active Entries
@@ -482,18 +399,13 @@ en:
     label: Retention Period
     description: Deleted entries are kept for this time so all devices can sync the deletion.
     days: days
-    save: Save
     saved: Retention period saved
     saveError: Failed to save retention period
   actions:
     title: Database Optimization
-    cleanup:
-      label: Remove old deletion markers
-      description: 'Removes deletion markers older than {days} days. These deletions have already been synced to all devices.'
-      button: Cleanup
     forceDelete:
       label: Remove all deletion markers now
-      description: 'Warning: Devices that have not synced yet will not receive these deletions. Deleted entries may reappear on those devices.'
+      description: 'Warning: Devices that have not synced yet may push the deleted entries back into this vault on their next sync.'
       button: Delete now
   cleanup:
     success: Cleanup completed successfully

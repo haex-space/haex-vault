@@ -479,14 +479,14 @@ const onConfirmDeleteAsync = async () => {
 
 <i18n lang="yaml">
 de:
-  title: Storage
+  title: Cloud Storage
   description: Verwalte S3-kompatible Storage Backends für Erweiterungen
   addBackend:
-    title: Storage Backend hinzufügen
+    title: Cloud Storage Backend hinzufügen
   editBackend:
-    title: Storage Backend bearbeiten
+    title: Cloud Storage Backend bearbeiten
   backends:
-    title: Storage Backends
+    title: Cloud Storage Backends
     description: S3-kompatible Speicherdienste für Datei-Uploads
     noBackends: Keine Storage Backends konfiguriert
     noBackendsHint: Füge ein S3-kompatibles Backend hinzu, um Dateien zu speichern
@@ -525,7 +525,7 @@ de:
     test: Testen
     delete: Löschen
   deleteBackend:
-    title: Storage Backend löschen
+    title: Cloud Storage Backend löschen
     description: Möchtest du das Backend "{name}" wirklich löschen? Erweiterungen können dann nicht mehr auf dieses Backend zugreifen.
   success:
     backendAdded: Storage Backend hinzugefügt
@@ -539,14 +539,14 @@ de:
     deleteFailed: Backend konnte nicht gelöscht werden
     testFailed: Verbindungstest fehlgeschlagen
 en:
-  title: Storage
+  title: Cloud Storage
   description: Manage S3-compatible storage backends for extensions
   addBackend:
     title: Add Storage Backend
   editBackend:
     title: Edit Storage Backend
   backends:
-    title: Storage Backends
+    title: Cloud Storage Backends
     description: S3-compatible storage services for file uploads
     noBackends: No storage backends configured
     noBackendsHint: Add an S3-compatible backend to store files

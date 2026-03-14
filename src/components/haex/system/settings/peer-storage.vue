@@ -46,6 +46,14 @@
         <UIcon name="i-lucide-wifi-off" class="w-8 h-8 mx-auto mb-2 opacity-50" />
         <p class="text-sm">{{ t('endpoint.stopped') }}</p>
       </div>
+
+      <template #footer>
+        <UCheckbox
+          v-model="autostart"
+          :label="t('endpoint.autostart')"
+          @update:model-value="onToggleAutostartAsync"
+        />
+      </template>
     </UCard>
 
     <!-- Shared Folders by Space -->
@@ -167,21 +175,60 @@
 </template>
 
 <script setup lang="ts">
+import { eq } from 'drizzle-orm'
 import { open } from '@tauri-apps/plugin-dialog'
 import type { SelectHaexPeerShares } from '~/database/schemas'
+import { haexVaultSettings } from '~/database/schemas'
+import { VaultSettingsKeyEnum, VaultSettingsTypeEnum } from '~/config/vault-settings'
 
 const { t } = useI18n()
 const { add } = useToast()
 const store = usePeerStorageStore()
 const spacesStore = useSpacesStore()
 const windowManager = useWindowManagerStore()
+const { currentVault } = storeToRefs(useVaultStore())
 
 const isToggling = ref(false)
+const autostart = ref(false)
+
+const onToggleAutostartAsync = async (value: boolean) => {
+  if (!currentVault.value?.drizzle) return
+
+  try {
+    const existing = await currentVault.value.drizzle.query.haexVaultSettings.findFirst({
+      where: eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageAutostart),
+    })
+
+    if (existing) {
+      await currentVault.value.drizzle
+        .update(haexVaultSettings)
+        .set({ value: value ? 'true' : 'false' })
+        .where(eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageAutostart))
+    } else {
+      await currentVault.value.drizzle.insert(haexVaultSettings).values({
+        id: crypto.randomUUID(),
+        key: VaultSettingsKeyEnum.peerStorageAutostart,
+        type: VaultSettingsTypeEnum.settings,
+        value: value ? 'true' : 'false',
+      })
+    }
+  } catch (error) {
+    console.error('Failed to save autostart setting:', error)
+    add({ description: t('toast.error'), color: 'error' })
+  }
+}
 
 onMounted(async () => {
   await store.refreshStatusAsync()
   await store.loadSharesAsync()
   await store.loadSpaceDevicesAsync()
+
+  if (currentVault.value?.drizzle) {
+    const row = await currentVault.value.drizzle.query.haexVaultSettings.findFirst({
+      where: eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageAutostart),
+    })
+    autostart.value = row?.value === 'true'
+  }
 })
 
 // =========================================================================
@@ -288,7 +335,7 @@ const onRemoveShareAsync = async (shareId: string) => {
 
 <i18n lang="yaml">
 de:
-  title: Peer Storage
+  title: P2P Storage
   description: Teile lokale Ordner direkt mit anderen Peers über eine verschlüsselte P2P-Verbindung
   endpoint:
     title: Verbindung
@@ -299,6 +346,7 @@ de:
     stopped: Endpoint ist nicht aktiv. Starte ihn, um Dateien zu teilen.
     nodeId: Node-ID
     nodeIdHint: Teile diese ID mit Peers, damit sie sich mit dir verbinden können.
+    autostart: Automatisch starten wenn die Vault geöffnet wird
   shares:
     title: Geteilte Ordner
     description: Ordner pro Space und Device, die für verbundene Peers zugänglich sind
@@ -316,7 +364,7 @@ de:
     shareRemoved: Ordner entfernt
     error: Fehler
 en:
-  title: Peer Storage
+  title: P2P Storage
   description: Share local folders directly with other peers over an encrypted P2P connection
   endpoint:
     title: Connection
@@ -327,6 +375,7 @@ en:
     stopped: Endpoint is not active. Start it to share files.
     nodeId: Node ID
     nodeIdHint: Share this ID with peers so they can connect to you.
+    autostart: Automatically start when the vault is opened
   shares:
     title: Shared Folders
     description: Folders per space and device, accessible to connected peers

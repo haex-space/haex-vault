@@ -142,7 +142,7 @@ const categories = computed(() => [
   {
     value: 'peerStorage',
     label: t('categories.peerStorage'),
-    icon: 'i-lucide-hard-drive-download',
+    icon: 'i-mdi-lan-connect',
     active: activeCategory.value === 'peerStorage',
     click: () => {
       activeCategory.value = 'peerStorage'
@@ -160,7 +160,7 @@ const categories = computed(() => [
   {
     value: 'database',
     label: t('categories.database'),
-    icon: 'i-heroicons-circle-stack',
+    icon: 'i-mdi-safe-square-outline',
     active: activeCategory.value === 'database',
     click: () => {
       activeCategory.value = 'database'
@@ -203,13 +203,13 @@ de:
     appearance: Erscheinungsbild
     extensions: Erweiterungen
     externalClients: Externe Clients
-    database: Datenbank
+    database: Vault
     sync: Synchronisation
     spaces: Spaces
     identities: Identitäten
     contacts: Kontakte
-    storage: Storage
-    peerStorage: Peer Storage
+    storage: Cloud Storage
+    peerStorage: P2P Storage
     devices: Geräte
     developer: Entwickler
     debugLogs: Debug Logs
@@ -219,13 +219,13 @@ en:
     appearance: Appearance
     extensions: Extensions
     externalClients: External Clients
-    database: Database
+    database: Vault
     sync: Sync
     spaces: Spaces
     identities: Identities
     contacts: Contacts
-    storage: Storage
-    peerStorage: Peer Storage
+    storage: Cloud Storage
+    peerStorage: P2P Storage
     devices: Devices
     developer: Developer
     debugLogs: Debug Logs
