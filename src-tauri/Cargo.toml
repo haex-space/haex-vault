@@ -79,6 +79,9 @@ reqwest = { version = "0.13", default-features = false, features = [
   "native-tls",
 ] }
 
+# Peer Storage (P2P file sharing via iroh/QUIC)
+iroh = { version = "0.96", default-features = false }
+
 # LocalSend dependencies (all platforms)
 get_if_addrs = "0.5"
 whoami = "2.1"

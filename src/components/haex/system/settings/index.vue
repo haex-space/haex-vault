@@ -40,6 +40,7 @@
       <HaexSystemSettingsIdentities v-if="activeCategory === 'identities'" />
       <HaexSystemSettingsContacts v-if="activeCategory === 'contacts'" />
       <HaexSystemSettingsStorage v-if="activeCategory === 'storage'" />
+      <HaexSystemSettingsPeerStorage v-if="activeCategory === 'peerStorage'" />
       <HaexSystemSettingsDevices v-if="activeCategory === 'devices'" />
       <HaexSystemSettingsDeveloper v-if="activeCategory === 'developer'" />
       <HaexSystemDebugLogs v-if="activeCategory === 'debugLogs'" />
@@ -113,7 +114,7 @@ const categories = computed(() => [
   {
     value: 'sync',
     label: t('categories.sync'),
-    icon: 'i-heroicons-arrow-path',
+    icon: 'i-lucide-server',
     active: activeCategory.value === 'sync',
     tourId: 'settings-nav-sync',
     click: () => {
@@ -136,6 +137,15 @@ const categories = computed(() => [
     active: activeCategory.value === 'storage',
     click: () => {
       activeCategory.value = 'storage'
+    },
+  },
+  {
+    value: 'peerStorage',
+    label: t('categories.peerStorage'),
+    icon: 'i-lucide-hard-drive-download',
+    active: activeCategory.value === 'peerStorage',
+    click: () => {
+      activeCategory.value = 'peerStorage'
     },
   },
   {
@@ -199,6 +209,7 @@ de:
     identities: Identitäten
     contacts: Kontakte
     storage: Storage
+    peerStorage: Peer Storage
     devices: Geräte
     developer: Entwickler
     debugLogs: Debug Logs
@@ -214,6 +225,7 @@ en:
     identities: Identities
     contacts: Contacts
     storage: Storage
+    peerStorage: Peer Storage
     devices: Devices
     developer: Developer
     debugLogs: Debug Logs

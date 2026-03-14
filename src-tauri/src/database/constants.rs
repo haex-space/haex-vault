@@ -26,6 +26,9 @@ pub mod vault_settings_key {
     pub const TRIGGER_VERSION: &str = "trigger_version";
     pub const GRADIENT_VARIANT: &str = "gradient_variant";
     pub const GRADIENT_ENABLED: &str = "gradient_enabled";
+    /// 32-byte secret (hex) used to encrypt the Ed25519 device key file in the app data directory.
+    /// Generated once at vault creation, shared across devices via CRDT sync.
+    pub const DEVICE_KEY_SECRET: &str = "device_key_secret";
 }
 
 #[cfg(test)]
@@ -54,6 +57,7 @@ mod tests {
             "triggerVersion": vault_settings_key::TRIGGER_VERSION,
             "gradientVariant": vault_settings_key::GRADIENT_VARIANT,
             "gradientEnabled": vault_settings_key::GRADIENT_ENABLED,
+            "deviceKeySecret": vault_settings_key::DEVICE_KEY_SECRET,
         });
 
         let output = serde_json::json!({

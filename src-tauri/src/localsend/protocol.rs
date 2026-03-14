@@ -123,26 +123,6 @@ pub enum PrepareUploadErrorCode {
     TooManyRequests,
 }
 
-/// Request body for POST /api/localsend/v2/prepare-download (browser mode)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PrepareDownloadRequest {
-    /// Receiver device info
-    pub info: DeviceAnnouncement,
-}
-
-/// Response body for POST /api/localsend/v2/prepare-download
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PrepareDownloadResponse {
-    /// Sender device info
-    pub info: DeviceAnnouncement,
-    /// Session ID for this transfer
-    pub session_id: String,
-    /// Files available for download (file_id -> file info)
-    pub files: HashMap<String, PrepareUploadFile>,
-}
-
 // ============================================================================
 // Upload Query Parameters
 // ============================================================================
@@ -167,15 +147,6 @@ pub struct CancelQuery {
     pub session_id: String,
 }
 
-/// Query parameters for GET /api/localsend/v2/download
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DownloadQuery {
-    /// Session ID from prepare-download
-    pub session_id: String,
-    /// File ID to download
-    pub file_id: String,
-}
 
 // ============================================================================
 // Conversion helpers

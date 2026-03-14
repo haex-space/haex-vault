@@ -7,24 +7,9 @@ use crate::extension::core::protocol::ExtensionInfo;
 use crate::extension::error::ExtensionError;
 use crate::extension::utils::resolve_extension_id;
 use crate::AppState;
-use serde::{Deserialize, Serialize};
 use tauri::{State, WebviewWindow};
 
 use super::helpers::get_extension_info_from_window;
-
-// ============================================================================
-// Types for SDK communication
-// ============================================================================
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ApplicationContext {
-    pub theme: String,
-    pub locale: String,
-    #[serde(default)]
-    pub platform: String,
-    pub device_id: String,
-}
 
 // ============================================================================
 // Extension Info Command

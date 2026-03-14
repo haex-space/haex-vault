@@ -452,6 +452,50 @@ export type InsertHaexContactClaims = typeof haexContactClaims.$inferInsert
 export type SelectHaexContactClaims = typeof haexContactClaims.$inferSelect
 
 // ---------------------------------------------------------------------------
+// Space Devices — registers devices in Spaces (EndpointId → Space mapping)
+// ---------------------------------------------------------------------------
+
+export const haexSpaceDevices = sqliteTable(
+  tableNames.haex.space_devices.name,
+  {
+    id: text(tableNames.haex.space_devices.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    spaceId: text(tableNames.haex.space_devices.columns.spaceId).notNull(),
+    deviceEndpointId: text(tableNames.haex.space_devices.columns.deviceEndpointId).notNull(),
+    deviceName: text(tableNames.haex.space_devices.columns.deviceName).notNull(),
+    createdAt: text(tableNames.haex.space_devices.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
+  },
+  (table) => [
+    uniqueIndex('haex_space_devices_space_device_unique').on(table.spaceId, table.deviceEndpointId),
+  ],
+)
+
+export type InsertHaexSpaceDevices = typeof haexSpaceDevices.$inferInsert
+export type SelectHaexSpaceDevices = typeof haexSpaceDevices.$inferSelect
+
+// ---------------------------------------------------------------------------
+// Peer Shares — folders shared in Spaces from specific devices
+// ---------------------------------------------------------------------------
+
+export const haexPeerShares = sqliteTable(
+  tableNames.haex.peer_shares.name,
+  {
+    id: text(tableNames.haex.peer_shares.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    spaceId: text(tableNames.haex.peer_shares.columns.spaceId).notNull(),
+    deviceEndpointId: text(tableNames.haex.peer_shares.columns.deviceEndpointId).notNull(),
+    name: text(tableNames.haex.peer_shares.columns.name).notNull(),
+    localPath: text(tableNames.haex.peer_shares.columns.localPath).notNull(),
+    createdAt: text(tableNames.haex.peer_shares.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
+  },
+)
+
+export type InsertHaexPeerShares = typeof haexPeerShares.$inferInsert
+export type SelectHaexPeerShares = typeof haexPeerShares.$inferSelect
+
+// ---------------------------------------------------------------------------
 // Shared Space Sync — maps rows to shared spaces for space-backend filtering
 // ---------------------------------------------------------------------------
 

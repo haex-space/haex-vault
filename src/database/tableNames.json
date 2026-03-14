@@ -112,13 +112,8 @@
         "name": "name",
         "serverUrl": "server_url",
         "vaultId": "vault_id",
-        "email": "email",
-        "password": "password",
         "syncKey": "sync_key",
         "vaultKeySalt": "vault_key_salt",
-        "type": "type",
-        "spaceId": "space_id",
-        "spaceToken": "space_token",
         "identityId": "identity_id",
         "enabled": "enabled",
         "priority": "priority",
@@ -233,6 +228,27 @@
         "contactId": "contact_id",
         "type": "type",
         "value": "value",
+        "createdAt": "created_at"
+      }
+    },
+    "space_devices": {
+      "name": "haex_space_devices",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "deviceEndpointId": "device_endpoint_id",
+        "deviceName": "device_name",
+        "createdAt": "created_at"
+      }
+    },
+    "peer_shares": {
+      "name": "haex_peer_shares",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "deviceEndpointId": "device_endpoint_id",
+        "name": "name",
+        "localPath": "local_path",
         "createdAt": "created_at"
       }
     },

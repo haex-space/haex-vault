@@ -32,7 +32,9 @@ pub enum ExtensionErrorCode {
     LimitExceeded = 7000,
 }
 
-/// Serialized representation of ExtensionError for TypeScript
+/// Serialized representation of ExtensionError for TypeScript.
+/// Not constructed in Rust — serves as the schema for the auto-generated TS type via ts_rs.
+#[allow(dead_code)]
 #[derive(Debug, Clone, serde::Serialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]

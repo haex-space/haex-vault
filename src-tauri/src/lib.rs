@@ -2,11 +2,13 @@
 mod external_bridge;
 mod crdt;
 mod database;
+mod device;
 mod extension;
 mod filesystem;
 mod localsend;
 #[cfg(desktop)]
 mod shortcuts;
+mod peer_storage;
 mod remote_storage;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod window;
@@ -51,6 +53,8 @@ pub struct AppState {
     pub localsend: Arc<localsend::LocalSendState>,
     /// Extension resource limits service (database, filesystem, web)
     pub limits: extension::limits::LimitsService,
+    /// Peer storage endpoint for P2P file sharing via iroh/QUIC
+    pub peer_storage: tokio::sync::Mutex<peer_storage::endpoint::PeerEndpoint>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -138,6 +142,7 @@ pub fn run() {
             session_permissions: extension::permissions::session::SessionPermissionStore::new(),
             localsend: Arc::new(localsend::LocalSendState::new()),
             limits: extension::limits::LimitsService::new(),
+            peer_storage: tokio::sync::Mutex::new(peer_storage::endpoint::PeerEndpoint::new_ephemeral()),
         })
         //.manage(ExtensionState::default())
         .plugin(tauri_plugin_dialog::init())
@@ -422,6 +427,15 @@ pub fn run() {
             localsend::localsend_send_files,
             localsend::localsend_cancel_send,
             localsend::localsend_get_devices,
+            // Device identity
+            device::device_init_key,
+            // Peer Storage (P2P file sharing via iroh/QUIC)
+            peer_storage::peer_storage_start,
+            peer_storage::peer_storage_stop,
+            peer_storage::peer_storage_status,
+            peer_storage::peer_storage_reload_shares,
+            peer_storage::peer_storage_remote_list,
+            peer_storage::peer_storage_remote_read,
             // LocalSend discovery (desktop only - multicast UDP)
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             localsend::localsend_start_discovery,

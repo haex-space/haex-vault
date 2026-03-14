@@ -45,9 +45,9 @@ export const useVaultStore = defineStore('vaultStore', () => {
   // Close all extension windows when no vault is available
   watch(currentVault, async (newVault) => {
     if (!newVault) {
-      console.log('[VAULT STORE] No vault available, closing all extension windows...')
+      console.log('[VAULT STORE] No vault available, closing all windows...')
       const windowManagerStore = useWindowManagerStore()
-      await windowManagerStore.closeAllExtensionWindowsAsync()
+      await windowManagerStore.closeAllWindowsAsync()
     }
   }, { immediate: true })
 
@@ -249,6 +249,11 @@ export const useVaultStore = defineStore('vaultStore', () => {
         },
       }
 
+      // Initialize device identity key (non-blocking)
+      invoke('device_init_key').catch((error) => {
+        console.warn('[HaexSpace] Device key init failed:', error)
+      })
+
       // Automatic cleanup on vault open (non-blocking)
       performAutomaticCleanupAsync().catch((error) => {
         console.warn('[HaexSpace] Automatic cleanup failed:', error)
@@ -333,9 +338,9 @@ export const useVaultStore = defineStore('vaultStore', () => {
     const syncBackendsStore = useSyncBackendsStore()
     syncBackendsStore.reset()
 
-    // Close all extension windows before closing the vault
+    // Close ALL windows (system + extension) before closing the vault
     const windowManagerStore = useWindowManagerStore()
-    await windowManagerStore.closeAllExtensionWindowsAsync()
+    await windowManagerStore.closeAllWindowsAsync()
 
     // Reset all vault-specific stores to clear cached data
     // This prevents stale data from appearing when opening a different vault
@@ -348,6 +353,10 @@ export const useVaultStore = defineStore('vaultStore', () => {
     extensionsStore.reset()
     workspaceStore.reset()
     syncEngineStore.reset()
+
+    // Reset additional stores with cached vault data
+    const spacesStore = useSpacesStore()
+    spacesStore.clearCache()
 
     // Close the database connection on the Rust side
     // This clears the DB connection, HLC service, and extension manager caches

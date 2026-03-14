@@ -291,24 +291,31 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
 
         // Singleton check: If already open, activate existing window and switch to its workspace
         if (systemWindowDef.singleton) {
-          // Only consider windows that:
-          // - Have a valid workspaceId (invalid windows should be ignored)
-          // - Are not in the process of closing (isClosing windows will be removed soon)
           const existingWindow = windows.value.find(
             (w) => w.type === 'system' && w.sourceId === sourceId && w.workspaceId && !w.isClosing,
           )
           if (existingWindow) {
-            // Update params if provided (e.g. navigating to a different settings category)
-            if (params) {
-              existingWindow.params = { ...existingWindow.params, ...params }
-            }
-            // Switch to the workspace where this window is located
+            // Verify the window's workspace still exists — if not, remove the stale window
             const workspaceStore = useWorkspaceStore()
-            if (existingWindow.workspaceId !== workspaceStore.currentWorkspace?.id) {
-              workspaceStore.slideToWorkspace(existingWindow.workspaceId)
+            const workspaceExists = workspaceStore.workspaces?.some(
+              (ws) => ws.id === existingWindow.workspaceId,
+            )
+            if (!workspaceExists) {
+              console.warn(`[windowManager] Removing stale singleton window '${sourceId}' (workspace ${existingWindow.workspaceId} no longer exists)`)
+              windows.value = windows.value.filter((w) => w.id !== existingWindow.id)
+              // Fall through to create a new window below
+            } else {
+              // Update params if provided (e.g. navigating to a different settings category)
+              if (params) {
+                existingWindow.params = { ...existingWindow.params, ...params }
+              }
+              // Switch to the workspace where this window is located
+              if (existingWindow.workspaceId !== workspaceStore.currentWorkspace?.id) {
+                workspaceStore.slideToWorkspace(existingWindow.workspaceId)
+              }
+              activateWindow(existingWindow.id)
+              return existingWindow.id
             }
-            activateWindow(existingWindow.id)
-            return existingWindow.id
           }
         }
 
@@ -598,6 +605,17 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     console.log('[windowManager] All extension windows closed')
   }
 
+  /**
+   * Closes ALL windows (system + extension).
+   * Called when the vault is closed to prevent stale windows with invalid workspace IDs.
+   */
+  const closeAllWindowsAsync = async () => {
+    console.log(`[windowManager] Closing all ${windows.value.length} window(s)...`)
+    await closeAllExtensionWindowsAsync()
+    windows.value = []
+    console.log('[windowManager] All windows cleared')
+  }
+
   // Desktop: Listen for native window close events from Tauri
   // Backend is source of truth, frontend is read-only mirror for tracking
   const setupDesktopEventListenersAsync = async () => {
@@ -677,6 +695,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     activateWindow,
     activeWindowId,
     closeAllExtensionWindowsAsync,
+    closeAllWindowsAsync,
     closeWindow,
     closeWindowsByExtensionIdAsync,
     currentWorkspaceWindows,

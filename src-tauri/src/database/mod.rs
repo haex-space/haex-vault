@@ -565,6 +565,37 @@ pub fn create_encrypted_database(
         println!("[CREATE_DB] ✅ vault_id set successfully with CRDT timestamp");
     }
 
+    // Step 6: Generate device_key_secret (32 random bytes for encrypting the Ed25519 device key file)
+    println!("[CREATE_DB] Step 6: Generating device_key_secret...");
+    {
+        let mut secret_bytes = [0u8; 32];
+        rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut secret_bytes);
+        let secret_hex = hex::encode(secret_bytes);
+
+        let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
+            reason: "Failed to lock HLC service".to_string(),
+        })?;
+        let row_id = uuid::Uuid::new_v4().to_string();
+        let insert_sql = format!(
+            "INSERT INTO {} (id, key, type, value) VALUES (?, '{}', '{}', ?)",
+            TABLE_VAULT_SETTINGS,
+            vault_settings_key::DEVICE_KEY_SECRET,
+            vault_settings_type::SYSTEM,
+        );
+        with_connection(&state.db, |conn| {
+            let tx = conn.transaction().map_err(DatabaseError::from)?;
+            SqlExecutor::execute_internal_typed(
+                &tx,
+                &hlc_service,
+                &insert_sql,
+                rusqlite::params![row_id, secret_hex],
+            )?;
+            tx.commit().map_err(DatabaseError::from)?;
+            Ok(())
+        })?;
+        println!("[CREATE_DB] ✅ device_key_secret generated and stored");
+    }
+
     println!("[CREATE_DB] ========== create_encrypted_database COMPLETE ==========");
     Ok(vault_path)
 }

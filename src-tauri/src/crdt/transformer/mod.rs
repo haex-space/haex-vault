@@ -200,7 +200,7 @@ impl CrdtTransformer {
     }
 
     /// Normalisiert Tabellennamen (entfernt Anführungszeichen und Schema-Präfix wie "main.")
-    fn normalize_table_name(&self, name: &ObjectName) -> Cow<str> {
+    fn normalize_table_name(&self, name: &ObjectName) -> Cow<'_, str> {
         // Get the last part of the ObjectName (the actual table name without schema)
         // This handles cases like "main.tablename" where we only want "tablename"
         let table_name = name

@@ -77,12 +77,26 @@
           :label="t('create.nameLabel')"
           @keydown.enter.prevent="onCreateSpaceAsync"
         />
-        <USelectMenu
-          v-model="createForm.serverUrl"
-          :items="serverUrlOptions"
-          :placeholder="t('create.serverLabel')"
-          class="w-full"
-        />
+        <div class="space-y-2">
+          <div class="flex items-center gap-2">
+            <USelectMenu
+              v-model="createForm.serverUrl"
+              :items="serverUrlOptions"
+              :placeholder="t('create.serverLabel')"
+              class="flex-1"
+            />
+            <UiButton
+              icon="i-lucide-server"
+              variant="ghost"
+              color="neutral"
+              size="md"
+              @click="onNavigateToSync"
+            />
+          </div>
+          <p v-if="!serverUrlOptions.length" class="text-xs text-muted">
+            {{ t('create.noServersHint') }}
+          </p>
+        </div>
       </template>
       <template #footer>
         <div class="flex justify-between gap-4">
@@ -176,6 +190,7 @@ const { add } = useToast()
 
 const spacesStore = useSpacesStore()
 const syncBackendsStore = useSyncBackendsStore()
+const windowManager = useWindowManagerStore()
 
 const { spaces } = storeToRefs(spacesStore)
 const { backends: syncBackends } = storeToRefs(syncBackendsStore)
@@ -227,6 +242,14 @@ const serverUrlOptions = computed(() => {
     value: url,
   }))
 })
+
+const onNavigateToSync = () => {
+  windowManager.openWindowAsync({
+    type: 'system',
+    sourceId: 'settings',
+    params: { category: 'sync' },
+  })
+}
 
 // Load spaces on mount
 onMounted(async () => {
@@ -448,6 +471,7 @@ de:
     description: Erstelle einen neuen geteilten Space
     nameLabel: Name
     serverLabel: Server auswählen
+    noServersHint: Kein Server konfiguriert. Klicke auf das Zahnrad, um einen hinzuzufügen.
     defaultSelfLabel: Ich
   join:
     title: Space beitreten
@@ -488,6 +512,7 @@ en:
     description: Create a new shared space
     nameLabel: Name
     serverLabel: Select server
+    noServersHint: No server configured. Click the gear icon to add one.
     defaultSelfLabel: Me
   join:
     title: Join Space

@@ -5,50 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1768042422819,
-      "tag": "0000_condemned_slayback",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1768577400000,
-      "tag": "0001_add_dev_path",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1741545600000,
-      "tag": "0002_shared_space_sync",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1741632000000,
-      "tag": "0003_space_keys",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1741718400000,
-      "tag": "0004_identities",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1741804800000,
-      "tag": "0005_identity_claims",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1741891200000,
-      "tag": "0006_contacts",
+      "when": 1773453046969,
+      "tag": "0000_moaning_trauma",
       "breakpoints": true
     }
   ]

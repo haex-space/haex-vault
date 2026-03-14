@@ -32,21 +32,6 @@ pub struct ClientInfo {
     pub requested_extensions: Vec<RequestedExtension>,
 }
 
-/// Request from browser extension to haex-vault
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BridgeRequest {
-    /// Request ID for correlation
-    pub id: String,
-    /// Target extension ID (e.g., "haex-pass")
-    pub extension_id: String,
-    /// Action to perform
-    pub action: String,
-    /// Action payload (extension-specific)
-    #[serde(default)]
-    pub payload: serde_json::Value,
-}
-
 /// Response from haex-vault to browser extension
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
