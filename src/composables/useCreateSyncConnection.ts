@@ -7,6 +7,7 @@ export interface ServerRequirements {
   serverName: string
   claims: { type: string; required: boolean; label: string }[]
   didMethods: string[]
+  serverTime?: string
 }
 
 export type CreateConnectionResult =
@@ -30,8 +31,9 @@ async function signClaimPresentation(
   publicKeyBase64: string,
   claims: Record<string, string>,
   privateKeyBase64: string,
+  clockOffsetMs: number = 0,
 ): Promise<SignedClaimPresentation> {
-  const timestamp = new Date().toISOString()
+  const timestamp = new Date(Date.now() + clockOffsetMs).toISOString()
   const sortedEntries = Object.entries(claims).sort(([a], [b]) => a.localeCompare(b))
   const canonical = [did, timestamp, ...sortedEntries.map(([k, v]) => `${k}=${v}`)].join('\0')
 
@@ -74,6 +76,7 @@ export const useCreateSyncConnection = () => {
 
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  const serverClockOffsetMs = ref(0)
 
   const getBackendNameFromUrl = (url: string): string => {
     try {
@@ -88,12 +91,26 @@ export const useCreateSyncConnection = () => {
   }
 
   const fetchRequirementsAsync = async (serverUrl: string): Promise<ServerRequirements> => {
+    const requestedAt = Date.now()
     const res = await fetch(`${serverUrl}/identity-auth/requirements`)
     if (!res.ok) {
       const data = await res.json().catch(() => ({ error: 'Unknown error' }))
       throw new Error(`Failed to fetch requirements: ${data.error || res.statusText}`)
     }
-    return res.json()
+    const data: ServerRequirements = await res.json()
+
+    if (data.serverTime) {
+      const serverTimeMs = new Date(data.serverTime).getTime()
+      const roundTripMs = Date.now() - requestedAt
+      const estimatedServerNow = serverTimeMs + roundTripMs / 2
+      serverClockOffsetMs.value = estimatedServerNow - Date.now()
+
+      if (Math.abs(serverClockOffsetMs.value) > 1000) {
+        console.warn(`[SYNC] Clock skew detected: ${serverClockOffsetMs.value}ms (device is ${serverClockOffsetMs.value > 0 ? 'behind' : 'ahead'})`)
+      }
+    }
+
+    return data
   }
 
   const loginAsync = async (serverUrl: string, identityId: string): Promise<{ access_token: string; refresh_token: string }> => {
@@ -170,6 +187,7 @@ export const useCreateSyncConnection = () => {
         identity.publicKey,
         params.approvedClaims,
         identity.privateKey,
+        serverClockOffsetMs.value,
       )
 
       const registrationBody: Record<string, unknown> = { presentation }
