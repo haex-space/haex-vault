@@ -4,7 +4,7 @@
       :label="t('language')"
       :description="t('language.description')"
     >
-      <UiDropdownLocale @select="onSelectLocaleAsync" />
+      <UiSelectLocale @select="onSelectLocaleAsync" />
     </UFormField>
 
     <UFormField
@@ -62,7 +62,7 @@
         :title="t('password.modal.title')"
       >
         <template #trigger>
-          <UButton
+          <UiButton
             color="neutral"
             variant="outline"
             :label="t('password.button')"
@@ -97,13 +97,13 @@
 
         <template #footer>
           <div class="flex justify-end gap-2 w-full">
-            <UButton
+            <UiButton
               color="neutral"
               variant="ghost"
               :label="t('password.modal.cancel')"
               @click="isPasswordModalOpen = false"
             />
-            <UButton
+            <UiButton
               color="primary"
               :label="t('password.modal.submit')"
               :loading="isChangingPassword"

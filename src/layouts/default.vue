@@ -31,7 +31,7 @@
 
           <div>
             <div v-if="!currentVaultId">
-              <UiDropdownLocale @select="onSelectLocale" />
+              <UiSelectLocale @select="onSelectLocale" />
             </div>
             <div
               v-else

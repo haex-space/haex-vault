@@ -1,7 +1,10 @@
 <template>
   <HaexSystemSettingsLayout :title="t('title')">
-    <UFormField :label="t('design')" :description="t('design.description')">
-      <UiDropdownTheme @select="onSelectThemeAsync" />
+    <UFormField
+      :label="t('design')"
+      :description="t('design.description')"
+    >
+      <UiSelectTheme @select="onSelectThemeAsync" />
     </UFormField>
 
     <UFormField
@@ -11,6 +14,8 @@
       <div class="flex gap-2">
         <UiButton
           :label="t('workspaceBackground.choose')"
+          variant="outline"
+          color="neutral"
           @click="selectBackgroundImage"
         />
         <UiButton
@@ -26,7 +31,10 @@
       :label="t('gradient.variant.label')"
       :description="t('gradient.variant.description')"
     >
-      <USelect v-model="gradientVariant" :items="gradientVariantOptions" />
+      <USelect
+        v-model="gradientVariant"
+        :items="gradientVariantOptions"
+      />
     </UFormField>
 
     <UFormField

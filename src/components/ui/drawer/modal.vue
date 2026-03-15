@@ -2,7 +2,7 @@
   <UiDrawer
     v-model:open="open"
     :title="title"
-    :description="$slots.description ? undefined : description"
+    :description="$slots.description ? undefined : (description || ' ')"
     v-bind="$attrs"
     :ui="{
       content: 'md:w-full md:max-w-4xl md:left-1/2 md:right-auto md:-translate-x-1/2 md:rounded-xl',
