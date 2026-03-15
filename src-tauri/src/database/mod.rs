@@ -527,20 +527,23 @@ pub fn create_encrypted_database(
     initialize_session_post_migration(&app_handle, &state)?;
     println!("[CREATE_DB] ✅ HLC and triggers initialized");
 
-    // Step 5: Set vault_id - but only for NEW vaults (not for remote sync)
-    // When connecting to a remote vault (vault_id provided), skip this step
-    // because the vault_id setting will be pulled from the server
+    // Step 5: Set vault_id
+    // For remote sync: use the provided vault_id
+    // For new vaults: generate a new UUID
     println!("[CREATE_DB] Step 5: Setting vault_id...");
-    if vault_id.is_some() {
-        println!(
-            "[CREATE_DB] Remote sync mode: Skipping vault_id insert (will be pulled from server)"
-        );
-    } else {
-        // Generate new vault_id for newly created vaults
-        let new_vault_id = uuid::Uuid::new_v4().to_string();
-        println!("[CREATE_DB] Generating new vault_id: {}", new_vault_id);
+    {
+        let effective_vault_id = match &vault_id {
+            Some(id) => {
+                println!("[CREATE_DB] Using provided vault_id: {}", id);
+                id.clone()
+            }
+            None => {
+                let new_id = uuid::Uuid::new_v4().to_string();
+                println!("[CREATE_DB] Generating new vault_id: {}", new_id);
+                new_id
+            }
+        };
 
-        // Use HLC service to insert with proper CRDT timestamps
         let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
             reason: "Failed to lock HLC service".to_string(),
         })?;
@@ -557,7 +560,7 @@ pub fn create_encrypted_database(
                 &tx,
                 &hlc_service,
                 &insert_sql,
-                rusqlite::params![row_id, new_vault_id],
+                rusqlite::params![row_id, effective_vault_id],
             )?;
             tx.commit().map_err(DatabaseError::from)?;
             Ok(())

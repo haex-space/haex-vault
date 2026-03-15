@@ -39,7 +39,20 @@ pub fn load_or_generate(
     let path = device_key_path(app_data_dir, vault_uuid);
 
     if path.exists() {
-        load(&path, encryption_key)
+        match load(&path, encryption_key) {
+            Ok(key) => Ok(key),
+            Err(DeviceError::Encryption { .. }) => {
+                // Key file was encrypted with a different secret (e.g. from a previous
+                // failed connection attempt that created a new DB with a new secret).
+                // Delete the stale file and generate a fresh key.
+                eprintln!("[Device] Stale key file detected, regenerating: {}", path.display());
+                fs::remove_file(&path)?;
+                let secret_key = generate_new();
+                save(&path, &secret_key, encryption_key)?;
+                Ok(secret_key)
+            }
+            Err(e) => Err(e),
+        }
     } else {
         let secret_key = generate_new();
         save(&path, &secret_key, encryption_key)?;
@@ -148,16 +161,21 @@ mod tests {
     }
 
     #[test]
-    fn test_wrong_encryption_key_fails() {
+    fn test_wrong_encryption_key_regenerates() {
         let dir = TempDir::new().unwrap();
         let encryption_key = [42u8; 32];
         let wrong_key = [99u8; 32];
         let vault_uuid = "test-vault-456";
 
-        load_or_generate(dir.path(), vault_uuid, &encryption_key).unwrap();
+        let key1 = load_or_generate(dir.path(), vault_uuid, &encryption_key).unwrap();
 
-        let result = load_or_generate(dir.path(), vault_uuid, &wrong_key);
-        assert!(result.is_err());
+        // With a different secret, the stale key file is deleted and a new key is generated
+        let key2 = load_or_generate(dir.path(), vault_uuid, &wrong_key).unwrap();
+        assert_ne!(key1.to_bytes(), key2.to_bytes());
+
+        // The new key is now loadable with the new secret
+        let key3 = load_or_generate(dir.path(), vault_uuid, &wrong_key).unwrap();
+        assert_eq!(key2.to_bytes(), key3.to_bytes());
     }
 
     #[test]
