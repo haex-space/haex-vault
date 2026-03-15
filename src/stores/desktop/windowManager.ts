@@ -378,6 +378,10 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       windows.value.push(newWindow)
       activeWindowId.value = windowId
 
+      // Push back action so back button closes this window
+      const { pushBack } = useBackNavigation()
+      pushBack({ undo: () => { closeWindow(windowId) } })
+
       // Remove opening flag after animation
       setTimeout(() => {
         const window = windows.value.find((w) => w.id === windowId)

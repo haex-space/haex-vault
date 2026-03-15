@@ -58,9 +58,21 @@ const props = defineProps<{
 const { t } = useI18n()
 
 const activeCategory = ref(props.category || 'general')
+const { pushBack } = useBackNavigation()
+
+const navigateToCategory = (category: string) => {
+  if (category === activeCategory.value) return
+
+  const previous = activeCategory.value
+  activeCategory.value = category
+
+  pushBack({ undo: () => { activeCategory.value = previous } })
+}
 
 watch(() => props.category, (newCategory) => {
-  if (newCategory) activeCategory.value = newCategory
+  if (newCategory && newCategory !== activeCategory.value) {
+    navigateToCategory(newCategory)
+  }
 })
 
 const categories = computed(() => [
@@ -71,7 +83,7 @@ const categories = computed(() => [
     active: activeCategory.value === 'general',
     tourId: 'settings-nav-general',
     click: () => {
-      activeCategory.value = 'general'
+      navigateToCategory('general')
     },
   },
   {
@@ -80,7 +92,7 @@ const categories = computed(() => [
     icon: 'i-heroicons-paint-brush',
     active: activeCategory.value === 'appearance',
     click: () => {
-      activeCategory.value = 'appearance'
+      navigateToCategory('appearance')
     },
   },
   {
@@ -90,7 +102,7 @@ const categories = computed(() => [
     active: activeCategory.value === 'extensions',
     tourId: 'settings-nav-extensions',
     click: () => {
-      activeCategory.value = 'extensions'
+      navigateToCategory('extensions')
     },
   },
   {
@@ -99,7 +111,7 @@ const categories = computed(() => [
     icon: 'i-lucide-contact',
     active: activeCategory.value === 'contacts',
     click: () => {
-      activeCategory.value = 'contacts'
+      navigateToCategory('contacts')
     },
   },
   {
@@ -109,7 +121,7 @@ const categories = computed(() => [
     active: activeCategory.value === 'identities',
     tourId: 'settings-nav-identities',
     click: () => {
-      activeCategory.value = 'identities'
+      navigateToCategory('identities')
     },
   },
   {
@@ -119,7 +131,7 @@ const categories = computed(() => [
     active: activeCategory.value === 'sync',
     tourId: 'settings-nav-sync',
     click: () => {
-      activeCategory.value = 'sync'
+      navigateToCategory('sync')
     },
   },
   {
@@ -128,7 +140,7 @@ const categories = computed(() => [
     icon: 'i-heroicons-user-group',
     active: activeCategory.value === 'spaces',
     click: () => {
-      activeCategory.value = 'spaces'
+      navigateToCategory('spaces')
     },
   },
   {
@@ -137,7 +149,7 @@ const categories = computed(() => [
     icon: 'i-heroicons-cloud',
     active: activeCategory.value === 'storage',
     click: () => {
-      activeCategory.value = 'storage'
+      navigateToCategory('storage')
     },
   },
   {
@@ -146,7 +158,7 @@ const categories = computed(() => [
     icon: 'i-mdi-lan-connect',
     active: activeCategory.value === 'peerStorage',
     click: () => {
-      activeCategory.value = 'peerStorage'
+      navigateToCategory('peerStorage')
     },
   },
   {
@@ -155,7 +167,7 @@ const categories = computed(() => [
     icon: 'i-heroicons-globe-alt',
     active: activeCategory.value === 'externalClients',
     click: () => {
-      activeCategory.value = 'externalClients'
+      navigateToCategory('externalClients')
     },
   },
   {
@@ -164,7 +176,7 @@ const categories = computed(() => [
     icon: 'i-mdi-safe-square-outline',
     active: activeCategory.value === 'database',
     click: () => {
-      activeCategory.value = 'database'
+      navigateToCategory('database')
     },
   },
   {
@@ -173,7 +185,7 @@ const categories = computed(() => [
     icon: 'i-heroicons-device-phone-mobile',
     active: activeCategory.value === 'devices',
     click: () => {
-      activeCategory.value = 'devices'
+      navigateToCategory('devices')
     },
   },
   {
@@ -182,7 +194,7 @@ const categories = computed(() => [
     icon: 'i-heroicons-document-text',
     active: activeCategory.value === 'logs',
     click: () => {
-      activeCategory.value = 'logs'
+      navigateToCategory('logs')
     },
   },
   {
@@ -191,7 +203,7 @@ const categories = computed(() => [
     icon: 'i-hugeicons-developer',
     active: activeCategory.value === 'developer',
     click: () => {
-      activeCategory.value = 'developer'
+      navigateToCategory('developer')
     },
   },
 ])
