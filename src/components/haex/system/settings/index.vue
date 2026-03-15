@@ -44,7 +44,6 @@
       <HaexSystemSettingsDevices v-if="activeCategory === 'devices'" />
       <HaexSystemSettingsLogs v-if="activeCategory === 'logs'" />
       <HaexSystemSettingsDeveloper v-if="activeCategory === 'developer'" />
-      <HaexSystemDebugLogs v-if="activeCategory === 'debugLogs'" />
     </div>
   </HaexSystem>
 </template>
@@ -195,15 +194,6 @@ const categories = computed(() => [
       activeCategory.value = 'developer'
     },
   },
-  {
-    value: 'debugLogs',
-    label: t('categories.debugLogs'),
-    icon: 'i-heroicons-bug-ant',
-    active: activeCategory.value === 'debugLogs',
-    click: () => {
-      activeCategory.value = 'debugLogs'
-    },
-  },
 ])
 </script>
 
@@ -224,7 +214,6 @@ de:
     devices: Geräte
     logs: Logs
     developer: Entwickler
-    debugLogs: Debug Logs
 en:
   categories:
     general: General
@@ -241,5 +230,4 @@ en:
     devices: Devices
     logs: Logs
     developer: Developer
-    debugLogs: Debug Logs
 </i18n>

@@ -24,7 +24,7 @@ pub fn extension_logging_write(
         if log_level < get_effective_log_level(conn, Some(&extension_id)) {
             return Ok(());
         }
-        insert_log(conn, &level, &extension_id, "extension", &message, metadata, &device_id)
+        insert_log(conn, &level, &extension_id, Some(&extension_id), &message, metadata, &device_id)
     })
 }
 
@@ -36,8 +36,7 @@ pub fn extension_logging_read(
     query: LogQueryParams,
 ) -> Result<Vec<LogEntry>, DatabaseError> {
     let mut filtered = query;
-    filtered.source = Some(extension_id);
-    filtered.source_type = Some("extension".to_string());
+    filtered.extension_id = Some(extension_id);
 
     with_connection(&state.db, |conn| {
         query_logs(conn, &filtered)

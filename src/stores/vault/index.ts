@@ -252,6 +252,12 @@ export const useVaultStore = defineStore('vaultStore', () => {
       // Initialize device identity key and populate device store
       await useDeviceStore().initDeviceIdAsync()
 
+      // Set device ID for console interceptor logging
+      const { $setConsoleLoggerDeviceId } = useNuxtApp()
+      if ($setConsoleLoggerDeviceId && useDeviceStore().deviceId) {
+        $setConsoleLoggerDeviceId(useDeviceStore().deviceId!)
+      }
+
       // Automatic cleanup on vault open (non-blocking)
       performAutomaticCleanupAsync().catch((error) => {
         console.warn('[HaexSpace] Automatic cleanup failed:', error)

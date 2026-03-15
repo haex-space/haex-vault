@@ -39,7 +39,7 @@ pub struct LogEntry {
     pub timestamp: String,
     pub level: String,
     pub source: String,
-    pub source_type: String,
+    pub extension_id: Option<String>,
     pub message: String,
     pub metadata: Option<String>,
     pub device_id: String,
@@ -49,7 +49,7 @@ pub struct LogEntry {
 #[serde(rename_all = "camelCase")]
 pub struct LogQueryParams {
     pub source: Option<String>,
-    pub source_type: Option<String>,
+    pub extension_id: Option<String>,
     pub level: Option<String>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
@@ -98,7 +98,7 @@ pub fn insert_log(
     conn: &rusqlite::Connection,
     level: &str,
     source: &str,
-    source_type: &str,
+    extension_id: Option<&str>,
     message: &str,
     metadata: Option<serde_json::Value>,
     device_id: &str,
@@ -110,10 +110,10 @@ pub fn insert_log(
 
     conn.execute(
         &format!(
-            "INSERT INTO {} (id, timestamp, level, source, source_type, message, metadata, device_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            "INSERT INTO {} (id, timestamp, level, source, extension_id, message, metadata, device_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             crate::table_names::TABLE_LOGS
         ),
-        rusqlite::params![id, timestamp, level, source, source_type, message, metadata_str, device_id],
+        rusqlite::params![id, timestamp, level, source, extension_id, message, metadata_str, device_id],
     ).map_err(|e| crate::database::error::DatabaseError::QueryError { reason: e.to_string() })?;
 
     Ok(())
@@ -133,9 +133,9 @@ pub fn query_logs(
         param_values.push(Box::new(source.clone()));
         idx += 1;
     }
-    if let Some(ref source_type) = query.source_type {
-        conditions.push(format!("source_type = ?{idx}"));
-        param_values.push(Box::new(source_type.clone()));
+    if let Some(ref ext_id) = query.extension_id {
+        conditions.push(format!("extension_id = ?{idx}"));
+        param_values.push(Box::new(ext_id.clone()));
         idx += 1;
     }
     if let Some(ref level) = query.level {
@@ -166,7 +166,7 @@ pub fn query_logs(
     let offset = query.offset.unwrap_or(0);
 
     let sql = format!(
-        "SELECT id, timestamp, level, source, source_type, message, metadata, device_id FROM {} {} ORDER BY timestamp DESC LIMIT ?{} OFFSET ?{}",
+        "SELECT id, timestamp, level, source, extension_id, message, metadata, device_id FROM {} {} ORDER BY timestamp DESC LIMIT ?{} OFFSET ?{}",
         crate::table_names::TABLE_LOGS,
         where_clause,
         idx,
@@ -183,7 +183,7 @@ pub fn query_logs(
             timestamp: row.get(1)?,
             level: row.get(2)?,
             source: row.get(3)?,
-            source_type: row.get(4)?,
+            extension_id: row.get(4)?,
             message: row.get(5)?,
             metadata: row.get(6)?,
             device_id: row.get(7)?,
@@ -256,39 +256,46 @@ pub fn cleanup_logs(conn: &rusqlite::Connection) -> Result<usize, crate::databas
 
     let mut total_deleted = 0;
 
-    // Clean extensions with custom retention
+    // Console interceptor logs: 1 day retention
+    let console_cutoff = time::OffsetDateTime::now_utc() - time::Duration::days(1);
+    let console_cutoff_str = console_cutoff.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
+    total_deleted += conn.execute(
+        &format!(
+            "DELETE FROM {} WHERE source = 'console' AND extension_id IS NULL AND timestamp < ?1",
+            crate::table_names::TABLE_LOGS
+        ),
+        rusqlite::params![console_cutoff_str],
+    ).unwrap_or(0);
+
+    // Extensions with custom retention
     for (ext_id, days) in &custom_extensions {
         let cutoff = time::OffsetDateTime::now_utc() - time::Duration::days(*days);
         let cutoff_str = cutoff.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
-
-        let deleted = conn.execute(
+        total_deleted += conn.execute(
             &format!(
-                "DELETE FROM {} WHERE source = ?1 AND source_type = 'extension' AND timestamp < ?2",
+                "DELETE FROM {} WHERE extension_id = ?1 AND timestamp < ?2",
                 crate::table_names::TABLE_LOGS
             ),
             rusqlite::params![ext_id, cutoff_str],
         ).unwrap_or(0);
-        total_deleted += deleted;
     }
 
-    // Clean remaining logs (system + extensions without custom retention) with global retention
+    // Everything else: global retention (excluding already-handled console + custom extensions)
     let custom_ids: Vec<&str> = custom_extensions.iter().map(|(id, _)| id.as_str()).collect();
     if custom_ids.is_empty() {
-        let deleted = conn.execute(
+        total_deleted += conn.execute(
             &format!(
-                "DELETE FROM {} WHERE timestamp < ?1",
+                "DELETE FROM {} WHERE source != 'console' AND timestamp < ?1",
                 crate::table_names::TABLE_LOGS
             ),
             rusqlite::params![global_cutoff_str],
         ).unwrap_or(0);
-        total_deleted += deleted;
     } else {
-        // Exclude extensions with custom retention (already handled)
         let placeholders: Vec<String> = custom_ids.iter().enumerate()
             .map(|(i, _)| format!("?{}", i + 2))
             .collect();
         let sql = format!(
-            "DELETE FROM {} WHERE timestamp < ?1 AND (source_type = 'system' OR source NOT IN ({}))",
+            "DELETE FROM {} WHERE source != 'console' AND timestamp < ?1 AND (extension_id IS NULL OR extension_id NOT IN ({}))",
             crate::table_names::TABLE_LOGS,
             placeholders.join(",")
         );
@@ -298,8 +305,7 @@ pub fn cleanup_logs(conn: &rusqlite::Connection) -> Result<usize, crate::databas
             params.push(Box::new(id.to_string()));
         }
         let refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
-        let deleted = conn.execute(&sql, refs.as_slice()).unwrap_or(0);
-        total_deleted += deleted;
+        total_deleted += conn.execute(&sql, refs.as_slice()).unwrap_or(0);
     }
 
     Ok(total_deleted)

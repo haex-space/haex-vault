@@ -48,9 +48,8 @@ export const haexLogs = sqliteTable(
       enum: ['debug', 'info', 'warn', 'error'],
     }).notNull(),
     source: text(tableNames.haex.logs.columns.source).notNull(),
-    sourceType: text(tableNames.haex.logs.columns.sourceType, {
-      enum: ['system', 'extension'],
-    }).notNull(),
+    extensionId: text(tableNames.haex.logs.columns.extensionId)
+      .references((): AnySQLiteColumn => haexExtensions.id, { onDelete: 'cascade' }),
     message: text(tableNames.haex.logs.columns.message).notNull(),
     metadata: text(tableNames.haex.logs.columns.metadata, { mode: 'json' }),
     deviceId: text(tableNames.haex.logs.columns.deviceId).notNull(),

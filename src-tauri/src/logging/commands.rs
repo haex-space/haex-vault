@@ -24,7 +24,7 @@ pub fn log_write_system(
         if log_level < get_effective_log_level(conn, None) {
             return Ok(());
         }
-        insert_log(conn, &level, &source, "system", &message, metadata, &device_id)
+        insert_log(conn, &level, &source, None, &message, metadata, &device_id)
     })
 }
 

@@ -258,7 +258,7 @@
         "timestamp": "timestamp",
         "level": "level",
         "source": "source",
-        "sourceType": "source_type",
+        "extensionId": "extension_id",
         "message": "message",
         "metadata": "metadata",
         "deviceId": "device_id"

@@ -27,9 +27,9 @@
         class="w-36"
       />
       <USelect
-        v-model="filterSourceType"
-        :items="sourceTypeOptions"
-        :placeholder="t('filter.sourceType')"
+        v-model="filterType"
+        :items="typeOptions"
+        :placeholder="t('filter.type')"
         class="w-40"
       />
       <USelectMenu
@@ -100,7 +100,7 @@
             variant="outline"
             size="xs"
           >
-            {{ log.sourceType === 'system' ? log.source : getExtensionName(log.source) }}
+            {{ log.extensionId ? getExtensionName(log.extensionId) : log.source }}
           </UBadge>
           <span
             v-if="log.deviceId"
@@ -141,7 +141,7 @@ interface LogEntry {
   timestamp: string
   level: string
   source: string
-  sourceType: string
+  extensionId: string | null
   message: string
   metadata: string | null
   deviceId: string
@@ -152,11 +152,11 @@ const logs = ref<LogEntry[]>([])
 const pageSize = 100
 
 const filterLevel = ref('warn')
-const filterSourceType = ref<string | undefined>()
+const filterType = ref<string | undefined>()
 const filterSource = ref<string | undefined>()
 
 const hasActiveFilters = computed(() =>
-  filterLevel.value !== 'warn' || filterSourceType.value || filterSource.value,
+  filterLevel.value !== 'warn' || filterType.value || filterSource.value,
 )
 
 const levelOptions = [
@@ -166,7 +166,7 @@ const levelOptions = [
   { label: 'Error', value: 'error' },
 ]
 
-const sourceTypeOptions = computed(() => [
+const typeOptions = computed(() => [
   { label: t('filter.all'), value: undefined },
   { label: 'System', value: 'system' },
   { label: 'Extension', value: 'extension' },
@@ -223,7 +223,7 @@ const fetchLogs = async (offset = 0) => {
     const result = await invoke<LogEntry[]>('log_read', {
       query: {
         level: filterLevel.value || null,
-        sourceType: filterSourceType.value || null,
+        extensionId: null,
         source: filterSource.value || null,
         limit: pageSize,
         offset,
@@ -245,7 +245,7 @@ const loadMore = () => fetchLogs(logs.value.length)
 
 const resetFilters = () => {
   filterLevel.value = 'warn'
-  filterSourceType.value = undefined
+  filterType.value = undefined
   filterSource.value = undefined
 }
 
@@ -257,7 +257,7 @@ const copyAllLogs = async () => {
 }
 
 // Reload on filter change
-watch([filterLevel, filterSourceType, filterSource], () => fetchLogs())
+watch([filterLevel, filterType, filterSource], () => fetchLogs())
 
 onMounted(() => fetchLogs())
 </script>
@@ -269,7 +269,7 @@ de:
   empty: Keine Logs vorhanden
   filter:
     level: Log-Level
-    sourceType: Quelle
+    extensionId: Quelle
     source: Modul
     all: Alle
     reset: Filter zurücksetzen
@@ -282,7 +282,7 @@ en:
   empty: No logs found
   filter:
     level: Log level
-    sourceType: Source type
+    extensionId: Source type
     source: Module
     all: All
     reset: Reset filters

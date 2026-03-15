@@ -1,18 +1,12 @@
 /**
  * Global Console Interceptor Plugin
- * Captures all console messages app-wide for debugging
+ * Captures console messages and writes them to the structured logging system.
+ * Uses source 'console' with source_type 'system'.
+ * Retention: 1 day (configured via vault_settings).
  */
 
-export interface ConsoleLog {
-  timestamp: string
-  level: 'log' | 'info' | 'warn' | 'error' | 'debug'
-  message: string
-}
+import { invoke } from '@tauri-apps/api/core'
 
-// Global storage for console logs
-export const globalConsoleLogs = ref<ConsoleLog[]>([])
-
-// Store original console methods
 const originalConsole = {
   log: console.log,
   info: console.info,
@@ -21,56 +15,82 @@ const originalConsole = {
   debug: console.debug,
 }
 
+// Map console levels to our log levels ('log' maps to 'debug')
+const levelMap: Record<string, string> = {
+  log: 'debug',
+  info: 'info',
+  warn: 'warn',
+  error: 'error',
+  debug: 'debug',
+}
+
+// Buffer logs until device ID is available
+let deviceId: string | null = null
+let bufferedLogs: { level: string; message: string }[] = []
+
+function flushBuffer() {
+  if (!deviceId) return
+  for (const log of bufferedLogs) {
+    writeLog(log.level, log.message)
+  }
+  bufferedLogs = []
+}
+
+function writeLog(level: string, message: string) {
+  if (!deviceId) {
+    bufferedLogs.push({ level, message })
+    return
+  }
+
+  invoke('log_write_system', {
+    level,
+    source: 'console',
+    message,
+    metadata: null,
+    deviceId,
+  }).catch(() => {
+    // Silently fail — don't recurse into console.error
+  })
+}
+
+function formatArgs(args: unknown[]): string {
+  return args
+    .map((arg) => {
+      if (arg === null) return 'null'
+      if (arg === undefined) return 'undefined'
+      if (typeof arg === 'object') {
+        try {
+          return JSON.stringify(arg, null, 2)
+        } catch {
+          return String(arg)
+        }
+      }
+      return String(arg)
+    })
+    .join(' ')
+}
+
 function interceptConsole(level: 'log' | 'info' | 'warn' | 'error' | 'debug') {
   console[level] = function (...args: unknown[]) {
-    // Call original console method
     originalConsole[level].apply(console, args)
-
-    // Add to global log display
-    const timestamp = new Date().toLocaleTimeString()
-    const message = args
-      .map((arg) => {
-        if (arg === null) return 'null'
-        if (arg === undefined) return 'undefined'
-        if (typeof arg === 'object') {
-          try {
-            return JSON.stringify(arg, null, 2)
-          } catch {
-            return String(arg)
-          }
-        }
-        return String(arg)
-      })
-      .join(' ')
-
-    globalConsoleLogs.value.push({
-      timestamp,
-      level,
-      message,
-    })
-
-    // Limit to last 1000 logs
-    if (globalConsoleLogs.value.length > 1000) {
-      globalConsoleLogs.value = globalConsoleLogs.value.slice(-1000)
-    }
+    writeLog(levelMap[level] ?? 'debug', formatArgs(args))
   }
 }
 
 export default defineNuxtPlugin(() => {
-  // Enable console interceptor
   interceptConsole('log')
   interceptConsole('info')
   interceptConsole('warn')
   interceptConsole('error')
   interceptConsole('debug')
 
-  console.log('[HaexSpace] Global console interceptor installed')
+  originalConsole.log('[HaexSpace] Console interceptor → structured logging')
 
   return {
     provide: {
-      consoleLogs: globalConsoleLogs,
-      clearConsoleLogs: () => {
-        globalConsoleLogs.value = []
+      setConsoleLoggerDeviceId: (id: string) => {
+        deviceId = id
+        flushBuffer()
       },
     },
   }
