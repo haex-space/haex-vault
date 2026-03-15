@@ -55,6 +55,8 @@ pub struct AppState {
     pub limits: extension::limits::LimitsService,
     /// Peer storage endpoint for P2P file sharing via iroh/QUIC
     pub peer_storage: tokio::sync::Mutex<peer_storage::endpoint::PeerEndpoint>,
+    /// Supabase JWT auth token, synced from frontend for Rust HTTP calls.
+    pub auth_token: Arc<Mutex<Option<String>>>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -143,6 +145,7 @@ pub fn run() {
             localsend: Arc::new(localsend::LocalSendState::new()),
             limits: extension::limits::LimitsService::new(),
             peer_storage: tokio::sync::Mutex::new(peer_storage::endpoint::PeerEndpoint::new_ephemeral()),
+            auth_token: Arc::new(Mutex::new(None)),
         })
         //.manage(ExtensionState::default())
         .plugin(tauri_plugin_dialog::init())
@@ -252,6 +255,10 @@ pub fn run() {
             extension::spaces::commands::extension_space_assign,
             extension::spaces::commands::extension_space_unassign,
             extension::spaces::commands::extension_space_get_assignments,
+            extension::spaces::commands::extension_space_list_backends,
+            extension::spaces::commands::extension_space_list,
+            extension::spaces::commands::extension_space_create,
+            extension::spaces::commands::set_auth_token,
             extension::web::commands::extension_web_fetch,
             extension::web::commands::extension_web_open,
             extension::permissions::commands::extension_permissions_check_web,

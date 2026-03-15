@@ -5,6 +5,7 @@
 
 import { shallowRef } from 'vue'
 import { createClient } from '@supabase/supabase-js'
+import { invoke } from '@tauri-apps/api/core'
 import { engineLog as log } from './types'
 
 // Use the actual return type of createClient for consistency across the codebase
@@ -73,6 +74,7 @@ export const initSupabaseClientAsync = async (
   client.auth.onAuthStateChange((event, session) => {
     if (session?.access_token) {
       cachedAccessToken = session.access_token
+      invoke('set_auth_token', { token: session.access_token }).catch(() => {})
     }
     if (event === 'TOKEN_REFRESHED' && session?.access_token) {
       log.info('Auth token refreshed, updating realtime connection')
@@ -80,6 +82,7 @@ export const initSupabaseClientAsync = async (
     } else if (event === 'SIGNED_OUT') {
       log.info('User signed out, realtime will disconnect')
       cachedAccessToken = null
+      invoke('set_auth_token', { token: null }).catch(() => {})
     }
   })
 }
@@ -124,6 +127,7 @@ export const setSupabaseClient = (
   client.auth.onAuthStateChange((event, session) => {
     if (session?.access_token) {
       cachedAccessToken = session.access_token
+      invoke('set_auth_token', { token: session.access_token }).catch(() => {})
     }
     if (event === 'TOKEN_REFRESHED' && session?.access_token) {
       log.info('Auth token refreshed, updating realtime connection')
@@ -131,6 +135,7 @@ export const setSupabaseClient = (
     } else if (event === 'SIGNED_OUT') {
       log.info('User signed out, realtime will disconnect')
       cachedAccessToken = null
+      invoke('set_auth_token', { token: null }).catch(() => {})
     }
   })
 }
@@ -142,4 +147,5 @@ export const resetSupabaseClient = (): void => {
   supabaseClientRef.value = null
   currentBackendIdRef.value = null
   cachedAccessToken = null
+  invoke('set_auth_token', { token: null }).catch(() => {})
 }
