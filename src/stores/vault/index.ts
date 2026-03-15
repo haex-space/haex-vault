@@ -283,6 +283,12 @@ export const useVaultStore = defineStore('vaultStore', () => {
         )
       }
 
+      // Also clean up old log entries
+      const logsDeleted = await invoke<number>('log_cleanup')
+      if (logsDeleted > 0) {
+        console.log(`[HaexSpace] Log cleanup: ${logsDeleted} old entries removed`)
+      }
+
       return result
     } catch (error) {
       console.error('[HaexSpace] Automatic cleanup error:', error)

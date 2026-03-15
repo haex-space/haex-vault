@@ -244,6 +244,7 @@ pub fn run() {
             database::migrations::clear_pending_column,
             logging::commands::log_write_system,
             logging::commands::log_read,
+            logging::commands::log_cleanup,
             crdt::commands::get_table_schema,
             crdt::commands::get_dirty_tables,
             crdt::commands::clear_dirty_table,

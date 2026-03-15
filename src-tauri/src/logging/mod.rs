@@ -193,3 +193,114 @@ pub fn query_logs(
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|e| crate::database::error::DatabaseError::QueryError { reason: e.to_string() })
 }
+
+const DEFAULT_RETENTION_DAYS: i64 = 14;
+
+/// Get the retention days for a source (extension or global).
+fn get_retention_days(conn: &rusqlite::Connection, extension_id: Option<&str>) -> i64 {
+    if let Some(ext_id) = extension_id {
+        if let Ok(days) = conn.query_row(
+            &format!(
+                "SELECT value FROM {} WHERE key = 'log_retention_days' AND extension_id = ?1",
+                crate::table_names::TABLE_VAULT_SETTINGS
+            ),
+            [ext_id],
+            |row| row.get::<_, String>(0),
+        ) {
+            if let Ok(d) = days.parse::<i64>() {
+                return d;
+            }
+        }
+    }
+
+    if let Ok(days) = conn.query_row(
+        &format!(
+            "SELECT value FROM {} WHERE key = 'log_retention_days' AND extension_id IS NULL",
+            crate::table_names::TABLE_VAULT_SETTINGS
+        ),
+        [],
+        |row| row.get::<_, String>(0),
+    ) {
+        if let Ok(d) = days.parse::<i64>() {
+            return d;
+        }
+    }
+
+    DEFAULT_RETENTION_DAYS
+}
+
+/// Delete log entries older than the configured retention period.
+/// Handles per-extension retention: extensions with custom retention
+/// are cleaned separately, remaining logs use the global retention.
+pub fn cleanup_logs(conn: &rusqlite::Connection) -> Result<usize, crate::database::error::DatabaseError> {
+    let global_retention = get_retention_days(conn, None);
+    let global_cutoff = time::OffsetDateTime::now_utc() - time::Duration::days(global_retention);
+    let global_cutoff_str = global_cutoff.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
+
+    // Collect extensions with custom retention
+    let mut custom_extensions: Vec<(String, i64)> = Vec::new();
+    if let Ok(mut stmt) = conn.prepare(&format!(
+        "SELECT extension_id, value FROM {} WHERE key = 'log_retention_days' AND extension_id IS NOT NULL",
+        crate::table_names::TABLE_VAULT_SETTINGS
+    )) {
+        if let Ok(rows) = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        }) {
+            for row in rows.flatten() {
+                if let Ok(days) = row.1.parse::<i64>() {
+                    custom_extensions.push((row.0, days));
+                }
+            }
+        }
+    }
+
+    let mut total_deleted = 0;
+
+    // Clean extensions with custom retention
+    for (ext_id, days) in &custom_extensions {
+        let cutoff = time::OffsetDateTime::now_utc() - time::Duration::days(*days);
+        let cutoff_str = cutoff.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
+
+        let deleted = conn.execute(
+            &format!(
+                "DELETE FROM {} WHERE source = ?1 AND source_type = 'extension' AND timestamp < ?2",
+                crate::table_names::TABLE_LOGS
+            ),
+            rusqlite::params![ext_id, cutoff_str],
+        ).unwrap_or(0);
+        total_deleted += deleted;
+    }
+
+    // Clean remaining logs (system + extensions without custom retention) with global retention
+    let custom_ids: Vec<&str> = custom_extensions.iter().map(|(id, _)| id.as_str()).collect();
+    if custom_ids.is_empty() {
+        let deleted = conn.execute(
+            &format!(
+                "DELETE FROM {} WHERE timestamp < ?1",
+                crate::table_names::TABLE_LOGS
+            ),
+            rusqlite::params![global_cutoff_str],
+        ).unwrap_or(0);
+        total_deleted += deleted;
+    } else {
+        // Exclude extensions with custom retention (already handled)
+        let placeholders: Vec<String> = custom_ids.iter().enumerate()
+            .map(|(i, _)| format!("?{}", i + 2))
+            .collect();
+        let sql = format!(
+            "DELETE FROM {} WHERE timestamp < ?1 AND (source_type = 'system' OR source NOT IN ({}))",
+            crate::table_names::TABLE_LOGS,
+            placeholders.join(",")
+        );
+        let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+        params.push(Box::new(global_cutoff_str));
+        for id in &custom_ids {
+            params.push(Box::new(id.to_string()));
+        }
+        let refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+        let deleted = conn.execute(&sql, refs.as_slice()).unwrap_or(0);
+        total_deleted += deleted;
+    }
+
+    Ok(total_deleted)
+}

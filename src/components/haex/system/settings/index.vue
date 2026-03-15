@@ -42,6 +42,7 @@
       <HaexSystemSettingsStorage v-if="activeCategory === 'storage'" />
       <HaexSystemSettingsPeerStorage v-if="activeCategory === 'peerStorage'" />
       <HaexSystemSettingsDevices v-if="activeCategory === 'devices'" />
+      <HaexSystemSettingsLogs v-if="activeCategory === 'logs'" />
       <HaexSystemSettingsDeveloper v-if="activeCategory === 'developer'" />
       <HaexSystemDebugLogs v-if="activeCategory === 'debugLogs'" />
     </div>
@@ -177,6 +178,15 @@ const categories = computed(() => [
     },
   },
   {
+    value: 'logs',
+    label: t('categories.logs'),
+    icon: 'i-heroicons-document-text',
+    active: activeCategory.value === 'logs',
+    click: () => {
+      activeCategory.value = 'logs'
+    },
+  },
+  {
     value: 'developer',
     label: t('categories.developer'),
     icon: 'i-hugeicons-developer',
@@ -212,6 +222,7 @@ de:
     storage: Cloud Storage
     peerStorage: P2P Storage
     devices: Geräte
+    logs: Logs
     developer: Entwickler
     debugLogs: Debug Logs
 en:
@@ -228,6 +239,7 @@ en:
     storage: Cloud Storage
     peerStorage: P2P Storage
     devices: Devices
+    logs: Logs
     developer: Developer
     debugLogs: Debug Logs
 </i18n>

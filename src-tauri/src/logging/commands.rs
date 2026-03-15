@@ -5,7 +5,7 @@ use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
 use crate::AppState;
 
-use super::{LogEntry, LogLevel, LogQueryParams, get_effective_log_level, insert_log, query_logs};
+use super::{LogEntry, LogLevel, LogQueryParams, get_effective_log_level, insert_log, query_logs, cleanup_logs};
 
 /// Write a system log entry.
 #[tauri::command]
@@ -36,5 +36,15 @@ pub fn log_read(
 ) -> Result<Vec<LogEntry>, DatabaseError> {
     with_connection(&state.db, |conn| {
         query_logs(conn, &query)
+    })
+}
+
+/// Clean up old log entries based on retention settings.
+#[tauri::command]
+pub fn log_cleanup(
+    state: State<'_, AppState>,
+) -> Result<usize, DatabaseError> {
+    with_connection(&state.db, |conn| {
+        cleanup_logs(conn)
     })
 }
