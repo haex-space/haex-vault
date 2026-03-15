@@ -30,6 +30,7 @@ pub mod database;
 pub mod error;
 pub mod filesystem;
 pub mod limits;
+pub mod logging;
 pub mod permissions;
 pub mod remote_storage;
 pub mod spaces;

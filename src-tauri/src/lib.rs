@@ -6,6 +6,7 @@ mod device;
 mod extension;
 mod filesystem;
 mod localsend;
+mod logging;
 #[cfg(desktop)]
 mod shortcuts;
 mod peer_storage;
@@ -241,6 +242,8 @@ pub fn run() {
             database::migrations::get_all_core_migrations,
             database::migrations::get_pending_columns,
             database::migrations::clear_pending_column,
+            logging::commands::log_write_system,
+            logging::commands::log_read,
             crdt::commands::get_table_schema,
             crdt::commands::get_dirty_tables,
             crdt::commands::clear_dirty_table,
@@ -268,6 +271,8 @@ pub fn run() {
             extension::permissions::commands::grant_session_permission,
             extension::permissions::commands::get_extension_session_permissions,
             extension::permissions::commands::remove_extension_session_permission,
+            extension::logging::commands::extension_logging_write,
+            extension::logging::commands::extension_logging_read,
             extension::limits::commands::get_extension_limits,
             extension::limits::commands::update_extension_limits,
             extension::limits::commands::reset_extension_limits,

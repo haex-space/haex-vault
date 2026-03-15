@@ -630,7 +630,8 @@ export const useDesktopStore = defineStore('desktopStore', () => {
           const extension = extensionsStore.availableExtensions.find(
             (ext) => ext.id === item.referenceId,
           )
-          label = extension?.name || 'Unknown'
+          const { localizedName } = useExtensionI18n()
+          label = extension ? localizedName(extension.name, extension.i18n) : 'Unknown'
           icon = extension?.iconUrl || ''
         }
 

@@ -23,13 +23,41 @@ export const haexVaultSettings = sqliteTable(
     key: text(tableNames.haex.vault_settings.columns.key).notNull(),
     type: text(tableNames.haex.vault_settings.columns.type).notNull(),
     value: text(tableNames.haex.vault_settings.columns.value),
+    extensionId: text(tableNames.haex.vault_settings.columns.extensionId)
+      .references((): AnySQLiteColumn => haexExtensions.id, { onDelete: 'cascade' }),
   },
   (table) => [
-    uniqueIndex('haex_vault_settings_key_type_unique').on(table.key, table.type),
+    uniqueIndex('haex_vault_settings_key_type_ext_unique').on(table.key, table.type, table.extensionId),
   ],
 )
 export type InsertHaexVaultSettings = typeof haexVaultSettings.$inferInsert
 export type SelectHaexVaultSettings = typeof haexVaultSettings.$inferSelect
+
+// ---------------------------------------------------------------------------
+// Logs — structured logging for system processes and extensions
+// ---------------------------------------------------------------------------
+
+export const haexLogs = sqliteTable(
+  tableNames.haex.logs.name,
+  {
+    id: text(tableNames.haex.logs.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    timestamp: text(tableNames.haex.logs.columns.timestamp).notNull(),
+    level: text(tableNames.haex.logs.columns.level, {
+      enum: ['debug', 'info', 'warn', 'error'],
+    }).notNull(),
+    source: text(tableNames.haex.logs.columns.source).notNull(),
+    sourceType: text(tableNames.haex.logs.columns.sourceType, {
+      enum: ['system', 'extension'],
+    }).notNull(),
+    message: text(tableNames.haex.logs.columns.message).notNull(),
+    metadata: text(tableNames.haex.logs.columns.metadata, { mode: 'json' }),
+    deviceId: text(tableNames.haex.logs.columns.deviceId).notNull(),
+  },
+)
+export type InsertHaexLogs = typeof haexLogs.$inferInsert
+export type SelectHaexLogs = typeof haexLogs.$inferSelect
 
 export const haexExtensions = sqliteTable(
   tableNames.haex.extensions.name,

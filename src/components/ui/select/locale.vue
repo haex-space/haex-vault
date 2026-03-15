@@ -3,7 +3,6 @@
     :model-value="locale"
     :items="items"
     :icon="flags[locale]"
-    class="w-40"
     @update:model-value="emit('select', $event)"
   />
 </template>

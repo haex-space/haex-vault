@@ -21,7 +21,8 @@
         "id": "id",
         "key": "key",
         "type": "type",
-        "value": "value"
+        "value": "value",
+        "extensionId": "extension_id"
       }
     },
     "extensions": {
@@ -247,6 +248,20 @@
         "spaceId": "space_id",
         "generation": "generation",
         "key": "key"
+      }
+    },
+
+    "logs": {
+      "name": "haex_logs",
+      "columns": {
+        "id": "id",
+        "timestamp": "timestamp",
+        "level": "level",
+        "source": "source",
+        "sourceType": "source_type",
+        "message": "message",
+        "metadata": "metadata",
+        "deviceId": "device_id"
       }
     },
 
