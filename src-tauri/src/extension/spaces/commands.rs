@@ -592,10 +592,10 @@ pub async fn extension_space_create(
 
     let token = get_auth_token(&state)?;
 
-    let client = reqwest::Client::new();
+    // Get user's public key from local identity linked to this backend
+    let user_public_key_base64 = get_identity_public_key(&state.db, &server_url)?;
 
-    // Get user's public key from server
-    let user_public_key_base64 = fetch_user_public_key(&client, &server_url, &token).await?;
+    let client = reqwest::Client::new();
 
     // Generate space key (32 random bytes)
     let mut space_key = [0u8; 32];
@@ -701,43 +701,40 @@ fn persist_space_key(
 }
 
 // ============================================================================
-// Server Communication
+// Identity Lookup (local DB)
 // ============================================================================
 
-/// Fetch user's public key from the server.
-async fn fetch_user_public_key(
-    client: &reqwest::Client,
+/// Look up user's public key from the local database by finding the identity
+/// linked to the sync backend for the given server URL.
+fn get_identity_public_key(
+    db: &DbConnection,
     server_url: &str,
-    token: &str,
 ) -> Result<String, ExtensionError> {
-    let url = format!("{}/keypairs/me", server_url.trim_end_matches('/'));
-    let resp = client
-        .get(&url)
-        .header("Authorization", format!("Bearer {}", token))
-        .send()
-        .await
-        .map_err(|e| ExtensionError::ValidationError {
-            reason: format!("Failed to fetch keypair: {}", e),
-        })?;
-
-    if !resp.status().is_success() {
-        return Err(ExtensionError::ValidationError {
-            reason: "No keypair registered on server".to_string(),
-        });
-    }
-
-    #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct KeypairResponse {
-        public_key: String,
-    }
-
-    let data: KeypairResponse =
-        resp.json().await.map_err(|e| ExtensionError::ValidationError {
-            reason: format!("Invalid keypair response: {}", e),
-        })?;
-
-    Ok(data.public_key)
+    with_connection(db, |conn| {
+        let mut stmt = conn
+            .prepare(
+                "SELECT i.public_key FROM haex_identities i \
+                 INNER JOIN haex_sync_backends b ON b.identity_id = i.id \
+                 WHERE b.server_url = ?1 LIMIT 1",
+            )
+            .map_err(DatabaseError::from)?;
+        let mut rows = stmt
+            .query(rusqlite::params![server_url])
+            .map_err(DatabaseError::from)?;
+        if let Some(row) = rows.next().map_err(DatabaseError::from)? {
+            let public_key: String = row.get(0).map_err(DatabaseError::from)?;
+            Ok(public_key)
+        } else {
+            Err(DatabaseError::ExecutionError {
+                sql: "identity lookup by server_url".to_string(),
+                reason: format!("No identity linked to backend {}", server_url),
+                table: None,
+            })
+        }
+    })
+    .map_err(|e| ExtensionError::ValidationError {
+        reason: format!("No identity found for server: {}", e),
+    })
 }
 
 // ============================================================================
