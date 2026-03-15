@@ -225,8 +225,10 @@ impl ExtensionManager {
                     manifest.public_key, manifest.name, existing_id
                 );
                 let update_ext_sql = format!(
-                    "UPDATE {TABLE_EXTENSIONS} SET version = ?, author = ?, entry = ?, icon = ?, signature = ?, homepage = ?, description = ?, enabled = ?, single_instance = ?, display_mode = ? WHERE id = ?"
+                    "UPDATE {TABLE_EXTENSIONS} SET version = ?, author = ?, entry = ?, icon = ?, signature = ?, homepage = ?, description = ?, enabled = ?, single_instance = ?, display_mode = ?, i18n = ? WHERE id = ?"
                 );
+
+                let i18n_json = manifest.i18n.as_ref().and_then(|m| serde_json::to_string(m).ok());
 
                 SqlExecutor::execute_internal_typed(
                     &tx,
@@ -247,6 +249,7 @@ impl ExtensionManager {
                             .as_ref()
                             .map(|dm| format!("{:?}", dm).to_lowercase())
                             .unwrap_or_else(|| "auto".to_string()),
+                        i18n_json,
                         existing_id,
                     ],
                 )?;
@@ -259,8 +262,10 @@ impl ExtensionManager {
                     new_extension_id, manifest.name, manifest.version
                 );
                 let insert_ext_sql = format!(
-                    "INSERT INTO {TABLE_EXTENSIONS} (id, name, version, author, entry, icon, public_key, signature, homepage, description, enabled, single_instance, display_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    "INSERT INTO {TABLE_EXTENSIONS} (id, name, version, author, entry, icon, public_key, signature, homepage, description, enabled, single_instance, display_mode, i18n) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 );
+
+                let i18n_json = manifest.i18n.as_ref().and_then(|m| serde_json::to_string(m).ok());
 
                 SqlExecutor::execute_internal_typed(
                     &tx,
@@ -284,6 +289,7 @@ impl ExtensionManager {
                             .as_ref()
                             .map(|dm| format!("{:?}", dm).to_lowercase())
                             .unwrap_or_else(|| "auto".to_string()),
+                        i18n_json,
                     ],
                 )?;
                 new_extension_id
@@ -479,8 +485,10 @@ impl ExtensionManager {
                 extension_id, manifest.version
             );
 
+            let i18n_json = manifest.i18n.as_ref().and_then(|m| serde_json::to_string(m).ok());
+
             let update_sql = format!(
-                "UPDATE {TABLE_EXTENSIONS} SET version = ?, author = ?, entry = ?, icon = ?, signature = ?, homepage = ?, description = ? WHERE id = ?"
+                "UPDATE {TABLE_EXTENSIONS} SET version = ?, author = ?, entry = ?, icon = ?, signature = ?, homepage = ?, description = ?, i18n = ? WHERE id = ?"
             );
 
             SqlExecutor::execute_internal_typed(
@@ -495,6 +503,7 @@ impl ExtensionManager {
                     manifest.signature,
                     manifest.homepage,
                     manifest.description,
+                    i18n_json,
                     extension_id,
                 ],
             )?;

@@ -126,6 +126,7 @@ CREATE TABLE `haex_extensions` (
 	`signature` text NOT NULL,
 	`single_instance` integer DEFAULT false,
 	`display_mode` text DEFAULT 'auto',
+	`i18n` text,
 	`dev_path` text,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
 	`updated_at` integer

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e5612403-2461-4365-aa34-599fe7193c01",
+  "id": "fc97a005-76de-45d0-93bb-51c7d718de84",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "haex_crdt_configs_no_sync": {
@@ -848,6 +848,13 @@
           "notNull": false,
           "autoincrement": false,
           "default": "'auto'"
+        },
+        "i18n": {
+          "name": "i18n",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "dev_path": {
           "name": "dev_path",

@@ -49,6 +49,8 @@ export const haexExtensions = sqliteTable(
     signature: text().notNull(),
     single_instance: integer({ mode: 'boolean' }).default(false),
     display_mode: text().default('auto'),
+    // i18n overrides: { "de": { "name": "...", "description": "..." }, ... }
+    i18n: text({ mode: 'json' }).$type<Record<string, { name?: string; description?: string }>>(),
     // path to dev extension project folder (if set, this is a dev extension)
     dev_path: text(),
     createdAt: text(tableNames.haex.extensions.columns.createdAt).default(

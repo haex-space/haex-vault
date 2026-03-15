@@ -9,6 +9,7 @@ use crate::extension::core::types::{Extension, ExtensionSource};
 use crate::extension::error::ExtensionError;
 use crate::table_names::TABLE_EXTENSIONS;
 use crate::AppState;
+use serde_json;
 use std::path::PathBuf;
 use std::time::SystemTime;
 use tauri::{AppHandle, State};
@@ -108,7 +109,7 @@ impl ExtensionManager {
         // Use select_with_crdt to automatically filter out tombstoned (soft-deleted) entries
         // Load all extensions - dev_path determines if it's a dev extension
         let sql = format!(
-            "SELECT id, name, version, author, entry, icon, public_key, signature, homepage, description, enabled, single_instance, display_mode, dev_path FROM {TABLE_EXTENSIONS}"
+            "SELECT id, name, version, author, entry, icon, public_key, signature, homepage, description, enabled, single_instance, display_mode, dev_path, i18n FROM {TABLE_EXTENSIONS}"
         );
         eprintln!("DEBUG: SQL Query (will be transformed by select_with_crdt): {sql}");
 
@@ -154,11 +155,10 @@ impl ExtensionManager {
                     "iframe" => Some(DisplayMode::Iframe),
                     "auto" | _ => Some(DisplayMode::Auto),
                 }),
-                // migrations_dir is not stored in DB - it's only used during installation
-                // from the manifest.json file
                 migrations_dir: None,
-                // i18n is not stored in DB yet - loaded from manifest at install time
-                i18n: None,
+                i18n: row.get(14)
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| serde_json::from_str(s).ok()),
             };
 
             let enabled = row[10]
