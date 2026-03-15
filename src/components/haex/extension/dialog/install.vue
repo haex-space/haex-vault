@@ -1,6 +1,7 @@
 <template>
   <UiDrawerModal
     v-model:open="open"
+    :title="isUpdate ? t('titleUpdate') : t('title')"
     data-testid="extension-install-dialog"
     :ui="{
       content: 'sm:max-w-2xl sm:mx-auto',

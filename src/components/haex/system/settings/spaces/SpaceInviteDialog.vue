@@ -5,7 +5,7 @@
     :description="t('invite.description')"
   >
     <template #content>
-      <template v-if="!inviteResult">
+      <template v-if="!inviteLink">
         <!-- Contact selection -->
         <div class="flex gap-2">
           <USelectMenu
@@ -78,10 +78,10 @@
           variant="outline"
           @click="closeDialog"
         >
-          {{ inviteResult ? t('actions.close') : t('actions.cancel') }}
+          {{ inviteLink ? t('actions.close') : t('actions.cancel') }}
         </UButton>
         <UiButton
-          v-if="!inviteResult"
+          v-if="!inviteLink"
           icon="i-lucide-user-plus"
           :loading="isInviting"
           :disabled="!selectedContact || !inviteForm.role?.value"

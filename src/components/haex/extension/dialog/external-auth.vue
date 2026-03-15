@@ -1,6 +1,7 @@
 <template>
   <UiDrawerModal
     v-model:open="open"
+    :title="t('title')"
     :ui="{
       content: 'sm:max-w-md sm:mx-auto',
     }"

@@ -22,11 +22,17 @@ export default defineAppConfig({
       },
     },
     select: {
+      slots: {
+        content: 'ring-1 ring-primary shadow-xl',
+      },
       defaultVariants: {
         size: 'lg',
       },
     },
     selectMenu: {
+      slots: {
+        content: 'ring-1 ring-primary shadow-xl',
+      },
       defaultVariants: {
         size: 'lg',
       },

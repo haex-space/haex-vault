@@ -150,12 +150,12 @@ const waitForInitialSyncAsync = async () => {
       // No backends yet, keep waiting
     }, 500)
 
-    // Timeout after 30 seconds
+    // Timeout after 60 seconds
     setTimeout(() => {
       clearInterval(checkInterval)
       console.warn('Initial sync timeout - proceeding anyway')
       resolve()
-    }, 30000)
+    }, 60000)
   })
 }
 

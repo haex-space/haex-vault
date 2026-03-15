@@ -1,6 +1,7 @@
 <template>
   <UiDrawerModal
     v-model:open="open"
+    :title="mode === 'update' ? t('update.title', { extensionName: preview?.manifest.name }) : t('reinstall.title', { extensionName: preview?.manifest.name })"
     :ui="{
       content: 'sm:max-w-xl sm:mx-auto',
     }"

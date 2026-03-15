@@ -712,6 +712,7 @@ const onRecoveryComplete = async (data: {
         auth: {
           autoRefreshToken: false,
           persistSession: false,
+          storageKey: 'sb-wizard-temp',
         },
       },
     )

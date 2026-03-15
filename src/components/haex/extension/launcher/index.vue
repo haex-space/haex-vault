@@ -32,7 +32,11 @@
           :type="item.type"
           :name="item.name"
           :icon="item.icon"
-          :data-tour="item.type === 'system' && item.id === 'settings' ? 'launcher-settings-item' : undefined"
+          :data-tour="
+            item.type === 'system' && item.id === 'settings'
+              ? 'launcher-settings-item'
+              : undefined
+          "
           @click="openItem(item)"
           @drag-move="handleLauncherDragMove"
         />
@@ -49,7 +53,11 @@
             leadingIcon: 'size-10',
             label: 'w-full',
           }"
-          :icon="extension.iconUrl || extension.icon || 'i-heroicons-puzzle-piece-solid'"
+          :icon="
+            extension.iconUrl ||
+            extension.icon ||
+            'i-heroicons-puzzle-piece-solid'
+          "
           :label="localizedName(extension.name, extension.i18n)"
           :tooltip="`${localizedName(extension.name, extension.i18n)} (${t('disabled')})`"
         />
@@ -58,9 +66,10 @@
 
     <template #footer>
       <UButton
-        color="neutral"
-        variant="outline"
+        color="error"
+        variant="soft"
         block
+        size="xl"
         icon="i-heroicons-arrow-left-on-rectangle"
         :label="t('logout.label')"
         @click="onLogout"

@@ -191,7 +191,8 @@ const { currentVault } = storeToRefs(useVaultStore())
 const isToggling = ref(false)
 const autostart = ref(false)
 
-const onToggleAutostartAsync = async (value: boolean) => {
+const onToggleAutostartAsync = async (value: boolean | 'indeterminate') => {
+  if (value === 'indeterminate') return
   if (!currentVault.value?.drizzle) return
 
   try {

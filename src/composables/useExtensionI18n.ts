@@ -21,7 +21,8 @@ function resolveI18nField(
  * Uses the current app locale from @nuxtjs/i18n.
  */
 export function useExtensionI18n() {
-  const { locale } = useI18n()
+  const { $i18n } = useNuxtApp()
+  const locale = computed(() => $i18n.locale.value)
 
   const localizedName = (
     name: string,

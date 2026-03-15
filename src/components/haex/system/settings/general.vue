@@ -1,106 +1,118 @@
 <template>
   <HaexSystemSettingsLayout :title="t('title')">
-    <UFormField :label="t('language')" :description="t('language.description')">
-        <UiDropdownLocale @select="onSelectLocaleAsync" />
-      </UFormField>
+    <UFormField
+      :label="t('language')"
+      :description="t('language.description')"
+    >
+      <UiDropdownLocale @select="onSelectLocaleAsync" />
+    </UFormField>
 
-      <UFormField
-        :label="t('vaultName.label')"
-        :description="t('vaultName.description')"
+    <UFormField
+      :label="t('vaultName.label')"
+      :description="t('vaultName.description')"
+    >
+      <UiInput
+        v-model="currentVaultName"
+        :placeholder="t('vaultName.label')"
+        @change="onSetVaultNameAsync"
+      />
+    </UFormField>
+
+    <UFormField
+      :label="t('notifications.label')"
+      :description="t('notifications.description')"
+    >
+      <UiButton
+        :label="
+          isNotificationAllowed
+            ? t('notifications.granted')
+            : t('notifications.requestPermission')
+        "
+        :icon="
+          isNotificationAllowed
+            ? 'i-heroicons-check-circle'
+            : 'i-heroicons-bell'
+        "
+        :color="isNotificationAllowed ? 'success' : 'primary'"
+        :disabled="isNotificationAllowed"
+        @click="requestNotificationPermissionAsync"
+      />
+    </UFormField>
+
+    <UFormField
+      :label="t('iconSize.label')"
+      :description="t('iconSize.description')"
+    >
+      <USelect
+        v-model="iconSizePreset"
+        :items="iconSizePresetOptions"
+        class="w-40"
+      />
+    </UFormField>
+
+    <!-- Passwort ändern Section -->
+    <USeparator class="my-6" />
+
+    <UFormField
+      :label="t('password.label')"
+      :description="t('password.description')"
+    >
+      <UiDrawerModal
+        v-model:open="isPasswordModalOpen"
+        :title="t('password.modal.title')"
       >
-        <UiInput
-          v-model="currentVaultName"
-          :placeholder="t('vaultName.label')"
-          @change="onSetVaultNameAsync"
-        />
-      </UFormField>
+        <template #trigger>
+          <UButton
+            color="neutral"
+            variant="outline"
+            :label="t('password.button')"
+            icon="i-heroicons-key"
+          />
+        </template>
 
-      <UFormField
-        :label="t('notifications.label')"
-        :description="t('notifications.description')"
-      >
-        <UiButton
-          :label="isNotificationAllowed ? t('notifications.granted') : t('notifications.requestPermission')"
-          :icon="isNotificationAllowed ? 'i-heroicons-check-circle' : 'i-heroicons-bell'"
-          :color="isNotificationAllowed ? 'success' : 'primary'"
-          :disabled="isNotificationAllowed"
-          @click="requestNotificationPermissionAsync"
-        />
-      </UFormField>
+        <template #content>
+          <form
+            class="space-y-4 pt-2"
+            @submit.prevent="onChangePasswordAsync"
+          >
+            <UiInputPassword
+              v-model="passwordForm.currentPassword"
+              v-model:errors="currentPasswordErrors"
+              :label="t('password.modal.currentPassword')"
+            />
 
-      <UFormField
-        :label="t('iconSize.label')"
-        :description="t('iconSize.description')"
-      >
-        <USelect
-          v-model="iconSizePreset"
-          :items="iconSizePresetOptions"
-        />
-      </UFormField>
+            <UiInputPassword
+              v-model="passwordForm.newPassword"
+              v-model:errors="newPasswordErrors"
+              :label="t('password.modal.newPassword')"
+            />
 
-      <!-- Passwort ändern Section -->
-      <USeparator class="my-6" />
+            <UiInputPassword
+              v-model="passwordForm.confirmPassword"
+              v-model:errors="confirmPasswordErrors"
+              :label="t('password.modal.confirmPassword')"
+            />
+          </form>
+        </template>
 
-      <UFormField
-        :label="t('password.label')"
-        :description="t('password.description')"
-      >
-        <UiDrawerModal
-          v-model:open="isPasswordModalOpen"
-          :title="t('password.modal.title')"
-        >
-          <template #trigger>
+        <template #footer>
+          <div class="flex justify-end gap-2 w-full">
             <UButton
               color="neutral"
-              variant="outline"
-              :label="t('password.button')"
-              icon="i-heroicons-key"
+              variant="ghost"
+              :label="t('password.modal.cancel')"
+              @click="isPasswordModalOpen = false"
             />
-          </template>
-
-          <template #content>
-            <form
-              class="space-y-4 pt-2"
-              @submit.prevent="onChangePasswordAsync"
-            >
-              <UiInputPassword
-                v-model="passwordForm.currentPassword"
-                v-model:errors="currentPasswordErrors"
-                :label="t('password.modal.currentPassword')"
-              />
-
-              <UiInputPassword
-                v-model="passwordForm.newPassword"
-                v-model:errors="newPasswordErrors"
-                :label="t('password.modal.newPassword')"
-              />
-
-              <UiInputPassword
-                v-model="passwordForm.confirmPassword"
-                v-model:errors="confirmPasswordErrors"
-                :label="t('password.modal.confirmPassword')"
-              />
-            </form>
-          </template>
-
-          <template #footer>
-            <div class="flex justify-end gap-2 w-full">
-              <UButton
-                color="neutral"
-                variant="ghost"
-                :label="t('password.modal.cancel')"
-                @click="isPasswordModalOpen = false"
-              />
-              <UButton
-                color="primary"
-                :label="t('password.modal.submit')"
-                :loading="isChangingPassword"
-                @click="onChangePasswordAsync"
-              />
-            </div>
-          </template>
-        </UiDrawerModal>
-      </UFormField>
+            <UButton
+              color="primary"
+              :label="t('password.modal.submit')"
+              :loading="isChangingPassword"
+              @click="onChangePasswordAsync"
+            />
+          </div>
+        </template>
+      </UiDrawerModal>
+    </UFormField>
   </HaexSystemSettingsLayout>
 </template>
 
@@ -117,7 +129,8 @@ const { changePasswordAsync } = useVaultStore()
 const { updateVaultNameAsync, updateLocaleAsync } = useVaultSettingsStore()
 
 const { isNotificationAllowed } = storeToRefs(useNotificationStore())
-const { requestNotificationPermissionAsync, checkNotificationAsync } = useNotificationStore()
+const { requestNotificationPermissionAsync, checkNotificationAsync } =
+  useNotificationStore()
 
 // Desktop icon size
 const desktopStore = useDesktopStore()
@@ -128,7 +141,10 @@ const iconSizePresetOptions = computed(() => [
   { label: t('iconSize.presets.small'), value: DesktopIconSizePreset.small },
   { label: t('iconSize.presets.medium'), value: DesktopIconSizePreset.medium },
   { label: t('iconSize.presets.large'), value: DesktopIconSizePreset.large },
-  { label: t('iconSize.presets.extraLarge'), value: DesktopIconSizePreset.extraLarge },
+  {
+    label: t('iconSize.presets.extraLarge'),
+    value: DesktopIconSizePreset.extraLarge,
+  },
 ])
 
 watch(iconSizePreset, async (newPreset) => {
