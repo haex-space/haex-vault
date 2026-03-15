@@ -193,7 +193,6 @@ const loadDevExtensionListAsync = async () => {
 // Reload a dev extension (removes and re-adds)
 const reloadDevExtensionAsync = async (extension: ExtensionInfoResponse) => {
   try {
-    console.log('reloadDevExtensionAsync', extension)
     // Get the extension path from somewhere (we need to store this)
     // For now, just show a message
     add({

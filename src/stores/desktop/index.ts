@@ -109,10 +109,6 @@ export const useDesktopStore = defineStore('desktopStore', () => {
   }
 
   const loadDesktopItemsAsync = async () => {
-    console.log('[DESKTOP] loadDesktopItemsAsync called')
-    console.log('[DESKTOP] currentVault.value?.drizzle:', !!currentVault.value?.drizzle)
-    console.log('[DESKTOP] currentWorkspace.value:', currentWorkspace.value)
-
     if (!currentVault.value?.drizzle) {
       console.error('[DESKTOP] Kein Vault geöffnet')
       return
@@ -123,24 +119,11 @@ export const useDesktopStore = defineStore('desktopStore', () => {
       return
     }
 
-    console.log('[DESKTOP] Loading desktop items for workspaceId:', currentWorkspace.value.id)
-
     try {
-      // First, let's see ALL desktop items in the database (for debugging)
-      const allItems = await currentVault.value.drizzle
-        .select()
-        .from(haexDesktopItems)
-
-      console.log('[DESKTOP] ALL desktop items in database:', allItems.length)
-      console.log('[DESKTOP] ALL desktop items workspaceIds:', allItems.map(i => i.workspaceId))
-
-      // Now filter by current workspace
       const items = await currentVault.value.drizzle
         .select()
         .from(haexDesktopItems)
         .where(eq(haexDesktopItems.workspaceId, currentWorkspace.value.id))
-
-      console.log('[DESKTOP] Found desktop items for current workspace:', items.length)
 
       desktopItems.value = items.map((item) => ({
         ...item,
@@ -149,8 +132,6 @@ export const useDesktopStore = defineStore('desktopStore', () => {
             ? item.extensionId!
             : item.systemWindowId!,
       }))
-
-      console.log('[DESKTOP] Desktop items loaded successfully:', desktopItems.value.length)
     } catch (error) {
       console.error('[DESKTOP] Fehler beim Laden der Desktop-Items:', error)
       throw error
@@ -269,7 +250,6 @@ export const useDesktopStore = defineStore('desktopStore', () => {
   }
 
   const removeDesktopItemAsync = async (id: string) => {
-    console.log('removeDesktopItemAsync', id)
     if (!currentVault.value?.drizzle) {
       throw new Error('Kein Vault geöffnet')
     }
@@ -312,9 +292,6 @@ export const useDesktopStore = defineStore('desktopStore', () => {
           !(item.itemType === 'extension' && item.extensionId === extensionId),
       )
 
-      console.log(
-        `Removed ${itemsToRemove.length} desktop items for extension ${extensionId}`,
-      )
     } catch (error) {
       console.error(
         'Fehler beim Entfernen der Desktop-Items für Extension:',
@@ -792,7 +769,6 @@ export const useDesktopStore = defineStore('desktopStore', () => {
     multiDragOffsets.value.clear()
     multiDragLeaderId.value = null
     iconSizePreset.value = DesktopIconSizePreset.medium
-    console.log('[DESKTOP STORE] Store reset')
   }
 
   return {

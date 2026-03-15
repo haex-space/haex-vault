@@ -55,7 +55,7 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
         })
       }
     } catch (error) {
-      console.log('ERROR syncLocaleAsync', error)
+      console.error('syncLocaleAsync failed:', error)
     }
   }
 
@@ -146,7 +146,6 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     const syncEngineStore = useSyncEngineStore()
 
     if (!currentVaultId.value || !currentVault.value?.drizzle) {
-      console.log('[VaultSettings] No vault open, skipping server update')
       return
     }
 
@@ -157,7 +156,6 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
 
     for (const backend of backends) {
       if (!backend.vaultId) {
-        console.log(`[VaultSettings] Skipping ${backend.name}: missing vaultId`)
         continue
       }
 
@@ -167,7 +165,6 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
           backend.vaultId,
           newVaultName,
         )
-        console.log(`[VaultSettings] Vault name updated on server: ${backend.name}`)
       } catch (error) {
         console.error(`[VaultSettings] Failed to update vault name on server ${backend.name}:`, error)
         // Continue with other backends even if one fails

@@ -451,7 +451,6 @@ const confirmInstallAsync = async (
 
       if (existingExt) {
         // Extension exists in DB from sync - only install files
-        console.log(`Extension exists in DB, installing files only`)
         installedExtensionId = await extensionStore.installFilesAsync(
           existingExt.id,
         )
@@ -473,7 +472,6 @@ const confirmInstallAsync = async (
 
       if (existingExt) {
         // Extension exists in DB from sync - only install files
-        console.log(`Extension exists in DB, installing files only`)
         installedExtensionId = await extensionStore.installFilesAsync(
           existingExt.id,
         )
@@ -497,13 +495,11 @@ const confirmInstallAsync = async (
       const enabledBackends = syncBackendsStore.enabledBackends
 
       if (enabledBackends.length > 0) {
-        console.log('[Extension Install] Triggering sync pull to fetch extension data...')
         await Promise.allSettled(
           enabledBackends.map((backend) =>
             syncOrchestratorStore.pullFromBackendAsync(backend.id),
           ),
         )
-        console.log('[Extension Install] Sync pull completed')
       }
     } catch (error) {
       // Don't fail installation if sync pull fails
@@ -518,18 +514,13 @@ const confirmInstallAsync = async (
 
         // Ensure workspaces are loaded before adding desktop item
         if (!workspaceStore.currentWorkspace) {
-          console.log('[Extension Install] No workspace loaded, loading workspaces...')
           await workspaceStore.loadWorkspacesAsync()
         }
-
-        console.log('[Extension Install] Adding desktop item for extension:', installedExtensionId)
-        console.log('[Extension Install] Current workspace:', workspaceStore.currentWorkspace?.id)
 
         await desktopStore.addDesktopItemAsync(
           'extension',
           installedExtensionId,
         )
-        console.log('[Extension Install] Desktop item added successfully')
       } catch (error) {
         console.warn('Could not add extension to desktop:', error)
       }

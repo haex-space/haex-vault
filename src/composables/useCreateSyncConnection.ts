@@ -222,7 +222,6 @@ export const useCreateSyncConnection = () => {
           throw new Error(`Registration failed: ${registerData.error || 'Unknown error'}`)
         }
         // 409 with 'DID already registered' = already registered and verified — proceed to login
-        console.log('[SYNC] Already registered and verified, proceeding to login')
       } else if (registerData.status === 'verification_pending') {
         // New registration or re-registration (not yet verified)
         return {
@@ -361,14 +360,12 @@ export const useCreateSyncConnection = () => {
     }
 
     try {
-      console.log('[SYNC] Initializing Supabase client...')
       await syncEngineStore.initSupabaseClientAsync(backendId)
 
       if (!syncEngineStore.supabaseClient) {
         throw new Error('Supabase client not initialized')
       }
 
-      console.log('[SYNC] Challenge-response login...')
       const session = await loginAsync(serverUrl, identityId)
 
       const { error: sessionError } =
@@ -384,13 +381,10 @@ export const useCreateSyncConnection = () => {
       // Cache the token directly as workaround for Supabase getSession timing issues
       syncEngineStore.cacheAccessToken(session.access_token)
 
-      console.log('[SYNC] Credentials verified successfully')
-
       if (!currentVaultPassword.value) {
         throw new Error('Vault password not available')
       }
 
-      console.log('[SYNC] Ensuring vault sync key...')
       await syncEngineStore.ensureSyncKeyAsync(
         backendId,
         currentVaultId.value!,
@@ -406,7 +400,6 @@ export const useCreateSyncConnection = () => {
       await syncBackendsStore.loadBackendsAsync()
       await syncOrchestratorStore.startSyncAsync()
 
-      console.log('[SYNC] Connection created and sync started successfully')
       return backendId
     } catch (err) {
       if (createdNew) {

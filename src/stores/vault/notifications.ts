@@ -24,9 +24,7 @@ export const useNotificationStore = defineStore('notificationStore', () => {
   const isNotificationAllowed = ref<boolean>(false)
 
   const requestNotificationPermissionAsync = async () => {
-    console.log('requestNotificationPermissionAsync')
     const permission = await requestPermission()
-    console.log('got permission', permission)
     isNotificationAllowed.value = permission === 'granted'
   }
 
@@ -104,7 +102,6 @@ export const useNotificationStore = defineStore('notificationStore', () => {
     const { currentVault } = storeToRefs(useVaultStore())
     const filter = notificationIds.map((id) => eq(haexNotifications.id, id))
 
-    console.log('deleteNotificationsAsync', notificationIds)
     return currentVault.value?.drizzle
       .delete(haexNotifications)
       .where(or(...filter))

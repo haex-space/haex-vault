@@ -100,7 +100,6 @@ const gradientVariantOptions = [
 
 const onSelectThemeAsync = async (theme: string) => {
   currentThemeName.value = theme
-  console.log('onSelectThemeAsync', currentThemeName.value)
   await updateThemeAsync(theme)
 }
 

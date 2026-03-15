@@ -66,7 +66,6 @@ export const useSyncConfigStore = defineStore('syncConfigStore', () => {
         }
       }
 
-      console.log('Loaded sync config:', config.value)
     } catch (error) {
       console.error('Failed to load sync config:', error)
     }
@@ -137,7 +136,6 @@ export const useSyncConfigStore = defineStore('syncConfigStore', () => {
         )
       }
 
-      console.log('Saved sync config:', config.value)
     } catch (error) {
       console.error('Failed to save sync config:', error)
       throw error

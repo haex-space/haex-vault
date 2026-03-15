@@ -73,7 +73,6 @@ const onWizardCompleteAsync = async (wizardData: {
     }
 
     // 2. Set up temporary backend FIRST (for vault key fetch/upload)
-    console.log('📤 Setting up temporary backend for initial sync')
     syncBackendsStore.setTemporaryBackend({
       id: wizardData.backendId,
       name: new URL(wizardData.serverUrl).host,
@@ -85,16 +84,10 @@ const onWizardCompleteAsync = async (wizardData: {
 
     if (wizardData.isNewVault) {
       // NEW VAULT: Generate key and upload to server
-      console.log('🆕 Creating new vault on server...')
-
-      // Import functions from vaultKey module
       const { generateNewVaultKey, uploadVaultKeyAsync, cacheSyncKey } = await import('@/stores/sync/engine/vaultKey')
 
-      // Generate new vault key
       const vaultKey = generateNewVaultKey()
-      console.log('🔑 Generated new vault key')
 
-      // Upload vault key to server
       await uploadVaultKeyAsync(
         wizardData.serverUrl,
         wizardData.vaultId,
@@ -103,14 +96,12 @@ const onWizardCompleteAsync = async (wizardData: {
         wizardData.vaultPassword,
         wizardData.identityPublicKey,
       )
-      console.log('✅ Vault key uploaded to server')
 
       // Cache the vault key for immediate use
       cacheSyncKey(wizardData.vaultId, vaultKey)
     } else {
       // EXISTING VAULT: Verify password by fetching and decrypting the vault key
       // This prevents creating orphan vault files if the password is wrong
-      console.log('🔐 Verifying vault password...')
       await syncEngineStore.ensureSyncKeyAsync(
         wizardData.backendId,
         wizardData.vaultId,
@@ -118,14 +109,10 @@ const onWizardCompleteAsync = async (wizardData: {
         wizardData.vaultPassword,
         wizardData.serverUrl,
       )
-      console.log('✅ Vault password verified')
     }
 
     // 4. Now create minimal vault with vault_id (DB + vault_id only)
     // No workspaces, devices, or backends are created yet
-    console.log('📦 Creating minimal vault:', wizardData.localVaultName)
-    console.log('📦 Using vault_id:', wizardData.vaultId)
-
     localVaultId = await vaultStore.createAsync({
       vaultName: wizardData.localVaultName,
       password: wizardData.vaultPassword,
@@ -136,14 +123,11 @@ const onWizardCompleteAsync = async (wizardData: {
       throw new Error('Failed to create vault')
     }
 
-    console.log('✅ Vault created with ID:', localVaultId)
-
     // Close drawer before navigating
     open.value = false
 
     // 5. Navigate to vault
     // The vault.vue page will detect remoteSync=true and wait for initial sync
-    console.log('[CONNECT] Navigating to vault...')
     await navigateTo(
       useLocaleRoute()({
         name: 'desktop',
@@ -151,24 +135,16 @@ const onWizardCompleteAsync = async (wizardData: {
         query: { remoteSync: 'true' },
       }),
     )
-    console.log('[CONNECT] Navigation complete (this might not run if component unmounted!)')
-
     // 6. Perform initial pull using temporary backend
     // For new vaults: this will be empty but sets up the sync infrastructure
     // For existing vaults: this pulls ALL data from server
     // After successful pull, the backend is persisted to DB
     // NOTE: performInitialPullAsync now also reloads stores (extensions, workspaces, desktop items)
     // before signaling sync complete - this prevents race conditions with vault.vue
-    console.log('[CONNECT] 🔄 Starting performInitialPullAsync...')
     await syncOrchestratorStore.performInitialPullAsync()
-    console.log('[CONNECT] ✅ performInitialPullAsync complete')
 
     // 7. Start normal sync (backend is now in DB from step 6)
-    console.log('[CONNECT] 🔄 Starting startSyncAsync...')
     await syncOrchestratorStore.startSyncAsync()
-    console.log('[CONNECT] ✅ startSyncAsync complete')
-
-    console.log('[CONNECT] ✅ Vault created and sync started')
 
     add({
       title: wizardData.isNewVault ? t('success.titleNew') : t('success.title'),
@@ -180,12 +156,10 @@ const onWizardCompleteAsync = async (wizardData: {
 
     // Clean up: delete the vault file if it was created but a later step failed
     if (localVaultId) {
-      console.log('🗑️ Cleaning up partially created vault...')
       try {
         await lastVaultStore.removeVaultAsync(wizardData.localVaultName)
-        console.log('✅ Partial vault cleaned up')
       } catch (cleanupError) {
-        console.warn('⚠️ Failed to clean up partial vault:', cleanupError)
+        console.warn('Failed to clean up partial vault:', cleanupError)
       }
     }
 

@@ -114,18 +114,9 @@ const handleRestoreAndActivateWindow = async (windowId: string) => {
   const window = windowManager.windows.find((w) => w.id === windowId)
   if (!window) return
 
-  console.log('[WindowOverview] Activating window:', {
-    windowId,
-    type: window.type,
-    workspaceId: window.workspaceId,
-    isMinimized: window.isMinimized,
-    isNativeWebview: window.isNativeWebview,
-  })
-
   // Desktop: Native webview windows need to be focused via Tauri command
   if (window.isNativeWebview) {
     try {
-      console.log('[WindowOverview] Focusing native window via Tauri...')
       await invoke('focus_extension_webview_window', { windowId })
     } catch (error) {
       console.error('Failed to focus native extension window:', error)
@@ -137,17 +128,13 @@ const handleRestoreAndActivateWindow = async (windowId: string) => {
 
   // Switch to the workspace where this window is located (for iframe-based windows)
   if (window.workspaceId) {
-    console.log('[WindowOverview] Sliding to workspace:', window.workspaceId)
     workspaceStore.slideToWorkspace(window.workspaceId)
   }
 
   // If window is minimized, restore it first
   if (window.isMinimized) {
-    console.log('[WindowOverview] Restoring minimized window')
     windowManager.restoreWindow(windowId)
   } else {
-    // If not minimized, just activate it
-    console.log('[WindowOverview] Activating window')
     windowManager.activateWindow(windowId)
   }
 
@@ -198,17 +185,10 @@ const getCardStyle = (window: (typeof windows.value)[0]) => {
 // Watch for overview closing to restore windows
 watch(localShowWindowOverview, async (isOpen, wasOpen) => {
   if (!isOpen && wasOpen) {
-    console.log('[WindowOverview] Overview closed, restoring windows...')
-
     // Restore original window state
     for (const window of windows.value) {
       const originalState = originalWindowState.value.get(window.id)
       if (originalState) {
-        console.log(
-          `[WindowOverview] Restoring window ${window.id} to:`,
-          originalState,
-        )
-
         windowManager.updateWindowSize(
           window.id,
           originalState.width,
@@ -230,14 +210,7 @@ watch(
   () => localShowWindowOverview.value && windows.value.length,
   (shouldStore) => {
     if (shouldStore && originalWindowState.value.size === 0) {
-      console.log('[WindowOverview] Storing original window states...')
-
       for (const window of windows.value) {
-        console.log(`[WindowOverview] Window ${window.id}:`, {
-          originalSize: { width: window.width, height: window.height },
-          originalPos: { x: window.x, y: window.y },
-        })
-
         originalWindowState.value.set(window.id, {
           width: window.width,
           height: window.height,

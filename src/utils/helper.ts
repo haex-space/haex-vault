@@ -16,7 +16,6 @@ import type { RouteLocationRawI18n } from 'vue-router'
 
 export const blobToImageAsync = (blob: Blob): Promise<HTMLImageElement> => {
   return new Promise((resolve) => {
-    console.log('transform blob', blob)
     const url = URL.createObjectURL(blob)
     const img = new Image()
     img.onload = () => {
@@ -49,7 +48,6 @@ export const getSingleRouteParam = (
   param: string | string[] | undefined,
 ): string => {
   const _param = Array.isArray(param) ? (param.at(0) ?? '') : (param ?? '')
-  //console.log('getSingleRouteParam found:', _param, param)
   return decodeURIComponent(_param)
 }
 
@@ -61,7 +59,6 @@ export const isRouteActive = (
     const found = useRouter()
       .getRoutes()
       .find((route) => route.name === useLocaleRoute()(to)?.name)
-    //console.log('found route', found, useRouter().currentRoute.value, to);
     return exact
       ? found?.name === useRouter().currentRoute.value.name
       : found?.name === useRouter().currentRoute.value.name ||
@@ -156,7 +153,6 @@ export const isObject = (value: unknown): value is Record<string, unknown> => {
  * @returns {boolean} `true`, wenn die Werte gleich sind, andernfalls `false`.
  */
 export const areObjectsEqual = (valueA: unknown, valueB: unknown): boolean => {
-  console.log('areObjectsEqual', valueA, valueB)
   // 1. Schneller Check für exakt die gleiche Referenz oder primitive Gleichheit
   if (valueA === valueB) {
     return true
@@ -173,7 +169,6 @@ export const areObjectsEqual = (valueA: unknown, valueB: unknown): boolean => {
   // 2. Nutzen der Type Guard: Wenn beide Werte keine Objekte sind,
   // und die vorherigen Checks fehlschlugen, sind sie ungleich.
   if (!isObject(valueA) || !isObject(valueB)) {
-    console.log('areObjectsEqual no objects', valueA, valueB)
     return false
   }
 
@@ -184,7 +179,6 @@ export const areObjectsEqual = (valueA: unknown, valueB: unknown): boolean => {
   const keysB = Object.keys(valueB)
 
   if (keysA.length !== keysB.length) {
-    console.log('areObjectsEqual length')
     return false
   }
 
@@ -192,7 +186,6 @@ export const areObjectsEqual = (valueA: unknown, valueB: unknown): boolean => {
   for (const key of keysA) {
     // Prüfen, ob der Schlüssel auch im zweiten Objekt überhaupt existiert
     if (!keysB.includes(key)) {
-      console.log('areObjectsEqual keys')
       return false
     }
 
@@ -203,7 +196,6 @@ export const areObjectsEqual = (valueA: unknown, valueB: unknown): boolean => {
     // Wenn der rekursive Aufruf für einen der Werte `false` zurückgibt,
     // sind die gesamten Objekte ungleich.
     if (!areObjectsEqual(nestedValueA, nestedValueB)) {
-      console.log('areObjectsEqual nested')
       return false
     }
   }

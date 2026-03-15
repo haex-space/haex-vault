@@ -52,15 +52,12 @@ export const useExtensionContextStore = defineStore('extensionContextStore', () 
     const newContext = buildContext()
     context.value = newContext
 
-    console.log('[ExtensionContext] Context updated:', newContext)
-
     // Store context in Tauri state (for webview extensions to query on init)
     // This is only needed on Desktop where WebView extensions use Tauri invoke
     // On mobile, extensions use iframes with postMessage and get context via broadcast
     if (isDesktop()) {
       try {
         await invoke(TAURI_COMMANDS.extension.setContext, { context: newContext })
-        console.log('[ExtensionContext] Context stored in Tauri state')
       } catch (error) {
         console.error('[ExtensionContext] Failed to store context in Tauri:', error)
       }
@@ -85,7 +82,6 @@ export const useExtensionContextStore = defineStore('extensionContextStore', () 
   watch(
     [currentThemeName, locale, deviceId],
     () => {
-      console.log('[ExtensionContext] Dependency changed, updating context')
       // Call async function with proper error handling to avoid unhandled rejections
       updateContext().catch((error) => {
         console.error('[ExtensionContext] Failed to update context:', error)

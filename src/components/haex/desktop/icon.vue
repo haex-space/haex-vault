@@ -185,22 +185,8 @@ watch(
   [iconWidth, iconHeight],
   async ([width, height]) => {
     if (width > 0 && height > 0) {
-      console.log('📐 Icon dimensions measured:', {
-        label: props.label,
-        width,
-        height,
-        currentPosition: { x: x.value, y: y.value },
-        gridCellSize: desktopStore.gridCellSize,
-      })
-
       // Re-snap to grid with actual dimensions to ensure proper centering
       const snapped = desktopStore.snapToGrid(x.value, y.value, width, height)
-
-      console.log('📍 Snapped position:', {
-        label: props.label,
-        oldPosition: { x: x.value, y: y.value },
-        newPosition: snapped,
-      })
 
       const oldX = x.value
       const oldY = y.value

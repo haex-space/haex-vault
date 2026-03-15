@@ -174,22 +174,9 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
         const shouldUseNativeWindow =
           displayMode === 'window' || (displayMode === 'auto' && isDesktop())
 
-        console.log('[windowManager] Extension display mode check:', {
-          extensionId: sourceId,
-          extensionName: extension?.name,
-          displayMode,
-          isDesktop: isDesktop(),
-          shouldUseNativeWindow,
-        })
-
         // Desktop: Extensions can run in native WebviewWindows (separate processes)
         if (isDesktop() && shouldUseNativeWindow) {
           try {
-            console.log(
-              '[windowManager] Opening native window with sourceId:',
-              sourceId,
-            )
-            console.log('[windowManager] Extension object:', extension)
             // Backend generates and returns the window_id
             const windowId = await invoke<string>(
               'open_extension_webview_window',
@@ -239,16 +226,6 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       const workspaceStore = useWorkspaceStore()
       let targetWorkspaceId = workspaceId || workspaceStore.currentWorkspace?.id
 
-      console.log('[windowManager] openWindowAsync:', {
-        sourceId,
-        type,
-        providedWorkspaceId: workspaceId,
-        currentWorkspaceId: workspaceStore.currentWorkspace?.id,
-        targetWorkspaceId,
-        workspacesCount: workspaceStore.workspaces?.length,
-        currentWorkspaceIndex: workspaceStore.currentWorkspaceIndex,
-      })
-
       // If no workspace is available yet (e.g., during initial sync), try to load/create one
       if (!targetWorkspaceId) {
         console.warn('[windowManager] No active workspace - attempting to load/create workspaces')
@@ -263,7 +240,6 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
             })
             return
           }
-          console.log('[windowManager] Workspace loaded/created successfully:', targetWorkspaceId)
         } catch (error) {
           console.error('[windowManager] Cannot open window: Failed to load/create workspace:', error)
           return
@@ -332,8 +308,6 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       // Calculate viewport-aware size
       const viewportWidth = window.innerWidth
       const viewportHeight = window.innerHeight - 60
-
-      console.log('viewportHeight', window.innerHeight, viewportHeight)
 
       // Check if we're on a small screen
       const { isSmallScreen } = useUiStore()
@@ -545,10 +519,6 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
 
     if (extensionWindows.length === 0) return
 
-    console.log(
-      `[windowManager] Closing ${extensionWindows.length} window(s) for extension ${extensionId}...`,
-    )
-
     // Close all windows for this extension in parallel
     await Promise.all(
       extensionWindows.map(async (window) => {
@@ -563,7 +533,6 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       }),
     )
 
-    console.log(`[windowManager] All windows for extension ${extensionId} closed`)
   }
 
   /**
@@ -573,16 +542,11 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
   const closeAllExtensionWindowsAsync = async () => {
     const extensionWindows = windows.value.filter((w) => w.type === 'extension')
 
-    console.log(
-      `[windowManager] Closing ${extensionWindows.length} extension window(s)...`,
-    )
-
     // Desktop: Call backend to close all native extension windows
     // This is more reliable than closing one by one, especially for webview reload scenarios
     if (isDesktop()) {
       try {
         await invoke('close_all_extension_webview_windows')
-        console.log('[windowManager] Backend closed all native extension windows')
       } catch (error) {
         console.error('[windowManager] Failed to close native windows via backend:', error)
       }
@@ -602,7 +566,6 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       }),
     )
 
-    console.log('[windowManager] All extension windows closed')
   }
 
   /**
@@ -610,10 +573,8 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
    * Called when the vault is closed to prevent stale windows with invalid workspace IDs.
    */
   const closeAllWindowsAsync = async () => {
-    console.log(`[windowManager] Closing all ${windows.value.length} window(s)...`)
     await closeAllExtensionWindowsAsync()
     windows.value = []
-    console.log('[windowManager] All windows cleared')
   }
 
   // Desktop: Listen for native window close events from Tauri

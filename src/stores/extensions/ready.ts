@@ -31,8 +31,6 @@ export const useExtensionReadyStore = defineStore('extensionReady', () => {
    * This is called after the extension has completed its initialization.
    */
   const signalReady = async (extensionId: string) => {
-    console.log(`[ExtensionReady] Extension ${extensionId} signaled ready`)
-
     // Update local state
     readyStates.value.set(extensionId, {
       isReady: true,
@@ -50,7 +48,6 @@ export const useExtensionReadyStore = defineStore('extensionReady', () => {
     if (isDesktop()) {
       try {
         await invoke('extension_signal_ready', { extensionId })
-        console.log(`[ExtensionReady] Notified backend for extension ${extensionId}`)
       }
       catch (error) {
         // Don't fail if backend notification fails

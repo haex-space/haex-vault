@@ -176,9 +176,6 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
       const fileBytes = new Uint8Array(arrayBuffer)
 
       // TODO: Verify hash if provided
-      if (expectedHash) {
-        console.log('Expected hash:', expectedHash)
-      }
 
       // Cache bytes for install
       pendingInstallBytes.value = fileBytes
@@ -519,7 +516,6 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
     availableExtensions.value = []
     pendingInstallBytes.value = null
     preview.value = undefined
-    console.log('[EXTENSIONS STORE] Store reset')
   }
 
   return {

@@ -573,19 +573,12 @@ const handleDesktopClick = () => {
 }
 
 const handleWindowDragStart = (windowId: string) => {
-  console.log('[Desktop] handleWindowDragStart:', windowId)
   isWindowDragging.value = true
   windowManager.draggingWindowId = windowId // Set in store for workspace cards
-  console.log(
-    '[Desktop] draggingWindowId set to:',
-    windowManager.draggingWindowId,
-  )
   allowSwipe.value = false // Disable Swiper during window drag
 }
 
 const handleWindowDragEnd = async () => {
-  console.log('[Desktop] handleWindowDragEnd')
-
   // Check if window should snap to left or right
   const draggingWindowId = windowManager.draggingWindowId
 
@@ -882,25 +875,16 @@ useEventListener(window, 'keydown', async (e: KeyboardEvent) => {
 
 // Poll for initial sync completion (used for remote vault connections)
 const waitForInitialSyncAsync = async (): Promise<void> => {
-  console.log('[DESKTOP] waitForInitialSyncAsync: Checking if already complete...')
   const isComplete = await vaultSettingsStore.isInitialSyncCompleteAsync()
   if (isComplete) {
-    console.log('[DESKTOP] waitForInitialSyncAsync: Already complete, returning immediately')
     return
   }
-
-  console.log('[DESKTOP] waitForInitialSyncAsync: Not complete, starting poll (every 500ms, max 60s timeout)...')
 
   return new Promise((resolve) => {
     let pollCount = 0
     const maxPolls = 120 // 60 seconds at 500ms intervals
     const { pause } = useIntervalFn(async () => {
       pollCount++
-      // Only log every 10 polls to reduce noise
-      if (pollCount % 10 === 0) {
-        console.log(`[DESKTOP] waitForInitialSyncAsync: Poll #${pollCount}/${maxPolls}, still waiting...`)
-      }
-
       // Timeout after max polls
       if (pollCount >= maxPolls) {
         pause()
@@ -912,7 +896,6 @@ const waitForInitialSyncAsync = async (): Promise<void> => {
       const complete = await vaultSettingsStore.isInitialSyncCompleteAsync()
       if (complete) {
         pause()
-        console.log(`[DESKTOP] waitForInitialSyncAsync: Complete after ${pollCount} polls!`)
         resolve()
       }
     }, 500) // 500ms interval

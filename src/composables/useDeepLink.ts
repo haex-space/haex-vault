@@ -43,12 +43,8 @@ export const useDeepLink = () => {
    * If the vault is locked, stores the action for later processing
    */
   const handleDeepLink = async (url: string) => {
-    console.log('[DeepLink] Received URL:', url)
-
     if (isInviteLink(url)) {
-      console.log('[DeepLink] Invite link detected')
       if (!isVaultOpen.value) {
-        console.log('[DeepLink] Vault is locked, storing invite for later')
         pendingInviteLink.value = url
         return
       }
@@ -62,10 +58,7 @@ export const useDeepLink = () => {
       return
     }
 
-    console.log('[DeepLink] Parsed extension ID:', extensionId)
-
     if (!isVaultOpen.value) {
-      console.log('[DeepLink] Vault is locked, storing extension ID for later:', extensionId)
       pendingExtensionId.value = extensionId
       return
     }
@@ -78,14 +71,10 @@ export const useDeepLink = () => {
    */
   const openExtensionWindow = async (extensionId: string) => {
     try {
-      console.log('[DeepLink] Opening extension window:', extensionId)
-
       await windowManager.openWindowAsync({
         type: 'extension',
         sourceId: extensionId,
       })
-
-      console.log('[DeepLink] Extension window opened successfully')
     } catch (error) {
       console.error('[DeepLink] Failed to open extension window:', error)
     }
@@ -96,7 +85,6 @@ export const useDeepLink = () => {
    */
   const openInviteJoinDialog = async (url: string) => {
     try {
-      console.log('[DeepLink] Opening Spaces settings with invite link')
       await windowManager.openWindowAsync({
         type: 'system',
         sourceId: 'settings',
@@ -112,7 +100,6 @@ export const useDeepLink = () => {
    */
   const processPendingDeepLink = async () => {
     if (pendingInviteLink.value) {
-      console.log('[DeepLink] Processing pending invite link')
       const link = pendingInviteLink.value
       pendingInviteLink.value = null
       await openInviteJoinDialog(link)
@@ -120,7 +107,6 @@ export const useDeepLink = () => {
     }
 
     if (pendingExtensionId.value) {
-      console.log('[DeepLink] Processing pending extension:', pendingExtensionId.value)
       const extensionId = pendingExtensionId.value
       pendingExtensionId.value = null
       await openExtensionWindow(extensionId)
@@ -133,17 +119,13 @@ export const useDeepLink = () => {
    */
   const init = async () => {
     if (!isDesktop()) {
-      console.log('[DeepLink] Not on desktop, skipping initialization')
       return
     }
-
-    console.log('[DeepLink] Initializing deep-link handler...')
 
     try {
       // Check if app was launched with a deep-link URL
       const startUrls = await getCurrent()
       if (startUrls && startUrls.length > 0) {
-        console.log('[DeepLink] App started with URLs:', startUrls)
         for (const url of startUrls) {
           await handleDeepLink(url)
         }
@@ -151,7 +133,6 @@ export const useDeepLink = () => {
 
       // Listen for deep-links when app is already running
       await onOpenUrl((urls) => {
-        console.log('[DeepLink] Received URLs while running:', urls)
         for (const url of urls) {
           handleDeepLink(url)
         }
@@ -160,11 +141,8 @@ export const useDeepLink = () => {
       // Listen for deep-link events from single-instance plugin
       // (when another instance tries to start with a deep-link URL)
       await listen<string>('deep-link-received', (event) => {
-        console.log('[DeepLink] Received from single-instance:', event.payload)
         handleDeepLink(event.payload)
       })
-
-      console.log('[DeepLink] Deep-link handler initialized')
     } catch (error) {
       console.error('[DeepLink] Failed to initialize:', error)
     }
@@ -172,7 +150,6 @@ export const useDeepLink = () => {
     // Watch for vault unlock to process pending deep-links
     watch(isVaultOpen, (isOpen) => {
       if (isOpen) {
-        console.log('[DeepLink] Vault unlocked, checking for pending deep-links')
         processPendingDeepLink()
       }
     })

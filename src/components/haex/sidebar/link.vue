@@ -37,7 +37,6 @@ const props = defineProps<ISidebarItem>()
 
 const router = useRouter()
 
-console.log('to', props.to)
 const isActive = computed(() => {
   if (props.to?.name === 'haexExtension') {
     return (

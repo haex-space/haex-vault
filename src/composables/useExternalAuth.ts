@@ -38,17 +38,13 @@ export function useExternalAuth() {
       return
     }
 
-    console.log('[ExternalAuth] Initializing...')
-
     try {
       // Listen for authorization requests from the Tauri backend
       await listen<PendingAuthorization>(EXTERNAL_EVENTS.AUTHORIZATION_REQUEST, (event) => {
-        console.log('[ExternalAuth] Received authorization request:', event.payload)
         showAuthorizationPrompt(event.payload)
       })
 
       initialized.value = true
-      console.log('[ExternalAuth] Initialized')
     } catch (error) {
       console.error('[ExternalAuth] Failed to initialize:', error)
     }
@@ -70,7 +66,6 @@ export function useExternalAuth() {
     // Uses GTK present() on Linux for proper window focusing
     try {
       await invoke('focus_main_window')
-      console.log('[ExternalAuth] Window focused')
     } catch (error) {
       console.warn('[ExternalAuth] Failed to focus window:', error)
     }
@@ -83,8 +78,6 @@ export function useExternalAuth() {
    * Handle user decision from the dialog
    */
   async function handleDecision(decision: ExternalAuthDecision, extensionIds?: string[], remember = false) {
-    console.log('[ExternalAuth] handleDecision called:', { decision, extensionIds, remember, pendingAuth: pendingAuth.value })
-
     if (!pendingAuth.value) {
       console.warn('[ExternalAuth] No pending auth, returning early')
       return
@@ -96,7 +89,6 @@ export function useExternalAuth() {
           if (extensionIds && extensionIds.length > 0) {
             // Allow access for each selected extension
             for (const extensionId of extensionIds) {
-              console.log('[ExternalAuth] Calling clientAllow for extension:', extensionId)
               await invoke(TAURI_COMMANDS.externalBridge.clientAllow, {
                 clientId: pendingAuth.value.clientId,
                 clientName: pendingAuth.value.clientName,
@@ -104,12 +96,6 @@ export function useExternalAuth() {
                 extensionId,
                 remember,
               })
-              console.log('[ExternalAuth] clientAllow succeeded for extension:', extensionId)
-            }
-            if (remember) {
-              console.log('[ExternalAuth] Authorization permanently approved for extensions:', extensionIds)
-            } else {
-              console.log('[ExternalAuth] Authorization allowed once for extensions:', extensionIds)
             }
           } else {
             console.warn('[ExternalAuth] No extensionIds provided for allow decision')
@@ -124,11 +110,6 @@ export function useExternalAuth() {
             publicKey: pendingAuth.value.publicKey,
             remember,
           })
-          if (remember) {
-            console.log('[ExternalAuth] Client permanently blocked:', pendingAuth.value.clientId)
-          } else {
-            console.log('[ExternalAuth] Request denied:', pendingAuth.value.clientId)
-          }
           break
       }
     } catch (error) {
@@ -156,7 +137,6 @@ export function useExternalAuth() {
         publicKey: pendingAuth.value.publicKey,
         remember: false,
       })
-      console.log('[ExternalAuth] Request cancelled')
     } catch (error) {
       console.error('[ExternalAuth] Failed to cancel request:', error)
     }
@@ -184,7 +164,6 @@ export function useExternalAuth() {
   async function revokeClient(clientId: string): Promise<void> {
     try {
       await invoke(TAURI_COMMANDS.externalBridge.revokeClient, { clientId })
-      console.log('[ExternalAuth] Client revoked:', clientId)
     } catch (error) {
       console.error('[ExternalAuth] Failed to revoke client:', error)
       throw error
@@ -209,7 +188,6 @@ export function useExternalAuth() {
   async function unblockClient(clientId: string): Promise<void> {
     try {
       await invoke(TAURI_COMMANDS.externalBridge.unblockClient, { clientId })
-      console.log('[ExternalAuth] Client unblocked:', clientId)
     } catch (error) {
       console.error('[ExternalAuth] Failed to unblock client:', error)
       throw error
@@ -235,7 +213,6 @@ export function useExternalAuth() {
   async function revokeSessionAuthorization(clientId: string): Promise<void> {
     try {
       await invoke(TAURI_COMMANDS.externalBridge.revokeSessionAuthorization, { clientId })
-      console.log('[ExternalAuth] Session authorization revoked:', clientId)
     } catch (error) {
       console.error('[ExternalAuth] Failed to revoke session authorization:', error)
       throw error
@@ -261,7 +238,6 @@ export function useExternalAuth() {
   async function unblockSessionClient(clientId: string): Promise<void> {
     try {
       await invoke('external_bridge_unblock_session_client', { clientId })
-      console.log('[ExternalAuth] Session blocked client unblocked:', clientId)
     } catch (error) {
       console.error('[ExternalAuth] Failed to unblock session client:', error)
       throw error

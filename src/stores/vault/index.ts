@@ -45,7 +45,6 @@ export const useVaultStore = defineStore('vaultStore', () => {
   // Close all extension windows when no vault is available
   watch(currentVault, async (newVault) => {
     if (!newVault) {
-      console.log('[VAULT STORE] No vault available, closing all windows...')
       const windowManagerStore = useWindowManagerStore()
       await windowManagerStore.closeAllWindowsAsync()
     }
@@ -76,7 +75,6 @@ export const useVaultStore = defineStore('vaultStore', () => {
       const enabledBackends = syncBackendsStore.enabledBackends
 
       if (enabledBackends.length === 0) {
-        console.log('[HaexSpace] No enabled sync backends found')
         return
       }
 
@@ -84,17 +82,13 @@ export const useVaultStore = defineStore('vaultStore', () => {
         try {
           // Check if backend has an identity for auth
           if (!backend.identityId) {
-            console.log(`[HaexSpace] No identity for backend ${backend.name}, skipping`)
             continue
           }
 
           const identity = await identityStore.getIdentityAsync(backend.identityId)
           if (!identity) {
-            console.log(`[HaexSpace] Identity ${backend.identityId} not found for backend ${backend.name}`)
             continue
           }
-
-          console.log(`[HaexSpace] Challenge-response login for backend ${backend.name}...`)
 
           // Initialize Supabase client
           await syncEngineStore.initSupabaseClientAsync(backend.id)
@@ -150,8 +144,6 @@ export const useVaultStore = defineStore('vaultStore', () => {
             refresh_token: session.refresh_token,
           })
 
-          console.log(`[HaexSpace] Challenge-response login successful for ${backend.name}`)
-
           // Ensure sync key exists
           if (backend.vaultId && currentVault.value?.name && currentVaultPassword.value) {
             await syncEngineStore.ensureSyncKeyAsync(
@@ -172,14 +164,10 @@ export const useVaultStore = defineStore('vaultStore', () => {
       // Retry pending vault key updates (from previous password changes that failed)
       if (currentVaultPassword.value) {
         try {
-          const { successCount, failedBackendIds } = await syncEngineStore.retryPendingVaultKeyUpdatesAsync(
+          const { failedBackendIds } = await syncEngineStore.retryPendingVaultKeyUpdatesAsync(
             syncEngineStore.vaultKeyCache[currentVaultId.value ?? '']?.vaultKey ?? new Uint8Array(),
             currentVaultPassword.value,
           )
-
-          if (successCount > 0) {
-            console.log(`[HaexSpace] Retried vault key update for ${successCount} backend(s)`)
-          }
 
           if (failedBackendIds.length > 0) {
             console.warn(`[HaexSpace] Vault key update still pending for ${failedBackendIds.length} backend(s)`)
@@ -198,7 +186,6 @@ export const useVaultStore = defineStore('vaultStore', () => {
       // Start sync after all logins are attempted
       if (enabledBackends.length > 0) {
         await syncOrchestratorStore.startSyncAsync()
-        console.log('[HaexSpace] Sync started with auto-login')
       }
     } catch (error) {
       console.error('[HaexSpace] Auto-login and sync start error:', error)
@@ -216,18 +203,10 @@ export const useVaultStore = defineStore('vaultStore', () => {
     vaultId?: string
   }) => {
     try {
-      console.log('[VAULT STORE] openAsync called with path:', path)
-      if (providedVaultId) {
-        console.log('[VAULT STORE] Using provided vault ID (remote sync):', providedVaultId)
-      }
-      console.log('[VAULT STORE] Invoking open_encrypted_database...')
-
       await invoke<string>('open_encrypted_database', {
         vaultPath: path,
         key: password,
       })
-
-      console.log('[VAULT STORE] open_encrypted_database completed')
 
       const drizzleDb = drizzle<typeof schema>(drizzleCallback, {
         schema: schema,
@@ -282,18 +261,8 @@ export const useVaultStore = defineStore('vaultStore', () => {
         retentionDays,
       })
 
-      if (result.totalDeleted > 0) {
-        console.log(
-          `[HaexSpace] Automatic cleanup completed: ${result.totalDeleted} entries removed ` +
-            `(${result.tombstonesDeleted} tombstones, ${result.appliedDeleted} applied)`,
-        )
-      }
-
       // Also clean up old log entries
-      const logsDeleted = await invoke<number>('log_cleanup')
-      if (logsDeleted > 0) {
-        console.log(`[HaexSpace] Log cleanup: ${logsDeleted} old entries removed`)
-      }
+      await invoke<number>('log_cleanup')
 
       return result
     } catch (error) {
@@ -312,20 +281,11 @@ export const useVaultStore = defineStore('vaultStore', () => {
     /** Optional: Set a specific vault ID (for connecting to remote vaults) */
     vaultId?: string
   }) => {
-    console.log('[VAULT STORE] createAsync called with vaultName:', vaultName)
-    if (vaultId) {
-      console.log('[VAULT STORE] Using provided vault ID:', vaultId)
-    }
-    console.log('[VAULT STORE] Invoking create_encrypted_database...')
-
     const vaultPath = await invoke<string>('create_encrypted_database', {
       vaultName,
       key: password,
       vaultId: vaultId || null,
     })
-
-    console.log('[VAULT STORE] create_encrypted_database returned path:', vaultPath)
-    console.log('[VAULT STORE] Now calling openAsync...')
 
     // Set the user-provided vault name BEFORE opening
     // This ensures syncVaultNameAsync uses the correct name when creating the DB entry
@@ -337,8 +297,6 @@ export const useVaultStore = defineStore('vaultStore', () => {
 
   const closeAsync = async () => {
     if (!currentVaultId.value) return
-
-    console.log('[VAULT STORE] Closing vault and resetting all stores...')
 
     // Stop sync first to clear all sync-related state
     const syncOrchestratorStore = useSyncOrchestratorStore()
@@ -372,14 +330,12 @@ export const useVaultStore = defineStore('vaultStore', () => {
     // This clears the DB connection, HLC service, and extension manager caches
     try {
       await invoke('close_database')
-      console.log('[VAULT STORE] Database connection closed')
     } catch (error) {
       console.error('[VAULT STORE] Failed to close database:', error)
     }
 
     // Removing vault from openVaults also clears the password from memory
     delete openVaults.value?.[currentVaultId.value]
-    console.log('[VAULT STORE] Vault closed successfully')
   }
 
   const existsVault = () => {
@@ -429,9 +385,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
 
     try {
       // Step 1: Change local database password using SQLCipher rekey
-      console.log('[VAULT STORE] Changing local vault password...')
       await invoke('change_vault_password', { newPassword })
-      console.log('[VAULT STORE] ✅ Local vault password changed')
 
       // Step 2: Update password in memory
       const vaultId = currentVaultId.value
@@ -444,8 +398,6 @@ export const useVaultStore = defineStore('vaultStore', () => {
       let pendingBackends = 0
 
       if (enabledBackends.length > 0) {
-        console.log(`[VAULT STORE] Updating vault key on ${enabledBackends.length} sync backend(s)...`)
-
         // Get the current vault key from cache
         const cachedKey = syncEngineStore.vaultKeyCache[vaultId ?? '']
         if (!cachedKey?.vaultKey) {
@@ -484,7 +436,6 @@ export const useVaultStore = defineStore('vaultStore', () => {
         }
       }
 
-      console.log('[VAULT STORE] ✅ Password change complete')
       return { success: true, pendingBackends }
     } catch (error) {
       console.error('[VAULT STORE] Failed to change password:', error)

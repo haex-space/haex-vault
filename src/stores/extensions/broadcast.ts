@@ -187,10 +187,6 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
    * NOTE: This only broadcasts. Context storage is handled by the caller (uiStore).
    */
   const broadcastContext = async (context: ApplicationContext) => {
-    console.log('[BroadcastStore] broadcastContext called with:', context)
-    console.log('[BroadcastStore] iframeRegistry size:', iframeRegistry.size)
-    console.log('[BroadcastStore] isDesktop:', isDesktop.value)
-
     const message = {
       type: HAEXTENSION_EVENTS.CONTEXT_CHANGED,
       data: { context },
@@ -198,23 +194,11 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
     }
 
     // Send to ALL iframe extension instances
-    let iframeSentCount = 0
-    for (const [iframe, instance] of iframeRegistry.entries()) {
-      console.log('[BroadcastStore] Checking iframe:', {
-        extensionName: instance.extension.name,
-        windowId: instance.windowId,
-        hasContentWindow: !!iframe.contentWindow,
-        iframeConnected: iframe.isConnected,
-      })
+    for (const [iframe] of iframeRegistry.entries()) {
       if (iframe.contentWindow) {
-        console.log('[BroadcastStore] Sending context to iframe:', instance.extension.name, instance.windowId)
         iframe.contentWindow.postMessage(message, '*')
-        iframeSentCount++
-      } else {
-        console.warn('[BroadcastStore] Iframe has no contentWindow:', instance.extension.name, instance.windowId)
       }
     }
-    console.log('[BroadcastStore] Sent context to', iframeSentCount, 'iframes')
 
     // On desktop, also broadcast to webview extensions
     if (isDesktop.value) {
@@ -223,7 +207,6 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
           event: HAEXTENSION_EVENTS.CONTEXT_CHANGED,
           payload: { context },
         })
-        console.log('[BroadcastStore] Broadcasted context to webview extensions')
       } catch (error) {
         console.error('[BroadcastStore] Failed to broadcast to webview extensions:', error)
       }
@@ -246,16 +229,12 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
   const broadcastSyncTablesUpdated = async (tables: string[]) => {
     if (tables.length === 0) return
 
-    console.log('[BroadcastStore] Broadcasting sync:tables-updated for tables:', tables)
-
     // Get filtered tables by extension permissions from Rust
     // Rust queries all extensions and their permissions, then filters
     const result = await invoke<FilteredSyncTablesResult>(
       TAURI_COMMANDS.extension.filterSyncTables,
       { tables },
     )
-
-    console.log('[BroadcastStore] Filtered extensions:', Object.keys(result.extensions).length)
 
     // Send to ALL iframe extension instances
     for (const [iframe, instance] of iframeRegistry.entries()) {
@@ -273,7 +252,6 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
           data: { tables: allowedTables },
           timestamp: Date.now(),
         }
-        console.log('[BroadcastStore] Sending sync:tables-updated to:', instance.extension.name, instance.windowId, 'tables:', allowedTables.length)
         iframe.contentWindow.postMessage(message, '*')
       }
     }
@@ -284,7 +262,6 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
         await invoke(TAURI_COMMANDS.extension.emitSyncTables, {
           filteredExtensions: result,
         })
-        console.log('[BroadcastStore] Emitted sync:tables-updated to webview extensions')
       } catch (error) {
         console.error('[BroadcastStore] Failed to emit to webview extensions:', error)
       }
@@ -296,8 +273,6 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
    * Currently broadcasts to all - Rust filtering to be added.
    */
   const broadcastFileChanged = (payload: FileChangePayload) => {
-    console.log('[BroadcastStore] Broadcasting file change:', payload.ruleId, payload.changeType)
-
     const message = {
       type: HAEXTENSION_EVENTS.FILE_CHANGED,
       ruleId: payload.ruleId,
@@ -307,9 +282,8 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
     }
 
     // Send to ALL iframe extension instances (TODO: add permission filtering)
-    for (const [iframe, instance] of iframeRegistry.entries()) {
+    for (const [iframe] of iframeRegistry.entries()) {
       if (iframe.contentWindow) {
-        console.log('[BroadcastStore] Sending file change to:', instance.extension.name, instance.windowId)
         iframe.contentWindow.postMessage(message, '*')
       }
     }
@@ -376,8 +350,6 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
    * Uses permission-based filtering like other events.
    */
   const broadcastLocalSendEvent = (eventType: string, payload: unknown) => {
-    console.log('[BroadcastStore] Broadcasting LocalSend event:', eventType)
-
     const message = {
       type: eventType,
       data: payload,
@@ -430,7 +402,6 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
       // Listen for file change events from native file watcher
       unlistenFns.push(
         await listen<FileChangePayload>(HAEXTENSION_EVENTS.FILE_CHANGED, (event) => {
-          console.log('[BroadcastStore] Received file change from Tauri:', event.payload)
           broadcastFileChanged(event.payload)
         }),
       )
@@ -472,7 +443,6 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
         }),
       )
 
-      console.log('[BroadcastStore] Event listeners registered')
     } catch (error) {
       console.error('[BroadcastStore] Failed to setup event listeners:', error)
     }
@@ -491,8 +461,6 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
     // Clear all registries
     iframeRegistry.clear()
     sourceCache.clear()
-
-    console.log('[BroadcastStore] Cleaned up')
   }
 
   return {

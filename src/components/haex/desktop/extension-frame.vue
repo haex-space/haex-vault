@@ -86,21 +86,6 @@ const extension = computed(() => {
 })
 
 const handleIframeLoad = () => {
-  console.log('[ExtensionFrame] Iframe loaded successfully for:', extension.value?.name)
-
-  // Try to inject a test script to see if JavaScript execution works
-  try {
-    if (iframeRef.value?.contentWindow) {
-      console.log('[ExtensionFrame] Iframe has contentWindow access')
-      // This will fail with sandboxed iframes without allow-same-origin
-      console.log('[ExtensionFrame] Iframe origin:', iframeRef.value.contentWindow.location.href)
-    } else {
-      console.warn('[ExtensionFrame] Iframe contentWindow is null/undefined')
-    }
-  } catch (e) {
-    console.warn('[ExtensionFrame] Cannot access iframe content (expected with sandbox):', e)
-  }
-
   // Delay the fade-in slightly to allow window animation to mostly complete
   setTimeout(() => {
     isLoading.value = false
@@ -161,22 +146,8 @@ const retryLoad = () => {
 // Initialize extension message handler to set up context
 useExtensionMessageHandler(iframeRef, extension, windowIdRef)
 
-onMounted(() => {
-  console.log(
-    '[ExtensionFrame] Component MOUNTED',
-    extension.value?.name,
-    'windowId:',
-    props.windowId,
-  )
-})
-
 // Explicit cleanup before unmount
 onBeforeUnmount(() => {
-  console.log('[ExtensionFrame] Component UNMOUNTING', {
-    extensionId: props.extensionId,
-    windowId: props.windowId,
-    hasIframe: !!iframeRef.value,
-  })
   if (iframeRef.value) {
     unregisterExtensionIFrame(iframeRef.value)
   }

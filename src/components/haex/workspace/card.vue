@@ -129,10 +129,6 @@ watch(
   (newValue, oldValue) => {
     // Drag ended (from something to null)
     if (oldValue && !newValue && wasOverThisCard) {
-      console.log(
-        '[WorkspaceCard] Drop detected! Moving window to workspace:',
-        props.workspace.name,
-      )
       const window = windowManager.windows.find((w) => w.id === oldValue)
       if (window) {
         window.workspaceId = props.workspace.id

@@ -382,11 +382,6 @@ const fetchLatestVersionAsync = async () => {
 
   isCheckingUpdate.value = true
   try {
-    // Search for extension by name in marketplace
-    console.log(
-      '[ExtensionDetail] Fetching latest version for:',
-      props.extension.name,
-    )
     await marketplace.fetchExtensions({
       search: props.extension.name,
       limit: 10,
@@ -401,23 +396,8 @@ const fetchLatestVersionAsync = async () => {
     const latestVer = (found as { versions?: { version?: string }[] | null })
       ?.versions?.[0]?.version
 
-    console.log(
-      '[ExtensionDetail] Marketplace results:',
-      marketplace.extensions.value.length,
-      'found:',
-      found?.name,
-      'version:',
-      latestVer,
-    )
-
     if (latestVer) {
       marketplaceVersion.value = latestVer
-      console.log(
-        '[ExtensionDetail] Current:',
-        props.extension.version,
-        'Latest:',
-        latestVer,
-      )
     }
   } catch (error) {
     // Silently ignore - marketplace may be unavailable

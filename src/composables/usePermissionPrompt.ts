@@ -67,7 +67,6 @@ function resolveDuplicateWaiters(data: PermissionPromptData, decision: Permissio
   const key = getPromptKey(data)
   const waiters = duplicateWaiters.get(key)
   if (waiters && waiters.length > 0) {
-    console.log(`[PermissionPrompt] Resolving ${waiters.length} duplicate waiters for:`, key)
     for (const waiter of waiters) {
       waiter(decision)
     }
@@ -161,7 +160,6 @@ export function usePermissionPrompt() {
 
     // Duplicate prompt: wait for the original to resolve instead of returning 'ask'
     if (isDuplicatePrompt(data)) {
-      console.log('[PermissionPrompt] Waiting for duplicate prompt resolution:', key)
       return new Promise<PermissionDecision>((resolve) => {
         if (!duplicateWaiters.has(key)) {
           duplicateWaiters.set(key, [])
@@ -173,7 +171,6 @@ export function usePermissionPrompt() {
     return new Promise<PermissionDecision>((resolve) => {
       if (isOpen.value) {
         // Queue the prompt if one is already open
-        console.log('[PermissionPrompt] Queuing prompt:', key)
         promptQueue.value.push({ data, resolve })
       } else {
         // Show immediately
@@ -246,7 +243,6 @@ export function usePermissionPrompt() {
 
     // If applyToAll is true, process all queued prompts with the same decision
     if (applyToAll && promptQueue.value.length > 0) {
-      console.log(`[PermissionPrompt] Applying decision "${decision}" to ${promptQueue.value.length} queued prompts`)
 
       // Process all queued prompts
       const queueCopy = [...promptQueue.value]
@@ -314,20 +310,16 @@ export function usePermissionPrompt() {
     eventUnlisten = await listen<PermissionPromptData>(
       EVENT_PERMISSION_PROMPT_REQUIRED,
       (event) => {
-        console.log('[PermissionPrompt] Received event from backend:', event.payload)
-
         const data = event.payload
 
         // Skip duplicate prompts
         if (isDuplicatePrompt(data)) {
-          console.log('[PermissionPrompt] Skipping duplicate prompt from event:', getPromptKey(data))
           return
         }
 
         // Session permissions are checked in the Rust backend before this event is emitted
         if (isOpen.value) {
           // Queue the prompt if one is already open
-          console.log('[PermissionPrompt] Queuing prompt from event:', getPromptKey(data))
           promptQueue.value.push({ data, resolve: null })
         } else {
           // Show immediately
@@ -337,8 +329,6 @@ export function usePermissionPrompt() {
         }
       }
     )
-
-    console.log('[PermissionPrompt] Event listener initialized')
   }
 
   /**

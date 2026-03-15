@@ -43,19 +43,16 @@ onMounted(async () => {
   try {
     if (isRemoteSyncVault.value) {
       // Remote sync mode: Wait for initial sync to complete
-      console.log('🔄 Remote sync mode detected - waiting for initial sync')
       isWaitingForInitialSync.value = true
 
       // Wait for backend to be configured and initial sync to complete
       await waitForInitialSyncAsync()
 
       isWaitingForInitialSync.value = false
-      console.log('✅ Initial sync complete')
 
       // Load sync backends that were synced from remote vault
       const syncBackendsStore = useSyncBackendsStore()
       await syncBackendsStore.loadBackendsAsync()
-      console.log('✅ Loaded sync backends from synced data')
     }
 
     // Sync settings first before other initialization
@@ -75,7 +72,6 @@ onMounted(async () => {
       where: eq(haexVaultSettings.key, VaultSettingsKeyEnum.onboardingCompleted),
     })
     if (!onboarding?.value) {
-      console.log('New vault detected - starting onboarding tour')
       await currentVault.value?.drizzle.insert(haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.onboardingCompleted,
@@ -123,7 +119,6 @@ const waitForInitialSyncAsync = async () => {
         // Wait until sync has started AND completed
         // This prevents resolving before performInitialPullAsync() is even called
         if (syncStarted && tempState && !tempState.isSyncing) {
-          console.log('✅ Temporary backend sync completed')
           clearInterval(checkInterval)
           resolve()
           return
@@ -140,7 +135,6 @@ const waitForInitialSyncAsync = async () => {
 
         if (!anySyncing) {
           // All backends have completed initial sync
-          console.log('✅ All persisted backends sync completed')
           clearInterval(checkInterval)
           resolve()
           return

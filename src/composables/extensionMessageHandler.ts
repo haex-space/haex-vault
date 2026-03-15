@@ -39,8 +39,6 @@ let globalHandlerRegistered = false
 const registerGlobalMessageHandler = () => {
   if (globalHandlerRegistered) return
 
-  console.log('[ExtensionHandler] Registering global message handler')
-
   // Get broadcast store for registry access and event listener setup
   const broadcastStore = useExtensionBroadcastStore()
 
@@ -55,7 +53,6 @@ const registerGlobalMessageHandler = () => {
 
     // Handle debug messages for Android debugging
     if (event.data?.type === HAEXSPACE_MESSAGE_TYPES.DEBUG) {
-      console.log('[ExtensionHandler] DEBUG MESSAGE FROM EXTENSION:', event.data.data)
       return
     }
 
@@ -144,8 +141,6 @@ const registerGlobalMessageHandler = () => {
 
     try {
       let result: unknown
-
-      console.log('[ExtensionHandler] Incoming request:', request.method, 'id:', request.id, 'params:', JSON.stringify(request.params).slice(0, 200))
 
       // Check specific methods first, then use direct routing to handlers
       if (request.method === TAURI_COMMANDS.extension.getContext) {
