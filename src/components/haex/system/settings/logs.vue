@@ -26,18 +26,12 @@
         :placeholder="t('filter.level')"
         class="w-36"
       />
-      <USelect
-        v-model="filterType"
-        :items="typeOptions"
-        :placeholder="t('filter.type')"
-        class="w-40"
-      />
       <USelectMenu
         v-model="filterSource"
         :items="sourceOptions"
         value-key="value"
         :placeholder="t('filter.source')"
-        class="w-48"
+        class="w-56"
       />
       <UButton
         v-if="hasActiveFilters"
@@ -100,7 +94,7 @@
             variant="outline"
             size="xs"
           >
-            {{ log.extensionId ? getExtensionName(log.extensionId) : log.source }}
+            {{ getSourceLabel(log) }}
           </UBadge>
           <span
             v-if="log.deviceId"
@@ -152,11 +146,10 @@ const logs = ref<LogEntry[]>([])
 const pageSize = 100
 
 const filterLevel = ref('warn')
-const filterType = ref<string | undefined>()
 const filterSource = ref<string | undefined>()
 
 const hasActiveFilters = computed(() =>
-  filterLevel.value !== 'warn' || filterType.value || filterSource.value,
+  filterLevel.value !== 'warn' || filterSource.value,
 )
 
 const levelOptions = [
@@ -166,18 +159,29 @@ const levelOptions = [
   { label: 'Error', value: 'error' },
 ]
 
-const typeOptions = computed(() => [
-  { label: t('filter.all'), value: undefined },
-  { label: 'System', value: 'system' },
-  { label: 'Extension', value: 'extension' },
-])
-
+// Combine system sources and extensions into one filter
 const sourceOptions = computed(() => {
-  const sources = new Set(logs.value.map(l => l.source))
-  return Array.from(sources).map(s => ({
-    label: s,
-    value: s,
-  }))
+  // Collect unique system sources from current logs
+  const systemSources = new Set<string>()
+  for (const log of logs.value) {
+    if (!log.extensionId) {
+      systemSources.add(log.source)
+    }
+  }
+
+  const options: { label: string; value: string }[] = []
+
+  // System sources
+  for (const source of systemSources) {
+    options.push({ label: `System: ${source}`, value: `system:${source}` })
+  }
+
+  // Extensions
+  for (const ext of extensionStore.availableExtensions) {
+    options.push({ label: ext.name, value: `ext:${ext.id}` })
+  }
+
+  return options
 })
 
 const levelColors: Record<string, 'neutral' | 'info' | 'warning' | 'error'> = {
@@ -212,19 +216,34 @@ const formatMetadata = (metadata: string | null) => {
   }
 }
 
-const getExtensionName = (extensionId: string) => {
-  const ext = extensionStore.availableExtensions.find(e => e.id === extensionId)
-  return ext?.name ?? extensionId.slice(0, 12) + '...'
+const getSourceLabel = (log: LogEntry) => {
+  if (log.extensionId) {
+    const ext = extensionStore.availableExtensions.find(e => e.id === log.extensionId)
+    return ext?.name ?? log.extensionId.slice(0, 12) + '...'
+  }
+  return log.source
 }
 
 const fetchLogs = async (offset = 0) => {
   isLoading.value = offset === 0
   try {
+    // Parse the combined source filter
+    let source: string | null = null
+    let extensionId: string | null = null
+
+    if (filterSource.value) {
+      if (filterSource.value.startsWith('system:')) {
+        source = filterSource.value.slice(7)
+      } else if (filterSource.value.startsWith('ext:')) {
+        extensionId = filterSource.value.slice(4)
+      }
+    }
+
     const result = await invoke<LogEntry[]>('log_read', {
       query: {
         level: filterLevel.value || null,
-        extensionId: null,
-        source: filterSource.value || null,
+        extensionId,
+        source,
         limit: pageSize,
         offset,
       },
@@ -245,19 +264,18 @@ const loadMore = () => fetchLogs(logs.value.length)
 
 const resetFilters = () => {
   filterLevel.value = 'warn'
-  filterType.value = undefined
   filterSource.value = undefined
 }
 
 const copyAllLogs = async () => {
   const text = logs.value
-    .map(l => `[${l.timestamp}] [${l.level.toUpperCase()}] [${l.source}] ${l.message}`)
+    .map(l => `[${l.timestamp}] [${l.level.toUpperCase()}] [${getSourceLabel(l)}] ${l.message}`)
     .join('\n')
   await copy(text)
 }
 
 // Reload on filter change
-watch([filterLevel, filterType, filterSource], () => fetchLogs())
+watch([filterLevel, filterSource], () => fetchLogs())
 
 onMounted(() => fetchLogs())
 </script>
@@ -269,9 +287,7 @@ de:
   empty: Keine Logs vorhanden
   filter:
     level: Log-Level
-    extensionId: Quelle
-    source: Modul
-    all: Alle
+    source: Quelle
     reset: Filter zurücksetzen
   actions:
     loadMore: Mehr laden
@@ -282,9 +298,7 @@ en:
   empty: No logs found
   filter:
     level: Log level
-    extensionId: Source type
-    source: Module
-    all: All
+    source: Source
     reset: Reset filters
   actions:
     loadMore: Load more
