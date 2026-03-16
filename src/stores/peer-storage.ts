@@ -111,6 +111,33 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     const id = await invoke<string>('peer_storage_start')
     running.value = true
     nodeId.value = id
+
+    // Load existing devices and auto-register in all spaces
+    await loadSpaceDevicesAsync()
+    await autoRegisterInSpacesAsync()
+  }
+
+  const autoRegisterInSpacesAsync = async () => {
+    const db = currentVault.value?.drizzle
+    if (!db || !nodeId.value) return
+
+    const spacesStore = useSpacesStore()
+    const deviceStore = useDeviceStore()
+    const hostname = deviceStore.deviceName || deviceStore.hostname || 'Unknown'
+
+    for (const space of spacesStore.spaces) {
+      // Check if already registered
+      const existing = spaceDevices.value.find(
+        d => d.spaceId === space.id && d.deviceEndpointId === nodeId.value,
+      )
+      if (existing) continue
+
+      try {
+        await registerDeviceInSpaceAsync(space.id, hostname)
+      } catch (e) {
+        console.warn(`[P2P] Failed to register in space ${space.id}:`, e)
+      }
+    }
   }
 
   const stopAsync = async () => {

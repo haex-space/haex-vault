@@ -91,6 +91,18 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       resizable: true,
       singleton: true,
     },
+    files: {
+      id: 'files',
+      name: 'Files',
+      icon: 'i-lucide-folder-sync',
+      component: defineAsyncComponent(
+        () => import('@/components/haex/system/files/index.vue'),
+      ),
+      defaultWidth: 800,
+      defaultHeight: 600,
+      resizable: true,
+      singleton: true,
+    },
     marketplace: {
       id: 'marketplace',
       name: 'Marketplace',
