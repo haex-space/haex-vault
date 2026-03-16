@@ -1,5 +1,6 @@
 <template>
   <HaexSystem :title="t('title')" :description="t('description')">
+   <div class="p-6 space-y-4">
     <!-- No endpoint running -->
     <div
       v-if="!peerStore.running"
@@ -206,6 +207,7 @@
         </div>
       </div>
     </div>
+   </div>
   </HaexSystem>
 </template>
 

@@ -14,7 +14,6 @@
  * - Sync Tables Updated: Filtered by database permissions
  * - File Changed: Filtered by filesystem permissions
  * - External Request: Sent to specific extension only (first instance)
- * - LocalSend Events: Filtered by localsend permission
  *
  * Extension identification:
  * - Desktop: Origin contains base64-encoded extension info (haex-extension://<base64>)
@@ -28,7 +27,6 @@ import {
   TAURI_COMMANDS,
   HAEXTENSION_EVENTS,
   EXTERNAL_EVENTS,
-  LOCALSEND_EVENTS,
   type ApplicationContext,
   type FileChangePayload,
   type ExternalRequestPayload,
@@ -345,25 +343,6 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
     log.warn(`No iframe found for extension: ${extensionName} (publicKey: ${extensionPublicKey})`)
   }
 
-  /**
-   * Broadcast LocalSend event to ALL instances of extensions with localsend permission.
-   * Uses permission-based filtering like other events.
-   */
-  const broadcastLocalSendEvent = (eventType: string, payload: unknown) => {
-    const message = {
-      type: eventType,
-      data: payload,
-      timestamp: Date.now(),
-    }
-
-    // Send to ALL iframe extension instances (TODO: Filter by localsend permission)
-    for (const [iframe] of iframeRegistry.entries()) {
-      if (iframe.contentWindow) {
-        iframe.contentWindow.postMessage(message, '*')
-      }
-    }
-  }
-
   // ============================================================================
   // Tauri Event Listeners Setup
   // ============================================================================
@@ -406,43 +385,6 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
         }),
       )
 
-      // Listen for LocalSend events
-      unlistenFns.push(
-        await listen(LOCALSEND_EVENTS.transferRequest, (event) => {
-          broadcastLocalSendEvent(LOCALSEND_EVENTS.transferRequest, event.payload)
-        }),
-      )
-
-      unlistenFns.push(
-        await listen(LOCALSEND_EVENTS.transferProgress, (event) => {
-          broadcastLocalSendEvent(LOCALSEND_EVENTS.transferProgress, event.payload)
-        }),
-      )
-
-      unlistenFns.push(
-        await listen(LOCALSEND_EVENTS.transferComplete, (event) => {
-          broadcastLocalSendEvent(LOCALSEND_EVENTS.transferComplete, event.payload)
-        }),
-      )
-
-      unlistenFns.push(
-        await listen(LOCALSEND_EVENTS.transferFailed, (event) => {
-          broadcastLocalSendEvent(LOCALSEND_EVENTS.transferFailed, event.payload)
-        }),
-      )
-
-      unlistenFns.push(
-        await listen(LOCALSEND_EVENTS.deviceDiscovered, (event) => {
-          broadcastLocalSendEvent(LOCALSEND_EVENTS.deviceDiscovered, event.payload)
-        }),
-      )
-
-      unlistenFns.push(
-        await listen(LOCALSEND_EVENTS.deviceLost, (event) => {
-          broadcastLocalSendEvent(LOCALSEND_EVENTS.deviceLost, event.payload)
-        }),
-      )
-
     } catch (error) {
       console.error('[BroadcastStore] Failed to setup event listeners:', error)
     }
@@ -480,7 +422,6 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
     broadcastSyncTablesUpdated,
     broadcastFileChanged,
     forwardExternalRequest,
-    broadcastLocalSendEvent,
 
     // Setup and cleanup
     setupEventListeners,

@@ -82,21 +82,9 @@ reqwest = { version = "0.13", default-features = false, features = [
 # Peer Storage (P2P file sharing via iroh/QUIC)
 iroh = { version = "0.96", default-features = false }
 
-# LocalSend dependencies (all platforms)
-get_if_addrs = "0.5"
-whoami = "2.1"
+# Time utilities
 time = "0.3"
-# LocalSend server (all platforms - mobile only active when app in foreground)
-axum = "0.8"
-axum-server = { version = "0.8", features = ["tls-rustls-no-provider"] }
-tower = "0.5"
-tower-http = { version = "0.6", features = ["cors"] }
-rcgen = "0.14"
-rustls = { version = "0.23", default-features = false, features = [
-  "ring",
-  "std",
-  "tls12",
-] }
+
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 trash = "5.2"

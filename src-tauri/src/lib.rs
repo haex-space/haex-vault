@@ -5,7 +5,6 @@ mod database;
 mod device;
 mod extension;
 mod filesystem;
-mod localsend;
 mod logging;
 #[cfg(desktop)]
 mod shortcuts;
@@ -50,8 +49,6 @@ pub struct AppState {
     pub file_watcher: extension::filesystem::watcher::FileWatcherManager,
     /// Session-based permission store (in-memory, cleared on restart)
     pub session_permissions: extension::permissions::session::SessionPermissionStore,
-    /// LocalSend state for file sharing (Arc for sharing with Axum server)
-    pub localsend: Arc<localsend::LocalSendState>,
     /// Extension resource limits service (database, filesystem, web)
     pub limits: extension::limits::LimitsService,
     /// Peer storage endpoint for P2P file sharing via iroh/QUIC
@@ -143,7 +140,6 @@ pub fn run() {
             external_bridge: tokio::sync::Mutex::new(ExternalBridge::new()),
             file_watcher: extension::filesystem::watcher::FileWatcherManager::new(),
             session_permissions: extension::permissions::session::SessionPermissionStore::new(),
-            localsend: Arc::new(localsend::LocalSendState::new()),
             limits: extension::limits::LimitsService::new(),
             peer_storage: tokio::sync::Mutex::new(peer_storage::endpoint::PeerEndpoint::new_ephemeral()),
             auth_token: Arc::new(Mutex::new(None)),
@@ -421,22 +417,6 @@ pub fn run() {
             extension::filesystem::commands::extension_filesystem_watch,
             extension::filesystem::commands::extension_filesystem_unwatch,
             extension::filesystem::commands::extension_filesystem_is_watching,
-            // LocalSend commands (all platforms)
-            localsend::localsend_init,
-            localsend::localsend_get_device_info,
-            localsend::localsend_set_alias,
-            localsend::localsend_get_settings,
-            localsend::localsend_set_settings,
-            localsend::localsend_start_server,
-            localsend::localsend_stop_server,
-            localsend::localsend_get_server_status,
-            localsend::localsend_get_pending_transfers,
-            localsend::localsend_accept_transfer,
-            localsend::localsend_reject_transfer,
-            localsend::localsend_prepare_files,
-            localsend::localsend_send_files,
-            localsend::localsend_cancel_send,
-            localsend::localsend_get_devices,
             // Device identity
             device::device_init_key,
             // Peer Storage (P2P file sharing via iroh/QUIC)
@@ -446,14 +426,6 @@ pub fn run() {
             peer_storage::peer_storage_reload_shares,
             peer_storage::peer_storage_remote_list,
             peer_storage::peer_storage_remote_read,
-            // LocalSend discovery (desktop only - multicast UDP)
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            localsend::localsend_start_discovery,
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            localsend::localsend_stop_discovery,
-            // LocalSend network scan (mobile only - HTTP fallback)
-            #[cfg(any(target_os = "android", target_os = "ios"))]
-            localsend::localsend_scan_network,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
