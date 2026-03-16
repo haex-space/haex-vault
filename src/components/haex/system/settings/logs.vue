@@ -44,6 +44,22 @@
       />
     </div>
 
+    <!-- Retention Settings -->
+    <UCard>
+      <div class="flex flex-wrap items-center gap-4">
+        <div class="flex items-center gap-2">
+          <span class="text-sm text-muted shrink-0">{{ t('retention.label') }}</span>
+          <USelect
+            v-model="retentionDays"
+            :items="retentionOptions"
+            class="w-24"
+            @update:model-value="saveRetentionAsync"
+          />
+          <span class="text-sm text-muted">{{ t('retention.days') }}</span>
+        </div>
+      </div>
+    </UCard>
+
     <!-- Logs -->
     <div
       v-if="isLoading"
@@ -124,11 +140,16 @@
 </template>
 
 <script setup lang="ts">
+import { eq, and } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
+import { haexVaultSettings } from '~/database/schemas'
+import { VaultSettingsKeyEnum, VaultSettingsTypeEnum } from '~/config/vault-settings'
 
 const { t } = useI18n()
+const { add } = useToast()
 const { copy } = useClipboard()
 const extensionStore = useExtensionsStore()
+const { currentVault } = storeToRefs(useVaultStore())
 
 interface LogEntry {
   id: string
@@ -274,10 +295,65 @@ const copyAllLogs = async () => {
   await copy(text)
 }
 
+// Retention settings
+const retentionDays = ref('14')
+const retentionOptions = [
+  { label: '1', value: '1' },
+  { label: '3', value: '3' },
+  { label: '7', value: '7' },
+  { label: '14', value: '14' },
+  { label: '30', value: '30' },
+  { label: '60', value: '60' },
+  { label: '90', value: '90' },
+]
+
+const loadRetentionAsync = async () => {
+  if (!currentVault.value?.drizzle) return
+  const row = await currentVault.value.drizzle.query.haexVaultSettings.findFirst({
+    where: and(
+      eq(haexVaultSettings.key, VaultSettingsKeyEnum.logRetentionDays),
+      eq(haexVaultSettings.type, VaultSettingsTypeEnum.settings),
+    ),
+  })
+  if (row?.value) retentionDays.value = row.value
+}
+
+const saveRetentionAsync = async (value: string) => {
+  if (!currentVault.value?.drizzle) return
+  try {
+    const existing = await currentVault.value.drizzle.query.haexVaultSettings.findFirst({
+      where: and(
+        eq(haexVaultSettings.key, VaultSettingsKeyEnum.logRetentionDays),
+        eq(haexVaultSettings.type, VaultSettingsTypeEnum.settings),
+      ),
+    })
+
+    if (existing) {
+      await currentVault.value.drizzle.update(haexVaultSettings)
+        .set({ value })
+        .where(eq(haexVaultSettings.key, VaultSettingsKeyEnum.logRetentionDays))
+    } else {
+      await currentVault.value.drizzle.insert(haexVaultSettings).values({
+        id: crypto.randomUUID(),
+        key: VaultSettingsKeyEnum.logRetentionDays,
+        type: VaultSettingsTypeEnum.settings,
+        value,
+      })
+    }
+    add({ title: t('retention.saved'), color: 'success' })
+  } catch (error) {
+    console.error('Failed to save retention:', error)
+    add({ title: t('retention.saveFailed'), color: 'error' })
+  }
+}
+
 // Reload on filter change
 watch([filterLevel, filterSource], () => fetchLogs())
 
-onMounted(() => fetchLogs())
+onMounted(async () => {
+  await loadRetentionAsync()
+  await fetchLogs()
+})
 </script>
 
 <i18n lang="yaml">
@@ -289,6 +365,11 @@ de:
     level: Log-Level
     source: Quelle
     reset: Filter zurücksetzen
+  retention:
+    label: Aufbewahrungszeit
+    days: Tage
+    saved: Aufbewahrungszeit gespeichert
+    saveFailed: Fehler beim Speichern
   actions:
     loadMore: Mehr laden
     copyAll: Alle kopieren
@@ -300,6 +381,11 @@ en:
     level: Log level
     source: Source
     reset: Reset filters
+  retention:
+    label: Retention
+    days: days
+    saved: Retention saved
+    saveFailed: Failed to save retention
   actions:
     loadMore: Load more
     copyAll: Copy all

@@ -25,6 +25,7 @@ export enum VaultSettingsKeyEnum {
   gradientEnabled = 'gradient_enabled',
   onboardingCompleted = 'onboarding_completed',
   peerStorageAutostart = 'peer_storage_autostart',
+  logRetentionDays = 'log_retention_days',
 }
 
 export enum DesktopIconSizePreset {

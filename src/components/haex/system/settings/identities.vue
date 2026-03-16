@@ -515,7 +515,6 @@ onMounted(async () => {
 
 const onCreateAsync = async () => {
   if (!createLabel.value.trim()) return
-  if (isCreating.value) return
 
   isCreating.value = true
   try {

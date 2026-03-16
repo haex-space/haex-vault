@@ -24,6 +24,7 @@ export default defineAppConfig({
     select: {
       slots: {
         content: 'ring-1 ring-primary shadow-xl',
+        itemLabel: 'text-base',
       },
       defaultVariants: {
         size: 'lg',
@@ -32,6 +33,7 @@ export default defineAppConfig({
     selectMenu: {
       slots: {
         content: 'ring-1 ring-primary shadow-xl',
+        itemLabel: 'text-base',
       },
       defaultVariants: {
         size: 'lg',

@@ -1,6 +1,7 @@
 <template>
   <UDrawer
     v-bind="$attrs"
+    :description="$attrs.description || ' '"
     :ui="{
       ...(ui || {}),
       content: `pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] ${ui?.content ?? ''}`,

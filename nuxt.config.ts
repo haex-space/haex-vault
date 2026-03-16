@@ -22,6 +22,14 @@ export default defineNuxtConfig({
     },
   },
 
+  experimental: {
+    defaults: {
+      nuxtLink: {
+        prefetch: false,
+      },
+    },
+  },
+
   modules: [
     'nuxt-zod-i18n',
     '@nuxtjs/i18n',

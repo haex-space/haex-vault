@@ -2,7 +2,7 @@
   <UModal
     v-model:open="open"
     :title
-    :description
+    :description="description || ' '"
   >
     <template
       v-for="(_, name) in $slots"
