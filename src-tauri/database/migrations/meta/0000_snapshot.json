@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "fc97a005-76de-45d0-93bb-51c7d718de84",
+  "id": "b981f9cd-a73a-46e1-8891-436eddd97c52",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "haex_crdt_configs_no_sync": {
@@ -1034,8 +1034,8 @@
     "haex_identities": {
       "name": "haex_identities",
       "columns": {
-        "id": {
-          "name": "id",
+        "public_key": {
+          "name": "public_key",
           "type": "text",
           "primaryKey": true,
           "notNull": true,
@@ -1050,13 +1050,6 @@
         },
         "did": {
           "name": "did",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "public_key": {
-          "name": "public_key",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -1148,12 +1141,92 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "haex_identity_claims_identity_id_haex_identities_id_fk": {
-          "name": "haex_identity_claims_identity_id_haex_identities_id_fk",
+        "haex_identity_claims_identity_id_haex_identities_public_key_fk": {
+          "name": "haex_identity_claims_identity_id_haex_identities_public_key_fk",
           "tableFrom": "haex_identity_claims",
           "tableTo": "haex_identities",
           "columnsFrom": [
             "identity_id"
+          ],
+          "columnsTo": [
+            "public_key"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "haex_logs": {
+      "name": "haex_logs",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "timestamp": {
+          "name": "timestamp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "level": {
+          "name": "level",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "extension_id": {
+          "name": "extension_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "device_id": {
+          "name": "device_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "haex_logs_extension_id_haex_extensions_id_fk": {
+          "name": "haex_logs_extension_id_haex_extensions_id_fk",
+          "tableFrom": "haex_logs",
+          "tableTo": "haex_extensions",
+          "columnsFrom": [
+            "extension_id"
           ],
           "columnsTo": [
             "id"
@@ -1583,19 +1656,41 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "extension_id": {
+          "name": "extension_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
-        "haex_vault_settings_key_type_unique": {
-          "name": "haex_vault_settings_key_type_unique",
+        "haex_vault_settings_key_type_ext_unique": {
+          "name": "haex_vault_settings_key_type_ext_unique",
           "columns": [
             "key",
-            "type"
+            "type",
+            "extension_id"
           ],
           "isUnique": true
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "haex_vault_settings_extension_id_haex_extensions_id_fk": {
+          "name": "haex_vault_settings_extension_id_haex_extensions_id_fk",
+          "tableFrom": "haex_vault_settings",
+          "tableTo": "haex_extensions",
+          "columnsFrom": [
+            "extension_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}

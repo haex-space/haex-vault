@@ -298,7 +298,11 @@ export const useVaultStore = defineStore('vaultStore', () => {
   const closeAsync = async () => {
     if (!currentVaultId.value) return
 
-    // Stop sync first to clear all sync-related state
+    // Stop P2P endpoint first
+    const peerStorageStore = usePeerStorageStore()
+    await peerStorageStore.stopAsync()
+
+    // Stop sync to clear all sync-related state
     const syncOrchestratorStore = useSyncOrchestratorStore()
     await syncOrchestratorStore.stopSyncAsync()
 

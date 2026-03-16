@@ -165,7 +165,7 @@ onMounted(async () => {
 const identityOptions = computed(() =>
   identities.value.map((id) => ({
     label: `${id.label} (${id.did.slice(0, 24)}...)`,
-    value: id.id,
+    value: id.publicKey,
   })),
 )
 

@@ -9,8 +9,8 @@
           v-for="cat in categories"
           :key="cat.value"
           :class="[
-            'flex items-center gap-3 p-2.5 text-sm font-medium rounded-md transition-colors',
-            'justify-center @xl:justify-start',
+            'flex items-center gap-3 p-2 @xl:p-3 text-base font-medium rounded-md transition-colors',
+            'justify-center aspect-square @xl:aspect-auto @xl:justify-start',
             cat.active
               ? 'bg-primary text-white'
               : 'text-highlighted hover:bg-muted',
@@ -22,7 +22,7 @@
         >
           <UIcon
             :name="cat.icon"
-            class="w-5 h-5 shrink-0"
+            class="size-8 @xl:size-6 shrink-0"
           />
           <span class="hidden @xl:block">{{ cat.label }}</span>
         </button>
@@ -33,10 +33,15 @@
       <HaexSystemSettingsGeneral v-if="activeCategory === 'general'" />
       <HaexSystemSettingsAppearance v-if="activeCategory === 'appearance'" />
       <HaexSystemSettingsExtensions v-if="activeCategory === 'extensions'" />
-      <HaexSystemSettingsExternalClients v-if="activeCategory === 'externalClients'" />
+      <HaexSystemSettingsExternalClients
+        v-if="activeCategory === 'externalClients'"
+      />
       <HaexSystemSettingsDatabase v-if="activeCategory === 'database'" />
       <HaexSystemSettingsSync v-if="activeCategory === 'sync'" />
-      <HaexSystemSettingsSpaces v-if="activeCategory === 'spaces'" :invite-link="props.inviteLink" />
+      <HaexSystemSettingsSpaces
+        v-if="activeCategory === 'spaces'"
+        :invite-link="props.inviteLink"
+      />
       <HaexSystemSettingsIdentities v-if="activeCategory === 'identities'" />
       <HaexSystemSettingsContacts v-if="activeCategory === 'contacts'" />
       <HaexSystemSettingsStorage v-if="activeCategory === 'storage'" />
@@ -66,14 +71,21 @@ const navigateToCategory = (category: string) => {
   const previous = activeCategory.value
   activeCategory.value = category
 
-  pushBack({ undo: () => { activeCategory.value = previous } })
+  pushBack({
+    undo: () => {
+      activeCategory.value = previous
+    },
+  })
 }
 
-watch(() => props.category, (newCategory) => {
-  if (newCategory && newCategory !== activeCategory.value) {
-    navigateToCategory(newCategory)
-  }
-})
+watch(
+  () => props.category,
+  (newCategory) => {
+    if (newCategory && newCategory !== activeCategory.value) {
+      navigateToCategory(newCategory)
+    }
+  },
+)
 
 const categories = computed(() => [
   {

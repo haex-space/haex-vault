@@ -298,7 +298,7 @@ const onCreateSpaceAsync = async () => {
     let identityId = createForm.identityId
     if (!identityId) {
       await identityStore.loadIdentitiesAsync()
-      identityId = identityStore.identities[0]?.id
+      identityId = identityStore.identities[0]?.publicKey
     }
     if (!identityId) {
       add({ title: t('errors.noIdentity', 'No identity available. Create one first.'), color: 'error' })
@@ -350,7 +350,7 @@ const onJoinSpaceAsync = async () => {
 
     // Use first available identity (TODO: let user pick)
     await identityStore.loadIdentitiesAsync()
-    const identityId = identityStore.identities[0]?.id
+    const identityId = identityStore.identities[0]?.publicKey
     if (!identityId) {
       add({ title: t('errors.noIdentity', 'No identity available. Create one first.'), color: 'error' })
       return

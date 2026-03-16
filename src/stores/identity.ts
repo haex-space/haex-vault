@@ -20,13 +20,13 @@ export const useIdentityStore = defineStore('identityStore', () => {
   // Session-only: identity passwords set during creation, consumed on first backend registration
   const _identityPasswords = new Map<string, string>()
 
-  const setIdentityPassword = (id: string, password: string) => {
-    _identityPasswords.set(id, password)
+  const setIdentityPassword = (publicKey: string, password: string) => {
+    _identityPasswords.set(publicKey, password)
   }
 
-  const consumeIdentityPassword = (id: string): string | undefined => {
-    const pw = _identityPasswords.get(id)
-    _identityPasswords.delete(id)
+  const consumeIdentityPassword = (publicKey: string): string | undefined => {
+    const pw = _identityPasswords.get(publicKey)
+    _identityPasswords.delete(publicKey)
     return pw
   }
 
@@ -45,7 +45,6 @@ export const useIdentityStore = defineStore('identityStore', () => {
     const { did, publicKeyBase64, privateKeyBase64 } = await generateIdentityAsync()
 
     const newIdentity = {
-      id: crypto.randomUUID(),
       label,
       did,
       publicKey: publicKeyBase64,
@@ -59,41 +58,41 @@ export const useIdentityStore = defineStore('identityStore', () => {
     log.info(`Created identity "${label}" with DID ${did.slice(0, 30)}...`)
 
     await loadIdentitiesAsync()
-    return identities.value.find(i => i.id === newIdentity.id)!
+    return identities.value.find(i => i.publicKey === newIdentity.publicKey)!
   }
 
-  const deleteIdentityAsync = async (id: string) => {
+  const deleteIdentityAsync = async (publicKey: string) => {
     if (!currentVault.value?.drizzle) return
 
     await currentVault.value.drizzle
       .delete(haexIdentities)
-      .where(eq(haexIdentities.id, id))
+      .where(eq(haexIdentities.publicKey, publicKey))
 
-    log.info(`Deleted identity ${id}`)
+    log.info(`Deleted identity ${publicKey.slice(0, 20)}...`)
     await loadIdentitiesAsync()
   }
 
-  const getIdentityAsync = async (id: string): Promise<SelectHaexIdentities | undefined> => {
+  const getIdentityAsync = async (publicKey: string): Promise<SelectHaexIdentities | undefined> => {
     if (!currentVault.value?.drizzle) return undefined
 
     const rows = await currentVault.value.drizzle
       .select()
       .from(haexIdentities)
-      .where(eq(haexIdentities.id, id))
+      .where(eq(haexIdentities.publicKey, publicKey))
       .limit(1)
 
     return rows[0]
   }
 
-  const updateLabelAsync = async (id: string, label: string) => {
+  const updateLabelAsync = async (publicKey: string, label: string) => {
     if (!currentVault.value?.drizzle) return
 
     await currentVault.value.drizzle
       .update(haexIdentities)
       .set({ label })
-      .where(eq(haexIdentities.id, id))
+      .where(eq(haexIdentities.publicKey, publicKey))
 
-    log.info(`Updated identity ${id} label to "${label}"`)
+    log.info(`Updated identity ${publicKey.slice(0, 20)}... label to "${label}"`)
     await loadIdentitiesAsync()
   }
 
@@ -117,18 +116,19 @@ export const useIdentityStore = defineStore('identityStore', () => {
       throw new Error('DID does not match the public key — the identity data may be corrupted')
     }
 
-    // Check for duplicate DID
+    // Check if identity already exists (same publicKey = same identity)
     const existing = await currentVault.value.drizzle
       .select()
       .from(haexIdentities)
-      .where(eq(haexIdentities.did, exported.did))
+      .where(eq(haexIdentities.publicKey, exported.publicKey))
       .limit(1)
     if (existing.length > 0) {
-      throw new Error('An identity with this DID already exists')
+      // Identity already exists — update private key if needed, return existing
+      log.info(`Identity already exists, skipping import`)
+      return existing[0]!
     }
 
     const newIdentity = {
-      id: crypto.randomUUID(),
       label: exported.label || `Imported ${exported.did.slice(0, 20)}...`,
       did: exported.did,
       publicKey: exported.publicKey,
@@ -142,32 +142,32 @@ export const useIdentityStore = defineStore('identityStore', () => {
     log.info(`Imported identity "${newIdentity.label}" with DID ${exported.did.slice(0, 30)}...`)
 
     await loadIdentitiesAsync()
-    return identities.value.find(i => i.id === newIdentity.id)!
+    return identities.value.find(i => i.publicKey === newIdentity.publicKey)!
   }
 
-  const addClaimAsync = async (identityId: string, type: string, value: string) => {
+  const addClaimAsync = async (identityPublicKey: string, type: string, value: string) => {
     const db = currentVault.value?.drizzle
     if (!db) throw new Error('No vault open')
 
     // Each claim type can only exist once per identity
     const existing = await db.select({ id: haexIdentityClaims.id })
       .from(haexIdentityClaims)
-      .where(and(eq(haexIdentityClaims.identityId, identityId), eq(haexIdentityClaims.type, type)))
+      .where(and(eq(haexIdentityClaims.identityId, identityPublicKey), eq(haexIdentityClaims.type, type)))
       .limit(1)
     if (existing.length > 0) {
       throw new Error(`Claim type "${type}" already exists for this identity`)
     }
 
     const id = crypto.randomUUID()
-    await db.insert(haexIdentityClaims).values({ id, identityId, type, value })
-    log.info(`Added claim "${type}" for identity ${identityId}`)
-    return { id, identityId, type, value }
+    await db.insert(haexIdentityClaims).values({ id, identityId: identityPublicKey, type, value })
+    log.info(`Added claim "${type}" for identity ${identityPublicKey.slice(0, 20)}...`)
+    return { id, identityId: identityPublicKey, type, value }
   }
 
-  const getClaimsAsync = async (identityId: string) => {
+  const getClaimsAsync = async (identityPublicKey: string) => {
     const db = currentVault.value?.drizzle
     if (!db) return []
-    return db.select().from(haexIdentityClaims).where(eq(haexIdentityClaims.identityId, identityId))
+    return db.select().from(haexIdentityClaims).where(eq(haexIdentityClaims.identityId, identityPublicKey))
   }
 
   const updateClaimAsync = async (claimId: string, value: string) => {

@@ -353,10 +353,8 @@ pub fn move_vault_to_trash(
         let vault_wal_path = format!("{vault_path}-wal");
 
         if !Path::new(&vault_path).exists() {
-            return Err(DatabaseError::IoError {
-                path: vault_path,
-                reason: "Vault does not exist".to_string(),
-            });
+            // Vault file already gone — not an error, just clean up references
+            return Ok(format!("Vault '{vault_name}' already removed"));
         }
 
         // Try to move to trash first (works on desktop systems)
@@ -386,10 +384,8 @@ pub fn delete_vault(app_handle: AppHandle, vault_name: String) -> Result<String,
     let vault_wal_path = format!("{vault_path}-wal");
 
     if !Path::new(&vault_path).exists() {
-        return Err(DatabaseError::IoError {
-            path: vault_path,
-            reason: "Vault does not exist".to_string(),
-        });
+        // Vault file already gone — not an error, just clean up references
+        return Ok(format!("Vault '{vault_name}' already removed"));
     }
 
     if Path::new(&vault_shm_path).exists() {

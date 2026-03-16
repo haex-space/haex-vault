@@ -63,7 +63,7 @@ const emit = defineEmits<{
     serverUrl: string
     recoveryKeyData: RecoveryKeyData
     session: { access_token: string; refresh_token: string; expires_in: number; expires_at: number }
-    identity: { id: string; did: string; tier: string }
+    identity: { publicKey: string; did: string; tier: string }
   }]
   changeEmail: []
 }>()

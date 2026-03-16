@@ -30,20 +30,15 @@
       <!-- Sidebar (optional) -->
       <div
         v-if="$slots.sidebar"
-        class="w-16 @xl:w-64 border-r border-gray-200 dark:border-gray-800 bg-elevated overflow-y-auto shrink-0 transition-[width] duration-200"
+        class="w-20 @xl:w-64 border-r border-gray-200 dark:border-gray-800 bg-elevated overflow-y-auto shrink-0 transition-[width] duration-200"
       >
-        <div class="p-2">
+        <div>
           <slot name="sidebar" />
         </div>
       </div>
 
       <!-- Content Section -->
-      <div
-        :class="[
-          'flex-1',
-          !disableContentScroll && 'overflow-y-auto',
-        ]"
-      >
+      <div :class="['flex-1', !disableContentScroll && 'overflow-y-auto']">
         <slot />
       </div>
     </div>

@@ -26,7 +26,7 @@
 <script setup lang="ts">
 import type { ButtonProps } from '@nuxt/ui'
 
-interface IButtonProps extends /* @vue-ignore */ ButtonProps {
+interface IButtonProps extends ButtonProps {
   tooltip?: string
 }
 const buttonProps = defineProps<IButtonProps>()

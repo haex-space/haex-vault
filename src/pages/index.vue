@@ -41,19 +41,17 @@
             {{ t('lastUsed') }}
           </div>
 
-          <div
-            class="relative flex w-full flex-col gap-1.5"
-          >
+          <div class="relative flex w-full flex-col gap-1.5">
             <div
               v-for="vault in lastVaults"
               :key="vault.name"
-              class="flex items-center justify-between group overflow-x-hidden rounded-lg bg-black/5 dark:bg-white/5 ring-1 ring-black/10 dark:ring-white/10 hover:bg-black/10 dark:hover:bg-white/10 hover:ring-black/20 dark:hover:ring-white/20 transition-all"
+              class="relative flex items-center group overflow-x-hidden rounded-lg ring-1 ring-black/10 dark:ring-white/10 hover:bg-elevated hover:ring-black/20 dark:hover:ring-white/20 transition-all"
             >
               <UiButtonContext
-                variant="ghost"
+                variant="link"
                 color="neutral"
                 size="xl"
-                class="flex items-center no-underline justify-between text-nowrap text-sm shrink w-full"
+                class="flex items-center no-underline! justify-between text-nowrap text-sm w-full text-highlighted"
                 :context-menu-items="[
                   {
                     icon: 'mdi:trash-can-outline',

@@ -1,12 +1,17 @@
 <template>
-  <HaexSystemSettingsLayout :title="t('title')" :description="t('description')">
+  <HaexSystemSettingsLayout
+    :title="t('title')"
+    :description="t('description')"
+  >
     <!-- Endpoint Control -->
     <UCard>
       <template #header>
         <div class="flex items-center justify-between">
           <div>
             <h3 class="text-lg font-semibold">{{ t('endpoint.title') }}</h3>
-            <p class="text-sm text-muted mt-1">{{ t('endpoint.description') }}</p>
+            <p class="text-sm text-muted mt-1">
+              {{ t('endpoint.description') }}
+            </p>
           </div>
           <UiButton
             :icon="store.running ? 'i-lucide-power-off' : 'i-lucide-power'"
@@ -14,36 +19,54 @@
             :loading="isToggling"
             @click="onToggleEndpointAsync"
           >
-            {{ store.running ? t('endpoint.stop') : t('endpoint.start') }}
+            <span class="hidden @xl:inline">
+              {{ store.running ? t('endpoint.stop') : t('endpoint.start') }}
+            </span>
           </UiButton>
         </div>
       </template>
 
-      <div v-if="store.running" class="space-y-3">
+      <div
+        v-if="store.running"
+        class="space-y-3"
+      >
         <div class="flex items-center gap-2">
-          <UBadge color="success" variant="subtle" size="xs">
+          <UBadge
+            color="success"
+            variant="subtle"
+            size="sm"
+          >
             {{ t('endpoint.running') }}
           </UBadge>
         </div>
 
         <div class="flex items-center gap-2">
-          <span class="text-sm text-muted shrink-0">{{ t('endpoint.nodeId') }}:</span>
-          <code class="text-xs bg-muted/50 px-2 py-1 rounded font-mono truncate flex-1">
+          <span class="text-sm text-muted shrink-0"
+            >{{ t('endpoint.nodeId') }}:</span
+          >
+          <code
+            class="text-xs bg-muted/50 px-2 py-1 rounded font-mono truncate flex-1"
+          >
             {{ store.nodeId }}
           </code>
           <UiButton
             icon="i-lucide-copy"
             variant="ghost"
             color="neutral"
-            size="md"
             @click="onCopyNodeId"
           />
         </div>
         <p class="text-xs text-muted">{{ t('endpoint.nodeIdHint') }}</p>
       </div>
 
-      <div v-else class="text-center py-4 text-muted">
-        <UIcon name="i-lucide-wifi-off" class="w-8 h-8 mx-auto mb-2 opacity-50" />
+      <div
+        v-else
+        class="text-center py-4 text-muted"
+      >
+        <UIcon
+          name="i-lucide-wifi-off"
+          class="w-8 h-8 mx-auto mb-2 opacity-50"
+        />
         <p class="text-sm">{{ t('endpoint.stopped') }}</p>
       </div>
 
@@ -68,8 +91,14 @@
       </template>
 
       <!-- No Spaces available -->
-      <div v-if="!spacesStore.spaces.length" class="text-center py-8 text-muted">
-        <UIcon name="i-lucide-cloud-off" class="w-12 h-12 mx-auto mb-3 opacity-50" />
+      <div
+        v-if="!spacesStore.spaces.length"
+        class="text-center py-8 text-muted"
+      >
+        <UIcon
+          name="i-lucide-cloud-off"
+          class="w-12 h-12 mx-auto mb-3 opacity-50"
+        />
         <p>{{ t('shares.noSpaces') }}</p>
         <p class="text-sm mt-1">{{ t('shares.noSpacesHint') }}</p>
         <UiButton
@@ -82,36 +111,50 @@
       </div>
 
       <!-- Spaces with shares -->
-      <div v-else class="space-y-6">
+      <div
+        v-else
+        class="space-y-6"
+      >
         <div
           v-for="space in spacesStore.spaces"
           :key="space.id"
           class="border border-default rounded-lg overflow-hidden"
         >
           <!-- Space header -->
-          <div class="flex items-center justify-between gap-3 px-4 py-3 bg-muted/30">
-            <div class="flex items-center gap-2 min-w-0">
-              <UIcon name="i-lucide-cloud" class="w-4 h-4 text-primary shrink-0" />
+          <div class="flex items-center gap-2 px-4 py-3 bg-muted/30">
+            <div class="flex items-center gap-2 min-w-0 flex-1">
               <span class="font-medium truncate">{{ space.name }}</span>
-              <UBadge variant="subtle" size="xs">{{ space.role }}</UBadge>
+              <UBadge
+                variant="subtle"
+                size="sm"
+              >
+                {{ space.role }}
+              </UBadge>
             </div>
             <UiButton
               icon="i-lucide-folder-plus"
-              size="sm"
               variant="ghost"
+              size="xl"
+              :title="t('shares.add')"
               @click="onAddShareAsync(space.id)"
-            >
-              {{ t('shares.add') }}
-            </UiButton>
+            />
           </div>
 
           <!-- Shares grouped by device -->
           <div class="divide-y divide-default">
             <!-- Current device shares -->
-            <div v-if="getSharesForDevice(space.id, store.nodeId).length" class="px-4 py-3">
+            <div
+              v-if="getSharesForDevice(space.id, store.nodeId).length"
+              class="px-4 py-3"
+            >
               <div class="flex items-center gap-2 mb-2">
-                <UIcon name="i-lucide-monitor" class="w-3.5 h-3.5 text-success" />
-                <span class="text-sm font-medium text-success">{{ t('shares.thisDevice') }}</span>
+                <UIcon
+                  name="i-lucide-monitor"
+                  class="w-3.5 h-3.5 text-success"
+                />
+                <span class="text-sm font-medium text-success">{{
+                  t('shares.thisDevice')
+                }}</span>
               </div>
               <div class="space-y-2 ml-5">
                 <div
@@ -121,7 +164,9 @@
                 >
                   <div class="min-w-0 flex-1">
                     <p class="text-sm font-medium">{{ share.name }}</p>
-                    <p class="text-xs text-muted truncate">{{ share.localPath }}</p>
+                    <p class="text-xs text-muted truncate">
+                      {{ share.localPath }}
+                    </p>
                   </div>
                   <UiButton
                     color="error"
@@ -141,7 +186,10 @@
               class="px-4 py-3"
             >
               <div class="flex items-center gap-2 mb-2">
-                <UIcon name="i-lucide-monitor" class="w-3.5 h-3.5 text-muted" />
+                <UIcon
+                  name="i-lucide-monitor"
+                  class="w-3.5 h-3.5 text-muted"
+                />
                 <span class="text-sm font-medium text-muted">
                   {{ getDeviceName(deviceId) || deviceId.slice(0, 12) + '…' }}
                 </span>
@@ -154,7 +202,9 @@
                 >
                   <div class="min-w-0 flex-1">
                     <p class="text-sm font-medium">{{ share.name }}</p>
-                    <p class="text-xs text-muted truncate">{{ share.localPath }}</p>
+                    <p class="text-xs text-muted truncate">
+                      {{ share.localPath }}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -176,10 +226,13 @@
 
 <script setup lang="ts">
 import { eq } from 'drizzle-orm'
-import { open } from '@tauri-apps/plugin-dialog'
+import { invoke } from '@tauri-apps/api/core'
 import type { SelectHaexPeerShares } from '~/database/schemas'
 import { haexVaultSettings } from '~/database/schemas'
-import { VaultSettingsKeyEnum, VaultSettingsTypeEnum } from '~/config/vault-settings'
+import {
+  VaultSettingsKeyEnum,
+  VaultSettingsTypeEnum,
+} from '~/config/vault-settings'
 
 const { t } = useI18n()
 const { add } = useToast()
@@ -196,15 +249,21 @@ const onToggleAutostartAsync = async (value: boolean | 'indeterminate') => {
   if (!currentVault.value?.drizzle) return
 
   try {
-    const existing = await currentVault.value.drizzle.query.haexVaultSettings.findFirst({
-      where: eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageAutostart),
-    })
+    const existing =
+      await currentVault.value.drizzle.query.haexVaultSettings.findFirst({
+        where: eq(
+          haexVaultSettings.key,
+          VaultSettingsKeyEnum.peerStorageAutostart,
+        ),
+      })
 
     if (existing) {
       await currentVault.value.drizzle
         .update(haexVaultSettings)
         .set({ value: value ? 'true' : 'false' })
-        .where(eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageAutostart))
+        .where(
+          eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageAutostart),
+        )
     } else {
       await currentVault.value.drizzle.insert(haexVaultSettings).values({
         id: crypto.randomUUID(),
@@ -225,9 +284,13 @@ onMounted(async () => {
   await store.loadSpaceDevicesAsync()
 
   if (currentVault.value?.drizzle) {
-    const row = await currentVault.value.drizzle.query.haexVaultSettings.findFirst({
-      where: eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageAutostart),
-    })
+    const row =
+      await currentVault.value.drizzle.query.haexVaultSettings.findFirst({
+        where: eq(
+          haexVaultSettings.key,
+          VaultSettingsKeyEnum.peerStorageAutostart,
+        ),
+      })
     autostart.value = row?.value === 'true'
   }
 })
@@ -237,15 +300,24 @@ onMounted(async () => {
 // =========================================================================
 
 const getSharesForSpace = (spaceId: string): SelectHaexPeerShares[] => {
-  return store.shares.filter(s => s.spaceId === spaceId)
+  return store.shares.filter((s) => s.spaceId === spaceId)
 }
 
-const getSharesForDevice = (spaceId: string, deviceEndpointId: string): SelectHaexPeerShares[] => {
-  return store.shares.filter(s => s.spaceId === spaceId && s.deviceEndpointId === deviceEndpointId)
+const getSharesForDevice = (
+  spaceId: string,
+  deviceEndpointId: string,
+): SelectHaexPeerShares[] => {
+  return store.shares.filter(
+    (s) => s.spaceId === spaceId && s.deviceEndpointId === deviceEndpointId,
+  )
 }
 
-const getOtherDeviceShares = (spaceId: string): [string, SelectHaexPeerShares[]][] => {
-  const spaceShares = getSharesForSpace(spaceId).filter(s => s.deviceEndpointId !== store.nodeId)
+const getOtherDeviceShares = (
+  spaceId: string,
+): [string, SelectHaexPeerShares[]][] => {
+  const spaceShares = getSharesForSpace(spaceId).filter(
+    (s) => s.deviceEndpointId !== store.nodeId,
+  )
 
   const grouped = new Map<string, SelectHaexPeerShares[]>()
   for (const share of spaceShares) {
@@ -258,7 +330,8 @@ const getOtherDeviceShares = (spaceId: string): [string, SelectHaexPeerShares[]]
 }
 
 const getDeviceName = (deviceEndpointId: string): string | undefined => {
-  return store.spaceDevices.find(d => d.deviceEndpointId === deviceEndpointId)?.deviceName
+  return store.spaceDevices.find((d) => d.deviceEndpointId === deviceEndpointId)
+    ?.deviceName
 }
 
 // =========================================================================
@@ -300,16 +373,13 @@ const onCopyNodeId = async () => {
 }
 
 const onAddShareAsync = async (spaceId: string) => {
-  const selected = await open({ directory: true, multiple: false })
+  const selected = await invoke<string | null>('filesystem_select_folder', {})
   if (!selected) return
 
-  const path = typeof selected === 'string' ? selected : selected[0]
-  if (!path) return
-
-  const name = path.split(/[/\\]/).pop() || 'Shared Folder'
+  const name = selected.split(/[/\\]/).pop() || 'Shared Folder'
 
   try {
-    await store.addShareAsync(spaceId, name, path)
+    await store.addShareAsync(spaceId, name, selected)
     add({ title: t('toast.shareAdded'), color: 'success' })
   } catch (error) {
     add({

@@ -1,408 +1,427 @@
 <template>
-  <HaexSystemSettingsLayout :title="t('title')" :description="t('description')">
+  <HaexSystemSettingsLayout
+    :title="t('title')"
+    :description="t('description')"
+  >
     <UCard
-        v-if="showAddBackendForm"
-        class="relative"
+      v-if="showAddBackendForm"
+      class="relative"
+    >
+      <!-- Loading Overlay -->
+      <div
+        v-if="isLoading"
+        class="absolute inset-0 z-10 flex items-center justify-center bg-default/80 backdrop-blur-sm rounded-lg"
       >
-        <!-- Loading Overlay -->
-        <div
-          v-if="isLoading"
-          class="absolute inset-0 z-10 flex items-center justify-center bg-default/80 backdrop-blur-sm rounded-lg"
-        >
-          <div class="flex flex-col items-center gap-3">
-            <div class="loading loading-spinner loading-lg text-primary" />
-            <span class="text-sm text-muted">
-              {{ t('addBackend.connecting') }}
-            </span>
-          </div>
+        <div class="flex flex-col items-center gap-3">
+          <div class="loading loading-spinner loading-lg text-primary" />
+          <span class="text-sm text-muted">
+            {{ t('addBackend.connecting') }}
+          </span>
         </div>
+      </div>
 
-        <template #header>
-          <div class="flex justify-between px-1">
-            <h3 class="text-lg font-semibold">
-              {{ t('addBackend.title') }}
-            </h3>
+      <template #header>
+        <div class="flex justify-between px-1">
+          <h3 class="text-lg font-semibold">
+            {{ t('addBackend.title') }}
+          </h3>
 
-            <UiButton
-              icon="mdi-close"
-              variant="ghost"
-              color="neutral"
-              :disabled="isLoading"
-              @click="showAddBackendForm = false"
-            />
-          </div>
-        </template>
-
-        <!-- Verification Code Input -->
-        <div
-          v-if="verificationPending"
-          class="space-y-4"
-        >
-          <UAlert
-            color="info"
-            icon="i-lucide-mail"
-            :title="t('verification.title')"
-            :description="t('verification.description')"
-          />
-
-          <div class="flex justify-center">
-            <UPinInput
-              v-model="verificationCodeParts"
-              :length="6"
-              otp
-              type="number"
-              size="xl"
-              :autofocus="true"
-              :ui="{ base: 'w-12 h-12 text-center text-lg' }"
-              @complete="onVerifyCodeAsync"
-            />
-          </div>
-
-          <UButton
-            variant="link"
-            size="xs"
+          <UiButton
+            icon="mdi-close"
+            variant="ghost"
+            color="neutral"
             :disabled="isLoading"
-            @click="onResendCodeAsync"
-          >
-            {{ t('verification.resend') }}
-          </UButton>
+            @click="showAddBackendForm = false"
+          />
         </div>
+      </template>
 
-        <!-- Add Backend Form -->
-        <HaexSyncAddBackend
-          v-else
-          v-model:identity-id="newBackend.identityId"
-          v-model:approved-claims="newBackend.approvedClaims"
-          v-model:server-url="newBackend.serverUrl"
-          :items="serverOptions"
-          @keydown.enter.prevent="onWizardCompleteAsync"
+      <!-- Verification Code Input -->
+      <div
+        v-if="verificationPending"
+        class="space-y-4"
+      >
+        <UAlert
+          color="info"
+          icon="i-lucide-mail"
+          :title="t('verification.title')"
+          :description="t('verification.description')"
         />
 
-        <template #footer>
-          <div class="flex justify-between">
-            <UButton
-              color="neutral"
-              variant="outline"
-              :disabled="isLoading"
-              @click="cancelAddBackend"
-            >
-              {{ t('actions.back') }}
-            </UButton>
+        <div class="flex justify-center">
+          <UPinInput
+            v-model="verificationCodeParts"
+            :length="6"
+            otp
+            type="number"
+            size="xl"
+            :autofocus="true"
+            :ui="{ base: 'w-12 h-12 text-center text-lg' }"
+            @complete="onVerifyCodeAsync"
+          />
+        </div>
 
-            <UiButton
-              v-if="verificationPending"
-              icon="mdi-check"
-              :disabled="isLoading || verificationCode.length !== 6"
-              @click="onVerifyCodeAsync"
-            >
-              <span class="hidden @sm:inline">
-                {{ t('verification.verify') }}
-              </span>
-            </UiButton>
-            <UiButton
-              v-else
-              icon="mdi-plus"
-              :disabled="isLoading"
-              data-testid="sync-submit-button"
-              @click="onWizardCompleteAsync"
-            >
-              <span class="hidden @sm:inline">
-                {{ t('actions.add') }}
-              </span>
-            </UiButton>
-          </div>
-        </template>
-      </UCard>
-
-      <!-- Sync Backends List (merged with Vault Overview) -->
-      <UCard v-if="!showAddBackendForm || syncBackends.length">
-        <template #header>
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 class="text-lg font-semibold">{{ t('backends.title') }}</h3>
-              <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                {{ t('backends.description') }}
-              </p>
-            </div>
-            <UButton
-              v-if="!showAddBackendForm"
-              color="primary"
-              icon="i-lucide-plus"
-              data-testid="sync-add-backend-button"
-              data-tour="settings-sync-add-backend"
-              @click="showAddBackendForm = true"
-            >
-              <span class="hidden @sm:inline">
-                {{ t('actions.add') }}
-              </span>
-            </UButton>
-          </div>
-        </template>
-
-        <div
-          v-if="syncBackends.length"
-          class="space-y-3"
+        <UButton
+          variant="link"
+          size="xs"
+          :disabled="isLoading"
+          @click="onResendCodeAsync"
         >
-          <HaexSyncBackendItem
-            v-for="backend in syncBackends"
-            :key="backend.id"
-            :backend="backend"
+          {{ t('verification.resend') }}
+        </UButton>
+      </div>
+
+      <!-- Add Backend Form -->
+      <HaexSyncAddBackend
+        v-else
+        v-model:identity-id="newBackend.identityId"
+        v-model:approved-claims="newBackend.approvedClaims"
+        v-model:server-url="newBackend.serverUrl"
+        :items="serverOptions"
+        @keydown.enter.prevent="onWizardCompleteAsync"
+      />
+
+      <template #footer>
+        <div class="flex justify-between">
+          <UButton
+            color="neutral"
+            variant="outline"
+            :disabled="isLoading"
+            @click="cancelAddBackend"
           >
-            <template #badges>
-              <UBadge
-                :color="backend.enabled ? 'success' : 'neutral'"
-                variant="subtle"
-                size="xs"
-              >
-                {{ backend.enabled ? t('backends.enabled') : t('backends.disabled') }}
-              </UBadge>
-              <UBadge
-                v-if="getSyncState(backend.id)?.isConnected"
-                color="info"
-                variant="subtle"
-                size="xs"
-              >
-                {{ t('backends.connected') }}
-              </UBadge>
-              <UBadge
-                v-else-if="getSyncState(backend.id)?.isSyncing"
-                color="warning"
-                variant="subtle"
-                size="xs"
-              >
-                {{ t('backends.syncing') }}
-              </UBadge>
-            </template>
-            <template #actions>
-              <div class="flex gap-2">
-                <UButton
-                  :color="backend.enabled ? 'neutral' : 'primary'"
-                  icon="i-lucide-power"
-                  :title="backend.enabled ? t('actions.disable') : t('actions.enable')"
-                  @click="toggleBackendAsync(backend.id)"
-                >
-                  {{ backend.enabled ? t('actions.disable') : t('actions.enable') }}
-                </UButton>
-                <UButton
-                  color="error"
-                  variant="ghost"
-                  icon="i-lucide-trash-2"
-                  :title="t('actions.deleteBackend')"
-                  @click="prepareDeleteBackend(backend)"
-                />
-              </div>
-            </template>
+            {{ t('actions.back') }}
+          </UButton>
 
-            <!-- Server Vaults for this backend -->
-            <template
-              v-if="getGroupedVaults(backend.id)"
-              #default
-            >
-              <!-- Loading state -->
-              <div
-                v-if="getGroupedVaults(backend.id)?.isLoading"
-                class="flex items-center justify-center py-4"
-              >
-                <UIcon
-                  name="i-lucide-loader-2"
-                  class="w-5 h-5 animate-spin text-primary"
-                />
-              </div>
-
-              <!-- Error state -->
-              <div
-                v-else-if="getGroupedVaults(backend.id)?.error"
-                class="text-center text-red-500 text-sm py-4"
-              >
-                {{ getGroupedVaults(backend.id)?.error }}
-              </div>
-
-              <!-- No vaults -->
-              <div
-                v-else-if="getGroupedVaults(backend.id)?.vaults.length === 0"
-                class="space-y-4"
-              >
-                <p class="text-center text-gray-500 dark:text-gray-400 text-sm py-4">
-                  {{ t('vaultOverview.noVaults') }}
-                </p>
-
-                <!-- Re-Upload option when current vault is missing on server -->
-                <div
-                  v-if="getGroupedVaults(backend.id)?.currentVaultMissingOnServer"
-                  class="space-y-3"
-                >
-                  <UAlert
-                    color="warning"
-                    icon="i-lucide-alert-triangle"
-                    :title="t('reUpload.warning.title')"
-                    :description="t('reUpload.warning.description')"
-                  />
-                  <div class="flex justify-end">
-                    <UButton
-                      color="primary"
-                      icon="i-lucide-upload"
-                      :loading="isReUploading"
-                      :disabled="isReUploading"
-                      @click="prepareReUpload(backend)"
-                    >
-                      {{ t('reUpload.button') }}
-                    </UButton>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Vaults list -->
-              <div
-                v-else
-                class="space-y-2"
-              >
-                <div
-                  v-for="vault in getGroupedVaults(backend.id)?.vaults"
-                  :key="vault.vaultId"
-                  class="flex flex-col gap-2 p-3 rounded-lg"
-                  :class="
-                    vault.vaultId === currentVaultId
-                      ? 'bg-primary/10 border border-primary/20'
-                      : 'bg-gray-50 dark:bg-gray-800/50'
-                  "
-                >
-                  <div class="flex flex-col @xs:flex-row @xs:items-center @xs:justify-between gap-2">
-                    <div class="flex-1 min-w-0">
-                      <div class="flex items-center gap-2 flex-wrap">
-                        <p class="font-medium text-sm truncate">
-                          {{
-                            vault.decryptedName ||
-                            t('vaultOverview.encryptedName')
-                          }}
-                        </p>
-                        <UBadge
-                          v-if="vault.vaultId === currentVaultId"
-                          color="primary"
-                          variant="subtle"
-                          size="xs"
-                        >
-                          {{ t('vaultOverview.currentVault') }}
-                        </UBadge>
-                      </div>
-                      <p
-                        class="text-xs text-gray-500 dark:text-gray-400 mt-1"
-                      >
-                        {{ t('vaultOverview.createdAt') }}:
-                        {{ formatDate(vault.createdAt) }}
-                      </p>
-                    </div>
-                    <!-- Delete button -->
-                    <div class="@xs:shrink-0 w-full @xs:w-auto">
-                      <UButton
-                        color="error"
-                        variant="ghost"
-                        icon="i-lucide-trash-2"
-                        class="w-full @xs:w-auto justify-center"
-                        @click="prepareDeleteServerVault(backend, vault)"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </template>
-          </HaexSyncBackendItem>
+          <UiButton
+            v-if="verificationPending"
+            icon="mdi-check"
+            :disabled="isLoading || verificationCode.length !== 6"
+            @click="onVerifyCodeAsync"
+          >
+            <span class="hidden @sm:inline">
+              {{ t('verification.verify') }}
+            </span>
+          </UiButton>
+          <UiButton
+            v-else
+            icon="mdi-plus"
+            :disabled="isLoading"
+            data-testid="sync-submit-button"
+            @click="onWizardCompleteAsync"
+          >
+            <span class="hidden @sm:inline">
+              {{ t('actions.add') }}
+            </span>
+          </UiButton>
         </div>
+      </template>
+    </UCard>
 
-        <div
-          v-else
-          class="text-center py-4 text-gray-500 dark:text-gray-400"
-        >
-          {{ t('backends.noBackends') }}
-        </div>
-      </UCard>
-
-      <!-- Sync Configuration -->
-      <UCard>
-        <template #header>
+    <!-- Sync Backends List (merged with Vault Overview) -->
+    <UCard v-if="!showAddBackendForm || syncBackends.length">
+      <template #header>
+        <div class="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 class="text-lg font-semibold">
-              {{ t('config.title') }}
-            </h3>
+            <h3 class="text-lg font-semibold">{{ t('backends.title') }}</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              {{ t('backends.description') }}
+            </p>
           </div>
-        </template>
+          <UButton
+            v-if="!showAddBackendForm"
+            color="primary"
+            icon="i-lucide-plus"
+            data-testid="sync-add-backend-button"
+            data-tour="settings-sync-add-backend"
+            @click="showAddBackendForm = true"
+          >
+            <span class="hidden @sm:inline">
+              {{ t('actions.add') }}
+            </span>
+          </UButton>
+        </div>
+      </template>
 
-        <UTabs
-          v-model="activeConfigTab"
-          :items="configTabItems"
+      <div
+        v-if="syncBackends.length"
+        class="space-y-3"
+      >
+        <HaexSyncBackendItem
+          v-for="backend in syncBackends"
+          :key="backend.id"
+          :backend="backend"
         >
-          <template #content="{ item }">
-            <!-- Continuous Sync Settings (Push) -->
-            <div
-              v-if="item.value === 'continuous'"
-              class="pt-4"
+          <template #badges>
+            <UBadge
+              :color="backend.enabled ? 'success' : 'neutral'"
+              variant="subtle"
+              size="xs"
             >
-              <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                {{ t('config.continuous.description') }}
-              </p>
-              <label class="block text-sm font-medium mb-2">
-                {{ t('config.debounce.label') }}
-              </label>
-              <div class="flex items-center gap-3">
-                <UInput
-                  v-model.number="continuousDebounceSec"
-                  type="number"
-                  :min="0.1"
-                  :max="30"
-                  :step="0.5"
-                  class="w-24"
-                />
-                <span class="text-sm text-gray-500">{{ t('config.units.seconds') }}</span>
-              </div>
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                {{ t('config.debounce.hint') }}
-              </p>
-              <UButton
-                v-if="continuousDebounceSec !== syncConfig.continuousDebounceMs / 1000"
-                size="xs"
-                class="mt-2"
-                @click="saveContinuousDebounceAsync"
-              >
-                {{ t('config.save') }}
-              </UButton>
-            </div>
-
-            <!-- Periodic Sync Settings (Pull) -->
-            <div
-              v-if="item.value === 'periodic'"
-              class="pt-4"
+              {{
+                backend.enabled ? t('backends.enabled') : t('backends.disabled')
+              }}
+            </UBadge>
+            <UBadge
+              v-if="getSyncState(backend.id)?.isConnected"
+              color="info"
+              variant="subtle"
+              size="xs"
             >
-              <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                {{ t('config.periodic.description') }}
-              </p>
-              <label class="block text-sm font-medium mb-2">
-                {{ t('config.interval.label') }}
-              </label>
-              <div class="flex items-center gap-3">
-                <UInput
-                  v-model.number="periodicIntervalMin"
-                  type="number"
-                  :min="1"
-                  :max="60"
-                  :step="1"
-                  class="w-24"
-                />
-                <span class="text-sm text-gray-500">{{ t('config.units.minutes') }}</span>
-              </div>
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                {{ t('config.interval.hint') }}
-              </p>
+              {{ t('backends.connected') }}
+            </UBadge>
+            <UBadge
+              v-else-if="getSyncState(backend.id)?.isSyncing"
+              color="warning"
+              variant="subtle"
+              size="xs"
+            >
+              {{ t('backends.syncing') }}
+            </UBadge>
+          </template>
+          <template #actions>
+            <div class="flex gap-2">
               <UButton
-                v-if="periodicIntervalMin !== syncConfig.periodicIntervalMs / 60000"
-                size="xs"
-                class="mt-2"
-                @click="savePeriodicIntervalAsync"
+                :color="backend.enabled ? 'neutral' : 'primary'"
+                icon="i-lucide-power"
+                :title="
+                  backend.enabled ? t('actions.disable') : t('actions.enable')
+                "
+                @click="toggleBackendAsync(backend.id)"
               >
-                {{ t('config.save') }}
+                {{
+                  backend.enabled ? t('actions.disable') : t('actions.enable')
+                }}
               </UButton>
+              <UButton
+                color="error"
+                variant="ghost"
+                icon="i-lucide-trash-2"
+                :title="t('actions.deleteBackend')"
+                @click="prepareDeleteBackend(backend)"
+              />
             </div>
           </template>
-        </UTabs>
-      </UCard>
+
+          <!-- Server Vaults for this backend -->
+          <template
+            v-if="getGroupedVaults(backend.id)"
+            #default
+          >
+            <!-- Loading state -->
+            <div
+              v-if="getGroupedVaults(backend.id)?.isLoading"
+              class="flex items-center justify-center py-4"
+            >
+              <UIcon
+                name="i-lucide-loader-2"
+                class="w-5 h-5 animate-spin text-primary"
+              />
+            </div>
+
+            <!-- Error state -->
+            <div
+              v-else-if="getGroupedVaults(backend.id)?.error"
+              class="text-center text-red-500 text-sm py-4"
+            >
+              {{ getGroupedVaults(backend.id)?.error }}
+            </div>
+
+            <!-- No vaults -->
+            <div
+              v-else-if="getGroupedVaults(backend.id)?.vaults.length === 0"
+              class="space-y-4"
+            >
+              <p
+                class="text-center text-gray-500 dark:text-gray-400 text-sm py-4"
+              >
+                {{ t('vaultOverview.noVaults') }}
+              </p>
+
+              <!-- Re-Upload option when current vault is missing on server -->
+              <div
+                v-if="getGroupedVaults(backend.id)?.currentVaultMissingOnServer"
+                class="space-y-3"
+              >
+                <UAlert
+                  color="warning"
+                  icon="i-lucide-alert-triangle"
+                  :title="t('reUpload.warning.title')"
+                  :description="t('reUpload.warning.description')"
+                />
+                <div class="flex justify-end">
+                  <UButton
+                    color="primary"
+                    icon="i-lucide-upload"
+                    :loading="isReUploading"
+                    :disabled="isReUploading"
+                    @click="prepareReUpload(backend)"
+                  >
+                    {{ t('reUpload.button') }}
+                  </UButton>
+                </div>
+              </div>
+            </div>
+
+            <!-- Vaults list -->
+            <div
+              v-else
+              class="space-y-2"
+            >
+              <div
+                v-for="vault in getGroupedVaults(backend.id)?.vaults"
+                :key="vault.vaultId"
+                class="flex flex-col gap-2 p-3 rounded-lg"
+                :class="
+                  vault.vaultId === currentVaultId
+                    ? 'bg-primary/10 border border-primary/20'
+                    : 'bg-gray-50 dark:bg-gray-800/50'
+                "
+              >
+                <div
+                  class="flex flex-col @xs:flex-row @xs:items-center @xs:justify-between gap-2"
+                >
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <p class="font-medium text-sm truncate">
+                        {{
+                          vault.decryptedName ||
+                          t('vaultOverview.encryptedName')
+                        }}
+                      </p>
+                      <UBadge
+                        v-if="vault.vaultId === currentVaultId"
+                        color="primary"
+                        variant="subtle"
+                        size="xs"
+                      >
+                        {{ t('vaultOverview.currentVault') }}
+                      </UBadge>
+                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {{ t('vaultOverview.createdAt') }}:
+                      {{ formatDate(vault.createdAt) }}
+                    </p>
+                  </div>
+                  <!-- Delete button -->
+                  <div class="@xs:shrink-0 w-full @xs:w-auto">
+                    <UButton
+                      color="error"
+                      variant="ghost"
+                      icon="i-lucide-trash-2"
+                      class="w-full @xs:w-auto justify-center"
+                      @click="prepareDeleteServerVault(backend, vault)"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </HaexSyncBackendItem>
+      </div>
+
+      <div
+        v-else
+        class="text-center py-4 text-gray-500 dark:text-gray-400"
+      >
+        {{ t('backends.noBackends') }}
+      </div>
+    </UCard>
+
+    <!-- Sync Configuration -->
+    <UCard>
+      <template #header>
+        <div>
+          <h3 class="text-lg font-semibold">
+            {{ t('config.title') }}
+          </h3>
+        </div>
+      </template>
+
+      <UTabs
+        v-model="activeConfigTab"
+        :items="configTabItems"
+      >
+        <template #content="{ item }">
+          <!-- Continuous Sync Settings (Push) -->
+          <div
+            v-if="item.value === 'continuous'"
+            class="pt-4"
+          >
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              {{ t('config.continuous.description') }}
+            </p>
+            <label class="block text-sm font-medium mb-2">
+              {{ t('config.debounce.label') }}
+            </label>
+            <div class="flex items-center gap-3">
+              <UInput
+                v-model.number="continuousDebounceSec"
+                type="number"
+                :min="0.1"
+                :max="30"
+                :step="0.5"
+                class="w-24"
+              />
+              <span class="text-sm text-gray-500">{{
+                t('config.units.seconds')
+              }}</span>
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              {{ t('config.debounce.hint') }}
+            </p>
+            <UButton
+              v-if="
+                continuousDebounceSec !== syncConfig.continuousDebounceMs / 1000
+              "
+              size="xs"
+              class="mt-2"
+              @click="saveContinuousDebounceAsync"
+            >
+              {{ t('config.save') }}
+            </UButton>
+          </div>
+
+          <!-- Periodic Sync Settings (Pull) -->
+          <div
+            v-if="item.value === 'periodic'"
+            class="pt-4"
+          >
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              {{ t('config.periodic.description') }}
+            </p>
+            <label class="block text-sm font-medium mb-2">
+              {{ t('config.interval.label') }}
+            </label>
+            <div class="flex items-center gap-3">
+              <UInput
+                v-model.number="periodicIntervalMin"
+                type="number"
+                :min="1"
+                :max="60"
+                :step="1"
+                class="w-24"
+              />
+              <span class="text-sm text-gray-500">{{
+                t('config.units.minutes')
+              }}</span>
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              {{ t('config.interval.hint') }}
+            </p>
+            <UButton
+              v-if="
+                periodicIntervalMin !== syncConfig.periodicIntervalMs / 60000
+              "
+              size="xs"
+              class="mt-2"
+              @click="savePeriodicIntervalAsync"
+            >
+              {{ t('config.save') }}
+            </UButton>
+          </div>
+        </template>
+      </UTabs>
+    </UCard>
 
     <!-- Delete Remote Vault Confirmation Dialog -->
     <UiDialogConfirm
@@ -426,7 +445,9 @@
       @confirm="onConfirmDeleteRemoteVaultAsync"
     >
       <template #body>
-        <label class="flex items-start gap-3 cursor-pointer mt-4 p-3 rounded-lg border border-error/30 bg-error/5">
+        <label
+          class="flex items-start gap-3 cursor-pointer mt-4 p-3 rounded-lg border border-error/30 bg-error/5"
+        >
           <UCheckbox
             v-model="deleteAllServerData"
             color="error"
@@ -447,7 +468,11 @@
     <UiDialogConfirm
       v-model:open="showDeleteBackendDialog"
       :title="t('deleteBackend.title')"
-      :description="t('deleteBackend.description', { name: backendToDeleteCompletely?.name })"
+      :description="
+        t('deleteBackend.description', {
+          name: backendToDeleteCompletely?.name,
+        })
+      "
       confirm-label="Löschen"
       @confirm="onConfirmDeleteBackendAsync"
     />
@@ -476,7 +501,7 @@ const syncConfigStore = useSyncConfigStore()
 const vaultStore = useVaultStore()
 
 const { backends: syncBackends } = storeToRefs(syncBackendsStore)
-const { currentVaultId, currentVaultPassword } = storeToRefs(vaultStore)
+const { currentVaultId } = storeToRefs(vaultStore)
 const { config: syncConfig } = storeToRefs(syncConfigStore)
 
 // Sync connection composable
@@ -492,9 +517,7 @@ const {
 
 // Local state
 const showAddBackendForm = ref(false)
-const isLoading = computed(
-  () => isConnectionLoading.value,
-)
+const isLoading = computed(() => isConnectionLoading.value)
 
 const newBackend = reactive({
   serverUrl: '',
@@ -674,7 +697,11 @@ const onVerifyCodeAsync = async () => {
 
   const { did, serverUrl, identityId } = verificationPending.value
 
-  const verified = await verifyEmailAsync(serverUrl, did, verificationCode.value)
+  const verified = await verifyEmailAsync(
+    serverUrl,
+    did,
+    verificationCode.value,
+  )
   if (!verified) {
     add({
       title: t('verification.failed'),
@@ -815,7 +842,10 @@ const onConfirmDeleteBackendAsync = async () => {
 
       await syncEngineStore.deleteAllVaultDataAsync(backend.id)
     } catch (e) {
-      console.warn('[SYNC] Could not delete server data (may already be cleaned up):', e)
+      console.warn(
+        '[SYNC] Could not delete server data (may already be cleaned up):',
+        e,
+      )
     }
 
     // Delete backend from local DB
@@ -1184,7 +1214,7 @@ de:
   verification:
     title: E-Mail-Verifizierung
     description: Ein 6-stelliger Bestätigungscode wurde an deine E-Mail gesendet. Gib den Code ein, um dein Konto zu verifizieren.
-    placeholder: "000000"
+    placeholder: '000000'
     verify: Verifizieren
     resend: Code erneut senden
     codeSent: Code gesendet
@@ -1302,7 +1332,7 @@ en:
   verification:
     title: Email Verification
     description: A 6-digit verification code was sent to your email. Enter the code to verify your account.
-    placeholder: "000000"
+    placeholder: '000000'
     verify: Verify
     resend: Resend code
     codeSent: Code sent

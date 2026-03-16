@@ -49,7 +49,7 @@
       >
         <div
           v-for="identity in identities"
-          :key="identity.id"
+          :key="identity.publicKey"
           class="p-3 rounded-lg border border-default"
         >
           <div>
@@ -92,15 +92,15 @@
             <div class="flex-1" />
             <UButton
               variant="ghost"
-              :icon="expandedIdentity === identity.id ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+              :icon="expandedIdentity === identity.publicKey ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
               :title="t('actions.toggleClaims')"
-              @click="toggleExpand(identity.id)"
+              @click="toggleExpand(identity.publicKey)"
             />
           </div>
 
           <!-- Claims Section (collapsible) -->
           <UCollapsible
-            :open="expandedIdentity === identity.id"
+            :open="expandedIdentity === identity.publicKey"
             :unmount-on-hide="false"
           >
 
@@ -111,18 +111,18 @@
                   <UButton
                     variant="outline"
                     icon="i-lucide-plus"
-                    @click="openAddClaim(identity.id)"
+                    @click="openAddClaim(identity.publicKey)"
                   >
                     {{ t('claims.add') }}
                   </UButton>
                 </div>
 
                 <div
-                  v-if="identityClaims[identity.id]?.length"
+                  v-if="identityClaims[identity.publicKey]?.length"
                   class="space-y-1"
                 >
                   <div
-                    v-for="claim in identityClaims[identity.id]"
+                    v-for="claim in identityClaims[identity.publicKey]"
                     :key="claim.id"
                     class="flex flex-wrap items-center justify-between gap-2 p-2 rounded bg-gray-50 dark:bg-gray-800/50"
                   >
@@ -140,7 +140,7 @@
                         variant="ghost"
                         color="error"
                         icon="i-lucide-trash-2"
-                        @click="deleteClaimAsync(claim.id, identity.id)"
+                        @click="deleteClaimAsync(claim.id, identity.publicKey)"
                       />
                     </div>
                   </div>
@@ -515,6 +515,7 @@ onMounted(async () => {
 
 const onCreateAsync = async () => {
   if (!createLabel.value.trim()) return
+  if (isCreating.value) return
 
   isCreating.value = true
   try {
@@ -522,13 +523,13 @@ const onCreateAsync = async () => {
 
     // Store identity password for use when connecting to a sync backend
     if (effectiveCreatePassword.value) {
-      identityStore.setIdentityPassword(identity.id, effectiveCreatePassword.value)
+      identityStore.setIdentityPassword(identity.publicKey, effectiveCreatePassword.value)
     }
 
     // Save non-empty claims
     const claimEntries = Object.entries(createClaims).filter(([, value]) => value.trim())
     for (const [type, value] of claimEntries) {
-      await identityStore.addClaimAsync(identity.id, type, value.trim())
+      await identityStore.addClaimAsync(identity.publicKey, type, value.trim())
     }
 
     add({ title: t('success.created'), color: 'success' })
@@ -614,10 +615,10 @@ const onRenameAsync = async () => {
 
   isRenaming.value = true
   try {
-    await identityStore.updateLabelAsync(renameTarget.value.id, renameLabel.value.trim())
+    await identityStore.updateLabelAsync(renameTarget.value.publicKey, renameLabel.value.trim())
 
     if (editIdentityPassword.value) {
-      const ok = await updatePasswordAsync(renameTarget.value.id, editIdentityPassword.value)
+      const ok = await updatePasswordAsync(renameTarget.value.publicKey, editIdentityPassword.value)
       if (!ok) {
         add({ title: t('errors.passwordUpdateFailed'), color: 'error' })
         return
@@ -649,7 +650,7 @@ const onConfirmDeleteAsync = async () => {
   if (!deleteTarget.value) return
 
   try {
-    await identityStore.deleteIdentityAsync(deleteTarget.value.id)
+    await identityStore.deleteIdentityAsync(deleteTarget.value.publicKey)
     add({ title: t('success.deleted'), color: 'success' })
     showDeleteConfirm.value = false
     deleteTarget.value = null

@@ -16,7 +16,7 @@ export interface RecoveryKeyData {
     expires_at: number
   }
   identity?: {
-    id: string
+    publicKey: string
     did: string
     tier: string
   }

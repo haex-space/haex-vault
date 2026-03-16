@@ -219,7 +219,7 @@ export const haexSyncBackends = sqliteTable(
     vaultId: text(tableNames.haex.sync_backends.columns.vaultId),
     syncKey: text(tableNames.haex.sync_backends.columns.syncKey),
     vaultKeySalt: text(tableNames.haex.sync_backends.columns.vaultKeySalt),
-    identityId: text(tableNames.haex.sync_backends.columns.identityId), // FK → haex_identities.id (for auth)
+    identityId: text(tableNames.haex.sync_backends.columns.identityId), // FK → haex_identities.publicKey (for auth)
     enabled: integer(tableNames.haex.sync_backends.columns.enabled, {
       mode: 'boolean',
     })
@@ -367,12 +367,11 @@ export type SelectHaexExtensionLimits = typeof haexExtensionLimits.$inferSelect
 export const haexIdentities = sqliteTable(
   tableNames.haex.identities.name,
   {
-    id: text(tableNames.haex.identities.columns.id)
-      .$defaultFn(() => crypto.randomUUID())
-      .primaryKey(),
+    publicKey: text(tableNames.haex.identities.columns.publicKey)
+      .notNull()
+      .primaryKey(), // Base64 SPKI — stable, unique, same across all devices
     label: text(tableNames.haex.identities.columns.label).notNull(),
     did: text(tableNames.haex.identities.columns.did).notNull(), // did:key:zDn...
-    publicKey: text(tableNames.haex.identities.columns.publicKey).notNull(), // Base64 SPKI
     privateKey: text(tableNames.haex.identities.columns.privateKey).notNull(), // Base64 PKCS8
     createdAt: text(tableNames.haex.identities.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
@@ -397,7 +396,7 @@ export const haexIdentityClaims = sqliteTable(
       .primaryKey(),
     identityId: text(tableNames.haex.identity_claims.columns.identityId)
       .notNull()
-      .references(() => haexIdentities.id, { onDelete: 'cascade' }),
+      .references(() => haexIdentities.publicKey, { onDelete: 'cascade' }),
     type: text(tableNames.haex.identity_claims.columns.type).notNull(),
     value: text(tableNames.haex.identity_claims.columns.value).notNull(),
     verifiedAt: text(tableNames.haex.identity_claims.columns.verifiedAt),

@@ -109,7 +109,7 @@ const isGenerating = ref(false)
 const identityOptions = computed(() =>
   identities.value.map(i => ({
     label: i.label,
-    value: i.id,
+    value: i.publicKey,
   })),
 )
 
@@ -149,7 +149,7 @@ const generateQrAsync = async () => {
 
   isGenerating.value = true
   try {
-    const identity = identities.value.find(i => i.id === selectedIdentityId.value)
+    const identity = identities.value.find(i => i.publicKey === selectedIdentityId.value)
     if (!identity) throw new Error('Identity not found')
 
     const selectedClaims = availableClaims.value

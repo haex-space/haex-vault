@@ -155,10 +155,9 @@ CREATE TABLE `haex_external_blocked_clients` (
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_external_blocked_clients_client_id_unique` ON `haex_external_blocked_clients` (`client_id`);--> statement-breakpoint
 CREATE TABLE `haex_identities` (
-	`id` text PRIMARY KEY NOT NULL,
+	`public_key` text PRIMARY KEY NOT NULL,
 	`label` text NOT NULL,
 	`did` text NOT NULL,
-	`public_key` text NOT NULL,
 	`private_key` text NOT NULL,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP)
 );
@@ -172,7 +171,19 @@ CREATE TABLE `haex_identity_claims` (
 	`verified_at` text,
 	`verified_by` text,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
-	FOREIGN KEY (`identity_id`) REFERENCES `haex_identities`(`id`) ON UPDATE no action ON DELETE cascade
+	FOREIGN KEY (`identity_id`) REFERENCES `haex_identities`(`public_key`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE TABLE `haex_logs` (
+	`id` text PRIMARY KEY NOT NULL,
+	`timestamp` text NOT NULL,
+	`level` text NOT NULL,
+	`source` text NOT NULL,
+	`extension_id` text,
+	`message` text NOT NULL,
+	`metadata` text,
+	`device_id` text NOT NULL,
+	FOREIGN KEY (`extension_id`) REFERENCES `haex_extensions`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE TABLE `haex_notifications` (
@@ -242,10 +253,12 @@ CREATE TABLE `haex_vault_settings` (
 	`id` text PRIMARY KEY NOT NULL,
 	`key` text NOT NULL,
 	`type` text NOT NULL,
-	`value` text
+	`value` text,
+	`extension_id` text,
+	FOREIGN KEY (`extension_id`) REFERENCES `haex_extensions`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `haex_vault_settings_key_type_unique` ON `haex_vault_settings` (`key`,`type`);--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_vault_settings_key_type_ext_unique` ON `haex_vault_settings` (`key`,`type`,`extension_id`);--> statement-breakpoint
 CREATE TABLE `haex_workspaces` (
 	`id` text PRIMARY KEY NOT NULL,
 	`device_id` text NOT NULL,

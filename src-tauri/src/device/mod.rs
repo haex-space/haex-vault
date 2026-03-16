@@ -118,8 +118,12 @@ pub async fn device_init_key(
     let endpoint_id = secret_key.public();
 
     // 5. Replace the ephemeral key in the PeerEndpoint
+    // Stop first if still running (e.g. unclean vault close)
     {
         let mut endpoint = state.peer_storage.lock().await;
+        if endpoint.is_running() {
+            let _ = endpoint.stop().await;
+        }
         endpoint.replace_key(secret_key);
     }
 

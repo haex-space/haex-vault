@@ -181,7 +181,6 @@
     "identities": {
       "name": "haex_identities",
       "columns": {
-        "id": "id",
         "label": "label",
         "did": "did",
         "publicKey": "public_key",

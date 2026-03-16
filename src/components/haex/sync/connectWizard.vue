@@ -689,13 +689,13 @@ const onRecoveryComplete = async (data: {
     expires_in: number
     expires_at: number
   }
-  identity: { id: string; did: string; tier: string }
+  identity: { publicKey: string; did: string; tier: string }
 }) => {
   isLoading.value = true
 
   try {
     credentials.value.serverUrl = data.serverUrl
-    credentials.value.identityId = data.identity.id
+    credentials.value.identityId = data.identity.publicKey
     recoveredKeyData.value = data.recoveryKeyData
 
     // Connect to server and get Supabase config

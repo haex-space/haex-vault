@@ -714,7 +714,7 @@ fn get_identity_public_key(
         let mut stmt = conn
             .prepare(
                 "SELECT i.public_key FROM haex_identities i \
-                 INNER JOIN haex_sync_backends b ON b.identity_id = i.id \
+                 INNER JOIN haex_sync_backends b ON b.identity_id = i.public_key \
                  WHERE b.server_url = ?1 LIMIT 1",
             )
             .map_err(DatabaseError::from)?;
