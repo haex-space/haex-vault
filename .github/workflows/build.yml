@@ -385,9 +385,10 @@ jobs:
                 -storepass android -keypass android \
                 "$SIGNED_APK" androiddebugkey
 
-              # Zipalign
+              # Zipalign (find build-tools path dynamically)
               ALIGNED_APK="/tmp/app-e2e.apk"
-              zipalign -v 4 "$SIGNED_APK" "$ALIGNED_APK"
+              ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -name zipalign | head -1)
+              "$ZIPALIGN" -v 4 "$SIGNED_APK" "$ALIGNED_APK"
               APK_PATH="$ALIGNED_APK"
               echo "Debug-signed APK ready: $APK_PATH"
             fi
