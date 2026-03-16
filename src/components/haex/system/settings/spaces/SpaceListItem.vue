@@ -1,15 +1,28 @@
 <template>
-  <div class="flex flex-col gap-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
-    <div class="flex flex-col @xs:flex-row @xs:items-center @xs:justify-between gap-2">
+  <div
+    class="flex flex-col gap-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50"
+  >
+    <div
+      class="flex flex-col @xs:flex-row @xs:items-center @xs:justify-between gap-2"
+    >
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2 flex-wrap">
           <p class="font-medium text-sm truncate">
             {{ space.name }}
           </p>
           <UBadge
+            v-if="space.serverUrl"
+            color="info"
+            variant="subtle"
+            size="sm"
+            icon="i-lucide-cloud"
+          >
+            {{ backendName }}
+          </UBadge>
+          <UBadge
             :color="roleBadgeColor"
             variant="subtle"
-            size="xs"
+            size="sm"
           >
             {{ t(`roles.${space.role}`) }}
           </UBadge>
@@ -63,13 +76,22 @@ defineEmits<{
 
 const { t } = useI18n()
 
+const { getBackendNameByUrl } = useSyncBackendsStore()
+
+const backendName = computed(() => getBackendNameByUrl(props.space.serverUrl))
+
 const roleBadgeColor = computed(() => {
   switch (props.space.role) {
-    case 'admin': return 'error' as const
-    case 'owner': return 'warning' as const
-    case 'member': return 'primary' as const
-    case 'reader': return 'neutral' as const
-    default: return 'neutral' as const
+    case 'admin':
+      return 'error' as const
+    case 'owner':
+      return 'warning' as const
+    case 'member':
+      return 'primary' as const
+    case 'reader':
+      return 'neutral' as const
+    default:
+      return 'neutral' as const
   }
 })
 

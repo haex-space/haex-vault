@@ -75,15 +75,6 @@
       v-if="requirements"
       class="space-y-3"
     >
-      <div class="flex items-center gap-2">
-        <UBadge
-          color="info"
-          variant="subtle"
-        >
-          {{ requirements.serverName }}
-        </UBadge>
-      </div>
-
       <p class="text-sm text-muted">
         {{ t('requirements.description') }}
       </p>

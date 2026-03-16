@@ -6,7 +6,7 @@
         <div class="flex-1 min-w-0 transition-opacity duration-200" :class="{ 'opacity-50': !backend.enabled }">
           <p class="font-medium">{{ backend.name }}</p>
           <p class="text-sm text-gray-500 dark:text-gray-400 truncate">
-            {{ backend.serverUrl }}
+            {{ getBackendHostByUrl(backend.serverUrl) }}
           </p>
           <!-- Badges slot - allows custom badges to be injected -->
           <div
@@ -43,4 +43,6 @@ import type { SelectHaexSyncBackends } from '~/database/schemas'
 defineProps<{
   backend: SelectHaexSyncBackends
 }>()
+
+const { getBackendHostByUrl } = useSyncBackendsStore()
 </script>

@@ -270,6 +270,10 @@ onMounted(async () => {
 const loadSpacesAsync = async () => {
   isLoadingSpaces.value = true
   try {
+    // Ensure default space is loaded
+    await spacesStore.ensureDefaultSpaceAsync()
+
+    // Load remote spaces from all backends
     const urls = new Set<string>()
     for (const backend of syncBackends.value) {
       if (backend.serverUrl) {
@@ -288,36 +292,44 @@ const loadSpacesAsync = async () => {
 
 // Create space
 const onCreateSpaceAsync = async () => {
-  if (!createForm.name || !createForm.serverUrl?.value) return
+  if (!createForm.name.trim()) return
 
   isCreating.value = true
   try {
-    const serverUrl = createForm.serverUrl.value
+    const isLocal = !createForm.serverUrl?.value || createForm.serverUrl.value === 'local'
 
-    // Use selected identity or first available
-    let identityId = createForm.identityId
-    if (!identityId) {
-      await identityStore.loadIdentitiesAsync()
-      identityId = identityStore.identities[0]?.publicKey
+    if (isLocal) {
+      // Local space — no server needed
+      const createdSpace = await spacesStore.createLocalSpaceAsync(createForm.name)
+
+      add({ title: t('success.created'), color: 'success' })
+      showCreateDialog.value = false
+      createForm.name = ''
+      createForm.serverUrl = undefined
+    } else {
+      // Remote space — requires server + identity
+      const serverUrl = createForm.serverUrl!.value
+
+      let identityId = createForm.identityId
+      if (!identityId) {
+        await identityStore.loadIdentitiesAsync()
+        identityId = identityStore.identities[0]?.publicKey
+      }
+      if (!identityId) {
+        add({ title: t('errors.noIdentity', 'No identity available. Create one first.'), color: 'error' })
+        return
+      }
+
+      const createdSpace = await spacesStore.createSpaceAsync(serverUrl, createForm.name, t('create.defaultSelfLabel'), identityId)
+
+      add({ title: t('success.created'), color: 'success' })
+      showCreateDialog.value = false
+      createForm.name = ''
+      createForm.serverUrl = undefined
+
+      // Open invite dialog for the newly created space
+      openInviteDialog({ ...createdSpace, name: createForm.name, role: 'admin' as SpaceRole, serverUrl, createdAt: new Date().toISOString() })
     }
-    if (!identityId) {
-      add({ title: t('errors.noIdentity', 'No identity available. Create one first.'), color: 'error' })
-      return
-    }
-
-    const createdSpace = await spacesStore.createSpaceAsync(serverUrl, createForm.name, t('create.defaultSelfLabel'), identityId)
-
-    add({
-      title: t('success.created'),
-      color: 'success',
-    })
-
-    showCreateDialog.value = false
-    createForm.name = ''
-    createForm.serverUrl = undefined
-
-    // Open invite dialog for the newly created space
-    openInviteDialog({ ...createdSpace, name: createForm.name, role: 'admin' as SpaceRole, serverUrl, createdAt: new Date().toISOString() })
   } catch (error) {
     console.error('Failed to create space:', error)
     add({

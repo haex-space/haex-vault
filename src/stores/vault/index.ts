@@ -237,6 +237,10 @@ export const useVaultStore = defineStore('vaultStore', () => {
         $setConsoleLoggerDeviceId(useDeviceStore().deviceId!)
       }
 
+      // Ensure default local space exists
+      const spacesStore = useSpacesStore()
+      await spacesStore.ensureDefaultSpaceAsync()
+
       // Automatic cleanup on vault open (non-blocking)
       performAutomaticCleanupAsync().catch((error) => {
         console.warn('[HaexSpace] Automatic cleanup failed:', error)

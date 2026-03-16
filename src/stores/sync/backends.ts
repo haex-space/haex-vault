@@ -234,9 +234,24 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
     await loadBackendsAsync()
   }
 
+  const getBackendNameByUrl = (serverUrl: string): string => {
+    const backend = backends.value.find(b => b.serverUrl === serverUrl)
+    return backend?.name || serverUrl
+  }
+
+  const getBackendHostByUrl = (serverUrl: string): string => {
+    try {
+      return new URL(serverUrl).hostname
+    } catch {
+      return serverUrl
+    }
+  }
+
   return {
     backends,
     enabledBackends,
+    getBackendNameByUrl,
+    getBackendHostByUrl,
     sortedBackends,
     temporaryBackend,
     loadBackendsAsync,

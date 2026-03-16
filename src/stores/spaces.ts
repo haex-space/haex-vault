@@ -156,6 +156,58 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   // Space CRUD
   // =========================================================================
 
+  /**
+   * Create a local space (no server required).
+   * Used for P2P sharing, local-only grouping, and the default space.
+   */
+  const createLocalSpaceAsync = async (spaceName: string, spaceId?: string) => {
+    const id = spaceId || crypto.randomUUID()
+    const spaceKey = generateSpaceKey()
+
+    await persistSpaceKeyAsync(id, 1, spaceKey)
+
+    // Add to local spaces list
+    const existing = spaces.value.find(s => s.id === id)
+    if (!existing) {
+      spaces.value.push({
+        id,
+        name: spaceName,
+        role: 'admin' as SpaceRole,
+        serverUrl: '',
+        createdAt: new Date().toISOString(),
+      })
+    }
+
+    log.info(`Created local space "${spaceName}" (${id})`)
+    return { id }
+  }
+
+  /**
+   * Ensures the default local space exists. Called on vault open.
+   * Uses a deterministic ID so it's the same across devices.
+   */
+  const DEFAULT_SPACE_ID = 'default'
+
+  const ensureDefaultSpaceAsync = async () => {
+    const existingKey = await getSpaceKeyAsync(DEFAULT_SPACE_ID, 1)
+    if (existingKey) {
+      // Default space already exists — ensure it's in the list
+      if (!spaces.value.find(s => s.id === DEFAULT_SPACE_ID)) {
+        spaces.value.push({
+          id: DEFAULT_SPACE_ID,
+          name: 'Personal',
+          role: 'admin' as SpaceRole,
+          serverUrl: '',
+          createdAt: '',
+        })
+      }
+      return
+    }
+
+    await createLocalSpaceAsync('Personal', DEFAULT_SPACE_ID)
+    log.info('Default space created')
+  }
+
   const createSpaceAsync = async (serverUrl: string, spaceName: string, selfLabel: string, identityId: string) => {
     const identity = await resolveIdentityAsync(identityId)
 
@@ -364,6 +416,8 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     getSpaceKey,
     getSpaceKeyAsync,
     persistSpaceKeyAsync,
+    createLocalSpaceAsync,
+    ensureDefaultSpaceAsync,
     createSpaceAsync,
     listSpacesAsync,
     resolveSpaceNameAsync,

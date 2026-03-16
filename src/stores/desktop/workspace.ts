@@ -287,6 +287,7 @@ export const useWorkspaceStore = defineStore('workspaceStore', () => {
               title: settingsWindow.name,
               icon: settingsWindow.icon || undefined,
               workspaceId,
+              params: { category: 'appearance' },
             })
           }
         },
