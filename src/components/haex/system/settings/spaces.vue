@@ -631,10 +631,9 @@ de:
     joined: Space beigetreten
     deleted: Space gelöscht
     updated: Space aktualisiert
-  errors:
-    updateFailed: Space konnte nicht aktualisiert werden
     left: Space verlassen
   errors:
+    updateFailed: Space konnte nicht aktualisiert werden
     createFailed: Space konnte nicht erstellt werden
     joinFailed: Beitritt fehlgeschlagen
     deleteFailed: Löschen fehlgeschlagen
