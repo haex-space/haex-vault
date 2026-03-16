@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { generateIdentityAsync, publicKeyToDidKeyAsync } from '@haex-space/vault-sdk'
 import { haexIdentities, haexIdentityClaims, type SelectHaexIdentities } from '~/database/schemas'
 import { createLogger } from '@/stores/logging'
@@ -148,15 +148,6 @@ export const useIdentityStore = defineStore('identityStore', () => {
   const addClaimAsync = async (identityPublicKey: string, type: string, value: string) => {
     const db = currentVault.value?.drizzle
     if (!db) throw new Error('No vault open')
-
-    // Each claim type can only exist once per identity
-    const existing = await db.select({ id: haexIdentityClaims.id })
-      .from(haexIdentityClaims)
-      .where(and(eq(haexIdentityClaims.identityId, identityPublicKey), eq(haexIdentityClaims.type, type)))
-      .limit(1)
-    if (existing.length > 0) {
-      throw new Error(`Claim type "${type}" already exists for this identity`)
-    }
 
     const id = crypto.randomUUID()
     await db.insert(haexIdentityClaims).values({ id, identityId: identityPublicKey, type, value })

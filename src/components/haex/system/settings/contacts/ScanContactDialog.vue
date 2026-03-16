@@ -181,6 +181,7 @@ interface ScannedClaim {
 
 interface ScannedContact {
   publicKey: string
+  endpointId?: string
   label: string
   claims: ScannedClaim[]
 }
@@ -325,6 +326,7 @@ const onScanSuccess = async (decodedText: string) => {
 
     scannedContact.value = {
       publicKey: payload.publicKey,
+      endpointId: payload.endpointId || undefined,
       label: payload.label || '',
       claims: (payload.claims || []).map((c: { type: string; value: string }) => ({
         type: c.type,

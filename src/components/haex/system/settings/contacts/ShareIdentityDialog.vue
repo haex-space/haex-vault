@@ -156,11 +156,16 @@ const generateQrAsync = async () => {
       .filter(c => selectedClaimIds.value.has(c.id))
       .map(c => ({ type: c.type, value: c.value }))
 
+    // Include P2P endpoint info for direct connections
+    const deviceStore = useDeviceStore()
+    const peerStore = usePeerStorageStore()
+
     const payload = {
-      v: 1,
+      v: 2,
       publicKey: identity.publicKey,
       label: identity.label,
       claims: selectedClaims,
+      endpointId: peerStore.nodeId || undefined,
     }
 
     qrDataUrl.value = await QRCode.toDataURL(JSON.stringify(payload), {

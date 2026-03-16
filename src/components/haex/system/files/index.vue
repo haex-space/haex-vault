@@ -96,20 +96,20 @@
       >
         <div
           v-for="peer in remotePeers"
-          :key="peer.deviceEndpointId"
+          :key="peer.endpointId"
           class="flex items-center gap-3 p-4 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
           @click="selectPeer(peer)"
         >
           <UIcon
-            name="i-lucide-monitor"
+            :name="peer.source === 'contact' ? 'i-lucide-user' : 'i-lucide-monitor'"
             class="w-6 h-6 text-primary shrink-0"
           />
           <div class="flex-1 min-w-0">
             <p class="font-medium truncate">
-              {{ peer.deviceName || peer.deviceEndpointId.slice(0, 16) + '...' }}
+              {{ peer.name }}
             </p>
             <p class="text-xs text-muted truncate">
-              {{ getSpaceName(peer.spaceId) }}
+              {{ peer.detail }}
             </p>
           </div>
           <UIcon
@@ -213,27 +213,76 @@
 
 <script setup lang="ts">
 import type { FileEntry } from '@bindings/FileEntry'
-import type { SelectHaexSpaceDevices } from '~/database/schemas'
+
+interface RemotePeer {
+  endpointId: string
+  name: string
+  source: 'space' | 'contact'
+  detail: string
+}
 
 const { t } = useI18n()
 const { add } = useToast()
 const peerStore = usePeerStorageStore()
 const spacesStore = useSpacesStore()
+const contactsStore = useContactsStore()
 
-const selectedPeer = ref<SelectHaexSpaceDevices | null>(null)
+const selectedPeer = ref<RemotePeer | null>(null)
 const currentPath = ref('/')
 const files = ref<FileEntry[]>([])
 const isLoading = ref(false)
 const loadError = ref<string | null>(null)
 
-// Remote peers (exclude own device)
-const remotePeers = computed(() =>
-  peerStore.spaceDevices.filter(d => d.deviceEndpointId !== peerStore.nodeId),
-)
+// Aggregate remote peers from spaces + contacts
+const remotePeers = computed(() => {
+  const peers: RemotePeer[] = []
+  const seen = new Set<string>()
 
-const selectedPeerName = computed(() =>
-  selectedPeer.value?.deviceName || selectedPeer.value?.deviceEndpointId.slice(0, 16) + '...',
-)
+  // Space devices (exclude own)
+  for (const device of peerStore.spaceDevices) {
+    if (device.deviceEndpointId === peerStore.nodeId) continue
+    if (seen.has(device.deviceEndpointId)) continue
+    seen.add(device.deviceEndpointId)
+
+    peers.push({
+      endpointId: device.deviceEndpointId,
+      name: device.deviceName || device.deviceEndpointId.slice(0, 16) + '...',
+      source: 'space',
+      detail: getSpaceName(device.spaceId),
+    })
+  }
+
+  // Contacts with device claims
+  for (const contact of contactsStore.contacts) {
+    const deviceClaims = contactClaims.value[contact.id] || []
+    for (const claim of deviceClaims) {
+      if (!claim.type.startsWith('device:') || !claim.value) continue
+      if (seen.has(claim.value)) continue
+      seen.add(claim.value)
+
+      const deviceName = claim.type.replace('device:', '')
+      peers.push({
+        endpointId: claim.value,
+        name: `${contact.label} (${deviceName})`,
+        source: 'contact',
+        detail: contact.label,
+      })
+    }
+  }
+
+  return peers
+})
+
+const selectedPeerName = computed(() => selectedPeer.value?.name || '')
+
+// Load contact claims for device endpoint lookup
+const contactClaims = ref<Record<string, { type: string; value: string }[]>>({})
+const loadContactClaimsAsync = async () => {
+  for (const contact of contactsStore.contacts) {
+    const claims = await contactsStore.getClaimsAsync(contact.id)
+    contactClaims.value[contact.id] = claims.map(c => ({ type: c.type, value: c.value }))
+  }
+}
 
 const pathSegments = computed(() =>
   currentPath.value.split('/').filter(Boolean),
@@ -276,7 +325,7 @@ const formatSize = (bytes: number) => {
   return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`
 }
 
-const selectPeer = (peer: SelectHaexSpaceDevices) => {
+const selectPeer = (peer: RemotePeer) => {
   selectedPeer.value = peer
   currentPath.value = '/'
   loadFiles()
@@ -321,7 +370,7 @@ const loadFiles = async () => {
 
   try {
     files.value = await peerStore.remoteListAsync(
-      selectedPeer.value.deviceEndpointId,
+      selectedPeer.value.endpointId,
       currentPath.value,
     )
   } catch (error) {
@@ -341,7 +390,7 @@ const downloadFile = async (file: FileEntry) => {
       : `${currentPath.value}/${file.name}`
 
     const base64 = await peerStore.remoteReadAsync(
-      selectedPeer.value.deviceEndpointId,
+      selectedPeer.value.endpointId,
       filePath,
     )
 
@@ -372,6 +421,8 @@ const downloadFile = async (file: FileEntry) => {
 onMounted(async () => {
   await peerStore.refreshStatusAsync()
   await peerStore.loadSpaceDevicesAsync()
+  await contactsStore.loadContactsAsync()
+  await loadContactClaimsAsync()
 })
 </script>
 
