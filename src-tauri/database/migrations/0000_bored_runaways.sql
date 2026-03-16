@@ -218,9 +218,11 @@ CREATE TABLE `haex_shared_space_sync` (
 CREATE TABLE `haex_space_devices` (
 	`id` text PRIMARY KEY NOT NULL,
 	`space_id` text NOT NULL,
+	`identity_id` text,
 	`device_endpoint_id` text NOT NULL,
 	`device_name` text NOT NULL,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP)
+	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
+	FOREIGN KEY (`identity_id`) REFERENCES `haex_identities`(`public_key`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_space_devices_space_device_unique` ON `haex_space_devices` (`space_id`,`device_endpoint_id`);--> statement-breakpoint

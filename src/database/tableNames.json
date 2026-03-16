@@ -225,6 +225,7 @@
       "columns": {
         "id": "id",
         "spaceId": "space_id",
+        "identityId": "identity_id",
         "deviceEndpointId": "device_endpoint_id",
         "deviceName": "device_name",
         "createdAt": "created_at"

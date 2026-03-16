@@ -1,0 +1,6 @@
+services:
+  peer-storage-tests:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.test
+    network_mode: host

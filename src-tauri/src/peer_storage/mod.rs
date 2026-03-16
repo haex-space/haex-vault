@@ -7,5 +7,7 @@ pub mod commands;
 pub mod endpoint;
 pub mod error;
 pub mod protocol;
+#[cfg(test)]
+mod tests;
 
 pub use commands::*;

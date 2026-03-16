@@ -172,7 +172,6 @@
                     color="error"
                     variant="ghost"
                     icon="i-lucide-trash-2"
-                    size="xs"
                     @click="onRemoveShareAsync(share.id)"
                   />
                 </div>

@@ -45,7 +45,7 @@ pub struct PeerEndpoint {
     /// Secret key for this node
     secret_key: SecretKey,
     /// Shared state (accessible by both endpoint methods and accept loop)
-    state: Arc<RwLock<PeerState>>,
+    pub(crate) state: Arc<RwLock<PeerState>>,
     /// Handle to the accept loop task
     accept_task: Option<tokio::task::JoinHandle<()>>,
 }
@@ -153,6 +153,11 @@ impl PeerEndpoint {
     /// Clear all shares (used before reloading from DB)
     pub async fn clear_shares(&self) {
         self.state.write().await.shares.clear();
+    }
+
+    /// Get a reference to the underlying iroh endpoint
+    pub fn endpoint_ref(&self) -> Option<&Endpoint> {
+        self.endpoint.as_ref()
     }
 
     /// Update the allowed peers map (remote EndpointId -> set of space_ids)
@@ -297,7 +302,7 @@ async fn accept_loop(endpoint: Endpoint, state: Arc<RwLock<PeerState>>) {
                     match allowed_spaces {
                         Some(spaces) if !spaces.is_empty() => {
                             eprintln!("[PeerStorage] Accepted connection from {remote} (access to {} spaces)", spaces.len());
-                            handle_connection(conn, state, spaces).await;
+                            handle_connection(conn, state).await;
                         }
                         _ => {
                             eprintln!("[PeerStorage] Rejected connection from {remote}: not registered in any shared space");
@@ -316,15 +321,26 @@ async fn accept_loop(endpoint: Endpoint, state: Arc<RwLock<PeerState>>) {
 async fn handle_connection(
     conn: iroh::endpoint::Connection,
     state: Arc<RwLock<PeerState>>,
-    allowed_spaces: HashSet<String>,
 ) {
     let remote = conn.remote_id();
+    let remote_str = remote.to_string();
 
     loop {
         match conn.accept_bi().await {
             Ok((send, mut recv)) => {
+                // Re-check access on every request — if peer was removed, close immediately
+                let allowed_spaces = {
+                    let s = state.read().await;
+                    s.allowed_peers.get(&remote_str).cloned()
+                };
+
+                let Some(allowed_spaces) = allowed_spaces.filter(|s| !s.is_empty()) else {
+                    eprintln!("[PeerStorage] Closing connection to {remote}: access revoked");
+                    conn.close(1u32.into(), b"access revoked");
+                    return;
+                };
+
                 let state = state.clone();
-                let allowed_spaces = allowed_spaces.clone();
                 tokio::spawn(async move {
                     if let Err(e) = handle_stream(send, &mut recv, &state, &allowed_spaces).await {
                         eprintln!("[PeerStorage] Stream error from {remote}: {e}");

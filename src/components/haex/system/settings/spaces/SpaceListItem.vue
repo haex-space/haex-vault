@@ -34,6 +34,14 @@
       <div class="flex gap-2 @xs:shrink-0">
         <UButton
           v-if="space.role === 'admin' || space.role === 'owner'"
+          color="neutral"
+          variant="ghost"
+          icon="i-lucide-pencil"
+          :title="t('actions.edit')"
+          @click="$emit('edit', space)"
+        />
+        <UButton
+          v-if="space.role === 'admin' || space.role === 'owner'"
           color="primary"
           variant="ghost"
           icon="i-lucide-user-plus"
@@ -69,6 +77,7 @@ const props = defineProps<{
 }>()
 
 defineEmits<{
+  edit: [space: DecryptedSpace]
   invite: [space: DecryptedSpace]
   delete: [space: DecryptedSpace]
   leave: [space: DecryptedSpace]
@@ -109,6 +118,7 @@ de:
     reader: Leser
   createdAt: Erstellt am
   actions:
+    edit: Bearbeiten
     invite: Einladen
     delete: Löschen
     leave: Verlassen

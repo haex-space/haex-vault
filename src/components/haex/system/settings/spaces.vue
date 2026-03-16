@@ -50,6 +50,7 @@
           v-for="space in spaces"
           :key="space.id"
           :space="space"
+          @edit="openEditDialog"
           @invite="openInviteDialog"
           @delete="prepareDeleteSpace"
           @leave="prepareLeaveSpace"
@@ -153,6 +154,48 @@
       </template>
     </UiDrawerModal>
 
+    <!-- Edit Space Dialog -->
+    <UiDrawerModal
+      v-model:open="showEditDialog"
+      :title="t('edit.title')"
+    >
+      <template #content>
+        <UiInput
+          v-model="editForm.name"
+          :label="t('edit.nameLabel')"
+          @keydown.enter.prevent="onSaveEditAsync"
+        />
+        <div class="space-y-2">
+          <label class="text-sm font-medium">{{ t('edit.serverLabel') }}</label>
+          <USelectMenu
+            v-model="editForm.serverUrl"
+            :items="editServerOptions"
+            :placeholder="t('edit.serverPlaceholder')"
+            class="w-full"
+          />
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex justify-between gap-4">
+          <UButton
+            color="neutral"
+            variant="outline"
+            @click="showEditDialog = false"
+          >
+            {{ t('actions.cancel') }}
+          </UButton>
+          <UiButton
+            icon="i-lucide-save"
+            :loading="isSavingEdit"
+            :disabled="!editForm.name?.trim()"
+            @click="onSaveEditAsync"
+          >
+            {{ t('actions.save') }}
+          </UiButton>
+        </div>
+      </template>
+    </UiDrawerModal>
+
     <!-- Invite Member Dialog -->
     <SpaceInviteDialog
       v-model:open="showInviteDialog"
@@ -230,6 +273,71 @@ const inviteSpaceId = ref('')
 const inviteServerUrl = ref('')
 const inviteSpaceCallerRole = ref<SpaceRole>('member')
 const inviteIdentityId = ref('')
+
+// Edit dialog
+const showEditDialog = ref(false)
+const isSavingEdit = ref(false)
+const editingSpace = ref<DecryptedSpace | null>(null)
+const editForm = reactive({
+  name: '',
+  serverUrl: undefined as { label: string; value: string } | undefined,
+})
+
+const editServerOptions = computed(() => {
+  const options = [{ label: t('edit.noServer'), value: '' }]
+  for (const backend of syncBackends.value) {
+    options.push({ label: backend.name, value: backend.serverUrl })
+  }
+  return options
+})
+
+const openEditDialog = (space: DecryptedSpace) => {
+  editingSpace.value = space
+  editForm.name = space.name
+  editForm.serverUrl = space.serverUrl
+    ? editServerOptions.value.find(o => o.value === space.serverUrl)
+    : editServerOptions.value[0]
+  showEditDialog.value = true
+}
+
+const onSaveEditAsync = async () => {
+  if (!editingSpace.value || !editForm.name?.trim()) return
+
+  isSavingEdit.value = true
+  try {
+    const space = editingSpace.value
+    const newName = editForm.name.trim()
+    const newServerUrl = editForm.serverUrl?.value || ''
+    const oldServerUrl = space.serverUrl
+
+    // Name changed?
+    if (newName !== space.name) {
+      await spacesStore.updateSpaceNameAsync(space.id, newName)
+    }
+
+    // Server changed?
+    if (newServerUrl !== oldServerUrl) {
+      const identityId = identityStore.identities[0]?.publicKey
+      if (!identityId && newServerUrl) {
+        add({ title: t('errors.noIdentity'), color: 'error' })
+        return
+      }
+      await spacesStore.migrateSpaceServerAsync(space.id, oldServerUrl, newServerUrl, identityId!)
+    }
+
+    add({ title: t('success.updated'), color: 'success' })
+    showEditDialog.value = false
+  } catch (error) {
+    console.error('Failed to update space:', error)
+    add({
+      title: t('errors.updateFailed'),
+      description: error instanceof Error ? error.message : 'Unknown error',
+      color: 'error',
+    })
+  } finally {
+    isSavingEdit.value = false
+  }
+}
 
 // Delete/Leave target
 const targetSpace = ref<DecryptedSpace | null>(null)
@@ -501,6 +609,12 @@ de:
     description: Tritt einem Space mit einem Einladungslink bei
     inviteLabel: Einladungslink
     invitePlaceholder: haexvault://invite/...
+  edit:
+    title: Space bearbeiten
+    nameLabel: Name
+    serverLabel: Sync-Server
+    serverPlaceholder: Server auswählen
+    noServer: Kein Server (lokal)
   delete:
     title: Space löschen
     description: Möchtest du diesen Space wirklich löschen? Alle Daten werden unwiderruflich entfernt.
@@ -511,10 +625,14 @@ de:
     create: Erstellen
     join: Beitreten
     cancel: Abbrechen
+    save: Speichern
   success:
     created: Space erstellt
     joined: Space beigetreten
     deleted: Space gelöscht
+    updated: Space aktualisiert
+  errors:
+    updateFailed: Space konnte nicht aktualisiert werden
     left: Space verlassen
   errors:
     createFailed: Space konnte nicht erstellt werden
@@ -543,6 +661,12 @@ en:
     description: Join a space using an invite link
     inviteLabel: Invite link
     invitePlaceholder: haexvault://invite/...
+  edit:
+    title: Edit Space
+    nameLabel: Name
+    serverLabel: Sync Server
+    serverPlaceholder: Select server
+    noServer: No server (local)
   delete:
     title: Delete Space
     description: Do you really want to delete this space? All data will be permanently removed.
@@ -553,13 +677,16 @@ en:
     create: Create
     join: Join
     cancel: Cancel
+    save: Save
   success:
     created: Space created
     joined: Joined space
     deleted: Space deleted
+    updated: Space updated
     left: Left space
   errors:
     createFailed: Failed to create space
+    updateFailed: Failed to update space
     joinFailed: Failed to join space
     deleteFailed: Failed to delete space
     leaveFailed: Failed to leave space

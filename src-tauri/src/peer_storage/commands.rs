@@ -67,7 +67,7 @@ fn load_allowed_peers_from_db(
     let mut stmt = conn
         .prepare(
             "SELECT device_endpoint_id, space_id FROM haex_space_devices \
-             WHERE device_endpoint_id != ?1 AND IFNULL(haex_tombstone, 0) != 1",
+             WHERE device_endpoint_id != ?1",
         )
         .map_err(|e| PeerStorageError::Database {
             reason: format!("Failed to prepare allowed peers query: {e}"),

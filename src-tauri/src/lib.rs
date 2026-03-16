@@ -9,7 +9,7 @@ mod localsend;
 mod logging;
 #[cfg(desktop)]
 mod shortcuts;
-mod peer_storage;
+pub mod peer_storage;
 mod remote_storage;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod window;

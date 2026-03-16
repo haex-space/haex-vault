@@ -73,13 +73,21 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   // Space device registration
   // =========================================================================
 
-  const registerDeviceInSpaceAsync = async (spaceId: string, deviceName: string) => {
+  const registerDeviceInSpaceAsync = async (spaceId: string, deviceName: string, identityPublicKey?: string) => {
     const db = currentVault.value?.drizzle
     if (!db) throw new Error('No vault open')
     if (!nodeId.value) throw new Error('Endpoint ID not available')
 
+    // Resolve identity: use provided or first available
+    let identityId = identityPublicKey
+    if (!identityId) {
+      const identityStore = useIdentityStore()
+      identityId = identityStore.identities[0]?.publicKey
+    }
+
     await db.insert(haexSpaceDevices).values({
       spaceId,
+      identityId: identityId || null,
       deviceEndpointId: nodeId.value,
       deviceName,
     })

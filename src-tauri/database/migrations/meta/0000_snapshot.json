@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "b981f9cd-a73a-46e1-8891-436eddd97c52",
+  "id": "79d57f62-5c02-416d-92e9-f8617ef78115",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "haex_crdt_configs_no_sync": {
@@ -1429,6 +1429,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "identity_id": {
+          "name": "identity_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "device_endpoint_id": {
           "name": "device_endpoint_id",
           "type": "text",
@@ -1462,7 +1469,21 @@
           "isUnique": true
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "haex_space_devices_identity_id_haex_identities_public_key_fk": {
+          "name": "haex_space_devices_identity_id_haex_identities_public_key_fk",
+          "tableFrom": "haex_space_devices",
+          "tableTo": "haex_identities",
+          "columnsFrom": [
+            "identity_id"
+          ],
+          "columnsTo": [
+            "public_key"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}

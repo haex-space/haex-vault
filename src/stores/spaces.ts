@@ -12,7 +12,8 @@ import {
   type DecryptedSpace,
 } from '@haex-space/vault-sdk'
 import { eq, and } from 'drizzle-orm'
-import { haexSpaceKeys } from '~/database/schemas'
+import { invoke } from '@tauri-apps/api/core'
+import { haexSpaceKeys, haexSpaceDevices } from '~/database/schemas'
 import { createLogger } from '@/stores/logging'
 import { getAuthTokenAsync } from '@/stores/sync/engine/supabase'
 
@@ -245,6 +246,96 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     return { id: spaceId }
   }
 
+  /**
+   * Update a space's name. If the space has a server, update there too.
+   */
+  const updateSpaceNameAsync = async (spaceId: string, newName: string) => {
+    const space = spaces.value.find(s => s.id === spaceId)
+    if (!space) throw new Error('Space not found')
+
+    // Update on server if remote
+    if (space.serverUrl) {
+      const spaceKey = await getSpaceKeyAsync(spaceId, 1)
+      if (!spaceKey) throw new Error('Space key not found')
+
+      const { encryptedName, nameNonce } = await encryptSpaceNameAsync(spaceKey, newName)
+      const response = await fetchWithAuth(`${space.serverUrl}/spaces/${spaceId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ encryptedName, nameNonce }),
+      })
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(`Failed to update space name: ${error.error || response.statusText}`)
+      }
+    }
+
+    // Update locally
+    space.name = newName
+    log.info(`Updated space "${spaceId}" name to "${newName}"`)
+  }
+
+  /**
+   * Migrate a space from one server to another (or to/from local).
+   */
+  const migrateSpaceServerAsync = async (
+    spaceId: string,
+    oldServerUrl: string,
+    newServerUrl: string,
+    identityId: string,
+  ) => {
+    const identity = await resolveIdentityAsync(identityId)
+    const spaceKey = await getSpaceKeyAsync(spaceId, 1)
+    if (!spaceKey) throw new Error('Space key not found')
+
+    const space = spaces.value.find(s => s.id === spaceId)
+    if (!space) throw new Error('Space not found')
+
+    // 1. Delete from old server (if it had one)
+    if (oldServerUrl) {
+      try {
+        const response = await fetchWithAuth(`${oldServerUrl}/spaces/${spaceId}`, {
+          method: 'DELETE',
+        })
+        if (!response.ok && response.status !== 404) {
+          log.warn(`Failed to delete space from old server (${response.status}), proceeding anyway`)
+        }
+      } catch (e) {
+        log.warn(`Old server unreachable, space may remain there: ${e}`)
+        // TODO: Queue for later deletion
+      }
+    }
+
+    // 2. Create on new server (if it has one)
+    if (newServerUrl) {
+      const { encryptedName, nameNonce } = await encryptSpaceNameAsync(spaceKey, space.name)
+      const keyGrant = await encryptWithPublicKeyAsync(spaceKey, identity.publicKey)
+
+      const response = await fetchWithAuth(`${newServerUrl}/spaces`, {
+        method: 'POST',
+        body: JSON.stringify({
+          id: spaceId,
+          encryptedName,
+          nameNonce,
+          label: identity.label,
+          keyGrant: {
+            encryptedSpaceKey: keyGrant.encryptedData,
+            keyNonce: keyGrant.nonce,
+            ephemeralPublicKey: keyGrant.ephemeralPublicKey,
+          },
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(`Failed to create space on new server: ${error.error || response.statusText}`)
+      }
+    }
+
+    // 3. Update local state
+    space.serverUrl = newServerUrl
+    log.info(`Migrated space "${spaceId}" from "${oldServerUrl || 'local'}" to "${newServerUrl || 'local'}"`)
+  }
+
   const listSpacesAsync = async (serverUrl: string) => {
     const response = await fetchWithAuth(`${serverUrl}/spaces`)
     if (!response.ok) throw new Error('Failed to list spaces')
@@ -406,6 +497,48 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     log.info(`Deleted space ${spaceId}`)
   }
 
+  /**
+   * Remove an identity from a space. Deletes all devices of this identity
+   * from haex_space_devices, which revokes P2P access via CRDT sync.
+   * Also removes from server if remote space.
+   */
+  const removeIdentityFromSpaceAsync = async (spaceId: string, identityPublicKey: string) => {
+    const db = currentVault.value?.drizzle
+    if (!db) throw new Error('No vault open')
+
+    // Delete all devices of this identity from the space
+    await db.delete(haexSpaceDevices)
+      .where(and(
+        eq(haexSpaceDevices.spaceId, spaceId),
+        eq(haexSpaceDevices.identityId, identityPublicKey),
+      ))
+
+    // Remove from server if remote
+    const space = spaces.value.find(s => s.id === spaceId)
+    if (space?.serverUrl) {
+      try {
+        const response = await fetchWithAuth(
+          `${space.serverUrl}/spaces/${spaceId}/members/${encodeURIComponent(identityPublicKey)}`,
+          { method: 'DELETE' },
+        )
+        if (!response.ok && response.status !== 404) {
+          log.warn(`Failed to remove member from server (${response.status})`)
+        }
+      } catch (e) {
+        log.warn(`Server unreachable, member removed locally only: ${e}`)
+      }
+    }
+
+    // Immediately reload P2P allowed peers so the removed identity is blocked
+    try {
+      await invoke('peer_storage_reload_shares')
+    } catch {
+      // P2P endpoint may not be running — that's fine
+    }
+
+    log.info(`Removed identity ${identityPublicKey.slice(0, 20)}... from space ${spaceId}`)
+  }
+
   const clearCache = () => {
     spaceKeyCache.clear()
     spaces.value = []
@@ -419,6 +552,8 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     createLocalSpaceAsync,
     ensureDefaultSpaceAsync,
     createSpaceAsync,
+    updateSpaceNameAsync,
+    migrateSpaceServerAsync,
     listSpacesAsync,
     resolveSpaceNameAsync,
     inviteMemberAsync,
@@ -426,6 +561,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     leaveSpaceAsync,
     deleteSpaceAsync,
     fetchWithSpaceToken,
+    removeIdentityFromSpaceAsync,
     clearCache,
   }
 })

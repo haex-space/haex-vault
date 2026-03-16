@@ -463,6 +463,8 @@ export const haexSpaceDevices = sqliteTable(
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
     spaceId: text(tableNames.haex.space_devices.columns.spaceId).notNull(),
+    identityId: text(tableNames.haex.space_devices.columns.identityId)
+      .references(() => haexIdentities.publicKey),
     deviceEndpointId: text(tableNames.haex.space_devices.columns.deviceEndpointId).notNull(),
     deviceName: text(tableNames.haex.space_devices.columns.deviceName).notNull(),
     createdAt: text(tableNames.haex.space_devices.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
