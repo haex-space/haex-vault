@@ -165,7 +165,7 @@
                   <div class="min-w-0 flex-1">
                     <p class="text-sm font-medium">{{ share.name }}</p>
                     <p class="text-xs text-muted truncate">
-                      {{ share.localPath }}
+                      {{ formatPath(share.localPath) }}
                     </p>
                   </div>
                   <UiButton
@@ -202,7 +202,7 @@
                   <div class="min-w-0 flex-1">
                     <p class="text-sm font-medium">{{ share.name }}</p>
                     <p class="text-xs text-muted truncate">
-                      {{ share.localPath }}
+                      {{ formatPath(share.localPath) }}
                     </p>
                   </div>
                 </div>
@@ -371,11 +371,45 @@ const onCopyNodeId = async () => {
   add({ title: t('toast.copied'), color: 'success' })
 }
 
+const formatPath = (path: string): string => {
+  // Android Content URI: {"uri":"content://...documents/tree/primary%3ADCIM"}
+  try {
+    const parsed = JSON.parse(path)
+    if (parsed.uri) {
+      const decoded = decodeURIComponent(parsed.uri)
+      const treeMatch = decoded.match(/tree\/[^:]+:(.+)/)
+      if (treeMatch) return treeMatch[1]
+      return decoded.replace('content://', '').split('/tree/').pop() || decoded
+    }
+  } catch {
+    // Not JSON — regular path
+  }
+  return path
+}
+
+const extractFolderName = (path: string): string => {
+  // Android Content URI: {"uri":"content://...documents/tree/primary%3ADCIM"}
+  try {
+    const parsed = JSON.parse(path)
+    if (parsed.uri) {
+      const decoded = decodeURIComponent(parsed.uri)
+      // Extract path after "tree/" or last ":" segment
+      const treeMatch = decoded.match(/tree\/[^:]+:(.+)/)
+      if (treeMatch) return treeMatch[1].split('/').pop() || 'Shared Folder'
+      const lastSegment = decoded.split('/').pop() || decoded.split(':').pop()
+      return lastSegment || 'Shared Folder'
+    }
+  } catch {
+    // Not JSON — regular path
+  }
+  return path.split(/[/\\]/).pop() || 'Shared Folder'
+}
+
 const onAddShareAsync = async (spaceId: string) => {
   const selected = await invoke<string | null>('filesystem_select_folder', {})
   if (!selected) return
 
-  const name = selected.split(/[/\\]/).pop() || 'Shared Folder'
+  const name = extractFolderName(selected)
 
   try {
     await store.addShareAsync(spaceId, name, selected)
