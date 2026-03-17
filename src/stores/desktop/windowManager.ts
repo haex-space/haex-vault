@@ -94,7 +94,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     files: {
       id: 'files',
       name: 'Files',
-      icon: 'i-lucide-folder',
+      icon: 'i-mdi-folder',
       component: defineAsyncComponent(
         () => import('@/components/haex/system/files/index.vue'),
       ),
