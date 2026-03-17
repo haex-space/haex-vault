@@ -152,9 +152,9 @@
                   name="i-lucide-monitor"
                   class="w-3.5 h-3.5 text-success"
                 />
-                <span class="text-sm font-medium text-success">{{
-                  t('shares.thisDevice')
-                }}</span>
+                <span class="text-sm font-medium text-success">
+                  {{ t('shares.thisDevice') }}
+                </span>
               </div>
               <div class="space-y-2 ml-5">
                 <div
@@ -403,7 +403,8 @@ const extractFolderName = (path: string): string => {
       const decoded = decodeURIComponent(parsed.uri)
       // Extract path after "tree/" or last ":" segment
       const treeMatch = decoded.match(/tree\/[^:]+:(.+)/)
-      if (treeMatch?.[1]) return treeMatch[1].split('/').pop() ?? 'Shared Folder'
+      if (treeMatch?.[1])
+        return treeMatch[1].split('/').pop() ?? 'Shared Folder'
       const lastSegment = decoded.split('/').pop() || decoded.split(':').pop()
       return lastSegment || 'Shared Folder'
     }
@@ -417,7 +418,8 @@ const onBrowseShare = (share: SelectHaexPeerShares) => {
   const isOwnDevice = share.deviceEndpointId === store.nodeId
   const deviceName = isOwnDevice
     ? t('shares.thisDevice')
-    : getDeviceName(share.deviceEndpointId) || share.deviceEndpointId.slice(0, 12) + '…'
+    : getDeviceName(share.deviceEndpointId) ||
+      share.deviceEndpointId.slice(0, 12) + '…'
 
   windowManager.openWindowAsync({
     type: 'system',

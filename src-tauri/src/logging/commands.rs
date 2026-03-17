@@ -48,3 +48,49 @@ pub fn log_cleanup(
         cleanup_logs(conn)
     })
 }
+
+/// Delete specific log entries by ID.
+#[tauri::command]
+pub fn log_delete(
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+) -> Result<usize, DatabaseError> {
+    if ids.is_empty() {
+        return Ok(0);
+    }
+    with_connection(&state.db, |conn| {
+        let placeholders: Vec<String> = ids.iter().enumerate().map(|(i, _)| format!("?{}", i + 1)).collect();
+        let sql = format!(
+            "DELETE FROM {} WHERE id IN ({})",
+            crate::table_names::TABLE_LOGS,
+            placeholders.join(",")
+        );
+        let params: Vec<Box<dyn rusqlite::types::ToSql>> = ids.iter().map(|id| Box::new(id.clone()) as Box<dyn rusqlite::types::ToSql>).collect();
+        let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+        let deleted = conn.execute(&sql, param_refs.as_slice())
+            .map_err(|e| DatabaseError::ExecutionError {
+                sql: "DELETE logs".into(),
+                reason: e.to_string(),
+                table: Some("haex_logs".into()),
+            })?;
+        Ok(deleted)
+    })
+}
+
+/// Delete all log entries.
+#[tauri::command]
+pub fn log_clear_all(
+    state: State<'_, AppState>,
+) -> Result<usize, DatabaseError> {
+    with_connection(&state.db, |conn| {
+        let deleted = conn.execute(
+            &format!("DELETE FROM {}", crate::table_names::TABLE_LOGS),
+            [],
+        ).map_err(|e| DatabaseError::ExecutionError {
+            sql: "DELETE all logs".into(),
+            reason: e.to_string(),
+            table: Some("haex_logs".into()),
+        })?;
+        Ok(deleted)
+    })
+}

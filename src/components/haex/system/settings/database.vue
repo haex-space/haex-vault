@@ -1,5 +1,17 @@
 <template>
-  <HaexSystemSettingsLayout :title="t('title')">
+  <div class="h-full">
+    <!-- Table Browser View -->
+    <HaexSystemSettingsTableBrowser
+      v-if="browseTable"
+      :table-name="browseTable"
+      @back="browseTable = null"
+    />
+
+    <!-- Database Overview -->
+    <HaexSystemSettingsLayout
+      v-else
+      :title="t('title')"
+    >
     <!-- Loading State -->
       <div
         v-if="isLoading"
@@ -108,7 +120,8 @@
                 <div
                   v-for="table in item.tables"
                   :key="table.name"
-                  class="flex items-center justify-between py-2 border-b border-default last:border-0 gap-4"
+                  class="flex items-center justify-between py-2 border-b border-default last:border-0 gap-4 cursor-pointer hover:bg-muted/50 rounded px-2 -mx-2 transition-colors"
+                  @click="openTableBrowser(table.name)"
                 >
                   <span class="font-mono text-sm truncate min-w-0">{{
                     formatTableName(table.name)
@@ -127,6 +140,10 @@
                     >
                       {{ table.tombstoneRows }}
                     </span>
+                    <UIcon
+                      name="i-lucide-chevron-right"
+                      class="w-4 h-4 text-muted"
+                    />
                   </div>
                 </div>
               </div>
@@ -207,7 +224,8 @@
           </div>
         </div>
       </template>
-  </HaexSystemSettingsLayout>
+    </HaexSystemSettingsLayout>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -279,6 +297,12 @@ const extensionItems = computed(() => {
     }
   })
 })
+
+const browseTable = ref<string | null>(null)
+
+const openTableBrowser = (tableName: string) => {
+  browseTable.value = tableName
+}
 
 const formatTableName = (name: string): string => {
   // Remove extension prefix for readability
@@ -378,6 +402,9 @@ de:
   forceDelete:
     success: Alle Löschmarkierungen wurden entfernt
     error: Fehler beim Löschen der Löschmarkierungen
+  browser:
+    rows: Einträge
+    empty: Keine Einträge
   errors:
     loadFailed: Datenbankinformationen konnten nicht geladen werden
 
@@ -413,6 +440,9 @@ en:
   forceDelete:
     success: All deletion markers have been removed
     error: Failed to delete deletion markers
+  browser:
+    rows: rows
+    empty: No entries
   errors:
     loadFailed: Could not load database information
 </i18n>

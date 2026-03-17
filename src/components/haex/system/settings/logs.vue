@@ -58,6 +58,14 @@
                 :title="t('actions.copyAll')"
                 @click="copyAllLogs"
               />
+              <UButton
+                v-if="logs.length > 0"
+                icon="i-lucide-trash-2"
+                color="error"
+                variant="ghost"
+                :title="t('actions.clearAll')"
+                @click="clearAllLogsAsync"
+              />
             </div>
           </div>
 
@@ -124,6 +132,13 @@
                   variant="ghost"
                   class="shrink-0"
                   @click="copyLogEntry(log)"
+                />
+                <UButton
+                  icon="i-lucide-trash-2"
+                  color="error"
+                  variant="ghost"
+                  class="shrink-0"
+                  @click="deleteLogAsync(log.id)"
                 />
               </div>
               <pre class="whitespace-pre-wrap wrap-break-word text-default">{{ log.message }}</pre>
@@ -408,6 +423,24 @@ const copyLogEntry = async (log: LogEntry) => {
   await copy(text)
 }
 
+const deleteLogAsync = async (id: string) => {
+  try {
+    await invoke('log_delete', { ids: [id] })
+    logs.value = logs.value.filter(l => l.id !== id)
+  } catch (error) {
+    console.error('Failed to delete log:', error)
+  }
+}
+
+const clearAllLogsAsync = async () => {
+  try {
+    await invoke('log_clear_all')
+    logs.value = []
+  } catch (error) {
+    console.error('Failed to clear logs:', error)
+  }
+}
+
 const copyAllLogs = async () => {
   const text = filteredLogs.value
     .map(l => `[${l.timestamp}] [${l.level.toUpperCase()}] [${getSourceLabel(l)}] ${l.message}`)
@@ -565,6 +598,7 @@ de:
     loadMore: Mehr laden
     copyAll: Alle kopieren
     copyEntry: Eintrag kopieren
+    clearAll: Alle Logs löschen
 en:
   title: Logs
   entries: entries
@@ -600,4 +634,5 @@ en:
     loadMore: Load more
     copyAll: Copy all
     copyEntry: Copy entry
+    clearAll: Clear all logs
 </i18n>
