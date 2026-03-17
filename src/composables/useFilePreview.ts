@@ -13,6 +13,7 @@ const MIME_TYPES: Record<string, string> = {
   mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm',
   mp3: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac',
   ogg: 'audio/ogg', aac: 'audio/aac', m4a: 'audio/mp4',
+  pdf: 'application/pdf',
 }
 
 export type MediaType = 'image' | 'video' | 'audio' | 'pdf' | 'unsupported'

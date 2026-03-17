@@ -255,13 +255,13 @@ export function useFileBrowser() {
 
     const mediaType = preview.getMediaType(file.name)
 
-    // Images → inline preview (fast, lightweight)
-    if (mediaType === 'image') {
+    // Images + PDFs → inline preview
+    if (mediaType === 'image' || mediaType === 'pdf') {
       await openPreview(file)
       return
     }
 
-    // Local files (video, pdf, audio, etc.) → open with system app
+    // Local files (video, audio, etc.) → open with system app
     if (selectedPeer.value?.localPath) {
       const absPath = resolveLocalAbsolutePath(file)
       if (absPath) {

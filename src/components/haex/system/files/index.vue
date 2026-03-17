@@ -390,6 +390,12 @@
           class="max-w-full max-h-[85vh] object-contain rounded"
         >
 
+        <!-- PDF -->
+        <HaexSystemFilesPdfViewer
+          v-else-if="browser.preview.previewType.value === 'pdf' && browser.preview.previewUrl.value"
+          :src="browser.preview.previewUrl.value"
+        />
+
         <!-- Video -->
         <video
           v-else-if="browser.preview.previewType.value === 'video' && browser.preview.previewUrl.value"

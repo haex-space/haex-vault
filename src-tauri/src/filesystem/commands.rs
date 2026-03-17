@@ -285,7 +285,7 @@ fn read_dir_android(
     let mut entries: Vec<DirEntry> = dir_entries
         .filter_map(|entry| {
             let name = entry.name().to_string();
-            let is_dir = entry.entry_type().is_dir();
+            let is_dir = entry.is_dir();
             let modified = entry.last_modified()
                 .duration_since(UNIX_EPOCH)
                 .ok()

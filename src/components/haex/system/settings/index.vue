@@ -194,7 +194,7 @@ const categories = computed(() => [
   {
     value: 'devices',
     label: t('categories.devices'),
-    icon: 'i-heroicons-device-phone-mobile',
+    icon: 'i-lucide-monitor-smartphone',
     active: activeCategory.value === 'devices',
     click: () => {
       navigateToCategory('devices')
@@ -203,7 +203,7 @@ const categories = computed(() => [
   {
     value: 'logs',
     label: t('categories.logs'),
-    icon: 'i-heroicons-document-text',
+    icon: 'i-lucide-bug',
     active: activeCategory.value === 'logs',
     click: () => {
       navigateToCategory('logs')
