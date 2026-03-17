@@ -45,4 +45,6 @@ pub struct ShellExitEvent {
 #[ts(export)]
 pub struct ShellCreateResponse {
     pub session_id: String,
+    /// The resolved shell name (e.g., "bash", "zsh", "fish")
+    pub shell_name: String,
 }

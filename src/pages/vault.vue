@@ -31,6 +31,7 @@ import { VaultSettingsKeyEnum, VaultSettingsTypeEnum } from '~/config/vault-sett
 const { readNotificationsAsync } = useNotificationStore()
 const tourStore = useTourStore()
 const { loadExtensionsAsync } = useExtensionsStore()
+const { setupEventListeners: setupBroadcastListeners } = useExtensionBroadcastStore()
 const { syncLocaleAsync, syncThemeAsync, syncVaultNameAsync } =
   useVaultSettingsStore()
 const { syncDesktopIconSizeAsync } = useDesktopStore()
@@ -69,6 +70,12 @@ onMounted(async () => {
       loadExtensionsAsync(),
       readNotificationsAsync(),
     ])
+
+    // Initialize extension broadcast event listeners early so external requests
+    // (from browser extensions via WebSocket bridge) can be forwarded to
+    // extension iframes as soon as they mount — not only after the first
+    // extension-frame.vue renders.
+    setupBroadcastListeners()
 
     // Show onboarding tour for new vaults (no onboarding_completed setting)
     const onboarding = await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({

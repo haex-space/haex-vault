@@ -41,7 +41,7 @@ impl PtyManager {
         app_handle: &tauri::AppHandle,
         extension_id: &str,
         options: ShellCreateOptions,
-    ) -> Result<String, String> {
+    ) -> Result<(String, String), String> {
         let session_id = uuid::Uuid::new_v4().to_string();
 
         let cols = options.cols.unwrap_or(80);
@@ -62,6 +62,13 @@ impl PtyManager {
             .shell
             .or_else(|| std::env::var("SHELL").ok())
             .unwrap_or_else(|| "/bin/sh".to_string());
+
+        // Extract shell name from path (e.g., "/bin/bash" → "bash")
+        let shell_name = std::path::Path::new(&shell)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("shell")
+            .to_string();
 
         // Build command
         let mut cmd = CommandBuilder::new(&shell);
@@ -175,7 +182,7 @@ impl PtyManager {
             }
         });
 
-        Ok(session_id)
+        Ok((session_id, shell_name))
     }
 
     /// Write data to a PTY session's stdin
@@ -262,7 +269,7 @@ impl PtyManager {
         _app_handle: &tauri::AppHandle,
         _extension_id: &str,
         _options: ShellCreateOptions,
-    ) -> Result<String, String> {
+    ) -> Result<(String, String), String> {
         Err("Local shell is not available on this platform. Use SSH to connect to a remote server.".to_string())
     }
 

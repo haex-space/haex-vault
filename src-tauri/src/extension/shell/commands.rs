@@ -40,7 +40,7 @@ pub async fn extension_shell_create(
 
     check_shell_execute_permission(&app_handle, &state, &extension_id).await?;
 
-    let session_id = state
+    let (session_id, shell_name) = state
         .pty_manager
         .create_session(&app_handle, &extension_id, options)
         .await
@@ -49,7 +49,7 @@ pub async fn extension_shell_create(
             exit_code: None,
         })?;
 
-    Ok(ShellCreateResponse { session_id })
+    Ok(ShellCreateResponse { session_id, shell_name })
 }
 
 /// Write data to a shell session's stdin
