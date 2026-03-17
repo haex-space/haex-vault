@@ -7,7 +7,6 @@
           v-if="limits?.isCustom"
           color="info"
           variant="subtle"
-          size="xs"
         >
           {{ t('customLimits') }}
         </UBadge>

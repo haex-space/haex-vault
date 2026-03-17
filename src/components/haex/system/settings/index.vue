@@ -9,8 +9,8 @@
           v-for="cat in categories"
           :key="cat.value"
           :class="[
-            'flex items-center gap-3 p-2 @xl:p-3 text-base font-medium rounded-md transition-colors',
-            'justify-center aspect-square @xl:aspect-auto @xl:justify-start',
+            'flex items-center gap-3 p-2 @3xl:p-3 text-base font-medium rounded-md transition-colors',
+            'justify-center aspect-square @3xl:aspect-auto @3xl:justify-start',
             cat.active
               ? 'bg-primary text-white'
               : 'text-highlighted hover:bg-muted',
@@ -22,9 +22,9 @@
         >
           <UIcon
             :name="cat.icon"
-            class="size-8 @xl:size-6 shrink-0"
+            class="size-8 @3xl:size-6 shrink-0"
           />
-          <span class="hidden @xl:block">{{ cat.label }}</span>
+          <span class="hidden @3xl:block">{{ cat.label }}</span>
         </button>
       </nav>
     </template>
@@ -110,7 +110,7 @@ const categories = computed(() => [
   {
     value: 'extensions',
     label: t('categories.extensions'),
-    icon: 'i-heroicons-puzzle-piece',
+    icon: 'i-lucide-blocks',
     active: activeCategory.value === 'extensions',
     tourId: 'settings-nav-extensions',
     click: () => {
@@ -139,7 +139,7 @@ const categories = computed(() => [
   {
     value: 'sync',
     label: t('categories.sync'),
-    icon: 'i-lucide-server',
+    icon: 'i-lucide-refresh-cw',
     active: activeCategory.value === 'sync',
     tourId: 'settings-nav-sync',
     click: () => {
@@ -176,7 +176,7 @@ const categories = computed(() => [
   {
     value: 'externalClients',
     label: t('categories.externalClients'),
-    icon: 'i-heroicons-globe-alt',
+    icon: 'i-lucide-external-link',
     active: activeCategory.value === 'externalClients',
     click: () => {
       navigateToCategory('externalClients')

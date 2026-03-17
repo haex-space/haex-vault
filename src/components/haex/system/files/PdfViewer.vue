@@ -94,7 +94,7 @@ const renderPage = async (pageNum: number) => {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
 
-  await page.render({ canvasContext: ctx, viewport }).promise
+  await page.render({ canvasContext: ctx, viewport } as any).promise
 }
 
 const renderAll = async () => {

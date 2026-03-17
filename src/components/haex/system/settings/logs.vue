@@ -102,14 +102,12 @@
                 <UBadge
                   :color="levelColors[log.level] || 'neutral'"
                   variant="subtle"
-                  size="xs"
                 >
                   {{ log.level }}
                 </UBadge>
                 <UBadge
                   color="neutral"
                   variant="outline"
-                  size="xs"
                 >
                   {{ getSourceLabel(log) }}
                 </UBadge>

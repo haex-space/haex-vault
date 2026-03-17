@@ -106,7 +106,6 @@
             v-for="tag in extension.tags?.slice(0, 3)"
             :key="tag"
             :label="tag"
-            size="xs"
             color="primary"
             variant="soft"
           />

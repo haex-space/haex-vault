@@ -1,28 +1,26 @@
 <template>
   <UCard>
     <div class="flex flex-col gap-3">
-      <!-- Header row: Info and button -->
-      <div class="flex flex-col @sm:flex-row @sm:items-center justify-between gap-3">
-        <div class="flex-1 min-w-0 transition-opacity duration-200" :class="{ 'opacity-50': !backend.enabled }">
+      <!-- Top row: Name + Actions -->
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0 transition-opacity duration-200" :class="{ 'opacity-50': !backend.enabled }">
           <p class="font-medium">{{ backend.name }}</p>
           <p class="text-sm text-gray-500 dark:text-gray-400 truncate">
             {{ getBackendHostByUrl(backend.serverUrl) }}
           </p>
-          <!-- Badges slot - allows custom badges to be injected -->
-          <div
-            v-if="$slots.badges"
-            class="flex flex-wrap gap-2 mt-2"
-          >
-            <slot name="badges" />
-          </div>
         </div>
-        <!-- Actions slot - for buttons/actions in the header area -->
-        <div
-          v-if="$slots.actions"
-          class="shrink-0"
-        >
+        <!-- Actions slot -->
+        <div v-if="$slots.actions">
           <slot name="actions" />
         </div>
+      </div>
+
+      <!-- Badges row -->
+      <div
+        v-if="$slots.badges"
+        class="flex flex-wrap items-center gap-2"
+      >
+        <slot name="badges" />
       </div>
     </div>
 

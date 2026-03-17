@@ -10,7 +10,6 @@
         v-if="extension.devServerUrl"
         color="warning"
         variant="subtle"
-        size="xs"
         class="ml-2"
       >
         {{ t('devExtension') }}
@@ -271,7 +270,6 @@
                   <UBadge
                     :color="permission.status === 'granted' ? 'success' : 'error'"
                     variant="subtle"
-                    size="xs"
                   >
                     {{ permission.status === 'granted' ? t('sessionGranted') : t('sessionDenied') }}
                   </UBadge>

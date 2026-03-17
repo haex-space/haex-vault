@@ -1,18 +1,30 @@
 <template>
-  <div>
+  <div
+    @focusin="isFocused = true"
+    @focusout="isFocused = false"
+  >
     <UTextarea
       :id
       v-model="value"
-      :ui="{ base: 'peer' }"
+      :placeholder="effectivePlaceholder"
       :readonly="readOnly"
+      :size
       class="w-full"
-      v-bind="$attrs"
+      :ui="{ base: 'peer', root: 'group' }"
+      :data-size="size || 'md'"
+      v-bind="filteredAttrs"
     >
       <label
-        class="absolute pointer-events-none -top-2.5 left-0 text-highlighted text-xs font-medium px-1.5 transition-all peer-focus:-top-2.5 peer-focus:text-highlighted peer-focus:text-xs peer-focus:font-medium peer-placeholder-shown:text-sm peer-placeholder-shown:text-dimmed peer-placeholder-shown:top-1.5 peer-placeholder-shown:font-normal"
+        v-if="label"
+        :class="[
+          'floating-label absolute pointer-events-none px-1.5 transition-all text-highlighted text-xs font-medium -top-2.5 left-0',
+          'group-has-placeholder-shown:text-sm group-has-placeholder-shown:text-dimmed group-has-placeholder-shown:font-normal',
+          'group-has-focus:text-highlighted group-has-focus:text-xs group-has-focus:font-medium group-has-focus:-top-2.5 group-has-focus:left-0',
+          labelTopClass,
+        ]"
       >
         <span class="inline-flex bg-default px-1">
-          {{ props.label }}
+          {{ label }}
         </span>
       </label>
 
@@ -43,20 +55,39 @@ interface ITextareaProps extends /* @vue-ignore */ TextareaProps {
 
 const props = defineProps<ITextareaProps>()
 
-/* defineProps<{
-  placeholder?: string
-  label?: string
-  readOnly?: boolean
-  withCopyButton?: boolean
-}>() */
+const { size, readOnly, label } = toRefs(props)
+
+const attrs = useAttrs()
+const placeholder = computed(() => attrs.placeholder as string | undefined)
+const filteredAttrs = computed(() => {
+  const { placeholder: _, ...rest } = attrs
+  return rest
+})
+
+const hasDistinctPlaceholder = computed(() => !!label?.value && !!placeholder.value && placeholder.value !== ' ')
+
+const isFocused = ref(false)
+const effectivePlaceholder = computed(() => {
+  if (hasDistinctPlaceholder.value && !isFocused.value) return ' '
+  return placeholder.value || ' '
+})
 
 const id = useId()
-
 const value = defineModel<string | undefined>()
-
 const { copy, copied } = useClipboard()
-
 const { t } = useI18n()
+
+const labelTopClass = computed(() => {
+  const topPositions: Record<string, string> = {
+    xs: 'group-has-placeholder-shown:top-0.5',
+    sm: 'group-has-placeholder-shown:top-1',
+    md: 'group-has-placeholder-shown:top-1.5',
+    lg: 'group-has-placeholder-shown:top-2',
+    xl: 'group-has-placeholder-shown:top-2.5',
+  }
+
+  return topPositions[props.size || 'md'] || 'group-has-placeholder-shown:top-1.5'
+})
 </script>
 
 <i18n lang="yaml">

@@ -92,11 +92,11 @@ const backendName = computed(() => getBackendNameByUrl(props.space.serverUrl))
 const roleBadgeColor = computed(() => {
   switch (props.space.role) {
     case 'admin':
-      return 'error' as const
+      return 'primary' as const
     case 'owner':
       return 'warning' as const
     case 'member':
-      return 'primary' as const
+      return 'info' as const
     case 'reader':
       return 'neutral' as const
     default:

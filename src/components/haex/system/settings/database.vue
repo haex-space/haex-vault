@@ -74,7 +74,6 @@
                   />
                   <span class="font-medium truncate">{{ item.label }}</span>
                   <UBadge
-                    size="xs"
                     color="neutral"
                     variant="subtle"
                     class="shrink-0"

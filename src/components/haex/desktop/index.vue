@@ -213,7 +213,6 @@
                   <UBadge
                     v-if="window.isNativeWebview"
                     color="neutral"
-                    size="xs"
                   >
                     Separates Fenster
                   </UBadge>
@@ -222,7 +221,6 @@
                   <UBadge
                     v-if="window.isMinimized"
                     color="info"
-                    size="xs"
                   >
                     Minimiert
                   </UBadge>

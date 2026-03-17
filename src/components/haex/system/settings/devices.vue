@@ -3,7 +3,7 @@
     <UCard>
       <template #header>
         <div class="flex items-center gap-3">
-          <UIcon name="i-heroicons-device-phone-mobile" class="w-5 h-5 text-primary shrink-0" />
+          <UIcon name="i-lucide-monitor-smartphone" class="w-8 h-8 text-primary shrink-0" />
           <div>
             <h3 class="text-lg font-semibold">{{ t('currentDevice.title') }}</h3>
             <p class="text-sm text-muted">{{ t('currentDevice.description') }}</p>
@@ -48,6 +48,67 @@
         </div>
       </div>
     </UCard>
+    <!-- Other devices -->
+    <UCard v-if="otherDevices.length > 0">
+      <template #header>
+        <h3 class="text-lg font-semibold">{{ t('otherDevices.title') }}</h3>
+        <p class="text-sm text-muted">{{ t('otherDevices.description') }}</p>
+      </template>
+
+      <div class="space-y-3">
+        <div
+          v-for="device in otherDevices"
+          :key="device.deviceEndpointId"
+          class="flex items-center gap-3 p-3 rounded-lg bg-muted/30"
+        >
+          <UIcon
+            name="i-lucide-monitor"
+            class="w-5 h-5 text-muted shrink-0"
+          />
+          <div class="flex-1 min-w-0">
+            <div
+              v-if="editingDeviceId === device.id"
+              class="flex items-center gap-2"
+            >
+              <UiInput
+                v-model="editingName"
+                class="flex-1"
+                @keyup.enter="onSaveOtherDeviceNameAsync(device.id)"
+                @keyup.escape="editingDeviceId = null"
+              />
+              <UiButton
+                icon="i-lucide-check"
+                color="primary"
+                @click="onSaveOtherDeviceNameAsync(device.id)"
+              />
+              <UiButton
+                icon="i-lucide-x"
+                variant="ghost"
+                color="neutral"
+                @click="editingDeviceId = null"
+              />
+            </div>
+            <template v-else>
+              <p class="text-sm font-medium truncate">{{ device.deviceName }}</p>
+              <p class="text-xs text-muted truncate font-mono">{{ device.deviceEndpointId.slice(0, 16) }}…</p>
+            </template>
+          </div>
+          <UBadge
+            v-if="getSpaceName(device.spaceId)"
+            variant="subtle"
+          >
+            {{ getSpaceName(device.spaceId) }}
+          </UBadge>
+          <UiButton
+            v-if="editingDeviceId !== device.id"
+            icon="i-lucide-pencil"
+            variant="ghost"
+            color="neutral"
+            @click="startEditing(device)"
+          />
+        </div>
+      </div>
+    </UCard>
   </HaexSystemSettingsLayout>
 </template>
 
@@ -59,10 +120,52 @@ const { t } = useI18n()
 const { add } = useToast()
 
 const deviceStore = useDeviceStore()
+const peerStore = usePeerStorageStore()
+const spacesStore = useSpacesStore()
 const { deviceId, hostname, platform, deviceName } = storeToRefs(deviceStore)
 const { currentVault } = storeToRefs(useVaultStore())
 
+const otherDevices = computed(() => {
+  const seen = new Set<string>()
+  return peerStore.spaceDevices.filter(d => {
+    if (d.deviceEndpointId === deviceId.value) return false
+    if (seen.has(d.deviceEndpointId)) return false
+    seen.add(d.deviceEndpointId)
+    return true
+  })
+})
+
+const getSpaceName = (spaceId: string) => {
+  return spacesStore.spaces.find(s => s.id === spaceId)?.name
+}
+
 const isSaving = ref(false)
+const editingDeviceId = ref<string | null>(null)
+const editingName = ref('')
+
+const startEditing = (device: typeof peerStore.spaceDevices[number]) => {
+  editingDeviceId.value = device.id
+  editingName.value = device.deviceName
+}
+
+const onSaveOtherDeviceNameAsync = async (id: string) => {
+  const name = editingName.value.trim()
+  if (!name || !currentVault.value?.drizzle) return
+
+  try {
+    await currentVault.value.drizzle
+      .update(haexSpaceDevices)
+      .set({ deviceName: name })
+      .where(eq(haexSpaceDevices.id, id))
+
+    await peerStore.loadSpaceDevicesAsync()
+    editingDeviceId.value = null
+    add({ description: t('deviceName.success'), color: 'success' })
+  } catch (error) {
+    console.error('Failed to update device name:', error)
+    add({ description: t('deviceName.error'), color: 'error' })
+  }
+}
 
 const onUpdateDeviceNameAsync = async () => {
   const name = deviceName.value?.trim()
@@ -101,7 +204,10 @@ const loadDeviceNameAsync = async () => {
 }
 
 onMounted(async () => {
-  await loadDeviceNameAsync()
+  await Promise.all([
+    loadDeviceNameAsync(),
+    peerStore.loadSpaceDevicesAsync(),
+  ])
 })
 </script>
 
@@ -120,6 +226,10 @@ de:
     platform: Plattform
     unknown: Unbekannt
 
+  otherDevices:
+    title: Andere Geräte
+    description: Geräte, die diese Vault ebenfalls geöffnet haben
+
   deviceName:
     success: Gerätename wurde erfolgreich aktualisiert
     error: Gerätename konnte nicht aktualisiert werden
@@ -137,6 +247,10 @@ en:
     hostname: Hostname
     platform: Platform
     unknown: Unknown
+
+  otherDevices:
+    title: Other Devices
+    description: Devices that have also opened this vault
 
   deviceName:
     success: Device name has been successfully updated

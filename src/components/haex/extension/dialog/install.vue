@@ -114,7 +114,6 @@
             v-if="installedVersion"
             color="success"
             variant="subtle"
-            size="xs"
           >
             {{
               t('versionSelection.installedShort', {

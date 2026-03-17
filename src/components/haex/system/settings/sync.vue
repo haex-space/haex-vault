@@ -155,7 +155,6 @@
             <UBadge
               :color="backend.enabled ? 'success' : 'neutral'"
               variant="subtle"
-              size="xs"
             >
               {{
                 backend.enabled ? t('backends.enabled') : t('backends.disabled')
@@ -165,7 +164,6 @@
               v-if="getSyncState(backend.id)?.isConnected"
               color="info"
               variant="subtle"
-              size="xs"
             >
               {{ t('backends.connected') }}
             </UBadge>
@@ -173,7 +171,6 @@
               v-else-if="getSyncState(backend.id)?.isSyncing"
               color="warning"
               variant="subtle"
-              size="xs"
             >
               {{ t('backends.syncing') }}
             </UBadge>
@@ -292,7 +289,6 @@
                         v-if="vault.vaultId === currentVaultId"
                         color="primary"
                         variant="subtle"
-                        size="xs"
                       >
                         {{ t('vaultOverview.currentVault') }}
                       </UBadge>

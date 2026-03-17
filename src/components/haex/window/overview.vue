@@ -38,7 +38,6 @@
               <UBadge
                 v-if="window.isMinimized"
                 color="info"
-                size="xs"
                 :title="t('minimized')"
               />
             </div>

@@ -85,7 +85,7 @@
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2">
                     <span class="font-semibold">{{ client.clientName }}</span>
-                    <UBadge color="success" variant="subtle" size="xs">
+                    <UBadge color="success" variant="subtle">
                       {{ t('authorized') }}
                     </UBadge>
                   </div>
@@ -140,7 +140,7 @@
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2">
                     <span class="font-semibold">{{ t('sessionClient') }}</span>
-                    <UBadge color="success" variant="subtle" size="xs">
+                    <UBadge color="success" variant="subtle">
                       {{ t('sessionAllowed') }}
                     </UBadge>
                   </div>
@@ -176,7 +176,7 @@
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2">
                     <span class="font-semibold">{{ client.clientName }}</span>
-                    <UBadge color="error" variant="subtle" size="xs">
+                    <UBadge color="error" variant="subtle">
                       {{ t('sessionBlocked') }}
                     </UBadge>
                   </div>
@@ -227,7 +227,7 @@
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2">
                     <span class="font-semibold">{{ client.clientName }}</span>
-                    <UBadge color="error" variant="subtle" size="xs">
+                    <UBadge color="error" variant="subtle">
                       {{ t('blocked') }}
                     </UBadge>
                   </div>

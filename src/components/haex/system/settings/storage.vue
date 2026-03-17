@@ -143,7 +143,6 @@
                 <UBadge
                   :color="backend.enabled ? 'success' : 'neutral'"
                   variant="subtle"
-                  size="xs"
                 >
                   {{ backend.enabled ? t('backends.enabled') : t('backends.disabled') }}
                 </UBadge>

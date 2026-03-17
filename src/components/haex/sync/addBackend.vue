@@ -97,7 +97,6 @@
               v-if="claim.required"
               color="error"
               variant="subtle"
-              size="xs"
             >
               {{ t('requirements.required') }}
             </UBadge>

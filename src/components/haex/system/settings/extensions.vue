@@ -60,7 +60,6 @@
                   v-if="ext.devServerUrl"
                   color="warning"
                   variant="subtle"
-                  size="xs"
                 >
                   {{ t('devExtension') }}
                 </UBadge>
