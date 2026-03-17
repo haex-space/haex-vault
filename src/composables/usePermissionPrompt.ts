@@ -185,6 +185,13 @@ export function usePermissionPrompt() {
    * Save a permission decision (to database or session)
    */
   async function saveDecision(data: PermissionPromptData, decision: PermissionDecision, remember: boolean) {
+    // For filesystem permissions, grant access to the directory and all its children
+    // e.g. /home/user/project → /home/user/project/*
+    let target = data.target
+    if (data.resourceType === 'fs' && target !== '*' && !target.endsWith('/*')) {
+      target = target.endsWith('/') ? `${target}*` : `${target}/*`
+    }
+
     if (remember) {
       // Save permanently to database
       try {
@@ -192,7 +199,7 @@ export function usePermissionPrompt() {
           extensionId: data.extensionId,
           resourceType: data.resourceType,
           action: data.action,
-          target: data.target,
+          target,
           decision,
         })
       } catch (error) {
@@ -205,7 +212,7 @@ export function usePermissionPrompt() {
           extensionId: data.extensionId,
           resourceType: data.resourceType,
           action: data.action,
-          target: data.target,
+          target,
           decision,
         })
       } catch (error) {
