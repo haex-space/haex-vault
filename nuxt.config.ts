@@ -22,13 +22,7 @@ export default defineNuxtConfig({
     },
   },
 
-  experimental: {
-    defaults: {
-      nuxtLink: {
-        prefetch: false,
-      },
-    },
-  },
+  experimental: {},
 
   modules: [
     'nuxt-zod-i18n',
@@ -85,7 +79,7 @@ export default defineNuxtConfig({
         'hugeicons:developer',
         'mdi:cog',
         'mdi:store',
-        'lucide:folder-sync',
+        'mdi:folder',
         // Dynamic icons (from stores, not detected by template scan)
         'heroicons:x-mark',
         'heroicons:trash',

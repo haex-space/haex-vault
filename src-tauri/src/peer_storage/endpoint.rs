@@ -413,18 +413,15 @@ fn resolve_path_filtered(
     request_path: &str,
 ) -> Result<PathBuf, Response> {
     let trimmed = request_path.trim_start_matches('/');
-    let (share_id, sub_path) = trimmed.split_once('/').unwrap_or((trimmed, ""));
+    let (share_name, sub_path) = trimmed.split_once('/').unwrap_or((trimmed, ""));
 
-    let share = shares.get(share_id).ok_or_else(|| Response::Error {
-        message: format!("Share not found: {share_id}"),
-    })?;
-
-    // Access control: check if the peer is allowed to access this share's space
-    if !allowed_spaces.contains(&share.space_id) {
-        return Err(Response::Error {
-            message: "Access denied".to_string(),
-        });
-    }
+    // Look up share by name (used in directory listing) or by ID (legacy)
+    let share = shares.values()
+        .find(|s| s.name == share_name && allowed_spaces.contains(&s.space_id))
+        .or_else(|| shares.get(share_name).filter(|s| allowed_spaces.contains(&s.space_id)))
+        .ok_or_else(|| Response::Error {
+            message: format!("Share not found: {share_name}"),
+        })?;
 
     let full_path = share.local_path.join(sub_path);
 
@@ -457,8 +454,8 @@ async fn handle_list(
         let filtered = filter_shares(&state.shares, allowed_spaces);
         let entries: Vec<FileEntry> = filtered
             .iter()
-            .map(|(id, share)| FileEntry {
-                name: format!("{id} — {}", share.name),
+            .map(|(_id, share)| FileEntry {
+                name: share.name.clone(),
                 size: 0,
                 is_dir: true,
                 modified: None,

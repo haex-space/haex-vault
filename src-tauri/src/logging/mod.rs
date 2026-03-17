@@ -51,6 +51,8 @@ pub struct LogQueryParams {
     pub source: Option<String>,
     pub extension_id: Option<String>,
     pub level: Option<String>,
+    pub since: Option<String>,
+    pub until: Option<String>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }
@@ -136,6 +138,16 @@ pub fn query_logs(
     if let Some(ref ext_id) = query.extension_id {
         conditions.push(format!("extension_id = ?{idx}"));
         param_values.push(Box::new(ext_id.clone()));
+        idx += 1;
+    }
+    if let Some(ref since) = query.since {
+        conditions.push(format!("timestamp >= ?{idx}"));
+        param_values.push(Box::new(since.clone()));
+        idx += 1;
+    }
+    if let Some(ref until) = query.until {
+        conditions.push(format!("timestamp <= ?{idx}"));
+        param_values.push(Box::new(until.clone()));
         idx += 1;
     }
     if let Some(ref level) = query.level {

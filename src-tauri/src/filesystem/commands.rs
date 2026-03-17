@@ -191,7 +191,14 @@ pub async fn filesystem_read_dir(
     path: String,
     offset: Option<usize>,
     limit: Option<usize>,
+    #[allow(unused_variables)] app_handle: tauri::AppHandle,
 ) -> Result<DirListing, FsError> {
+    // Android: handle Content URIs (JSON format from folder picker)
+    #[cfg(target_os = "android")]
+    if path.starts_with('{') {
+        return read_dir_android(&app_handle, &path, offset, limit);
+    }
+
     let path_ref = Path::new(&path);
 
     if !path_ref.exists() {
@@ -243,6 +250,69 @@ pub async fn filesystem_read_dir(
     let total = entries.len();
 
     // Apply pagination if requested
+    let entries = match (offset, limit) {
+        (Some(off), Some(lim)) => entries.into_iter().skip(off).take(lim).collect(),
+        (Some(off), None) => entries.into_iter().skip(off).collect(),
+        (None, Some(lim)) => entries.into_iter().take(lim).collect(),
+        (None, None) => entries,
+    };
+
+    Ok(DirListing { entries, total })
+}
+
+/// Android: Read directory via Content URI using android_fs plugin
+#[cfg(target_os = "android")]
+fn read_dir_android(
+    app_handle: &tauri::AppHandle,
+    path_json: &str,
+    offset: Option<usize>,
+    limit: Option<usize>,
+) -> Result<DirListing, FsError> {
+    use tauri_plugin_android_fs::AndroidFsExt;
+
+    let api = app_handle.android_fs();
+
+    // Parse the JSON Content URI
+    let uri = tauri_plugin_android_fs::FileUri::from_json_str(path_json)
+        .map_err(|e| FsError::IoError {
+            reason: format!("Invalid Content URI: {:?}", e),
+        })?;
+
+    let dir_entries = api.read_dir(&uri).map_err(|e| FsError::IoError {
+        reason: format!("Failed to read Android directory: {:?}", e),
+    })?;
+
+    let mut entries: Vec<DirEntry> = dir_entries
+        .filter_map(|entry| {
+            let name = entry.name().to_string();
+            let is_dir = entry.entry_type().is_dir();
+            let modified = entry.last_modified()
+                .duration_since(UNIX_EPOCH)
+                .ok()
+                .map(|d| d.as_millis() as u64);
+            let uri_json = entry.uri().to_json_string().ok()?;
+
+            Some(DirEntry {
+                name,
+                path: uri_json,
+                is_file: !is_dir,
+                is_directory: is_dir,
+                size: 0, // Android SAF doesn't provide size in directory listing
+                modified,
+            })
+        })
+        .collect();
+
+    entries.sort_by(|a, b| {
+        match (a.is_directory, b.is_directory) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+        }
+    });
+
+    let total = entries.len();
+
     let entries = match (offset, limit) {
         (Some(off), Some(lim)) => entries.into_iter().skip(off).take(lim).collect(),
         (Some(off), None) => entries.into_iter().skip(off).collect(),
