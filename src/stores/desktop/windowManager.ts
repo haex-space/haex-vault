@@ -94,7 +94,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     files: {
       id: 'files',
       name: 'Files',
-      icon: 'i-lucide-folder-sync',
+      icon: 'i-lucide-folder',
       component: defineAsyncComponent(
         () => import('@/components/haex/system/files/index.vue'),
       ),
@@ -309,7 +309,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
 
         // Use system window defaults
         title = title ?? systemWindowDef.name
-        icon = icon ?? systemWindowDef.icon
+        icon = icon || systemWindowDef.icon
         width = width ?? systemWindowDef.defaultWidth
         height = height ?? systemWindowDef.defaultHeight
       }
