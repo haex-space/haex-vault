@@ -55,6 +55,8 @@ pub struct AppState {
     pub peer_storage: tokio::sync::Mutex<peer_storage::endpoint::PeerEndpoint>,
     /// Supabase JWT auth token, synced from frontend for Rust HTTP calls.
     pub auth_token: Arc<Mutex<Option<String>>>,
+    /// PTY manager for shell/terminal sessions
+    pub pty_manager: extension::shell::pty::PtyManager,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -143,6 +145,7 @@ pub fn run() {
             limits: extension::limits::LimitsService::new(),
             peer_storage: tokio::sync::Mutex::new(peer_storage::endpoint::PeerEndpoint::new_ephemeral()),
             auth_token: Arc::new(Mutex::new(None)),
+            pty_manager: extension::shell::pty::PtyManager::new(),
         })
         //.manage(ExtensionState::default())
         .plugin(tauri_plugin_dialog::init())
@@ -420,6 +423,11 @@ pub fn run() {
             extension::filesystem::commands::extension_filesystem_watch,
             extension::filesystem::commands::extension_filesystem_unwatch,
             extension::filesystem::commands::extension_filesystem_is_watching,
+            // Shell/PTY commands
+            extension::shell::commands::extension_shell_create,
+            extension::shell::commands::extension_shell_write,
+            extension::shell::commands::extension_shell_resize,
+            extension::shell::commands::extension_shell_close,
             // Device identity
             device::device_init_key,
             // Peer Storage (P2P file sharing via iroh/QUIC)

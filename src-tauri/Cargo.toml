@@ -85,6 +85,9 @@ iroh = { version = "0.96", default-features = false }
 # Time utilities
 time = "0.3"
 
+# PTY support for shell/terminal (desktop only via cfg)
+portable-pty = "0.9"
+
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 trash = "5.2"

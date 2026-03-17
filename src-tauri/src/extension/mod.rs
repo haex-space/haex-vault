@@ -34,6 +34,7 @@ pub mod logging;
 pub mod permissions;
 pub mod remote_storage;
 pub mod spaces;
+pub mod shell;
 pub mod utils;
 pub mod web;
 
