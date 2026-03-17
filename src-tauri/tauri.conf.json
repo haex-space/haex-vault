@@ -108,7 +108,8 @@
         "scope": [
           "$APPDATA",
           "$RESOURCE",
-          "$APPLOCALDATA/**"
+          "$APPLOCALDATA/**",
+          "$HOME/**"
         ]
       }
     }

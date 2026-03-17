@@ -88,7 +88,22 @@ export const initSupabaseClientAsync = async (
 }
 
 /**
- * Gets the current Supabase auth token
+ * Checks if a JWT token is expired or about to expire (within 30s buffer)
+ */
+const isTokenExpired = (token: string): boolean => {
+  try {
+    const parts = token.split('.')
+    if (parts.length < 2 || !parts[1]) return true
+    const payload = JSON.parse(atob(parts[1]))
+    const expiresAt = payload.exp * 1000
+    return Date.now() >= expiresAt - 30_000
+  } catch {
+    return true
+  }
+}
+
+/**
+ * Gets the current Supabase auth token, automatically refreshing if expired
  */
 export const getAuthTokenAsync = async (): Promise<string | null> => {
   if (!supabaseClientRef.value) {
@@ -98,7 +113,25 @@ export const getAuthTokenAsync = async (): Promise<string | null> => {
   const {
     data: { session },
   } = await supabaseClientRef.value.auth.getSession()
-  const token = session?.access_token ?? cachedAccessToken
+  let token = session?.access_token ?? cachedAccessToken
+
+  // Proactively refresh if token is expired or about to expire
+  if (token && isTokenExpired(token)) {
+    log.info('Auth token expired, refreshing...')
+    const { data, error } = await supabaseClientRef.value.auth.refreshSession()
+    if (error) {
+      log.error('Failed to refresh auth token:', error.message)
+      return token // Return expired token as fallback, server will reject
+    }
+    if (data.session?.access_token) {
+      token = data.session.access_token
+      cachedAccessToken = token
+      invoke('set_auth_token', { token }).catch(() => {})
+      supabaseClientRef.value?.realtime.setAuth(token)
+      log.info('Auth token refreshed successfully')
+    }
+  }
+
   if (token) {
     cachedAccessToken = token
   }

@@ -101,7 +101,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       defaultWidth: 800,
       defaultHeight: 600,
       resizable: true,
-      singleton: true,
+      singleton: false,
     },
     marketplace: {
       id: 'marketplace',

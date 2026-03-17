@@ -401,6 +401,7 @@ pub fn run() {
             filesystem::filesystem_select_file,
             filesystem::filesystem_rename,
             filesystem::filesystem_copy,
+            filesystem::filesystem_copy_dir,
             // Extension Filesystem commands (with permission checks)
             extension::filesystem::commands::extension_filesystem_read_file,
             extension::filesystem::commands::extension_filesystem_write_file,

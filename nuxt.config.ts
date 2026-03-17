@@ -85,6 +85,12 @@ export default defineNuxtConfig({
         'hugeicons:developer',
         'mdi:cog',
         'mdi:store',
+        'lucide:folder-sync',
+        // Dynamic icons (from stores, not detected by template scan)
+        'heroicons:x-mark',
+        'heroicons:trash',
+        'heroicons:arrow-top-right-on-square',
+        'mdi:image',
         'heroicons:bug-ant',
         // Theme icons (from stores/ui/index.ts)
         'line-md:moon-rising-alt-loop',

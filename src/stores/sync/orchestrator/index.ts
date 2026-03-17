@@ -454,6 +454,30 @@ export const useSyncOrchestratorStore = defineStore(
           await vaultSettingsStore.syncVaultNameAsync()
         },
       )
+      registerStoreForTables(
+        ['haex_space_devices', 'haex_peer_shares'],
+        async () => {
+          const peerStore = usePeerStorageStore()
+          await peerStore.loadSpaceDevicesAsync()
+          await peerStore.loadSharesAsync()
+        },
+      )
+      registerStoreForTables(
+        ['haex_identities', 'haex_identity_claims'],
+        async () => {
+          const identityStore = useIdentityStore()
+          await identityStore.loadIdentitiesAsync()
+        },
+      )
+      registerStoreForTables(
+        ['haex_contacts', 'haex_contact_claims'],
+        async () => {
+          const contactsStore = useContactsStore()
+          await contactsStore.loadContactsAsync()
+        },
+      )
+      // Note: haex_spaces/haex_space_keys don't have a simple reload method
+      // Spaces are loaded from the server during sync start and from haex_space_keys for local spaces
 
       // Load sync configuration
       log.info('[START-SYNC] Loading sync configuration...')

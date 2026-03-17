@@ -112,9 +112,10 @@ pub async fn extension_filesystem_read_dir(
     }
     permission_result?;
 
-    // Delegate to internal filesystem command
-    crate::filesystem::filesystem_read_dir(state, path)
+    // Delegate to internal filesystem command (no pagination for extensions)
+    crate::filesystem::filesystem_read_dir(state, path, None, None)
         .await
+        .map(|listing| listing.entries)
         .map_err(|e| ExtensionError::FilesystemError {
             reason: e.to_string(),
         })

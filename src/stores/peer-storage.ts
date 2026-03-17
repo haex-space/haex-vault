@@ -2,7 +2,9 @@ import { invoke } from '@tauri-apps/api/core'
 import { eq } from 'drizzle-orm'
 import type { PeerStorageStatus } from '~/../src-tauri/bindings/PeerStorageStatus'
 import type { FileEntry } from '~/../src-tauri/bindings/FileEntry'
+import type { DirEntry } from '~/../src-tauri/bindings/DirEntry'
 import {
+  haexIdentities,
   haexPeerShares,
   haexSpaceDevices,
   type SelectHaexPeerShares,
@@ -83,6 +85,19 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     if (!identityId) {
       const identityStore = useIdentityStore()
       identityId = identityStore.identities[0]?.publicKey
+    }
+
+    // Verify identity exists in DB before inserting (may not be synced yet)
+    if (identityId) {
+      const [identityExists] = await db
+        .select({ pk: haexIdentities.publicKey })
+        .from(haexIdentities)
+        .where(eq(haexIdentities.publicKey, identityId))
+        .limit(1)
+      if (!identityExists) {
+        console.warn(`[P2P] Identity ${identityId.substring(0, 20)}... not in DB yet, registering without identity`)
+        identityId = undefined
+      }
     }
 
     await db.insert(haexSpaceDevices).values({
@@ -188,6 +203,29 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     return invoke<string>('peer_storage_remote_read', { nodeId: remoteNodeId, path })
   }
 
+  const resolveLocalPath = (localPath: string, subPath: string) => {
+    return subPath === '/' || !subPath
+      ? localPath
+      : `${localPath}/${subPath.replace(/^\//, '')}`
+  }
+
+  const mapDirEntry = (e: DirEntry) => ({
+    name: e.name,
+    size: BigInt(e.size),
+    isDir: e.isDirectory,
+    modified: e.modified ? BigInt(e.modified) / 1000n : null,
+  })
+
+  const localListAsync = async (localPath: string, subPath: string, offset?: number, limit?: number) => {
+    const target = resolveLocalPath(localPath, subPath)
+    const result = await invoke<{ entries: DirEntry[]; total: number }>('filesystem_read_dir', {
+      path: target,
+      offset: offset ?? null,
+      limit: limit ?? null,
+    })
+    return { entries: result.entries.map(mapDirEntry), total: result.total }
+  }
+
   return {
     running,
     nodeId,
@@ -204,5 +242,6 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     unregisterDeviceFromSpaceAsync,
     remoteListAsync,
     remoteReadAsync,
+    localListAsync,
   }
 })

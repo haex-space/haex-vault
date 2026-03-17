@@ -308,7 +308,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     // 2. Create on new server (if it has one)
     if (newServerUrl) {
       const { encryptedName, nameNonce } = await encryptSpaceNameAsync(spaceKey, space.name)
-      const keyGrant = await encryptWithPublicKeyAsync(spaceKey, identity.publicKey)
+      const keyGrant = await encryptWithPublicKeyAsync(spaceKey as Uint8Array<ArrayBuffer>, identity.publicKey)
 
       const response = await fetchWithAuth(`${newServerUrl}/spaces`, {
         method: 'POST',

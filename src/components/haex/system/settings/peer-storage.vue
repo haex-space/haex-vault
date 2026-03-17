@@ -160,9 +160,12 @@
                 <div
                   v-for="share in getSharesForDevice(space.id, store.nodeId)"
                   :key="share.id"
-                  class="flex items-center justify-between gap-2"
+                  class="flex items-center justify-between gap-2 group"
                 >
-                  <div class="min-w-0 flex-1">
+                  <div
+                    class="min-w-0 flex-1 cursor-pointer hover:text-primary transition-colors"
+                    @click="onBrowseShare(share)"
+                  >
                     <p class="text-sm font-medium">{{ share.name }}</p>
                     <p class="text-xs text-muted truncate">
                       {{ formatPath(share.localPath) }}
@@ -197,7 +200,8 @@
                 <div
                   v-for="share in deviceShares"
                   :key="share.id"
-                  class="flex items-center gap-2"
+                  class="flex items-center gap-2 cursor-pointer hover:text-primary transition-colors"
+                  @click="onBrowseShare(share)"
                 >
                   <div class="min-w-0 flex-1">
                     <p class="text-sm font-medium">{{ share.name }}</p>
@@ -205,6 +209,10 @@
                       {{ formatPath(share.localPath) }}
                     </p>
                   </div>
+                  <UIcon
+                    name="i-lucide-chevron-right"
+                    class="w-4 h-4 text-muted shrink-0"
+                  />
                 </div>
               </div>
             </div>
@@ -378,8 +386,8 @@ const formatPath = (path: string): string => {
     if (parsed.uri) {
       const decoded = decodeURIComponent(parsed.uri)
       const treeMatch = decoded.match(/tree\/[^:]+:(.+)/)
-      if (treeMatch) return treeMatch[1]
-      return decoded.replace('content://', '').split('/tree/').pop() || decoded
+      if (treeMatch?.[1]) return treeMatch[1]
+      return decoded.replace('content://', '').split('/tree/').pop() ?? decoded
     }
   } catch {
     // Not JSON — regular path
@@ -395,7 +403,7 @@ const extractFolderName = (path: string): string => {
       const decoded = decodeURIComponent(parsed.uri)
       // Extract path after "tree/" or last ":" segment
       const treeMatch = decoded.match(/tree\/[^:]+:(.+)/)
-      if (treeMatch) return treeMatch[1].split('/').pop() || 'Shared Folder'
+      if (treeMatch?.[1]) return treeMatch[1].split('/').pop() ?? 'Shared Folder'
       const lastSegment = decoded.split('/').pop() || decoded.split(':').pop()
       return lastSegment || 'Shared Folder'
     }
@@ -403,6 +411,25 @@ const extractFolderName = (path: string): string => {
     // Not JSON — regular path
   }
   return path.split(/[/\\]/).pop() || 'Shared Folder'
+}
+
+const onBrowseShare = (share: SelectHaexPeerShares) => {
+  const isOwnDevice = share.deviceEndpointId === store.nodeId
+  const deviceName = isOwnDevice
+    ? t('shares.thisDevice')
+    : getDeviceName(share.deviceEndpointId) || share.deviceEndpointId.slice(0, 12) + '…'
+
+  windowManager.openWindowAsync({
+    type: 'system',
+    sourceId: 'files',
+    params: {
+      endpointId: share.deviceEndpointId,
+      peerName: deviceName,
+      shareName: share.name,
+      // For own device: browse locally without network
+      ...(isOwnDevice && { localPath: share.localPath }),
+    },
+  })
 }
 
 const onAddShareAsync = async (spaceId: string) => {
