@@ -203,14 +203,20 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     return invoke<string>('peer_storage_remote_read', { nodeId: remoteNodeId, path })
   }
 
+  const isContentUri = (p: string) => p.startsWith('{')
+
   const resolveLocalPath = (localPath: string, subPath: string) => {
-    return subPath === '/' || !subPath
-      ? localPath
-      : `${localPath}/${subPath.replace(/^\//, '')}`
+    // Root level or no sub-path → use base path
+    if (subPath === '/' || !subPath) return localPath
+    // Android Content URI as subPath → already a full path from DirEntry
+    if (isContentUri(subPath)) return subPath
+    // Desktop: normal path concatenation
+    return `${localPath}/${subPath.replace(/^\//, '')}`
   }
 
   const mapDirEntry = (e: DirEntry) => ({
     name: e.name,
+    path: e.path,
     size: BigInt(e.size),
     isDir: e.isDirectory,
     modified: e.modified ? BigInt(e.modified) / 1000n : null,

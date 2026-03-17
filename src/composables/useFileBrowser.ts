@@ -1,5 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { FileEntry } from '~/../src-tauri/bindings/FileEntry'
+import type { FileEntry as BaseFileEntry } from '~/../src-tauri/bindings/FileEntry'
+
+// Extended FileEntry with optional path (used on Android for Content URIs)
+export type FileEntry = BaseFileEntry & { path?: string }
 
 export interface RemotePeer {
   endpointId: string
@@ -68,6 +71,12 @@ export function useFileBrowser() {
   const isLoadingMore = ref(false)
   const loadError = ref<string | null>(null)
 
+  // Navigation stack for Android Content URI support.
+  // Each entry stores the display name and the actual path/URI to navigate to.
+  // On desktop, currentPath alone is sufficient, but on Android we need
+  // the full Content URI per level since URIs can't be reconstructed from names.
+  const navStack = ref<{ name: string; path: string }[]>([])
+
   // =========================================================================
   // Multi-select
   // =========================================================================
@@ -99,8 +108,11 @@ export function useFileBrowser() {
 
   const selectedPeerName = computed(() => selectedPeer.value?.name || '')
 
+  // Breadcrumb segments: on Android uses navStack names, on desktop splits path
   const pathSegments = computed(() =>
-    currentPath.value.split('/').filter(Boolean),
+    navStack.value.length > 0
+      ? navStack.value.map(s => s.name)
+      : currentPath.value.split('/').filter(Boolean),
   )
 
   // Backend sorts local files already (dirs first, alphabetical).
@@ -119,7 +131,11 @@ export function useFileBrowser() {
   // Path helpers
   // =========================================================================
 
+  const isContentUri = (p: string) => p.startsWith('{')
+
   const resolveFilePath = (file: FileEntry) => {
+    // Android Content URI: use the full path from the DirEntry
+    if (file.path && isContentUri(file.path)) return file.path
     return currentPath.value === '/'
       ? `/${file.name}`
       : `${currentPath.value}/${file.name}`
@@ -127,6 +143,8 @@ export function useFileBrowser() {
 
   const resolveLocalAbsolutePath = (file: FileEntry) => {
     if (!selectedPeer.value?.localPath) return null
+    // Android Content URI: file.path IS the absolute path
+    if (file.path && isContentUri(file.path)) return file.path
     return `${selectedPeer.value.localPath}/${resolveFilePath(file).replace(/^\//, '')}`
   }
 

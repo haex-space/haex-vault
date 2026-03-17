@@ -5,16 +5,26 @@
  * Root cause: Vue sets unspecified Boolean props to `false` instead of `undefined`.
  * NuxtLink's checkPropConflicts warns when both are !== undefined.
  *
- * Fix: Patch NuxtLink to not warn on this specific known false-positive.
+ * Fix: Patch NuxtLink's setup to convert `noPrefetch: false` to `undefined`
+ * before the conflict check runs. This eliminates the false positive.
  */
-export default defineNuxtPlugin(() => {
-  if (!import.meta.dev) return
+export default defineNuxtPlugin((nuxtApp) => {
+  nuxtApp.vueApp.mixin({
+    beforeCreate() {
+      // Only patch NuxtLink components (they have both noPrefetch and prefetch props)
+      const props = this.$options.props as Record<string, unknown> | undefined
+      if (!props || !('noPrefetch' in props) || !('prefetch' in props)) return
 
-  const originalWarn = console.warn
-  console.warn = (...args: unknown[]) => {
-    if (typeof args[0] === 'string' && args[0].includes('`noPrefetch` and `prefetch` cannot be used together')) {
-      return
-    }
-    originalWarn.apply(console, args)
-  }
+      const originalSetup = this.$options.setup
+      if (!originalSetup) return
+
+      this.$options.setup = (props: Record<string, unknown>, ctx: unknown) => {
+        // Convert false noPrefetch to undefined to prevent the warning
+        if (props.noPrefetch === false) {
+          props.noPrefetch = undefined
+        }
+        return (originalSetup as Function)(props, ctx)
+      }
+    },
+  })
 })

@@ -450,7 +450,7 @@ pub async fn filesystem_select_folder(
         let api = app_handle.android_fs();
         let picker = api.file_picker();
 
-        let selected = picker.pick_dir(None, false).map_err(|e| FsError::IoError {
+        let selected = picker.pick_dir(None, true).map_err(|e| FsError::IoError {
             reason: format!("Android folder picker error: {:?}", e),
         })?;
 
