@@ -9,6 +9,8 @@
  * before the conflict check runs. This eliminates the false positive.
  */
 export default defineNuxtPlugin((nuxtApp) => {
+  if (!import.meta.dev) return
+
   nuxtApp.vueApp.mixin({
     beforeCreate() {
       // Only patch NuxtLink components (they have both noPrefetch and prefetch props)
