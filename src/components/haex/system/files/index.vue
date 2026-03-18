@@ -96,355 +96,378 @@
         >
           {{ t('paste') }} ({{ browser.clipboard.clipboardCount.value }})
         </UiButton>
+
+        <!-- P2P endpoint toggle -->
+        <UiButton
+          v-if="!browser.selectedPeer.value"
+          :icon="peerStore.running ? 'i-lucide-power-off' : 'i-lucide-power'"
+          :color="peerStore.running ? 'error' : 'primary'"
+          :loading="isTogglingEndpoint"
+          :title="peerStore.running ? t('stopEndpoint') : t('startEndpoint')"
+          @click="toggleEndpointAsync"
+        />
       </div>
     </template>
 
-   <div class="p-6 space-y-4">
-    <!-- File Browser (peer selected via deep-link or click) -->
-    <div
-      v-if="browser.selectedPeer.value"
-      class="flex flex-col gap-4 h-full"
-    >
-      <!-- Loading -->
+    <div class="p-6 space-y-4">
+      <!-- File Browser (peer selected via deep-link or click) -->
       <div
-        v-if="browser.isLoading.value"
-        class="flex items-center justify-center py-16"
+        v-if="browser.selectedPeer.value"
+        class="flex flex-col gap-4 h-full"
       >
-        <UIcon
-          name="i-lucide-loader-2"
-          class="w-8 h-8 animate-spin text-muted"
-        />
-      </div>
-
-      <!-- Error -->
-      <div
-        v-else-if="browser.loadError.value"
-        class="flex flex-col items-center justify-center py-16 gap-3"
-      >
-        <UIcon
-          name="i-lucide-alert-circle"
-          class="w-8 h-8 text-error"
-        />
-        <p class="text-sm text-error">{{ browser.loadError.value }}</p>
-        <UiButton
-          variant="ghost"
-          icon="i-lucide-refresh-cw"
-          @click="browser.loadFiles()"
-        >
-          {{ t('retry') }}
-        </UiButton>
-      </div>
-
-      <!-- Empty folder -->
-      <div
-        v-else-if="browser.sortedFiles.value.length === 0"
-        class="text-center py-16"
-      >
-        <UIcon
-          name="i-lucide-folder-open"
-          class="w-12 h-12 mx-auto mb-2 opacity-30"
-        />
-        <p class="text-muted">{{ t('emptyFolder') }}</p>
-      </div>
-
-      <!-- File listing -->
-      <div
-        v-else
-        class="space-y-1"
-      >
-        <!-- Select all / Back row -->
-        <div class="flex items-center gap-3 p-3">
-          <UCheckbox
-            :model-value="browser.allSelected.value"
-            @update:model-value="browser.allSelected.value ? browser.clearSelection() : browser.selectAll()"
-          />
-          <div
-            v-if="browser.currentPath.value !== '/'"
-            class="flex items-center gap-2 cursor-pointer hover:text-primary transition-colors"
-            @click="browser.navigateUp()"
-          >
-            <UIcon
-              name="i-lucide-arrow-up"
-              class="w-4 h-4 text-muted"
-            />
-            <span class="text-sm text-muted">..</span>
-          </div>
-          <span
-            v-else
-            class="text-xs text-muted"
-          >
-            {{ t('selectAll') }}
-          </span>
-        </div>
-
-        <!-- Files and folders -->
-        <div
-          v-for="file in browser.sortedFiles.value"
-          :key="file.name"
-          :class="[
-            'flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors',
-            browser.isSelected(file) ? 'bg-primary/10' : 'hover:bg-muted/50',
-            browser.isCutFile(file) && 'opacity-40',
-          ]"
-          @click="browser.onFileClick(file)"
-        >
-          <UCheckbox
-            :model-value="browser.isSelected(file)"
-            @click.stop
-            @update:model-value="browser.toggleSelect(file)"
-          />
-          <UIcon
-            :name="file.isDir ? 'i-lucide-folder' : browser.getFileIcon(file.name)"
-            :class="[
-              'w-5 h-5 shrink-0',
-              file.isDir ? 'text-primary' : 'text-muted',
-            ]"
-          />
-          <div class="flex-1 min-w-0">
-            <p class="text-sm truncate">{{ file.name }}</p>
-          </div>
-          <span
-            v-if="file.modified"
-            class="text-xs text-muted w-16 text-right shrink-0"
-          >
-            {{ browser.formatDate(file.modified) }}
-          </span>
-          <span
-            class="text-xs text-muted w-16 text-right shrink-0"
-          >
-            {{ file.isDir ? '' : browser.formatSize(file.size) }}
-          </span>
-        </div>
-
-        <!-- Loading more indicator -->
-        <div
-          v-if="browser.isLoadingMore.value"
-          class="flex items-center justify-center gap-2 py-3 text-muted"
-        >
-          <UIcon
-            name="i-lucide-loader-2"
-            class="w-4 h-4 animate-spin"
-          />
-          <span class="text-xs">{{ browser.totalFiles.value - browser.sortedFiles.value.length }} {{ t('moreFiles') }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Storage overview (no peer selected) -->
-    <div
-      v-else
-      class="flex flex-col gap-6 h-full"
-    >
-      <!-- Local shares (this device) -->
-      <div v-if="localShares.length > 0">
-        <p class="text-xs font-medium text-muted uppercase tracking-wider mb-2">
-          {{ t('sections.local') }}
-        </p>
-        <div class="space-y-1">
-          <div
-            v-for="share in localShares"
-            :key="share.id"
-            class="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
-            @click="browser.selectPeer({
-              endpointId: peerStore.nodeId,
-              name: share.name,
-              source: 'space',
-              detail: t('sections.thisDevice'),
-              localPath: share.localPath,
-            })"
-          >
-            <UIcon
-              name="i-lucide-folder"
-              class="w-5 h-5 text-primary shrink-0"
-            />
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-medium truncate">{{ share.name }}</p>
-              <p class="text-xs text-muted truncate">{{ t('sections.thisDevice') }}</p>
-            </div>
-            <UIcon
-              name="i-lucide-chevron-right"
-              class="w-4 h-4 text-muted shrink-0"
-            />
-          </div>
-        </div>
-      </div>
-
-      <!-- Remote peers -->
-      <div v-if="remotePeers.length > 0">
-        <p class="text-xs font-medium text-muted uppercase tracking-wider mb-2">
-          {{ t('sections.peers') }}
-        </p>
-        <div class="space-y-1">
-          <div
-            v-for="peer in remotePeers"
-            :key="peer.endpointId"
-            class="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
-            @click="browser.selectPeer(peer)"
-          >
-            <UIcon
-              :name="peer.source === 'contact' ? 'i-lucide-user' : 'i-lucide-monitor'"
-              class="w-5 h-5 text-primary shrink-0"
-            />
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-medium truncate">{{ peer.name }}</p>
-              <p class="text-xs text-muted truncate">{{ peer.detail }}</p>
-            </div>
-            <UIcon
-              name="i-lucide-chevron-right"
-              class="w-4 h-4 text-muted shrink-0"
-            />
-          </div>
-        </div>
-      </div>
-
-      <!-- P2P not running hint -->
-      <div
-        v-if="!peerStore.running"
-        class="flex items-center gap-3 p-3 rounded-lg border border-dashed border-default"
-      >
-        <UIcon
-          name="i-lucide-wifi-off"
-          class="w-5 h-5 text-muted shrink-0"
-        />
-        <div class="flex-1 min-w-0">
-          <p class="text-sm text-muted">{{ t('endpointStopped') }}</p>
-        </div>
-        <UiButton
-          @click="peerStore.startAsync()"
-        >
-          {{ t('startEndpoint') }}
-        </UiButton>
-      </div>
-
-      <!-- Empty state -->
-      <div
-        v-if="localShares.length === 0 && remotePeers.length === 0"
-        class="flex flex-col items-center justify-center py-12 gap-3"
-      >
-        <UIcon
-          name="i-lucide-hard-drive"
-          class="w-12 h-12 opacity-30"
-        />
-        <p class="text-muted">{{ t('noStorage') }}</p>
-        <p class="text-xs text-muted text-center">{{ t('noStorageHint') }}</p>
-      </div>
-    </div>
-
-    <!-- File Preview Overlay -->
-    <div
-      v-if="browser.preview.isOpen.value"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
-      @click.self="browser.preview.close()"
-    >
-      <!-- Close button — always visible, fixed top-right -->
-      <button
-        class="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
-        @click="browser.preview.close()"
-      >
-        <UIcon
-          name="i-lucide-x"
-          class="w-5 h-5"
-        />
-      </button>
-
-      <!-- Prev / Next navigation -->
-      <button
-        v-if="browser.hasPrevPreview.value"
-        class="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
-        @click.stop="browser.previewPrev()"
-      >
-        <UIcon
-          name="i-lucide-chevron-left"
-          class="w-5 h-5"
-        />
-      </button>
-      <button
-        v-if="browser.hasNextPreview.value"
-        class="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
-        @click.stop="browser.previewNext()"
-      >
-        <UIcon
-          name="i-lucide-chevron-right"
-          class="w-5 h-5"
-        />
-      </button>
-
-      <div class="max-w-[90vw] max-h-[90vh] flex flex-col items-center gap-4">
-
         <!-- Loading -->
         <div
-          v-if="browser.preview.previewLoading.value"
+          v-if="browser.isLoading.value"
           class="flex items-center justify-center py-16"
         >
           <UIcon
             name="i-lucide-loader-2"
-            class="w-8 h-8 animate-spin text-white"
+            class="w-8 h-8 animate-spin text-muted"
           />
         </div>
 
-        <!-- Image -->
-        <img
-          v-else-if="browser.preview.previewType.value === 'image' && browser.preview.previewUrl.value"
-          :src="browser.preview.previewUrl.value"
-          :alt="browser.preview.previewFilename.value || ''"
-          class="max-w-full max-h-[85vh] object-contain rounded"
-        >
-
-        <!-- PDF -->
-        <HaexSystemFilesPdfViewer
-          v-else-if="browser.preview.previewType.value === 'pdf' && browser.preview.previewUrl.value"
-          :src="browser.preview.previewUrl.value"
-        />
-
-        <!-- Video -->
-        <video
-          v-else-if="browser.preview.previewType.value === 'video' && browser.preview.previewUrl.value"
-          :src="browser.preview.previewUrl.value"
-          controls
-          autoplay
-          class="max-w-full max-h-[85vh] rounded"
-        />
-
-        <!-- Audio -->
+        <!-- Error -->
         <div
-          v-else-if="browser.preview.previewType.value === 'audio' && browser.preview.previewUrl.value"
-          class="flex flex-col items-center gap-4 p-8"
+          v-else-if="browser.loadError.value"
+          class="flex flex-col items-center justify-center py-16 gap-3"
         >
           <UIcon
-            name="i-lucide-music"
-            class="w-16 h-16 text-white opacity-50"
+            name="i-lucide-alert-circle"
+            class="w-8 h-8 text-error"
           />
-          <p class="text-white text-sm">{{ browser.preview.previewFilename.value }}</p>
-          <audio
+          <p class="text-sm text-error">{{ browser.loadError.value }}</p>
+          <UiButton
+            variant="ghost"
+            icon="i-lucide-refresh-cw"
+            @click="browser.loadFiles()"
+          >
+            {{ t('retry') }}
+          </UiButton>
+        </div>
+
+        <!-- Empty folder -->
+        <div
+          v-else-if="browser.sortedFiles.value.length === 0"
+          class="text-center py-16"
+        >
+          <UIcon
+            name="i-lucide-folder-open"
+            class="w-12 h-12 mx-auto mb-2 opacity-30"
+          />
+          <p class="text-muted">{{ t('emptyFolder') }}</p>
+        </div>
+
+        <!-- File listing -->
+        <div
+          v-else
+          class="space-y-1"
+        >
+          <!-- Select all / Back row -->
+          <div class="flex items-center gap-3 p-3">
+            <UCheckbox
+              :model-value="browser.allSelected.value"
+              @update:model-value="
+                browser.allSelected.value
+                  ? browser.clearSelection()
+                  : browser.selectAll()
+              "
+            />
+            <div
+              v-if="browser.currentPath.value !== '/'"
+              class="flex items-center gap-2 cursor-pointer hover:text-primary transition-colors"
+              @click="browser.navigateUp()"
+            >
+              <UIcon
+                name="i-lucide-arrow-up"
+                class="w-4 h-4 text-muted"
+              />
+              <span class="text-sm text-muted">..</span>
+            </div>
+            <span
+              v-else
+              class="text-xs text-muted"
+            >
+              {{ t('selectAll') }}
+            </span>
+          </div>
+
+          <!-- Files and folders -->
+          <div
+            v-for="file in browser.sortedFiles.value"
+            :key="file.name"
+            :class="[
+              'flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors',
+              browser.isSelected(file) ? 'bg-primary/10' : 'hover:bg-muted/50',
+              browser.isCutFile(file) && 'opacity-40',
+            ]"
+            @click="browser.onFileClick(file)"
+          >
+            <UCheckbox
+              :model-value="browser.isSelected(file)"
+              @click.stop
+              @update:model-value="browser.toggleSelect(file)"
+            />
+            <UIcon
+              :name="
+                file.isDir ? 'i-lucide-folder' : browser.getFileIcon(file.name)
+              "
+              :class="[
+                'w-5 h-5 shrink-0',
+                file.isDir ? 'text-primary' : 'text-muted',
+              ]"
+            />
+            <div class="flex-1 min-w-0">
+              <p class="text-sm truncate">{{ file.name }}</p>
+              <div class="flex gap-3 text-xs text-muted mt-0.5">
+                <span v-if="file.modified">{{ browser.formatDate(file.modified) }}</span>
+                <span v-if="!file.isDir && file.size">{{ browser.formatSize(file.size) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Loading more indicator -->
+          <div
+            v-if="browser.isLoadingMore.value"
+            class="flex items-center justify-center gap-2 py-3 text-muted"
+          >
+            <UIcon
+              name="i-lucide-loader-2"
+              class="w-4 h-4 animate-spin"
+            />
+            <span class="text-xs"
+              >{{ browser.totalFiles.value - browser.sortedFiles.value.length }}
+              {{ t('moreFiles') }}</span
+            >
+          </div>
+        </div>
+      </div>
+
+      <!-- Storage overview (no peer selected) -->
+      <div
+        v-else
+        class="flex flex-col gap-6 h-full"
+      >
+        <!-- Local shares (this device) -->
+        <div v-if="localShares.length > 0">
+          <p
+            class="text-xs font-medium text-muted uppercase tracking-wider mb-2"
+          >
+            {{ t('sections.local') }}
+          </p>
+          <div class="space-y-1">
+            <div
+              v-for="share in localShares"
+              :key="share.id"
+              class="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+              @click="
+                browser.selectPeer({
+                  endpointId: peerStore.nodeId,
+                  name: share.name,
+                  source: 'space',
+                  detail: t('sections.thisDevice'),
+                  localPath: share.localPath,
+                })
+              "
+            >
+              <UIcon
+                name="i-lucide-folder"
+                class="w-5 h-5 text-primary shrink-0"
+              />
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium truncate">{{ share.name }}</p>
+                <p class="text-xs text-muted truncate">
+                  {{ t('sections.thisDevice') }}
+                </p>
+              </div>
+              <UIcon
+                name="i-lucide-chevron-right"
+                class="w-4 h-4 text-muted shrink-0"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Remote peers -->
+        <div v-if="remotePeers.length > 0">
+          <p
+            class="text-xs font-medium text-muted uppercase tracking-wider mb-2"
+          >
+            {{ t('sections.peers') }}
+          </p>
+          <div class="space-y-1">
+            <div
+              v-for="peer in remotePeers"
+              :key="peer.endpointId"
+              class="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+              @click="browser.selectPeer(peer)"
+            >
+              <UIcon
+                :name="
+                  peer.source === 'contact'
+                    ? 'i-lucide-user'
+                    : 'i-lucide-monitor'
+                "
+                class="w-5 h-5 text-primary shrink-0"
+              />
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium truncate">{{ peer.name }}</p>
+                <p class="text-xs text-muted truncate">{{ peer.detail }}</p>
+              </div>
+              <UIcon
+                name="i-lucide-chevron-right"
+                class="w-4 h-4 text-muted shrink-0"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty state -->
+        <div
+          v-if="localShares.length === 0 && remotePeers.length === 0"
+          class="flex flex-col items-center justify-center py-12 gap-3"
+        >
+          <UIcon
+            name="i-lucide-hard-drive"
+            class="w-12 h-12 opacity-30"
+          />
+          <p class="text-muted">{{ t('noStorage') }}</p>
+          <p class="text-xs text-muted text-center">{{ t('noStorageHint') }}</p>
+        </div>
+      </div>
+
+      <!-- File Preview Overlay -->
+      <div
+        v-if="browser.preview.isOpen.value"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+        @click.self="browser.preview.close()"
+      >
+        <!-- Close button — always visible, fixed top-right -->
+        <button
+          class="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+          @click="browser.preview.close()"
+        >
+          <UIcon
+            name="i-lucide-x"
+            class="w-5 h-5"
+          />
+        </button>
+
+        <!-- Prev / Next navigation -->
+        <button
+          v-if="browser.hasPrevPreview.value"
+          class="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+          @click.stop="browser.previewPrev()"
+        >
+          <UIcon
+            name="i-lucide-chevron-left"
+            class="w-5 h-5"
+          />
+        </button>
+        <button
+          v-if="browser.hasNextPreview.value"
+          class="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+          @click.stop="browser.previewNext()"
+        >
+          <UIcon
+            name="i-lucide-chevron-right"
+            class="w-5 h-5"
+          />
+        </button>
+
+        <div class="max-w-[90vw] max-h-[90vh] flex flex-col items-center gap-4">
+          <!-- Loading -->
+          <div
+            v-if="browser.preview.previewLoading.value"
+            class="flex items-center justify-center py-16"
+          >
+            <UIcon
+              name="i-lucide-loader-2"
+              class="w-8 h-8 animate-spin text-white"
+            />
+          </div>
+
+          <!-- Image -->
+          <img
+            v-else-if="
+              browser.preview.previewType.value === 'image' &&
+              browser.preview.previewUrl.value
+            "
+            :src="browser.preview.previewUrl.value"
+            :alt="browser.preview.previewFilename.value || ''"
+            class="max-w-full max-h-[85vh] object-contain rounded"
+          />
+
+          <!-- PDF -->
+          <HaexSystemFilesPdfViewer
+            v-else-if="
+              browser.preview.previewType.value === 'pdf' &&
+              browser.preview.previewUrl.value
+            "
+            :src="browser.preview.previewUrl.value"
+          />
+
+          <!-- Video -->
+          <video
+            v-else-if="
+              browser.preview.previewType.value === 'video' &&
+              browser.preview.previewUrl.value
+            "
             :src="browser.preview.previewUrl.value"
             controls
             autoplay
+            class="max-w-full max-h-[85vh] rounded"
           />
-        </div>
 
-        <!-- Unsupported file type -->
-        <div
-          v-else-if="!browser.preview.previewLoading.value"
-          class="flex flex-col items-center gap-4 p-8"
-        >
-          <UIcon
-            name="i-lucide-file"
-            class="w-16 h-16 text-white opacity-50"
-          />
-          <p class="text-white text-sm">{{ browser.preview.previewFilename.value }}</p>
-          <p class="text-white/60 text-xs">{{ t('noPreview') }}</p>
-        </div>
+          <!-- Audio -->
+          <div
+            v-else-if="
+              browser.preview.previewType.value === 'audio' &&
+              browser.preview.previewUrl.value
+            "
+            class="flex flex-col items-center gap-4 p-8"
+          >
+            <UIcon
+              name="i-lucide-music"
+              class="w-16 h-16 text-white opacity-50"
+            />
+            <p class="text-white text-sm">
+              {{ browser.preview.previewFilename.value }}
+            </p>
+            <audio
+              :src="browser.preview.previewUrl.value"
+              controls
+              autoplay
+            />
+          </div>
 
-        <!-- Filename -->
-        <p
-          v-if="!browser.preview.previewLoading.value && browser.preview.previewType.value !== 'unsupported'"
-          class="text-white/80 text-xs"
-        >
-          {{ browser.preview.previewFilename.value }}
-        </p>
+          <!-- Unsupported file type -->
+          <div
+            v-else-if="!browser.preview.previewLoading.value"
+            class="flex flex-col items-center gap-4 p-8"
+          >
+            <UIcon
+              name="i-lucide-file"
+              class="w-16 h-16 text-white opacity-50"
+            />
+            <p class="text-white text-sm">
+              {{ browser.preview.previewFilename.value }}
+            </p>
+            <p class="text-white/60 text-xs">{{ t('noPreview') }}</p>
+          </div>
+
+          <!-- Filename -->
+          <p
+            v-if="
+              !browser.preview.previewLoading.value &&
+              browser.preview.previewType.value !== 'unsupported'
+            "
+            class="text-white/80 text-xs"
+          >
+            {{ browser.preview.previewFilename.value }}
+          </p>
+        </div>
       </div>
     </div>
-   </div>
   </HaexSystem>
 </template>
 
@@ -462,12 +485,26 @@ const contactsStore = useContactsStore()
 
 const browser = useFileBrowser()
 
+const isTogglingEndpoint = ref(false)
+const toggleEndpointAsync = async () => {
+  isTogglingEndpoint.value = true
+  try {
+    if (peerStore.running) await peerStore.stopAsync()
+    else await peerStore.startAsync()
+  } finally {
+    isTogglingEndpoint.value = false
+  }
+}
+
 // Aggregate remote peers from spaces + contacts
 const contactClaims = ref<Record<string, { type: string; value: string }[]>>({})
 const loadContactClaimsAsync = async () => {
   for (const contact of contactsStore.contacts) {
     const claims = await contactsStore.getClaimsAsync(contact.id)
-    contactClaims.value[contact.id] = claims.map(c => ({ type: c.type, value: c.value }))
+    contactClaims.value[contact.id] = claims.map((c) => ({
+      type: c.type,
+      value: c.value,
+    }))
   }
 }
 
@@ -476,7 +513,9 @@ const loadContactClaimsAsync = async () => {
 // (they were all registered by this device since they have local paths).
 const localShares = computed(() => {
   if (peerStore.nodeId) {
-    return peerStore.shares.filter(s => s.deviceEndpointId === peerStore.nodeId)
+    return peerStore.shares.filter(
+      (s) => s.deviceEndpointId === peerStore.nodeId,
+    )
   }
   return peerStore.shares
 })
@@ -516,18 +555,22 @@ const remotePeers = computed(() => {
 })
 
 const getSpaceName = (spaceId: string) => {
-  return spacesStore.spaces.find(s => s.id === spaceId)?.name || spaceId.slice(0, 8)
+  return (
+    spacesStore.spaces.find((s) => s.id === spaceId)?.name ||
+    spaceId.slice(0, 8)
+  )
 }
 
 const applyDeepLink = async (params?: Record<string, unknown>) => {
   if (!params?.endpointId) return
 
   const endpointId = params.endpointId as string
-  const peerName = (params.peerName as string) || endpointId.slice(0, 16) + '...'
+  const peerName =
+    (params.peerName as string) || endpointId.slice(0, 16) + '...'
   const localPath = params.localPath as string | undefined
   const shareName = params.shareName as string | undefined
 
-  const existing = remotePeers.value.find(p => p.endpointId === endpointId)
+  const existing = remotePeers.value.find((p) => p.endpointId === endpointId)
   const peer = existing || {
     endpointId,
     name: peerName,
@@ -543,9 +586,13 @@ const applyDeepLink = async (params?: Record<string, unknown>) => {
 }
 
 // React to param changes (singleton window gets params merged on re-open)
-watch(() => props.windowParams, (params) => {
-  if (params?.endpointId) applyDeepLink(params)
-}, { deep: true })
+watch(
+  () => props.windowParams,
+  (params) => {
+    if (params?.endpointId) applyDeepLink(params)
+  },
+  { deep: true },
+)
 
 onMounted(async () => {
   await Promise.all([
@@ -566,6 +613,7 @@ de:
   devices: Geräte
   endpointStopped: P2P-Endpoint ist nicht gestartet
   startEndpoint: Endpoint starten
+  stopEndpoint: Endpoint stoppen
   emptyFolder: Ordner ist leer
   retry: Erneut versuchen
   downloaded: '"{name}" heruntergeladen'
@@ -592,6 +640,7 @@ en:
   devices: Devices
   endpointStopped: P2P endpoint is not running
   startEndpoint: Start endpoint
+  stopEndpoint: Stop endpoint
   emptyFolder: Folder is empty
   retry: Retry
   downloaded: '"{name}" downloaded'
