@@ -32,7 +32,10 @@
         @mousedown.stop
         @click.stop="scrollTabs('left')"
       >
-        <UIcon name="i-lucide-chevron-left" class="w-4 h-4" />
+        <UIcon
+          name="i-lucide-chevron-left"
+          class="w-4 h-4"
+        />
       </button>
       <div
         ref="tabContainerEl"
@@ -49,7 +52,9 @@
               :name="icon"
               class="w-4 h-4 object-contain shrink-0"
             />
-            <span class="text-sm font-medium truncate">{{ title }}</span>
+            <span class="text-sm font-medium truncate">{{
+              windowData?.tabs[0] ? resolveTabTitle(windowData.tabs[0]) : title
+            }}</span>
           </div>
         </template>
 
@@ -71,7 +76,7 @@
               :name="tab.icon"
               class="w-3.5 h-3.5 shrink-0"
             />
-            <span class="truncate">{{ tab.title }}</span>
+            <span class="truncate">{{ resolveTabTitle(tab) }}</span>
             <HaexWindowButton
               variant="close"
               @mousedown.stop
@@ -87,15 +92,32 @@
         @mousedown.stop
         @click.stop="scrollTabs('right')"
       >
-        <UIcon name="i-lucide-chevron-right" class="w-4 h-4" />
+        <UIcon
+          name="i-lucide-chevron-right"
+          class="w-4 h-4"
+        />
       </button>
 
       <!-- "+" button with dropdown for new tab -->
       <div class="flex items-center shrink-0">
         <UDropdownMenu
           :items="newTabMenuItems"
-          :ui="{ content: 'min-w-48 max-h-64 overflow-y-auto' }"
+          :ui="{
+            content: 'min-w-48 max-h-80 overflow-y-auto',
+            item: 'py-2 px-2.5 text-base gap-2.5',
+          }"
         >
+          <template #item-leading="{ item }">
+            <span
+              v-if="(item as any).extensionIcon"
+              class="flex items-center self-center size-6 shrink-0"
+            >
+              <HaexIcon
+                :name="(item as any).extensionIcon"
+                class="size-6"
+              />
+            </span>
+          </template>
           <HaexWindowButton
             variant="add"
             @mousedown.stop
@@ -111,7 +133,7 @@
         />
 
         <HaexWindowButton
-          v-if="!isMaximized || (!isSmallScreen && !viewportTooSmall)"
+          v-if="isMaximized || (!isSmallScreen && !viewportTooSmall)"
           :is-maximized
           variant="maximize"
           @click.stop="handleMaximize"
@@ -144,6 +166,7 @@
 
 <script setup lang="ts">
 import { getAvailableContentHeight } from '~/utils/viewport'
+import type { IWindowTab } from '~/stores/desktop/windowManager'
 
 const windowManager = useWindowManagerStore()
 
@@ -172,30 +195,51 @@ const emit = defineEmits<{
 }>()
 
 // Reactive window data (for tabs)
-const windowData = computed(() => windowManager.windows.find(w => w.id === props.id))
+const windowData = computed(() =>
+  windowManager.windows.find((w) => w.id === props.id),
+)
+
+const { t } = useI18n()
+
+// Resolve localized tab titles
+const { localizedName } = useExtensionI18n()
+
+const resolveTabTitle = (tab: IWindowTab): string => {
+  if (tab.type === 'system') {
+    // System windows: use i18n with fallback to raw title
+    return t(`systemWindows.${tab.sourceId}`, tab.title)
+  }
+  // Extensions: use extension i18n map
+  const extensionsStore = useExtensionsStore()
+  const ext = extensionsStore.availableExtensions.find(
+    (e) => e.id === tab.sourceId,
+  )
+  if (ext?.i18n) return localizedName(tab.title, ext.i18n)
+  return tab.title
+}
 
 // New tab dropdown menu items
 const newTabMenuItems = computed(() => {
   const items: { label: string; icon?: string; onSelect: () => void }[][] = []
 
   // System windows (non-singleton or not yet open in this window)
-  const systemItems = windowManager.getAllSystemWindows()
-    .filter((def) => {
-      if (def.singleton) {
-        // Singleton: only allow if not already a tab in this window
-        return !windowData.value?.tabs.some(t => t.sourceId === def.id)
+  const systemItems = windowManager
+    .getAllSystemWindows()
+    .filter((window) => {
+      if (window.singleton) {
+        return !windowData.value?.tabs.some((t) => t.sourceId === window.id)
       }
       return true
     })
-    .map((def) => ({
-      label: def.name,
-      icon: def.icon,
+    .map((window) => ({
+      label: t(`systemWindows.${window.id}`, window.name),
+      extensionIcon: window.icon,
       onSelect: () => {
         windowManager.addTab(props.id, {
           type: 'system' as const,
-          sourceId: def.id,
-          title: def.name,
-          icon: def.icon,
+          sourceId: window.id,
+          title: window.name,
+          icon: window.icon,
         })
       },
     }))
@@ -207,13 +251,14 @@ const newTabMenuItems = computed(() => {
   const extensionItems = extensionsStore.availableExtensions
     .filter((ext) => {
       if (ext.singleInstance) {
-        return !windowData.value?.tabs.some(t => t.sourceId === ext.id)
+        return !windowData.value?.tabs.some((t) => t.sourceId === ext.id)
       }
       return true
     })
     .map((ext) => ({
-      label: ext.name,
-      icon: ext.iconUrl || ext.icon || 'i-heroicons-puzzle-piece-solid',
+      label: localizedName(ext.name, ext.i18n),
+      extensionIcon:
+        ext.iconUrl || ext.icon || 'i-heroicons-puzzle-piece-solid',
       onSelect: () => {
         windowManager.addTab(props.id, {
           type: 'extension' as const,
@@ -253,8 +298,11 @@ const scrollTabs = (direction: 'left' | 'right') => {
 }
 
 // Watch for tab changes and container resize to re-check overflow
-watch(() => windowData.value?.tabs.length, () => nextTick(checkTabOverflow))
-useResizeObserver(tabContainerEl, checkTabOverflow)
+watch(
+  () => windowData.value?.tabs.length,
+  () => nextTick(checkTabOverflow),
+)
+useResizeObserver(tabContainerEl, () => requestAnimationFrame(checkTabOverflow))
 onMounted(() => nextTick(checkTabOverflow))
 
 // Use defineModel for x, y, width, height
@@ -264,7 +312,6 @@ const width = defineModel<number>('width', { default: 800 })
 const height = defineModel<number>('height', { default: 600 })
 
 const windowEl = useTemplateRef('windowEl')
-const titlebarEl = useTemplateRef('titlebarEl')
 
 const uiStore = useUiStore()
 const { isSmallScreen } = storeToRefs(uiStore)
@@ -374,19 +421,24 @@ useEventListener(window, 'mousemove', (e: MouseEvent) => {
 })
 
 // Global touch move for dragging
-useEventListener(window, 'touchmove', (e: TouchEvent) => {
-  if (!isDragging.value || !e.touches[0]) return
+useEventListener(
+  window,
+  'touchmove',
+  (e: TouchEvent) => {
+    if (!isDragging.value || !e.touches[0]) return
 
-  const deltaX = e.touches[0].clientX - dragStartMouseX.value
-  const deltaY = e.touches[0].clientY - dragStartMouseY.value
+    const deltaX = e.touches[0].clientX - dragStartMouseX.value
+    const deltaY = e.touches[0].clientY - dragStartMouseY.value
 
-  const newX = dragStartWindowX.value + deltaX
-  const newY = dragStartWindowY.value + deltaY
+    const newX = dragStartWindowX.value + deltaX
+    const newY = dragStartWindowY.value + deltaY
 
-  const constrained = constrainToViewport(newX, newY)
-  x.value = constrained.x
-  y.value = constrained.y
-}, { passive: true })
+    const constrained = constrainToViewport(newX, newY)
+    x.value = constrained.x
+    y.value = constrained.y
+  },
+  { passive: true },
+)
 
 // Global mouse up for drag end
 useEventListener(window, 'mouseup', () => {
@@ -418,7 +470,11 @@ const windowStyle = computed(() => {
   const baseStyle: Record<string, string> = {}
 
   // Opening animation
-  if (props.isOpening && props.sourceX !== undefined && props.sourceY !== undefined) {
+  if (
+    props.isOpening &&
+    props.sourceX !== undefined &&
+    props.sourceY !== undefined
+  ) {
     baseStyle.left = `${props.sourceX}px`
     baseStyle.top = `${props.sourceY}px`
     baseStyle.width = `${props.sourceWidth || 100}px`
@@ -427,7 +483,11 @@ const windowStyle = computed(() => {
     baseStyle.transform = 'scale(0.3)'
   }
   // Closing animation
-  else if (props.isClosing && props.sourceX !== undefined && props.sourceY !== undefined) {
+  else if (
+    props.isClosing &&
+    props.sourceX !== undefined &&
+    props.sourceY !== undefined
+  ) {
     baseStyle.left = `${props.sourceX}px`
     baseStyle.top = `${props.sourceY}px`
     baseStyle.width = `${props.sourceWidth || 100}px`
@@ -590,3 +650,17 @@ useEventListener(window, 'mousemove', (e: MouseEvent) => {
   }
 })
 </script>
+
+<i18n lang="yaml">
+de:
+  systemWindows:
+    settings: Einstellungen
+    files: Dateien
+    marketplace: Marktplatz
+
+en:
+  systemWindows:
+    settings: Settings
+    files: Files
+    marketplace: Marketplace
+</i18n>

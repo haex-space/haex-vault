@@ -295,32 +295,21 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
           return
         }
 
-        // Singleton check: If already open, activate existing window and switch to its workspace
+        // Singleton check: If already open as any tab, focus it instead of opening a new window
         if (systemWindowDef.singleton) {
-          const existingWindow = windows.value.find(
-            (w) => w.type === 'system' && w.sourceId === sourceId && w.workspaceId && !w.isClosing,
-          )
-          if (existingWindow) {
+          const found = findSingletonTab('system', sourceId)
+          if (found) {
             // Verify the window's workspace still exists — if not, remove the stale window
             const workspaceStore = useWorkspaceStore()
             const workspaceExists = workspaceStore.workspaces?.some(
-              (ws) => ws.id === existingWindow.workspaceId,
+              (ws) => ws.id === found.window.workspaceId,
             )
             if (!workspaceExists) {
-              console.warn(`[windowManager] Removing stale singleton window '${sourceId}' (workspace ${existingWindow.workspaceId} no longer exists)`)
-              windows.value = windows.value.filter((w) => w.id !== existingWindow.id)
+              console.warn(`[windowManager] Removing stale singleton window '${sourceId}' (workspace ${found.window.workspaceId} no longer exists)`)
+              windows.value = windows.value.filter((w) => w.id !== found.window.id)
               // Fall through to create a new window below
             } else {
-              // Update params if provided (e.g. navigating to a different settings category)
-              if (params) {
-                existingWindow.params = { ...existingWindow.params, ...params }
-              }
-              // Switch to the workspace where this window is located
-              if (existingWindow.workspaceId !== workspaceStore.currentWorkspace?.id) {
-                workspaceStore.slideToWorkspace(existingWindow.workspaceId)
-              }
-              activateWindow(existingWindow.id)
-              return existingWindow.id
+              return activateSingletonTab(found.window, found.tab, params)
             }
           }
         }
@@ -714,18 +703,47 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     return ext?.singleInstance === true
   }
 
+  /** Find an existing open tab for a singleton source across all windows. */
+  const findSingletonTab = (
+    type: 'system' | 'extension',
+    sourceId: string,
+  ): { window: IWindow; tab: IWindowTab } | null => {
+    for (const win of windows.value) {
+      if (win.isClosing || !win.workspaceId) continue
+      const tab = win.tabs.find(t => t.type === type && t.sourceId === sourceId)
+      if (tab) return { window: win, tab }
+    }
+    return null
+  }
+
+  /** Switch to a singleton tab, activate its window, and optionally switch workspace. */
+  const activateSingletonTab = (
+    win: IWindow,
+    tab: IWindowTab,
+    params?: Record<string, unknown>,
+  ): string => {
+    win.activeTabId = tab.id
+    syncWindowFromActiveTab(win)
+    if (params) win.params = { ...win.params, ...params }
+    const workspaceStore = useWorkspaceStore()
+    if (win.workspaceId !== workspaceStore.currentWorkspace?.id) {
+      workspaceStore.slideToWorkspace(win.workspaceId)
+    }
+    activateWindow(win.id)
+    return win.id
+  }
+
   /** Add a new tab to an existing window. Returns the tab ID or null. */
   const addTab = (windowId: string, tab: Omit<IWindowTab, 'id'>): string | null => {
     const win = windows.value.find(w => w.id === windowId)
     if (!win) return null
 
-    // Singleton check: activate existing tab instead of creating a duplicate
+    // Singleton check: focus existing tab across all windows instead of creating a duplicate
     if (isSourceSingleton(tab.type, tab.sourceId)) {
-      const existing = win.tabs.find(t => t.sourceId === tab.sourceId)
-      if (existing) {
-        win.activeTabId = existing.id
-        syncWindowFromActiveTab(win)
-        return existing.id
+      const found = findSingletonTab(tab.type, tab.sourceId)
+      if (found) {
+        activateSingletonTab(found.window, found.tab)
+        return found.tab.id
       }
     }
 
