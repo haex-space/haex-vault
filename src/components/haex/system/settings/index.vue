@@ -30,30 +30,32 @@
     </template>
 
     <div class="h-full">
-      <HaexSystemSettingsGeneral v-if="activeCategory === 'general'" />
-      <HaexSystemSettingsAppearance v-if="activeCategory === 'appearance'" />
-      <HaexSystemSettingsExtensions v-if="activeCategory === 'extensions'" />
+      <HaexSystemSettingsGeneral v-if="activeCategory === SettingsCategory.General" />
+      <HaexSystemSettingsAppearance v-if="activeCategory === SettingsCategory.Appearance" />
+      <HaexSystemSettingsExtensions v-if="activeCategory === SettingsCategory.Extensions" />
       <HaexSystemSettingsExternalClients
-        v-if="activeCategory === 'externalClients'"
+        v-if="activeCategory === SettingsCategory.ExternalClients"
       />
-      <HaexSystemSettingsDatabase v-if="activeCategory === 'database'" />
-      <HaexSystemSettingsSync v-if="activeCategory === 'sync'" />
+      <HaexSystemSettingsDatabase v-if="activeCategory === SettingsCategory.Database" />
+      <HaexSystemSettingsSync v-if="activeCategory === SettingsCategory.Sync" />
       <HaexSystemSettingsSpaces
-        v-if="activeCategory === 'spaces'"
+        v-if="activeCategory === SettingsCategory.Spaces"
         :invite-link="props.inviteLink"
       />
-      <HaexSystemSettingsIdentities v-if="activeCategory === 'identities'" />
-      <HaexSystemSettingsContacts v-if="activeCategory === 'contacts'" />
-      <HaexSystemSettingsStorage v-if="activeCategory === 'storage'" />
-      <HaexSystemSettingsPeerStorage v-if="activeCategory === 'peerStorage'" />
-      <HaexSystemSettingsDevices v-if="activeCategory === 'devices'" />
-      <HaexSystemSettingsLogs v-if="activeCategory === 'logs'" />
-      <HaexSystemSettingsDeveloper v-if="activeCategory === 'developer'" />
+      <HaexSystemSettingsIdentities v-if="activeCategory === SettingsCategory.Identities" />
+      <HaexSystemSettingsContacts v-if="activeCategory === SettingsCategory.Contacts" />
+      <HaexSystemSettingsStorage v-if="activeCategory === SettingsCategory.Storage" />
+      <HaexSystemSettingsPeerStorage v-if="activeCategory === SettingsCategory.PeerStorage" />
+      <HaexSystemSettingsDevices v-if="activeCategory === SettingsCategory.Devices" />
+      <HaexSystemSettingsLogs v-if="activeCategory === SettingsCategory.Logs" />
+      <HaexSystemSettingsDeveloper v-if="activeCategory === SettingsCategory.Developer" />
     </div>
   </HaexSystem>
 </template>
 
 <script setup lang="ts">
+import { SettingsCategory } from '~/config/settingsCategories'
+
 const props = defineProps<{
   isDragging?: boolean
   category?: string
@@ -62,7 +64,7 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
-const activeCategory = ref(props.category || 'general')
+const activeCategory = ref(props.category || SettingsCategory.General)
 const { pushBack } = useBackNavigation()
 
 const navigateToCategory = (category: string) => {
@@ -89,133 +91,133 @@ watch(
 
 const categories = computed(() => [
   {
-    value: 'general',
+    value: SettingsCategory.General,
     label: t('categories.general'),
     icon: 'i-heroicons-cog-6-tooth',
     active: activeCategory.value === 'general',
     tourId: 'settings-nav-general',
     click: () => {
-      navigateToCategory('general')
+      navigateToCategory(SettingsCategory.General)
     },
   },
   {
-    value: 'appearance',
+    value: SettingsCategory.Appearance,
     label: t('categories.appearance'),
     icon: 'i-heroicons-paint-brush',
     active: activeCategory.value === 'appearance',
     click: () => {
-      navigateToCategory('appearance')
+      navigateToCategory(SettingsCategory.Appearance)
     },
   },
   {
-    value: 'extensions',
+    value: SettingsCategory.Extensions,
     label: t('categories.extensions'),
     icon: 'i-lucide-blocks',
     active: activeCategory.value === 'extensions',
     tourId: 'settings-nav-extensions',
     click: () => {
-      navigateToCategory('extensions')
+      navigateToCategory(SettingsCategory.Extensions)
     },
   },
   {
-    value: 'contacts',
+    value: SettingsCategory.Contacts,
     label: t('categories.contacts'),
     icon: 'i-lucide-contact',
     active: activeCategory.value === 'contacts',
     click: () => {
-      navigateToCategory('contacts')
+      navigateToCategory(SettingsCategory.Contacts)
     },
   },
   {
-    value: 'identities',
+    value: SettingsCategory.Identities,
     label: t('categories.identities'),
     icon: 'i-lucide-fingerprint',
     active: activeCategory.value === 'identities',
     tourId: 'settings-nav-identities',
     click: () => {
-      navigateToCategory('identities')
+      navigateToCategory(SettingsCategory.Identities)
     },
   },
   {
-    value: 'sync',
+    value: SettingsCategory.Sync,
     label: t('categories.sync'),
     icon: 'i-lucide-refresh-cw',
     active: activeCategory.value === 'sync',
     tourId: 'settings-nav-sync',
     click: () => {
-      navigateToCategory('sync')
+      navigateToCategory(SettingsCategory.Sync)
     },
   },
   {
-    value: 'spaces',
+    value: SettingsCategory.Spaces,
     label: t('categories.spaces'),
     icon: 'i-heroicons-user-group',
     active: activeCategory.value === 'spaces',
     click: () => {
-      navigateToCategory('spaces')
+      navigateToCategory(SettingsCategory.Spaces)
     },
   },
   {
-    value: 'storage',
+    value: SettingsCategory.Storage,
     label: t('categories.storage'),
     icon: 'i-heroicons-cloud',
     active: activeCategory.value === 'storage',
     click: () => {
-      navigateToCategory('storage')
+      navigateToCategory(SettingsCategory.Storage)
     },
   },
   {
-    value: 'peerStorage',
+    value: SettingsCategory.PeerStorage,
     label: t('categories.peerStorage'),
     icon: 'i-mdi-lan-connect',
     active: activeCategory.value === 'peerStorage',
     click: () => {
-      navigateToCategory('peerStorage')
+      navigateToCategory(SettingsCategory.PeerStorage)
     },
   },
   {
-    value: 'externalClients',
+    value: SettingsCategory.ExternalClients,
     label: t('categories.externalClients'),
     icon: 'i-lucide-external-link',
     active: activeCategory.value === 'externalClients',
     click: () => {
-      navigateToCategory('externalClients')
+      navigateToCategory(SettingsCategory.ExternalClients)
     },
   },
   {
-    value: 'database',
+    value: SettingsCategory.Database,
     label: t('categories.database'),
     icon: 'i-mdi-safe-square-outline',
     active: activeCategory.value === 'database',
     click: () => {
-      navigateToCategory('database')
+      navigateToCategory(SettingsCategory.Database)
     },
   },
   {
-    value: 'devices',
+    value: SettingsCategory.Devices,
     label: t('categories.devices'),
     icon: 'i-lucide-monitor-smartphone',
     active: activeCategory.value === 'devices',
     click: () => {
-      navigateToCategory('devices')
+      navigateToCategory(SettingsCategory.Devices)
     },
   },
   {
-    value: 'logs',
+    value: SettingsCategory.Logs,
     label: t('categories.logs'),
     icon: 'i-lucide-bug',
     active: activeCategory.value === 'logs',
     click: () => {
-      navigateToCategory('logs')
+      navigateToCategory(SettingsCategory.Logs)
     },
   },
   {
-    value: 'developer',
+    value: SettingsCategory.Developer,
     label: t('categories.developer'),
     icon: 'i-hugeicons-developer',
     active: activeCategory.value === 'developer',
     click: () => {
-      navigateToCategory('developer')
+      navigateToCategory(SettingsCategory.Developer)
     },
   },
 ])

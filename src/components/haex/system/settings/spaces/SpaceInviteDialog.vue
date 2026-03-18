@@ -102,6 +102,7 @@
 </template>
 
 <script setup lang="ts">
+import { SettingsCategory } from '~/config/settingsCategories'
 import QRCode from 'qrcode'
 import type { SpaceRole } from '@haex-space/vault-sdk'
 import type { SelectHaexContacts } from '~/database/schemas'
@@ -227,7 +228,7 @@ const navigateToContacts = () => {
   windowManager.openWindowAsync({
     type: 'system',
     sourceId: 'settings',
-    params: { category: 'contacts' },
+    params: { category: SettingsCategory.Contacts },
   })
 }
 

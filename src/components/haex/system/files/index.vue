@@ -97,15 +97,22 @@
           {{ t('paste') }} ({{ browser.clipboard.clipboardCount.value }})
         </UiButton>
 
-        <!-- P2P endpoint toggle -->
-        <UiButton
-          v-if="!browser.selectedPeer.value"
-          :icon="peerStore.running ? 'i-lucide-power-off' : 'i-lucide-power'"
-          :color="peerStore.running ? 'error' : 'primary'"
-          :loading="isTogglingEndpoint"
-          :title="peerStore.running ? t('stopEndpoint') : t('startEndpoint')"
-          @click="toggleEndpointAsync"
-        />
+        <!-- P2P endpoint toggle + settings -->
+        <template v-if="!browser.selectedPeer.value">
+          <UiButton
+            variant="ghost"
+            icon="i-lucide-settings"
+            :title="t('p2pSettings')"
+            @click="openP2PSettings"
+          />
+          <UiButton
+            :icon="peerStore.running ? 'i-lucide-power-off' : 'i-lucide-power'"
+            :color="peerStore.running ? 'error' : 'primary'"
+            :loading="isTogglingEndpoint"
+            :title="peerStore.running ? t('stopEndpoint') : t('startEndpoint')"
+            @click="toggleEndpointAsync"
+          />
+        </template>
       </div>
     </template>
 
@@ -472,6 +479,7 @@
 </template>
 
 <script setup lang="ts">
+import { SettingsCategory } from '~/config/settingsCategories'
 import type { RemotePeer } from '~/composables/useFileBrowser'
 
 const props = defineProps<{
@@ -509,6 +517,15 @@ const loadContactClaimsAsync = async () => {
 }
 
 // Own device shares (browsable locally without P2P)
+const windowManager = useWindowManagerStore()
+const openP2PSettings = () => {
+  windowManager.openWindowAsync({
+    type: 'system',
+    sourceId: 'settings',
+    params: { category: SettingsCategory.PeerStorage },
+  })
+}
+
 // When endpoint is running, filter by nodeId. Otherwise show all shares
 // (they were all registered by this device since they have local paths).
 const localShares = computed(() => {
@@ -628,6 +645,7 @@ de:
   paste: Einfügen
   delete: Löschen
   cancel: Abbrechen
+  p2pSettings: P2P-Einstellungen
   noStorage: Keine Speicherquellen verfügbar
   noStorageHint: Teile Ordner in den P2P-Einstellungen oder verbinde dich mit anderen Geräten.
   sections:
@@ -655,6 +673,7 @@ en:
   paste: Paste
   delete: Delete
   cancel: Cancel
+  p2pSettings: P2P Settings
   noStorage: No storage sources available
   noStorageHint: Share folders in P2P settings or connect with other devices.
   sections:

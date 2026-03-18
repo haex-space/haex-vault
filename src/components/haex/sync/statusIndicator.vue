@@ -24,6 +24,7 @@
 </template>
 
 <script setup lang="ts">
+import { SettingsCategory } from '~/config/settingsCategories'
 interface Props {
   size?: 'sm' | 'md' | 'lg'
   tooltipEnabled?: boolean
@@ -165,7 +166,7 @@ const openSyncSettings = () => {
   windowManager.openWindowAsync({
     type: 'system',
     sourceId: 'settings',
-    params: { category: 'sync' },
+    params: { category: SettingsCategory.Sync },
   })
 }
 </script>

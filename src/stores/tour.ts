@@ -1,3 +1,4 @@
+import { SettingsCategory } from '~/config/settingsCategories'
 import { driver } from 'driver.js'
 import type { Driver } from 'driver.js'
 import de from './tour.de.json'
@@ -79,7 +80,7 @@ export const useTourStore = defineStore('tourStore', () => {
             description: t('steps.launcherSettings.description'),
             onNextClick: async () => {
               launcherStore.isOpen = false
-              await navigateSettings('general')
+              await navigateSettings(SettingsCategory.General)
               driverInstance?.moveNext()
             },
           },
@@ -90,7 +91,7 @@ export const useTourStore = defineStore('tourStore', () => {
             title: t('steps.general.title'),
             description: t('steps.general.description'),
             onNextClick: async () => {
-              await navigateSettings('devices')
+              await navigateSettings(SettingsCategory.Devices)
               driverInstance?.moveNext()
             },
           },
@@ -101,7 +102,7 @@ export const useTourStore = defineStore('tourStore', () => {
             title: t('steps.deviceName.title'),
             description: t('steps.deviceName.description'),
             onNextClick: async () => {
-              await navigateSettings('extensions')
+              await navigateSettings(SettingsCategory.Extensions)
               driverInstance?.moveNext()
             },
           },
@@ -119,7 +120,7 @@ export const useTourStore = defineStore('tourStore', () => {
             title: t('steps.extensions.title'),
             description: t('steps.extensions.description'),
             onNextClick: async () => {
-              await navigateSettings('identities')
+              await navigateSettings(SettingsCategory.Identities)
               driverInstance?.moveNext()
             },
           },
@@ -137,7 +138,7 @@ export const useTourStore = defineStore('tourStore', () => {
             title: t('steps.identity.title'),
             description: t('steps.identity.description'),
             onNextClick: async () => {
-              await navigateSettings('sync')
+              await navigateSettings(SettingsCategory.Sync)
               driverInstance?.moveNext()
             },
           },

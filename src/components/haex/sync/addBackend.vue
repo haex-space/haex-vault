@@ -123,6 +123,7 @@
 </template>
 
 <script setup lang="ts">
+import { SettingsCategory } from '~/config/settingsCategories'
 import type { ServerRequirements } from '~/composables/useCreateSyncConnection'
 
 const { t } = useI18n()
@@ -183,7 +184,7 @@ const navigateToIdentities = () => {
   windowManager.openWindowAsync({
     type: 'system',
     sourceId: 'settings',
-    params: { category: 'identities' },
+    params: { category: SettingsCategory.Identities },
   })
 }
 

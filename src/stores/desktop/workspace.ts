@@ -1,3 +1,4 @@
+import { SettingsCategory } from '~/config/settingsCategories'
 import { asc, eq } from 'drizzle-orm'
 import {
   haexWorkspaces,
@@ -287,7 +288,7 @@ export const useWorkspaceStore = defineStore('workspaceStore', () => {
               title: settingsWindow.name,
               icon: settingsWindow.icon || undefined,
               workspaceId,
-              params: { category: 'appearance' },
+              params: { category: SettingsCategory.Appearance },
             })
           }
         },

@@ -223,6 +223,7 @@
 </template>
 
 <script setup lang="ts">
+import { SettingsCategory } from '~/config/settingsCategories'
 import type { DecryptedSpace, SpaceInvite, SpaceRole } from '@haex-space/vault-sdk'
 import SpaceListItem from './spaces/SpaceListItem.vue'
 import SpaceInviteDialog from './spaces/SpaceInviteDialog.vue'
@@ -359,7 +360,7 @@ const onNavigateToSync = () => {
   windowManager.openWindowAsync({
     type: 'system',
     sourceId: 'settings',
-    params: { category: 'sync' },
+    params: { category: SettingsCategory.Sync },
   })
 }
 

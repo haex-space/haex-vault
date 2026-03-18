@@ -1,0 +1,16 @@
+export enum SettingsCategory {
+  General = 'general',
+  Appearance = 'appearance',
+  Extensions = 'extensions',
+  Contacts = 'contacts',
+  Identities = 'identities',
+  Sync = 'sync',
+  Spaces = 'spaces',
+  Storage = 'storage',
+  PeerStorage = 'peerStorage',
+  ExternalClients = 'externalClients',
+  Database = 'database',
+  Devices = 'devices',
+  Logs = 'logs',
+  Developer = 'developer',
+}

@@ -232,6 +232,7 @@
 </template>
 
 <script setup lang="ts">
+import { SettingsCategory } from '~/config/settingsCategories'
 import { eq } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
 import type { SelectHaexPeerShares } from '~/database/schemas'
@@ -349,7 +350,7 @@ const onNavigateToSpaces = () => {
   windowManager.openWindowAsync({
     type: 'system',
     sourceId: 'settings',
-    params: { category: 'spaces' },
+    params: { category: SettingsCategory.Spaces },
   })
 }
 

@@ -1,3 +1,4 @@
+import { SettingsCategory } from '~/config/settingsCategories'
 /**
  * Deep-Link Handler for HaexVault
  *
@@ -88,7 +89,7 @@ export const useDeepLink = () => {
       await windowManager.openWindowAsync({
         type: 'system',
         sourceId: 'settings',
-        params: { category: 'spaces', inviteLink: url },
+        params: { category: SettingsCategory.Spaces, inviteLink: url },
       })
     } catch (error) {
       console.error('[DeepLink] Failed to open invite dialog:', error)
