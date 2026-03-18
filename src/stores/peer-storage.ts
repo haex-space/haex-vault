@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { eq } from 'drizzle-orm'
 import type { PeerStorageStatus } from '~/../src-tauri/bindings/PeerStorageStatus'
+import type { PeerStorageStartInfo } from '~/../src-tauri/bindings/PeerStorageStartInfo'
 import type { FileEntry } from '~/../src-tauri/bindings/FileEntry'
 import type { DirEntry } from '~/../src-tauri/bindings/DirEntry'
 import {
@@ -16,6 +17,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
 
   const running = ref(false)
   const nodeId = ref('')
+  const relayUrl = ref<string | null>(null)
   const shares = ref<SelectHaexPeerShares[]>([])
   const spaceDevices = ref<SelectHaexSpaceDevices[]>([])
 
@@ -105,6 +107,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
       identityId: identityId || null,
       deviceEndpointId: nodeId.value,
       deviceName,
+      relayUrl: relayUrl.value,
     })
 
     await loadSpaceDevicesAsync()
@@ -123,12 +126,21 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   // =========================================================================
 
   const startAsync = async () => {
-    const id = await invoke<string>('peer_storage_start')
+    const info = await invoke<PeerStorageStartInfo>('peer_storage_start')
     running.value = true
-    nodeId.value = id
+    nodeId.value = info.nodeId
+    relayUrl.value = info.relayUrl
 
-    // Load existing devices and auto-register in all spaces
+    // Load existing devices and update relay URL for our existing registrations
     await loadSpaceDevicesAsync()
+    const db = currentVault.value?.drizzle
+    if (db && relayUrl.value) {
+      await db
+        .update(haexSpaceDevices)
+        .set({ relayUrl: relayUrl.value })
+        .where(eq(haexSpaceDevices.deviceEndpointId, nodeId.value))
+    }
+
     await autoRegisterInSpacesAsync()
     await updateDeviceClaimsAsync()
   }
@@ -196,11 +208,21 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   // =========================================================================
 
   const remoteListAsync = async (remoteNodeId: string, path: string) => {
-    return invoke<FileEntry[]>('peer_storage_remote_list', { nodeId: remoteNodeId, path })
+    const device = spaceDevices.value.find(d => d.deviceEndpointId === remoteNodeId)
+    return invoke<FileEntry[]>('peer_storage_remote_list', {
+      nodeId: remoteNodeId,
+      relayUrl: device?.relayUrl ?? null,
+      path,
+    })
   }
 
   const remoteReadAsync = async (remoteNodeId: string, path: string) => {
-    return invoke<string>('peer_storage_remote_read', { nodeId: remoteNodeId, path })
+    const device = spaceDevices.value.find(d => d.deviceEndpointId === remoteNodeId)
+    return invoke<string>('peer_storage_remote_read', {
+      nodeId: remoteNodeId,
+      relayUrl: device?.relayUrl ?? null,
+      path,
+    })
   }
 
   const isContentUri = (p: string) => p.startsWith('{')
@@ -235,6 +257,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   return {
     running,
     nodeId,
+    relayUrl,
     shares,
     spaceDevices,
     refreshStatusAsync,

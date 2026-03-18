@@ -131,7 +131,7 @@ async fn reload_state_from_db(
 #[tauri::command]
 pub async fn peer_storage_start(
     state: State<'_, AppState>,
-) -> Result<String, PeerStorageError> {
+) -> Result<PeerStorageStartInfo, PeerStorageError> {
     let endpoint = state.peer_storage.lock().await;
 
     // Load shares and allowed peers from DB before starting
@@ -141,7 +141,21 @@ pub async fn peer_storage_start(
 
     let mut endpoint = state.peer_storage.lock().await;
     let node_id = endpoint.start().await?;
-    Ok(node_id.to_string())
+
+    // Wait briefly for relay connection so we can advertise our relay URL to peers
+    let relay_url = if let Some(ep) = endpoint.endpoint_ref() {
+        match tokio::time::timeout(std::time::Duration::from_secs(5), ep.online()).await {
+            Ok(()) => ep.addr().relay_urls().next().cloned().map(|u| u.to_string()),
+            Err(_) => None,
+        }
+    } else {
+        None
+    };
+
+    Ok(PeerStorageStartInfo {
+        node_id: node_id.to_string(),
+        relay_url,
+    })
 }
 
 /// Stop the peer storage endpoint
@@ -180,6 +194,7 @@ pub async fn peer_storage_reload_shares(
 pub async fn peer_storage_remote_list(
     state: State<'_, AppState>,
     node_id: String,
+    relay_url: Option<String>,
     path: String,
 ) -> Result<Vec<FileEntry>, PeerStorageError> {
     let remote_id: iroh::EndpointId = node_id
@@ -188,8 +203,10 @@ pub async fn peer_storage_remote_list(
             reason: format!("Invalid EndpointId: {e}"),
         })?;
 
+    let parsed_relay = relay_url.and_then(|s| s.parse::<iroh::RelayUrl>().ok());
+
     let endpoint = state.peer_storage.lock().await;
-    endpoint.remote_list(remote_id, &path).await
+    endpoint.remote_list(remote_id, parsed_relay, &path).await
 }
 
 /// Read a file from a remote peer
@@ -197,6 +214,7 @@ pub async fn peer_storage_remote_list(
 pub async fn peer_storage_remote_read(
     state: State<'_, AppState>,
     node_id: String,
+    relay_url: Option<String>,
     path: String,
 ) -> Result<String, PeerStorageError> {
     let remote_id: iroh::EndpointId = node_id
@@ -205,8 +223,10 @@ pub async fn peer_storage_remote_read(
             reason: format!("Invalid EndpointId: {e}"),
         })?;
 
+    let parsed_relay = relay_url.and_then(|s| s.parse::<iroh::RelayUrl>().ok());
+
     let endpoint = state.peer_storage.lock().await;
-    let (_size, data) = endpoint.remote_read(remote_id, &path, None).await?;
+    let (_size, data) = endpoint.remote_read(remote_id, parsed_relay, &path, None).await?;
 
     // Return as base64 for now
     Ok(base64::Engine::encode(
@@ -218,6 +238,14 @@ pub async fn peer_storage_remote_read(
 // ============================================================================
 // Response types
 // ============================================================================
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PeerStorageStartInfo {
+    pub node_id: String,
+    pub relay_url: Option<String>,
+}
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]

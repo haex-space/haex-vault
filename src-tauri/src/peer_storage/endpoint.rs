@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use iroh::{Endpoint, EndpointId, SecretKey};
+use iroh::{Endpoint, EndpointAddr, EndpointId, RelayUrl, SecretKey};
 
 use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::protocol::{self, FileEntry, Request, Response, ALPN};
@@ -170,6 +170,7 @@ impl PeerEndpoint {
     pub async fn remote_list(
         &self,
         remote_id: EndpointId,
+        relay_url: Option<RelayUrl>,
         path: &str,
     ) -> Result<Vec<FileEntry>, PeerStorageError> {
         let endpoint = self
@@ -177,8 +178,13 @@ impl PeerEndpoint {
             .as_ref()
             .ok_or(PeerStorageError::EndpointNotRunning)?;
 
+        let addr = match relay_url {
+            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
+            None => EndpointAddr::new(remote_id),
+        };
+
         let conn = endpoint
-            .connect(remote_id, ALPN)
+            .connect(addr, ALPN)
             .await
             .map_err(|e| PeerStorageError::ConnectionFailed {
                 reason: e.to_string(),
@@ -219,6 +225,7 @@ impl PeerEndpoint {
     pub async fn remote_read(
         &self,
         remote_id: EndpointId,
+        relay_url: Option<RelayUrl>,
         path: &str,
         range: Option<[u64; 2]>,
     ) -> Result<(u64, Vec<u8>), PeerStorageError> {
@@ -227,8 +234,13 @@ impl PeerEndpoint {
             .as_ref()
             .ok_or(PeerStorageError::EndpointNotRunning)?;
 
+        let addr = match relay_url {
+            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
+            None => EndpointAddr::new(remote_id),
+        };
+
         let conn = endpoint
-            .connect(remote_id, ALPN)
+            .connect(addr, ALPN)
             .await
             .map_err(|e| PeerStorageError::ConnectionFailed {
                 reason: e.to_string(),

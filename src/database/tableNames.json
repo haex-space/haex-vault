@@ -228,6 +228,7 @@
         "identityId": "identity_id",
         "deviceEndpointId": "device_endpoint_id",
         "deviceName": "device_name",
+        "relayUrl": "relay_url",
         "createdAt": "created_at"
       }
     },

@@ -1,0 +1,1 @@
+ALTER TABLE `haex_space_devices` ADD `relay_url` text;

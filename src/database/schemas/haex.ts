@@ -467,6 +467,7 @@ export const haexSpaceDevices = sqliteTable(
       .references(() => haexIdentities.publicKey),
     deviceEndpointId: text(tableNames.haex.space_devices.columns.deviceEndpointId).notNull(),
     deviceName: text(tableNames.haex.space_devices.columns.deviceName).notNull(),
+    relayUrl: text(tableNames.haex.space_devices.columns.relayUrl),
     createdAt: text(tableNames.haex.space_devices.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
   },
   (table) => [
