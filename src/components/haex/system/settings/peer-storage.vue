@@ -527,12 +527,12 @@ de:
     goToSpaces: Spaces verwalten
   relay:
     title: Relay-Server
-    description: Konfiguriere einen eigenen iroh-Relay-Server für P2P-Verbindungen durch NAT
+    description: Relay-Server für P2P-Verbindungen durch NAT konfigurieren
     urlLabel: Relay-URL
-    urlHint: Leer lassen um den Standard-Relay von iroh zu verwenden
+    urlHint: "Leer lassen um den Standard-Relay zu verwenden: relay.sync.haex.space"
     urlPlaceholder: "https://relay.sync.haex.space"
     active: "Aktiver Relay"
-    usingDefault: Standard-Relay (iroh)
+    usingDefault: "Standard: relay.sync.haex.space"
     saved: Relay-URL gespeichert
   toast:
     started: P2P-Endpoint gestartet
@@ -565,12 +565,12 @@ en:
     goToSpaces: Manage Spaces
   relay:
     title: Relay Server
-    description: Configure a custom iroh relay server for P2P connections through NAT
+    description: Configure the relay server for P2P connections through NAT
     urlLabel: Relay URL
-    urlHint: Leave empty to use the default iroh relay
+    urlHint: "Leave empty to use the default: relay.sync.haex.space"
     urlPlaceholder: "https://relay.sync.haex.space"
     active: "Active relay"
-    usingDefault: Default relay (iroh)
+    usingDefault: "Default: relay.sync.haex.space"
     saved: Relay URL saved
   toast:
     started: P2P endpoint started

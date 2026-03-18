@@ -11,6 +11,8 @@ use tokio::sync::RwLock;
 
 use iroh::{Endpoint, EndpointAddr, EndpointId, RelayMode, RelayUrl, SecretKey};
 
+const DEFAULT_RELAY_URL: &str = "https://relay.sync.haex.space";
+
 use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::protocol::{self, FileEntry, Request, Response, ALPN};
 
@@ -98,20 +100,18 @@ impl PeerEndpoint {
 
         let effective_relay = relay_url
             .filter(|s| !s.is_empty())
-            .or_else(|| std::env::var("HAEX_RELAY_URL").ok().filter(|s| !s.is_empty()));
+            .or_else(|| std::env::var("HAEX_RELAY_URL").ok().filter(|s| !s.is_empty()))
+            .unwrap_or_else(|| DEFAULT_RELAY_URL.to_string());
 
-        let relay_mode = match effective_relay {
-            Some(url) => match url.parse::<RelayUrl>() {
-                Ok(parsed) => {
-                    eprintln!("[PeerStorage] Using relay: {url}");
-                    RelayMode::custom([parsed])
-                }
-                Err(e) => {
-                    eprintln!("[PeerStorage] Invalid relay URL '{url}': {e} — falling back to default");
-                    RelayMode::Default
-                }
-            },
-            None => RelayMode::Default,
+        let relay_mode = match effective_relay.parse::<RelayUrl>() {
+            Ok(parsed) => {
+                eprintln!("[PeerStorage] Using relay: {effective_relay}");
+                RelayMode::custom([parsed])
+            }
+            Err(e) => {
+                eprintln!("[PeerStorage] Invalid relay URL '{effective_relay}': {e} — falling back to iroh default");
+                RelayMode::Default
+            }
         };
 
         let endpoint = Endpoint::builder()
