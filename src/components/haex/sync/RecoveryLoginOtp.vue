@@ -6,18 +6,19 @@
       :title="t('otp.title')"
       :description="t('otp.description', { email })"
     />
-    <div class="flex justify-center">
-      <UPinInput
-        v-model="otpParts"
-        :length="6"
-        otp
-        type="number"
-        size="xl"
-        :autofocus="true"
-        :ui="{ base: 'h-12 w-12 text-center text-lg' }"
-        @complete="onVerifyOtpAsync"
-      />
-    </div>
+    <UPinInput
+      v-model="otpParts"
+      :length="6"
+      otp
+      type="number"
+      size="xl"
+      :autofocus="true"
+      :ui="{
+        root: 'w-full justify-between',
+        base: 'flex-1 min-w-0 aspect-square text-center text-lg',
+      }"
+      @complete="onVerifyOtpAsync"
+    />
     <div class="flex justify-between items-center">
       <UButton
         variant="link"
