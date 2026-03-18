@@ -8,9 +8,11 @@ import {
   haexIdentities,
   haexPeerShares,
   haexSpaceDevices,
+  haexVaultSettings,
   type SelectHaexPeerShares,
   type SelectHaexSpaceDevices,
 } from '~/database/schemas'
+import { VaultSettingsKeyEnum, VaultSettingsTypeEnum } from '~/config/vault-settings'
 
 export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   const { currentVault } = storeToRefs(useVaultStore())
@@ -18,6 +20,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   const running = ref(false)
   const nodeId = ref('')
   const relayUrl = ref<string | null>(null)
+  const configuredRelayUrl = ref<string | null>(null)
   const shares = ref<SelectHaexPeerShares[]>([])
   const spaceDevices = ref<SelectHaexSpaceDevices[]>([])
 
@@ -34,6 +37,43 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   // =========================================================================
   // DB-backed share management (via Drizzle / CRDT)
   // =========================================================================
+
+  const loadConfiguredRelayUrlAsync = async () => {
+    const db = currentVault.value?.drizzle
+    if (!db) return
+    const row = await db.query.haexVaultSettings.findFirst({
+      where: eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageRelayUrl),
+    })
+    configuredRelayUrl.value = row?.value || null
+  }
+
+  const saveConfiguredRelayUrlAsync = async (url: string | null) => {
+    const db = currentVault.value?.drizzle
+    if (!db) throw new Error('No vault open')
+
+    const existing = await db.query.haexVaultSettings.findFirst({
+      where: eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageRelayUrl),
+    })
+
+    if (existing) {
+      if (url) {
+        await db.update(haexVaultSettings)
+          .set({ value: url })
+          .where(eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageRelayUrl))
+      } else {
+        await db.delete(haexVaultSettings)
+          .where(eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageRelayUrl))
+      }
+    } else if (url) {
+      await db.insert(haexVaultSettings).values({
+        id: crypto.randomUUID(),
+        key: VaultSettingsKeyEnum.peerStorageRelayUrl,
+        type: VaultSettingsTypeEnum.settings,
+        value: url,
+      })
+    }
+    configuredRelayUrl.value = url
+  }
 
   const loadSharesAsync = async () => {
     const db = currentVault.value?.drizzle
@@ -126,7 +166,10 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   // =========================================================================
 
   const startAsync = async () => {
-    const info = await invoke<PeerStorageStartInfo>('peer_storage_start')
+    await loadConfiguredRelayUrlAsync()
+    const info = await invoke<PeerStorageStartInfo>('peer_storage_start', {
+      relayUrl: configuredRelayUrl.value || null,
+    })
     running.value = true
     nodeId.value = info.nodeId
     relayUrl.value = info.relayUrl
@@ -258,11 +301,14 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     running,
     nodeId,
     relayUrl,
+    configuredRelayUrl,
     shares,
     spaceDevices,
     refreshStatusAsync,
     loadSharesAsync,
     loadSpaceDevicesAsync,
+    loadConfiguredRelayUrlAsync,
+    saveConfiguredRelayUrlAsync,
     startAsync,
     stopAsync,
     addShareAsync,

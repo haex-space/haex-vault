@@ -79,6 +79,29 @@
       </template>
     </UCard>
 
+    <!-- Relay Configuration -->
+    <UCard>
+      <template #header>
+        <h3 class="text-lg font-semibold">{{ t('relay.title') }}</h3>
+        <p class="text-sm text-muted mt-1">{{ t('relay.description') }}</p>
+      </template>
+
+      <div class="space-y-3">
+        <UFormField :label="t('relay.urlLabel')" :hint="t('relay.urlHint')">
+          <UInput
+            v-model="relayUrlInput"
+            :placeholder="t('relay.urlPlaceholder')"
+            class="w-full font-mono text-sm"
+            @blur="onSaveRelayUrlAsync"
+          />
+        </UFormField>
+        <p v-if="store.configuredRelayUrl" class="text-xs text-muted">
+          {{ t('relay.active') }}: <code class="bg-muted/50 px-1 rounded">{{ store.configuredRelayUrl }}</code>
+        </p>
+        <p v-else class="text-xs text-muted">{{ t('relay.usingDefault') }}</p>
+      </div>
+    </UCard>
+
     <!-- Shared Folders by Space -->
     <UCard>
       <template #header>
@@ -251,6 +274,7 @@ const { currentVault } = storeToRefs(useVaultStore())
 
 const isToggling = ref(false)
 const autostart = ref(false)
+const relayUrlInput = ref('')
 
 const onToggleAutostartAsync = async (value: boolean | 'indeterminate') => {
   if (value === 'indeterminate') return
@@ -286,10 +310,21 @@ const onToggleAutostartAsync = async (value: boolean | 'indeterminate') => {
   }
 }
 
+const onSaveRelayUrlAsync = async () => {
+  try {
+    await store.saveConfiguredRelayUrlAsync(relayUrlInput.value.trim() || null)
+    add({ title: t('relay.saved'), color: 'success' })
+  } catch {
+    add({ title: t('toast.error'), color: 'error' })
+  }
+}
+
 onMounted(async () => {
   await store.refreshStatusAsync()
   await store.loadSharesAsync()
   await store.loadSpaceDevicesAsync()
+  await store.loadConfiguredRelayUrlAsync()
+  relayUrlInput.value = store.configuredRelayUrl ?? ''
 
   if (currentVault.value?.drizzle) {
     const row =
@@ -490,6 +525,15 @@ de:
     emptySpace: Noch keine Ordner in diesem Space geteilt
     thisDevice: Dieses Gerät
     goToSpaces: Spaces verwalten
+  relay:
+    title: Relay-Server
+    description: Konfiguriere einen eigenen iroh-Relay-Server für P2P-Verbindungen durch NAT
+    urlLabel: Relay-URL
+    urlHint: Leer lassen um den Standard-Relay von iroh zu verwenden
+    urlPlaceholder: "https://relay.sync.haex.space"
+    active: "Aktiver Relay"
+    usingDefault: Standard-Relay (iroh)
+    saved: Relay-URL gespeichert
   toast:
     started: P2P-Endpoint gestartet
     stopped: P2P-Endpoint gestoppt
@@ -519,6 +563,15 @@ en:
     emptySpace: No folders shared in this space yet
     thisDevice: This device
     goToSpaces: Manage Spaces
+  relay:
+    title: Relay Server
+    description: Configure a custom iroh relay server for P2P connections through NAT
+    urlLabel: Relay URL
+    urlHint: Leave empty to use the default iroh relay
+    urlPlaceholder: "https://relay.sync.haex.space"
+    active: "Active relay"
+    usingDefault: Default relay (iroh)
+    saved: Relay URL saved
   toast:
     started: P2P endpoint started
     stopped: P2P endpoint stopped

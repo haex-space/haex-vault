@@ -128,9 +128,10 @@ async fn reload_state_from_db(
 }
 
 /// Start the peer storage endpoint and load shares for this device from DB
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn peer_storage_start(
     state: State<'_, AppState>,
+    relay_url: Option<String>,
 ) -> Result<PeerStorageStartInfo, PeerStorageError> {
     let endpoint = state.peer_storage.lock().await;
 
@@ -140,7 +141,7 @@ pub async fn peer_storage_start(
     drop(endpoint);
 
     let mut endpoint = state.peer_storage.lock().await;
-    let node_id = endpoint.start().await?;
+    let node_id = endpoint.start(relay_url).await?;
 
     // Wait briefly for relay connection so we can advertise our relay URL to peers
     let relay_url = if let Some(ep) = endpoint.endpoint_ref() {

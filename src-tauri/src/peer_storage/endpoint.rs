@@ -88,24 +88,30 @@ impl PeerEndpoint {
         self.endpoint.is_some()
     }
 
-    /// Start the iroh endpoint and begin accepting connections
-    pub async fn start(&mut self) -> Result<EndpointId, PeerStorageError> {
+    /// Start the iroh endpoint and begin accepting connections.
+    /// `relay_url` — optional relay URL from vault settings; falls back to
+    /// `HAEX_RELAY_URL` env var, then iroh's default relay servers.
+    pub async fn start(&mut self, relay_url: Option<String>) -> Result<EndpointId, PeerStorageError> {
         if self.endpoint.is_some() {
             return Err(PeerStorageError::EndpointAlreadyRunning);
         }
 
-        let relay_mode = match std::env::var("HAEX_RELAY_URL") {
-            Ok(url) => match url.parse::<RelayUrl>() {
-                Ok(relay_url) => {
-                    eprintln!("[PeerStorage] Using custom relay: {url}");
-                    RelayMode::custom([relay_url])
+        let effective_relay = relay_url
+            .filter(|s| !s.is_empty())
+            .or_else(|| std::env::var("HAEX_RELAY_URL").ok().filter(|s| !s.is_empty()));
+
+        let relay_mode = match effective_relay {
+            Some(url) => match url.parse::<RelayUrl>() {
+                Ok(parsed) => {
+                    eprintln!("[PeerStorage] Using relay: {url}");
+                    RelayMode::custom([parsed])
                 }
                 Err(e) => {
-                    eprintln!("[PeerStorage] Invalid HAEX_RELAY_URL '{url}': {e} — falling back to default relay");
+                    eprintln!("[PeerStorage] Invalid relay URL '{url}': {e} — falling back to default");
                     RelayMode::Default
                 }
             },
-            Err(_) => RelayMode::Default,
+            None => RelayMode::Default,
         };
 
         let endpoint = Endpoint::builder()

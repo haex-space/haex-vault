@@ -29,6 +29,7 @@ pub mod vault_settings_key {
     /// 32-byte secret (hex) used to encrypt the Ed25519 device key file in the app data directory.
     /// Generated once at vault creation, shared across devices via CRDT sync.
     pub const DEVICE_KEY_SECRET: &str = "device_key_secret";
+    pub const PEER_STORAGE_RELAY_URL: &str = "peer_storage_relay_url";
 }
 
 #[cfg(test)]
