@@ -22,32 +22,89 @@
     <!-- Window Titlebar -->
     <div
       ref="titlebarEl"
-      class="grid grid-cols-3 items-center px-3 py-1 bg-white/80 dark:bg-gray-800/80 border-b border-gray-200/50 dark:border-gray-700/50 cursor-move select-none touch-none"
-      @mousedown="handleDragStart"
-      @touchstart.passive="handleDragStart"
-      @dblclick="handleMaximize"
+      class="flex items-stretch h-10 bg-white/80 dark:bg-gray-800/80 border-b border-gray-200/50 dark:border-gray-700/50 select-none touch-none"
     >
-      <!-- Left: Icon -->
-      <div class="flex items-center gap-2">
-        <HaexIcon
-          v-if="icon"
-          :name="icon"
-          :tooltip="title"
-          class="w-5 h-5 object-contain shrink-0"
-        />
-      </div>
+      <!-- Left: Tabs (or single title if only 1 tab) -->
+      <!-- Scroll left button (only visible when tabs overflow) -->
+      <button
+        v-if="tabsOverflowLeft"
+        class="px-3 self-stretch flex items-center bg-gray-200/50 dark:bg-gray-700/50 text-highlighted hover:bg-gray-300/50 dark:hover:bg-gray-600/50 transition-colors shrink-0 z-10 min-w-10"
+        @mousedown.stop
+        @click.stop="scrollTabs('left')"
+      >
+        <UIcon name="i-lucide-chevron-left" class="w-4 h-4" />
+      </button>
+      <div
+        ref="tabContainerEl"
+        class="flex-1 flex items-center min-w-0 overflow-hidden cursor-move"
+        @mousedown="handleDragStart"
+        @touchstart.passive="handleDragStart"
+        @dblclick="handleMaximize"
+      >
+        <!-- Single tab → just show icon + title (no tab chrome) -->
+        <template v-if="windowData?.tabs.length === 1">
+          <div class="flex items-center gap-2 px-3">
+            <HaexIcon
+              v-if="icon"
+              :name="icon"
+              class="w-4 h-4 object-contain shrink-0"
+            />
+            <span class="text-sm font-medium truncate">{{ title }}</span>
+          </div>
+        </template>
 
-      <!-- Center: Title -->
-      <div class="flex items-center justify-center">
-        <span
-          class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate max-w-full"
+        <!-- Multiple tabs → tab bar -->
+        <template v-else-if="windowData?.tabs.length">
+          <div
+            v-for="tab in windowData.tabs"
+            :key="tab.id"
+            :class="[
+              'flex items-center gap-1.5 px-3 text-sm cursor-pointer self-stretch border-r border-gray-200/30 dark:border-gray-700/30 max-w-48 group transition-colors',
+              tab.id === windowData.activeTabId
+                ? 'bg-default/60 font-medium'
+                : 'text-muted hover:bg-default/30',
+            ]"
+            @mousedown.stop="windowManager.switchTab(props.id, tab.id)"
+          >
+            <HaexIcon
+              v-if="tab.icon"
+              :name="tab.icon"
+              class="w-3.5 h-3.5 shrink-0"
+            />
+            <span class="truncate">{{ tab.title }}</span>
+            <HaexWindowButton
+              variant="close"
+              @mousedown.stop
+              @click.stop="windowManager.closeTab(props.id, tab.id)"
+            />
+          </div>
+        </template>
+      </div>
+      <!-- Scroll right button (only visible when tabs overflow) -->
+      <button
+        v-if="tabsOverflowRight"
+        class="px-3 self-stretch flex items-center bg-gray-200/50 dark:bg-gray-700/50 text-highlighted hover:bg-gray-300/50 dark:hover:bg-gray-600/50 transition-colors shrink-0 z-10 min-w-10"
+        @mousedown.stop
+        @click.stop="scrollTabs('right')"
+      >
+        <UIcon name="i-lucide-chevron-right" class="w-4 h-4" />
+      </button>
+
+      <!-- "+" button with dropdown for new tab -->
+      <div class="flex items-center shrink-0">
+        <UDropdownMenu
+          :items="newTabMenuItems"
+          :ui="{ content: 'min-w-48 max-h-64 overflow-y-auto' }"
         >
-          {{ title }}
-        </span>
+          <HaexWindowButton
+            variant="add"
+            @mousedown.stop
+          />
+        </UDropdownMenu>
       </div>
 
       <!-- Right: Window Controls -->
-      <div class="flex items-center gap-1 justify-end">
+      <div class="flex items-center self-stretch gap-1 px-2 shrink-0">
         <HaexWindowButton
           variant="minimize"
           @click.stop="handleMinimize"
@@ -88,6 +145,8 @@
 <script setup lang="ts">
 import { getAvailableContentHeight } from '~/utils/viewport'
 
+const windowManager = useWindowManagerStore()
+
 const props = defineProps<{
   id: string
   title: string
@@ -111,6 +170,92 @@ const emit = defineEmits<{
   dragStart: []
   dragEnd: []
 }>()
+
+// Reactive window data (for tabs)
+const windowData = computed(() => windowManager.windows.find(w => w.id === props.id))
+
+// New tab dropdown menu items
+const newTabMenuItems = computed(() => {
+  const items: { label: string; icon?: string; onSelect: () => void }[][] = []
+
+  // System windows (non-singleton or not yet open in this window)
+  const systemItems = windowManager.getAllSystemWindows()
+    .filter((def) => {
+      if (def.singleton) {
+        // Singleton: only allow if not already a tab in this window
+        return !windowData.value?.tabs.some(t => t.sourceId === def.id)
+      }
+      return true
+    })
+    .map((def) => ({
+      label: def.name,
+      icon: def.icon,
+      onSelect: () => {
+        windowManager.addTab(props.id, {
+          type: 'system' as const,
+          sourceId: def.id,
+          title: def.name,
+          icon: def.icon,
+        })
+      },
+    }))
+
+  if (systemItems.length) items.push(systemItems)
+
+  // Extensions (non-singleInstance or not yet open in this window)
+  const extensionsStore = useExtensionsStore()
+  const extensionItems = extensionsStore.availableExtensions
+    .filter((ext) => {
+      if (ext.singleInstance) {
+        return !windowData.value?.tabs.some(t => t.sourceId === ext.id)
+      }
+      return true
+    })
+    .map((ext) => ({
+      label: ext.name,
+      icon: ext.iconUrl || ext.icon || 'i-heroicons-puzzle-piece-solid',
+      onSelect: () => {
+        windowManager.addTab(props.id, {
+          type: 'extension' as const,
+          sourceId: ext.id,
+          title: ext.name,
+          icon: ext.iconUrl || ext.icon,
+        })
+      },
+    }))
+
+  if (extensionItems.length) items.push(extensionItems)
+
+  return items
+})
+
+// Tab scrolling
+const tabContainerEl = ref<HTMLElement | null>(null)
+const tabsOverflowLeft = ref(false)
+const tabsOverflowRight = ref(false)
+
+const checkTabOverflow = () => {
+  const el = tabContainerEl.value
+  if (!el) {
+    tabsOverflowLeft.value = false
+    tabsOverflowRight.value = false
+    return
+  }
+  tabsOverflowLeft.value = el.scrollLeft > 0
+  tabsOverflowRight.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 1
+}
+
+const scrollTabs = (direction: 'left' | 'right') => {
+  const el = tabContainerEl.value
+  if (!el) return
+  el.scrollBy({ left: direction === 'left' ? -150 : 150, behavior: 'smooth' })
+  setTimeout(checkTabOverflow, 200)
+}
+
+// Watch for tab changes and container resize to re-check overflow
+watch(() => windowData.value?.tabs.length, () => nextTick(checkTabOverflow))
+useResizeObserver(tabContainerEl, checkTabOverflow)
+onMounted(() => nextTick(checkTabOverflow))
 
 // Use defineModel for x, y, width, height
 const x = defineModel<number>('x', { default: 100 })

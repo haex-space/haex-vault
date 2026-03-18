@@ -132,32 +132,41 @@
               @drag-start="handleWindowDragStart(window.id)"
               @drag-end="handleWindowDragEnd"
             >
-              <!-- System Window: Render Vue Component -->
-              <component
-                :is="getSystemWindowComponent(window.sourceId)"
-                v-if="window.type === 'system'"
-                :is-dragging="windowManager.draggingWindowId === window.id"
-                :window-params="window.params"
-                :category="window.params?.category"
-              />
-
-              <!-- Native WebView: Show icon placeholder (actual content is in separate OS window) -->
-              <div
-                v-else-if="window.isNativeWebview"
-                class="w-full h-full flex items-center justify-center bg-gray-50 dark:bg-gray-900"
+              <!-- Render each tab's content (v-show keeps state alive across tab switches) -->
+              <template
+                v-for="tab in window.tabs"
+                :key="tab.id"
               >
-                <HaexIcon
-                  :name="window.icon || 'i-lucide-app-window'"
-                  class="size-20"
+                <!-- System Window Tab -->
+                <component
+                  :is="getSystemWindowComponent(tab.sourceId)"
+                  v-if="tab.type === 'system'"
+                  v-show="tab.id === window.activeTabId"
+                  :is-dragging="windowManager.draggingWindowId === window.id"
+                  :window-params="tab.params"
+                  :category="tab.params?.category"
                 />
-              </div>
 
-              <!-- Extension Window: Render iFrame -->
-              <HaexDesktopExtensionFrame
-                v-else
-                :extension-id="window.sourceId"
-                :window-id="window.id"
-              />
+                <!-- Native WebView Tab -->
+                <div
+                  v-else-if="tab.isNativeWebview"
+                  v-show="tab.id === window.activeTabId"
+                  class="w-full h-full flex items-center justify-center bg-gray-50 dark:bg-gray-900"
+                >
+                  <HaexIcon
+                    :name="tab.icon || 'i-lucide-app-window'"
+                    class="size-20"
+                  />
+                </div>
+
+                <!-- Extension iFrame Tab -->
+                <HaexDesktopExtensionFrame
+                  v-else
+                  v-show="tab.id === window.activeTabId"
+                  :extension-id="tab.sourceId"
+                  :window-id="`${window.id}-${tab.id}`"
+                />
+              </template>
             </HaexWindow>
           </HaexDesktopWorkspaceDropZone>
         </UContextMenu>

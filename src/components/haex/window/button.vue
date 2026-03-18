@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 const props = defineProps<{
-  variant: 'close' | 'maximize' | 'minimize'
+  variant: 'close' | 'maximize' | 'minimize' | 'add'
   isMaximized?: boolean
 }>()
 
@@ -30,27 +30,35 @@ const icon = computed(() => {
       return props.isMaximized
         ? 'i-heroicons-arrows-pointing-in'
         : 'i-heroicons-arrows-pointing-out'
+    case 'add':
+      return 'i-lucide-plus'
     default:
       return 'i-heroicons-minus'
   }
 })
 
 const variantClasses = computed(() => {
-  if (props.variant === 'close') {
-    return {
-      iconClass: 'group-hover:text-error',
-      buttonClass: 'hover:bg-error/30 items-center',
-    }
-  } else if (props.variant === 'maximize') {
-    return {
-      iconClass: 'group-hover:text-warning',
-      buttonClass: 'hover:bg-warning/30 items-center',
-    }
-  } else {
-    return {
-      iconClass: 'group-hover:text-success',
-      buttonClass: 'hover:bg-success/30 items-end pb-1',
-    }
+  switch (props.variant) {
+    case 'close':
+      return {
+        iconClass: 'group-hover:text-error',
+        buttonClass: 'hover:bg-error/30 items-center',
+      }
+    case 'maximize':
+      return {
+        iconClass: 'group-hover:text-warning',
+        buttonClass: 'hover:bg-warning/30 items-center',
+      }
+    case 'add':
+      return {
+        iconClass: 'group-hover:text-primary',
+        buttonClass: 'hover:bg-primary/30 items-center',
+      }
+    default:
+      return {
+        iconClass: 'group-hover:text-success',
+        buttonClass: 'hover:bg-success/30 items-end pb-1',
+      }
   }
 })
 
@@ -62,6 +70,8 @@ const tooltip = computed(() => {
       return t('close')
     case 'maximize':
       return props.isMaximized ? t('shrink') : t('maximize')
+    case 'add':
+      return t('newTab')
     default:
       return t('minimize')
   }
@@ -74,10 +84,12 @@ de:
   maximize: Maximieren
   shrink: Verkleinern
   minimize: Minimieren
+  newTab: Neuer Tab
 
 en:
   close: Close
   maximize: Maximize
   shrink: Shrink
   minimize: Minimize
+  newTab: New Tab
 </i18n>

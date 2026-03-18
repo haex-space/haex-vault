@@ -8,9 +8,24 @@ import { createLogger } from '~/stores/logging'
 
 const log = createLogger('WINDOW_MGR')
 
+export interface IWindowTab {
+  id: string
+  type: 'system' | 'extension'
+  sourceId: string // extensionId or systemWindowId (depends on type)
+  title: string
+  icon?: string | null
+  params?: Record<string, unknown>
+  // Native webview window flag (separate OS window vs iframe)
+  isNativeWebview?: boolean
+}
+
 export interface IWindow {
   id: string
   workspaceId: string // Window belongs to a specific workspace
+  // Tab management
+  tabs: IWindowTab[]
+  activeTabId: string
+  // Legacy fields (derived from active tab for backward compat)
   type: 'system' | 'extension'
   sourceId: string // extensionId or systemWindowId (depends on type)
   title: string
@@ -204,9 +219,12 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
             )
 
             // Store minimal metadata for tracking (no UI management needed on desktop)
+            const nativeTabId = crypto.randomUUID()
             const newWindow: IWindow = {
               id: windowId, // Use window_id from backend as ID
               workspaceId: '', // Not used on desktop
+              tabs: [{ id: nativeTabId, type, sourceId, title: finalTitle, icon, isNativeWebview: true }],
+              activeTabId: nativeTabId,
               type,
               sourceId,
               title: finalTitle,
@@ -365,9 +383,23 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       const effectiveSourcePosition =
         sourcePosition || launcherButtonPosition.value
 
+      // Create initial tab
+      const tabId = crypto.randomUUID()
+      const initialTab: IWindowTab = {
+        id: tabId,
+        type,
+        sourceId,
+        title: title!,
+        icon,
+        params,
+      }
+
       const newWindow: IWindow = {
         id: windowId,
         workspaceId: workspace.id,
+        tabs: [initialTab],
+        activeTabId: tabId,
+        // Legacy fields (mirror active tab)
         type,
         sourceId,
         title: title!,
@@ -668,6 +700,109 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     setupDesktopEventListenersAsync()
   }
 
+  // =========================================================================
+  // Tab Management
+  // =========================================================================
+
+  /** Check if a source allows multiple instances. */
+  const isSourceSingleton = (type: 'system' | 'extension', sourceId: string): boolean => {
+    if (type === 'system') {
+      return getSystemWindow(sourceId)?.singleton === true
+    }
+    const extensionsStore = useExtensionsStore()
+    const ext = extensionsStore.availableExtensions.find(e => e.id === sourceId)
+    return ext?.singleInstance === true
+  }
+
+  /** Add a new tab to an existing window. Returns the tab ID or null. */
+  const addTab = (windowId: string, tab: Omit<IWindowTab, 'id'>): string | null => {
+    const win = windows.value.find(w => w.id === windowId)
+    if (!win) return null
+
+    // Singleton check: activate existing tab instead of creating a duplicate
+    if (isSourceSingleton(tab.type, tab.sourceId)) {
+      const existing = win.tabs.find(t => t.sourceId === tab.sourceId)
+      if (existing) {
+        win.activeTabId = existing.id
+        syncWindowFromActiveTab(win)
+        return existing.id
+      }
+    }
+
+    const tabId = crypto.randomUUID()
+    win.tabs.push({ id: tabId, ...tab })
+    win.activeTabId = tabId
+    syncWindowFromActiveTab(win)
+    return tabId
+  }
+
+  /** Add a new tab that duplicates the active tab's source (for the "+" button). */
+  const addNewTabFromActive = (windowId: string): string | null => {
+    const win = windows.value.find(w => w.id === windowId)
+    if (!win) return null
+    const activeTab = win.tabs.find(t => t.id === win.activeTabId)
+    if (!activeTab) return null
+    if (isSourceSingleton(activeTab.type, activeTab.sourceId)) return null
+
+    return addTab(windowId, {
+      type: activeTab.type,
+      sourceId: activeTab.sourceId,
+      title: activeTab.title,
+      icon: activeTab.icon,
+    })
+  }
+
+  /** Check if the "+" button should be shown (active source is not singleton). */
+  const canAddTab = (windowId: string): boolean => {
+    const win = windows.value.find(w => w.id === windowId)
+    if (!win) return false
+    const activeTab = win.tabs.find(t => t.id === win.activeTabId)
+    if (!activeTab) return false
+    return !isSourceSingleton(activeTab.type, activeTab.sourceId)
+  }
+
+  /** Switch to a specific tab. */
+  const switchTab = (windowId: string, tabId: string) => {
+    const win = windows.value.find(w => w.id === windowId)
+    if (!win) return
+    if (!win.tabs.some(t => t.id === tabId)) return
+    win.activeTabId = tabId
+    syncWindowFromActiveTab(win)
+  }
+
+  /** Close a tab. Last tab closes the window. */
+  const closeTab = (windowId: string, tabId: string) => {
+    const win = windows.value.find(w => w.id === windowId)
+    if (!win) return
+
+    if (win.tabs.length <= 1) {
+      closeWindow(windowId)
+      return
+    }
+
+    const tabIndex = win.tabs.findIndex(t => t.id === tabId)
+    if (tabIndex === -1) return
+    win.tabs.splice(tabIndex, 1)
+
+    if (win.activeTabId === tabId) {
+      const newIndex = Math.min(tabIndex, win.tabs.length - 1)
+      win.activeTabId = win.tabs[newIndex]!.id
+      syncWindowFromActiveTab(win)
+    }
+  }
+
+  /** Sync the window's legacy fields from the active tab. */
+  const syncWindowFromActiveTab = (win: IWindow) => {
+    const tab = win.tabs.find(t => t.id === win.activeTabId)
+    if (!tab) return
+    win.type = tab.type
+    win.sourceId = tab.sourceId
+    win.title = tab.title
+    win.icon = tab.icon
+    win.params = tab.params
+    win.isNativeWebview = tab.isNativeWebview
+  }
+
   return {
     activateWindow,
     activeWindowId,
@@ -695,5 +830,11 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     windowAnimationDuration,
     windows,
     windowsByWorkspaceId,
+    // Tab management
+    addTab,
+    addNewTabFromActive,
+    canAddTab,
+    switchTab,
+    closeTab,
   }
 })
