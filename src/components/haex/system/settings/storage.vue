@@ -167,7 +167,6 @@
               <UiButton
                 color="neutral"
                 variant="outline"
-                size="sm"
                 :loading="testingBackendId === backend.id"
                 :disabled="testingBackendId !== null"
                 @click="onTestBackendAsync(backend.id)"
@@ -178,14 +177,12 @@
                 color="neutral"
                 variant="ghost"
                 icon="i-lucide-pencil"
-                size="sm"
                 @click="openEditForm(backend)"
               />
               <UiButton
                 color="error"
                 variant="ghost"
                 icon="i-lucide-trash-2"
-                size="sm"
                 @click="prepareDeleteBackend(backend)"
               />
             </div>

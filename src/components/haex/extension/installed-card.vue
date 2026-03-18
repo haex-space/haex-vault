@@ -83,7 +83,6 @@
           :label="t('open')"
           color="primary"
           icon="i-heroicons-arrow-right"
-          size="sm"
           @click.stop="$emit('open')"
         />
         <div class="flex gap-2">
@@ -92,7 +91,6 @@
             color="neutral"
             variant="ghost"
             icon="i-heroicons-cog-6-tooth"
-            size="sm"
             @click.stop="$emit('settings')"
           />
           <UButton
@@ -100,7 +98,6 @@
             color="error"
             variant="ghost"
             icon="i-heroicons-trash"
-            size="sm"
             @click.stop="$emit('remove')"
           />
         </div>

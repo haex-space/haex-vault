@@ -21,14 +21,12 @@
     <div class="flex justify-between items-center">
       <UButton
         variant="link"
-        size="xs"
         @click="onResendAsync"
       >
         {{ t('otp.resend') }}
       </UButton>
       <UButton
         variant="link"
-        size="xs"
         @click="emit('changeEmail')"
       >
         {{ t('otp.changeEmail') }}

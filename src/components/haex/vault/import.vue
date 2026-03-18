@@ -57,7 +57,6 @@
             <UButton
               color="neutral"
               variant="ghost"
-              size="xs"
               icon="mdi:close"
               @click="selectedPath = null"
             />

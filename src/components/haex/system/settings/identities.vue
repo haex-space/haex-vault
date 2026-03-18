@@ -1,5 +1,8 @@
 <template>
-  <HaexSystemSettingsLayout :title="t('title')" :description="t('description')">
+  <HaexSystemSettingsLayout
+    :title="t('title')"
+    :description="t('description')"
+  >
     <!-- Identities List -->
     <UCard>
       <template #header>
@@ -54,11 +57,19 @@
         >
           <div>
             <div class="flex items-center gap-2">
-              <UIcon name="i-lucide-fingerprint" class="w-4 h-4 text-primary shrink-0" />
+              <UIcon
+                name="i-lucide-fingerprint"
+                class="w-4 h-4 text-primary shrink-0"
+              />
               <span class="font-medium truncate">{{ identity.label }}</span>
             </div>
-            <code class="block text-xs text-muted truncate mt-1">{{ identity.did }}</code>
-            <p v-if="identity.createdAt" class="text-xs text-muted mt-1">
+            <code class="block text-xs text-muted truncate mt-1">{{
+              identity.did
+            }}</code>
+            <p
+              v-if="identity.createdAt"
+              class="text-xs text-muted mt-1"
+            >
               {{ t('list.created') }}: {{ formatDate(identity.createdAt) }}
             </p>
           </div>
@@ -92,7 +103,11 @@
             <div class="flex-1" />
             <UButton
               variant="ghost"
-              :icon="expandedIdentity === identity.publicKey ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+              :icon="
+                expandedIdentity === identity.publicKey
+                  ? 'i-lucide-chevron-up'
+                  : 'i-lucide-chevron-down'
+              "
               :title="t('actions.toggleClaims')"
               @click="toggleExpand(identity.publicKey)"
             />
@@ -103,11 +118,12 @@
             :open="expandedIdentity === identity.publicKey"
             :unmount-on-hide="false"
           >
-
             <template #content>
               <div class="mt-3 pt-3 border-t border-default space-y-2">
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                  <span class="text-sm font-medium">{{ t('claims.title') }}</span>
+                  <span class="text-sm font-medium">{{
+                    t('claims.title')
+                  }}</span>
                   <UButton
                     variant="outline"
                     icon="i-lucide-plus"
@@ -127,7 +143,9 @@
                     class="flex flex-wrap items-center justify-between gap-2 p-2 rounded bg-gray-50 dark:bg-gray-800/50"
                   >
                     <div class="min-w-0 flex-1">
-                      <span class="text-xs font-medium text-muted">{{ claim.type }}</span>
+                      <span class="text-xs font-medium text-muted">{{
+                        claim.type
+                      }}</span>
                       <p class="text-sm truncate">{{ claim.value }}</p>
                     </div>
                     <div class="flex gap-1 shrink-0">
@@ -209,7 +227,10 @@
               leading-icon="i-lucide-lock"
             />
             <p
-              v-if="createIdentityPasswordConfirm && createIdentityPassword !== createIdentityPasswordConfirm"
+              v-if="
+                createIdentityPasswordConfirm &&
+                createIdentityPassword !== createIdentityPasswordConfirm
+              "
               class="text-sm text-error -mt-3"
             >
               {{ t('create.passwordMismatch') }}
@@ -358,7 +379,10 @@
             leading-icon="i-lucide-lock"
           />
           <p
-            v-if="editIdentityPasswordConfirm && editIdentityPassword !== editIdentityPasswordConfirm"
+            v-if="
+              editIdentityPasswordConfirm &&
+              editIdentityPassword !== editIdentityPasswordConfirm
+            "
             class="text-sm text-error -mt-3"
           >
             {{ t('create.passwordMismatch') }}
@@ -399,6 +423,7 @@
             :items="claimTypeOptions"
             value-key="value"
             :label="t('claims.type')"
+            class="min-w-48"
           />
           <UiInput
             v-if="claimType === 'custom' && !editingClaim"
@@ -479,14 +504,18 @@ const createClaims = reactive({
 })
 
 const effectiveCreatePassword = computed(() =>
-  useVaultPasswordForIdentity.value ? (currentVaultPassword.value ?? '') : createIdentityPassword.value,
+  useVaultPasswordForIdentity.value
+    ? (currentVaultPassword.value ?? '')
+    : createIdentityPassword.value,
 )
 
 const canCreateIdentity = computed(() => {
   if (!createLabel.value.trim() || !createClaims.email.trim()) return false
   if (useVaultPasswordForIdentity.value) return !!currentVaultPassword.value
-  return createIdentityPassword.value.length >= 8 &&
+  return (
+    createIdentityPassword.value.length >= 8 &&
     createIdentityPassword.value === createIdentityPasswordConfirm.value
+  )
 })
 const renameLabel = ref('')
 const renameTarget = ref<SelectHaexIdentities | null>(null)
@@ -496,7 +525,10 @@ const editIdentityPasswordConfirm = ref('')
 const canSaveEdit = computed(() => {
   if (!renameLabel.value.trim()) return false
   if (editIdentityPassword.value) {
-    return editIdentityPassword.value.length >= 8 && editIdentityPassword.value === editIdentityPasswordConfirm.value
+    return (
+      editIdentityPassword.value.length >= 8 &&
+      editIdentityPassword.value === editIdentityPasswordConfirm.value
+    )
   }
   return true
 })
@@ -518,15 +550,22 @@ const onCreateAsync = async () => {
 
   isCreating.value = true
   try {
-    const identity = await identityStore.createIdentityAsync(createLabel.value.trim())
+    const identity = await identityStore.createIdentityAsync(
+      createLabel.value.trim(),
+    )
 
     // Store identity password for use when connecting to a sync backend
     if (effectiveCreatePassword.value) {
-      identityStore.setIdentityPassword(identity.publicKey, effectiveCreatePassword.value)
+      identityStore.setIdentityPassword(
+        identity.publicKey,
+        effectiveCreatePassword.value,
+      )
     }
 
     // Save non-empty claims
-    const claimEntries = Object.entries(createClaims).filter(([, value]) => value.trim())
+    const claimEntries = Object.entries(createClaims).filter(([, value]) =>
+      value.trim(),
+    )
     for (const [type, value] of claimEntries) {
       await identityStore.addClaimAsync(identity.publicKey, type, value.trim())
     }
@@ -588,7 +627,11 @@ const onImportAsync = async () => {
 }
 
 const onExport = (identity: SelectHaexIdentities) => {
-  exportJson.value = JSON.stringify(identityStore.exportIdentity(identity), null, 2)
+  exportJson.value = JSON.stringify(
+    identityStore.exportIdentity(identity),
+    null,
+    2,
+  )
   showExportDialog.value = true
 }
 
@@ -614,10 +657,16 @@ const onRenameAsync = async () => {
 
   isRenaming.value = true
   try {
-    await identityStore.updateLabelAsync(renameTarget.value.publicKey, renameLabel.value.trim())
+    await identityStore.updateLabelAsync(
+      renameTarget.value.publicKey,
+      renameLabel.value.trim(),
+    )
 
     if (editIdentityPassword.value) {
-      const ok = await updatePasswordAsync(renameTarget.value.publicKey, editIdentityPassword.value)
+      const ok = await updatePasswordAsync(
+        renameTarget.value.publicKey,
+        editIdentityPassword.value,
+      )
       if (!ok) {
         add({ title: t('errors.passwordUpdateFailed'), color: 'error' })
         return
@@ -679,24 +728,40 @@ const formatDate = (dateStr: string | null) => {
 
 // Claims management
 const expandedIdentity = ref<string | null>(null)
-const identityClaims = ref<Record<string, { id: string; type: string; value: string }[]>>({})
+const identityClaims = ref<
+  Record<string, { id: string; type: string; value: string }[]>
+>({})
 const showClaimDialog = ref(false)
 const claimType = ref('email')
 const claimCustomType = ref('')
 const claimValue = ref('')
-const editingClaim = ref<{ id: string; identityId: string; type: string } | null>(null)
+const editingClaim = ref<{
+  id: string
+  identityId: string
+  type: string
+} | null>(null)
 const claimTargetIdentityId = ref<string | null>(null)
 
 const claimTypeOptions = computed(() => {
   const existingTypes = new Set(
-    (claimTargetIdentityId.value ? identityClaims.value[claimTargetIdentityId.value] : [])
-      ?.map(c => c.type) ?? [],
+    (claimTargetIdentityId.value
+      ? identityClaims.value[claimTargetIdentityId.value]
+      : []
+    )?.map((c) => c.type) ?? [],
   )
   return [
     { label: 'Email', value: 'email', disabled: existingTypes.has('email') },
     { label: 'Name', value: 'name', disabled: existingTypes.has('name') },
-    { label: t('claims.phone'), value: 'phone', disabled: existingTypes.has('phone') },
-    { label: t('claims.address'), value: 'address', disabled: existingTypes.has('address') },
+    {
+      label: t('claims.phone'),
+      value: 'phone',
+      disabled: existingTypes.has('phone'),
+    },
+    {
+      label: t('claims.address'),
+      value: 'address',
+      disabled: existingTypes.has('address'),
+    },
     { label: t('claims.custom'), value: 'custom' },
   ]
 })
@@ -712,7 +777,12 @@ const claimValuePlaceholder = computed(() => {
 
 const canSaveClaim = computed(() => {
   if (!claimValue.value.trim()) return false
-  if (!editingClaim.value && claimType.value === 'custom' && !claimCustomType.value.trim()) return false
+  if (
+    !editingClaim.value &&
+    claimType.value === 'custom' &&
+    !claimCustomType.value.trim()
+  )
+    return false
   return true
 })
 
@@ -727,14 +797,18 @@ const toggleExpand = async (identityId: string) => {
 
 const loadClaimsAsync = async (identityId: string) => {
   const claims = await identityStore.getClaimsAsync(identityId)
-  identityClaims.value[identityId] = claims.map(c => ({ id: c.id, type: c.type, value: c.value }))
+  identityClaims.value[identityId] = claims.map((c) => ({
+    id: c.id,
+    type: c.type,
+    value: c.value,
+  }))
 }
 
 const openAddClaim = (identityId: string) => {
   claimTargetIdentityId.value = identityId
   editingClaim.value = null
   // Pre-select first available (non-disabled) type
-  const firstAvailable = claimTypeOptions.value.find(o => !o.disabled)
+  const firstAvailable = claimTypeOptions.value.find((o) => !o.disabled)
   claimType.value = firstAvailable?.value ?? 'custom'
   claimCustomType.value = ''
   claimValue.value = ''
@@ -742,7 +816,11 @@ const openAddClaim = (identityId: string) => {
 }
 
 const openEditClaim = (claim: { id: string; type: string; value: string }) => {
-  editingClaim.value = { id: claim.id, identityId: expandedIdentity.value!, type: claim.type }
+  editingClaim.value = {
+    id: claim.id,
+    identityId: expandedIdentity.value!,
+    type: claim.type,
+  }
   claimValue.value = claim.value
   showClaimDialog.value = true
 }
@@ -752,19 +830,33 @@ const onSaveClaimAsync = async () => {
 
   try {
     if (editingClaim.value) {
-      await identityStore.updateClaimAsync(editingClaim.value.id, claimValue.value.trim())
+      await identityStore.updateClaimAsync(
+        editingClaim.value.id,
+        claimValue.value.trim(),
+      )
       await loadClaimsAsync(editingClaim.value.identityId)
       add({ title: t('claims.updated'), color: 'success' })
     } else {
-      const type = claimType.value === 'custom' ? claimCustomType.value.trim() : claimType.value
-      await identityStore.addClaimAsync(claimTargetIdentityId.value!, type, claimValue.value.trim())
+      const type =
+        claimType.value === 'custom'
+          ? claimCustomType.value.trim()
+          : claimType.value
+      await identityStore.addClaimAsync(
+        claimTargetIdentityId.value!,
+        type,
+        claimValue.value.trim(),
+      )
       await loadClaimsAsync(claimTargetIdentityId.value!)
       add({ title: t('claims.added'), color: 'success' })
     }
     showClaimDialog.value = false
   } catch (error) {
     console.error('Failed to save claim:', error)
-    add({ title: t('claims.saveFailed'), description: error instanceof Error ? error.message : undefined, color: 'error' })
+    add({
+      title: t('claims.saveFailed'),
+      description: error instanceof Error ? error.message : undefined,
+      color: 'error',
+    })
   }
 }
 
@@ -810,7 +902,7 @@ de:
     title: Identität exportieren
     description: Kopiere diese Daten, um die Identität auf einem anderen Gerät zu importieren.
     jsonLabel: Identitäts-JSON
-    warning: "Achtung: Dieses JSON enthält deinen privaten Schlüssel. Teile es nur über sichere Kanäle und lösche es nach dem Import."
+    warning: 'Achtung: Dieses JSON enthält deinen privaten Schlüssel. Teile es nur über sichere Kanäle und lösche es nach dem Import.'
   edit:
     title: Identität bearbeiten
     labelField: Name
@@ -892,7 +984,7 @@ en:
     title: Export Identity
     description: Copy this data to import the identity on another device.
     jsonLabel: Identity JSON
-    warning: "Warning: This JSON contains your private key. Only share it through secure channels and delete it after import."
+    warning: 'Warning: This JSON contains your private key. Only share it through secure channels and delete it after import.'
   edit:
     title: Edit Identity
     labelField: Name

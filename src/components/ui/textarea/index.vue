@@ -34,7 +34,6 @@
           :color="copied ? 'success' : 'neutral'"
           :tooltip="t('copy')"
           :icon="copied ? 'mdi:check' : 'mdi:content-copy'"
-          size="sm"
           variant="link"
           @click="copy(`${value}`)"
         />

@@ -59,13 +59,11 @@
           <UiButton
             :label="t('list.reload')"
             variant="outline"
-            size="sm"
             @click="reloadDevExtensionAsync(ext)"
           />
           <UiButton
             :label="t('list.remove')"
             variant="ghost"
-            size="sm"
             color="error"
             @click="removeDevExtensionAsync(ext)"
           />

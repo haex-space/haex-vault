@@ -21,7 +21,6 @@
         :aria-pressed="show"
         :icon="show ? 'i-lucide-eye-off' : 'i-lucide-eye'"
         :tooltip="show ? t('hide') : t('show')"
-        size="sm"
         @click="show = !show"
       />
     </template>

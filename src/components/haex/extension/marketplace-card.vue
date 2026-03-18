@@ -53,7 +53,6 @@
               :label="`v${extension.latestVersion}`"
               color="neutral"
               variant="subtle"
-              size="sm"
             />
             <UBadge
               v-if="extension.isInstalled && extension.installedVersion"
@@ -64,7 +63,6 @@
               "
               :color="hasUpdate ? 'warning' : 'success'"
               variant="subtle"
-              size="sm"
             />
           </div>
         </div>
@@ -121,7 +119,6 @@
             icon="i-heroicons-trash"
             color="error"
             variant="ghost"
-            size="sm"
             @click.stop="$emit('remove')"
           />
           <!-- Update button (shown when update is available) -->
@@ -131,7 +128,6 @@
             :label="t('update')"
             color="warning"
             icon="i-heroicons-arrow-path"
-            size="sm"
             @click.stop="$emit('update')"
           />
           <!-- Install button (shown when not installed) -->
@@ -141,7 +137,6 @@
             :label="t('install')"
             color="primary"
             icon="i-heroicons-arrow-down-tray"
-            size="sm"
             @click.stop="$emit('install')"
           />
           <!-- Installed indicator (shown when installed and no update) -->
@@ -150,7 +145,6 @@
             :label="t('installed')"
             color="neutral"
             icon="i-heroicons-check"
-            size="sm"
             disabled
           />
       </div>

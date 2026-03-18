@@ -1,5 +1,8 @@
 <template>
-  <HaexSystemSettingsLayout :title="t('title')" :description="t('description')">
+  <HaexSystemSettingsLayout
+    :title="t('title')"
+    :description="t('description')"
+  >
     <!-- Contacts List -->
     <UCard>
       <template #header>
@@ -62,41 +65,49 @@
           <div class="flex items-center justify-between">
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2">
-                <UIcon name="i-lucide-user" class="w-4 h-4 text-primary shrink-0" />
+                <UIcon
+                  name="i-lucide-user"
+                  class="w-4 h-4 text-primary shrink-0"
+                />
                 <span class="font-medium truncate">{{ contact.label }}</span>
               </div>
               <div class="mt-1 flex items-center gap-2">
-                <code class="text-xs text-muted truncate max-w-[300px]">{{ contact.publicKey }}</code>
+                <code class="text-xs text-muted truncate max-w-[300px]">{{
+                  contact.publicKey
+                }}</code>
                 <UButton
-                  size="xs"
                   variant="ghost"
                   icon="i-lucide-copy"
                   :title="t('actions.copyKey')"
                   @click="copyPublicKey(contact.publicKey)"
                 />
               </div>
-              <p v-if="contact.createdAt" class="text-xs text-muted mt-1">
+              <p
+                v-if="contact.createdAt"
+                class="text-xs text-muted mt-1"
+              >
                 {{ t('list.added') }}: {{ formatDate(contact.createdAt) }}
               </p>
             </div>
 
             <div class="flex items-center gap-1 shrink-0 ml-4">
               <UButton
-                size="xs"
                 variant="ghost"
-                :icon="expandedContact === contact.id ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+                :icon="
+                  expandedContact === contact.id
+                    ? 'i-lucide-chevron-up'
+                    : 'i-lucide-chevron-down'
+                "
                 :title="t('actions.toggleClaims')"
                 @click="toggleExpand(contact.id)"
               />
               <UButton
-                size="xs"
                 variant="ghost"
                 icon="i-lucide-pencil"
                 :title="t('actions.edit')"
                 @click="openEditDialog(contact)"
               />
               <UButton
-                size="xs"
                 variant="ghost"
                 color="error"
                 icon="i-lucide-trash-2"
@@ -114,7 +125,6 @@
             <div class="flex items-center justify-between">
               <span class="text-sm font-medium">{{ t('claims.title') }}</span>
               <UButton
-                size="xs"
                 variant="outline"
                 icon="i-lucide-plus"
                 @click="openAddClaim(contact.id)"
@@ -133,18 +143,18 @@
                 class="flex items-center justify-between p-2 rounded bg-gray-50 dark:bg-gray-800/50"
               >
                 <div class="min-w-0 flex-1">
-                  <span class="text-xs font-medium text-muted">{{ claim.type }}</span>
+                  <span class="text-xs font-medium text-muted">{{
+                    claim.type
+                  }}</span>
                   <p class="text-sm truncate">{{ claim.value }}</p>
                 </div>
                 <div class="flex gap-1 shrink-0 ml-2">
                   <UButton
-                    size="xs"
                     variant="ghost"
                     icon="i-lucide-pencil"
                     @click="openEditClaim(claim)"
                   />
                   <UButton
-                    size="xs"
                     variant="ghost"
                     color="error"
                     icon="i-lucide-trash-2"
@@ -161,8 +171,13 @@
             </p>
 
             <!-- Notes -->
-            <div v-if="contact.notes" class="pt-2">
-              <span class="text-xs font-medium text-muted">{{ t('fields.notes') }}</span>
+            <div
+              v-if="contact.notes"
+              class="pt-2"
+            >
+              <span class="text-xs font-medium text-muted">{{
+                t('fields.notes')
+              }}</span>
               <p class="text-sm text-muted">{{ contact.notes }}</p>
             </div>
           </div>
@@ -268,9 +283,10 @@
     >
       <template #content>
         <div class="space-y-4">
-          <USelectMenu
+          <USelect
             v-if="!editingClaim"
             v-model="claimType"
+            class="min-w-48"
             :items="claimTypeOptions"
             value-key="value"
             :label="t('claims.type')"
@@ -465,18 +481,26 @@ const formatDate = (dateStr: string | null) => {
 
 // Claims management
 const expandedContact = ref<string | null>(null)
-const contactClaims = ref<Record<string, { id: string; type: string; value: string }[]>>({})
+const contactClaims = ref<
+  Record<string, { id: string; type: string; value: string }[]>
+>({})
 const showClaimDialog = ref(false)
 const claimType = ref('email')
 const claimCustomType = ref('')
 const claimValue = ref('')
-const editingClaim = ref<{ id: string; contactId: string; type: string } | null>(null)
+const editingClaim = ref<{
+  id: string
+  contactId: string
+  type: string
+} | null>(null)
 const claimTargetContactId = ref<string | null>(null)
 
 const claimTypeOptions = computed(() => {
   const existingTypes = new Set(
-    (claimTargetContactId.value ? contactClaims.value[claimTargetContactId.value] : [])
-      ?.map(c => c.type) ?? [],
+    (claimTargetContactId.value
+      ? contactClaims.value[claimTargetContactId.value]
+      : []
+    )?.map((c) => c.type) ?? [],
   )
   return [
     { label: 'Email', value: 'email', disabled: existingTypes.has('email') },
@@ -494,7 +518,12 @@ const claimValuePlaceholder = computed(() => {
 
 const canSaveClaim = computed(() => {
   if (!claimValue.value.trim()) return false
-  if (!editingClaim.value && claimType.value === 'custom' && !claimCustomType.value.trim()) return false
+  if (
+    !editingClaim.value &&
+    claimType.value === 'custom' &&
+    !claimCustomType.value.trim()
+  )
+    return false
   return true
 })
 
@@ -509,13 +538,17 @@ const toggleExpand = async (contactId: string) => {
 
 const loadClaimsAsync = async (contactId: string) => {
   const claims = await contactsStore.getClaimsAsync(contactId)
-  contactClaims.value[contactId] = claims.map(c => ({ id: c.id, type: c.type, value: c.value }))
+  contactClaims.value[contactId] = claims.map((c) => ({
+    id: c.id,
+    type: c.type,
+    value: c.value,
+  }))
 }
 
 const openAddClaim = (contactId: string) => {
   claimTargetContactId.value = contactId
   editingClaim.value = null
-  const firstAvailable = claimTypeOptions.value.find(o => !o.disabled)
+  const firstAvailable = claimTypeOptions.value.find((o) => !o.disabled)
   claimType.value = firstAvailable?.value ?? 'custom'
   claimCustomType.value = ''
   claimValue.value = ''
@@ -523,7 +556,11 @@ const openAddClaim = (contactId: string) => {
 }
 
 const openEditClaim = (claim: { id: string; type: string; value: string }) => {
-  editingClaim.value = { id: claim.id, contactId: expandedContact.value!, type: claim.type }
+  editingClaim.value = {
+    id: claim.id,
+    contactId: expandedContact.value!,
+    type: claim.type,
+  }
   claimValue.value = claim.value
   showClaimDialog.value = true
 }
@@ -533,19 +570,33 @@ const onSaveClaimAsync = async () => {
 
   try {
     if (editingClaim.value) {
-      await contactsStore.updateClaimAsync(editingClaim.value.id, claimValue.value.trim())
+      await contactsStore.updateClaimAsync(
+        editingClaim.value.id,
+        claimValue.value.trim(),
+      )
       await loadClaimsAsync(editingClaim.value.contactId)
       add({ title: t('claims.updated'), color: 'success' })
     } else {
-      const type = claimType.value === 'custom' ? claimCustomType.value.trim() : claimType.value
-      await contactsStore.addClaimAsync(claimTargetContactId.value!, type, claimValue.value.trim())
+      const type =
+        claimType.value === 'custom'
+          ? claimCustomType.value.trim()
+          : claimType.value
+      await contactsStore.addClaimAsync(
+        claimTargetContactId.value!,
+        type,
+        claimValue.value.trim(),
+      )
       await loadClaimsAsync(claimTargetContactId.value!)
       add({ title: t('claims.added'), color: 'success' })
     }
     showClaimDialog.value = false
   } catch (error) {
     console.error('Failed to save claim:', error)
-    add({ title: t('claims.saveFailed'), description: error instanceof Error ? error.message : undefined, color: 'error' })
+    add({
+      title: t('claims.saveFailed'),
+      description: error instanceof Error ? error.message : undefined,
+      color: 'error',
+    })
   }
 }
 

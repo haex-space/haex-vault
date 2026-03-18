@@ -90,7 +90,6 @@
               icon="i-lucide-server"
               variant="ghost"
               color="neutral"
-              size="md"
               @click="onNavigateToSync"
             />
           </div>

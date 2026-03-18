@@ -22,7 +22,7 @@
     </span>
 
     <template #body>
-      <div class="flex flex-wrap">
+      <div class="flex flex-wrap justify-center gap-2">
         <!-- All launcher items (system windows + enabled extensions, alphabetically sorted) -->
         <HaexExtensionLauncherItem
           v-for="item in launcherItems"
@@ -48,7 +48,7 @@
           variant="ghost"
           :disabled="true"
           :ui="{
-            base: 'size-24 flex flex-wrap text-sm items-center justify-center overflow-visible opacity-40',
+            base: 'size-24 flex flex-col text-sm items-center justify-center overflow-visible opacity-40',
             leadingIcon: 'size-10',
             label: 'w-full',
           }"

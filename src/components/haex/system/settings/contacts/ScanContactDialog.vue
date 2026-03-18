@@ -36,7 +36,9 @@
 
         <div class="mt-2">
           <label class="text-sm font-medium">{{ t('review.publicKey') }}</label>
-          <code class="block text-xs text-muted p-2 rounded bg-gray-50 dark:bg-gray-800/50 break-all mt-1">
+          <code
+            class="block text-xs text-muted p-2 rounded bg-gray-50 dark:bg-gray-800/50 break-all mt-1"
+          >
             {{ scannedContact.publicKey }}
           </code>
         </div>
@@ -45,7 +47,6 @@
           <div class="flex items-center justify-between">
             <span class="text-sm font-medium">{{ t('review.claims') }}</span>
             <UButton
-              size="xs"
               variant="outline"
               icon="i-lucide-plus"
               @click="showAddClaimInline = true"
@@ -59,19 +60,17 @@
             :key="index"
             class="flex items-center gap-3 p-2 rounded bg-gray-50 dark:bg-gray-800/50"
           >
-            <UiToggle
-              v-model="claim.selected"
-            />
+            <UiToggle v-model="claim.selected" />
             <div class="min-w-0 flex-1">
-              <span class="text-xs font-medium text-muted">{{ claim.type }}</span>
+              <span class="text-xs font-medium text-muted">
+                {{ claim.type }}
+              </span>
               <UiInput
                 v-model="claim.value"
-                size="sm"
                 class="mt-1"
               />
             </div>
             <UButton
-              size="xs"
               variant="ghost"
               color="error"
               icon="i-lucide-x"
@@ -88,24 +87,20 @@
               v-model="newClaimType"
               :label="t('review.claimType')"
               placeholder="email, phone, ..."
-              size="sm"
               class="flex-1"
             />
             <UiInput
               v-model="newClaimValue"
               :label="t('review.claimValue')"
-              size="sm"
               class="flex-1"
               @keydown.enter.prevent="addInlineClaim"
             />
             <UButton
-              size="sm"
               icon="i-lucide-check"
               :disabled="!newClaimType.trim() || !newClaimValue.trim()"
               @click="addInlineClaim"
             />
             <UButton
-              size="sm"
               variant="ghost"
               icon="i-lucide-x"
               @click="showAddClaimInline = false"
@@ -213,7 +208,7 @@ const selectedCameraId = ref('')
 let scanner: Html5Qrcode | null = null
 
 const cameraOptions = computed(() =>
-  cameras.value.map(c => ({
+  cameras.value.map((c) => ({
     label: c.label || c.id,
     value: c.id,
   })),
@@ -255,8 +250,11 @@ watch(selectedCameraId, async (newId, oldId) => {
 const loadCameras = async () => {
   try {
     const devices = await Html5Qrcode.getCameras()
-    cameras.value = devices.map(d => ({ id: d.id, label: d.label }))
-    if (cameras.value.length > 0 && !cameras.value.some(c => c.id === selectedCameraId.value)) {
+    cameras.value = devices.map((d) => ({ id: d.id, label: d.label }))
+    if (
+      cameras.value.length > 0 &&
+      !cameras.value.some((c) => c.id === selectedCameraId.value)
+    ) {
       selectedCameraId.value = cameras.value[0]?.id ?? ''
     }
   } catch (error) {
@@ -321,18 +319,22 @@ const onScanSuccess = async (decodedText: string) => {
     }
 
     // Check if contact already exists
-    const existing = await contactsStore.getContactByPublicKeyAsync(payload.publicKey)
+    const existing = await contactsStore.getContactByPublicKeyAsync(
+      payload.publicKey,
+    )
     existingContact.value = existing ?? null
 
     scannedContact.value = {
       publicKey: payload.publicKey,
       endpointId: payload.endpointId || undefined,
       label: payload.label || '',
-      claims: (payload.claims || []).map((c: { type: string; value: string }) => ({
-        type: c.type,
-        value: c.value,
-        selected: true,
-      })),
+      claims: (payload.claims || []).map(
+        (c: { type: string; value: string }) => ({
+          type: c.type,
+          value: c.value,
+          selected: true,
+        }),
+      ),
     }
 
     contactNotes.value = ''
@@ -350,8 +352,8 @@ const onSaveContactAsync = async () => {
   isSaving.value = true
   try {
     const selectedClaims = scannedContact.value.claims
-      .filter(c => c.selected)
-      .map(c => ({ type: c.type, value: c.value }))
+      .filter((c) => c.selected)
+      .map((c) => ({ type: c.type, value: c.value }))
 
     const contact = await contactsStore.addContactWithClaimsAsync(
       scannedContact.value.label.trim(),
@@ -376,7 +378,12 @@ const onSaveContactAsync = async () => {
 }
 
 const addInlineClaim = () => {
-  if (!scannedContact.value || !newClaimType.value.trim() || !newClaimValue.value.trim()) return
+  if (
+    !scannedContact.value ||
+    !newClaimType.value.trim() ||
+    !newClaimValue.value.trim()
+  )
+    return
   scannedContact.value.claims.push({
     type: newClaimType.value.trim(),
     value: newClaimValue.value.trim(),
@@ -418,7 +425,7 @@ de:
     noClaims: Keine Claims vorhanden. Du kannst eigene hinzufügen.
     notes: Notizen
     notesPlaceholder: Optionale Notizen zu diesem Kontakt
-    alreadyExists: "Ein Kontakt mit diesem Public Key existiert bereits: {name}"
+    alreadyExists: 'Ein Kontakt mit diesem Public Key existiert bereits: {name}'
   actions:
     cancel: Abbrechen
     save: Kontakt speichern
@@ -446,7 +453,7 @@ en:
     noClaims: No claims yet. You can add your own.
     notes: Notes
     notesPlaceholder: Optional notes about this contact
-    alreadyExists: "A contact with this public key already exists: {name}"
+    alreadyExists: 'A contact with this public key already exists: {name}'
   actions:
     cancel: Cancel
     save: Save Contact

@@ -63,7 +63,6 @@
 
         <UButton
           variant="link"
-          size="xs"
           :disabled="isLoading"
           @click="onResendCodeAsync"
         >
@@ -369,7 +368,6 @@
               v-if="
                 continuousDebounceSec !== syncConfig.continuousDebounceMs / 1000
               "
-              size="xs"
               class="mt-2"
               @click="saveContinuousDebounceAsync"
             >
@@ -408,7 +406,6 @@
               v-if="
                 periodicIntervalMin !== syncConfig.periodicIntervalMs / 60000
               "
-              size="xs"
               class="mt-2"
               @click="savePeriodicIntervalAsync"
             >

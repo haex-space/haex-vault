@@ -14,7 +14,6 @@
       <UiButton
         color="neutral"
         variant="link"
-        size="sm"
         icon="streamline:web"
         :disabled="!value?.length"
         :tooltip="t('browse')"
