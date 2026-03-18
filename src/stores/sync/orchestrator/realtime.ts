@@ -199,7 +199,7 @@ export const subscribeToBackendAsync = async (
     }
 
     // Log realtime connection state
-    log.info(`SUBSCRIBE: Realtime connection state: ${client.realtime.connectionState}`)
+    log.info(`SUBSCRIBE: Realtime connection state: ${client.realtime.connectionState()}`)
     log.info(`SUBSCRIBE: Realtime channels count: ${client.realtime.channels.length}`)
 
     // The sync_changes table is partitioned by vault_id
@@ -274,7 +274,7 @@ export const subscribeToBackendAsync = async (
             log.error(`SUBSCRIBE: Error context: ${JSON.stringify((err as { context?: unknown }).context ?? 'none')}`)
           }
           // Log realtime connection state at time of error
-          log.error(`SUBSCRIBE: Realtime connection state at error: ${client.realtime.connectionState}`)
+          log.error(`SUBSCRIBE: Realtime connection state at error: ${client.realtime.connectionState()}`)
 
           // Attempt retry with exponential backoff
           const retryCount = subscriptionRetryCounts.get(backendId) ?? 0
