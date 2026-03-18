@@ -14,8 +14,8 @@
       size="xl"
       :autofocus="true"
       :ui="{
-        root: 'w-full justify-between',
-        base: 'flex-1 min-w-0 aspect-square text-center text-lg',
+        root: 'w-full justify-center',
+        base: 'flex-1 min-w-0 max-w-12 aspect-square text-center text-lg',
       }"
       @complete="onVerifyOtpAsync"
     />
