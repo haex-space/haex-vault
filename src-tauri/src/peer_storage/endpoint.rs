@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use iroh::{Endpoint, EndpointAddr, EndpointId, RelayUrl, SecretKey};
+use iroh::{Endpoint, EndpointAddr, EndpointId, RelayMode, RelayUrl, SecretKey};
 
 use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::protocol::{self, FileEntry, Request, Response, ALPN};
@@ -94,9 +94,24 @@ impl PeerEndpoint {
             return Err(PeerStorageError::EndpointAlreadyRunning);
         }
 
+        let relay_mode = match std::env::var("HAEX_RELAY_URL") {
+            Ok(url) => match url.parse::<RelayUrl>() {
+                Ok(relay_url) => {
+                    eprintln!("[PeerStorage] Using custom relay: {url}");
+                    RelayMode::custom([relay_url])
+                }
+                Err(e) => {
+                    eprintln!("[PeerStorage] Invalid HAEX_RELAY_URL '{url}': {e} — falling back to default relay");
+                    RelayMode::Default
+                }
+            },
+            Err(_) => RelayMode::Default,
+        };
+
         let endpoint = Endpoint::builder()
             .secret_key(self.secret_key.clone())
             .alpns(vec![ALPN.to_vec()])
+            .relay_mode(relay_mode)
             .bind()
             .await
             .map_err(|e| PeerStorageError::ConnectionFailed {
