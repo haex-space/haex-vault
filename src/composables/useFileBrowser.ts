@@ -156,6 +156,7 @@ export function useFileBrowser() {
     clearSelection()
     selectedPeer.value = peer
     currentPath.value = '/'
+    navStack.value = []
     loadFiles()
   }
 
@@ -164,19 +165,36 @@ export function useFileBrowser() {
     preview.close()
     selectedPeer.value = null
     currentPath.value = '/'
+    navStack.value = []
     files.value = []
   }
 
   const navigateUp = () => {
-    const segments = pathSegments.value.slice()
-    segments.pop()
-    currentPath.value = segments.length ? '/' + segments.join('/') : '/'
+    if (navStack.value.length > 0) {
+      // Android: pop navStack to go up one level
+      const newStack = navStack.value.slice(0, -1)
+      navStack.value = newStack
+      currentPath.value = newStack.length > 0 ? newStack[newStack.length - 1].path : '/'
+    }
+    else {
+      const segments = pathSegments.value.slice()
+      segments.pop()
+      currentPath.value = segments.length ? '/' + segments.join('/') : '/'
+    }
     loadFiles()
   }
 
   const navigateToSegment = (index: number) => {
-    const segments = pathSegments.value.slice(0, index + 1)
-    currentPath.value = '/' + segments.join('/')
+    if (navStack.value.length > 0) {
+      // Android: navigate to a specific level in the navStack
+      const newStack = navStack.value.slice(0, index + 1)
+      navStack.value = newStack
+      currentPath.value = newStack[newStack.length - 1]?.path ?? '/'
+    }
+    else {
+      const segments = pathSegments.value.slice(0, index + 1)
+      currentPath.value = '/' + segments.join('/')
+    }
     loadFiles()
   }
 
@@ -266,7 +284,12 @@ export function useFileBrowser() {
 
   const onFileClick = async (file: FileEntry) => {
     if (file.isDir) {
-      currentPath.value = resolveFilePath(file)
+      const filePath = resolveFilePath(file)
+      // Android: track Content URI navigation in navStack for correct breadcrumbs / back-navigation
+      if (file.path && isContentUri(file.path)) {
+        navStack.value = [...navStack.value, { name: file.name, path: file.path }]
+      }
+      currentPath.value = filePath
       loadFiles()
       return
     }
@@ -343,16 +366,17 @@ export function useFileBrowser() {
   const downloadFile = async (file: FileEntry) => {
     if (!selectedPeer.value) return
 
-    const filePath = resolveFilePath(file)
     let base64: string
 
     if (selectedPeer.value.localPath) {
-      const fullPath = `${selectedPeer.value.localPath}/${filePath.replace(/^\//, '')}`
-      base64 = await invoke<string>('filesystem_read_file', { path: fullPath })
+      // Use resolveLocalAbsolutePath to correctly handle Android Content URIs
+      const absPath = resolveLocalAbsolutePath(file)
+      if (!absPath) return
+      base64 = await invoke<string>('filesystem_read_file', { path: absPath })
     } else {
       base64 = await peerStore.remoteReadAsync(
         selectedPeer.value.endpointId,
-        filePath,
+        resolveFilePath(file),
       )
     }
 

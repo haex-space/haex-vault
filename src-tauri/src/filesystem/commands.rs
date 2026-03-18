@@ -131,7 +131,17 @@ pub struct DirEntry {
 pub async fn filesystem_read_file(
     _state: State<'_, AppState>,
     path: String,
+    #[allow(unused_variables)] app_handle: tauri::AppHandle,
 ) -> Result<String, FsError> {
+    // Android: handle Content URIs (JSON format from folder picker)
+    #[cfg(target_os = "android")]
+    if path.starts_with('{') {
+        let handle = app_handle.clone();
+        return tokio::task::spawn_blocking(move || read_file_android(&handle, &path))
+            .await
+            .unwrap_or_else(|e| Err(FsError::IoError { reason: e.to_string() }));
+    }
+
     let path_ref = Path::new(&path);
 
     if !path_ref.exists() {
@@ -149,6 +159,26 @@ pub async fn filesystem_read_file(
     // Return as base64
     use base64::{engine::general_purpose::STANDARD, Engine};
     Ok(STANDARD.encode(&data))
+}
+
+/// Android: Read file via Content URI using android_fs plugin
+#[cfg(target_os = "android")]
+fn read_file_android(app_handle: &tauri::AppHandle, path_json: &str) -> Result<String, FsError> {
+    use tauri_plugin_android_fs::AndroidFsExt;
+
+    let api = app_handle.android_fs();
+
+    let uri = tauri_plugin_android_fs::FileUri::from_json_str(path_json)
+        .map_err(|e| FsError::IoError {
+            reason: format!("Invalid Content URI: {:?}", e),
+        })?;
+
+    let bytes = api.read(&uri).map_err(|e| FsError::IoError {
+        reason: format!("Failed to read Android file: {:?}", e),
+    })?;
+
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    Ok(STANDARD.encode(&bytes))
 }
 
 /// Write file contents from base64
@@ -193,10 +223,15 @@ pub async fn filesystem_read_dir(
     limit: Option<usize>,
     #[allow(unused_variables)] app_handle: tauri::AppHandle,
 ) -> Result<DirListing, FsError> {
-    // Android: handle Content URIs (JSON format from folder picker)
+    // Android: handle Content URIs (JSON format from folder picker).
+    // Use spawn_blocking because android_fs JNI calls are synchronous and
+    // would otherwise block the Tokio executor (especially for large folders).
     #[cfg(target_os = "android")]
     if path.starts_with('{') {
-        return read_dir_android(&app_handle, &path, offset, limit);
+        let handle = app_handle.clone();
+        return tokio::task::spawn_blocking(move || read_dir_android(&handle, &path, offset, limit))
+            .await
+            .unwrap_or_else(|e| Err(FsError::IoError { reason: e.to_string() }));
     }
 
     let path_ref = Path::new(&path);
@@ -290,6 +325,7 @@ fn read_dir_android(
                 .duration_since(UNIX_EPOCH)
                 .ok()
                 .map(|d| d.as_millis() as u64);
+            let size = entry.file_len().unwrap_or(0);
             let uri_json = entry.uri().to_json_string().ok()?;
 
             Some(DirEntry {
@@ -297,7 +333,7 @@ fn read_dir_android(
                 path: uri_json,
                 is_file: !is_dir,
                 is_directory: is_dir,
-                size: 0, // Android SAF doesn't provide size in directory listing
+                size,
                 modified,
             })
         })
