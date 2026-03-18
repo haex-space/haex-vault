@@ -29,6 +29,7 @@ import { handleWebStorageMethodAsync } from './handlers/webStorage'
 import { handleRemoteStorageMethodAsync } from './handlers/remoteStorage'
 import { handleSpacesMethodAsync } from './handlers/spaces'
 import { handleLoggingMethodAsync } from './handlers/logging'
+import { handleShellMethodAsync } from './handlers/shell'
 import type { ExtensionRequest, ExtensionInstance } from './handlers/types'
 import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
 
@@ -179,6 +180,8 @@ const registerGlobalMessageHandler = () => {
         result = await handleSpacesMethodAsync(request, instance.extension)
       } else if (request.method.startsWith('extension_logging_')) {
         result = await handleLoggingMethodAsync(request, instance.extension)
+      } else if (request.method.startsWith('extension_shell_')) {
+        result = await handleShellMethodAsync(request, instance.extension)
       } else {
         throw new Error(`Unknown method: ${request.method}`)
       }

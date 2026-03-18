@@ -27,6 +27,7 @@ import {
   TAURI_COMMANDS,
   HAEXTENSION_EVENTS,
   EXTERNAL_EVENTS,
+  SHELL_EVENTS,
   type ApplicationContext,
   type FileChangePayload,
   type ExternalRequestPayload,
@@ -288,6 +289,24 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
   }
 
   /**
+   * Broadcast shell PTY events (output/exit) to ALL iframe extensions.
+   * Extensions filter by sessionId on their side (they only know their own sessions).
+   */
+  const broadcastShellEvent = (type: string, payload: Record<string, unknown>) => {
+    const message = {
+      type,
+      ...payload,
+      timestamp: Date.now(),
+    }
+
+    for (const [iframe] of iframeRegistry.entries()) {
+      if (iframe.contentWindow) {
+        iframe.contentWindow.postMessage(message, '*')
+      }
+    }
+  }
+
+  /**
    * Forward external request to specific extension.
    * Only sends to the FIRST matching iframe to avoid duplicate processing.
    * (External requests are different - they expect a single response)
@@ -385,6 +404,18 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
         }),
       )
 
+      // Listen for shell PTY events and forward to iframes
+      unlistenFns.push(
+        await listen<{ sessionId: string; data: string }>(SHELL_EVENTS.OUTPUT, (event) => {
+          broadcastShellEvent(SHELL_EVENTS.OUTPUT, event.payload)
+        }),
+      )
+      unlistenFns.push(
+        await listen<{ sessionId: string; exitCode: number | null }>(SHELL_EVENTS.EXIT, (event) => {
+          broadcastShellEvent(SHELL_EVENTS.EXIT, event.payload)
+        }),
+      )
+
     } catch (error) {
       console.error('[BroadcastStore] Failed to setup event listeners:', error)
     }
@@ -421,6 +452,7 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
     broadcastContext,
     broadcastSyncTablesUpdated,
     broadcastFileChanged,
+    broadcastShellEvent,
     forwardExternalRequest,
 
     // Setup and cleanup
