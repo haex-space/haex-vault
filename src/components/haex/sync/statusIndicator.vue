@@ -189,6 +189,7 @@ de:
     syncing: Synchronisiert...
     error: Fehler
   p2p:
+    stopped: "P2P gestoppt"
     noPeers: "P2P aktiv \u2014 keine Peers"
     active: "P2P aktiv \u2014 {count} Peer(s)"
 
@@ -199,6 +200,7 @@ en:
     syncing: Syncing...
     error: Error
   p2p:
+    stopped: "P2P stopped"
     noPeers: "P2P active \u2014 no peers"
     active: "P2P active \u2014 {count} peer(s)"
 </i18n>
