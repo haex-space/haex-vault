@@ -62,7 +62,7 @@ CREATE TABLE `haex_contacts` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_contacts_public_key_unique` ON `haex_contacts` (`public_key`);--> statement-breakpoint
-CREATE TABLE `haex_desktop_items` (
+CREATE TABLE `haex_desktop_items_no_sync` (
 	`id` text PRIMARY KEY NOT NULL,
 	`workspace_id` text NOT NULL,
 	`item_type` text NOT NULL,
@@ -70,9 +70,9 @@ CREATE TABLE `haex_desktop_items` (
 	`system_window_id` text,
 	`position_x` integer DEFAULT 0 NOT NULL,
 	`position_y` integer DEFAULT 0 NOT NULL,
-	FOREIGN KEY (`workspace_id`) REFERENCES `haex_workspaces`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`workspace_id`) REFERENCES `haex_workspaces_no_sync`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`extension_id`) REFERENCES `haex_extensions`(`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "item_reference" CHECK(("haex_desktop_items"."item_type" = 'extension' AND "haex_desktop_items"."extension_id" IS NOT NULL AND "haex_desktop_items"."system_window_id" IS NULL) OR ("haex_desktop_items"."item_type" = 'system' AND "haex_desktop_items"."system_window_id" IS NOT NULL AND "haex_desktop_items"."extension_id" IS NULL) OR ("haex_desktop_items"."item_type" = 'file' AND "haex_desktop_items"."system_window_id" IS NOT NULL AND "haex_desktop_items"."extension_id" IS NULL) OR ("haex_desktop_items"."item_type" = 'folder' AND "haex_desktop_items"."system_window_id" IS NOT NULL AND "haex_desktop_items"."extension_id" IS NULL))
+	CONSTRAINT "item_reference" CHECK(("haex_desktop_items_no_sync"."item_type" = 'extension' AND "haex_desktop_items_no_sync"."extension_id" IS NOT NULL AND "haex_desktop_items_no_sync"."system_window_id" IS NULL) OR ("haex_desktop_items_no_sync"."item_type" = 'system' AND "haex_desktop_items_no_sync"."system_window_id" IS NOT NULL AND "haex_desktop_items_no_sync"."extension_id" IS NULL) OR ("haex_desktop_items_no_sync"."item_type" = 'file' AND "haex_desktop_items_no_sync"."system_window_id" IS NOT NULL AND "haex_desktop_items_no_sync"."extension_id" IS NULL) OR ("haex_desktop_items_no_sync"."item_type" = 'folder' AND "haex_desktop_items_no_sync"."system_window_id" IS NOT NULL AND "haex_desktop_items_no_sync"."extension_id" IS NULL))
 );
 --> statement-breakpoint
 CREATE TABLE `haex_extension_limits` (
@@ -88,7 +88,7 @@ CREATE TABLE `haex_extension_limits` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_extension_limits_extension_id_unique` ON `haex_extension_limits` (`extension_id`);--> statement-breakpoint
-CREATE TABLE `haex_extension_migrations` (
+CREATE TABLE `haex_extension_migrations_no_sync` (
 	`id` text PRIMARY KEY NOT NULL,
 	`extension_id` text NOT NULL,
 	`extension_version` text NOT NULL,
@@ -97,7 +97,7 @@ CREATE TABLE `haex_extension_migrations` (
 	FOREIGN KEY (`extension_id`) REFERENCES `haex_extensions`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `haex_extension_migrations_extension_id_migration_name_unique` ON `haex_extension_migrations` (`extension_id`,`migration_name`);--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_extension_migrations_extension_id_migration_name_unique` ON `haex_extension_migrations_no_sync` (`extension_id`,`migration_name`);--> statement-breakpoint
 CREATE TABLE `haex_extension_permissions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`extension_id` text NOT NULL,
@@ -133,7 +133,7 @@ CREATE TABLE `haex_extensions` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_extensions_public_key_name_unique` ON `haex_extensions` (`public_key`,`name`);--> statement-breakpoint
-CREATE TABLE `haex_external_authorized_clients` (
+CREATE TABLE `haex_external_authorized_clients_no_sync` (
 	`id` text PRIMARY KEY NOT NULL,
 	`client_id` text NOT NULL,
 	`client_name` text NOT NULL,
@@ -144,8 +144,8 @@ CREATE TABLE `haex_external_authorized_clients` (
 	FOREIGN KEY (`extension_id`) REFERENCES `haex_extensions`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `haex_external_authorized_clients_client_extension_unique` ON `haex_external_authorized_clients` (`client_id`,`extension_id`);--> statement-breakpoint
-CREATE TABLE `haex_external_blocked_clients` (
+CREATE UNIQUE INDEX `haex_external_authorized_clients_client_extension_unique` ON `haex_external_authorized_clients_no_sync` (`client_id`,`extension_id`);--> statement-breakpoint
+CREATE TABLE `haex_external_blocked_clients_no_sync` (
 	`id` text PRIMARY KEY NOT NULL,
 	`client_id` text NOT NULL,
 	`client_name` text NOT NULL,
@@ -153,7 +153,7 @@ CREATE TABLE `haex_external_blocked_clients` (
 	`blocked_at` text DEFAULT (CURRENT_TIMESTAMP)
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `haex_external_blocked_clients_client_id_unique` ON `haex_external_blocked_clients` (`client_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_external_blocked_clients_client_id_unique` ON `haex_external_blocked_clients_no_sync` (`client_id`);--> statement-breakpoint
 CREATE TABLE `haex_identities` (
 	`public_key` text PRIMARY KEY NOT NULL,
 	`label` text NOT NULL,
@@ -221,6 +221,7 @@ CREATE TABLE `haex_space_devices` (
 	`identity_id` text,
 	`device_endpoint_id` text NOT NULL,
 	`device_name` text NOT NULL,
+	`relay_url` text,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
 	FOREIGN KEY (`identity_id`) REFERENCES `haex_identities`(`public_key`) ON UPDATE no action ON DELETE no action
 );
@@ -261,7 +262,7 @@ CREATE TABLE `haex_vault_settings` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_vault_settings_key_type_ext_unique` ON `haex_vault_settings` (`key`,`type`,`extension_id`);--> statement-breakpoint
-CREATE TABLE `haex_workspaces` (
+CREATE TABLE `haex_workspaces_no_sync` (
 	`id` text PRIMARY KEY NOT NULL,
 	`device_id` text NOT NULL,
 	`name` text NOT NULL,
@@ -269,7 +270,7 @@ CREATE TABLE `haex_workspaces` (
 	`background` text
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `haex_workspaces_device_position_unique` ON `haex_workspaces` (`device_id`,`position`);--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_workspaces_device_position_unique` ON `haex_workspaces_no_sync` (`device_id`,`position`);--> statement-breakpoint
 CREATE TABLE `haex_storage_backends` (
 	`id` text PRIMARY KEY NOT NULL,
 	`type` text NOT NULL,

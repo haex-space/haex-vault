@@ -5,15 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1773669658784,
-      "tag": "0000_bored_runaways",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1773869735853,
-      "tag": "0001_dashing_shinko_yamashiro",
+      "when": 1773959284793,
+      "tag": "0000_shiny_barracuda",
       "breakpoints": true
     }
   ]
