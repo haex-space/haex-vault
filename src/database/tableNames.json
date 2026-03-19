@@ -74,7 +74,7 @@
       }
     },
     "workspaces": {
-      "name": "haex_workspaces",
+      "name": "haex_workspaces_no_sync",
       "columns": {
         "id": "id",
         "deviceId": "device_id",
@@ -84,7 +84,7 @@
       }
     },
     "desktop_items": {
-      "name": "haex_desktop_items",
+      "name": "haex_desktop_items_no_sync",
       "columns": {
         "id": "id",
         "workspaceId": "workspace_id",
@@ -115,7 +115,7 @@
       }
     },
     "extension_migrations": {
-      "name": "haex_extension_migrations",
+      "name": "haex_extension_migrations_no_sync",
       "columns": {
         "id": "id",
         "extensionId": "extension_id",
@@ -125,7 +125,7 @@
       }
     },
     "external_authorized_clients": {
-      "name": "haex_external_authorized_clients",
+      "name": "haex_external_authorized_clients_no_sync",
       "columns": {
         "id": "id",
         "clientId": "client_id",
@@ -137,7 +137,7 @@
       }
     },
     "external_blocked_clients": {
-      "name": "haex_external_blocked_clients",
+      "name": "haex_external_blocked_clients_no_sync",
       "columns": {
         "id": "id",
         "clientId": "client_id",
