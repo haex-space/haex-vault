@@ -197,14 +197,37 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     const hostname = deviceStore.deviceName || deviceStore.hostname || 'Unknown'
 
     for (const space of spacesStore.spaces) {
-      // Check if already registered
-      const existing = spaceDevices.value.find(
+      // Check if already registered with current endpoint ID
+      const existingById = spaceDevices.value.find(
         d => d.spaceId === space.id && d.deviceEndpointId === nodeId.value,
       )
-      if (existing) continue
+      if (existingById) continue
+
+      // Check if this device was previously registered with a different endpoint ID
+      // (happens when vault is deleted and reconnected → new device key → new endpoint ID)
+      const staleEntry = spaceDevices.value.find(
+        d => d.spaceId === space.id && d.deviceName === hostname && d.deviceEndpointId !== nodeId.value,
+      )
 
       try {
-        await registerDeviceInSpaceAsync(space.id, hostname)
+        if (staleEntry) {
+          // Update existing entry with new endpoint ID instead of creating a duplicate
+          const oldEndpointId = staleEntry.deviceEndpointId
+          await db
+            .update(haexSpaceDevices)
+            .set({ deviceEndpointId: nodeId.value, relayUrl: relayUrl.value })
+            .where(eq(haexSpaceDevices.id, staleEntry.id))
+          // Also migrate shares from old endpoint ID to new one
+          await db
+            .update(haexPeerShares)
+            .set({ deviceEndpointId: nodeId.value })
+            .where(eq(haexPeerShares.deviceEndpointId, oldEndpointId))
+          await loadSpaceDevicesAsync()
+          await loadSharesAsync()
+          await invoke('peer_storage_reload_shares')
+        } else {
+          await registerDeviceInSpaceAsync(space.id, hostname)
+        }
       } catch (e) {
         console.warn(`[P2P] Failed to register in space ${space.id}:`, e)
       }
