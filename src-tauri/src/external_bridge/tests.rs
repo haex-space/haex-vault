@@ -394,7 +394,7 @@ mod tests {
 
     #[test]
     fn test_sql_queries_reference_correct_table() {
-        let table_name = "haex_external_authorized_clients";
+        let table_name = crate::table_names::TABLE_EXTERNAL_AUTHORIZED_CLIENTS;
         assert!(SQL_IS_AUTHORIZED.contains(table_name));
         assert!(SQL_IS_CLIENT_KNOWN.contains(table_name));
         assert!(SQL_GET_CLIENT_EXTENSION.contains(table_name));
@@ -416,7 +416,7 @@ mod tests {
         assert!(query.contains("?3"), "Query should have ?3 placeholder for extension name");
 
         // Should reference both tables
-        assert!(query.contains("haex_external_authorized_clients"), "Query should reference authorized clients table");
+        assert!(query.contains(crate::table_names::TABLE_EXTERNAL_AUTHORIZED_CLIENTS), "Query should reference authorized clients table");
         assert!(query.contains("haex_extensions"), "Query should reference extensions table");
 
         // Should use JOIN
@@ -449,7 +449,7 @@ mod tests {
 
     #[test]
     fn test_sql_blocked_clients_queries_reference_correct_table() {
-        let table_name = "haex_external_blocked_clients";
+        let table_name = crate::table_names::TABLE_EXTERNAL_BLOCKED_CLIENTS;
         assert!(SQL_IS_BLOCKED.contains(table_name));
         assert!(SQL_GET_BLOCKED_CLIENT.contains(table_name));
         assert!(SQL_GET_ALL_BLOCKED_CLIENTS.contains(table_name));

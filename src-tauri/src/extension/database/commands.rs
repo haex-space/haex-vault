@@ -417,7 +417,7 @@ pub fn apply_synced_extension_migrations(
             .unwrap_or(-1);
         let mig_count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM haex_extension_migrations WHERE haex_tombstone = 0 OR haex_tombstone IS NULL",
+                &format!("SELECT COUNT(*) FROM {} WHERE haex_tombstone = 0 OR haex_tombstone IS NULL", crate::table_names::TABLE_EXTENSION_MIGRATIONS),
                 [],
                 |row| row.get(0),
             )
