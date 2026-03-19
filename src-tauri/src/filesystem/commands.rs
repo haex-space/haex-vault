@@ -318,13 +318,14 @@ fn read_dir_android(
     })?;
 
     let mut entries: Vec<DirEntry> = dir_entries
-        .filter_map(|entry| {
+        .into_iter()
+        .filter_map(|entry: tauri_plugin_android_fs::Entry| {
             let name = entry.name().to_string();
             let is_dir = entry.is_dir();
             let modified = entry.last_modified()
                 .duration_since(UNIX_EPOCH)
                 .ok()
-                .map(|d| d.as_millis() as u64);
+                .map(|d: std::time::Duration| d.as_millis() as u64);
             let size = entry.file_len().unwrap_or(0);
             let uri_json = entry.uri().to_json_string().ok()?;
 
