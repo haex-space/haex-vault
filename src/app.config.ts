@@ -8,7 +8,7 @@ export default defineAppConfig({
     },
     button: {
       defaultVariants: {
-        size: 'lg',
+        size: 'xl',
       },
     },
     input: {
