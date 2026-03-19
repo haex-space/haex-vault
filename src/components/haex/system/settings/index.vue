@@ -54,7 +54,7 @@
 </template>
 
 <script setup lang="ts">
-import { SettingsCategory } from '~/config/settingsCategories'
+import { SettingsCategory, SettingsCategoryIcon } from '~/config/settingsCategories'
 
 const props = defineProps<{
   isDragging?: boolean
@@ -112,7 +112,7 @@ const categories = computed(() => [
   {
     value: SettingsCategory.Extensions,
     label: t('categories.extensions'),
-    icon: 'i-lucide-blocks',
+    icon: SettingsCategoryIcon[SettingsCategory.Extensions],
     active: activeCategory.value === 'extensions',
     tourId: 'settings-nav-extensions',
     click: () => {
@@ -122,7 +122,7 @@ const categories = computed(() => [
   {
     value: SettingsCategory.Contacts,
     label: t('categories.contacts'),
-    icon: 'i-lucide-contact',
+    icon: SettingsCategoryIcon[SettingsCategory.Contacts],
     active: activeCategory.value === 'contacts',
     click: () => {
       navigateToCategory(SettingsCategory.Contacts)
@@ -131,7 +131,7 @@ const categories = computed(() => [
   {
     value: SettingsCategory.Identities,
     label: t('categories.identities'),
-    icon: 'i-lucide-fingerprint',
+    icon: SettingsCategoryIcon[SettingsCategory.Identities],
     active: activeCategory.value === 'identities',
     tourId: 'settings-nav-identities',
     click: () => {
@@ -141,7 +141,7 @@ const categories = computed(() => [
   {
     value: SettingsCategory.Sync,
     label: t('categories.sync'),
-    icon: 'i-lucide-refresh-cw',
+    icon: SettingsCategoryIcon[SettingsCategory.Sync],
     active: activeCategory.value === 'sync',
     tourId: 'settings-nav-sync',
     click: () => {
@@ -151,7 +151,7 @@ const categories = computed(() => [
   {
     value: SettingsCategory.Spaces,
     label: t('categories.spaces'),
-    icon: 'i-heroicons-user-group',
+    icon: SettingsCategoryIcon[SettingsCategory.Spaces],
     active: activeCategory.value === 'spaces',
     click: () => {
       navigateToCategory(SettingsCategory.Spaces)
@@ -160,7 +160,7 @@ const categories = computed(() => [
   {
     value: SettingsCategory.Storage,
     label: t('categories.storage'),
-    icon: 'i-heroicons-cloud',
+    icon: SettingsCategoryIcon[SettingsCategory.Storage],
     active: activeCategory.value === 'storage',
     click: () => {
       navigateToCategory(SettingsCategory.Storage)
@@ -169,7 +169,7 @@ const categories = computed(() => [
   {
     value: SettingsCategory.PeerStorage,
     label: t('categories.peerStorage'),
-    icon: 'i-mdi-lan-connect',
+    icon: SettingsCategoryIcon[SettingsCategory.PeerStorage],
     active: activeCategory.value === 'peerStorage',
     click: () => {
       navigateToCategory(SettingsCategory.PeerStorage)
@@ -178,7 +178,7 @@ const categories = computed(() => [
   {
     value: SettingsCategory.ExternalClients,
     label: t('categories.externalClients'),
-    icon: 'i-lucide-external-link',
+    icon: SettingsCategoryIcon[SettingsCategory.ExternalClients],
     active: activeCategory.value === 'externalClients',
     click: () => {
       navigateToCategory(SettingsCategory.ExternalClients)
@@ -187,7 +187,7 @@ const categories = computed(() => [
   {
     value: SettingsCategory.Database,
     label: t('categories.database'),
-    icon: 'i-mdi-safe-square-outline',
+    icon: SettingsCategoryIcon[SettingsCategory.Database],
     active: activeCategory.value === 'database',
     click: () => {
       navigateToCategory(SettingsCategory.Database)
@@ -196,7 +196,7 @@ const categories = computed(() => [
   {
     value: SettingsCategory.Devices,
     label: t('categories.devices'),
-    icon: 'i-lucide-monitor-smartphone',
+    icon: SettingsCategoryIcon[SettingsCategory.Devices],
     active: activeCategory.value === 'devices',
     click: () => {
       navigateToCategory(SettingsCategory.Devices)
@@ -205,7 +205,7 @@ const categories = computed(() => [
   {
     value: SettingsCategory.Logs,
     label: t('categories.logs'),
-    icon: 'i-lucide-bug',
+    icon: SettingsCategoryIcon[SettingsCategory.Logs],
     active: activeCategory.value === 'logs',
     click: () => {
       navigateToCategory(SettingsCategory.Logs)
@@ -214,7 +214,7 @@ const categories = computed(() => [
   {
     value: SettingsCategory.Developer,
     label: t('categories.developer'),
-    icon: 'i-hugeicons-developer',
+    icon: SettingsCategoryIcon[SettingsCategory.Developer],
     active: activeCategory.value === 'developer',
     click: () => {
       navigateToCategory(SettingsCategory.Developer)

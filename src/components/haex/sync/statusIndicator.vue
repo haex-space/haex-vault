@@ -42,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-import { SettingsCategory } from '~/config/settingsCategories'
+import { SettingsCategory, SettingsCategoryIcon } from '~/config/settingsCategories'
 
 interface Props {
   size?: 'sm' | 'md' | 'lg'
@@ -130,7 +130,7 @@ const groups = computed(() => {
 
     result.push({
       id: 'sync',
-      icon: 'i-lucide-refresh-cw',
+      icon: SettingsCategoryIcon[SettingsCategory.Sync],
       segments,
       tooltip: segments.map(s => s.label).join('\n'),
       onClick: () => openSettings(SettingsCategory.Sync),
@@ -145,7 +145,7 @@ const groups = computed(() => {
 
     result.push({
       id: 'p2p',
-      icon: 'i-mdi-lan-connect',
+      icon: SettingsCategoryIcon[SettingsCategory.PeerStorage],
       segments: [{
         id: 'p2p',
         colorClass: 'text-success',

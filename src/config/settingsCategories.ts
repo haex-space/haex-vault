@@ -14,3 +14,20 @@ export enum SettingsCategory {
   Logs = 'logs',
   Developer = 'developer',
 }
+
+export const SettingsCategoryIcon: Record<SettingsCategory, string> = {
+  [SettingsCategory.General]: 'i-lucide-settings',
+  [SettingsCategory.Appearance]: 'i-lucide-palette',
+  [SettingsCategory.Extensions]: 'i-lucide-blocks',
+  [SettingsCategory.Contacts]: 'i-lucide-contact',
+  [SettingsCategory.Identities]: 'i-lucide-fingerprint',
+  [SettingsCategory.Sync]: 'i-lucide-refresh-cw',
+  [SettingsCategory.Spaces]: 'i-heroicons-user-group',
+  [SettingsCategory.Storage]: 'i-heroicons-cloud',
+  [SettingsCategory.PeerStorage]: 'i-mdi-lan-connect',
+  [SettingsCategory.ExternalClients]: 'i-lucide-external-link',
+  [SettingsCategory.Database]: 'i-mdi-safe-square-outline',
+  [SettingsCategory.Devices]: 'i-lucide-monitor-smartphone',
+  [SettingsCategory.Logs]: 'i-lucide-bug',
+  [SettingsCategory.Developer]: 'i-hugeicons-developer',
+}
