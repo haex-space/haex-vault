@@ -6,7 +6,7 @@
     <!-- Endpoint + Shared Folders (primary card) -->
     <UCard>
       <template #header>
-        <div class="flex items-center justify-between">
+        <div class="space-y-3">
           <div>
             <h3 class="text-lg font-semibold">{{ t('endpoint.title') }}</h3>
             <p class="text-sm text-muted mt-1">
@@ -17,11 +17,10 @@
             :icon="store.running ? 'i-lucide-power-off' : 'i-lucide-power'"
             :color="store.running ? 'error' : 'primary'"
             :loading="isToggling"
+            block
             @click="onToggleEndpointAsync"
           >
-            <span class="hidden @xl:inline">
-              {{ store.running ? t('endpoint.stop') : t('endpoint.start') }}
-            </span>
+            {{ store.running ? t('endpoint.stop') : t('endpoint.start') }}
           </UiButton>
         </div>
       </template>
