@@ -25,6 +25,7 @@
             <UiButton
               icon="i-mdi-content-save"
               color="primary"
+              variant="outline"
               :loading="isSaving"
               :disabled="!deviceName?.trim()"
               @click="onUpdateDeviceNameAsync"
