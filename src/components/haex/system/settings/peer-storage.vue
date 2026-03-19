@@ -60,82 +60,96 @@
           </UiButton>
         </div>
 
-        <!-- Spaces with shares -->
+        <!-- Spaces as accordions -->
         <div
           v-else
-          class="space-y-4"
+          class="space-y-2"
         >
           <div
             v-for="space in spacesStore.spaces"
             :key="space.id"
             class="border border-default rounded-lg overflow-hidden"
           >
-            <!-- Space header -->
-            <div class="flex items-center gap-2 px-4 py-2.5 bg-muted/30">
-              <span class="font-medium truncate flex-1">{{ space.name }}</span>
-              <UBadge variant="subtle" size="sm">{{ space.role }}</UBadge>
-              <UiButton
-                icon="i-lucide-folder-plus"
-                variant="ghost"
-                :title="t('shares.add')"
-                @click="onAddShareAsync(space.id)"
-              />
-            </div>
-
-            <div class="divide-y divide-default">
-              <!-- This device's shares -->
-              <div
-                v-for="share in getSharesForDevice(space.id, store.nodeId)"
-                :key="share.id"
-                class="flex items-center gap-3 px-4 py-2.5 group"
-              >
-                <UIcon name="i-lucide-folder" class="w-4 h-4 text-primary shrink-0" />
-                <div
-                  class="min-w-0 flex-1 cursor-pointer hover:text-primary transition-colors"
-                  @click="onBrowseShare(share)"
-                >
-                  <p class="text-sm font-medium">{{ share.name }}</p>
-                  <p class="text-xs text-muted truncate">{{ formatPath(share.localPath) }}</p>
-                </div>
+            <UCollapsible :unmount-on-hide="false">
+              <!-- Space header (clickable toggle) -->
+              <div class="flex items-center gap-2 px-4 py-2.5 bg-muted/30">
+                <UCollapsibleTrigger class="flex items-center gap-2 min-w-0 flex-1 cursor-pointer">
+                  <UIcon
+                    name="i-lucide-chevron-right"
+                    class="w-4 h-4 shrink-0 text-muted transition-transform duration-200 group-data-[state=open]:rotate-90"
+                  />
+                  <span class="font-medium truncate">{{ space.name }}</span>
+                  <UBadge variant="subtle" size="sm">
+                    {{ getSharesForSpace(space.id).length }}
+                  </UBadge>
+                </UCollapsibleTrigger>
                 <UiButton
-                  color="error"
+                  icon="i-lucide-folder-plus"
                   variant="ghost"
-                  icon="i-lucide-trash-2"
-                  class="opacity-0 group-hover:opacity-100 transition-opacity"
-                  @click="onRemoveShareAsync(share.id)"
+                  size="xl"
+                  :title="t('shares.add')"
+                  @click.stop="onAddShareAsync(space.id)"
                 />
               </div>
 
-              <!-- Other devices' shares -->
-              <div
-                v-for="[deviceId, deviceShares] in getOtherDeviceShares(space.id)"
-                :key="deviceId"
-              >
-                <div class="px-4 py-2 bg-muted/10">
-                  <span class="text-xs font-medium text-muted">
-                    {{ getDeviceName(deviceId) || deviceId.slice(0, 12) + '…' }}
-                  </span>
-                </div>
-                <div
-                  v-for="share in deviceShares"
-                  :key="share.id"
-                  class="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-muted/20 transition-colors"
-                  @click="onBrowseShare(share)"
-                >
-                  <UIcon name="i-lucide-folder" class="w-4 h-4 text-muted shrink-0" />
-                  <p class="text-sm flex-1 truncate">{{ share.name }}</p>
-                  <UIcon name="i-lucide-chevron-right" class="w-4 h-4 text-muted shrink-0" />
-                </div>
-              </div>
+              <!-- Space content (collapsible) -->
+              <template #content>
+                <div class="divide-y divide-default">
+                  <!-- This device's shares -->
+                  <div
+                    v-for="share in getSharesForDevice(space.id, store.nodeId)"
+                    :key="share.id"
+                    class="flex items-center gap-3 px-4 py-2.5 group"
+                  >
+                    <UIcon name="i-lucide-folder" class="w-4 h-4 text-primary shrink-0" />
+                    <div
+                      class="min-w-0 flex-1 cursor-pointer hover:text-primary transition-colors"
+                      @click="onBrowseShare(share)"
+                    >
+                      <p class="text-sm font-medium">{{ share.name }}</p>
+                      <p class="text-xs text-muted truncate">{{ formatPath(share.localPath) }}</p>
+                    </div>
+                    <UiButton
+                      color="error"
+                      variant="ghost"
+                      icon="i-lucide-trash-2"
+                      class="opacity-0 group-hover:opacity-100 transition-opacity"
+                      @click="onRemoveShareAsync(share.id)"
+                    />
+                  </div>
 
-              <!-- Empty space -->
-              <div
-                v-if="getSharesForSpace(space.id).length === 0"
-                class="px-4 py-4 text-center text-muted text-sm"
-              >
-                {{ t('shares.emptySpace') }}
-              </div>
-            </div>
+                  <!-- Other devices' shares -->
+                  <div
+                    v-for="[deviceId, deviceShares] in getOtherDeviceShares(space.id)"
+                    :key="deviceId"
+                  >
+                    <div class="px-4 py-2 bg-muted/10">
+                      <span class="text-xs font-medium text-muted">
+                        {{ getDeviceName(deviceId) || deviceId.slice(0, 12) + '…' }}
+                      </span>
+                    </div>
+                    <div
+                      v-for="share in deviceShares"
+                      :key="share.id"
+                      class="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-muted/20 transition-colors"
+                      @click="onBrowseShare(share)"
+                    >
+                      <UIcon name="i-lucide-folder" class="w-4 h-4 text-muted shrink-0" />
+                      <p class="text-sm flex-1 truncate">{{ share.name }}</p>
+                      <UIcon name="i-lucide-chevron-right" class="w-4 h-4 text-muted shrink-0" />
+                    </div>
+                  </div>
+
+                  <!-- Empty space -->
+                  <div
+                    v-if="getSharesForSpace(space.id).length === 0"
+                    class="px-4 py-4 text-center text-muted text-sm"
+                  >
+                    {{ t('shares.emptySpace') }}
+                  </div>
+                </div>
+              </template>
+            </UCollapsible>
           </div>
         </div>
       </template>
