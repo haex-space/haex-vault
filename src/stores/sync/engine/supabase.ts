@@ -39,6 +39,20 @@ export const initSupabaseClientAsync = async (
     return
   }
 
+  // Clean up existing client before creating a new one
+  // Prevents "Multiple GoTrueClient instances" on Android WebView reloads
+  if (supabaseClientRef.value) {
+    log.info('Cleaning up existing Supabase client before creating new one')
+    try {
+      supabaseClientRef.value.realtime.removeAllChannels()
+      supabaseClientRef.value.realtime.disconnect()
+    } catch (e) {
+      log.warn('Failed to clean up existing Supabase client:', e)
+    }
+    supabaseClientRef.value = null
+    currentBackendIdRef.value = null
+  }
+
   // Get Supabase URL and anon key from server health check
   const response = await fetch(serverUrl)
   if (!response.ok) {
@@ -58,6 +72,8 @@ export const initSupabaseClientAsync = async (
     auth: {
       // Use backend-specific storage key to avoid conflicts
       storageKey: `sb-${backendId}-auth-token`,
+      // Tauri is a single WebView context — no URL-based auth flow
+      detectSessionInUrl: false,
     },
     realtime: {
       // Increase timeout for mobile connections (default is 10s)
@@ -120,8 +136,15 @@ export const getAuthTokenAsync = async (): Promise<string | null> => {
     log.info('Auth token expired, refreshing...')
     const { data, error } = await supabaseClientRef.value.auth.refreshSession()
     if (error) {
+      // Distinguish between temporary errors and permanent auth failures
+      const errorCode = (error as { code?: string }).code
+      if (errorCode === 'refresh_token_not_found' || errorCode === 'refresh_token_already_used') {
+        log.error(`Auth session permanently invalid (${errorCode}). User needs to re-login.`)
+        cachedAccessToken = null
+        return null
+      }
       log.error('Failed to refresh auth token:', error.message)
-      return token // Return expired token as fallback, server will reject
+      return token // Return expired token as fallback for temporary errors
     }
     if (data.session?.access_token) {
       token = data.session.access_token
@@ -177,6 +200,14 @@ export const setSupabaseClient = (
  * Resets the Supabase client state
  */
 export const resetSupabaseClient = (): void => {
+  if (supabaseClientRef.value) {
+    try {
+      supabaseClientRef.value.realtime.removeAllChannels()
+      supabaseClientRef.value.realtime.disconnect()
+    } catch {
+      // Ignore cleanup errors during reset
+    }
+  }
   supabaseClientRef.value = null
   currentBackendIdRef.value = null
   cachedAccessToken = null

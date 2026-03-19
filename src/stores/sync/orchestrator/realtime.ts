@@ -195,7 +195,9 @@ export const subscribeToBackendAsync = async (
       log.info('SUBSCRIBE: Setting auth token for realtime connection')
       client.realtime.setAuth(token)
     } else {
-      log.error('SUBSCRIBE: No auth token available for realtime connection - subscription will likely fail')
+      log.error('SUBSCRIBE: No auth token available — auth session is invalid. User needs to re-login. Skipping subscription.')
+      state.error = 'Auth session expired. Please re-login to the sync backend.'
+      return
     }
 
     // Log realtime connection state
@@ -207,7 +209,8 @@ export const subscribeToBackendAsync = async (
     // We need to subscribe to the specific partition, not the parent table
     const partitionName = `sync_changes_${backend.vaultId.replace(/-/g, '_')}`
     const channelName = `sync_changes:${backend.vaultId}`
-    log.info(`SUBSCRIBE: Creating channel "${channelName}" for partition "${partitionName}"`)
+    // Log at ERROR level too so it's visible in filtered error-only logs
+    log.error(`SUBSCRIBE: Subscribing to partition="${partitionName}" channel="${channelName}" backendId=${backendId} vaultId=${backend.vaultId}`)
 
     // Subscribe to the vault's specific partition
     // Listen to both INSERT and UPDATE (UPSERT triggers UPDATE for existing records)
@@ -282,19 +285,16 @@ export const subscribeToBackendAsync = async (
             const delay = RETRY_BASE_DELAY_MS * Math.pow(2, retryCount)
             log.warn(`SUBSCRIBE: Subscription failed for ${backendId}: ${status}. Retrying in ${delay}ms (attempt ${retryCount + 1}/${MAX_SUBSCRIPTION_RETRIES})`)
 
-            // Properly cleanup the failed channel before retry (fire and forget)
-            channel.unsubscribe().then(() => {
-              log.debug(`SUBSCRIBE: Cleaned up failed channel for ${backendId}`)
-            }).catch((cleanupError) => {
-              log.debug(`SUBSCRIBE: Channel cleanup error (expected): ${cleanupError}`)
-            })
             state.subscription = null
 
-            // Schedule retry
+            // Schedule retry — wait for cleanup, then resubscribe
             const retryTimer = setTimeout(async () => {
               subscriptionRetryTimers.delete(backendId)
               subscriptionRetryCounts.set(backendId, retryCount + 1)
               try {
+                // Clean up the failed channel before creating a new one
+                // removeChannel() unsubscribes and removes from client's internal list
+                await client.removeChannel(channel).catch(() => {})
                 await subscribeToBackendAsync(backendId, currentVaultId, syncStates, syncBackendsStore, syncEngineStore)
               } catch (retryError) {
                 log.error(`SUBSCRIBE: Retry failed for backend ${backendId}:`, retryError)
