@@ -19,84 +19,106 @@
     @mousedown="handleActivate"
     @contextmenu.stop.prevent
   >
-    <!-- Window Titlebar -->
+    <!-- Window Titlebar — taller on compact windows via container query -->
     <div
       ref="titlebarEl"
-      class="flex items-stretch h-10 bg-white/80 dark:bg-gray-800/80 border-b border-gray-200/50 dark:border-gray-700/50 select-none touch-none"
+      class="flex items-stretch h-10 @max-sm:h-14 bg-white/80 dark:bg-gray-800/80 border-b border-gray-200/50 dark:border-gray-700/50 select-none touch-none"
     >
       <!-- Left: Tabs (or single title if only 1 tab) -->
-      <!-- Scroll left button (only visible when tabs overflow) -->
-      <button
-        v-if="tabsOverflowLeft"
-        class="px-3 self-stretch flex items-center bg-gray-200/50 dark:bg-gray-700/50 text-highlighted hover:bg-gray-300/50 dark:hover:bg-gray-600/50 transition-colors shrink-0 z-10 min-w-10"
-        @mousedown.stop
-        @click.stop="scrollTabs('left')"
-      >
-        <UIcon
-          name="i-lucide-chevron-left"
-          class="w-4 h-4"
-        />
-      </button>
-      <div
-        ref="tabContainerEl"
-        class="flex-1 flex items-center min-w-0 overflow-hidden cursor-move"
-        @mousedown="handleDragStart"
-        @touchstart.passive="handleDragStart"
-        @dblclick="handleMaximize"
-      >
-        <!-- Single tab → just show icon + title (no tab chrome) -->
-        <template v-if="windowData?.tabs.length === 1">
-          <div class="flex items-center gap-2 px-3">
-            <HaexIcon
-              v-if="icon"
-              :name="icon"
-              class="w-4 h-4 object-contain shrink-0"
-            />
-            <span class="text-sm font-medium truncate">{{
-              windowData?.tabs[0] ? resolveTabTitle(windowData.tabs[0]) : title
-            }}</span>
-          </div>
-        </template>
 
-        <!-- Multiple tabs → tab bar -->
-        <template v-else-if="windowData?.tabs.length">
-          <div
-            v-for="tab in windowData.tabs"
-            :key="tab.id"
-            :class="[
-              'flex items-center gap-1.5 px-3 text-sm cursor-pointer self-stretch border-r border-gray-200/30 dark:border-gray-700/30 max-w-48 group transition-colors',
-              tab.id === windowData.activeTabId
-                ? 'bg-default/60 font-medium'
-                : 'text-muted hover:bg-default/30',
-            ]"
-            @mousedown.stop="windowManager.switchTab(props.id, tab.id)"
-          >
-            <HaexIcon
-              v-if="tab.icon"
-              :name="tab.icon"
-              class="w-3.5 h-3.5 shrink-0"
-            />
-            <span class="truncate">{{ resolveTabTitle(tab) }}</span>
-            <HaexWindowButton
-              variant="close"
-              @mousedown.stop
-              @click.stop="windowManager.closeTab(props.id, tab.id)"
-            />
-          </div>
-        </template>
-      </div>
-      <!-- Scroll right button (only visible when tabs overflow) -->
-      <button
-        v-if="tabsOverflowRight"
-        class="px-3 self-stretch flex items-center bg-gray-200/50 dark:bg-gray-700/50 text-highlighted hover:bg-gray-300/50 dark:hover:bg-gray-600/50 transition-colors shrink-0 z-10 min-w-10"
-        @mousedown.stop
-        @click.stop="scrollTabs('right')"
-      >
-        <UIcon
-          name="i-lucide-chevron-right"
-          class="w-4 h-4"
-        />
-      </button>
+      <!-- Compact window: USelectMenu for tab switching (when multiple tabs) -->
+      <template v-if="isCompactWindow && windowData && windowData.tabs.length > 1">
+        <div
+          class="flex-1 flex items-center min-w-0 px-2 gap-2"
+          @mousedown="handleDragStart"
+          @touchstart.passive="handleDragStart"
+        >
+          <USelectMenu
+            :model-value="activeTabSelectItem"
+            :items="tabSelectItems"
+            class="flex-1 min-w-0"
+            @update:model-value="(item: any) => windowManager.switchTab(props.id, item.value)"
+            @mousedown.stop
+            @touchstart.stop
+          />
+        </div>
+      </template>
+
+      <!-- Standard: tab bar with scroll buttons -->
+      <template v-else>
+        <!-- Scroll left button (only visible when tabs overflow) -->
+        <button
+          v-if="tabsOverflowLeft"
+          class="px-3 self-stretch flex items-center bg-gray-200/50 dark:bg-gray-700/50 text-highlighted hover:bg-gray-300/50 dark:hover:bg-gray-600/50 transition-colors shrink-0 z-10 min-w-10"
+          @mousedown.stop
+          @click.stop="scrollTabs('left')"
+        >
+          <UIcon
+            name="i-lucide-chevron-left"
+            class="w-4 h-4"
+          />
+        </button>
+        <div
+          ref="tabContainerEl"
+          class="flex-1 flex items-center min-w-0 overflow-hidden cursor-move"
+          @mousedown="handleDragStart"
+          @touchstart.passive="handleDragStart"
+          @dblclick="handleMaximize"
+        >
+          <!-- Single tab → just show icon + title (no tab chrome) -->
+          <template v-if="windowData?.tabs.length === 1">
+            <div class="flex items-center gap-2 px-3">
+              <HaexIcon
+                v-if="icon"
+                :name="icon"
+                class="w-4 h-4 object-contain shrink-0"
+              />
+              <span class="text-sm font-medium truncate">{{
+                windowData?.tabs[0] ? resolveTabTitle(windowData.tabs[0]) : title
+              }}</span>
+            </div>
+          </template>
+
+          <!-- Multiple tabs → tab bar -->
+          <template v-else-if="windowData?.tabs.length">
+            <div
+              v-for="tab in windowData.tabs"
+              :key="tab.id"
+              :class="[
+                'flex items-center gap-1.5 px-3 text-sm cursor-pointer self-stretch border-r border-gray-200/30 dark:border-gray-700/30 max-w-48 group transition-colors',
+                tab.id === windowData.activeTabId
+                  ? 'bg-default/60 font-medium'
+                  : 'text-muted hover:bg-default/30',
+              ]"
+              @mousedown.stop="windowManager.switchTab(props.id, tab.id)"
+            >
+              <HaexIcon
+                v-if="tab.icon"
+                :name="tab.icon"
+                class="w-3.5 h-3.5 shrink-0"
+              />
+              <span class="truncate">{{ resolveTabTitle(tab) }}</span>
+              <HaexWindowButton
+                variant="close"
+                @mousedown.stop
+                @click.stop="windowManager.closeTab(props.id, tab.id)"
+              />
+            </div>
+          </template>
+        </div>
+        <!-- Scroll right button (only visible when tabs overflow) -->
+        <button
+          v-if="tabsOverflowRight"
+          class="px-3 self-stretch flex items-center bg-gray-200/50 dark:bg-gray-700/50 text-highlighted hover:bg-gray-300/50 dark:hover:bg-gray-600/50 transition-colors shrink-0 z-10 min-w-10"
+          @mousedown.stop
+          @click.stop="scrollTabs('right')"
+        >
+          <UIcon
+            name="i-lucide-chevron-right"
+            class="w-4 h-4"
+          />
+        </button>
+      </template>
 
       <!-- "+" button with dropdown for new tab -->
       <div class="flex items-center shrink-0">
@@ -273,6 +295,20 @@ const newTabMenuItems = computed(() => {
 
   return items
 })
+
+// Window-level responsive breakpoints (syncs with @container queries)
+const { isCompact: isCompactWindow } = useWindowSize(props.id)
+
+// Tab select items for compact mode (USelectMenu)
+const tabSelectItems = computed(() =>
+  (windowData.value?.tabs ?? []).map((tab) => ({
+    label: resolveTabTitle(tab),
+    value: tab.id,
+  })),
+)
+const activeTabSelectItem = computed(() =>
+  tabSelectItems.value.find((item) => item.value === windowData.value?.activeTabId),
+)
 
 // Tab scrolling
 const tabContainerEl = ref<HTMLElement | null>(null)

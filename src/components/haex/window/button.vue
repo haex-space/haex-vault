@@ -1,13 +1,13 @@
 <template>
   <UTooltip :text="tooltip">
     <button
-      class="size-8 shrink-0 rounded-lg flex justify-center transition-colors group"
+      class="size-8 @max-sm:size-11 shrink-0 rounded-lg flex justify-center transition-colors group"
       :class="variantClasses.buttonClass"
       @click="(e) => $emit('click', e)"
     >
       <UIcon
         :name="icon"
-        class="size-4 text-gray-600 dark:text-gray-400"
+        class="size-4 @max-sm:size-5 text-gray-600 dark:text-gray-400"
         :class="variantClasses.iconClass"
       />
     </button>
