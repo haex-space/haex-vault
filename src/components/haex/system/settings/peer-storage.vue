@@ -187,6 +187,7 @@
             <UiButton
               icon="i-lucide-save"
               color="primary"
+              variant="outline"
               @click="onSaveRelayUrlAsync"
             />
           </div>
