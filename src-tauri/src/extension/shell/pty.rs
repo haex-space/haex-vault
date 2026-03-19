@@ -1,7 +1,7 @@
 //! PTY Manager - manages pseudo-terminal sessions for extensions.
 //!
-//! Desktop: Uses portable-pty for full interactive shell support.
-//! Android/iOS: Stub implementation (SSH via russh planned for future).
+//! Desktop + Android: Uses portable-pty for interactive shell support.
+//! iOS: Stub implementation (no local shell available).
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -9,7 +9,7 @@ use tokio::sync::Mutex;
 
 use super::types::{ShellCreateOptions, ShellExitEvent, ShellOutputEvent, SHELL_OUTPUT_EVENT};
 
-#[cfg(desktop)]
+#[cfg(any(desktop, target_os = "android"))]
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 
 pub const SHELL_EXIT_EVENT: &str = "shell:exit";
@@ -20,9 +20,9 @@ pub struct PtyManager {
 }
 
 struct PtySession {
-    #[cfg(desktop)]
+    #[cfg(any(desktop, target_os = "android"))]
     master: Box<dyn MasterPty + Send>,
-    #[cfg(desktop)]
+    #[cfg(any(desktop, target_os = "android"))]
     writer: Box<dyn std::io::Write + Send>,
     extension_id: String,
 }
@@ -35,7 +35,7 @@ impl PtyManager {
     }
 
     /// Create a new PTY session and start streaming output via Tauri events
-    #[cfg(desktop)]
+    #[cfg(any(desktop, target_os = "android"))]
     pub async fn create_session(
         &self,
         app_handle: &tauri::AppHandle,
@@ -57,11 +57,11 @@ impl PtyManager {
             })
             .map_err(|e| format!("Failed to open PTY: {e}"))?;
 
-        // Determine shell
+        // Determine shell (Android uses /system/bin/sh, desktop uses $SHELL or /bin/sh)
         let shell = options
             .shell
             .or_else(|| std::env::var("SHELL").ok())
-            .unwrap_or_else(|| "/bin/sh".to_string());
+            .unwrap_or_else(|| Self::default_shell().to_string());
 
         // Extract shell name from path (e.g., "/bin/bash" → "bash")
         let shell_name = std::path::Path::new(&shell)
@@ -80,12 +80,15 @@ impl PtyManager {
             cmd.cwd(home);
         }
 
-        // Set environment variables
+        // Set environment variables from options
         if let Some(env) = &options.env {
             for (key, value) in env {
                 cmd.env(key, value);
             }
         }
+
+        // Platform-specific environment setup
+        Self::setup_shell_env(&mut cmd);
 
         // Set TERM for proper terminal support
         cmd.env("TERM", "xterm-256color");
@@ -186,7 +189,7 @@ impl PtyManager {
     }
 
     /// Write data to a PTY session's stdin
-    #[cfg(desktop)]
+    #[cfg(any(desktop, target_os = "android"))]
     pub async fn write_to_session(&self, session_id: &str, data: &str) -> Result<(), String> {
         use std::io::Write;
 
@@ -208,7 +211,7 @@ impl PtyManager {
     }
 
     /// Resize a PTY session
-    #[cfg(desktop)]
+    #[cfg(any(desktop, target_os = "android"))]
     pub async fn resize_session(
         &self,
         session_id: &str,
@@ -231,6 +234,42 @@ impl PtyManager {
             .map_err(|e| format!("Failed to resize PTY: {e}"))?;
 
         Ok(())
+    }
+
+    /// Returns the default shell path for the current platform
+    #[cfg(any(desktop, target_os = "android"))]
+    fn default_shell() -> &'static str {
+        #[cfg(target_os = "android")]
+        {
+            "/system/bin/sh"
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            "/bin/sh"
+        }
+    }
+
+    /// Set up platform-specific environment variables for the shell
+    #[cfg(any(desktop, target_os = "android"))]
+    fn setup_shell_env(cmd: &mut CommandBuilder) {
+        #[cfg(target_os = "android")]
+        {
+            // Android: set PATH to include system binaries
+            let mut path = "/system/bin:/system/xbin".to_string();
+
+            // Check if Termux is accessible (shared storage or same user)
+            let termux_bin = "/data/data/com.termux/files/usr/bin";
+            if std::path::Path::new(termux_bin).exists() {
+                path = format!("{termux_bin}:{path}");
+                cmd.env("PREFIX", "/data/data/com.termux/files/usr");
+            }
+
+            cmd.env("PATH", &path);
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            let _ = cmd; // no-op on desktop, shell inherits environment
+        }
     }
 
     /// Close a PTY session
@@ -261,8 +300,8 @@ impl PtyManager {
     }
 }
 
-// Android/iOS stub - no local PTY support
-#[cfg(not(desktop))]
+// iOS stub - no local PTY support
+#[cfg(not(any(desktop, target_os = "android")))]
 impl PtyManager {
     pub async fn create_session(
         &self,
