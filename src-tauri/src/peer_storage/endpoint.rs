@@ -118,6 +118,10 @@ impl PeerEndpoint {
             .secret_key(self.secret_key.clone())
             .alpns(vec![ALPN.to_vec()])
             .relay_mode(relay_mode)
+            .address_lookup(
+                iroh::address_lookup::MdnsAddressLookup::builder()
+                    .service_name("haex-peer"),
+            )
             .bind()
             .await
             .map_err(|e| PeerStorageError::ConnectionFailed {

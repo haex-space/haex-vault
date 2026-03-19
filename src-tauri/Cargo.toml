@@ -80,7 +80,7 @@ reqwest = { version = "0.13", default-features = false, features = [
 ] }
 
 # Peer Storage (P2P file sharing via iroh/QUIC)
-iroh = { version = "0.96", default-features = false }
+iroh = { version = "0.96", default-features = false, features = ["address-lookup-mdns"] }
 
 # Time utilities
 time = "0.3"
