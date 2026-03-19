@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="groups.length > 0"
-    class="flex items-center gap-1.5"
+    class="flex items-center gap-3"
   >
     <UTooltip
       v-for="group in groups"
@@ -148,7 +148,7 @@ const groups = computed(() => {
       icon: 'i-mdi-lan-connect',
       segments: [{
         id: 'p2p',
-        colorClass: peerCount > 0 ? 'text-success' : 'text-warning',
+        colorClass: 'text-success',
         isPulsing: false,
         label: peerCount > 0
           ? t('p2p.active', { count: peerCount })
