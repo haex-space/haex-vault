@@ -21,6 +21,7 @@
           :icon="abortIcon || 'mdi:close'"
           :label="abortLabel || t('abort')"
           block
+          size="xl"
           color="error"
           variant="outline"
           @click="open = false"
@@ -29,6 +30,7 @@
           :icon="confirmIcon || 'mdi:check'"
           :label="confirmLabel || t('confirm')"
           block
+          size="xl"
           color="primary"
           variant="solid"
           @click="$emit('confirm')"

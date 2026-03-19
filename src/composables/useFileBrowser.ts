@@ -282,6 +282,8 @@ export function useFileBrowser() {
   // File actions
   // =========================================================================
 
+  const { pushBack } = useBackNavigation()
+
   const onFileClick = async (file: FileEntry) => {
     if (file.isDir) {
       const filePath = resolveFilePath(file)
@@ -291,6 +293,9 @@ export function useFileBrowser() {
       }
       currentPath.value = filePath
       loadFiles()
+
+      // Register back action so back button/gesture navigates up
+      pushBack({ undo: () => navigateUp() })
       return
     }
 
