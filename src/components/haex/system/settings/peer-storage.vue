@@ -178,12 +178,18 @@
 
       <div class="space-y-3">
         <UFormField :label="t('relay.urlLabel')" :hint="t('relay.urlHint')">
-          <UInput
-            v-model="relayUrlInput"
-            :placeholder="t('relay.urlPlaceholder')"
-            class="w-full font-mono text-sm"
-            @blur="onSaveRelayUrlAsync"
-          />
+          <div class="flex gap-2">
+            <UInput
+              v-model="relayUrlInput"
+              :placeholder="t('relay.urlPlaceholder')"
+              class="flex-1 font-mono text-sm"
+            />
+            <UiButton
+              icon="i-lucide-save"
+              color="primary"
+              @click="onSaveRelayUrlAsync"
+            />
+          </div>
         </UFormField>
         <p v-if="store.configuredRelayUrl" class="text-xs text-muted">
           {{ t('relay.active') }}: <code class="bg-muted/50 px-1 rounded">{{ store.configuredRelayUrl }}</code>
