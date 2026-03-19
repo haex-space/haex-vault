@@ -18,8 +18,8 @@ async fn create_connected_pair() -> (PeerEndpoint, PeerEndpoint, iroh::EndpointA
     let mut server = PeerEndpoint::new_ephemeral();
     let mut client = PeerEndpoint::new_ephemeral();
 
-    server.start().await.unwrap();
-    client.start().await.unwrap();
+    server.start(None).await.unwrap();
+    client.start(None).await.unwrap();
 
     // Get server's full address (ID + local socket addrs) for direct connection
     let server_addr = server.endpoint_ref().unwrap().addr();
@@ -160,9 +160,9 @@ async fn partial_revoke_only_blocks_target() {
     let mut good = PeerEndpoint::new_ephemeral();
     let mut evil = PeerEndpoint::new_ephemeral();
 
-    server.start().await.unwrap();
-    good.start().await.unwrap();
-    evil.start().await.unwrap();
+    server.start(None).await.unwrap();
+    good.start(None).await.unwrap();
+    evil.start(None).await.unwrap();
 
     let server_addr = server.endpoint_ref().unwrap().addr();
 
