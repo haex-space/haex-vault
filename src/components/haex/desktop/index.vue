@@ -187,7 +187,7 @@
         />
 
         <!-- Window Overview Grid -->
-        <div class="flex-1 flex items-center justify-center p-4 py-8 overflow-auto">
+        <div class="flex-1 flex items-start justify-center px-4 pt-16 pb-8 overflow-auto">
           <div
             v-if="currentWorkspaceWindows.length > 0"
             class="flex flex-row flex-wrap gap-6 justify-center items-center content-center"

@@ -9,7 +9,7 @@
     }"
   >
     <template #body>
-      <div class="justify-center flex flex-wrap overflow-y-auto max-h-dvh pt-20 pb-8 px-4">
+      <div class="justify-center flex overflow-y-auto pb-8">
         <!-- Window Thumbnails Flex Layout -->
 
         <div
