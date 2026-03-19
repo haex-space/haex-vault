@@ -5,7 +5,7 @@
     :title="t('modal.title')"
     :description="t('modal.description')"
     :ui="{
-      content: 'h-screen max-h-screen',
+      content: 'h-[85vh] max-h-[85vh] flex-col overflow-hidden',
       body: 'flex-1 overflow-y-auto',
       overlay: 'backdrop-blur-sm',
     }"
