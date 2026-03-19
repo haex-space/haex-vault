@@ -135,7 +135,6 @@ impl PtyManager {
             loop {
                 match reader.read(&mut buf) {
                     Ok(0) => {
-                        // PTY closed
                         let _ = app_handle.emit(
                             SHELL_EXIT_EVENT,
                             &ShellExitEvent {
@@ -143,7 +142,6 @@ impl PtyManager {
                                 exit_code: None,
                             },
                         );
-                        // Clean up session
                         let sessions = sessions.clone();
                         let sid = sid.clone();
                         tokio::task::block_in_place(|| {
@@ -254,21 +252,17 @@ impl PtyManager {
     fn setup_shell_env(cmd: &mut CommandBuilder) {
         #[cfg(target_os = "android")]
         {
-            // Android: set PATH to include system binaries
             let mut path = "/system/bin:/system/xbin".to_string();
-
-            // Check if Termux is accessible (shared storage or same user)
             let termux_bin = "/data/data/com.termux/files/usr/bin";
             if std::path::Path::new(termux_bin).exists() {
                 path = format!("{termux_bin}:{path}");
                 cmd.env("PREFIX", "/data/data/com.termux/files/usr");
             }
-
             cmd.env("PATH", &path);
         }
         #[cfg(not(target_os = "android"))]
         {
-            let _ = cmd; // no-op on desktop, shell inherits environment
+            let _ = cmd;
         }
     }
 
@@ -298,24 +292,25 @@ impl PtyManager {
             .map(|s| s.extension_id == extension_id)
             .unwrap_or(false)
     }
-}
 
-// iOS stub - no local PTY support
-#[cfg(not(any(desktop, target_os = "android")))]
-impl PtyManager {
+    /// iOS stub: create_session not available
+    #[cfg(not(any(desktop, target_os = "android")))]
     pub async fn create_session(
         &self,
         _app_handle: &tauri::AppHandle,
         _extension_id: &str,
         _options: ShellCreateOptions,
     ) -> Result<(String, String), String> {
-        Err("Local shell is not available on this platform. Use SSH to connect to a remote server.".to_string())
+        Err("Local shell is not available on this platform. Use SSH to connect to a remote server."
+            .to_string())
     }
 
+    #[cfg(not(any(desktop, target_os = "android")))]
     pub async fn write_to_session(&self, _session_id: &str, _data: &str) -> Result<(), String> {
         Err("Local shell is not available on this platform.".to_string())
     }
 
+    #[cfg(not(any(desktop, target_os = "android")))]
     pub async fn resize_session(
         &self,
         _session_id: &str,
