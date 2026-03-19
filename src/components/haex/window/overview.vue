@@ -6,11 +6,12 @@
     :description="t('modal.description')"
     :ui="{
       content: 'h-screen max-h-screen',
+      body: 'flex-1 overflow-y-auto',
       overlay: 'backdrop-blur-sm',
     }"
   >
     <template #body>
-      <div class="justify-center flex overflow-y-auto pb-8">
+      <div class="justify-center flex pb-8">
         <!-- Window Thumbnails Flex Layout -->
 
         <div
