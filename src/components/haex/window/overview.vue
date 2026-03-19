@@ -5,12 +5,11 @@
     :title="t('modal.title')"
     :description="t('modal.description')"
     :ui="{
-      content: 'mt-16',
       overlay: 'backdrop-blur-sm',
     }"
   >
     <template #body>
-      <div class="justify-center flex py-6 overflow-y-auto max-h-[calc(100vh-8rem)]">
+      <div class="justify-center flex flex-wrap overflow-y-auto max-h-dvh pt-20 pb-8 px-4">
         <!-- Window Thumbnails Flex Layout -->
 
         <div
