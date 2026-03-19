@@ -3,7 +3,7 @@
     :title="t('title')"
     :description="t('description')"
   >
-    <!-- Endpoint Control -->
+    <!-- Endpoint + Shared Folders (primary card) -->
     <UCard>
       <template #header>
         <div class="flex items-center justify-between">
@@ -26,41 +26,9 @@
         </div>
       </template>
 
+      <!-- Stopped state -->
       <div
-        v-if="store.running"
-        class="space-y-3"
-      >
-        <div class="flex items-center gap-2">
-          <UBadge
-            color="success"
-            variant="subtle"
-            size="sm"
-          >
-            {{ t('endpoint.running') }}
-          </UBadge>
-        </div>
-
-        <div class="flex items-center gap-2">
-          <span class="text-sm text-muted shrink-0"
-            >{{ t('endpoint.nodeId') }}:</span
-          >
-          <code
-            class="text-xs bg-muted/50 px-2 py-1 rounded font-mono truncate flex-1"
-          >
-            {{ store.nodeId }}
-          </code>
-          <UiButton
-            icon="i-lucide-copy"
-            variant="ghost"
-            color="neutral"
-            @click="onCopyNodeId"
-          />
-        </div>
-        <p class="text-xs text-muted">{{ t('endpoint.nodeIdHint') }}</p>
-      </div>
-
-      <div
-        v-else
+        v-if="!store.running"
         class="text-center py-4 text-muted"
       >
         <UIcon
@@ -69,6 +37,108 @@
         />
         <p class="text-sm">{{ t('endpoint.stopped') }}</p>
       </div>
+
+      <!-- Running: shared folders per space -->
+      <template v-else>
+        <!-- No Spaces -->
+        <div
+          v-if="!spacesStore.spaces.length"
+          class="text-center py-6 text-muted"
+        >
+          <UIcon
+            name="i-lucide-cloud-off"
+            class="w-10 h-10 mx-auto mb-2 opacity-50"
+          />
+          <p class="text-sm">{{ t('shares.noSpaces') }}</p>
+          <UiButton
+            class="mt-3"
+            variant="outline"
+            icon="i-heroicons-user-group"
+            @click="onNavigateToSpaces"
+          >
+            {{ t('shares.goToSpaces') }}
+          </UiButton>
+        </div>
+
+        <!-- Spaces with shares -->
+        <div
+          v-else
+          class="space-y-4"
+        >
+          <div
+            v-for="space in spacesStore.spaces"
+            :key="space.id"
+            class="border border-default rounded-lg overflow-hidden"
+          >
+            <!-- Space header -->
+            <div class="flex items-center gap-2 px-4 py-2.5 bg-muted/30">
+              <span class="font-medium truncate flex-1">{{ space.name }}</span>
+              <UBadge variant="subtle" size="sm">{{ space.role }}</UBadge>
+              <UiButton
+                icon="i-lucide-folder-plus"
+                variant="ghost"
+                :title="t('shares.add')"
+                @click="onAddShareAsync(space.id)"
+              />
+            </div>
+
+            <div class="divide-y divide-default">
+              <!-- This device's shares -->
+              <div
+                v-for="share in getSharesForDevice(space.id, store.nodeId)"
+                :key="share.id"
+                class="flex items-center gap-3 px-4 py-2.5 group"
+              >
+                <UIcon name="i-lucide-folder" class="w-4 h-4 text-primary shrink-0" />
+                <div
+                  class="min-w-0 flex-1 cursor-pointer hover:text-primary transition-colors"
+                  @click="onBrowseShare(share)"
+                >
+                  <p class="text-sm font-medium">{{ share.name }}</p>
+                  <p class="text-xs text-muted truncate">{{ formatPath(share.localPath) }}</p>
+                </div>
+                <UiButton
+                  color="error"
+                  variant="ghost"
+                  icon="i-lucide-trash-2"
+                  class="opacity-0 group-hover:opacity-100 transition-opacity"
+                  @click="onRemoveShareAsync(share.id)"
+                />
+              </div>
+
+              <!-- Other devices' shares -->
+              <div
+                v-for="[deviceId, deviceShares] in getOtherDeviceShares(space.id)"
+                :key="deviceId"
+              >
+                <div class="px-4 py-2 bg-muted/10">
+                  <span class="text-xs font-medium text-muted">
+                    {{ getDeviceName(deviceId) || deviceId.slice(0, 12) + '…' }}
+                  </span>
+                </div>
+                <div
+                  v-for="share in deviceShares"
+                  :key="share.id"
+                  class="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-muted/20 transition-colors"
+                  @click="onBrowseShare(share)"
+                >
+                  <UIcon name="i-lucide-folder" class="w-4 h-4 text-muted shrink-0" />
+                  <p class="text-sm flex-1 truncate">{{ share.name }}</p>
+                  <UIcon name="i-lucide-chevron-right" class="w-4 h-4 text-muted shrink-0" />
+                </div>
+              </div>
+
+              <!-- Empty space -->
+              <div
+                v-if="getSharesForSpace(space.id).length === 0"
+                class="px-4 py-4 text-center text-muted text-sm"
+              >
+                {{ t('shares.emptySpace') }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
 
       <template #footer>
         <UCheckbox
@@ -99,156 +169,6 @@
           {{ t('relay.active') }}: <code class="bg-muted/50 px-1 rounded">{{ store.configuredRelayUrl }}</code>
         </p>
         <p v-else class="text-xs text-muted">{{ t('relay.usingDefault') }}</p>
-      </div>
-    </UCard>
-
-    <!-- Shared Folders by Space -->
-    <UCard>
-      <template #header>
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 class="text-lg font-semibold">{{ t('shares.title') }}</h3>
-            <p class="text-sm text-muted mt-1">{{ t('shares.description') }}</p>
-          </div>
-        </div>
-      </template>
-
-      <!-- No Spaces available -->
-      <div
-        v-if="!spacesStore.spaces.length"
-        class="text-center py-8 text-muted"
-      >
-        <UIcon
-          name="i-lucide-cloud-off"
-          class="w-12 h-12 mx-auto mb-3 opacity-50"
-        />
-        <p>{{ t('shares.noSpaces') }}</p>
-        <p class="text-sm mt-1">{{ t('shares.noSpacesHint') }}</p>
-        <UiButton
-          class="mt-4"
-          icon="i-heroicons-user-group"
-          @click="onNavigateToSpaces"
-        >
-          {{ t('shares.goToSpaces') }}
-        </UiButton>
-      </div>
-
-      <!-- Spaces with shares -->
-      <div
-        v-else
-        class="space-y-6"
-      >
-        <div
-          v-for="space in spacesStore.spaces"
-          :key="space.id"
-          class="border border-default rounded-lg overflow-hidden"
-        >
-          <!-- Space header -->
-          <div class="flex items-center gap-2 px-4 py-3 bg-muted/30">
-            <div class="flex items-center gap-2 min-w-0 flex-1">
-              <span class="font-medium truncate">{{ space.name }}</span>
-              <UBadge
-                variant="subtle"
-                size="sm"
-              >
-                {{ space.role }}
-              </UBadge>
-            </div>
-            <UiButton
-              icon="i-lucide-folder-plus"
-              variant="ghost"
-              size="xl"
-              :title="t('shares.add')"
-              @click="onAddShareAsync(space.id)"
-            />
-          </div>
-
-          <!-- Shares grouped by device -->
-          <div class="divide-y divide-default">
-            <!-- Current device shares -->
-            <div
-              v-if="getSharesForDevice(space.id, store.nodeId).length"
-              class="px-4 py-3"
-            >
-              <div class="flex items-center gap-2 mb-2">
-                <UIcon
-                  name="i-lucide-monitor"
-                  class="w-3.5 h-3.5 text-success"
-                />
-                <span class="text-sm font-medium text-success">
-                  {{ t('shares.thisDevice') }}
-                </span>
-              </div>
-              <div class="space-y-2 ml-5">
-                <div
-                  v-for="share in getSharesForDevice(space.id, store.nodeId)"
-                  :key="share.id"
-                  class="flex items-center justify-between gap-2 group"
-                >
-                  <div
-                    class="min-w-0 flex-1 cursor-pointer hover:text-primary transition-colors"
-                    @click="onBrowseShare(share)"
-                  >
-                    <p class="text-sm font-medium">{{ share.name }}</p>
-                    <p class="text-xs text-muted truncate">
-                      {{ formatPath(share.localPath) }}
-                    </p>
-                  </div>
-                  <UiButton
-                    color="error"
-                    variant="ghost"
-                    icon="i-lucide-trash-2"
-                    @click="onRemoveShareAsync(share.id)"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <!-- Other devices' shares -->
-            <div
-              v-for="[deviceId, deviceShares] in getOtherDeviceShares(space.id)"
-              :key="deviceId"
-              class="px-4 py-3"
-            >
-              <div class="flex items-center gap-2 mb-2">
-                <UIcon
-                  name="i-lucide-monitor"
-                  class="w-3.5 h-3.5 text-muted"
-                />
-                <span class="text-sm font-medium text-muted">
-                  {{ getDeviceName(deviceId) || deviceId.slice(0, 12) + '…' }}
-                </span>
-              </div>
-              <div class="space-y-2 ml-5">
-                <div
-                  v-for="share in deviceShares"
-                  :key="share.id"
-                  class="flex items-center gap-2 cursor-pointer hover:text-primary transition-colors"
-                  @click="onBrowseShare(share)"
-                >
-                  <div class="min-w-0 flex-1">
-                    <p class="text-sm font-medium">{{ share.name }}</p>
-                    <p class="text-xs text-muted truncate">
-                      {{ formatPath(share.localPath) }}
-                    </p>
-                  </div>
-                  <UIcon
-                    name="i-lucide-chevron-right"
-                    class="w-4 h-4 text-muted shrink-0"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <!-- No shares in this space -->
-            <div
-              v-if="getSharesForSpace(space.id).length === 0"
-              class="px-4 py-6 text-center text-muted"
-            >
-              <p class="text-sm">{{ t('shares.emptySpace') }}</p>
-            </div>
-          </div>
-        </div>
       </div>
     </UCard>
   </HaexSystemSettingsLayout>
@@ -410,13 +330,7 @@ const onToggleEndpointAsync = async () => {
   }
 }
 
-const onCopyNodeId = async () => {
-  await navigator.clipboard.writeText(store.nodeId)
-  add({ title: t('toast.copied'), color: 'success' })
-}
-
 const formatPath = (path: string): string => {
-  // Android Content URI: {"uri":"content://...documents/tree/primary%3ADCIM"}
   try {
     const parsed = JSON.parse(path)
     if (parsed.uri) {
@@ -432,12 +346,10 @@ const formatPath = (path: string): string => {
 }
 
 const extractFolderName = (path: string): string => {
-  // Android Content URI: {"uri":"content://...documents/tree/primary%3ADCIM"}
   try {
     const parsed = JSON.parse(path)
     if (parsed.uri) {
       const decoded = decodeURIComponent(parsed.uri)
-      // Extract path after "tree/" or last ":" segment
       const treeMatch = decoded.match(/tree\/[^:]+:(.+)/)
       if (treeMatch?.[1])
         return treeMatch[1].split('/').pop() ?? 'Shared Folder'
@@ -464,7 +376,6 @@ const onBrowseShare = (share: SelectHaexPeerShares) => {
       endpointId: share.deviceEndpointId,
       peerName: deviceName,
       shareName: share.name,
-      // For own device: browse locally without network
       ...(isOwnDevice && { localPath: share.localPath }),
     },
   })
@@ -511,18 +422,12 @@ de:
     description: Starte den P2P-Endpoint, um Dateien zu teilen und zu empfangen
     start: Starten
     stop: Stoppen
-    running: Aktiv
     stopped: Endpoint ist nicht aktiv. Starte ihn, um Dateien zu teilen.
-    nodeId: Node-ID
-    nodeIdHint: Teile diese ID mit Peers, damit sie sich mit dir verbinden können.
     autostart: Automatisch starten wenn die Vault geöffnet wird
   shares:
-    title: Geteilte Ordner
-    description: Ordner pro Space und Device, die für verbundene Peers zugänglich sind
     add: Ordner hinzufügen
     noSpaces: Keine Spaces vorhanden
-    noSpacesHint: Erstelle oder trete einem Space bei, um Ordner zu teilen
-    emptySpace: Noch keine Ordner in diesem Space geteilt
+    emptySpace: Noch keine Ordner geteilt
     thisDevice: Dieses Gerät
     goToSpaces: Spaces verwalten
   relay:
@@ -537,7 +442,6 @@ de:
   toast:
     started: P2P-Endpoint gestartet
     stopped: P2P-Endpoint gestoppt
-    copied: Node-ID kopiert
     shareAdded: Ordner hinzugefügt
     shareRemoved: Ordner entfernt
     error: Fehler
@@ -549,18 +453,12 @@ en:
     description: Start the P2P endpoint to share and receive files
     start: Start
     stop: Stop
-    running: Active
     stopped: Endpoint is not active. Start it to share files.
-    nodeId: Node ID
-    nodeIdHint: Share this ID with peers so they can connect to you.
     autostart: Automatically start when the vault is opened
   shares:
-    title: Shared Folders
-    description: Folders per space and device, accessible to connected peers
     add: Add Folder
     noSpaces: No spaces available
-    noSpacesHint: Create or join a space to share folders
-    emptySpace: No folders shared in this space yet
+    emptySpace: No folders shared yet
     thisDevice: This device
     goToSpaces: Manage Spaces
   relay:
@@ -575,7 +473,6 @@ en:
   toast:
     started: P2P endpoint started
     stopped: P2P endpoint stopped
-    copied: Node ID copied
     shareAdded: Folder added
     shareRemoved: Folder removed
     error: Error
