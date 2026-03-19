@@ -424,6 +424,7 @@ pub fn run() {
             extension::filesystem::commands::extension_filesystem_unwatch,
             extension::filesystem::commands::extension_filesystem_is_watching,
             // Shell/PTY commands
+            extension::shell::commands::extension_shell_list_available,
             extension::shell::commands::extension_shell_create,
             extension::shell::commands::extension_shell_write,
             extension::shell::commands::extension_shell_resize,

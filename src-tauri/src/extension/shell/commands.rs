@@ -9,7 +9,7 @@ use crate::extension::utils::{emit_permission_prompt_if_needed, resolve_extensio
 use crate::AppState;
 use tauri::{AppHandle, State, WebviewWindow};
 
-use super::types::{ShellCreateOptions, ShellCreateResponse};
+use super::types::{ShellCreateOptions, ShellCreateResponse, ShellInfo};
 
 /// Check shell permissions for an extension
 async fn check_shell_execute_permission(
@@ -24,6 +24,13 @@ async fn check_shell_execute_permission(
         emit_permission_prompt_if_needed(app_handle, e);
     }
     permission_result
+}
+
+/// List available shell environments on this system.
+/// No filesystem permission required — this is an internal check.
+#[tauri::command(rename_all = "camelCase")]
+pub async fn extension_shell_list_available() -> Result<Vec<ShellInfo>, ExtensionError> {
+    Ok(super::pty::PtyManager::list_available_shells())
 }
 
 /// Create a new PTY shell session

@@ -34,6 +34,48 @@ impl PtyManager {
         }
     }
 
+    /// List shells that actually exist on this system.
+    /// Uses std::path::Path::exists() — no extension permission needed.
+    pub fn list_available_shells() -> Vec<super::types::ShellInfo> {
+        let candidates: &[(&str, &str)] = {
+            #[cfg(target_os = "android")]
+            {
+                &[
+                    ("bash", "/data/data/com.termux/files/usr/bin/bash"),
+                    ("zsh", "/data/data/com.termux/files/usr/bin/zsh"),
+                    ("fish", "/data/data/com.termux/files/usr/bin/fish"),
+                    ("sh", "/system/bin/sh"),
+                ]
+            }
+            #[cfg(target_os = "windows")]
+            {
+                &[
+                    ("PowerShell", "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"),
+                    ("CMD", "C:\\Windows\\System32\\cmd.exe"),
+                    ("Git Bash", "C:\\Program Files\\Git\\bin\\bash.exe"),
+                ]
+            }
+            #[cfg(not(any(target_os = "android", target_os = "windows")))]
+            {
+                &[
+                    ("bash", "/bin/bash"),
+                    ("zsh", "/bin/zsh"),
+                    ("fish", "/usr/bin/fish"),
+                    ("sh", "/bin/sh"),
+                ]
+            }
+        };
+
+        candidates
+            .iter()
+            .filter(|(_, path)| std::path::Path::new(path).exists())
+            .map(|(name, path)| super::types::ShellInfo {
+                name: name.to_string(),
+                path: path.to_string(),
+            })
+            .collect()
+    }
+
     /// Create a new PTY session and start streaming output via Tauri events
     #[cfg(any(desktop, target_os = "android"))]
     pub async fn create_session(

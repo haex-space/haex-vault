@@ -39,6 +39,15 @@ pub struct ShellExitEvent {
     pub exit_code: Option<i32>,
 }
 
+/// Available shell info returned by list_available
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ShellInfo {
+    pub name: String,
+    pub path: String,
+}
+
 /// Response from shell create command
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
