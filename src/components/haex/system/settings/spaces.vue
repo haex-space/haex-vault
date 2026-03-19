@@ -88,7 +88,7 @@
             />
             <UiButton
               icon="i-lucide-server"
-              variant="ghost"
+              variant="outline"
               color="neutral"
               @click="onNavigateToSync"
             />
@@ -166,12 +166,20 @@
         />
         <div class="space-y-2">
           <label class="text-sm font-medium">{{ t('edit.serverLabel') }}</label>
-          <USelectMenu
-            v-model="editForm.serverUrl"
-            :items="editServerOptions"
-            :placeholder="t('edit.serverPlaceholder')"
-            class="w-full"
-          />
+          <div class="flex items-center gap-2">
+            <USelectMenu
+              v-model="editForm.serverUrl"
+              :items="editServerOptions"
+              :placeholder="t('edit.serverPlaceholder')"
+              class="flex-1"
+            />
+            <UiButton
+              icon="i-lucide-server"
+              variant="outline"
+              color="neutral"
+              @click="onNavigateToSync"
+            />
+          </div>
         </div>
       </template>
       <template #footer>
