@@ -724,7 +724,9 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
   ): string => {
     win.activeTabId = tab.id
     syncWindowFromActiveTab(win)
-    if (params) win.params = { ...win.params, ...params }
+    if (params) {
+      tab.params = { ...tab.params, ...params }
+    }
     const workspaceStore = useWorkspaceStore()
     if (win.workspaceId !== workspaceStore.currentWorkspace?.id) {
       workspaceStore.slideToWorkspace(win.workspaceId)
