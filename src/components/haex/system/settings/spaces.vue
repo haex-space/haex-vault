@@ -365,6 +365,8 @@ const serverUrlOptions = computed(() => {
 })
 
 const onNavigateToSync = () => {
+  showCreateDialog.value = false
+  showEditDialog.value = false
   windowManager.openWindowAsync({
     type: 'system',
     sourceId: 'settings',
