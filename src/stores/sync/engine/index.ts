@@ -19,6 +19,7 @@ import {
   resetSupabaseClient,
   setSupabaseClient as setClient,
   cacheAccessToken,
+  setReauthResolver,
 } from './supabase'
 import {
   getVaultKeyCache,
@@ -105,6 +106,20 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   const initSupabaseClientAsync = async (backendId: string): Promise<void> => {
     const backend = findBackend(backendId)
     await initClient(backendId, backend.serverUrl)
+
+    // Register DID re-auth resolver so that expired sessions are automatically recovered
+    setReauthResolver(async () => {
+      try {
+        const b = syncBackendsStore.backends.find((x) => x.id === backendId)
+        if (!b?.identityId) return null
+        const identityStore = useIdentityStore()
+        const identity = await identityStore.getIdentityAsync(b.identityId)
+        if (!identity?.did || !identity?.privateKey) return null
+        return { serverUrl: b.serverUrl, did: identity.did, privateKey: identity.privateKey }
+      } catch {
+        return null
+      }
+    })
   }
 
   /**
@@ -534,6 +549,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
    */
   const reset = (): void => {
     clearVaultKeyCache()
+    setReauthResolver(null)
     resetSupabaseClient()
     // Sync the ref with the actual cache
     vaultKeyCache.value = getVaultKeyCache()
