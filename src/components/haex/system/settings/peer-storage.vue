@@ -70,19 +70,26 @@
             :key="space.id"
             class="border border-default rounded-lg overflow-hidden"
           >
-            <UCollapsible :unmount-on-hide="false">
+            <UCollapsible
+              :open="expandedSpaces.has(space.id)"
+              :unmount-on-hide="false"
+            >
               <!-- Space header (clickable toggle) -->
               <div class="flex items-center gap-2 px-4 py-2.5 bg-muted/30">
-                <UCollapsibleTrigger class="flex items-center gap-2 min-w-0 flex-1 cursor-pointer">
+                <button
+                  class="flex items-center gap-2 min-w-0 flex-1 cursor-pointer"
+                  @click="toggleSpace(space.id)"
+                >
                   <UIcon
                     name="i-lucide-chevron-right"
-                    class="w-4 h-4 shrink-0 text-muted transition-transform duration-200 group-data-[state=open]:rotate-90"
+                    class="w-4 h-4 shrink-0 text-muted transition-transform duration-200"
+                    :class="{ 'rotate-90': expandedSpaces.has(space.id) }"
                   />
                   <span class="font-medium truncate">{{ space.name }}</span>
                   <UBadge variant="subtle" size="sm">
                     {{ getSharesForSpace(space.id).length }}
                   </UBadge>
-                </UCollapsibleTrigger>
+                </button>
                 <UiButton
                   icon="i-lucide-folder-plus"
                   variant="ghost"
@@ -209,6 +216,14 @@ const { currentVault } = storeToRefs(useVaultStore())
 const isToggling = ref(false)
 const autostart = ref(false)
 const relayUrlInput = ref('')
+const expandedSpaces = ref(new Set<string>())
+
+const toggleSpace = (spaceId: string) => {
+  const next = new Set(expandedSpaces.value)
+  if (next.has(spaceId)) next.delete(spaceId)
+  else next.add(spaceId)
+  expandedSpaces.value = next
+}
 
 const onToggleAutostartAsync = async (value: boolean | 'indeterminate') => {
   if (value === 'indeterminate') return
