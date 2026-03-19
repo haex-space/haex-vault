@@ -9,7 +9,7 @@
     }"
   >
     <template #body>
-      <div class="justify-center flex pb-8 overflow-y-auto max-h-[75vh]">
+      <div class="justify-center flex pt-16 pb-8 overflow-y-auto max-h-[75vh]">
         <!-- Window Thumbnails Flex Layout -->
 
         <div
