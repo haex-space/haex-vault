@@ -1,23 +1,41 @@
 <template>
   <div
-    v-if="indicators.length > 0"
+    v-if="groups.length > 0"
     class="flex items-center gap-1.5"
   >
     <UTooltip
-      v-for="item in indicators"
-      :key="item.id"
-      :text="item.tooltip"
+      v-for="group in groups"
+      :key="group.id"
+      :text="group.tooltip"
     >
       <button
-        class="cursor-pointer transition-colors duration-300"
+        class="relative cursor-pointer"
         :class="sizeClass"
-        @click="item.onClick"
+        @click="group.onClick"
       >
+        <!-- Single item: render icon directly -->
         <UIcon
-          :name="item.icon"
-          class="w-full h-full"
-          :class="[item.colorClass, { 'animate-pulse-status': item.isPulsing }]"
+          v-if="group.segments.length === 1"
+          :name="group.icon"
+          class="w-full h-full transition-colors duration-300"
+          :class="[group.segments[0]!.colorClass, { 'animate-pulse-status': group.segments[0]!.isPulsing }]"
         />
+
+        <!-- Multiple items: split icon via clip-path overlays -->
+        <template v-else>
+          <UIcon
+            v-for="(seg, idx) in group.segments"
+            :key="seg.id"
+            :name="group.icon"
+            class="w-full h-full transition-colors duration-300"
+            :class="[
+              seg.colorClass,
+              { 'animate-pulse-status': seg.isPulsing },
+              idx > 0 ? 'absolute inset-0' : '',
+            ]"
+            :style="clipStyle(idx, group.segments.length)"
+          />
+        </template>
       </button>
     </UTooltip>
   </div>
@@ -51,6 +69,14 @@ const sizeClass = computed(() => {
   }
 })
 
+/** Generate clip-path for segment idx of total — vertical slices left to right */
+const clipStyle = (idx: number, total: number) => {
+  const sliceWidth = 100 / total
+  const left = sliceWidth * idx
+  const right = 100 - sliceWidth * (idx + 1)
+  return { clipPath: `inset(0 ${right}% 0 ${left}%)` }
+}
+
 const openSettings = (category: SettingsCategory) => {
   windowManager.openWindowAsync({
     type: 'system',
@@ -59,43 +85,54 @@ const openSettings = (category: SettingsCategory) => {
   })
 }
 
-// Build unified indicator list: sync backends + P2P
-const indicators = computed(() => {
-  const items: {
-    id: string
-    icon: string
-    colorClass: string
-    isPulsing: boolean
-    tooltip: string
-    onClick: () => void
-  }[] = []
+interface Segment {
+  id: string
+  colorClass: string
+  isPulsing: boolean
+  label: string
+}
 
-  // Sync backends
-  for (const backend of enabledBackends.value) {
-    const state = syncStates.value[backend.id]
-    let colorClass = 'text-warning'
-    let isPulsing = false
-    let status = t('sync.connecting')
+interface IndicatorGroup {
+  id: string
+  icon: string
+  segments: Segment[]
+  tooltip: string
+  onClick: () => void
+}
 
-    if (state?.error) {
-      colorClass = 'text-error'
-      status = t('sync.error')
-    } else if (state?.isConnected) {
-      colorClass = 'text-success'
-      if (state.isSyncing) {
-        isPulsing = true
-        status = t('sync.syncing')
-      } else {
-        status = t('sync.connected')
+const groups = computed(() => {
+  const result: IndicatorGroup[] = []
+
+  // Sync backends — all share the same icon, split by backend count
+  const backends = enabledBackends.value
+  if (backends.length > 0) {
+    const segments: Segment[] = backends.map((backend) => {
+      const state = syncStates.value[backend.id]
+      let colorClass = 'text-warning'
+      let isPulsing = false
+      let label = t('sync.connecting')
+
+      if (state?.error) {
+        colorClass = 'text-error'
+        label = t('sync.error')
+      } else if (state?.isConnected) {
+        colorClass = 'text-success'
+        if (state.isSyncing) {
+          isPulsing = true
+          label = t('sync.syncing')
+        } else {
+          label = t('sync.connected')
+        }
       }
-    }
 
-    items.push({
-      id: `sync-${backend.id}`,
+      return { id: backend.id, colorClass, isPulsing, label: `${backend.name}: ${label}` }
+    })
+
+    result.push({
+      id: 'sync',
       icon: 'i-lucide-refresh-cw',
-      colorClass,
-      isPulsing,
-      tooltip: `${backend.name}: ${status}`,
+      segments,
+      tooltip: segments.map(s => s.label).join('\n'),
       onClick: () => openSettings(SettingsCategory.Sync),
     })
   }
@@ -106,11 +143,17 @@ const indicators = computed(() => {
       d => d.deviceEndpointId !== peerStore.nodeId,
     ).length
 
-    items.push({
+    result.push({
       id: 'p2p',
       icon: 'i-mdi-lan-connect',
-      colorClass: peerCount > 0 ? 'text-success' : 'text-warning',
-      isPulsing: false,
+      segments: [{
+        id: 'p2p',
+        colorClass: peerCount > 0 ? 'text-success' : 'text-warning',
+        isPulsing: false,
+        label: peerCount > 0
+          ? t('p2p.active', { count: peerCount })
+          : t('p2p.noPeers'),
+      }],
       tooltip: peerCount > 0
         ? t('p2p.active', { count: peerCount })
         : t('p2p.noPeers'),
@@ -118,7 +161,7 @@ const indicators = computed(() => {
     })
   }
 
-  return items
+  return result
 })
 </script>
 
