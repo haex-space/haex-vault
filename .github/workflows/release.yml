@@ -366,6 +366,12 @@ jobs:
           echo "AR_x86_64_linux_android=llvm-ar" >> $GITHUB_ENV
           echo "RANLIB_x86_64_linux_android=llvm-ranlib" >> $GITHUB_ENV
 
+          # 16KB page alignment for native libraries (required by API 30+ emulators and Android 15+ devices)
+          echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS=-C link-arg=-z -C link-arg=max-page-size=16384" >> $GITHUB_ENV
+          echo "CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_RUSTFLAGS=-C link-arg=-z -C link-arg=max-page-size=16384" >> $GITHUB_ENV
+          echo "CARGO_TARGET_I686_LINUX_ANDROID_RUSTFLAGS=-C link-arg=-z -C link-arg=max-page-size=16384" >> $GITHUB_ENV
+          echo "CARGO_TARGET_X86_64_LINUX_ANDROID_RUSTFLAGS=-C link-arg=-z -C link-arg=max-page-size=16384" >> $GITHUB_ENV
+
       - name: Install build dependencies for OpenSSL
         run: |
           sudo apt-get update
