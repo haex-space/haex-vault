@@ -99,22 +99,41 @@
           >
             {{ getSpaceName(device.spaceId) }}
           </UBadge>
-          <UiButton
+          <div
             v-if="editingDeviceId !== device.id"
-            icon="i-lucide-pencil"
-            variant="ghost"
-            color="neutral"
-            @click="startEditing(device)"
-          />
+            class="flex items-center gap-1 shrink-0"
+          >
+            <UiButton
+              icon="i-lucide-pencil"
+              variant="ghost"
+              color="neutral"
+              @click="startEditing(device)"
+            />
+            <UiButton
+              icon="i-lucide-trash-2"
+              variant="ghost"
+              color="error"
+              @click="deviceToRemove = device"
+            />
+          </div>
         </div>
       </div>
     </UCard>
+    <!-- Remove device confirmation -->
+    <UiDialogConfirm
+      v-model:open="showRemoveDialog"
+      :title="t('removeDevice.title')"
+      :description="t('removeDevice.description', { name: deviceToRemove?.deviceName })"
+      :confirm-label="t('removeDevice.confirm')"
+      confirm-icon="i-lucide-trash-2"
+      @confirm="onRemoveDeviceAsync"
+    />
   </HaexSystemSettingsLayout>
 </template>
 
 <script setup lang="ts">
 import { eq } from 'drizzle-orm'
-import { haexSpaceDevices } from '~/database/schemas'
+import { haexSpaceDevices, haexPeerShares } from '~/database/schemas'
 
 const { t } = useI18n()
 const { add } = useToast()
@@ -142,6 +161,32 @@ const getSpaceName = (spaceId: string) => {
 const isSaving = ref(false)
 const editingDeviceId = ref<string | null>(null)
 const editingName = ref('')
+const deviceToRemove = ref<typeof peerStore.spaceDevices[number] | null>(null)
+const showRemoveDialog = computed({
+  get: () => deviceToRemove.value !== null,
+  set: (v) => { if (!v) deviceToRemove.value = null },
+})
+
+const onRemoveDeviceAsync = async () => {
+  const device = deviceToRemove.value
+  if (!device || !currentVault.value?.drizzle) return
+
+  try {
+    const db = currentVault.value.drizzle
+    // Delete shares belonging to this device
+    await db.delete(haexPeerShares).where(eq(haexPeerShares.deviceEndpointId, device.deviceEndpointId))
+    // Delete the device registration
+    await db.delete(haexSpaceDevices).where(eq(haexSpaceDevices.id, device.id))
+    await peerStore.loadSpaceDevicesAsync()
+    await peerStore.loadSharesAsync()
+    add({ description: t('removeDevice.success'), color: 'success' })
+  } catch (error) {
+    console.error('Failed to remove device:', error)
+    add({ description: t('removeDevice.error'), color: 'error' })
+  } finally {
+    deviceToRemove.value = null
+  }
+}
 
 const startEditing = (device: typeof peerStore.spaceDevices[number]) => {
   editingDeviceId.value = device.id
@@ -234,6 +279,13 @@ de:
     success: Gerätename wurde erfolgreich aktualisiert
     error: Gerätename konnte nicht aktualisiert werden
 
+  removeDevice:
+    title: Gerät entfernen
+    description: "Möchtest du das Gerät \"{name}\" und alle zugehörigen Freigaben wirklich entfernen? Das Gerät kann sich nicht mehr verbinden, bis es sich erneut registriert."
+    confirm: Entfernen
+    success: Gerät wurde erfolgreich entfernt
+    error: Gerät konnte nicht entfernt werden
+
 en:
   title: Device
   description: Information about this device
@@ -255,4 +307,11 @@ en:
   deviceName:
     success: Device name has been successfully updated
     error: Device name could not be updated
+
+  removeDevice:
+    title: Remove Device
+    description: "Do you really want to remove the device \"{name}\" and all associated shares? The device will not be able to connect until it re-registers."
+    confirm: Remove
+    success: Device has been successfully removed
+    error: Device could not be removed
 </i18n>
