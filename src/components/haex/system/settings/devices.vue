@@ -62,10 +62,16 @@
           :key="device.deviceEndpointId"
           class="flex items-center gap-3 p-3 rounded-lg bg-muted/30"
         >
-          <UIcon
-            name="i-lucide-monitor"
-            class="w-5 h-5 text-muted shrink-0"
-          />
+          <div class="relative shrink-0">
+            <UIcon
+              name="i-lucide-monitor"
+              class="w-5 h-5 text-muted"
+            />
+            <span
+              class="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border border-default"
+              :class="peerOnlineStatus[device.deviceEndpointId] ? 'bg-success' : 'bg-warning'"
+            />
+          </div>
           <div class="flex-1 min-w-0">
             <div
               v-if="editingDeviceId === device.id"
@@ -162,6 +168,7 @@ const getSpaceName = (spaceId: string) => {
 const isSaving = ref(false)
 const editingDeviceId = ref<string | null>(null)
 const editingName = ref('')
+const peerOnlineStatus = ref<Record<string, boolean>>({})
 const deviceToRemove = ref<typeof peerStore.spaceDevices[number] | null>(null)
 const showRemoveDialog = computed({
   get: () => deviceToRemove.value !== null,
@@ -249,11 +256,21 @@ const loadDeviceNameAsync = async () => {
   deviceName.value = entry?.deviceName ?? ''
 }
 
+const checkPeersOnlineAsync = async () => {
+  if (!peerStore.running) return
+  for (const device of otherDevices.value) {
+    peerStore.checkPeerOnlineAsync(device.deviceEndpointId).then((online) => {
+      peerOnlineStatus.value = { ...peerOnlineStatus.value, [device.deviceEndpointId]: online }
+    })
+  }
+}
+
 onMounted(async () => {
   await Promise.all([
     loadDeviceNameAsync(),
     peerStore.loadSpaceDevicesAsync(),
   ])
+  checkPeersOnlineAsync()
 })
 </script>
 

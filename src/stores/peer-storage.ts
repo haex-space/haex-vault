@@ -304,6 +304,21 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     }
   }
 
+  /** Check if a remote peer is reachable (lightweight root listing) */
+  const checkPeerOnlineAsync = async (remoteNodeId: string): Promise<boolean> => {
+    try {
+      const device = spaceDevices.value.find(d => d.deviceEndpointId === remoteNodeId)
+      await invoke<FileEntry[]>('peer_storage_remote_list', {
+        nodeId: remoteNodeId,
+        relayUrl: device?.relayUrl ?? null,
+        path: '/',
+      })
+      return true
+    } catch {
+      return false
+    }
+  }
+
   const isContentUri = (p: string) => p.startsWith('{')
 
   const resolveLocalPath = (localPath: string, subPath: string) => {
@@ -354,6 +369,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     unregisterDeviceFromSpaceAsync,
     remoteListAsync,
     remoteReadAsync,
+    checkPeerOnlineAsync,
     localListAsync,
   }
 })
