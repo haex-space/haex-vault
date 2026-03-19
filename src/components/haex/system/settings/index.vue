@@ -30,8 +30,7 @@
     </template>
 
     <div class="h-full">
-      <HaexSystemSettingsGeneral v-if="activeCategory === SettingsCategory.General" />
-      <HaexSystemSettingsAppearance v-if="activeCategory === SettingsCategory.Appearance" />
+      <HaexSystemSettingsGeneral v-if="activeCategory === SettingsCategory.General || activeCategory === SettingsCategory.Appearance" />
       <HaexSystemSettingsExtensions v-if="activeCategory === SettingsCategory.Extensions" />
       <HaexSystemSettingsExternalClients
         v-if="activeCategory === SettingsCategory.ExternalClients"
@@ -98,15 +97,6 @@ const categories = computed(() => [
     tourId: 'settings-nav-general',
     click: () => {
       navigateToCategory(SettingsCategory.General)
-    },
-  },
-  {
-    value: SettingsCategory.Appearance,
-    label: t('categories.appearance'),
-    icon: 'i-heroicons-paint-brush',
-    active: activeCategory.value === 'appearance',
-    click: () => {
-      navigateToCategory(SettingsCategory.Appearance)
     },
   },
   {
