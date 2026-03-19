@@ -149,7 +149,7 @@ const groups = computed(() => {
       segments: [{
         id: 'p2p',
         colorClass: 'text-success',
-        isPulsing: false,
+        isPulsing: peerStore.isTransferring,
         label: peerCount > 0
           ? t('p2p.active', { count: peerCount })
           : t('p2p.noPeers'),

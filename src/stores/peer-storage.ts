@@ -273,22 +273,35 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   // Remote peer operations
   // =========================================================================
 
+  const activeTransfers = ref(0)
+  const isTransferring = computed(() => activeTransfers.value > 0)
+
   const remoteListAsync = async (remoteNodeId: string, path: string) => {
     const device = spaceDevices.value.find(d => d.deviceEndpointId === remoteNodeId)
-    return invoke<FileEntry[]>('peer_storage_remote_list', {
-      nodeId: remoteNodeId,
-      relayUrl: device?.relayUrl ?? null,
-      path,
-    })
+    activeTransfers.value++
+    try {
+      return await invoke<FileEntry[]>('peer_storage_remote_list', {
+        nodeId: remoteNodeId,
+        relayUrl: device?.relayUrl ?? null,
+        path,
+      })
+    } finally {
+      activeTransfers.value--
+    }
   }
 
   const remoteReadAsync = async (remoteNodeId: string, path: string) => {
     const device = spaceDevices.value.find(d => d.deviceEndpointId === remoteNodeId)
-    return invoke<string>('peer_storage_remote_read', {
-      nodeId: remoteNodeId,
-      relayUrl: device?.relayUrl ?? null,
-      path,
-    })
+    activeTransfers.value++
+    try {
+      return await invoke<string>('peer_storage_remote_read', {
+        nodeId: remoteNodeId,
+        relayUrl: device?.relayUrl ?? null,
+        path,
+      })
+    } finally {
+      activeTransfers.value--
+    }
   }
 
   const isContentUri = (p: string) => p.startsWith('{')
@@ -325,6 +338,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     nodeId,
     relayUrl,
     configuredRelayUrl,
+    isTransferring,
     shares,
     spaceDevices,
     refreshStatusAsync,
