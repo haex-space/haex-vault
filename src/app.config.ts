@@ -13,12 +13,12 @@ export default defineAppConfig({
     },
     input: {
       defaultVariants: {
-        size: 'lg',
+        size: 'xl',
       },
     },
     textarea: {
       defaultVariants: {
-        size: 'lg',
+        size: 'xl',
       },
     },
     select: {
@@ -27,7 +27,7 @@ export default defineAppConfig({
         itemLabel: 'text-base',
       },
       defaultVariants: {
-        size: 'lg',
+        size: 'xl',
       },
     },
     selectMenu: {
@@ -36,27 +36,27 @@ export default defineAppConfig({
         itemLabel: 'text-base',
       },
       defaultVariants: {
-        size: 'lg',
+        size: 'xl',
       },
     },
     checkbox: {
       defaultVariants: {
-        size: 'lg',
+        size: 'xl',
       },
     },
     radioGroup: {
       defaultVariants: {
-        size: 'lg',
+        size: 'xl',
       },
     },
     switch: {
       defaultVariants: {
-        size: 'lg',
+        size: 'xl',
       },
     },
     inputMenu: {
       defaultVariants: {
-        size: 'lg',
+        size: 'xl',
       },
     },
   },
