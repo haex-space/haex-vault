@@ -10,7 +10,7 @@
     }"
   >
     <template #body>
-      <div class="justify-center flex">
+      <div class="justify-center flex overflow-y-auto pb-8">
         <!-- Window Thumbnails Flex Layout -->
 
         <div
