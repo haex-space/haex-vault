@@ -28,6 +28,8 @@ export const currentBackendIdRef = shallowRef<string | null>(null)
 let cachedAccessToken: string | null = null
 let reauthResolver: ReauthContextResolver | null = null
 let reauthInProgress = false
+let lastReauthAttempt = 0
+const REAUTH_COOLDOWN_MS = 30_000 // Don't retry DID re-auth more than once per 30s
 
 /**
  * Gets the current Supabase client
@@ -176,7 +178,15 @@ const didAuthenticateAsync = async (
 const attemptDidReauthAsync = async (): Promise<string | null> => {
   if (!reauthResolver || !supabaseClientRef.value || reauthInProgress) return null
 
+  // Cooldown: don't hammer the server if re-auth keeps failing
+  const now = Date.now()
+  if (now - lastReauthAttempt < REAUTH_COOLDOWN_MS) {
+    log.warn(`DID re-auth: cooldown active (${Math.round((REAUTH_COOLDOWN_MS - (now - lastReauthAttempt)) / 1000)}s remaining)`)
+    return null
+  }
+
   reauthInProgress = true
+  lastReauthAttempt = now
   try {
     const ctx = await reauthResolver()
     if (!ctx) {
@@ -200,6 +210,7 @@ const attemptDidReauthAsync = async (): Promise<string | null> => {
     cachedAccessToken = session.access_token
     invoke('set_auth_token', { token: session.access_token }).catch(() => {})
     supabaseClientRef.value.realtime.setAuth(session.access_token)
+    lastReauthAttempt = 0 // Reset cooldown on success
     log.info('DID re-auth: successfully re-authenticated')
     return session.access_token
   } catch (e) {
