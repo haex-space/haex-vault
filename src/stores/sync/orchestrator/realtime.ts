@@ -204,12 +204,11 @@ export const subscribeToBackendAsync = async (
     log.info(`SUBSCRIBE: Realtime connection state: ${client.realtime.connectionState()}`)
     log.info(`SUBSCRIBE: Realtime channels count: ${client.realtime.channels.length}`)
 
-    // Subscribe to the parent table sync_changes with vault_id filter.
-    // Publication uses publish_via_partition_root=true so all partition changes
-    // appear under the parent table name. No need to subscribe per-partition.
-    const tableName = 'sync_changes'
+    // Subscribe to the vault's specific partition table.
+    // Each vault/space has its own partition: sync_changes_<uuid_underscored>
+    const partitionName = `sync_changes_${backend.vaultId.replace(/-/g, '_')}`
     const channelName = `sync_changes:${backend.vaultId}`
-    log.info(`SUBSCRIBE: Subscribing to table="${tableName}" filter="vault_id=eq.${backend.vaultId}" channel="${channelName}" backendId=${backendId}`)
+    log.info(`SUBSCRIBE: Subscribing to partition="${partitionName}" channel="${channelName}" backendId=${backendId}`)
 
     const channel = client
       .channel(channelName)
@@ -218,11 +217,10 @@ export const subscribeToBackendAsync = async (
         {
           event: 'INSERT',
           schema: 'public',
-          table: tableName,
-          filter: `vault_id=eq.${backend.vaultId}`,
+          table: partitionName,
         },
         (payload) => {
-          log.info(`REALTIME: INSERT event received on ${tableName}`)
+          log.info(`REALTIME: INSERT event received on ${partitionName}`)
           handleRealtimeChangeAsync(
             backendId,
             payload,
@@ -238,11 +236,10 @@ export const subscribeToBackendAsync = async (
         {
           event: 'UPDATE',
           schema: 'public',
-          table: tableName,
-          filter: `vault_id=eq.${backend.vaultId}`,
+          table: partitionName,
         },
         (payload) => {
-          log.info(`REALTIME: UPDATE event received on ${tableName}`)
+          log.info(`REALTIME: UPDATE event received on ${partitionName}`)
           handleRealtimeChangeAsync(
             backendId,
             payload,
