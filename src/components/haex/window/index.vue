@@ -29,7 +29,7 @@
       <!-- Compact window: USelectMenu for tab switching (when multiple tabs) -->
       <template v-if="isCompactWindow && windowData && windowData.tabs.length > 1">
         <div
-          class="flex-1 flex items-center min-w-0 px-2 gap-2"
+          class="flex-1 flex items-center min-w-0 pr-2 gap-2"
           @mousedown="handleDragStart"
           @touchstart.passive="handleDragStart"
         >
