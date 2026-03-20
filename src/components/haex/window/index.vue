@@ -36,7 +36,7 @@
           <USelectMenu
             :model-value="activeTabSelectItem"
             :items="tabSelectItems"
-            class="flex-1 min-w-0"
+            class="flex-1 min-w-0 [&_button]:rounded-l-none"
             @update:model-value="(item: any) => windowManager.switchTab(props.id, item.value)"
             @mousedown.stop
             @touchstart.stop
