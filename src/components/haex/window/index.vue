@@ -607,8 +607,8 @@ const handleMinimize = () => {
 
 const handleMaximize = () => {
   if (isMaximized.value) {
-    // On small screens or when viewport is too small, don't allow restore
-    if (isSmallScreen.value || viewportTooSmall.value) return
+    // Only block restore on truly small screens (mobile), not based on viewport size
+    if (isSmallScreen.value) return
 
     x.value = preMaximizeState.value.x
     y.value = preMaximizeState.value.y
