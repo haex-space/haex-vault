@@ -2,7 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use tauri::State;
+use tauri::{Emitter, State};
 
 use crate::AppState;
 use crate::peer_storage::error::PeerStorageError;
@@ -210,13 +210,15 @@ pub async fn peer_storage_remote_list(
     endpoint.remote_list(remote_id, parsed_relay, &path).await
 }
 
-/// Read a file from a remote peer
+/// Read a file from a remote peer (emits peer_storage_transfer_progress events)
 #[tauri::command(rename_all = "camelCase")]
 pub async fn peer_storage_remote_read(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     node_id: String,
     relay_url: Option<String>,
     path: String,
+    transfer_id: Option<String>,
 ) -> Result<String, PeerStorageError> {
     let remote_id: iroh::EndpointId = node_id
         .parse()
@@ -226,14 +228,90 @@ pub async fn peer_storage_remote_read(
 
     let parsed_relay = relay_url.and_then(|s| s.parse::<iroh::RelayUrl>().ok());
 
-    let endpoint = state.peer_storage.lock().await;
-    let (_size, data) = endpoint.remote_read(remote_id, parsed_relay, &path, None).await?;
+    // Create cancel + pause controls for this transfer
+    let (cancel_token, pause_flag) = if let Some(ref tid) = transfer_id {
+        let cancel = tokio_util::sync::CancellationToken::new();
+        let pause = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        state.transfer_tokens.lock().await.insert(tid.clone(), (cancel.clone(), pause.clone()));
+        (Some(cancel), Some(pause))
+    } else {
+        (None, None)
+    };
 
-    // Return as base64 for now
+    // Progress callback emits Tauri events so the frontend can track downloads
+    let progress_cb: Option<Box<dyn Fn(u64, u64) + Send>> = transfer_id.as_ref().map(|tid| {
+        let app = app.clone();
+        let tid = tid.clone();
+        let path_clone = path.clone();
+        Box::new(move |received: u64, total: u64| {
+            let _ = app.emit("peer_storage_transfer_progress", serde_json::json!({
+                "transferId": tid,
+                "path": path_clone,
+                "bytesReceived": received,
+                "totalBytes": total,
+            }));
+        }) as Box<dyn Fn(u64, u64) + Send>
+    });
+
+    let endpoint = state.peer_storage.lock().await;
+    let result = endpoint.remote_read(remote_id, parsed_relay, &path, None, progress_cb, cancel_token, pause_flag).await;
+
+    // Clean up cancel token
+    if let Some(tid) = &transfer_id {
+        state.transfer_tokens.lock().await.remove(tid);
+    }
+
+    let (_size, data) = result?;
+
+    // Emit completion event
+    if let Some(tid) = &transfer_id {
+        let _ = app.emit("peer_storage_transfer_complete", serde_json::json!({
+            "transferId": tid,
+            "path": path,
+            "totalBytes": _size,
+        }));
+    }
+
     Ok(base64::Engine::encode(
         &base64::engine::general_purpose::STANDARD,
         &data,
     ))
+}
+
+/// Cancel an active file transfer
+#[tauri::command(rename_all = "camelCase")]
+pub async fn peer_storage_transfer_cancel(
+    state: State<'_, AppState>,
+    transfer_id: String,
+) -> Result<(), PeerStorageError> {
+    if let Some((cancel, _)) = state.transfer_tokens.lock().await.get(&transfer_id) {
+        cancel.cancel();
+    }
+    Ok(())
+}
+
+/// Pause an active file transfer
+#[tauri::command(rename_all = "camelCase")]
+pub async fn peer_storage_transfer_pause(
+    state: State<'_, AppState>,
+    transfer_id: String,
+) -> Result<(), PeerStorageError> {
+    if let Some((_, pause)) = state.transfer_tokens.lock().await.get(&transfer_id) {
+        pause.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+    Ok(())
+}
+
+/// Resume a paused file transfer
+#[tauri::command(rename_all = "camelCase")]
+pub async fn peer_storage_transfer_resume(
+    state: State<'_, AppState>,
+    transfer_id: String,
+) -> Result<(), PeerStorageError> {
+    if let Some((_, pause)) = state.transfer_tokens.lock().await.get(&transfer_id) {
+        pause.store(false, std::sync::atomic::Ordering::Relaxed);
+    }
+    Ok(())
 }
 
 // ============================================================================

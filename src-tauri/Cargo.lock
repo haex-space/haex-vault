@@ -2485,6 +2485,7 @@ dependencies = [
  "time",
  "tokio",
  "tokio-tungstenite",
+ "tokio-util",
  "trash",
  "ts-rs",
  "uhlc",

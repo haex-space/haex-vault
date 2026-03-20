@@ -203,14 +203,21 @@
             v-for="file in browser.sortedFiles.value"
             :key="file.name"
             :class="[
-              'flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors',
+              'flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors relative overflow-hidden',
               browser.isSelected(file) ? 'bg-primary/10' : 'hover:bg-muted/50',
               browser.isCutFile(file) && 'opacity-40',
             ]"
             @click="browser.onFileClick(file)"
           >
+            <!-- Download progress background -->
+            <div
+              v-if="getFileTransferProgress(file) !== undefined"
+              class="absolute inset-0 bg-primary/15 transition-all duration-300 ease-out"
+              :style="{ width: `${(getFileTransferProgress(file) ?? 0) * 100}%` }"
+            />
             <UCheckbox
               :model-value="browser.isSelected(file)"
+              class="relative z-10"
               @click.stop
               @update:model-value="browser.toggleSelect(file)"
             />
@@ -219,11 +226,11 @@
                 file.isDir ? 'i-lucide-folder' : browser.getFileIcon(file.name)
               "
               :class="[
-                'w-5 h-5 shrink-0',
+                'w-5 h-5 shrink-0 relative z-10',
                 file.isDir ? 'text-primary' : 'text-muted',
               ]"
             />
-            <div class="flex-1 min-w-0">
+            <div class="flex-1 min-w-0 relative z-10">
               <p class="text-sm truncate">{{ file.name }}</p>
               <div class="flex gap-3 text-xs text-muted mt-0.5">
                 <span v-if="file.modified">{{ browser.formatDate(file.modified) }}</span>
@@ -492,6 +499,13 @@ const spacesStore = useSpacesStore()
 const contactsStore = useContactsStore()
 
 const browser = useFileBrowser()
+
+/** Get transfer progress for a file (0-1, or undefined if not downloading) */
+const getFileTransferProgress = (file: { name: string; path?: string }) => {
+  if (!browser.selectedPeer.value) return undefined
+  const fullPath = (file.path || `${browser.currentPath.value}/${file.name}`).replace(/\/+/g, '/')
+  return peerStore.getTransferProgress(fullPath)
+}
 
 const isTogglingEndpoint = ref(false)
 const toggleEndpointAsync = async () => {

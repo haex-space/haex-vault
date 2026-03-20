@@ -253,6 +253,9 @@ impl PeerEndpoint {
         relay_url: Option<RelayUrl>,
         path: &str,
         range: Option<[u64; 2]>,
+        on_progress: Option<Box<dyn Fn(u64, u64) + Send>>,
+        cancel_token: Option<tokio_util::sync::CancellationToken>,
+        pause_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
     ) -> Result<(u64, Vec<u8>), PeerStorageError> {
         let endpoint = self
             .endpoint
@@ -298,13 +301,51 @@ impl PeerEndpoint {
 
         match response {
             Response::ReadHeader { size } => {
-                // Read file bytes from stream
-                let data = recv
-                    .read_to_end(size as usize)
-                    .await
-                    .map_err(|e| PeerStorageError::ConnectionFailed {
-                        reason: e.to_string(),
-                    })?;
+                // Read file bytes in chunks, reporting progress via callback
+                let total = size as usize;
+                let mut data = Vec::with_capacity(total);
+                let mut buf = [0u8; 64 * 1024]; // 64KB chunks
+
+                loop {
+                    // Check cancellation before each chunk
+                    if let Some(ref token) = cancel_token {
+                        if token.is_cancelled() {
+                            return Err(PeerStorageError::ProtocolError {
+                                reason: "Transfer cancelled".to_string(),
+                            });
+                        }
+                    }
+
+                    // Wait while paused
+                    if let Some(ref flag) = pause_flag {
+                        while flag.load(std::sync::atomic::Ordering::Relaxed) {
+                            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                            // Also check cancel during pause
+                            if let Some(ref token) = cancel_token {
+                                if token.is_cancelled() {
+                                    return Err(PeerStorageError::ProtocolError {
+                                        reason: "Transfer cancelled".to_string(),
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    let chunk = recv.read(&mut buf).await
+                        .map_err(|e| PeerStorageError::ConnectionFailed {
+                            reason: format!("Failed to read from stream: {e}"),
+                        })?;
+                    match chunk {
+                        Some(n) => {
+                            data.extend_from_slice(&buf[..n]);
+                            if let Some(ref cb) = on_progress {
+                                cb(data.len() as u64, size);
+                            }
+                        }
+                        None => break,
+                    }
+                }
+
                 Ok((size, data))
             }
             Response::Error { message } => {

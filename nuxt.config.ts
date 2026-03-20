@@ -108,6 +108,8 @@ export default defineNuxtConfig({
         'lucide:monitor-smartphone',
         'lucide:bug',
         'hugeicons:developer',
+        // Download indicator (statusIndicator.vue, dynamic)
+        'lucide:download',
       ],
     },
     serverBundle: {

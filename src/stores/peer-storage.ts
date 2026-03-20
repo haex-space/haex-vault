@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { eq } from 'drizzle-orm'
 import type { PeerStorageStatus } from '~/../src-tauri/bindings/PeerStorageStatus'
 import type { PeerStorageStartInfo } from '~/../src-tauri/bindings/PeerStorageStartInfo'
@@ -167,6 +168,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
 
   const startAsync = async () => {
     await loadConfiguredRelayUrlAsync()
+    await initTransferListenerAsync()
     const info = await invoke<PeerStorageStartInfo>('peer_storage_start', {
       relayUrl: configuredRelayUrl.value || null,
     })
@@ -276,6 +278,80 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   const activeTransfers = ref(0)
   const isTransferring = computed(() => activeTransfers.value > 0)
 
+  // =========================================================================
+  // Transfer progress tracking
+  // =========================================================================
+
+  interface TransferProgress {
+    transferId: string
+    path: string
+    fileName: string
+    bytesReceived: number
+    totalBytes: number
+    progress: number // 0-1
+  }
+
+  const transfers = ref<Map<string, TransferProgress>>(new Map())
+
+  const initTransferListenerAsync = async () => {
+    await listen<{ transferId: string; path: string; bytesReceived: number; totalBytes: number }>(
+      'peer_storage_transfer_progress',
+      (event) => {
+        const { transferId, path, bytesReceived, totalBytes } = event.payload
+        const fileName = path.split('/').pop() || path
+        transfers.value.set(transferId, {
+          transferId,
+          path,
+          fileName,
+          bytesReceived,
+          totalBytes,
+          progress: totalBytes > 0 ? bytesReceived / totalBytes : 0,
+        })
+        // Trigger reactivity
+        transfers.value = new Map(transfers.value)
+      },
+    )
+    await listen<{ transferId: string }>(
+      'peer_storage_transfer_complete',
+      (event) => {
+        // Keep completed transfer briefly for UI feedback, then remove
+        const transfer = transfers.value.get(event.payload.transferId)
+        if (transfer) {
+          transfer.progress = 1
+          transfers.value = new Map(transfers.value)
+          setTimeout(() => {
+            transfers.value.delete(event.payload.transferId)
+            transfers.value = new Map(transfers.value)
+          }, 1500)
+        }
+      },
+    )
+  }
+
+  /** Get transfer progress for a specific file path (0-1, or undefined if not downloading) */
+  const getTransferProgress = (filePath: string): number | undefined => {
+    for (const t of transfers.value.values()) {
+      if (t.path === filePath) return t.progress
+    }
+    return undefined
+  }
+
+  const activeDownloads = computed(() => Array.from(transfers.value.values()))
+
+  const cancelTransferAsync = async (transferId: string) => {
+    await invoke('peer_storage_transfer_cancel', { transferId })
+    transfers.value.delete(transferId)
+    transfers.value = new Map(transfers.value)
+  }
+
+  const pauseTransferAsync = async (transferId: string) => {
+    await invoke('peer_storage_transfer_pause', { transferId })
+  }
+
+  const resumeTransferAsync = async (transferId: string) => {
+    await invoke('peer_storage_transfer_resume', { transferId })
+  }
+
   const remoteListAsync = async (remoteNodeId: string, path: string) => {
     const device = spaceDevices.value.find(d => d.deviceEndpointId === remoteNodeId)
     activeTransfers.value++
@@ -292,12 +368,14 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
 
   const remoteReadAsync = async (remoteNodeId: string, path: string) => {
     const device = spaceDevices.value.find(d => d.deviceEndpointId === remoteNodeId)
+    const transferId = crypto.randomUUID()
     activeTransfers.value++
     try {
       return await invoke<string>('peer_storage_remote_read', {
         nodeId: remoteNodeId,
         relayUrl: device?.relayUrl ?? null,
         path,
+        transferId,
       })
     } finally {
       activeTransfers.value--
@@ -371,5 +449,13 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     remoteReadAsync,
     checkPeerOnlineAsync,
     localListAsync,
+    // Transfer progress
+    transfers,
+    activeDownloads,
+    getTransferProgress,
+    initTransferListenerAsync,
+    cancelTransferAsync,
+    pauseTransferAsync,
+    resumeTransferAsync,
   }
 })

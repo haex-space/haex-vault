@@ -19,6 +19,7 @@ use crate::{crdt::hlc::HlcService, database::DbConnection, extension::core::Exte
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use crate::extension::webview::ExtensionWebviewManager;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 #[cfg(desktop)]
 use tauri::Emitter;
@@ -53,6 +54,8 @@ pub struct AppState {
     pub limits: extension::limits::LimitsService,
     /// Peer storage endpoint for P2P file sharing via iroh/QUIC
     pub peer_storage: tokio::sync::Mutex<peer_storage::endpoint::PeerEndpoint>,
+    /// Active P2P transfer control (transfer_id → (cancel_token, pause_flag))
+    pub transfer_tokens: tokio::sync::Mutex<HashMap<String, (tokio_util::sync::CancellationToken, Arc<std::sync::atomic::AtomicBool>)>>,
     /// Supabase JWT auth token, synced from frontend for Rust HTTP calls.
     pub auth_token: Arc<Mutex<Option<String>>>,
     /// PTY manager for shell/terminal sessions
@@ -144,6 +147,7 @@ pub fn run() {
             session_permissions: extension::permissions::session::SessionPermissionStore::new(),
             limits: extension::limits::LimitsService::new(),
             peer_storage: tokio::sync::Mutex::new(peer_storage::endpoint::PeerEndpoint::new_ephemeral()),
+            transfer_tokens: tokio::sync::Mutex::new(HashMap::new()),
             auth_token: Arc::new(Mutex::new(None)),
             pty_manager: extension::shell::pty::PtyManager::new(),
         })
@@ -438,6 +442,9 @@ pub fn run() {
             peer_storage::peer_storage_reload_shares,
             peer_storage::peer_storage_remote_list,
             peer_storage::peer_storage_remote_read,
+            peer_storage::peer_storage_transfer_cancel,
+            peer_storage::peer_storage_transfer_pause,
+            peer_storage::peer_storage_transfer_resume,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

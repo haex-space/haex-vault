@@ -137,6 +137,25 @@ const groups = computed(() => {
     })
   }
 
+  // Active downloads — only show when transfers are in progress
+  if (peerStore.activeDownloads.length > 0) {
+    const downloads = peerStore.activeDownloads
+    const totalProgress = downloads.reduce((sum, d) => sum + d.progress, 0) / downloads.length
+
+    result.push({
+      id: 'downloads',
+      icon: 'i-lucide-download',
+      segments: [{
+        id: 'downloads',
+        colorClass: 'text-primary',
+        isPulsing: true,
+        label: t('downloads.active', { count: downloads.length, progress: Math.round(totalProgress * 100) }),
+      }],
+      tooltip: t('downloads.active', { count: downloads.length, progress: Math.round(totalProgress * 100) }),
+      onClick: () => openSettings(SettingsCategory.PeerStorage),
+    })
+  }
+
   // P2P Storage — always show, red when stopped
   {
     const isRunning = peerStore.running
@@ -192,6 +211,8 @@ de:
     stopped: "P2P gestoppt"
     noPeers: "P2P aktiv \u2014 keine Peers"
     active: "P2P aktiv \u2014 {count} Peer(s)"
+  downloads:
+    active: "{count} Download(s) \u2014 {progress}%"
 
 en:
   sync:
@@ -203,4 +224,6 @@ en:
     stopped: "P2P stopped"
     noPeers: "P2P active \u2014 no peers"
     active: "P2P active \u2014 {count} peer(s)"
+  downloads:
+    active: "{count} download(s) \u2014 {progress}%"
 </i18n>

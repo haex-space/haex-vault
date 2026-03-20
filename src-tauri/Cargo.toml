@@ -87,6 +87,7 @@ time = "0.3"
 
 # PTY support for shell/terminal (desktop + android via cfg)
 portable-pty = "0.9"
+tokio-util = "0.7.18"
 
 
 
