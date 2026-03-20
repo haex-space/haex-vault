@@ -204,26 +204,27 @@ export const subscribeToBackendAsync = async (
     log.info(`SUBSCRIBE: Realtime connection state: ${client.realtime.connectionState()}`)
     log.info(`SUBSCRIBE: Realtime channels count: ${client.realtime.channels.length}`)
 
-    // Subscribe to the vault's specific partition table.
-    // Each vault/space has its own partition: sync_changes_<uuid_underscored>
-    const partitionName = `sync_changes_${backend.vaultId.replace(/-/g, '_')}`
-    const channelName = `sync_changes:${backend.vaultId}`
-    log.info(`SUBSCRIBE: Subscribing to partition="${partitionName}" channel="${channelName}" backendId=${backendId}`)
+    // Subscribe via Realtime Broadcast instead of postgres_changes.
+    // A DB trigger on sync_changes calls realtime.broadcast_changes() which
+    // writes to realtime.messages — always in the publication, no cache issues.
+    // The trigger is on the parent table and PostgreSQL 15 auto-clones it to
+    // all partitions. New partitions work immediately without Realtime restart.
+    const channelName = `sync:${backend.vaultId}`
+    log.info(`SUBSCRIBE: Subscribing to broadcast channel="${channelName}" backendId=${backendId}`)
+
+    // Set auth token for Realtime Authorization (broadcast uses private channels)
+    await client.realtime.setAuth(token)
 
     const channel = client
       .channel(channelName)
       .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: partitionName,
-        },
+        'broadcast',
+        { event: 'INSERT' },
         (payload) => {
-          log.info(`REALTIME: INSERT event received on ${partitionName}`)
+          log.info(`REALTIME: Broadcast INSERT received on ${channelName}`)
           handleRealtimeChangeAsync(
             backendId,
-            payload,
+            payload.payload as any,
             currentVaultId,
             syncStates,
             syncBackendsStore,
@@ -232,17 +233,13 @@ export const subscribeToBackendAsync = async (
         },
       )
       .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: partitionName,
-        },
+        'broadcast',
+        { event: 'UPDATE' },
         (payload) => {
-          log.info(`REALTIME: UPDATE event received on ${partitionName}`)
+          log.info(`REALTIME: Broadcast UPDATE received on ${channelName}`)
           handleRealtimeChangeAsync(
             backendId,
-            payload,
+            payload.payload as any,
             currentVaultId,
             syncStates,
             syncBackendsStore,
