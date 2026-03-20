@@ -155,7 +155,7 @@
         />
 
         <HaexWindowButton
-          v-if="isMaximized || (!isSmallScreen && !viewportTooSmall)"
+          v-if="isMaximized || !isSmallScreen"
           :is-maximized
           variant="maximize"
           @click.stop="handleMaximize"
@@ -180,7 +180,7 @@
 
     <!-- Resize Handles -->
     <HaexWindowResizeHandles
-      :disabled="isMaximized || isSmallScreen || viewportTooSmall"
+      :disabled="isMaximized || isSmallScreen"
       @resize-start="handleResizeStart"
     />
   </div>
@@ -355,21 +355,8 @@ const viewportSize = inject<{
   height: Ref<number>
 }>('viewportSize')
 
-// Minimum dimensions for windowed mode
-const MIN_WINDOW_WIDTH = 800
-const MIN_WINDOW_HEIGHT = 600
-
-// Check if viewport is too small for the requested window size
-const viewportTooSmall = computed(() => {
-  if (!viewportSize) return isSmallScreen.value
-  return (
-    viewportSize.width.value < MIN_WINDOW_WIDTH ||
-    viewportSize.height.value < MIN_WINDOW_HEIGHT
-  )
-})
-
-// Start maximized on small screens or when viewport is too small
-const isMaximized = ref(isSmallScreen.value || viewportTooSmall.value)
+// Start maximized on small screens (mobile)
+const isMaximized = ref(isSmallScreen.value)
 
 // Store initial position/size for restore
 const preMaximizeState = ref({
