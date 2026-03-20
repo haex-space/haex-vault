@@ -214,7 +214,7 @@
                 />
 
                 <!-- Window Title -->
-                <span class="font-medium text-sm text-gray-200 truncate max-w-full text-center">{{ window.title }}</span>
+                <span class="font-medium text-sm text-gray-200 truncate max-w-full text-center">{{ window.type === 'system' ? windowManager.getLocalizedSystemWindowName(window.sourceId) : window.title }}</span>
 
                 <!-- Badges (top right corner) -->
                 <div class="absolute top-2 right-2 flex flex-col gap-1 items-end">

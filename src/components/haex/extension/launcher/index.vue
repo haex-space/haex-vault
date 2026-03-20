@@ -133,7 +133,7 @@ const launcherItems = computed(() => {
   systemWindows.forEach((sysWin: SystemWindowDefinition) => {
     items.push({
       id: sysWin.id,
-      name: sysWin.name,
+      name: windowManagerStore.getLocalizedSystemWindowName(sysWin.id),
       icon: sysWin.icon,
       type: 'system',
     })

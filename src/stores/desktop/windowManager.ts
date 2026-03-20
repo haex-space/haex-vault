@@ -5,8 +5,12 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { EXTENSION_AUTO_START_REQUEST, EXTENSION_WINDOW_CLOSED } from '~/constants/events'
 import { createLogger } from '~/stores/logging'
+import windowManagerDe from './windowManager.de.json'
+import windowManagerEn from './windowManager.en.json'
 
 const log = createLogger('WINDOW_MGR')
+
+const SYSTEM_WINDOW_I18N_KEY_PREFIX = 'systemWindows'
 
 export interface IWindowTab {
   id: string
@@ -62,6 +66,12 @@ export interface SystemWindowDefinition {
 }
 
 export const useWindowManagerStore = defineStore('windowManager', () => {
+  const { $i18n } = useNuxtApp()
+
+  // Register system window translations
+  $i18n.mergeLocaleMessage('de', { [SYSTEM_WINDOW_I18N_KEY_PREFIX]: windowManagerDe })
+  $i18n.mergeLocaleMessage('en', { [SYSTEM_WINDOW_I18N_KEY_PREFIX]: windowManagerEn })
+
   const windows = ref<IWindow[]>([])
   const activeWindowId = ref<string | null>(null)
   const nextZIndex = ref(100)
@@ -138,6 +148,17 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
 
   const getAllSystemWindows = (): SystemWindowDefinition[] => {
     return Object.values(systemWindows)
+  }
+
+  /** Returns the localized name for a system window, falling back to the English name */
+  const getLocalizedSystemWindowName = (id: string): string => {
+    const key = `${SYSTEM_WINDOW_I18N_KEY_PREFIX}.${id}`
+    const translated = $i18n.t(key)
+    // If translation key not found, i18n returns the key itself — fall back to English name
+    if (translated === key) {
+      return systemWindows[id]?.name ?? id
+    }
+    return translated
   }
 
   // Window animation settings
@@ -833,6 +854,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     currentWorkspaceWindows,
     draggingWindowId,
     getAllSystemWindows,
+    getLocalizedSystemWindowName,
     getMinimizedWindows,
     getSystemWindow,
     getVisibleWindows,

@@ -221,15 +221,12 @@ const windowData = computed(() =>
   windowManager.windows.find((w) => w.id === props.id),
 )
 
-const { t } = useI18n()
-
 // Resolve localized tab titles
 const { localizedName } = useExtensionI18n()
 
 const resolveTabTitle = (tab: IWindowTab): string => {
   if (tab.type === 'system') {
-    // System windows: use i18n with fallback to raw title
-    return t(`systemWindows.${tab.sourceId}`, tab.title)
+    return windowManager.getLocalizedSystemWindowName(tab.sourceId)
   }
   // Extensions: use extension i18n map
   const extensionsStore = useExtensionsStore()
@@ -254,7 +251,7 @@ const newTabMenuItems = computed(() => {
       return true
     })
     .map((window) => ({
-      label: t(`systemWindows.${window.id}`, window.name),
+      label: windowManager.getLocalizedSystemWindowName(window.id),
       extensionIcon: window.icon,
       onSelect: () => {
         windowManager.addTab(props.id, {
@@ -687,16 +684,3 @@ useEventListener(window, 'mousemove', (e: MouseEvent) => {
 })
 </script>
 
-<i18n lang="yaml">
-de:
-  systemWindows:
-    settings: Einstellungen
-    files: Dateien
-    marketplace: Marktplatz
-
-en:
-  systemWindows:
-    settings: Settings
-    files: Files
-    marketplace: Marketplace
-</i18n>

@@ -26,8 +26,8 @@ export const useDesktopStore = defineStore('desktopStore', () => {
   const { $i18n } = useNuxtApp()
   const settingsStore = useVaultSettingsStore()
 
-  $i18n.setLocaleMessage('de', { desktop: de })
-  $i18n.setLocaleMessage('en', { desktop: en })
+  $i18n.mergeLocaleMessage('de', { desktop: de })
+  $i18n.mergeLocaleMessage('en', { desktop: en })
 
   const desktopItems = ref<IDesktopItem[]>([])
   const selectedItemIds = ref<Set<string>>(new Set())

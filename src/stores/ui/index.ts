@@ -11,10 +11,10 @@ export const useUiStore = defineStore('uiStore', () => {
 
   const { $i18n } = useNuxtApp()
 
-  $i18n.setLocaleMessage('de', {
+  $i18n.mergeLocaleMessage('de', {
     ui: de,
   })
-  $i18n.setLocaleMessage('en', { ui: en })
+  $i18n.mergeLocaleMessage('en', { ui: en })
 
   const availableThemes = ref([
     {
