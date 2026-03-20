@@ -76,6 +76,7 @@ export function useFileBrowser() {
   // On desktop, currentPath alone is sufficient, but on Android we need
   // the full Content URI per level since URIs can't be reconstructed from names.
   const navStack = ref<{ name: string; path: string }[]>([])
+  const forwardStack = ref<{ path: string; navStack: { name: string; path: string }[] }[]>([])
 
   // =========================================================================
   // Multi-select
@@ -169,12 +170,20 @@ export function useFileBrowser() {
     files.value = []
   }
 
+  /** Save current location to forward stack before navigating back */
+  const pushToForwardStack = () => {
+    forwardStack.value = [...forwardStack.value, {
+      path: currentPath.value,
+      navStack: [...navStack.value],
+    }]
+  }
+
   const navigateUp = () => {
+    pushToForwardStack()
     if (navStack.value.length > 0) {
-      // Android: pop navStack to go up one level
       const newStack = navStack.value.slice(0, -1)
       navStack.value = newStack
-      currentPath.value = newStack.length > 0 ? newStack[newStack.length - 1].path : '/'
+      currentPath.value = newStack.length > 0 ? newStack[newStack.length - 1]!.path : '/'
     }
     else {
       const segments = pathSegments.value.slice()
@@ -184,9 +193,21 @@ export function useFileBrowser() {
     loadFiles()
   }
 
+  const navigateForward = () => {
+    if (forwardStack.value.length === 0) return
+    const entry = forwardStack.value[forwardStack.value.length - 1]!
+    forwardStack.value = forwardStack.value.slice(0, -1)
+    currentPath.value = entry.path
+    navStack.value = entry.navStack
+    loadFiles()
+  }
+
+  const canGoForward = computed(() => forwardStack.value.length > 0)
+  const canGoBack = computed(() => currentPath.value !== '/')
+
   const navigateToSegment = (index: number) => {
+    pushToForwardStack()
     if (navStack.value.length > 0) {
-      // Android: navigate to a specific level in the navStack
       const newStack = navStack.value.slice(0, index + 1)
       navStack.value = newStack
       currentPath.value = newStack[newStack.length - 1]?.path ?? '/'
@@ -200,6 +221,7 @@ export function useFileBrowser() {
 
   const navigateToPath = (path: string) => {
     currentPath.value = path
+    forwardStack.value = [] // New navigation clears forward history
     loadFiles()
   }
 
@@ -286,6 +308,7 @@ export function useFileBrowser() {
 
   const onFileClick = async (file: FileEntry) => {
     if (file.isDir) {
+      forwardStack.value = [] // New navigation clears forward history
       const filePath = resolveFilePath(file)
       // Android: track Content URI navigation in navStack for correct breadcrumbs / back-navigation
       if (file.path && isContentUri(file.path)) {
@@ -477,8 +500,11 @@ export function useFileBrowser() {
     selectPeer,
     navigateToRoot,
     navigateUp,
+    navigateForward,
     navigateToSegment,
     navigateToPath,
+    canGoBack,
+    canGoForward,
     loadFiles,
 
     // Selection

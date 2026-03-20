@@ -66,6 +66,7 @@
             @click="browser.cutSelected()"
           />
           <UiButton
+            v-if="!browser.selectedPeer.value?.localPath"
             variant="ghost"
             icon="i-lucide-download"
             :title="t('download')"
