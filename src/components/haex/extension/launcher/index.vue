@@ -2,12 +2,22 @@
   <UiDrawer
     v-model:open="open"
     direction="right"
-    :title="t('launcher.title')"
     :overlay="false"
     :modal="false"
     :handle-only="true"
     :dismissible="!tourStore.isActive"
   >
+    <template #header>
+      <div class="flex items-center gap-2">
+        <UButton
+          icon="i-lucide-x"
+          color="neutral"
+          variant="ghost"
+          @click="open = false"
+        />
+        <h3 class="font-semibold text-lg">{{ t('launcher.title') }}</h3>
+      </div>
+    </template>
     <span
       ref="launcherButtonWrapperRef"
       class="inline-block"
