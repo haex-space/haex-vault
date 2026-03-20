@@ -158,7 +158,11 @@ export function useFileBrowser() {
     selectedPeer.value = peer
     currentPath.value = '/'
     navStack.value = []
+    forwardStack.value = []
     loadFiles()
+
+    // Register back action so back button returns to device list
+    pushBack({ undo: () => navigateToRoot() })
   }
 
   const navigateToRoot = () => {
@@ -167,6 +171,7 @@ export function useFileBrowser() {
     selectedPeer.value = null
     currentPath.value = '/'
     navStack.value = []
+    forwardStack.value = []
     files.value = []
   }
 
