@@ -578,7 +578,7 @@ const completeSetupAsync = async () => {
   if (isCreatingNewVault.value) {
     emit('complete', {
       backendId,
-      vaultId: crypto.randomUUID(),
+      vaultId: '', // Server generates via /partitions/create
       vaultName: localVaultName.value,
       localVaultName: localVaultName.value,
       serverUrl: credentials.value.serverUrl,
