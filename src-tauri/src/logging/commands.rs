@@ -20,12 +20,15 @@ pub fn log_write_system(
     let log_level = LogLevel::from_str(&level)
         .ok_or_else(|| DatabaseError::ValidationError { reason: format!("Invalid log level: {level}") })?;
 
-    with_connection(&state.db, |conn| {
-        if log_level < get_effective_log_level(conn, None) {
-            return Ok(());
-        }
-        insert_log(conn, &level, &source, None, &message, metadata, &device_id)
-    })
+    let should_log = with_connection(&state.db, |conn| {
+        Ok(log_level >= get_effective_log_level(conn, None))
+    })?;
+
+    if !should_log {
+        return Ok(());
+    }
+
+    insert_log(&state, &level, &source, None, &message, metadata, &device_id)
 }
 
 /// Read logs (system has full access to all logs).
@@ -58,23 +61,23 @@ pub fn log_delete(
     if ids.is_empty() {
         return Ok(0);
     }
-    with_connection(&state.db, |conn| {
-        let placeholders: Vec<String> = ids.iter().enumerate().map(|(i, _)| format!("?{}", i + 1)).collect();
-        let sql = format!(
-            "DELETE FROM {} WHERE id IN ({})",
-            crate::table_names::TABLE_LOGS,
-            placeholders.join(",")
-        );
-        let params: Vec<Box<dyn rusqlite::types::ToSql>> = ids.iter().map(|id| Box::new(id.clone()) as Box<dyn rusqlite::types::ToSql>).collect();
-        let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
-        let deleted = conn.execute(&sql, param_refs.as_slice())
-            .map_err(|e| DatabaseError::ExecutionError {
-                sql: "DELETE logs".into(),
-                reason: e.to_string(),
-                table: Some("haex_logs".into()),
-            })?;
-        Ok(deleted)
-    })
+
+    let hlc = state.hlc.lock().map_err(|_| DatabaseError::ValidationError {
+        reason: "Failed to lock HLC service".to_string(),
+    })?;
+
+    let mut total_deleted = 0;
+    for id in &ids {
+        let sql = format!("DELETE FROM {} WHERE id = ?1", crate::table_names::TABLE_LOGS);
+        crate::database::core::execute_with_crdt(
+            sql,
+            vec![JsonValue::String(id.clone())],
+            &state.db,
+            &hlc,
+        )?;
+        total_deleted += 1;
+    }
+    Ok(total_deleted)
 }
 
 /// Delete all log entries.
@@ -82,15 +85,28 @@ pub fn log_delete(
 pub fn log_clear_all(
     state: State<'_, AppState>,
 ) -> Result<usize, DatabaseError> {
-    with_connection(&state.db, |conn| {
-        let deleted = conn.execute(
-            &format!("DELETE FROM {}", crate::table_names::TABLE_LOGS),
-            [],
-        ).map_err(|e| DatabaseError::ExecutionError {
-            sql: "DELETE all logs".into(),
-            reason: e.to_string(),
-            table: Some("haex_logs".into()),
-        })?;
-        Ok(deleted)
-    })
+    let hlc = state.hlc.lock().map_err(|_| DatabaseError::ValidationError {
+        reason: "Failed to lock HLC service".to_string(),
+    })?;
+
+    let ids: Vec<String> = with_connection(&state.db, |conn| {
+        let sql = format!("SELECT id FROM {}", crate::table_names::TABLE_LOGS);
+        let mut stmt = conn.prepare(&sql).map_err(|e| DatabaseError::QueryError { reason: e.to_string() })?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))
+            .map_err(|e| DatabaseError::QueryError { reason: e.to_string() })?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| DatabaseError::QueryError { reason: e.to_string() })
+    })?;
+
+    let count = ids.len();
+    for id in ids {
+        let sql = format!("DELETE FROM {} WHERE id = ?1", crate::table_names::TABLE_LOGS);
+        crate::database::core::execute_with_crdt(
+            sql,
+            vec![JsonValue::String(id)],
+            &state.db,
+            &hlc,
+        )?;
+    }
+    Ok(count)
 }

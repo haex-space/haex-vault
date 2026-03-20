@@ -20,12 +20,15 @@ pub fn extension_logging_write(
     let log_level = LogLevel::from_str(&level)
         .ok_or_else(|| DatabaseError::ValidationError { reason: format!("Invalid log level: {level}") })?;
 
-    with_connection(&state.db, |conn| {
-        if log_level < get_effective_log_level(conn, Some(&extension_id)) {
-            return Ok(());
-        }
-        insert_log(conn, &level, &extension_id, Some(&extension_id), &message, metadata, &device_id)
-    })
+    let should_log = with_connection(&state.db, |conn| {
+        Ok(log_level >= get_effective_log_level(conn, Some(&extension_id)))
+    })?;
+
+    if !should_log {
+        return Ok(());
+    }
+
+    insert_log(&state, &level, &extension_id, Some(&extension_id), &message, metadata, &device_id)
 }
 
 /// Read extension logs — only returns logs for the requesting extension.

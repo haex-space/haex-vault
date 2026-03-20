@@ -14,30 +14,37 @@
           class="pt-4 space-y-4"
         >
           <!-- Filters -->
-          <div class="flex flex-wrap gap-3 items-center">
+          <div class="grid grid-cols-1 @sm:flex @sm:flex-wrap gap-3 @sm:items-center">
             <UInput
               v-model="filterSearch"
               :placeholder="t('filter.search')"
               icon="i-lucide-search"
-              class="w-48"
+              class="@sm:w-48"
             />
             <USelect
               v-model="filterLevel"
               :items="levelOptions"
               :placeholder="t('filter.level')"
-              class="w-36"
+              class="@sm:w-36"
             />
             <USelectMenu
               v-model="filterSource"
               :items="sourceOptions"
               value-key="value"
               :placeholder="t('filter.source')"
-              class="w-56"
+              class="@sm:w-56"
+            />
+            <USelectMenu
+              v-model="filterDevice"
+              :items="deviceOptions"
+              value-key="value"
+              :placeholder="t('filter.device')"
+              class="@sm:w-48"
             />
             <USelect
               v-model="filterTime"
               :items="timeOptions"
-              class="w-44"
+              class="@sm:w-44"
             />
             <UButton
               v-if="hasActiveFilters"
@@ -236,6 +243,7 @@ const { t } = useI18n()
 const { add } = useToast()
 const { copy } = useClipboard()
 const extensionStore = useExtensionsStore()
+const deviceStore = useDeviceStore()
 const { currentVault } = storeToRefs(useVaultStore())
 
 const activeTab = ref('logs')
@@ -265,11 +273,12 @@ const pageSize = 100
 
 const filterLevel = ref('warn')
 const filterSource = ref<string | undefined>()
+const filterDevice = ref<string | undefined>()
 const filterTime = ref('all')
 const filterSearch = ref('')
 
 const hasActiveFilters = computed(() =>
-  filterLevel.value !== 'warn' || filterSource.value || filterTime.value !== 'all' || filterSearch.value !== '',
+  filterLevel.value !== 'warn' || filterSource.value || filterDevice.value || filterTime.value !== 'all' || filterSearch.value !== '',
 )
 
 const timeOptions = computed(() => [
@@ -333,6 +342,17 @@ const sourceOptions = computed(() => {
   return options
 })
 
+const deviceOptions = computed(() => {
+  const deviceIds = new Set<string>()
+  for (const log of logs.value) {
+    if (log.deviceId) deviceIds.add(log.deviceId)
+  }
+  return Array.from(deviceIds).map(id => ({
+    label: deviceStore.getDeviceName(id),
+    value: id,
+  }))
+})
+
 const levelColors: Record<string, 'neutral' | 'info' | 'warning' | 'error'> = {
   debug: 'neutral',
   info: 'info',
@@ -392,6 +412,7 @@ const fetchLogs = async (offset = 0) => {
         level: filterLevel.value || null,
         extensionId,
         source,
+        deviceId: filterDevice.value || null,
         since: getSinceTimestamp(),
         limit: pageSize,
         offset,
@@ -414,6 +435,7 @@ const loadMore = () => fetchLogs(logs.value.length)
 const resetFilters = () => {
   filterLevel.value = 'warn'
   filterSource.value = undefined
+  filterDevice.value = undefined
   filterTime.value = 'all'
   filterSearch.value = ''
 }
@@ -554,9 +576,10 @@ const saveExtensionRetentionAsync = async (extensionId: string, value: string) =
 }
 
 // Reload on filter change
-watch([filterLevel, filterSource, filterTime], () => fetchLogs())
+watch([filterLevel, filterSource, filterDevice, filterTime], () => fetchLogs())
 
 onMounted(async () => {
+  await deviceStore.loadKnownDevicesAsync()
   await loadRetentionAsync()
   await fetchLogs()
 })
@@ -574,6 +597,7 @@ de:
     level: Log-Level
     source: Quelle
     search: Suche...
+    device: Gerät
     reset: Filter zurücksetzen
     time:
       all: Gesamter Zeitraum
@@ -610,6 +634,7 @@ en:
     level: Log level
     source: Source
     search: Search...
+    device: Device
     reset: Reset filters
     time:
       all: All time

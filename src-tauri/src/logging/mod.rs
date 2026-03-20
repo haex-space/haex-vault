@@ -53,6 +53,7 @@ pub struct LogQueryParams {
     pub level: Option<String>,
     pub since: Option<String>,
     pub until: Option<String>,
+    pub device_id: Option<String>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }
@@ -95,9 +96,9 @@ pub fn get_effective_log_level(
     LogLevel::from_str(DEFAULT_LOG_LEVEL).unwrap()
 }
 
-/// Insert a log entry.
+/// Insert a log entry via CRDT-aware execution (synced across devices).
 pub fn insert_log(
-    conn: &rusqlite::Connection,
+    state: &crate::AppState,
     level: &str,
     source: &str,
     extension_id: Option<&str>,
@@ -110,14 +111,33 @@ pub fn insert_log(
     let timestamp = now.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
     let metadata_str = metadata.map(|m| m.to_string());
 
-    conn.execute(
-        &format!(
-            "INSERT INTO {} (id, timestamp, level, source, extension_id, message, metadata, device_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            crate::table_names::TABLE_LOGS
-        ),
-        rusqlite::params![id, timestamp, level, source, extension_id, message, metadata_str, device_id],
-    ).map_err(|e| crate::database::error::DatabaseError::QueryError { reason: e.to_string() })?;
+    let sql = format!(
+        "INSERT INTO {} (id, timestamp, level, source, extension_id, message, metadata, device_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        crate::table_names::TABLE_LOGS
+    );
 
+    let params: Vec<serde_json::Value> = vec![
+        serde_json::Value::String(id),
+        serde_json::Value::String(timestamp),
+        serde_json::Value::String(level.to_string()),
+        serde_json::Value::String(source.to_string()),
+        match extension_id {
+            Some(eid) => serde_json::Value::String(eid.to_string()),
+            None => serde_json::Value::Null,
+        },
+        serde_json::Value::String(message.to_string()),
+        match metadata_str {
+            Some(m) => serde_json::Value::String(m),
+            None => serde_json::Value::Null,
+        },
+        serde_json::Value::String(device_id.to_string()),
+    ];
+
+    let hlc = state.hlc.lock().map_err(|_| crate::database::error::DatabaseError::ValidationError {
+        reason: "Failed to lock HLC service".to_string(),
+    })?;
+
+    crate::database::core::execute_with_crdt(sql, params, &state.db, &hlc)?;
     Ok(())
 }
 
@@ -148,6 +168,11 @@ pub fn query_logs(
     if let Some(ref until) = query.until {
         conditions.push(format!("timestamp <= ?{idx}"));
         param_values.push(Box::new(until.clone()));
+        idx += 1;
+    }
+    if let Some(ref device_id) = query.device_id {
+        conditions.push(format!("device_id = ?{idx}"));
+        param_values.push(Box::new(device_id.clone()));
         idx += 1;
     }
     if let Some(ref level) = query.level {
