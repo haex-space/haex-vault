@@ -243,17 +243,13 @@ export const getAuthTokenAsync = async (): Promise<string | null> => {
     log.info('Auth token expired, refreshing...')
     const { data, error } = await supabaseClientRef.value.auth.refreshSession()
     if (error) {
-      // Distinguish between temporary errors and permanent auth failures
+      // Any refresh failure means the session is invalid — attempt DID re-auth
       const errorCode = (error as { code?: string }).code
-      if (errorCode === 'refresh_token_not_found' || errorCode === 'refresh_token_already_used') {
-        log.error(`Auth session invalid (${errorCode}), attempting DID re-authentication...`)
-        const newToken = await attemptDidReauthAsync()
-        if (newToken) return newToken
-        cachedAccessToken = null
-        return null
-      }
-      log.error('Failed to refresh auth token:', error.message)
-      return token // Return expired token as fallback for temporary errors
+      log.error(`Auth refresh failed (code=${errorCode}): ${error.message} — attempting DID re-authentication...`)
+      const newToken = await attemptDidReauthAsync()
+      if (newToken) return newToken
+      cachedAccessToken = null
+      return null
     }
     if (data.session?.access_token) {
       token = data.session.access_token
