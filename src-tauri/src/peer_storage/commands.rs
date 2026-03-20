@@ -2,7 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use tauri::{Emitter, State};
+use tauri::{Emitter, Manager, State};
 
 use crate::AppState;
 use crate::peer_storage::error::PeerStorageError;
@@ -210,7 +210,9 @@ pub async fn peer_storage_remote_list(
     endpoint.remote_list(remote_id, parsed_relay, &path).await
 }
 
-/// Read a file from a remote peer (emits peer_storage_transfer_progress events)
+/// Download a file from a remote peer directly to disk.
+/// Streams chunks to the filesystem — no full-file RAM buffering, no base64.
+/// Returns the local file path where the downloaded file was saved.
 #[tauri::command(rename_all = "camelCase")]
 pub async fn peer_storage_remote_read(
     app: tauri::AppHandle,
@@ -219,6 +221,7 @@ pub async fn peer_storage_remote_read(
     relay_url: Option<String>,
     path: String,
     transfer_id: Option<String>,
+    save_to: Option<String>,
 ) -> Result<String, PeerStorageError> {
     let remote_id: iroh::EndpointId = node_id
         .parse()
@@ -227,6 +230,25 @@ pub async fn peer_storage_remote_read(
         })?;
 
     let parsed_relay = relay_url.and_then(|s| s.parse::<iroh::RelayUrl>().ok());
+
+    // Determine output path: explicit save_to or app cache dir
+    let output_path = if let Some(ref dest) = save_to {
+        PathBuf::from(dest)
+    } else {
+        let cache_dir = app.path().cache_dir().map_err(|e| PeerStorageError::ProtocolError {
+            reason: format!("Failed to get cache dir: {e}"),
+        })?;
+        let downloads_dir = cache_dir.join("p2p_downloads");
+        std::fs::create_dir_all(&downloads_dir).map_err(|e| PeerStorageError::ProtocolError {
+            reason: format!("Failed to create downloads dir: {e}"),
+        })?;
+        let file_name = std::path::Path::new(&path)
+            .file_name()
+            .unwrap_or(std::ffi::OsStr::new("download"))
+            .to_string_lossy()
+            .to_string();
+        downloads_dir.join(file_name)
+    };
 
     // Create cancel + pause controls for this transfer
     let (cancel_token, pause_flag) = if let Some(ref tid) = transfer_id {
@@ -254,28 +276,28 @@ pub async fn peer_storage_remote_read(
     });
 
     let endpoint = state.peer_storage.lock().await;
-    let result = endpoint.remote_read(remote_id, parsed_relay, &path, None, progress_cb, cancel_token, pause_flag).await;
+    let result = endpoint.remote_read_to_file(
+        remote_id, parsed_relay, &path, &output_path,
+        None, progress_cb, cancel_token, pause_flag,
+    ).await;
 
     // Clean up cancel token
     if let Some(tid) = &transfer_id {
         state.transfer_tokens.lock().await.remove(tid);
     }
 
-    let (_size, data) = result?;
+    let total_bytes = result?;
 
     // Emit completion event
     if let Some(tid) = &transfer_id {
         let _ = app.emit("peer_storage_transfer_complete", serde_json::json!({
             "transferId": tid,
             "path": path,
-            "totalBytes": _size,
+            "totalBytes": total_bytes,
         }));
     }
 
-    Ok(base64::Engine::encode(
-        &base64::engine::general_purpose::STANDARD,
-        &data,
-    ))
+    Ok(output_path.to_string_lossy().to_string())
 }
 
 /// Cancel an active file transfer

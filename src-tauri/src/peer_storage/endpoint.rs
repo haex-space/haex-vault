@@ -246,17 +246,21 @@ impl PeerEndpoint {
         }
     }
 
-    /// Connect to a remote peer and read a file
-    pub async fn remote_read(
+    /// Connect to a remote peer and download a file directly to disk.
+    /// Streams chunks from the iroh connection directly into the output file
+    /// without buffering the entire file in memory.
+    /// Returns the total file size on success.
+    pub async fn remote_read_to_file(
         &self,
         remote_id: EndpointId,
         relay_url: Option<RelayUrl>,
         path: &str,
+        output_path: &std::path::Path,
         range: Option<[u64; 2]>,
         on_progress: Option<Box<dyn Fn(u64, u64) + Send>>,
         cancel_token: Option<tokio_util::sync::CancellationToken>,
         pause_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
-    ) -> Result<(u64, Vec<u8>), PeerStorageError> {
+    ) -> Result<u64, PeerStorageError> {
         let endpoint = self
             .endpoint
             .as_ref()
@@ -301,15 +305,23 @@ impl PeerEndpoint {
 
         match response {
             Response::ReadHeader { size } => {
-                // Read file bytes in chunks, reporting progress via callback
-                let total = size as usize;
-                let mut data = Vec::with_capacity(total);
+                // Stream chunks directly to file — no full-file RAM buffering
+                use tokio::io::AsyncWriteExt;
+
+                let mut file = tokio::fs::File::create(output_path).await
+                    .map_err(|e| PeerStorageError::ProtocolError {
+                        reason: format!("Failed to create output file: {e}"),
+                    })?;
+
+                let mut bytes_written: u64 = 0;
                 let mut buf = [0u8; 64 * 1024]; // 64KB chunks
 
                 loop {
                     // Check cancellation before each chunk
                     if let Some(ref token) = cancel_token {
                         if token.is_cancelled() {
+                            // Clean up partial file
+                            let _ = tokio::fs::remove_file(output_path).await;
                             return Err(PeerStorageError::ProtocolError {
                                 reason: "Transfer cancelled".to_string(),
                             });
@@ -320,9 +332,9 @@ impl PeerEndpoint {
                     if let Some(ref flag) = pause_flag {
                         while flag.load(std::sync::atomic::Ordering::Relaxed) {
                             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                            // Also check cancel during pause
                             if let Some(ref token) = cancel_token {
                                 if token.is_cancelled() {
+                                    let _ = tokio::fs::remove_file(output_path).await;
                                     return Err(PeerStorageError::ProtocolError {
                                         reason: "Transfer cancelled".to_string(),
                                     });
@@ -337,16 +349,24 @@ impl PeerEndpoint {
                         })?;
                     match chunk {
                         Some(n) => {
-                            data.extend_from_slice(&buf[..n]);
+                            file.write_all(&buf[..n]).await
+                                .map_err(|e| PeerStorageError::ProtocolError {
+                                    reason: format!("Failed to write to file: {e}"),
+                                })?;
+                            bytes_written += n as u64;
                             if let Some(ref cb) = on_progress {
-                                cb(data.len() as u64, size);
+                                cb(bytes_written, size);
                             }
                         }
                         None => break,
                     }
                 }
 
-                Ok((size, data))
+                file.flush().await.map_err(|e| PeerStorageError::ProtocolError {
+                    reason: format!("Failed to flush file: {e}"),
+                })?;
+
+                Ok(size)
             }
             Response::Error { message } => {
                 Err(PeerStorageError::ProtocolError { reason: message })

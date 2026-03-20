@@ -366,7 +366,8 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     }
   }
 
-  const remoteReadAsync = async (remoteNodeId: string, path: string) => {
+  /** Download a remote file to disk. Returns the local file path. */
+  const remoteReadAsync = async (remoteNodeId: string, path: string, saveTo?: string) => {
     const device = spaceDevices.value.find(d => d.deviceEndpointId === remoteNodeId)
     const transferId = crypto.randomUUID()
     activeTransfers.value++
@@ -376,6 +377,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
         relayUrl: device?.relayUrl ?? null,
         path,
         transferId,
+        saveTo: saveTo ?? null,
       })
     } finally {
       activeTransfers.value--

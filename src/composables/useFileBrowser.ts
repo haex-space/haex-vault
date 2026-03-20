@@ -378,11 +378,12 @@ export function useFileBrowser() {
       const absPath = resolveLocalAbsolutePath(file)
       if (absPath) await preview.openLocal(absPath, file.name)
     } else if (selectedPeer.value) {
-      const base64 = await peerStore.remoteReadAsync(
+      // Download to cache, then preview from local path
+      const localPath = await peerStore.remoteReadAsync(
         selectedPeer.value.endpointId,
         resolveFilePath(file),
       )
-      await preview.openRemote(base64, file.name)
+      await preview.openLocal(localPath, file.name)
     }
   }
 
@@ -399,21 +400,20 @@ export function useFileBrowser() {
   const downloadFile = async (file: FileEntry) => {
     if (!selectedPeer.value) return
 
-    let base64: string
-
     if (selectedPeer.value.localPath) {
-      // Use resolveLocalAbsolutePath to correctly handle Android Content URIs
+      // Local file: read as base64 and trigger browser download
       const absPath = resolveLocalAbsolutePath(file)
       if (!absPath) return
-      base64 = await invoke<string>('filesystem_read_file', { path: absPath })
+      const base64 = await invoke<string>('filesystem_read_file', { path: absPath })
+      preview.downloadBase64(base64, file.name)
     } else {
-      base64 = await peerStore.remoteReadAsync(
+      // Remote file: download directly to disk via streaming
+      await peerStore.remoteReadAsync(
         selectedPeer.value.endpointId,
         resolveFilePath(file),
       )
+      // File is now in cache dir — nothing to do in the browser
     }
-
-    preview.downloadBase64(base64, file.name)
   }
 
   const downloadSelectedAsync = async () => {
