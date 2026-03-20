@@ -35,7 +35,7 @@
             </div>
             <div
               v-else
-              class="flex flex-row items-center gap-2"
+              class="flex flex-row items-center gap-4"
             >
               <HaexSyncStatusIndicator />
               <HaexExtensionLauncher />
