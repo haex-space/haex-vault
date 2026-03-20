@@ -204,17 +204,13 @@ export const subscribeToBackendAsync = async (
     log.info(`SUBSCRIBE: Realtime connection state: ${client.realtime.connectionState()}`)
     log.info(`SUBSCRIBE: Realtime channels count: ${client.realtime.channels.length}`)
 
-    // The sync_changes table is partitioned by vault_id
-    // Each partition is named: sync_changes_<vault_id_with_underscores>
-    // We need to subscribe to the specific partition, not the parent table
-    const partitionName = `sync_changes_${backend.vaultId.replace(/-/g, '_')}`
+    // Subscribe to the parent table sync_changes with vault_id filter.
+    // Publication uses publish_via_partition_root=true so all partition changes
+    // appear under the parent table name. No need to subscribe per-partition.
+    const tableName = 'sync_changes'
     const channelName = `sync_changes:${backend.vaultId}`
-    // Log at ERROR level too so it's visible in filtered error-only logs
-    log.error(`SUBSCRIBE: Subscribing to partition="${partitionName}" channel="${channelName}" backendId=${backendId} vaultId=${backend.vaultId}`)
+    log.info(`SUBSCRIBE: Subscribing to table="${tableName}" filter="vault_id=eq.${backend.vaultId}" channel="${channelName}" backendId=${backendId}`)
 
-    // Subscribe to the vault's specific partition
-    // Listen to both INSERT and UPDATE (UPSERT triggers UPDATE for existing records)
-    // Note: No filter needed since each partition only contains data for one vault_id
     const channel = client
       .channel(channelName)
       .on(
@@ -222,10 +218,11 @@ export const subscribeToBackendAsync = async (
         {
           event: 'INSERT',
           schema: 'public',
-          table: partitionName,
+          table: tableName,
+          filter: `vault_id=eq.${backend.vaultId}`,
         },
         (payload) => {
-          log.info(`REALTIME: INSERT event received on ${partitionName}`)
+          log.info(`REALTIME: INSERT event received on ${tableName}`)
           handleRealtimeChangeAsync(
             backendId,
             payload,
@@ -241,10 +238,11 @@ export const subscribeToBackendAsync = async (
         {
           event: 'UPDATE',
           schema: 'public',
-          table: partitionName,
+          table: tableName,
+          filter: `vault_id=eq.${backend.vaultId}`,
         },
         (payload) => {
-          log.info(`REALTIME: UPDATE event received on ${partitionName}`)
+          log.info(`REALTIME: UPDATE event received on ${tableName}`)
           handleRealtimeChangeAsync(
             backendId,
             payload,
