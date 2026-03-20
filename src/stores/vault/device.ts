@@ -1,22 +1,21 @@
-import {
-  hostname as tauriHostname,
-  platform as tauriPlatform,
-} from '@tauri-apps/plugin-os'
+import { hostname as tauriHostname } from '@tauri-apps/plugin-os'
 import { invoke } from '@tauri-apps/api/core'
+import {
+  getPlatform,
+  isDesktop as isDesktopPlatform,
+  isMobile as isMobilePlatform,
+} from '~/utils/platform'
 
 export const useDeviceStore = defineStore('vaultDeviceStore', () => {
   const deviceId = ref<string>('')
 
-  const platform = computedAsync(() => tauriPlatform())
+  const platform = computed(() => getPlatform())
 
   /** True for mobile platforms (iOS, Android) */
-  const isMobile = computed(() => {
-    const p = platform.value
-    return p === 'ios' || p === 'android'
-  })
+  const isMobile = computed(() => isMobilePlatform())
 
   /** True for desktop platforms (everything except iOS/Android) */
-  const isDesktop = computed(() => !isMobile.value)
+  const isDesktop = computed(() => isDesktopPlatform())
 
   const hostname = computedAsync(() => tauriHostname())
 

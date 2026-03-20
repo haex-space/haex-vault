@@ -93,6 +93,21 @@ export default defineNuxtConfig({
         'lucide:check',
         // UButton loading icon
         'lucide:loader-circle',
+        // Settings category icons (from config/settingsCategories.ts, dynamic lookup)
+        'lucide:settings',
+        'lucide:palette',
+        'lucide:blocks',
+        'lucide:contact',
+        'lucide:fingerprint',
+        'lucide:refresh-cw',
+        'heroicons:user-group',
+        'heroicons:cloud',
+        'mdi:lan-connect',
+        'lucide:external-link',
+        'mdi:safe-square-outline',
+        'lucide:monitor-smartphone',
+        'lucide:bug',
+        'hugeicons:developer',
       ],
     },
     serverBundle: {
