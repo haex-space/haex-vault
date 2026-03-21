@@ -33,7 +33,7 @@
       </div>
       <div class="flex gap-2 @xs:shrink-0">
         <UButton
-          v-if="space.role === 'admin' || space.role === 'owner'"
+          v-if="space.role === SpaceRoles.ADMIN || space.role === SpaceRoles.OWNER"
           color="neutral"
           variant="ghost"
           icon="i-lucide-pencil"
@@ -41,7 +41,7 @@
           @click="$emit('edit', space)"
         />
         <UButton
-          v-if="space.role === 'admin' || space.role === 'owner'"
+          v-if="space.role === SpaceRoles.ADMIN || space.role === SpaceRoles.OWNER"
           color="primary"
           variant="ghost"
           icon="i-lucide-user-plus"
@@ -49,7 +49,7 @@
           @click="$emit('invite', space)"
         />
         <UButton
-          v-if="space.role === 'admin' || space.role === 'owner'"
+          v-if="space.role === SpaceRoles.ADMIN || space.role === SpaceRoles.OWNER"
           color="error"
           variant="ghost"
           icon="i-lucide-trash-2"
@@ -57,7 +57,7 @@
           @click="$emit('delete', space)"
         />
         <UButton
-          v-if="space.role !== 'admin'"
+          v-if="space.role !== SpaceRoles.ADMIN"
           color="warning"
           variant="ghost"
           icon="i-lucide-log-out"
@@ -70,7 +70,7 @@
 </template>
 
 <script setup lang="ts">
-import type { DecryptedSpace } from '@haex-space/vault-sdk'
+import { SpaceRoles, type DecryptedSpace } from '@haex-space/vault-sdk'
 
 const props = defineProps<{
   space: DecryptedSpace

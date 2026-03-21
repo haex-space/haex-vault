@@ -232,7 +232,7 @@
 
 <script setup lang="ts">
 import { SettingsCategory } from '~/config/settingsCategories'
-import type { DecryptedSpace, SpaceInvite, SpaceRole } from '@haex-space/vault-sdk'
+import { SpaceRoles, type DecryptedSpace, type SpaceInvite, type SpaceRole } from '@haex-space/vault-sdk'
 import SpaceListItem from './spaces/SpaceListItem.vue'
 import SpaceInviteDialog from './spaces/SpaceInviteDialog.vue'
 import { decodeInviteLink } from '~/utils/inviteLink'
@@ -279,7 +279,7 @@ const joinInviteLink = ref('')
 // Invite dialog state
 const inviteSpaceId = ref('')
 const inviteServerUrl = ref('')
-const inviteSpaceCallerRole = ref<SpaceRole>('member')
+const inviteSpaceCallerRole = ref<SpaceRole>(SpaceRoles.MEMBER)
 const inviteIdentityId = ref('')
 
 // Edit dialog
@@ -446,7 +446,7 @@ const onCreateSpaceAsync = async () => {
       createForm.serverUrl = undefined
 
       // Open invite dialog for the newly created space
-      openInviteDialog({ ...createdSpace, name: createForm.name, role: 'admin' as SpaceRole, serverUrl, createdAt: new Date().toISOString() })
+      openInviteDialog({ ...createdSpace, name: createForm.name, role: SpaceRoles.ADMIN, serverUrl, createdAt: new Date().toISOString() })
     }
   } catch (error) {
     console.error('Failed to create space:', error)

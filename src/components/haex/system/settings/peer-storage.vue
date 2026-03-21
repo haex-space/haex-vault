@@ -205,6 +205,7 @@
 </template>
 
 <script setup lang="ts">
+import { SpaceRoles } from '@haex-space/vault-sdk'
 import { SettingsCategory } from '~/config/settingsCategories'
 import { eq } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
@@ -346,7 +347,7 @@ const canDeleteShare = (spaceId: string, share: SelectHaexPeerShares): boolean =
 
   // Check space role — admin/owner can delete any share
   const space = spacesStore.spaces.find((s) => s.id === spaceId)
-  if (space && (space.role === 'admin' || space.role === 'owner')) return true
+  if (space && (space.role === SpaceRoles.ADMIN || space.role === SpaceRoles.OWNER)) return true
 
   // Check if share belongs to same identity (same user, different device)
   const shareDevice = store.spaceDevices.find(

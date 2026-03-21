@@ -7,6 +7,7 @@ import {
   arrayBufferToBase64,
   base64ToArrayBuffer,
   type SharedSpace,
+  SpaceRoles,
   type SpaceRole,
   type SpaceInvite,
   type DecryptedSpace,
@@ -173,7 +174,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       spaces.value.push({
         id,
         name: spaceName,
-        role: 'admin' as SpaceRole,
+        role: SpaceRoles.ADMIN,
         serverUrl: '',
         createdAt: new Date().toISOString(),
       })
@@ -197,7 +198,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
         spaces.value.push({
           id: DEFAULT_SPACE_ID,
           name: 'Personal',
-          role: 'admin' as SpaceRole,
+          role: SpaceRoles.ADMIN,
           serverUrl: '',
           createdAt: '',
         })

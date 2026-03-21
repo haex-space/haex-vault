@@ -104,7 +104,7 @@
 <script setup lang="ts">
 import { SettingsCategory } from '~/config/settingsCategories'
 import QRCode from 'qrcode'
-import type { SpaceRole } from '@haex-space/vault-sdk'
+import { SpaceRoles, type SpaceRole } from '@haex-space/vault-sdk'
 import type { SelectHaexContacts } from '~/database/schemas'
 import { encodeInviteLink } from '~/utils/inviteLink'
 
@@ -150,12 +150,12 @@ const selectedContact = computed<SelectHaexContacts | undefined>(() =>
 const roleOptions = computed(() => {
   const options: { label: string; value: SpaceRole; description: string }[] = []
 
-  if (props.callerRole === 'admin') {
-    options.push({ label: t('roles.owner'), value: 'owner', description: t('roles.ownerDesc') })
+  if (props.callerRole === SpaceRoles.ADMIN) {
+    options.push({ label: t('roles.owner'), value: SpaceRoles.OWNER, description: t('roles.ownerDesc') })
   }
   options.push(
-    { label: t('roles.member'), value: 'member', description: t('roles.memberDesc') },
-    { label: t('roles.reader'), value: 'reader', description: t('roles.readerDesc') },
+    { label: t('roles.member'), value: SpaceRoles.MEMBER, description: t('roles.memberDesc') },
+    { label: t('roles.reader'), value: SpaceRoles.READER, description: t('roles.readerDesc') },
   )
 
   return options
