@@ -55,24 +55,32 @@
           :key="identity.publicKey"
           class="p-3 rounded-lg border border-default"
         >
-          <div>
+          <button
+            class="w-full text-left cursor-pointer"
+            @click="toggleExpand(identity.publicKey)"
+          >
             <div class="flex items-center gap-2">
+              <UIcon
+                name="i-lucide-chevron-right"
+                class="w-4 h-4 shrink-0 text-muted transition-transform duration-200"
+                :class="{ 'rotate-90': expandedIdentity === identity.publicKey }"
+              />
               <UIcon
                 name="i-lucide-fingerprint"
                 class="w-4 h-4 text-primary shrink-0"
               />
               <span class="font-medium truncate">{{ identity.label }}</span>
             </div>
-            <code class="block text-xs text-muted truncate mt-1">{{
+            <code class="block text-xs text-muted truncate mt-1 ml-6">{{
               identity.did
             }}</code>
             <p
               v-if="identity.createdAt"
-              class="text-xs text-muted mt-1"
+              class="text-xs text-muted mt-1 ml-6"
             >
               {{ t('list.created') }}: {{ formatDate(identity.createdAt) }}
             </p>
-          </div>
+          </button>
 
           <div class="flex flex-wrap items-center gap-1 mt-2">
             <UButton
@@ -99,17 +107,6 @@
               icon="i-lucide-trash-2"
               :title="t('actions.delete')"
               @click="prepareDelete(identity)"
-            />
-            <div class="flex-1" />
-            <UButton
-              variant="ghost"
-              :icon="
-                expandedIdentity === identity.publicKey
-                  ? 'i-lucide-chevron-up'
-                  : 'i-lucide-chevron-down'
-              "
-              :title="t('actions.toggleClaims')"
-              @click="toggleExpand(identity.publicKey)"
             />
           </div>
 
