@@ -137,12 +137,20 @@
                     <div
                       v-for="share in deviceShares"
                       :key="share.id"
-                      class="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-muted/20 transition-colors"
+                      class="flex items-center gap-3 px-4 py-2.5 group cursor-pointer hover:bg-muted/20 transition-colors"
                       @click="onBrowseShare(share)"
                     >
                       <UIcon name="i-lucide-folder" class="w-4 h-4 text-muted shrink-0" />
                       <p class="text-sm flex-1 truncate">{{ share.name }}</p>
-                      <UIcon name="i-lucide-chevron-right" class="w-4 h-4 text-muted shrink-0" />
+                      <UiButton
+                        v-if="canDeleteShare(space.id, share)"
+                        color="error"
+                        variant="ghost"
+                        icon="i-lucide-trash-2"
+                        class="opacity-0 group-hover:opacity-100 transition-opacity"
+                        @click.stop="onRemoveShareAsync(share.id)"
+                      />
+                      <UIcon v-else name="i-lucide-chevron-right" class="w-4 h-4 text-muted shrink-0" />
                     </div>
                   </div>
 
@@ -330,6 +338,32 @@ const getOtherDeviceShares = (
 const getDeviceName = (deviceEndpointId: string): string | undefined => {
   return store.spaceDevices.find((d) => d.deviceEndpointId === deviceEndpointId)
     ?.deviceName
+}
+
+/** Check if the current user can delete a share in this space.
+ *  Allowed when:
+ *  - The share belongs to the same identity (own device, possibly different device)
+ *  - OR the user is admin/owner of the space
+ */
+const canDeleteShare = (spaceId: string, share: SelectHaexPeerShares): boolean => {
+  // Own device — always allowed
+  if (share.deviceEndpointId === store.nodeId) return true
+
+  // Check space role — admin/owner can delete any share
+  const space = spacesStore.spaces.find((s) => s.id === spaceId)
+  if (space && (space.role === 'admin' || space.role === 'owner')) return true
+
+  // Check if share belongs to same identity (same user, different device)
+  const shareDevice = store.spaceDevices.find(
+    (d) => d.deviceEndpointId === share.deviceEndpointId && d.spaceId === spaceId,
+  )
+  const ownDevice = store.spaceDevices.find(
+    (d) => d.deviceEndpointId === store.nodeId && d.spaceId === spaceId,
+  )
+  if (shareDevice?.identityId && ownDevice?.identityId
+    && shareDevice.identityId === ownDevice.identityId) return true
+
+  return false
 }
 
 // =========================================================================
