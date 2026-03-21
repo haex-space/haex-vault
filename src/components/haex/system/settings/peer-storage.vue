@@ -86,7 +86,8 @@
                 >
                   <UiButton
                     icon="i-lucide-plus"
-                    variant="ghost"
+                    color="primary"
+                    variant="solid"
                     size="xl"
                     :title="t('shares.add')"
                   />
