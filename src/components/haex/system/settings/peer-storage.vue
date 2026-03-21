@@ -25,20 +25,7 @@
         </div>
       </template>
 
-      <!-- Stopped state -->
-      <div
-        v-if="!store.running"
-        class="text-center py-4 text-muted"
-      >
-        <UIcon
-          name="i-lucide-wifi-off"
-          class="w-8 h-8 mx-auto mb-2 opacity-50"
-        />
-        <p class="text-sm">{{ t('endpoint.stopped') }}</p>
-      </div>
-
-      <!-- Running: shared folders per space -->
-      <template v-else>
+      <!-- Shared folders per space (always visible, independent of endpoint status) -->
         <!-- No Spaces -->
         <div
           v-if="!spacesStore.spaces.length"
@@ -89,13 +76,22 @@
                     {{ getSharesForSpace(space.id).length }}
                   </UBadge>
                 </button>
-                <UiButton
-                  icon="i-lucide-folder-plus"
-                  variant="ghost"
-                  size="xl"
-                  :title="t('shares.add')"
-                  @click.stop="onAddShareAsync(space.id)"
-                />
+                <UDropdownMenu
+                  :items="[
+                    [
+                      { label: t('shares.addFolder'), icon: 'i-lucide-folder-plus', click: () => onAddShareAsync(space.id, 'folder') },
+                      { label: t('shares.addFile'), icon: 'i-lucide-file-plus', click: () => onAddShareAsync(space.id, 'file') },
+                    ],
+                  ]"
+                >
+                  <UiButton
+                    icon="i-lucide-plus"
+                    variant="ghost"
+                    size="xl"
+                    :title="t('shares.add')"
+                    @click.stop
+                  />
+                </UDropdownMenu>
               </div>
 
               <!-- Space content (collapsible) -->
@@ -107,7 +103,7 @@
                     :key="share.id"
                     class="flex items-center gap-3 px-4 py-2.5 group"
                   >
-                    <UIcon name="i-lucide-folder" class="w-4 h-4 text-primary shrink-0" />
+                    <UIcon :name="getShareIcon(share)" class="w-4 h-4 text-primary shrink-0" />
                     <div
                       class="min-w-0 flex-1 cursor-pointer hover:text-primary transition-colors"
                       @click="onBrowseShare(share)"
@@ -140,7 +136,7 @@
                       class="flex items-center gap-3 px-4 py-2.5 group cursor-pointer hover:bg-muted/20 transition-colors"
                       @click="onBrowseShare(share)"
                     >
-                      <UIcon name="i-lucide-folder" class="w-4 h-4 text-muted shrink-0" />
+                      <UIcon :name="getShareIcon(share)" class="w-4 h-4 text-muted shrink-0" />
                       <p class="text-sm flex-1 truncate">{{ share.name }}</p>
                       <UiButton
                         v-if="canDeleteShare(space.id, share)"
@@ -166,7 +162,6 @@
             </UCollapsible>
           </div>
         </div>
-      </template>
 
       <template #footer>
         <UCheckbox
@@ -431,6 +426,29 @@ const extractFolderName = (path: string): string => {
   return path.split(/[/\\]/).pop() || 'Shared Folder'
 }
 
+const isFileShare = (share: SelectHaexPeerShares): boolean => {
+  const name = share.name
+  return name.includes('.') && !name.endsWith('/')
+}
+
+const getShareIcon = (share: SelectHaexPeerShares): string => {
+  return isFileShare(share) ? 'i-lucide-file' : 'i-lucide-folder'
+}
+
+const extractFileName = (path: string): string => {
+  try {
+    const parsed = JSON.parse(path)
+    if (parsed.uri) {
+      const decoded = decodeURIComponent(parsed.uri)
+      const lastSegment = decoded.split('/').pop() || decoded.split(':').pop()
+      return lastSegment || 'Shared File'
+    }
+  } catch {
+    // Not JSON — regular path
+  }
+  return path.split(/[/\\]/).pop() || 'Shared File'
+}
+
 const onBrowseShare = (share: SelectHaexPeerShares) => {
   const isOwnDevice = share.deviceEndpointId === store.nodeId
   const deviceName = isOwnDevice
@@ -450,11 +468,13 @@ const onBrowseShare = (share: SelectHaexPeerShares) => {
   })
 }
 
-const onAddShareAsync = async (spaceId: string) => {
-  const selected = await invoke<string | null>('filesystem_select_folder', {})
+const onAddShareAsync = async (spaceId: string, type: 'folder' | 'file' = 'folder') => {
+  const selected = type === 'folder'
+    ? await invoke<string | null>('filesystem_select_folder', {})
+    : await invoke<string | null>('filesystem_select_file', {})
   if (!selected) return
 
-  const name = extractFolderName(selected)
+  const name = type === 'folder' ? extractFolderName(selected) : extractFileName(selected)
 
   try {
     await store.addShareAsync(spaceId, name, selected)
@@ -494,9 +514,11 @@ de:
     stopped: Endpoint ist nicht aktiv. Starte ihn, um Dateien zu teilen.
     autostart: Automatisch starten wenn die Vault geöffnet wird
   shares:
-    add: Ordner hinzufügen
+    add: Hinzufügen
+    addFolder: Ordner freigeben
+    addFile: Datei freigeben
     noSpaces: Keine Spaces vorhanden
-    emptySpace: Noch keine Ordner geteilt
+    emptySpace: Noch keine Ordner oder Dateien geteilt
     thisDevice: Dieses Gerät
     goToSpaces: Spaces verwalten
   relay:
@@ -525,9 +547,11 @@ en:
     stopped: Endpoint is not active. Start it to share files.
     autostart: Automatically start when the vault is opened
   shares:
-    add: Add Folder
+    add: Add
+    addFolder: Share folder
+    addFile: Share file
     noSpaces: No spaces available
-    emptySpace: No folders shared yet
+    emptySpace: No folders or files shared yet
     thisDevice: This device
     goToSpaces: Manage Spaces
   relay:
