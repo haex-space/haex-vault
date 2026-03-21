@@ -79,8 +79,8 @@
                 <UDropdownMenu
                   :items="[
                     [
-                      { label: t('shares.addFolder'), icon: 'i-lucide-folder-plus', click: () => onAddShareAsync(space.id, 'folder') },
-                      { label: t('shares.addFile'), icon: 'i-lucide-file-plus', click: () => onAddShareAsync(space.id, 'file') },
+                      { label: t('shares.addFolder'), icon: 'i-lucide-folder-plus', onSelect: () => onAddShareAsync(space.id, 'folder') },
+                      { label: t('shares.addFile'), icon: 'i-lucide-file-plus', onSelect: () => onAddShareAsync(space.id, 'file') },
                     ],
                   ]"
                 >
@@ -89,7 +89,6 @@
                     variant="ghost"
                     size="xl"
                     :title="t('shares.add')"
-                    @click.stop
                   />
                 </UDropdownMenu>
               </div>
