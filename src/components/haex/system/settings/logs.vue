@@ -270,13 +270,14 @@ const logs = ref<LogEntry[]>([])
 const pageSize = 100
 
 const filterLevel = ref('warn')
-const filterSource = ref('')
-const filterDevice = ref('')
+const ALL = '__all__'
+const filterSource = ref(ALL)
+const filterDevice = ref(ALL)
 const filterTime = ref('all')
 const filterSearch = ref('')
 
 const hasActiveFilters = computed(() =>
-  filterLevel.value !== 'warn' || filterSource.value !== '' || filterDevice.value !== '' || filterTime.value !== 'all' || filterSearch.value !== '',
+  filterLevel.value !== 'warn' || filterSource.value !== ALL || filterDevice.value !== ALL || filterTime.value !== 'all' || filterSearch.value !== '',
 )
 
 const timeOptions = computed(() => [
@@ -331,7 +332,7 @@ const sourceOptions = computed(() => {
   }
 
   const options: { label: string; value: string }[] = [
-    { label: t('filter.all'), value: '' },
+    { label: t('filter.all'), value: ALL },
   ]
   for (const source of systemSources) {
     options.push({ label: `System: ${source}`, value: `system:${source}` })
@@ -348,7 +349,7 @@ const deviceOptions = computed(() => {
     if (log.deviceId) deviceIds.add(log.deviceId)
   }
   const options: { label: string; value: string }[] = [
-    { label: t('filter.allDevices'), value: '' },
+    { label: t('filter.allDevices'), value: ALL },
   ]
   for (const id of deviceIds) {
     options.push({
@@ -405,7 +406,7 @@ const fetchLogs = async (offset = 0) => {
     let source: string | null = null
     let extensionId: string | null = null
 
-    if (filterSource.value) {
+    if (filterSource.value && filterSource.value !== ALL) {
       if (filterSource.value.startsWith('system:')) {
         source = filterSource.value.slice(7)
       } else if (filterSource.value.startsWith('ext:')) {
@@ -418,7 +419,7 @@ const fetchLogs = async (offset = 0) => {
         level: filterLevel.value || null,
         extensionId,
         source,
-        deviceId: filterDevice.value || null,
+        deviceId: filterDevice.value !== ALL ? filterDevice.value : null,
         since: getSinceTimestamp(),
         limit: pageSize,
         offset,
@@ -440,8 +441,8 @@ const loadMore = () => fetchLogs(logs.value.length)
 
 const resetFilters = () => {
   filterLevel.value = 'warn'
-  filterSource.value = ''
-  filterDevice.value = ''
+  filterSource.value = ALL
+  filterDevice.value = ALL
   filterTime.value = 'all'
   filterSearch.value = ''
 }
