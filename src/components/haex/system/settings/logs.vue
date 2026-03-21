@@ -14,7 +14,9 @@
           class="pt-4 space-y-4"
         >
           <!-- Filters -->
-          <div class="grid grid-cols-1 @sm:grid-cols-[1fr_auto_1fr_1fr_auto] gap-3 items-center">
+          <div
+            class="grid grid-cols-1 @sm:grid-cols-[1fr_auto_1fr_1fr_auto] gap-3 items-center"
+          >
             <UInput
               v-model="filterSearch"
               :placeholder="t('filter.search')"
@@ -48,24 +50,26 @@
               @click="resetFilters"
             />
           </div>
-          <div class="flex items-center justify-end gap-2">
-              <span class="text-sm text-muted">{{ filteredLogs.length }} {{ t('entries') }}</span>
-              <UButton
-                v-if="filteredLogs.length > 0"
-                icon="i-heroicons-clipboard-document"
-                color="neutral"
-                variant="ghost"
-                :title="t('actions.copyAll')"
-                @click="copyAllLogs"
-              />
-              <UButton
-                v-if="logs.length > 0"
-                icon="i-lucide-trash-2"
-                color="error"
-                variant="ghost"
-                :title="t('actions.clearAll')"
-                @click="clearAllLogsAsync"
-              />
+          <div class="flex items-center justify-end gap-2 px-3">
+            <span class="text-sm text-muted"
+              >{{ filteredLogs.length }} {{ t('entries') }}</span
+            >
+            <UButton
+              v-if="filteredLogs.length > 0"
+              icon="i-heroicons-clipboard-document"
+              color="neutral"
+              variant="ghost"
+              :title="t('actions.copyAll')"
+              @click="copyAllLogs"
+            />
+            <UButton
+              v-if="logs.length > 0"
+              icon="i-lucide-trash-2"
+              color="error"
+              variant="ghost"
+              :title="t('actions.clearAll')"
+              @click="clearAllLogsAsync"
+            />
           </div>
 
           <!-- Log entries -->
@@ -140,11 +144,14 @@
                   @click="deleteLogAsync(log.id)"
                 />
               </div>
-              <pre class="whitespace-pre-wrap wrap-break-word text-default">{{ log.message }}</pre>
+              <pre class="whitespace-pre-wrap wrap-break-word text-default">{{
+                log.message
+              }}</pre>
               <pre
                 v-if="log.metadata"
                 class="mt-1 text-muted whitespace-pre-wrap wrap-break-word"
-              >{{ formatMetadata(log.metadata) }}</pre>
+                >{{ formatMetadata(log.metadata) }}</pre
+              >
             </div>
 
             <!-- Load More -->
@@ -168,10 +175,14 @@
           <UCard>
             <template #header>
               <h4 class="font-semibold">{{ t('settings.system.title') }}</h4>
-              <p class="text-sm text-muted mt-1">{{ t('settings.system.description') }}</p>
+              <p class="text-sm text-muted mt-1">
+                {{ t('settings.system.description') }}
+              </p>
             </template>
             <div class="flex items-center gap-3">
-              <span class="text-sm shrink-0">{{ t('settings.retention') }}</span>
+              <span class="text-sm shrink-0">{{
+                t('settings.retention')
+              }}</span>
               <USelect
                 v-model="retentionDays"
                 :items="retentionOptions"
@@ -185,8 +196,12 @@
           <!-- Extension Log Retention -->
           <UCard v-if="extensionStore.availableExtensions.length > 0">
             <template #header>
-              <h4 class="font-semibold">{{ t('settings.extensions.title') }}</h4>
-              <p class="text-sm text-muted mt-1">{{ t('settings.extensions.description') }}</p>
+              <h4 class="font-semibold">
+                {{ t('settings.extensions.title') }}
+              </h4>
+              <p class="text-sm text-muted mt-1">
+                {{ t('settings.extensions.description') }}
+              </p>
             </template>
             <div class="space-y-4">
               <div
@@ -199,22 +214,28 @@
                     v-if="ext.iconUrl"
                     :src="ext.iconUrl"
                     class="w-6 h-6 rounded"
-                  >
+                  />
                   <UIcon
                     v-else
                     name="i-lucide-puzzle"
                     class="w-6 h-6 text-muted shrink-0"
                   />
-                  <span class="text-sm font-medium truncate">{{ ext.name }}</span>
+                  <span class="text-sm font-medium truncate">{{
+                    ext.name
+                  }}</span>
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
                   <USelect
                     :model-value="extensionRetention[ext.id] || retentionDays"
                     :items="retentionOptions"
                     class="w-24"
-                    @update:model-value="(v: string) => saveExtensionRetentionAsync(ext.id, v)"
+                    @update:model-value="
+                      (v: string) => saveExtensionRetentionAsync(ext.id, v)
+                    "
                   />
-                  <span class="text-sm text-muted">{{ t('settings.days') }}</span>
+                  <span class="text-sm text-muted">{{
+                    t('settings.days')
+                  }}</span>
                 </div>
               </div>
             </div>
@@ -229,7 +250,10 @@
 import { eq, and } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
 import { haexVaultSettings } from '~/database/schemas'
-import { VaultSettingsKeyEnum, VaultSettingsTypeEnum } from '~/config/vault-settings'
+import {
+  VaultSettingsKeyEnum,
+  VaultSettingsTypeEnum,
+} from '~/config/vault-settings'
 
 const { t } = useI18n()
 const { add } = useToast()
@@ -270,8 +294,13 @@ const filterDevice = ref(ALL)
 const filterTime = ref('all')
 const filterSearch = ref('')
 
-const hasActiveFilters = computed(() =>
-  filterLevel.value !== 'warn' || filterSource.value !== ALL || filterDevice.value !== ALL || filterTime.value !== 'all' || filterSearch.value !== '',
+const hasActiveFilters = computed(
+  () =>
+    filterLevel.value !== 'warn' ||
+    filterSource.value !== ALL ||
+    filterDevice.value !== ALL ||
+    filterTime.value !== 'all' ||
+    filterSearch.value !== '',
 )
 
 const timeOptions = computed(() => [
@@ -303,10 +332,11 @@ const getSinceTimestamp = (): string | null => {
 const filteredLogs = computed(() => {
   if (!filterSearch.value) return logs.value
   const q = filterSearch.value.toLowerCase()
-  return logs.value.filter(l =>
-    l.message.toLowerCase().includes(q)
-    || l.source.toLowerCase().includes(q)
-    || (l.metadata && l.metadata.toLowerCase().includes(q)),
+  return logs.value.filter(
+    (l) =>
+      l.message.toLowerCase().includes(q) ||
+      l.source.toLowerCase().includes(q) ||
+      (l.metadata && l.metadata.toLowerCase().includes(q)),
   )
 })
 
@@ -388,7 +418,9 @@ const formatMetadata = (metadata: string | null) => {
 
 const getSourceLabel = (log: LogEntry) => {
   if (log.extensionId) {
-    const ext = extensionStore.availableExtensions.find(e => e.id === log.extensionId)
+    const ext = extensionStore.availableExtensions.find(
+      (e) => e.id === log.extensionId,
+    )
     return ext?.name ?? log.extensionId.slice(0, 12) + '...'
   }
   return log.source
@@ -449,7 +481,7 @@ const copyLogEntry = async (log: LogEntry) => {
 const deleteLogAsync = async (id: string) => {
   try {
     await invoke('log_delete', { ids: [id] })
-    logs.value = logs.value.filter(l => l.id !== id)
+    logs.value = logs.value.filter((l) => l.id !== id)
   } catch (error) {
     console.error('Failed to delete log:', error)
   }
@@ -466,7 +498,10 @@ const clearAllLogsAsync = async () => {
 
 const copyAllLogs = async () => {
   const text = filteredLogs.value
-    .map(l => `[${l.timestamp}] [${l.level.toUpperCase()}] [${getSourceLabel(l)}] ${l.message}`)
+    .map(
+      (l) =>
+        `[${l.timestamp}] [${l.level.toUpperCase()}] [${getSourceLabel(l)}] ${l.message}`,
+    )
     .join('\n')
   await copy(text)
 }
@@ -492,21 +527,20 @@ const loadRetentionAsync = async () => {
   if (!currentVault.value?.drizzle) return
 
   // System retention
-  const row = await currentVault.value.drizzle.query.haexVaultSettings.findFirst({
-    where: and(
-      eq(haexVaultSettings.key, VaultSettingsKeyEnum.logRetentionDays),
-      eq(haexVaultSettings.type, VaultSettingsTypeEnum.settings),
-    ),
-  })
+  const row =
+    await currentVault.value.drizzle.query.haexVaultSettings.findFirst({
+      where: and(
+        eq(haexVaultSettings.key, VaultSettingsKeyEnum.logRetentionDays),
+        eq(haexVaultSettings.type, VaultSettingsTypeEnum.settings),
+      ),
+    })
   if (row?.value) retentionDays.value = row.value
 
   // Extension-specific retention
   const extRows = await currentVault.value.drizzle
     .select()
     .from(haexVaultSettings)
-    .where(and(
-      eq(haexVaultSettings.type, VaultSettingsTypeEnum.settings),
-    ))
+    .where(and(eq(haexVaultSettings.type, VaultSettingsTypeEnum.settings)))
 
   for (const r of extRows) {
     if (r.key.startsWith('log_retention_days:') && r.value) {
@@ -519,15 +553,17 @@ const loadRetentionAsync = async () => {
 const saveRetentionAsync = async (value: string) => {
   if (!currentVault.value?.drizzle) return
   try {
-    const existing = await currentVault.value.drizzle.query.haexVaultSettings.findFirst({
-      where: and(
-        eq(haexVaultSettings.key, VaultSettingsKeyEnum.logRetentionDays),
-        eq(haexVaultSettings.type, VaultSettingsTypeEnum.settings),
-      ),
-    })
+    const existing =
+      await currentVault.value.drizzle.query.haexVaultSettings.findFirst({
+        where: and(
+          eq(haexVaultSettings.key, VaultSettingsKeyEnum.logRetentionDays),
+          eq(haexVaultSettings.type, VaultSettingsTypeEnum.settings),
+        ),
+      })
 
     if (existing) {
-      await currentVault.value.drizzle.update(haexVaultSettings)
+      await currentVault.value.drizzle
+        .update(haexVaultSettings)
         .set({ value })
         .where(eq(haexVaultSettings.key, VaultSettingsKeyEnum.logRetentionDays))
     } else {
@@ -545,19 +581,24 @@ const saveRetentionAsync = async (value: string) => {
   }
 }
 
-const saveExtensionRetentionAsync = async (extensionId: string, value: string) => {
+const saveExtensionRetentionAsync = async (
+  extensionId: string,
+  value: string,
+) => {
   if (!currentVault.value?.drizzle) return
   const key = `log_retention_days:${extensionId}`
   try {
-    const existing = await currentVault.value.drizzle.query.haexVaultSettings.findFirst({
-      where: and(
-        eq(haexVaultSettings.key, key),
-        eq(haexVaultSettings.type, VaultSettingsTypeEnum.settings),
-      ),
-    })
+    const existing =
+      await currentVault.value.drizzle.query.haexVaultSettings.findFirst({
+        where: and(
+          eq(haexVaultSettings.key, key),
+          eq(haexVaultSettings.type, VaultSettingsTypeEnum.settings),
+        ),
+      })
 
     if (existing) {
-      await currentVault.value.drizzle.update(haexVaultSettings)
+      await currentVault.value.drizzle
+        .update(haexVaultSettings)
         .set({ value })
         .where(eq(haexVaultSettings.key, key))
     } else {
