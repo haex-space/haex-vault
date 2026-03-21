@@ -27,7 +27,6 @@ export const supabaseClientRef = shallowRef<AppSupabaseClient | null>(null)
 export const currentBackendIdRef = shallowRef<string | null>(null)
 let cachedAccessToken: string | null = null
 let reauthResolver: ReauthContextResolver | null = null
-let reauthInProgress = false
 let lastReauthAttempt = 0
 const REAUTH_COOLDOWN_MS = 30_000 // Don't retry DID re-auth more than once per 30s
 
@@ -172,11 +171,22 @@ const didAuthenticateAsync = async (
 }
 
 /**
+ * Shared promise so parallel callers wait on the same re-auth attempt.
+ */
+let pendingReauthPromise: Promise<string | null> | null = null
+
+/**
  * Attempts to re-authenticate via DID challenge when refresh token is invalid.
- * Returns the new access token on success, null on failure.
+ * Parallel calls share the same promise — no duplicate auth requests.
  */
 export const attemptDidReauthAsync = async (): Promise<string | null> => {
-  if (!reauthResolver || !supabaseClientRef.value || reauthInProgress) return null
+  if (!reauthResolver || !supabaseClientRef.value) return null
+
+  // If re-auth is already in progress, wait for it instead of returning null
+  if (pendingReauthPromise) {
+    log.debug('DID re-auth: waiting for ongoing attempt...')
+    return pendingReauthPromise
+  }
 
   // Cooldown: don't hammer the server if re-auth keeps failing
   const now = Date.now()
@@ -185,39 +195,44 @@ export const attemptDidReauthAsync = async (): Promise<string | null> => {
     return null
   }
 
-  reauthInProgress = true
   lastReauthAttempt = now
+  pendingReauthPromise = (async () => {
+    try {
+      const ctx = await reauthResolver!()
+      if (!ctx) {
+        log.warn('DID re-auth: no context available (vault not open?)')
+        return null
+      }
+
+      log.info('DID re-auth: refresh token invalid, re-authenticating via DID challenge...')
+      const session = await didAuthenticateAsync(ctx.serverUrl, ctx.did, ctx.privateKey)
+
+      const { error } = await supabaseClientRef.value!.auth.setSession({
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+      })
+
+      if (error) {
+        log.error('DID re-auth: setSession failed:', error.message)
+        return null
+      }
+
+      cachedAccessToken = session.access_token
+      invoke('set_auth_token', { token: session.access_token }).catch(() => {})
+      supabaseClientRef.value!.realtime.setAuth(session.access_token)
+      lastReauthAttempt = 0 // Reset cooldown on success
+      log.info('DID re-auth: successfully re-authenticated')
+      return session.access_token
+    } catch (e) {
+      log.error('DID re-auth failed:', e)
+      return null
+    }
+  })()
+
   try {
-    const ctx = await reauthResolver()
-    if (!ctx) {
-      log.warn('DID re-auth: no context available (vault not open?)')
-      return null
-    }
-
-    log.info('DID re-auth: refresh token invalid, re-authenticating via DID challenge...')
-    const session = await didAuthenticateAsync(ctx.serverUrl, ctx.did, ctx.privateKey)
-
-    const { error } = await supabaseClientRef.value.auth.setSession({
-      access_token: session.access_token,
-      refresh_token: session.refresh_token,
-    })
-
-    if (error) {
-      log.error('DID re-auth: setSession failed:', error.message)
-      return null
-    }
-
-    cachedAccessToken = session.access_token
-    invoke('set_auth_token', { token: session.access_token }).catch(() => {})
-    supabaseClientRef.value.realtime.setAuth(session.access_token)
-    lastReauthAttempt = 0 // Reset cooldown on success
-    log.info('DID re-auth: successfully re-authenticated')
-    return session.access_token
-  } catch (e) {
-    log.error('DID re-auth failed:', e)
-    return null
+    return await pendingReauthPromise
   } finally {
-    reauthInProgress = false
+    pendingReauthPromise = null
   }
 }
 
