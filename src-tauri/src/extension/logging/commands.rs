@@ -41,7 +41,5 @@ pub fn extension_logging_read(
     let mut filtered = query;
     filtered.extension_id = Some(extension_id);
 
-    with_connection(&state.db, |conn| {
-        query_logs(conn, &filtered)
-    })
+    query_logs(&state.db, &filtered)
 }

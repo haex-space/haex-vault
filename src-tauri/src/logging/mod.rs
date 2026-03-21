@@ -142,37 +142,40 @@ pub fn insert_log(
 }
 
 /// Read logs with optional filters.
+/// Uses select_with_crdt to automatically filter tombstoned (deleted) rows.
 pub fn query_logs(
-    conn: &rusqlite::Connection,
+    connection: &crate::database::DbConnection,
     query: &LogQueryParams,
 ) -> Result<Vec<LogEntry>, crate::database::error::DatabaseError> {
+    use serde_json::Value as JsonValue;
+
     let mut conditions: Vec<String> = Vec::new();
-    let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+    let mut params: Vec<JsonValue> = Vec::new();
     let mut idx = 1;
 
     if let Some(ref source) = query.source {
         conditions.push(format!("source = ?{idx}"));
-        param_values.push(Box::new(source.clone()));
+        params.push(JsonValue::String(source.clone()));
         idx += 1;
     }
     if let Some(ref ext_id) = query.extension_id {
         conditions.push(format!("extension_id = ?{idx}"));
-        param_values.push(Box::new(ext_id.clone()));
+        params.push(JsonValue::String(ext_id.clone()));
         idx += 1;
     }
     if let Some(ref since) = query.since {
         conditions.push(format!("timestamp >= ?{idx}"));
-        param_values.push(Box::new(since.clone()));
+        params.push(JsonValue::String(since.clone()));
         idx += 1;
     }
     if let Some(ref until) = query.until {
         conditions.push(format!("timestamp <= ?{idx}"));
-        param_values.push(Box::new(until.clone()));
+        params.push(JsonValue::String(until.clone()));
         idx += 1;
     }
     if let Some(ref device_id) = query.device_id {
         conditions.push(format!("device_id = ?{idx}"));
-        param_values.push(Box::new(device_id.clone()));
+        params.push(JsonValue::String(device_id.clone()));
         idx += 1;
     }
     if let Some(ref level) = query.level {
@@ -187,7 +190,7 @@ pub fn query_logs(
                 .collect();
             conditions.push(format!("level IN ({})", placeholders.join(",")));
             for l in &levels {
-                param_values.push(Box::new(l.to_string()));
+                params.push(JsonValue::String(l.to_string()));
                 idx += 1;
             }
         }
@@ -209,26 +212,32 @@ pub fn query_logs(
         idx,
         idx + 1,
     );
-    param_values.push(Box::new(limit));
-    param_values.push(Box::new(offset));
+    params.push(JsonValue::Number(limit.into()));
+    params.push(JsonValue::Number(offset.into()));
 
-    let refs: Vec<&dyn rusqlite::types::ToSql> = param_values.iter().map(|p| p.as_ref()).collect();
-    let mut stmt = conn.prepare(&sql).map_err(|e| crate::database::error::DatabaseError::QueryError { reason: e.to_string() })?;
-    let rows = stmt.query_map(refs.as_slice(), |row| {
+    // select_with_crdt automatically filters tombstoned rows
+    let rows = crate::database::core::select_with_crdt(sql, params, connection)?;
+
+    fn json_to_opt_string(val: &JsonValue) -> Option<String> {
+        match val {
+            JsonValue::String(s) => Some(s.clone()),
+            JsonValue::Null => None,
+            other => Some(other.to_string()),
+        }
+    }
+
+    rows.iter().map(|row| {
         Ok(LogEntry {
-            id: row.get(0)?,
-            timestamp: row.get(1)?,
-            level: row.get(2)?,
-            source: row.get(3)?,
-            extension_id: row.get(4)?,
-            message: row.get(5)?,
-            metadata: row.get(6)?,
-            device_id: row.get(7)?,
+            id: json_to_opt_string(row.get(0).unwrap_or(&JsonValue::Null)).unwrap_or_default(),
+            timestamp: json_to_opt_string(row.get(1).unwrap_or(&JsonValue::Null)).unwrap_or_default(),
+            level: json_to_opt_string(row.get(2).unwrap_or(&JsonValue::Null)).unwrap_or_default(),
+            source: json_to_opt_string(row.get(3).unwrap_or(&JsonValue::Null)).unwrap_or_default(),
+            extension_id: json_to_opt_string(row.get(4).unwrap_or(&JsonValue::Null)),
+            message: json_to_opt_string(row.get(5).unwrap_or(&JsonValue::Null)).unwrap_or_default(),
+            metadata: json_to_opt_string(row.get(6).unwrap_or(&JsonValue::Null)),
+            device_id: json_to_opt_string(row.get(7).unwrap_or(&JsonValue::Null)).unwrap_or_default(),
         })
-    }).map_err(|e| crate::database::error::DatabaseError::QueryError { reason: e.to_string() })?;
-
-    rows.collect::<Result<Vec<_>, _>>()
-        .map_err(|e| crate::database::error::DatabaseError::QueryError { reason: e.to_string() })
+    }).collect()
 }
 
 const DEFAULT_RETENTION_DAYS: i64 = 14;
