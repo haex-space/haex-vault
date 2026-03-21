@@ -212,24 +212,13 @@ jobs:
             core.setOutput('upload_url', data.upload_url)
             return data.id
 
-  build-desktop:
+  # Linux build runs separately so E2E tests can start as soon as it completes,
+  # without waiting for macOS/Windows builds.
+  build-linux:
     needs: create-release
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin'
-          - platform: 'macos-latest'
-            args: '--target x86_64-apple-darwin'
-          - platform: 'ubuntu-22.04'
-            args: ''
-          - platform: 'windows-latest'
-            args: ''
-
-    runs-on: ${{ matrix.platform }}
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -244,11 +233,8 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Install dependencies (Ubuntu)
-        if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
@@ -280,16 +266,76 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
-          args: ${{ matrix.args }}
 
-      # Upload Linux binary as artifact for E2E tests
       - name: Upload Linux binary for E2E tests
-        if: matrix.platform == 'ubuntu-22.04'
         uses: actions/upload-artifact@v6
         with:
           name: haex-vault-linux-e2e
           path: src-tauri/target/release/haex-vault
           retention-days: 1
+
+  # macOS and Windows builds run in parallel, independent of E2E tests
+  build-desktop:
+    needs: create-release
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            args: '--target aarch64-apple-darwin'
+          - platform: 'macos-latest'
+            args: '--target x86_64-apple-darwin'
+          - platform: 'windows-latest'
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and release Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          args: ${{ matrix.args }}
 
   build-android:
     needs: create-release
@@ -458,9 +504,9 @@ jobs:
           path: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
           retention-days: 1
 
-  # Run E2E tests after desktop build (Linux binary needed, Android not required)
+  # Run E2E tests as soon as Linux build completes (don't wait for macOS/Windows/Android)
   e2e-tests:
-    needs: [create-release, build-desktop]
+    needs: [create-release, build-linux]
     uses: haex-space/haex-e2e-tests/.github/workflows/e2e-tests.yml@main
     with:
       build_type: release
@@ -478,7 +524,7 @@ jobs:
     permissions:
       contents: write
     runs-on: ubuntu-22.04
-    needs: [create-release, build-desktop, build-android, e2e-tests]
+    needs: [create-release, build-linux, build-desktop, build-android, e2e-tests]
 
     steps:
       - name: Publish release
