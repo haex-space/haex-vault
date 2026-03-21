@@ -84,8 +84,12 @@ export const initSupabaseClientAsync = async (
   // Create new client
   const client = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
-      // Use backend-specific storage key to avoid conflicts
-      storageKey: `sb-${backendId}-auth-token`,
+      // No localStorage persistence — token lives only in memory (cachedAccessToken).
+      // Reasons:
+      // 1. Vault password is in-memory only — if page refreshes, vault is locked anyway
+      // 2. DID re-auth recovers the session automatically when needed
+      // 3. localStorage is an attack surface (XSS can read tokens)
+      persistSession: false,
       // Tauri is a single WebView context — no URL-based auth flow
       detectSessionInUrl: false,
     },
