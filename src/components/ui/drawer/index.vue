@@ -1,6 +1,7 @@
 <template>
   <UDrawer
     v-bind="$attrs"
+    :title="($attrs.title as string) || ' '"
     :description="($attrs.description as string) || ' '"
     :ui="{
       ...(ui || {}),

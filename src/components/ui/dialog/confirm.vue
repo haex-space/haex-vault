@@ -1,7 +1,7 @@
 <template>
   <UModal
     v-model:open="open"
-    :title
+    :title="title || ' '"
     :description="description || ' '"
   >
     <template
