@@ -52,7 +52,8 @@ export async function fetchWithNetworkErrorHandling(
   options?: RequestInit,
 ): Promise<Response> {
   try {
-    return await fetch(url, options)
+    const { fetchWithReauthAsync } = await import('./supabase')
+    return await fetchWithReauthAsync(url, options ?? {})
   } catch {
     throw new Error(
       'NETWORK_ERROR: Cannot connect to sync server. Please check your internet connection.',

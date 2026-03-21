@@ -10,6 +10,7 @@ import {
   clearDirtyTableAsync,
   type ColumnChange,
 } from '../tableScanner'
+import { fetchWithReauthAsync } from '../engine/supabase'
 import { orchestratorLog as log, type BackendSyncState, syncMutex } from './types'
 
 /**
@@ -303,7 +304,7 @@ export const pushChangesToServerAsync = async (
   log.debug('Request payload:', { vaultId, changesCount: formattedChanges.length })
 
   // Send to server
-  const response = await fetch(url, {
+  const response = await fetchWithReauthAsync(url, {
     method: 'POST',
     headers,
     body: JSON.stringify({

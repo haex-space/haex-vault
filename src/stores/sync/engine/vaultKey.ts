@@ -9,7 +9,7 @@ import {
   generateVaultKey,
   encryptWithPublicKeyAsync,
 } from '@haex-space/vault-sdk'
-import { getAuthTokenAsync } from './supabase'
+import { getAuthTokenAsync, fetchWithReauthAsync } from './supabase'
 import { fetchWithNetworkErrorHandling, engineLog as log, type VaultKeyCache } from './types'
 
 // In-memory cache for decrypted vault keys (cleared on logout/vault close)
@@ -70,7 +70,7 @@ export const uploadVaultKeyAsync = async (
   }
 
   // Send to server
-  const response = await fetch(`${serverUrl}/sync/vault-key`, {
+  const response = await fetchWithReauthAsync(`${serverUrl}/sync/vault-key`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -250,7 +250,7 @@ export const reEncryptVaultKeyAsync = async (
     const encryptedVaultKeyData = await encryptVaultKey(vaultKey, newPassword)
 
     // Send PATCH request to update the encrypted vault key on server
-    const response = await fetch(`${serverUrl}/sync/vault-key/${vaultId}`, {
+    const response = await fetchWithReauthAsync(`${serverUrl}/sync/vault-key/${vaultId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',

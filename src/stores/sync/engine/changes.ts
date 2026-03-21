@@ -4,7 +4,7 @@
  */
 
 import { encryptCrdtData, decryptCrdtData } from '@haex-space/vault-sdk'
-import { getAuthTokenAsync } from './supabase'
+import { getAuthTokenAsync, fetchWithReauthAsync } from './supabase'
 import { getVaultKeyCache } from './vaultKey'
 import {
   engineLog as log,
@@ -55,7 +55,7 @@ export const pushChangesAsync = async (
   }
 
   // Send to server
-  const response = await fetch(`${serverUrl}/sync/push`, {
+  const response = await fetchWithReauthAsync(`${serverUrl}/sync/push`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -101,7 +101,7 @@ export const pullChangesAsync = async (
   }
 
   // Fetch from server
-  const response = await fetch(`${serverUrl}/sync/pull`, {
+  const response = await fetchWithReauthAsync(`${serverUrl}/sync/pull`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

@@ -175,7 +175,7 @@ const didAuthenticateAsync = async (
  * Attempts to re-authenticate via DID challenge when refresh token is invalid.
  * Returns the new access token on success, null on failure.
  */
-const attemptDidReauthAsync = async (): Promise<string | null> => {
+export const attemptDidReauthAsync = async (): Promise<string | null> => {
   if (!reauthResolver || !supabaseClientRef.value || reauthInProgress) return null
 
   // Cooldown: don't hammer the server if re-auth keeps failing
@@ -328,4 +328,42 @@ export const resetSupabaseClient = (): void => {
   currentBackendIdRef.value = null
   cachedAccessToken = null
   invoke('set_auth_token', { token: null }).catch(() => {})
+}
+
+/**
+ * Shared promise so parallel 401s wait on the same re-auth attempt
+ * instead of each triggering their own.
+ */
+let pendingReauth: Promise<string | null> | null = null
+
+/**
+ * Fetch wrapper that automatically retries with DID re-auth on 401 responses.
+ * - Debounced: parallel 401s share a single re-auth attempt
+ * - Cooldown: attemptDidReauthAsync has a 30s cooldown internally
+ */
+export const fetchWithReauthAsync = async (
+  url: string,
+  init: RequestInit,
+): Promise<Response> => {
+  const response = await fetch(url, init)
+  if (response.status !== 401) return response
+
+  // 401 — token rejected by server, try DID re-auth
+  // Multiple concurrent 401s share the same reauth promise
+  if (!pendingReauth) {
+    log.warn('Server returned 401 — attempting DID re-authentication...')
+    pendingReauth = attemptDidReauthAsync().finally(() => {
+      pendingReauth = null
+    })
+  } else {
+    log.debug('Server returned 401 — waiting for ongoing re-auth...')
+  }
+
+  const newToken = await pendingReauth
+  if (!newToken) return response // Re-auth failed, return original 401
+
+  // Retry with new token
+  const headers = new Headers(init.headers)
+  headers.set('Authorization', `Bearer ${newToken}`)
+  return fetch(url, { ...init, headers })
 }

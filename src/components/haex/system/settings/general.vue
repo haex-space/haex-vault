@@ -74,7 +74,7 @@
       </template>
 
       <div class="space-y-4">
-        <UFormField :label="t('appearance.design')" :description="t('appearance.design.description')">
+        <UFormField :label="t('appearance.design.label')" :description="t('appearance.design.description')">
           <UiSelectTheme @select="onSelectThemeAsync" />
         </UFormField>
 
@@ -348,8 +348,9 @@ de:
       description: Passwort konnte nicht geändert werden
   appearance:
     title: Erscheinungsbild
-    design: Design
-    design.description: Wähle zwischen hellem und dunklem Modus
+    design:
+      label: Design
+      description: Wähle zwischen hellem und dunklem Modus
     gradient:
       variant:
         label: Hintergrund-Gradient
@@ -426,8 +427,9 @@ en:
       description: Password could not be changed
   appearance:
     title: Appearance
-    design: Design
-    design.description: Choose between light and dark mode
+    design:
+      label: Design
+      description: Choose between light and dark mode
     gradient:
       variant:
         label: Background Gradient

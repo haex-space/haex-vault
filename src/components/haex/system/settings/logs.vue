@@ -272,13 +272,13 @@ const logs = ref<LogEntry[]>([])
 const pageSize = 100
 
 const filterLevel = ref('warn')
-const filterSource = ref<string | undefined>()
-const filterDevice = ref<string | undefined>()
+const filterSource = ref('')
+const filterDevice = ref('')
 const filterTime = ref('all')
 const filterSearch = ref('')
 
 const hasActiveFilters = computed(() =>
-  filterLevel.value !== 'warn' || filterSource.value || filterDevice.value || filterTime.value !== 'all' || filterSearch.value !== '',
+  filterLevel.value !== 'warn' || filterSource.value !== '' || filterDevice.value !== '' || filterTime.value !== 'all' || filterSearch.value !== '',
 )
 
 const timeOptions = computed(() => [
@@ -332,7 +332,9 @@ const sourceOptions = computed(() => {
     }
   }
 
-  const options: { label: string; value: string }[] = []
+  const options: { label: string; value: string }[] = [
+    { label: t('filter.all'), value: '' },
+  ]
   for (const source of systemSources) {
     options.push({ label: `System: ${source}`, value: `system:${source}` })
   }
@@ -347,10 +349,16 @@ const deviceOptions = computed(() => {
   for (const log of logs.value) {
     if (log.deviceId) deviceIds.add(log.deviceId)
   }
-  return Array.from(deviceIds).map(id => ({
-    label: deviceStore.getDeviceName(id),
-    value: id,
-  }))
+  const options: { label: string; value: string }[] = [
+    { label: t('filter.allDevices'), value: '' },
+  ]
+  for (const id of deviceIds) {
+    options.push({
+      label: deviceStore.getDeviceName(id),
+      value: id,
+    })
+  }
+  return options
 })
 
 const levelColors: Record<string, 'neutral' | 'info' | 'warning' | 'error'> = {
@@ -434,8 +442,8 @@ const loadMore = () => fetchLogs(logs.value.length)
 
 const resetFilters = () => {
   filterLevel.value = 'warn'
-  filterSource.value = undefined
-  filterDevice.value = undefined
+  filterSource.value = ''
+  filterDevice.value = ''
   filterTime.value = 'all'
   filterSearch.value = ''
 }
@@ -594,6 +602,8 @@ de:
     logs: Logs
     settings: Einstellungen
   filter:
+    all: Alle Quellen
+    allDevices: Alle Geräte
     level: Log-Level
     source: Quelle
     search: Suche...
@@ -631,6 +641,8 @@ en:
     logs: Logs
     settings: Settings
   filter:
+    all: All sources
+    allDevices: All devices
     level: Log level
     source: Source
     search: Search...

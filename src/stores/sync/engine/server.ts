@@ -4,7 +4,7 @@
  */
 
 import { encryptWithPublicKeyAsync } from '@haex-space/vault-sdk'
-import { getAuthTokenAsync } from './supabase'
+import { getAuthTokenAsync, fetchWithReauthAsync } from './supabase'
 import { clearVaultKeyCache } from './vaultKey'
 import { engineLog as log } from './types'
 
@@ -35,7 +35,7 @@ export const deleteRemoteVaultAsync = async (
   }
 
   // Send delete request to server
-  const response = await fetch(`${serverUrl}/sync/vault/${vaultId}`, {
+  const response = await fetchWithReauthAsync(`${serverUrl}/sync/vault/${vaultId}`, {
     method: 'DELETE',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -67,7 +67,7 @@ export const deleteAllVaultDataAsync = async (
     throw new Error('Not authenticated')
   }
 
-  const response = await fetch(`${serverUrl}/sync/vaults`, {
+  const response = await fetchWithReauthAsync(`${serverUrl}/sync/vaults`, {
     method: 'DELETE',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -104,7 +104,7 @@ export const updateVaultNameOnServerAsync = async (
   const sealedName = await encryptWithPublicKeyAsync(encodedName, identityPublicKey)
 
   // Send PATCH request to update vault name on server
-  const response = await fetch(`${serverUrl}/sync/vault-key/${vaultId}`, {
+  const response = await fetchWithReauthAsync(`${serverUrl}/sync/vault-key/${vaultId}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',

@@ -7,6 +7,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { emit } from '@tauri-apps/api/event'
 import { decryptCrdtData } from '@haex-space/vault-sdk'
 import type { ColumnChange } from '../tableScanner'
+import { fetchWithReauthAsync } from '../engine/supabase'
 import { orchestratorLog as log, type BackendSyncState, type PullResult, syncMutex } from './types'
 import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
 import { SYNC_TABLES_INTERNAL_EVENT } from '../syncEvents'
@@ -222,7 +223,7 @@ export const pullChangesFromServerAsync = async (
     const url = `${serverUrl}/sync/pull?${params.toString()}`
     log.info(`[PAGINATION] Fetching page ${pageCount} with cursor: ${currentCursor || '(none)'}, tableName: ${currentTableName || '(none)'}, rowPks: ${currentRowPks || '(none)'}`)
 
-    const response = await fetch(url, {
+    const response = await fetchWithReauthAsync(url, {
       method: 'GET',
       headers: authHeaders,
     })
@@ -530,7 +531,7 @@ export const pullPendingColumnsAsync = async (
 
     // Pagination loop for this column
     while (hasMore) {
-      const response = await fetch(`${serverUrl}/sync/pull-columns`, {
+      const response = await fetchWithReauthAsync(`${serverUrl}/sync/pull-columns`, {
         method: 'POST',
         headers: authHeaders,
         body: JSON.stringify({
