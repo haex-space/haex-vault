@@ -27,17 +27,15 @@
               :placeholder="t('filter.level')"
               class="@sm:w-36"
             />
-            <USelectMenu
+            <USelect
               v-model="filterSource"
               :items="sourceOptions"
-              value-key="value"
               :placeholder="t('filter.source')"
               class="@sm:w-56"
             />
-            <USelectMenu
+            <USelect
               v-model="filterDevice"
               :items="deviceOptions"
-              value-key="value"
               :placeholder="t('filter.device')"
               class="@sm:w-48"
             />
