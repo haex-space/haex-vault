@@ -62,66 +62,59 @@
           :key="contact.id"
           class="p-3 rounded-lg border border-default"
         >
-          <div class="flex items-center justify-between">
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2">
+          <UCollapsible>
+            <div class="flex items-center justify-between">
+              <button
+                class="flex-1 min-w-0 text-left flex items-center gap-2"
+                @click="toggleExpand(contact.id)"
+              >
                 <UIcon
-                  name="i-lucide-user"
-                  class="w-4 h-4 text-primary shrink-0"
+                  name="i-lucide-chevron-right"
+                  class="w-4 h-4 shrink-0 text-muted transition-transform duration-200"
+                  :class="{ 'rotate-90': expandedContact === contact.id }"
                 />
-                <span class="font-medium truncate">{{ contact.label }}</span>
-              </div>
-              <div class="mt-1 flex items-center gap-2">
-                <code class="text-xs text-muted truncate max-w-[300px]">{{
-                  contact.publicKey
-                }}</code>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2">
+                    <UIcon
+                      name="i-lucide-user"
+                      class="w-4 h-4 text-primary shrink-0"
+                    />
+                    <span class="font-medium truncate">{{ contact.label }}</span>
+                  </div>
+                  <div class="mt-1 flex items-center gap-2">
+                    <code class="text-xs text-muted truncate max-w-[300px]">{{
+                      contact.publicKey
+                    }}</code>
+                  </div>
+                </div>
+              </button>
+
+              <div class="flex items-center gap-1 shrink-0 ml-4">
                 <UButton
                   variant="ghost"
                   icon="i-lucide-copy"
                   :title="t('actions.copyKey')"
                   @click="copyPublicKey(contact.publicKey)"
                 />
+                <UButton
+                  variant="ghost"
+                  icon="i-lucide-pencil"
+                  :title="t('actions.edit')"
+                  @click="openEditDialog(contact)"
+                />
+                <UButton
+                  variant="ghost"
+                  color="error"
+                  icon="i-lucide-trash-2"
+                  :title="t('actions.delete')"
+                  @click="prepareDelete(contact)"
+                />
               </div>
-              <p
-                v-if="contact.createdAt"
-                class="text-xs text-muted mt-1"
-              >
-                {{ t('list.added') }}: {{ formatDate(contact.createdAt) }}
-              </p>
             </div>
 
-            <div class="flex items-center gap-1 shrink-0 ml-4">
-              <UButton
-                variant="ghost"
-                :icon="
-                  expandedContact === contact.id
-                    ? 'i-lucide-chevron-up'
-                    : 'i-lucide-chevron-down'
-                "
-                :title="t('actions.toggleClaims')"
-                @click="toggleExpand(contact.id)"
-              />
-              <UButton
-                variant="ghost"
-                icon="i-lucide-pencil"
-                :title="t('actions.edit')"
-                @click="openEditDialog(contact)"
-              />
-              <UButton
-                variant="ghost"
-                color="error"
-                icon="i-lucide-trash-2"
-                :title="t('actions.delete')"
-                @click="prepareDelete(contact)"
-              />
-            </div>
-          </div>
-
-          <!-- Claims Section (expandable) -->
-          <div
-            v-if="expandedContact === contact.id"
-            class="mt-3 pt-3 border-t border-default space-y-2"
-          >
+            <!-- Claims Section (collapsible) -->
+            <template v-if="expandedContact === contact.id" #content>
+              <div class="mt-3 pt-3 border-t border-default space-y-2">
             <div class="flex items-center justify-between">
               <span class="text-sm font-medium">{{ t('claims.title') }}</span>
               <UButton
@@ -181,6 +174,8 @@
               <p class="text-sm text-muted">{{ contact.notes }}</p>
             </div>
           </div>
+            </template>
+          </UCollapsible>
         </div>
       </div>
 
