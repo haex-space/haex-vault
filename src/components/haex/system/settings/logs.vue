@@ -14,35 +14,30 @@
           class="pt-4 space-y-4"
         >
           <!-- Filters -->
-          <div class="grid grid-cols-1 @sm:flex @sm:flex-wrap gap-3 @sm:items-center">
+          <div class="grid grid-cols-1 @sm:grid-cols-[1fr_auto_1fr_1fr_auto] gap-3 items-center">
             <UInput
               v-model="filterSearch"
               :placeholder="t('filter.search')"
               icon="i-lucide-search"
-              class="@sm:w-48"
             />
             <USelect
               v-model="filterLevel"
               :items="levelOptions"
               :placeholder="t('filter.level')"
-              class="@sm:w-36"
             />
             <USelect
               v-model="filterSource"
               :items="sourceOptions"
               :placeholder="t('filter.source')"
-              class="@sm:w-56"
             />
             <USelect
               v-model="filterDevice"
               :items="deviceOptions"
               :placeholder="t('filter.device')"
-              class="@sm:w-48"
             />
             <USelect
               v-model="filterTime"
               :items="timeOptions"
-              class="@sm:w-44"
             />
             <UButton
               v-if="hasActiveFilters"
