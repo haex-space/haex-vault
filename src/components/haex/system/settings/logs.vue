@@ -47,8 +47,8 @@
               icon="i-heroicons-x-mark"
               @click="resetFilters"
             />
-            <div class="flex-1" />
-            <div class="flex items-center gap-2">
+          </div>
+          <div class="flex items-center justify-end gap-2">
               <span class="text-sm text-muted">{{ filteredLogs.length }} {{ t('entries') }}</span>
               <UButton
                 v-if="filteredLogs.length > 0"
@@ -66,7 +66,6 @@
                 :title="t('actions.clearAll')"
                 @click="clearAllLogsAsync"
               />
-            </div>
           </div>
 
           <!-- Log entries -->
