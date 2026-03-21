@@ -37,7 +37,15 @@ pub async fn extension_filesystem_save_file(
     let mut dialog = window.dialog().file();
 
     if let Some(path) = default_path {
-        dialog = dialog.set_file_name(&path);
+        let p = std::path::Path::new(&path);
+        if let Some(dir) = p.parent() {
+            if dir.exists() {
+                dialog = dialog.set_directory(dir);
+            }
+        }
+        if let Some(name) = p.file_name() {
+            dialog = dialog.set_file_name(name.to_string_lossy());
+        }
     }
 
     if let Some(t) = title {
