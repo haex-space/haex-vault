@@ -166,7 +166,7 @@ export const pullFromBackendAsync = async (
     } else if (typeof error === 'object' && error !== null) {
       errorMessage = JSON.stringify(error)
     }
-    log.error(`========== PULL FAILED ==========`, { message: errorMessage, error })
+    log.error(`========== PULL FAILED ==========`, { message: errorMessage, stack: error instanceof Error ? error.stack : undefined })
     state.error = errorMessage
     throw error
   } finally {

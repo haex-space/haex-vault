@@ -206,8 +206,10 @@ export const pushToBackendAsync = async (
 
     log.info(`========== PUSH SUCCESS: ${allChanges.length} changes pushed ==========`)
   } catch (error) {
-    log.error(`========== PUSH FAILED ==========`, error)
-    state.error = error instanceof Error ? error.message : 'Unknown error'
+    const errMsg = error instanceof Error ? error.message : String(error)
+    const errStack = error instanceof Error ? error.stack : undefined
+    log.error(`========== PUSH FAILED ==========`, { message: errMsg, stack: errStack })
+    state.error = errMsg
     throw error
   } finally {
     state.isSyncing = false
