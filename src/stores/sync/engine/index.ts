@@ -111,12 +111,20 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     setReauthResolver(async () => {
       try {
         const b = syncBackendsStore.backends.find((x) => x.id === backendId)
-        if (!b?.identityId) return null
+        if (!b?.identityId) {
+          engineLog.warn('DID re-auth resolver: no identityId on backend', backendId)
+          return null
+        }
         const identityStore = useIdentityStore()
         const identity = await identityStore.getIdentityAsync(b.identityId)
-        if (!identity?.did || !identity?.privateKey) return null
+        if (!identity?.did || !identity?.privateKey) {
+          engineLog.warn('DID re-auth resolver: identity missing did or privateKey', { identityId: b.identityId, hasDid: !!identity?.did, hasKey: !!identity?.privateKey })
+          return null
+        }
+        engineLog.info('DID re-auth resolver: context ready', { serverUrl: b.serverUrl, did: identity.did.slice(0, 20) + '...' })
         return { serverUrl: b.serverUrl, did: identity.did, privateKey: identity.privateKey }
-      } catch {
+      } catch (e) {
+        engineLog.error('DID re-auth resolver: exception', e)
         return null
       }
     })

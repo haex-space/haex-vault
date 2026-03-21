@@ -264,12 +264,20 @@ export const getAuthTokenAsync = async (): Promise<string | null> => {
   } = await supabaseClientRef.value.auth.getSession()
   let token = session?.access_token ?? cachedAccessToken
 
-  // Proactively refresh if token is expired or about to expire
-  if (token && isTokenExpired(token)) {
+  // No token at all (session completely gone — e.g. Android WebView restart)
+  if (!token) {
+    log.warn('No auth token available — session is gone. Attempting DID re-authentication...')
+    const newToken = await attemptDidReauthAsync()
+    if (newToken) return newToken
+    return null
+  }
+
+  // Token exists but is expired or about to expire
+  if (isTokenExpired(token)) {
     log.info('Auth token expired, refreshing...')
     const { data, error } = await supabaseClientRef.value.auth.refreshSession()
     if (error) {
-      // Any refresh failure means the session is invalid — attempt DID re-auth
+      // Refresh failed — attempt DID re-auth
       const errorCode = (error as { code?: string }).code
       log.error(`Auth refresh failed (code=${errorCode}): ${error.message} — attempting DID re-authentication...`)
       const newToken = await attemptDidReauthAsync()
@@ -286,9 +294,7 @@ export const getAuthTokenAsync = async (): Promise<string | null> => {
     }
   }
 
-  if (token) {
-    cachedAccessToken = token
-  }
+  cachedAccessToken = token
   return token
 }
 
