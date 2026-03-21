@@ -14,38 +14,19 @@ fn load_shares_from_db(
     state: &AppState,
     endpoint_id: &str,
 ) -> Result<Vec<(String, String, PathBuf, String)>, PeerStorageError> {
-    let db_guard = state.db.0.lock().map_err(|e| PeerStorageError::Database {
-        reason: format!("DB lock error: {e}"),
-    })?;
-    let conn = db_guard.as_ref().ok_or_else(|| PeerStorageError::Database {
-        reason: "No database connection — vault not open".to_string(),
-    })?;
+    let sql = "SELECT id, name, local_path, space_id FROM haex_peer_shares WHERE device_endpoint_id = ?1".to_string();
+    let params = vec![serde_json::Value::String(endpoint_id.to_string())];
 
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, name, local_path, space_id FROM haex_peer_shares \
-             WHERE device_endpoint_id = ?1 AND IFNULL(haex_tombstone, 0) != 1",
-        )
-        .map_err(|e| PeerStorageError::Database {
-            reason: format!("Failed to prepare share query: {e}"),
-        })?;
+    let rows = crate::database::core::select_with_crdt(sql, params, &state.db)
+        .map_err(|e| PeerStorageError::Database { reason: e.to_string() })?;
 
-    let shares = stmt
-        .query_map([endpoint_id], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                PathBuf::from(row.get::<_, String>(2)?),
-                row.get::<_, String>(3)?,
-            ))
-        })
-        .map_err(|e| PeerStorageError::Database {
-            reason: format!("Failed to query shares: {e}"),
-        })?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| PeerStorageError::Database {
-            reason: format!("Failed to read share row: {e}"),
-        })?;
+    let shares = rows.iter().map(|row| {
+        let id = row.get(0).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        let name = row.get(1).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        let path = PathBuf::from(row.get(2).and_then(|v| v.as_str()).unwrap_or_default());
+        let space_id = row.get(3).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        (id, name, path, space_id)
+    }).collect();
 
     Ok(shares)
 }
@@ -57,39 +38,16 @@ fn load_allowed_peers_from_db(
     state: &AppState,
     own_endpoint_id: &str,
 ) -> Result<HashMap<String, HashSet<String>>, PeerStorageError> {
-    let db_guard = state.db.0.lock().map_err(|e| PeerStorageError::Database {
-        reason: format!("DB lock error: {e}"),
-    })?;
-    let conn = db_guard.as_ref().ok_or_else(|| PeerStorageError::Database {
-        reason: "No database connection — vault not open".to_string(),
-    })?;
+    let sql = "SELECT device_endpoint_id, space_id FROM haex_space_devices WHERE device_endpoint_id != ?1".to_string();
+    let params = vec![serde_json::Value::String(own_endpoint_id.to_string())];
 
-    let mut stmt = conn
-        .prepare(
-            "SELECT device_endpoint_id, space_id FROM haex_space_devices \
-             WHERE device_endpoint_id != ?1",
-        )
-        .map_err(|e| PeerStorageError::Database {
-            reason: format!("Failed to prepare allowed peers query: {e}"),
-        })?;
+    let rows = crate::database::core::select_with_crdt(sql, params, &state.db)
+        .map_err(|e| PeerStorageError::Database { reason: e.to_string() })?;
 
     let mut allowed: HashMap<String, HashSet<String>> = HashMap::new();
-
-    let rows = stmt
-        .query_map([own_endpoint_id], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-            ))
-        })
-        .map_err(|e| PeerStorageError::Database {
-            reason: format!("Failed to query space devices: {e}"),
-        })?;
-
-    for row in rows {
-        let (endpoint_id, space_id) = row.map_err(|e| PeerStorageError::Database {
-            reason: format!("Failed to read space device row: {e}"),
-        })?;
+    for row in &rows {
+        let endpoint_id = row.get(0).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        let space_id = row.get(1).and_then(|v| v.as_str()).unwrap_or_default().to_string();
         allowed.entry(endpoint_id).or_default().insert(space_id);
     }
 
