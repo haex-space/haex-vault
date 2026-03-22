@@ -582,11 +582,18 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            APK_FILE=$(find ./apk -name "*.apk" -type f | head -1)
+            echo "Workspace: $GITHUB_WORKSPACE"
+            ls -la "$GITHUB_WORKSPACE/apk/" || echo "apk dir not found"
+            APK_FILE=$(find "$GITHUB_WORKSPACE/apk" -name "*.apk" -type f | head -1)
             echo "Installing APK: $APK_FILE"
+            if [ -z "$APK_FILE" ]; then
+              echo "ERROR: No APK file found!"
+              exit 1
+            fi
             adb install "$APK_FILE"
             adb reverse tcp:3002 tcp:3002
             adb reverse tcp:8000 tcp:8000
+            cd "$GITHUB_WORKSPACE"
             ~/.maestro/bin/maestro test .maestro/android-smoke-test.yaml --format junit --output maestro-results.xml || true
             if [ -f .maestro/android-sync-test.yaml ]; then
               ~/.maestro/bin/maestro test .maestro/android-sync-test.yaml --format junit --output maestro-sync-results.xml || true
