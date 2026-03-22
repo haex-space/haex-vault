@@ -73,7 +73,7 @@
     "@iconify/json": "^2.2.447",
     "@iconify/tailwind4": "^1.2.3",
     "@libsql/client": "^0.17.0",
-    "@oxc-minify/binding-linux-x64-gnu": "^0.112.0",
+    "@oxc-minify/binding-linux-x64-gnu": "^0.121.0",
     "@playwright/test": "^1.58.2",
     "@tauri-apps/cli": "^2.10.0",
     "@types/node": "^25.4.0",
