@@ -201,14 +201,13 @@ pub async fn peer_storage_remote_read(
 
     let parsed_relay = relay_url.and_then(|s| s.parse::<iroh::RelayUrl>().ok());
 
-    // Determine output path: explicit save_to or app cache dir
+    // Determine output path: explicit save_to or system Downloads folder
     let output_path = if let Some(ref dest) = save_to {
         PathBuf::from(dest)
     } else {
-        let cache_dir = app.path().cache_dir().map_err(|e| PeerStorageError::ProtocolError {
-            reason: format!("Failed to get cache dir: {e}"),
+        let downloads_dir = app.path().download_dir().map_err(|e| PeerStorageError::ProtocolError {
+            reason: format!("Failed to get downloads dir: {e}"),
         })?;
-        let downloads_dir = cache_dir.join("p2p_downloads");
         std::fs::create_dir_all(&downloads_dir).map_err(|e| PeerStorageError::ProtocolError {
             reason: format!("Failed to create downloads dir: {e}"),
         })?;
