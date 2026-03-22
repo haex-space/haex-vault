@@ -3,6 +3,12 @@
 //! Manages the iroh QUIC endpoint: starting, stopping, accepting connections,
 //! and handling incoming file requests. Access control ensures only peers
 //! registered in the same Space can access shared folders.
+//!
+//! On Android, shared folders may use Content URIs (from the Storage Access
+//! Framework). These are opaque URIs that require `tauri_plugin_android_fs` for
+//! reading — standard `std::fs` calls do not work. The handlers detect Content
+//! URI shares (JSON strings starting with `{`) and delegate to the android_fs
+//! plugin via the `AppHandle` stored in `PeerState`.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -25,19 +31,46 @@ use crate::peer_storage::protocol::{self, FileEntry, Request, Response, ALPN};
 pub struct SharedFolder {
     /// Display name
     pub name: String,
-    /// Local filesystem path
-    pub local_path: PathBuf,
+    /// Local filesystem path or Android Content URI (JSON string starting with `{`)
+    pub local_path: String,
     /// Space this share belongs to (for access control)
     pub space_id: String,
 }
 
+/// Check if a path string is an Android Content URI (JSON-encoded)
+pub fn is_content_uri(path: &str) -> bool {
+    path.starts_with('{')
+}
+
 /// State shared between PeerEndpoint methods and the accept loop
-#[derive(Debug, Default)]
 pub struct PeerState {
     /// Shared folders (share_id -> folder)
     pub shares: HashMap<String, SharedFolder>,
     /// Access control: remote EndpointId (string) -> set of space_ids they may access
     pub allowed_peers: HashMap<String, HashSet<String>>,
+    /// Tauri AppHandle for android_fs operations (set on Android before start)
+    pub app_handle: Option<tauri::AppHandle>,
+}
+
+impl Default for PeerState {
+    fn default() -> Self {
+        Self {
+            shares: HashMap::new(),
+            allowed_peers: HashMap::new(),
+            app_handle: None,
+        }
+    }
+}
+
+// Manual Debug impl because tauri::AppHandle doesn't implement Debug
+impl std::fmt::Debug for PeerState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PeerState")
+            .field("shares", &self.shares)
+            .field("allowed_peers", &self.allowed_peers)
+            .field("app_handle", &self.app_handle.as_ref().map(|_| "Some(AppHandle)"))
+            .finish()
+    }
 }
 
 /// Peer storage endpoint state
@@ -78,6 +111,12 @@ impl PeerEndpoint {
             "Cannot replace key while endpoint is running"
         );
         self.secret_key = secret_key;
+    }
+
+    /// Store the Tauri AppHandle for android_fs operations.
+    /// Must be called before start() on Android so Content URI shares can be served.
+    pub async fn set_app_handle(&self, app_handle: tauri::AppHandle) {
+        self.state.write().await.app_handle = Some(app_handle);
     }
 
     /// Get the public EndpointId
@@ -160,8 +199,8 @@ impl PeerEndpoint {
     }
 
     /// Add a shared folder
-    pub async fn add_share(&self, id: String, name: String, local_path: PathBuf, space_id: String) {
-        eprintln!("[PeerStorage] Added share '{name}' at {} (space: {space_id})", local_path.display());
+    pub async fn add_share(&self, id: String, name: String, local_path: String, space_id: String) {
+        eprintln!("[PeerStorage] Added share '{name}' at {local_path} (space: {space_id})");
         self.state.write().await.shares.insert(id, SharedFolder { name, local_path, space_id });
     }
 
@@ -505,15 +544,15 @@ fn filter_shares<'a>(
         .collect()
 }
 
-fn resolve_path_filtered(
-    shares: &HashMap<String, SharedFolder>,
+/// Find a share by name (or ID) and extract the sub-path within it.
+fn find_share_and_subpath<'a>(
+    shares: &'a HashMap<String, SharedFolder>,
     allowed_spaces: &HashSet<String>,
     request_path: &str,
-) -> Result<PathBuf, Response> {
+) -> Result<(&'a SharedFolder, String), Response> {
     let trimmed = request_path.trim_start_matches('/');
     let (share_name, sub_path) = trimmed.split_once('/').unwrap_or((trimmed, ""));
 
-    // Look up share by name (used in directory listing) or by ID (legacy)
     let share = shares.values()
         .find(|s| s.name == share_name && allowed_spaces.contains(&s.space_id))
         .or_else(|| shares.get(share_name).filter(|s| allowed_spaces.contains(&s.space_id)))
@@ -521,13 +560,24 @@ fn resolve_path_filtered(
             message: format!("Share not found: {share_name}"),
         })?;
 
-    let full_path = share.local_path.join(sub_path);
+    Ok((share, sub_path.to_string()))
+}
+
+/// Resolve a request path to a local filesystem path (desktop / standard paths).
+fn resolve_path_filtered(
+    shares: &HashMap<String, SharedFolder>,
+    allowed_spaces: &HashSet<String>,
+    request_path: &str,
+) -> Result<PathBuf, Response> {
+    let (share, sub_path) = find_share_and_subpath(shares, allowed_spaces, request_path)?;
+
+    let full_path = PathBuf::from(&share.local_path).join(&sub_path);
 
     // Prevent path traversal
     let canonical = full_path.canonicalize().map_err(|_| Response::Error {
         message: "Path not found".to_string(),
     })?;
-    let share_canonical = share.local_path.canonicalize().map_err(|_| Response::Error {
+    let share_canonical = PathBuf::from(&share.local_path).canonicalize().map_err(|_| Response::Error {
         message: "Share path invalid".to_string(),
     })?;
 
@@ -562,6 +612,33 @@ async fn handle_list(
         return Response::List { entries };
     }
 
+    // Check if the target share uses Content URIs (Android)
+    if let Ok((share, _sub)) = find_share_and_subpath(&state.shares, allowed_spaces, path) {
+        if is_content_uri(&share.local_path) {
+            #[cfg(target_os = "android")]
+            {
+                let app_handle = match &state.app_handle {
+                    Some(h) => h.clone(),
+                    None => return Response::Error { message: "AppHandle not available".to_string() },
+                };
+                let root_uri = share.local_path.clone();
+                let sub_path = _sub;
+                // Drop state lock before blocking JNI call
+                drop(state);
+                return match tokio::task::spawn_blocking(move || {
+                    list_content_uri(&app_handle, &root_uri, &sub_path)
+                }).await {
+                    Ok(Ok(entries)) => Response::List { entries },
+                    Ok(Err(e)) => Response::Error { message: e },
+                    Err(e) => Response::Error { message: format!("Task failed: {e}") },
+                };
+            }
+            #[cfg(not(target_os = "android"))]
+            return Response::Error { message: "Content URIs are only supported on Android".to_string() };
+        }
+    }
+
+    // Standard filesystem path
     let local_path = match resolve_path_filtered(&state.shares, allowed_spaces, path) {
         Ok(p) => p,
         Err(resp) => return resp,
@@ -587,6 +664,32 @@ async fn handle_stat(
     allowed_spaces: &HashSet<String>,
 ) -> Response {
     let state = state.read().await;
+
+    // Check if the target share uses Content URIs
+    if let Ok((share, _sub)) = find_share_and_subpath(&state.shares, allowed_spaces, path) {
+        if is_content_uri(&share.local_path) {
+            #[cfg(target_os = "android")]
+            {
+                let app_handle = match &state.app_handle {
+                    Some(h) => h.clone(),
+                    None => return Response::Error { message: "AppHandle not available".to_string() },
+                };
+                let root_uri = share.local_path.clone();
+                let sub_path = _sub;
+                drop(state);
+                return match tokio::task::spawn_blocking(move || {
+                    stat_content_uri(&app_handle, &root_uri, &sub_path)
+                }).await {
+                    Ok(Ok(entry)) => Response::Stat { entry },
+                    Ok(Err(e)) => Response::Error { message: e },
+                    Err(e) => Response::Error { message: format!("Task failed: {e}") },
+                };
+            }
+            #[cfg(not(target_os = "android"))]
+            return Response::Error { message: "Content URIs are only supported on Android".to_string() };
+        }
+    }
+
     let local_path = match resolve_path_filtered(&state.shares, allowed_spaces, path) {
         Ok(p) => p,
         Err(resp) => return resp,
@@ -607,6 +710,45 @@ async fn handle_read(
     range: Option<[u64; 2]>,
     allowed_spaces: &HashSet<String>,
 ) -> Result<(), PeerStorageError> {
+    // Check if the target share uses Content URIs
+    let content_uri_info = {
+        let state = state.read().await;
+        if let Ok((share, sub_path)) = find_share_and_subpath(&state.shares, allowed_spaces, path) {
+            if is_content_uri(&share.local_path) {
+                Some((
+                    share.local_path.clone(),
+                    sub_path,
+                    state.app_handle.clone(),
+                ))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    };
+
+    if let Some((root_uri, sub_path, app_handle_opt)) = content_uri_info {
+        #[cfg(target_os = "android")]
+        {
+            let app_handle = app_handle_opt.ok_or_else(|| PeerStorageError::ProtocolError {
+                reason: "AppHandle not available".to_string(),
+            })?;
+            return handle_read_content_uri(send, &app_handle, &root_uri, &sub_path, range).await;
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            let _ = (root_uri, sub_path, app_handle_opt);
+            let resp = Response::Error { message: "Content URIs are only supported on Android".to_string() };
+            let resp_bytes = protocol::encode_response(&resp)
+                .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+            send.write_all(&resp_bytes).await.ok();
+            send.finish().ok();
+            return Ok(());
+        }
+    }
+
+    // Standard filesystem read
     let local_path = {
         let state = state.read().await;
         match resolve_path_filtered(&state.shares, allowed_spaces, path) {
@@ -632,9 +774,18 @@ async fn handle_read(
         return Ok(());
     }
 
+    stream_file_to_send(send, &local_path, range).await
+}
+
+/// Stream a local file to the QUIC send stream in 64KB chunks.
+async fn stream_file_to_send(
+    send: &mut iroh::endpoint::SendStream,
+    local_path: &Path,
+    range: Option<[u64; 2]>,
+) -> Result<(), PeerStorageError> {
     use tokio::io::AsyncReadExt;
 
-    let mut file = tokio::fs::File::open(&local_path)
+    let mut file = tokio::fs::File::open(local_path)
         .await
         .map_err(PeerStorageError::Io)?;
 
@@ -656,6 +807,232 @@ async fn handle_read(
     send.write_all(&header_bytes)
         .await
         .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+
+    if offset > 0 {
+        use tokio::io::AsyncSeekExt;
+        file.seek(std::io::SeekFrom::Start(offset))
+            .await
+            .map_err(PeerStorageError::Io)?;
+    }
+
+    // Stream file data in chunks (64 KB)
+    let mut remaining = read_size;
+    let mut buf = vec![0u8; 64 * 1024];
+
+    while remaining > 0 {
+        let to_read = (remaining as usize).min(buf.len());
+        let n = file
+            .read(&mut buf[..to_read])
+            .await
+            .map_err(PeerStorageError::Io)?;
+        if n == 0 {
+            break;
+        }
+        send.write_all(&buf[..n])
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
+        remaining -= n as u64;
+    }
+
+    send.finish()
+        .map_err(|e| PeerStorageError::ConnectionFailed {
+            reason: e.to_string(),
+        })?;
+
+    Ok(())
+}
+
+// ============================================================================
+// Android Content URI helpers
+// ============================================================================
+
+/// Resolve a relative sub-path within a Content URI tree by navigating directory
+/// by directory. Returns the target Content URI JSON string and whether it's a dir.
+#[cfg(target_os = "android")]
+fn resolve_content_uri_subpath(
+    app_handle: &tauri::AppHandle,
+    root_uri_json: &str,
+    sub_path: &str,
+) -> Result<(tauri_plugin_android_fs::FileUri, bool), String> {
+    use tauri_plugin_android_fs::{AndroidFsExt, FileUri};
+
+    let api = app_handle.android_fs();
+    let root = FileUri::from_json_str(root_uri_json)
+        .map_err(|e| format!("Invalid Content URI: {e:?}"))?;
+
+    let segments: Vec<&str> = sub_path
+        .trim_start_matches('/')
+        .split('/')
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if segments.is_empty() {
+        // Root of the share
+        let is_dir = api.get_type(&root)
+            .map(|t| t == tauri_plugin_android_fs::EntryType::Dir)
+            .unwrap_or(true);
+        return Ok((root, is_dir));
+    }
+
+    let mut current = root;
+
+    for (i, segment) in segments.iter().enumerate() {
+        let entries = api.read_dir(&current)
+            .map_err(|e| format!("Failed to read dir: {e:?}"))?;
+
+        let found = entries
+            .filter(|entry| entry.name() == *segment)
+            .next();
+
+        match found {
+            Some(entry) => {
+                let is_dir = entry.is_dir();
+                let is_last = i == segments.len() - 1;
+                current = entry.uri().clone();
+
+                if !is_last && !is_dir {
+                    return Err(format!("Path segment '{}' is not a directory", segment));
+                }
+
+                if is_last {
+                    return Ok((current, is_dir));
+                }
+            }
+            None => return Err(format!("Not found: {}", segment)),
+        }
+    }
+
+    unreachable!()
+}
+
+/// List directory contents via Content URI.
+#[cfg(target_os = "android")]
+fn list_content_uri(
+    app_handle: &tauri::AppHandle,
+    root_uri_json: &str,
+    sub_path: &str,
+) -> Result<Vec<FileEntry>, String> {
+    use tauri_plugin_android_fs::AndroidFsExt;
+
+    let (target_uri, is_dir) = resolve_content_uri_subpath(app_handle, root_uri_json, sub_path)?;
+
+    if !is_dir {
+        return Err("Not a directory".to_string());
+    }
+
+    let api = app_handle.android_fs();
+    let dir_entries = api.read_dir(&target_uri)
+        .map_err(|e| format!("Failed to read dir: {e:?}"))?;
+
+    let mut entries: Vec<FileEntry> = dir_entries
+        .map(|entry| {
+            let modified = entry.last_modified()
+                .duration_since(std::time::UNIX_EPOCH)
+                .ok()
+                .map(|d| d.as_secs());
+
+            FileEntry {
+                name: entry.name().to_string(),
+                size: entry.file_len().unwrap_or(0),
+                is_dir: entry.is_dir(),
+                modified,
+            }
+        })
+        .collect();
+
+    entries.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.cmp(&b.name)));
+    Ok(entries)
+}
+
+/// Get file/dir metadata via Content URI.
+#[cfg(target_os = "android")]
+fn stat_content_uri(
+    app_handle: &tauri::AppHandle,
+    root_uri_json: &str,
+    sub_path: &str,
+) -> Result<FileEntry, String> {
+    use tauri_plugin_android_fs::AndroidFsExt;
+
+    let (target_uri, is_dir) = resolve_content_uri_subpath(app_handle, root_uri_json, sub_path)?;
+    let api = app_handle.android_fs();
+
+    let info = api.get_info(&target_uri)
+        .map_err(|e| format!("Failed to get info: {e:?}"))?;
+
+    let modified = info.last_modified()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .map(|d| d.as_secs());
+
+    Ok(FileEntry {
+        name: info.name().to_string(),
+        size: info.file_len().unwrap_or(0),
+        is_dir,
+        modified,
+    })
+}
+
+/// Stream a file via Content URI to the QUIC send stream.
+/// Uses `open_file_readable()` which returns a `std::fs::File`, then converts
+/// to `tokio::fs::File` for async chunk-based streaming.
+#[cfg(target_os = "android")]
+async fn handle_read_content_uri(
+    send: &mut iroh::endpoint::SendStream,
+    app_handle: &tauri::AppHandle,
+    root_uri_json: &str,
+    sub_path: &str,
+    range: Option<[u64; 2]>,
+) -> Result<(), PeerStorageError> {
+    use tauri_plugin_android_fs::AndroidFsExt;
+    use tokio::io::AsyncReadExt;
+
+    // Resolve the Content URI and open the file (blocking JNI calls)
+    let app = app_handle.clone();
+    let root = root_uri_json.to_string();
+    let sub = sub_path.to_string();
+
+    let (std_file, file_size) = tokio::task::spawn_blocking(move || -> Result<(std::fs::File, u64), PeerStorageError> {
+        let api = app.android_fs();
+
+        let (target_uri, is_dir) = resolve_content_uri_subpath(&app, &root, &sub)
+            .map_err(|e| PeerStorageError::ProtocolError { reason: e })?;
+
+        if is_dir {
+            return Err(PeerStorageError::ProtocolError { reason: "Not a file".to_string() });
+        }
+
+        let file = api.open_file_readable(&target_uri)
+            .map_err(|e| PeerStorageError::ProtocolError {
+                reason: format!("Failed to open file: {e:?}"),
+            })?;
+
+        let size = api.get_len(&target_uri).unwrap_or(0);
+
+        Ok((file, size))
+    }).await.map_err(|e| PeerStorageError::ProtocolError {
+        reason: format!("Task failed: {e}"),
+    })??;
+
+    let (offset, read_size) = match range {
+        Some([start, end]) => {
+            let end = end.min(file_size);
+            (start, end - start)
+        }
+        None => (0, file_size),
+    };
+
+    // Send header
+    let header = Response::ReadHeader { size: read_size };
+    let header_bytes = protocol::encode_response(&header)
+        .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+    send.write_all(&header_bytes)
+        .await
+        .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+
+    // Convert to tokio::fs::File for async streaming
+    let mut file = tokio::fs::File::from_std(std_file);
 
     if offset > 0 {
         use tokio::io::AsyncSeekExt;

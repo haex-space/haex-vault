@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use tauri::{Emitter, Manager, State};
 
 use crate::AppState;
+use crate::peer_storage::endpoint::is_content_uri;
 use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::protocol::FileEntry;
 
@@ -13,7 +14,7 @@ use crate::peer_storage::protocol::FileEntry;
 fn load_shares_from_db(
     state: &AppState,
     endpoint_id: &str,
-) -> Result<Vec<(String, String, PathBuf, String)>, PeerStorageError> {
+) -> Result<Vec<(String, String, String, String)>, PeerStorageError> {
     let sql = "SELECT id, name, local_path, space_id FROM haex_peer_shares WHERE device_endpoint_id = ?1".to_string();
     let params = vec![serde_json::Value::String(endpoint_id.to_string())];
 
@@ -23,7 +24,7 @@ fn load_shares_from_db(
     let shares = rows.iter().map(|row| {
         let id = row.get(0).and_then(|v| v.as_str()).unwrap_or_default().to_string();
         let name = row.get(1).and_then(|v| v.as_str()).unwrap_or_default().to_string();
-        let path = PathBuf::from(row.get(2).and_then(|v| v.as_str()).unwrap_or_default());
+        let path = row.get(2).and_then(|v| v.as_str()).unwrap_or_default().to_string();
         let space_id = row.get(3).and_then(|v| v.as_str()).unwrap_or_default().to_string();
         (id, name, path, space_id)
     }).collect();
@@ -67,15 +68,22 @@ async fn reload_state_from_db(
     endpoint.clear_shares().await;
     let mut loaded = 0;
     for (id, name, local_path, space_id) in &shares {
-        if local_path.exists() && local_path.is_dir() {
+        if is_content_uri(local_path) {
+            // Android Content URI — cannot validate with std::fs, always load.
+            // The android_fs plugin handles validation when actually serving files.
             endpoint.add_share(id.clone(), name.clone(), local_path.clone(), space_id.clone()).await;
             loaded += 1;
         } else {
-            eprintln!(
-                "[PeerStorage] Skipping share '{}': path does not exist: {}",
-                name,
-                local_path.display()
-            );
+            let path = PathBuf::from(local_path);
+            if path.exists() && path.is_dir() {
+                endpoint.add_share(id.clone(), name.clone(), local_path.clone(), space_id.clone()).await;
+                loaded += 1;
+            } else {
+                eprintln!(
+                    "[PeerStorage] Skipping share '{}': path does not exist: {}",
+                    name, local_path
+                );
+            }
         }
     }
 
@@ -88,10 +96,14 @@ async fn reload_state_from_db(
 /// Start the peer storage endpoint and load shares for this device from DB
 #[tauri::command(rename_all = "camelCase")]
 pub async fn peer_storage_start(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     relay_url: Option<String>,
 ) -> Result<PeerStorageStartInfo, PeerStorageError> {
     let endpoint = state.peer_storage.lock().await;
+
+    // Store AppHandle so the accept loop can use android_fs for Content URI shares
+    endpoint.set_app_handle(app.clone()).await;
 
     // Load shares and allowed peers from DB before starting
     reload_state_from_db(&state, &endpoint).await?;
@@ -218,18 +230,29 @@ pub async fn peer_storage_remote_read(
         (None, None)
     };
 
-    // Progress callback emits Tauri events so the frontend can track downloads
+    // Progress callback with throttling: emit at most every 100ms to avoid
+    // overwhelming the IPC bridge on mobile (each event crosses JNI/WebView).
     let progress_cb: Option<Box<dyn Fn(u64, u64) + Send>> = transfer_id.as_ref().map(|tid| {
         let app = app.clone();
         let tid = tid.clone();
         let path_clone = path.clone();
+        let last_emit = std::sync::Mutex::new(std::time::Instant::now() - std::time::Duration::from_secs(1));
         Box::new(move |received: u64, total: u64| {
-            let _ = app.emit("peer_storage_transfer_progress", serde_json::json!({
-                "transferId": tid,
-                "path": path_clone,
-                "bytesReceived": received,
-                "totalBytes": total,
-            }));
+            let now = std::time::Instant::now();
+            let should_emit = {
+                let last = last_emit.lock().unwrap();
+                // Always emit for the last chunk (transfer complete)
+                received >= total || now.duration_since(*last).as_millis() >= 100
+            };
+            if should_emit {
+                *last_emit.lock().unwrap() = now;
+                let _ = app.emit("peer_storage_transfer_progress", serde_json::json!({
+                    "transferId": tid,
+                    "path": path_clone,
+                    "bytesReceived": received,
+                    "totalBytes": total,
+                }));
+            }
         }) as Box<dyn Fn(u64, u64) + Send>
     });
 

@@ -73,7 +73,7 @@ async fn allowed_peer_can_connect() {
 
     server.add_share(
         "s1".to_string(), "Test".to_string(),
-        tmp.path().to_path_buf(), "space-1".to_string(),
+        tmp.path().to_string_lossy().to_string(), "space-1".to_string(),
     ).await;
 
     // Allow client
@@ -102,7 +102,7 @@ async fn unknown_peer_is_rejected() {
 
     server.add_share(
         "s1".to_string(), "Secrets".to_string(),
-        tmp.path().to_path_buf(), "space-1".to_string(),
+        tmp.path().to_string_lossy().to_string(), "space-1".to_string(),
     ).await;
 
     // No peers allowed
@@ -126,7 +126,7 @@ async fn access_revoked_mid_session() {
 
     server.add_share(
         "s1".to_string(), "Data".to_string(),
-        tmp.path().to_path_buf(), "space-1".to_string(),
+        tmp.path().to_string_lossy().to_string(), "space-1".to_string(),
     ).await;
 
     // Allow client
@@ -171,7 +171,7 @@ async fn partial_revoke_only_blocks_target() {
 
     server.add_share(
         "s1".to_string(), "Files".to_string(),
-        tmp.path().to_path_buf(), "space-1".to_string(),
+        tmp.path().to_string_lossy().to_string(), "space-1".to_string(),
     ).await;
 
     // Allow both

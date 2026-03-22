@@ -510,8 +510,8 @@ async fn cross_space_isolation() {
     std::fs::write(tmp2.path().join("secret.txt"), b"secret").unwrap();
 
     // Add two shares in different spaces
-    server.add_share("s1".to_string(), "Public".to_string(), tmp1.path().to_path_buf(), "space-public".to_string()).await;
-    server.add_share("s2".to_string(), "Private".to_string(), tmp2.path().to_path_buf(), "space-private".to_string()).await;
+    server.add_share("s1".to_string(), "Public".to_string(), tmp1.path().to_string_lossy().to_string(), "space-public".to_string()).await;
+    server.add_share("s2".to_string(), "Private".to_string(), tmp2.path().to_string_lossy().to_string(), "space-private".to_string()).await;
 
     // Client only has access to space-public
     let mut allowed = HashMap::new();
@@ -562,8 +562,8 @@ async fn multiple_shares_in_same_space() {
     let tmp2 = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp2.path().join("photo.jpg"), b"\xFF\xD8\xFF\xE0").unwrap();
 
-    server.add_share("s1".to_string(), "Documents".to_string(), tmp1.path().to_path_buf(), "shared-space".to_string()).await;
-    server.add_share("s2".to_string(), "Photos".to_string(), tmp2.path().to_path_buf(), "shared-space".to_string()).await;
+    server.add_share("s1".to_string(), "Documents".to_string(), tmp1.path().to_string_lossy().to_string(), "shared-space".to_string()).await;
+    server.add_share("s2".to_string(), "Photos".to_string(), tmp2.path().to_string_lossy().to_string(), "shared-space".to_string()).await;
 
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
@@ -613,7 +613,7 @@ async fn concurrent_clients_can_connect() {
     let tmp = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp.path().join("shared.txt"), b"shared content").unwrap();
 
-    server.add_share("s1".to_string(), "Shared".to_string(), tmp.path().to_path_buf(), "space-1".to_string()).await;
+    server.add_share("s1".to_string(), "Shared".to_string(), tmp.path().to_string_lossy().to_string(), "space-1".to_string()).await;
 
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
@@ -851,7 +851,7 @@ async fn share_removed_while_client_browsing() {
 
     let tmp = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp.path().join("data.txt"), b"important").unwrap();
-    server.add_share("s1".to_string(), "Volatile".to_string(), tmp.path().to_path_buf(), "space-1".to_string()).await;
+    server.add_share("s1".to_string(), "Volatile".to_string(), tmp.path().to_string_lossy().to_string(), "space-1".to_string()).await;
 
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
@@ -1095,7 +1095,7 @@ async fn leaked_endpoint_id_cannot_access_files() {
 
     server.add_share(
         "s1".to_string(), "Secrets".to_string(),
-        tmp.path().to_path_buf(), "private-space".to_string(),
+        tmp.path().to_string_lossy().to_string(), "private-space".to_string(),
     ).await;
 
     // Only legitimate peer is allowed
@@ -1187,8 +1187,8 @@ async fn space_a_peer_cannot_access_space_b_by_any_means() {
     let tmp_priv = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp_priv.path().join("api_keys.env"), b"SECRET=abc123").unwrap();
 
-    server.add_share("pub".to_string(), "PublicDocs".to_string(), tmp_pub.path().to_path_buf(), "space-public".to_string()).await;
-    server.add_share("priv".to_string(), "InternalOps".to_string(), tmp_priv.path().to_path_buf(), "space-internal".to_string()).await;
+    server.add_share("pub".to_string(), "PublicDocs".to_string(), tmp_pub.path().to_string_lossy().to_string(), "space-public".to_string()).await;
+    server.add_share("priv".to_string(), "InternalOps".to_string(), tmp_priv.path().to_string_lossy().to_string(), "space-internal".to_string()).await;
 
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
@@ -1244,7 +1244,7 @@ async fn revoked_peer_stays_blocked_across_multiple_attempts() {
     let tmp = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp.path().join("secret.txt"), b"pre-revoke").unwrap();
 
-    server.add_share("s1".to_string(), "Data".to_string(), tmp.path().to_path_buf(), "space-1".to_string()).await;
+    server.add_share("s1".to_string(), "Data".to_string(), tmp.path().to_string_lossy().to_string(), "space-1".to_string()).await;
 
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
@@ -1310,9 +1310,9 @@ async fn three_peers_three_spaces_complete_isolation() {
     let tc = tempfile::TempDir::new().unwrap();
     std::fs::write(tc.path().join("c.txt"), b"charlie").unwrap();
 
-    server.add_share("sa".to_string(), "Alice".to_string(), ta.path().to_path_buf(), "sp-a".to_string()).await;
-    server.add_share("sb".to_string(), "Bob".to_string(), tb.path().to_path_buf(), "sp-b".to_string()).await;
-    server.add_share("sc".to_string(), "Charlie".to_string(), tc.path().to_path_buf(), "sp-c".to_string()).await;
+    server.add_share("sa".to_string(), "Alice".to_string(), ta.path().to_string_lossy().to_string(), "sp-a".to_string()).await;
+    server.add_share("sb".to_string(), "Bob".to_string(), tb.path().to_string_lossy().to_string(), "sp-b".to_string()).await;
+    server.add_share("sc".to_string(), "Charlie".to_string(), tc.path().to_string_lossy().to_string(), "sp-c".to_string()).await;
 
     let mut allowed = HashMap::new();
     let mut sa = HashSet::new(); sa.insert("sp-a".to_string());
@@ -1379,8 +1379,8 @@ async fn dynamic_space_grant_upgrade_and_downgrade() {
     let tmp_b = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp_b.path().join("premium.txt"), b"premium").unwrap();
 
-    server.add_share("sa".to_string(), "Basic".to_string(), tmp_a.path().to_path_buf(), "tier-basic".to_string()).await;
-    server.add_share("sb".to_string(), "Premium".to_string(), tmp_b.path().to_path_buf(), "tier-premium".to_string()).await;
+    server.add_share("sa".to_string(), "Basic".to_string(), tmp_a.path().to_string_lossy().to_string(), "tier-basic".to_string()).await;
+    server.add_share("sb".to_string(), "Premium".to_string(), tmp_b.path().to_string_lossy().to_string(), "tier-premium".to_string()).await;
 
     let addr = server.endpoint_ref().unwrap().addr();
     let ep = user.endpoint_ref().unwrap().clone();

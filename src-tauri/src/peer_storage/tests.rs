@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
     use std::collections::{HashMap, HashSet};
-    use std::path::PathBuf;
 
     use crate::peer_storage::endpoint::{PeerEndpoint, PeerState, SharedFolder};
 
@@ -113,7 +112,7 @@ mod tests {
             "share-1".to_string(),
             SharedFolder {
                 name: "Photos".to_string(),
-                local_path: PathBuf::from("/tmp/photos"),
+                local_path: String::from("/tmp/photos"),
                 space_id: "space-1".to_string(),
             },
         );
@@ -122,7 +121,7 @@ mod tests {
             "share-2".to_string(),
             SharedFolder {
                 name: "Docs".to_string(),
-                local_path: PathBuf::from("/tmp/docs"),
+                local_path: String::from("/tmp/docs"),
                 space_id: "space-2".to_string(),
             },
         );
@@ -149,7 +148,7 @@ mod tests {
             "share-1".to_string(),
             SharedFolder {
                 name: "Secret".to_string(),
-                local_path: PathBuf::from("/tmp/secret"),
+                local_path: String::from("/tmp/secret"),
                 space_id: "space-private".to_string(),
             },
         );
@@ -208,7 +207,7 @@ mod tests {
         ep.add_share(
             "s1".to_string(),
             "Photos".to_string(),
-            PathBuf::from("/tmp/photos"),
+            "/tmp/photos".to_string(),
             "space-1".to_string(),
         )
         .await;
@@ -223,8 +222,8 @@ mod tests {
     async fn endpoint_clear_shares() {
         let ep = PeerEndpoint::new_ephemeral();
 
-        ep.add_share("s1".to_string(), "A".to_string(), PathBuf::from("/a"), "sp1".to_string()).await;
-        ep.add_share("s2".to_string(), "B".to_string(), PathBuf::from("/b"), "sp1".to_string()).await;
+        ep.add_share("s1".to_string(), "A".to_string(), "/a".to_string(), "sp1".to_string()).await;
+        ep.add_share("s2".to_string(), "B".to_string(), "/b".to_string(), "sp1".to_string()).await;
 
         assert_eq!(ep.list_shares().await.len(), 2);
         ep.clear_shares().await;

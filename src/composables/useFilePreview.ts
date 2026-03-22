@@ -48,8 +48,10 @@ export function useFilePreview() {
   }
 
   /**
-   * Open preview for a local file (own device share).
-   * On desktop uses convertFileSrc (zero-copy), on mobile reads via base64.
+   * Open preview for a local file.
+   * Uses convertFileSrc (zero-copy) for regular filesystem paths on all platforms.
+   * Falls back to base64 only for Android Content URIs which can't be served
+   * directly via Tauri's asset protocol.
    */
   const openLocal = async (absolutePath: string, filename: string) => {
     cleanup()
@@ -58,11 +60,14 @@ export function useFilePreview() {
     previewLoading.value = true
 
     try {
-      if (isDesktop()) {
-        previewUrl.value = convertFileSrc(absolutePath)
-      } else {
+      // Android Content URIs (JSON-encoded) need base64 because Tauri's asset
+      // protocol can't resolve them. Regular paths (including cache dir after
+      // P2P download) use convertFileSrc on all platforms — zero-copy, no OOM.
+      if (absolutePath.startsWith('{')) {
         const base64 = await invoke<string>('filesystem_read_file', { path: absolutePath })
         previewUrl.value = base64ToObjectUrl(base64, filename)
+      } else {
+        previewUrl.value = convertFileSrc(absolutePath)
       }
     } finally {
       previewLoading.value = false
