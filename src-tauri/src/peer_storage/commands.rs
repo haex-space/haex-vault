@@ -205,9 +205,11 @@ pub async fn peer_storage_remote_read(
     let output_path = if let Some(ref dest) = save_to {
         PathBuf::from(dest)
     } else {
-        let downloads_dir = app.path().download_dir().map_err(|e| PeerStorageError::ProtocolError {
-            reason: format!("Failed to get downloads dir: {e}"),
-        })?;
+        let downloads_dir = app.path().download_dir()
+            .or_else(|_| app.path().cache_dir())
+            .map_err(|e| PeerStorageError::ProtocolError {
+                reason: format!("Failed to get downloads dir: {e}"),
+            })?;
         std::fs::create_dir_all(&downloads_dir).map_err(|e| PeerStorageError::ProtocolError {
             reason: format!("Failed to create downloads dir: {e}"),
         })?;
