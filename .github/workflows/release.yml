@@ -573,6 +573,31 @@ jobs:
             sleep 2
           done
 
+      - name: Create test script
+        run: |
+          cat > /tmp/run-android-e2e.sh << 'SCRIPT'
+          #!/bin/bash
+          set -e
+          WS="$GITHUB_WORKSPACE"
+          echo "Workspace: $WS"
+          ls -la "$WS/apk/" || echo "apk dir not found"
+          APK_FILE=$(find "$WS/apk" -name "*.apk" -type f | head -1)
+          echo "Installing APK: $APK_FILE"
+          if [ -z "$APK_FILE" ]; then
+            echo "ERROR: No APK file found!"
+            exit 1
+          fi
+          adb install "$APK_FILE"
+          adb reverse tcp:3002 tcp:3002
+          adb reverse tcp:8000 tcp:8000
+          cd "$WS"
+          ~/.maestro/bin/maestro test .maestro/android-smoke-test.yaml --format junit --output maestro-results.xml || true
+          if [ -f .maestro/android-sync-test.yaml ]; then
+            ~/.maestro/bin/maestro test .maestro/android-sync-test.yaml --format junit --output maestro-sync-results.xml || true
+          fi
+          SCRIPT
+          chmod +x /tmp/run-android-e2e.sh
+
       - name: Run Android E2E Tests
         id: test
         uses: reactivecircus/android-emulator-runner@v2
@@ -581,23 +606,7 @@ jobs:
           arch: x86_64
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: |
-            echo "Workspace: $GITHUB_WORKSPACE"
-            ls -la "$GITHUB_WORKSPACE/apk/" || echo "apk dir not found"
-            APK_FILE=$(find "$GITHUB_WORKSPACE/apk" -name "*.apk" -type f | head -1)
-            echo "Installing APK: $APK_FILE"
-            if [ -z "$APK_FILE" ]; then
-              echo "ERROR: No APK file found!"
-              exit 1
-            fi
-            adb install "$APK_FILE"
-            adb reverse tcp:3002 tcp:3002
-            adb reverse tcp:8000 tcp:8000
-            cd "$GITHUB_WORKSPACE"
-            ~/.maestro/bin/maestro test .maestro/android-smoke-test.yaml --format junit --output maestro-results.xml || true
-            if [ -f .maestro/android-sync-test.yaml ]; then
-              ~/.maestro/bin/maestro test .maestro/android-sync-test.yaml --format junit --output maestro-sync-results.xml || true
-            fi
+          script: /tmp/run-android-e2e.sh
 
       - name: Upload test results
         if: always()
