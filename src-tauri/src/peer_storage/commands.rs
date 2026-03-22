@@ -216,7 +216,7 @@ pub async fn peer_storage_remote_read(
             .unwrap_or(std::ffi::OsStr::new("download"))
             .to_string_lossy()
             .to_string();
-        downloads_dir.join(file_name)
+        deduplicate_path(&downloads_dir, &file_name)
     };
 
     // Create cancel + pause controls for this transfer
@@ -278,6 +278,33 @@ pub async fn peer_storage_remote_read(
     }
 
     Ok(output_path.to_string_lossy().to_string())
+}
+
+/// Find a non-colliding file path: photo.jpg → photo (1).jpg → photo (2).jpg → …
+fn deduplicate_path(dir: &std::path::Path, file_name: &str) -> PathBuf {
+    let candidate = dir.join(file_name);
+    if !candidate.exists() {
+        return candidate;
+    }
+
+    let stem = std::path::Path::new(file_name)
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy();
+    let ext = std::path::Path::new(file_name)
+        .extension()
+        .map(|e| format!(".{}", e.to_string_lossy()))
+        .unwrap_or_default();
+
+    for i in 1..10_000 {
+        let numbered = dir.join(format!("{stem} ({i}){ext}"));
+        if !numbered.exists() {
+            return numbered;
+        }
+    }
+
+    // Fallback: use UUID suffix
+    dir.join(format!("{stem}_{}{ext}", uuid::Uuid::new_v4()))
 }
 
 /// Cancel an active file transfer
