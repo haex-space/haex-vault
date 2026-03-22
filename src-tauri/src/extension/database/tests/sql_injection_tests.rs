@@ -82,11 +82,7 @@ fn test_union_injection_to_system_tables() {
 
 #[test]
 fn test_union_injection_to_sqlite_master() {
-    // Attempt to read database schema
-    let sql = "SELECT id, name FROM users UNION SELECT type, name FROM sqlite_master";
-    let result = parse_sql_statements(sql);
-
-    // System table check should catch this
+    // System table check should catch union injection attempts
     assert!(is_system_table("sqlite_master"));
     assert!(is_system_table("sqlite_sequence"));
     assert!(is_system_table("sqlite_stat1"));
@@ -94,8 +90,7 @@ fn test_union_injection_to_sqlite_master() {
 
 #[test]
 fn test_union_all_injection() {
-    let sql = "SELECT * FROM t UNION ALL SELECT * FROM haex_vault_settings";
-    // Even though this parses, the permission check should block haex_vault_settings
+    // Permission check should block haex_vault_settings even via UNION ALL
     assert!(is_system_table("haex_vault_settings"));
 }
 
@@ -135,9 +130,7 @@ fn test_comment_injection_multi_line() {
 
 #[test]
 fn test_comment_injection_nested() {
-    // Nested comment attempts (SQLite doesn't support nested comments)
-    let sql = "SELECT * /* /* nested */ */ FROM haex_extensions";
-    // The permission check will still catch haex_extensions
+    // Nested comment attempts — system table check still blocks
     assert!(is_system_table("haex_extensions"));
 }
 

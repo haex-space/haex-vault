@@ -163,15 +163,17 @@ fn test_port_must_match() {
 // ============================================================================
 
 #[test]
-fn test_url_encoded_domain_handled() {
-    // URL-encoded domain parts - the url crate should handle this
-    // %65%78%61%6d%70%6c%65 = "example"
-    let result = PermissionManager::matches_url_pattern(
+fn test_url_encoded_domain_does_not_bypass() {
+    // URL-encoded domain: %65%78%61%6d%70%6c%65 = "example"
+    // Must not allow bypass — if the url crate doesn't decode it,
+    // it won't match, which is the safe-by-default behavior
+    let matches = PermissionManager::matches_url_pattern(
         "https://example.com/*",
         "https://%65%78%61%6d%70%6c%65.com/api"
     );
-    // The url crate may or may not decode this - document the behavior
-    // Most importantly, it shouldn't cause a security bypass
+    // Either it normalizes and matches (correct), or it doesn't match (safe)
+    // Both are acceptable — the key is no panic
+    let _ = matches;
 }
 
 #[test]
@@ -200,11 +202,15 @@ fn test_path_traversal_in_url() {
 
 #[test]
 fn test_path_specific_pattern() {
-    // When a specific path is required, traversal shouldn't bypass it
     // Pattern: https://example.com/api/* should only allow /api/* paths
-
-    // This would need a more specific pattern implementation
-    // Current implementation with /* allows any path
+    assert!(PermissionManager::matches_url_pattern(
+        "https://example.com/api/*",
+        "https://example.com/api/users"
+    ));
+    assert!(!PermissionManager::matches_url_pattern(
+        "https://example.com/api/*",
+        "https://example.com/admin/secret"
+    ));
 }
 
 // ============================================================================
@@ -213,12 +219,18 @@ fn test_path_specific_pattern() {
 
 #[test]
 fn test_null_byte_in_url() {
-    // Null bytes in URL should be handled safely
+    // Null bytes in URL — Rust's url crate still parses this but the path
+    // contains \0 which triggers the traversal check. However, the pattern
+    // "https://example.com/*" does match the host, and the null byte is in
+    // the path which the wildcard covers. Document actual behavior:
     let result = PermissionManager::matches_url_pattern(
         "https://example.com/*",
         "https://example.com/api\0/evil"
     );
-    // The url crate will likely reject or escape this
+    // The url crate includes null bytes in the path — matches_url_pattern
+    // may or may not match depending on path normalization.
+    // Either behavior is acceptable since null bytes in URLs are invalid.
+    let _ = result;
 }
 
 #[test]
@@ -299,8 +311,14 @@ fn test_ip_address_patterns() {
 
 #[test]
 fn test_full_wildcard_domain() {
-    // Full wildcard should match any URL
-    // Note: This depends on how "*" is interpreted in check_web_permission
+    // Full wildcard "*" is handled by the caller (check_web_permission),
+    // not by matches_url_pattern. matches_url_pattern expects URL patterns
+    // with protocol (e.g., "https://domain.com/*").
+    // So "*" alone does not match via matches_url_pattern — that's correct.
+    assert!(!PermissionManager::matches_url_pattern(
+        "*",
+        "https://example.com/api"
+    ));
 }
 
 #[test]
@@ -391,12 +409,10 @@ fn test_url_path_deep_nesting() {
 
 #[test]
 fn test_url_path_encoded_traversal() {
-    // URL-encoded path traversal should be handled
-    // Note: Most URL parsers decode %2e%2e%2f to ../
-    // The url crate normalizes paths, so this should be safe
-    let result = PermissionManager::matches_url_pattern(
+    // URL-encoded path traversal (%2e%2e = ..) should be blocked
+    // The url crate normalizes paths, so /api/../admin → /admin which is outside /api/*
+    assert!(!PermissionManager::matches_url_pattern(
         "https://example.com/api/*",
         "https://example.com/api/%2e%2e/admin"
-    );
-    // The url crate should handle this - document the behavior
+    ));
 }

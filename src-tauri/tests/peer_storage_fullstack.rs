@@ -12,7 +12,7 @@ use tokio::time::{sleep, Duration};
 
 use iroh::Endpoint;
 use haex_vault_lib::peer_storage::endpoint::PeerEndpoint;
-use haex_vault_lib::peer_storage::protocol::{self, FileEntry, Request, Response, ALPN};
+use haex_vault_lib::peer_storage::protocol::{self, Request, Response, ALPN};
 
 // =============================================================================
 // Helper: proper protocol client
