@@ -47,26 +47,36 @@ export function useFilePreview() {
     previewType.value = 'unsupported'
   }
 
+  // Max file size for base64 preview (Content URIs only). Larger files are
+  // opened with the system app instead of loading everything into RAM.
+  const MAX_BASE64_PREVIEW_BYTES = 20 * 1024 * 1024 // 20 MB
+
   /**
    * Open preview for a local file.
    * Uses convertFileSrc (zero-copy) for regular filesystem paths on all platforms.
-   * Falls back to base64 only for Android Content URIs which can't be served
+   * Falls back to base64 only for small Android Content URIs which can't be served
    * directly via Tauri's asset protocol.
    */
-  const openLocal = async (absolutePath: string, filename: string) => {
+  const openLocal = async (absolutePath: string, filename: string, fileSize?: number | bigint) => {
     cleanup()
     previewFilename.value = filename
     previewType.value = getMediaType(filename)
     previewLoading.value = true
 
     try {
-      // Android Content URIs (JSON-encoded) need base64 because Tauri's asset
-      // protocol can't resolve them. Regular paths (including cache dir after
-      // P2P download) use convertFileSrc on all platforms — zero-copy, no OOM.
       if (absolutePath.startsWith('{')) {
+        // Android Content URI — must read via base64, but only for small files
+        const size = typeof fileSize === 'bigint' ? Number(fileSize) : (fileSize ?? 0)
+        if (size > MAX_BASE64_PREVIEW_BYTES) {
+          // Too large for in-memory preview — open with system app
+          previewLoading.value = false
+          await openWithSystem(absolutePath)
+          return
+        }
         const base64 = await invoke<string>('filesystem_read_file', { path: absolutePath })
         previewUrl.value = base64ToObjectUrl(base64, filename)
       } else {
+        // Regular path — zero-copy via Tauri's asset protocol
         previewUrl.value = convertFileSrc(absolutePath)
       }
     } finally {

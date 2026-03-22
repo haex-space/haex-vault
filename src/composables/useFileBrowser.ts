@@ -376,14 +376,14 @@ export function useFileBrowser() {
   const openPreview = async (file: FileEntry) => {
     if (selectedPeer.value?.localPath) {
       const absPath = resolveLocalAbsolutePath(file)
-      if (absPath) await preview.openLocal(absPath, file.name)
+      if (absPath) await preview.openLocal(absPath, file.name, file.size)
     } else if (selectedPeer.value) {
-      // Download to cache, then preview from local path
+      // Download to cache, then preview from local path (regular path, not Content URI)
       const localPath = await peerStore.remoteReadAsync(
         selectedPeer.value.endpointId,
         resolveFilePath(file),
       )
-      await preview.openLocal(localPath, file.name)
+      await preview.openLocal(localPath, file.name, file.size)
     }
   }
 
