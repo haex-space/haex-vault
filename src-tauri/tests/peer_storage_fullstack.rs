@@ -126,7 +126,7 @@ async fn setup_server_client(
     server.add_share(
         "share-1".to_string(),
         share_name.to_string(),
-        tmp.path().to_path_buf(),
+        tmp.path().to_string_lossy().to_string(),
         space_id.to_string(),
     ).await;
 
