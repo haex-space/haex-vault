@@ -327,74 +327,20 @@ export function useFileBrowser() {
       return
     }
 
-    const mediaType = preview.getMediaType(file.name)
-
-    // Images + PDFs → inline preview
-    if (mediaType === 'image' || mediaType === 'pdf') {
-      await openPreview(file)
-      return
-    }
-
-    // Local files (video, audio, etc.) → open with system app
+    // Files: download (if remote) then open with system app.
+    // No inline preview — avoids downloading entire files just to show them in-app.
     if (selectedPeer.value?.localPath) {
+      // Local share: open directly with system app
       const absPath = resolveLocalAbsolutePath(file)
-      if (absPath) {
-        try {
-          await preview.openWithSystem(absPath)
-          return
-        } catch {
-          // Fallback to inline preview if system open fails
-        }
-      }
-    }
-
-    // Remote previewable media → inline preview (no system app available)
-    if (mediaType === 'video' || mediaType === 'audio') {
-      await openPreview(file)
-      return
-    }
-
-    // Everything else → show download prompt
-    await openPreview(file)
-  }
-
-  // Previewable files in current directory (for prev/next navigation)
-  const previewableFiles = computed(() =>
-    sortedFiles.value.filter(f => !f.isDir && preview.isPreviewable(f.name)),
-  )
-
-  const currentPreviewIndex = computed(() => {
-    if (!preview.previewFilename.value) return -1
-    return previewableFiles.value.findIndex(f => f.name === preview.previewFilename.value)
-  })
-
-  const hasPrevPreview = computed(() => currentPreviewIndex.value > 0)
-  const hasNextPreview = computed(() =>
-    currentPreviewIndex.value >= 0 && currentPreviewIndex.value < previewableFiles.value.length - 1,
-  )
-
-  const openPreview = async (file: FileEntry) => {
-    if (selectedPeer.value?.localPath) {
-      const absPath = resolveLocalAbsolutePath(file)
-      if (absPath) await preview.openLocal(absPath, file.name, file.size)
-    } else if (selectedPeer.value) {
-      // Download to cache, then preview from local path (regular path, not Content URI)
+      if (absPath) await preview.openWithSystem(absPath)
+    } else {
+      // Remote peer: download to cache, then open with system app
       const localPath = await peerStore.remoteReadAsync(
-        selectedPeer.value.endpointId,
+        selectedPeer.value!.endpointId,
         resolveFilePath(file),
       )
-      await preview.openLocal(localPath, file.name, file.size)
+      await preview.openWithSystem(localPath)
     }
-  }
-
-  const previewPrev = async () => {
-    const file = hasPrevPreview.value ? previewableFiles.value[currentPreviewIndex.value - 1] : undefined
-    if (file) await openPreview(file)
-  }
-
-  const previewNext = async () => {
-    const file = hasNextPreview.value ? previewableFiles.value[currentPreviewIndex.value + 1] : undefined
-    if (file) await openPreview(file)
   }
 
   const downloadFile = async (file: FileEntry) => {
@@ -525,12 +471,6 @@ export function useFileBrowser() {
     getFileIcon,
     formatSize,
     formatDate,
-
-    // Preview navigation
-    hasPrevPreview,
-    hasNextPreview,
-    previewPrev,
-    previewNext,
 
     // Clipboard
     clipboard,

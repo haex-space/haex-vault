@@ -350,138 +350,6 @@
         </div>
       </div>
 
-      <!-- File Preview Overlay -->
-      <div
-        v-if="browser.preview.isOpen.value"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
-        @click.self="browser.preview.close()"
-      >
-        <!-- Close button — always visible, fixed top-right -->
-        <button
-          class="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
-          @click="browser.preview.close()"
-        >
-          <UIcon
-            name="i-lucide-x"
-            class="w-5 h-5"
-          />
-        </button>
-
-        <!-- Prev / Next navigation -->
-        <button
-          v-if="browser.hasPrevPreview.value"
-          class="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
-          @click.stop="browser.previewPrev()"
-        >
-          <UIcon
-            name="i-lucide-chevron-left"
-            class="w-5 h-5"
-          />
-        </button>
-        <button
-          v-if="browser.hasNextPreview.value"
-          class="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
-          @click.stop="browser.previewNext()"
-        >
-          <UIcon
-            name="i-lucide-chevron-right"
-            class="w-5 h-5"
-          />
-        </button>
-
-        <div class="max-w-[90vw] max-h-[90vh] flex flex-col items-center gap-4">
-          <!-- Loading -->
-          <div
-            v-if="browser.preview.previewLoading.value"
-            class="flex items-center justify-center py-16"
-          >
-            <UIcon
-              name="i-lucide-loader-2"
-              class="w-8 h-8 animate-spin text-white"
-            />
-          </div>
-
-          <!-- Image -->
-          <img
-            v-else-if="
-              browser.preview.previewType.value === 'image' &&
-              browser.preview.previewUrl.value
-            "
-            :src="browser.preview.previewUrl.value"
-            :alt="browser.preview.previewFilename.value || ''"
-            class="max-w-full max-h-[85vh] object-contain rounded"
-          />
-
-          <!-- PDF -->
-          <HaexSystemFilesPdfViewer
-            v-else-if="
-              browser.preview.previewType.value === 'pdf' &&
-              browser.preview.previewUrl.value
-            "
-            :src="browser.preview.previewUrl.value"
-          />
-
-          <!-- Video -->
-          <video
-            v-else-if="
-              browser.preview.previewType.value === 'video' &&
-              browser.preview.previewUrl.value
-            "
-            :src="browser.preview.previewUrl.value"
-            controls
-            autoplay
-            class="max-w-full max-h-[85vh] rounded"
-          />
-
-          <!-- Audio -->
-          <div
-            v-else-if="
-              browser.preview.previewType.value === 'audio' &&
-              browser.preview.previewUrl.value
-            "
-            class="flex flex-col items-center gap-4 p-8"
-          >
-            <UIcon
-              name="i-lucide-music"
-              class="w-16 h-16 text-white opacity-50"
-            />
-            <p class="text-white text-sm">
-              {{ browser.preview.previewFilename.value }}
-            </p>
-            <audio
-              :src="browser.preview.previewUrl.value"
-              controls
-              autoplay
-            />
-          </div>
-
-          <!-- Unsupported file type -->
-          <div
-            v-else-if="!browser.preview.previewLoading.value"
-            class="flex flex-col items-center gap-4 p-8"
-          >
-            <UIcon
-              name="i-lucide-file"
-              class="w-16 h-16 text-white opacity-50"
-            />
-            <p class="text-white text-sm">
-              {{ browser.preview.previewFilename.value }}
-            </p>
-            <p class="text-white/60 text-xs">{{ t('noPreview') }}</p>
-          </div>
-
-          <!-- Filename -->
-          <p
-            v-if="
-              !browser.preview.previewLoading.value &&
-              browser.preview.previewType.value !== 'unsupported'
-            "
-            class="text-white/80 text-xs"
-          >
-            {{ browser.preview.previewFilename.value }}
-          </p>
-        </div>
-      </div>
     </div>
   </HaexSystem>
 </template>
@@ -650,7 +518,7 @@ de:
   retry: Erneut versuchen
   downloaded: '"{name}" heruntergeladen'
   downloadFailed: Download fehlgeschlagen
-  noPreview: Vorschau nicht verfügbar
+
   download: Herunterladen
   moreFiles: weitere Dateien werden geladen…
   selected: ausgewählt
@@ -678,7 +546,7 @@ en:
   retry: Retry
   downloaded: '"{name}" downloaded'
   downloadFailed: Download failed
-  noPreview: Preview not available
+
   download: Download
   moreFiles: more files loading…
   selected: selected
