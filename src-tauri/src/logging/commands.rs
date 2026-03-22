@@ -45,9 +45,7 @@ pub fn log_read(
 pub fn log_cleanup(
     state: State<'_, AppState>,
 ) -> Result<usize, DatabaseError> {
-    with_connection(&state.db, |conn| {
-        cleanup_logs(conn)
-    })
+    cleanup_logs(&state)
 }
 
 /// Delete specific log entries by ID.

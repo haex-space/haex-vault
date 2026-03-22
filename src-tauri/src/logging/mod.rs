@@ -278,81 +278,94 @@ fn get_retention_days(conn: &rusqlite::Connection, extension_id: Option<&str>) -
 /// Delete log entries older than the configured retention period.
 /// Handles per-extension retention: extensions with custom retention
 /// are cleaned separately, remaining logs use the global retention.
-pub fn cleanup_logs(conn: &rusqlite::Connection) -> Result<usize, crate::database::error::DatabaseError> {
-    let global_retention = get_retention_days(conn, None);
-    let global_cutoff = time::OffsetDateTime::now_utc() - time::Duration::days(global_retention);
-    let global_cutoff_str = global_cutoff.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
+/// Uses execute_with_crdt to properly create tombstones instead of hard-deleting.
+pub fn cleanup_logs(state: &crate::AppState) -> Result<usize, crate::database::error::DatabaseError> {
+    use serde_json::Value as JsonValue;
 
-    // Collect extensions with custom retention
-    let mut custom_extensions: Vec<(String, i64)> = Vec::new();
-    if let Ok(mut stmt) = conn.prepare(&format!(
-        "SELECT extension_id, value FROM {} WHERE key = 'log_retention_days' AND extension_id IS NOT NULL",
-        crate::table_names::TABLE_VAULT_SETTINGS
-    )) {
-        if let Ok(rows) = stmt.query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-        }) {
-            for row in rows.flatten() {
-                if let Ok(days) = row.1.parse::<i64>() {
-                    custom_extensions.push((row.0, days));
+    let hlc = state.hlc.lock().map_err(|_| crate::database::error::DatabaseError::ValidationError {
+        reason: "Failed to lock HLC service".to_string(),
+    })?;
+
+    // Read retention config using raw connection (read-only, no CRDT needed)
+    let (global_cutoff_str, console_cutoff_str, custom_extensions) = crate::database::core::with_connection(&state.db, |conn| {
+        let global_retention = get_retention_days(conn, None);
+        let global_cutoff = time::OffsetDateTime::now_utc() - time::Duration::days(global_retention);
+        let global_cutoff_str = global_cutoff.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
+
+        let console_cutoff = time::OffsetDateTime::now_utc() - time::Duration::days(1);
+        let console_cutoff_str = console_cutoff.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
+
+        let mut custom_extensions: Vec<(String, i64)> = Vec::new();
+        if let Ok(mut stmt) = conn.prepare(&format!(
+            "SELECT extension_id, value FROM {} WHERE key = 'log_retention_days' AND extension_id IS NOT NULL",
+            crate::table_names::TABLE_VAULT_SETTINGS
+        )) {
+            if let Ok(rows) = stmt.query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            }) {
+                for row in rows.flatten() {
+                    if let Ok(days) = row.1.parse::<i64>() {
+                        custom_extensions.push((row.0, days));
+                    }
                 }
             }
         }
-    }
+
+        Ok((global_cutoff_str, console_cutoff_str, custom_extensions))
+    })?;
 
     let mut total_deleted = 0;
 
-    // Console interceptor logs: 1 day retention
-    let console_cutoff = time::OffsetDateTime::now_utc() - time::Duration::days(1);
-    let console_cutoff_str = console_cutoff.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
-    total_deleted += conn.execute(
-        &format!(
-            "DELETE FROM {} WHERE source = 'console' AND extension_id IS NULL AND timestamp < ?1",
-            crate::table_names::TABLE_LOGS
-        ),
-        rusqlite::params![console_cutoff_str],
-    ).unwrap_or(0);
+    // Console interceptor logs: 1 day retention (via CRDT soft-delete)
+    let sql = format!(
+        "DELETE FROM {} WHERE source = 'console' AND extension_id IS NULL AND timestamp < ?1",
+        crate::table_names::TABLE_LOGS
+    );
+    crate::database::core::execute_with_crdt(
+        sql, vec![JsonValue::String(console_cutoff_str)], &state.db, &hlc,
+    )?;
+    total_deleted += 1; // execute_with_crdt doesn't return affected count
 
     // Extensions with custom retention
     for (ext_id, days) in &custom_extensions {
         let cutoff = time::OffsetDateTime::now_utc() - time::Duration::days(*days);
         let cutoff_str = cutoff.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
-        total_deleted += conn.execute(
-            &format!(
-                "DELETE FROM {} WHERE extension_id = ?1 AND timestamp < ?2",
-                crate::table_names::TABLE_LOGS
-            ),
-            rusqlite::params![ext_id, cutoff_str],
-        ).unwrap_or(0);
+        let sql = format!(
+            "DELETE FROM {} WHERE extension_id = ?1 AND timestamp < ?2",
+            crate::table_names::TABLE_LOGS
+        );
+        crate::database::core::execute_with_crdt(
+            sql, vec![JsonValue::String(ext_id.clone()), JsonValue::String(cutoff_str)], &state.db, &hlc,
+        )?;
+        total_deleted += 1;
     }
 
     // Everything else: global retention (excluding already-handled console + custom extensions)
     let custom_ids: Vec<&str> = custom_extensions.iter().map(|(id, _)| id.as_str()).collect();
     if custom_ids.is_empty() {
-        total_deleted += conn.execute(
-            &format!(
-                "DELETE FROM {} WHERE source != 'console' AND timestamp < ?1",
-                crate::table_names::TABLE_LOGS
-            ),
-            rusqlite::params![global_cutoff_str],
-        ).unwrap_or(0);
+        let sql = format!(
+            "DELETE FROM {} WHERE source != 'console' AND timestamp < ?1",
+            crate::table_names::TABLE_LOGS
+        );
+        crate::database::core::execute_with_crdt(
+            sql, vec![JsonValue::String(global_cutoff_str)], &state.db, &hlc,
+        )?;
     } else {
+        let mut params: Vec<JsonValue> = vec![JsonValue::String(global_cutoff_str)];
         let placeholders: Vec<String> = custom_ids.iter().enumerate()
             .map(|(i, _)| format!("?{}", i + 2))
             .collect();
+        for id in &custom_ids {
+            params.push(JsonValue::String(id.to_string()));
+        }
         let sql = format!(
             "DELETE FROM {} WHERE source != 'console' AND timestamp < ?1 AND (extension_id IS NULL OR extension_id NOT IN ({}))",
             crate::table_names::TABLE_LOGS,
             placeholders.join(",")
         );
-        let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
-        params.push(Box::new(global_cutoff_str));
-        for id in &custom_ids {
-            params.push(Box::new(id.to_string()));
-        }
-        let refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
-        total_deleted += conn.execute(&sql, refs.as_slice()).unwrap_or(0);
+        crate::database::core::execute_with_crdt(sql, params, &state.db, &hlc)?;
     }
+    total_deleted += 1;
 
     Ok(total_deleted)
 }
