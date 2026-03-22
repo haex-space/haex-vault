@@ -328,7 +328,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
     desktopStore.reset()
     extensionsStore.reset()
     workspaceStore.reset()
-    syncEngineStore.reset()
+    await syncEngineStore.reset()
 
     // Reset additional stores with cached vault data
     const spacesStore = useSpacesStore()

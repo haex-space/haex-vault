@@ -15,6 +15,7 @@
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { orchestratorLog as log, type BackendSyncState } from './types'
 import { pullFromBackendAsync } from './pull'
+import { attemptDidReauthAsync } from '../engine/supabase'
 
 /** Debounce timers per backend */
 const pullDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -192,17 +193,39 @@ export const subscribeToBackendAsync = async (
       } catch (decodeErr) {
         log.warn('SUBSCRIBE: Could not decode token for debugging:', decodeErr)
       }
-      log.info('SUBSCRIBE: Setting auth token for realtime connection')
-      client.realtime.setAuth(token)
     } else {
       log.error('SUBSCRIBE: No auth token available — auth session is invalid. User needs to re-login. Skipping subscription.')
       state.error = 'Auth session expired. Please re-login to the sync backend.'
       return
     }
 
+    // Verify the Supabase auth session is active (with persistSession: false,
+    // the internal _getAccessToken used by Realtime may return null if setSession was
+    // never called or the session expired). Re-set the session to ensure it's available.
+    const { data: { session } } = await client.auth.getSession()
+    if (!session) {
+      log.warn('SUBSCRIBE: No active Supabase session — Realtime handshake would fail. Triggering DID re-auth...')
+      // Force a fresh session via DID re-auth before subscribing
+      const freshToken = await syncEngineStore.attemptDidReauthAsync()
+      if (!freshToken) {
+        log.error('SUBSCRIBE: DID re-auth failed — cannot establish Realtime connection')
+        state.error = 'Authentication failed. Please re-login to the sync backend.'
+        return
+      }
+      log.info('SUBSCRIBE: DID re-auth successful, proceeding with subscription')
+    }
+
     // Log realtime connection state
     log.info(`SUBSCRIBE: Realtime connection state: ${client.realtime.connectionState()}`)
     log.info(`SUBSCRIBE: Realtime channels count: ${client.realtime.channels.length}`)
+
+    // If there's an existing dead connection, disconnect and remove all channels
+    // to force a completely fresh WebSocket connection with the current auth token
+    if (client.realtime.connectionState() === 'closed') {
+      log.info('SUBSCRIBE: Realtime connection is closed, resetting for fresh connection')
+      client.realtime.removeAllChannels()
+      client.realtime.disconnect()
+    }
 
     // Subscribe via Realtime Broadcast instead of postgres_changes.
     // A DB trigger on sync_changes calls realtime.broadcast_changes() which
@@ -298,7 +321,30 @@ export const subscribeToBackendAsync = async (
           }
         } else if (status === 'CLOSED') {
           state.isConnected = false
-          log.debug(`SUBSCRIBE: Channel closed for backend ${backendId}`)
+          state.subscription = null
+          log.warn(`SUBSCRIBE: Channel closed for backend ${backendId}, will attempt to reconnect`)
+
+          // Attempt retry with exponential backoff (same as CHANNEL_ERROR)
+          // CLOSED can happen due to token expiry, network blip, or server restart
+          const retryCount = subscriptionRetryCounts.get(backendId) ?? 0
+          if (retryCount < MAX_SUBSCRIPTION_RETRIES) {
+            const delay = RETRY_BASE_DELAY_MS * Math.pow(2, retryCount)
+            log.warn(`SUBSCRIBE: Reconnecting in ${delay}ms (attempt ${retryCount + 1}/${MAX_SUBSCRIPTION_RETRIES})`)
+
+            const retryTimer = setTimeout(async () => {
+              subscriptionRetryTimers.delete(backendId)
+              subscriptionRetryCounts.set(backendId, retryCount + 1)
+              try {
+                await client.removeChannel(channel).catch(() => {})
+                await subscribeToBackendAsync(backendId, currentVaultId, syncStates, syncBackendsStore, syncEngineStore)
+              } catch (retryError) {
+                log.error(`SUBSCRIBE: Reconnect failed for backend ${backendId}:`, retryError)
+              }
+            }, delay)
+            subscriptionRetryTimers.set(backendId, retryTimer)
+          } else {
+            log.warn(`SUBSCRIBE: Realtime reconnection failed for backend ${backendId} after ${MAX_SUBSCRIPTION_RETRIES} attempts. Periodic pull will be used as fallback.`)
+          }
         }
       })
 

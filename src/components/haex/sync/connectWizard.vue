@@ -254,6 +254,7 @@
 
 <script setup lang="ts">
 import { createClient } from '@supabase/supabase-js'
+import { cleanupSupabaseClient } from '@/stores/sync/engine/supabase'
 import {
   decryptWithPrivateKeyAsync,
   decryptPrivateKeyAsync,
@@ -740,7 +741,7 @@ const onRecoveryComplete = async (data: {
   }
 }
 
-const clearForm = () => {
+const clearForm = async () => {
   currentStepIndex.value = 0
   otpServerUrl.value = ''
   otpEmail.value = ''
@@ -763,6 +764,7 @@ const clearForm = () => {
   vaultPassword.value = ''
   vaultPasswordConfirm.value = ''
   vaultNameExists.value = false
+  await cleanupSupabaseClient(supabaseClient.value)
   supabaseClient.value = null
 }
 

@@ -31,6 +31,20 @@ let lastReauthAttempt = 0
 const REAUTH_COOLDOWN_MS = 30_000 // Don't retry DID re-auth more than once per 30s
 
 /**
+ * Cleans up a Supabase client's realtime resources (channels + WebSocket).
+ * Centralised to avoid duplicating cleanup logic across the codebase.
+ */
+export const cleanupSupabaseClient = async (client: AppSupabaseClient | null): Promise<void> => {
+  if (!client) return
+  try {
+    await client.realtime.removeAllChannels()
+    client.realtime.disconnect()
+  } catch {
+    // Ignore cleanup errors — client may already be disposed
+  }
+}
+
+/**
  * Gets the current Supabase client
  */
 export const getSupabaseClient = (): AppSupabaseClient | null => supabaseClientRef.value
@@ -57,12 +71,7 @@ export const initSupabaseClientAsync = async (
   // Prevents "Multiple GoTrueClient instances" on Android WebView reloads
   if (supabaseClientRef.value) {
     log.info('Cleaning up existing Supabase client before creating new one')
-    try {
-      supabaseClientRef.value.realtime.removeAllChannels()
-      supabaseClientRef.value.realtime.disconnect()
-    } catch (e) {
-      log.warn('Failed to clean up existing Supabase client:', e)
-    }
+    await cleanupSupabaseClient(supabaseClientRef.value)
     supabaseClientRef.value = null
     currentBackendIdRef.value = null
   }
@@ -340,15 +349,8 @@ export const setSupabaseClient = (
 /**
  * Resets the Supabase client state
  */
-export const resetSupabaseClient = (): void => {
-  if (supabaseClientRef.value) {
-    try {
-      supabaseClientRef.value.realtime.removeAllChannels()
-      supabaseClientRef.value.realtime.disconnect()
-    } catch {
-      // Ignore cleanup errors during reset
-    }
-  }
+export const resetSupabaseClient = async (): Promise<void> => {
+  await cleanupSupabaseClient(supabaseClientRef.value)
   supabaseClientRef.value = null
   currentBackendIdRef.value = null
   cachedAccessToken = null

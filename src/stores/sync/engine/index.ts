@@ -555,10 +555,10 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   /**
    * Resets all store state. Called when closing a vault.
    */
-  const reset = (): void => {
+  const reset = async (): Promise<void> => {
     clearVaultKeyCache()
     setReauthResolver(null)
-    resetSupabaseClient()
+    await resetSupabaseClient()
     // Sync the ref with the actual cache
     vaultKeyCache.value = getVaultKeyCache()
     log.info('Store reset')
