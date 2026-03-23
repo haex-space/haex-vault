@@ -136,7 +136,7 @@ const onWizardCompleteAsync = async (wizardData: {
     localVaultId = await vaultStore.createAsync({
       vaultName: wizardData.localVaultName,
       password: wizardData.vaultPassword,
-      vaultId: wizardData.spaceId, // Pass space_id directly
+      spaceId: wizardData.spaceId,
     })
 
     if (!localVaultId) {

@@ -415,7 +415,7 @@ pub fn create_encrypted_database(
     app_handle: AppHandle,
     vault_name: String,
     key: String,
-    vault_id: Option<String>,
+    space_id: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<String, DatabaseError> {
     println!("Creating encrypted vault with name: {vault_name}");
@@ -524,11 +524,11 @@ pub fn create_encrypted_database(
     println!("[CREATE_DB] ✅ HLC and triggers initialized");
 
     // Step 5: Set space_id
-    // For remote sync: use the provided vault_id (= space_id on server)
+    // For remote sync: use the provided space_id
     // For new vaults: generate a new UUID
     println!("[CREATE_DB] Step 5: Setting space_id...");
     {
-        let effective_space_id = match &vault_id {
+        let effective_space_id = match &space_id {
             Some(id) => {
                 println!("[CREATE_DB] Using provided space_id: {}", id);
                 id.clone()

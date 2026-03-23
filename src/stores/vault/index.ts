@@ -278,17 +278,17 @@ export const useVaultStore = defineStore('vaultStore', () => {
   const createAsync = async ({
     vaultName,
     password,
-    vaultId,
+    spaceId,
   }: {
     vaultName: string
     password: string
-    /** Optional: Set a specific vault ID (for connecting to remote vaults) */
-    vaultId?: string
+    /** Optional: Set a specific space ID (for connecting to remote vaults) */
+    spaceId?: string
   }) => {
     const vaultPath = await invoke<string>('create_encrypted_database', {
       vaultName,
       key: password,
-      vaultId: vaultId || null,
+      spaceId: spaceId || null,
     })
 
     // Set the user-provided vault name BEFORE opening
