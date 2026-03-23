@@ -239,7 +239,7 @@ export const subscribeToBackendAsync = async (
     await client.realtime.setAuth(token)
 
     const channel = client
-      .channel(channelName)
+      .channel(channelName, { config: { private: true } })
       .on(
         'broadcast',
         { event: 'INSERT' },
