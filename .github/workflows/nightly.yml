@@ -72,7 +72,7 @@ jobs:
           node-version: '24'
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
         with:
           run_install: false
 
@@ -271,7 +271,7 @@ jobs:
           node-version: '24'
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -345,7 +345,7 @@ jobs:
           node-version: '24'
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Setup Java
         uses: actions/setup-java@v5
