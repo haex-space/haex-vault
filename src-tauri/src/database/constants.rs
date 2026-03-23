@@ -17,7 +17,7 @@ pub mod vault_settings_key {
     pub const LOCALE: &str = "locale";
     pub const THEME: &str = "theme";
     pub const VAULT_NAME: &str = "vault_name";
-    pub const VAULT_ID: &str = "vault_id";
+    pub const SPACE_ID: &str = "space_id";
     pub const DESKTOP_ICON_SIZE: &str = "desktop_icon_size";
     pub const TOMBSTONE_RETENTION_DAYS: &str = "tombstone_retention_days";
     pub const EXTERNAL_BRIDGE_PORT: &str = "external_bridge_port";
@@ -49,7 +49,7 @@ mod tests {
             "locale": vault_settings_key::LOCALE,
             "theme": vault_settings_key::THEME,
             "vaultName": vault_settings_key::VAULT_NAME,
-            "vaultId": vault_settings_key::VAULT_ID,
+            "spaceId": vault_settings_key::SPACE_ID,
             "desktopIconSize": vault_settings_key::DESKTOP_ICON_SIZE,
             "tombstoneRetentionDays": vault_settings_key::TOMBSTONE_RETENTION_DAYS,
             "externalBridgePort": vault_settings_key::EXTERNAL_BRIDGE_PORT,

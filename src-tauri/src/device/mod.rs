@@ -36,7 +36,7 @@ fn read_setting(conn: &rusqlite::Connection, key: &str) -> Result<Option<String>
 
 /// Initialize the device key after vault open.
 ///
-/// Reads `device_key_secret` and `vault_id` from vault settings (generating them
+/// Reads `device_key_secret` and `space_id` from vault settings (generating them
 /// if missing for pre-existing vaults), loads or generates the Ed25519 device key
 /// from the app data directory, and replaces the ephemeral key in the PeerEndpoint.
 ///
@@ -46,7 +46,7 @@ pub async fn device_init_key(
     app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<String, DeviceError> {
-    // 1. Read or generate device_key_secret and vault_id from the vault database
+    // 1. Read or generate device_key_secret and space_id from the vault database
     let (secret_hex, vault_uuid) = {
         let db_guard = state.db.0.lock().map_err(|e| DeviceError::Database {
             reason: format!("DB lock error: {e}"),
@@ -55,9 +55,9 @@ pub async fn device_init_key(
             reason: "No database connection — vault not open".to_string(),
         })?;
 
-        // vault_id must always exist (set at creation or synced from remote)
-        let uuid = read_setting(conn, "vault_id")?.ok_or_else(|| DeviceError::Database {
-            reason: "vault_id not found — vault may not be fully initialized".to_string(),
+        // space_id must always exist (set at creation or synced from remote)
+        let uuid = read_setting(conn, "space_id")?.ok_or_else(|| DeviceError::Database {
+            reason: "space_id not found — vault may not be fully initialized".to_string(),
         })?;
 
         // device_key_secret may be missing in pre-existing vaults — generate if needed

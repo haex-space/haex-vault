@@ -523,19 +523,19 @@ pub fn create_encrypted_database(
     initialize_session_post_migration(&app_handle, &state)?;
     println!("[CREATE_DB] ✅ HLC and triggers initialized");
 
-    // Step 5: Set vault_id
-    // For remote sync: use the provided vault_id
+    // Step 5: Set space_id
+    // For remote sync: use the provided vault_id (= space_id on server)
     // For new vaults: generate a new UUID
-    println!("[CREATE_DB] Step 5: Setting vault_id...");
+    println!("[CREATE_DB] Step 5: Setting space_id...");
     {
-        let effective_vault_id = match &vault_id {
+        let effective_space_id = match &vault_id {
             Some(id) => {
-                println!("[CREATE_DB] Using provided vault_id: {}", id);
+                println!("[CREATE_DB] Using provided space_id: {}", id);
                 id.clone()
             }
             None => {
                 let new_id = uuid::Uuid::new_v4().to_string();
-                println!("[CREATE_DB] Generating new vault_id: {}", new_id);
+                println!("[CREATE_DB] Generating new space_id: {}", new_id);
                 new_id
             }
         };
@@ -547,7 +547,7 @@ pub fn create_encrypted_database(
         let insert_sql = format!(
             "INSERT INTO {} (id, key, type, value) VALUES (?, '{}', '{}', ?)",
             TABLE_VAULT_SETTINGS,
-            vault_settings_key::VAULT_ID,
+            vault_settings_key::SPACE_ID,
             vault_settings_type::SYSTEM,
         );
         with_connection(&state.db, |conn| {
@@ -556,12 +556,12 @@ pub fn create_encrypted_database(
                 &tx,
                 &hlc_service,
                 &insert_sql,
-                rusqlite::params![row_id, effective_vault_id],
+                rusqlite::params![row_id, effective_space_id],
             )?;
             tx.commit().map_err(DatabaseError::from)?;
             Ok(())
         })?;
-        println!("[CREATE_DB] ✅ vault_id set successfully with CRDT timestamp");
+        println!("[CREATE_DB] ✅ space_id set successfully with CRDT timestamp");
     }
 
     // Step 6: Generate device_key_secret (32 random bytes for encrypting the Ed25519 device key file)
