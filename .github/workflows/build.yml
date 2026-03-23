@@ -109,7 +109,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Download Android APK artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: haex-vault-android-e2e
           path: ./apk
