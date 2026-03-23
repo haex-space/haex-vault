@@ -26,7 +26,7 @@ export const healthCheckAsync = async (serverUrl: string): Promise<boolean> => {
  */
 export const deleteRemoteVaultAsync = async (
   serverUrl: string,
-  vaultId: string,
+  spaceId: string,
 ): Promise<void> => {
   // Get auth token
   const token = await getAuthTokenAsync()
@@ -35,7 +35,7 @@ export const deleteRemoteVaultAsync = async (
   }
 
   // Send delete request to server
-  const response = await fetchWithReauthAsync(`${serverUrl}/sync/vault/${vaultId}`, {
+  const response = await fetchWithReauthAsync(`${serverUrl}/sync/vault/${spaceId}`, {
     method: 'DELETE',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -50,9 +50,9 @@ export const deleteRemoteVaultAsync = async (
   }
 
   // Clear vault key from cache
-  clearVaultKeyCache(vaultId)
+  clearVaultKeyCache(spaceId)
 
-  log.info(`Remote vault ${vaultId} deleted from server`)
+  log.info(`Remote vault ${spaceId} deleted from server`)
 }
 
 /**
@@ -90,7 +90,7 @@ export const deleteAllVaultDataAsync = async (
  */
 export const updateVaultNameOnServerAsync = async (
   serverUrl: string,
-  vaultId: string,
+  spaceId: string,
   newVaultName: string,
   identityPublicKey: string,
 ): Promise<void> => {
@@ -104,7 +104,7 @@ export const updateVaultNameOnServerAsync = async (
   const sealedName = await encryptWithPublicKeyAsync(encodedName, identityPublicKey)
 
   // Send PATCH request to update vault name on server
-  const response = await fetchWithReauthAsync(`${serverUrl}/sync/vault-key/${vaultId}`, {
+  const response = await fetchWithReauthAsync(`${serverUrl}/sync/vault-key/${spaceId}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',

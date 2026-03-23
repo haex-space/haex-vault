@@ -492,7 +492,7 @@ const onJoinSpaceAsync = async () => {
     await syncBackendsStore.addBackendAsync({
       name: `Space ${spaceId.slice(0, 8)}`,
       serverUrl: invite.serverUrl,
-      vaultId: invite.spaceId,
+      spaceId: invite.spaceId,
       identityId,
       enabled: true,
     })

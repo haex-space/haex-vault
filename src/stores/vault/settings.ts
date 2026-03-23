@@ -155,14 +155,14 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     })
 
     for (const backend of backends) {
-      if (!backend.vaultId) {
+      if (!backend.spaceId) {
         continue
       }
 
       try {
         await syncEngineStore.updateVaultNameOnServerAsync(
           backend.id,
-          backend.vaultId,
+          backend.spaceId,
           newVaultName,
         )
       } catch (error) {

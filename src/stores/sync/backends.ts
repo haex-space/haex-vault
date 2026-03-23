@@ -21,7 +21,7 @@ export interface TemporaryBackend {
   id: string
   name: string
   serverUrl: string
-  vaultId: string
+  spaceId: string
   identityId: string
   enabled: boolean
 }
@@ -212,7 +212,7 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
       log.debug('Backend already exists from sync, updating')
       await updateBackendAsync(existingBackend.id, {
         identityId: temp.identityId,
-        vaultId: temp.vaultId,
+        spaceId: temp.spaceId,
       })
     } else {
       // Backend doesn't exist - add it
@@ -221,7 +221,7 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
         id: temp.id,
         name: temp.name,
         serverUrl: temp.serverUrl,
-        vaultId: temp.vaultId,
+        spaceId: temp.spaceId,
         identityId: temp.identityId,
         enabled: temp.enabled,
       })

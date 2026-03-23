@@ -53,7 +53,7 @@ const isDismissible = computed(
 // Handle wizard completion
 const onWizardCompleteAsync = async (wizardData: {
   backendId: string
-  vaultId: string
+  spaceId: string
   vaultName: string
   localVaultName: string
   serverUrl: string
@@ -77,7 +77,7 @@ const onWizardCompleteAsync = async (wizardData: {
       id: wizardData.backendId,
       name: new URL(wizardData.serverUrl).host,
       serverUrl: wizardData.serverUrl,
-      vaultId: wizardData.vaultId,
+      spaceId: wizardData.spaceId,
       identityId: wizardData.identityId,
       enabled: true,
     })
@@ -101,7 +101,7 @@ const onWizardCompleteAsync = async (wizardData: {
       }
 
       const { partitionId } = await partitionRes.json()
-      wizardData.vaultId = partitionId
+      wizardData.spaceId = partitionId
 
       // Generate key and upload to server
       const { generateNewVaultKey, uploadVaultKeyAsync, cacheSyncKey } = await import('@/stores/sync/engine/vaultKey')
@@ -110,7 +110,7 @@ const onWizardCompleteAsync = async (wizardData: {
 
       await uploadVaultKeyAsync(
         wizardData.serverUrl,
-        wizardData.vaultId,
+        wizardData.spaceId,
         vaultKey,
         wizardData.vaultName,
         wizardData.vaultPassword,
@@ -118,25 +118,25 @@ const onWizardCompleteAsync = async (wizardData: {
       )
 
       // Cache the vault key for immediate use
-      cacheSyncKey(wizardData.vaultId, vaultKey)
+      cacheSyncKey(wizardData.spaceId, vaultKey)
     } else {
       // EXISTING VAULT: Verify password by fetching and decrypting the vault key
       // This prevents creating orphan vault files if the password is wrong
       await syncEngineStore.ensureSyncKeyAsync(
         wizardData.backendId,
-        wizardData.vaultId,
+        wizardData.spaceId,
         wizardData.vaultName,
         wizardData.vaultPassword,
         wizardData.serverUrl,
       )
     }
 
-    // 4. Now create minimal vault with vault_id (DB + vault_id only)
+    // 4. Now create minimal vault with space_id (DB + space_id only)
     // No workspaces, devices, or backends are created yet
     localVaultId = await vaultStore.createAsync({
       vaultName: wizardData.localVaultName,
       password: wizardData.vaultPassword,
-      vaultId: wizardData.vaultId, // Pass vault_id directly
+      vaultId: wizardData.spaceId, // Pass space_id directly
     })
 
     if (!localVaultId) {
@@ -151,7 +151,7 @@ const onWizardCompleteAsync = async (wizardData: {
     await navigateTo(
       useLocaleRoute()({
         name: 'desktop',
-        params: { vaultId: wizardData.vaultId },
+        params: { vaultId: wizardData.spaceId },
         query: { remoteSync: 'true' },
       }),
     )

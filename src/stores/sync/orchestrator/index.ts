@@ -625,7 +625,7 @@ export const useSyncOrchestratorStore = defineStore(
 
       try {
         // Get vault key from cache
-        const vaultKey = syncEngineStore.vaultKeyCache[tempBackend.vaultId]?.vaultKey
+        const vaultKey = syncEngineStore.vaultKeyCache[tempBackend.spaceId]?.vaultKey
         if (!vaultKey) {
           log.error('INITIAL PULL FAILED: Vault key not available')
           throw new Error('Vault key not available. Please unlock vault first.')
@@ -633,7 +633,7 @@ export const useSyncOrchestratorStore = defineStore(
 
         log.debug('Initial pull config:', {
           backendId,
-          vaultId: tempBackend.vaultId,
+          spaceId: tempBackend.spaceId,
           serverUrl: tempBackend.serverUrl,
         })
 
@@ -641,7 +641,7 @@ export const useSyncOrchestratorStore = defineStore(
         log.info('Downloading all changes from server...')
         const pullResult = await pullChangesFromServerAsync(
           tempBackend.serverUrl,
-          tempBackend.vaultId,
+          tempBackend.spaceId,
           null, // No lastPullServerTimestamp - get everything
           syncEngineStore,
         )

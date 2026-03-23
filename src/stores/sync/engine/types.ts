@@ -21,7 +21,7 @@ export interface CrdtChange {
 }
 
 export interface VaultKeyCache {
-  [vaultId: string]: {
+  [spaceId: string]: {
     vaultKey: Uint8Array
     timestamp: number
   }

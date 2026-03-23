@@ -53,9 +53,9 @@ export const pullFromBackendAsync = async (
 
   try {
     const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
-    if (!backend?.vaultId) {
-      log.error('PULL FAILED: Backend vaultId not configured')
-      throw new Error('Backend vaultId not configured')
+    if (!backend?.spaceId) {
+      log.error('PULL FAILED: Backend spaceId not configured')
+      throw new Error('Backend spaceId not configured')
     }
 
     // Get encryption key: vault sync key from local DB
@@ -68,7 +68,7 @@ export const pullFromBackendAsync = async (
     const lastPullServerTimestamp = backend.lastPullServerTimestamp
     log.debug('Pull config:', {
       backendId,
-      vaultId: backend.vaultId,
+      spaceId: backend.spaceId,
       lastPullServerTimestamp: lastPullServerTimestamp || '(none - full sync)',
     })
 
@@ -76,7 +76,7 @@ export const pullFromBackendAsync = async (
     log.info('Downloading changes from server...')
     const pullResult = await pullChangesFromServerAsync(
       backend.serverUrl,
-      backend.vaultId,
+      backend.spaceId,
       lastPullServerTimestamp,
       syncEngineStore,
     )
@@ -110,7 +110,7 @@ export const pullFromBackendAsync = async (
     // after an app update, we pull all data for them from the server
     const pendingColumnsPulled = await pullPendingColumnsAsync(
       backend.serverUrl,
-      backend.vaultId,
+      backend.spaceId,
       encryptionKey,
       backendId,
       syncEngineStore,
@@ -181,17 +181,17 @@ export const pullFromBackendAsync = async (
  * Returns both the changes and the server timestamp for storing as cursor
  *
  * @param serverUrl - Sync server URL
- * @param vaultId - Vault ID to pull changes for
+ * @param spaceId - Space ID to pull changes for
  * @param lastPullServerTimestamp - Cursor for incremental sync (null for full sync)
  * @param syncEngineStore - Sync engine store for auth token
  */
 export const pullChangesFromServerAsync = async (
   serverUrl: string,
-  vaultId: string,
+  spaceId: string,
   lastPullServerTimestamp: string | null | undefined,
   syncEngineStore: ReturnType<typeof useSyncEngineStore>,
 ): Promise<PullResult> => {
-  log.info('pullChangesFromServerAsync: Starting pull from', serverUrl, 'vault:', vaultId)
+  log.info('pullChangesFromServerAsync: Starting pull from', serverUrl, 'space:', spaceId)
 
   const token = await syncEngineStore.getAuthTokenAsync()
   if (!token) {
@@ -213,7 +213,7 @@ export const pullChangesFromServerAsync = async (
     pageCount++
     // Build URL with all cursor parameters for stable pagination
     const params = new URLSearchParams({
-      vaultId,
+      spaceId,
       limit: '1000',
     })
     if (currentCursor) params.set('afterUpdatedAt', currentCursor)
@@ -489,7 +489,7 @@ export const applyRemoteChangesInTransactionAsync = async (
  * and migrations add those columns, this function fetches ALL data for them from the server.
  *
  * @param serverUrl - Sync server URL
- * @param vaultId - Vault ID to pull data for
+ * @param spaceId - Space ID to pull data for
  * @param vaultKey - Vault encryption key for decryption
  * @param backendId - Backend ID for applying changes
  * @param syncEngineStore - Sync engine store for auth token
@@ -497,7 +497,7 @@ export const applyRemoteChangesInTransactionAsync = async (
  */
 export const pullPendingColumnsAsync = async (
   serverUrl: string,
-  vaultId: string,
+  spaceId: string,
   vaultKey: Uint8Array,
   backendId: string,
   syncEngineStore: ReturnType<typeof useSyncEngineStore>,
@@ -535,7 +535,7 @@ export const pullPendingColumnsAsync = async (
         method: 'POST',
         headers: authHeaders,
         body: JSON.stringify({
-          vaultId,
+          spaceId,
           columns: [{ tableName: pendingCol.tableName, columnName: pendingCol.columnName }],
           limit: 1000,
           afterTableName: lastTableName,

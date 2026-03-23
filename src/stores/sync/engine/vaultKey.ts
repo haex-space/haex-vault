@@ -23,8 +23,8 @@ export const getVaultKeyCache = (): VaultKeyCache => vaultKeyCache
 /**
  * Caches the sync key in memory
  */
-export const cacheSyncKey = (vaultId: string, syncKey: Uint8Array): void => {
-  vaultKeyCache[vaultId] = {
+export const cacheSyncKey = (spaceId: string, syncKey: Uint8Array): void => {
+  vaultKeyCache[spaceId] = {
     vaultKey: syncKey,
     timestamp: Date.now(),
   }
@@ -33,9 +33,9 @@ export const cacheSyncKey = (vaultId: string, syncKey: Uint8Array): void => {
 /**
  * Clears vault key from cache
  */
-export const clearVaultKeyCache = (vaultId?: string): void => {
-  if (vaultId) {
-    Reflect.deleteProperty(vaultKeyCache, vaultId)
+export const clearVaultKeyCache = (spaceId?: string): void => {
+  if (spaceId) {
+    Reflect.deleteProperty(vaultKeyCache, spaceId)
   } else {
     Object.keys(vaultKeyCache).forEach((key) => Reflect.deleteProperty(vaultKeyCache, key))
   }
@@ -50,7 +50,7 @@ export const clearVaultKeyCache = (vaultId?: string): void => {
  */
 export const uploadVaultKeyAsync = async (
   serverUrl: string,
-  vaultId: string,
+  spaceId: string,
   vaultKey: Uint8Array,
   vaultName: string,
   vaultPassword: string,
@@ -77,7 +77,7 @@ export const uploadVaultKeyAsync = async (
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
-      vaultId,
+      spaceId,
       encryptedVaultKey: encryptedVaultKeyData.encryptedVaultKey,
       encryptedVaultName: sealedName.encryptedData,
       vaultKeySalt: encryptedVaultKeyData.salt,
@@ -104,11 +104,11 @@ export const uploadVaultKeyAsync = async (
  */
 export const getVaultKeyFromServerAsync = async (
   serverUrl: string,
-  vaultId: string,
+  spaceId: string,
   password: string,
 ): Promise<Uint8Array> => {
   // Check cache first
-  const cached = vaultKeyCache[vaultId]
+  const cached = vaultKeyCache[spaceId]
   if (cached) {
     return cached.vaultKey
   }
@@ -121,7 +121,7 @@ export const getVaultKeyFromServerAsync = async (
 
   // Fetch from server
   const response = await fetchWithNetworkErrorHandling(
-    `${serverUrl}/sync/vault-key/${vaultId}`,
+    `${serverUrl}/sync/vault-key/${spaceId}`,
     {
       method: 'GET',
       headers: {
@@ -157,7 +157,7 @@ export const getVaultKeyFromServerAsync = async (
   )
 
   // Cache decrypted vault key
-  vaultKeyCache[vaultId] = {
+  vaultKeyCache[spaceId] = {
     vaultKey,
     timestamp: Date.now(),
   }
@@ -170,7 +170,7 @@ export const getVaultKeyFromServerAsync = async (
  */
 export const fetchSyncKeyFromServerAsync = async (
   serverUrl: string,
-  vaultId: string,
+  spaceId: string,
   password: string,
 ): Promise<Uint8Array> => {
   const token = await getAuthTokenAsync()
@@ -179,7 +179,7 @@ export const fetchSyncKeyFromServerAsync = async (
   }
 
   const response = await fetchWithNetworkErrorHandling(
-    `${serverUrl}/sync/vault-key/${vaultId}`,
+    `${serverUrl}/sync/vault-key/${spaceId}`,
     {
       method: 'GET',
       headers: { Authorization: `Bearer ${token}` },
@@ -234,7 +234,7 @@ export const generateNewVaultKey = (): Uint8Array => {
  */
 export const reEncryptVaultKeyAsync = async (
   serverUrl: string,
-  vaultId: string,
+  spaceId: string,
   vaultKey: Uint8Array,
   newPassword: string,
 ): Promise<{ success: boolean; vaultKeySalt?: string }> => {
@@ -250,7 +250,7 @@ export const reEncryptVaultKeyAsync = async (
     const encryptedVaultKeyData = await encryptVaultKey(vaultKey, newPassword)
 
     // Send PATCH request to update the encrypted vault key on server
-    const response = await fetchWithReauthAsync(`${serverUrl}/sync/vault-key/${vaultId}`, {
+    const response = await fetchWithReauthAsync(`${serverUrl}/sync/vault-key/${spaceId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',

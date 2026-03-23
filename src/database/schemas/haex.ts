@@ -216,7 +216,7 @@ export const haexSyncBackends = sqliteTable(
       .primaryKey(),
     name: text(tableNames.haex.sync_backends.columns.name).notNull(),
     serverUrl: text(tableNames.haex.sync_backends.columns.serverUrl).notNull(),
-    vaultId: text(tableNames.haex.sync_backends.columns.vaultId),
+    spaceId: text(tableNames.haex.sync_backends.columns.spaceId),
     syncKey: text(tableNames.haex.sync_backends.columns.syncKey),
     vaultKeySalt: text(tableNames.haex.sync_backends.columns.vaultKeySalt),
     identityId: text(tableNames.haex.sync_backends.columns.identityId), // FK → haex_identities.publicKey (for auth)

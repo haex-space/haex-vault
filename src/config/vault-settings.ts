@@ -16,7 +16,7 @@ export enum VaultSettingsKeyEnum {
   locale = 'locale',
   theme = 'theme',
   vaultName = 'vault_name',
-  vaultId = 'vault_id',
+  spaceId = 'space_id',
   desktopIconSize = 'desktop_icon_size',
   tombstoneRetentionDays = 'tombstone_retention_days',
   externalBridgePort = 'external_bridge_port',

@@ -265,10 +265,10 @@
             >
               <div
                 v-for="vault in getGroupedVaults(backend.id)?.vaults"
-                :key="vault.vaultId"
+                :key="vault.spaceId"
                 class="flex flex-col gap-2 p-3 rounded-lg"
                 :class="
-                  vault.vaultId === currentVaultId
+                  vault.spaceId === currentVaultId
                     ? 'bg-primary/10 border border-primary/20'
                     : 'bg-gray-50 dark:bg-gray-800/50'
                 "
@@ -285,7 +285,7 @@
                         }}
                       </p>
                       <UBadge
-                        v-if="vault.vaultId === currentVaultId"
+                        v-if="vault.spaceId === currentVaultId"
                         color="primary"
                         variant="subtle"
                       >
@@ -421,14 +421,14 @@
       v-model:open="showDeleteDialog"
       :title="
         t(
-          backendToDelete?.vaultId === currentVaultId
+          backendToDelete?.spaceId === currentVaultId
             ? 'deleteCurrentVaultSync.title'
             : 'deleteRemoteVault.title',
         )
       "
       :description="
         t(
-          backendToDelete?.vaultId === currentVaultId
+          backendToDelete?.spaceId === currentVaultId
             ? 'deleteCurrentVaultSync.description'
             : 'deleteRemoteVault.description',
           { vaultName: backendToDelete?.name },
@@ -546,7 +546,7 @@ const reUploadBackend = ref<SelectHaexSyncBackends | null>(null)
 
 // Server vaults management state - grouped by backend
 interface ServerVault {
-  vaultId: string
+  spaceId: string
   encryptedVaultName: string
   vaultNameNonce: string
   ephemeralPublicKey: string
@@ -971,9 +971,9 @@ const loadAllServerVaultsAsync = async () => {
         group.isLoading = false
 
         // Check if this backend is configured for current vault but vault is not on server
-        if (group.backend.vaultId === currentVaultId.value) {
+        if (group.backend.spaceId === currentVaultId.value) {
           const vaultFoundOnServer = vaults.some(
-            (v) => v.vaultId === currentVaultId.value,
+            (v) => v.spaceId === currentVaultId.value,
           )
           group.currentVaultMissingOnServer = !vaultFoundOnServer
         }
@@ -998,7 +998,7 @@ const prepareDeleteServerVault = (
   // Set the vault as backend to delete
   backendToDelete.value = {
     ...backend,
-    vaultId: vault.vaultId,
+    spaceId: vault.spaceId,
   }
   deleteAllServerData.value = false
   showDeleteDialog.value = true
@@ -1006,23 +1006,23 @@ const prepareDeleteServerVault = (
 
 // Confirm delete remote vault
 const onConfirmDeleteRemoteVaultAsync = async () => {
-  if (!backendToDelete.value || !backendToDelete.value.vaultId) return
+  if (!backendToDelete.value || !backendToDelete.value.spaceId) return
 
   try {
     const backend = backendToDelete.value
-    const vaultId = backend.vaultId
+    const spaceId = backend.spaceId
 
-    if (!vaultId) {
-      throw new Error('Vault ID is required')
+    if (!spaceId) {
+      throw new Error('Space ID is required')
     }
 
-    const isCurrentVault = vaultId === currentVaultId.value
+    const isCurrentVault = spaceId === currentVaultId.value
 
     // Step 1: Delete data from server FIRST (while backend store is still available)
     if (deleteAllServerData.value) {
       await syncEngineStore.deleteAllVaultDataAsync(backend.id)
     } else {
-      await syncEngineStore.deleteRemoteVaultAsync(backend.id, vaultId)
+      await syncEngineStore.deleteRemoteVaultAsync(backend.id, spaceId)
     }
 
     // Step 2: Stop sync if deleting the currently synced vault

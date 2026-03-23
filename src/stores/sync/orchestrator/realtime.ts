@@ -153,9 +153,9 @@ export const subscribeToBackendAsync = async (
   }
 
   const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
-  if (!backend?.vaultId) {
-    log.error('SUBSCRIBE: Backend vaultId not configured')
-    throw new Error('Backend vaultId not configured')
+  if (!backend?.spaceId) {
+    log.error('SUBSCRIBE: Backend spaceId not configured')
+    throw new Error('Backend spaceId not configured')
   }
 
   const state = syncStates[backendId]
@@ -232,7 +232,7 @@ export const subscribeToBackendAsync = async (
     // writes to realtime.messages — always in the publication, no cache issues.
     // The trigger is on the parent table and PostgreSQL 15 auto-clones it to
     // all partitions. New partitions work immediately without Realtime restart.
-    const channelName = `sync:${backend.vaultId}`
+    const channelName = `sync:${backend.spaceId}`
     log.info(`SUBSCRIBE: Subscribing to broadcast channel="${channelName}" backendId=${backendId}`)
 
     // Set auth token for Realtime Authorization (broadcast uses private channels)

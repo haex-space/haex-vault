@@ -101,7 +101,7 @@
         "id": "id",
         "name": "name",
         "serverUrl": "server_url",
-        "vaultId": "vault_id",
+        "spaceId": "space_id",
         "syncKey": "sync_key",
         "vaultKeySalt": "vault_key_salt",
         "identityId": "identity_id",

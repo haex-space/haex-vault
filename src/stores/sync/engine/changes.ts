@@ -18,12 +18,12 @@ import {
  */
 export const pushChangesAsync = async (
   serverUrl: string,
-  vaultId: string,
+  spaceId: string,
   changes: CrdtChange[],
 ): Promise<void> => {
   // Get vault key from cache
   const vaultKeyCache = getVaultKeyCache()
-  const cached = vaultKeyCache[vaultId]
+  const cached = vaultKeyCache[spaceId]
   if (!cached) {
     throw new Error('Vault key not available. Please unlock vault first.')
   }
@@ -62,7 +62,7 @@ export const pushChangesAsync = async (
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
-      vaultId,
+      spaceId,
       changes: encryptedChanges,
     }),
   })
@@ -80,14 +80,14 @@ export const pushChangesAsync = async (
  */
 export const pullChangesAsync = async (
   serverUrl: string,
-  vaultId: string,
+  spaceId: string,
   excludeDeviceId?: string,
   afterCreatedAt?: string,
   limit?: number,
 ): Promise<CrdtChange[]> => {
   // Get vault key from cache
   const vaultKeyCache = getVaultKeyCache()
-  const cached = vaultKeyCache[vaultId]
+  const cached = vaultKeyCache[spaceId]
   if (!cached) {
     throw new Error('Vault key not available. Please unlock vault first.')
   }
@@ -108,7 +108,7 @@ export const pullChangesAsync = async (
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
-      vaultId,
+      spaceId,
       excludeDeviceId,
       afterCreatedAt,
       limit: limit ?? 100,

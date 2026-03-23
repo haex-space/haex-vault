@@ -42,8 +42,8 @@ describe('VaultSettings Constants Synchronization', () => {
       expect(VaultSettingsKeyEnum.vaultName).toBe('vault_name')
     })
 
-    it('should have correct "vaultId" value (snake_case)', () => {
-      expect(VaultSettingsKeyEnum.vaultId).toBe('vault_id')
+    it('should have correct "spaceId" value (snake_case)', () => {
+      expect(VaultSettingsKeyEnum.spaceId).toBe('space_id')
     })
 
     it('should have correct "desktopIconSize" value (snake_case)', () => {

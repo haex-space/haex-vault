@@ -66,21 +66,21 @@
           >
             <div
               v-for="vault in availableVaults"
-              :key="vault.vaultId"
+              :key="vault.spaceId"
               class="card bg-elevated rounded-lg p-4 cursor-pointer hover:bg-muted transition-colors"
               :class="{
                 'ring-2 ring-primary':
-                  selectedVaultId === vault.vaultId && !isCreatingNewVault,
+                  selectedVaultId === vault.spaceId && !isCreatingNewVault,
                 'ring-2 ring-error':
                   step3Error && !selectedVaultId && !isCreatingNewVault,
               }"
-              @click="selectVault(vault.vaultId)"
+              @click="selectVault(vault.spaceId)"
             >
               <div class="flex items-center justify-between">
                 <div>
                   <p class="font-medium">
                     {{
-                      decryptedVaultNames[vault.vaultId] ||
+                      decryptedVaultNames[vault.spaceId] ||
                       t('steps.selectVault.encryptedVault')
                     }}
                   </p>
@@ -91,7 +91,7 @@
                 </div>
                 <div
                   v-if="
-                    selectedVaultId === vault.vaultId && !isCreatingNewVault
+                    selectedVaultId === vault.spaceId && !isCreatingNewVault
                   "
                 >
                   <span
@@ -273,7 +273,7 @@ const { decryptAndVerifyAsync } = useIdentityRecovery()
 const wizardSchema = computed(() => createConnectWizardSchema(t))
 
 interface VaultInfo {
-  vaultId: string
+  spaceId: string
   encryptedVaultName: string
   vaultNameNonce: string
   ephemeralPublicKey: string
@@ -288,7 +288,7 @@ const emit = defineEmits<{
   complete: [
     {
       backendId: string
-      vaultId: string
+      spaceId: string
       vaultName: string
       localVaultName: string
       serverUrl: string
@@ -531,7 +531,7 @@ const decryptVaultNamesAsync = async (privateKeyBase64: string) => {
         },
         privateKeyBase64,
       )
-      names[vault.vaultId] = new TextDecoder().decode(decryptedBytes)
+      names[vault.spaceId] = new TextDecoder().decode(decryptedBytes)
     } catch {
       // Decryption failed — keep showing fallback
     }
@@ -579,7 +579,7 @@ const completeSetupAsync = async () => {
   if (isCreatingNewVault.value) {
     emit('complete', {
       backendId,
-      vaultId: '', // Server generates via /partitions/create
+      spaceId: '', // Server generates via /partitions/create
       vaultName: localVaultName.value,
       localVaultName: localVaultName.value,
       serverUrl: credentials.value.serverUrl,
@@ -590,13 +590,13 @@ const completeSetupAsync = async () => {
     })
   } else {
     const selectedVault = availableVaults.value.find(
-      (v) => v.vaultId === selectedVaultId.value,
+      (v) => v.spaceId === selectedVaultId.value,
     )
     if (!selectedVault) return
 
     emit('complete', {
       backendId,
-      vaultId: selectedVault.vaultId,
+      spaceId: selectedVault.spaceId,
       vaultName: localVaultName.value,
       localVaultName: localVaultName.value,
       serverUrl: credentials.value.serverUrl,
@@ -608,8 +608,8 @@ const completeSetupAsync = async () => {
   }
 }
 
-const selectVault = async (vaultId: string) => {
-  selectedVaultId.value = vaultId
+const selectVault = async (spaceId: string) => {
+  selectedVaultId.value = spaceId
   isCreatingNewVault.value = false
   needsVaultPassword.value = false
   vaultPasswordVerified.value = false
@@ -617,14 +617,14 @@ const selectVault = async (vaultId: string) => {
   step3Error.value = ''
 
   // Auto-fill local vault name with decrypted name
-  localVaultName.value = decryptedVaultNames.value[vaultId] || 'HaexVault'
+  localVaultName.value = decryptedVaultNames.value[spaceId] || 'HaexVault'
   checkVaultNameExistsAsync()
 
   // Try DID password as vault password in background
-  await tryDIDPasswordAsVaultPasswordAsync(vaultId)
+  await tryDIDPasswordAsVaultPasswordAsync(spaceId)
 }
 
-const tryDIDPasswordAsVaultPasswordAsync = async (vaultId: string) => {
+const tryDIDPasswordAsVaultPasswordAsync = async (spaceId: string) => {
   if (!supabaseClient.value) return
 
   isCheckingVaultPassword.value = true
@@ -635,7 +635,7 @@ const tryDIDPasswordAsVaultPasswordAsync = async (vaultId: string) => {
 
     // Fetch encrypted vault key from server
     const response = await fetch(
-      `${credentials.value.serverUrl}/sync/vault-key/${vaultId}`,
+      `${credentials.value.serverUrl}/sync/vault-key/${spaceId}`,
       {
         method: 'GET',
         headers: { Authorization: `Bearer ${session.access_token}` },

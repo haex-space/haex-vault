@@ -347,7 +347,7 @@ export const useCreateSyncConnection = () => {
         name: backendName,
         serverUrl,
         enabled: false,
-        vaultId: currentVaultId.value,
+        spaceId: currentVaultId.value,
         identityId,
       })
 

@@ -53,15 +53,15 @@ export const pushToBackendAsync = async (
   try {
     // Get backend configuration
     const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
-    if (!backend?.vaultId) {
-      log.error('PUSH FAILED: Backend vaultId not configured')
-      throw new Error('Backend vaultId not configured')
+    if (!backend?.spaceId) {
+      log.error('PUSH FAILED: Backend spaceId not configured')
+      throw new Error('Backend spaceId not configured')
     }
 
     const lastPushHlc = backend.lastPushHlcTimestamp
     log.debug('Backend config:', {
       backendId,
-      vaultId: backend.vaultId,
+      spaceId: backend.spaceId,
       serverUrl: backend.serverUrl,
       lastPushHlc: lastPushHlc || '(none)',
     })
@@ -173,7 +173,7 @@ export const pushToBackendAsync = async (
     // Push changes to server using new format
     const serverTimestamp = await pushChangesToServerAsync(
       backendId,
-      backend.vaultId,
+      backend.spaceId,
       allChanges,
       syncBackendsStore,
       syncEngineStore,
@@ -223,7 +223,7 @@ export const pushToBackendAsync = async (
  */
 export const pushChangesToServerAsync = async (
   backendId: string,
-  vaultId: string,
+  spaceId: string,
   changes: ColumnChange[],
   syncBackendsStore: ReturnType<typeof useSyncBackendsStore>,
   syncEngineStore: ReturnType<typeof useSyncEngineStore>,
@@ -303,14 +303,14 @@ export const pushChangesToServerAsync = async (
 
   const url = `${backend.serverUrl}/sync/push`
   log.debug('Sending POST to:', url)
-  log.debug('Request payload:', { vaultId, changesCount: formattedChanges.length })
+  log.debug('Request payload:', { spaceId, changesCount: formattedChanges.length })
 
   // Send to server
   const response = await fetchWithReauthAsync(url, {
     method: 'POST',
     headers,
     body: JSON.stringify({
-      vaultId,
+      spaceId,
       changes: formattedChanges,
     }),
   })
@@ -349,14 +349,14 @@ export const pushAllDataToBackendAsync = async (
 
   // Get backend configuration
   const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
-  if (!backend?.vaultId) {
-    log.error('FULL PUSH FAILED: Backend vaultId not configured')
-    throw new Error('Backend vaultId not configured')
+  if (!backend?.spaceId) {
+    log.error('FULL PUSH FAILED: Backend spaceId not configured')
+    throw new Error('Backend spaceId not configured')
   }
 
   log.debug('Backend config:', {
     backendId,
-    vaultId: backend.vaultId,
+    spaceId: backend.spaceId,
     serverUrl: backend.serverUrl,
   })
 
@@ -437,7 +437,7 @@ export const pushAllDataToBackendAsync = async (
   // Push changes to server
   const serverTimestamp = await pushChangesToServerAsync(
     backendId,
-    backend.vaultId,
+    backend.spaceId,
     allChanges,
     syncBackendsStore,
     syncEngineStore,

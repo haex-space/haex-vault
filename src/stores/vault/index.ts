@@ -145,15 +145,15 @@ export const useVaultStore = defineStore('vaultStore', () => {
           })
 
           // Ensure sync key exists
-          if (backend.vaultId && currentVault.value?.name && currentVaultPassword.value) {
+          if (backend.spaceId && currentVault.value?.name && currentVaultPassword.value) {
             await syncEngineStore.ensureSyncKeyAsync(
               backend.id,
-              backend.vaultId,
+              backend.spaceId,
               currentVault.value.name,
               currentVaultPassword.value,
             )
-          } else if (!backend.vaultId) {
-            console.warn(`[HaexSpace] Backend ${backend.name} has no vaultId configured`)
+          } else if (!backend.spaceId) {
+            console.warn(`[HaexSpace] Backend ${backend.name} has no spaceId configured`)
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error)
@@ -418,11 +418,11 @@ export const useVaultStore = defineStore('vaultStore', () => {
         } else {
           // Try to update each backend
           for (const backend of enabledBackends) {
-            if (!backend.vaultId) continue
+            if (!backend.spaceId) continue
 
             const success = await syncEngineStore.reEncryptVaultKeyOnBackendAsync(
               backend.id,
-              backend.vaultId,
+              backend.spaceId,
               cachedKey.vaultKey,
               newPassword,
             )
@@ -484,7 +484,7 @@ const getVaultIdAsync = async (
   const existingSettings = await drizzleDb
     .select()
     .from(haexVaultSettings)
-    .where(eq(haexVaultSettings.key, 'vault_id'))
+    .where(eq(haexVaultSettings.key, 'space_id'))
     .limit(1)
 
   if (existingSettings[0]?.value) {
@@ -496,7 +496,7 @@ const getVaultIdAsync = async (
 
   // Store it in settings
   await drizzleDb.insert(haexVaultSettings).values({
-    key: 'vault_id',
+    key: 'space_id',
     type: 'system',
     value: vaultId,
   })
