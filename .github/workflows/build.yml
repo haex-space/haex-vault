@@ -177,7 +177,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: android-e2e-results-${{ github.run_id }}
           path: |
@@ -244,7 +244,7 @@ jobs:
 
       - name: Upload artifacts (macOS)
         if: matrix.platform == 'macos-latest'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: macos-${{ contains(matrix.args, 'aarch64') && 'aarch64' || 'x86_64' }}
           path: |
@@ -253,7 +253,7 @@ jobs:
 
       - name: Upload artifacts (Ubuntu)
         if: matrix.platform == 'ubuntu-22.04'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: linux
           path: |
@@ -272,7 +272,7 @@ jobs:
 
       - name: Upload Linux binary for E2E tests
         if: matrix.platform == 'ubuntu-22.04'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: haex-vault-linux-e2e
           path: src-tauri/target/release/haex-vault
@@ -280,7 +280,7 @@ jobs:
 
       - name: Upload artifacts (Windows)
         if: matrix.platform == 'windows-latest'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: windows
           path: |
@@ -436,7 +436,7 @@ jobs:
           find src-tauri/gen/android/app/build/outputs -name "*.aab" -type f 2>/dev/null || echo "No AAB files found"
 
       - name: Upload Android artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: android
           path: |
@@ -503,7 +503,7 @@ jobs:
 
       - name: Upload Android APK for E2E tests
         if: env.APK_FOUND == 'true'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: haex-vault-android-e2e
           path: e2e-apk/*.apk
