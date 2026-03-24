@@ -232,6 +232,9 @@ jobs:
         with:
           workspaces: src-tauri
 
+      - name: Clean stale migration caches
+        run: find src-tauri/target -path "*/database/migrations" -type d -exec rm -rf {} + 2>/dev/null || true
+
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
@@ -381,6 +384,13 @@ jobs:
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Clean stale migration caches
+        run: |
+          # Remove cached migration files from target/ to prevent stale schemas
+          # after migration squash/regeneration. The Rust build will re-copy from
+          # src-tauri/database/migrations/ (the source of truth).
+          find src-tauri/target -path "*/database/migrations" -type d -exec rm -rf {} + 2>/dev/null || true
 
       - name: Initialize Android project
         run: |
