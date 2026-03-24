@@ -1,5 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { invoke, Channel } from '@tauri-apps/api/core'
 import { eq } from 'drizzle-orm'
 import type { PeerStorageStatus } from '~/../src-tauri/bindings/PeerStorageStatus'
 import type { PeerStorageStartInfo } from '~/../src-tauri/bindings/PeerStorageStartInfo'
@@ -168,7 +167,6 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
 
   const startAsync = async () => {
     await loadConfiguredRelayUrlAsync()
-    await initTransferListenerAsync()
     const info = await invoke<PeerStorageStartInfo>('peer_storage_start', {
       relayUrl: configuredRelayUrl.value || null,
     })
@@ -293,39 +291,58 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
 
   const transfers = ref<Map<string, TransferProgress>>(new Map())
 
-  const initTransferListenerAsync = async () => {
-    await listen<{ transferId: string; path: string; bytesReceived: number; totalBytes: number }>(
-      'peer_storage_transfer_progress',
-      (event) => {
-        const { transferId, path, bytesReceived, totalBytes } = event.payload
-        const fileName = path.split('/').pop() || path
-        transfers.value.set(transferId, {
-          transferId,
-          path,
-          fileName,
-          bytesReceived,
-          totalBytes,
-          progress: totalBytes > 0 ? bytesReceived / totalBytes : 0,
-        })
-        // Trigger reactivity
-        transfers.value = new Map(transfers.value)
-      },
-    )
-    await listen<{ transferId: string }>(
-      'peer_storage_transfer_complete',
-      (event) => {
-        // Keep completed transfer briefly for UI feedback, then remove
-        const transfer = transfers.value.get(event.payload.transferId)
-        if (transfer) {
-          transfer.progress = 1
+  /** Create a Channel that streams transfer events from the Rust side. */
+  const createTransferChannel = (transferId: string, path: string) => {
+    type TransferEvent =
+      | { event: 'progress'; bytesReceived: number; totalBytes: number }
+      | { event: 'complete'; localPath: string; totalBytes: number }
+      | { event: 'error'; error: string }
+
+    let resolveTransfer: ((localPath: string) => void) | undefined
+    let rejectTransfer: ((error: Error) => void) | undefined
+    const fileName = path.split('/').pop() || path
+
+    const promise = new Promise<string>((resolve, reject) => {
+      resolveTransfer = resolve
+      rejectTransfer = reject
+    })
+
+    const channel = new Channel<TransferEvent>()
+    channel.onmessage = (msg) => {
+      switch (msg.event) {
+        case 'progress':
+          transfers.value.set(transferId, {
+            transferId,
+            path,
+            fileName,
+            bytesReceived: msg.bytesReceived,
+            totalBytes: msg.totalBytes,
+            progress: msg.totalBytes > 0 ? msg.bytesReceived / msg.totalBytes : 0,
+          })
           transfers.value = new Map(transfers.value)
-          setTimeout(() => {
-            transfers.value.delete(event.payload.transferId)
+          break
+        case 'complete': {
+          const transfer = transfers.value.get(transferId)
+          if (transfer) {
+            transfer.progress = 1
             transfers.value = new Map(transfers.value)
-          }, 1500)
+            setTimeout(() => {
+              transfers.value.delete(transferId)
+              transfers.value = new Map(transfers.value)
+            }, 1500)
+          }
+          resolveTransfer?.(msg.localPath)
+          break
         }
-      },
-    )
+        case 'error':
+          transfers.value.delete(transferId)
+          transfers.value = new Map(transfers.value)
+          rejectTransfer?.(new Error(msg.error))
+          break
+      }
+    }
+
+    return { channel, promise }
   }
 
   /** Get transfer progress for a specific file path (0-1, or undefined if not downloading) */
@@ -370,42 +387,20 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   const remoteReadAsync = async (remoteNodeId: string, path: string, saveTo?: string) => {
     const device = spaceDevices.value.find(d => d.deviceEndpointId === remoteNodeId)
     const transferId = crypto.randomUUID()
+    const { channel, promise } = createTransferChannel(transferId, path)
+
     activeTransfers.value++
     try {
-      // The IPC command returns immediately with the target path.
-      // The actual download runs in a background task on the Rust side
-      // to avoid SIGSEGV on Android's JNI/WebView bridge.
-      const targetPath = await invoke<string>('peer_storage_remote_read', {
+      await invoke<string>('peer_storage_remote_read', {
         nodeId: remoteNodeId,
         relayUrl: device?.relayUrl ?? null,
         path,
         transferId,
         saveTo: saveTo ?? null,
+        onEvent: channel,
       })
 
-      // Wait for the background task to finish
-      return await new Promise<string>((resolve, reject) => {
-        const cleanup = () => {
-          unlistenComplete?.()
-          unlistenError?.()
-        }
-        let unlistenComplete: (() => void) | undefined
-        let unlistenError: (() => void) | undefined
-
-        listen<{ transferId: string; localPath: string }>('peer_storage_transfer_complete', (event) => {
-          if (event.payload.transferId === transferId) {
-            cleanup()
-            resolve(event.payload.localPath || targetPath)
-          }
-        }).then(fn => { unlistenComplete = fn })
-
-        listen<{ transferId: string; error: string }>('peer_storage_transfer_error', (event) => {
-          if (event.payload.transferId === transferId) {
-            cleanup()
-            reject(new Error(event.payload.error))
-          }
-        }).then(fn => { unlistenError = fn })
-      })
+      return await promise
     } finally {
       activeTransfers.value--
     }
@@ -482,7 +477,6 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     transfers,
     activeDownloads,
     getTransferProgress,
-    initTransferListenerAsync,
     cancelTransferAsync,
     pauseTransferAsync,
     resumeTransferAsync,
