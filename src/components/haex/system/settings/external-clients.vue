@@ -1,257 +1,215 @@
 <template>
   <HaexSystemSettingsLayout :title="t('title')" :description="t('description')">
-    <!-- Bridge Configuration Section -->
-      <UCard>
-        <template #header>
-          <h3 class="text-lg font-semibold flex items-center gap-2">
-            <UIcon name="i-heroicons-cog-6-tooth" class="w-5 h-5" />
-            {{ t('bridgeConfigTitle') }}
-          </h3>
-        </template>
-
-        <div class="space-y-4">
-          <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-            <div class="flex-1">
-              <label class="text-sm font-medium block mb-1">{{ t('bridgeConfigPort') }}</label>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
-                {{ t('bridgeConfigPortHint') }}
-              </p>
-            </div>
-            <div class="flex items-center gap-2">
-              <UInput
-                v-model.number="bridgePort"
-                type="number"
-                :min="1024"
-                :max="65535"
-                class="w-28"
-                :disabled="savingPort"
-              />
-              <UButton
-                :label="t('bridgeConfigApply')"
-                :loading="savingPort"
-                :disabled="bridgePort === currentPort || !isValidPort"
-                                @click="handleSavePort"
-              />
-            </div>
-          </div>
-
-          <div class="flex items-center gap-2 text-sm">
-            <UIcon
-              :name="bridgeRunning ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'"
-              :class="bridgeRunning ? 'text-success' : 'text-error'"
-              class="w-4 h-4"
-            />
-            <span v-if="bridgeRunning">
-              {{ t('bridgeConfigRunning', { port: currentPort }) }}
-            </span>
-            <span v-else>
-              {{ t('bridgeConfigStopped') }}
-            </span>
-          </div>
-        </div>
-      </UCard>
-
-      <div v-if="loading" class="flex justify-center py-8">
-        <UIcon
-          name="i-heroicons-arrow-path"
-          class="w-8 h-8 animate-spin text-primary"
+    <!-- Bridge Configuration -->
+    <HaexSystemSettingsLayoutSection
+      :title="t('bridgeConfigTitle')"
+      :description="t('bridgeConfigPortHint')"
+      default-open
+    >
+      <template #actions>
+        <UButton
+          :label="t('bridgeConfigApply')"
+          :loading="savingPort"
+          :disabled="bridgePort === currentPort || !isValidPort"
+          @click="handleSavePort"
         />
-      </div>
-
-      <template v-else>
-        <!-- Authorized Clients Section (Permanent) -->
-        <UCard>
-          <template #header>
-            <h3 class="text-lg font-semibold flex items-center gap-2">
-              <UIcon name="i-heroicons-check-circle" class="w-5 h-5 text-success" />
-              {{ t('authorizedClients') }}
-            </h3>
-          </template>
-
-          <div
-            v-if="!authorizedClients.length"
-            class="text-center py-6 text-gray-500 dark:text-gray-400"
-          >
-            {{ t('noAuthorizedClients') }}
-          </div>
-
-          <div v-else class="space-y-2">
-            <div
-              v-for="client in authorizedClients"
-              :key="client.id"
-              class="p-4 rounded-lg border border-default bg-elevated"
-            >
-              <div class="flex items-start justify-between gap-4">
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2">
-                    <span class="font-semibold">{{ client.clientName }}</span>
-                    <UBadge color="success" variant="subtle">
-                      {{ t('authorized') }}
-                    </UBadge>
-                  </div>
-                  <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    <span>{{ t('extension') }}: {{ getExtensionName(client.extensionId) }}</span>
-                  </div>
-                  <div class="text-xs text-gray-400 dark:text-gray-500 mt-1 font-mono truncate">
-                    {{ client.clientId }}
-                  </div>
-                  <div v-if="client.authorizedAt" class="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                    {{ t('authorizedAt') }}: {{ formatDate(client.authorizedAt) }}
-                  </div>
-                </div>
-                <UButton
-                  color="error"
-                  variant="ghost"
-                                    :loading="revokingClientId === client.clientId"
-                  @click="handleRevokeClient(client)"
-                >
-                  <UIcon name="i-heroicons-x-mark" class="w-4 h-4" />
-                  {{ t('revoke') }}
-                </UButton>
-              </div>
-            </div>
-          </div>
-        </UCard>
-
-        <!-- Session Decisions Section (Temporary) -->
-        <UCard>
-          <template #header>
-            <h3 class="text-lg font-semibold flex items-center gap-2">
-              <UIcon name="i-heroicons-clock" class="w-5 h-5 text-warning" />
-              {{ t('sessionDecisions') }}
-            </h3>
-          </template>
-
-          <div
-            v-if="!sessionAuthorizations.length && !sessionBlockedClients.length"
-            class="text-center py-6 text-gray-500 dark:text-gray-400"
-          >
-            {{ t('noSessionDecisions') }}
-          </div>
-
-          <div v-else class="space-y-2">
-            <!-- Session Authorized Clients -->
-            <div
-              v-for="auth in sessionAuthorizations"
-              :key="'auth-' + auth.clientId"
-              class="p-4 rounded-lg border border-default bg-elevated"
-            >
-              <div class="flex items-start justify-between gap-4">
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2">
-                    <span class="font-semibold">{{ t('sessionClient') }}</span>
-                    <UBadge color="success" variant="subtle">
-                      {{ t('sessionAllowed') }}
-                    </UBadge>
-                  </div>
-                  <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    <span>{{ t('extension') }}: {{ getExtensionName(auth.extensionId) }}</span>
-                  </div>
-                  <div class="text-xs text-gray-400 dark:text-gray-500 mt-1 font-mono truncate">
-                    {{ auth.clientId }}
-                  </div>
-                  <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                    {{ t('sessionHint') }}
-                  </div>
-                </div>
-                <UButton
-                  color="error"
-                  variant="ghost"
-                  :loading="revokingSessionClientId === auth.clientId"
-                  @click="handleRevokeSessionAuth(auth)"
-                >
-                  <UIcon name="i-heroicons-x-mark" class="w-4 h-4" />
-                  {{ t('revoke') }}
-                </UButton>
-              </div>
-            </div>
-
-            <!-- Session Blocked Clients -->
-            <div
-              v-for="client in sessionBlockedClients"
-              :key="'blocked-' + client.clientId"
-              class="p-4 rounded-lg border border-default bg-elevated"
-            >
-              <div class="flex items-start justify-between gap-4">
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2">
-                    <span class="font-semibold">{{ client.clientName }}</span>
-                    <UBadge color="error" variant="subtle">
-                      {{ t('sessionBlocked') }}
-                    </UBadge>
-                  </div>
-                  <div class="text-xs text-gray-400 dark:text-gray-500 mt-1 font-mono truncate">
-                    {{ client.clientId }}
-                  </div>
-                  <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                    {{ t('sessionHint') }}
-                  </div>
-                </div>
-                <UButton
-                  color="success"
-                  variant="ghost"
-                  :loading="unblockingSessionClientId === client.clientId"
-                  @click="handleUnblockSessionClient(client)"
-                >
-                  <UIcon name="i-heroicons-check" class="w-4 h-4" />
-                  {{ t('unblock') }}
-                </UButton>
-              </div>
-            </div>
-          </div>
-        </UCard>
-
-        <!-- Blocked Clients Section -->
-        <UCard>
-          <template #header>
-            <h3 class="text-lg font-semibold flex items-center gap-2">
-              <UIcon name="i-heroicons-no-symbol" class="w-5 h-5 text-error" />
-              {{ t('blockedClients') }}
-            </h3>
-          </template>
-
-          <div
-            v-if="!blockedClients.length"
-            class="text-center py-6 text-gray-500 dark:text-gray-400"
-          >
-            {{ t('noBlockedClients') }}
-          </div>
-
-          <div v-else class="space-y-2">
-            <div
-              v-for="client in blockedClients"
-              :key="client.id"
-              class="p-4 rounded-lg border border-default bg-elevated"
-            >
-              <div class="flex items-start justify-between gap-4">
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2">
-                    <span class="font-semibold">{{ client.clientName }}</span>
-                    <UBadge color="error" variant="subtle">
-                      {{ t('blocked') }}
-                    </UBadge>
-                  </div>
-                  <div class="text-xs text-gray-400 dark:text-gray-500 mt-1 font-mono truncate">
-                    {{ client.clientId }}
-                  </div>
-                  <div v-if="client.blockedAt" class="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                    {{ t('blockedAt') }}: {{ formatDate(client.blockedAt) }}
-                  </div>
-                </div>
-                <UButton
-                  color="success"
-                  variant="ghost"
-                                    :loading="unblockingClientId === client.clientId"
-                  @click="handleUnblockClient(client)"
-                >
-                  <UIcon name="i-heroicons-check" class="w-4 h-4" />
-                  {{ t('unblock') }}
-                </UButton>
-              </div>
-            </div>
-          </div>
-        </UCard>
       </template>
+
+      <div class="space-y-4">
+        <div class="flex flex-col @sm:flex-row @sm:items-center gap-3">
+          <label class="text-sm font-medium flex-1">{{ t('bridgeConfigPort') }}</label>
+          <UInput
+            v-model.number="bridgePort"
+            type="number"
+            :min="1024"
+            :max="65535"
+            class="w-28"
+            :disabled="savingPort"
+          />
+        </div>
+
+        <div class="flex items-center gap-2 text-sm">
+          <UIcon
+            :name="bridgeRunning ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'"
+            :class="bridgeRunning ? 'text-success' : 'text-error'"
+            class="w-4 h-4"
+          />
+          <span v-if="bridgeRunning">
+            {{ t('bridgeConfigRunning', { port: currentPort }) }}
+          </span>
+          <span v-else>
+            {{ t('bridgeConfigStopped') }}
+          </span>
+        </div>
+      </div>
+    </HaexSystemSettingsLayoutSection>
+
+    <div v-if="loading" class="flex justify-center py-8">
+      <UIcon
+        name="i-heroicons-arrow-path"
+        class="w-8 h-8 animate-spin text-primary"
+      />
+    </div>
+
+    <template v-else>
+      <!-- Authorized Clients -->
+      <HaexSystemSettingsLayoutSection
+        :title="t('authorizedClients')"
+      >
+        <HaexSystemSettingsLayoutEmpty
+          v-if="!authorizedClients.length"
+          :message="t('noAuthorizedClients')"
+        />
+
+        <UiListContainer v-else>
+          <UiListItem
+            v-for="client in authorizedClients"
+            :key="client.id"
+          >
+            <div class="flex items-center gap-2">
+              <span class="font-semibold">{{ client.clientName }}</span>
+              <UBadge color="success" variant="subtle">
+                {{ t('authorized') }}
+              </UBadge>
+            </div>
+            <div class="text-sm text-muted mt-1">
+              {{ t('extension') }}: {{ getExtensionName(client.extensionId) }}
+            </div>
+            <div class="text-xs text-muted mt-1 font-mono truncate">
+              {{ client.clientId }}
+            </div>
+            <div v-if="client.authorizedAt" class="text-xs text-muted mt-1">
+              {{ t('authorizedAt') }}: {{ formatDate(client.authorizedAt) }}
+            </div>
+            <template #actions>
+              <UButton
+                color="error"
+                variant="ghost"
+                :loading="revokingClientId === client.clientId"
+                @click="handleRevokeClient(client)"
+              >
+                <UIcon name="i-heroicons-x-mark" class="w-4 h-4" />
+                {{ t('revoke') }}
+              </UButton>
+            </template>
+          </UiListItem>
+        </UiListContainer>
+      </HaexSystemSettingsLayoutSection>
+
+      <!-- Session Decisions -->
+      <HaexSystemSettingsLayoutSection
+        :title="t('sessionDecisions')"
+      >
+        <HaexSystemSettingsLayoutEmpty
+          v-if="!sessionAuthorizations.length && !sessionBlockedClients.length"
+          :message="t('noSessionDecisions')"
+        />
+
+        <UiListContainer v-else>
+          <UiListItem
+            v-for="auth in sessionAuthorizations"
+            :key="'auth-' + auth.clientId"
+          >
+            <div class="flex items-center gap-2">
+              <span class="font-semibold">{{ t('sessionClient') }}</span>
+              <UBadge color="success" variant="subtle">
+                {{ t('sessionAllowed') }}
+              </UBadge>
+            </div>
+            <div class="text-sm text-muted mt-1">
+              {{ t('extension') }}: {{ getExtensionName(auth.extensionId) }}
+            </div>
+            <div class="text-xs text-muted mt-1 font-mono truncate">
+              {{ auth.clientId }}
+            </div>
+            <div class="text-xs text-muted mt-1">
+              {{ t('sessionHint') }}
+            </div>
+            <template #actions>
+              <UButton
+                color="error"
+                variant="ghost"
+                :loading="revokingSessionClientId === auth.clientId"
+                @click="handleRevokeSessionAuth(auth)"
+              >
+                <UIcon name="i-heroicons-x-mark" class="w-4 h-4" />
+                {{ t('revoke') }}
+              </UButton>
+            </template>
+          </UiListItem>
+
+          <UiListItem
+            v-for="client in sessionBlockedClients"
+            :key="'blocked-' + client.clientId"
+          >
+            <div class="flex items-center gap-2">
+              <span class="font-semibold">{{ client.clientName }}</span>
+              <UBadge color="error" variant="subtle">
+                {{ t('sessionBlocked') }}
+              </UBadge>
+            </div>
+            <div class="text-xs text-muted mt-1 font-mono truncate">
+              {{ client.clientId }}
+            </div>
+            <div class="text-xs text-muted mt-1">
+              {{ t('sessionHint') }}
+            </div>
+            <template #actions>
+              <UButton
+                color="success"
+                variant="ghost"
+                :loading="unblockingSessionClientId === client.clientId"
+                @click="handleUnblockSessionClient(client)"
+              >
+                <UIcon name="i-heroicons-check" class="w-4 h-4" />
+                {{ t('unblock') }}
+              </UButton>
+            </template>
+          </UiListItem>
+        </UiListContainer>
+      </HaexSystemSettingsLayoutSection>
+
+      <!-- Blocked Clients -->
+      <HaexSystemSettingsLayoutSection
+        :title="t('blockedClients')"
+      >
+        <HaexSystemSettingsLayoutEmpty
+          v-if="!blockedClients.length"
+          :message="t('noBlockedClients')"
+        />
+
+        <UiListContainer v-else>
+          <UiListItem
+            v-for="client in blockedClients"
+            :key="client.id"
+          >
+            <div class="flex items-center gap-2">
+              <span class="font-semibold">{{ client.clientName }}</span>
+              <UBadge color="error" variant="subtle">
+                {{ t('blocked') }}
+              </UBadge>
+            </div>
+            <div class="text-xs text-muted mt-1 font-mono truncate">
+              {{ client.clientId }}
+            </div>
+            <div v-if="client.blockedAt" class="text-xs text-muted mt-1">
+              {{ t('blockedAt') }}: {{ formatDate(client.blockedAt) }}
+            </div>
+            <template #actions>
+              <UButton
+                color="success"
+                variant="ghost"
+                :loading="unblockingClientId === client.clientId"
+                @click="handleUnblockClient(client)"
+              >
+                <UIcon name="i-heroicons-check" class="w-4 h-4" />
+                {{ t('unblock') }}
+              </UButton>
+            </template>
+          </UiListItem>
+        </UiListContainer>
+      </HaexSystemSettingsLayoutSection>
+    </template>
   </HaexSystemSettingsLayout>
 </template>
 

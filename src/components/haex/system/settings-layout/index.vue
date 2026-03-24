@@ -3,7 +3,7 @@
     <!-- Header -->
     <div
       :class="[
-        'p-6 border-b border-default',
+        'p-3 @sm:p-6 border-b border-default',
         stickyHeader && 'sticky top-0 z-10 bg-default',
       ]"
     >
@@ -29,7 +29,7 @@
     </div>
 
     <!-- Content -->
-    <div class="p-6 space-y-6 flex-1">
+    <div class="p-3 @sm:p-6 flex-1">
       <slot />
     </div>
   </div>

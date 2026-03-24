@@ -4,34 +4,28 @@
     :description="t('description')"
   >
     <!-- Identities List -->
-    <UCard>
-      <template #header>
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 class="text-lg font-semibold">{{ t('list.title') }}</h3>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {{ t('list.description') }}
-            </p>
-          </div>
-          <div class="flex gap-2">
-            <UButton
-              color="neutral"
-              variant="outline"
-              icon="i-lucide-import"
-              @click="showImportDialog = true"
-            >
-              <span class="hidden @sm:inline">{{ t('actions.import') }}</span>
-            </UButton>
-            <UButton
-              color="primary"
-              icon="i-lucide-plus"
-              data-tour="settings-identities-create"
-              @click="showCreateDialog = true"
-            >
-              <span class="hidden @sm:inline">{{ t('actions.create') }}</span>
-            </UButton>
-          </div>
-        </div>
+    <HaexSystemSettingsLayoutSection
+      :title="t('list.title')"
+      :description="t('list.description')"
+      default-open
+    >
+      <template #actions>
+        <UButton
+          color="neutral"
+          variant="outline"
+          icon="i-lucide-import"
+          @click="showImportDialog = true"
+        >
+          <span class="hidden @sm:inline">{{ t('actions.import') }}</span>
+        </UButton>
+        <UButton
+          color="primary"
+          icon="i-lucide-plus"
+          data-tour="settings-identities-create"
+          @click="showCreateDialog = true"
+        >
+          <span class="hidden @sm:inline">{{ t('actions.create') }}</span>
+        </UButton>
       </template>
 
       <!-- Loading -->
@@ -173,13 +167,12 @@
       </div>
 
       <!-- Empty state -->
-      <div
+      <HaexSystemSettingsLayoutEmpty
         v-else
-        class="text-center py-4 text-gray-500 dark:text-gray-400"
-      >
-        {{ t('list.empty') }}
-      </div>
-    </UCard>
+        :message="t('list.empty')"
+        icon="i-lucide-fingerprint"
+      />
+    </HaexSystemSettingsLayoutSection>
 
     <!-- Create Identity Dialog -->
     <UiDrawerModal

@@ -177,13 +177,11 @@
           class="pt-4 space-y-6"
         >
           <!-- System Log Retention -->
-          <UCard>
-            <template #header>
-              <h4 class="font-semibold">{{ t('settings.system.title') }}</h4>
-              <p class="text-sm text-muted mt-1">
-                {{ t('settings.system.description') }}
-              </p>
-            </template>
+          <HaexSystemSettingsLayoutSection
+            :title="t('settings.system.title')"
+            :description="t('settings.system.description')"
+            default-open
+          >
             <div class="flex items-center gap-3">
               <span class="text-sm shrink-0">{{
                 t('settings.retention')
@@ -196,18 +194,14 @@
               />
               <span class="text-sm text-muted">{{ t('settings.days') }}</span>
             </div>
-          </UCard>
+          </HaexSystemSettingsLayoutSection>
 
           <!-- Extension Log Retention -->
-          <UCard v-if="extensionStore.availableExtensions.length > 0">
-            <template #header>
-              <h4 class="font-semibold">
-                {{ t('settings.extensions.title') }}
-              </h4>
-              <p class="text-sm text-muted mt-1">
-                {{ t('settings.extensions.description') }}
-              </p>
-            </template>
+          <HaexSystemSettingsLayoutSection
+            v-if="extensionStore.availableExtensions.length > 0"
+            :title="t('settings.extensions.title')"
+            :description="t('settings.extensions.description')"
+          >
             <div class="space-y-4">
               <div
                 v-for="ext in extensionStore.availableExtensions"
@@ -244,7 +238,7 @@
                 </div>
               </div>
             </div>
-          </UCard>
+          </HaexSystemSettingsLayoutSection>
         </div>
       </template>
     </UTabs>

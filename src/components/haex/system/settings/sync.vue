@@ -116,29 +116,26 @@
       </template>
     </UCard>
 
-    <!-- Sync Backends List (merged with Vault Overview) -->
-    <UCard v-if="!showAddBackendForm || syncBackends.length">
-      <template #header>
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 class="text-lg font-semibold">{{ t('backends.title') }}</h3>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {{ t('backends.description') }}
-            </p>
-          </div>
-          <UButton
-            v-if="!showAddBackendForm"
-            color="primary"
-            icon="i-lucide-plus"
-            data-testid="sync-add-backend-button"
-            data-tour="settings-sync-add-backend"
-            @click="showAddBackendForm = true"
-          >
-            <span class="hidden @sm:inline">
-              {{ t('actions.add') }}
-            </span>
-          </UButton>
-        </div>
+    <!-- Sync Backends List -->
+    <HaexSystemSettingsLayoutSection
+      v-if="!showAddBackendForm || syncBackends.length"
+      :title="t('backends.title')"
+      :description="t('backends.description')"
+      default-open
+    >
+      <template #actions>
+        <UButton
+          v-if="!showAddBackendForm"
+          color="primary"
+          icon="i-lucide-plus"
+          data-testid="sync-add-backend-button"
+          data-tour="settings-sync-add-backend"
+          @click="showAddBackendForm = true"
+        >
+          <span class="hidden @sm:inline">
+            {{ t('actions.add') }}
+          </span>
+        </UButton>
       </template>
 
       <div
@@ -261,16 +258,16 @@
             <!-- Vaults list -->
             <div
               v-else
-              class="space-y-2"
+              class="divide-y divide-default"
             >
               <div
                 v-for="vault in getGroupedVaults(backend.id)?.vaults"
                 :key="vault.spaceId"
-                class="flex flex-col gap-2 p-3 rounded-lg"
+                class="flex flex-col gap-2 py-3 first:pt-0 last:pb-0"
                 :class="
                   vault.spaceId === currentVaultId
-                    ? 'bg-primary/10 border border-primary/20'
-                    : 'bg-gray-50 dark:bg-gray-800/50'
+                    ? 'bg-primary/10 px-3 rounded-lg -mx-3 border border-primary/20'
+                    : ''
                 "
               >
                 <div
@@ -320,18 +317,12 @@
       >
         {{ t('backends.noBackends') }}
       </div>
-    </UCard>
+    </HaexSystemSettingsLayoutSection>
 
     <!-- Sync Configuration -->
-    <UCard>
-      <template #header>
-        <div>
-          <h3 class="text-lg font-semibold">
-            {{ t('config.title') }}
-          </h3>
-        </div>
-      </template>
-
+    <HaexSystemSettingsLayoutSection
+      :title="t('config.title')"
+    >
       <UTabs
         v-model="activeConfigTab"
         :items="configTabItems"
@@ -414,7 +405,7 @@
           </div>
         </template>
       </UTabs>
-    </UCard>
+    </HaexSystemSettingsLayoutSection>
 
     <!-- Delete Remote Vault Confirmation Dialog -->
     <UiDialogConfirm

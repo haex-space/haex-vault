@@ -1,11 +1,7 @@
 <template>
   <HaexSystemSettingsLayout :title="t('title')">
-    <!-- General Settings Card -->
-    <UCard>
-      <template #header>
-        <h3 class="text-lg font-semibold">{{ t('general.title') }}</h3>
-      </template>
-
+    <!-- General Settings Section -->
+    <HaexSystemSettingsLayoutSection :title="t('general.title')" default-open>
       <div class="space-y-4">
         <UFormField :label="t('language')" :description="t('language.description')">
           <UiSelectLocale @select="onSelectLocaleAsync" />
@@ -65,14 +61,10 @@
           </UiDrawerModal>
         </UFormField>
       </div>
-    </UCard>
+    </HaexSystemSettingsLayoutSection>
 
-    <!-- Appearance Card -->
-    <UCard>
-      <template #header>
-        <h3 class="text-lg font-semibold">{{ t('appearance.title') }}</h3>
-      </template>
-
+    <!-- Appearance Section -->
+    <HaexSystemSettingsLayoutSection :title="t('appearance.title')">
       <div class="space-y-4">
         <UFormField :label="t('appearance.design.label')" :description="t('appearance.design.description')">
           <UiSelectTheme @select="onSelectThemeAsync" />
@@ -93,7 +85,7 @@
           <UiToggle v-model="gradientEnabled" @update:model-value="onToggleGradientAsync" />
         </UFormField>
       </div>
-    </UCard>
+    </HaexSystemSettingsLayoutSection>
   </HaexSystemSettingsLayout>
 </template>
 

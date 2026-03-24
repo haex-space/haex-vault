@@ -3,114 +3,104 @@
     :title="t('title')"
     :description="t('description')"
   >
-    <!-- Endpoint + Shared Folders (primary card) -->
-    <UCard>
-      <template #header>
-        <div class="space-y-3">
-          <div>
-            <h3 class="text-lg font-semibold">{{ t('endpoint.title') }}</h3>
-            <p class="text-sm text-muted mt-1">
-              {{ t('endpoint.description') }}
-            </p>
-          </div>
-          <UiButton
-            :icon="store.running ? 'i-lucide-power-off' : 'i-lucide-power'"
-            :color="store.running ? 'error' : 'primary'"
-            :loading="isToggling"
-            block
-            @click="onToggleEndpointAsync"
-          >
-            {{ store.running ? t('endpoint.stop') : t('endpoint.start') }}
-          </UiButton>
-        </div>
+    <!-- Endpoint Section -->
+    <HaexSystemSettingsLayoutSection
+      :title="t('endpoint.title')"
+      :description="t('endpoint.description')"
+      default-open
+    >
+      <template #actions>
+        <UiButton
+          :icon="store.running ? 'i-lucide-power-off' : 'i-lucide-power'"
+          :color="store.running ? 'error' : 'primary'"
+          :loading="isToggling"
+          @click="onToggleEndpointAsync"
+        >
+          {{ store.running ? t('endpoint.stop') : t('endpoint.start') }}
+        </UiButton>
       </template>
 
-      <!-- Shared folders per space (always visible, independent of endpoint status) -->
-        <!-- No Spaces -->
-        <div
-          v-if="!spacesStore.spaces.length"
-          class="text-center py-6 text-muted"
-        >
-          <UIcon
-            name="i-lucide-cloud-off"
-            class="w-10 h-10 mx-auto mb-2 opacity-50"
-          />
-          <p class="text-sm">{{ t('shares.noSpaces') }}</p>
+      <!-- No Spaces -->
+      <HaexSystemSettingsLayoutEmpty
+        v-if="!spacesStore.spaces.length"
+        :message="t('shares.noSpaces')"
+        icon="i-lucide-cloud-off"
+      >
+        <template #action>
           <UiButton
-            class="mt-3"
             variant="outline"
             icon="i-heroicons-user-group"
             @click="onNavigateToSpaces"
           >
             {{ t('shares.goToSpaces') }}
           </UiButton>
-        </div>
+        </template>
+      </HaexSystemSettingsLayoutEmpty>
 
-        <!-- Spaces as accordions -->
+      <!-- Spaces -->
+      <UiListContainer v-else>
         <div
-          v-else
-          class="space-y-2"
+          v-for="space in spacesStore.spaces"
+          :key="space.id"
         >
-          <div
-            v-for="space in spacesStore.spaces"
-            :key="space.id"
-            class="border border-default rounded-lg overflow-hidden"
+          <UCollapsible
+            :open="expandedSpaces.has(space.id)"
+            :unmount-on-hide="false"
           >
-            <UCollapsible
-              :open="expandedSpaces.has(space.id)"
-              :unmount-on-hide="false"
-            >
-              <!-- Space header (clickable toggle) -->
-              <div class="flex items-center gap-2 px-4 py-2.5 bg-muted/30">
-                <button
-                  class="flex items-center gap-2 min-w-0 flex-1 cursor-pointer"
-                  @click="toggleSpace(space.id)"
-                >
-                  <UIcon
-                    name="i-lucide-chevron-right"
-                    class="w-4 h-4 shrink-0 text-muted transition-transform duration-200"
-                    :class="{ 'rotate-90': expandedSpaces.has(space.id) }"
-                  />
-                  <span class="font-medium truncate">{{ space.name }}</span>
-                  <UBadge variant="subtle" size="sm">
-                    {{ getSharesForSpace(space.id).length }}
-                  </UBadge>
-                </button>
-                <UDropdownMenu
-                  :items="[
-                    [
-                      { label: t('shares.addFolder'), icon: 'i-lucide-folder-plus', onSelect: () => onAddShareAsync(space.id, 'folder') },
-                      { label: t('shares.addFile'), icon: 'i-lucide-file-plus', onSelect: () => onAddShareAsync(space.id, 'file') },
-                    ],
-                  ]"
-                >
-                  <UiButton
-                    icon="i-lucide-plus"
-                    color="primary"
-                    variant="solid"
-                    size="xl"
-                    :title="t('shares.add')"
-                  />
-                </UDropdownMenu>
-              </div>
+            <!-- Space header -->
+            <div class="flex items-center gap-2 py-2.5">
+              <button
+                class="flex items-center gap-2 min-w-0 flex-1 cursor-pointer"
+                @click="toggleSpace(space.id)"
+              >
+                <UIcon
+                  name="i-lucide-chevron-right"
+                  class="w-4 h-4 shrink-0 text-muted transition-transform duration-200"
+                  :class="{ 'rotate-90': expandedSpaces.has(space.id) }"
+                />
+                <span class="font-medium truncate">{{ space.name }}</span>
+                <UBadge variant="subtle" size="sm">
+                  {{ getSharesForSpace(space.id).length }}
+                </UBadge>
+              </button>
+              <UDropdownMenu
+                :items="[
+                  [
+                    { label: t('shares.addFolder'), icon: 'i-lucide-folder-plus', onSelect: () => onAddShareAsync(space.id, 'folder') },
+                    { label: t('shares.addFile'), icon: 'i-lucide-file-plus', onSelect: () => onAddShareAsync(space.id, 'file') },
+                  ],
+                ]"
+              >
+                <UiButton
+                  icon="i-lucide-plus"
+                  color="primary"
+                  variant="solid"
+                  size="xl"
+                  :title="t('shares.add')"
+                />
+              </UDropdownMenu>
+            </div>
 
-              <!-- Space content (collapsible) -->
-              <template #content>
-                <div class="divide-y divide-default">
-                  <!-- This device's shares -->
+            <!-- Space content -->
+            <template #content>
+              <UiListContainer>
+                <!-- This device's shares -->
+                <UiListItem
+                  v-for="share in getSharesForDevice(space.id, store.nodeId)"
+                  :key="share.id"
+                  class="group"
+                >
                   <div
-                    v-for="share in getSharesForDevice(space.id, store.nodeId)"
-                    :key="share.id"
-                    class="flex items-center gap-3 px-4 py-2.5 group"
+                    class="flex items-center gap-3 cursor-pointer hover:text-primary transition-colors"
+                    @click="onBrowseShare(share)"
                   >
                     <UIcon :name="getShareIcon(share)" class="w-4 h-4 text-primary shrink-0" />
-                    <div
-                      class="min-w-0 flex-1 cursor-pointer hover:text-primary transition-colors"
-                      @click="onBrowseShare(share)"
-                    >
+                    <div class="min-w-0 flex-1">
                       <p class="text-sm font-medium">{{ share.name }}</p>
                       <p class="text-xs text-muted truncate">{{ formatPath(share.localPath) }}</p>
                     </div>
+                  </div>
+                  <template #actions>
                     <UiButton
                       color="error"
                       variant="ghost"
@@ -118,26 +108,30 @@
                       class="opacity-0 group-hover:opacity-100 transition-opacity"
                       @click="onRemoveShareAsync(share.id)"
                     />
-                  </div>
+                  </template>
+                </UiListItem>
 
-                  <!-- Other devices' shares -->
-                  <div
-                    v-for="[deviceId, deviceShares] in getOtherDeviceShares(space.id)"
-                    :key="deviceId"
+                <!-- Other devices' shares -->
+                <template
+                  v-for="[deviceId, deviceShares] in getOtherDeviceShares(space.id)"
+                  :key="deviceId"
+                >
+                  <div class="py-2 bg-muted/10 px-1">
+                    <span class="text-xs font-medium text-muted">
+                      {{ getDeviceName(deviceId) || deviceId.slice(0, 12) + '…' }}
+                    </span>
+                  </div>
+                  <UiListItem
+                    v-for="share in deviceShares"
+                    :key="share.id"
+                    class="group cursor-pointer hover:bg-muted/20 transition-colors"
+                    @click="onBrowseShare(share)"
                   >
-                    <div class="px-4 py-2 bg-muted/10">
-                      <span class="text-xs font-medium text-muted">
-                        {{ getDeviceName(deviceId) || deviceId.slice(0, 12) + '…' }}
-                      </span>
-                    </div>
-                    <div
-                      v-for="share in deviceShares"
-                      :key="share.id"
-                      class="flex items-center gap-3 px-4 py-2.5 group cursor-pointer hover:bg-muted/20 transition-colors"
-                      @click="onBrowseShare(share)"
-                    >
+                    <div class="flex items-center gap-3">
                       <UIcon :name="getShareIcon(share)" class="w-4 h-4 text-muted shrink-0" />
                       <p class="text-sm flex-1 truncate">{{ share.name }}</p>
+                    </div>
+                    <template #actions>
                       <UiButton
                         v-if="canDeleteShare(space.id, share)"
                         color="error"
@@ -147,60 +141,61 @@
                         @click.stop="onRemoveShareAsync(share.id)"
                       />
                       <UIcon v-else name="i-lucide-chevron-right" class="w-4 h-4 text-muted shrink-0" />
-                    </div>
-                  </div>
+                    </template>
+                  </UiListItem>
+                </template>
 
-                  <!-- Empty space -->
-                  <div
-                    v-if="getSharesForSpace(space.id).length === 0"
-                    class="px-4 py-4 text-center text-muted text-sm"
-                  >
-                    {{ t('shares.emptySpace') }}
-                  </div>
+                <!-- Empty space -->
+                <div
+                  v-if="getSharesForSpace(space.id).length === 0"
+                  class="py-4 text-center text-muted text-sm"
+                >
+                  {{ t('shares.emptySpace') }}
                 </div>
-              </template>
-            </UCollapsible>
-          </div>
+              </UiListContainer>
+            </template>
+          </UCollapsible>
         </div>
+      </UiListContainer>
 
-      <template #footer>
+      <div class="mt-4 pt-4 border-t border-default">
         <UCheckbox
           v-model="autostart"
           :label="t('endpoint.autostart')"
           @update:model-value="onToggleAutostartAsync"
         />
-      </template>
-    </UCard>
+      </div>
+    </HaexSystemSettingsLayoutSection>
 
     <!-- Relay Configuration -->
-    <UCard>
-      <template #header>
-        <h3 class="text-lg font-semibold">{{ t('relay.title') }}</h3>
-        <p class="text-sm text-muted mt-1">{{ t('relay.description') }}</p>
+    <HaexSystemSettingsLayoutSection
+      :title="t('relay.title')"
+      :description="t('relay.description')"
+    >
+      <template #actions>
+        <UiButton
+          icon="i-lucide-save"
+          color="primary"
+          @click="onSaveRelayUrlAsync"
+        >
+          {{ t('relay.saved') }}
+        </UiButton>
       </template>
 
       <div class="space-y-3">
         <UFormField :label="t('relay.urlLabel')" :hint="t('relay.urlHint')">
-          <div class="flex gap-2">
-            <UInput
-              v-model="relayUrlInput"
-              :placeholder="t('relay.urlPlaceholder')"
-              class="flex-1 font-mono text-sm"
-            />
-            <UiButton
-              icon="i-lucide-save"
-              color="primary"
-              variant="outline"
-              @click="onSaveRelayUrlAsync"
-            />
-          </div>
+          <UInput
+            v-model="relayUrlInput"
+            :placeholder="t('relay.urlPlaceholder')"
+            class="flex-1 font-mono text-sm"
+          />
         </UFormField>
         <p v-if="store.configuredRelayUrl" class="text-xs text-muted">
           {{ t('relay.active') }}: <code class="bg-muted/50 px-1 rounded">{{ store.configuredRelayUrl }}</code>
         </p>
         <p v-else class="text-xs text-muted">{{ t('relay.usingDefault') }}</p>
       </div>
-    </UCard>
+    </HaexSystemSettingsLayoutSection>
   </HaexSystemSettingsLayout>
 </template>
 

@@ -4,11 +4,10 @@
     :description="t('description')"
   >
       <!-- Add Dev Extension Form -->
-      <UCard>
-        <template #header>
-          <h3 class="text-lg font-semibold">{{ t('add.title') }}</h3>
-        </template>
-
+      <HaexSystemSettingsLayoutSection
+        :title="t('add.title')"
+        default-open
+      >
         <div class="space-y-3">
           <label class="text-sm font-medium">
             {{ t('add.extensionPath') }}
@@ -37,22 +36,16 @@
             />
           </div>
         </div>
-      </UCard>
+      </HaexSystemSettingsLayoutSection>
 
       <!-- List of Dev Extensions -->
-      <UCard>
-        <template #header>
-          <h3 class="text-lg font-semibold">{{ t('list.title') }}</h3>
-        </template>
-
-        <div
-          v-if="devExtensions.length > 0"
-          class="space-y-2"
-        >
-          <div
+      <HaexSystemSettingsLayoutSection
+        :title="t('list.title')"
+      >
+        <UiListContainer v-if="devExtensions.length > 0">
+          <UiListItem
             v-for="ext in devExtensions"
             :key="ext.id"
-            class="p-4 rounded-lg border border-default bg-elevated flex flex-col gap-3"
           >
             <div class="space-y-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
@@ -65,31 +58,28 @@
               </p>
             </div>
 
-            <div class="flex gap-2 w-full">
+            <template #actions>
               <UiButton
                 :label="t('list.remove')"
                 variant="ghost"
                 color="error"
-                class="flex-1"
                 @click="removeDevExtensionAsync(ext)"
               />
               <UiButton
                 :label="t('list.reload')"
                 variant="outline"
-                class="flex-1"
                 @click="reloadDevExtensionAsync(ext)"
               />
-            </div>
-          </div>
-        </div>
+            </template>
+          </UiListItem>
+        </UiListContainer>
 
-        <div
+        <HaexSystemSettingsLayoutEmpty
           v-else
-          class="text-center py-6 text-gray-500 dark:text-gray-400"
-        >
-          {{ t('list.empty') }}
-        </div>
-      </UCard>
+          :message="t('list.empty')"
+          icon="i-lucide-puzzle"
+        />
+      </HaexSystemSettingsLayoutSection>
   </HaexSystemSettingsLayout>
 </template>
 

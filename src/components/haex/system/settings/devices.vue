@@ -1,16 +1,10 @@
 <template>
   <HaexSystemSettingsLayout :title="t('title')" :description="t('description')">
-    <UCard>
-      <template #header>
-        <div class="flex items-center gap-3">
-          <UIcon name="i-lucide-monitor-smartphone" class="w-8 h-8 text-primary shrink-0" />
-          <div>
-            <h3 class="text-lg font-semibold">{{ t('currentDevice.title') }}</h3>
-            <p class="text-sm text-muted">{{ t('currentDevice.description') }}</p>
-          </div>
-        </div>
-      </template>
-
+    <HaexSystemSettingsLayoutSection
+      :title="t('currentDevice.title')"
+      :description="t('currentDevice.description')"
+      default-open
+    >
       <div class="space-y-4">
         <UFormField
           :label="t('currentDevice.name')"
@@ -48,67 +42,67 @@
           <span class="font-medium capitalize">{{ platform || t('currentDevice.unknown') }}</span>
         </div>
       </div>
-    </UCard>
+    </HaexSystemSettingsLayoutSection>
     <!-- Other devices -->
-    <UCard v-if="otherDevices.length > 0">
-      <template #header>
-        <h3 class="text-lg font-semibold">{{ t('otherDevices.title') }}</h3>
-        <p class="text-sm text-muted">{{ t('otherDevices.description') }}</p>
-      </template>
-
-      <div class="space-y-3">
-        <div
+    <HaexSystemSettingsLayoutSection
+      v-if="otherDevices.length > 0"
+      :title="t('otherDevices.title')"
+      :description="t('otherDevices.description')"
+    >
+      <UiListContainer>
+        <UiListItem
           v-for="device in otherDevices"
           :key="device.deviceEndpointId"
-          class="flex items-center gap-3 p-3 rounded-lg bg-muted/30"
         >
-          <div class="relative shrink-0">
-            <UIcon
-              name="i-lucide-monitor"
-              class="w-5 h-5 text-muted"
-            />
-            <span
-              class="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border border-default"
-              :class="peerOnlineStatus[device.deviceEndpointId] ? 'bg-success' : 'bg-warning'"
-            />
-          </div>
-          <div class="flex-1 min-w-0">
-            <div
-              v-if="editingDeviceId === device.id"
-              class="flex items-center gap-2"
-            >
-              <UiInput
-                v-model="editingName"
-                class="flex-1"
-                @keyup.enter="onSaveOtherDeviceNameAsync(device.id)"
-                @keyup.escape="editingDeviceId = null"
+          <div class="flex items-center gap-3">
+            <div class="relative shrink-0">
+              <UIcon
+                name="i-lucide-monitor"
+                class="w-5 h-5 text-muted"
               />
-              <UiButton
-                icon="i-lucide-check"
-                color="primary"
-                @click="onSaveOtherDeviceNameAsync(device.id)"
-              />
-              <UiButton
-                icon="i-lucide-x"
-                variant="ghost"
-                color="neutral"
-                @click="editingDeviceId = null"
+              <span
+                class="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border border-default"
+                :class="peerOnlineStatus[device.deviceEndpointId] ? 'bg-success' : 'bg-warning'"
               />
             </div>
-            <template v-else>
-              <p class="text-sm font-medium truncate">{{ device.deviceName }}</p>
-              <p class="text-xs text-muted truncate font-mono">{{ device.deviceEndpointId.slice(0, 16) }}…</p>
-            </template>
+            <div class="flex-1 min-w-0">
+              <div
+                v-if="editingDeviceId === device.id"
+                class="flex items-center gap-2"
+              >
+                <UiInput
+                  v-model="editingName"
+                  class="flex-1"
+                  @keyup.enter="onSaveOtherDeviceNameAsync(device.id)"
+                  @keyup.escape="editingDeviceId = null"
+                />
+                <UiButton
+                  icon="i-lucide-check"
+                  color="primary"
+                  @click="onSaveOtherDeviceNameAsync(device.id)"
+                />
+                <UiButton
+                  icon="i-lucide-x"
+                  variant="ghost"
+                  color="neutral"
+                  @click="editingDeviceId = null"
+                />
+              </div>
+              <template v-else>
+                <p class="text-sm font-medium truncate">{{ device.deviceName }}</p>
+                <p class="text-xs text-muted truncate font-mono">{{ device.deviceEndpointId.slice(0, 16) }}…</p>
+              </template>
+            </div>
+            <UBadge
+              v-if="getSpaceName(device.spaceId)"
+              variant="subtle"
+            >
+              {{ getSpaceName(device.spaceId) }}
+            </UBadge>
           </div>
-          <UBadge
-            v-if="getSpaceName(device.spaceId)"
-            variant="subtle"
-          >
-            {{ getSpaceName(device.spaceId) }}
-          </UBadge>
-          <div
+          <template
             v-if="editingDeviceId !== device.id"
-            class="flex items-center gap-1 shrink-0"
+            #actions
           >
             <UiButton
               icon="i-lucide-pencil"
@@ -122,10 +116,10 @@
               color="error"
               @click="deviceToRemove = device"
             />
-          </div>
-        </div>
-      </div>
-    </UCard>
+          </template>
+        </UiListItem>
+      </UiListContainer>
+    </HaexSystemSettingsLayoutSection>
     <!-- Remove device confirmation -->
     <UiDialogConfirm
       v-model:open="showRemoveDialog"

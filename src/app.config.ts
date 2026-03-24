@@ -39,6 +39,13 @@ export default defineAppConfig({
         size: 'xl',
       },
     },
+    card: {
+      slots: {
+        header: 'p-3 @sm:p-4 sm:p-4',
+        body: 'p-3 @sm:p-4 sm:p-4',
+        footer: 'p-3 @sm:p-4 sm:p-4',
+      },
+    },
     checkbox: {
       defaultVariants: {
         size: 'xl',

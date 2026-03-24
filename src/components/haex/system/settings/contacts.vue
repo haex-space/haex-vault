@@ -4,41 +4,35 @@
     :description="t('description')"
   >
     <!-- Contacts List -->
-    <UCard>
-      <template #header>
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 class="text-lg font-semibold">{{ t('list.title') }}</h3>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {{ t('list.description') }}
-            </p>
-          </div>
-          <div class="flex gap-2">
-            <UButton
-              color="neutral"
-              variant="outline"
-              icon="i-lucide-share-2"
-              @click="showShareDialog = true"
-            >
-              <span class="hidden @sm:inline">{{ t('actions.share') }}</span>
-            </UButton>
-            <UButton
-              color="neutral"
-              variant="outline"
-              icon="i-lucide-scan-line"
-              @click="showScanDialog = true"
-            >
-              <span class="hidden @sm:inline">{{ t('actions.scan') }}</span>
-            </UButton>
-            <UButton
-              color="primary"
-              icon="i-lucide-plus"
-              @click="showAddDialog = true"
-            >
-              <span class="hidden @sm:inline">{{ t('actions.add') }}</span>
-            </UButton>
-          </div>
-        </div>
+    <HaexSystemSettingsLayoutSection
+      :title="t('list.title')"
+      :description="t('list.description')"
+      default-open
+    >
+      <template #actions>
+        <UButton
+          color="neutral"
+          variant="outline"
+          icon="i-lucide-share-2"
+          @click="showShareDialog = true"
+        >
+          <span class="hidden @sm:inline">{{ t('actions.share') }}</span>
+        </UButton>
+        <UButton
+          color="neutral"
+          variant="outline"
+          icon="i-lucide-scan-line"
+          @click="showScanDialog = true"
+        >
+          <span class="hidden @sm:inline">{{ t('actions.scan') }}</span>
+        </UButton>
+        <UButton
+          color="primary"
+          icon="i-lucide-plus"
+          @click="showAddDialog = true"
+        >
+          <span class="hidden @sm:inline">{{ t('actions.add') }}</span>
+        </UButton>
       </template>
 
       <!-- Loading -->
@@ -180,13 +174,12 @@
       </div>
 
       <!-- Empty state -->
-      <div
+      <HaexSystemSettingsLayoutEmpty
         v-else
-        class="text-center py-4 text-gray-500 dark:text-gray-400"
-      >
-        {{ t('list.empty') }}
-      </div>
-    </UCard>
+        :message="t('list.empty')"
+        icon="i-lucide-user"
+      />
+    </HaexSystemSettingsLayoutSection>
 
     <!-- Add Contact Dialog -->
     <UiDrawerModal
