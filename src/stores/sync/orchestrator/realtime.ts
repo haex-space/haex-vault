@@ -15,7 +15,6 @@
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { orchestratorLog as log, type BackendSyncState } from './types'
 import { pullFromBackendAsync } from './pull'
-import { attemptDidReauthAsync } from '../engine/supabase'
 
 /** Debounce timers per backend */
 const pullDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -199,21 +198,13 @@ export const subscribeToBackendAsync = async (
       return
     }
 
-    // Verify the Supabase auth session is active (with persistSession: false,
-    // the internal _getAccessToken used by Realtime may return null if setSession was
-    // never called or the session expired). Re-set the session to ensure it's available.
-    const { data: { session } } = await client.auth.getSession()
-    if (!session) {
-      log.warn('SUBSCRIBE: No active Supabase session — Realtime handshake would fail. Triggering DID re-auth...')
-      // Force a fresh session via DID re-auth before subscribing
-      const freshToken = await syncEngineStore.attemptDidReauthAsync()
-      if (!freshToken) {
-        log.error('SUBSCRIBE: DID re-auth failed — cannot establish Realtime connection')
-        state.error = 'Authentication failed. Please re-login to the sync backend.'
-        return
-      }
-      log.info('SUBSCRIBE: DID re-auth successful, proceeding with subscription')
-    }
+    // Note: We intentionally skip client.auth.getSession() here.
+    // With persistSession: false, GoTrue's in-memory session can be lost
+    // (especially on Android WebView), causing getSession() to return null
+    // even though we have a valid token. This triggered redundant DID re-auth
+    // attempts that failed on the 30s cooldown.
+    // Instead, we rely on setAuth(token) below which directly sets the token
+    // on the Realtime WebSocket — the actual auth mechanism used by Supabase.
 
     // Log realtime connection state
     log.info(`SUBSCRIBE: Realtime connection state: ${client.realtime.connectionState()}`)

@@ -101,13 +101,11 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   }
 
   /**
-   * Initializes Supabase client for a specific backend
+   * Registers the DID re-auth resolver for a backend.
+   * Must be called whenever a Supabase client is set (both initSupabaseClientAsync
+   * and setSupabaseClient paths) so expired sessions can be automatically recovered.
    */
-  const initSupabaseClientAsync = async (backendId: string): Promise<void> => {
-    const backend = findBackend(backendId)
-    await initClient(backendId, backend.serverUrl)
-
-    // Register DID re-auth resolver so that expired sessions are automatically recovered
+  const registerReauthResolver = (backendId: string): void => {
     setReauthResolver(async () => {
       try {
         const b = syncBackendsStore.backends.find((x) => x.id === backendId)
@@ -131,6 +129,15 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   }
 
   /**
+   * Initializes Supabase client for a specific backend
+   */
+  const initSupabaseClientAsync = async (backendId: string): Promise<void> => {
+    const backend = findBackend(backendId)
+    await initClient(backendId, backend.serverUrl)
+    registerReauthResolver(backendId)
+  }
+
+  /**
    * Sets an existing Supabase client (for cases where client is created externally)
    * This is used in the connect wizard where the client is already authenticated
    */
@@ -139,6 +146,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     backendId: string,
   ): void => {
     setClient(client, backendId)
+    registerReauthResolver(backendId)
   }
 
   /**
@@ -570,6 +578,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     currentBackendId,
     initSupabaseClientAsync,
     setSupabaseClient,
+    registerReauthResolver,
     getAuthTokenAsync,
     uploadVaultKeyAsync: uploadVaultKeyToServerAsync,
     getVaultKeyAsync,

@@ -31,6 +31,15 @@ let lastReauthAttempt = 0
 const REAUTH_COOLDOWN_MS = 30_000 // Don't retry DID re-auth more than once per 30s
 
 /**
+ * Central token setter — keeps JS cache and Rust backend in sync.
+ * Every token change MUST go through this function.
+ */
+const updateCachedToken = (token: string | null): void => {
+  cachedAccessToken = token
+  invoke('set_auth_token', { token }).catch(() => {})
+}
+
+/**
  * Cleans up a Supabase client's realtime resources (channels + WebSocket).
  * Centralised to avoid duplicating cleanup logic across the codebase.
  */
@@ -112,20 +121,24 @@ export const initSupabaseClientAsync = async (
   supabaseClientRef.value = client as AppSupabaseClient
   currentBackendIdRef.value = backendId
 
-  // Listen for auth state changes to keep realtime connection authenticated
-  // This is critical: when the token refreshes, we must update the realtime connection
+  registerAuthStateListener(client)
+}
+
+/**
+ * Registers the onAuthStateChange listener on a Supabase client.
+ * Keeps cachedAccessToken, Rust auth_token, and realtime connection in sync.
+ */
+const registerAuthStateListener = (client: AppSupabaseClient): void => {
   client.auth.onAuthStateChange((event, session) => {
     if (session?.access_token) {
-      cachedAccessToken = session.access_token
-      invoke('set_auth_token', { token: session.access_token }).catch(() => {})
+      updateCachedToken(session.access_token)
     }
     if (event === 'TOKEN_REFRESHED' && session?.access_token) {
       log.info('Auth token refreshed, updating realtime connection')
       supabaseClientRef.value?.realtime.setAuth(session.access_token)
     } else if (event === 'SIGNED_OUT') {
       log.info('User signed out, realtime will disconnect')
-      cachedAccessToken = null
-      invoke('set_auth_token', { token: null }).catch(() => {})
+      updateCachedToken(null)
     }
   })
 }
@@ -230,8 +243,7 @@ export const attemptDidReauthAsync = async (): Promise<string | null> => {
         return null
       }
 
-      cachedAccessToken = session.access_token
-      invoke('set_auth_token', { token: session.access_token }).catch(() => {})
+      updateCachedToken(session.access_token)
       supabaseClientRef.value!.realtime.setAuth(session.access_token)
       lastReauthAttempt = 0 // Reset cooldown on success
       log.info('DID re-auth: successfully re-authenticated')
@@ -295,19 +307,18 @@ export const getAuthTokenAsync = async (): Promise<string | null> => {
       log.error(`Auth refresh failed (code=${errorCode}): ${error.message} — attempting DID re-authentication...`)
       const newToken = await attemptDidReauthAsync()
       if (newToken) return newToken
-      cachedAccessToken = null
+      updateCachedToken(null)
       return null
     }
     if (data.session?.access_token) {
       token = data.session.access_token
-      cachedAccessToken = token
-      invoke('set_auth_token', { token }).catch(() => {})
+      updateCachedToken(token)
       supabaseClientRef.value?.realtime.setAuth(token)
       log.info('Auth token refreshed successfully')
     }
   }
 
-  cachedAccessToken = token
+  updateCachedToken(token)
   return token
 }
 
@@ -315,7 +326,7 @@ export const getAuthTokenAsync = async (): Promise<string | null> => {
  * Caches an access token directly (workaround for Supabase getSession timing issues)
  */
 export const cacheAccessToken = (token: string): void => {
-  cachedAccessToken = token
+  updateCachedToken(token)
 }
 
 /**
@@ -328,22 +339,7 @@ export const setSupabaseClient = (
 ): void => {
   supabaseClientRef.value = client
   currentBackendIdRef.value = backendId
-
-  // Listen for auth state changes to keep realtime connection authenticated
-  client.auth.onAuthStateChange((event, session) => {
-    if (session?.access_token) {
-      cachedAccessToken = session.access_token
-      invoke('set_auth_token', { token: session.access_token }).catch(() => {})
-    }
-    if (event === 'TOKEN_REFRESHED' && session?.access_token) {
-      log.info('Auth token refreshed, updating realtime connection')
-      supabaseClientRef.value?.realtime.setAuth(session.access_token)
-    } else if (event === 'SIGNED_OUT') {
-      log.info('User signed out, realtime will disconnect')
-      cachedAccessToken = null
-      invoke('set_auth_token', { token: null }).catch(() => {})
-    }
-  })
+  registerAuthStateListener(client)
 }
 
 /**
@@ -353,8 +349,7 @@ export const resetSupabaseClient = async (): Promise<void> => {
   await cleanupSupabaseClient(supabaseClientRef.value)
   supabaseClientRef.value = null
   currentBackendIdRef.value = null
-  cachedAccessToken = null
-  invoke('set_auth_token', { token: null }).catch(() => {})
+  updateCachedToken(null)
 }
 
 /**

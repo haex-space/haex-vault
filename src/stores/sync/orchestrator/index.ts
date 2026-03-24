@@ -127,6 +127,12 @@ export const useSyncOrchestratorStore = defineStore(
         if (!syncEngineStore.supabaseClient || syncEngineStore.currentBackendId !== backendId) {
           log.info('INIT: Initializing Supabase client...')
           await syncEngineStore.initSupabaseClientAsync(backendId)
+        } else {
+          // Client already exists (e.g. from connect wizard's setSupabaseClient).
+          // Ensure the reauth resolver is registered — setSupabaseClient sets it,
+          // but we re-register here in case the backendId changed.
+          log.debug('INIT: Supabase client already exists, ensuring reauth resolver is registered')
+          syncEngineStore.registerReauthResolver(backendId)
         }
 
         // Ensure vault key exists before any pull/push
