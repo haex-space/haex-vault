@@ -149,6 +149,15 @@ export const useIdentityStore = defineStore('identityStore', () => {
     const db = currentVault.value?.drizzle
     if (!db) throw new Error('No vault open')
 
+    // Verify identity exists in DB before inserting claim (FK constraint)
+    const identity = await db.query.haexIdentities.findFirst({
+      where: eq(haexIdentities.publicKey, identityPublicKey),
+    })
+    if (!identity) {
+      log.warn(`Cannot add claim "${type}": identity ${identityPublicKey.slice(0, 20)}... not in DB`)
+      return null
+    }
+
     const id = crypto.randomUUID()
     await db.insert(haexIdentityClaims).values({ id, identityId: identityPublicKey, type, value })
     log.info(`Added claim "${type}" for identity ${identityPublicKey.slice(0, 20)}...`)
