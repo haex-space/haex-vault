@@ -83,27 +83,10 @@ const onWizardCompleteAsync = async (wizardData: {
     })
 
     if (wizardData.isNewVault) {
-      // NEW VAULT: Create partition on server first (committed before we subscribe)
-      const token = await syncEngineStore.getAuthTokenAsync()
-      if (!token) throw new Error('Not authenticated')
+      // NEW VAULT: Generate spaceId and upload vault key
+      // POST /sync/vault-key creates the space (type: vault) + partition via DB trigger
+      wizardData.spaceId = crypto.randomUUID()
 
-      const partitionRes = await fetch(`${wizardData.serverUrl}/sync/partitions/create`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      })
-
-      if (!partitionRes.ok) {
-        const err = await partitionRes.json().catch(() => ({}))
-        throw new Error(err.error || 'Failed to create partition')
-      }
-
-      const { partitionId } = await partitionRes.json()
-      wizardData.spaceId = partitionId
-
-      // Generate key and upload to server
       const { generateNewVaultKey, uploadVaultKeyAsync, cacheSyncKey } = await import('@/stores/sync/engine/vaultKey')
 
       const vaultKey = generateNewVaultKey()
