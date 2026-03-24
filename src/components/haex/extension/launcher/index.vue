@@ -2,6 +2,8 @@
   <UiDrawer
     v-model:open="open"
     direction="right"
+    :title="t('launcher.title')"
+    :description="t('launcher.description')"
     :overlay="false"
     :modal="false"
     :handle-only="true"

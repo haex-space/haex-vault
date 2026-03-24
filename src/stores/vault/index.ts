@@ -295,8 +295,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
     // This ensures syncVaultNameAsync uses the correct name when creating the DB entry
     currentVaultName.value = vaultName
 
-    // Pass vaultId to openAsync so it doesn't create a new one from DB
-    return await openAsync({ path: vaultPath, password, vaultId })
+    return await openAsync({ path: vaultPath, password })
   }
 
   const closeAsync = async () => {
