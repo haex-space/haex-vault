@@ -17,8 +17,13 @@
           variant="ghost"
           @click="open = false"
         />
-        <h3 class="font-semibold text-lg">{{ t('launcher.title') }}</h3>
+        <DrawerTitle class="font-semibold text-lg">
+          {{ t('launcher.title') }}
+        </DrawerTitle>
       </div>
+      <VisuallyHidden>
+        <DrawerDescription>{{ t('launcher.description') }}</DrawerDescription>
+      </VisuallyHidden>
     </template>
     <span
       ref="launcherButtonWrapperRef"
@@ -90,6 +95,9 @@
 </template>
 
 <script setup lang="ts">
+import { DrawerTitle, DrawerDescription } from 'vaul-vue'
+import { VisuallyHidden } from 'reka-ui'
+
 defineOptions({
   inheritAttrs: false,
 })
