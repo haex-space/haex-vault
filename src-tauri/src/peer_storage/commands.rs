@@ -287,11 +287,11 @@ pub async fn peer_storage_remote_read(
             Box::new(move |received: u64, total: u64| {
                 let now = std::time::Instant::now();
                 let should_emit = {
-                    let last = last_emit.lock().unwrap();
+                    let last = last_emit.lock().unwrap_or_else(|e| e.into_inner());
                     received >= total || now.duration_since(*last).as_millis() >= 100
                 };
                 if should_emit {
-                    *last_emit.lock().unwrap() = now;
+                    *last_emit.lock().unwrap_or_else(|e| e.into_inner()) = now;
                     let _ = on_event_progress.send(TransferEvent::Progress {
                         bytes_received: received,
                         total_bytes: total,

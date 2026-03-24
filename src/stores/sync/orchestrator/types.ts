@@ -32,34 +32,43 @@ export interface PullResult {
 export const orchestratorLog = createLogger('SYNC')
 
 /**
- * Simple mutex for sync operations.
+ * FIFO mutex for sync operations.
  * Ensures only one sync operation runs at a time per backend.
- * Uses a Promise-based lock to handle concurrent async calls correctly.
+ * Uses a queue-based approach to wake waiters one at a time,
+ * preventing the race condition where multiple waiters resolve simultaneously.
  */
 export class SyncMutex {
-  private locks: Map<string, Promise<void>> = new Map()
+  private held: Set<string> = new Set()
+  private queues: Map<string, Array<() => void>> = new Map()
 
   /**
    * Acquire lock for a backend. Returns a release function.
-   * If lock is already held, waits until it's released.
+   * If lock is already held, waits in a FIFO queue until it's released.
    */
   async acquire(backendId: string): Promise<() => void> {
-    // Wait for existing lock to be released (if any)
-    while (this.locks.has(backendId)) {
-      await this.locks.get(backendId)
+    if (this.held.has(backendId)) {
+      await new Promise<void>((resolve) => {
+        let queue = this.queues.get(backendId)
+        if (!queue) {
+          queue = []
+          this.queues.set(backendId, queue)
+        }
+        queue.push(resolve)
+      })
     }
 
-    // Create new lock
-    let releaseFn: () => void
-    const lockPromise = new Promise<void>((resolve) => {
-      releaseFn = resolve
-    })
-    this.locks.set(backendId, lockPromise)
+    this.held.add(backendId)
 
-    // Return release function
     return () => {
-      this.locks.delete(backendId)
-      releaseFn!()
+      this.held.delete(backendId)
+      const queue = this.queues.get(backendId)
+      if (queue && queue.length > 0) {
+        const next = queue.shift()!
+        if (queue.length === 0) {
+          this.queues.delete(backendId)
+        }
+        next()
+      }
     }
   }
 
@@ -67,14 +76,15 @@ export class SyncMutex {
    * Check if a lock is currently held for a backend
    */
   isLocked(backendId: string): boolean {
-    return this.locks.has(backendId)
+    return this.held.has(backendId)
   }
 
   /**
-   * Clear all locks (use when resetting sync state)
+   * Clear all locks and drain queues (use when resetting sync state)
    */
   reset(): void {
-    this.locks.clear()
+    this.held.clear()
+    this.queues.clear()
   }
 }
 

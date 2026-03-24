@@ -63,16 +63,11 @@ export async function handleDatabaseMethodAsync(
       const statements =
         (request.params as { statements?: string[] }).statements || []
 
-      for (const stmt of statements) {
-        await invokeWithPermissionPrompt(TAURI_COMMANDS.database.execute, {
-          sql: stmt,
-          params: [],
-          publicKey: extension.publicKey,
-          name: extension.name,
-        })
-      }
-
-      return { success: true }
+      return invoke('extension_database_transaction', {
+        statements,
+        publicKey: extension.publicKey,
+        name: extension.name,
+      })
     }
 
     case TAURI_COMMANDS.database.registerMigrations: {

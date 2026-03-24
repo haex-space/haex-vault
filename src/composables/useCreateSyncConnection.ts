@@ -2,6 +2,7 @@ import {
   importUserPrivateKeyAsync,
   encryptPrivateKeyAsync,
 } from '@haex-space/vault-sdk'
+import { didAuthenticateAsync } from '~/stores/sync/engine/supabase'
 
 export interface ServerRequirements {
   serverName: string
@@ -119,39 +120,7 @@ export const useCreateSyncConnection = () => {
       throw new Error('Identity not found')
     }
 
-    const challengeRes = await fetch(`${serverUrl}/identity-auth/challenge`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ did: identity.did }),
-    })
-
-    if (!challengeRes.ok) {
-      const errorData = await challengeRes.json().catch(() => ({ error: 'Unknown error' }))
-      throw new Error(`Challenge failed: ${errorData.error || 'Unknown error'}`)
-    }
-
-    const { nonce } = await challengeRes.json()
-
-    const privateKey = await importUserPrivateKeyAsync(identity.privateKey)
-    const sig = await crypto.subtle.sign(
-      { name: 'ECDSA', hash: 'SHA-256' },
-      privateKey,
-      new TextEncoder().encode(nonce),
-    )
-    const signature = btoa(String.fromCharCode(...new Uint8Array(sig)))
-
-    const verifyRes = await fetch(`${serverUrl}/identity-auth/verify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ did: identity.did, nonce, signature }),
-    })
-
-    if (!verifyRes.ok) {
-      const errorData = await verifyRes.json().catch(() => ({ error: 'Unknown error' }))
-      throw new Error(`Verification failed: ${errorData.error || 'Unknown error'}`)
-    }
-
-    return verifyRes.json()
+    return didAuthenticateAsync(serverUrl, identity.did, identity.privateKey)
   }
 
   /**

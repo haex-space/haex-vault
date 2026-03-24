@@ -19,12 +19,18 @@ impl ExtensionCrypto {
     ) -> Result<(), String> {
         let public_key_bytes =
             hex::decode(public_key_hex).map_err(|e| format!("Invalid public key: {e}"))?;
-        let public_key = VerifyingKey::from_bytes(&public_key_bytes.try_into().unwrap())
+        let public_key_array: [u8; 32] = public_key_bytes
+            .try_into()
+            .map_err(|_| "Invalid public key: expected 32 bytes".to_string())?;
+        let public_key = VerifyingKey::from_bytes(&public_key_array)
             .map_err(|e| format!("Invalid public key: {e}"))?;
 
         let signature_bytes =
             hex::decode(signature_hex).map_err(|e| format!("Invalid signature: {e}"))?;
-        let signature = Signature::from_bytes(&signature_bytes.try_into().unwrap());
+        let signature_array: [u8; 64] = signature_bytes
+            .try_into()
+            .map_err(|_| "Invalid signature: expected 64 bytes".to_string())?;
+        let signature = Signature::from_bytes(&signature_array);
 
         let content_hash =
             hex::decode(content_hash_hex).map_err(|e| format!("Invalid content hash: {e}"))?;

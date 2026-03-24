@@ -9,6 +9,7 @@ import type {
   SqliteRemoteDatabase,
 } from 'drizzle-orm/sqlite-proxy'
 import type { CleanupResult } from '~~/src-tauri/bindings/CleanupResult'
+import { didAuthenticateAsync } from '~/stores/sync/engine/supabase'
 
 interface IVault {
   name: string
@@ -98,45 +99,8 @@ export const useVaultStore = defineStore('vaultStore', () => {
             continue
           }
 
-          // 1. Request challenge
-          const challengeRes = await fetch(`${backend.serverUrl}/identity-auth/challenge`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ did: identity.did }),
-          })
-
-          if (!challengeRes.ok) {
-            const errorData = await challengeRes.json().catch(() => ({ error: 'Unknown error' }))
-            console.error(`[HaexSpace] Challenge request failed for ${backend.name}:`, errorData.error)
-            continue
-          }
-
-          const { nonce } = await challengeRes.json()
-
-          // 2. Sign nonce with identity's private key
-          const { importUserPrivateKeyAsync } = await import('@haex-space/vault-sdk')
-          const privateKey = await importUserPrivateKeyAsync(identity.privateKey)
-          const sig = await crypto.subtle.sign(
-            { name: 'ECDSA', hash: 'SHA-256' },
-            privateKey,
-            new TextEncoder().encode(nonce),
-          )
-          const signature = btoa(String.fromCharCode(...new Uint8Array(sig)))
-
-          // 3. Verify and get JWT
-          const verifyRes = await fetch(`${backend.serverUrl}/identity-auth/verify`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ did: identity.did, nonce, signature }),
-          })
-
-          if (!verifyRes.ok) {
-            const errorData = await verifyRes.json().catch(() => ({ error: 'Unknown error' }))
-            console.error(`[HaexSpace] Verify failed for ${backend.name}:`, errorData.error)
-            continue
-          }
-
-          const session = await verifyRes.json()
+          // Authenticate via DID challenge-response
+          const session = await didAuthenticateAsync(backend.serverUrl, identity.did, identity.privateKey)
 
           // Set the session from the server response
           await syncEngineStore.supabaseClient.auth.setSession({

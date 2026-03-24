@@ -258,6 +258,7 @@ pub fn run() {
             crdt::commands::ensure_extension_triggers,
             crdt::commands::apply_remote_changes_in_transaction,
             extension::database::commands::extension_database_execute,
+            extension::database::commands::extension_database_transaction,
             extension::database::commands::extension_database_query,
             extension::database::commands::extension_database_register_migrations,
             extension::database::commands::apply_synced_extension_migrations,

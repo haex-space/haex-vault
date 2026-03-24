@@ -118,10 +118,11 @@ export const initSupabaseClientAsync = async (
       heartbeatIntervalMs: 15000,
     },
   })
-  supabaseClientRef.value = client as AppSupabaseClient
+  const typedClient = client as AppSupabaseClient
+  supabaseClientRef.value = typedClient
   currentBackendIdRef.value = backendId
 
-  registerAuthStateListener(client)
+  registerAuthStateListener(typedClient)
 }
 
 /**
@@ -156,7 +157,7 @@ export const setReauthResolver = (resolver: ReauthContextResolver | null): void 
  * Performs DID-based authentication against the sync server.
  * Returns { access_token, refresh_token } on success.
  */
-const didAuthenticateAsync = async (
+export const didAuthenticateAsync = async (
   serverUrl: string,
   did: string,
   privateKeyBase64: string,

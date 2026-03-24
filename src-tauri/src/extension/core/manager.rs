@@ -96,13 +96,17 @@ impl ExtensionManager {
             });
         }
 
-        let mut extensions = self.available_extensions.lock().unwrap();
+        let mut extensions = self.available_extensions.lock().map_err(|e| {
+            ExtensionError::MutexPoisoned {
+                reason: e.to_string(),
+            }
+        })?;
         extensions.insert(extension.id.clone(), extension);
         Ok(())
     }
 
     pub fn get_extension(&self, extension_id: &str) -> Option<Extension> {
-        let prod_extensions = self.available_extensions.lock().unwrap();
+        let prod_extensions = self.available_extensions.lock().unwrap_or_else(|e| e.into_inner());
         prod_extensions.get(extension_id).cloned()
     }
 

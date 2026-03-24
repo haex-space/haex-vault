@@ -92,6 +92,103 @@ pub async fn extension_database_execute(
     })
 }
 
+/// Executes multiple SQL statements atomically within a single transaction.
+/// All statements succeed or all are rolled back.
+/// Only DML statements (INSERT/UPDATE/DELETE) are supported — no DDL (CREATE TABLE, ALTER TABLE).
+#[tauri::command]
+pub async fn extension_database_transaction(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    statements: Vec<String>,
+    public_key: Option<String>,
+    name: Option<String>,
+) -> Result<DatabaseQueryResult, ExtensionError> {
+    if statements.is_empty() {
+        return Ok(DatabaseQueryResult {
+            rows: vec![],
+            rows_affected: 0,
+            last_insert_id: None,
+        });
+    }
+
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+
+    let extension = state
+        .extension_manager
+        .get_extension(&extension_id)
+        .ok_or_else(|| ExtensionError::ValidationError {
+            reason: format!("Extension with ID {} not found", extension_id),
+        })?;
+
+    // Get extension limits
+    let limits = with_connection(&state.db, |conn| {
+        state.limits.get_limits(conn, &extension_id)
+    })?;
+
+    let ctx = ExtensionSqlContext::new(
+        extension.manifest.public_key.clone(),
+        extension.manifest.name.clone(),
+    );
+
+    // Validate all statements upfront before starting the transaction
+    for sql in &statements {
+        state
+            .limits
+            .database()
+            .validate_query_size(sql, &limits.database)
+            .map_err(|e: LimitError| ExtensionError::Database { source: e.into() })?;
+
+        validate_sql_table_prefix(&ctx, sql)?;
+        SqlPermissionValidator::validate_sql(&state, &extension_id, sql).await?;
+    }
+
+    // Acquire concurrent query slot (released when guard is dropped)
+    let _query_guard = state
+        .limits
+        .database()
+        .acquire_query_slot(&extension_id, &limits.database)
+        .map_err(|e: LimitError| ExtensionError::Database { source: e.into() })?;
+
+    // Execute all statements in a single transaction
+    let total_affected = with_connection(&state.db, |conn| {
+        let tx = conn.transaction().map_err(DatabaseError::from)?;
+
+        let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
+            reason: "Failed to lock HLC service".to_string(),
+        })?;
+
+        let mut total = 0usize;
+        for sql in &statements {
+            let has_returning = {
+                let stmt = crate::database::core::parse_single_statement(sql)?;
+                crate::database::core::statement_has_returning(&stmt)
+            };
+
+            if has_returning {
+                let (_, rows) = SqlExecutor::query_internal(&tx, &hlc_service, sql, &[])?;
+                total += rows.len();
+            } else {
+                SqlExecutor::execute_internal(&tx, &hlc_service, sql, &[])?;
+                total += 1;
+            }
+        }
+
+        tx.commit().map_err(DatabaseError::from)?;
+        Ok(total)
+    })
+    .map_err(ExtensionError::from)?;
+
+    // Emit event to notify frontend that dirty tables may have changed
+    let app_handle = window.app_handle();
+    let _ = app_handle.emit(EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
+
+    Ok(DatabaseQueryResult {
+        rows_affected: total_affected,
+        rows: vec![],
+        last_insert_id: None,
+    })
+}
+
 /// Executes a SELECT statement for an extension
 #[tauri::command]
 pub async fn extension_database_query(
