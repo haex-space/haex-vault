@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "6b4163ae-90c8-415e-a1ce-7847da37b50a",
+  "id": "788f8f30-326a-4c18-8a76-bc732da6a61e",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "haex_crdt_configs_no_sync": {
@@ -1558,8 +1558,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "vault_id": {
-          "name": "vault_id",
+        "space_id": {
+          "name": "space_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

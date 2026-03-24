@@ -238,7 +238,7 @@ CREATE TABLE `haex_sync_backends` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
 	`server_url` text NOT NULL,
-	`vault_id` text,
+	`space_id` text,
 	`sync_key` text,
 	`vault_key_salt` text,
 	`identity_id` text,
