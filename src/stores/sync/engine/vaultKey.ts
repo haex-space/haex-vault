@@ -88,10 +88,12 @@ export const uploadVaultKeyAsync = async (
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new Error(
-      `Failed to upload vault key: ${error.error || response.statusText}`,
-    )
+    const errorData = await response.json().catch(() => ({}))
+    const message = errorData.error
+      ?? (errorData.success === false && errorData.error?.message)
+      ?? JSON.stringify(errorData)
+    log.error('Upload vault key failed:', { status: response.status, errorData })
+    throw new Error(`Failed to upload vault key: ${message}`)
   }
 
   log.info('Vault key uploaded to server')

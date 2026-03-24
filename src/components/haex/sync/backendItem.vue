@@ -7,7 +7,6 @@
           <button
             class="flex items-center gap-2 min-w-0 text-left transition-opacity duration-200"
             :class="{ 'opacity-50': !backend.enabled }"
-            @click="expanded = !expanded"
           >
             <UIcon
               name="i-lucide-chevron-right"
