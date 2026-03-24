@@ -127,7 +127,7 @@ jobs:
       - name: Clone sync-server for docker-compose config
         run: |
           mkdir -p repos
-          git clone --depth 1 https://github.com/haex-space/haex-sync-server.git repos/haex-sync-server
+          git clone --depth 1 https://x-access-token:${{ github.token }}@github.com/haex-space/haex-sync-server.git repos/haex-sync-server
 
       - name: Start backend services
         env:
