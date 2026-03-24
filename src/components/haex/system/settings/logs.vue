@@ -15,31 +15,36 @@
         >
           <!-- Filters -->
           <div
-            class="grid grid-cols-1 @sm:grid-cols-[1fr_auto_1fr_1fr_auto] gap-3 items-center"
+            class="flex flex-wrap gap-3 items-center"
           >
             <UInput
               v-model="filterSearch"
               :placeholder="t('filter.search')"
               icon="i-lucide-search"
+              class="min-w-40 flex-1"
             />
             <USelect
               v-model="filterLevel"
               :items="levelOptions"
               :placeholder="t('filter.level')"
+              class="min-w-24 flex-1"
             />
             <USelect
               v-model="filterSource"
               :items="sourceOptions"
               :placeholder="t('filter.source')"
+              class="min-w-32 flex-1"
             />
             <USelect
               v-model="filterDevice"
               :items="deviceOptions"
               :placeholder="t('filter.device')"
+              class="min-w-32 flex-1"
             />
             <USelect
               v-model="filterTime"
               :items="timeOptions"
+              class="min-w-28 flex-1"
             />
             <UButton
               v-if="hasActiveFilters"
