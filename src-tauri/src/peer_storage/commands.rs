@@ -231,55 +231,80 @@ pub async fn peer_storage_remote_read(
         (None, None)
     };
 
-    // Progress callback with throttling: emit at most every 100ms to avoid
-    // overwhelming the IPC bridge on mobile (each event crosses JNI/WebView).
-    let progress_cb: Option<Box<dyn Fn(u64, u64) + Send>> = transfer_id.as_ref().map(|tid| {
-        let app = app.clone();
-        let tid = tid.clone();
-        let path_clone = path.clone();
-        let last_emit = std::sync::Mutex::new(std::time::Instant::now() - std::time::Duration::from_secs(1));
-        Box::new(move |received: u64, total: u64| {
-            let now = std::time::Instant::now();
-            let should_emit = {
-                let last = last_emit.lock().unwrap();
-                // Always emit for the last chunk (transfer complete)
-                received >= total || now.duration_since(*last).as_millis() >= 100
-            };
-            if should_emit {
-                *last_emit.lock().unwrap() = now;
-                let _ = app.emit("peer_storage_transfer_progress", serde_json::json!({
-                    "transferId": tid,
-                    "path": path_clone,
-                    "bytesReceived": received,
-                    "totalBytes": total,
-                }));
+    // On Android, long-running async IPC commands can cause SIGSEGV in the
+    // JNI/WebView bridge when Tauri tries to serialize the response back.
+    // Workaround: spawn the download on a separate task and return immediately.
+    // The frontend listens for completion/error events instead of awaiting the IPC response.
+    let output_path_str = output_path.to_string_lossy().to_string();
+
+    let tid_clone = transfer_id.clone();
+    let path_clone = path.clone();
+    let app_handle = app.clone();
+
+    tokio::spawn(async move {
+        let app = app_handle;
+        let state = app.state::<AppState>();
+        // Progress callback with throttling
+        let progress_cb: Option<Box<dyn Fn(u64, u64) + Send>> = tid_clone.as_ref().map(|tid| {
+            let app = app.clone();
+            let tid = tid.clone();
+            let path_clone = path_clone.clone();
+            let last_emit = std::sync::Mutex::new(std::time::Instant::now() - std::time::Duration::from_secs(1));
+            Box::new(move |received: u64, total: u64| {
+                let now = std::time::Instant::now();
+                let should_emit = {
+                    let last = last_emit.lock().unwrap();
+                    received >= total || now.duration_since(*last).as_millis() >= 100
+                };
+                if should_emit {
+                    *last_emit.lock().unwrap() = now;
+                    let _ = app.emit("peer_storage_transfer_progress", serde_json::json!({
+                        "transferId": tid,
+                        "path": path_clone,
+                        "bytesReceived": received,
+                        "totalBytes": total,
+                    }));
+                }
+            }) as Box<dyn Fn(u64, u64) + Send>
+        });
+
+        let endpoint = state.peer_storage.lock().await;
+        let result = endpoint.remote_read_to_file(
+            remote_id, parsed_relay, &path, &output_path,
+            None, progress_cb, cancel_token, pause_flag,
+        ).await;
+
+        drop(endpoint);
+
+        // Clean up cancel token
+        if let Some(tid) = &tid_clone {
+            state.transfer_tokens.lock().await.remove(tid);
+        }
+
+        match result {
+            Ok(total_bytes) => {
+                if let Some(tid) = &tid_clone {
+                    let _ = app.emit("peer_storage_transfer_complete", serde_json::json!({
+                        "transferId": tid,
+                        "path": path,
+                        "localPath": output_path.to_string_lossy(),
+                        "totalBytes": total_bytes,
+                    }));
+                }
             }
-        }) as Box<dyn Fn(u64, u64) + Send>
+            Err(e) => {
+                if let Some(tid) = &tid_clone {
+                    let _ = app.emit("peer_storage_transfer_error", serde_json::json!({
+                        "transferId": tid,
+                        "path": path,
+                        "error": e.to_string(),
+                    }));
+                }
+            }
+        }
     });
 
-    let endpoint = state.peer_storage.lock().await;
-    let result = endpoint.remote_read_to_file(
-        remote_id, parsed_relay, &path, &output_path,
-        None, progress_cb, cancel_token, pause_flag,
-    ).await;
-
-    // Clean up cancel token
-    if let Some(tid) = &transfer_id {
-        state.transfer_tokens.lock().await.remove(tid);
-    }
-
-    let total_bytes = result?;
-
-    // Emit completion event
-    if let Some(tid) = &transfer_id {
-        let _ = app.emit("peer_storage_transfer_complete", serde_json::json!({
-            "transferId": tid,
-            "path": path,
-            "totalBytes": total_bytes,
-        }));
-    }
-
-    Ok(output_path.to_string_lossy().to_string())
+    Ok(output_path_str)
 }
 
 /// Find a non-colliding file path: photo.jpg → photo (1).jpg → photo (2).jpg → …

@@ -366,18 +366,45 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     }
   }
 
-  /** Download a remote file to disk. Returns the local file path. */
+  /** Download a remote file to disk. Returns the local file path once the download completes. */
   const remoteReadAsync = async (remoteNodeId: string, path: string, saveTo?: string) => {
     const device = spaceDevices.value.find(d => d.deviceEndpointId === remoteNodeId)
     const transferId = crypto.randomUUID()
     activeTransfers.value++
     try {
-      return await invoke<string>('peer_storage_remote_read', {
+      // The IPC command returns immediately with the target path.
+      // The actual download runs in a background task on the Rust side
+      // to avoid SIGSEGV on Android's JNI/WebView bridge.
+      const targetPath = await invoke<string>('peer_storage_remote_read', {
         nodeId: remoteNodeId,
         relayUrl: device?.relayUrl ?? null,
         path,
         transferId,
         saveTo: saveTo ?? null,
+      })
+
+      // Wait for the background task to finish
+      return await new Promise<string>((resolve, reject) => {
+        const cleanup = () => {
+          unlistenComplete?.()
+          unlistenError?.()
+        }
+        let unlistenComplete: (() => void) | undefined
+        let unlistenError: (() => void) | undefined
+
+        listen<{ transferId: string; localPath: string }>('peer_storage_transfer_complete', (event) => {
+          if (event.payload.transferId === transferId) {
+            cleanup()
+            resolve(event.payload.localPath || targetPath)
+          }
+        }).then(fn => { unlistenComplete = fn })
+
+        listen<{ transferId: string; error: string }>('peer_storage_transfer_error', (event) => {
+          if (event.payload.transferId === transferId) {
+            cleanup()
+            reject(new Error(event.payload.error))
+          }
+        }).then(fn => { unlistenError = fn })
       })
     } finally {
       activeTransfers.value--
