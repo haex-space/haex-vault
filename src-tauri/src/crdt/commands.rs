@@ -1,7 +1,7 @@
 use crate::crdt::trigger;
 use crate::crdt::trigger::{
     get_table_schema as get_table_schema_internal, ColumnInfo, COLUMN_HLCS_COLUMN,
-    HLC_TIMESTAMP_COLUMN,
+    HLC_TIMESTAMP_COLUMN, TOMBSTONE_COLUMN,
 };
 use crate::database::core::{with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
@@ -528,6 +528,24 @@ pub fn apply_remote_changes_in_transaction(
 
             // Only apply if there are columns to update
             if !columns_to_update.is_empty() {
+                // Skip tombstone-only changes for rows that don't exist locally.
+                // This can happen when a row was created and deleted on another device
+                // before this device pulled the original insert — only the tombstone
+                // arrives because the data columns have an older server timestamp.
+                // Inserting a tombstone for a non-existent row is semantically a no-op.
+                if !row_exists {
+                    let is_tombstone_only = columns_to_update.len() == 1
+                        && columns_to_update[0].0 == TOMBSTONE_COLUMN
+                        && columns_to_update[0].1 == JsonValue::from(1);
+                    if is_tombstone_only {
+                        eprintln!(
+                            "[SYNC RUST] Skipping tombstone-only insert for non-existent row in '{}' — row was never seen locally",
+                            first_change.table_name
+                        );
+                        continue;
+                    }
+                }
+
                 let new_hlcs_json = serde_json::to_string(&column_hlcs).map_err(|e| {
                     DatabaseError::SerializationError {
                         reason: format!("Failed to serialize column HLCs: {}", e),

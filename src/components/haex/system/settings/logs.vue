@@ -1,7 +1,11 @@
 <template>
   <div class="h-full">
-    <HaexSystemSettingsLogsViewer v-if="activeView === 'viewer'" @back="goBack" />
-    <HaexSystemSettingsLogsRetention v-else-if="activeView === 'retention'" @back="goBack" />
+    <template v-if="activeView === 'viewer'">
+      <HaexSystemSettingsLogsViewer @back="goBack" />
+    </template>
+    <template v-else-if="activeView === 'retention'">
+      <HaexSystemSettingsLogsRetention @back="goBack" />
+    </template>
     <HaexSystemSettingsLayout v-else :title="t('title')">
       <div class="space-y-1">
         <HaexSystemSettingsLayoutMenuItem :label="t('menu.viewer')" :description="t('menu.viewerDesc')" icon="i-lucide-scroll-text" @click="navigateTo('viewer')" />
@@ -13,7 +17,7 @@
 
 <script setup lang="ts">
 const { t } = useI18n()
-const { activeView, navigateTo, goBack } = useDrillDownNavigation<'index' | 'viewer' | 'retention'>('index')
+const { activeView, navigateTo, goBack } = useDrillDownNavigation<'index' | 'viewer' | 'retention'>('logs')
 </script>
 
 <i18n lang="yaml">
