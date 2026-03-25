@@ -65,6 +65,7 @@ const { t } = useI18n()
 
 const { activeView: activeCategory, navigateTo: navigateToCategory } = useDrillDownNavigation(
   (props.category || SettingsCategory.General) as string,
+  'settings-categories',
 )
 
 watch(
