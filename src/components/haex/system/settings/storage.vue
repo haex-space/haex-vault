@@ -1,5 +1,17 @@
 <template>
   <HaexSystemSettingsLayout :title="t('title')" :description="t('description')">
+    <template #actions>
+      <UiButton
+        v-if="!showBackendForm"
+        icon="i-lucide-plus"
+        @click="openAddForm"
+      >
+        <span class="hidden @sm:inline">
+          {{ t('actions.add') }}
+        </span>
+      </UiButton>
+    </template>
+
     <!-- Add/Edit Backend Form -->
     <UCard v-if="showBackendForm" class="relative">
       <!-- Loading Overlay -->
@@ -109,23 +121,9 @@
     </UCard>
 
     <!-- Storage Backends List -->
-    <HaexSystemSettingsLayoutSection
+    <div
       v-if="!showBackendForm || storageBackends.length"
-      :title="t('backends.title')"
-      :description="t('backends.description')"
-      default-open
     >
-      <template #actions>
-        <UiButton
-          v-if="!showBackendForm"
-          icon="i-lucide-plus"
-          @click="openAddForm"
-        >
-          <span class="hidden @sm:inline">
-            {{ t('actions.add') }}
-          </span>
-        </UiButton>
-      </template>
 
       <UiListContainer v-if="storageBackends.length">
         <UiListItem
@@ -189,7 +187,7 @@
         :message="t('backends.noBackends')"
         icon="i-heroicons-cloud"
       />
-    </HaexSystemSettingsLayoutSection>
+    </div>
 
     <!-- Delete Confirmation Dialog -->
     <UiDialogConfirm

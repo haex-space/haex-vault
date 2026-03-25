@@ -14,13 +14,14 @@
       :title="t('title')"
       :description="t('description')"
     >
-      <div class="flex justify-end" data-tour="settings-extensions-install">
+      <template #actions>
         <UiButton
           :label="t('openMarketplace')"
           icon="i-mdi-store"
+          data-tour="settings-extensions-install"
           @click="openMarketplaceAsync"
         />
-      </div>
+      </template>
 
       <div v-if="loading" class="flex justify-center py-8">
         <UIcon

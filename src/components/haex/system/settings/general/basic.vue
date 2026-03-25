@@ -1,0 +1,274 @@
+<template>
+  <HaexSystemSettingsLayout
+    :title="t('title')"
+    show-back
+    @back="$emit('back')"
+  >
+    <div class="space-y-4">
+      <UFormField :label="t('language')" :description="t('language.description')">
+        <UiSelectLocale @select="onSelectLocaleAsync" />
+      </UFormField>
+
+      <UFormField :label="t('vaultName.label')" :description="t('vaultName.description')">
+        <UiInput
+          v-model="currentVaultName"
+          :placeholder="t('vaultName.label')"
+          @change="onSetVaultNameAsync"
+        />
+      </UFormField>
+
+      <UFormField :label="t('notifications.label')" :description="t('notifications.description')">
+        <UiButton
+          :label="isNotificationAllowed ? t('notifications.granted') : t('notifications.requestPermission')"
+          :icon="isNotificationAllowed ? 'i-heroicons-check-circle' : 'i-heroicons-bell'"
+          :color="isNotificationAllowed ? 'success' : 'primary'"
+          :disabled="isNotificationAllowed"
+          @click="requestNotificationPermissionAsync"
+        />
+      </UFormField>
+
+      <UFormField :label="t('iconSize.label')" :description="t('iconSize.description')">
+        <USelect
+          v-model="iconSizePreset"
+          :items="iconSizePresetOptions"
+          class="w-40"
+        />
+      </UFormField>
+
+      <USeparator />
+
+      <UFormField :label="t('password.label')" :description="t('password.description')">
+        <UiDrawerModal v-model:open="isPasswordModalOpen" :title="t('password.modal.title')">
+          <template #trigger>
+            <UiButton
+              color="neutral"
+              variant="outline"
+              :label="t('password.button')"
+              icon="i-heroicons-key"
+            />
+          </template>
+          <template #content>
+            <form class="space-y-4 pt-2" @submit.prevent="onChangePasswordAsync">
+              <UiInputPassword v-model="passwordForm.currentPassword" v-model:errors="currentPasswordErrors" :label="t('password.modal.currentPassword')" />
+              <UiInputPassword v-model="passwordForm.newPassword" v-model:errors="newPasswordErrors" :label="t('password.modal.newPassword')" />
+              <UiInputPassword v-model="passwordForm.confirmPassword" v-model:errors="confirmPasswordErrors" :label="t('password.modal.confirmPassword')" />
+            </form>
+          </template>
+          <template #footer>
+            <div class="flex justify-end gap-2 w-full">
+              <UiButton color="neutral" variant="ghost" :label="t('password.modal.cancel')" @click="isPasswordModalOpen = false" />
+              <UiButton color="primary" :label="t('password.modal.submit')" :loading="isChangingPassword" @click="onChangePasswordAsync" />
+            </div>
+          </template>
+        </UiDrawerModal>
+      </UFormField>
+    </div>
+  </HaexSystemSettingsLayout>
+</template>
+
+<script setup lang="ts">
+import type { Locale } from 'vue-i18n'
+import { createChangePasswordSchema } from '~/components/haex/vault/schema'
+import { DesktopIconSizePreset } from '~/stores/vault/settings'
+
+defineEmits<{ back: [] }>()
+
+const { t, setLocale } = useI18n()
+const { add } = useToast()
+
+const { currentVaultName } = storeToRefs(useVaultStore())
+const { changePasswordAsync } = useVaultStore()
+const { updateVaultNameAsync, updateLocaleAsync } = useVaultSettingsStore()
+
+const { isNotificationAllowed } = storeToRefs(useNotificationStore())
+const { requestNotificationPermissionAsync, checkNotificationAsync } = useNotificationStore()
+
+const desktopStore = useDesktopStore()
+const { iconSizePreset } = storeToRefs(desktopStore)
+const { updateDesktopIconSizeAsync } = desktopStore
+
+const iconSizePresetOptions = computed(() => [
+  { label: t('iconSize.presets.small'), value: DesktopIconSizePreset.small },
+  { label: t('iconSize.presets.medium'), value: DesktopIconSizePreset.medium },
+  { label: t('iconSize.presets.large'), value: DesktopIconSizePreset.large },
+  { label: t('iconSize.presets.extraLarge'), value: DesktopIconSizePreset.extraLarge },
+])
+
+watch(iconSizePreset, async (newPreset) => {
+  if (newPreset) await updateDesktopIconSizeAsync(newPreset)
+})
+
+// Password
+const isPasswordModalOpen = ref(false)
+const isChangingPassword = ref(false)
+const passwordForm = reactive({ currentPassword: '', newPassword: '', confirmPassword: '' })
+const currentPasswordErrors = ref<string[]>([])
+const newPasswordErrors = ref<string[]>([])
+const confirmPasswordErrors = ref<string[]>([])
+
+const resetPasswordForm = () => {
+  passwordForm.currentPassword = ''
+  passwordForm.newPassword = ''
+  passwordForm.confirmPassword = ''
+  currentPasswordErrors.value = []
+  newPasswordErrors.value = []
+  confirmPasswordErrors.value = []
+}
+
+const validatePasswordForm = (): boolean => {
+  currentPasswordErrors.value = []
+  newPasswordErrors.value = []
+  confirmPasswordErrors.value = []
+  const schema = createChangePasswordSchema(t)
+  const result = schema.safeParse(passwordForm)
+  if (!result.success) {
+    for (const error of result.error.errors) {
+      const field = error.path[0] as string
+      if (field === 'currentPassword') currentPasswordErrors.value.push(error.message)
+      else if (field === 'newPassword') newPasswordErrors.value.push(error.message)
+      else if (field === 'confirmPassword') confirmPasswordErrors.value.push(error.message)
+    }
+    return false
+  }
+  return true
+}
+
+const onChangePasswordAsync = async () => {
+  if (!validatePasswordForm()) return
+  isChangingPassword.value = true
+  try {
+    const result = await changePasswordAsync(passwordForm.currentPassword, passwordForm.newPassword)
+    if (result.success) {
+      add({ title: t('password.success.title'), description: t('password.success.description'), color: 'success' })
+      isPasswordModalOpen.value = false
+      resetPasswordForm()
+    } else {
+      if (result.error === 'Current password is incorrect') currentPasswordErrors.value = [t('password.errors.incorrect')]
+      else add({ title: t('password.error.title'), description: result.error || t('password.error.description'), color: 'error' })
+    }
+  } catch (error) {
+    console.error('Password change error:', error)
+    add({ title: t('password.error.title'), description: t('password.error.description'), color: 'error' })
+  } finally {
+    isChangingPassword.value = false
+  }
+}
+
+watch(isPasswordModalOpen, (open) => { if (!open) resetPasswordForm() })
+
+const onSelectLocaleAsync = async (locale: Locale) => {
+  await updateLocaleAsync(locale)
+  await setLocale(locale)
+}
+
+const onSetVaultNameAsync = async () => {
+  try {
+    await updateVaultNameAsync(currentVaultName.value)
+    add({ description: t('vaultName.update.success'), color: 'success' })
+  } catch (error) {
+    console.error(error)
+    add({ description: t('vaultName.update.error'), color: 'error' })
+  }
+}
+
+onMounted(async () => {
+  await checkNotificationAsync()
+})
+</script>
+
+<i18n lang="yaml">
+de:
+  title: Grundeinstellungen
+  language: Sprache
+  language.description: Wähle deine bevorzugte Sprache
+  vaultName:
+    label: Vaultname
+    description: Der Name deiner Vault
+    update:
+      success: Vaultname erfolgreich aktualisiert
+      error: Vaultname konnte nicht aktualisiert werden
+  notifications:
+    label: Benachrichtigungen
+    description: Erlaube Benachrichtigungen für diese App
+    requestPermission: Benachrichtigung erlauben
+    granted: Erlaubt
+  iconSize:
+    label: Icon-Größe
+    description: Wähle die Größe der Desktop-Icons
+    presets:
+      small: Klein
+      medium: Mittel
+      large: Groß
+      extraLarge: Sehr groß
+  password:
+    label: Vault-Passwort
+    description: Ändere das Passwort für deine Vault
+    button: Passwort ändern
+    modal:
+      title: Vault-Passwort ändern
+      currentPassword: Aktuelles Passwort
+      newPassword: Neues Passwort
+      confirmPassword: Passwort bestätigen
+      cancel: Abbrechen
+      submit: Passwort ändern
+    errors:
+      currentRequired: Aktuelles Passwort ist erforderlich
+      newRequired: Neues Passwort ist erforderlich
+      confirmRequired: Passwortbestätigung ist erforderlich
+      minLength: Passwort muss mindestens 6 Zeichen lang sein
+      mismatch: Passwörter stimmen nicht überein
+      incorrect: Aktuelles Passwort ist falsch
+    success:
+      title: Passwort geändert
+      description: Dein Vault-Passwort wurde erfolgreich geändert
+    error:
+      title: Fehler
+      description: Passwort konnte nicht geändert werden
+en:
+  title: Basic Settings
+  language: Language
+  language.description: Choose your preferred language
+  vaultName:
+    label: Vault Name
+    description: The name of your vault
+    update:
+      success: Vault Name successfully updated
+      error: Vault name could not be updated
+  notifications:
+    label: Notifications
+    description: Allow notifications for this app
+    requestPermission: Grant Permission
+    granted: Granted
+  iconSize:
+    label: Icon Size
+    description: Choose the size of desktop icons
+    presets:
+      small: Small
+      medium: Medium
+      large: Large
+      extraLarge: Extra Large
+  password:
+    label: Vault Password
+    description: Change the password for your vault
+    button: Change Password
+    modal:
+      title: Change Vault Password
+      currentPassword: Current Password
+      newPassword: New Password
+      confirmPassword: Confirm Password
+      cancel: Cancel
+      submit: Change Password
+    errors:
+      currentRequired: Current password is required
+      newRequired: New password is required
+      confirmRequired: Password confirmation is required
+      minLength: Password must be at least 6 characters
+      mismatch: Passwords do not match
+      incorrect: Current password is incorrect
+    success:
+      title: Password Changed
+      description: Your vault password has been changed successfully
+    error:
+      title: Error
+      description: Password could not be changed
+</i18n>

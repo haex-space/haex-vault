@@ -3,37 +3,31 @@
     :title="t('title')"
     :description="t('description')"
   >
-    <!-- Contacts List -->
-    <HaexSystemSettingsLayoutSection
-      :title="t('list.title')"
-      :description="t('list.description')"
-      default-open
-    >
-      <template #actions>
-        <UButton
-          color="neutral"
-          variant="outline"
-          icon="i-lucide-share-2"
-          @click="showShareDialog = true"
-        >
-          <span class="hidden @sm:inline">{{ t('actions.share') }}</span>
-        </UButton>
-        <UButton
-          color="neutral"
-          variant="outline"
-          icon="i-lucide-scan-line"
-          @click="showScanDialog = true"
-        >
-          <span class="hidden @sm:inline">{{ t('actions.scan') }}</span>
-        </UButton>
-        <UButton
-          color="primary"
-          icon="i-lucide-plus"
-          @click="showAddDialog = true"
-        >
-          <span class="hidden @sm:inline">{{ t('actions.add') }}</span>
-        </UButton>
-      </template>
+    <template #actions>
+      <UButton
+        color="neutral"
+        variant="outline"
+        icon="i-lucide-share-2"
+        @click="showShareDialog = true"
+      >
+        <span class="hidden @sm:inline">{{ t('actions.share') }}</span>
+      </UButton>
+      <UButton
+        color="neutral"
+        variant="outline"
+        icon="i-lucide-scan-line"
+        @click="showScanDialog = true"
+      >
+        <span class="hidden @sm:inline">{{ t('actions.scan') }}</span>
+      </UButton>
+      <UButton
+        color="primary"
+        icon="i-lucide-plus"
+        @click="showAddDialog = true"
+      >
+        <span class="hidden @sm:inline">{{ t('actions.add') }}</span>
+      </UButton>
+    </template>
 
       <!-- Loading -->
       <div
@@ -84,26 +78,28 @@
                 </div>
               </div>
 
-              <div class="flex items-center gap-1 shrink-0 ml-4" @click.stop>
-                <UButton
-                  variant="ghost"
-                  icon="i-lucide-copy"
-                  :title="t('actions.copyKey')"
-                  @click="copyPublicKey(contact.publicKey)"
-                />
-                <UButton
-                  variant="ghost"
-                  icon="i-lucide-pencil"
-                  :title="t('actions.edit')"
-                  @click="openEditDialog(contact)"
-                />
-                <UButton
-                  variant="ghost"
-                  color="error"
-                  icon="i-lucide-trash-2"
-                  :title="t('actions.delete')"
-                  @click="prepareDelete(contact)"
-                />
+              <div class="shrink-0 ml-4" @click.stop>
+                <!-- Large screens: inline buttons -->
+                <div class="hidden @md:flex items-center gap-1">
+                  <UButton variant="ghost" icon="i-lucide-copy" :title="t('actions.copyKey')" @click="copyPublicKey(contact.publicKey)" />
+                  <UButton variant="ghost" icon="i-lucide-pencil" :title="t('actions.edit')" @click="openEditDialog(contact)" />
+                  <UButton variant="ghost" color="error" icon="i-lucide-trash-2" :title="t('actions.delete')" @click="prepareDelete(contact)" />
+                </div>
+                <!-- Small screens: dropdown menu -->
+                <UDropdownMenu
+                  class="@md:hidden"
+                  :items="[
+                    [
+                      { label: t('actions.copyKey'), icon: 'i-lucide-copy', onSelect: () => copyPublicKey(contact.publicKey) },
+                      { label: t('actions.edit'), icon: 'i-lucide-pencil', onSelect: () => openEditDialog(contact) },
+                    ],
+                    [
+                      { label: t('actions.delete'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: () => prepareDelete(contact) },
+                    ],
+                  ]"
+                >
+                  <UButton variant="ghost" icon="i-lucide-ellipsis-vertical" color="neutral" />
+                </UDropdownMenu>
               </div>
             </div>
 
@@ -180,8 +176,6 @@
         :message="t('list.empty')"
         icon="i-lucide-user"
       />
-    </HaexSystemSettingsLayoutSection>
-
     <!-- Add Contact Dialog -->
     <UiDrawerModal
       v-model:open="showAddDialog"

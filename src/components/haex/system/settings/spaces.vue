@@ -1,28 +1,22 @@
 <template>
   <HaexSystemSettingsLayout :title="t('title')" :description="t('description')">
-    <!-- Spaces List -->
-    <HaexSystemSettingsLayoutSection
-      :title="t('list.title')"
-      :description="t('list.description')"
-      default-open
-    >
-      <template #actions>
-        <UButton
-          color="neutral"
-          variant="outline"
-          icon="i-lucide-log-in"
-          @click="showJoinDialog = true"
-        >
-          <span class="hidden @sm:inline">{{ t('actions.join') }}</span>
-        </UButton>
-        <UButton
-          color="primary"
-          icon="i-lucide-plus"
-          @click="showCreateDialog = true"
-        >
-          <span class="hidden @sm:inline">{{ t('actions.create') }}</span>
-        </UButton>
-      </template>
+    <template #actions>
+      <UButton
+        color="neutral"
+        variant="outline"
+        icon="i-lucide-log-in"
+        @click="showJoinDialog = true"
+      >
+        <span class="hidden @sm:inline">{{ t('actions.join') }}</span>
+      </UButton>
+      <UButton
+        color="primary"
+        icon="i-lucide-plus"
+        @click="showCreateDialog = true"
+      >
+        <span class="hidden @sm:inline">{{ t('actions.create') }}</span>
+      </UButton>
+    </template>
 
       <!-- Loading -->
       <div
@@ -57,8 +51,6 @@
         :message="t('list.empty')"
         icon="i-lucide-layout-grid"
       />
-    </HaexSystemSettingsLayoutSection>
-
     <!-- Create Space Dialog -->
     <UiDrawerModal
       v-model:open="showCreateDialog"

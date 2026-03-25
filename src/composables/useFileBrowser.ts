@@ -162,7 +162,7 @@ export function useFileBrowser() {
     loadFiles()
 
     // Register back action so back button returns to device list
-    pushBack({ undo: () => navigateToRoot() })
+    pushBack({ undo: () => navigateToRoot(), redo: () => selectPeer(peer) })
   }
 
   const navigateToRoot = () => {
@@ -323,7 +323,7 @@ export function useFileBrowser() {
       loadFiles()
 
       // Register back action so back button/gesture navigates up
-      pushBack({ undo: () => navigateUp() })
+      pushBack({ undo: () => navigateUp(), redo: () => onFileClick(file) })
       return
     }
 

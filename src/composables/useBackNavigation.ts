@@ -18,8 +18,11 @@ let listenerRegistered = false
 let navigatingForward = false
 
 function handlePopstate(event: PopStateEvent) {
-  // Detect forward navigation (browser forward button)
-  if (event.state?.navDirection === 'forward') {
+  const state = event.state
+
+  // Forward navigation: browser forward lands on a state whose index
+  // is ahead of the current back stack — means we need to redo.
+  if (state?.backNavIndex != null && state.backNavIndex > backStack.length) {
     const action = forwardStack.pop()
     if (action) {
       navigatingForward = true
@@ -30,12 +33,13 @@ function handlePopstate(event: PopStateEvent) {
     return
   }
 
+  // Back navigation
   const action = backStack.pop()
   if (action) {
     action.undo()
     forwardStack.push(action)
-    // Push forward marker so browser forward button triggers redo
-    window.history.pushState({ navDirection: 'forward' }, '')
+    // Don't pushState here — the browser's forward history entry
+    // (with the original backNavIndex) stays intact for redo.
   } else {
     // Stack empty — prevent navigating away from the vault
     window.history.pushState({ backNavBoundary: true }, '')

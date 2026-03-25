@@ -66,5 +66,13 @@ export default defineAppConfig({
         size: 'xl',
       },
     },
+    dropdownMenu: {
+      slots: {
+        content: 'min-w-56',
+      },
+      defaultVariants: {
+        size: 'xl',
+      },
+    },
   },
 })

@@ -3,7 +3,7 @@
     <!-- Header -->
     <div
       :class="[
-        'p-3 @sm:p-6 border-b border-default',
+        'p-2 @xs:p-3 @sm:p-6 border-b border-default',
         stickyHeader && 'sticky top-0 z-10 bg-default',
       ]"
     >
@@ -14,7 +14,7 @@
           variant="ghost"
           @click="emit('back')"
         />
-        <div class="flex-1">
+        <div class="flex-1 min-w-0">
           <h2 class="text-2xl font-bold">
             <slot name="title">{{ title }}</slot>
           </h2>
@@ -26,10 +26,17 @@
           </p>
         </div>
       </div>
+      <!-- Actions row below title -->
+      <div
+        v-if="$slots.actions"
+        class="flex flex-wrap items-center gap-2 mt-3"
+      >
+        <slot name="actions" />
+      </div>
     </div>
 
     <!-- Content -->
-    <div class="p-3 @sm:p-6 flex-1">
+    <div class="p-2 @xs:p-3 @sm:p-6 flex-1">
       <slot />
     </div>
   </div>

@@ -63,21 +63,9 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
-const activeCategory = ref(props.category || SettingsCategory.General)
-const { pushBack } = useBackNavigation()
-
-const navigateToCategory = (category: string) => {
-  if (category === activeCategory.value) return
-
-  const previous = activeCategory.value
-  activeCategory.value = category
-
-  pushBack({
-    undo: () => {
-      activeCategory.value = previous
-    },
-  })
-}
+const { activeView: activeCategory, navigateTo: navigateToCategory } = useDrillDownNavigation(
+  (props.category || SettingsCategory.General) as string,
+)
 
 watch(
   () => props.category,

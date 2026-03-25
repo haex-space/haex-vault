@@ -3,30 +3,24 @@
     :title="t('title')"
     :description="t('description')"
   >
-    <!-- Identities List -->
-    <HaexSystemSettingsLayoutSection
-      :title="t('list.title')"
-      :description="t('list.description')"
-      default-open
-    >
-      <template #actions>
-        <UButton
-          color="neutral"
-          variant="outline"
-          icon="i-lucide-import"
-          @click="showImportDialog = true"
-        >
-          <span class="hidden @sm:inline">{{ t('actions.import') }}</span>
-        </UButton>
-        <UButton
-          color="primary"
-          icon="i-lucide-plus"
-          data-tour="settings-identities-create"
-          @click="showCreateDialog = true"
-        >
-          <span class="hidden @sm:inline">{{ t('actions.create') }}</span>
-        </UButton>
-      </template>
+    <template #actions>
+      <UButton
+        color="neutral"
+        variant="outline"
+        icon="i-lucide-import"
+        @click="showImportDialog = true"
+      >
+        <span class="hidden @sm:inline">{{ t('actions.import') }}</span>
+      </UButton>
+      <UButton
+        color="primary"
+        icon="i-lucide-plus"
+        data-tour="settings-identities-create"
+        @click="showCreateDialog = true"
+      >
+        <span class="hidden @sm:inline">{{ t('actions.create') }}</span>
+      </UButton>
+    </template>
 
       <!-- Loading -->
       <div
@@ -54,8 +48,8 @@
             :unmount-on-hide="false"
             @update:open="(val: boolean) => onToggleIdentity(identity.publicKey, val)"
           >
-            <div class="w-full text-left cursor-pointer">
-              <div class="flex items-center gap-2">
+            <div class="flex items-center justify-between cursor-pointer">
+              <div class="flex items-center gap-2 flex-1 min-w-0">
                 <UIcon
                   name="i-lucide-chevron-right"
                   class="w-4 h-4 shrink-0 text-muted transition-transform duration-200"
@@ -67,46 +61,48 @@
                 />
                 <span class="font-medium truncate">{{ identity.label }}</span>
               </div>
-              <code class="block text-xs text-muted truncate mt-1 ml-6">{{
-                identity.did
-              }}</code>
-              <p
-                v-if="identity.createdAt"
-                class="text-xs text-muted mt-1 ml-6"
-              >
-                {{ t('list.created') }}: {{ formatDate(identity.createdAt) }}
-              </p>
-            </div>
 
-            <div class="flex flex-wrap items-center gap-1 mt-2" @click.stop>
-              <UButton
-                variant="ghost"
-                icon="i-lucide-copy"
-                :title="t('actions.copyDid')"
-                @click="copyDid(identity.did)"
-              />
-              <UButton
-                variant="ghost"
-                icon="i-lucide-download"
-                :title="t('actions.export')"
-                @click="onExport(identity)"
-              />
-              <UButton
-                variant="ghost"
-                icon="i-lucide-pencil"
-                :title="t('actions.edit')"
-                @click="openRenameDialog(identity)"
-              />
-              <UButton
-                variant="ghost"
-                color="error"
-                icon="i-lucide-trash-2"
-                :title="t('actions.delete')"
-                @click="prepareDelete(identity)"
-              />
+              <div class="shrink-0 ml-4" @click.stop>
+                <!-- Large screens: inline buttons -->
+                <div class="hidden @md:flex items-center gap-1">
+                  <UButton variant="ghost" icon="i-lucide-copy" :title="t('actions.copyDid')" @click="copyDid(identity.did)" />
+                  <UButton variant="ghost" icon="i-lucide-download" :title="t('actions.export')" @click="onExport(identity)" />
+                  <UButton variant="ghost" icon="i-lucide-pencil" :title="t('actions.edit')" @click="openRenameDialog(identity)" />
+                  <UButton variant="ghost" color="error" icon="i-lucide-trash-2" :title="t('actions.delete')" @click="prepareDelete(identity)" />
+                </div>
+                <!-- Small screens: dropdown menu -->
+                <UDropdownMenu
+                  class="@md:hidden"
+                  :items="[
+                    [
+                      { label: t('actions.copyDid'), icon: 'i-lucide-copy', onSelect: () => copyDid(identity.did) },
+                      { label: t('actions.export'), icon: 'i-lucide-download', onSelect: () => onExport(identity) },
+                      { label: t('actions.edit'), icon: 'i-lucide-pencil', onSelect: () => openRenameDialog(identity) },
+                    ],
+                    [
+                      { label: t('actions.delete'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: () => prepareDelete(identity) },
+                    ],
+                  ]"
+                >
+                  <UButton variant="ghost" icon="i-lucide-ellipsis-vertical" color="neutral" />
+                </UDropdownMenu>
+              </div>
             </div>
             <template #content>
-              <div class="mt-3 pt-3 border-t border-default space-y-2">
+              <div class="mt-3 pt-3 border-t border-default space-y-3">
+                <!-- DID Key -->
+                <div class="flex items-center gap-2">
+                  <code class="text-xs text-muted truncate flex-1 min-w-0">{{ identity.did }}</code>
+                  <UButton
+                    variant="ghost"
+                    icon="i-lucide-copy"
+                    size="xs"
+                    :title="t('actions.copyDid')"
+                    @click="copyDid(identity.did)"
+                  />
+                </div>
+
+                <!-- Claims -->
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <span class="text-sm font-medium">{{
                     t('claims.title')
@@ -168,8 +164,6 @@
         :message="t('list.empty')"
         icon="i-lucide-fingerprint"
       />
-    </HaexSystemSettingsLayoutSection>
-
     <!-- Create Identity Dialog -->
     <UiDrawerModal
       v-model:open="showCreateDialog"
@@ -705,11 +699,6 @@ const copyDid = async (did: string) => {
   } catch {
     add({ title: t('errors.copyFailed'), color: 'error' })
   }
-}
-
-const formatDate = (dateStr: string | null) => {
-  if (!dateStr) return ''
-  return new Date(dateStr).toLocaleDateString()
 }
 
 // Claims management
