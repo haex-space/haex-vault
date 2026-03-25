@@ -142,6 +142,7 @@
                   :is="getSystemWindowComponent(tab.sourceId)"
                   v-if="tab.type === 'system'"
                   v-show="tab.id === window.activeTabId"
+                  :tab-id="tab.id"
                   :is-dragging="windowManager.draggingWindowId === window.id"
                   :window-params="tab.params"
                   :category="tab.params?.category"

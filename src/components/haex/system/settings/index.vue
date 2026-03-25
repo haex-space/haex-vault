@@ -56,16 +56,20 @@
 import { SettingsCategory, SettingsCategoryIcon } from '~/config/settingsCategories'
 
 const props = defineProps<{
+  tabId: string
   isDragging?: boolean
   category?: string
   inviteLink?: string
 }>()
+
+provide('haex-tab-id', props.tabId)
 
 const { t } = useI18n()
 
 const { activeView: activeCategory, navigateTo: navigateToCategory } = useDrillDownNavigation(
   (props.category || SettingsCategory.General) as string,
   'settings-categories',
+  props.tabId,
 )
 
 watch(

@@ -48,7 +48,8 @@
 <script setup lang="ts">
 const { t } = useI18n()
 const store = usePeerStorageStore()
-const { activeView, navigateTo, goBack } = useDrillDownNavigation<'index' | 'connection' | 'relay'>('index', 'peer-storage')
+const tabId = inject<string>('haex-tab-id')!
+const { activeView, navigateTo, goBack } = useDrillDownNavigation<'index' | 'connection' | 'relay'>('index', 'peer-storage', tabId)
 
 onMounted(async () => {
   await store.refreshStatusAsync()

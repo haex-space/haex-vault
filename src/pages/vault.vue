@@ -40,8 +40,8 @@ const syncOrchestratorStore = useSyncOrchestratorStore()
 const syncBackendsStore = useSyncBackendsStore()
 const { currentVault } = storeToRefs(useVaultStore())
 
-// Initialize back navigation boundary (prevents back from leaving vault)
-useBackNavigation()
+// Initialize navigation store (registers popstate listener + boundary)
+useNavigationStore()
 
 onMounted(async () => {
   try {

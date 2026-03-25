@@ -36,7 +36,8 @@
 
 <script setup lang="ts">
 const { t } = useI18n()
-const { activeView, navigateTo, goBack } = useDrillDownNavigation<'index' | 'bridge' | 'clients'>('index', 'external-clients')
+const tabId = inject<string>('haex-tab-id')!
+const { activeView, navigateTo, goBack } = useDrillDownNavigation<'index' | 'bridge' | 'clients'>('index', 'external-clients', tabId)
 </script>
 
 <i18n lang="yaml">

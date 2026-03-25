@@ -27,6 +27,16 @@
           <thead>
             <!-- Column headers (sortable) -->
             <tr class="bg-muted/30">
+              <th class="w-10 px-3 py-2 border-b border-default">
+                <input
+                  ref="selectAllCheckbox"
+                  type="checkbox"
+                  :checked="isAllSelected"
+                  :indeterminate="isIndeterminate"
+                  class="accent-primary"
+                  @change="toggleSelectAll"
+                >
+              </th>
               <th
                 v-for="col in columns"
                 :key="col"
@@ -45,6 +55,7 @@
             </tr>
             <!-- Column filters -->
             <tr class="bg-muted/10">
+              <td class="px-1 py-1 border-b border-default" />
               <td
                 v-for="col in columns"
                 :key="`filter-${col}`"
@@ -64,10 +75,19 @@
               v-for="(row, i) in rows"
               :key="i"
               :class="[
-                'border-b border-default last:border-0 hover:bg-muted/20 transition-colors',
+                'border-b border-default last:border-0 hover:bg-muted/20 transition-colors cursor-pointer',
+                selectedRows.has(i) && 'bg-primary/10',
                 isTombstone(row) ? 'bg-red-500/5 text-red-400' : isModified(row) && 'bg-info/5',
               ]"
+              @click="toggleRowSelection(i)"
             >
+              <td class="w-10 px-3 py-1.5">
+                <input
+                  type="checkbox"
+                  :checked="selectedRows.has(i)"
+                  class="accent-primary pointer-events-none"
+                >
+              </td>
               <td
                 v-for="(cell, j) in row"
                 :key="j"
@@ -109,6 +129,15 @@
           >
             {{ t('resetFilters') }}
           </UiButton>
+          <UiButton
+            icon="i-lucide-download"
+            variant="ghost"
+            color="neutral"
+            :loading="isExporting"
+            @click="exportAsJson"
+          >
+            {{ selectedRows.size > 0 ? t('exportSelected', { count: selectedRows.size }) : t('exportAll') }}
+          </UiButton>
         </div>
         <div
           v-if="total > pageSize"
@@ -147,6 +176,8 @@
 <script setup lang="ts">
 import { invoke } from '@tauri-apps/api/core'
 import { useDebounceFn } from '@vueuse/core'
+import { save } from '@tauri-apps/plugin-dialog'
+import { writeFile } from '@tauri-apps/plugin-fs'
 
 const props = defineProps<{
   tableName: string
@@ -164,6 +195,36 @@ const rows = ref<unknown[][]>([])
 const total = ref(0)
 const offset = ref(0)
 const pageSize = 50
+
+// Selection
+const selectedRows = ref(new Set<number>())
+const selectAllCheckbox = ref<HTMLInputElement>()
+
+const isAllSelected = computed(() =>
+  rows.value.length > 0 && selectedRows.value.size === rows.value.length,
+)
+const isIndeterminate = computed(() =>
+  selectedRows.value.size > 0 && selectedRows.value.size < rows.value.length,
+)
+
+const toggleRowSelection = (index: number) => {
+  const next = new Set(selectedRows.value)
+  if (next.has(index)) next.delete(index)
+  else next.add(index)
+  selectedRows.value = next
+}
+
+const toggleSelectAll = () => {
+  if (isAllSelected.value) {
+    selectedRows.value = new Set()
+  } else {
+    selectedRows.value = new Set(rows.value.map((_, i) => i))
+  }
+}
+
+watch(isIndeterminate, (val) => {
+  if (selectAllCheckbox.value) selectAllCheckbox.value.indeterminate = val
+})
 
 // Sort
 const sortColumn = ref<string | null>(null)
@@ -266,10 +327,54 @@ const loadData = async () => {
 
     total.value = Number(countResult[0]?.[0] ?? 0)
     rows.value = dataResult
+    selectedRows.value = new Set()
   } catch (error) {
     console.error('Failed to load table data:', error)
   } finally {
     isLoading.value = false
+  }
+}
+
+const isExporting = ref(false)
+
+const rowToObject = (row: unknown[]) =>
+  Object.fromEntries(columns.value.map((col, i) => [col, row[i]]))
+
+const exportAsJson = async () => {
+  if (columns.value.length === 0) return
+
+  isExporting.value = true
+  try {
+    let jsonData: Record<string, unknown>[]
+
+    if (selectedRows.value.size > 0) {
+      jsonData = [...selectedRows.value]
+        .sort((a, b) => a - b)
+        .filter(i => rows.value[i] != null)
+        .map(i => rowToObject(rows.value[i]!))
+    } else {
+      const { clause: where, params: whereParams } = buildWhereClause()
+      const order = buildOrderClause()
+      const allRows = await invoke<unknown[][]>('sql_select', {
+        sql: `SELECT * FROM "${props.tableName}" ${where} ${order}`,
+        params: whereParams,
+      })
+      jsonData = allRows.map(rowToObject)
+    }
+
+    const filePath = await save({
+      title: `Export ${props.tableName}`,
+      defaultPath: `${props.tableName}.json`,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (!filePath) return
+
+    const encoder = new TextEncoder()
+    await writeFile(filePath, encoder.encode(JSON.stringify(jsonData, null, 2)))
+  } catch (error) {
+    console.error('Failed to export table:', error)
+  } finally {
+    isExporting.value = false
   }
 }
 
@@ -284,6 +389,8 @@ de:
   filter: Filtern...
   resetFilters: Filter zurücksetzen
   noResults: Keine Ergebnisse
+  exportAll: Alle exportieren
+  exportSelected: '{count} exportieren'
 en:
   rows: rows
   empty: No entries in this table
@@ -291,4 +398,6 @@ en:
   filter: Filter...
   resetFilters: Reset filters
   noResults: No results
+  exportAll: Export all
+  exportSelected: 'Export {count}'
 </i18n>
