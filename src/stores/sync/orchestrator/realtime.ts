@@ -28,6 +28,9 @@ const subscriptionRetryCounts = new Map<string, number>()
 /** Guard against concurrent subscribe attempts per backend */
 const subscriptionInProgress = new Set<string>()
 
+/** Tracks the currently active channel per backend to ignore zombie callbacks */
+const activeChannels = new Map<string, RealtimeChannel>()
+
 /** Debounce delay in milliseconds */
 const PULL_DEBOUNCE_MS = 500
 
@@ -280,6 +283,18 @@ export const subscribeToBackendAsync = async (
     // The trigger is on the parent table and PostgreSQL 15 auto-clones it to
     // all partitions. New partitions work immediately without Realtime restart.
     const channelName = `sync:${backend.spaceId}`
+
+    // Remove ALL existing channels with this topic to prevent zombie accumulation
+    const existingChannels = client.realtime.channels.filter(
+      (ch) => ch.topic === `realtime:${channelName}`,
+    )
+    if (existingChannels.length > 0) {
+      log.info(`SUBSCRIBE: Removing ${existingChannels.length} existing channel(s) for ${channelName}`)
+      for (const ch of existingChannels) {
+        await client.removeChannel(ch).catch(() => {})
+      }
+    }
+
     log.info(`SUBSCRIBE: Subscribing to broadcast channel="${channelName}" backendId=${backendId}`)
 
     // Set auth token for Realtime Authorization (broadcast uses private channels)
@@ -318,30 +333,25 @@ export const subscribeToBackendAsync = async (
         },
       )
       .subscribe((status, err) => {
+        // Ignore callbacks from zombie channels (replaced by a newer subscription)
+        if (activeChannels.get(backendId) !== channel) {
+          log.debug(`SUBSCRIBE: Ignoring ${status} from zombie channel for ${backendId}`)
+          client.removeChannel(channel).catch(() => {})
+          return
+        }
+
         log.info(`SUBSCRIBE: Channel status changed to ${status}`, err ? `Error: ${JSON.stringify(err)}` : '')
-        // Log additional channel state for debugging
-        log.info(`SUBSCRIBE: Channel state - topic=${channel.topic}, state=${channel.state}`)
         if (status === 'SUBSCRIBED') {
           state.isConnected = true
-          // Reset retry count on successful subscription
           subscriptionRetryCounts.set(backendId, 0)
           log.info(`SUBSCRIBE: Successfully subscribed to backend ${backendId}`)
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           state.isConnected = false
           const errorDetails = err ? JSON.stringify(err) : 'unknown'
           state.error = `Subscription error: ${status} - ${errorDetails}`
-
-          // Log detailed error information for debugging
           log.error(`SUBSCRIBE: ${status} details - errorDetails=${errorDetails}`)
-          if (err && typeof err === 'object') {
-            log.error(`SUBSCRIBE: Error object keys: ${Object.keys(err).join(', ')}`)
-            log.error(`SUBSCRIBE: Error message: ${(err as { message?: string }).message ?? 'none'}`)
-            log.error(`SUBSCRIBE: Error context: ${JSON.stringify((err as { context?: unknown }).context ?? 'none')}`)
-          }
-          // Log realtime connection state at time of error
           log.error(`SUBSCRIBE: Realtime connection state at error: ${client.realtime.connectionState()}`)
 
-          // Attempt retry with exponential backoff
           scheduleRetry(backendId, channel, currentVaultId, syncStates, syncBackendsStore, syncEngineStore, client, status)
         } else if (status === 'CLOSED') {
           state.isConnected = false
@@ -352,6 +362,7 @@ export const subscribeToBackendAsync = async (
         }
       })
 
+    activeChannels.set(backendId, channel)
     state.subscription = channel
   } catch (error) {
     log.error(`SUBSCRIBE: Failed to subscribe to backend ${backendId}:`, error)
@@ -376,6 +387,7 @@ export const unsubscribeFromBackendAsync = async (
     subscriptionRetryTimers.delete(backendId)
   }
   subscriptionRetryCounts.delete(backendId)
+  activeChannels.delete(backendId)
 
   // Clear any pending debounce timer
   const timer = pullDebounceTimers.get(backendId)
