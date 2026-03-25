@@ -29,153 +29,192 @@
       </UButton>
     </template>
 
-      <!-- Loading -->
-      <div
-        v-if="isLoading"
-        class="flex items-center justify-center py-8"
-      >
-        <UIcon
-          name="i-lucide-loader-2"
-          class="w-5 h-5 animate-spin text-primary"
-        />
-      </div>
+    <!-- Loading -->
+    <div
+      v-if="isLoading"
+      class="flex items-center justify-center py-8"
+    >
+      <UIcon
+        name="i-lucide-loader-2"
+        class="w-5 h-5 animate-spin text-primary"
+      />
+    </div>
 
-      <!-- Contacts list -->
+    <!-- Contacts list -->
+    <div
+      v-else-if="contacts.length"
+      class="space-y-3"
+    >
       <div
-        v-else-if="contacts.length"
-        class="space-y-3"
+        v-for="contact in contacts"
+        :key="contact.id"
+        class="p-3 rounded-lg border border-default"
       >
-        <div
-          v-for="contact in contacts"
-          :key="contact.id"
-          class="p-3 rounded-lg border border-default"
+        <UCollapsible
+          :open="expandedContact === contact.id"
+          :unmount-on-hide="false"
+          @update:open="(val: boolean) => onToggleContact(contact.id, val)"
         >
-          <UCollapsible
-            :open="expandedContact === contact.id"
-            :unmount-on-hide="false"
-            @update:open="(val: boolean) => onToggleContact(contact.id, val)"
-          >
-            <div class="flex items-center justify-between cursor-pointer">
-              <div class="flex-1 min-w-0 flex items-center gap-2">
-                <UIcon
-                  name="i-lucide-chevron-right"
-                  class="w-4 h-4 shrink-0 text-muted transition-transform duration-200"
-                  :class="{ 'rotate-90': expandedContact === contact.id }"
+          <div class="flex items-center justify-between cursor-pointer">
+            <div class="flex-1 min-w-0 flex items-center gap-2">
+              <UIcon
+                name="i-lucide-chevron-right"
+                class="w-4 h-4 shrink-0 text-muted transition-transform duration-200"
+                :class="{ 'rotate-90': expandedContact === contact.id }"
+              />
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <UIcon
+                    name="i-lucide-user"
+                    class="w-4 h-4 text-primary shrink-0"
+                  />
+                  <span class="font-medium truncate">{{ contact.label }}</span>
+                </div>
+                <div class="mt-1 flex items-center gap-2">
+                  <code class="text-xs text-muted truncate max-w-[300px]">{{
+                    contact.publicKey
+                  }}</code>
+                </div>
+              </div>
+            </div>
+
+            <div
+              class="shrink-0 ml-4"
+              @click.stop
+            >
+              <!-- Large screens: inline buttons -->
+              <div class="hidden @md:flex items-center gap-1">
+                <UButton
+                  variant="ghost"
+                  icon="i-lucide-copy"
+                  :title="t('actions.copyKey')"
+                  @click="copyPublicKey(contact.publicKey)"
                 />
-                <div class="min-w-0">
-                  <div class="flex items-center gap-2">
-                    <UIcon
-                      name="i-lucide-user"
-                      class="w-4 h-4 text-primary shrink-0"
-                    />
-                    <span class="font-medium truncate">{{ contact.label }}</span>
-                  </div>
-                  <div class="mt-1 flex items-center gap-2">
-                    <code class="text-xs text-muted truncate max-w-[300px]">{{
-                      contact.publicKey
-                    }}</code>
-                  </div>
-                </div>
+                <UButton
+                  variant="ghost"
+                  icon="i-lucide-pencil"
+                  :title="t('actions.edit')"
+                  @click="openEditDialog(contact)"
+                />
+                <UButton
+                  variant="ghost"
+                  color="error"
+                  icon="i-lucide-trash-2"
+                  :title="t('actions.delete')"
+                  @click="prepareDelete(contact)"
+                />
               </div>
-
-              <div class="shrink-0 ml-4" @click.stop>
-                <!-- Large screens: inline buttons -->
-                <div class="hidden @md:flex items-center gap-1">
-                  <UButton variant="ghost" icon="i-lucide-copy" :title="t('actions.copyKey')" @click="copyPublicKey(contact.publicKey)" />
-                  <UButton variant="ghost" icon="i-lucide-pencil" :title="t('actions.edit')" @click="openEditDialog(contact)" />
-                  <UButton variant="ghost" color="error" icon="i-lucide-trash-2" :title="t('actions.delete')" @click="prepareDelete(contact)" />
-                </div>
-                <!-- Small screens: dropdown menu -->
-                <UDropdownMenu
-                  class="@md:hidden"
-                  :items="[
-                    [
-                      { label: t('actions.copyKey'), icon: 'i-lucide-copy', onSelect: () => copyPublicKey(contact.publicKey) },
-                      { label: t('actions.edit'), icon: 'i-lucide-pencil', onSelect: () => openEditDialog(contact) },
-                    ],
-                    [
-                      { label: t('actions.delete'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: () => prepareDelete(contact) },
-                    ],
-                  ]"
-                >
-                  <UButton variant="ghost" icon="i-lucide-ellipsis-vertical" color="neutral" />
-                </UDropdownMenu>
-              </div>
-            </div>
-
-            <!-- Claims Section (collapsible) -->
-            <template v-if="expandedContact === contact.id" #content>
-              <div class="mt-3 pt-3 border-t border-default space-y-2">
-            <div class="flex items-center justify-between">
-              <span class="text-sm font-medium">{{ t('claims.title') }}</span>
-              <UButton
-                variant="outline"
-                icon="i-lucide-plus"
-                @click="openAddClaim(contact.id)"
+              <!-- Small screens: dropdown menu -->
+              <UDropdownMenu
+                class="@md:hidden"
+                :items="[
+                  [
+                    {
+                      label: t('actions.copyKey'),
+                      icon: 'i-lucide-copy',
+                      onSelect: () => copyPublicKey(contact.publicKey),
+                    },
+                    {
+                      label: t('actions.edit'),
+                      icon: 'i-lucide-pencil',
+                      onSelect: () => openEditDialog(contact),
+                    },
+                  ],
+                  [
+                    {
+                      label: t('actions.delete'),
+                      icon: 'i-lucide-trash-2',
+                      color: 'error' as const,
+                      onSelect: () => prepareDelete(contact),
+                    },
+                  ],
+                ]"
               >
-                {{ t('claims.add') }}
-              </UButton>
-            </div>
-
-            <div
-              v-if="contactClaims[contact.id]?.length"
-              class="space-y-1"
-            >
-              <div
-                v-for="claim in contactClaims[contact.id]"
-                :key="claim.id"
-                class="flex items-center justify-between p-2 rounded bg-gray-50 dark:bg-gray-800/50"
-              >
-                <div class="min-w-0 flex-1">
-                  <span class="text-xs font-medium text-muted">{{
-                    claim.type
-                  }}</span>
-                  <p class="text-sm truncate">{{ claim.value }}</p>
-                </div>
-                <div class="flex gap-1 shrink-0 ml-2">
-                  <UButton
-                    variant="ghost"
-                    icon="i-lucide-pencil"
-                    @click="openEditClaim(claim)"
-                  />
-                  <UButton
-                    variant="ghost"
-                    color="error"
-                    icon="i-lucide-trash-2"
-                    @click="deleteClaimAsync(claim.id, contact.id)"
-                  />
-                </div>
-              </div>
-            </div>
-            <p
-              v-else
-              class="text-xs text-muted"
-            >
-              {{ t('claims.empty') }}
-            </p>
-
-            <!-- Notes -->
-            <div
-              v-if="contact.notes"
-              class="pt-2"
-            >
-              <span class="text-xs font-medium text-muted">{{
-                t('fields.notes')
-              }}</span>
-              <p class="text-sm text-muted">{{ contact.notes }}</p>
+                <UButton
+                  variant="ghost"
+                  icon="i-lucide-ellipsis-vertical"
+                  color="neutral"
+                />
+              </UDropdownMenu>
             </div>
           </div>
-            </template>
-          </UCollapsible>
-        </div>
-      </div>
 
-      <!-- Empty state -->
-      <HaexSystemSettingsLayoutEmpty
-        v-else
-        :message="t('list.empty')"
-        icon="i-lucide-user"
-      />
+          <!-- Claims Section (collapsible) -->
+          <template
+            v-if="expandedContact === contact.id"
+            #content
+          >
+            <div class="mt-3 pt-3 border-t border-default space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-medium">{{ t('claims.title') }}</span>
+                <UButton
+                  variant="outline"
+                  icon="i-lucide-plus"
+                  @click="openAddClaim(contact.id)"
+                >
+                  {{ t('claims.add') }}
+                </UButton>
+              </div>
+
+              <div
+                v-if="contactClaims[contact.id]?.length"
+                class="space-y-1"
+              >
+                <div
+                  v-for="claim in contactClaims[contact.id]"
+                  :key="claim.id"
+                  class="flex items-center justify-between p-2 rounded bg-gray-50 dark:bg-gray-800/50"
+                >
+                  <div class="min-w-0 flex-1">
+                    <span class="text-xs font-medium text-muted">{{
+                      claim.type
+                    }}</span>
+                    <p class="text-sm truncate">{{ claim.value }}</p>
+                  </div>
+                  <div class="flex gap-1 shrink-0 ml-2">
+                    <UButton
+                      variant="ghost"
+                      icon="i-lucide-pencil"
+                      @click="openEditClaim(claim)"
+                    />
+                    <UButton
+                      variant="ghost"
+                      color="error"
+                      icon="i-lucide-trash-2"
+                      @click="deleteClaimAsync(claim.id, contact.id)"
+                    />
+                  </div>
+                </div>
+              </div>
+              <p
+                v-else
+                class="text-xs text-muted"
+              >
+                {{ t('claims.empty') }}
+              </p>
+
+              <!-- Notes -->
+              <div
+                v-if="contact.notes"
+                class="pt-2"
+              >
+                <span class="text-xs font-medium text-muted">{{
+                  t('fields.notes')
+                }}</span>
+                <p class="text-sm text-muted">{{ contact.notes }}</p>
+              </div>
+            </div>
+          </template>
+        </UCollapsible>
+      </div>
+    </div>
+
+    <!-- Empty state -->
+    <HaexSystemSettingsLayoutEmpty
+      v-else
+      :message="t('list.empty')"
+      icon="i-lucide-user"
+    />
     <!-- Add Contact Dialog -->
     <UiDrawerModal
       v-model:open="showAddDialog"
@@ -455,11 +494,6 @@ const copyPublicKey = async (key: string) => {
   } catch {
     add({ title: t('errors.copyFailed'), color: 'error' })
   }
-}
-
-const formatDate = (dateStr: string | null) => {
-  if (!dateStr) return ''
-  return new Date(dateStr).toLocaleDateString()
 }
 
 // Claims management
