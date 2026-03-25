@@ -135,7 +135,6 @@
 
     <!-- Sync Backends List -->
     <div>
-
       <div
         v-if="syncBackends.length"
         class="space-y-3"
@@ -145,30 +144,6 @@
           :key="backend.id"
           :backend="backend"
         >
-          <template #badges>
-            <UBadge
-              :color="backend.enabled ? 'success' : 'neutral'"
-              variant="subtle"
-            >
-              {{
-                backend.enabled ? t('backends.enabled') : t('backends.disabled')
-              }}
-            </UBadge>
-            <UBadge
-              v-if="getSyncState(backend.id)?.isConnected"
-              color="info"
-              variant="subtle"
-            >
-              {{ t('backends.connected') }}
-            </UBadge>
-            <UBadge
-              v-else-if="getSyncState(backend.id)?.isSyncing"
-              color="warning"
-              variant="subtle"
-            >
-              {{ t('backends.syncing') }}
-            </UBadge>
-          </template>
           <template #actions>
             <div class="flex gap-2">
               <UButton
@@ -261,10 +236,10 @@
               <div
                 v-for="vault in getGroupedVaults(backend.id)?.vaults"
                 :key="vault.spaceId"
-                class="flex flex-col gap-2 py-3 first:pt-0 last:pb-0"
+                class="flex flex-col gap-2 py-5 px-3"
                 :class="
                   vault.spaceId === currentVaultId
-                    ? 'bg-primary/10 px-3 rounded-lg -mx-3 border border-primary/20'
+                    ? 'bg-primary/10  rounded-lg  border border-primary/20'
                     : ''
                 "
               >
@@ -273,7 +248,7 @@
                 >
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 flex-wrap">
-                      <p class="font-medium text-sm truncate">
+                      <p class="font-medium text-base truncate">
                         {{
                           vault.decryptedName ||
                           t('vaultOverview.encryptedName')
@@ -287,7 +262,7 @@
                         {{ t('vaultOverview.currentVault') }}
                       </UBadge>
                     </div>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
                       {{ t('vaultOverview.createdAt') }}:
                       {{ formatDate(vault.createdAt) }}
                     </p>
@@ -468,11 +443,6 @@ const groupedServerVaults = ref<GroupedServerVaults[]>([])
 // Helper to get grouped vaults for a specific backend
 const getGroupedVaults = (backendId: string) => {
   return groupedServerVaults.value.find((g) => g.backend.id === backendId)
-}
-
-// Get sync state for a backend
-const getSyncState = (backendId: string) => {
-  return syncOrchestratorStore.getSyncState(backendId)
 }
 
 // Cancel add backend
