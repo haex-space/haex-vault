@@ -12,7 +12,7 @@
  * - Reconnection resets retry counts for a fresh start
  */
 
-import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
+import type { RealtimeChannel, RealtimePostgresChangesPayload, SupabaseClient } from '@supabase/supabase-js'
 import { orchestratorLog as log, type BackendSyncState } from './types'
 import { pullFromBackendAsync } from './pull'
 
@@ -24,6 +24,9 @@ const subscriptionRetryTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
 /** Retry counts per backend */
 const subscriptionRetryCounts = new Map<string, number>()
+
+/** Guard against concurrent subscribe attempts per backend */
+const subscriptionInProgress = new Set<string>()
 
 /** Debounce delay in milliseconds */
 const PULL_DEBOUNCE_MS = 500
@@ -131,6 +134,52 @@ const handleRealtimeChangeAsync = async (
 }
 
 /**
+ * Schedules a retry for a failed/closed channel with deduplication.
+ * Clears any existing retry timer before scheduling a new one to prevent
+ * multiple parallel retry attempts from cascading CLOSED events.
+ */
+const scheduleRetry = (
+  backendId: string,
+  channel: RealtimeChannel,
+  currentVaultId: string | undefined,
+  syncStates: BackendSyncState,
+  syncBackendsStore: ReturnType<typeof useSyncBackendsStore>,
+  syncEngineStore: ReturnType<typeof useSyncEngineStore>,
+  client: SupabaseClient,
+  status: string,
+): void => {
+  const retryCount = subscriptionRetryCounts.get(backendId) ?? 0
+  if (retryCount >= MAX_SUBSCRIPTION_RETRIES) {
+    log.warn(`SUBSCRIBE: Realtime reconnection failed for backend ${backendId} after ${MAX_SUBSCRIPTION_RETRIES} attempts. Periodic pull will be used as fallback.`)
+    return
+  }
+
+  const delay = RETRY_BASE_DELAY_MS * Math.pow(2, retryCount)
+  log.warn(`SUBSCRIBE: ${status} for ${backendId}. Retrying in ${delay}ms (attempt ${retryCount + 1}/${MAX_SUBSCRIPTION_RETRIES})`)
+
+  // Clear existing retry timer to prevent duplicate retries
+  const existingTimer = subscriptionRetryTimers.get(backendId)
+  if (existingTimer) {
+    clearTimeout(existingTimer)
+    subscriptionRetryTimers.delete(backendId)
+  }
+
+  syncStates[backendId]!.subscription = null
+
+  const retryTimer = setTimeout(async () => {
+    subscriptionRetryTimers.delete(backendId)
+    subscriptionRetryCounts.set(backendId, retryCount + 1)
+    try {
+      await client.removeChannel(channel).catch(() => {})
+      await subscribeToBackendAsync(backendId, currentVaultId, syncStates, syncBackendsStore, syncEngineStore)
+    } catch (retryError) {
+      log.error(`SUBSCRIBE: Retry failed for backend ${backendId}:`, retryError)
+    }
+  }, delay)
+  subscriptionRetryTimers.set(backendId, retryTimer)
+}
+
+/**
  * Subscribes to realtime changes from a backend
  */
 export const subscribeToBackendAsync = async (
@@ -167,6 +216,13 @@ export const subscribeToBackendAsync = async (
     log.debug(`SUBSCRIBE: Already subscribed to backend ${backendId}`)
     return
   }
+
+  // Prevent concurrent subscription attempts (race condition guard)
+  if (subscriptionInProgress.has(backendId)) {
+    log.debug(`SUBSCRIBE: Subscription already in progress for ${backendId}, skipping`)
+    return
+  }
+  subscriptionInProgress.add(backendId)
 
   const client = syncEngineStore.supabaseClient
   if (!client) {
@@ -286,56 +342,13 @@ export const subscribeToBackendAsync = async (
           log.error(`SUBSCRIBE: Realtime connection state at error: ${client.realtime.connectionState()}`)
 
           // Attempt retry with exponential backoff
-          const retryCount = subscriptionRetryCounts.get(backendId) ?? 0
-          if (retryCount < MAX_SUBSCRIPTION_RETRIES) {
-            const delay = RETRY_BASE_DELAY_MS * Math.pow(2, retryCount)
-            log.warn(`SUBSCRIBE: Subscription failed for ${backendId}: ${status}. Retrying in ${delay}ms (attempt ${retryCount + 1}/${MAX_SUBSCRIPTION_RETRIES})`)
-
-            state.subscription = null
-
-            // Schedule retry — wait for cleanup, then resubscribe
-            const retryTimer = setTimeout(async () => {
-              subscriptionRetryTimers.delete(backendId)
-              subscriptionRetryCounts.set(backendId, retryCount + 1)
-              try {
-                // Clean up the failed channel before creating a new one
-                // removeChannel() unsubscribes and removes from client's internal list
-                await client.removeChannel(channel).catch(() => {})
-                await subscribeToBackendAsync(backendId, currentVaultId, syncStates, syncBackendsStore, syncEngineStore)
-              } catch (retryError) {
-                log.error(`SUBSCRIBE: Retry failed for backend ${backendId}:`, retryError)
-              }
-            }, delay)
-            subscriptionRetryTimers.set(backendId, retryTimer)
-          } else {
-            log.warn(`SUBSCRIBE: Realtime subscription failed for backend ${backendId} after ${MAX_SUBSCRIPTION_RETRIES} attempts. Periodic pull will be used as fallback.`)
-          }
+          scheduleRetry(backendId, channel, currentVaultId, syncStates, syncBackendsStore, syncEngineStore, client, status)
         } else if (status === 'CLOSED') {
           state.isConnected = false
           state.subscription = null
           log.warn(`SUBSCRIBE: Channel closed for backend ${backendId}, will attempt to reconnect`)
 
-          // Attempt retry with exponential backoff (same as CHANNEL_ERROR)
-          // CLOSED can happen due to token expiry, network blip, or server restart
-          const retryCount = subscriptionRetryCounts.get(backendId) ?? 0
-          if (retryCount < MAX_SUBSCRIPTION_RETRIES) {
-            const delay = RETRY_BASE_DELAY_MS * Math.pow(2, retryCount)
-            log.warn(`SUBSCRIBE: Reconnecting in ${delay}ms (attempt ${retryCount + 1}/${MAX_SUBSCRIPTION_RETRIES})`)
-
-            const retryTimer = setTimeout(async () => {
-              subscriptionRetryTimers.delete(backendId)
-              subscriptionRetryCounts.set(backendId, retryCount + 1)
-              try {
-                await client.removeChannel(channel).catch(() => {})
-                await subscribeToBackendAsync(backendId, currentVaultId, syncStates, syncBackendsStore, syncEngineStore)
-              } catch (retryError) {
-                log.error(`SUBSCRIBE: Reconnect failed for backend ${backendId}:`, retryError)
-              }
-            }, delay)
-            subscriptionRetryTimers.set(backendId, retryTimer)
-          } else {
-            log.warn(`SUBSCRIBE: Realtime reconnection failed for backend ${backendId} after ${MAX_SUBSCRIPTION_RETRIES} attempts. Periodic pull will be used as fallback.`)
-          }
+          scheduleRetry(backendId, channel, currentVaultId, syncStates, syncBackendsStore, syncEngineStore, client, status)
         }
       })
 
@@ -344,6 +357,8 @@ export const subscribeToBackendAsync = async (
     log.error(`SUBSCRIBE: Failed to subscribe to backend ${backendId}:`, error)
     state.error = error instanceof Error ? error.message : 'Unknown error'
     throw error
+  } finally {
+    subscriptionInProgress.delete(backendId)
   }
 }
 
@@ -411,8 +426,9 @@ const reconnectAllBackendsAsync = async (): Promise<void> => {
       const state = syncStates[backend.id]
       if (!state) continue
 
-      // Reset retry count for fresh start
+      // Reset retry count and guards for fresh start
       subscriptionRetryCounts.delete(backend.id)
+      subscriptionInProgress.delete(backend.id)
 
       // Clear any pending retry timers
       const retryTimer = subscriptionRetryTimers.get(backend.id)
