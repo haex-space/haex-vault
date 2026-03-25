@@ -258,6 +258,7 @@ jobs:
           workspaces: src-tauri
 
       - name: Clean stale migration caches
+        shell: bash
         run: find src-tauri/target -path "*/database/migrations" -type d -exec rm -rf {} + 2>/dev/null || true
 
       - name: Install frontend dependencies
@@ -330,6 +331,7 @@ jobs:
           workspaces: src-tauri
 
       - name: Clean stale migration caches
+        shell: bash
         run: find src-tauri/target -path "*/database/migrations" -type d -exec rm -rf {} + 2>/dev/null || true
 
       - name: Install frontend dependencies
@@ -452,6 +454,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Clean stale migration caches
+        shell: bash
         run: find src-tauri/target -path "*/database/migrations" -type d -exec rm -rf {} + 2>/dev/null || true
 
       - name: Initialize Android project
