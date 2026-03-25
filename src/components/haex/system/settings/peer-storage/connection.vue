@@ -1,10 +1,23 @@
 <template>
   <HaexSystemSettingsLayout
     :title="t('title')"
-    :description="t('description')"
     show-back
     @back="$emit('back')"
   >
+    <template #description>
+      <span v-if="store.nodeId" class="flex items-center gap-1.5">
+        {{ t('endpointId') }}: <code class="font-mono truncate">{{ store.nodeId }}</code>
+        <UButton
+          icon="i-lucide-copy"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          class="shrink-0"
+          @click="copyEndpointId"
+        />
+      </span>
+      <span v-else>{{ t('description') }}</span>
+    </template>
     <template #actions>
       <UButton
         color="neutral"
@@ -30,17 +43,6 @@
         />
       </div>
     </template>
-
-    <!-- Status -->
-    <div class="flex items-center gap-2 mb-4">
-      <span
-        class="w-2.5 h-2.5 rounded-full shrink-0"
-        :class="store.running ? 'bg-green-500' : 'bg-gray-400'"
-      />
-      <span class="text-sm text-muted">
-        {{ store.running ? t('status.running') : t('status.stopped') }}
-      </span>
-    </div>
 
     <!-- No Spaces -->
     <HaexSystemSettingsLayoutEmpty
@@ -211,6 +213,7 @@ defineEmits<{ back: [] }>()
 
 const { t } = useI18n()
 const { add } = useToast()
+const { copy } = useClipboard()
 const store = usePeerStorageStore()
 const spacesStore = useSpacesStore()
 const windowManager = useWindowManagerStore()
@@ -453,6 +456,11 @@ const onAddShareAsync = async (spaceId: string, type: 'folder' | 'file' = 'folde
   }
 }
 
+const copyEndpointId = async () => {
+  await copy(store.nodeId)
+  add({ title: t('toast.copied'), color: 'success' })
+}
+
 const onRemoveShareAsync = async (shareId: string) => {
   try {
     await store.removeShareAsync(shareId)
@@ -471,12 +479,10 @@ const onRemoveShareAsync = async (shareId: string) => {
 de:
   title: Verbindung
   description: P2P-Endpoint und geteilte Ordner verwalten
-  status:
-    running: Aktiv
-    stopped: Inaktiv
   actions:
     start: Starten
     stop: Stoppen
+  endpointId: Endpoint-ID
   autostart: Automatisch starten wenn die Vault geöffnet wird
   noSpaces: Keine Spaces vorhanden
   goToSpaces: Spaces verwalten
@@ -487,6 +493,7 @@ de:
   thisDevice: Dieses Gerät
   error: Fehler
   toast:
+    copied: Endpoint-ID kopiert
     started: P2P-Endpoint gestartet
     stopped: P2P-Endpoint gestoppt
     shareAdded: Ordner hinzugefügt
@@ -494,12 +501,10 @@ de:
 en:
   title: Connection
   description: Manage P2P endpoint and shared folders
-  status:
-    running: Active
-    stopped: Inactive
   actions:
     start: Start
     stop: Stop
+  endpointId: Endpoint ID
   autostart: Automatically start when the vault is opened
   noSpaces: No spaces available
   goToSpaces: Manage Spaces
@@ -510,6 +515,7 @@ en:
   thisDevice: This device
   error: Error
   toast:
+    copied: Endpoint ID copied
     started: P2P endpoint started
     stopped: P2P endpoint stopped
     shareAdded: Folder added

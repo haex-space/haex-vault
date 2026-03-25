@@ -17,7 +17,7 @@
 
 <script setup lang="ts">
 const { t } = useI18n()
-const { activeView, navigateTo, goBack } = useDrillDownNavigation<'index' | 'viewer' | 'retention'>('logs')
+const { activeView, navigateTo, goBack } = useDrillDownNavigation<'index' | 'viewer' | 'retention'>('index', 'logs')
 </script>
 
 <i18n lang="yaml">

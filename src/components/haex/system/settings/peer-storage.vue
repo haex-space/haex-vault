@@ -48,7 +48,7 @@
 <script setup lang="ts">
 const { t } = useI18n()
 const store = usePeerStorageStore()
-const { activeView, navigateTo, goBack } = useDrillDownNavigation<'index' | 'connection' | 'relay'>('index')
+const { activeView, navigateTo, goBack } = useDrillDownNavigation<'index' | 'connection' | 'relay'>('index', 'peer-storage')
 
 onMounted(async () => {
   await store.refreshStatusAsync()
