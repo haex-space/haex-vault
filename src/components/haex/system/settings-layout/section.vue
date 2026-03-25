@@ -1,18 +1,16 @@
 <template>
   <div class="border-b border-default last:border-b-0">
     <UCollapsible v-model:open="isOpen" :unmount-on-hide="false">
-      <!-- Section Header -->
-      <div class="flex flex-col gap-2 p-3 @sm:p-4">
-        <!-- Title row (this is the UCollapsible trigger via default slot) -->
+      <!-- Section Header (entire default slot is the trigger via Nuxt UI) -->
+      <div class="flex flex-col gap-2 p-3 @sm:p-4 cursor-pointer">
+        <!-- Title row -->
         <div class="flex items-center gap-2 w-full">
-          <CollapsibleTrigger class="flex items-center gap-2 flex-1 min-w-0 cursor-pointer text-left">
-            <UIcon
-              name="i-lucide-chevron-right"
-              class="w-4 h-4 shrink-0 text-muted transition-transform duration-200"
-              :class="{ 'rotate-90': isOpen }"
-            />
-            <h3 class="text-lg font-semibold flex-1 truncate">{{ title }}</h3>
-          </CollapsibleTrigger>
+          <UIcon
+            name="i-lucide-chevron-right"
+            class="w-4 h-4 shrink-0 text-muted transition-transform duration-200"
+            :class="{ 'rotate-90': isOpen }"
+          />
+          <h3 class="text-lg font-semibold flex-1 truncate">{{ title }}</h3>
           <UPopover v-if="description" @click.stop>
             <UiButton
               icon="i-lucide-info"
@@ -32,6 +30,7 @@
         <div
           v-if="$slots.actions"
           class="flex flex-wrap items-center gap-2 pl-6"
+          @click.stop
         >
           <slot name="actions" />
         </div>
@@ -48,7 +47,6 @@
 </template>
 
 <script setup lang="ts">
-import { CollapsibleTrigger } from 'reka-ui'
 const props = withDefaults(
   defineProps<{
     title: string

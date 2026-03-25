@@ -3,8 +3,8 @@
     <UCollapsible v-model:open="expanded">
       <div class="flex flex-col gap-3">
         <!-- Top row: Name + expand toggle + Actions -->
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <button
+        <div class="flex flex-wrap items-start justify-between gap-3 cursor-pointer">
+          <div
             class="flex items-center gap-2 min-w-0 text-left transition-opacity duration-200"
             :class="{ 'opacity-50': !backend.enabled }"
           >
@@ -19,9 +19,9 @@
                 {{ getBackendHostByUrl(backend.serverUrl) }}
               </p>
             </div>
-          </button>
+          </div>
           <!-- Actions slot -->
-          <div v-if="$slots.actions">
+          <div v-if="$slots.actions" @click.stop>
             <slot name="actions" />
           </div>
         </div>

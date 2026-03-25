@@ -49,66 +49,62 @@
           :key="identity.publicKey"
           class="p-3 rounded-lg border border-default"
         >
-          <button
-            class="w-full text-left cursor-pointer"
-            @click="toggleExpand(identity.publicKey)"
-          >
-            <div class="flex items-center gap-2">
-              <UIcon
-                name="i-lucide-chevron-right"
-                class="w-4 h-4 shrink-0 text-muted transition-transform duration-200"
-                :class="{ 'rotate-90': expandedIdentity === identity.publicKey }"
-              />
-              <UIcon
-                name="i-lucide-fingerprint"
-                class="w-4 h-4 text-primary shrink-0"
-              />
-              <span class="font-medium truncate">{{ identity.label }}</span>
-            </div>
-            <code class="block text-xs text-muted truncate mt-1 ml-6">{{
-              identity.did
-            }}</code>
-            <p
-              v-if="identity.createdAt"
-              class="text-xs text-muted mt-1 ml-6"
-            >
-              {{ t('list.created') }}: {{ formatDate(identity.createdAt) }}
-            </p>
-          </button>
-
-          <div class="flex flex-wrap items-center gap-1 mt-2">
-            <UButton
-              variant="ghost"
-              icon="i-lucide-copy"
-              :title="t('actions.copyDid')"
-              @click="copyDid(identity.did)"
-            />
-            <UButton
-              variant="ghost"
-              icon="i-lucide-download"
-              :title="t('actions.export')"
-              @click="onExport(identity)"
-            />
-            <UButton
-              variant="ghost"
-              icon="i-lucide-pencil"
-              :title="t('actions.edit')"
-              @click="openRenameDialog(identity)"
-            />
-            <UButton
-              variant="ghost"
-              color="error"
-              icon="i-lucide-trash-2"
-              :title="t('actions.delete')"
-              @click="prepareDelete(identity)"
-            />
-          </div>
-
-          <!-- Claims Section (collapsible) -->
           <UCollapsible
             :open="expandedIdentity === identity.publicKey"
             :unmount-on-hide="false"
+            @update:open="(val: boolean) => onToggleIdentity(identity.publicKey, val)"
           >
+            <div class="w-full text-left cursor-pointer">
+              <div class="flex items-center gap-2">
+                <UIcon
+                  name="i-lucide-chevron-right"
+                  class="w-4 h-4 shrink-0 text-muted transition-transform duration-200"
+                  :class="{ 'rotate-90': expandedIdentity === identity.publicKey }"
+                />
+                <UIcon
+                  name="i-lucide-fingerprint"
+                  class="w-4 h-4 text-primary shrink-0"
+                />
+                <span class="font-medium truncate">{{ identity.label }}</span>
+              </div>
+              <code class="block text-xs text-muted truncate mt-1 ml-6">{{
+                identity.did
+              }}</code>
+              <p
+                v-if="identity.createdAt"
+                class="text-xs text-muted mt-1 ml-6"
+              >
+                {{ t('list.created') }}: {{ formatDate(identity.createdAt) }}
+              </p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-1 mt-2" @click.stop>
+              <UButton
+                variant="ghost"
+                icon="i-lucide-copy"
+                :title="t('actions.copyDid')"
+                @click="copyDid(identity.did)"
+              />
+              <UButton
+                variant="ghost"
+                icon="i-lucide-download"
+                :title="t('actions.export')"
+                @click="onExport(identity)"
+              />
+              <UButton
+                variant="ghost"
+                icon="i-lucide-pencil"
+                :title="t('actions.edit')"
+                @click="openRenameDialog(identity)"
+              />
+              <UButton
+                variant="ghost"
+                color="error"
+                icon="i-lucide-trash-2"
+                :title="t('actions.delete')"
+                @click="prepareDelete(identity)"
+              />
+            </div>
             <template #content>
               <div class="mt-3 pt-3 border-t border-default space-y-2">
                 <div class="flex flex-wrap items-center justify-between gap-2">
@@ -776,8 +772,8 @@ const canSaveClaim = computed(() => {
   return true
 })
 
-const toggleExpand = async (identityId: string) => {
-  if (expandedIdentity.value === identityId) {
+const onToggleIdentity = async (identityId: string, open: boolean) => {
+  if (!open) {
     expandedIdentity.value = null
     return
   }

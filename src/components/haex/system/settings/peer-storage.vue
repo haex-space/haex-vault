@@ -46,13 +46,11 @@
           <UCollapsible
             :open="expandedSpaces.has(space.id)"
             :unmount-on-hide="false"
+            @update:open="(val: boolean) => onToggleSpace(space.id, val)"
           >
             <!-- Space header -->
-            <div class="flex items-center gap-2 py-2.5">
-              <button
-                class="flex items-center gap-2 min-w-0 flex-1 cursor-pointer"
-                @click="toggleSpace(space.id)"
-              >
+            <div class="flex items-center gap-2 py-2.5 cursor-pointer">
+              <div class="flex items-center gap-2 min-w-0 flex-1">
                 <UIcon
                   name="i-lucide-chevron-right"
                   class="w-4 h-4 shrink-0 text-muted transition-transform duration-200"
@@ -62,7 +60,7 @@
                 <UBadge variant="subtle" size="sm">
                   {{ getSharesForSpace(space.id).length }}
                 </UBadge>
-              </button>
+              </div>
               <UDropdownMenu
                 :items="[
                   [
@@ -223,10 +221,10 @@ const autostart = ref(false)
 const relayUrlInput = ref('')
 const expandedSpaces = ref(new Set<string>())
 
-const toggleSpace = (spaceId: string) => {
+const onToggleSpace = (spaceId: string, open: boolean) => {
   const next = new Set(expandedSpaces.value)
-  if (next.has(spaceId)) next.delete(spaceId)
-  else next.add(spaceId)
+  if (open) next.add(spaceId)
+  else next.delete(spaceId)
   expandedSpaces.value = next
 }
 

@@ -56,12 +56,13 @@
           :key="contact.id"
           class="p-3 rounded-lg border border-default"
         >
-          <UCollapsible>
-            <div class="flex items-center justify-between">
-              <button
-                class="flex-1 min-w-0 text-left flex items-center gap-2"
-                @click="toggleExpand(contact.id)"
-              >
+          <UCollapsible
+            :open="expandedContact === contact.id"
+            :unmount-on-hide="false"
+            @update:open="(val: boolean) => onToggleContact(contact.id, val)"
+          >
+            <div class="flex items-center justify-between cursor-pointer">
+              <div class="flex-1 min-w-0 flex items-center gap-2">
                 <UIcon
                   name="i-lucide-chevron-right"
                   class="w-4 h-4 shrink-0 text-muted transition-transform duration-200"
@@ -81,9 +82,9 @@
                     }}</code>
                   </div>
                 </div>
-              </button>
+              </div>
 
-              <div class="flex items-center gap-1 shrink-0 ml-4">
+              <div class="flex items-center gap-1 shrink-0 ml-4" @click.stop>
                 <UButton
                   variant="ghost"
                   icon="i-lucide-copy"
@@ -515,8 +516,8 @@ const canSaveClaim = computed(() => {
   return true
 })
 
-const toggleExpand = async (contactId: string) => {
-  if (expandedContact.value === contactId) {
+const onToggleContact = async (contactId: string, open: boolean) => {
+  if (!open) {
     expandedContact.value = null
     return
   }
