@@ -270,19 +270,21 @@ describe('Visibility-based Reconnection', () => {
       context.syncBackendsStore = {
         enabledBackends: [{ id: 'backend-1' }],
       } as unknown as ReturnType<typeof useSyncBackendsStore>
-      context.syncEngineStore = {} as unknown as ReturnType<typeof useSyncEngineStore>
+      context.syncEngineStore = {
+        supabaseClient: {
+          removeChannel: () => subscribePromise,
+        },
+      } as unknown as ReturnType<typeof useSyncEngineStore>
       context.syncStates = {
         'backend-1': {
           isConnected: false,
           isSyncing: false,
           error: null,
-          subscription: {
-            unsubscribe: () => subscribePromise as unknown as Promise<'ok'>,
-          } as unknown as typeof context.syncStates[string]['subscription'],
+          subscription: {} as unknown as typeof context.syncStates[string]['subscription'],
         },
       }
 
-      // Start first reconnection - it will be blocked on unsubscribe
+      // Start first reconnection - it will be blocked on removeChannel
       const promise1 = _reconnectAllBackendsAsync()
 
       // Give the async function time to set reconnectionPending
