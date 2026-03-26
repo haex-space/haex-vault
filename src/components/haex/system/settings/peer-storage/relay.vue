@@ -82,7 +82,7 @@ const { t } = useI18n()
 const { add } = useToast()
 const store = usePeerStorageStore()
 
-const defaultRelay = 'relay.sync.haex.space'
+const defaultRelay = 'https://relay.sync.haex.space'
 const irohRelay = 'https://relay.iroh.network'
 
 const customRelays = ref<string[]>([])

@@ -5,6 +5,16 @@
     show-back
     @back="$emit('back')"
   >
+    <template #actions>
+      <UiButton
+        icon="i-lucide-download"
+        color="primary"
+        :loading="isExporting"
+        @click="exportAsJson"
+      >
+        {{ selectedRows.size > 0 ? t('exportSelected', { count: selectedRows.size }) : t('exportAll') }}
+      </UiButton>
+    </template>
     <!-- Loading -->
     <div
       v-if="isLoading"
@@ -22,11 +32,11 @@
       class="space-y-4"
     >
       <div class="overflow-x-auto rounded-lg border border-default">
-        <table class="w-full text-xs font-mono">
+        <table class="w-full text-sm font-mono">
           <thead>
             <!-- Column headers (sortable) -->
             <tr class="bg-muted/30">
-              <th class="w-10 px-3 py-2 border-b border-default">
+              <th class="w-10 px-4 py-3 border-b border-default">
                 <input
                   ref="selectAllCheckbox"
                   type="checkbox"
@@ -39,7 +49,7 @@
               <th
                 v-for="col in columns"
                 :key="col"
-                class="text-left px-3 py-2 text-muted font-medium whitespace-nowrap border-b border-default cursor-pointer hover:text-highlighted select-none transition-colors"
+                class="text-left px-4 py-3 text-muted font-medium whitespace-nowrap border-b border-default cursor-pointer hover:text-highlighted select-none transition-colors"
                 @click="toggleSort(col)"
               >
                 <div class="flex items-center gap-1">
@@ -54,11 +64,11 @@
             </tr>
             <!-- Column filters -->
             <tr class="bg-muted/10">
-              <td class="px-1 py-1 border-b border-default" />
+              <td class="px-2 py-1.5 border-b border-default" />
               <td
                 v-for="col in columns"
                 :key="`filter-${col}`"
-                class="px-1 py-1 border-b border-default"
+                class="px-2 py-1.5 border-b border-default"
               >
                 <input
                   v-model="columnFilters[col]"
@@ -80,7 +90,7 @@
               ]"
               @click="toggleRowSelection(i)"
             >
-              <td class="w-10 px-3 py-1.5">
+              <td class="w-10 px-4 py-2.5">
                 <input
                   type="checkbox"
                   :checked="selectedRows.has(i)"
@@ -90,7 +100,7 @@
               <td
                 v-for="(cell, j) in row"
                 :key="j"
-                class="px-3 py-1.5 whitespace-nowrap max-w-80 truncate"
+                class="px-4 py-2.5 whitespace-nowrap max-w-80 truncate"
                 :title="String(cell)"
               >
                 <span
@@ -109,7 +119,7 @@
       </div>
 
       <!-- Pagination + Reset -->
-      <div class="flex items-center justify-between">
+      <div class="flex items-center justify-between pt-4">
         <div class="flex items-center gap-3">
           <span class="text-sm text-muted">
             <template v-if="total > 0">
@@ -128,20 +138,17 @@
           >
             {{ t('resetFilters') }}
           </UiButton>
-          <UiButton
-            icon="i-lucide-download"
-            variant="ghost"
-            color="neutral"
-            :loading="isExporting"
-            @click="exportAsJson"
-          >
-            {{ selectedRows.size > 0 ? t('exportSelected', { count: selectedRows.size }) : t('exportAll') }}
-          </UiButton>
         </div>
-        <div
-          v-if="total > pageSize"
-          class="flex gap-2"
-        >
+        <div class="flex items-center gap-2">
+          <span class="text-sm text-muted">{{ t('perPage') }}</span>
+          <USelectMenu
+            :model-value="pageSize"
+            :items="pageSizeOptions.map(s => ({ label: String(s), value: s }))"
+            value-key="value"
+            :search-input="false"
+            class="w-28"
+            @update:model-value="pageSize = $event; offset = 0; loadData()"
+          />
           <UiButton
             icon="i-lucide-chevron-left"
             variant="ghost"
@@ -193,7 +200,8 @@ const columns = ref<string[]>([])
 const rows = ref<unknown[][]>([])
 const total = ref(0)
 const offset = ref(0)
-const pageSize = 50
+const pageSizeOptions = [10, 25, 50, 100]
+const pageSize = ref(10)
 
 // Selection
 const selectedRows = ref(new Set<number>())
@@ -319,7 +327,7 @@ const loadData = async () => {
         params: whereParams,
       }),
       invoke<unknown[][]>('sql_select', {
-        sql: `SELECT * FROM "${props.tableName}" ${where} ${order} LIMIT ${pageSize} OFFSET ${offset.value}`,
+        sql: `SELECT * FROM "${props.tableName}" ${where} ${order} LIMIT ${pageSize.value} OFFSET ${offset.value}`,
         params: whereParams,
       }),
     ])
@@ -390,6 +398,7 @@ de:
   noResults: Keine Ergebnisse
   exportAll: Alle exportieren
   exportSelected: '{count} exportieren'
+  perPage: Einträge pro Seite
 en:
   rows: rows
   empty: No entries in this table
@@ -398,5 +407,6 @@ en:
   resetFilters: Reset filters
   noResults: No results
   exportAll: Export all
+  perPage: Entries per page
   exportSelected: 'Export {count}'
 </i18n>
