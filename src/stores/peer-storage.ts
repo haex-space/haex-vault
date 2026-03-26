@@ -12,7 +12,7 @@ import {
   type SelectHaexPeerShares,
   type SelectHaexSpaceDevices,
 } from '~/database/schemas'
-import { VaultSettingsKeyEnum, VaultSettingsTypeEnum } from '~/config/vault-settings'
+import { VaultSettingsKeyEnum } from '~/config/vault-settings'
 
 export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   const { currentVault } = storeToRefs(useVaultStore())
@@ -68,7 +68,6 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
       await db.insert(haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.peerStorageRelayUrl,
-        type: VaultSettingsTypeEnum.settings,
         value: url,
       })
     }

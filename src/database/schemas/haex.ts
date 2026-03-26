@@ -21,13 +21,11 @@ export const haexVaultSettings = sqliteTable(
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
     key: text(tableNames.haex.vault_settings.columns.key).notNull(),
-    type: text(tableNames.haex.vault_settings.columns.type).notNull(),
     value: text(tableNames.haex.vault_settings.columns.value),
-    extensionId: text(tableNames.haex.vault_settings.columns.extensionId)
-      .references((): AnySQLiteColumn => haexExtensions.id, { onDelete: 'cascade' }),
+    deviceId: text(tableNames.haex.vault_settings.columns.deviceId),
   },
   (table) => [
-    uniqueIndex('haex_vault_settings_key_type_ext_unique').on(table.key, table.type, table.extensionId),
+    uniqueIndex('haex_vault_settings_key_device_unique').on(table.key, table.deviceId),
   ],
 )
 export type InsertHaexVaultSettings = typeof haexVaultSettings.$inferInsert

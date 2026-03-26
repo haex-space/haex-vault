@@ -78,7 +78,7 @@ pub async fn device_init_key(
                 SqlExecutor::execute_internal_typed(
                     &tx,
                     &hlc_service,
-                    "INSERT INTO haex_vault_settings (id, key, type, value) VALUES (?, 'device_key_secret', 'system', ?)",
+                    "INSERT INTO haex_vault_settings (id, key, value) VALUES (?, 'device_key_secret', ?)",
                     rusqlite::params![uuid::Uuid::new_v4().to_string(), new_secret],
                 ).map_err(|e| DeviceError::Database {
                     reason: format!("Failed to store device_key_secret: {e}"),

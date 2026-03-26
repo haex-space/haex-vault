@@ -99,7 +99,6 @@ export const useSyncConfigStore = defineStore('syncConfigStore', () => {
         id: crypto.randomUUID(),
         key,
         value,
-        type: 'system',
       })
     }
   }

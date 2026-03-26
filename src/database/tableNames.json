@@ -20,9 +20,8 @@
       "columns": {
         "id": "id",
         "key": "key",
-        "type": "type",
         "value": "value",
-        "extensionId": "extension_id"
+        "deviceId": "device_id"
       }
     },
     "extensions": {

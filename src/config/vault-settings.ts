@@ -5,12 +5,6 @@
  * Run `pnpm test:constants` to verify synchronization
  */
 
-// Vault settings type values
-export enum VaultSettingsTypeEnum {
-  settings = 'settings',
-  system = 'system',
-}
-
 // Vault settings key values (all snake_case for consistency)
 export enum VaultSettingsKeyEnum {
   locale = 'locale',

@@ -4,13 +4,6 @@
 // IMPORTANT: These values must match the TypeScript constants in src/stores/vault/settings.ts
 // Run `pnpm test:constants` to verify synchronization
 
-/// Vault settings type values
-#[allow(dead_code)]
-pub mod vault_settings_type {
-    pub const SETTINGS: &str = "settings";
-    pub const SYSTEM: &str = "system";
-}
-
 /// Vault settings key values (all snake_case for consistency)
 #[allow(dead_code)]
 pub mod vault_settings_key {
@@ -40,11 +33,6 @@ mod tests {
     /// This test outputs JSON that can be compared with TypeScript constants
     #[test]
     fn export_constants_as_json() {
-        let types = serde_json::json!({
-            "settings": vault_settings_type::SETTINGS,
-            "system": vault_settings_type::SYSTEM,
-        });
-
         let keys = serde_json::json!({
             "locale": vault_settings_key::LOCALE,
             "theme": vault_settings_key::THEME,
@@ -62,7 +50,6 @@ mod tests {
         });
 
         let output = serde_json::json!({
-            "vaultSettingsType": types,
             "vaultSettingsKey": keys,
         });
 

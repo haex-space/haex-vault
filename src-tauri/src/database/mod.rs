@@ -15,7 +15,7 @@ use crate::database::error::DatabaseError;
 use crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED;
 use crate::extension::database::executor::SqlExecutor;
 use crate::table_names::{COL_CRDT_CONFIGS_KEY, COL_CRDT_CONFIGS_TYPE, COL_CRDT_CONFIGS_VALUE, TABLE_CRDT_CONFIGS, TABLE_VAULT_SETTINGS};
-use constants::{vault_settings_key, vault_settings_type};
+use constants::vault_settings_key;
 use crate::AppState;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -545,10 +545,9 @@ pub fn create_encrypted_database(
         })?;
         let row_id = uuid::Uuid::new_v4().to_string();
         let insert_sql = format!(
-            "INSERT INTO {} (id, key, type, value) VALUES (?, '{}', '{}', ?)",
+            "INSERT INTO {} (id, key, value) VALUES (?, '{}', ?)",
             TABLE_VAULT_SETTINGS,
             vault_settings_key::SPACE_ID,
-            vault_settings_type::SYSTEM,
         );
         with_connection(&state.db, |conn| {
             let tx = conn.transaction().map_err(DatabaseError::from)?;
@@ -576,10 +575,9 @@ pub fn create_encrypted_database(
         })?;
         let row_id = uuid::Uuid::new_v4().to_string();
         let insert_sql = format!(
-            "INSERT INTO {} (id, key, type, value) VALUES (?, '{}', '{}', ?)",
+            "INSERT INTO {} (id, key, value) VALUES (?, '{}', ?)",
             TABLE_VAULT_SETTINGS,
             vault_settings_key::DEVICE_KEY_SECRET,
-            vault_settings_type::SYSTEM,
         );
         with_connection(&state.db, |conn| {
             let tx = conn.transaction().map_err(DatabaseError::from)?;

@@ -10,22 +10,10 @@
 
 import { describe, it, expect } from 'vitest'
 import {
-  VaultSettingsTypeEnum,
   VaultSettingsKeyEnum,
 } from '@/config/vault-settings'
 
 describe('VaultSettings Constants Synchronization', () => {
-  describe('VaultSettingsTypeEnum', () => {
-    // These values must match Rust: src-tauri/src/database/constants.rs::vault_settings_type
-    it('should have correct "settings" value', () => {
-      expect(VaultSettingsTypeEnum.settings).toBe('settings')
-    })
-
-    it('should have correct "system" value', () => {
-      expect(VaultSettingsTypeEnum.system).toBe('system')
-    })
-  })
-
   describe('VaultSettingsKeyEnum', () => {
     // These values must match Rust: src-tauri/src/database/constants.rs::vault_settings_key
     // All values should be snake_case

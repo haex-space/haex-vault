@@ -24,9 +24,9 @@ const isWaitingForInitialSync = ref(false)
 const syncProgress = ref<{ synced: number; total: number } | undefined>()
 const isRemoteSyncVault = computed(() => route.query.remoteSync === 'true')
 
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { haexVaultSettings } from '~/database/schemas'
-import { VaultSettingsKeyEnum, VaultSettingsTypeEnum } from '~/config/vault-settings'
+import { VaultSettingsKeyEnum } from '~/config/vault-settings'
 
 const { readNotificationsAsync } = useNotificationStore()
 const tourStore = useTourStore()
@@ -85,16 +85,21 @@ onMounted(async () => {
       await currentVault.value?.drizzle.insert(haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.onboardingCompleted,
-        type: VaultSettingsTypeEnum.settings,
         value: 'true',
       })
       await tourStore.start()
     }
 
-    // Auto-start P2P endpoint if configured
-    const peerAutostart = await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
-      where: eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageAutostart),
-    })
+    // Auto-start P2P endpoint if configured for this device
+    const deviceStore = useDeviceStore()
+    const peerAutostart = deviceStore.deviceId
+      ? await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
+          where: and(
+            eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageAutostart),
+            eq(haexVaultSettings.deviceId, deviceStore.deviceId),
+          ),
+        })
+      : null
     if (peerAutostart?.value === 'true') {
       usePeerStorageStore().startAsync().catch((error) => {
         console.warn('[P2P] Autostart failed:', error)

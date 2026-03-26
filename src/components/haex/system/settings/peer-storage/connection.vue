@@ -200,14 +200,11 @@
 <script setup lang="ts">
 import { SpaceRoles } from '@haex-space/vault-sdk'
 import { SettingsCategory } from '~/config/settingsCategories'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
 import type { SelectHaexPeerShares } from '~/database/schemas'
 import { haexVaultSettings } from '~/database/schemas'
-import {
-  VaultSettingsKeyEnum,
-  VaultSettingsTypeEnum,
-} from '~/config/vault-settings'
+import { VaultSettingsKeyEnum } from '~/config/vault-settings'
 
 defineEmits<{ back: [] }>()
 
@@ -230,16 +227,19 @@ const onToggleSpace = (spaceId: string, open: boolean) => {
   expandedSpaces.value = next
 }
 
+const deviceStore = useDeviceStore()
+
 const onToggleAutostartAsync = async (value: boolean | 'indeterminate') => {
   if (value === 'indeterminate') return
   if (!currentVault.value?.drizzle) return
+  if (!deviceStore.deviceId) return
 
   try {
     const existing =
       await currentVault.value.drizzle.query.haexVaultSettings.findFirst({
-        where: eq(
-          haexVaultSettings.key,
-          VaultSettingsKeyEnum.peerStorageAutostart,
+        where: and(
+          eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageAutostart),
+          eq(haexVaultSettings.deviceId, deviceStore.deviceId),
         ),
       })
 
@@ -247,14 +247,12 @@ const onToggleAutostartAsync = async (value: boolean | 'indeterminate') => {
       await currentVault.value.drizzle
         .update(haexVaultSettings)
         .set({ value: value ? 'true' : 'false' })
-        .where(
-          eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageAutostart),
-        )
+        .where(eq(haexVaultSettings.id, existing.id))
     } else {
       await currentVault.value.drizzle.insert(haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.peerStorageAutostart,
-        type: VaultSettingsTypeEnum.settings,
+        deviceId: deviceStore.deviceId,
         value: value ? 'true' : 'false',
       })
     }
@@ -269,12 +267,12 @@ onMounted(async () => {
   await store.loadSharesAsync()
   await store.loadSpaceDevicesAsync()
 
-  if (currentVault.value?.drizzle) {
+  if (currentVault.value?.drizzle && deviceStore.deviceId) {
     const row =
       await currentVault.value.drizzle.query.haexVaultSettings.findFirst({
-        where: eq(
-          haexVaultSettings.key,
-          VaultSettingsKeyEnum.peerStorageAutostart,
+        where: and(
+          eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageAutostart),
+          eq(haexVaultSettings.deviceId, deviceStore.deviceId),
         ),
       })
     autostart.value = row?.value === 'true'

@@ -255,13 +255,11 @@ CREATE UNIQUE INDEX `haex_sync_backends_server_url_unique` ON `haex_sync_backend
 CREATE TABLE `haex_vault_settings` (
 	`id` text PRIMARY KEY NOT NULL,
 	`key` text NOT NULL,
-	`type` text NOT NULL,
 	`value` text,
-	`extension_id` text,
-	FOREIGN KEY (`extension_id`) REFERENCES `haex_extensions`(`id`) ON UPDATE no action ON DELETE cascade
+	`device_id` text
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `haex_vault_settings_key_type_ext_unique` ON `haex_vault_settings` (`key`,`type`,`extension_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_vault_settings_key_device_unique` ON `haex_vault_settings` (`key`,`device_id`);--> statement-breakpoint
 CREATE TABLE `haex_workspaces_no_sync` (
 	`id` text PRIMARY KEY NOT NULL,
 	`device_id` text NOT NULL,
