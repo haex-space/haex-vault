@@ -269,12 +269,18 @@ export const subscribeToBackendAsync = async (
     log.info(`SUBSCRIBE: Realtime connection state: ${client.realtime.connectionState()}`)
     log.info(`SUBSCRIBE: Realtime channels count: ${client.realtime.channels.length}`)
 
-    // If there's an existing dead connection, disconnect and remove all channels
-    // to force a completely fresh WebSocket connection with the current auth token
-    if (client.realtime.connectionState() === 'closed') {
-      log.info('SUBSCRIBE: Realtime connection is closed, resetting for fresh connection')
+    // If there's an existing dead connection, clean up channels and explicitly
+    // reconnect. We must NOT call disconnect() here — on Android WebView it puts
+    // the Realtime client into a state that prevents automatic reconnection.
+    // Instead, remove stale channels and call connect() to re-establish the WebSocket.
+    const connState = client.realtime.connectionState()
+    if (connState === 'closed' || connState === 'disconnected') {
+      log.info(`SUBSCRIBE: Realtime connection is ${connState}, cleaning up and reconnecting`)
       client.realtime.removeAllChannels()
-      client.realtime.disconnect()
+      client.realtime.connect()
+      // Give the WebSocket time to establish before subscribing
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      log.info(`SUBSCRIBE: After reconnect attempt, state: ${client.realtime.connectionState()}`)
     }
 
     // Subscribe via Realtime Broadcast instead of postgres_changes.
@@ -449,13 +455,11 @@ const reconnectAllBackendsAsync = async (): Promise<void> => {
         subscriptionRetryTimers.delete(backend.id)
       }
 
-      // Unsubscribe existing (likely dead) channel
+      // Clean up existing (likely dead) channel — use removeChannel instead of
+      // unsubscribe() which can hang on dead WebSocket connections (Android)
       if (state.subscription) {
-        try {
-          await state.subscription.unsubscribe()
-        } catch {
-          // Ignore errors on cleanup
-        }
+        activeChannels.delete(backend.id)
+        await syncEngineStore.supabaseClient?.removeChannel(state.subscription).catch(() => {})
         state.subscription = null
       }
 
