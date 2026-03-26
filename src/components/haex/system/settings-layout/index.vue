@@ -31,7 +31,7 @@
     </div>
 
     <!-- Content -->
-    <div class="p-2 @xs:p-3 @sm:p-6 flex-1 min-w-0 min-h-0 overflow-y-auto">
+    <div class="p-2 @xs:p-3 @sm:p-6 flex-1 min-w-0 min-h-0 overflow-auto">
       <slot />
     </div>
   </div>
