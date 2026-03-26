@@ -60,9 +60,6 @@
                     color: 'error',
                   },
                 ]"
-                :ui="{
-                  base: 'px-4 py-3',
-                }"
                 @click="
                   () => {
                     isOpenDrawerOpen = true

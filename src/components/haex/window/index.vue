@@ -124,10 +124,6 @@
       <div class="flex items-center shrink-0">
         <UDropdownMenu
           :items="newTabMenuItems"
-          :ui="{
-            content: 'min-w-48 max-h-80 overflow-y-auto',
-            item: 'py-2 px-2.5 text-base gap-2.5',
-          }"
         >
           <template #item-leading="{ item }">
             <span
