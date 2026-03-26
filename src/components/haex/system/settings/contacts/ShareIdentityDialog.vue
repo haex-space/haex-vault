@@ -92,6 +92,10 @@
 <script setup lang="ts">
 import QRCode from 'qrcode'
 
+const props = defineProps<{
+  preSelectedIdentityId?: string
+}>()
+
 const open = defineModel<boolean>('open', { required: true })
 
 const { t } = useI18n()
@@ -126,13 +130,13 @@ watch(selectedIdentityId, async (id) => {
   }
 })
 
-watch(open, (isOpen) => {
+watch(open, async (isOpen) => {
   if (isOpen) {
-    selectedIdentityId.value = ''
     selectedClaimIds.value.clear()
     availableClaims.value = []
     qrDataUrl.value = ''
-    identityStore.loadIdentitiesAsync()
+    await identityStore.loadIdentitiesAsync()
+    selectedIdentityId.value = props.preSelectedIdentityId || ''
   }
 })
 

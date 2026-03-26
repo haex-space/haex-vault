@@ -66,6 +66,7 @@
               <div class="shrink-0 ml-4" @click.stop>
                 <!-- Large screens: inline buttons -->
                 <div class="hidden @md:flex items-center gap-1">
+                  <UButton variant="ghost" icon="i-lucide-qr-code" :title="t('actions.shareQr')" @click="onShareQr(identity)" />
                   <UButton variant="ghost" icon="i-lucide-copy" :title="t('actions.copyDid')" @click="copyDid(identity.did)" />
                   <UButton variant="ghost" icon="i-lucide-download" :title="t('actions.export')" @click="onExport(identity)" />
                   <UButton variant="ghost" icon="i-lucide-pencil" :title="t('actions.edit')" @click="openRenameDialog(identity)" />
@@ -76,6 +77,7 @@
                   class="@md:hidden"
                   :items="[
                     [
+                      { label: t('actions.shareQr'), icon: 'i-lucide-qr-code', onSelect: () => onShareQr(identity) },
                       { label: t('actions.copyDid'), icon: 'i-lucide-copy', onSelect: () => copyDid(identity.did) },
                       { label: t('actions.export'), icon: 'i-lucide-download', onSelect: () => onExport(identity) },
                       { label: t('actions.edit'), icon: 'i-lucide-pencil', onSelect: () => openRenameDialog(identity) },
@@ -144,6 +146,11 @@
                       <p class="text-sm truncate">{{ claim.value }}</p>
                     </div>
                     <div class="flex gap-1 shrink-0">
+                      <UButton
+                        variant="ghost"
+                        icon="i-lucide-copy"
+                        @click="copyClaimValue(claim.value)"
+                      />
                       <UButton
                         variant="ghost"
                         icon="i-lucide-pencil"
@@ -287,26 +294,113 @@
       :description="t('import.description')"
     >
       <template #content>
-        <UiTextarea
-          v-model="importJson"
-          :label="t('import.jsonLabel')"
-          :placeholder="t('import.jsonPlaceholder')"
-          :rows="8"
-        />
+        <!-- Step 1: Load data -->
+        <template v-if="!importParsed">
+          <div class="space-y-4">
+            <UButton
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-file-up"
+              block
+              @click="onSelectImportFileAsync"
+            >
+              {{ t('import.selectFile') }}
+            </UButton>
+
+            <USeparator :label="t('import.orPaste')" />
+
+            <UiTextarea
+              v-model="importJson"
+              :label="t('import.jsonLabel')"
+              :placeholder="t('import.jsonPlaceholder')"
+              :rows="6"
+            />
+          </div>
+        </template>
+
+        <!-- Step 2: Preview & select -->
+        <template v-else>
+          <div class="space-y-4">
+            <!-- Identity info -->
+            <div class="flex items-center gap-3 p-3 rounded-lg border border-default">
+              <UiAvatar
+                v-if="importParsed.avatar"
+                :src="importParsed.avatar"
+                :seed="importParsed.publicKey"
+                size="sm"
+              />
+              <div class="min-w-0 flex-1">
+                <p class="font-medium truncate">{{ importParsed.label || importParsed.publicKey.slice(0, 20) + '...' }}</p>
+                <p class="text-xs text-muted truncate">{{ importParsed.publicKey }}</p>
+              </div>
+              <UBadge
+                :color="importParsed.privateKey ? 'primary' : 'neutral'"
+                variant="subtle"
+                size="sm"
+              >
+                {{ importParsed.privateKey ? t('import.typeIdentity') : t('import.typeContact') }}
+              </UBadge>
+            </div>
+
+            <!-- Avatar -->
+            <div
+              v-if="importParsed.avatar"
+              class="flex items-center gap-3 p-2 rounded bg-gray-50 dark:bg-gray-800/50"
+            >
+              <UCheckbox v-model="importIncludeAvatar" />
+              <UiAvatar
+                :src="importParsed.avatar"
+                :seed="importParsed.publicKey"
+                size="sm"
+              />
+              <span class="text-sm">{{ t('import.includeAvatar') }}</span>
+            </div>
+
+            <!-- Claims -->
+            <div
+              v-if="importParsed.claims.length"
+              class="space-y-2"
+            >
+              <span class="text-sm font-medium">{{ t('import.selectClaims') }}</span>
+              <div
+                v-for="(claim, index) in importParsed.claims"
+                :key="index"
+                class="flex items-center gap-3 p-2 rounded bg-gray-50 dark:bg-gray-800/50"
+              >
+                <UCheckbox
+                  :model-value="importSelectedClaimIndices.has(index)"
+                  @update:model-value="toggleImportClaim(index)"
+                />
+                <div class="min-w-0 flex-1">
+                  <span class="text-xs font-medium text-muted">{{ claim.type }}</span>
+                  <p class="text-sm truncate">{{ claim.value }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
       </template>
       <template #footer>
         <div class="flex justify-between gap-4">
           <UButton
             color="neutral"
             variant="outline"
-            @click="showImportDialog = false"
+            @click="importParsed ? (importParsed = null) : (showImportDialog = false)"
           >
-            {{ t('actions.cancel') }}
+            {{ importParsed ? t('actions.back') : t('actions.cancel') }}
           </UButton>
           <UiButton
+            v-if="!importParsed"
+            icon="i-lucide-arrow-right"
+            :disabled="!importJson.trim()"
+            @click="onParseImportAsync"
+          >
+            {{ t('import.preview') }}
+          </UiButton>
+          <UiButton
+            v-else
             icon="i-lucide-import"
             :loading="isImporting"
-            :disabled="!importJson.trim()"
             @click="onImportAsync"
           >
             {{ t('actions.import') }}
@@ -322,15 +416,76 @@
       :description="t('export.description')"
     >
       <template #content>
-        <UiTextarea
-          :model-value="exportJson"
-          :label="t('export.jsonLabel')"
-          :rows="8"
-          readonly
-        />
-        <p class="text-xs text-amber-500 dark:text-amber-400 mt-2">
-          {{ t('export.warning') }}
+        <!-- Avatar -->
+        <div
+          v-if="exportTarget?.avatar"
+          class="flex items-center gap-3 p-2 rounded bg-gray-50 dark:bg-gray-800/50"
+        >
+          <UCheckbox v-model="exportIncludeAvatar" />
+          <UiAvatar
+            :src="exportTarget.avatar"
+            :seed="exportTarget.publicKey"
+            size="sm"
+          />
+          <span class="text-sm">{{ t('export.includeAvatar') }}</span>
+        </div>
+
+        <!-- Claims selection -->
+        <div
+          v-if="exportClaims.length"
+          class="space-y-2"
+        >
+          <span class="text-sm font-medium">{{ t('export.selectClaims') }}</span>
+          <div
+            v-for="claim in exportClaims"
+            :key="claim.id"
+            class="flex items-center gap-3 p-2 rounded bg-gray-50 dark:bg-gray-800/50"
+          >
+            <UCheckbox
+              :model-value="exportSelectedClaimIds.has(claim.id)"
+              @update:model-value="toggleExportClaim(claim.id)"
+            />
+            <div class="min-w-0 flex-1">
+              <span class="text-xs font-medium text-muted">{{ claim.type }}</span>
+              <p class="text-sm truncate">{{ claim.value }}</p>
+            </div>
+          </div>
+        </div>
+        <p
+          v-else
+          class="text-sm text-muted"
+        >
+          {{ t('export.noClaims') }}
         </p>
+
+        <!-- Private key (hidden behind collapsible) -->
+        <UCollapsible class="mt-4">
+          <div class="flex items-center gap-2 cursor-pointer text-sm text-muted">
+            <UIcon
+              name="i-lucide-chevron-right"
+              class="w-4 h-4 shrink-0 transition-transform duration-200"
+              :class="{ 'rotate-90': exportIncludePrivateKey }"
+            />
+            <UIcon name="i-lucide-shield-alert" class="w-4 h-4 text-red-500" />
+            <span>{{ t('export.advancedSection') }}</span>
+          </div>
+          <template #content>
+            <div class="mt-2 p-3 rounded-lg border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950/30">
+              <div class="flex items-start gap-3">
+                <UCheckbox
+                  v-model="exportIncludePrivateKey"
+                  color="error"
+                />
+                <div>
+                  <span class="text-sm font-medium text-red-700 dark:text-red-400">{{ t('export.includePrivateKey') }}</span>
+                  <p class="text-xs text-red-600 dark:text-red-500 mt-1">
+                    {{ t('export.privateKeyWarning') }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </template>
+        </UCollapsible>
       </template>
       <template #footer>
         <div class="flex justify-between gap-4">
@@ -339,17 +494,26 @@
             variant="outline"
             @click="showExportDialog = false"
           >
-            {{ t('actions.close') }}
+            {{ t('actions.cancel') }}
           </UButton>
           <UiButton
-            icon="i-lucide-copy"
-            @click="copyExport"
+            icon="i-lucide-download"
+            :loading="isExporting"
+            @click="onExportFileAsync"
           >
-            {{ t('actions.copyExport') }}
+            {{ t('export.saveFile') }}
           </UiButton>
         </div>
       </template>
     </UiDrawerModal>
+
+    <!-- Private Key Export Confirmation -->
+    <UiDialogConfirm
+      v-model:open="showPrivateKeyConfirm"
+      :title="t('export.confirmPrivateKey.title')"
+      :description="t('export.confirmPrivateKey.description')"
+      @confirm="onConfirmExportWithPrivateKeyAsync"
+    />
 
     <!-- Edit Identity Dialog -->
     <UiDrawerModal
@@ -474,13 +638,21 @@
       :description="t('delete.description')"
       @confirm="onConfirmDeleteAsync"
     />
+
+    <!-- Share Identity QR Dialog -->
+    <ShareIdentityDialog
+      v-model:open="showShareQrDialog"
+      :pre-selected-identity-id="shareQrIdentityId"
+    />
   </HaexSystemSettingsLayout>
 </template>
 
 <script setup lang="ts">
+import { save } from '@tauri-apps/plugin-dialog'
+import { writeFile } from '@tauri-apps/plugin-fs'
 import type { SelectHaexIdentities } from '~/database/schemas'
-import type { ExportedIdentity } from '@/stores/identity'
 import { useUpdateIdentityPassword } from '@/composables/useUpdateIdentityPassword'
+import ShareIdentityDialog from './contacts/ShareIdentityDialog.vue'
 
 const { t } = useI18n()
 const { add } = useToast()
@@ -500,6 +672,8 @@ const showRenameDialog = ref(false)
 const showDeleteConfirm = ref(false)
 const showImportDialog = ref(false)
 const showExportDialog = ref(false)
+const showShareQrDialog = ref(false)
+const shareQrIdentityId = ref('')
 
 const createLabel = ref('')
 const createAvatar = ref<string | null>(null)
@@ -544,7 +718,23 @@ const canSaveEdit = computed(() => {
 })
 const deleteTarget = ref<SelectHaexIdentities | null>(null)
 const importJson = ref('')
-const exportJson = ref('')
+const importParsed = ref<{
+  label: string
+  publicKey: string
+  did?: string
+  privateKey?: string
+  avatar?: string | null
+  claims: { type: string; value: string }[]
+} | null>(null)
+const importSelectedClaimIndices = ref(new Set<number>())
+const importIncludeAvatar = ref(true)
+const exportTarget = ref<SelectHaexIdentities | null>(null)
+const exportClaims = ref<{ id: string; type: string; value: string }[]>([])
+const exportSelectedClaimIds = ref(new Set<string>())
+const exportIncludeAvatar = ref(true)
+const exportIncludePrivateKey = ref(false)
+const isExporting = ref(false)
+const showPrivateKeyConfirm = ref(false)
 
 onMounted(async () => {
   isLoading.value = true
@@ -612,30 +802,111 @@ const onCreateAsync = async () => {
   }
 }
 
-const onImportAsync = async () => {
+const onSelectImportFileAsync = async () => {
+  try {
+    const { open } = await import('@tauri-apps/plugin-dialog')
+    const { readFile } = await import('@tauri-apps/plugin-fs')
+
+    const filePath = await open({
+      title: t('import.title'),
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+      multiple: false,
+    })
+    if (!filePath) return
+
+    const data = await readFile(filePath as string)
+    importJson.value = new TextDecoder().decode(data)
+  } catch (error) {
+    console.error('Failed to read file:', error)
+    add({
+      title: t('errors.importFailed'),
+      description: error instanceof Error ? error.message : undefined,
+      color: 'error',
+    })
+  }
+}
+
+const toggleImportClaim = (index: number) => {
+  if (importSelectedClaimIndices.value.has(index)) {
+    importSelectedClaimIndices.value.delete(index)
+  } else {
+    importSelectedClaimIndices.value.add(index)
+  }
+}
+
+const onParseImportAsync = () => {
   if (!importJson.value.trim()) return
+
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(importJson.value)
+  } catch {
+    add({ title: t('errors.invalidJson'), color: 'error' })
+    return
+  }
+
+  if (!parsed.publicKey) {
+    add({ title: t('errors.invalidIdentityData'), color: 'error' })
+    return
+  }
+
+  const claims = Array.isArray(parsed.claims)
+    ? (parsed.claims as { type: string; value: string }[])
+    : []
+
+  importParsed.value = {
+    label: (parsed.label as string) || '',
+    publicKey: parsed.publicKey as string,
+    did: parsed.did as string | undefined,
+    privateKey: parsed.privateKey as string | undefined,
+    avatar: typeof parsed.avatar === 'string' ? parsed.avatar : null,
+    claims,
+  }
+
+  // Select all claims by default
+  importSelectedClaimIndices.value = new Set(claims.map((_, i) => i))
+  importIncludeAvatar.value = !!importParsed.value.avatar
+}
+
+const onImportAsync = async () => {
+  if (!importParsed.value) return
 
   isImporting.value = true
   try {
-    let parsed: ExportedIdentity
-    try {
-      parsed = JSON.parse(importJson.value)
-    } catch {
-      add({ title: t('errors.invalidJson'), color: 'error' })
-      return
+    const data = importParsed.value
+    const selectedClaims = data.claims.filter((_, i) => importSelectedClaimIndices.value.has(i))
+    const avatar = importIncludeAvatar.value ? data.avatar : null
+
+    if (data.privateKey && data.did) {
+      // Full identity import (backup restore)
+      await identityStore.importIdentityAsync({
+        did: data.did,
+        label: data.label,
+        publicKey: data.publicKey,
+        privateKey: data.privateKey,
+        avatar,
+        claims: selectedClaims,
+      })
+      add({ title: t('success.imported'), color: 'success' })
+    } else {
+      // No private key — import as contact
+      const contactsStore = useContactsStore()
+      const contact = await contactsStore.addContactWithClaimsAsync(
+        data.label || `Imported ${data.publicKey.slice(0, 16)}...`,
+        data.publicKey,
+        selectedClaims,
+      )
+      if (avatar) {
+        await contactsStore.updateContactAsync(contact.id, { avatar })
+      }
+      add({ title: t('success.importedAsContact'), color: 'success' })
     }
 
-    if (!parsed.did || !parsed.publicKey || !parsed.privateKey) {
-      add({ title: t('errors.invalidIdentityData'), color: 'error' })
-      return
-    }
-
-    await identityStore.importIdentityAsync(parsed)
-    add({ title: t('success.imported'), color: 'success' })
     showImportDialog.value = false
     importJson.value = ''
+    importParsed.value = null
   } catch (error) {
-    console.error('Failed to import identity:', error)
+    console.error('Failed to import:', error)
     add({
       title: t('errors.importFailed'),
       description: error instanceof Error ? error.message : undefined,
@@ -646,21 +917,94 @@ const onImportAsync = async () => {
   }
 }
 
-const onExport = (identity: SelectHaexIdentities) => {
-  exportJson.value = JSON.stringify(
-    identityStore.exportIdentity(identity),
-    null,
-    2,
-  )
+const onShareQr = (identity: SelectHaexIdentities) => {
+  shareQrIdentityId.value = identity.publicKey
+  showShareQrDialog.value = true
+}
+
+const onExport = async (identity: SelectHaexIdentities) => {
+  exportTarget.value = identity
+  exportIncludePrivateKey.value = false
+  exportIncludeAvatar.value = !!identity.avatar
+
+  const claims = await identityStore.getClaimsAsync(identity.publicKey)
+  exportClaims.value = claims.map(c => ({ id: c.id, type: c.type, value: c.value }))
+  exportSelectedClaimIds.value = new Set(exportClaims.value.map(c => c.id))
+
   showExportDialog.value = true
 }
 
-const copyExport = async () => {
+const toggleExportClaim = (claimId: string) => {
+  if (exportSelectedClaimIds.value.has(claimId)) {
+    exportSelectedClaimIds.value.delete(claimId)
+  } else {
+    exportSelectedClaimIds.value.add(claimId)
+  }
+}
+
+const onExportFileAsync = async () => {
+  if (!exportTarget.value) return
+
+  if (exportIncludePrivateKey.value) {
+    showPrivateKeyConfirm.value = true
+    return
+  }
+
+  await doExportAsync()
+}
+
+const onConfirmExportWithPrivateKeyAsync = async () => {
+  showPrivateKeyConfirm.value = false
+  await doExportAsync()
+}
+
+const doExportAsync = async () => {
+  if (!exportTarget.value) return
+
+  isExporting.value = true
   try {
-    await navigator.clipboard.writeText(exportJson.value)
-    add({ title: t('success.copied'), color: 'success' })
-  } catch {
-    add({ title: t('errors.copyFailed'), color: 'error' })
+    const identity = exportTarget.value
+    const selectedClaims = exportClaims.value
+      .filter(c => exportSelectedClaimIds.value.has(c.id))
+      .map(c => ({ type: c.type, value: c.value }))
+
+    const payload: Record<string, unknown> = {
+      did: identity.did,
+      label: identity.label,
+      publicKey: identity.publicKey,
+      claims: selectedClaims,
+    }
+
+    if (exportIncludeAvatar.value && identity.avatar) {
+      payload.avatar = identity.avatar
+    }
+
+    if (exportIncludePrivateKey.value) {
+      payload.privateKey = identity.privateKey
+    }
+
+    const json = JSON.stringify(payload, null, 2)
+    const data = new TextEncoder().encode(json)
+
+    const filePath = await save({
+      title: t('export.title'),
+      defaultPath: `${identity.label.replace(/[^a-zA-Z0-9_-]/g, '_')}.identity.json`,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (!filePath) return
+
+    await writeFile(filePath, data)
+    add({ title: t('success.exported'), color: 'success' })
+    showExportDialog.value = false
+  } catch (error) {
+    console.error('Failed to export identity:', error)
+    add({
+      title: t('errors.exportFailed'),
+      description: error instanceof Error ? error.message : undefined,
+      color: 'error',
+    })
+  } finally {
+    isExporting.value = false
   }
 }
 
@@ -735,6 +1079,15 @@ const onConfirmDeleteAsync = async () => {
 const copyDid = async (did: string) => {
   try {
     await navigator.clipboard.writeText(did)
+    add({ title: t('success.copied'), color: 'success' })
+  } catch {
+    add({ title: t('errors.copyFailed'), color: 'error' })
+  }
+}
+
+const copyClaimValue = async (value: string) => {
+  try {
+    await navigator.clipboard.writeText(value)
     add({ title: t('success.copied'), color: 'success' })
   } catch {
     add({ title: t('errors.copyFailed'), color: 'error' })
@@ -912,14 +1265,29 @@ de:
     claimsOptional: Weitere Angaben (optional)
   import:
     title: Identität importieren
-    description: Importiere eine zuvor exportierte Identität. Der DID wird automatisch verifiziert.
+    description: Importiere eine Identität oder einen Kontakt aus einer JSON-Datei. Enthält die Datei einen privaten Schlüssel, wird sie als Identität importiert — andernfalls als Kontakt.
+    selectFile: JSON-Datei auswählen
+    orPaste: oder einfügen
     jsonLabel: Identitäts-JSON
     jsonPlaceholder: Exportiertes Identitäts-JSON hier einfügen
+    preview: Vorschau
+    typeIdentity: Identität
+    typeContact: Kontakt
+    includeAvatar: Profilbild übernehmen
+    selectClaims: Claims zum Importieren auswählen
   export:
     title: Identität exportieren
-    description: Kopiere diese Daten, um die Identität auf einem anderen Gerät zu importieren.
-    jsonLabel: Identitäts-JSON
-    warning: 'Achtung: Dieses JSON enthält deinen privaten Schlüssel. Teile es nur über sichere Kanäle und lösche es nach dem Import.'
+    description: Wähle aus, welche Daten in die exportierte Datei aufgenommen werden sollen.
+    selectClaims: Claims zum Exportieren auswählen
+    noClaims: Keine Claims vorhanden. Nur der Public Key wird exportiert.
+    includeAvatar: Profilbild einschließen
+    advancedSection: Backup & Wiederherstellung
+    includePrivateKey: Privaten Schlüssel einschließen
+    privateKeyWarning: 'Nur für persönliche Backups! Teile diese Datei NIEMALS mit anderen Personen. Wer deinen privaten Schlüssel besitzt, kann deine Identität vollständig übernehmen.'
+    confirmPrivateKey:
+      title: Privaten Schlüssel wirklich exportieren?
+      description: 'Der private Schlüssel gibt volle Kontrolle über deine Identität. Exportiere ihn nur, wenn du ein persönliches Backup erstellen möchtest. Teile diese Datei NIEMALS mit anderen.'
+    saveFile: Als Datei speichern
   edit:
     title: Identität bearbeiten
     labelField: Name
@@ -950,24 +1318,28 @@ de:
     import: Importieren
     export: Exportieren
     cancel: Abbrechen
+    back: Zurück
     close: Schließen
     save: Speichern
     edit: Bearbeiten
     delete: Löschen
+    shareQr: Als QR-Code teilen
     copyDid: DID kopieren
-    copyExport: JSON kopieren
     toggleClaims: Claims anzeigen/verbergen
   success:
     created: Identität erstellt
     imported: Identität importiert
+    importedAsContact: Als Kontakt hinzugefügt
+    exported: Identität exportiert
     saved: Identität gespeichert
     deleted: Identität gelöscht
     copied: Kopiert
   errors:
     createFailed: Identität konnte nicht erstellt werden
     importFailed: Import fehlgeschlagen
+    exportFailed: Export fehlgeschlagen
     invalidJson: Ungültiges JSON-Format
-    invalidIdentityData: Unvollständige Identitätsdaten (did, publicKey und privateKey erforderlich)
+    invalidIdentityData: Unvollständige Daten (mindestens publicKey erforderlich)
     editFailed: Speichern fehlgeschlagen
     passwordUpdateFailed: Passwort konnte nicht auf dem Server aktualisiert werden
     deleteFailed: Löschen fehlgeschlagen
@@ -996,14 +1368,29 @@ en:
     claimsOptional: Additional info (optional)
   import:
     title: Import Identity
-    description: Import a previously exported identity. The DID will be automatically verified.
+    description: Import an identity or contact from a JSON file. If the file contains a private key, it will be imported as an identity — otherwise as a contact.
+    selectFile: Select JSON file
+    orPaste: or paste
     jsonLabel: Identity JSON
     jsonPlaceholder: Paste exported identity JSON here
+    preview: Preview
+    typeIdentity: Identity
+    typeContact: Contact
+    includeAvatar: Include profile picture
+    selectClaims: Select claims to import
   export:
     title: Export Identity
-    description: Copy this data to import the identity on another device.
-    jsonLabel: Identity JSON
-    warning: 'Warning: This JSON contains your private key. Only share it through secure channels and delete it after import.'
+    description: Choose which data to include in the exported file.
+    selectClaims: Select claims to export
+    noClaims: No claims available. Only the public key will be exported.
+    includeAvatar: Include profile picture
+    advancedSection: Backup & Recovery
+    includePrivateKey: Include private key
+    privateKeyWarning: 'For personal backups only! NEVER share this file with others. Anyone with your private key can fully impersonate your identity.'
+    confirmPrivateKey:
+      title: Really export private key?
+      description: 'The private key gives full control over your identity. Only export it if you want to create a personal backup. NEVER share this file with others.'
+    saveFile: Save as file
   edit:
     title: Edit Identity
     labelField: Name
@@ -1034,24 +1421,28 @@ en:
     import: Import
     export: Export
     cancel: Cancel
+    back: Back
     close: Close
     save: Save
     edit: Edit
     delete: Delete
+    shareQr: Share as QR code
     copyDid: Copy DID
-    copyExport: Copy JSON
     toggleClaims: Show/hide claims
   success:
     created: Identity created
     imported: Identity imported
+    importedAsContact: Added as contact
+    exported: Identity exported
     saved: Identity saved
     deleted: Identity deleted
     copied: Copied
   errors:
     createFailed: Failed to create identity
     importFailed: Failed to import identity
+    exportFailed: Failed to export identity
     invalidJson: Invalid JSON format
-    invalidIdentityData: Incomplete identity data (did, publicKey, and privateKey required)
+    invalidIdentityData: Incomplete data (at least publicKey is required)
     editFailed: Failed to save identity
     passwordUpdateFailed: Failed to update password on the server
     deleteFailed: Failed to delete identity

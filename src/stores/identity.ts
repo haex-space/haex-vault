@@ -8,6 +8,8 @@ export interface ExportedIdentity {
   label: string
   publicKey: string
   privateKey: string
+  avatar?: string | null
+  claims?: { type: string; value: string }[]
 }
 
 const log = createLogger('IDENTITY')
@@ -144,11 +146,20 @@ export const useIdentityStore = defineStore('identityStore', () => {
       did: exported.did,
       publicKey: exported.publicKey,
       privateKey: exported.privateKey,
+      avatar: exported.avatar || null,
     }
 
     await currentVault.value.drizzle
       .insert(haexIdentities)
       .values(newIdentity)
+
+    // Import claims if present
+    if (exported.claims?.length) {
+      for (const claim of exported.claims) {
+        await addClaimAsync(exported.publicKey, claim.type, claim.value)
+      }
+      log.info(`Imported ${exported.claims.length} claims`)
+    }
 
     log.info(`Imported identity "${newIdentity.label}" with DID ${exported.did.slice(0, 30)}...`)
 
