@@ -93,17 +93,6 @@
             </div>
             <template #content>
               <div class="mt-3 pt-3 border-t border-default space-y-3">
-                <!-- Avatar -->
-                <div class="flex items-center gap-4">
-                  <UiAvatarPicker
-                    :model-value="identity.avatar"
-                    :seed="identity.publicKey"
-                    size="lg"
-                    @update:model-value="(val) => updateAvatarAsync(identity.publicKey, val)"
-                  />
-                  <span class="text-sm text-muted">{{ t('avatar.hint') }}</span>
-                </div>
-
                 <!-- DID Key -->
                 <div class="flex items-center gap-2">
                   <code class="text-xs text-muted truncate flex-1 min-w-0">{{ identity.did }}</code>

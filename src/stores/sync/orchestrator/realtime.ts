@@ -34,11 +34,38 @@ const activeChannels = new Map<string, RealtimeChannel>()
 /** Debounce delay in milliseconds */
 const PULL_DEBOUNCE_MS = 500
 
-/** Max retry attempts for subscription */
+/**
+ * Waits for the Supabase Realtime WebSocket to reach 'open' state.
+ * Polls connectionState() with a timeout — avoids subscribing on a
+ * still-connecting socket (common on slow mobile networks).
+ * Returns true if connection opened, false if timed out.
+ */
+const waitForWebSocketOpen = async (client: SupabaseClient): Promise<boolean> => {
+  const start = Date.now()
+  while (Date.now() - start < WS_CONNECT_TIMEOUT_MS) {
+    const state = client.realtime.connectionState()
+    if (state === 'open') return true
+    // If it went back to closed, connect() failed — bail out early
+    if (state === 'closed') return false
+    await new Promise((resolve) => setTimeout(resolve, WS_CONNECT_POLL_MS))
+  }
+  return client.realtime.connectionState() === 'open'
+}
+
+/** Max retry attempts for subscription before entering slow-retry mode */
 const MAX_SUBSCRIPTION_RETRIES = 5
 
 /** Base delay for retry (exponential backoff) */
 const RETRY_BASE_DELAY_MS = 2000
+
+/** Delay between slow retries after exhausting fast retries */
+const SLOW_RETRY_INTERVAL_MS = 60_000
+
+/** Max time to wait for WebSocket connection to open */
+const WS_CONNECT_TIMEOUT_MS = 10_000
+
+/** Polling interval when waiting for WebSocket connection */
+const WS_CONNECT_POLL_MS = 200
 
 /**
  * Reconnection context - stores references needed for visibility-based reconnection.
@@ -152,8 +179,34 @@ const scheduleRetry = (
   status: string,
 ): void => {
   const retryCount = subscriptionRetryCounts.get(backendId) ?? 0
+
+  // After exhausting fast retries, switch to slow-retry mode (every 60s)
+  // instead of giving up completely. This recovers from prolonged network
+  // outages on Android without hammering the server.
   if (retryCount >= MAX_SUBSCRIPTION_RETRIES) {
-    log.warn(`SUBSCRIBE: Realtime reconnection failed for backend ${backendId} after ${MAX_SUBSCRIPTION_RETRIES} attempts. Periodic pull will be used as fallback.`)
+    log.warn(`SUBSCRIBE: Fast retries exhausted for ${backendId}. Entering slow-retry mode (every ${SLOW_RETRY_INTERVAL_MS / 1000}s)`)
+
+    const existingTimer = subscriptionRetryTimers.get(backendId)
+    if (existingTimer) {
+      clearTimeout(existingTimer)
+      subscriptionRetryTimers.delete(backendId)
+    }
+
+    syncStates[backendId]!.subscription = null
+
+    const slowTimer = setTimeout(async () => {
+      subscriptionRetryTimers.delete(backendId)
+      // Reset retry count so the next attempt gets a fresh set of fast retries
+      subscriptionRetryCounts.set(backendId, 0)
+      subscriptionInProgress.delete(backendId)
+      try {
+        await client.removeChannel(channel).catch(() => {})
+        await subscribeToBackendAsync(backendId, currentVaultId, syncStates, syncBackendsStore, syncEngineStore)
+      } catch (retryError) {
+        log.error(`SUBSCRIBE: Slow retry failed for backend ${backendId}:`, retryError)
+      }
+    }, SLOW_RETRY_INTERVAL_MS)
+    subscriptionRetryTimers.set(backendId, slowTimer)
     return
   }
 
@@ -274,13 +327,17 @@ export const subscribeToBackendAsync = async (
     // the Realtime client into a state that prevents automatic reconnection.
     // Instead, remove stale channels and call connect() to re-establish the WebSocket.
     const connState = client.realtime.connectionState()
-    if (connState === 'closed' || connState === 'disconnected') {
+    if (connState === 'closed') {
       log.info(`SUBSCRIBE: Realtime connection is ${connState}, cleaning up and reconnecting`)
       client.realtime.removeAllChannels()
       client.realtime.connect()
-      // Give the WebSocket time to establish before subscribing
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      log.info(`SUBSCRIBE: After reconnect attempt, state: ${client.realtime.connectionState()}`)
+      // Wait for WebSocket to actually open (up to 10s) instead of a fixed delay.
+      // On slow mobile networks, 1s was often not enough — leading to CHANNEL_ERROR.
+      const opened = await waitForWebSocketOpen(client)
+      log.info(`SUBSCRIBE: After reconnect attempt, state: ${client.realtime.connectionState()}, opened=${opened}`)
+      if (!opened) {
+        log.warn('SUBSCRIBE: WebSocket did not open in time, subscription will likely fail')
+      }
     }
 
     // Subscribe via Realtime Broadcast instead of postgres_changes.
