@@ -39,7 +39,38 @@ export const useDeviceStore = defineStore('vaultDeviceStore', () => {
   const initDeviceIdAsync = async () => {
     const endpointId = await invoke<string>('device_init_key')
     deviceId.value = endpointId
+    await updateDeviceClaimsAsync()
     return endpointId
+  }
+
+  /**
+   * Add or update device:<hostname> claims on all identities so the
+   * device endpoint ID is always associated with the identity.
+   * Called on device init and when identities are synced from another device.
+   */
+  const updateDeviceClaimsAsync = async () => {
+    if (!deviceId.value) return
+
+    const identityStore = useIdentityStore()
+    const name = deviceName.value || hostname.value || 'device'
+    const claimType = `device:${name}`
+
+    for (const identity of identityStore.identities) {
+      try {
+        const claims = await identityStore.getClaimsAsync(identity.publicKey)
+        const existing = claims.find(c => c.type === claimType)
+
+        if (existing && existing.value === deviceId.value) continue
+
+        if (existing) {
+          await identityStore.updateClaimAsync(existing.id, deviceId.value)
+        } else {
+          await identityStore.addClaimAsync(identity.publicKey, claimType, deviceId.value)
+        }
+      } catch (e) {
+        console.warn(`[DEVICE] Failed to update device claim for identity:`, e)
+      }
+    }
   }
 
   /** Load all known devices from space_devices table + current device */
@@ -88,6 +119,7 @@ export const useDeviceStore = defineStore('vaultDeviceStore', () => {
     getDeviceName,
     hostname,
     initDeviceIdAsync,
+    updateDeviceClaimsAsync,
     isDesktop,
     isMobile,
     knownDevices,

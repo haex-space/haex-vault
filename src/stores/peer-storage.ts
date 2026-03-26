@@ -185,7 +185,6 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     }
 
     await autoRegisterInSpacesAsync()
-    await updateDeviceClaimsAsync()
   }
 
   const autoRegisterInSpacesAsync = async () => {
@@ -230,36 +229,6 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
         }
       } catch (e) {
         console.warn(`[P2P] Failed to register in space ${space.id}:`, e)
-      }
-    }
-  }
-
-  /**
-   * Add or update device:hostname claims on all identities so the endpoint ID
-   * can be shared via QR code (user chooses whether to include it).
-   */
-  const updateDeviceClaimsAsync = async () => {
-    if (!nodeId.value) return
-
-    const identityStore = useIdentityStore()
-    const deviceStore = useDeviceStore()
-    const hostname = deviceStore.deviceName || deviceStore.hostname || 'device'
-    const claimType = `device:${hostname}`
-
-    for (const identity of identityStore.identities) {
-      try {
-        const claims = await identityStore.getClaimsAsync(identity.publicKey)
-        const existing = claims.find(c => c.type === claimType)
-
-        if (existing && existing.value === nodeId.value) continue // already up to date
-
-        if (existing) {
-          await identityStore.updateClaimAsync(existing.id, nodeId.value)
-        } else {
-          await identityStore.addClaimAsync(identity.publicKey, claimType, nodeId.value)
-        }
-      } catch (e) {
-        console.warn(`[P2P] Failed to update device claim for identity:`, e)
       }
     }
   }

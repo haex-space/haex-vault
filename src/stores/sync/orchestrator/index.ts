@@ -473,6 +473,12 @@ export const useSyncOrchestratorStore = defineStore(
         async () => {
           const identityStore = useIdentityStore()
           await identityStore.loadIdentitiesAsync()
+
+          // Update device claims for newly synced identities (e.g. second device)
+          const deviceStore = useDeviceStore()
+          if (deviceStore.deviceId) {
+            await deviceStore.updateDeviceClaimsAsync()
+          }
         },
       )
       registerStoreForTables(
