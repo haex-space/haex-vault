@@ -3,7 +3,6 @@
     :title="tableName"
     :description="`${total} ${t('rows')}`"
     show-back
-    sticky-header
     @back="$emit('back')"
   >
     <!-- Loading -->

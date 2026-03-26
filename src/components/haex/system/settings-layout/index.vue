@@ -1,12 +1,7 @@
 <template>
-  <div class="@container h-full overflow-y-auto">
+  <div class="@container h-full flex flex-col">
     <!-- Header -->
-    <div
-      :class="[
-        'p-2 @xs:p-3 @sm:p-6 border-b border-default',
-        stickyHeader && 'sticky top-0 z-10 bg-default',
-      ]"
-    >
+    <div class="shrink-0 p-2 @xs:p-3 @sm:p-6 border-b border-default">
       <div class="flex items-center gap-3">
         <UiButton
           v-if="showBack"
@@ -36,7 +31,7 @@
     </div>
 
     <!-- Content -->
-    <div class="p-2 @xs:p-3 @sm:p-6 flex-1">
+    <div class="p-2 @xs:p-3 @sm:p-6 flex-1 min-w-0 min-h-0 overflow-y-auto">
       <slot />
     </div>
   </div>
@@ -48,13 +43,11 @@ withDefaults(
     title?: string
     description?: string
     showBack?: boolean
-    stickyHeader?: boolean
   }>(),
   {
     title: undefined,
     description: undefined,
     showBack: false,
-    stickyHeader: false,
   },
 )
 
