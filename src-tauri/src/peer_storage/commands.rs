@@ -463,7 +463,7 @@ fn move_to_public_downloads(
             // Clean up temp file
             let _ = std::fs::remove_file(output_path);
 
-            Ok(dest_uri.to_json_string())
+            Ok(dest_uri.to_json_string().map_err(|e| format!("to_json: {e:?}"))?)
         })();
 
         match result {
