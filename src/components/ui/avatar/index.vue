@@ -1,0 +1,89 @@
+<template>
+  <div class="relative inline-flex shrink-0">
+    <!-- Main avatar -->
+    <div
+      :class="[
+        'rounded-full overflow-hidden bg-muted flex items-center justify-center',
+        sizeClasses[size],
+      ]"
+    >
+      <img
+        v-if="src"
+        :src="src"
+        :alt="alt"
+        class="w-full h-full object-cover"
+      >
+      <div
+        v-else
+        class="w-full h-full [&>svg]:w-full [&>svg]:h-full"
+        v-html="fallbackSvg"
+      />
+    </div>
+
+    <!-- Badge (e.g. identity avatar on device) -->
+    <div
+      v-if="badgeSrc || badgeSeed"
+      :class="[
+        'absolute -bottom-0.5 -right-0.5 rounded-full overflow-hidden ring-2 ring-default bg-muted flex items-center justify-center',
+        badgeSizeClasses[size],
+      ]"
+    >
+      <img
+        v-if="badgeSrc"
+        :src="badgeSrc"
+        :alt="badgeAlt"
+        class="w-full h-full object-cover"
+      >
+      <div
+        v-else-if="badgeSeed"
+        class="w-full h-full [&>svg]:w-full [&>svg]:h-full"
+        v-html="badgeFallbackSvg"
+      />
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { createAvatar } from '@dicebear/core'
+import * as bottts from '@dicebear/bottts'
+
+const props = withDefaults(defineProps<{
+  src?: string | null
+  seed?: string
+  alt?: string
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+  badgeSrc?: string | null
+  badgeSeed?: string
+  badgeAlt?: string
+}>(), {
+  size: 'md',
+  alt: 'Avatar',
+  badgeAlt: 'Badge',
+})
+
+const sizeClasses: Record<string, string> = {
+  xs: 'size-6',
+  sm: 'size-8',
+  md: 'size-10',
+  lg: 'size-14',
+  xl: 'size-20',
+}
+
+const badgeSizeClasses: Record<string, string> = {
+  xs: 'size-3',
+  sm: 'size-4',
+  md: 'size-5',
+  lg: 'size-6',
+  xl: 'size-8',
+}
+
+const fallbackSvg = computed(() => {
+  if (props.src || !props.seed) return ''
+  return createAvatar(bottts, { seed: props.seed }).toString()
+})
+
+const badgeFallbackSvg = computed(() => {
+  if (!props.badgeSeed) return ''
+  return createAvatar(bottts, { seed: props.badgeSeed }).toString()
+})
+</script>

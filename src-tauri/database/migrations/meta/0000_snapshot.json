@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "788f8f30-326a-4c18-8a76-bc732da6a61e",
+  "id": "0e4b63dd-5bd5-4e13-b07b-d9538881f0d9",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "haex_crdt_configs_no_sync": {
@@ -365,6 +365,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "avatar": {
+          "name": "avatar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "notes": {
@@ -1062,6 +1069,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "avatar": {
+          "name": "avatar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "text",
@@ -1450,6 +1464,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "avatar": {
+          "name": "avatar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "relay_url": {
           "name": "relay_url",
           "type": "text",
@@ -1671,13 +1692,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "type": {
-          "name": "type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "value": {
           "name": "value",
           "type": "text",
@@ -1685,8 +1699,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "extension_id": {
-          "name": "extension_id",
+        "device_id": {
+          "name": "device_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -1694,31 +1708,16 @@
         }
       },
       "indexes": {
-        "haex_vault_settings_key_type_ext_unique": {
-          "name": "haex_vault_settings_key_type_ext_unique",
+        "haex_vault_settings_key_device_unique": {
+          "name": "haex_vault_settings_key_device_unique",
           "columns": [
             "key",
-            "type",
-            "extension_id"
+            "device_id"
           ],
           "isUnique": true
         }
       },
-      "foreignKeys": {
-        "haex_vault_settings_extension_id_haex_extensions_id_fk": {
-          "name": "haex_vault_settings_extension_id_haex_extensions_id_fk",
-          "tableFrom": "haex_vault_settings",
-          "tableTo": "haex_extensions",
-          "columnsFrom": [
-            "extension_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}

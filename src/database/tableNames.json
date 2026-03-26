@@ -184,6 +184,7 @@
         "did": "did",
         "publicKey": "public_key",
         "privateKey": "private_key",
+        "avatar": "avatar",
         "createdAt": "created_at"
       }
     },
@@ -205,6 +206,7 @@
         "id": "id",
         "label": "label",
         "publicKey": "public_key",
+        "avatar": "avatar",
         "notes": "notes",
         "createdAt": "created_at"
       }
@@ -227,6 +229,7 @@
         "identityId": "identity_id",
         "deviceEndpointId": "device_endpoint_id",
         "deviceName": "device_name",
+        "avatar": "avatar",
         "relayUrl": "relay_url",
         "createdAt": "created_at"
       }

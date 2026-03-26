@@ -96,6 +96,17 @@ export const useIdentityStore = defineStore('identityStore', () => {
     await loadIdentitiesAsync()
   }
 
+  const updateAvatarAsync = async (publicKey: string, avatar: string | null) => {
+    if (!currentVault.value?.drizzle) return
+
+    await currentVault.value.drizzle
+      .update(haexIdentities)
+      .set({ avatar })
+      .where(eq(haexIdentities.publicKey, publicKey))
+
+    await loadIdentitiesAsync()
+  }
+
   const exportIdentity = (identity: SelectHaexIdentities): ExportedIdentity => ({
     did: identity.did,
     label: identity.label,
@@ -198,6 +209,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
     deleteIdentityAsync,
     getIdentityAsync,
     updateLabelAsync,
+    updateAvatarAsync,
     exportIdentity,
     importIdentityAsync,
     addClaimAsync,

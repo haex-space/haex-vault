@@ -55,9 +55,10 @@
                   class="w-4 h-4 shrink-0 text-muted transition-transform duration-200"
                   :class="{ 'rotate-90': expandedIdentity === identity.publicKey }"
                 />
-                <UIcon
-                  name="i-lucide-fingerprint"
-                  class="w-4 h-4 text-primary shrink-0"
+                <UiAvatar
+                  :src="identity.avatar"
+                  :seed="identity.publicKey"
+                  size="sm"
                 />
                 <span class="font-medium truncate">{{ identity.label }}</span>
               </div>
@@ -90,6 +91,17 @@
             </div>
             <template #content>
               <div class="mt-3 pt-3 border-t border-default space-y-3">
+                <!-- Avatar -->
+                <div class="flex items-center gap-4">
+                  <UiAvatarPicker
+                    :model-value="identity.avatar"
+                    :seed="identity.publicKey"
+                    size="lg"
+                    @update:model-value="(val) => updateAvatarAsync(identity.publicKey, val)"
+                  />
+                  <span class="text-sm text-muted">{{ t('avatar.hint') }}</span>
+                </div>
+
                 <!-- DID Key -->
                 <div class="flex items-center gap-2">
                   <code class="text-xs text-muted truncate flex-1 min-w-0">{{ identity.did }}</code>
@@ -338,6 +350,15 @@
     >
       <template #content>
         <div class="space-y-4">
+          <div class="flex justify-center">
+            <UiAvatarPicker
+              :model-value="renameTarget?.avatar"
+              :seed="renameTarget?.publicKey"
+              size="xl"
+              @update:model-value="(val) => renameTarget && updateAvatarAsync(renameTarget.publicKey, val)"
+            />
+          </div>
+
           <UiInput
             v-model="renameLabel"
             :label="t('edit.labelField')"
@@ -524,6 +545,10 @@ onMounted(async () => {
     isLoading.value = false
   }
 })
+
+const updateAvatarAsync = async (publicKey: string, avatar: string | null) => {
+  await identityStore.updateAvatarAsync(publicKey, avatar)
+}
 
 const onCreateAsync = async () => {
   if (!createLabel.value.trim()) return
@@ -851,6 +876,8 @@ const deleteClaimAsync = async (claimId: string, identityId: string) => {
 de:
   title: Identitäten
   description: Verwalte deine kryptographischen Identitäten (did:key)
+  avatar:
+    hint: Klicke auf das Bild, um ein Profilbild hochzuladen
   list:
     title: Deine Identitäten
     description: Jede Identität ist ein einzigartiges Schlüsselpaar für die Nutzung in Spaces
@@ -933,6 +960,8 @@ de:
 en:
   title: Identities
   description: Manage your cryptographic identities (did:key)
+  avatar:
+    hint: Click the image to upload a profile picture
   list:
     title: Your Identities
     description: Each identity is a unique keypair for use in Spaces

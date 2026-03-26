@@ -62,12 +62,13 @@
                 class="w-4 h-4 shrink-0 text-muted transition-transform duration-200"
                 :class="{ 'rotate-90': expandedContact === contact.id }"
               />
+              <UiAvatar
+                :src="contact.avatar"
+                :seed="contact.id"
+                size="sm"
+              />
               <div class="min-w-0">
                 <div class="flex items-center gap-2">
-                  <UIcon
-                    name="i-lucide-user"
-                    class="w-4 h-4 text-primary shrink-0"
-                  />
                   <span class="font-medium truncate">{{ contact.label }}</span>
                 </div>
                 <div class="mt-1 flex items-center gap-2">

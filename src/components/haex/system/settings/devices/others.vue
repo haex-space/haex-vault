@@ -12,9 +12,12 @@
       >
         <div class="flex items-center gap-3">
           <div class="relative shrink-0">
-            <UIcon
-              name="i-lucide-monitor"
-              class="w-5 h-5 text-muted"
+            <UiAvatar
+              :src="device.avatar"
+              :seed="device.deviceEndpointId"
+              :badge-src="getIdentityAvatar(device.identityId)"
+              :badge-seed="device.identityId || undefined"
+              size="sm"
             />
             <span
               class="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border border-default"
@@ -107,8 +110,15 @@ const { add } = useToast()
 const deviceStore = useDeviceStore()
 const peerStore = usePeerStorageStore()
 const spacesStore = useSpacesStore()
+const identityStore = useIdentityStore()
+const { identities } = storeToRefs(identityStore)
 const { deviceId } = storeToRefs(deviceStore)
 const { currentVault } = storeToRefs(useVaultStore())
+
+const getIdentityAvatar = (identityId: string | null) => {
+  if (!identityId) return null
+  return identities.value.find(i => i.publicKey === identityId)?.avatar ?? null
+}
 
 const otherDevices = computed(() => {
   const seen = new Set<string>()

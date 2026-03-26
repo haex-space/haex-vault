@@ -371,6 +371,7 @@ export const haexIdentities = sqliteTable(
     label: text(tableNames.haex.identities.columns.label).notNull(),
     did: text(tableNames.haex.identities.columns.did).notNull(), // did:key:zDn...
     privateKey: text(tableNames.haex.identities.columns.privateKey).notNull(), // Base64 PKCS8
+    avatar: text(tableNames.haex.identities.columns.avatar), // Base64 WebP 128x128
     createdAt: text(tableNames.haex.identities.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),
@@ -419,6 +420,7 @@ export const haexContacts = sqliteTable(
       .primaryKey(),
     label: text(tableNames.haex.contacts.columns.label).notNull(),
     publicKey: text(tableNames.haex.contacts.columns.publicKey).notNull(),
+    avatar: text(tableNames.haex.contacts.columns.avatar), // Base64 WebP 128x128
     notes: text(tableNames.haex.contacts.columns.notes),
     createdAt: text(tableNames.haex.contacts.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
@@ -465,6 +467,7 @@ export const haexSpaceDevices = sqliteTable(
       .references(() => haexIdentities.publicKey),
     deviceEndpointId: text(tableNames.haex.space_devices.columns.deviceEndpointId).notNull(),
     deviceName: text(tableNames.haex.space_devices.columns.deviceName).notNull(),
+    avatar: text(tableNames.haex.space_devices.columns.avatar), // Base64 WebP 128x128
     relayUrl: text(tableNames.haex.space_devices.columns.relayUrl),
     createdAt: text(tableNames.haex.space_devices.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
   },

@@ -32,6 +32,8 @@
   },
   "dependencies": {
     "@choochmeque/tauri-plugin-biometry-api": "^0.2.6",
+    "@dicebear/bottts": "^9.4.2",
+    "@dicebear/core": "^9.4.2",
     "@haex-space/marketplace-sdk": "^0.1.6",
     "@haex-space/vault-sdk": "^2.7.0",
     "@nuxt/eslint": "1.15.2",
@@ -64,7 +66,8 @@
     "qrcode": "^1.5.4",
     "swiper": "^12.1.2",
     "tailwindcss": "^4.2.1",
-    "vue": "^3.5.30"
+    "vue": "^3.5.30",
+    "vue-advanced-cropper": "^2.8.9"
   },
   "devDependencies": {
     "@iconify-json/heroicons": "^1.2.3",

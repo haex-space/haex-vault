@@ -57,6 +57,7 @@ CREATE TABLE `haex_contacts` (
 	`id` text PRIMARY KEY NOT NULL,
 	`label` text NOT NULL,
 	`public_key` text NOT NULL,
+	`avatar` text,
 	`notes` text,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP)
 );
@@ -159,6 +160,7 @@ CREATE TABLE `haex_identities` (
 	`label` text NOT NULL,
 	`did` text NOT NULL,
 	`private_key` text NOT NULL,
+	`avatar` text,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP)
 );
 --> statement-breakpoint
@@ -221,6 +223,7 @@ CREATE TABLE `haex_space_devices` (
 	`identity_id` text,
 	`device_endpoint_id` text NOT NULL,
 	`device_name` text NOT NULL,
+	`avatar` text,
 	`relay_url` text,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
 	FOREIGN KEY (`identity_id`) REFERENCES `haex_identities`(`public_key`) ON UPDATE no action ON DELETE no action

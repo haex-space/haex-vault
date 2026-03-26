@@ -6,6 +6,17 @@
     @back="$emit('back')"
   >
     <div class="space-y-4">
+      <!-- Avatar -->
+      <div class="flex items-center gap-4">
+        <UiAvatarPicker
+          :model-value="currentDeviceAvatar"
+          :seed="deviceId || 'device'"
+          size="lg"
+          @update:model-value="onUpdateAvatarAsync"
+        />
+        <span class="text-sm text-muted">{{ t('currentDevice.avatarHint') }}</span>
+      </div>
+
       <UFormField
         :label="t('currentDevice.name')"
         data-tour="settings-device-name"
@@ -59,6 +70,18 @@ const { deviceId, hostname, platform, deviceName } = storeToRefs(deviceStore)
 const { currentVault } = storeToRefs(useVaultStore())
 
 const isSaving = ref(false)
+const currentDeviceAvatar = ref<string | null>(null)
+
+const onUpdateAvatarAsync = async (avatar: string | null) => {
+  if (!currentVault.value?.drizzle || !deviceId.value) return
+
+  await currentVault.value.drizzle
+    .update(haexSpaceDevices)
+    .set({ avatar })
+    .where(eq(haexSpaceDevices.deviceEndpointId, deviceId.value))
+
+  currentDeviceAvatar.value = avatar
+}
 
 const onUpdateDeviceNameAsync = async () => {
   const name = deviceName.value?.trim()
@@ -94,6 +117,7 @@ const loadDeviceNameAsync = async () => {
   })
 
   deviceName.value = entry?.deviceName ?? ''
+  currentDeviceAvatar.value = entry?.avatar ?? null
 }
 
 onMounted(async () => {
@@ -106,6 +130,7 @@ de:
   currentDevice:
     title: Aktuelles Gerät
     description: Dieses Gerät wird automatisch über einen kryptographischen Schlüssel identifiziert
+    avatarHint: Klicke auf das Bild, um ein Geräte-Avatar hochzuladen
     name: Gerätename
     namePlaceholder: z.B. Mein Laptop
     endpointId: Endpoint-ID
@@ -119,6 +144,7 @@ en:
   currentDevice:
     title: Current Device
     description: This device is automatically identified via a cryptographic key
+    avatarHint: Click the image to upload a device avatar
     name: Device Name
     namePlaceholder: e.g. My Laptop
     endpointId: Endpoint ID
