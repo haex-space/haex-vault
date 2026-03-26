@@ -187,7 +187,7 @@
             <!-- Error state -->
             <div
               v-else-if="getGroupedVaults(backend.id)?.error"
-              class="text-center text-red-500 text-sm py-4"
+              class="text-center text-error text-sm py-4"
             >
               {{ getGroupedVaults(backend.id)?.error }}
             </div>
@@ -198,7 +198,7 @@
               class="space-y-4"
             >
               <p
-                class="text-center text-gray-500 dark:text-gray-400 text-sm py-4"
+                class="text-center text-muted text-sm py-4"
               >
                 {{ t('vaultOverview.noVaults') }}
               </p>
@@ -262,7 +262,7 @@
                         {{ t('vaultOverview.currentVault') }}
                       </UBadge>
                     </div>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    <p class="text-sm text-muted mt-1">
                       {{ t('vaultOverview.createdAt') }}:
                       {{ formatDate(vault.createdAt) }}
                     </p>
@@ -286,7 +286,7 @@
 
       <div
         v-else
-        class="text-center py-4 text-gray-500 dark:text-gray-400"
+        class="text-center py-4 text-muted"
       >
         {{ t('backends.noBackends') }}
       </div>
@@ -297,20 +297,20 @@
       v-model:open="showDeleteDialog"
       :title="
         t(
-          backendToDelete?.spaceId === currentVaultId
+          vaultToDeleteSpaceId === currentVaultId
             ? 'deleteCurrentVaultSync.title'
             : 'deleteRemoteVault.title',
         )
       "
       :description="
         t(
-          backendToDelete?.spaceId === currentVaultId
+          vaultToDeleteSpaceId === currentVaultId
             ? 'deleteCurrentVaultSync.description'
             : 'deleteRemoteVault.description',
-          { vaultName: backendToDelete?.name },
+          { vaultName: vaultToDeleteName },
         )
       "
-      confirm-label="Löschen"
+      :confirm-label="t('actions.delete')"
       @confirm="onConfirmDeleteRemoteVaultAsync"
     >
       <template #body>
@@ -342,7 +342,7 @@
           name: backendToDeleteCompletely?.name,
         })
       "
-      confirm-label="Löschen"
+      :confirm-label="t('actions.delete')"
       @confirm="onConfirmDeleteBackendAsync"
     />
 
@@ -375,7 +375,7 @@ const { currentVaultId } = storeToRefs(vaultStore)
 
 // Sync connection composable
 const {
-  isLoading: isConnectionLoading,
+  isLoading,
   error: connectionError,
   createConnectionAsync,
   verifyEmailAsync,
@@ -386,7 +386,6 @@ const {
 
 // Local state
 const showAddBackendForm = ref(false)
-const isLoading = computed(() => isConnectionLoading.value)
 
 const newBackend = reactive({
   serverUrl: '',
@@ -409,6 +408,8 @@ const { serverOptions } = useSyncServerOptions()
 // Delete remote vault state
 const showDeleteDialog = ref(false)
 const backendToDelete = ref<SelectHaexSyncBackends | null>(null)
+const vaultToDeleteSpaceId = ref<string | null>(null)
+const vaultToDeleteName = ref<string | null>(null)
 const deleteAllServerData = ref(false)
 
 // Delete backend state
@@ -441,8 +442,16 @@ interface GroupedServerVaults {
 const groupedServerVaults = ref<GroupedServerVaults[]>([])
 
 // Helper to get grouped vaults for a specific backend
+const groupedVaultsMap = computed(() => {
+  const map = new Map<string, GroupedServerVaults>()
+  for (const g of groupedServerVaults.value) {
+    map.set(g.backend.id, g)
+  }
+  return map
+})
+
 const getGroupedVaults = (backendId: string) => {
-  return groupedServerVaults.value.find((g) => g.backend.id === backendId)
+  return groupedVaultsMap.value.get(backendId)
 }
 
 // Cancel add backend
@@ -531,8 +540,6 @@ const onVerifyCodeAsync = async () => {
   if (backendId) {
     await loadAllServerVaultsAsync()
     add({ title: t('success.backendAdded'), color: 'success' })
-    verificationPending.value = null
-    verificationCodeParts.value = []
     cancelAddBackend()
   } else if (connectionError.value) {
     add({
@@ -691,10 +698,8 @@ const loadVaultsForBackendAsync = async (
   backend: SelectHaexSyncBackends,
 ): Promise<ServerVault[]> => {
   try {
-    // Initialize Supabase client if not already done
-    if (!syncEngineStore.supabaseClient) {
-      await syncEngineStore.initSupabaseClientAsync(backend.id)
-    }
+    // Always initialize Supabase client for this specific backend
+    await syncEngineStore.initSupabaseClientAsync(backend.id)
 
     // Get auth token
     const token = await syncEngineStore.getAuthTokenAsync()
@@ -806,27 +811,20 @@ const prepareDeleteServerVault = (
   backend: SelectHaexSyncBackends,
   vault: ServerVault,
 ) => {
-  // Set the vault as backend to delete
-  backendToDelete.value = {
-    ...backend,
-    spaceId: vault.spaceId,
-  }
+  backendToDelete.value = backend
+  vaultToDeleteSpaceId.value = vault.spaceId
+  vaultToDeleteName.value = vault.decryptedName || t('vaultOverview.encryptedName')
   deleteAllServerData.value = false
   showDeleteDialog.value = true
 }
 
 // Confirm delete remote vault
 const onConfirmDeleteRemoteVaultAsync = async () => {
-  if (!backendToDelete.value || !backendToDelete.value.spaceId) return
+  const backend = backendToDelete.value
+  const spaceId = vaultToDeleteSpaceId.value
+  if (!backend || !spaceId) return
 
   try {
-    const backend = backendToDelete.value
-    const spaceId = backend.spaceId
-
-    if (!spaceId) {
-      throw new Error('Space ID is required')
-    }
-
     const isCurrentVault = spaceId === currentVaultId.value
 
     // Step 1: Delete data from server FIRST (while backend store is still available)
@@ -853,9 +851,12 @@ const onConfirmDeleteRemoteVaultAsync = async () => {
     // Refresh all server vaults
     await loadAllServerVaultsAsync()
 
-    // Close dialog
+    // Close dialog and reset state
     showDeleteDialog.value = false
     backendToDelete.value = null
+    vaultToDeleteSpaceId.value = null
+    vaultToDeleteName.value = null
+    deleteAllServerData.value = false
   } catch (error) {
     console.error('Failed to delete remote vault:', error)
     add({
