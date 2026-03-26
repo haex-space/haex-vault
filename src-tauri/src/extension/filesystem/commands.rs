@@ -18,7 +18,7 @@ use crate::extension::utils::{emit_permission_prompt_if_needed, resolve_extensio
 use crate::filesystem::{DirEntry, FileStat};
 use crate::AppState;
 use std::path::Path;
-use tauri::{AppHandle, State, WebviewWindow};
+use tauri::{AppHandle, Manager, State, WebviewWindow};
 
 /// Check filesystem rate limits for an extension
 fn check_filesystem_limits(state: &AppState, extension_id: &str) -> Result<(), ExtensionError> {
@@ -475,6 +475,49 @@ pub async fn extension_filesystem_select_file(
         .map_err(|e| ExtensionError::FilesystemError {
             reason: e.to_string(),
         })
+}
+
+// ============================================================================
+// Known Paths (Tauri PathResolver)
+// ============================================================================
+
+/// Returns well-known system directories (home, pictures, downloads, etc.)
+/// No permission check needed - these are just path strings, not file access.
+#[tauri::command(rename_all = "camelCase")]
+pub async fn extension_filesystem_known_paths(
+    app_handle: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    // Optional parameters for iframe mode
+    public_key: Option<String>,
+    name: Option<String>,
+) -> Result<std::collections::HashMap<String, String>, ExtensionError> {
+    // Verify extension exists
+    let _extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+
+    let path_resolver = app_handle.path();
+    let mut paths: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+
+    if let Ok(p) = path_resolver.home_dir() {
+        paths.insert("home".into(), p.to_string_lossy().into_owned());
+    }
+    if let Ok(p) = path_resolver.picture_dir() {
+        paths.insert("pictures".into(), p.to_string_lossy().into_owned());
+    }
+    if let Ok(p) = path_resolver.download_dir() {
+        paths.insert("downloads".into(), p.to_string_lossy().into_owned());
+    }
+    if let Ok(p) = path_resolver.document_dir() {
+        paths.insert("documents".into(), p.to_string_lossy().into_owned());
+    }
+    if let Ok(p) = path_resolver.desktop_dir() {
+        paths.insert("desktop".into(), p.to_string_lossy().into_owned());
+    }
+    if let Ok(p) = path_resolver.video_dir() {
+        paths.insert("videos".into(), p.to_string_lossy().into_owned());
+    }
+
+    Ok(paths)
 }
 
 // ============================================================================

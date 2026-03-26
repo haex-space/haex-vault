@@ -51,7 +51,7 @@
       ]"
       :src="extensionUrl"
       :sandbox="sandboxAttributes"
-      allow="autoplay; speaker-selection; encrypted-media;"
+      allow="autoplay; speaker-selection; encrypted-media; camera; microphone;"
       @load="handleIframeLoad"
       @error="hasError = true"
     />

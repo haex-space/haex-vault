@@ -424,6 +424,7 @@ pub fn run() {
             extension::filesystem::commands::extension_filesystem_select_file,
             extension::filesystem::commands::extension_filesystem_rename,
             extension::filesystem::commands::extension_filesystem_copy,
+            extension::filesystem::commands::extension_filesystem_known_paths,
             // File watcher commands
             extension::filesystem::commands::extension_filesystem_watch,
             extension::filesystem::commands::extension_filesystem_unwatch,

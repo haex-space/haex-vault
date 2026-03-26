@@ -160,6 +160,26 @@ impl ExtensionWebviewManager {
                 reason: format!("Failed to create webview window: {}", e),
             })?;
 
+        // Enable camera/media stream access in WebKitGTK on Linux
+        #[cfg(target_os = "linux")]
+        {
+            webview_window.with_webview(|webview| {
+                use webkit2gtk::{WebViewExt, SettingsExt, PermissionRequestExt};
+                let wv = webview.inner();
+
+                if let Some(settings) = wv.settings() {
+                    settings.set_enable_media_stream(true);
+                    settings.set_enable_webrtc(true);
+                    settings.set_media_playback_requires_user_gesture(false);
+                }
+
+                wv.connect_permission_request(|_, request| {
+                    request.allow();
+                    true
+                });
+            }).ok();
+        }
+
         // Minimiert öffnen, falls angegeben (nur Desktop)
         // Muss nach dem Erstellen aufgerufen werden, da WebviewWindowBuilder keine minimize-Option hat
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
