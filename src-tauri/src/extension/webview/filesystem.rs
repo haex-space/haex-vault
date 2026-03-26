@@ -1,9 +1,8 @@
 use crate::extension::error::ExtensionError;
 use crate::AppState;
 use serde::{Deserialize, Serialize};
-use tauri::{State, WebviewWindow};
+use tauri::{Manager, State, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
-use tauri_plugin_opener::OpenerExt;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct FileFilter {
@@ -113,11 +112,9 @@ pub async fn extension_filesystem_open_file(
 
     // Open file with system's default viewer
     let path_str = temp_file_path.to_string_lossy().to_string();
-    window
-        .opener()
-        .open_path(path_str, None::<String>)
+    crate::peer_storage::open_file_with_system(window.app_handle(), &path_str)
         .map_err(|e| ExtensionError::ValidationError {
-            reason: format!("Failed to open file: {}", e),
+            reason: format!("Failed to open file: {e}"),
         })?;
 
     Ok(serde_json::json!({

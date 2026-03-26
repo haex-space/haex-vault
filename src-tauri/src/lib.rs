@@ -446,6 +446,7 @@ pub fn run() {
             peer_storage::peer_storage_transfer_cancel,
             peer_storage::peer_storage_transfer_pause,
             peer_storage::peer_storage_transfer_resume,
+            peer_storage::open_file_system,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

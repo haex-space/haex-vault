@@ -314,8 +314,9 @@ pub async fn peer_storage_remote_read(
 
         match result {
             Ok(total_bytes) => {
+                let final_path = move_to_public_downloads(&app_handle, &output_path);
                 let _ = on_event.send(TransferEvent::Complete {
-                    local_path: output_path.to_string_lossy().to_string(),
+                    local_path: final_path,
                     total_bytes,
                 });
             }
@@ -371,8 +372,114 @@ pub async fn peer_storage_transfer_resume(
 }
 
 // ============================================================================
+// Open file with system app (cross-platform)
+// ============================================================================
+
+/// Open a file with the system's default app.
+/// On Android, uses android_fs FileOpener (Intent-based).
+/// On Desktop, uses tauri-plugin-opener.
+pub fn open_file_with_system(
+    #[allow(unused_variables)] app: &tauri::AppHandle,
+    path: &str,
+) -> Result<(), PeerStorageError> {
+    #[cfg(target_os = "android")]
+    {
+        use tauri_plugin_android_fs::{AndroidFsExt, FileUri};
+
+        let api = app.android_fs();
+        let uri = if path.starts_with('{') {
+            FileUri::from_json_str(path).map_err(|e| PeerStorageError::ProtocolError {
+                reason: format!("Invalid Content URI: {e:?}"),
+            })?
+        } else {
+            FileUri::from_path(path)
+        };
+        api.file_opener().open_file(&uri).map_err(|e| PeerStorageError::ProtocolError {
+            reason: format!("Failed to open file: {e:?}"),
+        })?;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        use tauri_plugin_opener::OpenerExt;
+        app.opener().open_path(path, None::<String>).map_err(|e| PeerStorageError::ProtocolError {
+            reason: format!("Failed to open file: {e}"),
+        })?;
+    }
+    Ok(())
+}
+
+/// Tauri command wrapper for open_file_with_system.
+#[tauri::command(rename_all = "camelCase")]
+pub async fn open_file_system(
+    app: tauri::AppHandle,
+    path: String,
+) -> Result<(), PeerStorageError> {
+    open_file_with_system(&app, &path)
+}
+
+// ============================================================================
 // Helpers
 // ============================================================================
+
+/// On Android, copy a downloaded file from the app-private directory to the
+/// public Downloads folder via MediaStore so it becomes visible in the system
+/// file manager. Returns the FileUri JSON string of the public file on Android,
+/// or the original path string on other platforms.
+fn move_to_public_downloads(
+    #[allow(unused_variables)] app_handle: &tauri::AppHandle,
+    output_path: &std::path::Path,
+) -> String {
+    #[cfg(target_os = "android")]
+    {
+        use tauri_plugin_android_fs::{AndroidFsExt, PublicGeneralPurposeDir};
+
+        let file_name = output_path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+
+        let result: Result<String, String> = (|| {
+            let api = app_handle.android_fs();
+            let ps = api.public_storage();
+
+            // Create empty file in public Downloads (MediaStore)
+            let dest_uri = ps.create_new_file(
+                None,
+                PublicGeneralPurposeDir::Download,
+                &file_name,
+                None,
+            ).map_err(|e| format!("create_new_file: {e:?}"))?;
+
+            // Stream-copy from app-private temp file to public Downloads
+            let mut src = std::fs::File::open(output_path)
+                .map_err(|e| format!("open src: {e}"))?;
+            let mut dest = api.open_file_writable(&dest_uri)
+                .map_err(|e| format!("open dest: {e:?}"))?;
+            std::io::copy(&mut src, &mut dest)
+                .map_err(|e| format!("copy: {e}"))?;
+            drop(dest);
+
+            // Clean up temp file
+            let _ = std::fs::remove_file(output_path);
+
+            Ok(dest_uri.to_json_string())
+        })();
+
+        match result {
+            Ok(uri_json) => uri_json,
+            Err(e) => {
+                eprintln!("[peer_storage] Failed to move to public Downloads: {e}");
+                // Fallback: return original path
+                output_path.to_string_lossy().to_string()
+            }
+        }
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        output_path.to_string_lossy().to_string()
+    }
+}
 
 /// Find a non-colliding file path: photo.jpg → photo (1).jpg → photo (2).jpg → …
 fn deduplicate_path(dir: &std::path::Path, file_name: &str) -> PathBuf {

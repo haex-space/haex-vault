@@ -3,6 +3,12 @@
  * Uses a shared registry so undo/redo closures always reference the
  * current active ref, even after component remounts.
  *
+ * On component unmount the registry entry is cleared so subsequent mounts
+ * start from the default view. Without this, navigating away from a
+ * settings category and back would show the last active subview instead
+ * of the overview (visible on production builds where HMR does not reset
+ * the module-level registry).
+ *
  * @param defaultView - The initial/root view identifier
  * @param id          - Unique identifier for this navigation scope
  * @param tabId       - Tab ID for per-tab navigation scoping
@@ -41,6 +47,11 @@ export function useDrillDownNavigation<T extends string>(
   const goBack = () => {
     window.history.back()
   }
+
+  // Clean up on unmount so the next mount starts from the default view
+  onUnmounted(() => {
+    registry.delete(key)
+  })
 
   return { activeView, navigateTo, goBack }
 }

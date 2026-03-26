@@ -1,6 +1,6 @@
+import { invoke } from '@tauri-apps/api/core'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
-import { openPath } from '@tauri-apps/plugin-opener'
 import { tempDir, join } from '@tauri-apps/api/path'
 import { TAURI_COMMANDS } from '@haex-space/vault-sdk'
 import type { IHaexSpaceExtension } from '~/types/haexspace'
@@ -65,7 +65,7 @@ export async function handleFilesystemMethodAsync(
         await writeFile(tempFilePath, data)
 
         // Open file with system's default viewer
-        await openPath(tempFilePath)
+        await invoke('open_file_system', { path: tempFilePath })
 
         return {
           success: true,

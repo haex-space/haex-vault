@@ -1,6 +1,4 @@
 import { invoke, convertFileSrc } from '@tauri-apps/api/core'
-import { openPath } from '@tauri-apps/plugin-opener'
-import { isDesktop } from '~/utils/platform'
 
 const IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'])
 const VIDEO_EXTS = new Set(['mp4', 'mov', 'webm', 'ogv'])
@@ -115,7 +113,7 @@ export function useFilePreview() {
   }
 
   const openWithSystem = async (absolutePath: string) => {
-    await openPath(absolutePath)
+    await invoke('open_file_system', { path: absolutePath })
   }
 
   return {
