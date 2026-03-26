@@ -510,6 +510,7 @@ pub async fn extension_filesystem_known_paths(
     if let Ok(p) = path_resolver.document_dir() {
         paths.insert("documents".into(), p.to_string_lossy().into_owned());
     }
+    #[cfg(not(target_os = "android"))]
     if let Ok(p) = path_resolver.desktop_dir() {
         paths.insert("desktop".into(), p.to_string_lossy().into_owned());
     }
