@@ -22,7 +22,7 @@
         >
           <UIcon
             :name="cat.icon"
-            class="size-6 shrink-0"
+            class="size-7 @3xl:size-6 shrink-0"
           />
           <span class="hidden @3xl:block">{{ cat.label }}</span>
         </button>

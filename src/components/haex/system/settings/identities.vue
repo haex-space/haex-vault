@@ -184,6 +184,14 @@
     >
       <template #content>
         <div class="space-y-4">
+          <div class="flex justify-center">
+            <UiAvatarPicker
+              v-model="createAvatar"
+              :seed="createLabel || 'new'"
+              size="xl"
+            />
+          </div>
+
           <UiInput
             v-model="createLabel"
             :label="t('create.labelField')"
@@ -494,6 +502,7 @@ const showImportDialog = ref(false)
 const showExportDialog = ref(false)
 
 const createLabel = ref('')
+const createAvatar = ref<string | null>(null)
 const useVaultPasswordForIdentity = ref(true)
 const createIdentityPassword = ref('')
 const createIdentityPasswordConfirm = ref('')
@@ -559,6 +568,11 @@ const onCreateAsync = async () => {
       createLabel.value.trim(),
     )
 
+    // Save avatar if set
+    if (createAvatar.value) {
+      await identityStore.updateAvatarAsync(identity.publicKey, createAvatar.value)
+    }
+
     // Store identity password for use when connecting to a sync backend
     if (effectiveCreatePassword.value) {
       identityStore.setIdentityPassword(
@@ -578,6 +592,7 @@ const onCreateAsync = async () => {
     add({ title: t('success.created'), color: 'success' })
     showCreateDialog.value = false
     createLabel.value = ''
+    createAvatar.value = null
     useVaultPasswordForIdentity.value = true
     createIdentityPassword.value = ''
     createIdentityPasswordConfirm.value = ''
