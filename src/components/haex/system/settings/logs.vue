@@ -1,11 +1,7 @@
 <template>
   <div class="h-full">
-    <template v-if="activeView === 'viewer'">
-      <HaexSystemSettingsLogsViewer @back="goBack" />
-    </template>
-    <template v-else-if="activeView === 'retention'">
-      <HaexSystemSettingsLogsRetention @back="goBack" />
-    </template>
+    <HaexSystemSettingsLogsViewer v-if="activeView === 'viewer'" @back="goBack" />
+    <HaexSystemSettingsLogsRetention v-else-if="activeView === 'retention'" @back="goBack" />
     <HaexSystemSettingsLayout v-else :title="t('title')">
       <div class="space-y-1">
         <HaexSystemSettingsLayoutMenuItem :label="t('menu.viewer')" :description="t('menu.viewerDesc')" icon="i-lucide-scroll-text" @click="navigateTo('viewer')" />
