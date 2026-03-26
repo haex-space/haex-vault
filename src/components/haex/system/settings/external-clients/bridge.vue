@@ -45,6 +45,7 @@
 
 <script setup lang="ts">
 import { invoke } from '@tauri-apps/api/core'
+import { isDesktop } from '~/utils/platform'
 
 defineEmits<{ back: [] }>()
 
@@ -62,6 +63,7 @@ const isValidPort = computed(() => {
 })
 
 const loadBridgeStatus = async () => {
+  if (!isDesktop()) return
   try {
     const [running, port, savedPort] = await Promise.all([
       invoke<boolean>('external_bridge_get_status'),

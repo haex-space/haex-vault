@@ -54,6 +54,7 @@
 
 <script setup lang="ts">
 import { SettingsCategory, SettingsCategoryIcon } from '~/config/settingsCategories'
+import { isDesktop } from '~/utils/platform'
 
 const props = defineProps<{
   tabId: string
@@ -80,6 +81,12 @@ watch(
     }
   },
 )
+
+// Categories that require desktop-only Tauri commands (external bridge, P2P)
+const desktopOnlyCategories = new Set([
+  SettingsCategory.ExternalClients,
+  SettingsCategory.PeerStorage,
+])
 
 const categories = computed(() => [
   {
@@ -203,7 +210,7 @@ const categories = computed(() => [
       navigateToCategory(SettingsCategory.Developer)
     },
   },
-])
+].filter(cat => isDesktop() || !desktopOnlyCategories.has(cat.value)))
 </script>
 
 <i18n lang="yaml">
