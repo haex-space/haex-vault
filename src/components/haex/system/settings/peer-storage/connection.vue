@@ -119,28 +119,32 @@
                     {{ t('thisDevice') }}
                   </span>
                 </div>
-                <div
+                <UContextMenu
                   v-for="(share, idx) in getSharesForDevice(space.id, store.nodeId)"
                   :key="share.id"
-                  class="group flex items-center justify-between gap-3 px-3 py-2 cursor-pointer hover:bg-primary/10 transition-colors"
-                  :class="idx % 2 === 1 ? 'bg-primary/2 dark:bg-primary/5' : ''"
-                  @click="onBrowseShare(share)"
+                  :items="getShareContextMenuItems(share)"
                 >
-                  <div class="flex items-center gap-3 min-w-0 flex-1">
-                    <UIcon :name="getShareIcon(share)" class="w-4 h-4 text-primary shrink-0" />
-                    <div class="min-w-0 flex-1">
-                      <p class="text-sm font-medium">{{ share.name }}</p>
-                      <p class="text-xs text-muted truncate">{{ formatPath(share.localPath) }}</p>
+                  <div
+                    class="group flex items-center justify-between gap-3 px-3 py-2 cursor-pointer hover:bg-primary/10 transition-colors"
+                    :class="idx % 2 === 1 ? 'bg-primary/2 dark:bg-primary/5' : ''"
+                    @click="onBrowseShare(share)"
+                  >
+                    <div class="flex items-center gap-3 min-w-0 flex-1">
+                      <UIcon :name="getShareIcon(share)" class="w-4 h-4 text-primary shrink-0" />
+                      <div class="min-w-0 flex-1">
+                        <p class="text-sm font-medium">{{ share.name }}</p>
+                        <p class="text-xs text-muted truncate">{{ formatPath(share.localPath) }}</p>
+                      </div>
                     </div>
+                    <UiButton
+                      color="error"
+                      variant="ghost"
+                      icon="i-lucide-trash-2"
+                      class="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                      @click.stop="onRemoveShareAsync(share.id)"
+                    />
                   </div>
-                  <UiButton
-                    color="error"
-                    variant="ghost"
-                    icon="i-lucide-trash-2"
-                    class="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                    @click.stop="onRemoveShareAsync(share.id)"
-                  />
-                </div>
+                </UContextMenu>
               </div>
 
               <!-- Other devices' shares -->
@@ -156,29 +160,33 @@
                     {{ getDeviceName(deviceId) || deviceId.slice(0, 12) + '…' }}
                   </span>
                 </div>
-                <div
+                <UContextMenu
                   v-for="(share, idx) in deviceShares"
                   :key="share.id"
-                  class="group flex items-center justify-between gap-3 px-3 py-2 cursor-pointer hover:bg-muted/15 transition-colors"
-                  :class="idx % 2 === 1 ? 'bg-muted/3 dark:bg-muted/5' : ''"
-                  @click="onBrowseShare(share)"
+                  :items="getShareContextMenuItems(share, space.id)"
                 >
-                  <div class="flex items-center gap-3 min-w-0 flex-1">
-                    <UIcon :name="getShareIcon(share)" class="w-4 h-4 text-muted shrink-0" />
-                    <p class="text-sm flex-1 truncate">{{ share.name }}</p>
+                  <div
+                    class="group flex items-center justify-between gap-3 px-3 py-2 cursor-pointer hover:bg-muted/15 transition-colors"
+                    :class="idx % 2 === 1 ? 'bg-muted/3 dark:bg-muted/5' : ''"
+                    @click="onBrowseShare(share)"
+                  >
+                    <div class="flex items-center gap-3 min-w-0 flex-1">
+                      <UIcon :name="getShareIcon(share)" class="w-4 h-4 text-muted shrink-0" />
+                      <p class="text-sm flex-1 truncate">{{ share.name }}</p>
+                    </div>
+                    <div class="shrink-0 flex items-center">
+                      <UiButton
+                        v-if="canDeleteShare(space.id, share)"
+                        color="error"
+                        variant="ghost"
+                        icon="i-lucide-trash-2"
+                        class="opacity-0 group-hover:opacity-100 transition-opacity"
+                        @click.stop="onRemoveShareAsync(share.id)"
+                      />
+                      <UIcon v-else name="i-lucide-chevron-right" class="w-4 h-4 text-muted" />
+                    </div>
                   </div>
-                  <div class="shrink-0 flex items-center">
-                    <UiButton
-                      v-if="canDeleteShare(space.id, share)"
-                      color="error"
-                      variant="ghost"
-                      icon="i-lucide-trash-2"
-                      class="opacity-0 group-hover:opacity-100 transition-opacity"
-                      @click.stop="onRemoveShareAsync(share.id)"
-                    />
-                    <UIcon v-else name="i-lucide-chevron-right" class="w-4 h-4 text-muted" />
-                  </div>
-                </div>
+                </UContextMenu>
               </div>
 
               <!-- Empty space -->
@@ -198,6 +206,7 @@
 </template>
 
 <script setup lang="ts">
+import type { ContextMenuItem } from '@nuxt/ui'
 import { SpaceRoles } from '@haex-space/vault-sdk'
 import { SettingsCategory } from '~/config/settingsCategories'
 import { and, eq, isNull } from 'drizzle-orm'
@@ -459,6 +468,19 @@ const copyEndpointId = async () => {
   add({ title: t('toast.copied'), color: 'success' })
 }
 
+const getShareContextMenuItems = (share: SelectHaexPeerShares, spaceId?: string) => {
+  const items: ContextMenuItem[] = []
+  if (!spaceId || canDeleteShare(spaceId, share)) {
+    items.push({
+      label: t('contextMenu.delete'),
+      icon: 'i-lucide-trash-2',
+      color: 'error' as const,
+      onSelect: () => onRemoveShareAsync(share.id),
+    })
+  }
+  return items
+}
+
 const onRemoveShareAsync = async (shareId: string) => {
   try {
     await store.removeShareAsync(shareId)
@@ -490,6 +512,8 @@ de:
   emptySpace: Noch keine Ordner oder Dateien geteilt
   thisDevice: Dieses Gerät
   error: Fehler
+  contextMenu:
+    delete: Freigabe entfernen
   toast:
     copied: Endpoint-ID kopiert
     started: P2P-Endpoint gestartet
@@ -512,6 +536,8 @@ en:
   emptySpace: No folders or files shared yet
   thisDevice: This device
   error: Error
+  contextMenu:
+    delete: Remove share
   toast:
     copied: Endpoint ID copied
     started: P2P endpoint started

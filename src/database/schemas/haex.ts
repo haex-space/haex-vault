@@ -2,7 +2,6 @@ import { sql } from 'drizzle-orm'
 import {
   check,
   integer,
-  primaryKey,
   sqliteTable,
   text,
   uniqueIndex,
@@ -214,7 +213,8 @@ export const haexSyncBackends = sqliteTable(
       .primaryKey(),
     name: text(tableNames.haex.sync_backends.columns.name).notNull(),
     serverUrl: text(tableNames.haex.sync_backends.columns.serverUrl).notNull(),
-    spaceId: text(tableNames.haex.sync_backends.columns.spaceId),
+    spaceId: text(tableNames.haex.sync_backends.columns.spaceId)
+      .references(() => haexSpaces.id),
     syncKey: text(tableNames.haex.sync_backends.columns.syncKey),
     vaultKeySalt: text(tableNames.haex.sync_backends.columns.vaultKeySalt),
     identityId: text(tableNames.haex.sync_backends.columns.identityId), // FK → haex_identities.publicKey (for auth)
@@ -453,6 +453,29 @@ export type InsertHaexContactClaims = typeof haexContactClaims.$inferInsert
 export type SelectHaexContactClaims = typeof haexContactClaims.$inferSelect
 
 // ---------------------------------------------------------------------------
+// Spaces — local + remote spaces (CRDT-synced)
+// ---------------------------------------------------------------------------
+
+export const haexSpaces = sqliteTable(
+  tableNames.haex.spaces.name,
+  {
+    id: text(tableNames.haex.spaces.columns.id).primaryKey(),
+    name: text(tableNames.haex.spaces.columns.name).notNull(),
+    serverUrl: text(tableNames.haex.spaces.columns.serverUrl),
+    role: text(tableNames.haex.spaces.columns.role).notNull(),
+    createdAt: text(tableNames.haex.spaces.columns.createdAt).default(
+      sql`(CURRENT_TIMESTAMP)`,
+    ),
+    modifiedAt: text(tableNames.haex.spaces.columns.modifiedAt).default(
+      sql`(CURRENT_TIMESTAMP)`,
+    ),
+  },
+)
+
+export type InsertHaexSpaces = typeof haexSpaces.$inferInsert
+export type SelectHaexSpaces = typeof haexSpaces.$inferSelect
+
+// ---------------------------------------------------------------------------
 // Space Devices — registers devices in Spaces (EndpointId → Space mapping)
 // ---------------------------------------------------------------------------
 
@@ -462,7 +485,9 @@ export const haexSpaceDevices = sqliteTable(
     id: text(tableNames.haex.space_devices.columns.id)
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
-    spaceId: text(tableNames.haex.space_devices.columns.spaceId).notNull(),
+    spaceId: text(tableNames.haex.space_devices.columns.spaceId)
+      .notNull()
+      .references(() => haexSpaces.id),
     identityId: text(tableNames.haex.space_devices.columns.identityId)
       .references(() => haexIdentities.publicKey),
     deviceEndpointId: text(tableNames.haex.space_devices.columns.deviceEndpointId).notNull(),
@@ -489,7 +514,9 @@ export const haexPeerShares = sqliteTable(
     id: text(tableNames.haex.peer_shares.columns.id)
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
-    spaceId: text(tableNames.haex.peer_shares.columns.spaceId).notNull(),
+    spaceId: text(tableNames.haex.peer_shares.columns.spaceId)
+      .notNull()
+      .references(() => haexSpaces.id),
     deviceEndpointId: text(tableNames.haex.peer_shares.columns.deviceEndpointId).notNull(),
     name: text(tableNames.haex.peer_shares.columns.name).notNull(),
     localPath: text(tableNames.haex.peer_shares.columns.localPath).notNull(),
@@ -507,12 +534,26 @@ export type SelectHaexPeerShares = typeof haexPeerShares.$inferSelect
 export const haexSharedSpaceSync = sqliteTable(
   tableNames.haex.shared_space_sync.name,
   {
+    id: text(tableNames.haex.shared_space_sync.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
     tableName: text(tableNames.haex.shared_space_sync.columns.tableName).notNull(),
     rowPks: text(tableNames.haex.shared_space_sync.columns.rowPks, { mode: 'json' }).notNull(),
-    spaceId: text(tableNames.haex.shared_space_sync.columns.spaceId).notNull(),
+    spaceId: text(tableNames.haex.shared_space_sync.columns.spaceId)
+      .notNull()
+      .references(() => haexSpaces.id),
+    extensionId: text(tableNames.haex.shared_space_sync.columns.extensionId)
+      .references((): AnySQLiteColumn => haexExtensions.id),
+    groupId: text(tableNames.haex.shared_space_sync.columns.groupId),
+    type: text(tableNames.haex.shared_space_sync.columns.type),
+    label: text(tableNames.haex.shared_space_sync.columns.label),
+    createdAt: text(tableNames.haex.shared_space_sync.columns.createdAt).default(
+      sql`(CURRENT_TIMESTAMP)`,
+    ),
   },
   (table) => [
-    primaryKey({ columns: [table.tableName, table.rowPks, table.spaceId] }),
+    uniqueIndex('haex_shared_space_sync_table_row_space_unique')
+      .on(table.tableName, table.rowPks, table.spaceId),
   ],
 )
 
@@ -520,20 +561,24 @@ export type InsertHaexSharedSpaceSync = typeof haexSharedSpaceSync.$inferInsert
 export type SelectHaexSharedSpaceSync = typeof haexSharedSpaceSync.$inferSelect
 
 // ---------------------------------------------------------------------------
-// Space Keys — persisted space decryption keys (device-local, not synced)
+// Space Keys — persisted space decryption keys (CRDT-synced)
+// Multiple keys per (spaceId, generation) are allowed for offline conflict resolution
 // ---------------------------------------------------------------------------
 
 export const haexSpaceKeys = sqliteTable(
   tableNames.haex.space_keys.name,
   {
-    spaceId: text(tableNames.haex.space_keys.columns.spaceId).notNull(),
+    id: text(tableNames.haex.space_keys.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    spaceId: text(tableNames.haex.space_keys.columns.spaceId)
+      .notNull()
+      .references(() => haexSpaces.id),
     generation: integer(tableNames.haex.space_keys.columns.generation).notNull(),
     key: text(tableNames.haex.space_keys.columns.key).notNull(),
   },
-  (table) => [
-    primaryKey({ columns: [table.spaceId, table.generation] }),
-  ],
 )
 
 export type InsertHaexSpaceKeys = typeof haexSpaceKeys.$inferInsert
 export type SelectHaexSpaceKeys = typeof haexSpaceKeys.$inferSelect
+

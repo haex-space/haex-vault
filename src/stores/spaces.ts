@@ -14,7 +14,8 @@ import {
 } from '@haex-space/vault-sdk'
 import { eq, and } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
-import { haexSpaceKeys, haexSpaceDevices } from '~/database/schemas'
+import { haexSpaceKeys, haexSpaces } from '~/database/schemas'
+import type { SelectHaexSpaces } from '~/database/schemas'
 import { createLogger } from '@/stores/logging'
 import { getAuthTokenAsync } from '@/stores/sync/engine/supabase'
 
@@ -23,20 +24,80 @@ const log = createLogger('SPACES')
 export const useSpacesStore = defineStore('spacesStore', () => {
   const { currentVault } = storeToRefs(useVaultStore())
 
-  // In-memory read-through cache (backed by DB)
-  const spaceKeyCache = new Map<string, Uint8Array>()
+  // In-memory read-through cache for space keys
+  const spaceKeyCache = new Map<string, Uint8Array[]>()
 
   const spaces = ref<DecryptedSpace[]>([])
 
-  // Helper: resolve identity keys from identityId
-  const resolveIdentityAsync = async (identityId: string) => {
-    const identityStore = useIdentityStore()
-    const identity = await identityStore.getIdentityAsync(identityId)
-    if (!identity) throw new Error(`Identity ${identityId} not found`)
-    return identity
+  // =========================================================================
+  // DB Helpers
+  // =========================================================================
+
+  const getDb = () => currentVault.value?.drizzle
+
+  /** Load all spaces from DB into memory */
+  const loadSpacesFromDbAsync = async () => {
+    const db = getDb()
+    if (!db) return
+
+    const rows = await db.select().from(haexSpaces)
+    spaces.value = rows.map(rowToDecryptedSpace)
   }
 
-  // Helper: fetch with auth
+  /** Convert a DB row to DecryptedSpace */
+  const rowToDecryptedSpace = (row: SelectHaexSpaces): DecryptedSpace => ({
+    id: row.id,
+    name: row.name,
+    role: row.role as SpaceRole,
+    serverUrl: row.serverUrl ?? '',
+    createdAt: row.createdAt ?? '',
+  })
+
+  /** Persist a space to DB and update in-memory list */
+  const persistSpaceAsync = async (space: DecryptedSpace) => {
+    const db = getDb()
+    if (!db) return
+
+    const existing = await db.select().from(haexSpaces).where(eq(haexSpaces.id, space.id)).limit(1)
+
+    if (existing.length > 0) {
+      await db.update(haexSpaces).set({
+        name: space.name,
+        serverUrl: space.serverUrl || null,
+        role: space.role,
+        modifiedAt: new Date().toISOString(),
+      }).where(eq(haexSpaces.id, space.id))
+    } else {
+      await db.insert(haexSpaces).values({
+        id: space.id,
+        name: space.name,
+        serverUrl: space.serverUrl || null,
+        role: space.role,
+      })
+    }
+
+    // Update in-memory
+    const idx = spaces.value.findIndex(s => s.id === space.id)
+    if (idx >= 0) {
+      spaces.value[idx] = space
+    } else {
+      spaces.value.push(space)
+    }
+  }
+
+  /** Remove a space from DB and in-memory list */
+  const removeSpaceFromDbAsync = async (spaceId: string) => {
+    const db = getDb()
+    if (db) {
+      await db.delete(haexSpaces).where(eq(haexSpaces.id, spaceId))
+    }
+    spaces.value = spaces.value.filter(s => s.id !== spaceId)
+  }
+
+  // =========================================================================
+  // Auth Helper
+  // =========================================================================
+
   const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     const token = await getAuthTokenAsync()
     if (!token) throw new Error('Not authenticated')
@@ -50,7 +111,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     })
   }
 
-  // Helper: fetch with space token (for federated access)
   const fetchWithSpaceToken = async (url: string, spaceToken: string, options: RequestInit = {}) => {
     return fetch(url, {
       ...options,
@@ -63,79 +123,99 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   }
 
   // =========================================================================
-  // Space Key Management (DB-backed with in-memory cache)
+  // Identity Helper
   // =========================================================================
 
+  const resolveIdentityAsync = async (identityId: string) => {
+    const identityStore = useIdentityStore()
+    const identity = await identityStore.getIdentityAsync(identityId)
+    if (!identity) throw new Error(`Identity ${identityId} not found`)
+    return identity
+  }
+
+  // =========================================================================
+  // Space Key Management (DB-backed with in-memory cache)
+  // Now supports multiple keys per (spaceId, generation)
+  // =========================================================================
+
+  const cacheKey = (spaceId: string, generation: number) => `${spaceId}:${generation}`
+
   const getSpaceKey = (spaceId: string, generation: number): Uint8Array | undefined => {
-    return spaceKeyCache.get(`${spaceId}:${generation}`)
+    const keys = spaceKeyCache.get(cacheKey(spaceId, generation))
+    return keys?.[0]
+  }
+
+  const getSpaceKeysAsync = async (spaceId: string, generation: number): Promise<Uint8Array[]> => {
+    const ck = cacheKey(spaceId, generation)
+    const cached = spaceKeyCache.get(ck)
+    if (cached) return cached
+
+    const db = getDb()
+    if (!db) return []
+
+    const rows = await db
+      .select()
+      .from(haexSpaceKeys)
+      .where(and(
+        eq(haexSpaceKeys.spaceId, spaceId),
+        eq(haexSpaceKeys.generation, generation),
+      ))
+
+    if (rows.length === 0) return []
+
+    const keys = rows.map(r => new Uint8Array(base64ToArrayBuffer(r.key)))
+    spaceKeyCache.set(ck, keys)
+    return keys
   }
 
   const getSpaceKeyAsync = async (spaceId: string, generation: number): Promise<Uint8Array | undefined> => {
-    const cached = spaceKeyCache.get(`${spaceId}:${generation}`)
-    if (cached) return cached
-
-    if (!currentVault.value?.drizzle) return undefined
-    const rows = await currentVault.value.drizzle
-      .select()
-      .from(haexSpaceKeys)
-      .where(and(
-        eq(haexSpaceKeys.spaceId, spaceId),
-        eq(haexSpaceKeys.generation, generation),
-      ))
-      .limit(1)
-
-    const row = rows[0]
-    if (!row) return undefined
-
-    const key = new Uint8Array(base64ToArrayBuffer(row.key))
-    spaceKeyCache.set(`${spaceId}:${generation}`, key)
-    return key
+    const keys = await getSpaceKeysAsync(spaceId, generation)
+    return keys[0]
   }
 
   const persistSpaceKeyAsync = async (spaceId: string, generation: number, key: Uint8Array) => {
-    spaceKeyCache.set(`${spaceId}:${generation}`, key)
-
-    if (!currentVault.value?.drizzle) return
+    const ck = cacheKey(spaceId, generation)
+    const existing = spaceKeyCache.get(ck) ?? []
     const keyBase64 = arrayBufferToBase64(key.buffer as ArrayBuffer)
 
-    // Drizzle's onConflictDoUpdate generates table-qualified column names in ON CONFLICT
-    // which SQLite doesn't support — use check-then-insert/update instead
-    const existing = await currentVault.value.drizzle
+    // Check if this exact key already exists
+    if (!existing.some(k => arrayBufferToBase64(k.buffer as ArrayBuffer) === keyBase64)) {
+      spaceKeyCache.set(ck, [...existing, key])
+    }
+
+    const db = getDb()
+    if (!db) return
+
+    // Check if this exact key already exists in DB
+    const dbRows = await db
       .select()
       .from(haexSpaceKeys)
       .where(and(
         eq(haexSpaceKeys.spaceId, spaceId),
         eq(haexSpaceKeys.generation, generation),
+        eq(haexSpaceKeys.key, keyBase64),
       ))
       .limit(1)
 
-    if (existing.length > 0) {
-      await currentVault.value.drizzle
-        .update(haexSpaceKeys)
-        .set({ key: keyBase64 })
-        .where(and(
-          eq(haexSpaceKeys.spaceId, spaceId),
-          eq(haexSpaceKeys.generation, generation),
-        ))
-    }
-    else {
-      await currentVault.value.drizzle
-        .insert(haexSpaceKeys)
-        .values({ spaceId, generation, key: keyBase64 })
+    if (dbRows.length === 0) {
+      await db.insert(haexSpaceKeys).values({
+        spaceId,
+        generation,
+        key: keyBase64,
+      })
     }
   }
 
   const deleteSpaceKeysAsync = async (spaceId: string) => {
-    for (const cacheKey of spaceKeyCache.keys()) {
-      if (cacheKey.startsWith(`${spaceId}:`)) {
-        spaceKeyCache.delete(cacheKey)
+    for (const key of spaceKeyCache.keys()) {
+      if (key.startsWith(`${spaceId}:`)) {
+        spaceKeyCache.delete(key)
       }
     }
 
-    if (!currentVault.value?.drizzle) return
-    await currentVault.value.drizzle
-      .delete(haexSpaceKeys)
-      .where(eq(haexSpaceKeys.spaceId, spaceId))
+    const db = getDb()
+    if (!db) return
+    await db.delete(haexSpaceKeys).where(eq(haexSpaceKeys.spaceId, spaceId))
   }
 
   // =========================================================================
@@ -158,50 +238,36 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   // Space CRUD
   // =========================================================================
 
-  /**
-   * Create a local space (no server required).
-   * Used for P2P sharing, local-only grouping, and the default space.
-   */
   const createLocalSpaceAsync = async (spaceName: string, spaceId?: string) => {
     const id = spaceId || crypto.randomUUID()
     const spaceKey = generateSpaceKey()
 
-    await persistSpaceKeyAsync(id, 1, spaceKey)
-
-    // Add to local spaces list
-    const existing = spaces.value.find(s => s.id === id)
-    if (!existing) {
-      spaces.value.push({
-        id,
-        name: spaceName,
-        role: SpaceRoles.ADMIN,
-        serverUrl: '',
-        createdAt: new Date().toISOString(),
-      })
+    const space: DecryptedSpace = {
+      id,
+      name: spaceName,
+      role: SpaceRoles.ADMIN,
+      serverUrl: '',
+      createdAt: new Date().toISOString(),
     }
+
+    await persistSpaceAsync(space)
+    await persistSpaceKeyAsync(id, 1, spaceKey)
 
     log.info(`Created local space "${spaceName}" (${id})`)
     return { id }
   }
 
-  /**
-   * Ensures the default local space exists. Called on vault open.
-   * Uses a deterministic ID so it's the same across devices.
-   */
   const DEFAULT_SPACE_ID = 'default'
 
   const ensureDefaultSpaceAsync = async () => {
-    const existingKey = await getSpaceKeyAsync(DEFAULT_SPACE_ID, 1)
-    if (existingKey) {
-      // Default space already exists — ensure it's in the list
+    const db = getDb()
+    if (!db) return
+
+    const existing = await db.select().from(haexSpaces).where(eq(haexSpaces.id, DEFAULT_SPACE_ID)).limit(1)
+    if (existing.length > 0) {
+      // Ensure in-memory list is populated
       if (!spaces.value.find(s => s.id === DEFAULT_SPACE_ID)) {
-        spaces.value.push({
-          id: DEFAULT_SPACE_ID,
-          name: 'Personal',
-          role: SpaceRoles.ADMIN,
-          serverUrl: '',
-          createdAt: '',
-        })
+        spaces.value.push(rowToDecryptedSpace(existing[0]))
       }
       return
     }
@@ -217,7 +283,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const spaceKey = generateSpaceKey()
     const { encryptedName, nameNonce } = await encryptSpaceNameAsync(spaceKey, spaceName)
 
-    // Encrypt space key for self (ECDH with own public key)
     const keyGrant = await encryptWithPublicKeyAsync(spaceKey, identity.publicKey)
 
     const response = await fetchWithAuth(`${serverUrl}/spaces`, {
@@ -247,14 +312,10 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     return { id: spaceId }
   }
 
-  /**
-   * Update a space's name. If the space has a server, update there too.
-   */
   const updateSpaceNameAsync = async (spaceId: string, newName: string) => {
     const space = spaces.value.find(s => s.id === spaceId)
     if (!space) throw new Error('Space not found')
 
-    // Update on server if remote
     if (space.serverUrl) {
       const spaceKey = await getSpaceKeyAsync(spaceId, 1)
       if (!spaceKey) throw new Error('Space key not found')
@@ -270,14 +331,10 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       }
     }
 
-    // Update locally
-    space.name = newName
+    await persistSpaceAsync({ ...space, name: newName })
     log.info(`Updated space "${spaceId}" name to "${newName}"`)
   }
 
-  /**
-   * Migrate a space from one server to another (or to/from local).
-   */
   const migrateSpaceServerAsync = async (
     spaceId: string,
     oldServerUrl: string,
@@ -291,7 +348,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const space = spaces.value.find(s => s.id === spaceId)
     if (!space) throw new Error('Space not found')
 
-    // 1. Delete from old server (if it had one)
     if (oldServerUrl) {
       try {
         const response = await fetchWithAuth(`${oldServerUrl}/spaces/${spaceId}`, {
@@ -302,11 +358,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
         }
       } catch (e) {
         log.warn(`Old server unreachable, space may remain there: ${e}`)
-        // TODO: Queue for later deletion
       }
     }
 
-    // 2. Create on new server (if it has one)
     if (newServerUrl) {
       const { encryptedName, nameNonce } = await encryptSpaceNameAsync(spaceKey, space.name)
       const keyGrant = await encryptWithPublicKeyAsync(spaceKey as Uint8Array<ArrayBuffer>, identity.publicKey)
@@ -332,8 +386,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       }
     }
 
-    // 3. Update local state
-    space.serverUrl = newServerUrl
+    await persistSpaceAsync({ ...space, serverUrl: newServerUrl })
     log.info(`Migrated space "${spaceId}" from "${oldServerUrl || 'local'}" to "${newServerUrl || 'local'}"`)
   }
 
@@ -342,7 +395,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     if (!response.ok) throw new Error('Failed to list spaces')
     const rawSpaces = await response.json() as SharedSpace[]
 
-    const decrypted = await Promise.all(
+    const decrypted: DecryptedSpace[] = await Promise.all(
       rawSpaces.map(async (space) => ({
         id: space.id,
         name: await resolveSpaceNameAsync(space),
@@ -352,9 +405,11 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       })),
     )
 
-    // Merge with existing spaces from other servers
-    const otherSpaces = spaces.value.filter(s => s.serverUrl !== serverUrl)
-    spaces.value = [...otherSpaces, ...decrypted]
+    // Persist all remote spaces to local DB
+    for (const space of decrypted) {
+      await persistSpaceAsync(space)
+    }
+
     return decrypted
   }
 
@@ -368,7 +423,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   ): Promise<SpaceInvite> => {
     const identity = await resolveIdentityAsync(identityId)
 
-    // Get key grants to decrypt current space key
     const grantsResponse = await fetchWithAuth(`${serverUrl}/spaces/${spaceId}/key-grants`)
     if (!grantsResponse.ok) throw new Error('Failed to get key grants')
     const grants = await grantsResponse.json()
@@ -378,7 +432,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     )[0]
     if (!latestGrant) throw new Error('No key grants found')
 
-    // Get space key (from cache or decrypt from grant)
     let spaceKey = await getSpaceKeyAsync(spaceId, latestGrant.generation)
     if (!spaceKey) {
       spaceKey = await decryptWithPrivateKeyAsync(
@@ -392,7 +445,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       await persistSpaceKeyAsync(spaceId, latestGrant.generation, spaceKey)
     }
 
-    // Encrypt space key for invitee
     const keyGrant = await encryptWithPublicKeyAsync(new Uint8Array(spaceKey), inviteePublicKey)
 
     const memberResponse = await fetchWithAuth(`${serverUrl}/spaces/${spaceId}/members`, {
@@ -478,7 +530,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       throw new Error('Failed to leave space')
     }
 
-    spaces.value = spaces.value.filter(space => space.id !== spaceId)
+    await removeSpaceFromDbAsync(spaceId)
     await deleteSpaceKeysAsync(spaceId)
     log.info(`Left space ${spaceId}`)
   }
@@ -493,28 +545,23 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       throw new Error(`Failed to delete space: ${error.error || response.statusText}`)
     }
 
-    spaces.value = spaces.value.filter(space => space.id !== spaceId)
+    await removeSpaceFromDbAsync(spaceId)
     await deleteSpaceKeysAsync(spaceId)
     log.info(`Deleted space ${spaceId}`)
   }
 
-  /**
-   * Remove an identity from a space. Deletes all devices of this identity
-   * from haex_space_devices, which revokes P2P access via CRDT sync.
-   * Also removes from server if remote space.
-   */
   const removeIdentityFromSpaceAsync = async (spaceId: string, identityPublicKey: string) => {
-    const db = currentVault.value?.drizzle
+    const db = getDb()
     if (!db) throw new Error('No vault open')
 
-    // Delete all devices of this identity from the space
+    const { haexSpaceDevices } = await import('~/database/schemas')
+
     await db.delete(haexSpaceDevices)
       .where(and(
         eq(haexSpaceDevices.spaceId, spaceId),
         eq(haexSpaceDevices.identityId, identityPublicKey),
       ))
 
-    // Remove from server if remote
     const space = spaces.value.find(s => s.id === spaceId)
     if (space?.serverUrl) {
       try {
@@ -530,11 +577,10 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       }
     }
 
-    // Immediately reload P2P allowed peers so the removed identity is blocked
     try {
       await invoke('peer_storage_reload_shares')
     } catch {
-      // P2P endpoint may not be running — that's fine
+      // P2P endpoint may not be running
     }
 
     log.info(`Removed identity ${identityPublicKey.slice(0, 20)}... from space ${spaceId}`)
@@ -549,7 +595,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     spaces,
     getSpaceKey,
     getSpaceKeyAsync,
+    getSpaceKeysAsync,
     persistSpaceKeyAsync,
+    loadSpacesFromDbAsync,
     createLocalSpaceAsync,
     ensureDefaultSpaceAsync,
     createSpaceAsync,

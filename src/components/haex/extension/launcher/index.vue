@@ -39,7 +39,7 @@
     </span>
 
     <template #body>
-      <div class="flex flex-wrap justify-center gap-2">
+      <div class="flex flex-wrap justify-center gap-2 max-w-[512px] mx-auto">
         <!-- All launcher items (system windows + enabled extensions, alphabetically sorted) -->
         <HaexExtensionLauncherItem
           v-for="item in launcherItems"

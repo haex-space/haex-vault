@@ -66,11 +66,41 @@
         />
       </div>
     </div>
+
+    <!-- Linked items collapsible -->
+    <UCollapsible v-model:open="isExpanded" :unmount-on-hide="false">
+      <div class="flex items-center gap-1.5 py-2 text-xs text-muted hover:text-foreground transition-colors cursor-pointer">
+        <UIcon
+          name="i-lucide-chevron-right"
+          class="w-3.5 h-3.5 transition-transform duration-200"
+          :class="{ 'rotate-90': isExpanded }"
+        />
+        <span>{{ t('linkedItems.label') }}</span>
+        <UBadge
+          v-if="totalCount > 0"
+          variant="subtle"
+          size="sm"
+          color="neutral"
+        >
+          {{ totalCount }}
+        </UBadge>
+      </div>
+
+      <template #content>
+        <div class="mt-2">
+          <SpaceLinkedItems
+            :groups="groups"
+            :is-loading="isLoading"
+          />
+        </div>
+      </template>
+    </UCollapsible>
   </div>
 </template>
 
 <script setup lang="ts">
 import { SpaceRoles, type DecryptedSpace } from '@haex-space/vault-sdk'
+import SpaceLinkedItems from './SpaceLinkedItems.vue'
 
 const props = defineProps<{
   space: DecryptedSpace
@@ -107,6 +137,21 @@ const roleBadgeColor = computed(() => {
 const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString()
 }
+
+// Linked items
+const isExpanded = ref(false)
+const hasLoaded = ref(false)
+
+const { groups, totalCount, isLoading, loadAsync } = useSpaceLinkedItems(
+  () => props.space.id,
+)
+
+watch(isExpanded, async (expanded) => {
+  if (expanded && !hasLoaded.value) {
+    await loadAsync()
+    hasLoaded.value = true
+  }
+})
 </script>
 
 <i18n lang="yaml">
@@ -122,6 +167,8 @@ de:
     invite: Einladen
     delete: Löschen
     leave: Verlassen
+  linkedItems:
+    label: Verknüpfte Inhalte
 en:
   roles:
     admin: Admin
@@ -130,7 +177,10 @@ en:
     reader: Reader
   createdAt: Created at
   actions:
+    edit: Bearbeiten
     invite: Invite
     delete: Delete
     leave: Leave
+  linkedItems:
+    label: Linked content
 </i18n>

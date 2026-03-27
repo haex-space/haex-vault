@@ -201,8 +201,9 @@ export const useVaultStore = defineStore('vaultStore', () => {
         $setConsoleLoggerDeviceId(useDeviceStore().deviceId!)
       }
 
-      // Ensure default local space exists
+      // Load spaces from DB and ensure default local space exists
       const spacesStore = useSpacesStore()
+      await spacesStore.loadSpacesFromDbAsync()
       await spacesStore.ensureDefaultSpaceAsync()
 
       // Automatic cleanup on vault open (non-blocking)

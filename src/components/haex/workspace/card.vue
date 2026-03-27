@@ -1,30 +1,31 @@
 <template>
-  <UCard
-    ref="cardEl"
-    class="cursor-pointer transition-all h-32 w-72 shrink-0 group duration-500 rounded-lg"
-    :class="[
-      workspace.id === currentWorkspace?.id
-        ? 'ring-2 ring-secondary bg-secondary/10'
-        : 'hover:ring-2 hover:ring-gray-300',
-      isDragOver ? 'ring-4 ring-primary bg-primary/20 scale-105' : '',
-    ]"
-    @click="workspaceStore.slideToWorkspace(workspace.id)"
-  >
-    <template #header>
-      <div class="flex justify-between">
-        <h3 class="font-semibold text-gray-900 dark:text-white text-lg">
-          {{ workspace.name }}
-        </h3>
+  <UContextMenu :items="contextMenuItems">
+    <UCard
+      ref="cardEl"
+      class="cursor-pointer transition-all h-32 w-72 shrink-0 group duration-500 rounded-lg"
+      :class="[
+        workspace.id === currentWorkspace?.id
+          ? 'ring-2 ring-secondary bg-secondary/10'
+          : 'hover:ring-2 hover:ring-gray-300',
+        isDragOver ? 'ring-4 ring-primary bg-primary/20 scale-105' : '',
+      ]"
+      @click="workspaceStore.slideToWorkspace(workspace.id)"
+    >
+      <template #header>
+        <div class="flex justify-between">
+          <h3 class="font-semibold text-gray-900 dark:text-white text-lg">
+            {{ workspace.name }}
+          </h3>
 
-        <UButton
-          v-if="workspaceStore.workspaces.length > 1"
-          icon="mdi-close"
-          variant="ghost"
-          class="group-hover:opacity-100 opacity-0 transition-opacity duration-300"
-          @click.stop="workspaceStore.closeWorkspaceAsync(workspace.id)"
-        />
-      </div>
-    </template>
+          <UButton
+            v-if="workspaceStore.workspaces.length > 1"
+            icon="mdi-close"
+            variant="ghost"
+            class="group-hover:opacity-100 opacity-0 transition-opacity duration-300"
+            @click.stop="workspaceStore.closeWorkspaceAsync(workspace.id)"
+          />
+        </div>
+      </template>
 
     <!-- Window Icons Preview -->
     <div
@@ -58,10 +59,13 @@
     >
       {{ t('noWindows') }}
     </div>
-  </UCard>
+    </UCard>
+  </UContextMenu>
 </template>
 
 <script setup lang="ts">
+import type { ContextMenuItem } from '@nuxt/ui'
+
 const props = defineProps<{ workspace: IWorkspace }>()
 
 const { t } = useI18n()
@@ -69,6 +73,18 @@ const workspaceStore = useWorkspaceStore()
 const windowManager = useWindowManagerStore()
 
 const { currentWorkspace } = storeToRefs(workspaceStore)
+
+const contextMenuItems = computed<ContextMenuItem[]>(() => {
+  if (workspaceStore.workspaces.length <= 1) return []
+  return [
+    {
+      label: t('close'),
+      icon: 'mdi-close',
+      color: 'error' as const,
+      onSelect: () => workspaceStore.closeWorkspaceAsync(props.workspace.id),
+    },
+  ]
+})
 
 // Get all windows for this workspace
 const workspaceWindows = computed(() => {
@@ -149,6 +165,8 @@ watch(
 <i18n lang="yaml">
 de:
   noWindows: Keine Fenster geöffnet
+  close: Workspace schließen
 en:
   noWindows: No windows open
+  close: Close workspace
 </i18n>

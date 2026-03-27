@@ -172,9 +172,15 @@
     "shared_space_sync": {
       "name": "haex_shared_space_sync",
       "columns": {
+        "id": "id",
         "tableName": "table_name",
         "rowPks": "row_pks",
-        "spaceId": "space_id"
+        "spaceId": "space_id",
+        "extensionId": "extension_id",
+        "groupId": "group_id",
+        "type": "type",
+        "label": "label",
+        "createdAt": "created_at"
       }
     },
     "identities": {
@@ -221,6 +227,17 @@
         "createdAt": "created_at"
       }
     },
+    "spaces": {
+      "name": "haex_spaces",
+      "columns": {
+        "id": "id",
+        "name": "name",
+        "serverUrl": "server_url",
+        "role": "role",
+        "createdAt": "created_at",
+        "modifiedAt": "modified_at"
+      }
+    },
     "space_devices": {
       "name": "haex_space_devices",
       "columns": {
@@ -246,8 +263,9 @@
       }
     },
     "space_keys": {
-      "name": "haex_space_keys_no_sync",
+      "name": "haex_space_keys",
       "columns": {
+        "id": "id",
         "spaceId": "space_id",
         "generation": "generation",
         "key": "key"
