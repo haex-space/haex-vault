@@ -238,10 +238,6 @@ fn get_table_statistics(conn: &Connection) -> Result<Vec<TableStats>, DatabaseEr
             .filter_map(Result::ok)
             .any(|x| x);
 
-        if !has_tombstone {
-            continue;
-        }
-
         // Count rows
         let total_rows: i64 = conn
             .query_row(
@@ -251,35 +247,44 @@ fn get_table_statistics(conn: &Connection) -> Result<Vec<TableStats>, DatabaseEr
             )
             .unwrap_or(0);
 
-        let active_rows: i64 = conn
-            .query_row(
-                &format!(
-                    "SELECT COUNT(*) FROM \"{}\" WHERE {} = 0 OR {} IS NULL",
-                    table_name, TOMBSTONE_COLUMN, TOMBSTONE_COLUMN
-                ),
-                [],
-                |row| row.get(0),
-            )
-            .unwrap_or(0);
+        if has_tombstone {
+            let active_rows: i64 = conn
+                .query_row(
+                    &format!(
+                        "SELECT COUNT(*) FROM \"{}\" WHERE {} = 0 OR {} IS NULL",
+                        table_name, TOMBSTONE_COLUMN, TOMBSTONE_COLUMN
+                    ),
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
 
-        // Count actual tombstones (haex_tombstone = 1), not just non-active
-        let tombstone_rows: i64 = conn
-            .query_row(
-                &format!(
-                    "SELECT COUNT(*) FROM \"{}\" WHERE {} = 1",
-                    table_name, TOMBSTONE_COLUMN
-                ),
-                [],
-                |row| row.get(0),
-            )
-            .unwrap_or(0);
+            let tombstone_rows: i64 = conn
+                .query_row(
+                    &format!(
+                        "SELECT COUNT(*) FROM \"{}\" WHERE {} = 1",
+                        table_name, TOMBSTONE_COLUMN
+                    ),
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
 
-        stats.push(TableStats {
-            name: table_name,
-            total_rows,
-            active_rows,
-            tombstone_rows,
-        });
+            stats.push(TableStats {
+                name: table_name,
+                total_rows,
+                active_rows,
+                tombstone_rows,
+            });
+        } else {
+            // Non-CRDT tables (e.g. _no_sync): all rows are active, no tombstones
+            stats.push(TableStats {
+                name: table_name,
+                total_rows,
+                active_rows: total_rows,
+                tombstone_rows: 0,
+            });
+        }
     }
 
     Ok(stats)

@@ -6,6 +6,7 @@ mod device;
 mod extension;
 mod filesystem;
 mod logging;
+mod mls;
 #[cfg(desktop)]
 mod shortcuts;
 pub mod peer_storage;
@@ -265,9 +266,7 @@ pub fn run() {
             extension::spaces::commands::extension_space_assign,
             extension::spaces::commands::extension_space_unassign,
             extension::spaces::commands::extension_space_get_assignments,
-            extension::spaces::commands::extension_space_list_backends,
             extension::spaces::commands::extension_space_list,
-            extension::spaces::commands::extension_space_create,
             extension::spaces::commands::set_auth_token,
             extension::web::commands::extension_web_fetch,
             extension::web::commands::extension_web_open,
@@ -448,6 +447,16 @@ pub fn run() {
             peer_storage::peer_storage_transfer_pause,
             peer_storage::peer_storage_transfer_resume,
             peer_storage::open_file_system,
+            // MLS (RFC 9420) group key management
+            mls::commands::mls_init_tables,
+            mls::commands::mls_init_identity,
+            mls::commands::mls_create_group,
+            mls::commands::mls_add_member,
+            mls::commands::mls_remove_member,
+            mls::commands::mls_encrypt,
+            mls::commands::mls_decrypt,
+            mls::commands::mls_process_message,
+            mls::commands::mls_get_key_packages,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
