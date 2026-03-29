@@ -87,17 +87,17 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   /**
    * Resolves the identity public key for a backend from its identityId
    */
-  const getIdentityPublicKeyAsync = async (backendId: string): Promise<string> => {
+  const getIdentityAgreementPublicKeyAsync = async (backendId: string): Promise<string> => {
     const backend = findBackend(backendId)
     if (!backend.identityId) {
       throw new Error(`Backend ${backendId} has no identity configured`)
     }
     const identityStore = useIdentityStore()
     const identity = await identityStore.getIdentityAsync(backend.identityId)
-    if (!identity?.publicKey) {
-      throw new Error(`Identity not found or missing public key for backend ${backendId}`)
+    if (!identity?.agreementPublicKey) {
+      throw new Error(`Identity not found or missing agreement public key for backend ${backendId}`)
     }
-    return identity.publicKey
+    return identity.agreementPublicKey
   }
 
   /**
@@ -190,7 +190,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       vaultKey,
       vaultName,
       vaultPassword,
-      identity.publicKey,
+      identity.agreementPublicKey,
       identity.privateKey,
       identity.did,
     )
@@ -465,7 +465,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     newVaultName: string,
   ): Promise<void> => {
     const backend = findBackend(backendId)
-    const identityPublicKey = await getIdentityPublicKeyAsync(backendId)
+    const identityPublicKey = await getIdentityAgreementPublicKeyAsync(backendId)
     return updateName(backend.serverUrl, spaceId, newVaultName, identityPublicKey)
   }
 

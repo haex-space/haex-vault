@@ -3,8 +3,8 @@
  * Handles server-side operations like health check, vault deletion, vault name updates
  */
 
-import { encryptWithPublicKeyAsync } from '@haex-space/vault-sdk'
 import { getAuthTokenAsync, fetchWithReauthAsync } from './supabase'
+import { encryptVaultNameAsync } from '@/utils/crypto/vaultName'
 import { clearVaultKeyCache } from './vaultKey'
 import { engineLog as log } from './types'
 
@@ -99,9 +99,8 @@ export const updateVaultNameOnServerAsync = async (
     throw new Error('Not authenticated')
   }
 
-  // Encrypt new vault name with identity public key (ECDH)
-  const encodedName = new TextEncoder().encode(newVaultName)
-  const sealedName = await encryptWithPublicKeyAsync(encodedName, identityPublicKey)
+  // Encrypt new vault name with identity agreement key (X25519 via Rust)
+  const sealedName = await encryptVaultNameAsync(newVaultName, identityPublicKey)
 
   // Send PATCH request to update vault name on server
   const response = await fetchWithReauthAsync(`${serverUrl}/sync/vault-key/${spaceId}`, {

@@ -7,8 +7,8 @@ import {
   encryptVaultKey,
   decryptVaultKey,
   generateVaultKey,
-  encryptWithPublicKeyAsync,
 } from '@haex-space/vault-sdk'
+import { encryptVaultNameAsync } from '@/utils/crypto/vaultName'
 import { createDidAuthHeader, fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { engineLog as log, type VaultKeyCache } from './types'
 
@@ -70,9 +70,8 @@ export const uploadVaultKeyAsync = async (
   // Encrypt vault key with vault password
   const encryptedVaultKeyData = await encryptVaultKey(vaultKey, vaultPassword)
 
-  // Encrypt vault name with identity public key (ECDH)
-  const encodedName = new TextEncoder().encode(vaultName)
-  const sealedName = await encryptWithPublicKeyAsync(encodedName, identityPublicKey)
+  // Encrypt vault name with identity agreement key (X25519 ECDH via Rust)
+  const sealedName = await encryptVaultNameAsync(vaultName, identityPublicKey)
 
   // Send to server with DID-Auth
   const body = JSON.stringify({

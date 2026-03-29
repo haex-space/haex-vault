@@ -223,6 +223,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             crypto::generate_x25519_keypair,
+            crypto::x25519_encrypt,
+            crypto::x25519_decrypt,
             database::close_database,
             database::create_encrypted_database,
             database::delete_vault,
