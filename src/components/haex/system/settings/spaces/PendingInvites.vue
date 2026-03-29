@@ -48,6 +48,14 @@
               >
                 {{ t('invite.pending') }}
               </UBadge>
+              <UBadge
+                v-if="invite.capability"
+                color="neutral"
+                variant="subtle"
+                size="sm"
+              >
+                {{ invite.capability }}
+              </UBadge>
             </div>
             <p class="text-xs text-muted mt-1">
               {{ t('invite.from') }}: {{ invite.inviterLabel || invite.inviterDid }}

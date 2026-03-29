@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "cc83d6f5-771b-4e38-8ed3-a90c6e75b098",
+  "id": "65845b5e-e3a3-4652-8bde-c78dcc691bb5",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "haex_crdt_configs_no_sync": {
@@ -1577,6 +1577,13 @@
         },
         "space_name": {
           "name": "space_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "capability": {
+          "name": "capability",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

@@ -138,6 +138,18 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+
+const roleToCapability = (role: string): string => {
+  switch (role) {
+    case SpaceRoles.ADMIN:
+    case SpaceRoles.OWNER:
+      return 'space/admin'
+    case SpaceRoles.READER:
+      return 'space/read'
+    default:
+      return 'space/write'
+  }
+}
 const { add } = useToast()
 
 const windowManager = useWindowManagerStore()
@@ -246,12 +258,13 @@ const onSubmitAsync = async () => {
 
   try {
     if (props.mode === 'contact') {
-      // Direct invite: DID known
+      // Direct invite: DID known, UCAN created immediately
       const inviteeDid = await publicKeyToDidKeyAsync(selectedContact.value!.publicKey)
       await spacesStore.inviteMemberAsync(
         props.serverUrl,
         props.spaceId,
         inviteeDid,
+        roleToCapability(selectedRole.value!.value),
         props.identityId,
       )
       add({ title: t('success.invited'), color: 'success' })
@@ -262,7 +275,7 @@ const onSubmitAsync = async () => {
         props.serverUrl,
         props.spaceId,
         {
-          capability: `space/${selectedRole.value!.value === SpaceRoles.READER ? 'read' : selectedRole.value!.value === SpaceRoles.ADMIN || selectedRole.value!.value === SpaceRoles.OWNER ? 'admin' : 'write'}`,
+          capability: roleToCapability(selectedRole.value!.value),
           maxUses: props.mode === 'open' ? maxUses.value : 1,
           expiresInSeconds: selectedExpiry.value!.value,
           label: inviteLabel.value || undefined,

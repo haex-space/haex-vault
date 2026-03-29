@@ -241,6 +241,7 @@ CREATE TABLE `haex_pending_invites` (
 	`inviter_did` text NOT NULL,
 	`inviter_label` text,
 	`space_name` text,
+	`capability` text,
 	`status` text DEFAULT 'pending' NOT NULL,
 	`include_history` integer DEFAULT false,
 	`created_at` text NOT NULL,

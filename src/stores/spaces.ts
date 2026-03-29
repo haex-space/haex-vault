@@ -10,7 +10,7 @@ import { haexSpaces } from '~/database/schemas'
 import type { SelectHaexSpaces } from '~/database/schemas'
 import { createLogger } from '@/stores/logging'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
-import { createRootUcanAsync, persistUcanAsync, fetchWithUcanAuth, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
+import { createRootUcanAsync, delegateUcanAsync, persistUcanAsync, fetchWithUcanAuth, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
 
 const log = createLogger('SPACES')
 
@@ -323,16 +323,32 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     serverUrl: string,
     spaceId: string,
     inviteeDid: string,
+    capability: string,
     identityId: string,
     includeHistory: boolean = false,
   ): Promise<{ inviteId: string }> => {
+    const identity = await resolveIdentityAsync(identityId)
+
+    // Create delegated UCAN for the invitee (signed by admin)
+    const parentUcan = getUcanForSpaceAsync(spaceId)
+    if (!parentUcan) throw new Error('No UCAN available for this space')
+
+    const delegatedUcan = await delegateUcanAsync(
+      identity.did,
+      identity.privateKey,
+      inviteeDid,
+      spaceId,
+      capability as any,
+      parentUcan,
+    )
+
     const response = await fetchWithSpaceUcanAuth(
       `${serverUrl}/spaces/${spaceId}/invites`,
       spaceId,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inviteeDid, includeHistory }),
+        body: JSON.stringify({ inviteeDid, ucan: delegatedUcan, includeHistory }),
       },
     )
 
@@ -342,7 +358,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     }
 
     const data = await response.json()
-    log.info(`Invited ${inviteeDid} to space ${spaceId} (invite ${data.invite.id})`)
+    log.info(`Invited ${inviteeDid} to space ${spaceId} with ${capability}`)
     return { inviteId: data.invite.id }
   }
 
@@ -443,6 +459,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
   /**
    * Admin-side: finalize an accepted invite by adding the member to the MLS group.
+   * For token invites (no UCAN yet), creates and attaches a delegated UCAN.
    * Fetches the invitee's KeyPackage, creates MLS add_member commit + welcome,
    * and sends both to the server.
    */
@@ -451,24 +468,51 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     spaceId: string,
     inviteeDid: string,
     identityId: string,
+    inviteId?: string,
+    capability?: string,
   ) => {
     const identity = await resolveIdentityAsync(identityId)
     const { useMlsDelivery } = await import('@/composables/useMlsDelivery')
     const delivery = useMlsDelivery(serverUrl, spaceId, { privateKey: identity.privateKey, did: identity.did })
 
-    // 1. Fetch invitee's KeyPackage from server
+    // 1. If no UCAN on the invite yet (token-based invite), create one now
+    if (inviteId && capability) {
+      const parentUcan = getUcanForSpaceAsync(spaceId)
+      if (parentUcan) {
+        const delegatedUcan = await delegateUcanAsync(
+          identity.did,
+          identity.privateKey,
+          inviteeDid,
+          spaceId,
+          capability as any,
+          parentUcan,
+        )
+        // Set UCAN on the invite (immutable, one-time only)
+        await fetchWithSpaceUcanAuth(
+          `${serverUrl}/spaces/${spaceId}/invites/${inviteId}/ucan`,
+          spaceId,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ucan: delegatedUcan }),
+          },
+        )
+      }
+    }
+
+    // 2. Fetch invitee's KeyPackage from server
     const { keyPackage } = await delivery.fetchKeyPackageAsync(inviteeDid)
 
-    // 2. Add member to MLS group → produces commit + welcome
+    // 3. Add member to MLS group → produces commit + welcome
     const bundle = await invoke<{ commit: number[]; welcome: number[] | null; groupInfo: number[] }>('mls_add_member', {
       spaceId,
       keyPackage: Array.from(keyPackage),
     })
 
-    // 3. Send commit to all group members
+    // 4. Send commit to all group members
     await delivery.sendMessageAsync(new Uint8Array(bundle.commit), 'commit')
 
-    // 4. Send welcome to the new member
+    // 5. Send welcome to the new member
     if (bundle.welcome) {
       await delivery.sendWelcomeAsync(inviteeDid, new Uint8Array(bundle.welcome))
     }

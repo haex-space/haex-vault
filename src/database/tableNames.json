@@ -295,6 +295,7 @@
         "inviterDid": "inviter_did",
         "inviterLabel": "inviter_label",
         "spaceName": "space_name",
+        "capability": "capability",
         "status": "status",
         "includeHistory": "include_history",
         "createdAt": "created_at",

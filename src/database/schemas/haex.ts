@@ -620,6 +620,7 @@ export const haexPendingInvites = sqliteTable(
     inviterDid: text(tableNames.haex.pending_invites.columns.inviterDid).notNull(),
     inviterLabel: text(tableNames.haex.pending_invites.columns.inviterLabel),
     spaceName: text(tableNames.haex.pending_invites.columns.spaceName),
+    capability: text(tableNames.haex.pending_invites.columns.capability), // e.g. 'space/write'
     status: text(tableNames.haex.pending_invites.columns.status).notNull().default('pending'),
     includeHistory: integer(tableNames.haex.pending_invites.columns.includeHistory, { mode: 'boolean' }).default(false),
     createdAt: text(tableNames.haex.pending_invites.columns.createdAt).notNull(),

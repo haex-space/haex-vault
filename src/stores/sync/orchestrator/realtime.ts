@@ -212,11 +212,15 @@ export const subscribeToBackendAsync = async (
             const spacesStore = useSpacesStore()
             for (const invite of accepted) {
               try {
+                // For token invites without UCAN: pass inviteId + capability so finalize creates one
+                const needsUcan = !invite.ucan
                 await spacesStore.finalizeInviteAsync(
                   backend.serverUrl,
                   event.spaceId,
                   invite.inviteeDid,
                   backend.identityId,
+                  needsUcan ? invite.id : undefined,
+                  needsUcan ? (invite.capability ?? 'space/write') : undefined,
                 )
                 log.info(`Auto-finalized invite for ${invite.inviteeDid} in space ${event.spaceId}`)
               } catch (err) {
