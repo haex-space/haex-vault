@@ -9,8 +9,17 @@ import {
   generateVaultKey,
   encryptWithPublicKeyAsync,
 } from '@haex-space/vault-sdk'
-import { getAuthTokenAsync, fetchWithReauthAsync } from './supabase'
-import { fetchWithNetworkErrorHandling, engineLog as log, type VaultKeyCache } from './types'
+import { createDidAuthHeader, fetchWithDidAuth } from '@/utils/auth/didAuth'
+import { engineLog as log, type VaultKeyCache } from './types'
+
+/** Simple network error wrapper for DID-Auth requests (no JWT reauth needed) */
+const fetchWithNetworkErrorHandlingAsync = async (url: string, options?: RequestInit): Promise<Response> => {
+  try {
+    return await fetch(url, options)
+  } catch {
+    throw new Error('NETWORK_ERROR: Cannot connect to sync server. Please check your internet connection.')
+  }
+}
 
 // In-memory cache for decrypted vault keys (cleared on logout/vault close)
 const vaultKeyCache: VaultKeyCache = {}
@@ -55,6 +64,8 @@ export const uploadVaultKeyAsync = async (
   vaultName: string,
   vaultPassword: string,
   identityPublicKey: string,
+  privateKey: string,
+  did: string,
 ): Promise<{ vaultKeySalt: string }> => {
   // Encrypt vault key with vault password
   const encryptedVaultKeyData = await encryptVaultKey(vaultKey, vaultPassword)
@@ -63,28 +74,20 @@ export const uploadVaultKeyAsync = async (
   const encodedName = new TextEncoder().encode(vaultName)
   const sealedName = await encryptWithPublicKeyAsync(encodedName, identityPublicKey)
 
-  // Get auth token
-  const token = await getAuthTokenAsync()
-  if (!token) {
-    throw new Error('Not authenticated')
-  }
-
-  // Send to server
-  const response = await fetchWithReauthAsync(`${serverUrl}/sync/vault-key`, {
+  // Send to server with DID-Auth
+  const body = JSON.stringify({
+    spaceId,
+    encryptedVaultKey: encryptedVaultKeyData.encryptedVaultKey,
+    encryptedVaultName: sealedName.encryptedData,
+    vaultKeySalt: encryptedVaultKeyData.salt,
+    ephemeralPublicKey: sealedName.ephemeralPublicKey,
+    vaultKeyNonce: encryptedVaultKeyData.vaultKeyNonce,
+    vaultNameNonce: sealedName.nonce,
+  })
+  const response = await fetchWithDidAuth(`${serverUrl}/sync/vault-key`, privateKey, did, 'vault-key', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      spaceId,
-      encryptedVaultKey: encryptedVaultKeyData.encryptedVaultKey,
-      encryptedVaultName: sealedName.encryptedData,
-      vaultKeySalt: encryptedVaultKeyData.salt,
-      ephemeralPublicKey: sealedName.ephemeralPublicKey,
-      vaultKeyNonce: encryptedVaultKeyData.vaultKeyNonce,
-      vaultNameNonce: sealedName.nonce,
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body,
   })
 
   if (!response.ok) {
@@ -108,6 +111,8 @@ export const getVaultKeyFromServerAsync = async (
   serverUrl: string,
   spaceId: string,
   password: string,
+  privateKey: string,
+  did: string,
 ): Promise<Uint8Array> => {
   // Check cache first
   const cached = vaultKeyCache[spaceId]
@@ -115,21 +120,11 @@ export const getVaultKeyFromServerAsync = async (
     return cached.vaultKey
   }
 
-  // Get auth token
-  const token = await getAuthTokenAsync()
-  if (!token) {
-    throw new Error('Not authenticated')
-  }
-
-  // Fetch from server
-  const response = await fetchWithNetworkErrorHandling(
+  // Fetch from server with DID-Auth
+  const authHeader = await createDidAuthHeader(privateKey, did, 'get-vault-key')
+  const response = await fetchWithNetworkErrorHandlingAsync(
     `${serverUrl}/sync/vault-key/${spaceId}`,
-    {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    },
+    { method: 'GET', headers: { Authorization: authHeader } },
   )
 
   if (response.status === 404) {
@@ -174,17 +169,15 @@ export const fetchSyncKeyFromServerAsync = async (
   serverUrl: string,
   spaceId: string,
   password: string,
+  privateKey: string,
+  did: string,
 ): Promise<Uint8Array> => {
-  const token = await getAuthTokenAsync()
-  if (!token) {
-    throw new Error('Not authenticated')
-  }
-
-  const response = await fetchWithNetworkErrorHandling(
+  const authHeader = await createDidAuthHeader(privateKey, did, 'get-vault-key')
+  const response = await fetchWithNetworkErrorHandlingAsync(
     `${serverUrl}/sync/vault-key/${spaceId}`,
     {
       method: 'GET',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: authHeader },
     },
   )
 
@@ -239,30 +232,23 @@ export const reEncryptVaultKeyAsync = async (
   spaceId: string,
   vaultKey: Uint8Array,
   newPassword: string,
+  privateKey: string,
+  did: string,
 ): Promise<{ success: boolean; vaultKeySalt?: string }> => {
   try {
-    // Get auth token
-    const token = await getAuthTokenAsync()
-    if (!token) {
-      log.warn('Not authenticated for re-encryption')
-      return { success: false }
-    }
-
     // Re-encrypt the vault key with the new password (generates new salt and nonce)
     const encryptedVaultKeyData = await encryptVaultKey(vaultKey, newPassword)
 
-    // Send PATCH request to update the encrypted vault key on server
-    const response = await fetchWithReauthAsync(`${serverUrl}/sync/vault-key/${spaceId}`, {
+    // Send PATCH request to update the encrypted vault key on server with DID-Auth
+    const body = JSON.stringify({
+      encryptedVaultKey: encryptedVaultKeyData.encryptedVaultKey,
+      vaultKeySalt: encryptedVaultKeyData.salt,
+      vaultKeyNonce: encryptedVaultKeyData.vaultKeyNonce,
+    })
+    const response = await fetchWithDidAuth(`${serverUrl}/sync/vault-key/${spaceId}`, privateKey, did, 'update-vault-key', {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        encryptedVaultKey: encryptedVaultKeyData.encryptedVaultKey,
-        vaultKeySalt: encryptedVaultKeyData.salt,
-        vaultKeyNonce: encryptedVaultKeyData.vaultKeyNonce,
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body,
     })
 
     if (!response.ok) {

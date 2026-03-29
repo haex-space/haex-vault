@@ -17,7 +17,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { haexSpaceKeys, haexSpaces } from '~/database/schemas'
 import type { SelectHaexSpaces } from '~/database/schemas'
 import { createLogger } from '@/stores/logging'
-import { getAuthTokenAsync } from '@/stores/sync/engine/supabase'
+import { fetchWithDidAuth } from '@/utils/auth/didAuth'
+import { fetchWithUcanAuth, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
 
 const log = createLogger('SPACES')
 
@@ -95,28 +96,17 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   }
 
   // =========================================================================
-  // Auth Helper
+  // Auth Helpers
   // =========================================================================
 
-  const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
-    const token = await getAuthTokenAsync()
-    if (!token) throw new Error('Not authenticated')
-    return fetch(url, {
+  /** Fetch with UCAN authorization for space-scoped operations */
+  const fetchWithSpaceUcanAuth = async (url: string, spaceId: string, options?: RequestInit) => {
+    const ucan = getUcanForSpaceAsync(spaceId)
+    if (!ucan) throw new Error(`No UCAN token available for space ${spaceId}`)
+    return fetchWithUcanAuth(url, spaceId, ucan, {
       ...options,
       headers: {
-        ...options.headers,
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    })
-  }
-
-  const fetchWithSpaceToken = async (url: string, spaceToken: string, options: RequestInit = {}) => {
-    return fetch(url, {
-      ...options,
-      headers: {
-        ...options.headers,
-        'X-Space-Token': spaceToken,
+        ...options?.headers,
         'Content-Type': 'application/json',
       },
     })
@@ -285,20 +275,24 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
     const keyGrant = await encryptWithPublicKeyAsync(spaceKey, identity.publicKey)
 
-    const response = await fetchWithAuth(`${serverUrl}/spaces`, {
-      method: 'POST',
-      body: JSON.stringify({
-        id: spaceId,
-        encryptedName,
-        nameNonce,
-        label: selfLabel,
-        keyGrant: {
-          encryptedSpaceKey: keyGrant.encryptedData,
-          keyNonce: keyGrant.nonce,
-          ephemeralPublicKey: keyGrant.ephemeralPublicKey,
-        },
-      }),
+    const body = JSON.stringify({
+      id: spaceId,
+      encryptedName,
+      nameNonce,
+      label: selfLabel,
+      keyGrant: {
+        encryptedSpaceKey: keyGrant.encryptedData,
+        keyNonce: keyGrant.nonce,
+        ephemeralPublicKey: keyGrant.ephemeralPublicKey,
+      },
     })
+    const response = await fetchWithDidAuth(
+      `${serverUrl}/spaces`,
+      identity.privateKey,
+      identity.did,
+      'create-space',
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body },
+    )
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
@@ -308,7 +302,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     await persistSpaceKeyAsync(spaceId, 1, spaceKey)
 
     log.info(`Created space ${spaceId}`)
-    await listSpacesAsync(serverUrl)
+    await listSpacesAsync(serverUrl, identityId)
     return { id: spaceId }
   }
 
@@ -321,7 +315,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       if (!spaceKey) throw new Error('Space key not found')
 
       const { encryptedName, nameNonce } = await encryptSpaceNameAsync(spaceKey, newName)
-      const response = await fetchWithAuth(`${space.serverUrl}/spaces/${spaceId}`, {
+      const response = await fetchWithSpaceUcanAuth(`${space.serverUrl}/spaces/${spaceId}`, spaceId, {
         method: 'PATCH',
         body: JSON.stringify({ encryptedName, nameNonce }),
       })
@@ -350,7 +344,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
     if (oldServerUrl) {
       try {
-        const response = await fetchWithAuth(`${oldServerUrl}/spaces/${spaceId}`, {
+        const response = await fetchWithSpaceUcanAuth(`${oldServerUrl}/spaces/${spaceId}`, spaceId, {
           method: 'DELETE',
         })
         if (!response.ok && response.status !== 404) {
@@ -365,20 +359,24 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       const { encryptedName, nameNonce } = await encryptSpaceNameAsync(spaceKey, space.name)
       const keyGrant = await encryptWithPublicKeyAsync(spaceKey as Uint8Array<ArrayBuffer>, identity.publicKey)
 
-      const response = await fetchWithAuth(`${newServerUrl}/spaces`, {
-        method: 'POST',
-        body: JSON.stringify({
-          id: spaceId,
-          encryptedName,
-          nameNonce,
-          label: identity.label,
-          keyGrant: {
-            encryptedSpaceKey: keyGrant.encryptedData,
-            keyNonce: keyGrant.nonce,
-            ephemeralPublicKey: keyGrant.ephemeralPublicKey,
-          },
-        }),
+      const body = JSON.stringify({
+        id: spaceId,
+        encryptedName,
+        nameNonce,
+        label: identity.label,
+        keyGrant: {
+          encryptedSpaceKey: keyGrant.encryptedData,
+          keyNonce: keyGrant.nonce,
+          ephemeralPublicKey: keyGrant.ephemeralPublicKey,
+        },
       })
+      const response = await fetchWithDidAuth(
+        `${newServerUrl}/spaces`,
+        identity.privateKey,
+        identity.did,
+        'create-space',
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body },
+      )
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({}))
@@ -390,8 +388,18 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     log.info(`Migrated space "${spaceId}" from "${oldServerUrl || 'local'}" to "${newServerUrl || 'local'}"`)
   }
 
-  const listSpacesAsync = async (serverUrl: string) => {
-    const response = await fetchWithAuth(`${serverUrl}/spaces`)
+  const listSpacesAsync = async (serverUrl: string, identityId?: string) => {
+    let response: Response
+    if (identityId) {
+      const identity = await resolveIdentityAsync(identityId)
+      response = await fetchWithDidAuth(`${serverUrl}/spaces`, identity.privateKey, identity.did, 'list-spaces')
+    } else {
+      // Fallback: try first identity available
+      const identityStore = useIdentityStore()
+      const first = identityStore.identities[0]
+      if (!first) throw new Error('No identity available for authentication')
+      response = await fetchWithDidAuth(`${serverUrl}/spaces`, first.privateKey, first.did, 'list-spaces')
+    }
     if (!response.ok) throw new Error('Failed to list spaces')
     const rawSpaces = await response.json() as SharedSpace[]
 
@@ -423,7 +431,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   ): Promise<SpaceInvite> => {
     const identity = await resolveIdentityAsync(identityId)
 
-    const grantsResponse = await fetchWithAuth(`${serverUrl}/spaces/${spaceId}/key-grants`)
+    const grantsResponse = await fetchWithSpaceUcanAuth(`${serverUrl}/spaces/${spaceId}/key-grants`, spaceId)
     if (!grantsResponse.ok) throw new Error('Failed to get key grants')
     const grants = await grantsResponse.json()
 
@@ -447,7 +455,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
     const keyGrant = await encryptWithPublicKeyAsync(new Uint8Array(spaceKey), inviteePublicKey)
 
-    const memberResponse = await fetchWithAuth(`${serverUrl}/spaces/${spaceId}/members`, {
+    const memberResponse = await fetchWithSpaceUcanAuth(`${serverUrl}/spaces/${spaceId}/members`, spaceId, {
       method: 'POST',
       body: JSON.stringify({
         publicKey: inviteePublicKey,
@@ -467,7 +475,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       throw new Error(`Failed to invite member: ${error.error || memberResponse.statusText}`)
     }
 
-    const tokenResponse = await fetchWithAuth(`${serverUrl}/spaces/${spaceId}/tokens`, {
+    const tokenResponse = await fetchWithSpaceUcanAuth(`${serverUrl}/spaces/${spaceId}/tokens`, spaceId, {
       method: 'POST',
       body: JSON.stringify({
         publicKey: inviteePublicKey,
@@ -481,7 +489,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     }
 
     const { token: accessToken } = await tokenResponse.json()
-    const spaceResponse = await fetchWithAuth(`${serverUrl}/spaces/${spaceId}`)
+    const spaceResponse = await fetchWithSpaceUcanAuth(`${serverUrl}/spaces/${spaceId}`, spaceId)
     const spaceData = await spaceResponse.json()
 
     const invite: SpaceInvite = {
@@ -521,8 +529,11 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   const leaveSpaceAsync = async (serverUrl: string, spaceId: string, identityId: string) => {
     const identity = await resolveIdentityAsync(identityId)
 
-    const response = await fetchWithAuth(
+    const response = await fetchWithDidAuth(
       `${serverUrl}/spaces/${spaceId}/members/${encodeURIComponent(identity.publicKey)}`,
+      identity.privateKey,
+      identity.did,
+      'leave-space',
       { method: 'DELETE' },
     )
 
@@ -536,7 +547,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   }
 
   const deleteSpaceAsync = async (serverUrl: string, spaceId: string) => {
-    const response = await fetchWithAuth(`${serverUrl}/spaces/${spaceId}`, {
+    const response = await fetchWithSpaceUcanAuth(`${serverUrl}/spaces/${spaceId}`, spaceId, {
       method: 'DELETE',
     })
 
@@ -565,8 +576,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const space = spaces.value.find(s => s.id === spaceId)
     if (space?.serverUrl) {
       try {
-        const response = await fetchWithAuth(
+        const response = await fetchWithSpaceUcanAuth(
           `${space.serverUrl}/spaces/${spaceId}/members/${encodeURIComponent(identityPublicKey)}`,
+          spaceId,
           { method: 'DELETE' },
         )
         if (!response.ok && response.status !== 404) {
@@ -609,7 +621,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     joinSpaceFromInviteAsync,
     leaveSpaceAsync,
     deleteSpaceAsync,
-    fetchWithSpaceToken,
     removeIdentityFromSpaceAsync,
     clearCache,
   }

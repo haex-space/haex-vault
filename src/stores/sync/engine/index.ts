@@ -101,6 +101,22 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   }
 
   /**
+   * Resolves the full identity (publicKey, privateKey, did) for a backend
+   */
+  const resolveBackendIdentityAsync = async (backendId: string) => {
+    const backend = findBackend(backendId)
+    if (!backend.identityId) {
+      throw new Error(`Backend ${backendId} has no identity configured`)
+    }
+    const identityStore = useIdentityStore()
+    const identity = await identityStore.getIdentityAsync(backend.identityId)
+    if (!identity?.publicKey || !identity?.privateKey || !identity?.did) {
+      throw new Error(`Identity not found or incomplete for backend ${backendId}`)
+    }
+    return identity
+  }
+
+  /**
    * Registers the DID re-auth resolver for a backend.
    * Must be called whenever a Supabase client is set (both initSupabaseClientAsync
    * and setSupabaseClient paths) so expired sessions can be automatically recovered.
@@ -167,14 +183,16 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     vaultPassword: string,
   ): Promise<void> => {
     const backend = findBackend(backendId)
-    const identityPublicKey = await getIdentityPublicKeyAsync(backendId)
+    const identity = await resolveBackendIdentityAsync(backendId)
     const { vaultKeySalt } = await uploadVaultKeyAsync(
       backend.serverUrl,
       spaceId,
       vaultKey,
       vaultName,
       vaultPassword,
-      identityPublicKey,
+      identity.publicKey,
+      identity.privateKey,
+      identity.did,
     )
     // Save vault key salt locally
     await saveVaultKeySaltAsync(getDrizzle(), backendId, vaultKeySalt)
@@ -190,7 +208,8 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     password: string,
   ): Promise<Uint8Array> => {
     const backend = findBackend(backendId)
-    return getVaultKeyFromServerAsync(backend.serverUrl, spaceId, password)
+    const identity = await resolveBackendIdentityAsync(backendId)
+    return getVaultKeyFromServerAsync(backend.serverUrl, spaceId, password, identity.privateKey, identity.did)
   }
 
   /**
@@ -202,7 +221,8 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     changes: Parameters<typeof pushChanges>[2],
   ): Promise<void> => {
     const backend = findBackend(backendId)
-    return pushChanges(backend.serverUrl, spaceId, changes)
+    const identity = await resolveBackendIdentityAsync(backendId)
+    return pushChanges(backend.serverUrl, spaceId, changes, identity.privateKey, identity.did)
   }
 
   /**
@@ -216,7 +236,8 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     limit?: number,
   ): Promise<ReturnType<typeof pullChanges>> => {
     const backend = findBackend(backendId)
-    return pullChanges(backend.serverUrl, spaceId, excludeDeviceId, afterCreatedAt, limit)
+    const identity = await resolveBackendIdentityAsync(backendId)
+    return pullChanges(backend.serverUrl, spaceId, excludeDeviceId, afterCreatedAt, limit, identity.privateKey, identity.did)
   }
 
   /**
@@ -297,7 +318,8 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       const resolvedServerUrl = serverUrl ?? syncBackendsStore.backends.find((b) => b.id === backendId)?.serverUrl
       if (resolvedServerUrl) {
         try {
-          await fetchSyncKeyFromServerAsync(resolvedServerUrl, spaceId, vaultPassword)
+          const identity = await resolveBackendIdentityAsync(backendId)
+          await fetchSyncKeyFromServerAsync(resolvedServerUrl, spaceId, vaultPassword, identity.privateKey, identity.did)
         } catch (error) {
           if (error instanceof Error && error.message.includes('not found')) {
             log.warn('Vault key missing on server, re-uploading...')
@@ -313,10 +335,13 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     if (serverUrl) {
       log.info('Initial sync mode: Fetching sync key from server...')
       try {
+        const identity = await resolveBackendIdentityAsync(backendId)
         const syncKey = await fetchSyncKeyFromServerAsync(
           serverUrl,
           spaceId,
           vaultPassword,
+          identity.privateKey,
+          identity.did,
         )
         cacheSyncKey(spaceId, syncKey)
         log.info('Sync key downloaded from server and cached')
@@ -458,11 +483,14 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       throw new Error('Backend not found')
     }
 
+    const identity = await resolveBackendIdentityAsync(backendId)
     const result = await reEncryptVaultKeyAsync(
       backend.serverUrl,
       spaceId,
       vaultKey,
       newPassword,
+      identity.privateKey,
+      identity.did,
     )
 
     if (result.success && result.vaultKeySalt) {
