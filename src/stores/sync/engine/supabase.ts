@@ -40,13 +40,15 @@ const updateCachedToken = (token: string | null): void => {
 }
 
 /**
- * Cleans up a Supabase client's realtime resources (channels + WebSocket).
- * Centralised to avoid duplicating cleanup logic across the codebase.
+ * Cleans up a Supabase client's resources.
+ * Realtime is handled by the WebSocket composable (useRealtime),
+ * but we still clean up the GoTrue client here.
  */
 export const cleanupSupabaseClient = async (client: AppSupabaseClient | null): Promise<void> => {
   if (!client) return
   try {
-    await client.realtime.removeAllChannels()
+    // Disconnect any lingering realtime connections from the Supabase client
+    // (may exist if client was used before the WebSocket migration)
     client.realtime.disconnect()
   } catch {
     // Ignore cleanup errors — client may already be disposed
@@ -99,7 +101,7 @@ export const initSupabaseClientAsync = async (
     throw new Error('Supabase configuration missing from server')
   }
 
-  // Create new client
+  // Create new client (used for GoTrue auth only; Realtime is handled by WebSocket composable)
   const client = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       // No localStorage persistence — token lives only in memory (cachedAccessToken).
@@ -111,12 +113,6 @@ export const initSupabaseClientAsync = async (
       // Tauri is a single WebView context — no URL-based auth flow
       detectSessionInUrl: false,
     },
-    realtime: {
-      // Increase timeout for mobile connections (default is 10s)
-      timeout: 30000,
-      // Heartbeat interval to keep connection alive on mobile
-      heartbeatIntervalMs: 15000,
-    },
   })
   const typedClient = client as AppSupabaseClient
   supabaseClientRef.value = typedClient
@@ -127,7 +123,8 @@ export const initSupabaseClientAsync = async (
 
 /**
  * Registers the onAuthStateChange listener on a Supabase client.
- * Keeps cachedAccessToken, Rust auth_token, and realtime connection in sync.
+ * Keeps cachedAccessToken and Rust auth_token in sync.
+ * Note: Realtime is handled by the WebSocket composable, not Supabase.
  */
 const registerAuthStateListener = (client: AppSupabaseClient): void => {
   client.auth.onAuthStateChange((event, session) => {
@@ -135,10 +132,9 @@ const registerAuthStateListener = (client: AppSupabaseClient): void => {
       updateCachedToken(session.access_token)
     }
     if (event === 'TOKEN_REFRESHED' && session?.access_token) {
-      log.info('Auth token refreshed, updating realtime connection')
-      supabaseClientRef.value?.realtime.setAuth(session.access_token)
+      log.info('Auth token refreshed')
     } else if (event === 'SIGNED_OUT') {
-      log.info('User signed out, realtime will disconnect')
+      log.info('User signed out')
       updateCachedToken(null)
     }
   })
@@ -245,7 +241,6 @@ export const attemptDidReauthAsync = async (): Promise<string | null> => {
       }
 
       updateCachedToken(session.access_token)
-      supabaseClientRef.value!.realtime.setAuth(session.access_token)
       lastReauthAttempt = 0 // Reset cooldown on success
       log.info('DID re-auth: successfully re-authenticated')
       return session.access_token
@@ -314,7 +309,6 @@ export const getAuthTokenAsync = async (): Promise<string | null> => {
     if (data.session?.access_token) {
       token = data.session.access_token
       updateCachedToken(token)
-      supabaseClientRef.value?.realtime.setAuth(token)
       log.info('Auth token refreshed successfully')
     }
   }

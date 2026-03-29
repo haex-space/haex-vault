@@ -16,6 +16,7 @@ import {
 import {
   subscribeToBackendAsync,
   unsubscribeFromBackendAsync,
+  disconnectRealtimeAsync,
   setupVisibilityListener,
   removeVisibilityListener,
 } from './realtime'
@@ -117,13 +118,12 @@ export const useSyncOrchestratorStore = defineStore(
           isConnected: false,
           isSyncing: false,
           error: null,
-          subscription: null,
         }
         log.debug('INIT: State initialized')
       }
 
       try {
-        // Ensure Supabase client is initialized for this backend
+        // Ensure Supabase client is initialized for this backend (still needed for GoTrue auth)
         if (!syncEngineStore.supabaseClient || syncEngineStore.currentBackendId !== backendId) {
           log.info('INIT: Initializing Supabase client...')
           await syncEngineStore.initSupabaseClientAsync(backendId)
@@ -181,12 +181,12 @@ export const useSyncOrchestratorStore = defineStore(
         }
 
         // Always subscribe to realtime changes (even if initial pull was already done)
-        // Skip if already subscribed
-        if (!syncStates.value[backendId]?.subscription) {
-          log.info('INIT: Step 3 - Subscribe to realtime changes')
+        // Skip if already connected via WebSocket
+        if (!syncStates.value[backendId]?.isConnected) {
+          log.info('INIT: Step 3 - Subscribe to realtime changes via WebSocket')
           await subscribeToBackendWrapperAsync(backendId)
         } else {
-          log.info('INIT: Step 3 - Skipping realtime (already subscribed)')
+          log.info('INIT: Step 3 - Skipping realtime (already connected)')
         }
 
         // Always start periodic pull as fallback (even if initial pull was already done)
@@ -562,9 +562,11 @@ export const useSyncOrchestratorStore = defineStore(
         periodicPullIntervals.delete(backendId)
       }
 
+      // Unsubscribe individual backends and disconnect the shared WebSocket
       for (const backendId of Object.keys(syncStates.value)) {
         await unsubscribeFromBackendWrapperAsync(backendId)
       }
+      await disconnectRealtimeAsync()
 
       syncStates.value = {}
     }
@@ -632,7 +634,6 @@ export const useSyncOrchestratorStore = defineStore(
         isConnected: false,
         isSyncing: true,
         error: null,
-        subscription: null,
       }
 
       try {

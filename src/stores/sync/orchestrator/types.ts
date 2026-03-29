@@ -3,7 +3,6 @@
  * Shared types and interfaces for sync operations
  */
 
-import type { RealtimeChannel } from '@supabase/supabase-js'
 import type { ColumnChange } from '../tableScanner'
 import { createLogger } from '@/stores/logging'
 
@@ -11,7 +10,6 @@ export interface SyncState {
   isConnected: boolean
   isSyncing: boolean
   error: string | null
-  subscription: RealtimeChannel | null
 }
 
 export interface BackendSyncState {
