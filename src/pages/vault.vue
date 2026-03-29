@@ -1,15 +1,16 @@
 <template>
   <div>
-    <!-- Remote Sync Loading Overlay -->
+    <!-- Loading / Remote Sync Overlay -->
     <HaexSyncInitialSyncOverlay
-      :is-visible="isWaitingForInitialSync"
+      :is-visible="!isVaultReady || isWaitingForInitialSync"
       :progress="syncProgress"
     />
 
-    <NuxtLayout>
-      <NuxtPage />
-    </NuxtLayout>
-
+    <template v-if="isVaultReady">
+      <NuxtLayout>
+        <NuxtPage />
+      </NuxtLayout>
+    </template>
   </div>
 </template>
 
@@ -20,6 +21,7 @@ definePageMeta({
 
 const route = useRoute()
 
+const isVaultReady = ref(false)
 const isWaitingForInitialSync = ref(false)
 const syncProgress = ref<{ synced: number; total: number } | undefined>()
 const isRemoteSyncVault = computed(() => route.query.remoteSync === 'true')
@@ -48,6 +50,7 @@ onMounted(async () => {
   try {
     // Initialize vault (device, spaces, cleanup) — must run after navigation
     await vaultStore.initVaultAsync()
+    isVaultReady.value = true
 
     if (isRemoteSyncVault.value) {
       // Remote sync mode: Wait for initial sync to complete
