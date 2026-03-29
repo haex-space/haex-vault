@@ -38,20 +38,16 @@ const { syncDesktopIconSizeAsync } = useDesktopStore()
 const { syncGradientVariantAsync, syncGradientEnabledAsync } = useGradientStore()
 const syncOrchestratorStore = useSyncOrchestratorStore()
 const syncBackendsStore = useSyncBackendsStore()
-const { currentVault } = storeToRefs(useVaultStore())
+const vaultStore = useVaultStore()
+const { currentVault } = storeToRefs(vaultStore)
 
 // Initialize navigation store (registers popstate listener + boundary)
 useNavigationStore()
 
-const spacesStore = useSpacesStore()
-const { currentVaultId } = storeToRefs(useVaultStore())
-
 onMounted(async () => {
   try {
-    // Ensure vault space exists in haex_spaces (FK target for sync backends)
-    if (currentVaultId.value) {
-      await spacesStore.ensureVaultSpaceAsync(currentVaultId.value, useVaultStore().currentVaultName)
-    }
+    // Initialize vault (device, spaces, cleanup) — must run after navigation
+    await vaultStore.initVaultAsync()
 
     if (isRemoteSyncVault.value) {
       // Remote sync mode: Wait for initial sync to complete

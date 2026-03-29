@@ -192,25 +192,6 @@ export const useVaultStore = defineStore('vaultStore', () => {
         },
       }
 
-      // Initialize device identity key and populate device store
-      await useDeviceStore().initDeviceIdAsync()
-
-      // Set device ID for console interceptor logging
-      const { $setConsoleLoggerDeviceId } = useNuxtApp()
-      if ($setConsoleLoggerDeviceId && useDeviceStore().deviceId) {
-        $setConsoleLoggerDeviceId(useDeviceStore().deviceId!)
-      }
-
-      // Load spaces from DB and ensure default local space exists
-      const spacesStore = useSpacesStore()
-      await spacesStore.loadSpacesFromDbAsync()
-      await spacesStore.ensureDefaultSpaceAsync()
-
-      // Automatic cleanup on vault open (non-blocking)
-      performAutomaticCleanupAsync().catch((error) => {
-        console.warn('[HaexSpace] Automatic cleanup failed:', error)
-      })
-
       return vaultId
     } catch (error) {
       console.error('Error openAsync ', error)
@@ -419,6 +400,37 @@ export const useVaultStore = defineStore('vaultStore', () => {
     }
   }
 
+  /**
+   * Initialize vault after navigation to /vault/:vaultId.
+   * Called from vault.vue onMounted — at this point currentVaultId is set
+   * via the router and getDb() works correctly.
+   */
+  const initVaultAsync = async () => {
+    if (!currentVaultId.value) return
+
+    // Initialize device identity key
+    await useDeviceStore().initDeviceIdAsync()
+
+    // Set device ID for console interceptor logging
+    const { $setConsoleLoggerDeviceId } = useNuxtApp()
+    if ($setConsoleLoggerDeviceId && useDeviceStore().deviceId) {
+      $setConsoleLoggerDeviceId(useDeviceStore().deviceId!)
+    }
+
+    // Ensure vault space exists in haex_spaces (FK target for sync backends)
+    const spacesStore = useSpacesStore()
+    await spacesStore.ensureVaultSpaceAsync(currentVaultId.value, currentVaultName.value)
+
+    // Load spaces from DB and ensure default local space exists
+    await spacesStore.loadSpacesFromDbAsync()
+    await spacesStore.ensureDefaultSpaceAsync()
+
+    // Automatic cleanup (non-blocking)
+    performAutomaticCleanupAsync().catch((error) => {
+      console.warn('[HaexSpace] Automatic cleanup failed:', error)
+    })
+  }
+
   return {
     closeAsync,
     createAsync,
@@ -427,6 +439,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
     currentVaultName,
     currentVaultPassword,
     existsVault,
+    initVaultAsync,
     openAsync,
     openVaults,
     autoLoginAndStartSyncAsync,
