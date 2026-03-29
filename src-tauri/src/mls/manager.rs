@@ -30,6 +30,20 @@ impl MlsManager {
     }
 
     pub fn init_identity(&self) -> Result<MlsIdentityInfo, String> {
+        // Return existing identity if one exists (idempotent)
+        if let Ok(Some(pub_key)) = self.provider.storage().load_own_identity_key() {
+            let credential = BasicCredential::new(vec![]);
+            let credential_with_key = CredentialWithKey {
+                credential: credential.into(),
+                signature_key: pub_key.clone().into(),
+            };
+            return Ok(MlsIdentityInfo {
+                signature_public_key: pub_key,
+                credential: credential_with_key.credential.serialized_content().to_vec(),
+            });
+        }
+
+        // Create new identity
         let credential = BasicCredential::new(vec![]);
         let signer = SignatureKeyPair::new(CIPHERSUITE.signature_algorithm())
             .map_err(|e| format!("Failed to generate signature key pair: {e}"))?;

@@ -59,7 +59,9 @@
           :key="space.id"
           :space="space"
           @edit="openEditDialog"
-          @invite="openInviteDialog"
+          @invite-contact="openInviteDialog($event, 'contact')"
+          @invite-link="openInviteDialog($event, 'link')"
+          @invite-open="openInviteDialog($event, 'open')"
           @delete="prepareDeleteSpace"
           @leave="prepareLeaveSpace"
         />
@@ -215,6 +217,7 @@
       :server-url="inviteServerUrl"
       :caller-role="inviteSpaceCallerRole"
       :identity-id="inviteIdentityId"
+      :mode="inviteMode"
     />
 
     <!-- Delete Space Confirmation -->
@@ -288,6 +291,7 @@ const joinInviteLink = ref('')
 const inviteSpaceId = ref('')
 const inviteServerUrl = ref('')
 const inviteSpaceCallerRole = ref<SpaceRole>(SpaceRoles.MEMBER)
+const inviteMode = ref<'contact' | 'link' | 'open'>('contact')
 const inviteIdentityId = ref('')
 
 // Edit dialog
@@ -533,11 +537,12 @@ const getIdentityForSpace = (spaceServerUrl: string): string | undefined => {
 }
 
 // Open invite dialog
-const openInviteDialog = (space: DecryptedSpace) => {
+const openInviteDialog = (space: DecryptedSpace, mode: 'contact' | 'link' | 'open' = 'contact') => {
   inviteSpaceId.value = space.id
   inviteSpaceCallerRole.value = space.role
   inviteServerUrl.value = space.serverUrl
   inviteIdentityId.value = getIdentityForSpace(space.serverUrl) ?? ''
+  inviteMode.value = mode
   showInviteDialog.value = true
 }
 

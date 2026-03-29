@@ -201,6 +201,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
     // Create MLS group for this space (enables epoch key encryption)
     await invoke('mls_create_group', { spaceId })
+    await invoke('mls_export_epoch_key', { spaceId })
 
     // Create root UCAN for this space and persist to DB + cache
     const rootUcan = await createRootUcanAsync(identity.did, identity.privateKey, spaceId)
@@ -315,60 +316,130 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     return decrypted
   }
 
+  /**
+   * Create a pending invite for a DID to join a space.
+   * The invitee accepts via PendingInvites UI, then the admin finalizes via finalizeInviteAsync.
+   */
   const inviteMemberAsync = async (
     serverUrl: string,
     spaceId: string,
-    inviteePublicKey: string,
-    label: string,
-    role: SpaceRole,
-    _identityId: string,
-  ): Promise<SpaceInvite> => {
-    const memberResponse = await fetchWithSpaceUcanAuth(`${serverUrl}/spaces/${spaceId}/members`, spaceId, {
-      method: 'POST',
-      body: JSON.stringify({
-        publicKey: inviteePublicKey,
-        label,
-        role,
-      }),
-    })
-
-    if (!memberResponse.ok) {
-      const error = await memberResponse.json().catch(() => ({}))
-      throw new Error(`Failed to invite member: ${error.error || memberResponse.statusText}`)
-    }
-
-    const tokenResponse = await fetchWithSpaceUcanAuth(`${serverUrl}/spaces/${spaceId}/tokens`, spaceId, {
-      method: 'POST',
-      body: JSON.stringify({
-        publicKey: inviteePublicKey,
-        role,
-        label: `Token for ${label}`,
-      }),
-    })
-
-    if (!tokenResponse.ok) {
-      throw new Error('Failed to create access token')
-    }
-
-    const { token: accessToken } = await tokenResponse.json()
-    const spaceResponse = await fetchWithSpaceUcanAuth(`${serverUrl}/spaces/${spaceId}`, spaceId)
-    const spaceData = await spaceResponse.json()
-
-    // UCAN delegation for the invitee will be done after the invite is accepted (finalize flow)
-    const invite: SpaceInvite = {
+    inviteeDid: string,
+    identityId: string,
+    includeHistory: boolean = false,
+  ): Promise<{ inviteId: string }> => {
+    const response = await fetchWithSpaceUcanAuth(
+      `${serverUrl}/spaces/${spaceId}/invites`,
       spaceId,
-      serverUrl,
-      spaceName: spaceData.name ?? spaceData.encryptedName,
-      accessToken,
-      encryptedSpaceKey: '',
-      keyNonce: '',
-      ephemeralPublicKey: '',
-      generation: 0,
-      role,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inviteeDid, includeHistory }),
+      },
+    )
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(`Failed to invite member: ${error.error || response.statusText}`)
     }
 
-    log.info(`Invited ${label} (${inviteePublicKey.slice(0, 16)}...) to space ${spaceId} as ${role}`)
-    return invite
+    const data = await response.json()
+    log.info(`Invited ${inviteeDid} to space ${spaceId} (invite ${data.invite.id})`)
+    return { inviteId: data.invite.id }
+  }
+
+  /**
+   * Create an invite token (for link or QR code sharing).
+   * The token can be claimed by anyone with DID-Auth.
+   */
+  const createInviteTokenAsync = async (
+    serverUrl: string,
+    spaceId: string,
+    options: {
+      capability?: string
+      maxUses?: number
+      expiresInSeconds: number
+      label?: string
+    },
+  ): Promise<{ tokenId: string; expiresAt: string }> => {
+    const response = await fetchWithSpaceUcanAuth(
+      `${serverUrl}/spaces/${spaceId}/invite-tokens`,
+      spaceId,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(options),
+      },
+    )
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(`Failed to create invite token: ${error.error || response.statusText}`)
+    }
+
+    const data = await response.json()
+    log.info(`Created invite token for space ${spaceId} (maxUses: ${options.maxUses ?? 1})`)
+    return { tokenId: data.token.id, expiresAt: data.token.expiresAt }
+  }
+
+  /**
+   * Build an invite link from a token ID.
+   */
+  const buildInviteLink = (serverUrl: string, spaceId: string, tokenId: string): string => {
+    const params = new URLSearchParams({ server: serverUrl, space: spaceId, token: tokenId })
+    return `https://haex.space/invite?${params.toString()}`
+  }
+
+  /**
+   * Claim an invite token (invitee side). Registers DID + uploads KeyPackages.
+   */
+  const claimInviteTokenAsync = async (
+    serverUrl: string,
+    spaceId: string,
+    tokenId: string,
+    identityId: string,
+  ): Promise<{ capability: string }> => {
+    const identity = await resolveIdentityAsync(identityId)
+    const { useMlsDelivery } = await import('@/composables/useMlsDelivery')
+    const delivery = useMlsDelivery(serverUrl, spaceId, { privateKey: identity.privateKey, did: identity.did })
+
+    // Generate MLS KeyPackages
+    const packages: number[][] = await invoke('mls_get_key_packages', { count: 10 })
+    const keyPackagesBase64 = packages.map((p) => btoa(String.fromCharCode(...new Uint8Array(p))))
+
+    // Claim the token on the server
+    const { fetchWithDidAuth: fetchDid } = await import('@/utils/auth/didAuth')
+    const body = JSON.stringify({ keyPackages: keyPackagesBase64 })
+    const response = await fetchDid(
+      `${serverUrl}/spaces/${spaceId}/invite-tokens/${tokenId}/claim`,
+      identity.privateKey,
+      identity.did,
+      'accept-invite',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      },
+    )
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(`Failed to claim invite: ${error.error || response.statusText}`)
+    }
+
+    const data = await response.json()
+
+    // Persist space locally
+    const space: DecryptedSpace = {
+      id: spaceId,
+      name: '',
+      role: data.capability === 'space/admin' ? SpaceRoles.ADMIN : data.capability === 'space/read' ? SpaceRoles.READER : SpaceRoles.MEMBER,
+      serverUrl,
+      createdAt: new Date().toISOString(),
+    }
+    await persistSpaceAsync(space)
+
+    log.info(`Claimed invite token for space ${spaceId} (capability: ${data.capability})`)
+    return { capability: data.capability }
   }
 
   const joinSpaceFromInviteAsync = async (invite: SpaceInvite, _identityId: string) => {
@@ -525,6 +596,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     migrateSpaceServerAsync,
     listSpacesAsync,
     inviteMemberAsync,
+    createInviteTokenAsync,
+    buildInviteLink,
+    claimInviteTokenAsync,
     joinSpaceFromInviteAsync,
     finalizeInviteAsync,
     processWelcomesAsync,

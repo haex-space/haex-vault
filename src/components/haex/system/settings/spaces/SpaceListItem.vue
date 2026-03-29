@@ -40,14 +40,17 @@
           :title="t('actions.edit')"
           @click="$emit('edit', space)"
         />
-        <UButton
+        <UDropdownMenu
           v-if="space.role === SpaceRoles.ADMIN || space.role === SpaceRoles.OWNER"
-          color="primary"
-          variant="ghost"
-          icon="i-lucide-user-plus"
-          :title="t('actions.invite')"
-          @click="$emit('invite', space)"
-        />
+          :items="inviteMenuItems"
+        >
+          <UButton
+            color="primary"
+            variant="ghost"
+            icon="i-lucide-user-plus"
+            :title="t('actions.invite')"
+          />
+        </UDropdownMenu>
         <UButton
           v-if="space.role === SpaceRoles.ADMIN || space.role === SpaceRoles.OWNER"
           color="error"
@@ -106,12 +109,32 @@ const props = defineProps<{
   space: DecryptedSpace
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   edit: [space: DecryptedSpace]
-  invite: [space: DecryptedSpace]
+  'invite-contact': [space: DecryptedSpace]
+  'invite-link': [space: DecryptedSpace]
+  'invite-open': [space: DecryptedSpace]
   delete: [space: DecryptedSpace]
   leave: [space: DecryptedSpace]
 }>()
+
+const inviteMenuItems = computed(() => [
+  [{
+    label: t('invite.contact'),
+    icon: 'i-lucide-user-plus',
+    onSelect: () => emit('invite-contact', props.space),
+  },
+  {
+    label: t('invite.link'),
+    icon: 'i-lucide-link',
+    onSelect: () => emit('invite-link', props.space),
+  },
+  {
+    label: t('invite.open'),
+    icon: 'i-lucide-qr-code',
+    onSelect: () => emit('invite-open', props.space),
+  }],
+])
 
 const { t } = useI18n()
 
@@ -164,9 +187,12 @@ de:
   createdAt: Erstellt am
   actions:
     edit: Bearbeiten
-    invite: Einladen
     delete: Löschen
     leave: Verlassen
+  invite:
+    contact: Kontakt einladen
+    link: Einladungslink erstellen
+    open: Offene Einladung
   linkedItems:
     label: Verknüpfte Inhalte
 en:
@@ -177,10 +203,13 @@ en:
     reader: Reader
   createdAt: Created at
   actions:
-    edit: Bearbeiten
-    invite: Invite
+    edit: Edit
     delete: Delete
     leave: Leave
+  invite:
+    contact: Invite contact
+    link: Create invite link
+    open: Open invitation
   linkedItems:
     label: Linked content
 </i18n>
