@@ -279,6 +279,7 @@ CREATE TABLE `haex_space_keys` (
 --> statement-breakpoint
 CREATE TABLE `haex_spaces` (
 	`id` text PRIMARY KEY NOT NULL,
+	`type` text DEFAULT 'shared' NOT NULL,
 	`name` text NOT NULL,
 	`server_url` text,
 	`role` text NOT NULL,

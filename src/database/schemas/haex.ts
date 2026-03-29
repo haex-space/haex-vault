@@ -462,6 +462,7 @@ export const haexSpaces = sqliteTable(
   tableNames.haex.spaces.name,
   {
     id: text(tableNames.haex.spaces.columns.id).primaryKey(),
+    type: text(tableNames.haex.spaces.columns.type).notNull().default('shared'), // 'vault' | 'shared' | 'local'
     name: text(tableNames.haex.spaces.columns.name).notNull(),
     serverUrl: text(tableNames.haex.spaces.columns.serverUrl),
     role: text(tableNames.haex.spaces.columns.role).notNull(),

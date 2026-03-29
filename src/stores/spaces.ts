@@ -136,6 +136,22 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
   const DEFAULT_SPACE_ID = 'default'
 
+  const ensureVaultSpaceAsync = async (vaultId: string, vaultName: string) => {
+    const db = getDb()
+    if (!db) return
+
+    const existing = await db.select().from(haexSpaces).where(eq(haexSpaces.id, vaultId)).limit(1)
+    if (existing.length > 0) return
+
+    await db.insert(haexSpaces).values({
+      id: vaultId,
+      type: 'vault',
+      name: vaultName,
+      role: SpaceRoles.ADMIN,
+      serverUrl: '',
+    })
+  }
+
   const ensureDefaultSpaceAsync = async () => {
     const db = getDb()
     if (!db) return
@@ -144,7 +160,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     if (existing.length > 0) {
       // Ensure in-memory list is populated
       if (!spaces.value.find(s => s.id === DEFAULT_SPACE_ID)) {
-        spaces.value.push(rowToDecryptedSpace(existing[0]))
+        spaces.value.push(rowToDecryptedSpace(existing[0]!))
       }
       return
     }
@@ -435,6 +451,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     spaces,
     loadSpacesFromDbAsync,
     createLocalSpaceAsync,
+    ensureVaultSpaceAsync,
     ensureDefaultSpaceAsync,
     createSpaceAsync,
     updateSpaceNameAsync,

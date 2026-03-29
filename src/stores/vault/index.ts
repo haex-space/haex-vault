@@ -201,8 +201,11 @@ export const useVaultStore = defineStore('vaultStore', () => {
         $setConsoleLoggerDeviceId(useDeviceStore().deviceId!)
       }
 
-      // Load spaces from DB and ensure default local space exists
+      // Ensure vault space exists (needed as FK target for sync backends)
       const spacesStore = useSpacesStore()
+      await spacesStore.ensureVaultSpaceAsync(vaultId, fileName)
+
+      // Load spaces from DB and ensure default local space exists
       await spacesStore.loadSpacesFromDbAsync()
       await spacesStore.ensureDefaultSpaceAsync()
 

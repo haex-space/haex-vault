@@ -233,6 +233,7 @@
       "name": "haex_spaces",
       "columns": {
         "id": "id",
+        "type": "type",
         "name": "name",
         "serverUrl": "server_url",
         "role": "role",
