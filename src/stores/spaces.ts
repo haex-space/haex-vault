@@ -1,11 +1,4 @@
 import {
-  generateSpaceKey,
-  encryptWithPublicKeyAsync,
-  decryptWithPrivateKeyAsync,
-  encryptSpaceNameAsync,
-  decryptSpaceNameAsync,
-  arrayBufferToBase64,
-  base64ToArrayBuffer,
   type SharedSpace,
   SpaceRoles,
   type SpaceRole,
@@ -14,19 +7,16 @@ import {
 } from '@haex-space/vault-sdk'
 import { eq, and } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
-import { haexSpaceKeys, haexSpaces } from '~/database/schemas'
+import { haexSpaces } from '~/database/schemas'
 import type { SelectHaexSpaces } from '~/database/schemas'
 import { createLogger } from '@/stores/logging'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
-import { fetchWithUcanAuth, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
+import { createRootUcanAsync, cacheUcan, fetchWithUcanAuth, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
 
 const log = createLogger('SPACES')
 
 export const useSpacesStore = defineStore('spacesStore', () => {
   const { currentVault } = storeToRefs(useVaultStore())
-
-  // In-memory read-through cache for space keys
-  const spaceKeyCache = new Map<string, Uint8Array[]>()
 
   const spaces = ref<DecryptedSpace[]>([])
 
@@ -124,113 +114,11 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   }
 
   // =========================================================================
-  // Space Key Management (DB-backed with in-memory cache)
-  // Now supports multiple keys per (spaceId, generation)
-  // =========================================================================
-
-  const cacheKey = (spaceId: string, generation: number) => `${spaceId}:${generation}`
-
-  const getSpaceKey = (spaceId: string, generation: number): Uint8Array | undefined => {
-    const keys = spaceKeyCache.get(cacheKey(spaceId, generation))
-    return keys?.[0]
-  }
-
-  const getSpaceKeysAsync = async (spaceId: string, generation: number): Promise<Uint8Array[]> => {
-    const ck = cacheKey(spaceId, generation)
-    const cached = spaceKeyCache.get(ck)
-    if (cached) return cached
-
-    const db = getDb()
-    if (!db) return []
-
-    const rows = await db
-      .select()
-      .from(haexSpaceKeys)
-      .where(and(
-        eq(haexSpaceKeys.spaceId, spaceId),
-        eq(haexSpaceKeys.generation, generation),
-      ))
-
-    if (rows.length === 0) return []
-
-    const keys = rows.map(r => new Uint8Array(base64ToArrayBuffer(r.key)))
-    spaceKeyCache.set(ck, keys)
-    return keys
-  }
-
-  const getSpaceKeyAsync = async (spaceId: string, generation: number): Promise<Uint8Array | undefined> => {
-    const keys = await getSpaceKeysAsync(spaceId, generation)
-    return keys[0]
-  }
-
-  const persistSpaceKeyAsync = async (spaceId: string, generation: number, key: Uint8Array) => {
-    const ck = cacheKey(spaceId, generation)
-    const existing = spaceKeyCache.get(ck) ?? []
-    const keyBase64 = arrayBufferToBase64(key.buffer as ArrayBuffer)
-
-    // Check if this exact key already exists
-    if (!existing.some(k => arrayBufferToBase64(k.buffer as ArrayBuffer) === keyBase64)) {
-      spaceKeyCache.set(ck, [...existing, key])
-    }
-
-    const db = getDb()
-    if (!db) return
-
-    // Check if this exact key already exists in DB
-    const dbRows = await db
-      .select()
-      .from(haexSpaceKeys)
-      .where(and(
-        eq(haexSpaceKeys.spaceId, spaceId),
-        eq(haexSpaceKeys.generation, generation),
-        eq(haexSpaceKeys.key, keyBase64),
-      ))
-      .limit(1)
-
-    if (dbRows.length === 0) {
-      await db.insert(haexSpaceKeys).values({
-        spaceId,
-        generation,
-        key: keyBase64,
-      })
-    }
-  }
-
-  const deleteSpaceKeysAsync = async (spaceId: string) => {
-    for (const key of spaceKeyCache.keys()) {
-      if (key.startsWith(`${spaceId}:`)) {
-        spaceKeyCache.delete(key)
-      }
-    }
-
-    const db = getDb()
-    if (!db) return
-    await db.delete(haexSpaceKeys).where(eq(haexSpaceKeys.spaceId, spaceId))
-  }
-
-  // =========================================================================
-  // Space Name Decryption
-  // =========================================================================
-
-  const resolveSpaceNameAsync = async (space: SharedSpace): Promise<string> => {
-    const spaceKey = await getSpaceKeyAsync(space.id, space.currentKeyGeneration)
-    if (!spaceKey) {
-      return `Space ${space.id.slice(0, 8)}`
-    }
-    try {
-      return await decryptSpaceNameAsync(spaceKey, space.encryptedName, space.nameNonce)
-    } catch {
-      return `Space ${space.id.slice(0, 8)}`
-    }
-  }
-
-  // =========================================================================
   // Space CRUD
   // =========================================================================
 
   const createLocalSpaceAsync = async (spaceName: string, spaceId?: string) => {
     const id = spaceId || crypto.randomUUID()
-    const spaceKey = generateSpaceKey()
 
     const space: DecryptedSpace = {
       id,
@@ -241,7 +129,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     }
 
     await persistSpaceAsync(space)
-    await persistSpaceKeyAsync(id, 1, spaceKey)
 
     log.info(`Created local space "${spaceName}" (${id})`)
     return { id }
@@ -270,21 +157,11 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const identity = await resolveIdentityAsync(identityId)
 
     const spaceId = crypto.randomUUID()
-    const spaceKey = generateSpaceKey()
-    const { encryptedName, nameNonce } = await encryptSpaceNameAsync(spaceKey, spaceName)
-
-    const keyGrant = await encryptWithPublicKeyAsync(spaceKey, identity.publicKey)
 
     const body = JSON.stringify({
       id: spaceId,
-      encryptedName,
-      nameNonce,
+      name: spaceName,
       label: selfLabel,
-      keyGrant: {
-        encryptedSpaceKey: keyGrant.encryptedData,
-        keyNonce: keyGrant.nonce,
-        ephemeralPublicKey: keyGrant.ephemeralPublicKey,
-      },
     })
     const response = await fetchWithDidAuth(
       `${serverUrl}/spaces`,
@@ -299,7 +176,10 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       throw new Error(`Failed to create space: ${error.error || JSON.stringify(error) || response.statusText}`)
     }
 
-    await persistSpaceKeyAsync(spaceId, 1, spaceKey)
+    // Create root UCAN for this space
+    const rootUcan = await createRootUcanAsync(identity.did, identity.privateKey, spaceId)
+    // TODO: Store in haex_ucan_tokens table (DB wiring comes later)
+    cacheUcan(spaceId, rootUcan)
 
     log.info(`Created space ${spaceId}`)
     await listSpacesAsync(serverUrl, identityId)
@@ -311,13 +191,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     if (!space) throw new Error('Space not found')
 
     if (space.serverUrl) {
-      const spaceKey = await getSpaceKeyAsync(spaceId, 1)
-      if (!spaceKey) throw new Error('Space key not found')
-
-      const { encryptedName, nameNonce } = await encryptSpaceNameAsync(spaceKey, newName)
       const response = await fetchWithSpaceUcanAuth(`${space.serverUrl}/spaces/${spaceId}`, spaceId, {
         method: 'PATCH',
-        body: JSON.stringify({ encryptedName, nameNonce }),
+        body: JSON.stringify({ name: newName }),
       })
       if (!response.ok) {
         const error = await response.json().catch(() => ({}))
@@ -336,8 +212,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     identityId: string,
   ) => {
     const identity = await resolveIdentityAsync(identityId)
-    const spaceKey = await getSpaceKeyAsync(spaceId, 1)
-    if (!spaceKey) throw new Error('Space key not found')
 
     const space = spaces.value.find(s => s.id === spaceId)
     if (!space) throw new Error('Space not found')
@@ -356,19 +230,10 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     }
 
     if (newServerUrl) {
-      const { encryptedName, nameNonce } = await encryptSpaceNameAsync(spaceKey, space.name)
-      const keyGrant = await encryptWithPublicKeyAsync(spaceKey as Uint8Array<ArrayBuffer>, identity.publicKey)
-
       const body = JSON.stringify({
         id: spaceId,
-        encryptedName,
-        nameNonce,
+        name: space.name,
         label: identity.label,
-        keyGrant: {
-          encryptedSpaceKey: keyGrant.encryptedData,
-          keyNonce: keyGrant.nonce,
-          ephemeralPublicKey: keyGrant.ephemeralPublicKey,
-        },
       })
       const response = await fetchWithDidAuth(
         `${newServerUrl}/spaces`,
@@ -403,15 +268,13 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     if (!response.ok) throw new Error('Failed to list spaces')
     const rawSpaces = await response.json() as SharedSpace[]
 
-    const decrypted: DecryptedSpace[] = await Promise.all(
-      rawSpaces.map(async (space) => ({
-        id: space.id,
-        name: await resolveSpaceNameAsync(space),
-        role: space.role,
-        serverUrl,
-        createdAt: space.createdAt,
-      })),
-    )
+    const decrypted: DecryptedSpace[] = rawSpaces.map((space) => ({
+      id: space.id,
+      name: space.encryptedName ?? `Space ${space.id.slice(0, 8)}`,
+      role: space.role,
+      serverUrl,
+      createdAt: space.createdAt,
+    }))
 
     // Persist all remote spaces to local DB
     for (const space of decrypted) {
@@ -427,46 +290,14 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     inviteePublicKey: string,
     label: string,
     role: SpaceRole,
-    identityId: string,
+    _identityId: string,
   ): Promise<SpaceInvite> => {
-    const identity = await resolveIdentityAsync(identityId)
-
-    const grantsResponse = await fetchWithSpaceUcanAuth(`${serverUrl}/spaces/${spaceId}/key-grants`, spaceId)
-    if (!grantsResponse.ok) throw new Error('Failed to get key grants')
-    const grants = await grantsResponse.json()
-
-    const latestGrant = grants.sort(
-      (first: { generation: number }, second: { generation: number }) => second.generation - first.generation,
-    )[0]
-    if (!latestGrant) throw new Error('No key grants found')
-
-    let spaceKey = await getSpaceKeyAsync(spaceId, latestGrant.generation)
-    if (!spaceKey) {
-      spaceKey = await decryptWithPrivateKeyAsync(
-        {
-          encryptedData: latestGrant.encryptedSpaceKey,
-          nonce: latestGrant.keyNonce,
-          ephemeralPublicKey: latestGrant.ephemeralPublicKey,
-        },
-        identity.privateKey,
-      )
-      await persistSpaceKeyAsync(spaceId, latestGrant.generation, spaceKey)
-    }
-
-    const keyGrant = await encryptWithPublicKeyAsync(new Uint8Array(spaceKey), inviteePublicKey)
-
     const memberResponse = await fetchWithSpaceUcanAuth(`${serverUrl}/spaces/${spaceId}/members`, spaceId, {
       method: 'POST',
       body: JSON.stringify({
         publicKey: inviteePublicKey,
         label,
         role,
-        keyGrant: {
-          encryptedSpaceKey: keyGrant.encryptedData,
-          keyNonce: keyGrant.nonce,
-          ephemeralPublicKey: keyGrant.ephemeralPublicKey,
-          generation: latestGrant.generation,
-        },
       }),
     })
 
@@ -492,15 +323,16 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const spaceResponse = await fetchWithSpaceUcanAuth(`${serverUrl}/spaces/${spaceId}`, spaceId)
     const spaceData = await spaceResponse.json()
 
+    // UCAN delegation for the invitee will be done after the invite is accepted (finalize flow)
     const invite: SpaceInvite = {
       spaceId,
       serverUrl,
-      spaceName: spaceData.encryptedName,
+      spaceName: spaceData.name ?? spaceData.encryptedName,
       accessToken,
-      encryptedSpaceKey: keyGrant.encryptedData,
-      keyNonce: keyGrant.nonce,
-      ephemeralPublicKey: keyGrant.ephemeralPublicKey,
-      generation: latestGrant.generation,
+      encryptedSpaceKey: '',
+      keyNonce: '',
+      ephemeralPublicKey: '',
+      generation: 0,
       role,
     }
 
@@ -508,22 +340,21 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     return invite
   }
 
-  const joinSpaceFromInviteAsync = async (invite: SpaceInvite, identityId: string) => {
-    const identity = await resolveIdentityAsync(identityId)
+  const joinSpaceFromInviteAsync = async (invite: SpaceInvite, _identityId: string) => {
+    // In Phase 4, joining is lightweight — no key decryption needed.
+    // MLS key exchange will handle encryption in Phase 5.
+    const space: DecryptedSpace = {
+      id: invite.spaceId,
+      name: invite.spaceName,
+      role: invite.role,
+      serverUrl: invite.serverUrl,
+      createdAt: new Date().toISOString(),
+    }
 
-    const spaceKey = await decryptWithPrivateKeyAsync(
-      {
-        encryptedData: invite.encryptedSpaceKey,
-        nonce: invite.keyNonce,
-        ephemeralPublicKey: invite.ephemeralPublicKey,
-      },
-      identity.privateKey,
-    )
-
-    await persistSpaceKeyAsync(invite.spaceId, invite.generation, spaceKey)
+    await persistSpaceAsync(space)
 
     log.info(`Joined space ${invite.spaceId} via invite`)
-    return { spaceId: invite.spaceId, spaceKey }
+    return { spaceId: invite.spaceId }
   }
 
   const leaveSpaceAsync = async (serverUrl: string, spaceId: string, identityId: string) => {
@@ -542,7 +373,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     }
 
     await removeSpaceFromDbAsync(spaceId)
-    await deleteSpaceKeysAsync(spaceId)
     log.info(`Left space ${spaceId}`)
   }
 
@@ -557,7 +387,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     }
 
     await removeSpaceFromDbAsync(spaceId)
-    await deleteSpaceKeysAsync(spaceId)
     log.info(`Deleted space ${spaceId}`)
   }
 
@@ -599,16 +428,11 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   }
 
   const clearCache = () => {
-    spaceKeyCache.clear()
     spaces.value = []
   }
 
   return {
     spaces,
-    getSpaceKey,
-    getSpaceKeyAsync,
-    getSpaceKeysAsync,
-    persistSpaceKeyAsync,
     loadSpacesFromDbAsync,
     createLocalSpaceAsync,
     ensureDefaultSpaceAsync,
@@ -616,7 +440,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     updateSpaceNameAsync,
     migrateSpaceServerAsync,
     listSpacesAsync,
-    resolveSpaceNameAsync,
     inviteMemberAsync,
     joinSpaceFromInviteAsync,
     leaveSpaceAsync,
