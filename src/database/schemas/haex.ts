@@ -367,10 +367,12 @@ export const haexIdentities = sqliteTable(
   {
     publicKey: text(tableNames.haex.identities.columns.publicKey)
       .notNull()
-      .primaryKey(), // Base64 SPKI — stable, unique, same across all devices
+      .primaryKey(), // Base64 SPKI Ed25519 signing key — stable, unique, same across all devices
     label: text(tableNames.haex.identities.columns.label).notNull(),
-    did: text(tableNames.haex.identities.columns.did).notNull(), // did:key:zDn...
-    privateKey: text(tableNames.haex.identities.columns.privateKey).notNull(), // Base64 PKCS8
+    did: text(tableNames.haex.identities.columns.did).notNull(), // did:key:z6Mk...
+    privateKey: text(tableNames.haex.identities.columns.privateKey).notNull(), // Base64 PKCS8 Ed25519 signing key
+    agreementPublicKey: text(tableNames.haex.identities.columns.agreementPublicKey).notNull(), // Base64 SPKI X25519
+    agreementPrivateKey: text(tableNames.haex.identities.columns.agreementPrivateKey).notNull(), // Base64 PKCS8 X25519
     avatar: text(tableNames.haex.identities.columns.avatar), // Base64 WebP 128x128
     createdAt: text(tableNames.haex.identities.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,

@@ -44,13 +44,15 @@ export const useIdentityStore = defineStore('identityStore', () => {
   const createIdentityAsync = async (label: string): Promise<SelectHaexIdentities> => {
     if (!currentVault.value?.drizzle) throw new Error('No vault open')
 
-    const { did, publicKeyBase64, privateKeyBase64 } = await generateIdentityAsync()
+    const { did, signingPublicKey, signingPrivateKey, agreementPublicKey, agreementPrivateKey } = await generateIdentityAsync()
 
     const newIdentity = {
       label,
       did,
-      publicKey: publicKeyBase64,
-      privateKey: privateKeyBase64,
+      publicKey: signingPublicKey,
+      privateKey: signingPrivateKey,
+      agreementPublicKey,
+      agreementPrivateKey,
     }
 
     await currentVault.value.drizzle

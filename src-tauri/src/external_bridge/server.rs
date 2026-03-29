@@ -423,10 +423,10 @@ async fn handle_connection(
     let mut client_public_key_spki: Option<String> = None;
 
     // Get server public key for handshake responses
-    let server_public_key_spki = {
+    let server_public_key_base64 = {
         let keypair_guard = server_keypair.read().await;
         match keypair_guard.as_ref() {
-            Some(kp) => kp.public_key_spki_base64().unwrap_or_default(),
+            Some(kp) => kp.public_key_base64(),
             None => String::new(),
         }
     };
@@ -484,7 +484,7 @@ async fn handle_connection(
                             );
                             let response = ProtocolMessage::HandshakeResponse(HandshakeResponse {
                                 version: PROTOCOL_VERSION,
-                                server_public_key: server_public_key_spki.clone(),
+                                server_public_key: server_public_key_base64.clone(),
                                 authorized: false,
                                 pending_approval: false,
                             });
@@ -544,7 +544,7 @@ async fn handle_connection(
                             // Send authorized response
                             let response = ProtocolMessage::HandshakeResponse(HandshakeResponse {
                                 version: PROTOCOL_VERSION,
-                                server_public_key: server_public_key_spki.clone(),
+                                server_public_key: server_public_key_base64.clone(),
                                 authorized: true,
                                 pending_approval: false,
                             });
@@ -585,7 +585,7 @@ async fn handle_connection(
                             // Send pending response (include server public key for future encrypted communication)
                             let response = ProtocolMessage::HandshakeResponse(HandshakeResponse {
                                 version: PROTOCOL_VERSION,
-                                server_public_key: server_public_key_spki.clone(),
+                                server_public_key: server_public_key_base64.clone(),
                                 authorized: false,
                                 pending_approval: true,
                             });

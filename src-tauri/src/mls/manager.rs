@@ -10,7 +10,7 @@ use crate::mls::provider::HaexMlsProvider;
 use crate::mls::storage::SqlCipherMlsStorage;
 use crate::mls::types::{MlsCommitBundle, MlsGroupInfo, MlsIdentityInfo};
 
-const CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMP256_AES128GCM_SHA256_P256;
+const CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
 pub struct MlsManager {
     provider: HaexMlsProvider,

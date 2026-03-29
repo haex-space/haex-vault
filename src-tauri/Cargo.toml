@@ -60,7 +60,7 @@ futures-util = { version = "0.3", default-features = false, features = [
   "sink",
   "std",
 ] }
-p256 = { version = "0.13", features = ["ecdh", "pkcs8"] }
+x25519-dalek = { version = "2.0", features = ["static_secrets"] }
 aes-gcm = "0.10"
 hkdf = "0.12"
 rand = "0.8"
@@ -83,10 +83,10 @@ reqwest = { version = "0.13", default-features = false, features = [
 iroh = { version = "0.96", default-features = false, features = ["address-lookup-mdns"] }
 
 # MLS (RFC 9420) - Group key management
-openmls = "0.8"
-openmls_rust_crypto = "0.5"
-openmls_traits = "0.5"
-openmls_basic_credential = "0.5"
+openmls = "0.8.1"
+openmls_rust_crypto = "0.5.1"
+openmls_traits = "0.5.0"
+openmls_basic_credential = "0.5.0"
 
 # Time utilities
 time = "0.3"

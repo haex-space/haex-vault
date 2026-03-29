@@ -2488,7 +2488,6 @@ dependencies = [
  "openmls_basic_credential",
  "openmls_rust_crypto",
  "openmls_traits",
- "p256",
  "portable-pty",
  "rand 0.8.5",
  "regex",
@@ -2525,6 +2524,7 @@ dependencies = [
  "url",
  "uuid",
  "webkit2gtk",
+ "x25519-dalek",
  "zip",
 ]
 

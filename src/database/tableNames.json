@@ -190,6 +190,8 @@
         "did": "did",
         "publicKey": "public_key",
         "privateKey": "private_key",
+        "agreementPublicKey": "agreement_public_key",
+        "agreementPrivateKey": "agreement_private_key",
         "avatar": "avatar",
         "createdAt": "created_at"
       }
