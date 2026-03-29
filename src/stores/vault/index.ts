@@ -201,11 +201,8 @@ export const useVaultStore = defineStore('vaultStore', () => {
         $setConsoleLoggerDeviceId(useDeviceStore().deviceId!)
       }
 
-      // Ensure vault space exists (needed as FK target for sync backends)
-      const spacesStore = useSpacesStore()
-      await spacesStore.ensureVaultSpaceAsync(vaultId, fileName)
-
       // Load spaces from DB and ensure default local space exists
+      const spacesStore = useSpacesStore()
       await spacesStore.loadSpacesFromDbAsync()
       await spacesStore.ensureDefaultSpaceAsync()
 
@@ -464,7 +461,6 @@ const getVaultIdAsync = async (
   // Store it in settings
   await drizzleDb.insert(haexVaultSettings).values({
     key: 'space_id',
-    type: 'system',
     value: vaultId,
   })
 

@@ -138,10 +138,16 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
   const ensureVaultSpaceAsync = async (vaultId: string, vaultName: string) => {
     const db = getDb()
-    if (!db) return
+    if (!db) {
+      console.error('[SPACES] ensureVaultSpaceAsync: no DB available')
+      return
+    }
 
     const existing = await db.select().from(haexSpaces).where(eq(haexSpaces.id, vaultId)).limit(1)
-    if (existing.length > 0) return
+    if (existing.length > 0) {
+      log.info(`Vault space ${vaultId} already exists`)
+      return
+    }
 
     await db.insert(haexSpaces).values({
       id: vaultId,
@@ -150,6 +156,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       role: SpaceRoles.ADMIN,
       serverUrl: '',
     })
+    log.info(`Created vault space "${vaultName}" (${vaultId})`)
   }
 
   const ensureDefaultSpaceAsync = async () => {

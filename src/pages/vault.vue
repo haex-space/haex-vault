@@ -43,8 +43,16 @@ const { currentVault } = storeToRefs(useVaultStore())
 // Initialize navigation store (registers popstate listener + boundary)
 useNavigationStore()
 
+const spacesStore = useSpacesStore()
+const { currentVaultId } = storeToRefs(useVaultStore())
+
 onMounted(async () => {
   try {
+    // Ensure vault space exists in haex_spaces (FK target for sync backends)
+    if (currentVaultId.value) {
+      await spacesStore.ensureVaultSpaceAsync(currentVaultId.value, useVaultStore().currentVaultName)
+    }
+
     if (isRemoteSyncVault.value) {
       // Remote sync mode: Wait for initial sync to complete
       isWaitingForInitialSync.value = true
