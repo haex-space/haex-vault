@@ -435,6 +435,16 @@ export const useVaultStore = defineStore('vaultStore', () => {
     await invoke('mls_init_tables')
     await invoke('mls_init_identity')
 
+    // Auto-enroll this device into MLS groups for shared spaces (non-blocking)
+    const deviceStore = useDeviceStore()
+    if (deviceStore.deviceId) {
+      const { useDeviceEnrollment } = await import('@/composables/useDeviceEnrollment')
+      const { syncEnrollmentsAsync } = useDeviceEnrollment()
+      syncEnrollmentsAsync(deviceStore.deviceId).catch((error) => {
+        console.warn('[HaexSpace] Device MLS enrollment failed:', error)
+      })
+    }
+
     // Automatic cleanup (non-blocking)
     performAutomaticCleanupAsync().catch((error) => {
       console.warn('[HaexSpace] Automatic cleanup failed:', error)

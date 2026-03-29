@@ -333,7 +333,7 @@
       "columns": {
         "id": "id",
         "spaceId": "space_id",
-        "deviceDid": "device_did",
+        "deviceId": "device_id",
         "keyPackage": "key_package",
         "welcome": "welcome",
         "status": "status"

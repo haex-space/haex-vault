@@ -66,6 +66,11 @@ pub fn mls_get_key_packages(state: State<'_, AppState>, count: u32) -> Result<Ve
 }
 
 #[tauri::command]
+pub fn mls_has_group(state: State<'_, AppState>, space_id: String) -> Result<bool, String> {
+    with_mls_manager(&state, |mgr| Ok(mgr.has_group(&space_id)))
+}
+
+#[tauri::command]
 pub fn mls_export_epoch_key(state: State<'_, AppState>, space_id: String) -> Result<MlsEpochKey, String> {
     // 1. Derive key from MLS group
     let epoch_key = with_mls_manager(&state, |mgr| mgr.derive_epoch_key(&space_id))?;

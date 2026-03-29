@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "11ab8a89-fcb5-44d9-b399-24e42a94afce",
+  "id": "dabfa955-4053-46fd-9511-c158d2f679da",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "haex_crdt_configs_no_sync": {
@@ -560,8 +560,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "device_did": {
-          "name": "device_did",
+        "device_id": {
+          "name": "device_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,

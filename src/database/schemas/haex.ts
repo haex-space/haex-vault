@@ -600,7 +600,7 @@ export const haexDeviceMlsEnrollments = sqliteTable(
     spaceId: text(tableNames.haex.device_mls_enrollments.columns.spaceId)
       .notNull()
       .references(() => haexSpaces.id, { onDelete: 'cascade' }),
-    deviceDid: text(tableNames.haex.device_mls_enrollments.columns.deviceDid).notNull(),
+    deviceId: text(tableNames.haex.device_mls_enrollments.columns.deviceId).notNull(),
     keyPackage: text(tableNames.haex.device_mls_enrollments.columns.keyPackage).notNull(), // Base64
     welcome: text(tableNames.haex.device_mls_enrollments.columns.welcome), // Base64, set by enrolling device
     status: text(tableNames.haex.device_mls_enrollments.columns.status).notNull().default('pending'), // 'pending' | 'enrolled'

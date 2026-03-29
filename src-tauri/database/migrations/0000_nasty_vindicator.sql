@@ -87,7 +87,7 @@ CREATE TABLE `haex_desktop_items_no_sync` (
 CREATE TABLE `haex_device_mls_enrollments` (
 	`id` text PRIMARY KEY NOT NULL,
 	`space_id` text NOT NULL,
-	`device_did` text NOT NULL,
+	`device_id` text NOT NULL,
 	`key_package` text NOT NULL,
 	`welcome` text,
 	`status` text DEFAULT 'pending' NOT NULL,

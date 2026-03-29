@@ -150,6 +150,17 @@ export const pullFromBackendAsync = async (
       log.info('Filtered sync:tables-updated events emitted to extensions')
     }
 
+    // Check for device MLS enrollments after sync (non-blocking)
+    if (tablesAffected.includes('haex_device_mls_enrollments')) {
+      const deviceStore = useDeviceStore()
+      if (deviceStore.deviceId) {
+        import('@/composables/useDeviceEnrollment').then(({ useDeviceEnrollment }) => {
+          const { syncEnrollmentsAsync } = useDeviceEnrollment()
+          syncEnrollmentsAsync(deviceStore.deviceId!).catch(() => {})
+        })
+      }
+    }
+
     // TODO: Client-side signature verification for space backends (defense-in-depth)
     // The server already verifies signatures on push, but pulled records from space
     // backends should also be verified client-side once the member public key cache

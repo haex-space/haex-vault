@@ -223,6 +223,12 @@ impl MlsManager {
         Ok(packages)
     }
 
+    /// Check if this device has an MLS group for the given space.
+    pub fn has_group(&self, space_id: &str) -> bool {
+        let group_id = GroupId::from_slice(space_id.as_bytes());
+        matches!(MlsGroup::load(self.provider.storage(), &group_id), Ok(Some(_)))
+    }
+
     /// Derive the current epoch's sync encryption key from MLS group state.
     /// Uses MLS export_secret (RFC 9420 §8.5) to derive a 32-byte symmetric key.
     /// Caller is responsible for persisting the key via CRDT.

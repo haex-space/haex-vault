@@ -461,6 +461,7 @@ pub fn run() {
             mls::commands::mls_decrypt,
             mls::commands::mls_process_message,
             mls::commands::mls_get_key_packages,
+            mls::commands::mls_has_group,
             mls::commands::mls_export_epoch_key,
             mls::commands::mls_get_epoch_key,
         ])
