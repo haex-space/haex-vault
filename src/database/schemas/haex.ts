@@ -584,3 +584,75 @@ export const haexSpaceKeys = sqliteTable(
 export type InsertHaexSpaceKeys = typeof haexSpaceKeys.$inferInsert
 export type SelectHaexSpaceKeys = typeof haexSpaceKeys.$inferSelect
 
+// ---------------------------------------------------------------------------
+// UCAN Tokens — cached capability tokens for space operations
+// ---------------------------------------------------------------------------
+
+export const haexUcanTokens = sqliteTable(
+  tableNames.haex.ucan_tokens.name,
+  {
+    id: text(tableNames.haex.ucan_tokens.columns.id).primaryKey(),
+    spaceId: text(tableNames.haex.ucan_tokens.columns.spaceId).notNull(),
+    token: text(tableNames.haex.ucan_tokens.columns.token).notNull(),
+    capability: text(tableNames.haex.ucan_tokens.columns.capability).notNull(),
+    issuerDid: text(tableNames.haex.ucan_tokens.columns.issuerDid).notNull(),
+    audienceDid: text(tableNames.haex.ucan_tokens.columns.audienceDid).notNull(),
+    issuedAt: integer(tableNames.haex.ucan_tokens.columns.issuedAt).notNull(),
+    expiresAt: integer(tableNames.haex.ucan_tokens.columns.expiresAt).notNull(),
+  },
+)
+export type InsertHaexUcanTokens = typeof haexUcanTokens.$inferInsert
+export type SelectHaexUcanTokens = typeof haexUcanTokens.$inferSelect
+
+// ---------------------------------------------------------------------------
+// Pending Invites — incoming space invitations awaiting user response
+// ---------------------------------------------------------------------------
+
+export const haexPendingInvites = sqliteTable(
+  tableNames.haex.pending_invites.name,
+  {
+    id: text(tableNames.haex.pending_invites.columns.id).primaryKey(),
+    spaceId: text(tableNames.haex.pending_invites.columns.spaceId).notNull(),
+    inviterDid: text(tableNames.haex.pending_invites.columns.inviterDid).notNull(),
+    inviterLabel: text(tableNames.haex.pending_invites.columns.inviterLabel),
+    spaceName: text(tableNames.haex.pending_invites.columns.spaceName),
+    status: text(tableNames.haex.pending_invites.columns.status).notNull().default('pending'),
+    includeHistory: integer(tableNames.haex.pending_invites.columns.includeHistory, { mode: 'boolean' }).default(false),
+    createdAt: text(tableNames.haex.pending_invites.columns.createdAt).notNull(),
+    respondedAt: text(tableNames.haex.pending_invites.columns.respondedAt),
+  },
+)
+export type InsertHaexPendingInvites = typeof haexPendingInvites.$inferInsert
+export type SelectHaexPendingInvites = typeof haexPendingInvites.$inferSelect
+
+// ---------------------------------------------------------------------------
+// Blocked DIDs — permanently blocked identities
+// ---------------------------------------------------------------------------
+
+export const haexBlockedDids = sqliteTable(
+  tableNames.haex.blocked_dids.name,
+  {
+    id: text(tableNames.haex.blocked_dids.columns.id).primaryKey(),
+    did: text(tableNames.haex.blocked_dids.columns.did).notNull().unique(),
+    label: text(tableNames.haex.blocked_dids.columns.label),
+    blockedAt: text(tableNames.haex.blocked_dids.columns.blockedAt).notNull(),
+  },
+)
+export type InsertHaexBlockedDids = typeof haexBlockedDids.$inferInsert
+export type SelectHaexBlockedDids = typeof haexBlockedDids.$inferSelect
+
+// ---------------------------------------------------------------------------
+// Invite Policy — controls who can send space invitations
+// ---------------------------------------------------------------------------
+
+export const haexInvitePolicy = sqliteTable(
+  tableNames.haex.invite_policy.name,
+  {
+    id: text(tableNames.haex.invite_policy.columns.id).primaryKey(),
+    policy: text(tableNames.haex.invite_policy.columns.policy).notNull().default('all'),
+    updatedAt: text(tableNames.haex.invite_policy.columns.updatedAt).notNull(),
+  },
+)
+export type InsertHaexInvitePolicy = typeof haexInvitePolicy.$inferInsert
+export type SelectHaexInvitePolicy = typeof haexInvitePolicy.$inferSelect
+

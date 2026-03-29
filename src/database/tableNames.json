@@ -273,6 +273,50 @@
         "key": "key"
       }
     },
+    "ucan_tokens": {
+      "name": "haex_ucan_tokens",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "token": "token",
+        "capability": "capability",
+        "issuerDid": "issuer_did",
+        "audienceDid": "audience_did",
+        "issuedAt": "issued_at",
+        "expiresAt": "expires_at"
+      }
+    },
+    "pending_invites": {
+      "name": "haex_pending_invites",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "inviterDid": "inviter_did",
+        "inviterLabel": "inviter_label",
+        "spaceName": "space_name",
+        "status": "status",
+        "includeHistory": "include_history",
+        "createdAt": "created_at",
+        "respondedAt": "responded_at"
+      }
+    },
+    "blocked_dids": {
+      "name": "haex_blocked_dids",
+      "columns": {
+        "id": "id",
+        "did": "did",
+        "label": "label",
+        "blockedAt": "blocked_at"
+      }
+    },
+    "invite_policy": {
+      "name": "haex_invite_policy",
+      "columns": {
+        "id": "id",
+        "policy": "policy",
+        "updatedAt": "updated_at"
+      }
+    },
 
     "logs": {
       "name": "haex_logs",
