@@ -12,7 +12,7 @@ import { SettingsCategory } from '~/config/settingsCategories'
 import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link'
 import { listen } from '@tauri-apps/api/event'
 import { isDesktop } from '~/utils/platform'
-import { isInviteLink } from '~/utils/inviteLink'
+import { isInviteLink, parseInviteTokenLink, type InviteTokenLink } from '~/utils/inviteLink'
 
 // Store pending deep-link outside of composable for persistence across component mounts
 const pendingExtensionId = ref<string | null>(null)
@@ -49,7 +49,7 @@ export const useDeepLink = () => {
         pendingInviteLink.value = url
         return
       }
-      await openInviteJoinDialog(url)
+      await handleInviteLink(url)
       return
     }
 
@@ -82,17 +82,24 @@ export const useDeepLink = () => {
   }
 
   /**
-   * Open settings to the Spaces page with the invite link pre-filled
+   * Handle an invite link — parse token and open claim flow
    */
-  const openInviteJoinDialog = async (url: string) => {
-    try {
-      await windowManager.openWindowAsync({
-        type: 'system',
-        sourceId: 'settings',
-        params: { category: SettingsCategory.Spaces, inviteLink: url },
-      })
-    } catch (error) {
-      console.error('[DeepLink] Failed to open invite dialog:', error)
+  const handleInviteLink = async (url: string) => {
+    const tokenLink = parseInviteTokenLink(url)
+    if (tokenLink) {
+      // Token-based invite: open settings with token params for claim flow
+      try {
+        await windowManager.openWindowAsync({
+          type: 'system',
+          sourceId: 'settings',
+          params: {
+            category: SettingsCategory.Spaces,
+            inviteToken: tokenLink,
+          },
+        })
+      } catch (error) {
+        console.error('[DeepLink] Failed to open invite claim dialog:', error)
+      }
     }
   }
 
@@ -103,7 +110,7 @@ export const useDeepLink = () => {
     if (pendingInviteLink.value) {
       const link = pendingInviteLink.value
       pendingInviteLink.value = null
-      await openInviteJoinDialog(link)
+      await handleInviteLink(link)
       return
     }
 

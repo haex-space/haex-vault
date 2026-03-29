@@ -1,34 +1,35 @@
-import { base58btcEncode, base58btcDecode } from '@haex-space/vault-sdk'
-import type { SpaceInvite } from '@haex-space/vault-sdk'
+const WEB_INVITE_PREFIX = 'https://haex.space/invite'
+const APP_INVITE_PREFIX = 'haexvault://invite/'
 
-const INVITE_PREFIX = 'haexvault://invite/'
-
-/**
- * Encodes a SpaceInvite into a haex://invite/<base58> link.
- */
-export function encodeInviteLink(invite: SpaceInvite): string {
-  const json = JSON.stringify(invite)
-  const bytes = new TextEncoder().encode(json)
-  return INVITE_PREFIX + base58btcEncode(bytes)
+export interface InviteTokenLink {
+  serverUrl: string
+  spaceId: string
+  tokenId: string
 }
 
 /**
- * Decodes a haex://invite/<base58> link back into a SpaceInvite.
- * Also accepts raw base58 without the prefix.
- */
-export function decodeInviteLink(link: string): SpaceInvite {
-  const encoded = link.startsWith(INVITE_PREFIX)
-    ? link.slice(INVITE_PREFIX.length)
-    : link
-
-  const bytes = base58btcDecode(encoded)
-  const json = new TextDecoder().decode(bytes)
-  return JSON.parse(json) as SpaceInvite
-}
-
-/**
- * Checks if a string looks like an invite link.
+ * Checks if a string looks like an invite link (web URL or app deep link).
  */
 export function isInviteLink(str: string): boolean {
-  return str.startsWith(INVITE_PREFIX)
+  return str.startsWith(WEB_INVITE_PREFIX) || str.startsWith(APP_INVITE_PREFIX)
+}
+
+/**
+ * Parse an invite token link.
+ * Supports:
+ * - https://haex.space/invite?server=URL&space=ID&token=TOKEN_ID
+ * - haexvault://invite/?server=URL&space=ID&token=TOKEN_ID
+ */
+export function parseInviteTokenLink(link: string): InviteTokenLink | null {
+  try {
+    const url = new URL(link)
+    const serverUrl = url.searchParams.get('server')
+    const spaceId = url.searchParams.get('space')
+    const tokenId = url.searchParams.get('token')
+
+    if (!serverUrl || !spaceId || !tokenId) return null
+    return { serverUrl, spaceId, tokenId }
+  } catch {
+    return null
+  }
 }

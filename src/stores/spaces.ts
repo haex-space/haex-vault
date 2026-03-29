@@ -2,7 +2,6 @@ import {
   type SharedSpace,
   SpaceRoles,
   type SpaceRole,
-  type SpaceInvite,
   type DecryptedSpace,
 } from '@haex-space/vault-sdk'
 import { eq, and } from 'drizzle-orm'
@@ -442,21 +441,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     return { capability: data.capability }
   }
 
-  const joinSpaceFromInviteAsync = async (invite: SpaceInvite, _identityId: string) => {
-    const space: DecryptedSpace = {
-      id: invite.spaceId,
-      name: invite.spaceName,
-      role: invite.role,
-      serverUrl: invite.serverUrl,
-      createdAt: new Date().toISOString(),
-    }
-
-    await persistSpaceAsync(space)
-
-    log.info(`Joined space ${invite.spaceId} via invite`)
-    return { spaceId: invite.spaceId }
-  }
-
   /**
    * Admin-side: finalize an accepted invite by adding the member to the MLS group.
    * Fetches the invitee's KeyPackage, creates MLS add_member commit + welcome,
@@ -599,7 +583,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     createInviteTokenAsync,
     buildInviteLink,
     claimInviteTokenAsync,
-    joinSpaceFromInviteAsync,
     finalizeInviteAsync,
     processWelcomesAsync,
     leaveSpaceAsync,

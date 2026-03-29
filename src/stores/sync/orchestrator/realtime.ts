@@ -189,6 +189,47 @@ export const subscribeToBackendAsync = async (
     const targetBackendId = findBackendBySpaceId(event.spaceId, syncBackendsStore)
     if (!targetBackendId) return
 
+    const backend = syncBackendsStore.enabledBackends.find((b) => b.spaceId === event.spaceId)
+    if (!backend?.identityId) return
+
+    // Auto-finalize accepted invites (admin adds new member to MLS group)
+    try {
+      const identityStore = useIdentityStore()
+      const identity = await identityStore.getIdentityAsync(backend.identityId)
+      if (identity) {
+        const { getUcanForSpaceAsync } = await import('@/utils/auth/ucanStore')
+        const ucan = getUcanForSpaceAsync(event.spaceId)
+        if (ucan) {
+          const { fetchWithUcanAuth } = await import('@/utils/auth/ucanStore')
+          const response = await fetchWithUcanAuth(
+            `${backend.serverUrl}/spaces/${event.spaceId}/invites`,
+            event.spaceId,
+            ucan,
+          )
+          if (response.ok) {
+            const data = await response.json()
+            const accepted = (data.invites ?? []).filter((i: any) => i.status === 'accepted')
+            const spacesStore = useSpacesStore()
+            for (const invite of accepted) {
+              try {
+                await spacesStore.finalizeInviteAsync(
+                  backend.serverUrl,
+                  event.spaceId,
+                  invite.inviteeDid,
+                  backend.identityId,
+                )
+                log.info(`Auto-finalized invite for ${invite.inviteeDid} in space ${event.spaceId}`)
+              } catch (err) {
+                log.error(`Failed to auto-finalize invite for ${invite.inviteeDid}:`, err)
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      log.error(`Failed to auto-finalize invites for space ${event.spaceId}:`, error)
+    }
+
     // Refresh memberships by triggering a pull
     triggerDebouncedPullAsync(
       targetBackendId,

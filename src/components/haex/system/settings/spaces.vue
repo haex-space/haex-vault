@@ -240,11 +240,11 @@
 
 <script setup lang="ts">
 import { SettingsCategory } from '~/config/settingsCategories'
-import { SpaceRoles, type DecryptedSpace, type SpaceInvite, type SpaceRole } from '@haex-space/vault-sdk'
+import { SpaceRoles, type DecryptedSpace, type SpaceRole } from '@haex-space/vault-sdk'
 import SpaceListItem from './spaces/SpaceListItem.vue'
 import SpaceInviteDialog from './spaces/SpaceInviteDialog.vue'
 import PendingInvites from './spaces/PendingInvites.vue'
-import { decodeInviteLink } from '~/utils/inviteLink'
+import { parseInviteTokenLink } from '~/utils/inviteLink'
 
 const props = defineProps<{
   inviteLink?: string
@@ -472,25 +472,19 @@ const onCreateSpaceAsync = async () => {
   }
 }
 
-// Join space
+// Join space via invite token link
 const onJoinSpaceAsync = async () => {
   if (!joinInviteLink.value) return
 
   isJoining.value = true
   try {
-    let invite: SpaceInvite
-    try {
-      invite = decodeInviteLink(joinInviteLink.value.trim())
-    } catch {
+    const tokenLink = parseInviteTokenLink(joinInviteLink.value.trim())
+    if (!tokenLink) {
       add({ title: t('errors.invalidInviteLink'), color: 'error' })
       return
     }
-    if (!invite.spaceId || !invite.serverUrl || !invite.accessToken || !invite.encryptedSpaceKey) {
-      add({ title: t('errors.invalidInvite'), color: 'error' })
-      return
-    }
 
-    // Use first available identity (TODO: let user pick)
+    // Use first available identity
     await identityStore.loadIdentitiesAsync()
     const identityId = identityStore.identities[0]?.publicKey
     if (!identityId) {
@@ -498,13 +492,18 @@ const onJoinSpaceAsync = async () => {
       return
     }
 
-    const { spaceId } = await spacesStore.joinSpaceFromInviteAsync(invite, identityId)
+    await spacesStore.claimInviteTokenAsync(
+      tokenLink.serverUrl,
+      tokenLink.spaceId,
+      tokenLink.tokenId,
+      identityId,
+    )
 
-    // Create a sync backend for this space with linked identity
+    // Create a sync backend for this space
     await syncBackendsStore.addBackendAsync({
-      name: `Space ${spaceId.slice(0, 8)}`,
-      serverUrl: invite.serverUrl,
-      spaceId: invite.spaceId,
+      name: `Space ${tokenLink.spaceId.slice(0, 8)}`,
+      serverUrl: tokenLink.serverUrl,
+      spaceId: tokenLink.spaceId,
       identityId,
       enabled: true,
     })
