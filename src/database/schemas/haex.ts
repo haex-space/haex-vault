@@ -592,7 +592,9 @@ export const haexUcanTokens = sqliteTable(
   tableNames.haex.ucan_tokens.name,
   {
     id: text(tableNames.haex.ucan_tokens.columns.id).primaryKey(),
-    spaceId: text(tableNames.haex.ucan_tokens.columns.spaceId).notNull(),
+    spaceId: text(tableNames.haex.ucan_tokens.columns.spaceId)
+      .notNull()
+      .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     token: text(tableNames.haex.ucan_tokens.columns.token).notNull(),
     capability: text(tableNames.haex.ucan_tokens.columns.capability).notNull(),
     issuerDid: text(tableNames.haex.ucan_tokens.columns.issuerDid).notNull(),
@@ -612,7 +614,9 @@ export const haexPendingInvites = sqliteTable(
   tableNames.haex.pending_invites.name,
   {
     id: text(tableNames.haex.pending_invites.columns.id).primaryKey(),
-    spaceId: text(tableNames.haex.pending_invites.columns.spaceId).notNull(),
+    spaceId: text(tableNames.haex.pending_invites.columns.spaceId)
+      .notNull()
+      .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     inviterDid: text(tableNames.haex.pending_invites.columns.inviterDid).notNull(),
     inviterLabel: text(tableNames.haex.pending_invites.columns.inviterLabel),
     spaceName: text(tableNames.haex.pending_invites.columns.spaceName),
