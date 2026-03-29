@@ -12,7 +12,9 @@
  * - The useRealtime composable handles reconnection with exponential backoff
  */
 
+import { invoke } from '@tauri-apps/api/core'
 import { useRealtime, type RealtimeEvent } from '@/composables/useRealtime'
+import { useMlsDelivery, type MlsMessage } from '@/composables/useMlsDelivery'
 import { orchestratorLog as log, type BackendSyncState } from './types'
 import { pullFromBackendAsync } from './pull'
 
@@ -182,7 +184,7 @@ export const subscribeToBackendAsync = async (
     )
   })
 
-  const cleanupMembership = realtime.on('membership', (event: RealtimeEvent) => {
+  const cleanupMembership = realtime.on('membership', async (event: RealtimeEvent) => {
     log.info(`REALTIME: membership event for space ${event.spaceId}`)
     const targetBackendId = findBackendBySpaceId(event.spaceId, syncBackendsStore)
     if (!targetBackendId) return
@@ -199,12 +201,46 @@ export const subscribeToBackendAsync = async (
 
   const cleanupInvite = realtime.on('invite', (event: RealtimeEvent) => {
     log.info(`REALTIME: invite event for space ${event.spaceId}, inviteId=${event.inviteId}`)
-    // TODO: Store pending invite when invite system is implemented
+    // Pending invites are fetched from server on next spaces load
   })
 
-  const cleanupMls = realtime.on('mls', (event: RealtimeEvent) => {
+  const cleanupMls = realtime.on('mls', async (event: RealtimeEvent) => {
     log.info(`REALTIME: mls event for space ${event.spaceId}`)
-    // TODO: Fetch MLS messages when MLS messaging is implemented
+
+    const backend = syncBackendsStore.enabledBackends.find((b) => b.spaceId === event.spaceId)
+    if (!backend?.identityId) return
+
+    try {
+      const identityStore = useIdentityStore()
+      const identity = await identityStore.getIdentityAsync(backend.identityId)
+      if (!identity) return
+
+      const delivery = useMlsDelivery(backend.serverUrl, event.spaceId, {
+        privateKey: identity.privateKey,
+        did: identity.did,
+      })
+
+      // Fetch and process welcome messages (new member joining)
+      const welcomes = await delivery.fetchWelcomesAsync()
+      for (const welcome of welcomes) {
+        await invoke('mls_process_message', { spaceId: event.spaceId, message: Array.from(welcome) })
+      }
+      if (welcomes.length > 0) {
+        log.info(`Processed ${welcomes.length} MLS welcome(s) for space ${event.spaceId}`)
+      }
+
+      // Fetch and process MLS messages (commits, application data)
+      const messages = await delivery.fetchMessagesAsync()
+      for (const msg of messages) {
+        const payload = Uint8Array.from(atob(msg.payload), (c) => c.charCodeAt(0))
+        await invoke('mls_process_message', { spaceId: event.spaceId, message: Array.from(payload) })
+      }
+      if (messages.length > 0) {
+        log.info(`Processed ${messages.length} MLS message(s) for space ${event.spaceId}`)
+      }
+    } catch (error) {
+      log.error(`Failed to process MLS event for space ${event.spaceId}:`, error)
+    }
   })
 
   eventCleanups.push(cleanupSync, cleanupMembership, cleanupInvite, cleanupMls)

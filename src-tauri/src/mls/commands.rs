@@ -1,7 +1,7 @@
 use tauri::State;
 
 use crate::mls::manager::MlsManager;
-use crate::mls::types::{MlsCommitBundle, MlsGroupInfo, MlsIdentityInfo, MlsProcessedMessage};
+use crate::mls::types::{MlsCommitBundle, MlsEpochKey, MlsGroupInfo, MlsIdentityInfo, MlsProcessedMessage};
 use crate::AppState;
 
 fn with_mls_manager<T>(state: &State<'_, AppState>, f: impl FnOnce(&MlsManager) -> Result<T, String>) -> Result<T, String> {
@@ -59,4 +59,14 @@ pub fn mls_process_message(state: State<'_, AppState>, space_id: String, message
 #[tauri::command]
 pub fn mls_get_key_packages(state: State<'_, AppState>, count: u32) -> Result<Vec<Vec<u8>>, String> {
     with_mls_manager(&state, |mgr| mgr.generate_key_packages(count))
+}
+
+#[tauri::command]
+pub fn mls_export_epoch_key(state: State<'_, AppState>, space_id: String) -> Result<MlsEpochKey, String> {
+    with_mls_manager(&state, |mgr| mgr.export_epoch_key(&space_id))
+}
+
+#[tauri::command]
+pub fn mls_get_epoch_key(state: State<'_, AppState>, space_id: String, epoch: u64) -> Result<MlsEpochKey, String> {
+    with_mls_manager(&state, |mgr| mgr.get_epoch_key(&space_id, epoch))
 }

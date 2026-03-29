@@ -10,6 +10,7 @@ import type {
 } from 'drizzle-orm/sqlite-proxy'
 import type { CleanupResult } from '~~/src-tauri/bindings/CleanupResult'
 import { didAuthenticateAsync } from '~/stores/sync/engine/supabase'
+import { loadUcansFromDbAsync } from '~/utils/auth/ucanStore'
 
 interface IVault {
   name: string
@@ -424,6 +425,15 @@ export const useVaultStore = defineStore('vaultStore', () => {
     // Load spaces from DB and ensure default local space exists
     await spacesStore.loadSpacesFromDbAsync()
     await spacesStore.ensureDefaultSpaceAsync()
+
+    // Warm UCAN cache from DB (tokens survive app restarts)
+    if (currentVault.value?.drizzle) {
+      await loadUcansFromDbAsync(currentVault.value.drizzle)
+    }
+
+    // Initialize MLS subsystem (tables + identity)
+    await invoke('mls_init_tables')
+    await invoke('mls_init_identity')
 
     // Automatic cleanup (non-blocking)
     performAutomaticCleanupAsync().catch((error) => {

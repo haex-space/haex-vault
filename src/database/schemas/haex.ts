@@ -564,28 +564,6 @@ export type InsertHaexSharedSpaceSync = typeof haexSharedSpaceSync.$inferInsert
 export type SelectHaexSharedSpaceSync = typeof haexSharedSpaceSync.$inferSelect
 
 // ---------------------------------------------------------------------------
-// Space Keys — persisted space decryption keys (CRDT-synced)
-// Multiple keys per (spaceId, generation) are allowed for offline conflict resolution
-// ---------------------------------------------------------------------------
-
-export const haexSpaceKeys = sqliteTable(
-  tableNames.haex.space_keys.name,
-  {
-    id: text(tableNames.haex.space_keys.columns.id)
-      .$defaultFn(() => crypto.randomUUID())
-      .primaryKey(),
-    spaceId: text(tableNames.haex.space_keys.columns.spaceId)
-      .notNull()
-      .references(() => haexSpaces.id),
-    generation: integer(tableNames.haex.space_keys.columns.generation).notNull(),
-    key: text(tableNames.haex.space_keys.columns.key).notNull(),
-  },
-)
-
-export type InsertHaexSpaceKeys = typeof haexSpaceKeys.$inferInsert
-export type SelectHaexSpaceKeys = typeof haexSpaceKeys.$inferSelect
-
-// ---------------------------------------------------------------------------
 // UCAN Tokens — cached capability tokens for space operations
 // ---------------------------------------------------------------------------
 

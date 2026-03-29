@@ -3,6 +3,7 @@
  * Handles pushing local changes to the sync server
  */
 
+import { invoke } from '@tauri-apps/api/core'
 import {
   getDirtyTablesAsync,
   getAllCrdtTablesAsync,
@@ -13,6 +14,7 @@ import {
 import { DidAuthAction } from '@haex-space/ucan'
 import { createDidAuthHeader } from '@/utils/auth/didAuth'
 import { orchestratorLog as log, type BackendSyncState, syncMutex } from './types'
+import type { MlsEpochKey } from '@bindings/MlsEpochKey'
 
 /**
  * Pushes local changes to a specific backend using table-scanning approach
@@ -67,13 +69,21 @@ export const pushToBackendAsync = async (
       lastPushHlc: lastPushHlc || '(none)',
     })
 
-    // Get encryption key: vault sync key from local DB
-    const encryptionKey = await syncEngineStore.getSyncKeyFromDbAsync(backendId)
-    if (!encryptionKey) {
-      log.error('PUSH FAILED: Vault sync key not available')
-      throw new Error('Vault sync key not available')
+    // Determine encryption key: MLS epoch key for shared spaces, vault key for personal
+    const isSharedSpace = backend.spaceId !== currentVaultId
+    let encryptionKey: Uint8Array
+    let epoch: number | undefined
+
+    if (isSharedSpace) {
+      const epochKey: MlsEpochKey = await invoke('mls_export_epoch_key', { spaceId: backend.spaceId })
+      encryptionKey = new Uint8Array(epochKey.key)
+      epoch = epochKey.epoch
+      log.debug(`Using MLS epoch key (epoch ${epoch}) for shared space`)
+    } else {
+      const vaultKey = await syncEngineStore.getSyncKeyFromDbAsync(backendId)
+      if (!vaultKey) throw new Error('Vault sync key not available')
+      encryptionKey = vaultKey
     }
-    log.debug('Encryption key available: true')
 
     // Get current device ID
     const deviceStore = useDeviceStore()
@@ -115,7 +125,7 @@ export const pushToBackendAsync = async (
         log.info(`[PUSH-SCAN] Scanning table: ${tableName}`)
         log.debug(`[PUSH-SCAN]   lastPushHlc: ${lastPushHlc || '(none)'}`)
 
-        const tableChanges = await scanTableForChangesAsync(tableName, lastPushHlc, encryptionKey, batchId, deviceId)
+        const tableChanges = await scanTableForChangesAsync(tableName, lastPushHlc, encryptionKey, batchId, deviceId, epoch)
 
         partialChanges.push(...tableChanges)
 
@@ -256,7 +266,7 @@ export const pushChangesToServerAsync = async (
 
   // Format changes for server API, always signing records
   const formattedChanges = await Promise.all(changes.map(async (change) => {
-    const base = {
+    const base: Record<string, unknown> = {
       tableName: change.tableName,
       rowPks: change.rowPks,
       columnName: change.columnName,
@@ -268,6 +278,7 @@ export const pushChangesToServerAsync = async (
       encryptedValue: change.encryptedValue,
       nonce: change.nonce,
     }
+    if (change.epoch !== undefined) base.epoch = change.epoch
 
     if (signRecordAsync && identityPrivateKey && identityPublicKey) {
       const signature = await signRecordAsync(

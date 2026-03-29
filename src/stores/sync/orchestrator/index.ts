@@ -488,9 +488,6 @@ export const useSyncOrchestratorStore = defineStore(
           await contactsStore.loadContactsAsync()
         },
       )
-      // Note: haex_spaces/haex_space_keys don't have a simple reload method
-      // Spaces are loaded from the server during sync start and from haex_space_keys for local spaces
-
       // Load sync configuration
       log.info('[START-SYNC] Loading sync configuration...')
       await syncConfigStore.loadConfigAsync()

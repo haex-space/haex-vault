@@ -140,9 +140,48 @@ impl SqlCipherMlsStorage {
     }
 
     /// Tables are created by the Drizzle-generated migration (src-tauri/database/migrations/).
-    /// This is a no-op kept for API compatibility.
+    /// Only the sync keys table is created here (not part of OpenMLS schema).
     pub fn init_tables(&self) -> Result<(), MlsStorageError> {
-        Ok(())
+        self.with_conn(|conn| {
+            conn.execute_batch(
+                "CREATE TABLE IF NOT EXISTS haex_mls_sync_keys_no_sync (
+                    space_id TEXT NOT NULL,
+                    epoch    INTEGER NOT NULL,
+                    key_blob BLOB NOT NULL,
+                    PRIMARY KEY (space_id, epoch)
+                )"
+            ).map_err(|e| MlsStorageError::Database(e.to_string()))?;
+            Ok(())
+        })
+    }
+
+    /// Store a derived sync encryption key for a specific space + epoch.
+    pub fn store_sync_key(&self, space_id: &str, epoch: u64, key: &[u8]) -> Result<(), MlsStorageError> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "INSERT OR REPLACE INTO haex_mls_sync_keys_no_sync (space_id, epoch, key_blob) VALUES (?1, ?2, ?3)",
+                rusqlite::params![space_id, epoch as i64, key],
+            ).map_err(|e| MlsStorageError::Database(e.to_string()))?;
+            Ok(())
+        })
+    }
+
+    /// Load a sync encryption key for a specific space + epoch.
+    pub fn load_sync_key(&self, space_id: &str, epoch: u64) -> Result<Option<Vec<u8>>, MlsStorageError> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT key_blob FROM haex_mls_sync_keys_no_sync WHERE space_id = ?1 AND epoch = ?2"
+            ).map_err(|e| MlsStorageError::Database(e.to_string()))?;
+            let mut rows = stmt.query(rusqlite::params![space_id, epoch as i64])
+                .map_err(|e| MlsStorageError::Database(e.to_string()))?;
+            match rows.next().map_err(|e| MlsStorageError::Database(e.to_string()))? {
+                Some(row) => {
+                    let blob: Vec<u8> = row.get(0).map_err(|e| MlsStorageError::Database(e.to_string()))?;
+                    Ok(Some(blob))
+                }
+                None => Ok(None),
+            }
+        })
     }
 
     pub fn store_own_identity_key(&self, public_key: &[u8]) -> Result<(), MlsStorageError> {

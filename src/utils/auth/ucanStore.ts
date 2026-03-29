@@ -6,6 +6,9 @@ import {
   type Capability,
 } from '@haex-space/ucan'
 import { importUserPrivateKeyAsync } from '@haex-space/vault-sdk'
+import { eq, gt } from 'drizzle-orm'
+import { haexUcanTokens } from '~/database/schemas'
+import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
 
 const DEFAULT_EXPIRY_SECONDS = 30 * 24 * 60 * 60 // 30 days
 
@@ -126,5 +129,53 @@ export function clearUcanCache(spaceId?: string): void {
     ucanCache.delete(spaceId)
   } else {
     ucanCache.clear()
+  }
+}
+
+/**
+ * Persist a UCAN token to the database (upsert by spaceId).
+ * Also caches the token in memory.
+ */
+export async function persistUcanAsync(
+  db: SqliteRemoteDatabase,
+  spaceId: string,
+  token: string,
+): Promise<void> {
+  const decoded = decodeUcan(token)
+  const { iss, aud, exp, iat } = decoded.payload
+
+  // Extract capability from the token's capabilities map
+  const caps = decoded.payload.cap as Record<string, string>
+  const capability = Object.values(caps)[0] ?? 'space/admin'
+
+  // Delete existing token for this space, then insert new one
+  await db.delete(haexUcanTokens).where(eq(haexUcanTokens.spaceId, spaceId))
+  await db.insert(haexUcanTokens).values({
+    id: crypto.randomUUID(),
+    spaceId,
+    token,
+    capability,
+    issuerDid: iss,
+    audienceDid: aud,
+    issuedAt: iat ?? Math.floor(Date.now() / 1000),
+    expiresAt: exp,
+  })
+
+  cacheUcan(spaceId, token)
+}
+
+/**
+ * Load all non-expired UCAN tokens from DB into the in-memory cache.
+ * Call this on vault open to warm the cache.
+ */
+export async function loadUcansFromDbAsync(db: SqliteRemoteDatabase): Promise<void> {
+  const now = Math.floor(Date.now() / 1000)
+  const rows = await db
+    .select({ spaceId: haexUcanTokens.spaceId, token: haexUcanTokens.token })
+    .from(haexUcanTokens)
+    .where(gt(haexUcanTokens.expiresAt, now))
+
+  for (const row of rows) {
+    ucanCache.set(row.spaceId, row.token)
   }
 }

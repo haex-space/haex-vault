@@ -7,7 +7,6 @@
 use crate::database::core::{self, with_connection};
 use crate::database::error::DatabaseError;
 use crate::database::row::get_string;
-use crate::database::DbConnection;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::SpaceAction;
@@ -17,8 +16,6 @@ use crate::extension::utils::{
 use crate::table_names::TABLE_SHARED_SPACE_SYNC;
 use crate::AppState;
 
-use base64::engine::general_purpose::STANDARD as BASE64;
-use base64::Engine;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State, WebviewWindow};
 
@@ -405,66 +402,4 @@ pub async fn extension_space_list(
     Ok(spaces)
 }
 
-// ============================================================================
-// Space Key Management (local DB)
-// ============================================================================
-
-/// Look up a space key from the local database.
-fn get_space_key(db: &DbConnection, space_id: &str, generation: i64) -> Option<String> {
-    with_connection(db, |conn| {
-        let mut stmt = conn
-            .prepare(
-                "SELECT key FROM haex_space_keys \
-                 WHERE space_id = ?1 AND generation = ?2 LIMIT 1",
-            )
-            .map_err(DatabaseError::from)?;
-        let mut rows = stmt
-            .query(rusqlite::params![space_id, generation])
-            .map_err(DatabaseError::from)?;
-        if let Some(row) = rows.next().map_err(DatabaseError::from)? {
-            let key: String = row.get(0).map_err(DatabaseError::from)?;
-            Ok(Some(key))
-        } else {
-            Ok(None)
-        }
-    })
-    .ok()
-    .flatten()
-}
-
-/// Persist a space key to the local database.
-/// Checks if the exact (space_id, generation, key) combination already exists
-/// to avoid duplicates, since multiple keys per generation are allowed.
-fn persist_space_key(
-    db: &DbConnection,
-    space_id: &str,
-    generation: i64,
-    key: &[u8],
-) -> Result<(), ExtensionError> {
-    let key_base64 = BASE64.encode(key);
-    with_connection(db, |conn| {
-        // Check if this exact key already exists
-        let mut stmt = conn
-            .prepare(
-                "SELECT 1 FROM haex_space_keys \
-                 WHERE space_id = ?1 AND generation = ?2 AND key = ?3 LIMIT 1",
-            )
-            .map_err(DatabaseError::from)?;
-        let exists = stmt
-            .exists(rusqlite::params![space_id, generation, key_base64])
-            .map_err(DatabaseError::from)?;
-
-        if !exists {
-            let id = uuid::Uuid::new_v4().to_string();
-            conn.execute(
-                "INSERT INTO haex_space_keys (id, space_id, generation, key) \
-                 VALUES (?1, ?2, ?3, ?4)",
-                rusqlite::params![id, space_id, generation, key_base64],
-            )
-            .map_err(DatabaseError::from)?;
-        }
-        Ok(())
-    })?;
-    Ok(())
-}
 

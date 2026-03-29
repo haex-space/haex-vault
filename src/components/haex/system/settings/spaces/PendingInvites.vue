@@ -104,6 +104,7 @@ import { eq } from 'drizzle-orm'
 import { haexPendingInvites, type SelectHaexPendingInvites } from '~/database/schemas'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { useInvitePolicy } from '@/composables/useInvitePolicy'
+import { useMlsDelivery } from '@/composables/useMlsDelivery'
 
 const { t } = useI18n()
 const { add } = useToast()
@@ -194,18 +195,12 @@ const onAcceptAsync = async (invite: SelectHaexPendingInvites) => {
       return
     }
 
-    const response = await fetchWithDidAuth(
-      `${serverUrl}/spaces/${invite.spaceId}/invites/${invite.id}/accept`,
-      identity.privateKey,
-      identity.did,
-      'accept-invite',
-      { method: 'POST', headers: { 'Content-Type': 'application/json' } },
-    )
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error(error.error || response.statusText)
-    }
+    // Accept invite on server + upload MLS KeyPackages
+    const delivery = useMlsDelivery(serverUrl, invite.spaceId, {
+      privateKey: identity.privateKey,
+      did: identity.did,
+    })
+    await delivery.acceptInviteAsync(invite.id)
 
     // Mark invite as accepted in local DB
     const db = getDb()

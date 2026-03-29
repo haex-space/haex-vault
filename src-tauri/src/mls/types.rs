@@ -34,3 +34,11 @@ pub struct MlsProcessedMessage {
     pub content_type: String,
     pub payload: Vec<u8>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct MlsEpochKey {
+    pub epoch: u64,
+    pub key: Vec<u8>,
+}

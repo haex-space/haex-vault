@@ -104,7 +104,7 @@ export const pullFromBackendAsync = async (
     log.debug('Tables affected:', tablesAffected)
 
     // Step 2: Apply all changes with proper migration ordering
-    await applyAllChangesWithMigrationsAsync(allChanges, encryptionKey, backendId)
+    await applyAllChangesWithMigrationsAsync(allChanges, encryptionKey, backendId, backend.spaceId)
 
     // Step 2b: Check for and pull any pending columns
     // This handles schema version differences - if we previously skipped columns
@@ -285,6 +285,7 @@ export const applyAllChangesWithMigrationsAsync = async (
   allChanges: ColumnChange[],
   vaultKey: Uint8Array,
   backendId: string,
+  spaceId?: string,
 ): Promise<string> => {
   if (allChanges.length === 0) {
     log.info('No changes to apply')
@@ -315,13 +316,13 @@ export const applyAllChangesWithMigrationsAsync = async (
   // This is required because haex_extension_migrations has a FK to haex_extensions
   if (extensionChanges.length > 0) {
     log.info(`Applying ${extensionChanges.length} extension registration changes first...`)
-    maxHlc = await applyRemoteChangesInTransactionAsync(extensionChanges, vaultKey, backendId)
+    maxHlc = await applyRemoteChangesInTransactionAsync(extensionChanges, vaultKey, backendId, spaceId)
   }
 
   // Step 2: Apply extension migration definitions (haex_extension_migrations)
   if (migrationChanges.length > 0) {
     log.info(`Applying ${migrationChanges.length} extension migration changes...`)
-    const migrationMaxHlc = await applyRemoteChangesInTransactionAsync(migrationChanges, vaultKey, backendId)
+    const migrationMaxHlc = await applyRemoteChangesInTransactionAsync(migrationChanges, vaultKey, backendId, spaceId)
     if (migrationMaxHlc > maxHlc) {
       maxHlc = migrationMaxHlc
     }
@@ -360,7 +361,7 @@ export const applyAllChangesWithMigrationsAsync = async (
   // Extension tables now exist, so data won't be skipped
   if (otherChanges.length > 0) {
     log.info(`Applying ${otherChanges.length} remaining changes to local database...`)
-    const otherMaxHlc = await applyRemoteChangesInTransactionAsync(otherChanges, vaultKey, backendId)
+    const otherMaxHlc = await applyRemoteChangesInTransactionAsync(otherChanges, vaultKey, backendId, spaceId)
     if (otherMaxHlc > maxHlc) {
       maxHlc = otherMaxHlc
     }
@@ -380,9 +381,28 @@ export const applyRemoteChangesInTransactionAsync = async (
   changes: ColumnChange[],
   vaultKey: Uint8Array,
   backendId: string,
+  spaceId?: string,
 ): Promise<string> => {
   const startTime = performance.now()
   log.info(`[PERF] Starting decryption of ${changes.length} changes...`)
+
+  // Cache epoch keys to avoid repeated Tauri calls
+  const epochKeyCache = new Map<number, Uint8Array>()
+
+  const resolveDecryptionKey = async (change: ColumnChange): Promise<Uint8Array> => {
+    if (change.epoch === undefined) return vaultKey
+
+    const cached = epochKeyCache.get(change.epoch)
+    if (cached) return cached
+
+    const epochKey = await invoke<{ epoch: number; key: number[] }>('mls_get_epoch_key', {
+      spaceId: spaceId ?? '',
+      epoch: change.epoch,
+    })
+    const key = new Uint8Array(epochKey.key)
+    epochKeyCache.set(change.epoch, key)
+    return key
+  }
 
   // Calculate max HLC and decrypt all changes
   let maxHlc = ''
@@ -403,14 +423,15 @@ export const applyRemoteChangesInTransactionAsync = async (
       maxHlc = change.hlcTimestamp
     }
 
-    // Decrypt the value
+    // Decrypt the value — use epoch key if available, else vault key
     let decryptedValue
     if (change.encryptedValue && change.nonce) {
       try {
+        const decryptionKey = await resolveDecryptionKey(change)
         const decryptedData = await decryptCrdtData<{ value: unknown }>(
           change.encryptedValue,
           change.nonce,
-          vaultKey,
+          decryptionKey,
         )
         decryptedValue = decryptedData.value
       } catch (err) {
@@ -572,7 +593,7 @@ export const pullPendingColumnsAsync = async (
     // Step 3: Apply the pulled changes
     if (allChanges.length > 0) {
       log.info(`Applying ${allChanges.length} changes for ${pendingCol.tableName}.${pendingCol.columnName}`)
-      await applyRemoteChangesInTransactionAsync(allChanges, vaultKey, backendId)
+      await applyRemoteChangesInTransactionAsync(allChanges, vaultKey, backendId, spaceId)
       totalPulled += allChanges.length
     }
 

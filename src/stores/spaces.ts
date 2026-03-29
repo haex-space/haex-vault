@@ -11,7 +11,7 @@ import { haexSpaces } from '~/database/schemas'
 import type { SelectHaexSpaces } from '~/database/schemas'
 import { createLogger } from '@/stores/logging'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
-import { createRootUcanAsync, cacheUcan, fetchWithUcanAuth, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
+import { createRootUcanAsync, persistUcanAsync, fetchWithUcanAuth, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
 
 const log = createLogger('SPACES')
 
@@ -199,10 +199,18 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       throw new Error(`Failed to create space: ${error.error || JSON.stringify(error) || response.statusText}`)
     }
 
-    // Create root UCAN for this space
+    // Create MLS group for this space (enables epoch key encryption)
+    await invoke('mls_create_group', { spaceId })
+
+    // Create root UCAN for this space and persist to DB + cache
     const rootUcan = await createRootUcanAsync(identity.did, identity.privateKey, spaceId)
-    // TODO: Store in haex_ucan_tokens table (DB wiring comes later)
-    cacheUcan(spaceId, rootUcan)
+    const db = getDb()
+    if (db) await persistUcanAsync(db, spaceId, rootUcan)
+
+    // Upload initial KeyPackages so others can add us
+    const { useMlsDelivery } = await import('@/composables/useMlsDelivery')
+    const delivery = useMlsDelivery(serverUrl, spaceId, { privateKey: identity.privateKey, did: identity.did })
+    await delivery.uploadKeyPackagesAsync()
 
     log.info(`Created space ${spaceId}`)
     await listSpacesAsync(serverUrl, identityId)
@@ -364,8 +372,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   }
 
   const joinSpaceFromInviteAsync = async (invite: SpaceInvite, _identityId: string) => {
-    // In Phase 4, joining is lightweight — no key decryption needed.
-    // MLS key exchange will handle encryption in Phase 5.
     const space: DecryptedSpace = {
       id: invite.spaceId,
       name: invite.spaceName,
@@ -378,6 +384,60 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
     log.info(`Joined space ${invite.spaceId} via invite`)
     return { spaceId: invite.spaceId }
+  }
+
+  /**
+   * Admin-side: finalize an accepted invite by adding the member to the MLS group.
+   * Fetches the invitee's KeyPackage, creates MLS add_member commit + welcome,
+   * and sends both to the server.
+   */
+  const finalizeInviteAsync = async (
+    serverUrl: string,
+    spaceId: string,
+    inviteeDid: string,
+    identityId: string,
+  ) => {
+    const identity = await resolveIdentityAsync(identityId)
+    const { useMlsDelivery } = await import('@/composables/useMlsDelivery')
+    const delivery = useMlsDelivery(serverUrl, spaceId, { privateKey: identity.privateKey, did: identity.did })
+
+    // 1. Fetch invitee's KeyPackage from server
+    const { keyPackage } = await delivery.fetchKeyPackageAsync(inviteeDid)
+
+    // 2. Add member to MLS group → produces commit + welcome
+    const bundle = await invoke<{ commit: number[]; welcome: number[] | null; groupInfo: number[] }>('mls_add_member', {
+      spaceId,
+      keyPackage: Array.from(keyPackage),
+    })
+
+    // 3. Send commit to all group members
+    await delivery.sendMessageAsync(new Uint8Array(bundle.commit), 'commit')
+
+    // 4. Send welcome to the new member
+    if (bundle.welcome) {
+      await delivery.sendWelcomeAsync(inviteeDid, new Uint8Array(bundle.welcome))
+    }
+
+    log.info(`Finalized invite for ${inviteeDid} in space ${spaceId}`)
+  }
+
+  /**
+   * Invitee-side: process MLS welcome messages to join the group.
+   * Called after the admin finalizes the invite.
+   */
+  const processWelcomesAsync = async (serverUrl: string, spaceId: string, identityId: string) => {
+    const identity = await resolveIdentityAsync(identityId)
+    const { useMlsDelivery } = await import('@/composables/useMlsDelivery')
+    const delivery = useMlsDelivery(serverUrl, spaceId, { privateKey: identity.privateKey, did: identity.did })
+
+    const welcomes = await delivery.fetchWelcomesAsync()
+    for (const welcome of welcomes) {
+      await invoke('mls_process_message', { spaceId, message: Array.from(welcome) })
+    }
+
+    if (welcomes.length > 0) {
+      log.info(`Processed ${welcomes.length} MLS welcome(s) for space ${spaceId}`)
+    }
   }
 
   const leaveSpaceAsync = async (serverUrl: string, spaceId: string, identityId: string) => {
@@ -466,6 +526,8 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     listSpacesAsync,
     inviteMemberAsync,
     joinSpaceFromInviteAsync,
+    finalizeInviteAsync,
+    processWelcomesAsync,
     leaveSpaceAsync,
     deleteSpaceAsync,
     removeIdentityFromSpaceAsync,

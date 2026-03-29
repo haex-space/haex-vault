@@ -8,7 +8,7 @@ use rusqlite::Connection;
 
 use crate::mls::provider::HaexMlsProvider;
 use crate::mls::storage::SqlCipherMlsStorage;
-use crate::mls::types::{MlsCommitBundle, MlsGroupInfo, MlsIdentityInfo};
+use crate::mls::types::{MlsCommitBundle, MlsEpochKey, MlsGroupInfo, MlsIdentityInfo};
 
 const CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
@@ -207,6 +207,36 @@ impl MlsManager {
             packages.push(bytes);
         }
         Ok(packages)
+    }
+
+    /// Export the current epoch's sync encryption key.
+    /// Uses MLS export_secret (RFC 9420 §8.5) to derive a 32-byte symmetric key,
+    /// then stores it locally so it can be retrieved for decryption later.
+    pub fn export_epoch_key(&self, space_id: &str) -> Result<MlsEpochKey, String> {
+        let group_id = GroupId::from_slice(space_id.as_bytes());
+        let group = MlsGroup::load(self.provider.storage(), &group_id)
+            .map_err(|e| format!("Failed to load group: {e}"))?
+            .ok_or_else(|| format!("Group not found for space: {space_id}"))?;
+
+        let epoch = group.epoch().as_u64();
+        let key = group
+            .export_secret(self.provider.crypto(), "haex-vault-sync", &[], 32)
+            .map_err(|e| format!("Failed to export secret: {e}"))?;
+
+        // Persist so we can decrypt historical data from this epoch
+        self.provider.storage().store_sync_key(space_id, epoch, &key)
+            .map_err(|e| format!("Failed to store sync key: {e}"))?;
+
+        Ok(MlsEpochKey { epoch, key })
+    }
+
+    /// Retrieve a previously stored sync encryption key for a specific epoch.
+    pub fn get_epoch_key(&self, space_id: &str, epoch: u64) -> Result<MlsEpochKey, String> {
+        let key = self.provider.storage().load_sync_key(space_id, epoch)
+            .map_err(|e| format!("Failed to load sync key: {e}"))?
+            .ok_or_else(|| format!("No sync key found for space {space_id} epoch {epoch}"))?;
+
+        Ok(MlsEpochKey { epoch, key })
     }
 
     fn get_signer(&self) -> Result<SignatureKeyPair, String> {

@@ -438,7 +438,8 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       const backend = findBackend(backendId)
       resolvedServerUrl = backend.serverUrl
     }
-    return deleteRemote(resolvedServerUrl, spaceId)
+    const identity = await resolveBackendIdentityAsync(backendId)
+    return deleteRemote(resolvedServerUrl, spaceId, identity.privateKey, identity.did)
   }
 
   /**
@@ -453,7 +454,8 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       const backend = findBackend(backendId)
       resolvedServerUrl = backend.serverUrl
     }
-    return deleteAllVaults(resolvedServerUrl)
+    const identity = await resolveBackendIdentityAsync(backendId)
+    return deleteAllVaults(resolvedServerUrl, identity.privateKey, identity.did)
   }
 
   /**
@@ -465,8 +467,9 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     newVaultName: string,
   ): Promise<void> => {
     const backend = findBackend(backendId)
+    const identity = await resolveBackendIdentityAsync(backendId)
     const identityPublicKey = await getIdentityAgreementPublicKeyAsync(backendId)
-    return updateName(backend.serverUrl, spaceId, newVaultName, identityPublicKey)
+    return updateName(backend.serverUrl, spaceId, newVaultName, identityPublicKey, identity.privateKey, identity.did)
   }
 
   /**
