@@ -84,9 +84,9 @@
 
         <!-- All modes: role + expiry -->
         <USelectMenu
-          v-model="selectedRole"
-          :items="roleOptions"
-          :placeholder="t('form.roleLabel')"
+          v-model="selectedCapability"
+          :items="capabilityOptions"
+          :placeholder="t('form.capabilityLabel')"
           class="w-full mt-3"
         />
 
@@ -124,7 +124,8 @@
 <script setup lang="ts">
 import QRCode from 'qrcode'
 import { SettingsCategory } from '~/config/settingsCategories'
-import { SpaceRoles, type SpaceRole, publicKeyToDidKeyAsync } from '@haex-space/vault-sdk'
+import { publicKeyToDidKeyAsync } from '@haex-space/vault-sdk'
+import type { SpaceCapability } from '@haex-space/ucan'
 import type { SelectHaexContacts } from '~/database/schemas'
 
 const open = defineModel<boolean>('open', { required: true })
@@ -132,24 +133,11 @@ const open = defineModel<boolean>('open', { required: true })
 const props = defineProps<{
   spaceId: string
   serverUrl: string
-  callerRole: SpaceRole
   identityId: string
   mode: 'contact' | 'link' | 'open'
 }>()
 
 const { t } = useI18n()
-
-const roleToCapability = (role: string): string => {
-  switch (role) {
-    case SpaceRoles.ADMIN:
-    case SpaceRoles.OWNER:
-      return 'space/admin'
-    case SpaceRoles.READER:
-      return 'space/read'
-    default:
-      return 'space/write'
-  }
-}
 const { add } = useToast()
 
 const windowManager = useWindowManagerStore()
@@ -165,7 +153,7 @@ const generatedLink = ref('')
 const generatedExpiresAt = ref('')
 const qrCanvas = ref<HTMLCanvasElement>()
 
-const selectedRole = ref<{ label: string; value: string } | undefined>()
+const selectedCapability = ref<{ label: string; value: SpaceCapability } | undefined>()
 const selectedExpiry = ref<{ label: string; value: number } | undefined>()
 
 const dialogTitle = computed(() => {
@@ -192,17 +180,12 @@ const selectedContact = computed<SelectHaexContacts | undefined>(() =>
   contacts.value.find(c => c.id === selectedContactId.value),
 )
 
-const roleOptions = computed(() => {
-  const options: { label: string; value: string }[] = []
-  if (props.callerRole === SpaceRoles.ADMIN) {
-    options.push({ label: t('roles.owner'), value: SpaceRoles.OWNER })
-  }
-  options.push(
-    { label: t('roles.member'), value: SpaceRoles.MEMBER },
-    { label: t('roles.reader'), value: SpaceRoles.READER },
-  )
-  return options
-})
+const capabilityOptions = computed((): { label: string; value: SpaceCapability }[] => [
+  { label: t('capabilities.admin'), value: 'space/admin' },
+  { label: t('capabilities.invite'), value: 'space/invite' },
+  { label: t('capabilities.write'), value: 'space/write' },
+  { label: t('capabilities.read'), value: 'space/read' },
+])
 
 const expiryOptions = computed(() => {
   if (props.mode === 'open') {
@@ -223,7 +206,7 @@ const expiryOptions = computed(() => {
 })
 
 const canSubmit = computed(() => {
-  if (!selectedRole.value || !selectedExpiry.value) return false
+  if (!selectedCapability.value || !selectedExpiry.value) return false
   if (props.mode === 'contact') return !!selectedContact.value
   return true
 })
@@ -236,14 +219,15 @@ const resetForm = () => {
   maxUses.value = 50
   generatedLink.value = ''
   generatedExpiresAt.value = ''
-  selectedRole.value = undefined
+  selectedCapability.value = undefined
   selectedExpiry.value = undefined
 }
 
 watch(open, async (isOpen) => {
   if (isOpen) {
     resetForm()
-    // Set default expiry
+    // Set defaults
+    selectedCapability.value = capabilityOptions.value[2] // space/write
     const defaults = expiryOptions.value
     selectedExpiry.value = props.mode === 'open' ? defaults[2] : defaults[1] // 1d for open, 7d for link/contact
     if (props.mode === 'contact') {
@@ -264,7 +248,7 @@ const onSubmitAsync = async () => {
         props.serverUrl,
         props.spaceId,
         inviteeDid,
-        roleToCapability(selectedRole.value!.value),
+        selectedCapability.value!.value,
         props.identityId,
       )
       add({ title: t('success.invited'), color: 'success' })
@@ -275,7 +259,7 @@ const onSubmitAsync = async () => {
         props.serverUrl,
         props.spaceId,
         {
-          capability: roleToCapability(selectedRole.value!.value),
+          capability: selectedCapability.value!.value,
           maxUses: props.mode === 'open' ? maxUses.value : 1,
           expiresInSeconds: selectedExpiry.value!.value,
           label: inviteLabel.value || undefined,
@@ -331,16 +315,17 @@ de:
     selectContact: Kontakt auswählen
     noContacts: Keine Kontakte vorhanden
     manageContacts: Kontakte verwalten
-    roleLabel: Berechtigung
+    capabilityLabel: Berechtigung
     expiryLabel: Gültigkeit
     label: Bezeichnung
     labelPlaceholderLink: z.B. Einladung für Max
     labelPlaceholderOpen: z.B. Konferenz März 2026
     maxUses: Maximale Nutzungen
-  roles:
-    owner: Eigentümer
-    member: Mitglied
-    reader: Leser
+  capabilities:
+    admin: Admin (Vollzugriff)
+    invite: Einladen (Lesen + Schreiben + Einladen)
+    write: Schreiben (Lesen + Schreiben)
+    read: Lesen (nur Lesen)
   expiry:
     1h: 1 Stunde
     6h: 6 Stunden
@@ -375,16 +360,17 @@ en:
     selectContact: Select contact
     noContacts: No contacts found
     manageContacts: Manage contacts
-    roleLabel: Permission
+    capabilityLabel: Permission
     expiryLabel: Valid for
     label: Label
     labelPlaceholderLink: e.g. Invite for Max
     labelPlaceholderOpen: e.g. Conference March 2026
     maxUses: Maximum uses
-  roles:
-    owner: Owner
-    member: Member
-    reader: Reader
+  capabilities:
+    admin: Admin (full access)
+    invite: Invite (read + write + invite)
+    write: Write (read + write)
+    read: Read (read only)
   expiry:
     1h: 1 hour
     6h: 6 hours

@@ -215,7 +215,6 @@
       v-model:open="showInviteDialog"
       :space-id="inviteSpaceId"
       :server-url="inviteServerUrl"
-      :caller-role="inviteSpaceCallerRole"
       :identity-id="inviteIdentityId"
       :mode="inviteMode"
     />
@@ -240,7 +239,7 @@
 
 <script setup lang="ts">
 import { SettingsCategory } from '~/config/settingsCategories'
-import { SpaceRoles, type DecryptedSpace, type SpaceRole } from '@haex-space/vault-sdk'
+import { SpaceRoles, type DecryptedSpace } from '@haex-space/vault-sdk'
 import SpaceListItem from './spaces/SpaceListItem.vue'
 import SpaceInviteDialog from './spaces/SpaceInviteDialog.vue'
 import PendingInvites from './spaces/PendingInvites.vue'
@@ -290,7 +289,6 @@ const joinInviteLink = ref('')
 // Invite dialog state
 const inviteSpaceId = ref('')
 const inviteServerUrl = ref('')
-const inviteSpaceCallerRole = ref<SpaceRole>(SpaceRoles.MEMBER)
 const inviteMode = ref<'contact' | 'link' | 'open'>('contact')
 const inviteIdentityId = ref('')
 
@@ -538,7 +536,6 @@ const getIdentityForSpace = (spaceServerUrl: string): string | undefined => {
 // Open invite dialog
 const openInviteDialog = (space: DecryptedSpace, mode: 'contact' | 'link' | 'open' = 'contact') => {
   inviteSpaceId.value = space.id
-  inviteSpaceCallerRole.value = space.role
   inviteServerUrl.value = space.serverUrl
   inviteIdentityId.value = getIdentityForSpace(space.serverUrl) ?? ''
   inviteMode.value = mode
