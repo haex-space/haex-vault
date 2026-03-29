@@ -204,6 +204,14 @@ CREATE TABLE `haex_logs` (
 	FOREIGN KEY (`extension_id`) REFERENCES `haex_extensions`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
+CREATE TABLE `haex_mls_sync_keys` (
+	`id` text PRIMARY KEY NOT NULL,
+	`space_id` text NOT NULL,
+	`epoch` integer NOT NULL,
+	`key_data` text NOT NULL,
+	FOREIGN KEY (`space_id`) REFERENCES `haex_spaces`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
 CREATE TABLE `haex_notifications` (
 	`id` text PRIMARY KEY NOT NULL,
 	`alt` text,
@@ -269,14 +277,6 @@ CREATE TABLE `haex_space_devices` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_space_devices_space_device_unique` ON `haex_space_devices` (`space_id`,`device_endpoint_id`);--> statement-breakpoint
-CREATE TABLE `haex_space_keys` (
-	`id` text PRIMARY KEY NOT NULL,
-	`space_id` text NOT NULL,
-	`generation` integer NOT NULL,
-	`key` text NOT NULL,
-	FOREIGN KEY (`space_id`) REFERENCES `haex_spaces`(`id`) ON UPDATE no action ON DELETE no action
-);
---> statement-breakpoint
 CREATE TABLE `haex_spaces` (
 	`id` text PRIMARY KEY NOT NULL,
 	`type` text DEFAULT 'shared' NOT NULL,

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "feede40a-e171-45aa-a72e-21b1b4fa5ff0",
+  "id": "cc83d6f5-771b-4e38-8ed3-a90c6e75b098",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "haex_crdt_configs_no_sync": {
@@ -1345,6 +1345,58 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "haex_mls_sync_keys": {
+      "name": "haex_mls_sync_keys",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "space_id": {
+          "name": "space_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "epoch": {
+          "name": "epoch",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "key_data": {
+          "name": "key_data",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "haex_mls_sync_keys_space_id_haex_spaces_id_fk": {
+          "name": "haex_mls_sync_keys_space_id_haex_spaces_id_fk",
+          "tableFrom": "haex_mls_sync_keys",
+          "tableTo": "haex_spaces",
+          "columnsFrom": [
+            "space_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "haex_notifications": {
       "name": "haex_notifications",
       "columns": {
@@ -1786,58 +1838,6 @@
           ],
           "columnsTo": [
             "public_key"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "haex_space_keys": {
-      "name": "haex_space_keys",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "space_id": {
-          "name": "space_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "generation": {
-          "name": "generation",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "key": {
-          "name": "key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "haex_space_keys_space_id_haex_spaces_id_fk": {
-          "name": "haex_space_keys_space_id_haex_spaces_id_fk",
-          "tableFrom": "haex_space_keys",
-          "tableTo": "haex_spaces",
-          "columnsFrom": [
-            "space_id"
-          ],
-          "columnsTo": [
-            "id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"

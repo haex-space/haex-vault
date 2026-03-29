@@ -564,6 +564,27 @@ export type InsertHaexSharedSpaceSync = typeof haexSharedSpaceSync.$inferInsert
 export type SelectHaexSharedSpaceSync = typeof haexSharedSpaceSync.$inferSelect
 
 // ---------------------------------------------------------------------------
+// MLS Sync Keys — epoch-derived encryption keys for shared spaces (CRDT-synced)
+// Synced between a user's devices so all devices can encrypt/decrypt space data
+// ---------------------------------------------------------------------------
+
+export const haexMlsSyncKeys = sqliteTable(
+  tableNames.haex.mls_sync_keys.name,
+  {
+    id: text(tableNames.haex.mls_sync_keys.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    spaceId: text(tableNames.haex.mls_sync_keys.columns.spaceId)
+      .notNull()
+      .references(() => haexSpaces.id, { onDelete: 'cascade' }),
+    epoch: integer(tableNames.haex.mls_sync_keys.columns.epoch).notNull(),
+    keyData: text(tableNames.haex.mls_sync_keys.columns.keyData).notNull(), // Base64-encoded 32-byte key
+  },
+)
+export type InsertHaexMlsSyncKeys = typeof haexMlsSyncKeys.$inferInsert
+export type SelectHaexMlsSyncKeys = typeof haexMlsSyncKeys.$inferSelect
+
+// ---------------------------------------------------------------------------
 // UCAN Tokens — cached capability tokens for space operations
 // ---------------------------------------------------------------------------
 

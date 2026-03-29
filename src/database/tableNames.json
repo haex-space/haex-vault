@@ -318,6 +318,15 @@
         "updatedAt": "updated_at"
       }
     },
+    "mls_sync_keys": {
+      "name": "haex_mls_sync_keys",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "epoch": "epoch",
+        "keyData": "key_data"
+      }
+    },
 
     "logs": {
       "name": "haex_logs",
