@@ -11,13 +11,11 @@ export async function createDidAuthHeader(
   action: string,
   body?: string,
 ): Promise<string> {
-  const bodyHash = Array.from(
+  const bodyHash = base64urlEncode(
     new Uint8Array(
       await crypto.subtle.digest('SHA-256', new TextEncoder().encode(body ?? '')),
     ),
   )
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('')
 
   const payload = JSON.stringify({
     did,
