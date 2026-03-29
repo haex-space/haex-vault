@@ -1,5 +1,6 @@
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod external_bridge;
+mod crypto;
 mod crdt;
 mod database;
 mod device;
@@ -221,6 +222,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            crypto::generate_x25519_keypair,
             database::close_database,
             database::create_encrypted_database,
             database::delete_vault,
