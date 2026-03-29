@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "65845b5e-e3a3-4652-8bde-c78dcc691bb5",
+  "id": "11ab8a89-fcb5-44d9-b399-24e42a94afce",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "haex_crdt_configs_no_sync": {
@@ -542,6 +542,73 @@
           "value": "(\"haex_desktop_items_no_sync\".\"item_type\" = 'extension' AND \"haex_desktop_items_no_sync\".\"extension_id\" IS NOT NULL AND \"haex_desktop_items_no_sync\".\"system_window_id\" IS NULL) OR (\"haex_desktop_items_no_sync\".\"item_type\" = 'system' AND \"haex_desktop_items_no_sync\".\"system_window_id\" IS NOT NULL AND \"haex_desktop_items_no_sync\".\"extension_id\" IS NULL) OR (\"haex_desktop_items_no_sync\".\"item_type\" = 'file' AND \"haex_desktop_items_no_sync\".\"system_window_id\" IS NOT NULL AND \"haex_desktop_items_no_sync\".\"extension_id\" IS NULL) OR (\"haex_desktop_items_no_sync\".\"item_type\" = 'folder' AND \"haex_desktop_items_no_sync\".\"system_window_id\" IS NOT NULL AND \"haex_desktop_items_no_sync\".\"extension_id\" IS NULL)"
         }
       }
+    },
+    "haex_device_mls_enrollments": {
+      "name": "haex_device_mls_enrollments",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "space_id": {
+          "name": "space_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "device_did": {
+          "name": "device_did",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "key_package": {
+          "name": "key_package",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "welcome": {
+          "name": "welcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pending'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "haex_device_mls_enrollments_space_id_haex_spaces_id_fk": {
+          "name": "haex_device_mls_enrollments_space_id_haex_spaces_id_fk",
+          "tableFrom": "haex_device_mls_enrollments",
+          "tableTo": "haex_spaces",
+          "columnsFrom": [
+            "space_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
     },
     "haex_extension_limits": {
       "name": "haex_extension_limits",

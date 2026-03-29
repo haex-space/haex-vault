@@ -328,6 +328,17 @@
         "keyData": "key_data"
       }
     },
+    "device_mls_enrollments": {
+      "name": "haex_device_mls_enrollments",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "deviceDid": "device_did",
+        "keyPackage": "key_package",
+        "welcome": "welcome",
+        "status": "status"
+      }
+    },
 
     "logs": {
       "name": "haex_logs",

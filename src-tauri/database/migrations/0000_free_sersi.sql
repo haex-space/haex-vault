@@ -84,6 +84,16 @@ CREATE TABLE `haex_desktop_items_no_sync` (
 	CONSTRAINT "item_reference" CHECK(("haex_desktop_items_no_sync"."item_type" = 'extension' AND "haex_desktop_items_no_sync"."extension_id" IS NOT NULL AND "haex_desktop_items_no_sync"."system_window_id" IS NULL) OR ("haex_desktop_items_no_sync"."item_type" = 'system' AND "haex_desktop_items_no_sync"."system_window_id" IS NOT NULL AND "haex_desktop_items_no_sync"."extension_id" IS NULL) OR ("haex_desktop_items_no_sync"."item_type" = 'file' AND "haex_desktop_items_no_sync"."system_window_id" IS NOT NULL AND "haex_desktop_items_no_sync"."extension_id" IS NULL) OR ("haex_desktop_items_no_sync"."item_type" = 'folder' AND "haex_desktop_items_no_sync"."system_window_id" IS NOT NULL AND "haex_desktop_items_no_sync"."extension_id" IS NULL))
 );
 --> statement-breakpoint
+CREATE TABLE `haex_device_mls_enrollments` (
+	`id` text PRIMARY KEY NOT NULL,
+	`space_id` text NOT NULL,
+	`device_did` text NOT NULL,
+	`key_package` text NOT NULL,
+	`welcome` text,
+	`status` text DEFAULT 'pending' NOT NULL,
+	FOREIGN KEY (`space_id`) REFERENCES `haex_spaces`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
 CREATE TABLE `haex_extension_limits` (
 	`id` text PRIMARY KEY NOT NULL,
 	`extension_id` text NOT NULL,

@@ -585,6 +585,31 @@ export type InsertHaexMlsSyncKeys = typeof haexMlsSyncKeys.$inferInsert
 export type SelectHaexMlsSyncKeys = typeof haexMlsSyncKeys.$inferSelect
 
 // ---------------------------------------------------------------------------
+// Device MLS Enrollments — automatic device enrollment into MLS groups (CRDT-synced)
+// When a device sees a space it's not yet an MLS member of, it writes a pending enrollment.
+// Another enrolled device consumes the KeyPackage, adds the device, and writes the Welcome.
+// Works over any transport (server sync, QUIC/P2P, LAN).
+// ---------------------------------------------------------------------------
+
+export const haexDeviceMlsEnrollments = sqliteTable(
+  tableNames.haex.device_mls_enrollments.name,
+  {
+    id: text(tableNames.haex.device_mls_enrollments.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    spaceId: text(tableNames.haex.device_mls_enrollments.columns.spaceId)
+      .notNull()
+      .references(() => haexSpaces.id, { onDelete: 'cascade' }),
+    deviceDid: text(tableNames.haex.device_mls_enrollments.columns.deviceDid).notNull(),
+    keyPackage: text(tableNames.haex.device_mls_enrollments.columns.keyPackage).notNull(), // Base64
+    welcome: text(tableNames.haex.device_mls_enrollments.columns.welcome), // Base64, set by enrolling device
+    status: text(tableNames.haex.device_mls_enrollments.columns.status).notNull().default('pending'), // 'pending' | 'enrolled'
+  },
+)
+export type InsertHaexDeviceMlsEnrollments = typeof haexDeviceMlsEnrollments.$inferInsert
+export type SelectHaexDeviceMlsEnrollments = typeof haexDeviceMlsEnrollments.$inferSelect
+
+// ---------------------------------------------------------------------------
 // UCAN Tokens — cached capability tokens for space operations
 // ---------------------------------------------------------------------------
 
