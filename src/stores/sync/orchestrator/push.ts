@@ -10,7 +10,8 @@ import {
   clearDirtyTableAsync,
   type ColumnChange,
 } from '../tableScanner'
-import { fetchWithReauthAsync } from '../engine/supabase'
+import { DidAuthAction } from '@haex-space/ucan'
+import { createDidAuthHeader } from '@/utils/auth/didAuth'
 import { orchestratorLog as log, type BackendSyncState, syncMutex } from './types'
 
 /**
@@ -290,29 +291,23 @@ export const pushChangesToServerAsync = async (
     return base
   }))
 
-  // Auth header: JWT Bearer token
-  const token = await syncEngineStore.getAuthTokenAsync()
-  if (!token) {
-    throw new Error('Not authenticated')
-  }
-  const authHeaders: Record<string, string> = { Authorization: `Bearer ${token}` }
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...authHeaders,
-  }
+  // Resolve identity for DID-Auth
+  const identityStore = useIdentityStore()
+  const identity = backend.identityId ? await identityStore.getIdentityAsync(backend.identityId) : null
+  if (!identity) throw new Error('No identity configured for this backend')
 
   const url = `${backend.serverUrl}/sync/push`
+  const requestBody = JSON.stringify({ spaceId, changes: formattedChanges })
+
   log.debug('Sending POST to:', url)
   log.debug('Request payload:', { spaceId, changesCount: formattedChanges.length })
 
-  // Send to server
-  const response = await fetchWithReauthAsync(url, {
+  // Send to server with DID-Auth
+  const authHeader = await createDidAuthHeader(identity.privateKey, identity.did, DidAuthAction.SyncPush, requestBody)
+  const response = await fetch(url, {
     method: 'POST',
-    headers,
-    body: JSON.stringify({
-      spaceId,
-      changes: formattedChanges,
-    }),
+    headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+    body: requestBody,
   })
 
   if (!response.ok) {

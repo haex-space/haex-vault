@@ -6,8 +6,9 @@
 import { invoke } from '@tauri-apps/api/core'
 import { emit } from '@tauri-apps/api/event'
 import { decryptCrdtData } from '@haex-space/vault-sdk'
+import { DidAuthAction } from '@haex-space/ucan'
 import type { ColumnChange } from '../tableScanner'
-import { fetchWithReauthAsync } from '../engine/supabase'
+import { createDidAuthHeader } from '@/utils/auth/didAuth'
 import { orchestratorLog as log, type BackendSyncState, type PullResult, syncMutex } from './types'
 import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
 import { SYNC_TABLES_INTERNAL_EVENT } from '../syncEvents'
@@ -79,6 +80,7 @@ export const pullFromBackendAsync = async (
       backend.spaceId,
       lastPullServerTimestamp,
       syncEngineStore,
+      backend.identityId,
     )
 
     const { changes: allChanges, serverTimestamp } = pullResult
@@ -190,14 +192,18 @@ export const pullChangesFromServerAsync = async (
   spaceId: string,
   lastPullServerTimestamp: string | null | undefined,
   syncEngineStore: ReturnType<typeof useSyncEngineStore>,
+  backendIdentityId?: string | null,
 ): Promise<PullResult> => {
   log.info('pullChangesFromServerAsync: Starting pull from', serverUrl, 'space:', spaceId)
 
-  const token = await syncEngineStore.getAuthTokenAsync()
-  if (!token) {
-    throw new Error('Not authenticated')
+  // Resolve identity for DID-Auth
+  let identity: { privateKey: string; did: string } | null = null
+  if (backendIdentityId) {
+    const identityStore = useIdentityStore()
+    const id = await identityStore.getIdentityAsync(backendIdentityId)
+    if (id) identity = id
   }
-  const authHeaders: Record<string, string> = { Authorization: `Bearer ${token}` }
+  if (!identity) throw new Error('No identity configured for this backend')
 
   const allChanges: ColumnChange[] = []
   let hasMore = true
@@ -223,9 +229,10 @@ export const pullChangesFromServerAsync = async (
     const url = `${serverUrl}/sync/pull?${params.toString()}`
     log.info(`[PAGINATION] Fetching page ${pageCount} with cursor: ${currentCursor || '(none)'}, tableName: ${currentTableName || '(none)'}, rowPks: ${currentRowPks || '(none)'}`)
 
-    const response = await fetchWithReauthAsync(url, {
+    const authHeader = await createDidAuthHeader(identity.privateKey, identity.did, DidAuthAction.SyncPull)
+    const response = await fetch(url, {
       method: 'GET',
-      headers: authHeaders,
+      headers: { Authorization: authHeader },
     })
 
     if (!response.ok) {
@@ -512,11 +519,11 @@ export const pullPendingColumnsAsync = async (
 
   log.info(`Found ${pendingColumns.length} pending columns to pull:`, pendingColumns)
 
-  const token = await syncEngineStore.getAuthTokenAsync()
-  if (!token) {
-    throw new Error('Not authenticated')
-  }
-  const authHeaders: Record<string, string> = { Authorization: `Bearer ${token}` }
+  const syncBackendsStore = useSyncBackendsStore()
+  const backendRecord = syncBackendsStore.backends.find(b => b.id === backendId)
+  const identityStore = useIdentityStore()
+  const identity = backendRecord?.identityId ? await identityStore.getIdentityAsync(backendRecord.identityId) : null
+  if (!identity) throw new Error('No identity configured for this backend')
 
   // Step 2: Pull data for each column from server (with pagination)
   let totalPulled = 0
@@ -531,16 +538,18 @@ export const pullPendingColumnsAsync = async (
 
     // Pagination loop for this column
     while (hasMore) {
-      const response = await fetchWithReauthAsync(`${serverUrl}/sync/pull-columns`, {
+      const requestBody = JSON.stringify({
+        spaceId,
+        columns: [{ tableName: pendingCol.tableName, columnName: pendingCol.columnName }],
+        limit: 1000,
+        afterTableName: lastTableName,
+        afterRowPks: lastRowPks,
+      })
+      const authHeader = await createDidAuthHeader(identity.privateKey, identity.did, DidAuthAction.SyncPullColumns, requestBody)
+      const response = await fetch(`${serverUrl}/sync/pull-columns`, {
         method: 'POST',
-        headers: authHeaders,
-        body: JSON.stringify({
-          spaceId,
-          columns: [{ tableName: pendingCol.tableName, columnName: pendingCol.columnName }],
-          limit: 1000,
-          afterTableName: lastTableName,
-          afterRowPks: lastRowPks,
-        }),
+        headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+        body: requestBody,
       })
 
       if (!response.ok) {
