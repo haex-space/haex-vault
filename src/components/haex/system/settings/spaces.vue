@@ -18,6 +18,26 @@
       </UButton>
     </template>
 
+      <!-- Pending Invites Section -->
+      <UCollapsible v-model:open="showInvitesSection" :unmount-on-hide="false">
+        <div class="flex items-center gap-1.5 py-2 mb-3 text-sm font-medium hover:text-primary transition-colors cursor-pointer">
+          <UIcon
+            name="i-lucide-chevron-right"
+            class="w-4 h-4 transition-transform duration-200"
+            :class="{ 'rotate-90': showInvitesSection }"
+          />
+          <UIcon name="i-lucide-mail" class="w-4 h-4" />
+          <span>{{ t('invites.title') }}</span>
+        </div>
+        <template #content>
+          <div class="mb-4">
+            <PendingInvites ref="pendingInvitesRef" />
+          </div>
+        </template>
+      </UCollapsible>
+
+      <USeparator class="mb-4" />
+
       <!-- Loading -->
       <div
         v-if="isLoadingSpaces"
@@ -220,6 +240,7 @@ import { SettingsCategory } from '~/config/settingsCategories'
 import { SpaceRoles, type DecryptedSpace, type SpaceInvite, type SpaceRole } from '@haex-space/vault-sdk'
 import SpaceListItem from './spaces/SpaceListItem.vue'
 import SpaceInviteDialog from './spaces/SpaceInviteDialog.vue'
+import PendingInvites from './spaces/PendingInvites.vue'
 import { decodeInviteLink } from '~/utils/inviteLink'
 
 const props = defineProps<{
@@ -247,6 +268,8 @@ const showJoinDialog = ref(false)
 const showInviteDialog = ref(false)
 const showDeleteConfirm = ref(false)
 const showLeaveConfirm = ref(false)
+const showInvitesSection = ref(false)
+const pendingInvitesRef = ref<InstanceType<typeof PendingInvites> | null>(null)
 
 // Create form
 const createForm = reactive({
@@ -588,6 +611,8 @@ const onConfirmLeaveAsync = async () => {
 de:
   title: Spaces
   description: Erstelle, verwalte und tritt geteilten Spaces bei
+  invites:
+    title: Einladungen
   list:
     title: Deine Spaces
     description: Geteilte Spaces für die Zusammenarbeit mit anderen
@@ -639,6 +664,8 @@ de:
 en:
   title: Spaces
   description: Create, manage and join shared spaces
+  invites:
+    title: Invitations
   list:
     title: Your Spaces
     description: Shared spaces for collaboration with others
