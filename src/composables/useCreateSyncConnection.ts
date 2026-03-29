@@ -41,7 +41,7 @@ async function signClaimPresentation(
   const privateKey = await importUserPrivateKeyAsync(privateKeyBase64)
   const data = new TextEncoder().encode(canonical)
   const sig = await crypto.subtle.sign(
-    { name: 'ECDSA', hash: 'SHA-256' },
+    'Ed25519',
     privateKey,
     data,
   )

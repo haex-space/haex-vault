@@ -177,7 +177,7 @@ export const didAuthenticateAsync = async (
 
   const privateKey = await importUserPrivateKeyAsync(privateKeyBase64)
   const sig = await crypto.subtle.sign(
-    { name: 'ECDSA', hash: 'SHA-256' },
+    'Ed25519',
     privateKey,
     new TextEncoder().encode(nonce),
   )
