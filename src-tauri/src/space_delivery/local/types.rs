@@ -57,3 +57,25 @@ pub struct ElectionResultInfo {
     pub leader_priority: Option<i32>,
     pub leader_relay_url: Option<String>,
 }
+
+/// Info about a local invite token (exposed to frontend).
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct LocalInviteInfo {
+    pub id: String,
+    pub target_did: Option<String>,
+    pub capability: String,
+    pub max_uses: u32,
+    pub current_uses: u32,
+    pub expires_at: String,
+}
+
+/// Result of claiming a local invite.
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ClaimInviteResult {
+    pub space_id: String,
+    pub capability: String,
+}

@@ -65,6 +65,8 @@ pub struct AppState {
     pub pty_manager: extension::shell::pty::PtyManager,
     /// Active local sync loops (space_id -> handle)
     pub local_sync_loops: tokio::sync::Mutex<HashMap<String, space_delivery::local::sync_loop::SyncLoopHandle>>,
+    /// Leader state for local space delivery (set when leader mode is active)
+    pub leader_state: tokio::sync::Mutex<Option<Arc<space_delivery::local::leader::LeaderState>>>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -156,6 +158,7 @@ pub fn run() {
             auth_token: Arc::new(Mutex::new(None)),
             pty_manager: extension::shell::pty::PtyManager::new(),
             local_sync_loops: tokio::sync::Mutex::new(HashMap::new()),
+            leader_state: tokio::sync::Mutex::new(None),
         })
         //.manage(ExtensionState::default())
         .plugin(tauri_plugin_dialog::init())
@@ -463,6 +466,10 @@ pub fn run() {
             space_delivery::local::commands::local_delivery_elect,
             space_delivery::local::commands::local_delivery_connect,
             space_delivery::local::commands::local_delivery_disconnect,
+            space_delivery::local::commands::local_delivery_create_invite,
+            space_delivery::local::commands::local_delivery_list_invites,
+            space_delivery::local::commands::local_delivery_revoke_invite,
+            space_delivery::local::commands::local_delivery_claim_invite,
             // MLS (RFC 9420) group key management
             mls::commands::mls_init_tables,
             mls::commands::mls_init_identity,
