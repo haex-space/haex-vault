@@ -2425,7 +2425,7 @@ dependencies = [
 
 [[package]]
 name = "haex-vault"
-version = "1.6.130"
+version = "1.6.131"
 dependencies = [
  "aes-gcm",
  "async-trait",
