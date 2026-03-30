@@ -244,7 +244,8 @@ import { SpaceRoles, type DecryptedSpace } from '@haex-space/vault-sdk'
 import SpaceListItem from './spaces/SpaceListItem.vue'
 import SpaceInviteDialog from './spaces/SpaceInviteDialog.vue'
 import PendingInvites from './spaces/PendingInvites.vue'
-import { parseInviteTokenLink } from '~/utils/inviteLink'
+import { parseInviteTokenLink, parseLocalInviteLink } from '~/utils/inviteLink'
+import { invoke } from '@tauri-apps/api/core'
 
 const props = defineProps<{
   inviteLink?: string
@@ -482,6 +483,37 @@ const onJoinSpaceAsync = async () => {
 
   isJoining.value = true
   try {
+    // Check if it's a local invite first
+    const localLink = parseLocalInviteLink(joinInviteLink.value.trim())
+    if (localLink) {
+      await identityStore.loadIdentitiesAsync()
+      const identityId = identityStore.identities[0]?.publicKey
+      if (!identityId) {
+        add({ title: t('errors.noIdentity'), color: 'error' })
+        return
+      }
+      const identity = await identityStore.getIdentityAsync(identityId)
+      if (!identity) {
+        add({ title: t('errors.noIdentity'), color: 'error' })
+        return
+      }
+
+      await invoke('local_delivery_claim_invite', {
+        leaderEndpointId: localLink.endpointId,
+        leaderRelayUrl: localLink.relayUrl || null,
+        spaceId: localLink.spaceId,
+        tokenId: localLink.tokenId,
+        identityDid: identity.did,
+        label: identity.label || null,
+      })
+
+      add({ title: t('success.joined'), color: 'success' })
+      showJoinDialog.value = false
+      joinInviteLink.value = ''
+      await spacesStore.loadSpacesFromDbAsync()
+      return
+    }
+
     const tokenLink = parseInviteTokenLink(joinInviteLink.value.trim())
     if (!tokenLink) {
       add({ title: t('errors.invalidInviteLink'), color: 'error' })
