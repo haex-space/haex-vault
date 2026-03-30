@@ -412,6 +412,11 @@ export const useVaultStore = defineStore('vaultStore', () => {
       $setConsoleLoggerDeviceId(useDeviceStore().deviceId!)
     }
 
+    // Initialize MLS subsystem (tables + identity) — must happen before any space
+    // creation because createLocalSpaceAsync calls mls_create_group which needs identity
+    await invoke('mls_init_tables')
+    await invoke('mls_init_identity')
+
     // Ensure vault space exists in haex_spaces (FK target for sync backends)
     const spacesStore = useSpacesStore()
     await spacesStore.ensureVaultSpaceAsync(currentVaultId.value, currentVaultName.value)
@@ -424,10 +429,6 @@ export const useVaultStore = defineStore('vaultStore', () => {
     if (currentVault.value?.drizzle) {
       await loadUcansFromDbAsync(currentVault.value.drizzle)
     }
-
-    // Initialize MLS subsystem (tables + identity)
-    await invoke('mls_init_tables')
-    await invoke('mls_init_identity')
 
     // Auto-enroll this device into MLS groups for shared spaces (non-blocking)
     const deviceStore = useDeviceStore()
