@@ -452,6 +452,11 @@ pub fn run() {
             peer_storage::peer_storage_transfer_pause,
             peer_storage::peer_storage_transfer_resume,
             peer_storage::open_file_system,
+            // Space Delivery (local leader mode)
+            space_delivery::local::commands::local_delivery_start,
+            space_delivery::local::commands::local_delivery_stop,
+            space_delivery::local::commands::local_delivery_status,
+            space_delivery::local::commands::local_delivery_get_leader,
             // MLS (RFC 9420) group key management
             mls::commands::mls_init_tables,
             mls::commands::mls_init_identity,
