@@ -27,6 +27,7 @@ const levelMap: Record<string, string> = {
 // Buffer logs until device ID is available
 let deviceId: string | null = null
 let bufferedLogs: { level: string; message: string }[] = []
+let disabled = false
 
 function flushBuffer() {
   if (!deviceId) return
@@ -37,6 +38,8 @@ function flushBuffer() {
 }
 
 function writeLog(level: string, message: string) {
+  if (disabled) return
+
   if (!deviceId) {
     bufferedLogs.push({ level, message })
     return
@@ -90,7 +93,13 @@ export default defineNuxtPlugin(() => {
     provide: {
       setConsoleLoggerDeviceId: (id: string) => {
         deviceId = id
+        disabled = false
         flushBuffer()
+      },
+      disableConsoleLogger: () => {
+        disabled = true
+        deviceId = null
+        bufferedLogs = []
       },
     },
   }

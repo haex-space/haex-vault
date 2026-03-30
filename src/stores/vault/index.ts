@@ -48,6 +48,10 @@ export const useVaultStore = defineStore('vaultStore', () => {
    * Called from closeAsync and from the currentVault watcher as a safety net.
    */
   const resetAllVaultStores = () => {
+    // Disable console logger first to prevent IPC errors during teardown
+    const { $disableConsoleLogger } = useNuxtApp()
+    if ($disableConsoleLogger) $disableConsoleLogger()
+
     useDesktopStore().reset()
     useExtensionsStore().reset()
     useWorkspaceStore().reset()
