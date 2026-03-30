@@ -76,10 +76,6 @@ export const useVaultStore = defineStore('vaultStore', () => {
 
       const enabledBackends = syncBackendsStore.enabledBackends
 
-      if (enabledBackends.length === 0) {
-        return
-      }
-
       for (const backend of enabledBackends) {
         try {
           // Check if backend has an identity for auth
@@ -148,10 +144,8 @@ export const useVaultStore = defineStore('vaultStore', () => {
         }
       }
 
-      // Start sync after all logins are attempted
-      if (enabledBackends.length > 0) {
-        await syncOrchestratorStore.startSyncAsync()
-      }
+      // Start sync (initializes local sync listener + remote backends if any)
+      await syncOrchestratorStore.startSyncAsync()
     } catch (error) {
       console.error('[HaexSpace] Auto-login and sync start error:', error)
     }

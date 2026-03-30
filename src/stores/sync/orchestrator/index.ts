@@ -4,7 +4,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { listen, emit } from '@tauri-apps/api/event'
 import { orchestratorLog as log, type BackendSyncState } from './types'
 import { enterBulkMode, exitBulkMode } from '@/stores/logging'
 import { pushToBackendAsync, pushAllDataToBackendAsync } from './push'
@@ -20,7 +20,7 @@ import {
   setupVisibilityListener,
   removeVisibilityListener,
 } from './realtime'
-import { initSyncEventsAsync, stopSyncEvents, registerStoreForTables } from '../syncEvents'
+import { initSyncEventsAsync, stopSyncEvents, registerStoreForTables, SYNC_TABLES_INTERNAL_EVENT } from '../syncEvents'
 
 // Re-export types
 export * from './types'
@@ -42,6 +42,7 @@ export const useSyncOrchestratorStore = defineStore(
     let periodicSyncInterval: ReturnType<typeof setInterval> | null = null
     const periodicPullIntervals: Map<string, ReturnType<typeof setInterval>> = new Map()
     let eventUnlisten: (() => void) | null = null
+    let localSyncUnlisten: (() => void) | null = null
 
     // Adaptive debouncing for bulk operations
     // Tracks event frequency to detect bulk imports and increase debounce accordingly
@@ -411,19 +412,8 @@ export const useSyncOrchestratorStore = defineStore(
       log.info('[START-SYNC] startSyncAsync CALLED at ' + new Date().toISOString())
       log.info('[START-SYNC] ========================================')
 
-      const enabledBackends = syncBackendsStore.enabledBackends
-
-      if (enabledBackends.length === 0) {
-        log.info('[START-SYNC] No enabled backends to sync with')
-        return
-      }
-
-      log.info(
-        `[START-SYNC] Found ${enabledBackends.length} enabled backends:`,
-        enabledBackends.map((b) => ({ id: b.id, name: b.name })),
-      )
-
-      // Initialize sync events listener (for frontend refresh after pull)
+      // Initialize sync events listener (for frontend refresh after pull and local sync)
+      // This must happen before the backends check so local-only vaults also get store reloads
       log.debug('START: Initializing sync events listener...')
       await initSyncEventsAsync()
 
@@ -488,6 +478,32 @@ export const useSyncOrchestratorStore = defineStore(
           await contactsStore.loadContactsAsync()
         },
       )
+
+      // Listen for local sync completions from Rust sync loop
+      // This fires when the local delivery service applies buffered changes
+      if (!localSyncUnlisten) {
+        localSyncUnlisten = await listen<{ spaceId: string; tables: string[] }>('local-sync-completed', async (event) => {
+          const { spaceId, tables } = event.payload
+          log.info(`[LOCAL-SYNC] Received local-sync-completed for space ${spaceId}, tables: ${tables.join(', ')}`)
+          if (tables && tables.length > 0) {
+            await emit(SYNC_TABLES_INTERNAL_EVENT, { tables })
+          }
+        })
+        log.info('[START-SYNC] Local sync listener registered')
+      }
+
+      const enabledBackends = syncBackendsStore.enabledBackends
+
+      if (enabledBackends.length === 0) {
+        log.info('[START-SYNC] No enabled backends to sync with')
+        return
+      }
+
+      log.info(
+        `[START-SYNC] Found ${enabledBackends.length} enabled backends:`,
+        enabledBackends.map((b) => ({ id: b.id, name: b.name })),
+      )
+
       // Load sync configuration
       log.info('[START-SYNC] Loading sync configuration...')
       await syncConfigStore.loadConfigAsync()
@@ -543,6 +559,12 @@ export const useSyncOrchestratorStore = defineStore(
      */
     const stopSyncAsync = async (): Promise<void> => {
       log.info('========== STOP SYNC ==========')
+
+      // Stop local sync listener
+      if (localSyncUnlisten) {
+        localSyncUnlisten()
+        localSyncUnlisten = null
+      }
 
       // Remove visibility listener for mobile reconnection
       removeVisibilityListener()
