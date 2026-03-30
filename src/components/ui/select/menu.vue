@@ -2,7 +2,7 @@
   <div class="relative">
     <label
       v-if="label"
-      class="absolute pointer-events-none px-1.5 z-10 text-xs font-medium -top-2 left-1 text-highlighted"
+      class="absolute pointer-events-none px-1.5 z-10 text-xs font-medium -top-1.5 left-1 text-highlighted"
     >
       <span class="inline-flex bg-default px-1">
         {{ label }}
