@@ -178,6 +178,7 @@
               v-model="editForm.serverUrl"
               :items="editServerOptions"
               :placeholder="t('edit.serverPlaceholder')"
+              :disabled="editingSpaceIsLocal"
               class="flex-1"
             />
             <UiButton
@@ -256,7 +257,7 @@ const spacesStore = useSpacesStore()
 const syncBackendsStore = useSyncBackendsStore()
 const windowManager = useWindowManagerStore()
 
-const { visibleSpaces } = storeToRefs(spacesStore)
+const { visibleSpaces, spaces } = storeToRefs(spacesStore)
 const { backends: syncBackends } = storeToRefs(syncBackendsStore)
 
 // Loading states
@@ -299,6 +300,11 @@ const editingSpace = ref<DecryptedSpace | null>(null)
 const editForm = reactive({
   name: '',
   serverUrl: undefined as { label: string; value: string } | undefined,
+})
+
+const editingSpaceIsLocal = computed(() => {
+  const space = spaces.value.find(s => s.id === editingSpace.value?.id)
+  return space?.type === 'local'
 })
 
 const editServerOptions = computed(() => {

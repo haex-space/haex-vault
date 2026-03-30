@@ -251,6 +251,10 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     newServerUrl: string,
     identityId: string,
   ) => {
+    const spaceEntry = spaces.value.find(s => s.id === spaceId)
+    if (spaceEntry?.type === 'local') throw new Error('Cannot change server for local spaces')
+    if (spaceEntry?.type === 'vault') throw new Error('Cannot change server for vault space')
+
     const identity = await resolveIdentityAsync(identityId)
 
     const space = spaces.value.find(s => s.id === spaceId)
@@ -337,6 +341,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     identityId: string,
     includeHistory: boolean = false,
   ): Promise<{ inviteId: string }> => {
+    const spaceEntry = spaces.value.find(s => s.id === spaceId)
+    if (spaceEntry?.type === 'vault') throw new Error('Cannot invite members to vault space')
+
     const identity = await resolveIdentityAsync(identityId)
 
     // Create delegated UCAN for the invitee (signed by admin)
@@ -386,6 +393,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       label?: string
     },
   ): Promise<{ tokenId: string; expiresAt: string }> => {
+    const spaceEntry = spaces.value.find(s => s.id === spaceId)
+    if (spaceEntry?.type === 'vault') throw new Error('Cannot create invite tokens for vault space')
+
     const response = await fetchWithSpaceUcanAuth(
       `${serverUrl}/spaces/${spaceId}/invite-tokens`,
       spaceId,
@@ -570,6 +580,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   }
 
   const deleteSpaceAsync = async (serverUrl: string, spaceId: string) => {
+    const spaceEntry = spaces.value.find(s => s.id === spaceId)
+    if (spaceEntry?.type === 'vault') throw new Error('Cannot delete vault space')
+
     const response = await fetchWithSpaceUcanAuth(`${serverUrl}/spaces/${spaceId}`, spaceId, {
       method: 'DELETE',
     })
