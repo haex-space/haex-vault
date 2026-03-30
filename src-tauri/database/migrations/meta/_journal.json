@@ -8,6 +8,13 @@
       "when": 1774824228656,
       "tag": "0000_nasty_vindicator",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1774829470395,
+      "tag": "0001_cynical_dragon_lord",
+      "breakpoints": true
     }
   ]
 }
