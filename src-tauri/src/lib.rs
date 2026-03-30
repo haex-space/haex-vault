@@ -12,6 +12,7 @@ mod mls;
 mod shortcuts;
 pub mod peer_storage;
 mod remote_storage;
+mod space_delivery;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod window;
 
