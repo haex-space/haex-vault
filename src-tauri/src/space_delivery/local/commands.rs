@@ -10,7 +10,7 @@ use crate::database::DbConnection;
 use crate::AppState;
 
 use super::leader::{LeaderConnectionHandler, LeaderState};
-use super::types::{DeliveryStatus, LeaderInfo};
+use super::types::{DeliveryStatus, ElectionResultInfo, LeaderInfo};
 
 /// Start leader mode for a local space.
 #[tauri::command]
@@ -100,5 +100,48 @@ pub async fn local_delivery_get_leader(
         }))
     } else {
         Ok(None)
+    }
+}
+
+/// Run leader election for a local space.
+/// Probes all devices in parallel, returns who should be leader.
+#[tauri::command]
+pub async fn local_delivery_elect(
+    state: State<'_, AppState>,
+    space_id: String,
+) -> Result<ElectionResultInfo, String> {
+    let db = DbConnection(state.db.0.clone());
+    let endpoint = state.peer_storage.lock().await;
+    let own_endpoint_id = endpoint.endpoint_id().to_string();
+
+    let result = super::election::elect_leader(&db, &endpoint, &space_id, &own_endpoint_id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    match result {
+        super::election::ElectionResult::SelfIsLeader => {
+            Ok(ElectionResultInfo {
+                role: "leader".to_string(),
+                leader_endpoint_id: Some(own_endpoint_id),
+                leader_priority: None,
+                leader_relay_url: None,
+            })
+        }
+        super::election::ElectionResult::RemoteLeader { endpoint_id, relay_url, priority } => {
+            Ok(ElectionResultInfo {
+                role: "peer".to_string(),
+                leader_endpoint_id: Some(endpoint_id),
+                leader_priority: Some(priority),
+                leader_relay_url: relay_url,
+            })
+        }
+        super::election::ElectionResult::NoLeaderFound => {
+            Ok(ElectionResultInfo {
+                role: "none".to_string(),
+                leader_endpoint_id: None,
+                leader_priority: None,
+                leader_relay_url: None,
+            })
+        }
     }
 }

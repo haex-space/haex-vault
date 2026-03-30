@@ -45,3 +45,15 @@ pub struct LeaderInfo {
     pub priority: i32,
     pub space_id: String,
 }
+
+/// Result of a leader election, exposed to frontend.
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ElectionResultInfo {
+    /// "leader", "peer", or "none"
+    pub role: String,
+    pub leader_endpoint_id: Option<String>,
+    pub leader_priority: Option<i32>,
+    pub leader_relay_url: Option<String>,
+}
