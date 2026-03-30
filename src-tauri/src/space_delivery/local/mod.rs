@@ -6,6 +6,7 @@ pub mod housekeeping;
 pub mod leader;
 pub mod peer;
 pub mod protocol;
+pub mod sync_loop;
 pub mod types;
 
 pub use commands::*;
