@@ -117,7 +117,7 @@
           <UiButton
             icon="i-lucide-plus"
             :loading="isCreating"
-            :disabled="!createForm.name || !createForm.serverUrl?.value"
+            :disabled="!createForm.name?.trim()"
             @click="onCreateSpaceAsync"
           >
             {{ t('actions.create') }}
