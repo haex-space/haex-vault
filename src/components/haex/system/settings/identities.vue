@@ -747,9 +747,15 @@ const onCreateAsync = async () => {
       createLabel.value.trim(),
     )
 
-    // Save avatar if set
+    // Save avatar: use uploaded image, or generate from label seed for consistency
     if (createAvatar.value) {
       await identityStore.updateAvatarAsync(identity.publicKey, createAvatar.value)
+    } else {
+      // Generate the same avatar that was shown in the dialog (seed = label)
+      const { createAvatar: createDicebear } = await import('@dicebear/core')
+      const bottts = await import('@dicebear/bottts')
+      const svg = createDicebear(bottts, { seed: createLabel.value.trim() }).toDataUri()
+      await identityStore.updateAvatarAsync(identity.publicKey, svg)
     }
 
     // Store identity password for use when connecting to a sync backend
