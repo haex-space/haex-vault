@@ -550,21 +550,100 @@ async fn handle_delivery_stream(
             }
         }
 
-        Request::SyncPush {
-            space_id: _,
-            changes: _,
-        } => {
-            // TODO: Phase 6.4 — CRDT sync over local delivery
-            Response::Ok
+        Request::SyncPush { space_id, changes } => {
+            if space_id != state.space_id {
+                Response::Error {
+                    message: format!("Wrong space: expected {}", state.space_id),
+                }
+            } else {
+                match serde_json::from_value::<Vec<crate::crdt::scanner::LocalColumnChange>>(
+                    changes,
+                ) {
+                    Ok(local_changes) if !local_changes.is_empty() => {
+                        let batch_id = Uuid::new_v4().to_string();
+                        let total = local_changes.len();
+
+                        // Convert LocalColumnChange → RemoteColumnChange
+                        let remote_changes: Vec<crate::crdt::commands::RemoteColumnChange> =
+                            local_changes
+                                .iter()
+                                .enumerate()
+                                .map(|(i, lc)| crate::crdt::commands::RemoteColumnChange {
+                                    table_name: lc.table_name.clone(),
+                                    row_pks: lc.row_pks.clone(),
+                                    column_name: lc.column_name.clone(),
+                                    hlc_timestamp: lc.hlc_timestamp.clone(),
+                                    batch_id: batch_id.clone(),
+                                    batch_seq: i + 1,
+                                    batch_total: total,
+                                    decrypted_value: lc.value.clone(),
+                                })
+                                .collect();
+
+                        // Apply changes to leader's DB (no backend_info for local delivery)
+                        match crate::crdt::commands::apply_remote_changes_to_db(
+                            &state.db,
+                            remote_changes,
+                            None,
+                        ) {
+                            Ok(()) => {
+                                // Collect affected table names for notification
+                                let mut tables: Vec<String> =
+                                    local_changes.iter().map(|c| c.table_name.clone()).collect();
+                                tables.sort();
+                                tables.dedup();
+
+                                // Broadcast NOTIFY_SYNC to other connected peers
+                                let notification = Notification::Sync {
+                                    space_id: space_id.clone(),
+                                    tables,
+                                };
+                                let senders = state.notification_senders.read().await;
+                                for (endpoint_id, sender) in senders.iter() {
+                                    if endpoint_id != peer_endpoint_id {
+                                        let _ = sender.try_send(notification.clone());
+                                    }
+                                }
+
+                                Response::Ok
+                            }
+                            Err(e) => Response::Error {
+                                message: format!("Apply error: {e}"),
+                            },
+                        }
+                    }
+                    Ok(_) => Response::Ok, // Empty changes
+                    Err(e) => Response::Error {
+                        message: format!("Invalid changes format: {e}"),
+                    },
+                }
+            }
         }
 
         Request::SyncPull {
-            space_id: _,
-            after_timestamp: _,
+            space_id,
+            after_timestamp,
         } => {
-            // TODO: Phase 6.4 — CRDT sync over local delivery
-            Response::SyncChanges {
-                changes: serde_json::Value::Array(vec![]),
+            if space_id != state.space_id {
+                Response::Error {
+                    message: format!("Wrong space: expected {}", state.space_id),
+                }
+            } else {
+                match crate::crdt::scanner::scan_all_crdt_tables_for_local_changes(
+                    &state.db,
+                    after_timestamp.as_deref(),
+                    "leader",
+                ) {
+                    Ok(changes) => match serde_json::to_value(&changes) {
+                        Ok(json) => Response::SyncChanges { changes: json },
+                        Err(e) => Response::Error {
+                            message: format!("Serialization error: {e}"),
+                        },
+                    },
+                    Err(e) => Response::Error {
+                        message: format!("Scan error: {e}"),
+                    },
+                }
             }
         }
     };
