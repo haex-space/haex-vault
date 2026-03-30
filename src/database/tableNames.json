@@ -340,6 +340,48 @@
         "status": "status"
       }
     },
+    "local_ds_messages": {
+      "name": "haex_local_ds_messages_no_sync",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "senderDid": "sender_did",
+        "messageType": "message_type",
+        "messageBlob": "message_blob",
+        "createdAt": "created_at"
+      }
+    },
+    "local_ds_key_packages": {
+      "name": "haex_local_ds_key_packages_no_sync",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "targetDid": "target_did",
+        "packageBlob": "package_blob",
+        "createdAt": "created_at"
+      }
+    },
+    "local_ds_welcomes": {
+      "name": "haex_local_ds_welcomes_no_sync",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "recipientDid": "recipient_did",
+        "welcomeBlob": "welcome_blob",
+        "consumed": "consumed",
+        "createdAt": "created_at"
+      }
+    },
+    "local_ds_pending_commits": {
+      "name": "haex_local_ds_pending_commits_no_sync",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "commitBlob": "commit_blob",
+        "deliveredTo": "delivered_to",
+        "createdAt": "created_at"
+      }
+    },
 
     "logs": {
       "name": "haex_logs",

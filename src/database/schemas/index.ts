@@ -1,4 +1,5 @@
 export * from './crdt'
 export * from './haex'
+export * from './localDelivery'
 export * from './mls'
 export * from './storage'
