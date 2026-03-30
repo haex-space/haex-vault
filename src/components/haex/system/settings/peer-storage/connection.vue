@@ -46,7 +46,7 @@
 
     <!-- No Spaces -->
     <HaexSystemSettingsLayoutEmpty
-      v-if="!spacesStore.spaces.length"
+      v-if="!spacesStore.visibleSpaces.length"
       :message="t('noSpaces')"
       icon="i-lucide-cloud-off"
     >
@@ -64,7 +64,7 @@
     <!-- Spaces -->
     <UiListContainer v-else>
       <div
-        v-for="space in spacesStore.spaces"
+        v-for="space in spacesStore.visibleSpaces"
         :key="space.id"
       >
         <UCollapsible
@@ -326,7 +326,7 @@ const getDeviceName = (deviceEndpointId: string): string | undefined => {
 const canDeleteShare = (spaceId: string, share: SelectHaexPeerShares): boolean => {
   if (share.deviceEndpointId === store.nodeId) return true
 
-  const space = spacesStore.spaces.find((s) => s.id === spaceId)
+  const space = spacesStore.visibleSpaces.find((s) => s.id === spaceId)
   if (space && (space.role === SpaceRoles.ADMIN || space.role === SpaceRoles.OWNER)) return true
 
   const shareDevice = store.spaceDevices.find(
