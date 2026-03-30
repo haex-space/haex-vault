@@ -24,7 +24,8 @@ use tauri::{AppHandle, Emitter};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-/// Event emitted when files change in a watched directory
+/// Event emitted when files change in a watched directory (desktop only)
+#[cfg_attr(any(target_os = "android", target_os = "ios"), allow(dead_code))]
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -37,6 +38,7 @@ pub struct FileChangeEvent {
     pub path: Option<String>,
 }
 
+#[cfg_attr(any(target_os = "android", target_os = "ios"), allow(dead_code))]
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
