@@ -8,5 +8,6 @@ pub mod peer;
 pub mod protocol;
 pub mod sync_loop;
 pub mod types;
+pub mod ucan;
 
 pub use commands::*;
