@@ -251,6 +251,7 @@
         "deviceName": "device_name",
         "avatar": "avatar",
         "relayUrl": "relay_url",
+        "leaderPriority": "leader_priority",
         "createdAt": "created_at"
       }
     },
