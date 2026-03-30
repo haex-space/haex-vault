@@ -65,7 +65,7 @@ pub async fn device_init_key(
             Some(val) => val,
             None => {
                 let mut secret_bytes = [0u8; 32];
-                rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut secret_bytes);
+                rand::fill(&mut secret_bytes);
                 let new_secret = hex::encode(secret_bytes);
 
                 let hlc_service = state.hlc.lock().map_err(|e| DeviceError::Database {

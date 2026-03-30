@@ -567,7 +567,7 @@ pub fn create_encrypted_database(
     println!("[CREATE_DB] Step 6: Generating device_key_secret...");
     {
         let mut secret_bytes = [0u8; 32];
-        rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut secret_bytes);
+        rand::fill(&mut secret_bytes);
         let secret_hex = hex::encode(secret_bytes);
 
         let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {

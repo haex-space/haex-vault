@@ -61,11 +61,8 @@ pub fn load_or_generate(
 }
 
 fn generate_new() -> SecretKey {
-    // TODO: Replace with SecretKey::generate() once p256 upgrades to rand_core 0.9
-    // Currently iroh uses rand_core 0.9 but p256 uses rand_core 0.6 (via rand 0.8).
-    // Track: when p256 >= 0.14 ships with rand_core 0.9, upgrade rand to 0.9 project-wide.
     let mut bytes = [0u8; 32];
-    rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut bytes);
+    rand::fill(&mut bytes);
     SecretKey::from_bytes(&bytes)
 }
 
@@ -120,7 +117,7 @@ fn save(
     })?;
 
     let mut nonce_bytes = [0u8; NONCE_SIZE];
-    rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut nonce_bytes);
+    rand::fill(&mut nonce_bytes);
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     let plaintext = secret_key.to_bytes();

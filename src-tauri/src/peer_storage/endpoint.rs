@@ -112,7 +112,7 @@ impl PeerEndpoint {
     /// Create a PeerEndpoint with a temporary random key (for testing or pre-init state).
     pub fn new_ephemeral() -> Self {
         let mut bytes = [0u8; 32];
-        rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut bytes);
+        rand::fill(&mut bytes);
         Self::new(SecretKey::from_bytes(&bytes))
     }
 
@@ -171,7 +171,7 @@ impl PeerEndpoint {
             }
         };
 
-        let endpoint = Endpoint::builder()
+        let endpoint = Endpoint::builder(iroh::endpoint::presets::N0)
             .secret_key(self.secret_key.clone())
             .alpns(vec![
                 ALPN.to_vec(),

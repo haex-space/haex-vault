@@ -8,7 +8,6 @@ use aes_gcm::{
     Aes256Gcm, Nonce,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use rand::rngs::OsRng;
 use x25519_dalek::{PublicKey, StaticSecret};
 
 use super::error::BridgeError;
@@ -25,7 +24,9 @@ pub struct ServerKeyPair {
 impl ServerKeyPair {
     /// Generate a new X25519 keypair
     pub fn generate() -> Self {
-        let secret = StaticSecret::random_from_rng(OsRng);
+        let mut secret_bytes = [0u8; 32];
+        rand::fill(&mut secret_bytes);
+        let secret = StaticSecret::from(secret_bytes);
         let public_key = PublicKey::from(&secret);
         Self { secret, public_key }
     }
@@ -67,7 +68,7 @@ pub fn encrypt_message(plaintext: &[u8], shared_key: &[u8; 32]) -> Result<(Vec<u
         .map_err(|e| BridgeError::Crypto(format!("Invalid key: {}", e)))?;
 
     let mut iv = [0u8; IV_LENGTH];
-    rand::RngCore::fill_bytes(&mut OsRng, &mut iv);
+    rand::fill(&mut iv);
     let nonce = Nonce::from(iv);
 
     let ciphertext = cipher

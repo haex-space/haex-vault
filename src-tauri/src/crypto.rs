@@ -4,7 +4,6 @@ use aes_gcm::{
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use hkdf::Hkdf;
-use rand::rngs::OsRng;
 use sha2::Sha256;
 use x25519_dalek::{PublicKey, StaticSecret};
 
@@ -17,7 +16,9 @@ const IV_LENGTH: usize = 12;
 /// (notably webkit2gtk on Linux). Ed25519 signing stays in WebCrypto.
 #[tauri::command]
 pub fn generate_x25519_keypair() -> Result<X25519KeyPair, String> {
-    let secret = StaticSecret::random_from_rng(OsRng);
+    let mut secret_bytes = [0u8; 32];
+    rand::fill(&mut secret_bytes);
+    let secret = StaticSecret::from(secret_bytes);
     let public_key = PublicKey::from(&secret);
 
     Ok(X25519KeyPair {
@@ -43,7 +44,9 @@ pub fn x25519_encrypt(plaintext_b64: String, recipient_public_key_b64: String) -
     let recipient_pk = PublicKey::from(pk_array);
 
     // Generate ephemeral keypair
-    let ephemeral_secret = StaticSecret::random_from_rng(OsRng);
+    let mut eph_bytes = [0u8; 32];
+    rand::fill(&mut eph_bytes);
+    let ephemeral_secret = StaticSecret::from(eph_bytes);
     let ephemeral_public = PublicKey::from(&ephemeral_secret);
 
     // Derive shared secret via ECDH
@@ -60,7 +63,7 @@ pub fn x25519_encrypt(plaintext_b64: String, recipient_public_key_b64: String) -
         .map_err(|e| format!("AES init failed: {e}"))?;
 
     let mut iv = [0u8; IV_LENGTH];
-    rand::Fill::try_fill(&mut iv, &mut OsRng).map_err(|e| format!("RNG failed: {e}"))?;
+    rand::fill(&mut iv);
     let nonce = Nonce::from_slice(&iv);
 
     let ciphertext = cipher.encrypt(nonce, plaintext.as_ref())

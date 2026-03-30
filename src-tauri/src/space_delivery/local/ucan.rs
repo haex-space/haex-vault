@@ -5,8 +5,7 @@
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use ed25519_dalek::{Signer, SigningKey};
-use rand::RngCore;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -238,7 +237,7 @@ fn encode_json_base64url<T: Serialize>(value: &T) -> Result<String, DeliveryErro
 /// Generate a 12-byte random nonce, base64url-encoded.
 fn generate_nonce() -> String {
     let mut bytes = [0u8; 12];
-    rand::rngs::OsRng.fill_bytes(&mut bytes);
+    rand::fill(&mut bytes);
     BASE64URL.encode(bytes)
 }
 
@@ -263,7 +262,9 @@ mod tests {
     #[test]
     fn test_create_delegated_ucan_structure() {
         // Generate a fresh keypair to get a known-good PKCS8 blob.
-        let signing_key = SigningKey::generate(&mut rand::rngs::OsRng);
+        let mut seed = [0u8; 32];
+        rand::fill(&mut seed);
+        let signing_key = SigningKey::from_bytes(&seed);
         let seed = signing_key.to_bytes();
 
         // Build a minimal PKCS8 DER envelope (48 bytes total).
