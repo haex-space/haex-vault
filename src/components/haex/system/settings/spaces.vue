@@ -85,24 +85,19 @@
           :label="t('create.nameLabel')"
           @keydown.enter.prevent="onCreateSpaceAsync"
         />
-        <div class="space-y-2">
-          <div class="flex items-center gap-2">
-            <USelectMenu
-              v-model="createForm.serverUrl"
-              :items="serverUrlOptions"
-              :placeholder="t('create.serverLabel')"
-              class="flex-1"
-            />
-            <UiButton
-              icon="i-lucide-server"
-              variant="outline"
-              color="neutral"
-              @click="onNavigateToSync"
-            />
-          </div>
-          <p v-if="!serverUrlOptions.length" class="text-xs text-muted">
-            {{ t('create.noServersHint') }}
-          </p>
+        <div class="flex items-center gap-2">
+          <UiSelectMenu
+            v-model="createForm.serverUrl"
+            :items="serverUrlOptions"
+            :label="t('create.serverLabel')"
+            class="flex-1"
+          />
+          <UiButton
+            icon="i-lucide-server"
+            variant="outline"
+            color="neutral"
+            @click="onNavigateToSync"
+          />
         </div>
       </template>
       <template #footer>
@@ -367,18 +362,19 @@ const onSaveEditAsync = async () => {
 // Delete/Leave target
 const targetSpace = ref<DecryptedSpace | null>(null)
 
-// Server URL options from existing sync backends
+// Server URL options from existing sync backends (with local-only default)
 const serverUrlOptions = computed(() => {
+  const options = [{ label: t('create.localOnly'), value: '' }]
   const urls = new Set<string>()
   for (const backend of syncBackends.value) {
     if (backend.serverUrl) {
       urls.add(backend.serverUrl)
     }
   }
-  return [...urls].map(url => ({
-    label: url,
-    value: url,
-  }))
+  for (const url of urls) {
+    options.push({ label: url, value: url })
+  }
+  return options
 })
 
 const onNavigateToSync = () => {
@@ -431,7 +427,7 @@ const onCreateSpaceAsync = async () => {
 
   isCreating.value = true
   try {
-    const isLocal = !createForm.serverUrl?.value || createForm.serverUrl.value === 'local'
+    const isLocal = !createForm.serverUrl?.value
 
     if (isLocal) {
       // Local space — no server needed
@@ -660,8 +656,8 @@ de:
     title: Space erstellen
     description: Erstelle einen neuen geteilten Space
     nameLabel: Name
-    serverLabel: Server auswählen
-    noServersHint: Kein Server konfiguriert. Klicke auf das Zahnrad, um einen hinzuzufügen.
+    serverLabel: Sync-Server
+    localOnly: Lokal (ohne Server)
     defaultSelfLabel: Ich
   join:
     title: Space beitreten
@@ -713,8 +709,8 @@ en:
     title: Create Space
     description: Create a new shared space
     nameLabel: Name
-    serverLabel: Select server
-    noServersHint: No server configured. Click the gear icon to add one.
+    serverLabel: Sync Server
+    localOnly: Local (no server)
     defaultSelfLabel: Me
   join:
     title: Join Space
