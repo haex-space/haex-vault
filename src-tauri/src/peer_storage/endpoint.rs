@@ -23,6 +23,15 @@ use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::protocol::{self, FileEntry, Request, Response, ALPN};
 
 // ============================================================================
+// Delivery connection handler trait
+// ============================================================================
+
+/// Trait for handling space delivery connections. Implemented by space_delivery module.
+pub trait DeliveryConnectionHandler: Send + Sync {
+    fn handle_connection(&self, conn: iroh::endpoint::Connection) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>>;
+}
+
+// ============================================================================
 // Shared state
 // ============================================================================
 
@@ -50,6 +59,8 @@ pub struct PeerState {
     pub allowed_peers: HashMap<String, HashSet<String>>,
     /// Tauri AppHandle for android_fs operations (set on Android before start)
     pub app_handle: Option<tauri::AppHandle>,
+    /// Handler for incoming space delivery connections (set by space_delivery module)
+    pub delivery_handler: Option<Arc<dyn DeliveryConnectionHandler>>,
 }
 
 impl Default for PeerState {
@@ -58,6 +69,7 @@ impl Default for PeerState {
             shares: HashMap::new(),
             allowed_peers: HashMap::new(),
             app_handle: None,
+            delivery_handler: None,
         }
     }
 }
@@ -69,6 +81,7 @@ impl std::fmt::Debug for PeerState {
             .field("shares", &self.shares)
             .field("allowed_peers", &self.allowed_peers)
             .field("app_handle", &self.app_handle.as_ref().map(|_| "Some(AppHandle)"))
+            .field("delivery_handler", &self.delivery_handler.as_ref().map(|_| "Some(DeliveryConnectionHandler)"))
             .finish()
     }
 }
@@ -119,6 +132,11 @@ impl PeerEndpoint {
         self.state.write().await.app_handle = Some(app_handle);
     }
 
+    /// Register a handler for space delivery connections.
+    pub async fn set_delivery_handler(&self, handler: Arc<dyn DeliveryConnectionHandler>) {
+        self.state.write().await.delivery_handler = Some(handler);
+    }
+
     /// Get the public EndpointId
     pub fn endpoint_id(&self) -> EndpointId {
         self.secret_key.public()
@@ -155,7 +173,10 @@ impl PeerEndpoint {
 
         let endpoint = Endpoint::builder()
             .secret_key(self.secret_key.clone())
-            .alpns(vec![ALPN.to_vec()])
+            .alpns(vec![
+                ALPN.to_vec(),
+                crate::space_delivery::local::protocol::ALPN.to_vec(),
+            ])
             .relay_mode(relay_mode)
             .address_lookup(
                 iroh::address_lookup::MdnsAddressLookup::builder()
@@ -427,28 +448,50 @@ async fn accept_loop(endpoint: Endpoint, state: Arc<RwLock<PeerState>>) {
         tokio::spawn(async move {
             match incoming.await {
                 Ok(conn) => {
+                    let alpn = conn.alpn();
+                    let alpn_bytes: &[u8] = &alpn;
                     let remote = conn.remote_id();
-                    let remote_str = remote.to_string();
 
-                    // Check access control: which spaces is this peer allowed to access?
-                    let allowed_spaces = {
-                        let s = state.read().await;
-                        s.allowed_peers.get(&remote_str).cloned()
-                    };
+                    if alpn_bytes == ALPN {
+                        // --- Peer storage protocol ---
+                        let remote_str = remote.to_string();
 
-                    match allowed_spaces {
-                        Some(spaces) if !spaces.is_empty() => {
-                            eprintln!("[PeerStorage] Accepted connection from {remote} (access to {} spaces)", spaces.len());
-                            handle_connection(conn, state).await;
+                        let allowed_spaces = {
+                            let s = state.read().await;
+                            s.allowed_peers.get(&remote_str).cloned()
+                        };
+
+                        match allowed_spaces {
+                            Some(spaces) if !spaces.is_empty() => {
+                                eprintln!("[PeerStorage] Accepted connection from {remote} (access to {} spaces)", spaces.len());
+                                handle_connection(conn, state).await;
+                            }
+                            _ => {
+                                eprintln!("[PeerStorage] Rejected connection from {remote}: not registered in any shared space");
+                            }
                         }
-                        _ => {
-                            eprintln!("[PeerStorage] Rejected connection from {remote}: not registered in any shared space");
-                            // Connection will be dropped, closing it
+                    } else if alpn_bytes == crate::space_delivery::local::protocol::ALPN {
+                        // --- Space delivery protocol ---
+                        let handler = {
+                            let s = state.read().await;
+                            s.delivery_handler.clone()
+                        };
+
+                        match handler {
+                            Some(h) => {
+                                eprintln!("[SpaceDelivery] Accepted delivery connection from {remote}");
+                                h.handle_connection(conn).await;
+                            }
+                            None => {
+                                eprintln!("[SpaceDelivery] Rejected delivery connection from {remote}: no handler registered");
+                            }
                         }
+                    } else {
+                        eprintln!("[Endpoint] Rejected connection from {remote}: unknown ALPN {:?}", String::from_utf8_lossy(&alpn));
                     }
                 }
                 Err(e) => {
-                    eprintln!("[PeerStorage] Failed to accept connection: {e}");
+                    eprintln!("[Endpoint] Failed to accept connection: {e}");
                 }
             }
         });
