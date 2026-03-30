@@ -60,15 +60,88 @@ pub async fn local_delivery_status(state: State<'_, AppState>) -> Result<Deliver
     let endpoint = state.peer_storage.lock().await;
     let peer_state = endpoint.state.read().await;
     let is_leader = peer_state.delivery_handler.is_some();
+    drop(peer_state);
+    drop(endpoint);
+
+    let loops = state.local_sync_loops.lock().await;
+    let active_space = loops.keys().next().cloned();
 
     Ok(DeliveryStatus {
         is_leader,
-        space_id: None,
+        space_id: active_space,
         connected_peers: vec![],
         buffered_messages: 0,
         buffered_welcomes: 0,
         buffered_key_packages: 0,
     })
+}
+
+/// Connect to a local space leader and start autonomous sync.
+#[tauri::command]
+pub async fn local_delivery_connect(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    space_id: String,
+    leader_endpoint_id: String,
+    leader_relay_url: Option<String>,
+    identity_did: String,
+) -> Result<(), String> {
+    // 1. Check if already connected
+    let mut loops = state.local_sync_loops.lock().await;
+    if loops.contains_key(&space_id) {
+        return Err(format!("Already connected to space {space_id}"));
+    }
+
+    // 2. Get our endpoint info
+    let endpoint = state.peer_storage.lock().await;
+    if !endpoint.is_running() {
+        return Err("Peer storage endpoint not running".to_string());
+    }
+    let our_endpoint_id = endpoint.endpoint_id().to_string();
+    let iroh_endpoint = endpoint
+        .endpoint_ref()
+        .ok_or("Endpoint not running")?
+        .clone();
+    drop(endpoint); // Release lock before starting async work
+
+    // 3. Use our endpoint ID as device_id
+    let device_id = our_endpoint_id.clone();
+
+    // 4. Start sync loop
+    let db = DbConnection(state.db.0.clone());
+    let handle = super::sync_loop::start_peer_sync_loop(
+        db,
+        iroh_endpoint,
+        leader_endpoint_id,
+        leader_relay_url,
+        space_id.clone(),
+        identity_did,
+        our_endpoint_id,
+        device_id,
+        app,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+
+    loops.insert(space_id.clone(), handle);
+    eprintln!("[SpaceDelivery] Started sync loop for space {space_id}");
+    Ok(())
+}
+
+/// Disconnect from a local space leader and stop sync.
+#[tauri::command]
+pub async fn local_delivery_disconnect(
+    state: State<'_, AppState>,
+    space_id: String,
+) -> Result<(), String> {
+    let mut loops = state.local_sync_loops.lock().await;
+    if let Some(handle) = loops.remove(&space_id) {
+        handle.stop();
+        eprintln!("[SpaceDelivery] Stopped sync loop for space {space_id}");
+        Ok(())
+    } else {
+        Err(format!("No active sync loop for space {space_id}"))
+    }
 }
 
 /// Get the current leader for a local space.
