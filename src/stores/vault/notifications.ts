@@ -107,6 +107,10 @@ export const useNotificationStore = defineStore('notificationStore', () => {
       .where(or(...filter))
   }
 
+  const reset = () => {
+    notifications.value = []
+  }
+
   return {
     addNotificationAsync,
     checkNotificationAsync,
@@ -116,5 +120,6 @@ export const useNotificationStore = defineStore('notificationStore', () => {
     readNotificationsAsync,
     requestNotificationPermissionAsync,
     syncNotificationsAsync,
+    reset,
   }
 })

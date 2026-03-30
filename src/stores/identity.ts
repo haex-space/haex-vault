@@ -230,6 +230,11 @@ export const useIdentityStore = defineStore('identityStore', () => {
     }).where(eq(haexIdentityClaims.id, claimId))
   }
 
+  const reset = () => {
+    identities.value = []
+    _identityPasswords.clear()
+  }
+
   return {
     identities,
     loadIdentitiesAsync,
@@ -247,5 +252,6 @@ export const useIdentityStore = defineStore('identityStore', () => {
     markClaimVerifiedAsync,
     setIdentityPassword,
     consumeIdentityPassword,
+    reset,
   }
 })

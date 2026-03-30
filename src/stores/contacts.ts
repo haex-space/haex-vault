@@ -158,6 +158,10 @@ export const useContactsStore = defineStore('contactsStore', () => {
     return { ...contact, claims }
   }
 
+  const reset = () => {
+    contacts.value = []
+  }
+
   return {
     contacts,
     loadContactsAsync,
@@ -171,5 +175,6 @@ export const useContactsStore = defineStore('contactsStore', () => {
     updateClaimAsync,
     deleteClaimAsync,
     getContactWithClaimsAsync,
+    reset,
   }
 })

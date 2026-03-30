@@ -43,12 +43,31 @@ export const useVaultStore = defineStore('vaultStore', () => {
     () => openVaults.value?.[currentVaultId.value ?? ''],
   )
 
-  // Watch for vault becoming unavailable (e.g., webview reload, explicit close)
-  // Close all extension windows when no vault is available
+  /**
+   * Reset all vault-specific stores to prevent stale data leaking between vaults.
+   * Called from closeAsync and from the currentVault watcher as a safety net.
+   */
+  const resetAllVaultStores = () => {
+    useDesktopStore().reset()
+    useExtensionsStore().reset()
+    useWorkspaceStore().reset()
+    useIdentityStore().reset()
+    useContactsStore().reset()
+    useDeviceStore().reset()
+    useNotificationStore().reset()
+    useNavigationStore().reset()
+    useExtensionBroadcastStore().cleanup()
+    useExtensionReadyStore().resetAll()
+    useSpacesStore().clearCache()
+  }
+
+  // Watch for vault becoming unavailable (e.g., webview reload, navigation away)
+  // This is the safety net: no matter HOW the vault disappears, stores get reset
   watch(currentVault, async (newVault) => {
     if (!newVault) {
       const windowManagerStore = useWindowManagerStore()
       await windowManagerStore.closeAllWindowsAsync()
+      resetAllVaultStores()
     }
   }, { immediate: true })
 
@@ -254,25 +273,9 @@ export const useVaultStore = defineStore('vaultStore', () => {
     const syncBackendsStore = useSyncBackendsStore()
     syncBackendsStore.reset()
 
-    // Close ALL windows (system + extension) before closing the vault
-    const windowManagerStore = useWindowManagerStore()
-    await windowManagerStore.closeAllWindowsAsync()
-
-    // Reset all vault-specific stores to clear cached data
-    // This prevents stale data from appearing when opening a different vault
-    const desktopStore = useDesktopStore()
-    const extensionsStore = useExtensionsStore()
-    const workspaceStore = useWorkspaceStore()
+    // Sync engine needs async cleanup (Supabase client teardown)
     const syncEngineStore = useSyncEngineStore()
-
-    desktopStore.reset()
-    extensionsStore.reset()
-    workspaceStore.reset()
     await syncEngineStore.reset()
-
-    // Reset additional stores with cached vault data
-    const spacesStore = useSpacesStore()
-    spacesStore.clearCache()
 
     // Close the database connection on the Rust side
     // This clears the DB connection, HLC service, and extension manager caches
@@ -282,7 +285,8 @@ export const useVaultStore = defineStore('vaultStore', () => {
       console.error('[VAULT STORE] Failed to close database:', error)
     }
 
-    // Removing vault from openVaults also clears the password from memory
+    // Removing vault from openVaults triggers the currentVault watcher,
+    // which calls resetAllVaultStores() and closeAllWindowsAsync() as safety net
     delete openVaults.value?.[currentVaultId.value]
   }
 

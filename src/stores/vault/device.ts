@@ -57,6 +57,10 @@ export const useDeviceStore = defineStore('vaultDeviceStore', () => {
 
     for (const identity of identityStore.identities) {
       try {
+        // Verify identity exists in DB before touching claims
+        const dbIdentity = await identityStore.getIdentityAsync(identity.publicKey)
+        if (!dbIdentity) continue
+
         const claims = await identityStore.getClaimsAsync(identity.publicKey)
         const existing = claims.find(c => c.type === claimType)
 
@@ -113,6 +117,12 @@ export const useDeviceStore = defineStore('vaultDeviceStore', () => {
     return knownDevices.value.get(id)?.name || id.slice(0, 12) + '...'
   }
 
+  const reset = () => {
+    deviceId.value = ''
+    deviceName.value = undefined
+    knownDevices.value = new Map()
+  }
+
   return {
     deviceId,
     deviceName,
@@ -125,5 +135,6 @@ export const useDeviceStore = defineStore('vaultDeviceStore', () => {
     knownDevices,
     loadKnownDevicesAsync,
     platform,
+    reset,
   }
 })

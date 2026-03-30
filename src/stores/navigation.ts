@@ -221,6 +221,13 @@ export const useNavigationStore = defineStore('navigation', () => {
     window.history.pushState({ backNavBoundary: true }, '')
   }
 
+  const reset = () => {
+    tabBackStacks.clear()
+    tabForwardStacks.clear()
+    globalBackStack.length = 0
+    globalForwardStack.length = 0
+  }
+
   return {
     pushBack,
     goBack,
@@ -229,5 +236,6 @@ export const useNavigationStore = defineStore('navigation', () => {
     canGoForward,
     clearTabStacks,
     clearWindowStacks,
+    reset,
   }
 })
