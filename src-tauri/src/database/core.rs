@@ -191,7 +191,7 @@ impl ValueConverter {
                 // Try to parse as JSON first (for objects/arrays that were serialized)
                 serde_json::from_str(s).unwrap_or_else(|_| JsonValue::String(s.clone()))
             }
-            SqlValue::Blob(_) => JsonValue::Null, // Blobs not supported in JSON
+            SqlValue::Blob(b) => JsonValue::String(STANDARD.encode(b)),
         }
     }
 }
