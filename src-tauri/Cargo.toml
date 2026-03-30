@@ -110,7 +110,7 @@ webkit2gtk = "2.0"
 tauri-plugin-biometry = "0.2"
 
 [target.'cfg(target_os = "android")'.dependencies]
-tauri-plugin-android-fs = "27"
+tauri-plugin-android-fs = "28"
 
 [dev-dependencies]
 futures = "0.3"
