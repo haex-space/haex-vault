@@ -138,6 +138,20 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
     await persistSpaceAsync(space)
 
+    // Create MLS group for this space (enables epoch key encryption)
+    await invoke('mls_create_group', { spaceId: id })
+    await invoke('mls_export_epoch_key', { spaceId: id })
+
+    // Create root UCAN for this space
+    const identityStore = useIdentityStore()
+    await identityStore.loadIdentitiesAsync()
+    const identity = identityStore.identities[0]
+    if (identity) {
+      const rootUcan = await createRootUcanAsync(identity.did, identity.privateKey, id)
+      const db = getDb()
+      if (db) await persistUcanAsync(db, id, rootUcan)
+    }
+
     log.info(`Created local space "${spaceName}" (${id})`)
     return { id }
   }
