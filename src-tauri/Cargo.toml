@@ -55,7 +55,7 @@ rusqlite = { version = "0.38", features = [
   "functions",
 ] }
 regex = "1.12"
-tokio-tungstenite = "0.28.0"
+tokio-tungstenite = "0.29.0"
 futures-util = { version = "0.3", default-features = false, features = [
   "sink",
   "std",
