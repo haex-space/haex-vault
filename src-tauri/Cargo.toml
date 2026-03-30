@@ -114,4 +114,4 @@ tauri-plugin-android-fs = "27"
 
 [dev-dependencies]
 futures = "0.3"
-tempfile = "3.19"
+tempfile = "3.27"
