@@ -187,6 +187,7 @@ de:
   createdAt: Erstellt am
   actions:
     edit: Bearbeiten
+    invite: Einladen
     delete: Löschen
     leave: Verlassen
   invite:
@@ -204,6 +205,7 @@ en:
   createdAt: Created at
   actions:
     edit: Edit
+    invite: Invite
     delete: Delete
     leave: Leave
   invite:

@@ -32,7 +32,7 @@
               v-model="selectedContactId"
               :items="contactOptions"
               value-key="value"
-              :placeholder="t('form.selectContact')"
+              :label="t('form.selectContact')"
               class="flex-1"
             >
               <template #empty>
@@ -86,14 +86,14 @@
         <USelectMenu
           v-model="selectedCapability"
           :items="capabilityOptions"
-          :placeholder="t('form.capabilityLabel')"
+          :label="t('form.capabilityLabel')"
           class="w-full mt-3"
         />
 
         <USelectMenu
           v-model="selectedExpiry"
           :items="expiryOptions"
-          :placeholder="t('form.expiryLabel')"
+          :label="t('form.expiryLabel')"
           class="w-full mt-3"
         />
       </template>
@@ -227,7 +227,7 @@ watch(open, async (isOpen) => {
   if (isOpen) {
     resetForm()
     // Set defaults
-    selectedCapability.value = capabilityOptions.value[2] // space/write
+    selectedCapability.value = capabilityOptions.value[3] // space/read (least privilege)
     const defaults = expiryOptions.value
     selectedExpiry.value = props.mode === 'open' ? defaults[2] : defaults[1] // 1d for open, 7d for link/contact
     if (props.mode === 'contact') {
