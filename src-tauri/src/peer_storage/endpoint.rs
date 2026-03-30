@@ -937,8 +937,8 @@ fn resolve_content_uri_subpath(
             .map_err(|e| format!("Failed to read dir: {e:?}"))?;
 
         let found = entries
-            .filter(|entry| entry.name() == *segment)
-            .next();
+            .into_iter()
+            .find(|entry| entry.name() == *segment);
 
         match found {
             Some(entry) => {
@@ -981,6 +981,7 @@ fn list_content_uri(
         .map_err(|e| format!("Failed to read dir: {e:?}"))?;
 
     let mut entries: Vec<FileEntry> = dir_entries
+        .into_iter()
         .map(|entry| {
             let modified = entry.last_modified()
                 .duration_since(std::time::UNIX_EPOCH)
