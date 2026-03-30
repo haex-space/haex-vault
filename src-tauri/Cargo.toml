@@ -49,7 +49,7 @@ uhlc = "0.9"
 url = "2.5"
 uuid = { version = "1.22", features = ["v4"] }
 zip = "8.4"
-rusqlite = { version = "0.38", features = [
+rusqlite = { version = "0.39", features = [
   "load_extension",
   "bundled-sqlcipher-vendored-openssl",
   "functions",
