@@ -47,15 +47,15 @@ thiserror = "2.0"
 ts-rs = { version = "12.0", features = ["serde-compat"] }
 uhlc = "0.9"
 url = "2.5"
-uuid = { version = "1.22", features = ["v4"] }
+uuid = { version = "1.23", features = ["v4"] }
 zip = "8.4"
-rusqlite = { version = "0.38", features = [
+rusqlite = { version = "0.39", features = [
   "load_extension",
   "bundled-sqlcipher-vendored-openssl",
   "functions",
 ] }
 regex = "1.12"
-tokio-tungstenite = "0.28.0"
+tokio-tungstenite = "0.29.0"
 futures-util = { version = "0.3", default-features = false, features = [
   "sink",
   "std",
@@ -63,7 +63,7 @@ futures-util = { version = "0.3", default-features = false, features = [
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
 aes-gcm = "0.10"
 hkdf = "0.12"
-rand = "0.8"
+rand = "0.10"
 # FileSync dependencies
 chacha20poly1305 = "0.10"
 async-trait = "0.1"
@@ -80,7 +80,7 @@ reqwest = { version = "0.13", default-features = false, features = [
 ] }
 
 # Peer Storage (P2P file sharing via iroh/QUIC)
-iroh = { version = "0.96", default-features = false, features = ["address-lookup-mdns"] }
+iroh = { version = "0.97", default-features = false, features = ["address-lookup-mdns"] }
 
 # MLS (RFC 9420) - Group key management
 openmls = "0.8.1"
@@ -110,8 +110,8 @@ webkit2gtk = "2.0"
 tauri-plugin-biometry = "0.2"
 
 [target.'cfg(target_os = "android")'.dependencies]
-tauri-plugin-android-fs = "27"
+tauri-plugin-android-fs = "28"
 
 [dev-dependencies]
 futures = "0.3"
-tempfile = "3.19"
+tempfile = "3.27"
