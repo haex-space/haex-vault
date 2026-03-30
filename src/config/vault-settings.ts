@@ -21,11 +21,11 @@ export enum VaultSettingsKeyEnum {
   peerStorageAutostart = 'peer_storage_autostart',
   peerStorageRelayUrl = 'peer_storage_relay_url',
   logRetentionDays = 'log_retention_days',
-  localDsMessageTtlDays = 'local_ds_message_ttl_days',
-  localDsKeyPackageTtlHours = 'local_ds_key_package_ttl_hours',
-  localDsWelcomeTtlDays = 'local_ds_welcome_ttl_days',
-  localDsPendingCommitTtlHours = 'local_ds_pending_commit_ttl_hours',
-  localDsCleanupIntervalMinutes = 'local_ds_cleanup_interval_minutes',
+  localDeliveryMessageTtlDays = 'local_delivery_message_ttl_days',
+  localDeliveryKeyPackageTtlHours = 'local_delivery_key_package_ttl_hours',
+  localDeliveryWelcomeTtlDays = 'local_delivery_welcome_ttl_days',
+  localDeliveryPendingCommitTtlHours = 'local_delivery_pending_commit_ttl_hours',
+  localDeliveryCleanupIntervalMinutes = 'local_delivery_cleanup_interval_minutes',
 }
 
 export enum DesktopIconSizePreset {

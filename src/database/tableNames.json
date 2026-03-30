@@ -340,8 +340,8 @@
         "status": "status"
       }
     },
-    "local_ds_messages": {
-      "name": "haex_local_ds_messages_no_sync",
+    "local_delivery_messages": {
+      "name": "haex_local_delivery_messages_no_sync",
       "columns": {
         "id": "id",
         "spaceId": "space_id",
@@ -351,8 +351,8 @@
         "createdAt": "created_at"
       }
     },
-    "local_ds_key_packages": {
-      "name": "haex_local_ds_key_packages_no_sync",
+    "local_delivery_key_packages": {
+      "name": "haex_local_delivery_key_packages_no_sync",
       "columns": {
         "id": "id",
         "spaceId": "space_id",
@@ -361,8 +361,8 @@
         "createdAt": "created_at"
       }
     },
-    "local_ds_welcomes": {
-      "name": "haex_local_ds_welcomes_no_sync",
+    "local_delivery_welcomes": {
+      "name": "haex_local_delivery_welcomes_no_sync",
       "columns": {
         "id": "id",
         "spaceId": "space_id",
@@ -372,8 +372,8 @@
         "createdAt": "created_at"
       }
     },
-    "local_ds_pending_commits": {
-      "name": "haex_local_ds_pending_commits_no_sync",
+    "local_delivery_pending_commits": {
+      "name": "haex_local_delivery_pending_commits_no_sync",
       "columns": {
         "id": "id",
         "spaceId": "space_id",

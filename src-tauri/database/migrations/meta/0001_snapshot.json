@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d08996df-6d42-439b-8b4b-90e461d070e9",
+  "id": "75d02555-3974-4344-a670-404e306b30d9",
   "prevId": "dabfa955-4053-46fd-9511-c158d2f679da",
   "tables": {
     "haex_crdt_configs_no_sync": {
@@ -2307,8 +2307,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "haex_local_ds_key_packages_no_sync": {
-      "name": "haex_local_ds_key_packages_no_sync",
+    "haex_local_delivery_key_packages_no_sync": {
+      "name": "haex_local_delivery_key_packages_no_sync",
       "columns": {
         "id": {
           "name": "id",
@@ -2348,8 +2348,8 @@
         }
       },
       "indexes": {
-        "haex_local_ds_key_packages_space_did_idx": {
-          "name": "haex_local_ds_key_packages_space_did_idx",
+        "haex_local_delivery_key_packages_space_did_idx": {
+          "name": "haex_local_delivery_key_packages_space_did_idx",
           "columns": [
             "space_id",
             "target_did"
@@ -2358,9 +2358,9 @@
         }
       },
       "foreignKeys": {
-        "haex_local_ds_key_packages_no_sync_space_id_haex_spaces_id_fk": {
-          "name": "haex_local_ds_key_packages_no_sync_space_id_haex_spaces_id_fk",
-          "tableFrom": "haex_local_ds_key_packages_no_sync",
+        "haex_local_delivery_key_packages_no_sync_space_id_haex_spaces_id_fk": {
+          "name": "haex_local_delivery_key_packages_no_sync_space_id_haex_spaces_id_fk",
+          "tableFrom": "haex_local_delivery_key_packages_no_sync",
           "tableTo": "haex_spaces",
           "columnsFrom": [
             "space_id"
@@ -2376,8 +2376,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "haex_local_ds_messages_no_sync": {
-      "name": "haex_local_ds_messages_no_sync",
+    "haex_local_delivery_messages_no_sync": {
+      "name": "haex_local_delivery_messages_no_sync",
       "columns": {
         "id": {
           "name": "id",
@@ -2424,8 +2424,8 @@
         }
       },
       "indexes": {
-        "haex_local_ds_messages_space_idx": {
-          "name": "haex_local_ds_messages_space_idx",
+        "haex_local_delivery_messages_space_idx": {
+          "name": "haex_local_delivery_messages_space_idx",
           "columns": [
             "space_id"
           ],
@@ -2433,9 +2433,9 @@
         }
       },
       "foreignKeys": {
-        "haex_local_ds_messages_no_sync_space_id_haex_spaces_id_fk": {
-          "name": "haex_local_ds_messages_no_sync_space_id_haex_spaces_id_fk",
-          "tableFrom": "haex_local_ds_messages_no_sync",
+        "haex_local_delivery_messages_no_sync_space_id_haex_spaces_id_fk": {
+          "name": "haex_local_delivery_messages_no_sync_space_id_haex_spaces_id_fk",
+          "tableFrom": "haex_local_delivery_messages_no_sync",
           "tableTo": "haex_spaces",
           "columnsFrom": [
             "space_id"
@@ -2451,8 +2451,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "haex_local_ds_pending_commits_no_sync": {
-      "name": "haex_local_ds_pending_commits_no_sync",
+    "haex_local_delivery_pending_commits_no_sync": {
+      "name": "haex_local_delivery_pending_commits_no_sync",
       "columns": {
         "id": {
           "name": "id",
@@ -2493,8 +2493,8 @@
         }
       },
       "indexes": {
-        "haex_local_ds_pending_commits_space_idx": {
-          "name": "haex_local_ds_pending_commits_space_idx",
+        "haex_local_delivery_pending_commits_space_idx": {
+          "name": "haex_local_delivery_pending_commits_space_idx",
           "columns": [
             "space_id"
           ],
@@ -2502,9 +2502,9 @@
         }
       },
       "foreignKeys": {
-        "haex_local_ds_pending_commits_no_sync_space_id_haex_spaces_id_fk": {
-          "name": "haex_local_ds_pending_commits_no_sync_space_id_haex_spaces_id_fk",
-          "tableFrom": "haex_local_ds_pending_commits_no_sync",
+        "haex_local_delivery_pending_commits_no_sync_space_id_haex_spaces_id_fk": {
+          "name": "haex_local_delivery_pending_commits_no_sync_space_id_haex_spaces_id_fk",
+          "tableFrom": "haex_local_delivery_pending_commits_no_sync",
           "tableTo": "haex_spaces",
           "columnsFrom": [
             "space_id"
@@ -2520,8 +2520,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "haex_local_ds_welcomes_no_sync": {
-      "name": "haex_local_ds_welcomes_no_sync",
+    "haex_local_delivery_welcomes_no_sync": {
+      "name": "haex_local_delivery_welcomes_no_sync",
       "columns": {
         "id": {
           "name": "id",
@@ -2569,8 +2569,8 @@
         }
       },
       "indexes": {
-        "haex_local_ds_welcomes_recipient_idx": {
-          "name": "haex_local_ds_welcomes_recipient_idx",
+        "haex_local_delivery_welcomes_recipient_idx": {
+          "name": "haex_local_delivery_welcomes_recipient_idx",
           "columns": [
             "space_id",
             "recipient_did"
@@ -2579,9 +2579,9 @@
         }
       },
       "foreignKeys": {
-        "haex_local_ds_welcomes_no_sync_space_id_haex_spaces_id_fk": {
-          "name": "haex_local_ds_welcomes_no_sync_space_id_haex_spaces_id_fk",
-          "tableFrom": "haex_local_ds_welcomes_no_sync",
+        "haex_local_delivery_welcomes_no_sync_space_id_haex_spaces_id_fk": {
+          "name": "haex_local_delivery_welcomes_no_sync_space_id_haex_spaces_id_fk",
+          "tableFrom": "haex_local_delivery_welcomes_no_sync",
           "tableTo": "haex_spaces",
           "columnsFrom": [
             "space_id"
