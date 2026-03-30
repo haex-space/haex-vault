@@ -1,8 +1,8 @@
 <template>
   <div>
-    <!-- Loading / Remote Sync Overlay -->
+    <!-- Remote Sync Overlay (only for initial server sync, not local vault init) -->
     <HaexSyncInitialSyncOverlay
-      :is-visible="!isVaultReady || isWaitingForInitialSync"
+      :is-visible="isWaitingForInitialSync"
       :progress="syncProgress"
     />
 
