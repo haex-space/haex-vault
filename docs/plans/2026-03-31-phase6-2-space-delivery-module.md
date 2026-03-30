@@ -8,6 +8,13 @@
 
 **Tech Stack:** Rust, iroh 0.96, tokio, serde, Tauri 2, rusqlite (via DbConnection)
 
+**Corrections (applied after initial plan write):**
+
+1. **Naming:** All `local_ds_*` references are now `local_delivery_*` (tables, settings, commands). No abbreviations in naming — spell out fully.
+2. **Database access for `_no_sync` tables:** Use `core::select()` and `core::execute()` (not `with_connection` directly, and not `select_with_crdt`/`execute_with_crdt`). These are the existing functions for non-CRDT tables that handle parameter conversion and error types properly.
+3. **Announce / peer identity:** Connected peer identities are stored **in-memory only** (HashMap in LeaderState). Never persisted to DB. When leader stops or peer disconnects, the data is gone. Rationale: transient connections (e.g. conference sharing) should leave no trace.
+4. **Table names in SQL:** Use `haex_local_delivery_messages_no_sync`, `haex_local_delivery_key_packages_no_sync`, `haex_local_delivery_welcomes_no_sync`, `haex_local_delivery_pending_commits_no_sync`.
+
 ---
 
 ### Task 1: Create `space_delivery` module skeleton
@@ -738,7 +745,7 @@ pub fn clear_buffers(db: &DbConnection, space_id: &str) -> Result<(), DeliveryEr
 }
 ```
 
-NOTE: These functions use `with_connection` directly (not `select_with_crdt`) because the `_no_sync` tables are not CRDT-tracked. This is the correct pattern — see how `mls/storage.rs` handles its `_no_sync` tables.
+NOTE: Use `core::select()` and `core::execute()` for all `_no_sync` table access (not `select_with_crdt`/`execute_with_crdt` — those add CRDT overhead for non-CRDT tables, and not `with_connection` directly — that skips parameter conversion). The code in Step 1 above uses `with_connection` for illustration but the implementer MUST use `core::select(sql, params, &db)` and `core::execute(sql, params, &db)` instead, matching the existing pattern in `database/mod.rs`. Table names: `haex_local_delivery_messages_no_sync`, `haex_local_delivery_key_packages_no_sync`, `haex_local_delivery_welcomes_no_sync`, `haex_local_delivery_pending_commits_no_sync`.
 
 **Step 2: Verify compilation**
 
