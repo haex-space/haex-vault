@@ -646,6 +646,13 @@ async fn handle_delivery_stream(
                 }
             }
         }
+
+        Request::ClaimInvite { .. } => {
+            // TODO: implement invite claim handling in a later phase
+            Response::Error {
+                message: "ClaimInvite not yet implemented".to_string(),
+            }
+        }
     };
 
     send_response(&mut send, &response).await

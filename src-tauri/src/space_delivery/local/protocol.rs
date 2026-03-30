@@ -80,6 +80,23 @@ pub enum Request {
         label: Option<String>,
         claims: Option<Vec<IdentityClaim>>,
     },
+
+    // -- Invites --
+    /// Claim an invite token. Invitee sends token + KeyPackages.
+    /// Leader validates, creates UCAN, adds to MLS group, returns Welcome.
+    ClaimInvite {
+        space_id: String,
+        /// The invite token ID
+        token: String,
+        /// Invitee's DID
+        did: String,
+        /// Invitee's endpoint ID
+        endpoint_id: String,
+        /// Base64-encoded MLS KeyPackages
+        key_packages: Vec<String>,
+        /// Optional label to share with the leader
+        label: Option<String>,
+    },
 }
 
 // ============================================================================
@@ -108,6 +125,15 @@ pub enum Response {
     },
     /// CRDT sync changes
     SyncChanges { changes: serde_json::Value },
+    /// Invite claimed successfully — includes MLS welcome and delegated UCAN
+    InviteClaimed {
+        /// Base64-encoded MLS welcome message
+        welcome: String,
+        /// The delegated UCAN token for this member
+        ucan: String,
+        /// The capability granted (e.g. "space/write")
+        capability: String,
+    },
     /// Error response
     Error { message: String },
 }
