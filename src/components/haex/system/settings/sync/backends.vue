@@ -358,6 +358,8 @@
 
 <script setup lang="ts">
 import { decryptWithPrivateKeyAsync } from '@haex-space/vault-sdk'
+import { DidAuthAction } from '@haex-space/ucan'
+import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import type { SelectHaexSyncBackends } from '~/database/schemas'
 
 defineEmits<{ back: [] }>()
@@ -381,7 +383,6 @@ const {
   verifyEmailAsync,
   resendVerificationAsync,
   completeConnectionAsync,
-  loginAsync,
 } = useCreateSyncConnection()
 
 // Local state
@@ -636,29 +637,24 @@ const onConfirmDeleteBackendAsync = async () => {
 
     // Delete all server data for this backend
     try {
-      await syncEngineStore.initSupabaseClientAsync(backend.id)
-
-      // Login to get a fresh auth token
       if (backend.identityId) {
-        const session = await loginAsync(backend.serverUrl, backend.identityId)
-        const token = session.access_token
+        const identityStore = useIdentityStore()
+        const identity = await identityStore.getIdentityAsync(backend.identityId)
 
-        // Delete all spaces where user is admin (server validates role)
-        try {
-          await fetch(`${backend.serverUrl}/spaces/my-admin-spaces`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${token}` },
-          })
-        } catch (e) {
-          console.warn('[SYNC] Could not delete admin spaces:', e)
+        if (identity?.privateKey && identity?.did) {
+          // Delete all spaces where user is admin (server validates role)
+          try {
+            await fetchWithDidAuth(
+              `${backend.serverUrl}/spaces/my-admin-spaces`,
+              identity.privateKey,
+              identity.did,
+              'delete-admin-spaces',
+              { method: 'DELETE' },
+            )
+          } catch (e) {
+            console.warn('[SYNC] Could not delete admin spaces:', e)
+          }
         }
-
-        // Set session so deleteAllVaultDataAsync can authenticate
-        await syncEngineStore.supabaseClient?.auth.setSession({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        })
-        syncEngineStore.cacheAccessToken(session.access_token)
       }
 
       await syncEngineStore.deleteAllVaultDataAsync(backend.id)
@@ -698,22 +694,23 @@ const loadVaultsForBackendAsync = async (
   backend: SelectHaexSyncBackends,
 ): Promise<ServerVault[]> => {
   try {
-    // Always initialize Supabase client for this specific backend
-    await syncEngineStore.initSupabaseClientAsync(backend.id)
-
-    // Get auth token
-    const token = await syncEngineStore.getAuthTokenAsync()
-    if (!token) {
-      throw new Error('Not authenticated')
+    if (!backend.identityId) {
+      throw new Error('Backend has no identity configured')
     }
 
-    // Fetch vaults from server
-    const response = await fetch(`${backend.serverUrl}/sync/vaults`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
+    const identityStore = useIdentityStore()
+    const identity = await identityStore.getIdentityAsync(backend.identityId)
+    if (!identity?.privateKey || !identity?.did) {
+      throw new Error('Identity not found or incomplete')
+    }
+
+    // Fetch vaults from server using DID-Auth
+    const response = await fetchWithDidAuth(
+      `${backend.serverUrl}/sync/vaults`,
+      identity.privateKey,
+      identity.did,
+      DidAuthAction.VaultList,
+    )
 
     if (!response.ok) {
       throw new Error('Failed to fetch vaults')
@@ -723,29 +720,23 @@ const loadVaultsForBackendAsync = async (
     const vaults: ServerVault[] = data.vaults
 
     // Decrypt vault names using identity private key
-    if (backend.identityId) {
-      const identityStore = useIdentityStore()
-      const identity = await identityStore.getIdentityAsync(backend.identityId)
-      if (identity?.privateKey) {
-        await Promise.all(
-          vaults.map(async (vault) => {
-            try {
-              const decryptedBytes = await decryptWithPrivateKeyAsync(
-                {
-                  encryptedData: vault.encryptedVaultName,
-                  nonce: vault.vaultNameNonce,
-                  ephemeralPublicKey: vault.ephemeralPublicKey,
-                },
-                identity.privateKey,
-              )
-              vault.decryptedName = new TextDecoder().decode(decryptedBytes)
-            } catch (e) {
-              console.warn('[SYNC] Failed to decrypt vault name:', e)
-            }
-          }),
-        )
-      }
-    }
+    await Promise.all(
+      vaults.map(async (vault) => {
+        try {
+          const decryptedBytes = await decryptWithPrivateKeyAsync(
+            {
+              encryptedData: vault.encryptedVaultName,
+              nonce: vault.vaultNameNonce,
+              ephemeralPublicKey: vault.ephemeralPublicKey,
+            },
+            identity.privateKey,
+          )
+          vault.decryptedName = new TextDecoder().decode(decryptedBytes)
+        } catch (e) {
+          console.warn('[SYNC] Failed to decrypt vault name:', e)
+        }
+      }),
+    )
 
     return vaults
   } catch (error) {
