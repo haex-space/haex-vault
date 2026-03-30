@@ -4,12 +4,21 @@
 //! because the buffer tables contain BLOB columns. The JSON-based core functions cannot
 //! round-trip blob data faithfully (blobs become Null on read).
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use tokio::sync::RwLock;
+
 use crate::database::core::with_connection;
 use crate::database::DbConnection;
+use crate::peer_storage::endpoint::DeliveryConnectionHandler;
 use rusqlite::OptionalExtension;
 use uuid::Uuid;
 
 use super::error::DeliveryError;
+use super::protocol::{self, MlsMessageEntry, Notification, Request, Response};
+use super::types::{ConnectedPeer, PeerClaim};
 
 /// Map a `DatabaseError` into `DeliveryError::Database`.
 fn map_db(e: crate::database::error::DatabaseError) -> DeliveryError {
@@ -256,4 +265,328 @@ pub fn clear_buffers(db: &DbConnection, space_id: &str) -> Result<(), DeliveryEr
         Ok(())
     })
     .map_err(map_db)
+}
+
+// ============================================================================
+// Leader connection handler
+// ============================================================================
+
+/// Base64-encode bytes to a string.
+fn base64_encode(data: &[u8]) -> String {
+    BASE64.encode(data)
+}
+
+/// Base64-decode a string to bytes.
+fn base64_decode(s: &str) -> Result<Vec<u8>, String> {
+    BASE64.decode(s).map_err(|e| format!("base64 decode error: {e}"))
+}
+
+/// State held by the leader for active delivery sessions.
+pub struct LeaderState {
+    /// Database connection
+    pub db: DbConnection,
+    /// Space ID this leader serves
+    pub space_id: String,
+    /// Currently connected peers (endpoint_id → peer info) — IN-MEMORY ONLY, never persisted
+    pub connected_peers: Arc<RwLock<HashMap<String, ConnectedPeer>>>,
+    /// Notification senders for connected peers (endpoint_id → sender)
+    pub notification_senders:
+        Arc<RwLock<HashMap<String, tokio::sync::mpsc::Sender<Notification>>>>,
+}
+
+/// Connection handler for the leader side of space delivery.
+pub struct LeaderConnectionHandler {
+    pub state: Arc<LeaderState>,
+}
+
+impl DeliveryConnectionHandler for LeaderConnectionHandler {
+    fn handle_connection(
+        &self,
+        conn: iroh::endpoint::Connection,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
+        Box::pin(self.handle_connection_inner(conn))
+    }
+}
+
+impl LeaderConnectionHandler {
+    async fn handle_connection_inner(&self, conn: iroh::endpoint::Connection) {
+        let remote = conn.remote_id();
+        let remote_str = remote.to_string();
+
+        loop {
+            match conn.accept_bi().await {
+                Ok((send, mut recv)) => {
+                    let state = self.state.clone();
+                    let peer_endpoint_id = remote_str.clone();
+                    tokio::spawn(async move {
+                        if let Err(e) =
+                            handle_delivery_stream(send, &mut recv, &state, &peer_endpoint_id).await
+                        {
+                            eprintln!(
+                                "[SpaceDelivery] Stream error from {peer_endpoint_id}: {e}"
+                            );
+                        }
+                    });
+                }
+                Err(_) => {
+                    eprintln!("[SpaceDelivery] Connection from {remote_str} closed");
+                    break;
+                }
+            }
+        }
+
+        // Clean up peer state on disconnect
+        self.state
+            .connected_peers
+            .write()
+            .await
+            .remove(&remote_str);
+        self.state
+            .notification_senders
+            .write()
+            .await
+            .remove(&remote_str);
+    }
+}
+
+/// Look up the DID for a connected peer by endpoint_id.
+async fn lookup_peer_did(
+    state: &LeaderState,
+    endpoint_id: &str,
+) -> Result<String, DeliveryError> {
+    let peers = state.connected_peers.read().await;
+    peers
+        .get(endpoint_id)
+        .map(|p| p.did.clone())
+        .ok_or_else(|| DeliveryError::ProtocolError {
+            reason: "peer has not announced yet".to_string(),
+        })
+}
+
+/// Process a single request/response exchange on a QUIC bidirectional stream.
+async fn handle_delivery_stream(
+    mut send: iroh::endpoint::SendStream,
+    recv: &mut iroh::endpoint::RecvStream,
+    state: &LeaderState,
+    peer_endpoint_id: &str,
+) -> Result<(), DeliveryError> {
+    let request =
+        protocol::read_request(recv)
+            .await
+            .map_err(|e| DeliveryError::ProtocolError {
+                reason: e.to_string(),
+            })?;
+
+    let response = match request {
+        Request::Announce {
+            did,
+            endpoint_id,
+            label,
+            claims,
+        } => {
+            let peer = ConnectedPeer {
+                endpoint_id: endpoint_id.clone(),
+                did,
+                label,
+                claims: claims
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|c| PeerClaim {
+                        claim_type: c.claim_type,
+                        value: c.value,
+                    })
+                    .collect(),
+                connected_at: time::OffsetDateTime::now_utc()
+                    .format(&time::format_description::well_known::Rfc3339)
+                    .unwrap_or_default(),
+            };
+            state
+                .connected_peers
+                .write()
+                .await
+                .insert(peer_endpoint_id.to_string(), peer);
+            Response::Ok
+        }
+
+        Request::MlsUploadKeyPackages {
+            space_id: _,
+            packages,
+        } => match lookup_peer_did(state, peer_endpoint_id).await {
+            Ok(sender_did) => {
+                for pkg_b64 in &packages {
+                    match base64_decode(pkg_b64) {
+                        Ok(blob) => {
+                            if let Err(e) =
+                                store_key_package(&state.db, &state.space_id, &sender_did, &blob)
+                            {
+                                return send_response(
+                                    &mut send,
+                                    &Response::Error {
+                                        message: e.to_string(),
+                                    },
+                                )
+                                .await;
+                            }
+                        }
+                        Err(msg) => {
+                            return send_response(
+                                &mut send,
+                                &Response::Error { message: msg },
+                            )
+                            .await;
+                        }
+                    }
+                }
+                Response::Ok
+            }
+            Err(e) => Response::Error {
+                message: e.to_string(),
+            },
+        },
+
+        Request::MlsFetchKeyPackage {
+            space_id: _,
+            target_did,
+        } => match consume_key_package(&state.db, &state.space_id, &target_did) {
+            Ok(Some(blob)) => Response::KeyPackage {
+                package: base64_encode(&blob),
+            },
+            Ok(None) => Response::Error {
+                message: format!("no key package available for {target_did}"),
+            },
+            Err(e) => Response::Error {
+                message: e.to_string(),
+            },
+        },
+
+        Request::MlsSendMessage {
+            space_id: _,
+            message,
+            message_type,
+        } => match lookup_peer_did(state, peer_endpoint_id).await {
+            Ok(sender_did) => match base64_decode(&message) {
+                Ok(blob) => {
+                    match store_message(
+                        &state.db,
+                        &state.space_id,
+                        &sender_did,
+                        &message_type,
+                        &blob,
+                    ) {
+                        Ok(msg_id) => {
+                            // Broadcast notification to all connected peers
+                            let notification = Notification::Mls {
+                                space_id: state.space_id.clone(),
+                                message_type: message_type.clone(),
+                            };
+                            let senders = state.notification_senders.read().await;
+                            for (_eid, tx) in senders.iter() {
+                                let _ = tx.try_send(notification.clone());
+                            }
+                            Response::MessageStored { message_id: msg_id }
+                        }
+                        Err(e) => Response::Error {
+                            message: e.to_string(),
+                        },
+                    }
+                }
+                Err(msg) => Response::Error { message: msg },
+            },
+            Err(e) => Response::Error {
+                message: e.to_string(),
+            },
+        },
+
+        Request::MlsFetchMessages {
+            space_id: _,
+            after_id,
+        } => match fetch_messages(&state.db, &state.space_id, after_id) {
+            Ok(rows) => Response::Messages {
+                messages: rows
+                    .into_iter()
+                    .map(|(id, sender_did, msg_type, blob, created_at)| MlsMessageEntry {
+                        id,
+                        sender_did,
+                        message_type: msg_type,
+                        message: base64_encode(&blob),
+                        created_at,
+                    })
+                    .collect(),
+            },
+            Err(e) => Response::Error {
+                message: e.to_string(),
+            },
+        },
+
+        Request::MlsSendWelcome {
+            space_id: _,
+            recipient_did,
+            welcome,
+        } => match base64_decode(&welcome) {
+            Ok(blob) => match store_welcome(&state.db, &state.space_id, &recipient_did, &blob) {
+                Ok(_id) => Response::Ok,
+                Err(e) => Response::Error {
+                    message: e.to_string(),
+                },
+            },
+            Err(msg) => Response::Error { message: msg },
+        },
+
+        Request::MlsFetchWelcomes { space_id: _ } => {
+            match lookup_peer_did(state, peer_endpoint_id).await {
+                Ok(peer_did) => {
+                    match consume_welcomes(&state.db, &state.space_id, &peer_did) {
+                        Ok(blobs) => Response::Welcomes {
+                            welcomes: blobs.iter().map(|b| base64_encode(b)).collect(),
+                        },
+                        Err(e) => Response::Error {
+                            message: e.to_string(),
+                        },
+                    }
+                }
+                Err(e) => Response::Error {
+                    message: e.to_string(),
+                },
+            }
+        }
+
+        Request::SyncPush {
+            space_id: _,
+            changes: _,
+        } => {
+            // TODO: Phase 6.4 — CRDT sync over local delivery
+            Response::Ok
+        }
+
+        Request::SyncPull {
+            space_id: _,
+            after_timestamp: _,
+        } => {
+            // TODO: Phase 6.4 — CRDT sync over local delivery
+            Response::SyncChanges {
+                changes: serde_json::Value::Array(vec![]),
+            }
+        }
+    };
+
+    send_response(&mut send, &response).await
+}
+
+/// Encode and send a response on the QUIC send stream, then finish.
+async fn send_response(
+    send: &mut iroh::endpoint::SendStream,
+    response: &Response,
+) -> Result<(), DeliveryError> {
+    let bytes = protocol::encode(response).map_err(|e| DeliveryError::ProtocolError {
+        reason: e.to_string(),
+    })?;
+    send.write_all(&bytes)
+        .await
+        .map_err(|e| DeliveryError::ProtocolError {
+            reason: e.to_string(),
+        })?;
+    send.finish().map_err(|e| DeliveryError::ProtocolError {
+        reason: e.to_string(),
+    })?;
+    Ok(())
 }
