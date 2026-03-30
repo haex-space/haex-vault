@@ -51,11 +51,11 @@
 
       <!-- Spaces list -->
       <div
-        v-else-if="spaces.length"
+        v-else-if="visibleSpaces.length"
         class="space-y-3"
       >
         <SpaceListItem
-          v-for="space in spaces"
+          v-for="space in visibleSpaces"
           :key="space.id"
           :space="space"
           @edit="openEditDialog"
@@ -256,7 +256,7 @@ const spacesStore = useSpacesStore()
 const syncBackendsStore = useSyncBackendsStore()
 const windowManager = useWindowManagerStore()
 
-const { spaces } = storeToRefs(spacesStore)
+const { visibleSpaces } = storeToRefs(spacesStore)
 const { backends: syncBackends } = storeToRefs(syncBackendsStore)
 
 // Loading states

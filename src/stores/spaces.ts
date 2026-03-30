@@ -12,12 +12,18 @@ import { createLogger } from '@/stores/logging'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { createRootUcanAsync, delegateUcanAsync, persistUcanAsync, fetchWithUcanAuth, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
 
+/** Extended space type including the DB type field (vault/shared/local) */
+export interface SpaceWithType extends DecryptedSpace {
+  type: 'vault' | 'shared' | 'local'
+}
+
 const log = createLogger('SPACES')
 
 export const useSpacesStore = defineStore('spacesStore', () => {
   const { currentVault } = storeToRefs(useVaultStore())
 
-  const spaces = ref<DecryptedSpace[]>([])
+  const spaces = ref<SpaceWithType[]>([])
+  const visibleSpaces = computed(() => spaces.value.filter(s => s.type !== 'vault'))
 
   // =========================================================================
   // DB Helpers
@@ -31,20 +37,21 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     if (!db) return
 
     const rows = await db.select().from(haexSpaces)
-    spaces.value = rows.map(rowToDecryptedSpace)
+    spaces.value = rows.map(rowToSpace)
   }
 
-  /** Convert a DB row to DecryptedSpace */
-  const rowToDecryptedSpace = (row: SelectHaexSpaces): DecryptedSpace => ({
+  /** Convert a DB row to SpaceWithType */
+  const rowToSpace = (row: SelectHaexSpaces): SpaceWithType => ({
     id: row.id,
     name: row.name,
+    type: (row.type as SpaceWithType['type']) ?? 'shared',
     role: row.role as SpaceRole,
     serverUrl: row.serverUrl ?? '',
     createdAt: row.createdAt ?? '',
   })
 
   /** Persist a space to DB and update in-memory list */
-  const persistSpaceAsync = async (space: DecryptedSpace) => {
+  const persistSpaceAsync = async (space: SpaceWithType) => {
     const db = getDb()
     if (!db) return
 
@@ -60,6 +67,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     } else {
       await db.insert(haexSpaces).values({
         id: space.id,
+        type: space.type,
         name: space.name,
         serverUrl: space.serverUrl || null,
         role: space.role,
@@ -119,9 +127,10 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   const createLocalSpaceAsync = async (spaceName: string, spaceId?: string) => {
     const id = spaceId || crypto.randomUUID()
 
-    const space: DecryptedSpace = {
+    const space: SpaceWithType = {
       id,
       name: spaceName,
+      type: 'local',
       role: SpaceRoles.ADMIN,
       serverUrl: '',
       createdAt: new Date().toISOString(),
@@ -166,7 +175,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     if (existing.length > 0) {
       // Ensure in-memory list is populated
       if (!spaces.value.find(s => s.id === DEFAULT_SPACE_ID)) {
-        spaces.value.push(rowToDecryptedSpace(existing[0]!))
+        spaces.value.push(rowToSpace(existing[0]!))
       }
       return
     }
@@ -299,9 +308,10 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     if (!response.ok) throw new Error('Failed to list spaces')
     const rawSpaces = await response.json() as SharedSpace[]
 
-    const decrypted: DecryptedSpace[] = rawSpaces.map((space) => ({
+    const decrypted: SpaceWithType[] = rawSpaces.map((space) => ({
       id: space.id,
       name: space.encryptedName ?? `Space ${space.id.slice(0, 8)}`,
+      type: 'shared' as const,
       role: space.role,
       serverUrl,
       createdAt: space.createdAt,
@@ -444,9 +454,10 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const data = await response.json()
 
     // Persist space locally
-    const space: DecryptedSpace = {
+    const space: SpaceWithType = {
       id: spaceId,
       name: '',
+      type: 'shared',
       role: data.capability === 'space/admin' ? SpaceRoles.ADMIN : data.capability === 'space/read' ? SpaceRoles.READER : SpaceRoles.MEMBER,
       serverUrl,
       createdAt: new Date().toISOString(),
@@ -615,6 +626,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
   return {
     spaces,
+    visibleSpaces,
     loadSpacesFromDbAsync,
     createLocalSpaceAsync,
     ensureVaultSpaceAsync,
