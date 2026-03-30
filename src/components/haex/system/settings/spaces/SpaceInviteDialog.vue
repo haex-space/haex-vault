@@ -72,14 +72,15 @@
 
         <!-- Open mode: max uses -->
         <template v-if="mode === 'open'">
-          <UiInput
-            v-model.number="maxUses"
-            type="number"
-            :label="t('form.maxUses')"
-            :min="2"
-            :max="1000"
-            class="mt-3"
-          />
+          <UFormField :label="t('form.maxUses')" class="mt-3">
+            <UInputNumber
+              v-model="maxUses"
+              :min="2"
+              :max="1000"
+              :step="1"
+              class="w-full"
+            />
+          </UFormField>
         </template>
 
         <!-- All modes: role + expiry -->
