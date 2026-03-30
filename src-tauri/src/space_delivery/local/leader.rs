@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use time::OffsetDateTime;
 use tokio::sync::RwLock;
 
 use crate::database::core::with_connection;
@@ -268,6 +269,143 @@ pub fn clear_buffers(db: &DbConnection, space_id: &str) -> Result<(), DeliveryEr
 }
 
 // ============================================================================
+// Invite token management
+// ============================================================================
+
+/// A local invite token created by the admin.
+#[derive(Debug, Clone)]
+pub struct LocalInviteToken {
+    pub id: String,
+    pub space_id: String,
+    /// If Some, only this DID can claim (contact invite). If None, anyone can (conference).
+    pub target_did: Option<String>,
+    /// Pre-created UCAN for contact invites (target_did is known).
+    pub pre_created_ucan: Option<String>,
+    pub capability: String,
+    pub max_uses: u32,
+    pub current_uses: u32,
+    pub expires_at: OffsetDateTime,
+    pub created_at: OffsetDateTime,
+}
+
+impl LocalInviteToken {
+    pub fn is_valid(&self) -> bool {
+        self.current_uses < self.max_uses && OffsetDateTime::now_utc() < self.expires_at
+    }
+
+    pub fn can_claim(&self, did: &str) -> bool {
+        self.is_valid() && self.target_did.as_ref().map_or(true, |t| t == did)
+    }
+}
+
+/// Create a contact invite token with a pre-created UCAN.
+///
+/// The target DID is known upfront, so the UCAN is created immediately.
+pub fn create_contact_invite_token(
+    state: &LeaderState,
+    target_did: &str,
+    capability: &str,
+    expires_in_seconds: u64,
+) -> Result<String, DeliveryError> {
+    let admin = super::ucan::load_admin_identity(&state.db, &state.space_id)?;
+    let ucan_token = super::ucan::create_delegated_ucan(
+        &admin.did,
+        &admin.private_key_base64,
+        target_did,
+        &state.space_id,
+        capability,
+        Some(&admin.root_ucan),
+        86400 * 365, // 1 year expiry (admin can revoke via MLS)
+    )?;
+
+    let now = OffsetDateTime::now_utc();
+    let expires_at = now + time::Duration::seconds(expires_in_seconds as i64);
+    let token_id = Uuid::new_v4().to_string();
+
+    let token = LocalInviteToken {
+        id: token_id.clone(),
+        space_id: state.space_id.clone(),
+        target_did: Some(target_did.to_string()),
+        pre_created_ucan: Some(ucan_token),
+        capability: capability.to_string(),
+        max_uses: 1,
+        current_uses: 0,
+        expires_at,
+        created_at: now,
+    };
+
+    // Block on writing since invite_tokens uses tokio RwLock
+    // but this is fine — called from async context via commands
+    let tokens = state.invite_tokens.clone();
+    tokio::task::block_in_place(|| {
+        tokio::runtime::Handle::current().block_on(async {
+            tokens.write().await.push(token);
+        })
+    });
+
+    Ok(token_id)
+}
+
+/// Create a conference invite token (no target DID, no pre-created UCAN).
+///
+/// The UCAN will be created at claim time when the claimer's DID is known.
+pub async fn create_conference_invite_token(
+    state: &LeaderState,
+    capability: &str,
+    max_uses: u32,
+    expires_in_seconds: u64,
+) -> Result<String, DeliveryError> {
+    let now = OffsetDateTime::now_utc();
+    let expires_at = now + time::Duration::seconds(expires_in_seconds as i64);
+    let token_id = Uuid::new_v4().to_string();
+
+    let token = LocalInviteToken {
+        id: token_id.clone(),
+        space_id: state.space_id.clone(),
+        target_did: None,
+        pre_created_ucan: None,
+        capability: capability.to_string(),
+        max_uses,
+        current_uses: 0,
+        expires_at,
+        created_at: now,
+    };
+
+    state.invite_tokens.write().await.push(token);
+    Ok(token_id)
+}
+
+/// Validate and consume an invite token. Returns (capability, Option<pre-created UCAN>).
+pub async fn validate_and_consume_invite(
+    state: &LeaderState,
+    token_id: &str,
+    claimer_did: &str,
+) -> Result<(String, Option<String>), DeliveryError> {
+    let mut tokens = state.invite_tokens.write().await;
+    let token = tokens
+        .iter_mut()
+        .find(|t| t.id == token_id)
+        .ok_or_else(|| DeliveryError::AccessDenied {
+            reason: "Invalid invite token".to_string(),
+        })?;
+
+    if !token.can_claim(claimer_did) {
+        return Err(DeliveryError::AccessDenied {
+            reason: if !token.is_valid() {
+                "Invite token expired or exhausted".to_string()
+            } else {
+                "This invite is not for your DID".to_string()
+            },
+        });
+    }
+
+    token.current_uses += 1;
+    let capability = token.capability.clone();
+    let pre_ucan = token.pre_created_ucan.clone();
+    Ok((capability, pre_ucan))
+}
+
+// ============================================================================
 // Leader connection handler
 // ============================================================================
 
@@ -292,6 +430,8 @@ pub struct LeaderState {
     /// Notification senders for connected peers (endpoint_id → sender)
     pub notification_senders:
         Arc<RwLock<HashMap<String, tokio::sync::mpsc::Sender<Notification>>>>,
+    /// In-memory invite tokens (contact + conference)
+    pub invite_tokens: Arc<RwLock<Vec<LocalInviteToken>>>,
 }
 
 /// Connection handler for the leader side of space delivery.

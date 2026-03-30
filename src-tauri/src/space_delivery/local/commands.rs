@@ -23,6 +23,7 @@ pub async fn local_delivery_start(
         space_id: space_id.clone(),
         connected_peers: Arc::new(RwLock::new(HashMap::new())),
         notification_senders: Arc::new(RwLock::new(HashMap::new())),
+        invite_tokens: Arc::new(RwLock::new(Vec::new())),
     });
 
     let handler = Arc::new(LeaderConnectionHandler {
