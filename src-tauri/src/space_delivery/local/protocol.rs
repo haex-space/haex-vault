@@ -208,9 +208,3 @@ pub async fn read_response(
     crate::peer_storage::protocol::read_message(recv, MAX_RESPONSE_SIZE).await
 }
 
-/// Read a notification from a QUIC receive stream
-pub async fn read_notification(
-    recv: &mut iroh::endpoint::RecvStream,
-) -> Result<Notification, PeerProtocolError> {
-    crate::peer_storage::protocol::read_message(recv, MAX_RESPONSE_SIZE).await
-}

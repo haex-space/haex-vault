@@ -227,25 +227,6 @@ pub fn consume_welcomes(
     .map_err(map_db)
 }
 
-/// Store a pending commit (for crash recovery). Returns the generated UUID.
-pub fn store_pending_commit(
-    db: &DbConnection,
-    space_id: &str,
-    commit_blob: &[u8],
-) -> Result<String, DeliveryError> {
-    let id = Uuid::new_v4().to_string();
-    with_connection(db, |conn| {
-        conn.execute(
-            "INSERT INTO haex_local_delivery_pending_commits_no_sync (id, space_id, commit_blob) VALUES (?1, ?2, ?3)",
-            rusqlite::params![id, space_id, commit_blob],
-        ).map_err(|e| crate::database::error::DatabaseError::DatabaseError {
-            reason: e.to_string(),
-        })?;
-        Ok(id)
-    })
-    .map_err(map_db)
-}
-
 /// Clear all buffer tables for a space (called when leadership ends).
 pub fn clear_buffers(db: &DbConnection, space_id: &str) -> Result<(), DeliveryError> {
     with_connection(db, |conn| {

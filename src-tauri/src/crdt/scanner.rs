@@ -4,9 +4,7 @@
 //! It produces unencrypted column-level changes for local space sync over QUIC,
 //! which provides transport encryption.
 
-use crate::crdt::trigger::{
-    get_table_schema, ColumnInfo, COLUMN_HLCS_COLUMN, HLC_TIMESTAMP_COLUMN, TOMBSTONE_COLUMN,
-};
+use crate::crdt::trigger::{get_table_schema, ColumnInfo, COLUMN_HLCS_COLUMN, HLC_TIMESTAMP_COLUMN};
 use crate::database::core::{convert_value_ref_to_json, with_connection};
 use crate::database::error::DatabaseError;
 use crate::database::init::discover_crdt_tables;

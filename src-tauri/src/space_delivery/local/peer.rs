@@ -1,13 +1,11 @@
 //! Peer-side logic: connecting to leader, sending/receiving sync data.
 
 use super::error::DeliveryError;
-use super::protocol::{self, MlsMessageEntry, Request, Response};
+use super::protocol::{self, Request, Response};
 
 /// A connected peer session with the leader.
 pub struct PeerSession {
     conn: iroh::endpoint::Connection,
-    our_did: String,
-    our_endpoint_id: String,
 }
 
 impl PeerSession {
@@ -42,11 +40,7 @@ impl PeerSession {
                 reason: e.to_string(),
             })?;
 
-        let session = Self {
-            conn,
-            our_did: our_did.to_string(),
-            our_endpoint_id: our_endpoint_id.to_string(),
-        };
+        let session = Self { conn };
 
         // Send Announce request
         let req = Request::Announce {
@@ -135,132 +129,6 @@ impl PeerSession {
                 reason: "unexpected response to SyncPull".to_string(),
             }),
         }
-    }
-
-    /// Upload MLS key packages.
-    pub async fn upload_key_packages(
-        &self,
-        space_id: &str,
-        packages: Vec<String>,
-    ) -> Result<(), DeliveryError> {
-        let req = Request::MlsUploadKeyPackages {
-            space_id: space_id.to_string(),
-            packages,
-        };
-        match self.request(req).await? {
-            Response::Ok => Ok(()),
-            Response::Error { message } => Err(DeliveryError::ProtocolError { reason: message }),
-            _ => Err(DeliveryError::ProtocolError {
-                reason: "unexpected response to MlsUploadKeyPackages".to_string(),
-            }),
-        }
-    }
-
-    /// Fetch a key package for a target DID.
-    pub async fn fetch_key_package(
-        &self,
-        space_id: &str,
-        target_did: &str,
-    ) -> Result<String, DeliveryError> {
-        let req = Request::MlsFetchKeyPackage {
-            space_id: space_id.to_string(),
-            target_did: target_did.to_string(),
-        };
-        match self.request(req).await? {
-            Response::KeyPackage { package } => Ok(package),
-            Response::Error { message } => Err(DeliveryError::ProtocolError { reason: message }),
-            _ => Err(DeliveryError::ProtocolError {
-                reason: "unexpected response to MlsFetchKeyPackage".to_string(),
-            }),
-        }
-    }
-
-    /// Send an MLS message.
-    pub async fn send_message(
-        &self,
-        space_id: &str,
-        message: String,
-        message_type: &str,
-    ) -> Result<i64, DeliveryError> {
-        let req = Request::MlsSendMessage {
-            space_id: space_id.to_string(),
-            message,
-            message_type: message_type.to_string(),
-        };
-        match self.request(req).await? {
-            Response::MessageStored { message_id } => Ok(message_id),
-            Response::Error { message } => Err(DeliveryError::ProtocolError { reason: message }),
-            _ => Err(DeliveryError::ProtocolError {
-                reason: "unexpected response to MlsSendMessage".to_string(),
-            }),
-        }
-    }
-
-    /// Fetch MLS messages after a given ID.
-    pub async fn fetch_messages(
-        &self,
-        space_id: &str,
-        after_id: Option<i64>,
-    ) -> Result<Vec<MlsMessageEntry>, DeliveryError> {
-        let req = Request::MlsFetchMessages {
-            space_id: space_id.to_string(),
-            after_id,
-        };
-        match self.request(req).await? {
-            Response::Messages { messages } => Ok(messages),
-            Response::Error { message } => Err(DeliveryError::ProtocolError { reason: message }),
-            _ => Err(DeliveryError::ProtocolError {
-                reason: "unexpected response to MlsFetchMessages".to_string(),
-            }),
-        }
-    }
-
-    /// Send a welcome message.
-    pub async fn send_welcome(
-        &self,
-        space_id: &str,
-        recipient_did: &str,
-        welcome: String,
-    ) -> Result<(), DeliveryError> {
-        let req = Request::MlsSendWelcome {
-            space_id: space_id.to_string(),
-            recipient_did: recipient_did.to_string(),
-            welcome,
-        };
-        match self.request(req).await? {
-            Response::Ok => Ok(()),
-            Response::Error { message } => Err(DeliveryError::ProtocolError { reason: message }),
-            _ => Err(DeliveryError::ProtocolError {
-                reason: "unexpected response to MlsSendWelcome".to_string(),
-            }),
-        }
-    }
-
-    /// Fetch welcome messages.
-    pub async fn fetch_welcomes(
-        &self,
-        space_id: &str,
-    ) -> Result<Vec<String>, DeliveryError> {
-        let req = Request::MlsFetchWelcomes {
-            space_id: space_id.to_string(),
-        };
-        match self.request(req).await? {
-            Response::Welcomes { welcomes } => Ok(welcomes),
-            Response::Error { message } => Err(DeliveryError::ProtocolError { reason: message }),
-            _ => Err(DeliveryError::ProtocolError {
-                reason: "unexpected response to MlsFetchWelcomes".to_string(),
-            }),
-        }
-    }
-
-    /// Our DID.
-    pub fn our_did(&self) -> &str {
-        &self.our_did
-    }
-
-    /// Our endpoint ID.
-    pub fn our_endpoint_id(&self) -> &str {
-        &self.our_endpoint_id
     }
 
     /// Close the connection gracefully.
