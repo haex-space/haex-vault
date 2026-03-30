@@ -28,7 +28,7 @@
         <!-- Contact mode: contact selector -->
         <template v-if="mode === 'contact'">
           <div class="flex gap-2">
-            <USelectMenu
+            <UiSelectMenu
               v-model="selectedContactId"
               :items="contactOptions"
               value-key="value"
@@ -38,7 +38,7 @@
               <template #empty>
                 {{ t('form.noContacts') }}
               </template>
-            </USelectMenu>
+            </UiSelectMenu>
             <UButton
               icon="i-lucide-contact"
               color="neutral"
@@ -83,14 +83,14 @@
         </template>
 
         <!-- All modes: role + expiry -->
-        <USelectMenu
+        <UiSelectMenu
           v-model="selectedCapability"
           :items="capabilityOptions"
           :label="t('form.capabilityLabel')"
           class="w-full mt-3"
         />
 
-        <USelectMenu
+        <UiSelectMenu
           v-model="selectedExpiry"
           :items="expiryOptions"
           :label="t('form.expiryLabel')"
