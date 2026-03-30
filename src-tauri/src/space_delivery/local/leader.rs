@@ -787,10 +787,160 @@ async fn handle_delivery_stream(
             }
         }
 
-        Request::ClaimInvite { .. } => {
-            // TODO: implement invite claim handling in a later phase
-            Response::Error {
-                message: "ClaimInvite not yet implemented".to_string(),
+        Request::ClaimInvite {
+            space_id,
+            token,
+            did,
+            endpoint_id,
+            key_packages,
+            label,
+        } => {
+            if space_id != state.space_id {
+                return send_response(
+                    &mut send,
+                    &Response::Error {
+                        message: format!("Wrong space: expected {}", state.space_id),
+                    },
+                )
+                .await;
+            }
+
+            // 1. Validate and consume invite token
+            let (capability, pre_ucan) =
+                match validate_and_consume_invite(state, &token, &did).await {
+                    Ok(result) => result,
+                    Err(e) => {
+                        return send_response(
+                            &mut send,
+                            &Response::Error {
+                                message: e.to_string(),
+                            },
+                        )
+                        .await
+                    }
+                };
+
+            // 2. Determine UCAN: use pre-created (contact) or create now (conference)
+            let ucan_token = match pre_ucan {
+                Some(ucan) => ucan,
+                None => {
+                    // Conference invite — create UCAN now with claimer's DID
+                    let admin = match super::ucan::load_admin_identity(&state.db, &space_id) {
+                        Ok(a) => a,
+                        Err(e) => {
+                            return send_response(
+                                &mut send,
+                                &Response::Error {
+                                    message: format!("Failed to load admin identity: {e}"),
+                                },
+                            )
+                            .await
+                        }
+                    };
+                    match super::ucan::create_delegated_ucan(
+                        &admin.did,
+                        &admin.private_key_base64,
+                        &did,
+                        &space_id,
+                        &capability,
+                        Some(&admin.root_ucan),
+                        86400 * 365, // 1 year expiry (admin can revoke via MLS)
+                    ) {
+                        Ok(t) => t,
+                        Err(e) => {
+                            return send_response(
+                                &mut send,
+                                &Response::Error {
+                                    message: format!("Failed to create UCAN: {e}"),
+                                },
+                            )
+                            .await
+                        }
+                    }
+                }
+            };
+
+            // 3. Store key packages from invitee
+            for pkg_b64 in &key_packages {
+                if let Ok(blob) = base64_decode(pkg_b64) {
+                    let _ = store_key_package(&state.db, &space_id, &did, &blob);
+                }
+            }
+
+            // 4. Consume one key package for MLS add_member
+            let key_package_blob = match consume_key_package(&state.db, &space_id, &did) {
+                Ok(Some(blob)) => blob,
+                Ok(None) => {
+                    return send_response(
+                        &mut send,
+                        &Response::Error {
+                            message: "No key package available after upload".to_string(),
+                        },
+                    )
+                    .await
+                }
+                Err(e) => {
+                    return send_response(
+                        &mut send,
+                        &Response::Error {
+                            message: format!("Key package error: {e}"),
+                        },
+                    )
+                    .await
+                }
+            };
+
+            // 5. MLS add_member
+            let mls_manager = crate::mls::manager::MlsManager::new(state.db.0.clone());
+            let bundle = match mls_manager.add_member(&space_id, &key_package_blob) {
+                Ok(b) => b,
+                Err(e) => {
+                    return send_response(
+                        &mut send,
+                        &Response::Error {
+                            message: format!("MLS add_member failed: {e}"),
+                        },
+                    )
+                    .await
+                }
+            };
+
+            // 6. Store and broadcast commit to existing members
+            if !bundle.commit.is_empty() {
+                let _ = store_message(&state.db, &space_id, &did, "commit", &bundle.commit);
+                let senders = state.notification_senders.read().await;
+                for (_, sender) in senders.iter() {
+                    let _ = sender.try_send(Notification::Mls {
+                        space_id: space_id.clone(),
+                        message_type: "commit".to_string(),
+                    });
+                }
+            }
+
+            // 7. Register peer as connected
+            state.connected_peers.write().await.insert(
+                endpoint_id.clone(),
+                ConnectedPeer {
+                    endpoint_id,
+                    did: did.clone(),
+                    label,
+                    claims: vec![],
+                    connected_at: OffsetDateTime::now_utc()
+                        .format(&time::format_description::well_known::Rfc3339)
+                        .unwrap_or_default(),
+                },
+            );
+
+            // 8. Return welcome + UCAN
+            match bundle.welcome {
+                Some(welcome) => Response::InviteClaimed {
+                    welcome: base64_encode(&welcome),
+                    ucan: ucan_token,
+                    capability,
+                },
+                None => Response::Error {
+                    message: "MLS add_member produced no welcome".to_string(),
+                },
             }
         }
     };
