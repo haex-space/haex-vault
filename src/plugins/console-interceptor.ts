@@ -37,8 +37,15 @@ function flushBuffer() {
   bufferedLogs = []
 }
 
+// Prefixes that must not be persisted to DB to prevent sync feedback loops:
+// sync logging → interceptor → insert_log → CRDT dirty → push → more sync logging → ∞
+const SKIP_PREFIXES = ['[SYNC]', '[SYNC SCANNER]']
+
 function writeLog(level: string, message: string) {
   if (disabled) return
+
+  // Skip sync-related messages to prevent feedback loop with CRDT dirty tracking
+  if (SKIP_PREFIXES.some((prefix) => message.startsWith(prefix))) return
 
   if (!deviceId) {
     bufferedLogs.push({ level, message })

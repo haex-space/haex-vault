@@ -401,7 +401,7 @@ export const applyRemoteChangesInTransactionAsync = async (
   const epochKeyCache = new Map<number, Uint8Array>()
 
   const resolveDecryptionKey = async (change: ColumnChange): Promise<Uint8Array> => {
-    if (change.epoch === undefined) return vaultKey
+    if (change.epoch == null) return vaultKey
 
     const cached = epochKeyCache.get(change.epoch)
     if (cached) return cached
