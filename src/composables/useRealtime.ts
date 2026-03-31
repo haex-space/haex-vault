@@ -1,4 +1,3 @@
-import { ref, onUnmounted } from 'vue'
 import { createDidAuthToken } from '../utils/auth/didAuth'
 
 export interface RealtimeEvent {
@@ -107,10 +106,6 @@ export function useRealtime() {
       reconnectTimer = null
     }
   }
-
-  onUnmounted(() => {
-    disconnect()
-  })
 
   return { connected, connect, disconnect, on }
 }
