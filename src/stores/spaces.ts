@@ -10,7 +10,7 @@ import { haexSpaces } from '~/database/schemas'
 import type { SelectHaexSpaces } from '~/database/schemas'
 import { createLogger } from '@/stores/logging'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
-import { createRootUcanAsync, delegateUcanAsync, persistUcanAsync, fetchWithUcanAuth, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
+import { createRootUcanAsync, delegateUcanAsync, createServerRelayUcanAsync, persistUcanAsync, fetchWithUcanAuth, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
 
 /** Extended space type including the DB type field (vault/shared/local) */
 export interface SpaceWithType extends DecryptedSpace {
@@ -440,6 +440,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
   /**
    * Claim an invite token (invitee side). Registers DID + uploads KeyPackages.
+   * Handles both same-server and cross-server invites transparently.
    */
   const claimInviteTokenAsync = async (
     serverUrl: string,
@@ -448,17 +449,18 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     identityId: string,
   ): Promise<{ capability: string }> => {
     const identity = await resolveIdentityAsync(identityId)
-    const { useMlsDelivery } = await import('@/composables/useMlsDelivery')
-    const delivery = useMlsDelivery(serverUrl, spaceId, { privateKey: identity.privateKey, did: identity.did })
+    const relayServerUrl = detectCrossServerInvite(serverUrl)
 
     // Generate MLS KeyPackages
     const packages: number[][] = await invoke('mls_get_key_packages', { count: 10 })
     const keyPackagesBase64 = packages.map((p) => btoa(String.fromCharCode(...new Uint8Array(p))))
 
-    // Claim the token on the server
-    const { fetchWithDidAuth: fetchDid } = await import('@/utils/auth/didAuth')
-    const body = JSON.stringify({ keyPackages: keyPackagesBase64 })
-    const response = await fetchDid(
+    // Claim the token on the home server (always direct, even for cross-server)
+    const claimBody = JSON.stringify({
+      keyPackages: keyPackagesBase64,
+      label: identity.label,
+    })
+    const response = await fetchWithDidAuth(
       `${serverUrl}/spaces/${spaceId}/invite-tokens/${tokenId}/claim`,
       identity.privateKey,
       identity.did,
@@ -466,7 +468,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body,
+        body: claimBody,
       },
     )
 
@@ -476,19 +478,36 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     }
 
     const data = await response.json()
+    const role = mapCapabilityToRole(data.capability)
 
-    // Persist space locally
-    const space: SpaceWithType = {
-      id: spaceId,
-      name: '',
-      type: 'shared',
-      role: data.capability === 'space/admin' ? SpaceRoles.ADMIN : data.capability === 'space/read' ? SpaceRoles.READER : SpaceRoles.MEMBER,
-      serverUrl,
-      createdAt: new Date().toISOString(),
+    if (relayServerUrl) {
+      // Cross-server: set up federation, then persist space pointing to relay
+      await setupFederationForSpaceAsync(relayServerUrl, serverUrl, spaceId, identityId)
+
+      await persistSpaceAsync({
+        id: spaceId,
+        name: '',
+        type: 'shared',
+        role,
+        serverUrl: relayServerUrl,
+        createdAt: new Date().toISOString(),
+      })
+
+      log.info(`Claimed cross-server invite for space ${spaceId} (capability: ${data.capability}, relay: ${relayServerUrl})`)
+    } else {
+      // Same-server: existing behavior
+      await persistSpaceAsync({
+        id: spaceId,
+        name: '',
+        type: 'shared',
+        role,
+        serverUrl,
+        createdAt: new Date().toISOString(),
+      })
+
+      log.info(`Claimed invite token for space ${spaceId} (capability: ${data.capability})`)
     }
-    await persistSpaceAsync(space)
 
-    log.info(`Claimed invite token for space ${spaceId} (capability: ${data.capability})`)
     return { capability: data.capability }
   }
 
@@ -647,6 +666,106 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     log.info(`Removed identity ${identityPublicKey.slice(0, 20)}... from space ${spaceId}`)
   }
 
+  // =========================================================================
+  // Federation Helpers
+  // =========================================================================
+
+  const normalizeUrl = (url: string) => url.replace(/\/+$/, '').toLowerCase()
+
+  /**
+   * Check if an invite targets a different server than the user's own.
+   * Returns the user's relay server URL if cross-server, null if same-server.
+   */
+  const detectCrossServerInvite = (homeServerUrl: string): string | null => {
+    const backendsStore = useSyncBackendsStore()
+    const userServerUrl = backendsStore.backends[0]?.serverUrl
+    if (!userServerUrl) return null
+    if (normalizeUrl(homeServerUrl) === normalizeUrl(userServerUrl)) return null
+    return userServerUrl
+  }
+
+  /**
+   * Fetch the relay server's federation DID.
+   */
+  const getRelayServerDidAsync = async (relayServerUrl: string): Promise<string> => {
+    const response = await fetch(`${relayServerUrl}/federation/server-did`)
+    if (!response.ok) throw new Error('Relay server does not support federation')
+    const data = await response.json()
+    return data.did
+  }
+
+  /**
+   * Set up federation for a space: delegate server/relay UCAN to relay server,
+   * then tell the relay server to establish federation with the home server.
+   * Also creates a sync backend pointing to the relay server.
+   */
+  const setupFederationForSpaceAsync = async (
+    relayServerUrl: string,
+    homeServerUrl: string,
+    spaceId: string,
+    identityId: string,
+  ) => {
+    const identity = await resolveIdentityAsync(identityId)
+
+    // 1. Get relay server's DID
+    const relayServerDid = await getRelayServerDidAsync(relayServerUrl)
+
+    // 2. Get our UCAN for this space (needed as proof)
+    const parentUcan = getUcanForSpaceAsync(spaceId)
+    if (!parentUcan) {
+      log.warn('No UCAN for space yet — federation setup deferred')
+      return
+    }
+
+    // 3. Create server/relay UCAN delegated to relay server
+    const relayUcan = await createServerRelayUcanAsync(
+      identity.did,
+      identity.privateKey,
+      relayServerDid,
+      parentUcan,
+    )
+
+    // 4. Tell relay server to establish federation with home server
+    const response = await fetchWithDidAuth(
+      `${relayServerUrl}/federation/setup`,
+      identity.privateKey,
+      identity.did,
+      'federation-setup',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ spaceId, homeServerUrl, relayUcan }),
+      },
+    )
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(`Failed to set up federation: ${error.error || response.statusText}`)
+    }
+
+    // 5. Create sync backend pointing to relay server
+    const backendsStore = useSyncBackendsStore()
+    const existingBackend = backendsStore.backends.find(b => b.spaceId === spaceId)
+    if (!existingBackend) {
+      await backendsStore.addBackendAsync({
+        name: `Federation: ${spaceId.slice(0, 8)}`,
+        serverUrl: relayServerUrl,
+        spaceId,
+        identityId: identity.publicKey,
+        enabled: true,
+        priority: 0,
+      })
+    }
+
+    log.info(`Federation established: relay ${relayServerUrl} → home ${homeServerUrl} for space ${spaceId}`)
+  }
+
+  const mapCapabilityToRole = (capability: string): SpaceRole => {
+    if (capability === 'space/admin') return SpaceRoles.ADMIN
+    if (capability === 'space/read') return SpaceRoles.READER
+    return SpaceRoles.MEMBER
+  }
+
   const clearCache = () => {
     spaces.value = []
   }
@@ -671,6 +790,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     leaveSpaceAsync,
     deleteSpaceAsync,
     removeIdentityFromSpaceAsync,
+    setupFederationForSpaceAsync,
     clearCache,
   }
 })

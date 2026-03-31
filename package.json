@@ -35,7 +35,7 @@
     "@dicebear/bottts": "^9.4.2",
     "@dicebear/core": "^9.4.2",
     "@haex-space/marketplace-sdk": "^0.1.6",
-    "@haex-space/ucan": "^0.1.4",
+    "@haex-space/ucan": "^0.1.6",
     "@haex-space/vault-sdk": "^2.8.0",
     "@nuxt/eslint": "1.15.2",
     "@nuxt/fonts": "0.14.0",
