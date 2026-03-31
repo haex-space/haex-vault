@@ -256,10 +256,12 @@
 import { createClient } from '@supabase/supabase-js'
 import { cleanupSupabaseClient } from '@/stores/sync/engine/supabase'
 import {
-  decryptWithPrivateKeyAsync,
   decryptPrivateKeyAsync,
   decryptVaultKey,
 } from '@haex-space/vault-sdk'
+import { decryptVaultNameAsync } from '@/utils/crypto/vaultName'
+import { DidAuthAction } from '@haex-space/ucan'
+import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import type { StepperItem } from '@nuxt/ui'
 import type { AppSupabaseClient } from '~/stores/sync/engine/supabase'
 import { createConnectWizardSchema } from './connectWizardSchema'
@@ -276,6 +278,7 @@ interface VaultInfo {
   spaceId: string
   encryptedVaultName: string
   vaultNameNonce: string
+  vaultNameSalt: string
   ephemeralPublicKey: string
   createdAt: string
 }
@@ -294,6 +297,8 @@ const emit = defineEmits<{
       serverUrl: string
       identityId: string
       identityPublicKey: string
+      identityPrivateKey: string
+      identityDid: string
       vaultPassword: string
       isNewVault: boolean
     },
@@ -480,26 +485,17 @@ const previousStep = () => {
 }
 
 const loadVaultsAsync = async () => {
-  if (!supabaseClient.value) return
+  if (!decryptedPrivateKey.value || !recoveredKeyData.value) return
 
   isLoadingVaults.value = true
 
   try {
-    // Get auth token
-    const {
-      data: { session },
-    } = await supabaseClient.value.auth.getSession()
-    if (!session?.access_token) {
-      throw new Error('Not authenticated')
-    }
-
-    // Fetch vaults from server
-    const response = await fetch(`${credentials.value.serverUrl}/sync/vaults`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${session.access_token}`,
-      },
-    })
+    const response = await fetchWithDidAuth(
+      `${credentials.value.serverUrl}/sync/vaults`,
+      decryptedPrivateKey.value,
+      recoveredKeyData.value.did,
+      DidAuthAction.VaultList,
+    )
 
     if (!response.ok) {
       throw new Error('Failed to fetch vaults')
@@ -523,15 +519,13 @@ const decryptVaultNamesAsync = async (privateKeyBase64: string) => {
   const names: Record<string, string> = {}
   for (const vault of availableVaults.value) {
     try {
-      const decryptedBytes = await decryptWithPrivateKeyAsync(
-        {
-          encryptedData: vault.encryptedVaultName,
-          nonce: vault.vaultNameNonce,
-          ephemeralPublicKey: vault.ephemeralPublicKey,
-        },
+      names[vault.spaceId] = await decryptVaultNameAsync(
+        vault.encryptedVaultName,
+        vault.vaultNameNonce,
+        vault.vaultNameSalt,
+        vault.ephemeralPublicKey,
         privateKeyBase64,
       )
-      names[vault.spaceId] = new TextDecoder().decode(decryptedBytes)
     } catch {
       // Decryption failed — keep showing fallback
     }
@@ -585,6 +579,8 @@ const completeSetupAsync = async () => {
       serverUrl: credentials.value.serverUrl,
       identityId: credentials.value.identityId,
       identityPublicKey: recoveredKeyData.value!.publicKey,
+      identityPrivateKey: decryptedPrivateKey.value!,
+      identityDid: recoveredKeyData.value!.did,
       vaultPassword: effectivePassword,
       isNewVault: true,
     })
@@ -602,6 +598,8 @@ const completeSetupAsync = async () => {
       serverUrl: credentials.value.serverUrl,
       identityId: credentials.value.identityId,
       identityPublicKey: recoveredKeyData.value!.publicKey,
+      identityPrivateKey: decryptedPrivateKey.value!,
+      identityDid: recoveredKeyData.value!.did,
       vaultPassword: effectivePassword,
       isNewVault: false,
     })
@@ -625,21 +623,16 @@ const selectVault = async (spaceId: string) => {
 }
 
 const tryDIDPasswordAsVaultPasswordAsync = async (spaceId: string) => {
-  if (!supabaseClient.value) return
+  if (!decryptedPrivateKey.value || !recoveredKeyData.value) return
 
   isCheckingVaultPassword.value = true
 
   try {
-    const { data: { session } } = await supabaseClient.value.auth.getSession()
-    if (!session?.access_token) return
-
-    // Fetch encrypted vault key from server
-    const response = await fetch(
+    const response = await fetchWithDidAuth(
       `${credentials.value.serverUrl}/sync/vault-key/${spaceId}`,
-      {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      },
+      decryptedPrivateKey.value,
+      recoveredKeyData.value.did,
+      DidAuthAction.VaultKeyGet,
     )
 
     if (!response.ok) return

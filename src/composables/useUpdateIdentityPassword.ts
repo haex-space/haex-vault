@@ -1,7 +1,8 @@
 import {
   encryptPrivateKeyAsync,
 } from '@haex-space/vault-sdk'
-import { useCreateSyncConnection } from './useCreateSyncConnection'
+import { DidAuthAction } from '@haex-space/ucan'
+import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 
 /**
  * Composable for updating the identity password on all connected sync backends.
@@ -13,7 +14,6 @@ import { useCreateSyncConnection } from './useCreateSyncConnection'
 export const useUpdateIdentityPassword = () => {
   const identityStore = useIdentityStore()
   const syncBackendsStore = useSyncBackendsStore()
-  const { loginAsync } = useCreateSyncConnection()
 
   const isLoading = ref(false)
   const error = ref<string | null>(null)
@@ -52,16 +52,17 @@ export const useUpdateIdentityPassword = () => {
       const failures: string[] = []
       for (const backend of backends) {
         try {
-          const session = await loginAsync(backend.serverUrl, identityId)
-
-          const res = await fetch(`${backend.serverUrl}/identity-auth/update-recovery`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`,
+          const res = await fetchWithDidAuth(
+            `${backend.serverUrl}/identity-auth/update-recovery`,
+            identity.privateKey,
+            identity.did,
+            DidAuthAction.UpdateRecovery,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ encryptedPrivateKey, privateKeyNonce, privateKeySalt }),
             },
-            body: JSON.stringify({ encryptedPrivateKey, privateKeyNonce, privateKeySalt }),
-          })
+          )
 
           if (!res.ok) {
             const data = await res.json().catch(() => ({ error: 'Unknown error' }))

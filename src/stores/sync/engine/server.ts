@@ -89,12 +89,13 @@ export const updateVaultNameOnServerAsync = async (
   privateKey: string,
   did: string,
 ): Promise<void> => {
-  // Encrypt new vault name with identity agreement key (X25519 via Rust)
+  // Encrypt new vault name with identity Ed25519 public key (Rust: Ed25519→X25519 + ECDH + AES-GCM)
   const sealedName = await encryptVaultNameAsync(newVaultName, identityPublicKey)
 
   const body = JSON.stringify({
     encryptedVaultName: sealedName.encryptedData,
     vaultNameNonce: sealedName.nonce,
+    vaultNameSalt: sealedName.salt,
     ephemeralPublicKey: sealedName.ephemeralPublicKey,
   })
 

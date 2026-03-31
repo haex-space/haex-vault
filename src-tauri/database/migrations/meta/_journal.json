@@ -15,6 +15,13 @@
       "when": 1774866646396,
       "tag": "0001_cuddly_kronos",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1774947855353,
+      "tag": "0002_sleepy_dreaming_celestial",
+      "breakpoints": true
     }
   ]
 }

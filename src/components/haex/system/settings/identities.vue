@@ -203,6 +203,8 @@
             leading-icon="i-lucide-mail"
             type="email"
             required
+            :custom-validators="[emailValidator]"
+            check
           />
 
           <UCheckbox
@@ -682,8 +684,15 @@ const effectiveCreatePassword = computed(() =>
     : createIdentityPassword.value,
 )
 
+const isValidEmail = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+const emailValidator = (value: unknown): string | null => {
+  const v = String(value ?? '').trim()
+  if (!v) return null
+  return isValidEmail(v) ? null : t('create.invalidEmail')
+}
+
 const canCreateIdentity = computed(() => {
-  if (!createLabel.value.trim() || !createClaims.email.trim()) return false
+  if (!createLabel.value.trim() || !isValidEmail(createClaims.email)) return false
   if (useVaultPasswordForIdentity.value) return !!currentVaultPassword.value
   return (
     createIdentityPassword.value.length >= 8 &&
@@ -1257,6 +1266,7 @@ de:
     identityPasswordDescription: Dieses Passwort schützt deinen privaten Schlüssel auf dem Sync-Server. Merke es dir gut – es wird für die Wiederherstellung benötigt.
     identityPasswordConfirm: Identity-Passwort bestätigen
     passwordMismatch: Passwörter stimmen nicht überein
+    invalidEmail: Bitte eine gültige E-Mail-Adresse eingeben
     claimsOptional: Weitere Angaben (optional)
   import:
     title: Identität importieren
@@ -1360,6 +1370,7 @@ en:
     identityPasswordDescription: This password protects your private key on the sync server. Remember it well — it is required for account recovery.
     identityPasswordConfirm: Confirm identity password
     passwordMismatch: Passwords do not match
+    invalidEmail: Please enter a valid email address
     claimsOptional: Additional info (optional)
   import:
     title: Import Identity

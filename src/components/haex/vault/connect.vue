@@ -59,6 +59,8 @@ const onWizardCompleteAsync = async (wizardData: {
   serverUrl: string
   identityId: string
   identityPublicKey: string
+  identityPrivateKey: string
+  identityDid: string
   vaultPassword: string
   isNewVault: boolean
 }) => {
@@ -98,6 +100,8 @@ const onWizardCompleteAsync = async (wizardData: {
         wizardData.vaultName,
         wizardData.vaultPassword,
         wizardData.identityPublicKey,
+        wizardData.identityPrivateKey,
+        wizardData.identityDid,
       )
 
       // Cache the vault key for immediate use

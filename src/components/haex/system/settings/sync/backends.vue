@@ -357,9 +357,9 @@
 </template>
 
 <script setup lang="ts">
-import { decryptWithPrivateKeyAsync } from '@haex-space/vault-sdk'
 import { DidAuthAction } from '@haex-space/ucan'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
+import { decryptVaultNameAsync } from '@/utils/crypto/vaultName'
 import type { SelectHaexSyncBackends } from '~/database/schemas'
 
 defineEmits<{ back: [] }>()
@@ -427,6 +427,7 @@ interface ServerVault {
   spaceId: string
   encryptedVaultName: string
   vaultNameNonce: string
+  vaultNameSalt: string
   ephemeralPublicKey: string
   createdAt: string
   decryptedName?: string
@@ -719,19 +720,17 @@ const loadVaultsForBackendAsync = async (
     const data = await response.json()
     const vaults: ServerVault[] = data.vaults
 
-    // Decrypt vault names using identity private key
+    // Decrypt vault names using identity Ed25519 private key (Rust: Ed25519→X25519 + ECDH + AES-GCM)
     await Promise.all(
       vaults.map(async (vault) => {
         try {
-          const decryptedBytes = await decryptWithPrivateKeyAsync(
-            {
-              encryptedData: vault.encryptedVaultName,
-              nonce: vault.vaultNameNonce,
-              ephemeralPublicKey: vault.ephemeralPublicKey,
-            },
+          vault.decryptedName = await decryptVaultNameAsync(
+            vault.encryptedVaultName,
+            vault.vaultNameNonce,
+            vault.vaultNameSalt,
+            vault.ephemeralPublicKey,
             identity.privateKey,
           )
-          vault.decryptedName = new TextDecoder().decode(decryptedBytes)
         } catch (e) {
           console.warn('[SYNC] Failed to decrypt vault name:', e)
         }

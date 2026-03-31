@@ -55,7 +55,7 @@ export const clearVaultKeyCache = (spaceId?: string): void => {
  *
  * Encryption:
  * - Vault key: encrypted with vault password (symmetric, for data access)
- * - Vault name: encrypted with identity public key (ECDH, readable after login)
+ * - Vault name: encrypted with identity Ed25519 public key (→ X25519 ECDH, readable after login)
  */
 export const uploadVaultKeyAsync = async (
   serverUrl: string,
@@ -70,7 +70,7 @@ export const uploadVaultKeyAsync = async (
   // Encrypt vault key with vault password
   const encryptedVaultKeyData = await encryptVaultKey(vaultKey, vaultPassword)
 
-  // Encrypt vault name with identity agreement key (X25519 ECDH via Rust)
+  // Encrypt vault name with identity Ed25519 public key (Rust: Ed25519→X25519 + ECDH + HKDF + AES-GCM)
   const sealedName = await encryptVaultNameAsync(vaultName, identityPublicKey)
 
   // Send to server with DID-Auth
@@ -82,6 +82,7 @@ export const uploadVaultKeyAsync = async (
     ephemeralPublicKey: sealedName.ephemeralPublicKey,
     vaultKeyNonce: encryptedVaultKeyData.vaultKeyNonce,
     vaultNameNonce: sealedName.nonce,
+    vaultNameSalt: sealedName.salt,
   })
   const response = await fetchWithDidAuth(`${serverUrl}/sync/vault-key`, privateKey, did, 'vault-key', {
     method: 'POST',

@@ -1,5 +1,4 @@
 import { eq } from 'drizzle-orm'
-import { invoke } from '@tauri-apps/api/core'
 import { generateIdentityAsync, publicKeyToDidKeyAsync } from '@haex-space/vault-sdk'
 import { haexIdentities, haexIdentityClaims, type SelectHaexIdentities } from '~/database/schemas'
 import { createLogger } from '@/stores/logging'
@@ -9,8 +8,6 @@ export interface ExportedIdentity {
   label: string
   publicKey: string
   privateKey: string
-  agreementPublicKey?: string
-  agreementPrivateKey?: string
   avatar?: string | null
   claims?: { type: string; value: string }[]
 }
@@ -49,16 +46,11 @@ export const useIdentityStore = defineStore('identityStore', () => {
 
     const { did, signingPublicKey, signingPrivateKey } = await generateIdentityAsync()
 
-    // X25519 key agreement via Rust (WebCrypto X25519 not available in all WebViews)
-    const agreementKeys = await invoke<{ publicKey: string, privateKey: string }>('generate_x25519_keypair')
-
     const newIdentity = {
       label,
       did,
       publicKey: signingPublicKey,
       privateKey: signingPrivateKey,
-      agreementPublicKey: agreementKeys.publicKey,
-      agreementPrivateKey: agreementKeys.privateKey,
     }
 
     await currentVault.value.drizzle
@@ -122,8 +114,6 @@ export const useIdentityStore = defineStore('identityStore', () => {
     label: identity.label,
     publicKey: identity.publicKey,
     privateKey: identity.privateKey,
-    agreementPublicKey: identity.agreementPublicKey,
-    agreementPrivateKey: identity.agreementPrivateKey,
   })
 
   const importIdentityAsync = async (exported: ExportedIdentity): Promise<SelectHaexIdentities> => {
@@ -151,18 +141,11 @@ export const useIdentityStore = defineStore('identityStore', () => {
       return existing[0]!
     }
 
-    // Generate X25519 agreement keys if not present in export
-    const agreementKeys = exported.agreementPublicKey && exported.agreementPrivateKey
-      ? { publicKey: exported.agreementPublicKey, privateKey: exported.agreementPrivateKey }
-      : await invoke<{ publicKey: string, privateKey: string }>('generate_x25519_keypair')
-
     const newIdentity = {
       label: exported.label || `Imported ${exported.did.slice(0, 20)}...`,
       did: exported.did,
       publicKey: exported.publicKey,
       privateKey: exported.privateKey,
-      agreementPublicKey: agreementKeys.publicKey,
-      agreementPrivateKey: agreementKeys.privateKey,
       avatar: exported.avatar || null,
     }
 

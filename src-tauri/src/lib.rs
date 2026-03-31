@@ -229,9 +229,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            crypto::generate_x25519_keypair,
-            crypto::x25519_encrypt,
-            crypto::x25519_decrypt,
+            crypto::encrypt_for_identity,
+            crypto::decrypt_for_identity,
             database::close_database,
             database::create_encrypted_database,
             database::delete_vault,
