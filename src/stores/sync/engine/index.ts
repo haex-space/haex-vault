@@ -3,7 +3,7 @@
  * Handles vault key storage and CRDT log synchronization
  *
  * This store combines functionality from:
- * - supabase.ts: Supabase client management
+ * - tokenManager.ts: DID authentication and token management
  * - vaultKey.ts: Vault key encryption/decryption
  * - changes.ts: CRDT push/pull operations
  * - database.ts: Local database operations
@@ -12,15 +12,15 @@
 
 import { engineLog, type VaultKeyCache } from './types'
 import {
-  initSupabaseClientAsync as initClient,
+  initTokenManager,
   getAuthTokenAsync as getToken,
-  supabaseClientRef,
+  isInitializedRef,
   currentBackendIdRef,
-  resetSupabaseClient,
-  setSupabaseClient as setClient,
+  resetTokenManager,
+  setSession,
   cacheAccessToken,
   setReauthResolver,
-} from './supabase'
+} from './tokenManager'
 import {
   getVaultKeyCache,
   cacheSyncKey,
@@ -59,8 +59,8 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   // Expose cache as ref for reactivity
   const vaultKeyCache = ref<VaultKeyCache>(getVaultKeyCache())
 
-  // Expose Supabase client state as reactive refs (imported from supabase.ts)
-  const supabaseClient = supabaseClientRef
+  // Token manager state as reactive refs
+  const isTokenManagerInitialized = isInitializedRef
   const currentBackendId = currentBackendIdRef
 
   /**
@@ -118,8 +118,8 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
 
   /**
    * Registers the DID re-auth resolver for a backend.
-   * Must be called whenever a Supabase client is set (both initSupabaseClientAsync
-   * and setSupabaseClient paths) so expired sessions can be automatically recovered.
+   * Must be called whenever the token manager is initialized
+   * so expired sessions can be automatically recovered via DID re-auth.
    */
   const registerReauthResolver = (backendId: string): void => {
     setReauthResolver(async () => {
@@ -145,28 +145,15 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   }
 
   /**
-   * Initializes Supabase client for a specific backend
+   * Initializes the token manager for a specific backend
    */
-  const initSupabaseClientAsync = async (backendId: string): Promise<void> => {
-    const backend = findBackend(backendId)
-    await initClient(backendId, backend.serverUrl)
+  const initTokenManagerAsync = (backendId: string): void => {
+    initTokenManager(backendId)
     registerReauthResolver(backendId)
   }
 
   /**
-   * Sets an existing Supabase client (for cases where client is created externally)
-   * This is used in the connect wizard where the client is already authenticated
-   */
-  const setSupabaseClient = (
-    client: Parameters<typeof setClient>[0],
-    backendId: string,
-  ): void => {
-    setClient(client, backendId)
-    registerReauthResolver(backendId)
-  }
-
-  /**
-   * Gets the current Supabase auth token
+   * Gets the current auth token
    */
   const getAuthTokenAsync = async (): Promise<string | null> => {
     return getToken()
@@ -597,7 +584,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   const reset = async (): Promise<void> => {
     clearVaultKeyCache()
     setReauthResolver(null)
-    await resetSupabaseClient()
+    resetTokenManager()
     // Sync the ref with the actual cache
     vaultKeyCache.value = getVaultKeyCache()
     log.info('Store reset')
@@ -605,10 +592,10 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
 
   return {
     vaultKeyCache,
-    supabaseClient,
+    isTokenManagerInitialized,
     currentBackendId,
-    initSupabaseClientAsync,
-    setSupabaseClient,
+    initTokenManagerAsync,
+    setSession,
     registerReauthResolver,
     getAuthTokenAsync,
     uploadVaultKeyAsync: uploadVaultKeyToServerAsync,

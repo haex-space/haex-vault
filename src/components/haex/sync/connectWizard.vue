@@ -253,8 +253,6 @@
 </template>
 
 <script setup lang="ts">
-import { createClient } from '@supabase/supabase-js'
-import { cleanupSupabaseClient } from '@/stores/sync/engine/supabase'
 import {
   decryptPrivateKeyAsync,
   decryptVaultKey,
@@ -263,7 +261,6 @@ import { decryptVaultNameAsync } from '@/utils/crypto/vaultName'
 import { DidAuthAction } from '@haex-space/ucan'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import type { StepperItem } from '@nuxt/ui'
-import type { AppSupabaseClient } from '~/stores/sync/engine/supabase'
 import { createConnectWizardSchema } from './connectWizardSchema'
 import type { RecoveryKeyData } from '~/composables/useIdentityRecovery'
 
@@ -354,8 +351,6 @@ const credentials = ref({
   serverUrl: 'https://sync.haex.space',
   identityId: '',
 })
-const supabaseClient = shallowRef<AppSupabaseClient | null>(null)
-
 // Recovery mode: stores encrypted private key data from OTP verification
 const recoveredKeyData = ref<RecoveryKeyData | null>(null)
 
@@ -556,19 +551,12 @@ const completeSetupAsync = async () => {
   if (!canComplete.value) return
   if (!isCreatingNewVault.value && !selectedVaultId.value) return
 
-  if (!supabaseClient.value) {
-    throw new Error('Supabase client not initialized')
-  }
-
   // Determine effective vault password
   const effectivePassword = needsVaultPassword.value || isCreatingNewVault.value
     ? vaultPassword.value
     : didPassword.value
 
-  // Store Supabase client in syncEngineStore for later use
   const backendId = crypto.randomUUID()
-  const syncEngineStore = useSyncEngineStore()
-  syncEngineStore.setSupabaseClient(supabaseClient.value, backendId)
 
   if (isCreatingNewVault.value) {
     emit('complete', {
@@ -692,29 +680,6 @@ const onRecoveryComplete = async (data: {
     credentials.value.identityId = data.identity.publicKey
     recoveredKeyData.value = data.recoveryKeyData
 
-    // Connect to server and get Supabase config
-    const response = await fetch(data.serverUrl)
-    if (!response.ok) throw new Error(t('errors.serverConnection'))
-    const serverInfo = await response.json()
-
-    // Create Supabase client with the session from recovery
-    // Disable auto-refresh and persistence — this is a temporary client for the wizard only
-    supabaseClient.value = createClient(
-      serverInfo.supabaseUrl,
-      serverInfo.supabaseAnonKey,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-          storageKey: 'sb-wizard-temp',
-        },
-      },
-    )
-    await supabaseClient.value.auth.setSession({
-      access_token: data.session.access_token,
-      refresh_token: data.session.refresh_token,
-    })
-
     // Pre-fill DID password with current vault password if available
     if (currentVaultPassword.value) {
       didPassword.value = currentVaultPassword.value
@@ -757,8 +722,6 @@ const clearForm = async () => {
   vaultPassword.value = ''
   vaultPasswordConfirm.value = ''
   vaultNameExists.value = false
-  await cleanupSupabaseClient(supabaseClient.value)
-  supabaseClient.value = null
 }
 
 const formatDate = (dateStr: string) => {

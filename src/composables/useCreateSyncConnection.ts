@@ -2,7 +2,7 @@ import {
   importUserPrivateKeyAsync,
   encryptPrivateKeyAsync,
 } from '@haex-space/vault-sdk'
-import { didAuthenticateAsync } from '~/stores/sync/engine/supabase'
+import { didAuthenticateAsync } from '~/stores/sync/engine/tokenManager'
 
 export interface ServerRequirements {
   serverName: string
@@ -329,26 +329,10 @@ export const useCreateSyncConnection = () => {
     }
 
     try {
-      await syncEngineStore.initSupabaseClientAsync(backendId)
-
-      if (!syncEngineStore.supabaseClient) {
-        throw new Error('Supabase client not initialized')
-      }
+      syncEngineStore.initTokenManagerAsync(backendId)
 
       const session = await loginAsync(serverUrl, identityId)
-
-      const { error: sessionError } =
-        await syncEngineStore.supabaseClient.auth.setSession({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        })
-
-      if (sessionError) {
-        throw new Error(`Failed to set session: ${sessionError.message}`)
-      }
-
-      // Cache the token directly as workaround for Supabase getSession timing issues
-      syncEngineStore.cacheAccessToken(session.access_token)
+      syncEngineStore.setSession(session)
 
       if (!currentVaultPassword.value) {
         throw new Error('Vault password not available')

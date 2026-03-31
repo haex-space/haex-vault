@@ -585,8 +585,8 @@ const toggleBackendAsync = async (backendId: string) => {
 
     // Start/stop sync based on new state
     if (newEnabledState) {
-      // Initialize Supabase client for this backend
-      await syncEngineStore.initSupabaseClientAsync(backendId)
+      // Initialize token manager for this backend
+      syncEngineStore.initTokenManagerAsync(backendId)
 
       // Start sync
       await syncOrchestratorStore.startSyncAsync()

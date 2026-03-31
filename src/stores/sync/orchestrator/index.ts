@@ -124,15 +124,12 @@ export const useSyncOrchestratorStore = defineStore(
       }
 
       try {
-        // Ensure Supabase client is initialized for this backend (still needed for GoTrue auth)
-        if (!syncEngineStore.supabaseClient || syncEngineStore.currentBackendId !== backendId) {
-          log.info('INIT: Initializing Supabase client...')
-          await syncEngineStore.initSupabaseClientAsync(backendId)
+        // Ensure token manager is initialized for this backend
+        if (!syncEngineStore.isTokenManagerInitialized || syncEngineStore.currentBackendId !== backendId) {
+          log.info('INIT: Initializing token manager...')
+          syncEngineStore.initTokenManagerAsync(backendId)
         } else {
-          // Client already exists (e.g. from connect wizard's setSupabaseClient).
-          // Ensure the reauth resolver is registered — setSupabaseClient sets it,
-          // but we re-register here in case the backendId changed.
-          log.debug('INIT: Supabase client already exists, ensuring reauth resolver is registered')
+          log.debug('INIT: Token manager already initialized, ensuring reauth resolver is registered')
           syncEngineStore.registerReauthResolver(backendId)
         }
 

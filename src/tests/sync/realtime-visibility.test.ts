@@ -47,7 +47,7 @@ vi.stubGlobal('useSyncBackendsStore', vi.fn(() => ({
 })))
 
 vi.stubGlobal('useSyncEngineStore', vi.fn(() => ({
-  supabaseClient: null,
+  isTokenManagerInitialized: false,
   getAuthTokenAsync: vi.fn().mockResolvedValue(null),
 })))
 

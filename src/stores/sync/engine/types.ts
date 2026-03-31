@@ -43,22 +43,4 @@ export interface PullChangesResponse {
   hasMore: boolean
 }
 
-/**
- * Helper function to wrap fetch with network error handling
- * Catches network errors and throws a user-friendly error message
- */
-export async function fetchWithNetworkErrorHandling(
-  url: string,
-  options?: RequestInit,
-): Promise<Response> {
-  try {
-    const { fetchWithReauthAsync } = await import('./supabase')
-    return await fetchWithReauthAsync(url, options ?? {})
-  } catch {
-    throw new Error(
-      'NETWORK_ERROR: Cannot connect to sync server. Please check your internet connection.',
-    )
-  }
-}
-
 export const engineLog = createLogger('SYNC ENGINE')

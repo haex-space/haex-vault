@@ -9,7 +9,7 @@ import type {
   SqliteRemoteDatabase,
 } from 'drizzle-orm/sqlite-proxy'
 import type { CleanupResult } from '~~/src-tauri/bindings/CleanupResult'
-import { didAuthenticateAsync } from '~/stores/sync/engine/supabase'
+import { didAuthenticateAsync } from '~/stores/sync/engine/tokenManager'
 import { loadUcansFromDbAsync } from '~/utils/auth/ucanStore'
 
 interface IVault {
@@ -111,22 +111,10 @@ export const useVaultStore = defineStore('vaultStore', () => {
             continue
           }
 
-          // Initialize Supabase client
-          await syncEngineStore.initSupabaseClientAsync(backend.id)
-
-          if (!syncEngineStore.supabaseClient) {
-            console.warn(`[HaexSpace] Failed to initialize Supabase for ${backend.name}`)
-            continue
-          }
-
-          // Authenticate via DID challenge-response
+          // Initialize token manager and authenticate via DID challenge-response
+          syncEngineStore.initTokenManagerAsync(backend.id)
           const session = await didAuthenticateAsync(backend.serverUrl, identity.did, identity.privateKey)
-
-          // Set the session from the server response
-          await syncEngineStore.supabaseClient.auth.setSession({
-            access_token: session.access_token,
-            refresh_token: session.refresh_token,
-          })
+          syncEngineStore.setSession(session)
 
           // Ensure sync key exists
           if (backend.spaceId && currentVault.value?.name && currentVaultPassword.value) {
@@ -277,7 +265,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
     const syncBackendsStore = useSyncBackendsStore()
     syncBackendsStore.reset()
 
-    // Sync engine needs async cleanup (Supabase client teardown)
+    // Sync engine cleanup (token manager reset)
     const syncEngineStore = useSyncEngineStore()
     await syncEngineStore.reset()
 
