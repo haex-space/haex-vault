@@ -722,6 +722,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       identity.did,
       identity.privateKey,
       relayServerDid,
+      spaceId,
       parentUcan,
     )
 

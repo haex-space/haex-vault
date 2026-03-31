@@ -2,7 +2,6 @@ import {
   createUcan,
   createWebCryptoSigner,
   spaceResource,
-  serverResource,
   decodeUcan,
   type Capability,
 } from '@haex-space/ucan'
@@ -75,13 +74,14 @@ export async function delegateUcanAsync(
 }
 
 /**
- * Create a server/relay UCAN delegating relay capability to a server DID.
- * Used to authorize the relay server to act on behalf of this user for federation.
+ * Create a server/relay UCAN delegating relay capability for a specific space to a server.
+ * Resource is space:<spaceId> so relay access is scoped per space, not per server.
  */
 export async function createServerRelayUcanAsync(
   issuerDid: string,
   privateKeyBase64: string,
   serverDid: string,
+  spaceId: string,
   parentUcan: string,
   expiresInSeconds: number = DEFAULT_EXPIRY_SECONDS,
 ): Promise<string> {
@@ -93,7 +93,7 @@ export async function createServerRelayUcanAsync(
     {
       issuer: issuerDid,
       audience: serverDid,
-      capabilities: { [serverResource(serverDid)]: 'server/relay' },
+      capabilities: { [spaceResource(spaceId)]: 'server/relay' },
       proofs: [parentUcan],
       expiration: now + expiresInSeconds,
     },
