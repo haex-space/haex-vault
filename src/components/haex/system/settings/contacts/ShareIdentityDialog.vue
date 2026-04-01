@@ -117,26 +117,26 @@ const identityOptions = computed(() =>
   })),
 )
 
-watch(selectedIdentityId, async (id) => {
+const loadClaimsForIdentityAsync = async (id: string) => {
   selectedClaimIds.value.clear()
   availableClaims.value = []
   if (!id) return
 
   const claims = await identityStore.getClaimsAsync(id)
   availableClaims.value = claims.map(c => ({ id: c.id, type: c.type, value: c.value }))
-  // Select all claims by default
   for (const claim of availableClaims.value) {
     selectedClaimIds.value.add(claim.id)
   }
-})
+}
+
+watch(selectedIdentityId, (id) => loadClaimsForIdentityAsync(id))
 
 watch(open, async (isOpen) => {
   if (isOpen) {
-    selectedClaimIds.value.clear()
-    availableClaims.value = []
     qrDataUrl.value = ''
     await identityStore.loadIdentitiesAsync()
     selectedIdentityId.value = props.preSelectedIdentityId || ''
+    await loadClaimsForIdentityAsync(selectedIdentityId.value)
   }
 })
 
