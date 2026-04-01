@@ -3,9 +3,18 @@
     :title="tableName"
     :description="`${total} ${t('rows')}`"
     show-back
-    sticky-header
     @back="$emit('back')"
   >
+    <template #actions>
+      <UiButton
+        icon="i-lucide-download"
+        color="primary"
+        :loading="isExporting"
+        @click="exportAsJson"
+      >
+        {{ selectedRows.size > 0 ? t('exportSelected', { count: selectedRows.size }) : t('exportAll') }}
+      </UiButton>
+    </template>
     <!-- Loading -->
     <div
       v-if="isLoading"
@@ -23,14 +32,24 @@
       class="space-y-4"
     >
       <div class="overflow-x-auto rounded-lg border border-default">
-        <table class="w-full text-xs font-mono">
+        <table class="w-full text-sm font-mono">
           <thead>
             <!-- Column headers (sortable) -->
             <tr class="bg-muted/30">
+              <th class="w-10 px-4 py-3 border-b border-default">
+                <input
+                  ref="selectAllCheckbox"
+                  type="checkbox"
+                  :checked="isAllSelected"
+                  :indeterminate="isIndeterminate"
+                  class="accent-primary"
+                  @change="toggleSelectAll"
+                >
+              </th>
               <th
                 v-for="col in columns"
                 :key="col"
-                class="text-left px-3 py-2 text-muted font-medium whitespace-nowrap border-b border-default cursor-pointer hover:text-highlighted select-none transition-colors"
+                class="text-left px-4 py-3 text-muted font-medium whitespace-nowrap border-b border-default cursor-pointer hover:text-highlighted select-none transition-colors"
                 @click="toggleSort(col)"
               >
                 <div class="flex items-center gap-1">
@@ -45,10 +64,11 @@
             </tr>
             <!-- Column filters -->
             <tr class="bg-muted/10">
+              <td class="px-2 py-1.5 border-b border-default" />
               <td
                 v-for="col in columns"
                 :key="`filter-${col}`"
-                class="px-1 py-1 border-b border-default"
+                class="px-2 py-1.5 border-b border-default"
               >
                 <input
                   v-model="columnFilters[col]"
@@ -64,14 +84,23 @@
               v-for="(row, i) in rows"
               :key="i"
               :class="[
-                'border-b border-default last:border-0 hover:bg-muted/20 transition-colors',
+                'border-b border-default last:border-0 hover:bg-muted/20 transition-colors cursor-pointer',
+                selectedRows.has(i) && 'bg-primary/10',
                 isTombstone(row) ? 'bg-red-500/5 text-red-400' : isModified(row) && 'bg-info/5',
               ]"
+              @click="toggleRowSelection(i)"
             >
+              <td class="w-10 px-4 py-2.5">
+                <input
+                  type="checkbox"
+                  :checked="selectedRows.has(i)"
+                  class="accent-primary pointer-events-none"
+                >
+              </td>
               <td
                 v-for="(cell, j) in row"
                 :key="j"
-                class="px-3 py-1.5 whitespace-nowrap max-w-80 truncate"
+                class="px-4 py-2.5 whitespace-nowrap max-w-80 truncate"
                 :title="String(cell)"
               >
                 <span
@@ -90,7 +119,7 @@
       </div>
 
       <!-- Pagination + Reset -->
-      <div class="flex items-center justify-between">
+      <div class="flex items-center justify-between pt-4">
         <div class="flex items-center gap-3">
           <span class="text-sm text-muted">
             <template v-if="total > 0">
@@ -110,10 +139,16 @@
             {{ t('resetFilters') }}
           </UiButton>
         </div>
-        <div
-          v-if="total > pageSize"
-          class="flex gap-2"
-        >
+        <div class="flex items-center gap-2">
+          <span class="text-sm text-muted">{{ t('perPage') }}</span>
+          <USelectMenu
+            :model-value="pageSize"
+            :items="pageSizeOptions.map(s => ({ label: String(s), value: s }))"
+            value-key="value"
+            :search-input="false"
+            class="w-28"
+            @update:model-value="pageSize = $event; offset = 0; loadData()"
+          />
           <UiButton
             icon="i-lucide-chevron-left"
             variant="ghost"
@@ -147,6 +182,8 @@
 <script setup lang="ts">
 import { invoke } from '@tauri-apps/api/core'
 import { useDebounceFn } from '@vueuse/core'
+import { save } from '@tauri-apps/plugin-dialog'
+import { writeFile } from '@tauri-apps/plugin-fs'
 
 const props = defineProps<{
   tableName: string
@@ -163,7 +200,38 @@ const columns = ref<string[]>([])
 const rows = ref<unknown[][]>([])
 const total = ref(0)
 const offset = ref(0)
-const pageSize = 50
+const pageSizeOptions = [10, 25, 50, 100]
+const pageSize = ref(10)
+
+// Selection
+const selectedRows = ref(new Set<number>())
+const selectAllCheckbox = ref<HTMLInputElement>()
+
+const isAllSelected = computed(() =>
+  rows.value.length > 0 && selectedRows.value.size === rows.value.length,
+)
+const isIndeterminate = computed(() =>
+  selectedRows.value.size > 0 && selectedRows.value.size < rows.value.length,
+)
+
+const toggleRowSelection = (index: number) => {
+  const next = new Set(selectedRows.value)
+  if (next.has(index)) next.delete(index)
+  else next.add(index)
+  selectedRows.value = next
+}
+
+const toggleSelectAll = () => {
+  if (isAllSelected.value) {
+    selectedRows.value = new Set()
+  } else {
+    selectedRows.value = new Set(rows.value.map((_, i) => i))
+  }
+}
+
+watch(isIndeterminate, (val) => {
+  if (selectAllCheckbox.value) selectAllCheckbox.value.indeterminate = val
+})
 
 // Sort
 const sortColumn = ref<string | null>(null)
@@ -259,17 +327,61 @@ const loadData = async () => {
         params: whereParams,
       }),
       invoke<unknown[][]>('sql_select', {
-        sql: `SELECT * FROM "${props.tableName}" ${where} ${order} LIMIT ${pageSize} OFFSET ${offset.value}`,
+        sql: `SELECT * FROM "${props.tableName}" ${where} ${order} LIMIT ${pageSize.value} OFFSET ${offset.value}`,
         params: whereParams,
       }),
     ])
 
     total.value = Number(countResult[0]?.[0] ?? 0)
     rows.value = dataResult
+    selectedRows.value = new Set()
   } catch (error) {
     console.error('Failed to load table data:', error)
   } finally {
     isLoading.value = false
+  }
+}
+
+const isExporting = ref(false)
+
+const rowToObject = (row: unknown[]) =>
+  Object.fromEntries(columns.value.map((col, i) => [col, row[i]]))
+
+const exportAsJson = async () => {
+  if (columns.value.length === 0) return
+
+  isExporting.value = true
+  try {
+    let jsonData: Record<string, unknown>[]
+
+    if (selectedRows.value.size > 0) {
+      jsonData = [...selectedRows.value]
+        .sort((a, b) => a - b)
+        .filter(i => rows.value[i] != null)
+        .map(i => rowToObject(rows.value[i]!))
+    } else {
+      const { clause: where, params: whereParams } = buildWhereClause()
+      const order = buildOrderClause()
+      const allRows = await invoke<unknown[][]>('sql_select', {
+        sql: `SELECT * FROM "${props.tableName}" ${where} ${order}`,
+        params: whereParams,
+      })
+      jsonData = allRows.map(rowToObject)
+    }
+
+    const filePath = await save({
+      title: `Export ${props.tableName}`,
+      defaultPath: `${props.tableName}.json`,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (!filePath) return
+
+    const encoder = new TextEncoder()
+    await writeFile(filePath, encoder.encode(JSON.stringify(jsonData, null, 2)))
+  } catch (error) {
+    console.error('Failed to export table:', error)
+  } finally {
+    isExporting.value = false
   }
 }
 
@@ -284,6 +396,9 @@ de:
   filter: Filtern...
   resetFilters: Filter zurücksetzen
   noResults: Keine Ergebnisse
+  exportAll: Alle exportieren
+  exportSelected: '{count} exportieren'
+  perPage: Einträge pro Seite
 en:
   rows: rows
   empty: No entries in this table
@@ -291,4 +406,7 @@ en:
   filter: Filter...
   resetFilters: Reset filters
   noResults: No results
+  exportAll: Export all
+  perPage: Entries per page
+  exportSelected: 'Export {count}'
 </i18n>

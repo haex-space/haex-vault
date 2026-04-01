@@ -2,6 +2,8 @@
   <UiDrawer
     v-model:open="open"
     direction="right"
+    :title="t('launcher.title')"
+    :description="t('launcher.description')"
     :overlay="false"
     :modal="false"
     :handle-only="true"
@@ -15,8 +17,13 @@
           variant="ghost"
           @click="open = false"
         />
-        <h3 class="font-semibold text-lg">{{ t('launcher.title') }}</h3>
+        <DrawerTitle class="font-semibold text-lg">
+          {{ t('launcher.title') }}
+        </DrawerTitle>
       </div>
+      <VisuallyHidden>
+        <DrawerDescription>{{ t('launcher.description') }}</DrawerDescription>
+      </VisuallyHidden>
     </template>
     <span
       ref="launcherButtonWrapperRef"
@@ -32,7 +39,7 @@
     </span>
 
     <template #body>
-      <div class="flex flex-wrap justify-center gap-2">
+      <div class="flex flex-wrap justify-center gap-2 max-w-[512px] mx-auto">
         <!-- All launcher items (system windows + enabled extensions, alphabetically sorted) -->
         <HaexExtensionLauncherItem
           v-for="item in launcherItems"
@@ -88,6 +95,9 @@
 </template>
 
 <script setup lang="ts">
+import { DrawerTitle, DrawerDescription } from 'vaul-vue'
+import { VisuallyHidden } from 'reka-ui'
+
 defineOptions({
   inheritAttrs: false,
 })

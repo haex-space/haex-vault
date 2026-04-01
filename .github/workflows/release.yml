@@ -257,6 +257,10 @@ jobs:
         with:
           workspaces: src-tauri
 
+      - name: Clean stale migration caches
+        shell: bash
+        run: find src-tauri/target -path "*/database/migrations" -type d -exec rm -rf {} + 2>/dev/null || true
+
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
@@ -268,7 +272,7 @@ jobs:
           releaseId: ${{ needs.create-release.outputs.release_id }}
 
       - name: Upload Linux binary for E2E tests
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: haex-vault-linux-e2e
           path: src-tauri/target/release/haex-vault
@@ -325,6 +329,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+
+      - name: Clean stale migration caches
+        shell: bash
+        run: find src-tauri/target -path "*/database/migrations" -type d -exec rm -rf {} + 2>/dev/null || true
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
@@ -445,6 +453,10 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Clean stale migration caches
+        shell: bash
+        run: find src-tauri/target -path "*/database/migrations" -type d -exec rm -rf {} + 2>/dev/null || true
+
       - name: Initialize Android project
         run: |
           rm -rf src-tauri/gen/android
@@ -498,7 +510,7 @@ jobs:
 
       # Upload Android APK as artifact for E2E tests
       - name: Upload Android APK for E2E tests
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: haex-vault-android-e2e
           path: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
@@ -539,7 +551,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Download Android APK artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: haex-vault-android-e2e
           path: ./apk
@@ -557,7 +569,7 @@ jobs:
       - name: Clone sync-server for docker-compose config
         run: |
           mkdir -p repos
-          git clone --depth 1 https://github.com/haex-space/haex-sync-server.git repos/haex-sync-server
+          git clone --depth 1 https://x-access-token:${{ github.token }}@github.com/haex-space/haex-sync-server.git repos/haex-sync-server
 
       - name: Start backend services
         env:
@@ -610,7 +622,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: android-e2e-results-${{ github.run_id }}
           path: |

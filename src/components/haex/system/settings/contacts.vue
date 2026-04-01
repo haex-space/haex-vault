@@ -3,93 +3,88 @@
     :title="t('title')"
     :description="t('description')"
   >
-    <!-- Contacts List -->
-    <UCard>
-      <template #header>
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 class="text-lg font-semibold">{{ t('list.title') }}</h3>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {{ t('list.description') }}
-            </p>
-          </div>
-          <div class="flex gap-2">
-            <UButton
-              color="neutral"
-              variant="outline"
-              icon="i-lucide-share-2"
-              @click="showShareDialog = true"
-            >
-              <span class="hidden @sm:inline">{{ t('actions.share') }}</span>
-            </UButton>
-            <UButton
-              color="neutral"
-              variant="outline"
-              icon="i-lucide-scan-line"
-              @click="showScanDialog = true"
-            >
-              <span class="hidden @sm:inline">{{ t('actions.scan') }}</span>
-            </UButton>
-            <UButton
-              color="primary"
-              icon="i-lucide-plus"
-              @click="showAddDialog = true"
-            >
-              <span class="hidden @sm:inline">{{ t('actions.add') }}</span>
-            </UButton>
-          </div>
-        </div>
-      </template>
-
-      <!-- Loading -->
-      <div
-        v-if="isLoading"
-        class="flex items-center justify-center py-8"
+    <template #actions>
+      <UButton
+        color="neutral"
+        variant="outline"
+        icon="i-lucide-share-2"
+        @click="showShareDialog = true"
       >
-        <UIcon
-          name="i-lucide-loader-2"
-          class="w-5 h-5 animate-spin text-primary"
-        />
-      </div>
-
-      <!-- Contacts list -->
-      <div
-        v-else-if="contacts.length"
-        class="space-y-3"
+        <span class="hidden @sm:inline">{{ t('actions.share') }}</span>
+      </UButton>
+      <UButton
+        color="neutral"
+        variant="outline"
+        icon="i-lucide-scan-line"
+        @click="showScanDialog = true"
       >
-        <div
-          v-for="contact in contacts"
-          :key="contact.id"
-          class="p-3 rounded-lg border border-default"
+        <span class="hidden @sm:inline">{{ t('actions.scan') }}</span>
+      </UButton>
+      <UButton
+        color="primary"
+        icon="i-lucide-plus"
+        @click="showAddDialog = true"
+      >
+        <span class="hidden @sm:inline">{{ t('actions.add') }}</span>
+      </UButton>
+    </template>
+
+    <!-- Loading -->
+    <div
+      v-if="isLoading"
+      class="flex items-center justify-center py-8"
+    >
+      <UIcon
+        name="i-lucide-loader-2"
+        class="w-5 h-5 animate-spin text-primary"
+      />
+    </div>
+
+    <!-- Contacts list -->
+    <div
+      v-else-if="contacts.length"
+      class="space-y-3"
+    >
+      <div
+        v-for="contact in contacts"
+        :key="contact.id"
+        class="p-3 rounded-lg border border-default"
+      >
+        <UCollapsible
+          :open="expandedContact === contact.id"
+          :unmount-on-hide="false"
+          @update:open="(val: boolean) => onToggleContact(contact.id, val)"
         >
-          <UCollapsible>
-            <div class="flex items-center justify-between">
-              <button
-                class="flex-1 min-w-0 text-left flex items-center gap-2"
-                @click="toggleExpand(contact.id)"
-              >
-                <UIcon
-                  name="i-lucide-chevron-right"
-                  class="w-4 h-4 shrink-0 text-muted transition-transform duration-200"
-                  :class="{ 'rotate-90': expandedContact === contact.id }"
-                />
-                <div class="min-w-0">
-                  <div class="flex items-center gap-2">
-                    <UIcon
-                      name="i-lucide-user"
-                      class="w-4 h-4 text-primary shrink-0"
-                    />
-                    <span class="font-medium truncate">{{ contact.label }}</span>
-                  </div>
-                  <div class="mt-1 flex items-center gap-2">
-                    <code class="text-xs text-muted truncate max-w-[300px]">{{
-                      contact.publicKey
-                    }}</code>
-                  </div>
+          <div class="flex items-center justify-between cursor-pointer">
+            <div class="flex-1 min-w-0 flex items-center gap-2">
+              <UIcon
+                name="i-lucide-chevron-right"
+                class="w-4 h-4 shrink-0 text-muted transition-transform duration-200"
+                :class="{ 'rotate-90': expandedContact === contact.id }"
+              />
+              <UiAvatar
+                :src="contact.avatar"
+                :seed="contact.id"
+                size="sm"
+              />
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium truncate">{{ contact.label }}</span>
                 </div>
-              </button>
+                <div class="mt-1 flex items-center gap-2">
+                  <code class="text-xs text-muted truncate max-w-[300px]">{{
+                    contact.publicKey
+                  }}</code>
+                </div>
+              </div>
+            </div>
 
-              <div class="flex items-center gap-1 shrink-0 ml-4">
+            <div
+              class="shrink-0 ml-4"
+              @click.stop
+            >
+              <!-- Large screens: inline buttons -->
+              <div class="hidden @md:flex items-center gap-1">
                 <UButton
                   variant="ghost"
                   icon="i-lucide-copy"
@@ -110,84 +105,122 @@
                   @click="prepareDelete(contact)"
                 />
               </div>
-            </div>
-
-            <!-- Claims Section (collapsible) -->
-            <template v-if="expandedContact === contact.id" #content>
-              <div class="mt-3 pt-3 border-t border-default space-y-2">
-            <div class="flex items-center justify-between">
-              <span class="text-sm font-medium">{{ t('claims.title') }}</span>
-              <UButton
-                variant="outline"
-                icon="i-lucide-plus"
-                @click="openAddClaim(contact.id)"
+              <!-- Small screens: dropdown menu -->
+              <UDropdownMenu
+                class="@md:hidden"
+                :items="[
+                  [
+                    {
+                      label: t('actions.copyKey'),
+                      icon: 'i-lucide-copy',
+                      onSelect: () => copyPublicKey(contact.publicKey),
+                    },
+                    {
+                      label: t('actions.edit'),
+                      icon: 'i-lucide-pencil',
+                      onSelect: () => openEditDialog(contact),
+                    },
+                  ],
+                  [
+                    {
+                      label: t('actions.delete'),
+                      icon: 'i-lucide-trash-2',
+                      color: 'error' as const,
+                      onSelect: () => prepareDelete(contact),
+                    },
+                  ],
+                ]"
               >
-                {{ t('claims.add') }}
-              </UButton>
-            </div>
-
-            <div
-              v-if="contactClaims[contact.id]?.length"
-              class="space-y-1"
-            >
-              <div
-                v-for="claim in contactClaims[contact.id]"
-                :key="claim.id"
-                class="flex items-center justify-between p-2 rounded bg-gray-50 dark:bg-gray-800/50"
-              >
-                <div class="min-w-0 flex-1">
-                  <span class="text-xs font-medium text-muted">{{
-                    claim.type
-                  }}</span>
-                  <p class="text-sm truncate">{{ claim.value }}</p>
-                </div>
-                <div class="flex gap-1 shrink-0 ml-2">
-                  <UButton
-                    variant="ghost"
-                    icon="i-lucide-pencil"
-                    @click="openEditClaim(claim)"
-                  />
-                  <UButton
-                    variant="ghost"
-                    color="error"
-                    icon="i-lucide-trash-2"
-                    @click="deleteClaimAsync(claim.id, contact.id)"
-                  />
-                </div>
-              </div>
-            </div>
-            <p
-              v-else
-              class="text-xs text-muted"
-            >
-              {{ t('claims.empty') }}
-            </p>
-
-            <!-- Notes -->
-            <div
-              v-if="contact.notes"
-              class="pt-2"
-            >
-              <span class="text-xs font-medium text-muted">{{
-                t('fields.notes')
-              }}</span>
-              <p class="text-sm text-muted">{{ contact.notes }}</p>
+                <UButton
+                  variant="ghost"
+                  icon="i-lucide-ellipsis-vertical"
+                  color="neutral"
+                />
+              </UDropdownMenu>
             </div>
           </div>
-            </template>
-          </UCollapsible>
-        </div>
-      </div>
 
-      <!-- Empty state -->
-      <div
-        v-else
-        class="text-center py-4 text-gray-500 dark:text-gray-400"
-      >
-        {{ t('list.empty') }}
-      </div>
-    </UCard>
+          <!-- Claims Section (collapsible) -->
+          <template
+            v-if="expandedContact === contact.id"
+            #content
+          >
+            <div class="mt-3 pt-3 border-t border-default space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-medium">{{ t('claims.title') }}</span>
+                <UButton
+                  variant="outline"
+                  icon="i-lucide-plus"
+                  @click="openAddClaim(contact.id)"
+                >
+                  {{ t('claims.add') }}
+                </UButton>
+              </div>
 
+              <div
+                v-if="contactClaims[contact.id]?.length"
+                class="space-y-1"
+              >
+                <div
+                  v-for="claim in contactClaims[contact.id]"
+                  :key="claim.id"
+                  class="flex items-center justify-between p-2 rounded bg-gray-50 dark:bg-gray-800/50"
+                >
+                  <div class="min-w-0 flex-1">
+                    <span class="text-xs font-medium text-muted">{{
+                      claim.type
+                    }}</span>
+                    <p class="text-sm truncate">{{ claim.value }}</p>
+                  </div>
+                  <div class="flex gap-1 shrink-0 ml-2">
+                    <UButton
+                      variant="ghost"
+                      icon="i-lucide-copy"
+                      @click="copyClaimValue(claim.value)"
+                    />
+                    <UButton
+                      variant="ghost"
+                      icon="i-lucide-pencil"
+                      @click="openEditClaim(claim)"
+                    />
+                    <UButton
+                      variant="ghost"
+                      color="error"
+                      icon="i-lucide-trash-2"
+                      @click="deleteClaimAsync(claim.id, contact.id)"
+                    />
+                  </div>
+                </div>
+              </div>
+              <p
+                v-else
+                class="text-xs text-muted"
+              >
+                {{ t('claims.empty') }}
+              </p>
+
+              <!-- Notes -->
+              <div
+                v-if="contact.notes"
+                class="pt-2"
+              >
+                <span class="text-xs font-medium text-muted">{{
+                  t('fields.notes')
+                }}</span>
+                <p class="text-sm text-muted">{{ contact.notes }}</p>
+              </div>
+            </div>
+          </template>
+        </UCollapsible>
+      </div>
+    </div>
+
+    <!-- Empty state -->
+    <HaexSystemSettingsLayoutEmpty
+      v-else
+      :message="t('list.empty')"
+      icon="i-lucide-user"
+    />
     <!-- Add Contact Dialog -->
     <UiDrawerModal
       v-model:open="showAddDialog"
@@ -195,34 +228,150 @@
       :description="t('add.description')"
     >
       <template #content>
-        <UiInput
-          v-model="addForm.label"
-          :label="t('fields.label')"
-          :placeholder="t('add.labelPlaceholder')"
+        <UTabs
+          v-model="addMode"
+          :items="addTabItems"
+          class="w-full"
         />
-        <UiTextarea
-          v-model="addForm.publicKey"
-          :label="t('fields.publicKey')"
-          :placeholder="t('add.publicKeyPlaceholder')"
-          :rows="3"
-        />
-        <UiTextarea
-          v-model="addForm.notes"
-          :label="t('fields.notes')"
-          :placeholder="t('add.notesPlaceholder')"
-          :rows="2"
-        />
+
+        <!-- File import mode -->
+        <template v-if="addMode === 'file'">
+          <!-- Step 1: Select file or paste JSON -->
+          <template v-if="!importParsed">
+            <div class="space-y-4 mt-4">
+              <UButton
+                color="neutral"
+                variant="outline"
+                icon="i-lucide-file-up"
+                block
+                @click="onSelectImportFileAsync"
+              >
+                {{ t('add.selectFile') }}
+              </UButton>
+
+              <USeparator :label="t('add.orPaste')" />
+
+              <UiTextarea
+                v-model="importJson"
+                :label="t('add.jsonLabel')"
+                :placeholder="t('add.jsonPlaceholder')"
+                :rows="6"
+              />
+            </div>
+          </template>
+
+          <!-- Step 2: Preview & select -->
+          <template v-else>
+            <div class="space-y-4 mt-4">
+              <!-- Contact info -->
+              <div class="flex items-center gap-3 p-3 rounded-lg border border-default">
+                <UiAvatar
+                  v-if="importParsed.avatar"
+                  :src="importParsed.avatar"
+                  :seed="importParsed.publicKey"
+                  size="sm"
+                />
+                <div class="min-w-0 flex-1">
+                  <p class="font-medium truncate">{{ importParsed.label || importParsed.publicKey.slice(0, 20) + '...' }}</p>
+                  <p class="text-xs text-muted truncate">{{ importParsed.publicKey }}</p>
+                </div>
+              </div>
+
+              <!-- Avatar -->
+              <div
+                v-if="importParsed.avatar"
+                class="flex items-center gap-3 p-2 rounded bg-gray-50 dark:bg-gray-800/50"
+              >
+                <UCheckbox v-model="importIncludeAvatar" />
+                <UiAvatar
+                  :src="importParsed.avatar"
+                  :seed="importParsed.publicKey"
+                  size="sm"
+                />
+                <span class="text-sm">{{ t('add.includeAvatar') }}</span>
+              </div>
+
+              <!-- Claims -->
+              <div
+                v-if="importParsed.claims.length"
+                class="space-y-2"
+              >
+                <span class="text-sm font-medium">{{ t('add.selectClaims') }}</span>
+                <div
+                  v-for="(claim, index) in importParsed.claims"
+                  :key="index"
+                  class="flex items-center gap-3 p-2 rounded bg-gray-50 dark:bg-gray-800/50"
+                >
+                  <UCheckbox
+                    :model-value="importSelectedClaimIndices.has(index)"
+                    @update:model-value="toggleImportClaim(index)"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <span class="text-xs font-medium text-muted">{{ claim.type }}</span>
+                    <p class="text-sm truncate">{{ claim.value }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </template>
+
+        <!-- Manual mode -->
+        <template v-else>
+          <div class="space-y-4 mt-4">
+            <UiInput
+              v-model="addForm.label"
+              :label="t('fields.label')"
+              :placeholder="t('add.labelPlaceholder')"
+            />
+            <UiTextarea
+              v-model="addForm.publicKey"
+              :label="t('fields.publicKey')"
+              :placeholder="t('add.publicKeyPlaceholder')"
+              :rows="3"
+            />
+            <UiTextarea
+              v-model="addForm.notes"
+              :label="t('fields.notes')"
+              :placeholder="t('add.notesPlaceholder')"
+              :rows="2"
+            />
+          </div>
+        </template>
       </template>
       <template #footer>
         <div class="flex justify-between gap-4">
           <UButton
             color="neutral"
             variant="outline"
-            @click="showAddDialog = false"
+            @click="addMode === 'file' && importParsed ? (importParsed = null) : (showAddDialog = false)"
           >
-            {{ t('actions.cancel') }}
+            {{ addMode === 'file' && importParsed ? t('actions.back') : t('actions.cancel') }}
           </UButton>
+
+          <!-- File mode buttons -->
+          <template v-if="addMode === 'file'">
+            <UiButton
+              v-if="!importParsed"
+              icon="i-lucide-arrow-right"
+              :disabled="!importJson.trim()"
+              @click="onParseImport"
+            >
+              {{ t('add.preview') }}
+            </UiButton>
+            <UiButton
+              v-else
+              icon="i-lucide-plus"
+              :loading="isAdding"
+              @click="onImportContactAsync"
+            >
+              {{ t('actions.add') }}
+            </UiButton>
+          </template>
+
+          <!-- Manual mode button -->
           <UiButton
+            v-else
             icon="i-lucide-plus"
             :loading="isAdding"
             :disabled="!addForm.label.trim() || !addForm.publicKey.trim()"
@@ -357,6 +506,22 @@ const showDeleteConfirm = ref(false)
 const showShareDialog = ref(false)
 const showScanDialog = ref(false)
 
+const addMode = ref<string>('file')
+const addTabItems = computed(() => [
+  { label: t('add.tabFile'), value: 'file' },
+  { label: t('add.tabManual'), value: 'manual' },
+])
+
+const importJson = ref('')
+const importParsed = ref<{
+  label: string
+  publicKey: string
+  avatar?: string | null
+  claims: { type: string; value: string }[]
+} | null>(null)
+const importSelectedClaimIndices = ref(new Set<number>())
+const importIncludeAvatar = ref(true)
+
 const addForm = reactive({
   label: '',
   publicKey: '',
@@ -380,6 +545,19 @@ onMounted(async () => {
   }
 })
 
+watch(showAddDialog, (isOpen) => {
+  if (isOpen) {
+    addMode.value = 'file'
+    importJson.value = ''
+    importParsed.value = null
+    importSelectedClaimIndices.value.clear()
+    importIncludeAvatar.value = true
+    addForm.label = ''
+    addForm.publicKey = ''
+    addForm.notes = ''
+  }
+})
+
 const onAddContactAsync = async () => {
   if (!addForm.label.trim() || !addForm.publicKey.trim()) return
 
@@ -397,6 +575,103 @@ const onAddContactAsync = async () => {
     addForm.notes = ''
   } catch (error) {
     console.error('Failed to add contact:', error)
+    add({
+      title: t('errors.addFailed'),
+      description: error instanceof Error ? error.message : undefined,
+      color: 'error',
+    })
+  } finally {
+    isAdding.value = false
+  }
+}
+
+const onSelectImportFileAsync = async () => {
+  try {
+    const { open } = await import('@tauri-apps/plugin-dialog')
+    const { readFile } = await import('@tauri-apps/plugin-fs')
+
+    const filePath = await open({
+      title: t('add.title'),
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+      multiple: false,
+    })
+    if (!filePath) return
+
+    const data = await readFile(filePath as string)
+    importJson.value = new TextDecoder().decode(data)
+  } catch (error) {
+    console.error('Failed to read file:', error)
+    add({
+      title: t('errors.importFailed'),
+      description: error instanceof Error ? error.message : undefined,
+      color: 'error',
+    })
+  }
+}
+
+const toggleImportClaim = (index: number) => {
+  if (importSelectedClaimIndices.value.has(index)) {
+    importSelectedClaimIndices.value.delete(index)
+  } else {
+    importSelectedClaimIndices.value.add(index)
+  }
+}
+
+const onParseImport = () => {
+  if (!importJson.value.trim()) return
+
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(importJson.value)
+  } catch {
+    add({ title: t('errors.invalidJson'), color: 'error' })
+    return
+  }
+
+  if (!parsed.publicKey) {
+    add({ title: t('errors.invalidData'), color: 'error' })
+    return
+  }
+
+  const claims = Array.isArray(parsed.claims)
+    ? (parsed.claims as { type: string; value: string }[])
+    : []
+
+  importParsed.value = {
+    label: (parsed.label as string) || '',
+    publicKey: parsed.publicKey as string,
+    avatar: typeof parsed.avatar === 'string' ? parsed.avatar : null,
+    claims,
+  }
+
+  importSelectedClaimIndices.value = new Set(claims.map((_, i) => i))
+  importIncludeAvatar.value = !!importParsed.value.avatar
+}
+
+const onImportContactAsync = async () => {
+  if (!importParsed.value) return
+
+  isAdding.value = true
+  try {
+    const data = importParsed.value
+    const selectedClaims = data.claims.filter((_, i) => importSelectedClaimIndices.value.has(i))
+    const avatar = importIncludeAvatar.value ? data.avatar : null
+
+    const contact = await contactsStore.addContactWithClaimsAsync(
+      data.label || `Imported ${data.publicKey.slice(0, 16)}...`,
+      data.publicKey,
+      selectedClaims,
+    )
+    if (avatar) {
+      await contactsStore.updateContactAsync(contact.id, { avatar })
+    }
+
+    add({ title: t('success.added'), color: 'success' })
+    showAddDialog.value = false
+    importJson.value = ''
+    importParsed.value = null
+  } catch (error) {
+    console.error('Failed to import contact:', error)
     add({
       title: t('errors.addFailed'),
       description: error instanceof Error ? error.message : undefined,
@@ -469,9 +744,13 @@ const copyPublicKey = async (key: string) => {
   }
 }
 
-const formatDate = (dateStr: string | null) => {
-  if (!dateStr) return ''
-  return new Date(dateStr).toLocaleDateString()
+const copyClaimValue = async (value: string) => {
+  try {
+    await navigator.clipboard.writeText(value)
+    add({ title: t('success.copied'), color: 'success' })
+  } catch {
+    add({ title: t('errors.copyFailed'), color: 'error' })
+  }
 }
 
 // Claims management
@@ -522,8 +801,8 @@ const canSaveClaim = computed(() => {
   return true
 })
 
-const toggleExpand = async (contactId: string) => {
-  if (expandedContact.value === contactId) {
+const onToggleContact = async (contactId: string, open: boolean) => {
+  if (!open) {
     expandedContact.value = null
     return
   }
@@ -618,7 +897,16 @@ de:
     added: Hinzugefügt
   add:
     title: Kontakt hinzufügen
-    description: Füge einen neuen Kontakt mit seinem öffentlichen Schlüssel hinzu
+    description: Importiere einen Kontakt aus einer Datei oder füge ihn manuell hinzu
+    tabFile: Aus Datei
+    tabManual: Manuell
+    selectFile: JSON-Datei auswählen
+    orPaste: oder einfügen
+    jsonLabel: Kontakt-JSON
+    jsonPlaceholder: Exportiertes Identitäts-JSON hier einfügen
+    preview: Vorschau
+    includeAvatar: Profilbild übernehmen
+    selectClaims: Claims zum Importieren auswählen
     labelPlaceholder: z.B. Alice, Bob, Team-Lead
     publicKeyPlaceholder: Base58-kodierten Public Key einfügen
     notesPlaceholder: Optionale Notizen
@@ -653,6 +941,7 @@ de:
     edit: Bearbeiten
     delete: Löschen
     cancel: Abbrechen
+    back: Zurück
     save: Speichern
     copyKey: Public Key kopieren
     toggleClaims: Claims anzeigen/verbergen
@@ -663,6 +952,9 @@ de:
     copied: Kopiert
   errors:
     addFailed: Kontakt konnte nicht hinzugefügt werden
+    importFailed: Import fehlgeschlagen
+    invalidJson: Ungültiges JSON-Format
+    invalidData: Unvollständige Daten (mindestens publicKey erforderlich)
     updateFailed: Aktualisierung fehlgeschlagen
     deleteFailed: Löschen fehlgeschlagen
     copyFailed: Kopieren fehlgeschlagen
@@ -676,7 +968,16 @@ en:
     added: Added
   add:
     title: Add Contact
-    description: Add a new contact with their public key
+    description: Import a contact from a file or add one manually
+    tabFile: From file
+    tabManual: Manual
+    selectFile: Select JSON file
+    orPaste: or paste
+    jsonLabel: Contact JSON
+    jsonPlaceholder: Paste exported identity JSON here
+    preview: Preview
+    includeAvatar: Include profile picture
+    selectClaims: Select claims to import
     labelPlaceholder: e.g. Alice, Bob, Team Lead
     publicKeyPlaceholder: Paste Base58-encoded public key
     notesPlaceholder: Optional notes
@@ -711,6 +1012,7 @@ en:
     edit: Edit
     delete: Delete
     cancel: Cancel
+    back: Back
     save: Save
     copyKey: Copy public key
     toggleClaims: Show/hide claims
@@ -721,6 +1023,9 @@ en:
     copied: Copied
   errors:
     addFailed: Failed to add contact
+    importFailed: Failed to import file
+    invalidJson: Invalid JSON format
+    invalidData: Incomplete data (at least publicKey is required)
     updateFailed: Failed to update contact
     deleteFailed: Failed to delete contact
     copyFailed: Failed to copy

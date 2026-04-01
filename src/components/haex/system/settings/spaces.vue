@@ -1,34 +1,42 @@
 <template>
   <HaexSystemSettingsLayout :title="t('title')" :description="t('description')">
-    <!-- Spaces List -->
-    <UCard>
-      <template #header>
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 class="text-lg font-semibold">{{ t('list.title') }}</h3>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {{ t('list.description') }}
-            </p>
-          </div>
-          <div class="flex gap-2">
-            <UButton
-              color="neutral"
-              variant="outline"
-              icon="i-lucide-log-in"
-              @click="showJoinDialog = true"
-            >
-              <span class="hidden @sm:inline">{{ t('actions.join') }}</span>
-            </UButton>
-            <UButton
-              color="primary"
-              icon="i-lucide-plus"
-              @click="showCreateDialog = true"
-            >
-              <span class="hidden @sm:inline">{{ t('actions.create') }}</span>
-            </UButton>
-          </div>
+    <template #actions>
+      <UButton
+        color="neutral"
+        variant="outline"
+        icon="i-lucide-log-in"
+        @click="showJoinDialog = true"
+      >
+        <span class="hidden @sm:inline">{{ t('actions.join') }}</span>
+      </UButton>
+      <UButton
+        color="primary"
+        icon="i-lucide-plus"
+        @click="showCreateDialog = true"
+      >
+        <span class="hidden @sm:inline">{{ t('actions.create') }}</span>
+      </UButton>
+    </template>
+
+      <!-- Pending Invites Section -->
+      <UCollapsible v-model:open="showInvitesSection" :unmount-on-hide="false">
+        <div class="flex items-center gap-1.5 py-2 mb-3 text-sm font-medium hover:text-primary transition-colors cursor-pointer">
+          <UIcon
+            name="i-lucide-chevron-right"
+            class="w-4 h-4 transition-transform duration-200"
+            :class="{ 'rotate-90': showInvitesSection }"
+          />
+          <UIcon name="i-lucide-mail" class="w-4 h-4" />
+          <span>{{ t('invites.title') }}</span>
         </div>
-      </template>
+        <template #content>
+          <div class="mb-4">
+            <PendingInvites ref="pendingInvitesRef" />
+          </div>
+        </template>
+      </UCollapsible>
+
+      <USeparator class="mb-4" />
 
       <!-- Loading -->
       <div
@@ -43,29 +51,28 @@
 
       <!-- Spaces list -->
       <div
-        v-else-if="spaces.length"
+        v-else-if="visibleSpaces.length"
         class="space-y-3"
       >
         <SpaceListItem
-          v-for="space in spaces"
+          v-for="space in visibleSpaces"
           :key="space.id"
           :space="space"
           @edit="openEditDialog"
-          @invite="openInviteDialog"
+          @invite-contact="openInviteDialog($event, 'contact')"
+          @invite-link="openInviteDialog($event, 'link')"
+          @invite-open="openInviteDialog($event, 'open')"
           @delete="prepareDeleteSpace"
           @leave="prepareLeaveSpace"
         />
       </div>
 
       <!-- Empty state -->
-      <div
+      <HaexSystemSettingsLayoutEmpty
         v-else
-        class="text-center py-4 text-gray-500 dark:text-gray-400"
-      >
-        {{ t('list.empty') }}
-      </div>
-    </UCard>
-
+        :message="t('list.empty')"
+        icon="i-lucide-layout-grid"
+      />
     <!-- Create Space Dialog -->
     <UiDrawerModal
       v-model:open="showCreateDialog"
@@ -78,24 +85,19 @@
           :label="t('create.nameLabel')"
           @keydown.enter.prevent="onCreateSpaceAsync"
         />
-        <div class="space-y-2">
-          <div class="flex items-center gap-2">
-            <USelectMenu
-              v-model="createForm.serverUrl"
-              :items="serverUrlOptions"
-              :placeholder="t('create.serverLabel')"
-              class="flex-1"
-            />
-            <UiButton
-              icon="i-lucide-server"
-              variant="outline"
-              color="neutral"
-              @click="onNavigateToSync"
-            />
-          </div>
-          <p v-if="!serverUrlOptions.length" class="text-xs text-muted">
-            {{ t('create.noServersHint') }}
-          </p>
+        <div class="flex items-center gap-2">
+          <UiSelectMenu
+            v-model="createForm.serverUrl"
+            :items="serverUrlOptions"
+            :label="t('create.serverLabel')"
+            class="flex-1"
+          />
+          <UiButton
+            icon="i-lucide-server"
+            variant="outline"
+            color="neutral"
+            @click="onNavigateToSync"
+          />
         </div>
       </template>
       <template #footer>
@@ -110,7 +112,7 @@
           <UiButton
             icon="i-lucide-plus"
             :loading="isCreating"
-            :disabled="!createForm.name || !createForm.serverUrl?.value"
+            :disabled="!createForm.name?.trim()"
             @click="onCreateSpaceAsync"
           >
             {{ t('actions.create') }}
@@ -171,6 +173,7 @@
               v-model="editForm.serverUrl"
               :items="editServerOptions"
               :placeholder="t('edit.serverPlaceholder')"
+              :disabled="editingSpaceIsLocal"
               class="flex-1"
             />
             <UiButton
@@ -208,8 +211,8 @@
       v-model:open="showInviteDialog"
       :space-id="inviteSpaceId"
       :server-url="inviteServerUrl"
-      :caller-role="inviteSpaceCallerRole"
       :identity-id="inviteIdentityId"
+      :mode="inviteMode"
     />
 
     <!-- Delete Space Confirmation -->
@@ -232,10 +235,12 @@
 
 <script setup lang="ts">
 import { SettingsCategory } from '~/config/settingsCategories'
-import { SpaceRoles, type DecryptedSpace, type SpaceInvite, type SpaceRole } from '@haex-space/vault-sdk'
+import { SpaceRoles, type DecryptedSpace } from '@haex-space/vault-sdk'
 import SpaceListItem from './spaces/SpaceListItem.vue'
 import SpaceInviteDialog from './spaces/SpaceInviteDialog.vue'
-import { decodeInviteLink } from '~/utils/inviteLink'
+import PendingInvites from './spaces/PendingInvites.vue'
+import { parseInviteTokenLink, parseLocalInviteLink } from '~/utils/inviteLink'
+import { invoke } from '@tauri-apps/api/core'
 
 const props = defineProps<{
   inviteLink?: string
@@ -248,7 +253,7 @@ const spacesStore = useSpacesStore()
 const syncBackendsStore = useSyncBackendsStore()
 const windowManager = useWindowManagerStore()
 
-const { spaces } = storeToRefs(spacesStore)
+const { visibleSpaces, spaces } = storeToRefs(spacesStore)
 const { backends: syncBackends } = storeToRefs(syncBackendsStore)
 
 // Loading states
@@ -262,6 +267,8 @@ const showJoinDialog = ref(false)
 const showInviteDialog = ref(false)
 const showDeleteConfirm = ref(false)
 const showLeaveConfirm = ref(false)
+const showInvitesSection = ref(false)
+const pendingInvitesRef = ref<InstanceType<typeof PendingInvites> | null>(null)
 
 // Create form
 const createForm = reactive({
@@ -279,7 +286,7 @@ const joinInviteLink = ref('')
 // Invite dialog state
 const inviteSpaceId = ref('')
 const inviteServerUrl = ref('')
-const inviteSpaceCallerRole = ref<SpaceRole>(SpaceRoles.MEMBER)
+const inviteMode = ref<'contact' | 'link' | 'open'>('contact')
 const inviteIdentityId = ref('')
 
 // Edit dialog
@@ -291,10 +298,15 @@ const editForm = reactive({
   serverUrl: undefined as { label: string; value: string } | undefined,
 })
 
+const editingSpaceIsLocal = computed(() => {
+  const space = spaces.value.find(s => s.id === editingSpace.value?.id)
+  return space?.type === 'local'
+})
+
 const editServerOptions = computed(() => {
   const options = [{ label: t('edit.noServer'), value: '' }]
   for (const backend of syncBackends.value) {
-    options.push({ label: backend.name, value: backend.serverUrl })
+    options.push({ label: backend.name, value: backend.homeServerUrl })
   }
   return options
 })
@@ -350,18 +362,19 @@ const onSaveEditAsync = async () => {
 // Delete/Leave target
 const targetSpace = ref<DecryptedSpace | null>(null)
 
-// Server URL options from existing sync backends
+// Server URL options from existing sync backends (with local-only default)
 const serverUrlOptions = computed(() => {
+  const options = [{ label: t('create.localOnly'), value: '' }]
   const urls = new Set<string>()
   for (const backend of syncBackends.value) {
-    if (backend.serverUrl) {
-      urls.add(backend.serverUrl)
+    if (backend.homeServerUrl) {
+      urls.add(backend.homeServerUrl)
     }
   }
-  return [...urls].map(url => ({
-    label: url,
-    value: url,
-  }))
+  for (const url of urls) {
+    options.push({ label: url, value: url })
+  }
+  return options
 })
 
 const onNavigateToSync = () => {
@@ -394,8 +407,8 @@ const loadSpacesAsync = async () => {
     // Load remote spaces from all backends
     const urls = new Set<string>()
     for (const backend of syncBackends.value) {
-      if (backend.serverUrl) {
-        urls.add(backend.serverUrl)
+      if (backend.homeServerUrl) {
+        urls.add(backend.homeServerUrl)
       }
     }
     for (const url of urls) {
@@ -414,7 +427,7 @@ const onCreateSpaceAsync = async () => {
 
   isCreating.value = true
   try {
-    const isLocal = !createForm.serverUrl?.value || createForm.serverUrl.value === 'local'
+    const isLocal = !createForm.serverUrl?.value
 
     if (isLocal) {
       // Local space — no server needed
@@ -460,25 +473,50 @@ const onCreateSpaceAsync = async () => {
   }
 }
 
-// Join space
+// Join space via invite token link
 const onJoinSpaceAsync = async () => {
   if (!joinInviteLink.value) return
 
   isJoining.value = true
   try {
-    let invite: SpaceInvite
-    try {
-      invite = decodeInviteLink(joinInviteLink.value.trim())
-    } catch {
-      add({ title: t('errors.invalidInviteLink'), color: 'error' })
-      return
-    }
-    if (!invite.spaceId || !invite.serverUrl || !invite.accessToken || !invite.encryptedSpaceKey) {
-      add({ title: t('errors.invalidInvite'), color: 'error' })
+    // Check if it's a local invite first
+    const localLink = parseLocalInviteLink(joinInviteLink.value.trim())
+    if (localLink) {
+      await identityStore.loadIdentitiesAsync()
+      const identityId = identityStore.identities[0]?.publicKey
+      if (!identityId) {
+        add({ title: t('errors.noIdentity'), color: 'error' })
+        return
+      }
+      const identity = await identityStore.getIdentityAsync(identityId)
+      if (!identity) {
+        add({ title: t('errors.noIdentity'), color: 'error' })
+        return
+      }
+
+      await invoke('local_delivery_claim_invite', {
+        leaderEndpointId: localLink.endpointId,
+        leaderRelayUrl: localLink.relayUrl || null,
+        spaceId: localLink.spaceId,
+        tokenId: localLink.tokenId,
+        identityDid: identity.did,
+        label: identity.label || null,
+      })
+
+      add({ title: t('success.joined'), color: 'success' })
+      showJoinDialog.value = false
+      joinInviteLink.value = ''
+      await spacesStore.loadSpacesFromDbAsync()
       return
     }
 
-    // Use first available identity (TODO: let user pick)
+    const tokenLink = parseInviteTokenLink(joinInviteLink.value.trim())
+    if (!tokenLink) {
+      add({ title: t('errors.invalidInviteLink'), color: 'error' })
+      return
+    }
+
+    // Use first available identity
     await identityStore.loadIdentitiesAsync()
     const identityId = identityStore.identities[0]?.publicKey
     if (!identityId) {
@@ -486,13 +524,18 @@ const onJoinSpaceAsync = async () => {
       return
     }
 
-    const { spaceId } = await spacesStore.joinSpaceFromInviteAsync(invite, identityId)
+    await spacesStore.claimInviteTokenAsync(
+      tokenLink.serverUrl,
+      tokenLink.spaceId,
+      tokenLink.tokenId,
+      identityId,
+    )
 
-    // Create a sync backend for this space with linked identity
+    // Create a sync backend for this space
     await syncBackendsStore.addBackendAsync({
-      name: `Space ${spaceId.slice(0, 8)}`,
-      serverUrl: invite.serverUrl,
-      vaultId: invite.spaceId,
+      name: `Space ${tokenLink.spaceId.slice(0, 8)}`,
+      homeServerUrl: tokenLink.serverUrl,
+      spaceId: tokenLink.spaceId,
       identityId,
       enabled: true,
     })
@@ -520,16 +563,16 @@ const onJoinSpaceAsync = async () => {
 
 // Find the identity linked to a space via its sync backend
 const getIdentityForSpace = (spaceServerUrl: string): string | undefined => {
-  const backend = syncBackends.value.find(b => b.serverUrl === spaceServerUrl)
+  const backend = syncBackends.value.find(b => b.homeServerUrl === spaceServerUrl)
   return backend?.identityId ?? undefined
 }
 
 // Open invite dialog
-const openInviteDialog = (space: DecryptedSpace) => {
+const openInviteDialog = (space: DecryptedSpace, mode: 'contact' | 'link' | 'open' = 'contact') => {
   inviteSpaceId.value = space.id
-  inviteSpaceCallerRole.value = space.role
   inviteServerUrl.value = space.serverUrl
   inviteIdentityId.value = getIdentityForSpace(space.serverUrl) ?? ''
+  inviteMode.value = mode
   showInviteDialog.value = true
 }
 
@@ -603,6 +646,8 @@ const onConfirmLeaveAsync = async () => {
 de:
   title: Spaces
   description: Erstelle, verwalte und tritt geteilten Spaces bei
+  invites:
+    title: Einladungen
   list:
     title: Deine Spaces
     description: Geteilte Spaces für die Zusammenarbeit mit anderen
@@ -611,8 +656,8 @@ de:
     title: Space erstellen
     description: Erstelle einen neuen geteilten Space
     nameLabel: Name
-    serverLabel: Server auswählen
-    noServersHint: Kein Server konfiguriert. Klicke auf das Zahnrad, um einen hinzuzufügen.
+    serverLabel: Sync-Server
+    localOnly: Lokal (ohne Server)
     defaultSelfLabel: Ich
   join:
     title: Space beitreten
@@ -654,6 +699,8 @@ de:
 en:
   title: Spaces
   description: Create, manage and join shared spaces
+  invites:
+    title: Invitations
   list:
     title: Your Spaces
     description: Shared spaces for collaboration with others
@@ -662,8 +709,8 @@ en:
     title: Create Space
     description: Create a new shared space
     nameLabel: Name
-    serverLabel: Select server
-    noServersHint: No server configured. Click the gear icon to add one.
+    serverLabel: Sync Server
+    localOnly: Local (no server)
     defaultSelfLabel: Me
   join:
     title: Join Space

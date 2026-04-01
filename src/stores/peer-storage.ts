@@ -1,5 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { invoke, Channel } from '@tauri-apps/api/core'
 import { eq } from 'drizzle-orm'
 import type { PeerStorageStatus } from '~/../src-tauri/bindings/PeerStorageStatus'
 import type { PeerStorageStartInfo } from '~/../src-tauri/bindings/PeerStorageStartInfo'
@@ -13,7 +12,7 @@ import {
   type SelectHaexPeerShares,
   type SelectHaexSpaceDevices,
 } from '~/database/schemas'
-import { VaultSettingsKeyEnum, VaultSettingsTypeEnum } from '~/config/vault-settings'
+import { VaultSettingsKeyEnum } from '~/config/vault-settings'
 
 export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   const { currentVault } = storeToRefs(useVaultStore())
@@ -69,7 +68,6 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
       await db.insert(haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.peerStorageRelayUrl,
-        type: VaultSettingsTypeEnum.settings,
         value: url,
       })
     }
@@ -168,7 +166,6 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
 
   const startAsync = async () => {
     await loadConfiguredRelayUrlAsync()
-    await initTransferListenerAsync()
     const info = await invoke<PeerStorageStartInfo>('peer_storage_start', {
       relayUrl: configuredRelayUrl.value || null,
     })
@@ -187,7 +184,6 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     }
 
     await autoRegisterInSpacesAsync()
-    await updateDeviceClaimsAsync()
   }
 
   const autoRegisterInSpacesAsync = async () => {
@@ -236,36 +232,6 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     }
   }
 
-  /**
-   * Add or update device:hostname claims on all identities so the endpoint ID
-   * can be shared via QR code (user chooses whether to include it).
-   */
-  const updateDeviceClaimsAsync = async () => {
-    if (!nodeId.value) return
-
-    const identityStore = useIdentityStore()
-    const deviceStore = useDeviceStore()
-    const hostname = deviceStore.deviceName || deviceStore.hostname || 'device'
-    const claimType = `device:${hostname}`
-
-    for (const identity of identityStore.identities) {
-      try {
-        const claims = await identityStore.getClaimsAsync(identity.publicKey)
-        const existing = claims.find(c => c.type === claimType)
-
-        if (existing && existing.value === nodeId.value) continue // already up to date
-
-        if (existing) {
-          await identityStore.updateClaimAsync(existing.id, nodeId.value)
-        } else {
-          await identityStore.addClaimAsync(identity.publicKey, claimType, nodeId.value)
-        }
-      } catch (e) {
-        console.warn(`[P2P] Failed to update device claim for identity:`, e)
-      }
-    }
-  }
-
   const stopAsync = async () => {
     await invoke('peer_storage_stop')
     running.value = false
@@ -293,39 +259,58 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
 
   const transfers = ref<Map<string, TransferProgress>>(new Map())
 
-  const initTransferListenerAsync = async () => {
-    await listen<{ transferId: string; path: string; bytesReceived: number; totalBytes: number }>(
-      'peer_storage_transfer_progress',
-      (event) => {
-        const { transferId, path, bytesReceived, totalBytes } = event.payload
-        const fileName = path.split('/').pop() || path
-        transfers.value.set(transferId, {
-          transferId,
-          path,
-          fileName,
-          bytesReceived,
-          totalBytes,
-          progress: totalBytes > 0 ? bytesReceived / totalBytes : 0,
-        })
-        // Trigger reactivity
-        transfers.value = new Map(transfers.value)
-      },
-    )
-    await listen<{ transferId: string }>(
-      'peer_storage_transfer_complete',
-      (event) => {
-        // Keep completed transfer briefly for UI feedback, then remove
-        const transfer = transfers.value.get(event.payload.transferId)
-        if (transfer) {
-          transfer.progress = 1
+  /** Create a Channel that streams transfer events from the Rust side. */
+  const createTransferChannel = (transferId: string, path: string) => {
+    type TransferEvent =
+      | { event: 'progress'; bytesReceived: number; totalBytes: number }
+      | { event: 'complete'; localPath: string; totalBytes: number }
+      | { event: 'error'; error: string }
+
+    let resolveTransfer: ((localPath: string) => void) | undefined
+    let rejectTransfer: ((error: Error) => void) | undefined
+    const fileName = path.split('/').pop() || path
+
+    const promise = new Promise<string>((resolve, reject) => {
+      resolveTransfer = resolve
+      rejectTransfer = reject
+    })
+
+    const channel = new Channel<TransferEvent>()
+    channel.onmessage = (msg) => {
+      switch (msg.event) {
+        case 'progress':
+          transfers.value.set(transferId, {
+            transferId,
+            path,
+            fileName,
+            bytesReceived: msg.bytesReceived,
+            totalBytes: msg.totalBytes,
+            progress: msg.totalBytes > 0 ? msg.bytesReceived / msg.totalBytes : 0,
+          })
           transfers.value = new Map(transfers.value)
-          setTimeout(() => {
-            transfers.value.delete(event.payload.transferId)
+          break
+        case 'complete': {
+          const transfer = transfers.value.get(transferId)
+          if (transfer) {
+            transfer.progress = 1
             transfers.value = new Map(transfers.value)
-          }, 1500)
+            setTimeout(() => {
+              transfers.value.delete(transferId)
+              transfers.value = new Map(transfers.value)
+            }, 1500)
+          }
+          resolveTransfer?.(msg.localPath)
+          break
         }
-      },
-    )
+        case 'error':
+          transfers.value.delete(transferId)
+          transfers.value = new Map(transfers.value)
+          rejectTransfer?.(new Error(msg.error))
+          break
+      }
+    }
+
+    return { channel, promise }
   }
 
   /** Get transfer progress for a specific file path (0-1, or undefined if not downloading) */
@@ -366,19 +351,24 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     }
   }
 
-  /** Download a remote file to disk. Returns the local file path. */
+  /** Download a remote file to disk. Returns the local file path once the download completes. */
   const remoteReadAsync = async (remoteNodeId: string, path: string, saveTo?: string) => {
     const device = spaceDevices.value.find(d => d.deviceEndpointId === remoteNodeId)
     const transferId = crypto.randomUUID()
+    const { channel, promise } = createTransferChannel(transferId, path)
+
     activeTransfers.value++
     try {
-      return await invoke<string>('peer_storage_remote_read', {
+      await invoke<string>('peer_storage_remote_read', {
         nodeId: remoteNodeId,
         relayUrl: device?.relayUrl ?? null,
         path,
         transferId,
         saveTo: saveTo ?? null,
+        onEvent: channel,
       })
+
+      return await promise
     } finally {
       activeTransfers.value--
     }
@@ -455,7 +445,6 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     transfers,
     activeDownloads,
     getTransferProgress,
-    initTransferListenerAsync,
     cancelTransferAsync,
     pauseTransferAsync,
     resumeTransferAsync,

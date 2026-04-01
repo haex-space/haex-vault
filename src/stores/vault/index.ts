@@ -9,6 +9,8 @@ import type {
   SqliteRemoteDatabase,
 } from 'drizzle-orm/sqlite-proxy'
 import type { CleanupResult } from '~~/src-tauri/bindings/CleanupResult'
+import { didAuthenticateAsync } from '~/stores/sync/engine/tokenManager'
+import { loadUcansFromDbAsync } from '~/utils/auth/ucanStore'
 
 interface IVault {
   name: string
@@ -41,12 +43,35 @@ export const useVaultStore = defineStore('vaultStore', () => {
     () => openVaults.value?.[currentVaultId.value ?? ''],
   )
 
-  // Watch for vault becoming unavailable (e.g., webview reload, explicit close)
-  // Close all extension windows when no vault is available
+  /**
+   * Reset all vault-specific stores to prevent stale data leaking between vaults.
+   * Called from closeAsync and from the currentVault watcher as a safety net.
+   */
+  const resetAllVaultStores = () => {
+    // Disable console logger first to prevent IPC errors during teardown
+    const { $disableConsoleLogger } = useNuxtApp()
+    if ($disableConsoleLogger) $disableConsoleLogger()
+
+    useDesktopStore().reset()
+    useExtensionsStore().reset()
+    useWorkspaceStore().reset()
+    useIdentityStore().reset()
+    useContactsStore().reset()
+    useDeviceStore().reset()
+    useNotificationStore().reset()
+    useNavigationStore().reset()
+    useExtensionBroadcastStore().cleanup()
+    useExtensionReadyStore().resetAll()
+    useSpacesStore().clearCache()
+  }
+
+  // Watch for vault becoming unavailable (e.g., webview reload, navigation away)
+  // This is the safety net: no matter HOW the vault disappears, stores get reset
   watch(currentVault, async (newVault) => {
     if (!newVault) {
       const windowManagerStore = useWindowManagerStore()
       await windowManagerStore.closeAllWindowsAsync()
+      resetAllVaultStores()
     }
   }, { immediate: true })
 
@@ -74,10 +99,6 @@ export const useVaultStore = defineStore('vaultStore', () => {
 
       const enabledBackends = syncBackendsStore.enabledBackends
 
-      if (enabledBackends.length === 0) {
-        return
-      }
-
       for (const backend of enabledBackends) {
         try {
           // Check if backend has an identity for auth
@@ -90,70 +111,21 @@ export const useVaultStore = defineStore('vaultStore', () => {
             continue
           }
 
-          // Initialize Supabase client
-          await syncEngineStore.initSupabaseClientAsync(backend.id)
-
-          if (!syncEngineStore.supabaseClient) {
-            console.warn(`[HaexSpace] Failed to initialize Supabase for ${backend.name}`)
-            continue
-          }
-
-          // 1. Request challenge
-          const challengeRes = await fetch(`${backend.serverUrl}/identity-auth/challenge`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ did: identity.did }),
-          })
-
-          if (!challengeRes.ok) {
-            const errorData = await challengeRes.json().catch(() => ({ error: 'Unknown error' }))
-            console.error(`[HaexSpace] Challenge request failed for ${backend.name}:`, errorData.error)
-            continue
-          }
-
-          const { nonce } = await challengeRes.json()
-
-          // 2. Sign nonce with identity's private key
-          const { importUserPrivateKeyAsync } = await import('@haex-space/vault-sdk')
-          const privateKey = await importUserPrivateKeyAsync(identity.privateKey)
-          const sig = await crypto.subtle.sign(
-            { name: 'ECDSA', hash: 'SHA-256' },
-            privateKey,
-            new TextEncoder().encode(nonce),
-          )
-          const signature = btoa(String.fromCharCode(...new Uint8Array(sig)))
-
-          // 3. Verify and get JWT
-          const verifyRes = await fetch(`${backend.serverUrl}/identity-auth/verify`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ did: identity.did, nonce, signature }),
-          })
-
-          if (!verifyRes.ok) {
-            const errorData = await verifyRes.json().catch(() => ({ error: 'Unknown error' }))
-            console.error(`[HaexSpace] Verify failed for ${backend.name}:`, errorData.error)
-            continue
-          }
-
-          const session = await verifyRes.json()
-
-          // Set the session from the server response
-          await syncEngineStore.supabaseClient.auth.setSession({
-            access_token: session.access_token,
-            refresh_token: session.refresh_token,
-          })
+          // Initialize token manager and authenticate via DID challenge-response
+          syncEngineStore.initTokenManagerAsync(backend.id)
+          const session = await didAuthenticateAsync(backend.homeServerUrl, identity.did, identity.privateKey)
+          syncEngineStore.setSession(session)
 
           // Ensure sync key exists
-          if (backend.vaultId && currentVault.value?.name && currentVaultPassword.value) {
+          if (backend.spaceId && currentVault.value?.name && currentVaultPassword.value) {
             await syncEngineStore.ensureSyncKeyAsync(
               backend.id,
-              backend.vaultId,
+              backend.spaceId,
               currentVault.value.name,
               currentVaultPassword.value,
             )
-          } else if (!backend.vaultId) {
-            console.warn(`[HaexSpace] Backend ${backend.name} has no vaultId configured`)
+          } else if (!backend.spaceId) {
+            console.warn(`[HaexSpace] Backend ${backend.name} has no spaceId configured`)
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error)
@@ -183,10 +155,8 @@ export const useVaultStore = defineStore('vaultStore', () => {
         }
       }
 
-      // Start sync after all logins are attempted
-      if (enabledBackends.length > 0) {
-        await syncOrchestratorStore.startSyncAsync()
-      }
+      // Start sync (initializes local sync listener + remote backends if any)
+      await syncOrchestratorStore.startSyncAsync()
     } catch (error) {
       console.error('[HaexSpace] Auto-login and sync start error:', error)
     }
@@ -228,24 +198,6 @@ export const useVaultStore = defineStore('vaultStore', () => {
         },
       }
 
-      // Initialize device identity key and populate device store
-      await useDeviceStore().initDeviceIdAsync()
-
-      // Set device ID for console interceptor logging
-      const { $setConsoleLoggerDeviceId } = useNuxtApp()
-      if ($setConsoleLoggerDeviceId && useDeviceStore().deviceId) {
-        $setConsoleLoggerDeviceId(useDeviceStore().deviceId!)
-      }
-
-      // Ensure default local space exists
-      const spacesStore = useSpacesStore()
-      await spacesStore.ensureDefaultSpaceAsync()
-
-      // Automatic cleanup on vault open (non-blocking)
-      performAutomaticCleanupAsync().catch((error) => {
-        console.warn('[HaexSpace] Automatic cleanup failed:', error)
-      })
-
       return vaultId
     } catch (error) {
       console.error('Error openAsync ', error)
@@ -278,25 +230,24 @@ export const useVaultStore = defineStore('vaultStore', () => {
   const createAsync = async ({
     vaultName,
     password,
-    vaultId,
+    spaceId,
   }: {
     vaultName: string
     password: string
-    /** Optional: Set a specific vault ID (for connecting to remote vaults) */
-    vaultId?: string
+    /** Optional: Set a specific space ID (for connecting to remote vaults) */
+    spaceId?: string
   }) => {
     const vaultPath = await invoke<string>('create_encrypted_database', {
       vaultName,
       key: password,
-      vaultId: vaultId || null,
+      spaceId: spaceId || null,
     })
 
     // Set the user-provided vault name BEFORE opening
     // This ensures syncVaultNameAsync uses the correct name when creating the DB entry
     currentVaultName.value = vaultName
 
-    // Pass vaultId to openAsync so it doesn't create a new one from DB
-    return await openAsync({ path: vaultPath, password, vaultId })
+    return await openAsync({ path: vaultPath, password })
   }
 
   const closeAsync = async () => {
@@ -314,25 +265,9 @@ export const useVaultStore = defineStore('vaultStore', () => {
     const syncBackendsStore = useSyncBackendsStore()
     syncBackendsStore.reset()
 
-    // Close ALL windows (system + extension) before closing the vault
-    const windowManagerStore = useWindowManagerStore()
-    await windowManagerStore.closeAllWindowsAsync()
-
-    // Reset all vault-specific stores to clear cached data
-    // This prevents stale data from appearing when opening a different vault
-    const desktopStore = useDesktopStore()
-    const extensionsStore = useExtensionsStore()
-    const workspaceStore = useWorkspaceStore()
+    // Sync engine cleanup (token manager reset)
     const syncEngineStore = useSyncEngineStore()
-
-    desktopStore.reset()
-    extensionsStore.reset()
-    workspaceStore.reset()
     await syncEngineStore.reset()
-
-    // Reset additional stores with cached vault data
-    const spacesStore = useSpacesStore()
-    spacesStore.clearCache()
 
     // Close the database connection on the Rust side
     // This clears the DB connection, HLC service, and extension manager caches
@@ -342,7 +277,8 @@ export const useVaultStore = defineStore('vaultStore', () => {
       console.error('[VAULT STORE] Failed to close database:', error)
     }
 
-    // Removing vault from openVaults also clears the password from memory
+    // Removing vault from openVaults triggers the currentVault watcher,
+    // which calls resetAllVaultStores() and closeAllWindowsAsync() as safety net
     delete openVaults.value?.[currentVaultId.value]
   }
 
@@ -418,11 +354,11 @@ export const useVaultStore = defineStore('vaultStore', () => {
         } else {
           // Try to update each backend
           for (const backend of enabledBackends) {
-            if (!backend.vaultId) continue
+            if (!backend.spaceId) continue
 
             const success = await syncEngineStore.reEncryptVaultKeyOnBackendAsync(
               backend.id,
-              backend.vaultId,
+              backend.spaceId,
               cachedKey.vaultKey,
               newPassword,
             )
@@ -455,6 +391,57 @@ export const useVaultStore = defineStore('vaultStore', () => {
     }
   }
 
+  /**
+   * Initialize vault after navigation to /vault/:vaultId.
+   * Called from vault.vue onMounted — at this point currentVaultId is set
+   * via the router and getDb() works correctly.
+   */
+  const initVaultAsync = async () => {
+    if (!currentVaultId.value) return
+
+    // Initialize device identity key
+    await useDeviceStore().initDeviceIdAsync()
+
+    // Set device ID for console interceptor logging
+    const { $setConsoleLoggerDeviceId } = useNuxtApp()
+    if ($setConsoleLoggerDeviceId && useDeviceStore().deviceId) {
+      $setConsoleLoggerDeviceId(useDeviceStore().deviceId!)
+    }
+
+    // Initialize MLS subsystem (tables + identity) — must happen before any space
+    // creation because createLocalSpaceAsync calls mls_create_group which needs identity
+    await invoke('mls_init_tables')
+    await invoke('mls_init_identity')
+
+    // Ensure vault space exists in haex_spaces (FK target for sync backends)
+    const spacesStore = useSpacesStore()
+    await spacesStore.ensureVaultSpaceAsync(currentVaultId.value, currentVaultName.value)
+
+    // Load spaces from DB and ensure default local space exists
+    await spacesStore.loadSpacesFromDbAsync()
+    await spacesStore.ensureDefaultSpaceAsync()
+
+    // Warm UCAN cache from DB (tokens survive app restarts)
+    if (currentVault.value?.drizzle) {
+      await loadUcansFromDbAsync(currentVault.value.drizzle)
+    }
+
+    // Auto-enroll this device into MLS groups for shared spaces (non-blocking)
+    const deviceStore = useDeviceStore()
+    if (deviceStore.deviceId) {
+      const { useDeviceEnrollment } = await import('@/composables/useDeviceEnrollment')
+      const { syncEnrollmentsAsync } = useDeviceEnrollment()
+      syncEnrollmentsAsync(deviceStore.deviceId).catch((error) => {
+        console.warn('[HaexSpace] Device MLS enrollment failed:', error)
+      })
+    }
+
+    // Automatic cleanup (non-blocking)
+    performAutomaticCleanupAsync().catch((error) => {
+      console.warn('[HaexSpace] Automatic cleanup failed:', error)
+    })
+  }
+
   return {
     closeAsync,
     createAsync,
@@ -463,6 +450,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
     currentVaultName,
     currentVaultPassword,
     existsVault,
+    initVaultAsync,
     openAsync,
     openVaults,
     autoLoginAndStartSyncAsync,
@@ -484,7 +472,7 @@ const getVaultIdAsync = async (
   const existingSettings = await drizzleDb
     .select()
     .from(haexVaultSettings)
-    .where(eq(haexVaultSettings.key, 'vault_id'))
+    .where(eq(haexVaultSettings.key, 'space_id'))
     .limit(1)
 
   if (existingSettings[0]?.value) {
@@ -496,8 +484,7 @@ const getVaultIdAsync = async (
 
   // Store it in settings
   await drizzleDb.insert(haexVaultSettings).values({
-    key: 'vault_id',
-    type: 'system',
+    key: 'space_id',
     value: vaultId,
   })
 

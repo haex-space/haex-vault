@@ -3,6 +3,7 @@
  * Handles pushing local changes to the sync server
  */
 
+import { invoke } from '@tauri-apps/api/core'
 import {
   getDirtyTablesAsync,
   getAllCrdtTablesAsync,
@@ -10,8 +11,10 @@ import {
   clearDirtyTableAsync,
   type ColumnChange,
 } from '../tableScanner'
-import { fetchWithReauthAsync } from '../engine/supabase'
+import { DidAuthAction } from '@haex-space/ucan'
+import { createDidAuthHeader, createFederatedDidAuthHeader } from '@/utils/auth/didAuth'
 import { orchestratorLog as log, type BackendSyncState, syncMutex } from './types'
+import type { MlsEpochKey } from '@bindings/MlsEpochKey'
 
 /**
  * Pushes local changes to a specific backend using table-scanning approach
@@ -53,26 +56,34 @@ export const pushToBackendAsync = async (
   try {
     // Get backend configuration
     const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
-    if (!backend?.vaultId) {
-      log.error('PUSH FAILED: Backend vaultId not configured')
-      throw new Error('Backend vaultId not configured')
+    if (!backend?.spaceId) {
+      log.error('PUSH FAILED: Backend spaceId not configured')
+      throw new Error('Backend spaceId not configured')
     }
 
     const lastPushHlc = backend.lastPushHlcTimestamp
     log.debug('Backend config:', {
       backendId,
-      vaultId: backend.vaultId,
-      serverUrl: backend.serverUrl,
+      spaceId: backend.spaceId,
+      serverUrl: backend.homeServerUrl,
       lastPushHlc: lastPushHlc || '(none)',
     })
 
-    // Get encryption key: vault sync key from local DB
-    const encryptionKey = await syncEngineStore.getSyncKeyFromDbAsync(backendId)
-    if (!encryptionKey) {
-      log.error('PUSH FAILED: Vault sync key not available')
-      throw new Error('Vault sync key not available')
+    // Determine encryption key: MLS epoch key for shared spaces, vault key for personal
+    const isSharedSpace = backend.spaceId !== currentVaultId
+    let encryptionKey: Uint8Array
+    let epoch: number | undefined
+
+    if (isSharedSpace) {
+      const epochKey: MlsEpochKey = await invoke('mls_export_epoch_key', { spaceId: backend.spaceId })
+      encryptionKey = new Uint8Array(epochKey.key)
+      epoch = epochKey.epoch
+      log.debug(`Using MLS epoch key (epoch ${epoch}) for shared space`)
+    } else {
+      const vaultKey = await syncEngineStore.getSyncKeyFromDbAsync(backendId)
+      if (!vaultKey) throw new Error('Vault sync key not available')
+      encryptionKey = vaultKey
     }
-    log.debug('Encryption key available: true')
 
     // Get current device ID
     const deviceStore = useDeviceStore()
@@ -114,7 +125,7 @@ export const pushToBackendAsync = async (
         log.info(`[PUSH-SCAN] Scanning table: ${tableName}`)
         log.debug(`[PUSH-SCAN]   lastPushHlc: ${lastPushHlc || '(none)'}`)
 
-        const tableChanges = await scanTableForChangesAsync(tableName, lastPushHlc, encryptionKey, batchId, deviceId)
+        const tableChanges = await scanTableForChangesAsync(tableName, lastPushHlc, encryptionKey, batchId, deviceId, epoch)
 
         partialChanges.push(...tableChanges)
 
@@ -173,7 +184,7 @@ export const pushToBackendAsync = async (
     // Push changes to server using new format
     const serverTimestamp = await pushChangesToServerAsync(
       backendId,
-      backend.vaultId,
+      backend.spaceId,
       allChanges,
       syncBackendsStore,
       syncEngineStore,
@@ -223,7 +234,7 @@ export const pushToBackendAsync = async (
  */
 export const pushChangesToServerAsync = async (
   backendId: string,
-  vaultId: string,
+  spaceId: string,
   changes: ColumnChange[],
   syncBackendsStore: ReturnType<typeof useSyncBackendsStore>,
   syncEngineStore: ReturnType<typeof useSyncEngineStore>,
@@ -255,7 +266,7 @@ export const pushChangesToServerAsync = async (
 
   // Format changes for server API, always signing records
   const formattedChanges = await Promise.all(changes.map(async (change) => {
-    const base = {
+    const base: Record<string, unknown> = {
       tableName: change.tableName,
       rowPks: change.rowPks,
       columnName: change.columnName,
@@ -267,6 +278,7 @@ export const pushChangesToServerAsync = async (
       encryptedValue: change.encryptedValue,
       nonce: change.nonce,
     }
+    if (change.epoch !== undefined) base.epoch = change.epoch
 
     if (signRecordAsync && identityPrivateKey && identityPublicKey) {
       const signature = await signRecordAsync(
@@ -290,29 +302,36 @@ export const pushChangesToServerAsync = async (
     return base
   }))
 
-  // Auth header: JWT Bearer token
-  const token = await syncEngineStore.getAuthTokenAsync()
-  if (!token) {
-    throw new Error('Not authenticated')
-  }
-  const authHeaders: Record<string, string> = { Authorization: `Bearer ${token}` }
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...authHeaders,
-  }
+  // Resolve identity for DID-Auth
+  const identityStore = useIdentityStore()
+  const identity = backend.identityId ? await identityStore.getIdentityAsync(backend.identityId) : null
+  if (!identity) throw new Error('No identity configured for this backend')
 
-  const url = `${backend.serverUrl}/sync/push`
+  const url = `${backend.homeServerUrl}/sync/push`
+  const requestBody = JSON.stringify({ spaceId, changes: formattedChanges })
+
   log.debug('Sending POST to:', url)
-  log.debug('Request payload:', { vaultId, changesCount: formattedChanges.length })
+  log.debug('Request payload:', { spaceId, changesCount: formattedChanges.length })
 
-  // Send to server
-  const response = await fetchWithReauthAsync(url, {
+  // Send to server with appropriate auth
+  const authHeader = backend.type === 'relay' && backend.homeServerDid && backend.originServerDid
+    ? await createFederatedDidAuthHeader({
+        did: identity.did,
+        privateKeyBase64: identity.privateKey,
+        action: DidAuthAction.SyncPush,
+        federation: {
+          spaceId,
+          serverDid: backend.originServerDid,
+          relayDid: backend.homeServerDid,
+        },
+        body: requestBody,
+      })
+    : await createDidAuthHeader(identity.privateKey, identity.did, DidAuthAction.SyncPush, requestBody)
+
+  const response = await fetch(url, {
     method: 'POST',
-    headers,
-    body: JSON.stringify({
-      vaultId,
-      changes: formattedChanges,
-    }),
+    headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+    body: requestBody,
   })
 
   if (!response.ok) {
@@ -349,15 +368,15 @@ export const pushAllDataToBackendAsync = async (
 
   // Get backend configuration
   const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
-  if (!backend?.vaultId) {
-    log.error('FULL PUSH FAILED: Backend vaultId not configured')
-    throw new Error('Backend vaultId not configured')
+  if (!backend?.spaceId) {
+    log.error('FULL PUSH FAILED: Backend spaceId not configured')
+    throw new Error('Backend spaceId not configured')
   }
 
   log.debug('Backend config:', {
     backendId,
-    vaultId: backend.vaultId,
-    serverUrl: backend.serverUrl,
+    spaceId: backend.spaceId,
+    serverUrl: backend.homeServerUrl,
   })
 
   // Get encryption key: vault sync key from local DB
@@ -437,7 +456,7 @@ export const pushAllDataToBackendAsync = async (
   // Push changes to server
   const serverTimestamp = await pushChangesToServerAsync(
     backendId,
-    backend.vaultId,
+    backend.spaceId,
     allChanges,
     syncBackendsStore,
     syncEngineStore,

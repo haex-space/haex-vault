@@ -156,31 +156,27 @@ const groups = computed(() => {
     })
   }
 
-  // P2P Storage — always show, red when stopped
+  // P2P Storage — only show when running
   {
     const isRunning = peerStore.running
-    const peerCount = isRunning
-      ? peerStore.spaceDevices.filter(d => d.deviceEndpointId !== peerStore.nodeId).length
-      : 0
+    if (!isRunning) return result
+
+    const peerCount = peerStore.spaceDevices.filter(d => d.deviceEndpointId !== peerStore.nodeId).length
 
     result.push({
       id: 'p2p',
       icon: SettingsCategoryIcon[SettingsCategory.PeerStorage],
       segments: [{
         id: 'p2p',
-        colorClass: isRunning ? 'text-success' : 'text-error',
+        colorClass: 'text-success',
         isPulsing: peerStore.isTransferring,
-        label: !isRunning
-          ? t('p2p.stopped')
-          : peerCount > 0
-            ? t('p2p.active', { count: peerCount })
-            : t('p2p.noPeers'),
-      }],
-      tooltip: !isRunning
-        ? t('p2p.stopped')
-        : peerCount > 0
+        label: peerCount > 0
           ? t('p2p.active', { count: peerCount })
           : t('p2p.noPeers'),
+      }],
+      tooltip: peerCount > 0
+        ? t('p2p.active', { count: peerCount })
+        : t('p2p.noPeers'),
       onClick: () => openSettings(SettingsCategory.PeerStorage),
     })
   }

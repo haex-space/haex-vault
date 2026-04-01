@@ -3,5 +3,6 @@ pub mod commands;
 pub mod hlc;
 pub mod insert_transformer;
 //pub mod query_transformer;
+pub mod scanner;
 pub mod transformer;
 pub mod trigger;

@@ -45,15 +45,6 @@ export const registerStoreForTables = (
 }
 
 /**
- * Unregister tables from the central reloader
- */
-export const unregisterTablesFromReloader = (tables: string[]): void => {
-  for (const table of tables) {
-    tableToReloadFn.delete(table)
-  }
-}
-
-/**
  * Initialize the sync events listener
  * Should be called once when the app starts
  */
@@ -163,6 +154,5 @@ export const useSyncEvents = () => {
     subscribeToSyncUpdates,
     unsubscribeFromSyncUpdates,
     registerStoreForTables,
-    unregisterTablesFromReloader,
   }
 }

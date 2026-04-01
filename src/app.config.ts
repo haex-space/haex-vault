@@ -24,7 +24,14 @@ export default defineAppConfig({
     select: {
       slots: {
         content: 'ring-1 ring-primary shadow-xl',
-        itemLabel: 'text-base',
+      },
+      variants: {
+        size: {
+          xl: {
+            item: 'p-3 text-base gap-2.5',
+            itemLabel: 'text-base',
+          },
+        },
       },
       defaultVariants: {
         size: 'xl',
@@ -33,10 +40,24 @@ export default defineAppConfig({
     selectMenu: {
       slots: {
         content: 'ring-1 ring-primary shadow-xl',
-        itemLabel: 'text-base',
+      },
+      variants: {
+        size: {
+          xl: {
+            item: 'p-3 text-base gap-2.5',
+            itemLabel: 'text-base',
+          },
+        },
       },
       defaultVariants: {
         size: 'xl',
+      },
+    },
+    card: {
+      slots: {
+        header: 'p-3 @sm:p-4 sm:p-4',
+        body: 'p-3 @sm:p-4 sm:p-4',
+        footer: 'p-3 @sm:p-4 sm:p-4',
       },
     },
     checkbox: {
@@ -55,6 +76,35 @@ export default defineAppConfig({
       },
     },
     inputMenu: {
+      defaultVariants: {
+        size: 'xl',
+      },
+    },
+    dropdownMenu: {
+      slots: {
+        content: 'min-w-56',
+      },
+      variants: {
+        size: {
+          xl: {
+            item: 'p-3 text-base gap-2.5',
+            itemLabel: 'text-base',
+          },
+        },
+      },
+      defaultVariants: {
+        size: 'xl',
+      },
+    },
+    contextMenu: {
+      variants: {
+        size: {
+          xl: {
+            item: 'p-3 text-base gap-2.5',
+            itemLabel: 'text-base',
+          },
+        },
+      },
       defaultVariants: {
         size: 'xl',
       },

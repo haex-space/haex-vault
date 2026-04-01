@@ -4,12 +4,12 @@
     disable-content-scroll
   >
     <template #sidebar>
-      <nav class="flex flex-col gap-1">
+      <nav class="flex flex-col items-center gap-3 @3xl:gap-1 @3xl:items-stretch @3xl:p-2">
         <button
           v-for="cat in categories"
           :key="cat.value"
           :class="[
-            'flex items-center gap-3 p-2 @3xl:p-3 text-base font-medium rounded-md transition-colors',
+            'flex items-center gap-3 p-1.5 @3xl:p-3 text-base font-medium rounded-md transition-colors',
             'justify-center aspect-square @3xl:aspect-auto @3xl:justify-start',
             cat.active
               ? 'bg-primary text-white'
@@ -22,7 +22,7 @@
         >
           <UIcon
             :name="cat.icon"
-            class="size-8 @3xl:size-6 shrink-0"
+            class="size-7 @3xl:size-6 shrink-0"
           />
           <span class="hidden @3xl:block">{{ cat.label }}</span>
         </button>
@@ -54,30 +54,24 @@
 
 <script setup lang="ts">
 import { SettingsCategory, SettingsCategoryIcon } from '~/config/settingsCategories'
+import { isDesktop } from '~/utils/platform'
 
 const props = defineProps<{
+  tabId: string
   isDragging?: boolean
   category?: string
   inviteLink?: string
 }>()
 
+provide('haex-tab-id', props.tabId)
+
 const { t } = useI18n()
 
-const activeCategory = ref(props.category || SettingsCategory.General)
-const { pushBack } = useBackNavigation()
-
-const navigateToCategory = (category: string) => {
-  if (category === activeCategory.value) return
-
-  const previous = activeCategory.value
-  activeCategory.value = category
-
-  pushBack({
-    undo: () => {
-      activeCategory.value = previous
-    },
-  })
-}
+const { activeView: activeCategory, navigateTo: navigateToCategory } = useDrillDownNavigation(
+  (props.category || SettingsCategory.General) as string,
+  'settings-categories',
+  props.tabId,
+)
 
 watch(
   () => props.category,
@@ -87,6 +81,11 @@ watch(
     }
   },
 )
+
+// Categories that require desktop-only Tauri commands (external bridge, P2P)
+const desktopOnlyCategories = new Set([
+  SettingsCategory.ExternalClients,
+])
 
 const categories = computed(() => [
   {
@@ -210,7 +209,7 @@ const categories = computed(() => [
       navigateToCategory(SettingsCategory.Developer)
     },
   },
-])
+].filter(cat => isDesktop() || !desktopOnlyCategories.has(cat.value)))
 </script>
 
 <i18n lang="yaml">

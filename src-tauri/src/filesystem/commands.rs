@@ -318,13 +318,14 @@ fn read_dir_android(
     })?;
 
     let mut entries: Vec<DirEntry> = dir_entries
-        .filter_map(|entry| {
+        .into_iter()
+        .filter_map(|entry: tauri_plugin_android_fs::Entry| {
             let name = entry.name().to_string();
             let is_dir = entry.is_dir();
             let modified = entry.last_modified()
                 .duration_since(UNIX_EPOCH)
                 .ok()
-                .map(|d| d.as_millis() as u64);
+                .map(|d: std::time::Duration| d.as_millis() as u64);
             let size = entry.file_len().unwrap_or(0);
             let uri_json = entry.uri().to_json_string().ok()?;
 
@@ -492,6 +493,12 @@ pub async fn filesystem_select_folder(
 
         match selected {
             Some(uri) => {
+                // Persist URI permission so it survives app restarts.
+                // Without this, Android revokes access when the app is terminated.
+                picker.persist_uri_permission(&uri).map_err(|e| FsError::IoError {
+                    reason: format!("Failed to persist URI permission: {:?}", e),
+                })?;
+
                 let uri_json = uri.to_json_string().map_err(|e| FsError::IoError {
                     reason: format!("Failed to serialize URI: {:?}", e),
                 })?;
@@ -600,6 +607,10 @@ pub async fn filesystem_select_file(
             if selected.is_empty() {
                 Ok(None)
             } else {
+                // Persist URI permissions so they survive app restarts
+                for uri in &selected {
+                    let _ = picker.persist_uri_permission(uri);
+                }
                 let uris: Result<Vec<String>, FsError> = selected
                     .into_iter()
                     .map(|uri| {
@@ -617,6 +628,8 @@ pub async fn filesystem_select_file(
 
             match selected {
                 Some(uri) => {
+                    // Persist URI permission so it survives app restarts
+                    let _ = picker.persist_uri_permission(&uri);
                     let uri_json = uri.to_json_string().map_err(|e| FsError::IoError {
                         reason: format!("Failed to serialize URI: {:?}", e),
                     })?;

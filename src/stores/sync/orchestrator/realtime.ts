@@ -1,43 +1,49 @@
 /**
  * Sync Realtime Operations
- * Handles realtime subscriptions from Supabase
+ * Handles realtime subscriptions via WebSocket (useRealtime composable)
  *
- * Realtime events are used as triggers to initiate a pull from the server.
+ * WebSocket events are used as triggers to initiate a pull from the server.
  * This ensures data consistency by always using the pull endpoint which
  * guarantees complete data delivery.
  *
  * Android/Mobile considerations:
  * - WebSocket connections are killed when app goes to background (Doze mode)
  * - We listen for visibility changes to reconnect when app resumes
- * - Reconnection resets retry counts for a fresh start
+ * - The useRealtime composable handles reconnection with exponential backoff
  */
 
-import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
+import { invoke } from '@tauri-apps/api/core'
+import { useRealtime, type RealtimeEvent } from '@/composables/useRealtime'
+import { useMlsDelivery, type MlsMessage } from '@/composables/useMlsDelivery'
 import { orchestratorLog as log, type BackendSyncState } from './types'
 import { pullFromBackendAsync } from './pull'
-import { attemptDidReauthAsync } from '../engine/supabase'
 
 /** Debounce timers per backend */
 const pullDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
-/** Retry timers per backend */
-const subscriptionRetryTimers = new Map<string, ReturnType<typeof setTimeout>>()
-
-/** Retry counts per backend */
-const subscriptionRetryCounts = new Map<string, number>()
-
 /** Debounce delay in milliseconds */
 const PULL_DEBOUNCE_MS = 500
 
-/** Max retry attempts for subscription */
-const MAX_SUBSCRIPTION_RETRIES = 5
+/** Singleton realtime instance (created outside component lifecycle) */
+let realtimeInstance: ReturnType<typeof useRealtime> | null = null
 
-/** Base delay for retry (exponential backoff) */
-const RETRY_BASE_DELAY_MS = 2000
+/** Cleanup functions for event handlers */
+const eventCleanups: Array<() => void> = []
+
+/**
+ * Gets or creates the singleton realtime instance.
+ * useRealtime() uses onUnmounted which is a no-op outside components,
+ * so we manage the lifecycle manually via startRealtimeAsync/stopRealtimeAsync.
+ */
+const getRealtimeInstance = () => {
+  if (!realtimeInstance) {
+    realtimeInstance = useRealtime()
+  }
+  return realtimeInstance
+}
 
 /**
  * Reconnection context - stores references needed for visibility-based reconnection.
- * All backends share this context since they use the same stores.
  */
 interface ReconnectionContext {
   syncStates: BackendSyncState
@@ -96,43 +102,20 @@ const triggerDebouncedPullAsync = (
 }
 
 /**
- * Handles incoming realtime changes from Supabase.
- * Simply triggers a debounced pull - actual data processing happens in pull.ts
+ * Finds the backend ID for a given spaceId
  */
-const handleRealtimeChangeAsync = async (
-  backendId: string,
-  payload: RealtimePostgresChangesPayload<Record<string, unknown>>,
-  currentVaultId: string | undefined,
-  syncStates: BackendSyncState,
+const findBackendBySpaceId = (
+  spaceId: string,
   syncBackendsStore: ReturnType<typeof useSyncBackendsStore>,
-  syncEngineStore: ReturnType<typeof useSyncEngineStore>,
-) => {
-  log.info('REALTIME: Change event received, payload:', JSON.stringify(payload))
-
-  // Skip if this change was made by our own device
-  // Supabase Realtime returns snake_case column names
-  const deviceStore = useDeviceStore()
-  const newRecord = payload.new as Record<string, unknown> | undefined
-  const deviceId = newRecord?.device_id as string | undefined
-  log.info(`REALTIME: Our deviceId=${deviceStore.deviceId}, event deviceId=${deviceId}`)
-  if (deviceId === deviceStore.deviceId) {
-    log.info('REALTIME: Skipping - change originated from this device')
-    return
-  }
-  log.info('REALTIME: Processing change from another device, triggering pull...')
-
-  // Trigger a debounced pull
-  triggerDebouncedPullAsync(
-    backendId,
-    currentVaultId,
-    syncStates,
-    syncBackendsStore,
-    syncEngineStore,
-  )
+): string | null => {
+  const backend = syncBackendsStore.enabledBackends.find((b) => b.spaceId === spaceId)
+  return backend?.id ?? null
 }
 
 /**
- * Subscribes to realtime changes from a backend
+ * Starts the WebSocket realtime connection and registers event handlers.
+ * Replaces the per-backend Supabase channel subscriptions with a single
+ * WebSocket connection that handles all events.
  */
 export const subscribeToBackendAsync = async (
   backendId: string,
@@ -141,8 +124,7 @@ export const subscribeToBackendAsync = async (
   syncBackendsStore: ReturnType<typeof useSyncBackendsStore>,
   syncEngineStore: ReturnType<typeof useSyncEngineStore>,
 ): Promise<void> => {
-  log.info(`SUBSCRIBE: Setting up realtime subscription for backend ${backendId}`)
-  log.info(`SUBSCRIBE: Platform info - userAgent: ${navigator.userAgent.substring(0, 100)}`)
+  log.info(`SUBSCRIBE: Setting up WebSocket realtime for backend ${backendId}`)
 
   // Update reconnection context for visibility-based reconnection
   updateReconnectionContext(currentVaultId, syncStates, syncBackendsStore, syncEngineStore)
@@ -153,9 +135,9 @@ export const subscribeToBackendAsync = async (
   }
 
   const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
-  if (!backend?.vaultId) {
-    log.error('SUBSCRIBE: Backend vaultId not configured')
-    throw new Error('Backend vaultId not configured')
+  if (!backend?.spaceId) {
+    log.error('SUBSCRIBE: Backend spaceId not configured')
+    throw new Error('Backend spaceId not configured')
   }
 
   const state = syncStates[backendId]
@@ -164,213 +146,182 @@ export const subscribeToBackendAsync = async (
     throw new Error('Backend not initialized')
   }
 
-  if (state.subscription) {
-    log.debug(`SUBSCRIBE: Already subscribed to backend ${backendId}`)
+  if (state.isConnected) {
+    log.debug(`SUBSCRIBE: Already connected for backend ${backendId}`)
     return
   }
 
-  const client = syncEngineStore.supabaseClient
-  if (!client) {
-    log.error('SUBSCRIBE: Supabase client not initialized')
-    throw new Error('Supabase client not initialized')
+  // Resolve identity for DID-Auth WebSocket connection
+  const identityStore = useIdentityStore()
+  if (!backend.identityId) {
+    throw new Error(`Backend ${backendId} has no identity configured`)
+  }
+  const identity = await identityStore.getIdentityAsync(backend.identityId)
+  if (!identity?.privateKey || !identity?.did) {
+    throw new Error(`Identity not found or incomplete for backend ${backendId}`)
   }
 
-  try {
-    // Ensure auth token is set for realtime connection
-    const token = await syncEngineStore.getAuthTokenAsync()
-    if (token) {
-      // Decode JWT to check expiration (for debugging)
-      try {
-        const tokenParts = token.split('.')
-        const payloadPart = tokenParts[1]
-        if (!payloadPart) throw new Error('Invalid token format')
-        const payload = JSON.parse(atob(payloadPart))
-        const exp = payload.exp ? new Date(payload.exp * 1000) : null
-        const now = new Date()
-        const expiresIn = exp ? Math.round((exp.getTime() - now.getTime()) / 1000) : 'unknown'
-        log.info(`SUBSCRIBE: Auth token present, expires in ${expiresIn}s (at ${exp?.toISOString() ?? 'unknown'})`)
-        log.info(`SUBSCRIBE: Token sub=${payload.sub}, role=${payload.role}, aud=${payload.aud}`)
-      } catch (decodeErr) {
-        log.warn('SUBSCRIBE: Could not decode token for debugging:', decodeErr)
-      }
-    } else {
-      log.error('SUBSCRIBE: No auth token available — auth session is invalid. User needs to re-login. Skipping subscription.')
-      state.error = 'Auth session expired. Please re-login to the sync backend.'
-      return
-    }
+  const realtime = getRealtimeInstance()
 
-    // Verify the Supabase auth session is active (with persistSession: false,
-    // the internal _getAccessToken used by Realtime may return null if setSession was
-    // never called or the session expired). Re-set the session to ensure it's available.
-    const { data: { session } } = await client.auth.getSession()
-    if (!session) {
-      log.warn('SUBSCRIBE: No active Supabase session — Realtime handshake would fail. Triggering DID re-auth...')
-      // Force a fresh session via DID re-auth before subscribing
-      const freshToken = await syncEngineStore.attemptDidReauthAsync()
-      if (!freshToken) {
-        log.error('SUBSCRIBE: DID re-auth failed — cannot establish Realtime connection')
-        state.error = 'Authentication failed. Please re-login to the sync backend.'
-        return
-      }
-      log.info('SUBSCRIBE: DID re-auth successful, proceeding with subscription')
-    }
+  // Only connect if not already connected (multiple backends share one WS)
+  if (!realtime.connected.value) {
+    log.info(`SUBSCRIBE: Connecting WebSocket to ${backend.homeServerUrl}`)
+    await realtime.connect(backend.homeServerUrl, identity.privateKey, identity.did)
+  }
 
-    // Log realtime connection state
-    log.info(`SUBSCRIBE: Realtime connection state: ${client.realtime.connectionState()}`)
-    log.info(`SUBSCRIBE: Realtime channels count: ${client.realtime.channels.length}`)
+  // Register event handlers for this backend
+  const cleanupSync = realtime.on('sync', (event: RealtimeEvent) => {
+    const targetBackendId = findBackendBySpaceId(event.spaceId, syncBackendsStore)
+    if (!targetBackendId) return
 
-    // If there's an existing dead connection, disconnect and remove all channels
-    // to force a completely fresh WebSocket connection with the current auth token
-    if (client.realtime.connectionState() === 'closed') {
-      log.info('SUBSCRIBE: Realtime connection is closed, resetting for fresh connection')
-      client.realtime.removeAllChannels()
-      client.realtime.disconnect()
-    }
+    log.info(`REALTIME: sync event for space ${event.spaceId}, triggering pull`)
+    triggerDebouncedPullAsync(
+      targetBackendId,
+      reconnectionContext.currentVaultId,
+      reconnectionContext.syncStates,
+      syncBackendsStore,
+      syncEngineStore,
+    )
+  })
 
-    // Subscribe via Realtime Broadcast instead of postgres_changes.
-    // A DB trigger on sync_changes calls realtime.broadcast_changes() which
-    // writes to realtime.messages — always in the publication, no cache issues.
-    // The trigger is on the parent table and PostgreSQL 15 auto-clones it to
-    // all partitions. New partitions work immediately without Realtime restart.
-    const channelName = `sync:${backend.vaultId}`
-    log.info(`SUBSCRIBE: Subscribing to broadcast channel="${channelName}" backendId=${backendId}`)
+  const cleanupMembership = realtime.on('membership', async (event: RealtimeEvent) => {
+    log.info(`REALTIME: membership event for space ${event.spaceId}`)
+    const targetBackendId = findBackendBySpaceId(event.spaceId, syncBackendsStore)
+    if (!targetBackendId) return
 
-    // Set auth token for Realtime Authorization (broadcast uses private channels)
-    await client.realtime.setAuth(token)
+    const backend = syncBackendsStore.enabledBackends.find((b) => b.spaceId === event.spaceId)
+    if (!backend?.identityId) return
 
-    const channel = client
-      .channel(channelName)
-      .on(
-        'broadcast',
-        { event: 'INSERT' },
-        (payload) => {
-          log.info(`REALTIME: Broadcast INSERT received on ${channelName}`)
-          handleRealtimeChangeAsync(
-            backendId,
-            payload.payload as any,
-            currentVaultId,
-            syncStates,
-            syncBackendsStore,
-            syncEngineStore,
-          ).catch(log.error)
-        },
-      )
-      .on(
-        'broadcast',
-        { event: 'UPDATE' },
-        (payload) => {
-          log.info(`REALTIME: Broadcast UPDATE received on ${channelName}`)
-          handleRealtimeChangeAsync(
-            backendId,
-            payload.payload as any,
-            currentVaultId,
-            syncStates,
-            syncBackendsStore,
-            syncEngineStore,
-          ).catch(log.error)
-        },
-      )
-      .subscribe((status, err) => {
-        log.info(`SUBSCRIBE: Channel status changed to ${status}`, err ? `Error: ${JSON.stringify(err)}` : '')
-        // Log additional channel state for debugging
-        log.info(`SUBSCRIBE: Channel state - topic=${channel.topic}, state=${channel.state}`)
-        if (status === 'SUBSCRIBED') {
-          state.isConnected = true
-          // Reset retry count on successful subscription
-          subscriptionRetryCounts.set(backendId, 0)
-          log.info(`SUBSCRIBE: Successfully subscribed to backend ${backendId}`)
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          state.isConnected = false
-          const errorDetails = err ? JSON.stringify(err) : 'unknown'
-          state.error = `Subscription error: ${status} - ${errorDetails}`
-
-          // Log detailed error information for debugging
-          log.error(`SUBSCRIBE: ${status} details - errorDetails=${errorDetails}`)
-          if (err && typeof err === 'object') {
-            log.error(`SUBSCRIBE: Error object keys: ${Object.keys(err).join(', ')}`)
-            log.error(`SUBSCRIBE: Error message: ${(err as { message?: string }).message ?? 'none'}`)
-            log.error(`SUBSCRIBE: Error context: ${JSON.stringify((err as { context?: unknown }).context ?? 'none')}`)
-          }
-          // Log realtime connection state at time of error
-          log.error(`SUBSCRIBE: Realtime connection state at error: ${client.realtime.connectionState()}`)
-
-          // Attempt retry with exponential backoff
-          const retryCount = subscriptionRetryCounts.get(backendId) ?? 0
-          if (retryCount < MAX_SUBSCRIPTION_RETRIES) {
-            const delay = RETRY_BASE_DELAY_MS * Math.pow(2, retryCount)
-            log.warn(`SUBSCRIBE: Subscription failed for ${backendId}: ${status}. Retrying in ${delay}ms (attempt ${retryCount + 1}/${MAX_SUBSCRIPTION_RETRIES})`)
-
-            state.subscription = null
-
-            // Schedule retry — wait for cleanup, then resubscribe
-            const retryTimer = setTimeout(async () => {
-              subscriptionRetryTimers.delete(backendId)
-              subscriptionRetryCounts.set(backendId, retryCount + 1)
+    // Auto-finalize accepted invites (admin adds new member to MLS group)
+    try {
+      const identityStore = useIdentityStore()
+      const identity = await identityStore.getIdentityAsync(backend.identityId)
+      if (identity) {
+        const { getUcanForSpaceAsync } = await import('@/utils/auth/ucanStore')
+        const ucan = getUcanForSpaceAsync(event.spaceId)
+        if (ucan) {
+          const { fetchWithUcanAuth } = await import('@/utils/auth/ucanStore')
+          const response = await fetchWithUcanAuth(
+            `${backend.homeServerUrl}/spaces/${event.spaceId}/invites`,
+            event.spaceId,
+            ucan,
+          )
+          if (response.ok) {
+            const data = await response.json()
+            const accepted = (data.invites ?? []).filter((i: any) => i.status === 'accepted')
+            const spacesStore = useSpacesStore()
+            for (const invite of accepted) {
               try {
-                // Clean up the failed channel before creating a new one
-                // removeChannel() unsubscribes and removes from client's internal list
-                await client.removeChannel(channel).catch(() => {})
-                await subscribeToBackendAsync(backendId, currentVaultId, syncStates, syncBackendsStore, syncEngineStore)
-              } catch (retryError) {
-                log.error(`SUBSCRIBE: Retry failed for backend ${backendId}:`, retryError)
+                // For token invites without UCAN: pass inviteId + capability so finalize creates one
+                const needsUcan = !invite.ucan
+                await spacesStore.finalizeInviteAsync(
+                  backend.homeServerUrl,
+                  event.spaceId,
+                  invite.inviteeDid,
+                  backend.identityId,
+                  needsUcan ? invite.id : undefined,
+                  needsUcan ? (invite.capability ?? 'space/write') : undefined,
+                )
+                log.info(`Auto-finalized invite for ${invite.inviteeDid} in space ${event.spaceId}`)
+              } catch (err) {
+                log.error(`Failed to auto-finalize invite for ${invite.inviteeDid}:`, err)
               }
-            }, delay)
-            subscriptionRetryTimers.set(backendId, retryTimer)
-          } else {
-            log.warn(`SUBSCRIBE: Realtime subscription failed for backend ${backendId} after ${MAX_SUBSCRIPTION_RETRIES} attempts. Periodic pull will be used as fallback.`)
-          }
-        } else if (status === 'CLOSED') {
-          state.isConnected = false
-          state.subscription = null
-          log.warn(`SUBSCRIBE: Channel closed for backend ${backendId}, will attempt to reconnect`)
-
-          // Attempt retry with exponential backoff (same as CHANNEL_ERROR)
-          // CLOSED can happen due to token expiry, network blip, or server restart
-          const retryCount = subscriptionRetryCounts.get(backendId) ?? 0
-          if (retryCount < MAX_SUBSCRIPTION_RETRIES) {
-            const delay = RETRY_BASE_DELAY_MS * Math.pow(2, retryCount)
-            log.warn(`SUBSCRIBE: Reconnecting in ${delay}ms (attempt ${retryCount + 1}/${MAX_SUBSCRIPTION_RETRIES})`)
-
-            const retryTimer = setTimeout(async () => {
-              subscriptionRetryTimers.delete(backendId)
-              subscriptionRetryCounts.set(backendId, retryCount + 1)
-              try {
-                await client.removeChannel(channel).catch(() => {})
-                await subscribeToBackendAsync(backendId, currentVaultId, syncStates, syncBackendsStore, syncEngineStore)
-              } catch (retryError) {
-                log.error(`SUBSCRIBE: Reconnect failed for backend ${backendId}:`, retryError)
-              }
-            }, delay)
-            subscriptionRetryTimers.set(backendId, retryTimer)
-          } else {
-            log.warn(`SUBSCRIBE: Realtime reconnection failed for backend ${backendId} after ${MAX_SUBSCRIPTION_RETRIES} attempts. Periodic pull will be used as fallback.`)
+            }
           }
         }
+      }
+    } catch (error) {
+      log.error(`Failed to auto-finalize invites for space ${event.spaceId}:`, error)
+    }
+
+    // Refresh memberships by triggering a pull
+    triggerDebouncedPullAsync(
+      targetBackendId,
+      reconnectionContext.currentVaultId,
+      reconnectionContext.syncStates,
+      syncBackendsStore,
+      syncEngineStore,
+    )
+  })
+
+  const cleanupInvite = realtime.on('invite', (event: RealtimeEvent) => {
+    log.info(`REALTIME: invite event for space ${event.spaceId}, inviteId=${event.inviteId}`)
+    // Pending invites are fetched from server on next spaces load
+  })
+
+  const cleanupMls = realtime.on('mls', async (event: RealtimeEvent) => {
+    log.info(`REALTIME: mls event for space ${event.spaceId}`)
+
+    const backend = syncBackendsStore.enabledBackends.find((b) => b.spaceId === event.spaceId)
+    if (!backend?.identityId) return
+
+    try {
+      const identityStore = useIdentityStore()
+      const identity = await identityStore.getIdentityAsync(backend.identityId)
+      if (!identity) return
+
+      const delivery = useMlsDelivery(backend.homeServerUrl, event.spaceId, {
+        privateKey: identity.privateKey,
+        did: identity.did,
       })
 
-    state.subscription = channel
-  } catch (error) {
-    log.error(`SUBSCRIBE: Failed to subscribe to backend ${backendId}:`, error)
-    state.error = error instanceof Error ? error.message : 'Unknown error'
-    throw error
+      // Fetch and process welcome messages (new member joining)
+      const welcomes = await delivery.fetchWelcomesAsync()
+      for (const welcome of welcomes) {
+        await invoke('mls_process_message', { spaceId: event.spaceId, message: Array.from(welcome) })
+      }
+      if (welcomes.length > 0) {
+        log.info(`Processed ${welcomes.length} MLS welcome(s) for space ${event.spaceId}`)
+      }
+
+      // Fetch and process MLS messages (commits, application data)
+      const messages = await delivery.fetchMessagesAsync()
+      for (const msg of messages) {
+        const payload = Uint8Array.from(atob(msg.payload), (c) => c.charCodeAt(0))
+        await invoke('mls_process_message', { spaceId: event.spaceId, message: Array.from(payload) })
+      }
+      if (messages.length > 0) {
+        log.info(`Processed ${messages.length} MLS message(s) for space ${event.spaceId}`)
+      }
+    } catch (error) {
+      log.error(`Failed to process MLS event for space ${event.spaceId}:`, error)
+    }
+  })
+
+  eventCleanups.push(cleanupSync, cleanupMembership, cleanupInvite, cleanupMls)
+
+  // Mark as connected (the WS composable handles reconnection internally)
+  state.isConnected = realtime.connected.value
+  // Use a watcher-like approach: poll connected state briefly
+  // The composable's connected ref will update on open/close
+  if (!state.isConnected) {
+    // Wait briefly for connection to establish
+    await new Promise<void>((resolve) => {
+      const check = setInterval(() => {
+        if (realtime.connected.value) {
+          state.isConnected = true
+          clearInterval(check)
+          resolve()
+        }
+      }, 100)
+      // Timeout after 10s
+      setTimeout(() => {
+        clearInterval(check)
+        resolve()
+      }, 10_000)
+    })
   }
+
+  log.info(`SUBSCRIBE: WebSocket connected=${realtime.connected.value} for backend ${backendId}`)
 }
 
 /**
- * Unsubscribes from realtime changes
+ * Unsubscribes from realtime changes for a backend
  */
 export const unsubscribeFromBackendAsync = async (
   backendId: string,
   syncStates: BackendSyncState,
 ): Promise<void> => {
-  // Clear any pending retry timer
-  const retryTimer = subscriptionRetryTimers.get(backendId)
-  if (retryTimer) {
-    clearTimeout(retryTimer)
-    subscriptionRetryTimers.delete(backendId)
-  }
-  subscriptionRetryCounts.delete(backendId)
-
   // Clear any pending debounce timer
   const timer = pullDebounceTimers.get(backendId)
   if (timer) {
@@ -379,23 +330,42 @@ export const unsubscribeFromBackendAsync = async (
   }
 
   const state = syncStates[backendId]
-  if (!state || !state.subscription) {
+  if (!state) {
     return
   }
 
-  try {
-    await state.subscription.unsubscribe()
-    state.subscription = null
-    state.isConnected = false
-    log.info(`UNSUBSCRIBE: Unsubscribed from backend ${backendId}`)
-  } catch (error) {
-    log.error(`UNSUBSCRIBE: Failed to unsubscribe from backend ${backendId}:`, error)
+  state.isConnected = false
+  log.info(`UNSUBSCRIBE: Unsubscribed from backend ${backendId}`)
+}
+
+/**
+ * Disconnects the shared WebSocket and cleans up all event handlers.
+ * Called when sync is fully stopped (all backends).
+ */
+export const disconnectRealtimeAsync = async (): Promise<void> => {
+  // Clean up all event handlers
+  for (const cleanup of eventCleanups) {
+    cleanup()
   }
+  eventCleanups.length = 0
+
+  // Disconnect the WebSocket
+  if (realtimeInstance) {
+    realtimeInstance.disconnect()
+    realtimeInstance = null
+  }
+
+  // Clear all debounce timers
+  for (const [, timer] of pullDebounceTimers) {
+    clearTimeout(timer)
+  }
+  pullDebounceTimers.clear()
+
+  log.info('REALTIME: WebSocket disconnected and all handlers cleaned up')
 }
 
 /**
  * Reconnects all backends after app resumes from background.
- * Resets retry counts and attempts fresh connections.
  */
 const reconnectAllBackendsAsync = async (): Promise<void> => {
   const { syncStates, syncBackendsStore, syncEngineStore, currentVaultId } = reconnectionContext
@@ -411,51 +381,40 @@ const reconnectAllBackendsAsync = async (): Promise<void> => {
   }
 
   reconnectionContext.reconnectionPending = true
-  log.info('RECONNECT: App resumed, reconnecting all backends...')
+  log.info('RECONNECT: App resumed, reconnecting...')
 
   try {
     const enabledBackends = syncBackendsStore.enabledBackends
 
-    for (const backend of enabledBackends) {
-      const state = syncStates[backend.id]
-      if (!state) continue
+    // The useRealtime composable handles reconnection automatically on close.
+    // But after a long background period the WS may be dead. Force reconnect.
+    if (realtimeInstance && !realtimeInstance.connected.value) {
+      // Disconnect cleanly and reconnect
+      realtimeInstance.disconnect()
+      realtimeInstance = null
 
-      // Reset retry count for fresh start
-      subscriptionRetryCounts.delete(backend.id)
+      // Re-subscribe (will create new instance and connect)
+      for (const backend of enabledBackends) {
+        const state = syncStates[backend.id]
+        if (!state) continue
+        state.isConnected = false
 
-      // Clear any pending retry timers
-      const retryTimer = subscriptionRetryTimers.get(backend.id)
-      if (retryTimer) {
-        clearTimeout(retryTimer)
-        subscriptionRetryTimers.delete(backend.id)
-      }
-
-      // Unsubscribe existing (likely dead) channel
-      if (state.subscription) {
         try {
-          await state.subscription.unsubscribe()
-        } catch {
-          // Ignore errors on cleanup
+          log.info(`RECONNECT: Re-subscribing to backend ${backend.id}`)
+          await subscribeToBackendAsync(
+            backend.id,
+            currentVaultId,
+            syncStates,
+            syncBackendsStore,
+            syncEngineStore,
+          )
+        } catch (error) {
+          log.error(`RECONNECT: Failed to re-subscribe to ${backend.id}:`, error)
         }
-        state.subscription = null
-      }
-
-      // Re-subscribe
-      try {
-        log.info(`RECONNECT: Re-subscribing to backend ${backend.id}`)
-        await subscribeToBackendAsync(
-          backend.id,
-          currentVaultId,
-          syncStates,
-          syncBackendsStore,
-          syncEngineStore,
-        )
-      } catch (error) {
-        log.error(`RECONNECT: Failed to re-subscribe to ${backend.id}:`, error)
       }
     }
 
-    // Also trigger a pull to catch any changes missed while in background
+    // Trigger a pull to catch any changes missed while in background
     log.info('RECONNECT: Triggering pull for all backends to catch missed changes')
     for (const backend of enabledBackends) {
       try {

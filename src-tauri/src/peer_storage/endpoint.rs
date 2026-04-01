@@ -23,6 +23,15 @@ use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::protocol::{self, FileEntry, Request, Response, ALPN};
 
 // ============================================================================
+// Delivery connection handler trait
+// ============================================================================
+
+/// Trait for handling space delivery connections. Implemented by space_delivery module.
+pub trait DeliveryConnectionHandler: Send + Sync {
+    fn handle_connection(&self, conn: iroh::endpoint::Connection) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>>;
+}
+
+// ============================================================================
 // Shared state
 // ============================================================================
 
@@ -50,6 +59,8 @@ pub struct PeerState {
     pub allowed_peers: HashMap<String, HashSet<String>>,
     /// Tauri AppHandle for android_fs operations (set on Android before start)
     pub app_handle: Option<tauri::AppHandle>,
+    /// Handler for incoming space delivery connections (set by space_delivery module)
+    pub delivery_handler: Option<Arc<dyn DeliveryConnectionHandler>>,
 }
 
 impl Default for PeerState {
@@ -58,6 +69,7 @@ impl Default for PeerState {
             shares: HashMap::new(),
             allowed_peers: HashMap::new(),
             app_handle: None,
+            delivery_handler: None,
         }
     }
 }
@@ -69,6 +81,7 @@ impl std::fmt::Debug for PeerState {
             .field("shares", &self.shares)
             .field("allowed_peers", &self.allowed_peers)
             .field("app_handle", &self.app_handle.as_ref().map(|_| "Some(AppHandle)"))
+            .field("delivery_handler", &self.delivery_handler.as_ref().map(|_| "Some(DeliveryConnectionHandler)"))
             .finish()
     }
 }
@@ -99,7 +112,7 @@ impl PeerEndpoint {
     /// Create a PeerEndpoint with a temporary random key (for testing or pre-init state).
     pub fn new_ephemeral() -> Self {
         let mut bytes = [0u8; 32];
-        rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut bytes);
+        rand::fill(&mut bytes);
         Self::new(SecretKey::from_bytes(&bytes))
     }
 
@@ -117,6 +130,11 @@ impl PeerEndpoint {
     /// Must be called before start() on Android so Content URI shares can be served.
     pub async fn set_app_handle(&self, app_handle: tauri::AppHandle) {
         self.state.write().await.app_handle = Some(app_handle);
+    }
+
+    /// Register a handler for space delivery connections.
+    pub async fn set_delivery_handler(&self, handler: Arc<dyn DeliveryConnectionHandler>) {
+        self.state.write().await.delivery_handler = Some(handler);
     }
 
     /// Get the public EndpointId
@@ -153,9 +171,12 @@ impl PeerEndpoint {
             }
         };
 
-        let endpoint = Endpoint::builder()
+        let endpoint = Endpoint::builder(iroh::endpoint::presets::N0)
             .secret_key(self.secret_key.clone())
-            .alpns(vec![ALPN.to_vec()])
+            .alpns(vec![
+                ALPN.to_vec(),
+                crate::space_delivery::local::protocol::ALPN.to_vec(),
+            ])
             .relay_mode(relay_mode)
             .address_lookup(
                 iroh::address_lookup::MdnsAddressLookup::builder()
@@ -427,28 +448,50 @@ async fn accept_loop(endpoint: Endpoint, state: Arc<RwLock<PeerState>>) {
         tokio::spawn(async move {
             match incoming.await {
                 Ok(conn) => {
+                    let alpn = conn.alpn();
+                    let alpn_bytes: &[u8] = &alpn;
                     let remote = conn.remote_id();
-                    let remote_str = remote.to_string();
 
-                    // Check access control: which spaces is this peer allowed to access?
-                    let allowed_spaces = {
-                        let s = state.read().await;
-                        s.allowed_peers.get(&remote_str).cloned()
-                    };
+                    if alpn_bytes == ALPN {
+                        // --- Peer storage protocol ---
+                        let remote_str = remote.to_string();
 
-                    match allowed_spaces {
-                        Some(spaces) if !spaces.is_empty() => {
-                            eprintln!("[PeerStorage] Accepted connection from {remote} (access to {} spaces)", spaces.len());
-                            handle_connection(conn, state).await;
+                        let allowed_spaces = {
+                            let s = state.read().await;
+                            s.allowed_peers.get(&remote_str).cloned()
+                        };
+
+                        match allowed_spaces {
+                            Some(spaces) if !spaces.is_empty() => {
+                                eprintln!("[PeerStorage] Accepted connection from {remote} (access to {} spaces)", spaces.len());
+                                handle_connection(conn, state).await;
+                            }
+                            _ => {
+                                eprintln!("[PeerStorage] Rejected connection from {remote}: not registered in any shared space");
+                            }
                         }
-                        _ => {
-                            eprintln!("[PeerStorage] Rejected connection from {remote}: not registered in any shared space");
-                            // Connection will be dropped, closing it
+                    } else if alpn_bytes == crate::space_delivery::local::protocol::ALPN {
+                        // --- Space delivery protocol ---
+                        let handler = {
+                            let s = state.read().await;
+                            s.delivery_handler.clone()
+                        };
+
+                        match handler {
+                            Some(h) => {
+                                eprintln!("[SpaceDelivery] Accepted delivery connection from {remote}");
+                                h.handle_connection(conn).await;
+                            }
+                            None => {
+                                eprintln!("[SpaceDelivery] Rejected delivery connection from {remote}: no handler registered");
+                            }
                         }
+                    } else {
+                        eprintln!("[Endpoint] Rejected connection from {remote}: unknown ALPN {:?}", String::from_utf8_lossy(&alpn));
                     }
                 }
                 Err(e) => {
-                    eprintln!("[PeerStorage] Failed to accept connection: {e}");
+                    eprintln!("[Endpoint] Failed to accept connection: {e}");
                 }
             }
         });
@@ -508,7 +551,18 @@ async fn handle_stream(
         Request::List { path } => handle_list(state, &path, allowed_spaces).await,
         Request::Stat { path } => handle_stat(state, &path, allowed_spaces).await,
         Request::Read { path, range } => {
-            return handle_read(&mut send, state, &path, range, allowed_spaces).await;
+            if let Err(e) = handle_read(&mut send, state, &path, range, allowed_spaces).await {
+                // Try to send an error response so the client sees a proper error
+                // instead of "connection lost". Best-effort — may fail if stream broke.
+                eprintln!("[PeerStorage] Read error for '{path}': {e}");
+                let error_resp = Response::Error { message: format!("{e}") };
+                if let Ok(bytes) = protocol::encode_response(&error_resp) {
+                    let _ = send.write_all(&bytes).await;
+                    let _ = send.finish();
+                }
+                return Err(e);
+            }
+            return Ok(());
         }
     };
 
@@ -883,8 +937,8 @@ fn resolve_content_uri_subpath(
             .map_err(|e| format!("Failed to read dir: {e:?}"))?;
 
         let found = entries
-            .filter(|entry| entry.name() == *segment)
-            .next();
+            .into_iter()
+            .find(|entry| entry.name() == *segment);
 
         match found {
             Some(entry) => {
@@ -927,6 +981,7 @@ fn list_content_uri(
         .map_err(|e| format!("Failed to read dir: {e:?}"))?;
 
     let mut entries: Vec<FileEntry> = dir_entries
+        .into_iter()
         .map(|entry| {
             let modified = entry.last_modified()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -975,8 +1030,13 @@ fn stat_content_uri(
 }
 
 /// Stream a file via Content URI to the QUIC send stream.
-/// Uses `open_file_readable()` which returns a `std::fs::File`, then converts
-/// to `tokio::fs::File` for async chunk-based streaming.
+///
+/// The JNI file descriptor stays entirely within a `spawn_blocking` thread that
+/// reads chunks and sends them over an `mpsc` channel.  The async side receives
+/// chunks and writes them to QUIC.  This avoids fd-lifetime issues that arise
+/// when converting a JNI `std::fs::File` to `tokio::fs::File` (the
+/// `ParcelFileDescriptor` on the Java side can be GC'd while the async read is
+/// still in progress, invalidating the fd).
 #[cfg(target_os = "android")]
 async fn handle_read_content_uri(
     send: &mut iroh::endpoint::SendStream,
@@ -986,31 +1046,30 @@ async fn handle_read_content_uri(
     range: Option<[u64; 2]>,
 ) -> Result<(), PeerStorageError> {
     use tauri_plugin_android_fs::AndroidFsExt;
-    use tokio::io::AsyncReadExt;
+    use std::io::Read;
 
-    // Resolve the Content URI and open the file (blocking JNI calls)
     let app = app_handle.clone();
     let root = root_uri_json.to_string();
     let sub = sub_path.to_string();
 
-    let (std_file, file_size) = tokio::task::spawn_blocking(move || -> Result<(std::fs::File, u64), PeerStorageError> {
-        let api = app.android_fs();
+    // Step 1: Resolve Content URI and get file size (blocking JNI)
+    let (file_size, target_root, target_sub) = tokio::task::spawn_blocking({
+        let app = app.clone();
+        let root = root.clone();
+        let sub = sub.clone();
+        move || -> Result<(u64, String, String), PeerStorageError> {
+            let api = app.android_fs();
+            let (target_uri, is_dir) = resolve_content_uri_subpath(&app, &root, &sub)
+                .map_err(|e| PeerStorageError::ProtocolError { reason: e })?;
 
-        let (target_uri, is_dir) = resolve_content_uri_subpath(&app, &root, &sub)
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e })?;
+            if is_dir {
+                return Err(PeerStorageError::ProtocolError { reason: "Not a file".to_string() });
+            }
 
-        if is_dir {
-            return Err(PeerStorageError::ProtocolError { reason: "Not a file".to_string() });
+            let size = api.get_len(&target_uri).unwrap_or(0);
+            eprintln!("[PeerStorage] Content URI read: size={size}, path={sub}");
+            Ok((size, root, sub))
         }
-
-        let file = api.open_file_readable(&target_uri)
-            .map_err(|e| PeerStorageError::ProtocolError {
-                reason: format!("Failed to open file: {e:?}"),
-            })?;
-
-        let size = api.get_len(&target_uri).unwrap_or(0);
-
-        Ok((file, size))
     }).await.map_err(|e| PeerStorageError::ProtocolError {
         reason: format!("Task failed: {e}"),
     })??;
@@ -1023,7 +1082,7 @@ async fn handle_read_content_uri(
         None => (0, file_size),
     };
 
-    // Send header
+    // Step 2: Send header
     let header = Response::ReadHeader { size: read_size };
     let header_bytes = protocol::encode_response(&header)
         .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
@@ -1031,36 +1090,95 @@ async fn handle_read_content_uri(
         .await
         .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
 
-    // Convert to tokio::fs::File for async streaming
-    let mut file = tokio::fs::File::from_std(std_file);
-
-    if offset > 0 {
-        use tokio::io::AsyncSeekExt;
-        file.seek(std::io::SeekFrom::Start(offset))
-            .await
-            .map_err(PeerStorageError::Io)?;
+    if read_size == 0 {
+        send.finish()
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+        return Ok(());
     }
 
-    // Stream file data in chunks (64 KB)
-    let mut remaining = read_size;
-    let mut buf = vec![0u8; 64 * 1024];
+    // Step 3: Channel-based streaming — fd stays in the blocking thread
+    // 4 chunks in-flight ≈ 256KB buffer, provides backpressure
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<Result<Vec<u8>, String>>(4);
 
-    while remaining > 0 {
-        let to_read = (remaining as usize).min(buf.len());
-        let n = file
-            .read(&mut buf[..to_read])
-            .await
-            .map_err(PeerStorageError::Io)?;
-        if n == 0 {
-            break;
+    let reader_handle = tokio::task::spawn_blocking(move || {
+        let api = app.android_fs();
+
+        let (target_uri, _) = match resolve_content_uri_subpath(&app, &target_root, &target_sub) {
+            Ok(v) => v,
+            Err(e) => {
+                let _ = tx.blocking_send(Err(format!("Failed to resolve URI: {e}")));
+                return;
+            }
+        };
+
+        let mut file = match api.open_file_readable(&target_uri) {
+            Ok(f) => f,
+            Err(e) => {
+                let _ = tx.blocking_send(Err(format!("Failed to open file: {e:?}")));
+                return;
+            }
+        };
+
+        // Seek to offset if needed
+        if offset > 0 {
+            use std::io::Seek;
+            if let Err(e) = file.seek(std::io::SeekFrom::Start(offset)) {
+                let _ = tx.blocking_send(Err(format!("Failed to seek: {e}")));
+                return;
+            }
         }
-        send.write_all(&buf[..n])
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
-        remaining -= n as u64;
+
+        let mut remaining = read_size;
+        let mut buf = vec![0u8; 64 * 1024];
+        let mut chunks_sent: u64 = 0;
+
+        while remaining > 0 {
+            let to_read = (remaining as usize).min(buf.len());
+            match file.read(&mut buf[..to_read]) {
+                Ok(0) => {
+                    eprintln!("[PeerStorage] Content URI read: EOF after {chunks_sent} chunks, {remaining} bytes remaining");
+                    break;
+                }
+                Ok(n) => {
+                    remaining -= n as u64;
+                    chunks_sent += 1;
+                    // Send chunk; if receiver dropped (QUIC error), stop reading
+                    if tx.blocking_send(Ok(buf[..n].to_vec())).is_err() {
+                        eprintln!("[PeerStorage] Content URI read: receiver dropped after {chunks_sent} chunks");
+                        return;
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[PeerStorage] Content URI read: IO error after {chunks_sent} chunks: {e}");
+                    let _ = tx.blocking_send(Err(format!("Read error: {e}")));
+                    return;
+                }
+            }
+        }
+
+        eprintln!("[PeerStorage] Content URI read: complete, {chunks_sent} chunks sent");
+    });
+
+    // Step 4: Receive chunks and write to QUIC stream
+    while let Some(result) = rx.recv().await {
+        match result {
+            Ok(chunk) => {
+                send.write_all(&chunk)
+                    .await
+                    .map_err(|e| PeerStorageError::ConnectionFailed {
+                        reason: e.to_string(),
+                    })?;
+            }
+            Err(e) => {
+                // Reader reported an error — send error response to client
+                eprintln!("[PeerStorage] Content URI streaming error: {e}");
+                return Err(PeerStorageError::ProtocolError { reason: e });
+            }
+        }
     }
+
+    // Wait for reader thread to finish
+    let _ = reader_handle.await;
 
     send.finish()
         .map_err(|e| PeerStorageError::ConnectionFailed {

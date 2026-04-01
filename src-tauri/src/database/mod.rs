@@ -15,7 +15,7 @@ use crate::database::error::DatabaseError;
 use crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED;
 use crate::extension::database::executor::SqlExecutor;
 use crate::table_names::{COL_CRDT_CONFIGS_KEY, COL_CRDT_CONFIGS_TYPE, COL_CRDT_CONFIGS_VALUE, TABLE_CRDT_CONFIGS, TABLE_VAULT_SETTINGS};
-use constants::{vault_settings_key, vault_settings_type};
+use constants::vault_settings_key;
 use crate::AppState;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -415,7 +415,7 @@ pub fn create_encrypted_database(
     app_handle: AppHandle,
     vault_name: String,
     key: String,
-    vault_id: Option<String>,
+    space_id: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<String, DatabaseError> {
     println!("Creating encrypted vault with name: {vault_name}");
@@ -523,19 +523,19 @@ pub fn create_encrypted_database(
     initialize_session_post_migration(&app_handle, &state)?;
     println!("[CREATE_DB] ✅ HLC and triggers initialized");
 
-    // Step 5: Set vault_id
-    // For remote sync: use the provided vault_id
+    // Step 5: Set space_id
+    // For remote sync: use the provided space_id
     // For new vaults: generate a new UUID
-    println!("[CREATE_DB] Step 5: Setting vault_id...");
+    println!("[CREATE_DB] Step 5: Setting space_id...");
     {
-        let effective_vault_id = match &vault_id {
+        let effective_space_id = match &space_id {
             Some(id) => {
-                println!("[CREATE_DB] Using provided vault_id: {}", id);
+                println!("[CREATE_DB] Using provided space_id: {}", id);
                 id.clone()
             }
             None => {
                 let new_id = uuid::Uuid::new_v4().to_string();
-                println!("[CREATE_DB] Generating new vault_id: {}", new_id);
+                println!("[CREATE_DB] Generating new space_id: {}", new_id);
                 new_id
             }
         };
@@ -545,10 +545,9 @@ pub fn create_encrypted_database(
         })?;
         let row_id = uuid::Uuid::new_v4().to_string();
         let insert_sql = format!(
-            "INSERT INTO {} (id, key, type, value) VALUES (?, '{}', '{}', ?)",
+            "INSERT INTO {} (id, key, value) VALUES (?, '{}', ?)",
             TABLE_VAULT_SETTINGS,
-            vault_settings_key::VAULT_ID,
-            vault_settings_type::SYSTEM,
+            vault_settings_key::SPACE_ID,
         );
         with_connection(&state.db, |conn| {
             let tx = conn.transaction().map_err(DatabaseError::from)?;
@@ -556,19 +555,19 @@ pub fn create_encrypted_database(
                 &tx,
                 &hlc_service,
                 &insert_sql,
-                rusqlite::params![row_id, effective_vault_id],
+                rusqlite::params![row_id, effective_space_id],
             )?;
             tx.commit().map_err(DatabaseError::from)?;
             Ok(())
         })?;
-        println!("[CREATE_DB] ✅ vault_id set successfully with CRDT timestamp");
+        println!("[CREATE_DB] ✅ space_id set successfully with CRDT timestamp");
     }
 
     // Step 6: Generate device_key_secret (32 random bytes for encrypting the Ed25519 device key file)
     println!("[CREATE_DB] Step 6: Generating device_key_secret...");
     {
         let mut secret_bytes = [0u8; 32];
-        rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut secret_bytes);
+        rand::fill(&mut secret_bytes);
         let secret_hex = hex::encode(secret_bytes);
 
         let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
@@ -576,10 +575,9 @@ pub fn create_encrypted_database(
         })?;
         let row_id = uuid::Uuid::new_v4().to_string();
         let insert_sql = format!(
-            "INSERT INTO {} (id, key, type, value) VALUES (?, '{}', '{}', ?)",
+            "INSERT INTO {} (id, key, value) VALUES (?, '{}', ?)",
             TABLE_VAULT_SETTINGS,
             vault_settings_key::DEVICE_KEY_SECRET,
-            vault_settings_type::SYSTEM,
         );
         with_connection(&state.db, |conn| {
             let tx = conn.transaction().map_err(DatabaseError::from)?;

@@ -3,8 +3,9 @@
  * Handles server-side operations like health check, vault deletion, vault name updates
  */
 
-import { encryptWithPublicKeyAsync } from '@haex-space/vault-sdk'
-import { getAuthTokenAsync, fetchWithReauthAsync } from './supabase'
+import { DidAuthAction } from '@haex-space/ucan'
+import { fetchWithDidAuth } from '@/utils/auth/didAuth'
+import { encryptVaultNameAsync } from '@/utils/crypto/vaultName'
 import { clearVaultKeyCache } from './vaultKey'
 import { engineLog as log } from './types'
 
@@ -26,21 +27,17 @@ export const healthCheckAsync = async (serverUrl: string): Promise<boolean> => {
  */
 export const deleteRemoteVaultAsync = async (
   serverUrl: string,
-  vaultId: string,
+  spaceId: string,
+  privateKey: string,
+  did: string,
 ): Promise<void> => {
-  // Get auth token
-  const token = await getAuthTokenAsync()
-  if (!token) {
-    throw new Error('Not authenticated')
-  }
-
-  // Send delete request to server
-  const response = await fetchWithReauthAsync(`${serverUrl}/sync/vault/${vaultId}`, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  })
+  const response = await fetchWithDidAuth(
+    `${serverUrl}/sync/vault/${spaceId}`,
+    privateKey,
+    did,
+    DidAuthAction.VaultDelete,
+    { method: 'DELETE' },
+  )
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
@@ -49,10 +46,8 @@ export const deleteRemoteVaultAsync = async (
     )
   }
 
-  // Clear vault key from cache
-  clearVaultKeyCache(vaultId)
-
-  log.info(`Remote vault ${vaultId} deleted from server`)
+  clearVaultKeyCache(spaceId)
+  log.info(`Remote vault ${spaceId} deleted from server`)
 }
 
 /**
@@ -61,18 +56,16 @@ export const deleteRemoteVaultAsync = async (
  */
 export const deleteAllVaultDataAsync = async (
   serverUrl: string,
+  privateKey: string,
+  did: string,
 ): Promise<void> => {
-  const token = await getAuthTokenAsync()
-  if (!token) {
-    throw new Error('Not authenticated')
-  }
-
-  const response = await fetchWithReauthAsync(`${serverUrl}/sync/vaults`, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  })
+  const response = await fetchWithDidAuth(
+    `${serverUrl}/sync/vaults`,
+    privateKey,
+    did,
+    DidAuthAction.VaultDeleteAll,
+    { method: 'DELETE' },
+  )
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
@@ -90,32 +83,33 @@ export const deleteAllVaultDataAsync = async (
  */
 export const updateVaultNameOnServerAsync = async (
   serverUrl: string,
-  vaultId: string,
+  spaceId: string,
   newVaultName: string,
   identityPublicKey: string,
+  privateKey: string,
+  did: string,
 ): Promise<void> => {
-  const token = await getAuthTokenAsync()
-  if (!token) {
-    throw new Error('Not authenticated')
-  }
+  // Encrypt new vault name with identity Ed25519 public key (Rust: Ed25519→X25519 + ECDH + AES-GCM)
+  const sealedName = await encryptVaultNameAsync(newVaultName, identityPublicKey)
 
-  // Encrypt new vault name with identity public key (ECDH)
-  const encodedName = new TextEncoder().encode(newVaultName)
-  const sealedName = await encryptWithPublicKeyAsync(encodedName, identityPublicKey)
-
-  // Send PATCH request to update vault name on server
-  const response = await fetchWithReauthAsync(`${serverUrl}/sync/vault-key/${vaultId}`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      encryptedVaultName: sealedName.encryptedData,
-      vaultNameNonce: sealedName.nonce,
-      ephemeralPublicKey: sealedName.ephemeralPublicKey,
-    }),
+  const body = JSON.stringify({
+    encryptedVaultName: sealedName.encryptedData,
+    vaultNameNonce: sealedName.nonce,
+    vaultNameSalt: sealedName.salt,
+    ephemeralPublicKey: sealedName.ephemeralPublicKey,
   })
+
+  const response = await fetchWithDidAuth(
+    `${serverUrl}/sync/vault-key/${spaceId}`,
+    privateKey,
+    did,
+    DidAuthAction.VaultKeyUpdate,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    },
+  )
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))

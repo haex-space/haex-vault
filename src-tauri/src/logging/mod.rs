@@ -97,6 +97,8 @@ pub fn get_effective_log_level(
 }
 
 /// Insert a log entry via CRDT-aware execution (synced across devices).
+/// NOTE: The console interceptor filters out sync-related messages (`[SYNC]` prefix)
+/// to prevent a feedback loop: sync log → interceptor → insert → CRDT dirty → push → ∞
 pub fn insert_log(
     state: &crate::AppState,
     level: &str,

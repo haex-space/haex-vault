@@ -90,6 +90,14 @@ export interface Logger {
  * @param module - Module name (e.g., 'SYNC', 'SCANNER', 'EVENTS')
  * @returns Logger instance with info, warn, error, debug methods
  */
+const serializeArgs = (args: unknown[]): unknown[] =>
+  args.map((arg) => {
+    if (arg instanceof Error) {
+      return arg.stack || `${arg.name}: ${arg.message}`
+    }
+    return arg
+  })
+
 export const createLogger = (module: string): Logger => {
   const prefix = `[${module}]`
 
@@ -118,23 +126,23 @@ export const createLogger = (module: string): Logger => {
   return {
     info: (...args: unknown[]) => {
       if (shouldSuppress('info')) return
-      console.log(prefix, ...args)
+      console.log(prefix, ...serializeArgs(args))
     },
 
     warn: (...args: unknown[]) => {
       if (shouldSuppress('warn')) return
-      console.warn(prefix, ...args)
+      console.warn(prefix, ...serializeArgs(args))
     },
 
     error: (...args: unknown[]) => {
       // Errors are never suppressed
-      console.error(prefix, ...args)
+      console.error(prefix, ...serializeArgs(args))
     },
 
     debug: (...args: unknown[]) => {
       if (!isDebugEnabled()) return
       if (shouldSuppress('debug')) return
-      console.log(`${prefix} [DEBUG]`, ...args)
+      console.log(`${prefix} [DEBUG]`, ...serializeArgs(args))
     },
   }
 }

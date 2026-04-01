@@ -2,7 +2,6 @@ import { sql } from 'drizzle-orm'
 import {
   check,
   integer,
-  primaryKey,
   sqliteTable,
   text,
   uniqueIndex,
@@ -21,13 +20,11 @@ export const haexVaultSettings = sqliteTable(
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
     key: text(tableNames.haex.vault_settings.columns.key).notNull(),
-    type: text(tableNames.haex.vault_settings.columns.type).notNull(),
     value: text(tableNames.haex.vault_settings.columns.value),
-    extensionId: text(tableNames.haex.vault_settings.columns.extensionId)
-      .references((): AnySQLiteColumn => haexExtensions.id, { onDelete: 'cascade' }),
+    deviceId: text(tableNames.haex.vault_settings.columns.deviceId),
   },
   (table) => [
-    uniqueIndex('haex_vault_settings_key_type_ext_unique').on(table.key, table.type, table.extensionId),
+    uniqueIndex('haex_vault_settings_key_device_unique').on(table.key, table.deviceId),
   ],
 )
 export type InsertHaexVaultSettings = typeof haexVaultSettings.$inferInsert
@@ -215,8 +212,9 @@ export const haexSyncBackends = sqliteTable(
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
     name: text(tableNames.haex.sync_backends.columns.name).notNull(),
-    serverUrl: text(tableNames.haex.sync_backends.columns.serverUrl).notNull(),
-    vaultId: text(tableNames.haex.sync_backends.columns.vaultId),
+    homeServerUrl: text(tableNames.haex.sync_backends.columns.homeServerUrl).notNull(),
+    spaceId: text(tableNames.haex.sync_backends.columns.spaceId)
+      .references(() => haexSpaces.id),
     syncKey: text(tableNames.haex.sync_backends.columns.syncKey),
     vaultKeySalt: text(tableNames.haex.sync_backends.columns.vaultKeySalt),
     identityId: text(tableNames.haex.sync_backends.columns.identityId), // FK → haex_identities.publicKey (for auth)
@@ -235,6 +233,9 @@ export const haexSyncBackends = sqliteTable(
     })
       .default(false)
       .notNull(),
+    type: text(tableNames.haex.sync_backends.columns.type).notNull().default('home'),
+    homeServerDid: text(tableNames.haex.sync_backends.columns.homeServerDid),
+    originServerDid: text(tableNames.haex.sync_backends.columns.originServerDid),
     createdAt: text(tableNames.haex.sync_backends.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),
@@ -243,7 +244,7 @@ export const haexSyncBackends = sqliteTable(
     }).$onUpdate(() => new Date()),
   },
   (table) => [
-    uniqueIndex('haex_sync_backends_server_url_unique').on(table.serverUrl),
+    uniqueIndex('haex_sync_backends_home_server_url_unique').on(table.homeServerUrl),
   ],
 )
 export type InsertHaexSyncBackends = typeof haexSyncBackends.$inferInsert
@@ -369,10 +370,11 @@ export const haexIdentities = sqliteTable(
   {
     publicKey: text(tableNames.haex.identities.columns.publicKey)
       .notNull()
-      .primaryKey(), // Base64 SPKI — stable, unique, same across all devices
+      .primaryKey(), // Base64 SPKI Ed25519 signing key — stable, unique, same across all devices
     label: text(tableNames.haex.identities.columns.label).notNull(),
-    did: text(tableNames.haex.identities.columns.did).notNull(), // did:key:zDn...
-    privateKey: text(tableNames.haex.identities.columns.privateKey).notNull(), // Base64 PKCS8
+    did: text(tableNames.haex.identities.columns.did).notNull(), // did:key:z6Mk...
+    privateKey: text(tableNames.haex.identities.columns.privateKey).notNull(), // Base64 PKCS8 Ed25519 signing key (X25519 derived on-the-fly via Rust)
+    avatar: text(tableNames.haex.identities.columns.avatar), // Base64 WebP 128x128
     createdAt: text(tableNames.haex.identities.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),
@@ -421,6 +423,7 @@ export const haexContacts = sqliteTable(
       .primaryKey(),
     label: text(tableNames.haex.contacts.columns.label).notNull(),
     publicKey: text(tableNames.haex.contacts.columns.publicKey).notNull(),
+    avatar: text(tableNames.haex.contacts.columns.avatar), // Base64 WebP 128x128
     notes: text(tableNames.haex.contacts.columns.notes),
     createdAt: text(tableNames.haex.contacts.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
@@ -453,6 +456,30 @@ export type InsertHaexContactClaims = typeof haexContactClaims.$inferInsert
 export type SelectHaexContactClaims = typeof haexContactClaims.$inferSelect
 
 // ---------------------------------------------------------------------------
+// Spaces — local + remote spaces (CRDT-synced)
+// ---------------------------------------------------------------------------
+
+export const haexSpaces = sqliteTable(
+  tableNames.haex.spaces.name,
+  {
+    id: text(tableNames.haex.spaces.columns.id).primaryKey(),
+    type: text(tableNames.haex.spaces.columns.type).notNull().default('shared'), // 'vault' | 'shared' | 'local'
+    name: text(tableNames.haex.spaces.columns.name).notNull(),
+    serverUrl: text(tableNames.haex.spaces.columns.serverUrl),
+    role: text(tableNames.haex.spaces.columns.role).notNull(),
+    createdAt: text(tableNames.haex.spaces.columns.createdAt).default(
+      sql`(CURRENT_TIMESTAMP)`,
+    ),
+    modifiedAt: text(tableNames.haex.spaces.columns.modifiedAt).default(
+      sql`(CURRENT_TIMESTAMP)`,
+    ),
+  },
+)
+
+export type InsertHaexSpaces = typeof haexSpaces.$inferInsert
+export type SelectHaexSpaces = typeof haexSpaces.$inferSelect
+
+// ---------------------------------------------------------------------------
 // Space Devices — registers devices in Spaces (EndpointId → Space mapping)
 // ---------------------------------------------------------------------------
 
@@ -462,12 +489,16 @@ export const haexSpaceDevices = sqliteTable(
     id: text(tableNames.haex.space_devices.columns.id)
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
-    spaceId: text(tableNames.haex.space_devices.columns.spaceId).notNull(),
+    spaceId: text(tableNames.haex.space_devices.columns.spaceId)
+      .notNull()
+      .references(() => haexSpaces.id),
     identityId: text(tableNames.haex.space_devices.columns.identityId)
       .references(() => haexIdentities.publicKey),
     deviceEndpointId: text(tableNames.haex.space_devices.columns.deviceEndpointId).notNull(),
     deviceName: text(tableNames.haex.space_devices.columns.deviceName).notNull(),
+    avatar: text(tableNames.haex.space_devices.columns.avatar), // Base64 WebP 128x128
     relayUrl: text(tableNames.haex.space_devices.columns.relayUrl),
+    leaderPriority: integer(tableNames.haex.space_devices.columns.leaderPriority).default(10),
     createdAt: text(tableNames.haex.space_devices.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
   },
   (table) => [
@@ -488,7 +519,9 @@ export const haexPeerShares = sqliteTable(
     id: text(tableNames.haex.peer_shares.columns.id)
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
-    spaceId: text(tableNames.haex.peer_shares.columns.spaceId).notNull(),
+    spaceId: text(tableNames.haex.peer_shares.columns.spaceId)
+      .notNull()
+      .references(() => haexSpaces.id),
     deviceEndpointId: text(tableNames.haex.peer_shares.columns.deviceEndpointId).notNull(),
     name: text(tableNames.haex.peer_shares.columns.name).notNull(),
     localPath: text(tableNames.haex.peer_shares.columns.localPath).notNull(),
@@ -506,12 +539,26 @@ export type SelectHaexPeerShares = typeof haexPeerShares.$inferSelect
 export const haexSharedSpaceSync = sqliteTable(
   tableNames.haex.shared_space_sync.name,
   {
+    id: text(tableNames.haex.shared_space_sync.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
     tableName: text(tableNames.haex.shared_space_sync.columns.tableName).notNull(),
     rowPks: text(tableNames.haex.shared_space_sync.columns.rowPks, { mode: 'json' }).notNull(),
-    spaceId: text(tableNames.haex.shared_space_sync.columns.spaceId).notNull(),
+    spaceId: text(tableNames.haex.shared_space_sync.columns.spaceId)
+      .notNull()
+      .references(() => haexSpaces.id),
+    extensionId: text(tableNames.haex.shared_space_sync.columns.extensionId)
+      .references((): AnySQLiteColumn => haexExtensions.id),
+    groupId: text(tableNames.haex.shared_space_sync.columns.groupId),
+    type: text(tableNames.haex.shared_space_sync.columns.type),
+    label: text(tableNames.haex.shared_space_sync.columns.label),
+    createdAt: text(tableNames.haex.shared_space_sync.columns.createdAt).default(
+      sql`(CURRENT_TIMESTAMP)`,
+    ),
   },
   (table) => [
-    primaryKey({ columns: [table.tableName, table.rowPks, table.spaceId] }),
+    uniqueIndex('haex_shared_space_sync_table_row_space_unique')
+      .on(table.tableName, table.rowPks, table.spaceId),
   ],
 )
 
@@ -519,20 +566,125 @@ export type InsertHaexSharedSpaceSync = typeof haexSharedSpaceSync.$inferInsert
 export type SelectHaexSharedSpaceSync = typeof haexSharedSpaceSync.$inferSelect
 
 // ---------------------------------------------------------------------------
-// Space Keys — persisted space decryption keys (device-local, not synced)
+// MLS Sync Keys — epoch-derived encryption keys for shared spaces (CRDT-synced)
+// Synced between a user's devices so all devices can encrypt/decrypt space data
 // ---------------------------------------------------------------------------
 
-export const haexSpaceKeys = sqliteTable(
-  tableNames.haex.space_keys.name,
+export const haexMlsSyncKeys = sqliteTable(
+  tableNames.haex.mls_sync_keys.name,
   {
-    spaceId: text(tableNames.haex.space_keys.columns.spaceId).notNull(),
-    generation: integer(tableNames.haex.space_keys.columns.generation).notNull(),
-    key: text(tableNames.haex.space_keys.columns.key).notNull(),
+    id: text(tableNames.haex.mls_sync_keys.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    spaceId: text(tableNames.haex.mls_sync_keys.columns.spaceId)
+      .notNull()
+      .references(() => haexSpaces.id, { onDelete: 'cascade' }),
+    epoch: integer(tableNames.haex.mls_sync_keys.columns.epoch).notNull(),
+    keyData: text(tableNames.haex.mls_sync_keys.columns.keyData).notNull(), // Base64-encoded 32-byte key
   },
-  (table) => [
-    primaryKey({ columns: [table.spaceId, table.generation] }),
-  ],
 )
+export type InsertHaexMlsSyncKeys = typeof haexMlsSyncKeys.$inferInsert
+export type SelectHaexMlsSyncKeys = typeof haexMlsSyncKeys.$inferSelect
 
-export type InsertHaexSpaceKeys = typeof haexSpaceKeys.$inferInsert
-export type SelectHaexSpaceKeys = typeof haexSpaceKeys.$inferSelect
+// ---------------------------------------------------------------------------
+// Device MLS Enrollments — automatic device enrollment into MLS groups (CRDT-synced)
+// When a device sees a space it's not yet an MLS member of, it writes a pending enrollment.
+// Another enrolled device consumes the KeyPackage, adds the device, and writes the Welcome.
+// Works over any transport (server sync, QUIC/P2P, LAN).
+// ---------------------------------------------------------------------------
+
+export const haexDeviceMlsEnrollments = sqliteTable(
+  tableNames.haex.device_mls_enrollments.name,
+  {
+    id: text(tableNames.haex.device_mls_enrollments.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    spaceId: text(tableNames.haex.device_mls_enrollments.columns.spaceId)
+      .notNull()
+      .references(() => haexSpaces.id, { onDelete: 'cascade' }),
+    deviceId: text(tableNames.haex.device_mls_enrollments.columns.deviceId).notNull(),
+    keyPackage: text(tableNames.haex.device_mls_enrollments.columns.keyPackage).notNull(), // Base64
+    welcome: text(tableNames.haex.device_mls_enrollments.columns.welcome), // Base64, set by enrolling device
+    status: text(tableNames.haex.device_mls_enrollments.columns.status).notNull().default('pending'), // 'pending' | 'enrolled'
+  },
+)
+export type InsertHaexDeviceMlsEnrollments = typeof haexDeviceMlsEnrollments.$inferInsert
+export type SelectHaexDeviceMlsEnrollments = typeof haexDeviceMlsEnrollments.$inferSelect
+
+// ---------------------------------------------------------------------------
+// UCAN Tokens — cached capability tokens for space operations
+// ---------------------------------------------------------------------------
+
+export const haexUcanTokens = sqliteTable(
+  tableNames.haex.ucan_tokens.name,
+  {
+    id: text(tableNames.haex.ucan_tokens.columns.id).primaryKey(),
+    spaceId: text(tableNames.haex.ucan_tokens.columns.spaceId)
+      .notNull()
+      .references(() => haexSpaces.id, { onDelete: 'cascade' }),
+    token: text(tableNames.haex.ucan_tokens.columns.token).notNull(),
+    capability: text(tableNames.haex.ucan_tokens.columns.capability).notNull(),
+    issuerDid: text(tableNames.haex.ucan_tokens.columns.issuerDid).notNull(),
+    audienceDid: text(tableNames.haex.ucan_tokens.columns.audienceDid).notNull(),
+    issuedAt: integer(tableNames.haex.ucan_tokens.columns.issuedAt).notNull(),
+    expiresAt: integer(tableNames.haex.ucan_tokens.columns.expiresAt).notNull(),
+  },
+)
+export type InsertHaexUcanTokens = typeof haexUcanTokens.$inferInsert
+export type SelectHaexUcanTokens = typeof haexUcanTokens.$inferSelect
+
+// ---------------------------------------------------------------------------
+// Pending Invites — incoming space invitations awaiting user response
+// ---------------------------------------------------------------------------
+
+export const haexPendingInvites = sqliteTable(
+  tableNames.haex.pending_invites.name,
+  {
+    id: text(tableNames.haex.pending_invites.columns.id).primaryKey(),
+    spaceId: text(tableNames.haex.pending_invites.columns.spaceId)
+      .notNull()
+      .references(() => haexSpaces.id, { onDelete: 'cascade' }),
+    inviterDid: text(tableNames.haex.pending_invites.columns.inviterDid).notNull(),
+    inviterLabel: text(tableNames.haex.pending_invites.columns.inviterLabel),
+    spaceName: text(tableNames.haex.pending_invites.columns.spaceName),
+    capability: text(tableNames.haex.pending_invites.columns.capability), // e.g. 'space/write'
+    status: text(tableNames.haex.pending_invites.columns.status).notNull().default('pending'),
+    includeHistory: integer(tableNames.haex.pending_invites.columns.includeHistory, { mode: 'boolean' }).default(false),
+    createdAt: text(tableNames.haex.pending_invites.columns.createdAt).notNull(),
+    respondedAt: text(tableNames.haex.pending_invites.columns.respondedAt),
+  },
+)
+export type InsertHaexPendingInvites = typeof haexPendingInvites.$inferInsert
+export type SelectHaexPendingInvites = typeof haexPendingInvites.$inferSelect
+
+// ---------------------------------------------------------------------------
+// Blocked DIDs — permanently blocked identities
+// ---------------------------------------------------------------------------
+
+export const haexBlockedDids = sqliteTable(
+  tableNames.haex.blocked_dids.name,
+  {
+    id: text(tableNames.haex.blocked_dids.columns.id).primaryKey(),
+    did: text(tableNames.haex.blocked_dids.columns.did).notNull().unique(),
+    label: text(tableNames.haex.blocked_dids.columns.label),
+    blockedAt: text(tableNames.haex.blocked_dids.columns.blockedAt).notNull(),
+  },
+)
+export type InsertHaexBlockedDids = typeof haexBlockedDids.$inferInsert
+export type SelectHaexBlockedDids = typeof haexBlockedDids.$inferSelect
+
+// ---------------------------------------------------------------------------
+// Invite Policy — controls who can send space invitations
+// ---------------------------------------------------------------------------
+
+export const haexInvitePolicy = sqliteTable(
+  tableNames.haex.invite_policy.name,
+  {
+    id: text(tableNames.haex.invite_policy.columns.id).primaryKey(),
+    policy: text(tableNames.haex.invite_policy.columns.policy).notNull().default('all'),
+    updatedAt: text(tableNames.haex.invite_policy.columns.updatedAt).notNull(),
+  },
+)
+export type InsertHaexInvitePolicy = typeof haexInvitePolicy.$inferInsert
+export type SelectHaexInvitePolicy = typeof haexInvitePolicy.$inferSelect
+

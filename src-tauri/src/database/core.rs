@@ -180,19 +180,16 @@ impl ValueConverter {
         params.iter().map(Self::json_to_rusqlite_value).collect()
     }
 
+    /// Converts an owned SqlValue to JSON by delegating to convert_value_ref_to_json.
     pub fn rusqlite_value_to_json(sql_value: &SqlValue) -> JsonValue {
-        match sql_value {
-            SqlValue::Null => JsonValue::Null,
-            SqlValue::Integer(n) => JsonValue::Number((*n).into()),
-            SqlValue::Real(f) => serde_json::Number::from_f64(*f)
-                .map(JsonValue::Number)
-                .unwrap_or(JsonValue::Null),
-            SqlValue::Text(s) => {
-                // Try to parse as JSON first (for objects/arrays that were serialized)
-                serde_json::from_str(s).unwrap_or_else(|_| JsonValue::String(s.clone()))
-            }
-            SqlValue::Blob(_) => JsonValue::Null, // Blobs not supported in JSON
-        }
+        let value_ref = match sql_value {
+            SqlValue::Null => ValueRef::Null,
+            SqlValue::Integer(n) => ValueRef::Integer(*n),
+            SqlValue::Real(f) => ValueRef::Real(*f),
+            SqlValue::Text(s) => ValueRef::Text(s.as_bytes()),
+            SqlValue::Blob(b) => ValueRef::Blob(b),
+        };
+        convert_value_ref_to_json(value_ref).unwrap_or(JsonValue::Null)
     }
 }
 

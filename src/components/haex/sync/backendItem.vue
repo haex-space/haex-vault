@@ -3,11 +3,10 @@
     <UCollapsible v-model:open="expanded">
       <div class="flex flex-col gap-3">
         <!-- Top row: Name + expand toggle + Actions -->
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <button
+        <div class="flex flex-wrap items-start justify-between gap-3 cursor-pointer">
+          <div
             class="flex items-center gap-2 min-w-0 text-left transition-opacity duration-200"
             :class="{ 'opacity-50': !backend.enabled }"
-            @click="expanded = !expanded"
           >
             <UIcon
               name="i-lucide-chevron-right"
@@ -17,12 +16,12 @@
             <div class="min-w-0">
               <p class="font-medium">{{ backend.name }}</p>
               <p class="text-sm text-gray-500 dark:text-gray-400 truncate">
-                {{ getBackendHostByUrl(backend.serverUrl) }}
+                {{ getBackendHostByUrl(backend.homeServerUrl) }}
               </p>
             </div>
-          </button>
+          </div>
           <!-- Actions slot -->
-          <div v-if="$slots.actions">
+          <div v-if="$slots.actions" @click.stop>
             <slot name="actions" />
           </div>
         </div>

@@ -2,6 +2,7 @@ import {
   importUserPrivateKeyAsync,
   encryptPrivateKeyAsync,
 } from '@haex-space/vault-sdk'
+import { didAuthenticateAsync } from '~/stores/sync/engine/tokenManager'
 
 export interface ServerRequirements {
   serverName: string
@@ -40,7 +41,7 @@ async function signClaimPresentation(
   const privateKey = await importUserPrivateKeyAsync(privateKeyBase64)
   const data = new TextEncoder().encode(canonical)
   const sig = await crypto.subtle.sign(
-    { name: 'ECDSA', hash: 'SHA-256' },
+    'Ed25519',
     privateKey,
     data,
   )
@@ -119,39 +120,7 @@ export const useCreateSyncConnection = () => {
       throw new Error('Identity not found')
     }
 
-    const challengeRes = await fetch(`${serverUrl}/identity-auth/challenge`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ did: identity.did }),
-    })
-
-    if (!challengeRes.ok) {
-      const errorData = await challengeRes.json().catch(() => ({ error: 'Unknown error' }))
-      throw new Error(`Challenge failed: ${errorData.error || 'Unknown error'}`)
-    }
-
-    const { nonce } = await challengeRes.json()
-
-    const privateKey = await importUserPrivateKeyAsync(identity.privateKey)
-    const sig = await crypto.subtle.sign(
-      { name: 'ECDSA', hash: 'SHA-256' },
-      privateKey,
-      new TextEncoder().encode(nonce),
-    )
-    const signature = btoa(String.fromCharCode(...new Uint8Array(sig)))
-
-    const verifyRes = await fetch(`${serverUrl}/identity-auth/verify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ did: identity.did, nonce, signature }),
-    })
-
-    if (!verifyRes.ok) {
-      const errorData = await verifyRes.json().catch(() => ({ error: 'Unknown error' }))
-      throw new Error(`Verification failed: ${errorData.error || 'Unknown error'}`)
-    }
-
-    return verifyRes.json()
+    return didAuthenticateAsync(serverUrl, identity.did, identity.privateKey)
   }
 
   /**
@@ -170,7 +139,7 @@ export const useCreateSyncConnection = () => {
       const { backends } = storeToRefs(syncBackendsStore)
 
       const existingBackend = backends.value.find(
-        (b) => b.serverUrl === params.serverUrl,
+        (b) => b.homeServerUrl === params.serverUrl,
       )
       if (existingBackend) {
         error.value = `A connection to ${params.serverUrl} already exists`
@@ -345,9 +314,9 @@ export const useCreateSyncConnection = () => {
       const backendName = getBackendNameFromUrl(serverUrl)
       const tempBackend = await syncBackendsStore.addBackendAsync({
         name: backendName,
-        serverUrl,
+        homeServerUrl: serverUrl,
         enabled: false,
-        vaultId: currentVaultId.value,
+        spaceId: currentVaultId.value,
         identityId,
       })
 
@@ -360,26 +329,10 @@ export const useCreateSyncConnection = () => {
     }
 
     try {
-      await syncEngineStore.initSupabaseClientAsync(backendId)
-
-      if (!syncEngineStore.supabaseClient) {
-        throw new Error('Supabase client not initialized')
-      }
+      syncEngineStore.initTokenManagerAsync(backendId)
 
       const session = await loginAsync(serverUrl, identityId)
-
-      const { error: sessionError } =
-        await syncEngineStore.supabaseClient.auth.setSession({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        })
-
-      if (sessionError) {
-        throw new Error(`Failed to set session: ${sessionError.message}`)
-      }
-
-      // Cache the token directly as workaround for Supabase getSession timing issues
-      syncEngineStore.cacheAccessToken(session.access_token)
+      syncEngineStore.setSession(session)
 
       if (!currentVaultPassword.value) {
         throw new Error('Vault password not available')

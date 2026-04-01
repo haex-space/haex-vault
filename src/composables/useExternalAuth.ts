@@ -150,6 +150,7 @@ export function useExternalAuth() {
    * Get all authorized clients
    */
   async function getAuthorizedClients(): Promise<AuthorizedClient[]> {
+    if (!isDesktop()) return []
     try {
       return await invoke<AuthorizedClient[]>(TAURI_COMMANDS.externalBridge.getAuthorizedClients)
     } catch (error) {
@@ -174,6 +175,7 @@ export function useExternalAuth() {
    * Get all blocked clients
    */
   async function getBlockedClients(): Promise<BlockedClient[]> {
+    if (!isDesktop()) return []
     try {
       return await invoke<BlockedClient[]>(TAURI_COMMANDS.externalBridge.getBlockedClients)
     } catch (error) {
@@ -199,6 +201,7 @@ export function useExternalAuth() {
    * These are cleared when haex-vault restarts
    */
   async function getSessionAuthorizations(): Promise<SessionAuthorization[]> {
+    if (!isDesktop()) return []
     try {
       return await invoke<SessionAuthorization[]>(TAURI_COMMANDS.externalBridge.getSessionAuthorizations)
     } catch (error) {
@@ -224,6 +227,7 @@ export function useExternalAuth() {
    * These are cleared when haex-vault restarts
    */
   async function getSessionBlockedClients(): Promise<SessionBlockedClient[]> {
+    if (!isDesktop()) return []
     try {
       return await invoke<SessionBlockedClient[]>('external_bridge_get_session_blocked_clients')
     } catch (error) {

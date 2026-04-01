@@ -137,7 +137,7 @@ export default defineNuxtConfig({
   },
 
   i18n: {
-    strategy: 'prefix_and_default',
+    strategy: 'no_prefix',
     defaultLocale: 'de',
 
     locales: [

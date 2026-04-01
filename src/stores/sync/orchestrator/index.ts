@@ -4,7 +4,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { listen, emit } from '@tauri-apps/api/event'
 import { orchestratorLog as log, type BackendSyncState } from './types'
 import { enterBulkMode, exitBulkMode } from '@/stores/logging'
 import { pushToBackendAsync, pushAllDataToBackendAsync } from './push'
@@ -16,10 +16,11 @@ import {
 import {
   subscribeToBackendAsync,
   unsubscribeFromBackendAsync,
+  disconnectRealtimeAsync,
   setupVisibilityListener,
   removeVisibilityListener,
 } from './realtime'
-import { initSyncEventsAsync, stopSyncEvents, registerStoreForTables } from '../syncEvents'
+import { initSyncEventsAsync, stopSyncEvents, registerStoreForTables, SYNC_TABLES_INTERNAL_EVENT } from '../syncEvents'
 
 // Re-export types
 export * from './types'
@@ -41,6 +42,7 @@ export const useSyncOrchestratorStore = defineStore(
     let periodicSyncInterval: ReturnType<typeof setInterval> | null = null
     const periodicPullIntervals: Map<string, ReturnType<typeof setInterval>> = new Map()
     let eventUnlisten: (() => void) | null = null
+    let localSyncUnlisten: (() => void) | null = null
 
     // Adaptive debouncing for bulk operations
     // Tracks event frequency to detect bulk imports and increase debounce accordingly
@@ -117,16 +119,18 @@ export const useSyncOrchestratorStore = defineStore(
           isConnected: false,
           isSyncing: false,
           error: null,
-          subscription: null,
         }
         log.debug('INIT: State initialized')
       }
 
       try {
-        // Ensure Supabase client is initialized for this backend
-        if (!syncEngineStore.supabaseClient || syncEngineStore.currentBackendId !== backendId) {
-          log.info('INIT: Initializing Supabase client...')
-          await syncEngineStore.initSupabaseClientAsync(backendId)
+        // Ensure token manager is initialized for this backend
+        if (!syncEngineStore.isTokenManagerInitialized || syncEngineStore.currentBackendId !== backendId) {
+          log.info('INIT: Initializing token manager...')
+          syncEngineStore.initTokenManagerAsync(backendId)
+        } else {
+          log.debug('INIT: Token manager already initialized, ensuring reauth resolver is registered')
+          syncEngineStore.registerReauthResolver(backendId)
         }
 
         // Ensure vault key exists before any pull/push
@@ -141,7 +145,7 @@ export const useSyncOrchestratorStore = defineStore(
             currentVaultId.value,
             vaultName,
             currentVaultPassword.value,
-            backend.serverUrl,
+            backend.homeServerUrl,
           )
         }
 
@@ -175,12 +179,12 @@ export const useSyncOrchestratorStore = defineStore(
         }
 
         // Always subscribe to realtime changes (even if initial pull was already done)
-        // Skip if already subscribed
-        if (!syncStates.value[backendId]?.subscription) {
-          log.info('INIT: Step 3 - Subscribe to realtime changes')
+        // Skip if already connected via WebSocket
+        if (!syncStates.value[backendId]?.isConnected) {
+          log.info('INIT: Step 3 - Subscribe to realtime changes via WebSocket')
           await subscribeToBackendWrapperAsync(backendId)
         } else {
-          log.info('INIT: Step 3 - Skipping realtime (already subscribed)')
+          log.info('INIT: Step 3 - Skipping realtime (already connected)')
         }
 
         // Always start periodic pull as fallback (even if initial pull was already done)
@@ -405,19 +409,8 @@ export const useSyncOrchestratorStore = defineStore(
       log.info('[START-SYNC] startSyncAsync CALLED at ' + new Date().toISOString())
       log.info('[START-SYNC] ========================================')
 
-      const enabledBackends = syncBackendsStore.enabledBackends
-
-      if (enabledBackends.length === 0) {
-        log.info('[START-SYNC] No enabled backends to sync with')
-        return
-      }
-
-      log.info(
-        `[START-SYNC] Found ${enabledBackends.length} enabled backends:`,
-        enabledBackends.map((b) => ({ id: b.id, name: b.name })),
-      )
-
-      // Initialize sync events listener (for frontend refresh after pull)
+      // Initialize sync events listener (for frontend refresh after pull and local sync)
+      // This must happen before the backends check so local-only vaults also get store reloads
       log.debug('START: Initializing sync events listener...')
       await initSyncEventsAsync()
 
@@ -467,6 +460,12 @@ export const useSyncOrchestratorStore = defineStore(
         async () => {
           const identityStore = useIdentityStore()
           await identityStore.loadIdentitiesAsync()
+
+          // Update device claims for newly synced identities (e.g. second device)
+          const deviceStore = useDeviceStore()
+          if (deviceStore.deviceId) {
+            await deviceStore.updateDeviceClaimsAsync()
+          }
         },
       )
       registerStoreForTables(
@@ -476,8 +475,31 @@ export const useSyncOrchestratorStore = defineStore(
           await contactsStore.loadContactsAsync()
         },
       )
-      // Note: haex_spaces/haex_space_keys don't have a simple reload method
-      // Spaces are loaded from the server during sync start and from haex_space_keys for local spaces
+
+      // Listen for local sync completions from Rust sync loop
+      // This fires when the local delivery service applies buffered changes
+      if (!localSyncUnlisten) {
+        localSyncUnlisten = await listen<{ spaceId: string; tables: string[] }>('local-sync-completed', async (event) => {
+          const { spaceId, tables } = event.payload
+          log.info(`[LOCAL-SYNC] Received local-sync-completed for space ${spaceId}, tables: ${tables.join(', ')}`)
+          if (tables && tables.length > 0) {
+            await emit(SYNC_TABLES_INTERNAL_EVENT, { tables })
+          }
+        })
+        log.info('[START-SYNC] Local sync listener registered')
+      }
+
+      const enabledBackends = syncBackendsStore.enabledBackends
+
+      if (enabledBackends.length === 0) {
+        log.info('[START-SYNC] No enabled backends to sync with')
+        return
+      }
+
+      log.info(
+        `[START-SYNC] Found ${enabledBackends.length} enabled backends:`,
+        enabledBackends.map((b) => ({ id: b.id, name: b.name })),
+      )
 
       // Load sync configuration
       log.info('[START-SYNC] Loading sync configuration...')
@@ -535,6 +557,12 @@ export const useSyncOrchestratorStore = defineStore(
     const stopSyncAsync = async (): Promise<void> => {
       log.info('========== STOP SYNC ==========')
 
+      // Stop local sync listener
+      if (localSyncUnlisten) {
+        localSyncUnlisten()
+        localSyncUnlisten = null
+      }
+
       // Remove visibility listener for mobile reconnection
       removeVisibilityListener()
 
@@ -550,9 +578,11 @@ export const useSyncOrchestratorStore = defineStore(
         periodicPullIntervals.delete(backendId)
       }
 
+      // Unsubscribe individual backends and disconnect the shared WebSocket
       for (const backendId of Object.keys(syncStates.value)) {
         await unsubscribeFromBackendWrapperAsync(backendId)
       }
+      await disconnectRealtimeAsync()
 
       syncStates.value = {}
     }
@@ -620,12 +650,11 @@ export const useSyncOrchestratorStore = defineStore(
         isConnected: false,
         isSyncing: true,
         error: null,
-        subscription: null,
       }
 
       try {
         // Get vault key from cache
-        const vaultKey = syncEngineStore.vaultKeyCache[tempBackend.vaultId]?.vaultKey
+        const vaultKey = syncEngineStore.vaultKeyCache[tempBackend.spaceId]?.vaultKey
         if (!vaultKey) {
           log.error('INITIAL PULL FAILED: Vault key not available')
           throw new Error('Vault key not available. Please unlock vault first.')
@@ -633,18 +662,18 @@ export const useSyncOrchestratorStore = defineStore(
 
         log.debug('Initial pull config:', {
           backendId,
-          vaultId: tempBackend.vaultId,
-          serverUrl: tempBackend.serverUrl,
+          spaceId: tempBackend.spaceId,
+          serverUrl: tempBackend.homeServerUrl,
         })
 
         // Pull ALL changes (no cursor since this is initial sync)
         log.info('Downloading all changes from server...')
-        const pullResult = await pullChangesFromServerAsync(
-          tempBackend.serverUrl,
-          tempBackend.vaultId,
-          null, // No lastPullServerTimestamp - get everything
+        const pullResult = await pullChangesFromServerAsync({
+          serverUrl: tempBackend.homeServerUrl,
+          spaceId: tempBackend.spaceId,
+          lastPullServerTimestamp: null,
           syncEngineStore,
-        )
+        })
 
         const { changes: allChanges, serverTimestamp } = pullResult
 
@@ -675,7 +704,7 @@ export const useSyncOrchestratorStore = defineStore(
 
         // Find the backend (could have different ID if it existed from sync)
         const persistedBackend = await syncBackendsStore.findBackendByServerUrlAsync(
-          tempBackend.serverUrl,
+          tempBackend.homeServerUrl,
         )
 
         if (persistedBackend) {

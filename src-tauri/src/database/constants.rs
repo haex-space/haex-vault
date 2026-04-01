@@ -4,20 +4,13 @@
 // IMPORTANT: These values must match the TypeScript constants in src/stores/vault/settings.ts
 // Run `pnpm test:constants` to verify synchronization
 
-/// Vault settings type values
-#[allow(dead_code)]
-pub mod vault_settings_type {
-    pub const SETTINGS: &str = "settings";
-    pub const SYSTEM: &str = "system";
-}
-
 /// Vault settings key values (all snake_case for consistency)
 #[allow(dead_code)]
 pub mod vault_settings_key {
     pub const LOCALE: &str = "locale";
     pub const THEME: &str = "theme";
     pub const VAULT_NAME: &str = "vault_name";
-    pub const VAULT_ID: &str = "vault_id";
+    pub const SPACE_ID: &str = "space_id";
     pub const DESKTOP_ICON_SIZE: &str = "desktop_icon_size";
     pub const TOMBSTONE_RETENTION_DAYS: &str = "tombstone_retention_days";
     pub const EXTERNAL_BRIDGE_PORT: &str = "external_bridge_port";
@@ -40,16 +33,11 @@ mod tests {
     /// This test outputs JSON that can be compared with TypeScript constants
     #[test]
     fn export_constants_as_json() {
-        let types = serde_json::json!({
-            "settings": vault_settings_type::SETTINGS,
-            "system": vault_settings_type::SYSTEM,
-        });
-
         let keys = serde_json::json!({
             "locale": vault_settings_key::LOCALE,
             "theme": vault_settings_key::THEME,
             "vaultName": vault_settings_key::VAULT_NAME,
-            "vaultId": vault_settings_key::VAULT_ID,
+            "spaceId": vault_settings_key::SPACE_ID,
             "desktopIconSize": vault_settings_key::DESKTOP_ICON_SIZE,
             "tombstoneRetentionDays": vault_settings_key::TOMBSTONE_RETENTION_DAYS,
             "externalBridgePort": vault_settings_key::EXTERNAL_BRIDGE_PORT,
@@ -62,7 +50,6 @@ mod tests {
         });
 
         let output = serde_json::json!({
-            "vaultSettingsType": types,
             "vaultSettingsKey": keys,
         });
 

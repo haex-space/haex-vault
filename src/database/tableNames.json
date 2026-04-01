@@ -20,9 +20,8 @@
       "columns": {
         "id": "id",
         "key": "key",
-        "type": "type",
         "value": "value",
-        "extensionId": "extension_id"
+        "deviceId": "device_id"
       }
     },
     "extensions": {
@@ -100,8 +99,8 @@
       "columns": {
         "id": "id",
         "name": "name",
-        "serverUrl": "server_url",
-        "vaultId": "vault_id",
+        "homeServerUrl": "home_server_url",
+        "spaceId": "space_id",
         "syncKey": "sync_key",
         "vaultKeySalt": "vault_key_salt",
         "identityId": "identity_id",
@@ -110,6 +109,9 @@
         "lastPushHlcTimestamp": "last_push_hlc_timestamp",
         "lastPullServerTimestamp": "last_pull_server_timestamp",
         "pendingVaultKeyUpdate": "pending_vault_key_update",
+        "type": "type",
+        "homeServerDid": "home_server_did",
+        "originServerDid": "origin_server_did",
         "createdAt": "created_at",
         "updatedAt": "updated_at"
       }
@@ -173,9 +175,15 @@
     "shared_space_sync": {
       "name": "haex_shared_space_sync",
       "columns": {
+        "id": "id",
         "tableName": "table_name",
         "rowPks": "row_pks",
-        "spaceId": "space_id"
+        "spaceId": "space_id",
+        "extensionId": "extension_id",
+        "groupId": "group_id",
+        "type": "type",
+        "label": "label",
+        "createdAt": "created_at"
       }
     },
     "identities": {
@@ -185,6 +193,7 @@
         "did": "did",
         "publicKey": "public_key",
         "privateKey": "private_key",
+        "avatar": "avatar",
         "createdAt": "created_at"
       }
     },
@@ -206,6 +215,7 @@
         "id": "id",
         "label": "label",
         "publicKey": "public_key",
+        "avatar": "avatar",
         "notes": "notes",
         "createdAt": "created_at"
       }
@@ -220,6 +230,18 @@
         "createdAt": "created_at"
       }
     },
+    "spaces": {
+      "name": "haex_spaces",
+      "columns": {
+        "id": "id",
+        "type": "type",
+        "name": "name",
+        "serverUrl": "server_url",
+        "role": "role",
+        "createdAt": "created_at",
+        "modifiedAt": "modified_at"
+      }
+    },
     "space_devices": {
       "name": "haex_space_devices",
       "columns": {
@@ -228,7 +250,9 @@
         "identityId": "identity_id",
         "deviceEndpointId": "device_endpoint_id",
         "deviceName": "device_name",
+        "avatar": "avatar",
         "relayUrl": "relay_url",
+        "leaderPriority": "leader_priority",
         "createdAt": "created_at"
       }
     },
@@ -244,11 +268,119 @@
       }
     },
     "space_keys": {
-      "name": "haex_space_keys_no_sync",
+      "name": "haex_space_keys",
       "columns": {
+        "id": "id",
         "spaceId": "space_id",
         "generation": "generation",
         "key": "key"
+      }
+    },
+    "ucan_tokens": {
+      "name": "haex_ucan_tokens",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "token": "token",
+        "capability": "capability",
+        "issuerDid": "issuer_did",
+        "audienceDid": "audience_did",
+        "issuedAt": "issued_at",
+        "expiresAt": "expires_at"
+      }
+    },
+    "pending_invites": {
+      "name": "haex_pending_invites",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "inviterDid": "inviter_did",
+        "inviterLabel": "inviter_label",
+        "spaceName": "space_name",
+        "capability": "capability",
+        "status": "status",
+        "includeHistory": "include_history",
+        "createdAt": "created_at",
+        "respondedAt": "responded_at"
+      }
+    },
+    "blocked_dids": {
+      "name": "haex_blocked_dids",
+      "columns": {
+        "id": "id",
+        "did": "did",
+        "label": "label",
+        "blockedAt": "blocked_at"
+      }
+    },
+    "invite_policy": {
+      "name": "haex_invite_policy",
+      "columns": {
+        "id": "id",
+        "policy": "policy",
+        "updatedAt": "updated_at"
+      }
+    },
+    "mls_sync_keys": {
+      "name": "haex_mls_sync_keys",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "epoch": "epoch",
+        "keyData": "key_data"
+      }
+    },
+    "device_mls_enrollments": {
+      "name": "haex_device_mls_enrollments",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "deviceId": "device_id",
+        "keyPackage": "key_package",
+        "welcome": "welcome",
+        "status": "status"
+      }
+    },
+    "local_delivery_messages": {
+      "name": "haex_local_delivery_messages_no_sync",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "senderDid": "sender_did",
+        "messageType": "message_type",
+        "messageBlob": "message_blob",
+        "createdAt": "created_at"
+      }
+    },
+    "local_delivery_key_packages": {
+      "name": "haex_local_delivery_key_packages_no_sync",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "targetDid": "target_did",
+        "packageBlob": "package_blob",
+        "createdAt": "created_at"
+      }
+    },
+    "local_delivery_welcomes": {
+      "name": "haex_local_delivery_welcomes_no_sync",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "recipientDid": "recipient_did",
+        "welcomeBlob": "welcome_blob",
+        "consumed": "consumed",
+        "createdAt": "created_at"
+      }
+    },
+    "local_delivery_pending_commits": {
+      "name": "haex_local_delivery_pending_commits_no_sync",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "commitBlob": "commit_blob",
+        "deliveredTo": "delivered_to",
+        "createdAt": "created_at"
       }
     },
 

@@ -1,15 +1,16 @@
 <template>
   <div>
-    <!-- Remote Sync Loading Overlay -->
+    <!-- Remote Sync Overlay (only for initial server sync, not local vault init) -->
     <HaexSyncInitialSyncOverlay
       :is-visible="isWaitingForInitialSync"
       :progress="syncProgress"
     />
 
-    <NuxtLayout>
-      <NuxtPage />
-    </NuxtLayout>
-
+    <template v-if="isVaultReady">
+      <NuxtLayout>
+        <NuxtPage />
+      </NuxtLayout>
+    </template>
   </div>
 </template>
 
@@ -20,13 +21,14 @@ definePageMeta({
 
 const route = useRoute()
 
+const isVaultReady = ref(false)
 const isWaitingForInitialSync = ref(false)
 const syncProgress = ref<{ synced: number; total: number } | undefined>()
 const isRemoteSyncVault = computed(() => route.query.remoteSync === 'true')
 
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { haexVaultSettings } from '~/database/schemas'
-import { VaultSettingsKeyEnum, VaultSettingsTypeEnum } from '~/config/vault-settings'
+import { VaultSettingsKeyEnum } from '~/config/vault-settings'
 
 const { readNotificationsAsync } = useNotificationStore()
 const tourStore = useTourStore()
@@ -38,13 +40,18 @@ const { syncDesktopIconSizeAsync } = useDesktopStore()
 const { syncGradientVariantAsync, syncGradientEnabledAsync } = useGradientStore()
 const syncOrchestratorStore = useSyncOrchestratorStore()
 const syncBackendsStore = useSyncBackendsStore()
-const { currentVault } = storeToRefs(useVaultStore())
+const vaultStore = useVaultStore()
+const { currentVault } = storeToRefs(vaultStore)
 
-// Initialize back navigation boundary (prevents back from leaving vault)
-useBackNavigation()
+// Initialize navigation store (registers popstate listener + boundary)
+useNavigationStore()
 
 onMounted(async () => {
   try {
+    // Initialize vault (device, spaces, cleanup) — must run after navigation
+    await vaultStore.initVaultAsync()
+    isVaultReady.value = true
+
     if (isRemoteSyncVault.value) {
       // Remote sync mode: Wait for initial sync to complete
       isWaitingForInitialSync.value = true
@@ -85,16 +92,21 @@ onMounted(async () => {
       await currentVault.value?.drizzle.insert(haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.onboardingCompleted,
-        type: VaultSettingsTypeEnum.settings,
         value: 'true',
       })
       await tourStore.start()
     }
 
-    // Auto-start P2P endpoint if configured
-    const peerAutostart = await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
-      where: eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageAutostart),
-    })
+    // Auto-start P2P endpoint if configured for this device
+    const deviceStore = useDeviceStore()
+    const peerAutostart = deviceStore.deviceId
+      ? await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
+          where: and(
+            eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageAutostart),
+            eq(haexVaultSettings.deviceId, deviceStore.deviceId),
+          ),
+        })
+      : null
     if (peerAutostart?.value === 'true') {
       usePeerStorageStore().startAsync().catch((error) => {
         console.warn('[P2P] Autostart failed:', error)

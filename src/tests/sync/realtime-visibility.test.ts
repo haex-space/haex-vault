@@ -20,6 +20,16 @@ vi.mock('@/stores/sync/orchestrator/pull', () => ({
   pullFromBackendAsync: vi.fn().mockResolvedValue(undefined),
 }))
 
+// Mock the useRealtime composable
+vi.mock('@/composables/useRealtime', () => ({
+  useRealtime: vi.fn(() => ({
+    connected: { value: false },
+    connect: vi.fn().mockResolvedValue(undefined),
+    disconnect: vi.fn(),
+    on: vi.fn(() => vi.fn()),
+  })),
+}))
+
 // Mock the types module
 vi.mock('@/stores/sync/orchestrator/types', () => ({
   orchestratorLog: {
@@ -37,12 +47,20 @@ vi.stubGlobal('useSyncBackendsStore', vi.fn(() => ({
 })))
 
 vi.stubGlobal('useSyncEngineStore', vi.fn(() => ({
-  supabaseClient: null,
+  isTokenManagerInitialized: false,
   getAuthTokenAsync: vi.fn().mockResolvedValue(null),
 })))
 
 vi.stubGlobal('useDeviceStore', vi.fn(() => ({
   deviceId: 'test-device-id',
+})))
+
+vi.stubGlobal('useIdentityStore', vi.fn(() => ({
+  getIdentityAsync: vi.fn().mockResolvedValue({
+    privateKey: 'test-private-key',
+    did: 'did:key:test',
+    publicKey: 'test-public-key',
+  }),
 })))
 
 // Mock document.visibilityState
@@ -258,13 +276,15 @@ describe('Visibility-based Reconnection', () => {
     })
 
     it('prevents concurrent reconnection attempts', async () => {
-      const context = _getReconnectionContext()
-
-      // Mock a minimal valid context with a backend that takes time to process
-      let resolveSubscribe: () => void
-      const subscribePromise = new Promise<void>((resolve) => {
-        resolveSubscribe = resolve
+      // Mock pullFromBackendAsync to block so we can test concurrency
+      const { pullFromBackendAsync } = await import('@/stores/sync/orchestrator/pull')
+      let resolvePull: () => void
+      const pullPromise = new Promise<void>((resolve) => {
+        resolvePull = resolve
       })
+      vi.mocked(pullFromBackendAsync).mockReturnValueOnce(pullPromise)
+
+      const context = _getReconnectionContext()
 
       // Mock context with a backend
       context.syncBackendsStore = {
@@ -276,13 +296,10 @@ describe('Visibility-based Reconnection', () => {
           isConnected: false,
           isSyncing: false,
           error: null,
-          subscription: {
-            unsubscribe: () => subscribePromise as unknown as Promise<'ok'>,
-          } as unknown as typeof context.syncStates[string]['subscription'],
         },
       }
 
-      // Start first reconnection - it will be blocked on unsubscribe
+      // Start first reconnection - it will block on pullFromBackendAsync
       const promise1 = _reconnectAllBackendsAsync()
 
       // Give the async function time to set reconnectionPending
@@ -297,8 +314,8 @@ describe('Visibility-based Reconnection', () => {
       // Still pending
       expect(context.reconnectionPending).toBe(true)
 
-      // Resolve the blocking promise
-      resolveSubscribe!()
+      // Resolve the blocking pull
+      resolvePull!()
 
       // Wait for both to complete
       await Promise.all([promise1, promise2])
@@ -320,7 +337,6 @@ describe('Visibility-based Reconnection', () => {
           isConnected: false,
           isSyncing: false,
           error: null,
-          subscription: null,
         },
       }
 

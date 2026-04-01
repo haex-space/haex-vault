@@ -40,14 +40,17 @@
           :title="t('actions.edit')"
           @click="$emit('edit', space)"
         />
-        <UButton
+        <UDropdownMenu
           v-if="space.role === SpaceRoles.ADMIN || space.role === SpaceRoles.OWNER"
-          color="primary"
-          variant="ghost"
-          icon="i-lucide-user-plus"
-          :title="t('actions.invite')"
-          @click="$emit('invite', space)"
-        />
+          :items="inviteMenuItems"
+        >
+          <UButton
+            color="primary"
+            variant="ghost"
+            icon="i-lucide-user-plus"
+            :title="t('actions.invite')"
+          />
+        </UDropdownMenu>
         <UButton
           v-if="space.role === SpaceRoles.ADMIN || space.role === SpaceRoles.OWNER"
           color="error"
@@ -66,22 +69,72 @@
         />
       </div>
     </div>
+
+    <!-- Linked items collapsible -->
+    <UCollapsible v-model:open="isExpanded" :unmount-on-hide="false">
+      <div class="flex items-center gap-1.5 py-2 text-xs text-muted hover:text-foreground transition-colors cursor-pointer">
+        <UIcon
+          name="i-lucide-chevron-right"
+          class="w-3.5 h-3.5 transition-transform duration-200"
+          :class="{ 'rotate-90': isExpanded }"
+        />
+        <span>{{ t('linkedItems.label') }}</span>
+        <UBadge
+          v-if="totalCount > 0"
+          variant="subtle"
+          size="sm"
+          color="neutral"
+        >
+          {{ totalCount }}
+        </UBadge>
+      </div>
+
+      <template #content>
+        <div class="mt-2">
+          <SpaceLinkedItems
+            :groups="groups"
+            :is-loading="isLoading"
+          />
+        </div>
+      </template>
+    </UCollapsible>
   </div>
 </template>
 
 <script setup lang="ts">
 import { SpaceRoles, type DecryptedSpace } from '@haex-space/vault-sdk'
+import SpaceLinkedItems from './SpaceLinkedItems.vue'
 
 const props = defineProps<{
   space: DecryptedSpace
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   edit: [space: DecryptedSpace]
-  invite: [space: DecryptedSpace]
+  'invite-contact': [space: DecryptedSpace]
+  'invite-link': [space: DecryptedSpace]
+  'invite-open': [space: DecryptedSpace]
   delete: [space: DecryptedSpace]
   leave: [space: DecryptedSpace]
 }>()
+
+const inviteMenuItems = computed(() => [
+  [{
+    label: t('invite.contact'),
+    icon: 'i-lucide-user-plus',
+    onSelect: () => emit('invite-contact', props.space),
+  },
+  {
+    label: t('invite.link'),
+    icon: 'i-lucide-link',
+    onSelect: () => emit('invite-link', props.space),
+  },
+  {
+    label: t('invite.open'),
+    icon: 'i-lucide-qr-code',
+    onSelect: () => emit('invite-open', props.space),
+  }],
+])
 
 const { t } = useI18n()
 
@@ -107,6 +160,21 @@ const roleBadgeColor = computed(() => {
 const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString()
 }
+
+// Linked items
+const isExpanded = ref(false)
+const hasLoaded = ref(false)
+
+const { groups, totalCount, isLoading, loadAsync } = useSpaceLinkedItems(
+  () => props.space.id,
+)
+
+watch(isExpanded, async (expanded) => {
+  if (expanded && !hasLoaded.value) {
+    await loadAsync()
+    hasLoaded.value = true
+  }
+})
 </script>
 
 <i18n lang="yaml">
@@ -122,6 +190,12 @@ de:
     invite: Einladen
     delete: Löschen
     leave: Verlassen
+  invite:
+    contact: Kontakt einladen
+    link: Einladungslink erstellen
+    open: Offene Einladung
+  linkedItems:
+    label: Verknüpfte Inhalte
 en:
   roles:
     admin: Admin
@@ -130,7 +204,14 @@ en:
     reader: Reader
   createdAt: Created at
   actions:
+    edit: Edit
     invite: Invite
     delete: Delete
     leave: Leave
+  invite:
+    contact: Invite contact
+    link: Create invite link
+    open: Open invitation
+  linkedItems:
+    label: Linked content
 </i18n>

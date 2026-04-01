@@ -11,20 +11,10 @@ jobs:
   automerge:
     if: github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
-
     steps:
-      - name: Wait for CI checks to pass
-        uses: fountainhead/action-wait-for-check@v1.2.0
-        id: wait
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          checkName: "test"
-          ref: ${{ github.event.pull_request.head.sha }}
-          timeoutSeconds: 3600
-
-      - name: Auto-merge if checks passed
-        if: steps.wait.outputs.conclusion == 'success'
-        run: gh pr merge "$PR_NUMBER" --squash --auto
+      - name: Enable auto-merge
+        run: gh pr merge "$PR_NUMBER" --squash --auto --repo "$REPO"
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

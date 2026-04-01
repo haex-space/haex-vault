@@ -26,7 +26,7 @@ impl RateLimitWindow {
     }
 
     fn reset_if_expired(&self, window_duration: Duration) {
-        let mut window_start = self.window_start.write().unwrap();
+        let mut window_start = self.window_start.write().unwrap_or_else(|e| e.into_inner());
         if window_start.elapsed() >= window_duration {
             self.count.store(0, Ordering::SeqCst);
             self.bytes.store(0, Ordering::SeqCst);
@@ -66,14 +66,14 @@ impl WebRequestTracker {
 
     pub fn acquire(&self, extension_id: &str) -> usize {
         let counter = {
-            let counts = self.counts.read().unwrap();
+            let counts = self.counts.read().unwrap_or_else(|e| e.into_inner());
             counts.get(extension_id).cloned()
         };
 
         match counter {
             Some(counter) => counter.fetch_add(1, Ordering::SeqCst) + 1,
             None => {
-                let mut counts = self.counts.write().unwrap();
+                let mut counts = self.counts.write().unwrap_or_else(|e| e.into_inner());
                 let counter = counts
                     .entry(extension_id.to_string())
                     .or_insert_with(|| Arc::new(AtomicUsize::new(0)));
@@ -83,14 +83,14 @@ impl WebRequestTracker {
     }
 
     pub fn release(&self, extension_id: &str) {
-        let counts = self.counts.read().unwrap();
+        let counts = self.counts.read().unwrap_or_else(|e| e.into_inner());
         if let Some(counter) = counts.get(extension_id) {
             counter.fetch_sub(1, Ordering::SeqCst);
         }
     }
 
     pub fn get_count(&self, extension_id: &str) -> usize {
-        let counts = self.counts.read().unwrap();
+        let counts = self.counts.read().unwrap_or_else(|e| e.into_inner());
         counts
             .get(extension_id)
             .map(|c| c.load(Ordering::SeqCst))
@@ -137,13 +137,13 @@ impl WebLimitEnforcer {
 
     fn get_or_create_rate_limit(&self, extension_id: &str) -> Arc<RateLimitWindow> {
         {
-            let rate_limits = self.rate_limits.read().unwrap();
+            let rate_limits = self.rate_limits.read().unwrap_or_else(|e| e.into_inner());
             if let Some(window) = rate_limits.get(extension_id) {
                 return Arc::clone(window);
             }
         }
 
-        let mut rate_limits = self.rate_limits.write().unwrap();
+        let mut rate_limits = self.rate_limits.write().unwrap_or_else(|e| e.into_inner());
         let window = rate_limits
             .entry(extension_id.to_string())
             .or_insert_with(|| Arc::new(RateLimitWindow::new()));

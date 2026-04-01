@@ -1,15 +1,18 @@
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod external_bridge;
+mod crypto;
 mod crdt;
 mod database;
 mod device;
 mod extension;
 mod filesystem;
 mod logging;
+mod mls;
 #[cfg(desktop)]
 mod shortcuts;
 pub mod peer_storage;
 mod remote_storage;
+mod space_delivery;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod window;
 
@@ -60,6 +63,10 @@ pub struct AppState {
     pub auth_token: Arc<Mutex<Option<String>>>,
     /// PTY manager for shell/terminal sessions
     pub pty_manager: extension::shell::pty::PtyManager,
+    /// Active local sync loops (space_id -> handle)
+    pub local_sync_loops: tokio::sync::Mutex<HashMap<String, space_delivery::local::sync_loop::SyncLoopHandle>>,
+    /// Leader state for local space delivery (set when leader mode is active)
+    pub leader_state: tokio::sync::Mutex<Option<Arc<space_delivery::local::leader::LeaderState>>>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -150,6 +157,8 @@ pub fn run() {
             transfer_tokens: tokio::sync::Mutex::new(HashMap::new()),
             auth_token: Arc::new(Mutex::new(None)),
             pty_manager: extension::shell::pty::PtyManager::new(),
+            local_sync_loops: tokio::sync::Mutex::new(HashMap::new()),
+            leader_state: tokio::sync::Mutex::new(None),
         })
         //.manage(ExtensionState::default())
         .plugin(tauri_plugin_dialog::init())
@@ -220,6 +229,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            crypto::encrypt_for_identity,
+            crypto::decrypt_for_identity,
             database::close_database,
             database::create_encrypted_database,
             database::delete_vault,
@@ -258,15 +269,14 @@ pub fn run() {
             crdt::commands::ensure_extension_triggers,
             crdt::commands::apply_remote_changes_in_transaction,
             extension::database::commands::extension_database_execute,
+            extension::database::commands::extension_database_transaction,
             extension::database::commands::extension_database_query,
             extension::database::commands::extension_database_register_migrations,
             extension::database::commands::apply_synced_extension_migrations,
             extension::spaces::commands::extension_space_assign,
             extension::spaces::commands::extension_space_unassign,
             extension::spaces::commands::extension_space_get_assignments,
-            extension::spaces::commands::extension_space_list_backends,
             extension::spaces::commands::extension_space_list,
-            extension::spaces::commands::extension_space_create,
             extension::spaces::commands::set_auth_token,
             extension::web::commands::extension_web_fetch,
             extension::web::commands::extension_web_open,
@@ -423,6 +433,7 @@ pub fn run() {
             extension::filesystem::commands::extension_filesystem_select_file,
             extension::filesystem::commands::extension_filesystem_rename,
             extension::filesystem::commands::extension_filesystem_copy,
+            extension::filesystem::commands::extension_filesystem_known_paths,
             // File watcher commands
             extension::filesystem::commands::extension_filesystem_watch,
             extension::filesystem::commands::extension_filesystem_unwatch,
@@ -445,6 +456,32 @@ pub fn run() {
             peer_storage::peer_storage_transfer_cancel,
             peer_storage::peer_storage_transfer_pause,
             peer_storage::peer_storage_transfer_resume,
+            peer_storage::open_file_system,
+            // Space Delivery (local leader mode)
+            space_delivery::local::commands::local_delivery_start,
+            space_delivery::local::commands::local_delivery_stop,
+            space_delivery::local::commands::local_delivery_status,
+            space_delivery::local::commands::local_delivery_get_leader,
+            space_delivery::local::commands::local_delivery_elect,
+            space_delivery::local::commands::local_delivery_connect,
+            space_delivery::local::commands::local_delivery_disconnect,
+            space_delivery::local::commands::local_delivery_create_invite,
+            space_delivery::local::commands::local_delivery_list_invites,
+            space_delivery::local::commands::local_delivery_revoke_invite,
+            space_delivery::local::commands::local_delivery_claim_invite,
+            // MLS (RFC 9420) group key management
+            mls::commands::mls_init_tables,
+            mls::commands::mls_init_identity,
+            mls::commands::mls_create_group,
+            mls::commands::mls_add_member,
+            mls::commands::mls_remove_member,
+            mls::commands::mls_encrypt,
+            mls::commands::mls_decrypt,
+            mls::commands::mls_process_message,
+            mls::commands::mls_get_key_packages,
+            mls::commands::mls_has_group,
+            mls::commands::mls_export_epoch_key,
+            mls::commands::mls_get_epoch_key,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

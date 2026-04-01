@@ -359,6 +359,7 @@ import { SettingsCategory } from '~/config/settingsCategories'
 import type { RemotePeer } from '~/composables/useFileBrowser'
 
 const props = defineProps<{
+  tabId: string
   windowParams?: Record<string, unknown>
 }>()
 
@@ -367,7 +368,7 @@ const peerStore = usePeerStorageStore()
 const spacesStore = useSpacesStore()
 const contactsStore = useContactsStore()
 
-const browser = useFileBrowser()
+const browser = useFileBrowser(props.tabId)
 
 /** Get transfer progress for a file (0-1, or undefined if not downloading) */
 const getFileTransferProgress = (file: { name: string; path?: string }) => {

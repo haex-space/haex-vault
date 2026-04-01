@@ -1,5 +1,17 @@
 <template>
   <HaexSystemSettingsLayout :title="t('title')" :description="t('description')">
+    <template #actions>
+      <UiButton
+        v-if="!showBackendForm"
+        icon="i-lucide-plus"
+        @click="openAddForm"
+      >
+        <span class="hidden @sm:inline">
+          {{ t('actions.add') }}
+        </span>
+      </UiButton>
+    </template>
+
     <!-- Add/Edit Backend Form -->
     <UCard v-if="showBackendForm" class="relative">
       <!-- Loading Overlay -->
@@ -109,96 +121,73 @@
     </UCard>
 
     <!-- Storage Backends List -->
-    <UCard v-if="!showBackendForm || storageBackends.length">
-      <template #header>
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 class="text-lg font-semibold">{{ t('backends.title') }}</h3>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {{ t('backends.description') }}
-            </p>
-          </div>
-          <UiButton
-            v-if="!showBackendForm"
-            icon="i-lucide-plus"
-            @click="openAddForm"
-          >
-            <span class="hidden @sm:inline">
-              {{ t('actions.add') }}
-            </span>
-          </UiButton>
-        </div>
-      </template>
+    <div
+      v-if="!showBackendForm || storageBackends.length"
+    >
 
-      <div v-if="storageBackends.length" class="space-y-3">
-        <div
+      <UiListContainer v-if="storageBackends.length">
+        <UiListItem
           v-for="backend in storageBackends"
           :key="backend.id"
-          class="p-4 rounded-lg border border-default bg-muted/30"
         >
-          <div class="flex flex-col @md:flex-row @md:items-center @md:justify-between gap-3">
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2 flex-wrap">
-                <h4 class="font-medium">{{ backend.name }}</h4>
-                <UBadge
-                  :color="backend.enabled ? 'success' : 'neutral'"
-                  variant="subtle"
-                >
-                  {{ backend.enabled ? t('backends.enabled') : t('backends.disabled') }}
-                </UBadge>
-              </div>
-              <div class="text-sm text-muted mt-1 space-y-0.5">
-                <p v-if="backend.config?.endpoint">
-                  <span class="font-medium">{{ t('form.endpoint.label') }}:</span>
-                  {{ backend.config.endpoint }}
-                </p>
-                <p>
-                  <span class="font-medium">{{ t('form.bucket.label') }}:</span>
-                  {{ backend.config?.bucket }}
-                </p>
-                <p>
-                  <span class="font-medium">{{ t('form.region.label') }}:</span>
-                  {{ backend.config?.region }}
-                </p>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-2 shrink-0">
-              <UiButton
-                color="neutral"
-                variant="outline"
-                :loading="testingBackendId === backend.id"
-                :disabled="testingBackendId !== null"
-                @click="onTestBackendAsync(backend.id)"
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <h4 class="font-medium">{{ backend.name }}</h4>
+              <UBadge
+                :color="backend.enabled ? 'success' : 'neutral'"
+                variant="subtle"
               >
-                {{ t('actions.test') }}
-              </UiButton>
-              <UiButton
-                color="neutral"
-                variant="ghost"
-                icon="i-lucide-pencil"
-                @click="openEditForm(backend)"
-              />
-              <UiButton
-                color="error"
-                variant="ghost"
-                icon="i-lucide-trash-2"
-                @click="prepareDeleteBackend(backend)"
-              />
+                {{ backend.enabled ? t('backends.enabled') : t('backends.disabled') }}
+              </UBadge>
+            </div>
+            <div class="text-sm text-muted mt-1 space-y-0.5">
+              <p v-if="backend.config?.endpoint">
+                <span class="font-medium">{{ t('form.endpoint.label') }}:</span>
+                {{ backend.config.endpoint }}
+              </p>
+              <p>
+                <span class="font-medium">{{ t('form.bucket.label') }}:</span>
+                {{ backend.config?.bucket }}
+              </p>
+              <p>
+                <span class="font-medium">{{ t('form.region.label') }}:</span>
+                {{ backend.config?.region }}
+              </p>
             </div>
           </div>
-        </div>
-      </div>
 
-      <div
+          <template #actions>
+            <UiButton
+              color="neutral"
+              variant="outline"
+              :loading="testingBackendId === backend.id"
+              :disabled="testingBackendId !== null"
+              @click="onTestBackendAsync(backend.id)"
+            >
+              {{ t('actions.test') }}
+            </UiButton>
+            <UiButton
+              color="neutral"
+              variant="ghost"
+              icon="i-lucide-pencil"
+              @click="openEditForm(backend)"
+            />
+            <UiButton
+              color="error"
+              variant="ghost"
+              icon="i-lucide-trash-2"
+              @click="prepareDeleteBackend(backend)"
+            />
+          </template>
+        </UiListItem>
+      </UiListContainer>
+
+      <HaexSystemSettingsLayoutEmpty
         v-else
-        class="text-center py-8 text-gray-500 dark:text-gray-400"
-      >
-        <UIcon name="i-heroicons-cloud" class="w-12 h-12 mx-auto mb-3 opacity-50" />
-        <p>{{ t('backends.noBackends') }}</p>
-        <p class="text-sm mt-1">{{ t('backends.noBackendsHint') }}</p>
-      </div>
-    </UCard>
+        :message="t('backends.noBackends')"
+        icon="i-heroicons-cloud"
+      />
+    </div>
 
     <!-- Delete Confirmation Dialog -->
     <UiDialogConfirm

@@ -4,7 +4,8 @@
  */
 
 import { encryptCrdtData, decryptCrdtData } from '@haex-space/vault-sdk'
-import { getAuthTokenAsync, fetchWithReauthAsync } from './supabase'
+import { createDidAuthHeader } from '@/utils/auth/didAuth'
+import { getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
 import { getVaultKeyCache } from './vaultKey'
 import {
   engineLog as log,
@@ -13,28 +14,46 @@ import {
   type PullChangesResponse,
 } from './types'
 
+/** Build auth headers: UCAN for shared spaces, DID-Auth for personal vault */
+const buildAuthHeaderAsync = async (
+  spaceId: string,
+  privateKey?: string,
+  did?: string,
+): Promise<Record<string, string>> => {
+  // Try UCAN first (shared spaces)
+  const ucan = getUcanForSpaceAsync(spaceId)
+  if (ucan) {
+    return { Authorization: `UCAN ${ucan}` }
+  }
+  // Fall back to DID-Auth (personal vault)
+  if (privateKey && did) {
+    const header = await createDidAuthHeader(privateKey, did, 'sync')
+    return { Authorization: header }
+  }
+  throw new Error('No authentication available: no UCAN token for space and no DID credentials provided')
+}
+
 /**
  * Pushes CRDT changes to the server
  */
 export const pushChangesAsync = async (
   serverUrl: string,
-  vaultId: string,
+  spaceId: string,
   changes: CrdtChange[],
+  privateKey?: string,
+  did?: string,
 ): Promise<void> => {
   // Get vault key from cache
   const vaultKeyCache = getVaultKeyCache()
-  const cached = vaultKeyCache[vaultId]
+  const cached = vaultKeyCache[spaceId]
   if (!cached) {
     throw new Error('Vault key not available. Please unlock vault first.')
   }
 
   const vaultKey = cached.vaultKey
 
-  // Get auth token
-  const token = await getAuthTokenAsync()
-  if (!token) {
-    throw new Error('Not authenticated')
-  }
+  // Build auth headers (UCAN for shared spaces, DID-Auth for personal vault)
+  const authHeaders = await buildAuthHeaderAsync(spaceId, privateKey, did)
 
   // Encrypt each change entry (exclude deviceId - it's sent separately)
   const encryptedChanges: SyncChangeData[] = []
@@ -55,14 +74,14 @@ export const pushChangesAsync = async (
   }
 
   // Send to server
-  const response = await fetchWithReauthAsync(`${serverUrl}/sync/push`, {
+  const response = await fetch(`${serverUrl}/sync/push`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
+      ...authHeaders,
     },
     body: JSON.stringify({
-      vaultId,
+      spaceId,
       changes: encryptedChanges,
     }),
   })
@@ -80,35 +99,34 @@ export const pushChangesAsync = async (
  */
 export const pullChangesAsync = async (
   serverUrl: string,
-  vaultId: string,
+  spaceId: string,
   excludeDeviceId?: string,
   afterCreatedAt?: string,
   limit?: number,
+  privateKey?: string,
+  did?: string,
 ): Promise<CrdtChange[]> => {
   // Get vault key from cache
   const vaultKeyCache = getVaultKeyCache()
-  const cached = vaultKeyCache[vaultId]
+  const cached = vaultKeyCache[spaceId]
   if (!cached) {
     throw new Error('Vault key not available. Please unlock vault first.')
   }
 
   const vaultKey = cached.vaultKey
 
-  // Get auth token
-  const token = await getAuthTokenAsync()
-  if (!token) {
-    throw new Error('Not authenticated')
-  }
+  // Build auth headers (UCAN for shared spaces, DID-Auth for personal vault)
+  const authHeaders = await buildAuthHeaderAsync(spaceId, privateKey, did)
 
   // Fetch from server
-  const response = await fetchWithReauthAsync(`${serverUrl}/sync/pull`, {
+  const response = await fetch(`${serverUrl}/sync/pull`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
+      ...authHeaders,
     },
     body: JSON.stringify({
-      vaultId,
+      spaceId,
       excludeDeviceId,
       afterCreatedAt,
       limit: limit ?? 100,

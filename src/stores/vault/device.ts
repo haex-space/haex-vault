@@ -39,7 +39,42 @@ export const useDeviceStore = defineStore('vaultDeviceStore', () => {
   const initDeviceIdAsync = async () => {
     const endpointId = await invoke<string>('device_init_key')
     deviceId.value = endpointId
+    await updateDeviceClaimsAsync()
     return endpointId
+  }
+
+  /**
+   * Add or update device:<hostname> claims on all identities so the
+   * device endpoint ID is always associated with the identity.
+   * Called on device init and when identities are synced from another device.
+   */
+  const updateDeviceClaimsAsync = async () => {
+    if (!deviceId.value) return
+
+    const identityStore = useIdentityStore()
+    const name = deviceName.value || hostname.value || 'device'
+    const claimType = `device:${name}`
+
+    for (const identity of identityStore.identities) {
+      try {
+        // Verify identity exists in DB before touching claims
+        const dbIdentity = await identityStore.getIdentityAsync(identity.publicKey)
+        if (!dbIdentity) continue
+
+        const claims = await identityStore.getClaimsAsync(identity.publicKey)
+        const existing = claims.find(c => c.type === claimType)
+
+        if (existing && existing.value === deviceId.value) continue
+
+        if (existing) {
+          await identityStore.updateClaimAsync(existing.id, deviceId.value)
+        } else {
+          await identityStore.addClaimAsync(identity.publicKey, claimType, deviceId.value)
+        }
+      } catch (e) {
+        console.warn(`[DEVICE] Failed to update device claim for identity:`, e)
+      }
+    }
   }
 
   /** Load all known devices from space_devices table + current device */
@@ -82,16 +117,24 @@ export const useDeviceStore = defineStore('vaultDeviceStore', () => {
     return knownDevices.value.get(id)?.name || id.slice(0, 12) + '...'
   }
 
+  const reset = () => {
+    deviceId.value = ''
+    deviceName.value = undefined
+    knownDevices.value = new Map()
+  }
+
   return {
     deviceId,
     deviceName,
     getDeviceName,
     hostname,
     initDeviceIdAsync,
+    updateDeviceClaimsAsync,
     isDesktop,
     isMobile,
     knownDevices,
     loadKnownDevicesAsync,
     platform,
+    reset,
   }
 })

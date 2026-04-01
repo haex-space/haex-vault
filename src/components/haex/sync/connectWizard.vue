@@ -66,21 +66,21 @@
           >
             <div
               v-for="vault in availableVaults"
-              :key="vault.vaultId"
+              :key="vault.spaceId"
               class="card bg-elevated rounded-lg p-4 cursor-pointer hover:bg-muted transition-colors"
               :class="{
                 'ring-2 ring-primary':
-                  selectedVaultId === vault.vaultId && !isCreatingNewVault,
+                  selectedVaultId === vault.spaceId && !isCreatingNewVault,
                 'ring-2 ring-error':
                   step3Error && !selectedVaultId && !isCreatingNewVault,
               }"
-              @click="selectVault(vault.vaultId)"
+              @click="selectVault(vault.spaceId)"
             >
               <div class="flex items-center justify-between">
                 <div>
                   <p class="font-medium">
                     {{
-                      decryptedVaultNames[vault.vaultId] ||
+                      decryptedVaultNames[vault.spaceId] ||
                       t('steps.selectVault.encryptedVault')
                     }}
                   </p>
@@ -91,7 +91,7 @@
                 </div>
                 <div
                   v-if="
-                    selectedVaultId === vault.vaultId && !isCreatingNewVault
+                    selectedVaultId === vault.spaceId && !isCreatingNewVault
                   "
                 >
                   <span
@@ -253,15 +253,14 @@
 </template>
 
 <script setup lang="ts">
-import { createClient } from '@supabase/supabase-js'
-import { cleanupSupabaseClient } from '@/stores/sync/engine/supabase'
 import {
-  decryptWithPrivateKeyAsync,
   decryptPrivateKeyAsync,
   decryptVaultKey,
 } from '@haex-space/vault-sdk'
+import { decryptVaultNameAsync } from '@/utils/crypto/vaultName'
+import { DidAuthAction } from '@haex-space/ucan'
+import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import type { StepperItem } from '@nuxt/ui'
-import type { AppSupabaseClient } from '~/stores/sync/engine/supabase'
 import { createConnectWizardSchema } from './connectWizardSchema'
 import type { RecoveryKeyData } from '~/composables/useIdentityRecovery'
 
@@ -273,9 +272,10 @@ const { decryptAndVerifyAsync } = useIdentityRecovery()
 const wizardSchema = computed(() => createConnectWizardSchema(t))
 
 interface VaultInfo {
-  vaultId: string
+  spaceId: string
   encryptedVaultName: string
   vaultNameNonce: string
+  vaultNameSalt: string
   ephemeralPublicKey: string
   createdAt: string
 }
@@ -288,12 +288,14 @@ const emit = defineEmits<{
   complete: [
     {
       backendId: string
-      vaultId: string
+      spaceId: string
       vaultName: string
       localVaultName: string
       serverUrl: string
       identityId: string
       identityPublicKey: string
+      identityPrivateKey: string
+      identityDid: string
       vaultPassword: string
       isNewVault: boolean
     },
@@ -349,8 +351,6 @@ const credentials = ref({
   serverUrl: 'https://sync.haex.space',
   identityId: '',
 })
-const supabaseClient = shallowRef<AppSupabaseClient | null>(null)
-
 // Recovery mode: stores encrypted private key data from OTP verification
 const recoveredKeyData = ref<RecoveryKeyData | null>(null)
 
@@ -480,26 +480,17 @@ const previousStep = () => {
 }
 
 const loadVaultsAsync = async () => {
-  if (!supabaseClient.value) return
+  if (!decryptedPrivateKey.value || !recoveredKeyData.value) return
 
   isLoadingVaults.value = true
 
   try {
-    // Get auth token
-    const {
-      data: { session },
-    } = await supabaseClient.value.auth.getSession()
-    if (!session?.access_token) {
-      throw new Error('Not authenticated')
-    }
-
-    // Fetch vaults from server
-    const response = await fetch(`${credentials.value.serverUrl}/sync/vaults`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${session.access_token}`,
-      },
-    })
+    const response = await fetchWithDidAuth(
+      `${credentials.value.serverUrl}/sync/vaults`,
+      decryptedPrivateKey.value,
+      recoveredKeyData.value.did,
+      DidAuthAction.VaultList,
+    )
 
     if (!response.ok) {
       throw new Error('Failed to fetch vaults')
@@ -523,15 +514,13 @@ const decryptVaultNamesAsync = async (privateKeyBase64: string) => {
   const names: Record<string, string> = {}
   for (const vault of availableVaults.value) {
     try {
-      const decryptedBytes = await decryptWithPrivateKeyAsync(
-        {
-          encryptedData: vault.encryptedVaultName,
-          nonce: vault.vaultNameNonce,
-          ephemeralPublicKey: vault.ephemeralPublicKey,
-        },
+      names[vault.spaceId] = await decryptVaultNameAsync(
+        vault.encryptedVaultName,
+        vault.vaultNameNonce,
+        vault.vaultNameSalt,
+        vault.ephemeralPublicKey,
         privateKeyBase64,
       )
-      names[vault.vaultId] = new TextDecoder().decode(decryptedBytes)
     } catch {
       // Decryption failed — keep showing fallback
     }
@@ -562,54 +551,51 @@ const completeSetupAsync = async () => {
   if (!canComplete.value) return
   if (!isCreatingNewVault.value && !selectedVaultId.value) return
 
-  if (!supabaseClient.value) {
-    throw new Error('Supabase client not initialized')
-  }
-
   // Determine effective vault password
   const effectivePassword = needsVaultPassword.value || isCreatingNewVault.value
     ? vaultPassword.value
     : didPassword.value
 
-  // Store Supabase client in syncEngineStore for later use
   const backendId = crypto.randomUUID()
-  const syncEngineStore = useSyncEngineStore()
-  syncEngineStore.setSupabaseClient(supabaseClient.value, backendId)
 
   if (isCreatingNewVault.value) {
     emit('complete', {
       backendId,
-      vaultId: '', // Server generates via /partitions/create
+      spaceId: '', // Server generates via /partitions/create
       vaultName: localVaultName.value,
       localVaultName: localVaultName.value,
       serverUrl: credentials.value.serverUrl,
       identityId: credentials.value.identityId,
       identityPublicKey: recoveredKeyData.value!.publicKey,
+      identityPrivateKey: decryptedPrivateKey.value!,
+      identityDid: recoveredKeyData.value!.did,
       vaultPassword: effectivePassword,
       isNewVault: true,
     })
   } else {
     const selectedVault = availableVaults.value.find(
-      (v) => v.vaultId === selectedVaultId.value,
+      (v) => v.spaceId === selectedVaultId.value,
     )
     if (!selectedVault) return
 
     emit('complete', {
       backendId,
-      vaultId: selectedVault.vaultId,
+      spaceId: selectedVault.spaceId,
       vaultName: localVaultName.value,
       localVaultName: localVaultName.value,
       serverUrl: credentials.value.serverUrl,
       identityId: credentials.value.identityId,
       identityPublicKey: recoveredKeyData.value!.publicKey,
+      identityPrivateKey: decryptedPrivateKey.value!,
+      identityDid: recoveredKeyData.value!.did,
       vaultPassword: effectivePassword,
       isNewVault: false,
     })
   }
 }
 
-const selectVault = async (vaultId: string) => {
-  selectedVaultId.value = vaultId
+const selectVault = async (spaceId: string) => {
+  selectedVaultId.value = spaceId
   isCreatingNewVault.value = false
   needsVaultPassword.value = false
   vaultPasswordVerified.value = false
@@ -617,29 +603,24 @@ const selectVault = async (vaultId: string) => {
   step3Error.value = ''
 
   // Auto-fill local vault name with decrypted name
-  localVaultName.value = decryptedVaultNames.value[vaultId] || 'HaexVault'
+  localVaultName.value = decryptedVaultNames.value[spaceId] || 'HaexVault'
   checkVaultNameExistsAsync()
 
   // Try DID password as vault password in background
-  await tryDIDPasswordAsVaultPasswordAsync(vaultId)
+  await tryDIDPasswordAsVaultPasswordAsync(spaceId)
 }
 
-const tryDIDPasswordAsVaultPasswordAsync = async (vaultId: string) => {
-  if (!supabaseClient.value) return
+const tryDIDPasswordAsVaultPasswordAsync = async (spaceId: string) => {
+  if (!decryptedPrivateKey.value || !recoveredKeyData.value) return
 
   isCheckingVaultPassword.value = true
 
   try {
-    const { data: { session } } = await supabaseClient.value.auth.getSession()
-    if (!session?.access_token) return
-
-    // Fetch encrypted vault key from server
-    const response = await fetch(
-      `${credentials.value.serverUrl}/sync/vault-key/${vaultId}`,
-      {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      },
+    const response = await fetchWithDidAuth(
+      `${credentials.value.serverUrl}/sync/vault-key/${spaceId}`,
+      decryptedPrivateKey.value,
+      recoveredKeyData.value.did,
+      DidAuthAction.VaultKeyGet,
     )
 
     if (!response.ok) return
@@ -699,29 +680,6 @@ const onRecoveryComplete = async (data: {
     credentials.value.identityId = data.identity.publicKey
     recoveredKeyData.value = data.recoveryKeyData
 
-    // Connect to server and get Supabase config
-    const response = await fetch(data.serverUrl)
-    if (!response.ok) throw new Error(t('errors.serverConnection'))
-    const serverInfo = await response.json()
-
-    // Create Supabase client with the session from recovery
-    // Disable auto-refresh and persistence — this is a temporary client for the wizard only
-    supabaseClient.value = createClient(
-      serverInfo.supabaseUrl,
-      serverInfo.supabaseAnonKey,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-          storageKey: 'sb-wizard-temp',
-        },
-      },
-    )
-    await supabaseClient.value.auth.setSession({
-      access_token: data.session.access_token,
-      refresh_token: data.session.refresh_token,
-    })
-
     // Pre-fill DID password with current vault password if available
     if (currentVaultPassword.value) {
       didPassword.value = currentVaultPassword.value
@@ -764,8 +722,6 @@ const clearForm = async () => {
   vaultPassword.value = ''
   vaultPasswordConfirm.value = ''
   vaultNameExists.value = false
-  await cleanupSupabaseClient(supabaseClient.value)
-  supabaseClient.value = null
 }
 
 const formatDate = (dateStr: string) => {

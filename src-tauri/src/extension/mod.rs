@@ -868,7 +868,8 @@ use std::collections::HashMap;
 #[cfg(desktop)]
 pub const SYNC_TABLES_EVENT: &str = "haextension:sync:tables-updated";
 
-/// Payload for sync tables updated event
+/// Payload for sync tables updated event (used by desktop webview extensions)
+#[cfg_attr(any(target_os = "android", target_os = "ios"), allow(dead_code))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncTablesPayload {

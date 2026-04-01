@@ -20,8 +20,8 @@ export interface ISyncServerOption {
 export interface TemporaryBackend {
   id: string
   name: string
-  serverUrl: string
-  vaultId: string
+  homeServerUrl: string
+  spaceId: string
   identityId: string
   enabled: boolean
 }
@@ -156,7 +156,7 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
       const result = await currentVault.value.drizzle
         .select()
         .from(haexSyncBackends)
-        .where(eq(haexSyncBackends.serverUrl, serverUrl))
+        .where(eq(haexSyncBackends.homeServerUrl, serverUrl))
         .limit(1)
 
       return result[0] ?? null
@@ -205,14 +205,14 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
     const temp = temporaryBackend.value
 
     // Check if backend already exists in DB (from synced data)
-    const existingBackend = await findBackendByServerUrlAsync(temp.serverUrl)
+    const existingBackend = await findBackendByServerUrlAsync(temp.homeServerUrl)
 
     if (existingBackend) {
       // Backend exists from remote sync - update identityId if needed
       log.debug('Backend already exists from sync, updating')
       await updateBackendAsync(existingBackend.id, {
         identityId: temp.identityId,
-        vaultId: temp.vaultId,
+        spaceId: temp.spaceId,
       })
     } else {
       // Backend doesn't exist - add it
@@ -220,8 +220,8 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
       await addBackendAsync({
         id: temp.id,
         name: temp.name,
-        serverUrl: temp.serverUrl,
-        vaultId: temp.vaultId,
+        homeServerUrl: temp.homeServerUrl,
+        spaceId: temp.spaceId,
         identityId: temp.identityId,
         enabled: temp.enabled,
       })
@@ -235,7 +235,7 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
   }
 
   const getBackendNameByUrl = (serverUrl: string): string => {
-    const backend = backends.value.find(b => b.serverUrl === serverUrl)
+    const backend = backends.value.find(b => b.homeServerUrl === serverUrl)
     return backend?.name || serverUrl
   }
 

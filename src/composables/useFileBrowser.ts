@@ -58,7 +58,7 @@ function formatDate(timestamp: bigint | number | null): string {
   return rtf.format(-Math.floor(months / 12), 'year')
 }
 
-export function useFileBrowser() {
+export function useFileBrowser(tabId: string) {
   const peerStore = usePeerStorageStore()
   const preview = useFilePreview()
   const clipboard = useFileClipboard()
@@ -162,7 +162,7 @@ export function useFileBrowser() {
     loadFiles()
 
     // Register back action so back button returns to device list
-    pushBack({ undo: () => navigateToRoot() })
+    navigationStore.pushBack({ undo: () => navigateToRoot(), redo: () => selectPeer(peer) }, tabId)
   }
 
   const navigateToRoot = () => {
@@ -309,7 +309,7 @@ export function useFileBrowser() {
   // File actions
   // =========================================================================
 
-  const { pushBack } = useBackNavigation()
+  const navigationStore = useNavigationStore()
 
   const onFileClick = async (file: FileEntry) => {
     if (file.isDir) {
@@ -323,7 +323,7 @@ export function useFileBrowser() {
       loadFiles()
 
       // Register back action so back button/gesture navigates up
-      pushBack({ undo: () => navigateUp() })
+      navigationStore.pushBack({ undo: () => navigateUp(), redo: () => onFileClick(file) }, tabId)
       return
     }
 

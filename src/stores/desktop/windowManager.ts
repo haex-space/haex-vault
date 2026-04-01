@@ -432,9 +432,9 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       windows.value.push(newWindow)
       activeWindowId.value = windowId
 
-      // Push back/forward action so back closes and forward reopens
-      const { pushBack } = useBackNavigation()
-      pushBack({
+      // Push back/forward action so back closes and forward reopens (global stack)
+      const navigationStore = useNavigationStore()
+      navigationStore.pushBack({
         undo: () => { closeWindow(windowId) },
         redo: () => { openWindowAsync({ type, sourceId, title: newWindow.title, icon: newWindow.icon, params }).catch(() => {}) },
       })
@@ -496,6 +496,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     setTimeout(() => {
       const index = windows.value.findIndex((w) => w.id === windowId)
       if (index !== -1) {
+        useNavigationStore().clearWindowStacks(windowId)
         windows.value.splice(index, 1)
 
         // If closed window was active, activate the topmost window
@@ -827,6 +828,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     const tabIndex = win.tabs.findIndex(t => t.id === tabId)
     if (tabIndex === -1) return
     win.tabs.splice(tabIndex, 1)
+    useNavigationStore().clearTabStacks(tabId)
 
     if (win.activeTabId === tabId) {
       const newIndex = Math.min(tabIndex, win.tabs.length - 1)

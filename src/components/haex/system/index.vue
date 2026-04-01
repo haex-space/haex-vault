@@ -30,7 +30,7 @@
       <!-- Sidebar (optional) -->
       <div
         v-if="$slots.sidebar"
-        class="w-20 @3xl:w-64 border-r border-gray-200 dark:border-gray-800 bg-elevated overflow-y-auto shrink-0 transition-[width] duration-200"
+        class="w-14 @3xl:w-64 border-r border-gray-200 dark:border-gray-800 bg-elevated overflow-y-auto overflow-x-hidden scrollbar-none shrink-0 transition-[width] duration-200"
       >
         <div>
           <slot name="sidebar" />

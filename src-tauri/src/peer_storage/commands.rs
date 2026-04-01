@@ -2,12 +2,41 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use tauri::{Emitter, Manager, State};
+use std::sync::Arc;
+use tauri::{Manager, State};
+use tauri::ipc::Channel;
 
 use crate::AppState;
 use crate::peer_storage::endpoint::is_content_uri;
 use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::protocol::FileEntry;
+
+// ============================================================================
+// Channel message types
+// ============================================================================
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase", tag = "event")]
+pub enum TransferEvent {
+    #[serde(rename_all = "camelCase")]
+    Progress {
+        bytes_received: u64,
+        total_bytes: u64,
+    },
+    #[serde(rename_all = "camelCase")]
+    Complete {
+        local_path: String,
+        total_bytes: u64,
+    },
+    #[serde(rename_all = "camelCase")]
+    Error {
+        error: String,
+    },
+}
+
+// ============================================================================
+// DB helpers
+// ============================================================================
 
 /// Load shares for the current device from the database.
 /// Returns a list of (id, name, local_path, space_id) tuples.
@@ -93,6 +122,10 @@ async fn reload_state_from_db(
     Ok(loaded)
 }
 
+// ============================================================================
+// Endpoint lifecycle commands
+// ============================================================================
+
 /// Start the peer storage endpoint and load shares for this device from DB
 #[tauri::command(rename_all = "camelCase")]
 pub async fn peer_storage_start(
@@ -160,6 +193,10 @@ pub async fn peer_storage_reload_shares(
     reload_state_from_db(&state, &endpoint).await
 }
 
+// ============================================================================
+// Remote peer operations
+// ============================================================================
+
 /// Browse a remote peer's shared files
 #[tauri::command(rename_all = "camelCase")]
 pub async fn peer_storage_remote_list(
@@ -181,8 +218,10 @@ pub async fn peer_storage_remote_list(
 }
 
 /// Download a file from a remote peer directly to disk.
-/// Streams chunks to the filesystem — no full-file RAM buffering, no base64.
-/// Returns the local file path where the downloaded file was saved.
+///
+/// Uses Tauri's Channel API to stream progress, completion, and error events
+/// back to the frontend. The command returns the target path immediately;
+/// the actual download runs async and reports status via the channel.
 #[tauri::command(rename_all = "camelCase")]
 pub async fn peer_storage_remote_read(
     app: tauri::AppHandle,
@@ -192,6 +231,7 @@ pub async fn peer_storage_remote_read(
     path: String,
     transfer_id: Option<String>,
     save_to: Option<String>,
+    on_event: Channel<TransferEvent>,
 ) -> Result<String, PeerStorageError> {
     let remote_id: iroh::EndpointId = node_id
         .parse()
@@ -224,90 +264,76 @@ pub async fn peer_storage_remote_read(
     // Create cancel + pause controls for this transfer
     let (cancel_token, pause_flag) = if let Some(ref tid) = transfer_id {
         let cancel = tokio_util::sync::CancellationToken::new();
-        let pause = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let pause = Arc::new(std::sync::atomic::AtomicBool::new(false));
         state.transfer_tokens.lock().await.insert(tid.clone(), (cancel.clone(), pause.clone()));
         (Some(cancel), Some(pause))
     } else {
         (None, None)
     };
 
-    // Progress callback with throttling: emit at most every 100ms to avoid
-    // overwhelming the IPC bridge on mobile (each event crosses JNI/WebView).
-    let progress_cb: Option<Box<dyn Fn(u64, u64) + Send>> = transfer_id.as_ref().map(|tid| {
-        let app = app.clone();
-        let tid = tid.clone();
-        let path_clone = path.clone();
-        let last_emit = std::sync::Mutex::new(std::time::Instant::now() - std::time::Duration::from_secs(1));
-        Box::new(move |received: u64, total: u64| {
-            let now = std::time::Instant::now();
-            let should_emit = {
-                let last = last_emit.lock().unwrap();
-                // Always emit for the last chunk (transfer complete)
-                received >= total || now.duration_since(*last).as_millis() >= 100
-            };
-            if should_emit {
-                *last_emit.lock().unwrap() = now;
-                let _ = app.emit("peer_storage_transfer_progress", serde_json::json!({
-                    "transferId": tid,
-                    "path": path_clone,
-                    "bytesReceived": received,
-                    "totalBytes": total,
-                }));
+    let output_path_str = output_path.to_string_lossy().to_string();
+    let app_handle = app.clone();
+
+    // Spawn the download on a separate task. The IPC handler returns immediately
+    // with the target path. Progress/completion/errors are streamed via the Channel.
+    tokio::spawn(async move {
+        let state = app_handle.state::<AppState>();
+
+        // Progress callback with throttling: at most every 100ms to avoid
+        // overwhelming the IPC bridge on mobile (each message crosses JNI/WebView).
+        let on_event_progress = on_event.clone();
+        let progress_cb: Option<Box<dyn Fn(u64, u64) + Send>> = Some({
+            let last_emit = std::sync::Mutex::new(std::time::Instant::now() - std::time::Duration::from_secs(1));
+            Box::new(move |received: u64, total: u64| {
+                let now = std::time::Instant::now();
+                let should_emit = {
+                    let last = last_emit.lock().unwrap_or_else(|e| e.into_inner());
+                    received >= total || now.duration_since(*last).as_millis() >= 100
+                };
+                if should_emit {
+                    *last_emit.lock().unwrap_or_else(|e| e.into_inner()) = now;
+                    let _ = on_event_progress.send(TransferEvent::Progress {
+                        bytes_received: received,
+                        total_bytes: total,
+                    });
+                }
+            }) as Box<dyn Fn(u64, u64) + Send>
+        });
+
+        let endpoint = state.peer_storage.lock().await;
+        let result = endpoint.remote_read_to_file(
+            remote_id, parsed_relay, &path, &output_path,
+            None, progress_cb, cancel_token, pause_flag,
+        ).await;
+        drop(endpoint);
+
+        // Clean up cancel token
+        if let Some(tid) = &transfer_id {
+            state.transfer_tokens.lock().await.remove(tid);
+        }
+
+        match result {
+            Ok(total_bytes) => {
+                let final_path = move_to_public_downloads(&app_handle, &output_path);
+                let _ = on_event.send(TransferEvent::Complete {
+                    local_path: final_path,
+                    total_bytes,
+                });
             }
-        }) as Box<dyn Fn(u64, u64) + Send>
+            Err(e) => {
+                let _ = on_event.send(TransferEvent::Error {
+                    error: e.to_string(),
+                });
+            }
+        }
     });
 
-    let endpoint = state.peer_storage.lock().await;
-    let result = endpoint.remote_read_to_file(
-        remote_id, parsed_relay, &path, &output_path,
-        None, progress_cb, cancel_token, pause_flag,
-    ).await;
-
-    // Clean up cancel token
-    if let Some(tid) = &transfer_id {
-        state.transfer_tokens.lock().await.remove(tid);
-    }
-
-    let total_bytes = result?;
-
-    // Emit completion event
-    if let Some(tid) = &transfer_id {
-        let _ = app.emit("peer_storage_transfer_complete", serde_json::json!({
-            "transferId": tid,
-            "path": path,
-            "totalBytes": total_bytes,
-        }));
-    }
-
-    Ok(output_path.to_string_lossy().to_string())
+    Ok(output_path_str)
 }
 
-/// Find a non-colliding file path: photo.jpg → photo (1).jpg → photo (2).jpg → …
-fn deduplicate_path(dir: &std::path::Path, file_name: &str) -> PathBuf {
-    let candidate = dir.join(file_name);
-    if !candidate.exists() {
-        return candidate;
-    }
-
-    let stem = std::path::Path::new(file_name)
-        .file_stem()
-        .unwrap_or_default()
-        .to_string_lossy();
-    let ext = std::path::Path::new(file_name)
-        .extension()
-        .map(|e| format!(".{}", e.to_string_lossy()))
-        .unwrap_or_default();
-
-    for i in 1..10_000 {
-        let numbered = dir.join(format!("{stem} ({i}){ext}"));
-        if !numbered.exists() {
-            return numbered;
-        }
-    }
-
-    // Fallback: use UUID suffix
-    dir.join(format!("{stem}_{}{ext}", uuid::Uuid::new_v4()))
-}
+// ============================================================================
+// Transfer control commands
+// ============================================================================
 
 /// Cancel an active file transfer
 #[tauri::command(rename_all = "camelCase")]
@@ -343,6 +369,143 @@ pub async fn peer_storage_transfer_resume(
         pause.store(false, std::sync::atomic::Ordering::Relaxed);
     }
     Ok(())
+}
+
+// ============================================================================
+// Open file with system app (cross-platform)
+// ============================================================================
+
+/// Open a file with the system's default app.
+/// On Android, uses android_fs FileOpener (Intent-based).
+/// On Desktop, uses tauri-plugin-opener.
+pub fn open_file_with_system(
+    #[allow(unused_variables)] app: &tauri::AppHandle,
+    path: &str,
+) -> Result<(), PeerStorageError> {
+    #[cfg(target_os = "android")]
+    {
+        use tauri_plugin_android_fs::{AndroidFsExt, FileUri};
+
+        let api = app.android_fs();
+        let uri = if path.starts_with('{') {
+            FileUri::from_json_str(path).map_err(|e| PeerStorageError::ProtocolError {
+                reason: format!("Invalid Content URI: {e:?}"),
+            })?
+        } else {
+            FileUri::from_path(path)
+        };
+        api.file_opener().open_file(&uri).map_err(|e| PeerStorageError::ProtocolError {
+            reason: format!("Failed to open file: {e:?}"),
+        })?;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        use tauri_plugin_opener::OpenerExt;
+        app.opener().open_path(path, None::<String>).map_err(|e| PeerStorageError::ProtocolError {
+            reason: format!("Failed to open file: {e}"),
+        })?;
+    }
+    Ok(())
+}
+
+/// Tauri command wrapper for open_file_with_system.
+#[tauri::command(rename_all = "camelCase")]
+pub async fn open_file_system(
+    app: tauri::AppHandle,
+    path: String,
+) -> Result<(), PeerStorageError> {
+    open_file_with_system(&app, &path)
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/// On Android, copy a downloaded file from the app-private directory to the
+/// public Downloads folder via MediaStore so it becomes visible in the system
+/// file manager. Returns the FileUri JSON string of the public file on Android,
+/// or the original path string on other platforms.
+fn move_to_public_downloads(
+    #[allow(unused_variables)] app_handle: &tauri::AppHandle,
+    output_path: &std::path::Path,
+) -> String {
+    #[cfg(target_os = "android")]
+    {
+        use tauri_plugin_android_fs::{AndroidFsExt, PublicGeneralPurposeDir};
+
+        let file_name = output_path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+
+        let result: Result<String, String> = (|| {
+            let api = app_handle.android_fs();
+            let ps = api.public_storage();
+
+            // Create empty file in public Downloads (MediaStore)
+            let dest_uri = ps.create_new_file(
+                None,
+                PublicGeneralPurposeDir::Download,
+                &file_name,
+                None,
+            ).map_err(|e| format!("create_new_file: {e:?}"))?;
+
+            // Stream-copy from app-private temp file to public Downloads
+            let mut src = std::fs::File::open(output_path)
+                .map_err(|e| format!("open src: {e}"))?;
+            let mut dest = api.open_file_writable(&dest_uri)
+                .map_err(|e| format!("open dest: {e:?}"))?;
+            std::io::copy(&mut src, &mut dest)
+                .map_err(|e| format!("copy: {e}"))?;
+            drop(dest);
+
+            // Clean up temp file
+            let _ = std::fs::remove_file(output_path);
+
+            Ok(dest_uri.to_json_string().map_err(|e| format!("to_json: {e:?}"))?)
+        })();
+
+        match result {
+            Ok(uri_json) => uri_json,
+            Err(e) => {
+                eprintln!("[peer_storage] Failed to move to public Downloads: {e}");
+                // Fallback: return original path
+                output_path.to_string_lossy().to_string()
+            }
+        }
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        output_path.to_string_lossy().to_string()
+    }
+}
+
+/// Find a non-colliding file path: photo.jpg → photo (1).jpg → photo (2).jpg → …
+fn deduplicate_path(dir: &std::path::Path, file_name: &str) -> PathBuf {
+    let candidate = dir.join(file_name);
+    if !candidate.exists() {
+        return candidate;
+    }
+
+    let stem = std::path::Path::new(file_name)
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy();
+    let ext = std::path::Path::new(file_name)
+        .extension()
+        .map(|e| format!(".{}", e.to_string_lossy()))
+        .unwrap_or_default();
+
+    for i in 1..10_000 {
+        let numbered = dir.join(format!("{stem} ({i}){ext}"));
+        if !numbered.exists() {
+            return numbered;
+        }
+    }
+
+    // Fallback: use UUID suffix
+    dir.join(format!("{stem}_{}{ext}", uuid::Uuid::new_v4()))
 }
 
 // ============================================================================

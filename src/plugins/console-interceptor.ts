@@ -27,6 +27,7 @@ const levelMap: Record<string, string> = {
 // Buffer logs until device ID is available
 let deviceId: string | null = null
 let bufferedLogs: { level: string; message: string }[] = []
+let disabled = false
 
 function flushBuffer() {
   if (!deviceId) return
@@ -36,7 +37,16 @@ function flushBuffer() {
   bufferedLogs = []
 }
 
+// Prefixes that must not be persisted to DB to prevent sync feedback loops:
+// sync logging → interceptor → insert_log → CRDT dirty → push → more sync logging → ∞
+const SKIP_PREFIXES = ['[SYNC]', '[SYNC SCANNER]']
+
 function writeLog(level: string, message: string) {
+  if (disabled) return
+
+  // Skip sync-related messages to prevent feedback loop with CRDT dirty tracking
+  if (SKIP_PREFIXES.some((prefix) => message.startsWith(prefix))) return
+
   if (!deviceId) {
     bufferedLogs.push({ level, message })
     return
@@ -90,7 +100,13 @@ export default defineNuxtPlugin(() => {
     provide: {
       setConsoleLoggerDeviceId: (id: string) => {
         deviceId = id
+        disabled = false
         flushBuffer()
+      },
+      disableConsoleLogger: () => {
+        disabled = true
+        deviceId = null
+        bufferedLogs = []
       },
     },
   }

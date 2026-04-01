@@ -3,7 +3,7 @@
  *
  * Sync mechanisms:
  * - Push: Local changes are pushed to the server after a debounce delay
- * - Realtime: Changes from other devices are received instantly via subscription
+ * - Realtime: Changes from other devices are received instantly via WebSocket
  * - Fallback Pull: Periodic fetch to catch missed changes if connection was interrupted
  */
 
@@ -99,7 +99,6 @@ export const useSyncConfigStore = defineStore('syncConfigStore', () => {
         id: crypto.randomUUID(),
         key,
         value,
-        type: 'system',
       })
     }
   }

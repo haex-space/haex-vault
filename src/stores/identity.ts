@@ -8,6 +8,8 @@ export interface ExportedIdentity {
   label: string
   publicKey: string
   privateKey: string
+  avatar?: string | null
+  claims?: { type: string; value: string }[]
 }
 
 const log = createLogger('IDENTITY')
@@ -42,13 +44,13 @@ export const useIdentityStore = defineStore('identityStore', () => {
   const createIdentityAsync = async (label: string): Promise<SelectHaexIdentities> => {
     if (!currentVault.value?.drizzle) throw new Error('No vault open')
 
-    const { did, publicKeyBase64, privateKeyBase64 } = await generateIdentityAsync()
+    const { did, signingPublicKey, signingPrivateKey } = await generateIdentityAsync()
 
     const newIdentity = {
       label,
       did,
-      publicKey: publicKeyBase64,
-      privateKey: privateKeyBase64,
+      publicKey: signingPublicKey,
+      privateKey: signingPrivateKey,
     }
 
     await currentVault.value.drizzle
@@ -96,6 +98,17 @@ export const useIdentityStore = defineStore('identityStore', () => {
     await loadIdentitiesAsync()
   }
 
+  const updateAvatarAsync = async (publicKey: string, avatar: string | null) => {
+    if (!currentVault.value?.drizzle) return
+
+    await currentVault.value.drizzle
+      .update(haexIdentities)
+      .set({ avatar })
+      .where(eq(haexIdentities.publicKey, publicKey))
+
+    await loadIdentitiesAsync()
+  }
+
   const exportIdentity = (identity: SelectHaexIdentities): ExportedIdentity => ({
     did: identity.did,
     label: identity.label,
@@ -133,11 +146,20 @@ export const useIdentityStore = defineStore('identityStore', () => {
       did: exported.did,
       publicKey: exported.publicKey,
       privateKey: exported.privateKey,
+      avatar: exported.avatar || null,
     }
 
     await currentVault.value.drizzle
       .insert(haexIdentities)
       .values(newIdentity)
+
+    // Import claims if present
+    if (exported.claims?.length) {
+      for (const claim of exported.claims) {
+        await addClaimAsync(exported.publicKey, claim.type, claim.value)
+      }
+      log.info(`Imported ${exported.claims.length} claims`)
+    }
 
     log.info(`Imported identity "${newIdentity.label}" with DID ${exported.did.slice(0, 30)}...`)
 
@@ -148,6 +170,15 @@ export const useIdentityStore = defineStore('identityStore', () => {
   const addClaimAsync = async (identityPublicKey: string, type: string, value: string) => {
     const db = currentVault.value?.drizzle
     if (!db) throw new Error('No vault open')
+
+    // Verify identity exists in DB before inserting claim (FK constraint)
+    const identity = await db.query.haexIdentities.findFirst({
+      where: eq(haexIdentities.publicKey, identityPublicKey),
+    })
+    if (!identity) {
+      log.warn(`Cannot add claim "${type}": identity ${identityPublicKey.slice(0, 20)}... not in DB`)
+      return null
+    }
 
     const id = crypto.randomUUID()
     await db.insert(haexIdentityClaims).values({ id, identityId: identityPublicKey, type, value })
@@ -182,6 +213,11 @@ export const useIdentityStore = defineStore('identityStore', () => {
     }).where(eq(haexIdentityClaims.id, claimId))
   }
 
+  const reset = () => {
+    identities.value = []
+    _identityPasswords.clear()
+  }
+
   return {
     identities,
     loadIdentitiesAsync,
@@ -189,6 +225,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
     deleteIdentityAsync,
     getIdentityAsync,
     updateLabelAsync,
+    updateAvatarAsync,
     exportIdentity,
     importIdentityAsync,
     addClaimAsync,
@@ -198,5 +235,6 @@ export const useIdentityStore = defineStore('identityStore', () => {
     markClaimVerifiedAsync,
     setIdentityPassword,
     consumeIdentityPassword,
+    reset,
   }
 })

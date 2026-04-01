@@ -1,19 +1,15 @@
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import * as schema from '~/database/schemas/haex'
 import * as crdtSchema from '~/database/schemas/crdt'
 import type { Locale } from 'vue-i18n'
 import { haexSyncBackends } from '~/database/schemas'
 
-// Import for local use
 import {
-  VaultSettingsTypeEnum,
   VaultSettingsKeyEnum,
   DesktopIconSizePreset,
 } from '~/config/vault-settings'
 
-// Re-export constants from dedicated module for backwards compatibility
 export {
-  VaultSettingsTypeEnum,
   VaultSettingsKeyEnum,
   DesktopIconSizePreset,
   iconSizePresetValues,
@@ -50,7 +46,6 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
         await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
           id: crypto.randomUUID(),
           key: VaultSettingsKeyEnum.locale,
-          type: VaultSettingsTypeEnum.settings,
           value: app.$i18n.locale.value,
         })
       }
@@ -62,13 +57,8 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
   const updateLocaleAsync = async (locale: Locale) => {
     await currentVault.value?.drizzle
       .update(schema.haexVaultSettings)
-      .set({ key: VaultSettingsKeyEnum.locale, value: locale })
-      .where(
-        and(
-          eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.locale),
-          eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.settings),
-        ),
-      )
+      .set({ value: locale })
+      .where(eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.locale))
   }
   const syncThemeAsync = async () => {
     const { defaultTheme, currentTheme, currentThemeName, availableThemes } =
@@ -90,7 +80,6 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
       await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.theme,
-        type: VaultSettingsTypeEnum.settings,
         value: currentTheme.value?.value,
       })
     }
@@ -118,7 +107,6 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
       await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.vaultName,
-        type: VaultSettingsTypeEnum.settings,
         value: currentVaultName.value,
       })
     }
@@ -155,14 +143,14 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     })
 
     for (const backend of backends) {
-      if (!backend.vaultId) {
+      if (!backend.spaceId) {
         continue
       }
 
       try {
         await syncEngineStore.updateVaultNameOnServerAsync(
           backend.id,
-          backend.vaultId,
+          backend.spaceId,
           newVaultName,
         )
       } catch (error) {
@@ -175,10 +163,7 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
   const syncDesktopIconSizeAsync = async () => {
     const iconSizeRow =
       await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
-        where: and(
-          eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.desktopIconSize),
-          eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.system),
-        ),
+        where: eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.desktopIconSize),
       })
 
     if (!iconSizeRow?.id) {
@@ -187,7 +172,6 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
         await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
           id: crypto.randomUUID(),
           key: VaultSettingsKeyEnum.desktopIconSize,
-          type: VaultSettingsTypeEnum.system,
           value: DesktopIconSizePreset.medium,
         })
       }
@@ -201,12 +185,7 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     return await currentVault.value?.drizzle
       .update(schema.haexVaultSettings)
       .set({ value: preset })
-      .where(
-        and(
-          eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.desktopIconSize),
-          eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.system),
-        ),
-      )
+      .where(eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.desktopIconSize))
   }
 
   const DEFAULT_TOMBSTONE_RETENTION_DAYS = 30
@@ -215,10 +194,7 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
   const getTombstoneRetentionDaysAsync = async (): Promise<number> => {
     const retentionRow =
       await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
-        where: and(
-          eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.tombstoneRetentionDays),
-          eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.system),
-        ),
+        where: eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.tombstoneRetentionDays),
       })
 
     if (!retentionRow?.id) {
@@ -226,7 +202,6 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
       await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.tombstoneRetentionDays,
-        type: VaultSettingsTypeEnum.system,
         value: String(DEFAULT_TOMBSTONE_RETENTION_DAYS),
       })
       return DEFAULT_TOMBSTONE_RETENTION_DAYS
@@ -241,27 +216,18 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     // Check if entry exists
     const existingRow =
       await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
-        where: and(
-          eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.tombstoneRetentionDays),
-          eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.system),
-        ),
+        where: eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.tombstoneRetentionDays),
       })
 
     if (existingRow?.id) {
       await currentVault.value?.drizzle
         .update(schema.haexVaultSettings)
         .set({ value: String(clampedDays) })
-        .where(
-          and(
-            eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.tombstoneRetentionDays),
-            eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.system),
-          ),
-        )
+        .where(eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.tombstoneRetentionDays))
     } else {
       await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.tombstoneRetentionDays,
-        type: VaultSettingsTypeEnum.system,
         value: String(clampedDays),
       })
     }
@@ -270,10 +236,7 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
   const getExternalBridgePortAsync = async (): Promise<number> => {
     const portRow =
       await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
-        where: and(
-          eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.externalBridgePort),
-          eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.system),
-        ),
+        where: eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.externalBridgePort),
       })
 
     if (!portRow?.id) {
@@ -281,7 +244,6 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
       await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.externalBridgePort,
-        type: VaultSettingsTypeEnum.system,
         value: String(DEFAULT_EXTERNAL_BRIDGE_PORT),
       })
       return DEFAULT_EXTERNAL_BRIDGE_PORT
@@ -297,27 +259,18 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     // Check if entry exists
     const existingRow =
       await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
-        where: and(
-          eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.externalBridgePort),
-          eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.system),
-        ),
+        where: eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.externalBridgePort),
       })
 
     if (existingRow?.id) {
       await currentVault.value?.drizzle
         .update(schema.haexVaultSettings)
         .set({ value: String(clampedPort) })
-        .where(
-          and(
-            eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.externalBridgePort),
-            eq(schema.haexVaultSettings.type, VaultSettingsTypeEnum.system),
-          ),
-        )
+        .where(eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.externalBridgePort))
     } else {
       await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.externalBridgePort,
-        type: VaultSettingsTypeEnum.system,
         value: String(clampedPort),
       })
     }

@@ -6,8 +6,9 @@
 import { invoke } from '@tauri-apps/api/core'
 import { emit } from '@tauri-apps/api/event'
 import { decryptCrdtData } from '@haex-space/vault-sdk'
+import { DidAuthAction } from '@haex-space/ucan'
 import type { ColumnChange } from '../tableScanner'
-import { fetchWithReauthAsync } from '../engine/supabase'
+import { createDidAuthHeader, createFederatedDidAuthHeader } from '@/utils/auth/didAuth'
 import { orchestratorLog as log, type BackendSyncState, type PullResult, syncMutex } from './types'
 import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
 import { SYNC_TABLES_INTERNAL_EVENT } from '../syncEvents'
@@ -53,9 +54,9 @@ export const pullFromBackendAsync = async (
 
   try {
     const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
-    if (!backend?.vaultId) {
-      log.error('PULL FAILED: Backend vaultId not configured')
-      throw new Error('Backend vaultId not configured')
+    if (!backend?.spaceId) {
+      log.error('PULL FAILED: Backend spaceId not configured')
+      throw new Error('Backend spaceId not configured')
     }
 
     // Get encryption key: vault sync key from local DB
@@ -68,18 +69,22 @@ export const pullFromBackendAsync = async (
     const lastPullServerTimestamp = backend.lastPullServerTimestamp
     log.debug('Pull config:', {
       backendId,
-      vaultId: backend.vaultId,
+      spaceId: backend.spaceId,
       lastPullServerTimestamp: lastPullServerTimestamp || '(none - full sync)',
     })
 
     // Step 1: Download ALL changes from server (with pagination)
     log.info('Downloading changes from server...')
-    const pullResult = await pullChangesFromServerAsync(
-      backend.serverUrl,
-      backend.vaultId,
+    const pullResult = await pullChangesFromServerAsync({
+      serverUrl: backend.homeServerUrl,
+      spaceId: backend.spaceId,
       lastPullServerTimestamp,
       syncEngineStore,
-    )
+      backendIdentityId: backend.identityId,
+      federation: backend.type === 'relay' && backend.homeServerDid && backend.originServerDid
+        ? { serverDid: backend.homeServerDid, originServerDid: backend.originServerDid }
+        : undefined,
+    })
 
     const { changes: allChanges, serverTimestamp } = pullResult
 
@@ -102,15 +107,15 @@ export const pullFromBackendAsync = async (
     log.debug('Tables affected:', tablesAffected)
 
     // Step 2: Apply all changes with proper migration ordering
-    await applyAllChangesWithMigrationsAsync(allChanges, encryptionKey, backendId)
+    await applyAllChangesWithMigrationsAsync(allChanges, encryptionKey, backendId, backend.spaceId)
 
     // Step 2b: Check for and pull any pending columns
     // This handles schema version differences - if we previously skipped columns
     // that didn't exist locally (older app version), and now we have those columns
     // after an app update, we pull all data for them from the server
     const pendingColumnsPulled = await pullPendingColumnsAsync(
-      backend.serverUrl,
-      backend.vaultId,
+      backend.homeServerUrl,
+      backend.spaceId,
       encryptionKey,
       backendId,
       syncEngineStore,
@@ -148,6 +153,17 @@ export const pullFromBackendAsync = async (
       log.info('Filtered sync:tables-updated events emitted to extensions')
     }
 
+    // Check for device MLS enrollments after sync (non-blocking)
+    if (tablesAffected.includes('haex_device_mls_enrollments')) {
+      const deviceStore = useDeviceStore()
+      if (deviceStore.deviceId) {
+        import('@/composables/useDeviceEnrollment').then(({ useDeviceEnrollment }) => {
+          const { syncEnrollmentsAsync } = useDeviceEnrollment()
+          syncEnrollmentsAsync(deviceStore.deviceId!).catch(() => {})
+        })
+      }
+    }
+
     // TODO: Client-side signature verification for space backends (defense-in-depth)
     // The server already verifies signatures on push, but pulled records from space
     // backends should also be verified client-side once the member public key cache
@@ -181,23 +197,31 @@ export const pullFromBackendAsync = async (
  * Returns both the changes and the server timestamp for storing as cursor
  *
  * @param serverUrl - Sync server URL
- * @param vaultId - Vault ID to pull changes for
+ * @param spaceId - Space ID to pull changes for
  * @param lastPullServerTimestamp - Cursor for incremental sync (null for full sync)
  * @param syncEngineStore - Sync engine store for auth token
  */
-export const pullChangesFromServerAsync = async (
-  serverUrl: string,
-  vaultId: string,
-  lastPullServerTimestamp: string | null | undefined,
-  syncEngineStore: ReturnType<typeof useSyncEngineStore>,
-): Promise<PullResult> => {
-  log.info('pullChangesFromServerAsync: Starting pull from', serverUrl, 'vault:', vaultId)
+interface PullOptions {
+  serverUrl: string
+  spaceId: string
+  lastPullServerTimestamp: string | null | undefined
+  syncEngineStore: ReturnType<typeof useSyncEngineStore>
+  backendIdentityId?: string | null
+  federation?: { serverDid: string; originServerDid: string }
+}
 
-  const token = await syncEngineStore.getAuthTokenAsync()
-  if (!token) {
-    throw new Error('Not authenticated')
+export const pullChangesFromServerAsync = async (options: PullOptions): Promise<PullResult> => {
+  const { serverUrl, spaceId, lastPullServerTimestamp, syncEngineStore, backendIdentityId, federation } = options
+  log.info('pullChangesFromServerAsync: Starting pull from', serverUrl, 'space:', spaceId)
+
+  // Resolve identity for DID-Auth
+  let identity: { privateKey: string; did: string } | null = null
+  if (backendIdentityId) {
+    const identityStore = useIdentityStore()
+    const id = await identityStore.getIdentityAsync(backendIdentityId)
+    if (id) identity = id
   }
-  const authHeaders: Record<string, string> = { Authorization: `Bearer ${token}` }
+  if (!identity) throw new Error('No identity configured for this backend')
 
   const allChanges: ColumnChange[] = []
   let hasMore = true
@@ -213,7 +237,7 @@ export const pullChangesFromServerAsync = async (
     pageCount++
     // Build URL with all cursor parameters for stable pagination
     const params = new URLSearchParams({
-      vaultId,
+      spaceId,
       limit: '1000',
     })
     if (currentCursor) params.set('afterUpdatedAt', currentCursor)
@@ -223,9 +247,20 @@ export const pullChangesFromServerAsync = async (
     const url = `${serverUrl}/sync/pull?${params.toString()}`
     log.info(`[PAGINATION] Fetching page ${pageCount} with cursor: ${currentCursor || '(none)'}, tableName: ${currentTableName || '(none)'}, rowPks: ${currentRowPks || '(none)'}`)
 
-    const response = await fetchWithReauthAsync(url, {
+    const queryString = params.toString()
+    const authHeader = federation
+      ? await createFederatedDidAuthHeader({
+          did: identity.did,
+          privateKeyBase64: identity.privateKey,
+          action: DidAuthAction.SyncPull,
+          federation: { spaceId, serverDid: federation.originServerDid, relayDid: federation.serverDid },
+          queryString,
+        })
+      : await createDidAuthHeader(identity.privateKey, identity.did, DidAuthAction.SyncPull)
+
+    const response = await fetch(url, {
       method: 'GET',
-      headers: authHeaders,
+      headers: { Authorization: authHeader },
     })
 
     if (!response.ok) {
@@ -278,6 +313,7 @@ export const applyAllChangesWithMigrationsAsync = async (
   allChanges: ColumnChange[],
   vaultKey: Uint8Array,
   backendId: string,
+  spaceId?: string,
 ): Promise<string> => {
   if (allChanges.length === 0) {
     log.info('No changes to apply')
@@ -308,13 +344,13 @@ export const applyAllChangesWithMigrationsAsync = async (
   // This is required because haex_extension_migrations has a FK to haex_extensions
   if (extensionChanges.length > 0) {
     log.info(`Applying ${extensionChanges.length} extension registration changes first...`)
-    maxHlc = await applyRemoteChangesInTransactionAsync(extensionChanges, vaultKey, backendId)
+    maxHlc = await applyRemoteChangesInTransactionAsync(extensionChanges, vaultKey, backendId, spaceId)
   }
 
   // Step 2: Apply extension migration definitions (haex_extension_migrations)
   if (migrationChanges.length > 0) {
     log.info(`Applying ${migrationChanges.length} extension migration changes...`)
-    const migrationMaxHlc = await applyRemoteChangesInTransactionAsync(migrationChanges, vaultKey, backendId)
+    const migrationMaxHlc = await applyRemoteChangesInTransactionAsync(migrationChanges, vaultKey, backendId, spaceId)
     if (migrationMaxHlc > maxHlc) {
       maxHlc = migrationMaxHlc
     }
@@ -353,7 +389,7 @@ export const applyAllChangesWithMigrationsAsync = async (
   // Extension tables now exist, so data won't be skipped
   if (otherChanges.length > 0) {
     log.info(`Applying ${otherChanges.length} remaining changes to local database...`)
-    const otherMaxHlc = await applyRemoteChangesInTransactionAsync(otherChanges, vaultKey, backendId)
+    const otherMaxHlc = await applyRemoteChangesInTransactionAsync(otherChanges, vaultKey, backendId, spaceId)
     if (otherMaxHlc > maxHlc) {
       maxHlc = otherMaxHlc
     }
@@ -373,9 +409,28 @@ export const applyRemoteChangesInTransactionAsync = async (
   changes: ColumnChange[],
   vaultKey: Uint8Array,
   backendId: string,
+  spaceId?: string,
 ): Promise<string> => {
   const startTime = performance.now()
   log.info(`[PERF] Starting decryption of ${changes.length} changes...`)
+
+  // Cache epoch keys to avoid repeated Tauri calls
+  const epochKeyCache = new Map<number, Uint8Array>()
+
+  const resolveDecryptionKey = async (change: ColumnChange): Promise<Uint8Array> => {
+    if (change.epoch == null) return vaultKey
+
+    const cached = epochKeyCache.get(change.epoch)
+    if (cached) return cached
+
+    const epochKey = await invoke<{ epoch: number; key: number[] }>('mls_get_epoch_key', {
+      spaceId: spaceId ?? '',
+      epoch: change.epoch,
+    })
+    const key = new Uint8Array(epochKey.key)
+    epochKeyCache.set(change.epoch, key)
+    return key
+  }
 
   // Calculate max HLC and decrypt all changes
   let maxHlc = ''
@@ -396,14 +451,15 @@ export const applyRemoteChangesInTransactionAsync = async (
       maxHlc = change.hlcTimestamp
     }
 
-    // Decrypt the value
+    // Decrypt the value — use epoch key if available, else vault key
     let decryptedValue
     if (change.encryptedValue && change.nonce) {
       try {
+        const decryptionKey = await resolveDecryptionKey(change)
         const decryptedData = await decryptCrdtData<{ value: unknown }>(
           change.encryptedValue,
           change.nonce,
-          vaultKey,
+          decryptionKey,
         )
         decryptedValue = decryptedData.value
       } catch (err) {
@@ -489,7 +545,7 @@ export const applyRemoteChangesInTransactionAsync = async (
  * and migrations add those columns, this function fetches ALL data for them from the server.
  *
  * @param serverUrl - Sync server URL
- * @param vaultId - Vault ID to pull data for
+ * @param spaceId - Space ID to pull data for
  * @param vaultKey - Vault encryption key for decryption
  * @param backendId - Backend ID for applying changes
  * @param syncEngineStore - Sync engine store for auth token
@@ -497,7 +553,7 @@ export const applyRemoteChangesInTransactionAsync = async (
  */
 export const pullPendingColumnsAsync = async (
   serverUrl: string,
-  vaultId: string,
+  spaceId: string,
   vaultKey: Uint8Array,
   backendId: string,
   syncEngineStore: ReturnType<typeof useSyncEngineStore>,
@@ -512,11 +568,11 @@ export const pullPendingColumnsAsync = async (
 
   log.info(`Found ${pendingColumns.length} pending columns to pull:`, pendingColumns)
 
-  const token = await syncEngineStore.getAuthTokenAsync()
-  if (!token) {
-    throw new Error('Not authenticated')
-  }
-  const authHeaders: Record<string, string> = { Authorization: `Bearer ${token}` }
+  const syncBackendsStore = useSyncBackendsStore()
+  const backendRecord = syncBackendsStore.backends.find(b => b.id === backendId)
+  const identityStore = useIdentityStore()
+  const identity = backendRecord?.identityId ? await identityStore.getIdentityAsync(backendRecord.identityId) : null
+  if (!identity) throw new Error('No identity configured for this backend')
 
   // Step 2: Pull data for each column from server (with pagination)
   let totalPulled = 0
@@ -531,16 +587,27 @@ export const pullPendingColumnsAsync = async (
 
     // Pagination loop for this column
     while (hasMore) {
-      const response = await fetchWithReauthAsync(`${serverUrl}/sync/pull-columns`, {
+      const requestBody = JSON.stringify({
+        spaceId,
+        columns: [{ tableName: pendingCol.tableName, columnName: pendingCol.columnName }],
+        limit: 1000,
+        afterTableName: lastTableName,
+        afterRowPks: lastRowPks,
+      })
+      const authHeader = federation
+        ? await createFederatedDidAuthHeader({
+            did: identity.did,
+            privateKeyBase64: identity.privateKey,
+            action: DidAuthAction.SyncPullColumns,
+            federation: { spaceId, serverDid: federation.originServerDid, relayDid: federation.serverDid },
+            body: requestBody,
+          })
+        : await createDidAuthHeader(identity.privateKey, identity.did, DidAuthAction.SyncPullColumns, requestBody)
+
+      const response = await fetch(`${serverUrl}/sync/pull-columns`, {
         method: 'POST',
-        headers: authHeaders,
-        body: JSON.stringify({
-          vaultId,
-          columns: [{ tableName: pendingCol.tableName, columnName: pendingCol.columnName }],
-          limit: 1000,
-          afterTableName: lastTableName,
-          afterRowPks: lastRowPks,
-        }),
+        headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+        body: requestBody,
       })
 
       if (!response.ok) {
@@ -563,7 +630,7 @@ export const pullPendingColumnsAsync = async (
     // Step 3: Apply the pulled changes
     if (allChanges.length > 0) {
       log.info(`Applying ${allChanges.length} changes for ${pendingCol.tableName}.${pendingCol.columnName}`)
-      await applyRemoteChangesInTransactionAsync(allChanges, vaultKey, backendId)
+      await applyRemoteChangesInTransactionAsync(allChanges, vaultKey, backendId, spaceId)
       totalPulled += allChanges.length
     }
 

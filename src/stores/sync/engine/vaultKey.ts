@@ -7,10 +7,19 @@ import {
   encryptVaultKey,
   decryptVaultKey,
   generateVaultKey,
-  encryptWithPublicKeyAsync,
 } from '@haex-space/vault-sdk'
-import { getAuthTokenAsync, fetchWithReauthAsync } from './supabase'
-import { fetchWithNetworkErrorHandling, engineLog as log, type VaultKeyCache } from './types'
+import { encryptVaultNameAsync } from '@/utils/crypto/vaultName'
+import { createDidAuthHeader, fetchWithDidAuth } from '@/utils/auth/didAuth'
+import { engineLog as log, type VaultKeyCache } from './types'
+
+/** Simple network error wrapper for DID-Auth requests (no JWT reauth needed) */
+const fetchWithNetworkErrorHandlingAsync = async (url: string, options?: RequestInit): Promise<Response> => {
+  try {
+    return await fetch(url, options)
+  } catch {
+    throw new Error('NETWORK_ERROR: Cannot connect to sync server. Please check your internet connection.')
+  }
+}
 
 // In-memory cache for decrypted vault keys (cleared on logout/vault close)
 const vaultKeyCache: VaultKeyCache = {}
@@ -23,8 +32,8 @@ export const getVaultKeyCache = (): VaultKeyCache => vaultKeyCache
 /**
  * Caches the sync key in memory
  */
-export const cacheSyncKey = (vaultId: string, syncKey: Uint8Array): void => {
-  vaultKeyCache[vaultId] = {
+export const cacheSyncKey = (spaceId: string, syncKey: Uint8Array): void => {
+  vaultKeyCache[spaceId] = {
     vaultKey: syncKey,
     timestamp: Date.now(),
   }
@@ -33,9 +42,9 @@ export const cacheSyncKey = (vaultId: string, syncKey: Uint8Array): void => {
 /**
  * Clears vault key from cache
  */
-export const clearVaultKeyCache = (vaultId?: string): void => {
-  if (vaultId) {
-    Reflect.deleteProperty(vaultKeyCache, vaultId)
+export const clearVaultKeyCache = (spaceId?: string): void => {
+  if (spaceId) {
+    Reflect.deleteProperty(vaultKeyCache, spaceId)
   } else {
     Object.keys(vaultKeyCache).forEach((key) => Reflect.deleteProperty(vaultKeyCache, key))
   }
@@ -46,52 +55,48 @@ export const clearVaultKeyCache = (vaultId?: string): void => {
  *
  * Encryption:
  * - Vault key: encrypted with vault password (symmetric, for data access)
- * - Vault name: encrypted with identity public key (ECDH, readable after login)
+ * - Vault name: encrypted with identity Ed25519 public key (→ X25519 ECDH, readable after login)
  */
 export const uploadVaultKeyAsync = async (
   serverUrl: string,
-  vaultId: string,
+  spaceId: string,
   vaultKey: Uint8Array,
   vaultName: string,
   vaultPassword: string,
   identityPublicKey: string,
+  privateKey: string,
+  did: string,
 ): Promise<{ vaultKeySalt: string }> => {
   // Encrypt vault key with vault password
   const encryptedVaultKeyData = await encryptVaultKey(vaultKey, vaultPassword)
 
-  // Encrypt vault name with identity public key (ECDH)
-  const encodedName = new TextEncoder().encode(vaultName)
-  const sealedName = await encryptWithPublicKeyAsync(encodedName, identityPublicKey)
+  // Encrypt vault name with identity Ed25519 public key (Rust: Ed25519→X25519 + ECDH + HKDF + AES-GCM)
+  const sealedName = await encryptVaultNameAsync(vaultName, identityPublicKey)
 
-  // Get auth token
-  const token = await getAuthTokenAsync()
-  if (!token) {
-    throw new Error('Not authenticated')
-  }
-
-  // Send to server
-  const response = await fetchWithReauthAsync(`${serverUrl}/sync/vault-key`, {
+  // Send to server with DID-Auth
+  const body = JSON.stringify({
+    spaceId,
+    encryptedVaultKey: encryptedVaultKeyData.encryptedVaultKey,
+    encryptedVaultName: sealedName.encryptedData,
+    vaultKeySalt: encryptedVaultKeyData.salt,
+    ephemeralPublicKey: sealedName.ephemeralPublicKey,
+    vaultKeyNonce: encryptedVaultKeyData.vaultKeyNonce,
+    vaultNameNonce: sealedName.nonce,
+    vaultNameSalt: sealedName.salt,
+  })
+  const response = await fetchWithDidAuth(`${serverUrl}/sync/vault-key`, privateKey, did, 'vault-key', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      vaultId,
-      encryptedVaultKey: encryptedVaultKeyData.encryptedVaultKey,
-      encryptedVaultName: sealedName.encryptedData,
-      vaultKeySalt: encryptedVaultKeyData.salt,
-      ephemeralPublicKey: sealedName.ephemeralPublicKey,
-      vaultKeyNonce: encryptedVaultKeyData.vaultKeyNonce,
-      vaultNameNonce: sealedName.nonce,
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body,
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new Error(
-      `Failed to upload vault key: ${error.error || response.statusText}`,
-    )
+    const errorData = await response.json().catch(() => ({}))
+    const message = errorData.error
+      ?? (errorData.success === false && errorData.error?.message)
+      ?? JSON.stringify(errorData)
+    log.error('Upload vault key failed:', { status: response.status, errorData })
+    throw new Error(`Failed to upload vault key: ${message}`)
   }
 
   log.info('Vault key uploaded to server')
@@ -104,30 +109,22 @@ export const uploadVaultKeyAsync = async (
  */
 export const getVaultKeyFromServerAsync = async (
   serverUrl: string,
-  vaultId: string,
+  spaceId: string,
   password: string,
+  privateKey: string,
+  did: string,
 ): Promise<Uint8Array> => {
   // Check cache first
-  const cached = vaultKeyCache[vaultId]
+  const cached = vaultKeyCache[spaceId]
   if (cached) {
     return cached.vaultKey
   }
 
-  // Get auth token
-  const token = await getAuthTokenAsync()
-  if (!token) {
-    throw new Error('Not authenticated')
-  }
-
-  // Fetch from server
-  const response = await fetchWithNetworkErrorHandling(
-    `${serverUrl}/sync/vault-key/${vaultId}`,
-    {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    },
+  // Fetch from server with DID-Auth
+  const authHeader = await createDidAuthHeader(privateKey, did, 'get-vault-key')
+  const response = await fetchWithNetworkErrorHandlingAsync(
+    `${serverUrl}/sync/vault-key/${spaceId}`,
+    { method: 'GET', headers: { Authorization: authHeader } },
   )
 
   if (response.status === 404) {
@@ -157,7 +154,7 @@ export const getVaultKeyFromServerAsync = async (
   )
 
   // Cache decrypted vault key
-  vaultKeyCache[vaultId] = {
+  vaultKeyCache[spaceId] = {
     vaultKey,
     timestamp: Date.now(),
   }
@@ -170,19 +167,17 @@ export const getVaultKeyFromServerAsync = async (
  */
 export const fetchSyncKeyFromServerAsync = async (
   serverUrl: string,
-  vaultId: string,
+  spaceId: string,
   password: string,
+  privateKey: string,
+  did: string,
 ): Promise<Uint8Array> => {
-  const token = await getAuthTokenAsync()
-  if (!token) {
-    throw new Error('Not authenticated')
-  }
-
-  const response = await fetchWithNetworkErrorHandling(
-    `${serverUrl}/sync/vault-key/${vaultId}`,
+  const authHeader = await createDidAuthHeader(privateKey, did, 'get-vault-key')
+  const response = await fetchWithNetworkErrorHandlingAsync(
+    `${serverUrl}/sync/vault-key/${spaceId}`,
     {
       method: 'GET',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: authHeader },
     },
   )
 
@@ -234,33 +229,26 @@ export const generateNewVaultKey = (): Uint8Array => {
  */
 export const reEncryptVaultKeyAsync = async (
   serverUrl: string,
-  vaultId: string,
+  spaceId: string,
   vaultKey: Uint8Array,
   newPassword: string,
+  privateKey: string,
+  did: string,
 ): Promise<{ success: boolean; vaultKeySalt?: string }> => {
   try {
-    // Get auth token
-    const token = await getAuthTokenAsync()
-    if (!token) {
-      log.warn('Not authenticated for re-encryption')
-      return { success: false }
-    }
-
     // Re-encrypt the vault key with the new password (generates new salt and nonce)
     const encryptedVaultKeyData = await encryptVaultKey(vaultKey, newPassword)
 
-    // Send PATCH request to update the encrypted vault key on server
-    const response = await fetchWithReauthAsync(`${serverUrl}/sync/vault-key/${vaultId}`, {
+    // Send PATCH request to update the encrypted vault key on server with DID-Auth
+    const body = JSON.stringify({
+      encryptedVaultKey: encryptedVaultKeyData.encryptedVaultKey,
+      vaultKeySalt: encryptedVaultKeyData.salt,
+      vaultKeyNonce: encryptedVaultKeyData.vaultKeyNonce,
+    })
+    const response = await fetchWithDidAuth(`${serverUrl}/sync/vault-key/${spaceId}`, privateKey, did, 'update-vault-key', {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        encryptedVaultKey: encryptedVaultKeyData.encryptedVaultKey,
-        vaultKeySalt: encryptedVaultKeyData.salt,
-        vaultKeyNonce: encryptedVaultKeyData.vaultKeyNonce,
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body,
     })
 
     if (!response.ok) {

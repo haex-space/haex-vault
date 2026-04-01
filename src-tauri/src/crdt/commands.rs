@@ -1,7 +1,7 @@
 use crate::crdt::trigger;
 use crate::crdt::trigger::{
     get_table_schema as get_table_schema_internal, ColumnInfo, COLUMN_HLCS_COLUMN,
-    HLC_TIMESTAMP_COLUMN,
+    HLC_TIMESTAMP_COLUMN, TOMBSTONE_COLUMN,
 };
 use crate::database::core::{with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
@@ -100,6 +100,36 @@ pub fn get_dirty_tables(state: State<'_, AppState>) -> Result<Vec<DirtyTable>, D
     })
 }
 
+/// Inner logic for clearing a dirty table, callable from Rust without Tauri state.
+pub fn clear_dirty_table_inner(
+    db: &crate::database::DbConnection,
+    table_name: &str,
+    before_timestamp: Option<&str>,
+) -> Result<(), DatabaseError> {
+    with_connection(db, |conn| {
+        match before_timestamp {
+            Some(ts) => {
+                conn.execute(
+                    &format!(
+                        "DELETE FROM {TABLE_CRDT_DIRTY_TABLES} WHERE table_name = ?1 AND last_modified <= ?2"
+                    ),
+                    [table_name, ts],
+                )
+                .map_err(DatabaseError::from)?;
+            }
+            None => {
+                conn.execute(
+                    &format!("DELETE FROM {TABLE_CRDT_DIRTY_TABLES} WHERE table_name = ?1"),
+                    [table_name],
+                )
+                .map_err(DatabaseError::from)?;
+            }
+        }
+
+        Ok(())
+    })
+}
+
 /// Clears a specific table from the dirty tables tracker.
 /// If before_timestamp is provided, only clears entries with last_modified <= that timestamp.
 /// This prevents clearing entries that were added AFTER the sync scan started.
@@ -109,28 +139,7 @@ pub fn clear_dirty_table(
     before_timestamp: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<(), DatabaseError> {
-    with_connection(&state.db, |conn| {
-        match before_timestamp {
-            Some(ts) => {
-                conn.execute(
-                    &format!(
-                        "DELETE FROM {TABLE_CRDT_DIRTY_TABLES} WHERE table_name = ?1 AND last_modified <= ?2"
-                    ),
-                    [&table_name, &ts],
-                )
-                .map_err(DatabaseError::from)?;
-            }
-            None => {
-                conn.execute(
-                    &format!("DELETE FROM {TABLE_CRDT_DIRTY_TABLES} WHERE table_name = ?1"),
-                    [&table_name],
-                )
-                .map_err(DatabaseError::from)?;
-            }
-        }
-
-        Ok(())
-    })
+    clear_dirty_table_inner(&state.db, &table_name, before_timestamp.as_deref())
 }
 
 /// Clears all dirty tables
@@ -339,12 +348,23 @@ pub fn apply_remote_changes_in_transaction(
     max_hlc: String,
     state: State<'_, AppState>,
 ) -> Result<(), DatabaseError> {
+    apply_remote_changes_to_db(&state.db, changes, Some((&backend_id, &max_hlc)))
+}
+
+/// Inner implementation that applies remote CRDT changes to a database connection.
+///
+/// If `backend_info` is `Some((backend_id, max_hlc))`, updates `haex_sync_backends`
+/// with the push HLC timestamp (used by server sync). For local delivery, pass `None`.
+pub fn apply_remote_changes_to_db(
+    db: &crate::database::DbConnection,
+    changes: Vec<RemoteColumnChange>,
+    backend_info: Option<(&str, &str)>,
+) -> Result<(), DatabaseError> {
     eprintln!("[SYNC RUST] ========== APPLY REMOTE CHANGES START ==========");
     eprintln!(
-        "[SYNC RUST] Changes count: {}, backend_id: {}, max_hlc: {}",
+        "[SYNC RUST] Changes count: {}, backend: {}",
         changes.len(),
-        backend_id,
-        max_hlc
+        backend_info.map(|(id, _)| id).unwrap_or("local-delivery"),
     );
 
     // Validate batch completeness
@@ -352,7 +372,7 @@ pub fn apply_remote_changes_in_transaction(
     validate_batch_completeness(&changes)?;
     eprintln!("[SYNC RUST] Batch validation passed");
 
-    with_connection(&state.db, |conn| {
+    with_connection(db, |conn| {
         // Disable foreign key constraints BEFORE starting the transaction
         // IMPORTANT: PRAGMA foreign_keys cannot be changed inside a transaction!
         // See: https://sqlite.org/foreignkeys.html
@@ -528,6 +548,24 @@ pub fn apply_remote_changes_in_transaction(
 
             // Only apply if there are columns to update
             if !columns_to_update.is_empty() {
+                // Skip tombstone-only changes for rows that don't exist locally.
+                // This can happen when a row was created and deleted on another device
+                // before this device pulled the original insert — only the tombstone
+                // arrives because the data columns have an older server timestamp.
+                // Inserting a tombstone for a non-existent row is semantically a no-op.
+                if !row_exists {
+                    let is_tombstone_only = columns_to_update.len() == 1
+                        && columns_to_update[0].0 == TOMBSTONE_COLUMN
+                        && columns_to_update[0].1 == JsonValue::from(1);
+                    if is_tombstone_only {
+                        eprintln!(
+                            "[SYNC RUST] Skipping tombstone-only insert for non-existent row in '{}' — row was never seen locally",
+                            first_change.table_name
+                        );
+                        continue;
+                    }
+                }
+
                 let new_hlcs_json = serde_json::to_string(&column_hlcs).map_err(|e| {
                     DatabaseError::SerializationError {
                         reason: format!("Failed to serialize column HLCs: {}", e),
@@ -704,15 +742,18 @@ pub fn apply_remote_changes_in_transaction(
 
         // Update lastPushHlcTimestamp for this backend to prevent re-pushing the data we just pulled
         // Note: lastPullServerTimestamp is now updated by TypeScript using the server timestamp
-        eprintln!(
-            "[SYNC RUST] Updating last_push_hlc_timestamp to {}",
-            max_hlc
-        );
-        tx.execute(
-            "UPDATE haex_sync_backends SET last_push_hlc_timestamp = ? WHERE id = ?",
-            params![&max_hlc, &backend_id],
-        )
-        .map_err(DatabaseError::from)?;
+        // Only applicable for server sync (not local delivery)
+        if let Some((backend_id, max_hlc)) = backend_info {
+            eprintln!(
+                "[SYNC RUST] Updating last_push_hlc_timestamp to {}",
+                max_hlc
+            );
+            tx.execute(
+                "UPDATE haex_sync_backends SET last_push_hlc_timestamp = ? WHERE id = ?",
+                params![max_hlc, backend_id],
+            )
+            .map_err(DatabaseError::from)?;
+        }
 
         // Re-enable triggers before committing
         eprintln!("[SYNC RUST] Re-enabling triggers");

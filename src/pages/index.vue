@@ -45,7 +45,7 @@
             <div
               v-for="vault in lastVaults"
               :key="vault.name"
-              class="relative flex items-center group overflow-x-hidden rounded-lg ring-1 ring-black/10 dark:ring-white/10 hover:bg-elevated hover:ring-black/20 dark:hover:ring-white/20 transition-all"
+              class="relative flex items-center group overflow-x-hidden rounded-lg py-1 ring-1 ring-black/10 dark:ring-white/10 hover:bg-elevated hover:ring-black/20 dark:hover:ring-white/20 transition-all"
             >
               <UiButtonContext
                 variant="link"
@@ -60,9 +60,6 @@
                     color: 'error',
                   },
                 ]"
-                :ui="{
-                  base: 'px-4 py-3',
-                }"
                 @click="
                   () => {
                     isOpenDrawerOpen = true

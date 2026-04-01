@@ -26,6 +26,7 @@ export interface ColumnChange {
   encryptedValue?: string
   nonce?: string
   deviceId: string // Device that created this change
+  epoch?: number // MLS epoch that encrypted this change (absent = vaultKey encrypted)
 }
 
 /**
@@ -115,6 +116,7 @@ async function processRowsToChangesAsync(
   vaultKey: Uint8Array,
   batchId: string,
   deviceId: string,
+  epoch?: number,
 ): Promise<Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[]> {
   // Convert result to rows - we know the column order from allColumns
   const rows: Array<Record<string, unknown>> = []
@@ -190,6 +192,7 @@ async function processRowsToChangesAsync(
           deviceId,
           encryptedValue: encryptedData,
           nonce,
+          ...(epoch !== undefined && { epoch }),
         })
       }
     }
@@ -209,6 +212,7 @@ export async function scanTableForChangesAsync(
   vaultKey: Uint8Array,
   batchId: string,
   deviceId: string,
+  epoch?: number,
 ): Promise<Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[]> {
   log.info(`Scanning table: ${tableName}`)
   log.debug(`  lastPushHlcTimestamp: ${lastPushHlcTimestamp || '(none - full scan)'}`)
@@ -240,7 +244,7 @@ export async function scanTableForChangesAsync(
 
   const changes = await processRowsToChangesAsync(
     result, allColumns, pkColumns, dataColumns,
-    lastPushHlcTimestamp, tableName, vaultKey, batchId, deviceId,
+    lastPushHlcTimestamp, tableName, vaultKey, batchId, deviceId, epoch,
   )
 
   log.info(`  Generated ${changes.length} column changes from ${result.length} rows`)
@@ -260,6 +264,7 @@ export async function scanTableForSpaceChangesAsync(
   vaultKey: Uint8Array,
   batchId: string,
   deviceId: string,
+  epoch?: number,
 ): Promise<Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[]> {
   log.info(`Scanning table for space: ${tableName} (spaceId: ${spaceId})`)
   log.debug(`  lastPushHlcTimestamp: ${lastPushHlcTimestamp || '(none - full scan)'}`)
@@ -316,7 +321,7 @@ export async function scanTableForSpaceChangesAsync(
 
   const changes = await processRowsToChangesAsync(
     result, allColumns, pkColumns, dataColumns,
-    lastPushHlcTimestamp, tableName, vaultKey, batchId, deviceId,
+    lastPushHlcTimestamp, tableName, vaultKey, batchId, deviceId, epoch,
   )
 
   log.info(`  Generated ${changes.length} column changes from ${result.length} rows`)

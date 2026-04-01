@@ -76,7 +76,7 @@ export const useContactsStore = defineStore('contactsStore', () => {
     return contacts.value.find(c => c.id === contactId)!
   }
 
-  const updateContactAsync = async (id: string, updates: { label?: string; notes?: string }) => {
+  const updateContactAsync = async (id: string, updates: { label?: string; notes?: string; avatar?: string | null }) => {
     const db = currentVault.value?.drizzle
     if (!db) throw new Error('No vault open')
 
@@ -158,6 +158,10 @@ export const useContactsStore = defineStore('contactsStore', () => {
     return { ...contact, claims }
   }
 
+  const reset = () => {
+    contacts.value = []
+  }
+
   return {
     contacts,
     loadContactsAsync,
@@ -171,5 +175,6 @@ export const useContactsStore = defineStore('contactsStore', () => {
     updateClaimAsync,
     deleteClaimAsync,
     getContactWithClaimsAsync,
+    reset,
   }
 })

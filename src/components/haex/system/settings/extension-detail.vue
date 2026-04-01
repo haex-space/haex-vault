@@ -16,9 +16,31 @@
       </UBadge>
     </template>
       <!-- Extension Info Section -->
-      <UCard>
-        <template #header>
-          <h3 class="text-lg font-semibold">{{ t('info') }}</h3>
+      <HaexSystemSettingsLayoutSection
+        :title="t('info')"
+        default-open
+      >
+        <template #actions>
+          <UiButton
+            v-if="hasUpdate && !extension.devServerUrl"
+            :label="t('update')"
+            icon="i-heroicons-arrow-up-circle"
+            color="warning"
+            :loading="isUpdating"
+            @click="() => void handleUpdateAsync()"
+          />
+          <UiButton
+            :label="t('remove')"
+            icon="i-heroicons-trash"
+            color="error"
+            variant="outline"
+            @click="confirmRemove"
+          />
+          <UiButton
+            :label="t('open')"
+            icon="i-heroicons-play"
+            @click="openExtensionAsync"
+          />
         </template>
 
         <div class="space-y-3">
@@ -60,36 +82,6 @@
             </div>
           </div>
 
-          <!-- Action Buttons -->
-          <div class="flex flex-col @md:flex-row @md:justify-end gap-2">
-            <UiButton
-              v-if="hasUpdate && !extension.devServerUrl"
-              :label="t('update')"
-              icon="i-heroicons-arrow-up-circle"
-              color="warning"
-              :loading="isUpdating"
-              block
-              class="@md:w-auto"
-              @click="() => void handleUpdateAsync()"
-            />
-            <UiButton
-              :label="t('remove')"
-              icon="i-heroicons-trash"
-              color="error"
-              variant="outline"
-              block
-              class="@md:w-auto"
-              @click="confirmRemove"
-            />
-            <UiButton
-              :label="t('open')"
-              icon="i-heroicons-play"
-              block
-              class="@md:w-auto"
-              @click="openExtensionAsync"
-            />
-          </div>
-
           <div
             v-if="extension.description"
             class="text-sm text-gray-600 dark:text-gray-300"
@@ -97,79 +89,90 @@
             {{ extension.description }}
           </div>
         </div>
-      </UCard>
+      </HaexSystemSettingsLayoutSection>
 
       <!-- Settings Section -->
-      <UCard>
-        <template #header>
-          <h3 class="text-lg font-semibold">{{ t('settings') }}</h3>
-        </template>
-
-        <div class="space-y-3">
-          <div class="flex items-center justify-between gap-4">
+      <HaexSystemSettingsLayoutSection
+        :title="t('settings')"
+      >
+        <UiListContainer>
+          <UiListItem>
             <div>
               <div class="font-medium text-sm">{{ t('displayMode') }}</div>
               <div class="text-xs text-gray-500 dark:text-gray-400">
                 {{ t('displayModeDescription') }}
               </div>
             </div>
-            <USelectMenu
-              v-model="selectedDisplayMode"
-              :items="displayModeOptions"
-              class="w-40"
-              :search-input="false"
-              @update:model-value="updateDisplayModeAsync"
-            />
-          </div>
+            <template #actions>
+              <USelectMenu
+                v-model="selectedDisplayMode"
+                :items="displayModeOptions"
+                class="w-40"
+                :search-input="false"
+                @update:model-value="updateDisplayModeAsync"
+              />
+            </template>
+          </UiListItem>
 
-          <div class="flex items-center justify-between gap-4">
+          <UiListItem>
             <div>
               <div class="font-medium text-sm">{{ t('singleInstance') }}</div>
               <div class="text-xs text-gray-500 dark:text-gray-400">
                 {{ t('singleInstanceDescription') }}
               </div>
             </div>
-            <span class="text-sm">{{
-              extension.singleInstance ? t('yes') : t('no')
-            }}</span>
-          </div>
+            <template #actions>
+              <span class="text-sm">{{
+                extension.singleInstance ? t('yes') : t('no')
+              }}</span>
+            </template>
+          </UiListItem>
 
-          <div class="flex items-start justify-between gap-4">
+          <UiListItem>
             <div>
               <div class="font-medium text-sm">{{ t('id') }}</div>
               <div class="text-xs text-gray-500 dark:text-gray-400">
                 {{ t('idDescription') }}
               </div>
             </div>
-            <code
-              class="text-xs bg-muted px-2 py-1 rounded break-all max-w-[50%] text-right"
-            >
-              {{ extension.id }}
-            </code>
-          </div>
+            <template #actions>
+              <code
+                class="text-xs bg-muted px-2 py-1 rounded break-all max-w-[50%] text-right"
+              >
+                {{ extension.id }}
+              </code>
+            </template>
+          </UiListItem>
 
-          <div
-            v-if="extension.homepage"
-            class="flex items-center justify-between gap-4"
-          >
+          <UiListItem v-if="extension.homepage">
             <div>
               <div class="font-medium text-sm">{{ t('homepage') }}</div>
             </div>
-            <a
-              :href="extension.homepage"
-              target="_blank"
-              class="text-sm text-primary hover:underline truncate max-w-[50%]"
-            >
-              {{ extension.homepage }}
-            </a>
-          </div>
-        </div>
-      </UCard>
+            <template #actions>
+              <a
+                :href="extension.homepage"
+                target="_blank"
+                class="text-sm text-primary hover:underline truncate max-w-[50%]"
+              >
+                {{ extension.homepage }}
+              </a>
+            </template>
+          </UiListItem>
+        </UiListContainer>
+      </HaexSystemSettingsLayoutSection>
 
       <!-- Permissions Section -->
-      <UCard>
-        <template #header>
-          <h3 class="text-lg font-semibold">{{ t('permissions') }}</h3>
+      <HaexSystemSettingsLayoutSection
+        :title="t('permissions')"
+      >
+        <template #actions>
+          <UiButton
+            v-if="hasAnyPermissions"
+            :label="t('savePermissions')"
+            :loading="savingPermissions"
+            :disabled="!hasPermissionChanges"
+            @click="savePermissionsAsync"
+          />
         </template>
 
         <div
@@ -216,71 +219,50 @@
             </template>
           </UAccordion>
 
-          <div
+          <HaexSystemSettingsLayoutEmpty
             v-if="!hasAnyPermissions"
-            class="text-center py-4 text-muted bg-elevated rounded-lg"
-          >
-            {{ t('noPermissions') }}
-          </div>
-
-          <div
-            v-if="hasAnyPermissions"
-            class="flex justify-end"
-          >
-            <UiButton
-              :label="t('savePermissions')"
-              :loading="savingPermissions"
-              :disabled="!hasPermissionChanges"
-              @click="savePermissionsAsync"
-            />
-          </div>
+            :message="t('noPermissions')"
+            icon="i-heroicons-shield-check"
+          />
         </div>
-      </UCard>
+      </HaexSystemSettingsLayoutSection>
 
       <!-- Limits Section -->
       <HaexExtensionLimitsCard :extension-id="extension.id" />
 
       <!-- Session Permissions Section -->
-      <UCard v-if="sessionPermissions.length > 0">
-        <template #header>
-          <h3 class="text-lg font-semibold flex items-center gap-2">
-            <UIcon name="i-heroicons-clock" class="w-5 h-5 text-warning" />
-            {{ t('sessionPermissions') }}
-          </h3>
-        </template>
-
-        <div class="space-y-2">
-          <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            {{ t('sessionPermissionsDescription') }}
-          </p>
-
-          <div
+      <HaexSystemSettingsLayoutSection
+        v-if="sessionPermissions.length > 0"
+        :title="t('sessionPermissions')"
+        :description="t('sessionPermissionsDescription')"
+      >
+        <UiListContainer>
+          <UiListItem
             v-for="permission in sessionPermissions"
             :key="`${permission.resourceType}-${permission.target}`"
-            class="p-4 rounded-lg border border-default bg-elevated"
           >
-            <div class="flex items-start justify-between gap-4">
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2">
-                  <UIcon
-                    :name="getPermissionIcon(permission.resourceType)"
-                    class="w-4 h-4"
-                  />
-                  <span class="font-medium">{{ t(`permissionTypes.${getPermissionTypeKey(permission.resourceType)}`) }}</span>
-                  <UBadge
-                    :color="permission.status === 'granted' ? 'success' : 'error'"
-                    variant="subtle"
-                  >
-                    {{ permission.status === 'granted' ? t('sessionGranted') : t('sessionDenied') }}
-                  </UBadge>
-                </div>
-                <div class="text-sm text-gray-500 dark:text-gray-400 mt-1 font-mono truncate">
-                  {{ permission.target }}
-                </div>
-                <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  {{ t('sessionHint') }}
-                </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <UIcon
+                  :name="getPermissionIcon(permission.resourceType)"
+                  class="w-4 h-4"
+                />
+                <span class="font-medium">{{ t(`permissionTypes.${getPermissionTypeKey(permission.resourceType)}`) }}</span>
+                <UBadge
+                  :color="permission.status === 'granted' ? 'success' : 'error'"
+                  variant="subtle"
+                >
+                  {{ permission.status === 'granted' ? t('sessionGranted') : t('sessionDenied') }}
+                </UBadge>
               </div>
+              <div class="text-sm text-gray-500 dark:text-gray-400 mt-1 font-mono truncate">
+                {{ permission.target }}
+              </div>
+              <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                {{ t('sessionHint') }}
+              </div>
+            </div>
+            <template #actions>
               <UButton
                 color="error"
                 variant="ghost"
@@ -290,10 +272,10 @@
                 <UIcon name="i-heroicons-x-mark" class="w-4 h-4" />
                 {{ t('revoke') }}
               </UButton>
-            </div>
-          </div>
-        </div>
-      </UCard>
+            </template>
+          </UiListItem>
+        </UiListContainer>
+      </HaexSystemSettingsLayoutSection>
 
     <!-- Remove Confirmation Dialog -->
     <HaexExtensionDialogRemove

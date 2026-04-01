@@ -1,6 +1,6 @@
 //! Cryptographic operations for browser bridge communication
 //!
-//! Uses ECDH (P-256) for key exchange and AES-256-GCM for encryption.
+//! Uses X25519 for key exchange and AES-256-GCM for encryption.
 //! Compatible with WebCrypto API in browsers.
 
 use aes_gcm::{
@@ -8,60 +8,58 @@ use aes_gcm::{
     Aes256Gcm, Nonce,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use p256::{
-    ecdh::EphemeralSecret,
-    pkcs8::EncodePublicKey,
-    PublicKey,
-};
-use rand::rngs::OsRng;
+use x25519_dalek::{PublicKey, StaticSecret};
 
 use super::error::BridgeError;
 
 const IV_LENGTH: usize = 12;
+const X25519_PUBLIC_KEY_LENGTH: usize = 32;
 
-/// Server keypair for ECDH key exchange
+/// Server keypair for X25519 key exchange
 pub struct ServerKeyPair {
-    secret: EphemeralSecret,
+    secret: StaticSecret,
     public_key: PublicKey,
 }
 
 impl ServerKeyPair {
-    /// Generate a new ECDH keypair
+    /// Generate a new X25519 keypair
     pub fn generate() -> Self {
-        let secret = EphemeralSecret::random(&mut OsRng);
-        let public_key = secret.public_key();
+        let mut secret_bytes = [0u8; 32];
+        rand::fill(&mut secret_bytes);
+        let secret = StaticSecret::from(secret_bytes);
+        let public_key = PublicKey::from(&secret);
         Self { secret, public_key }
     }
 
-    /// Export public key as Base64 SPKI format (compatible with WebCrypto)
-    pub fn public_key_spki_base64(&self) -> Result<String, BridgeError> {
-        let spki_der = self
-            .public_key
-            .to_public_key_der()
-            .map_err(|e| BridgeError::Crypto(format!("Failed to encode SPKI: {}", e)))?;
-        Ok(BASE64.encode(spki_der.as_bytes()))
+    /// Export public key as Base64 raw format (32 bytes)
+    pub fn public_key_base64(&self) -> String {
+        BASE64.encode(self.public_key.as_bytes())
     }
 
     /// Derive shared secret with a client's public key
     pub fn derive_shared_secret(&self, client_public_key: &PublicKey) -> [u8; 32] {
         let shared_secret = self.secret.diffie_hellman(client_public_key);
-        let bytes = shared_secret.raw_secret_bytes();
-        let mut result = [0u8; 32];
-        result.copy_from_slice(&bytes[..]);
-        result
+        shared_secret.to_bytes()
     }
 }
 
-/// Import a public key from Base64 SPKI format
-pub fn import_public_key_spki(base64_spki: &str) -> Result<PublicKey, BridgeError> {
-    use p256::pkcs8::DecodePublicKey;
-
-    let der_bytes = BASE64
-        .decode(base64_spki)
+/// Import a public key from Base64 raw format (32 bytes)
+pub fn import_public_key(base64_key: &str) -> Result<PublicKey, BridgeError> {
+    let key_bytes = BASE64
+        .decode(base64_key)
         .map_err(|e| BridgeError::Crypto(format!("Invalid base64: {}", e)))?;
 
-    PublicKey::from_public_key_der(&der_bytes)
-        .map_err(|e| BridgeError::Crypto(format!("Invalid SPKI public key: {}", e)))
+    if key_bytes.len() != X25519_PUBLIC_KEY_LENGTH {
+        return Err(BridgeError::Crypto(format!(
+            "Invalid X25519 public key length: expected {}, got {}",
+            X25519_PUBLIC_KEY_LENGTH,
+            key_bytes.len()
+        )));
+    }
+
+    let mut key_array = [0u8; X25519_PUBLIC_KEY_LENGTH];
+    key_array.copy_from_slice(&key_bytes);
+    Ok(PublicKey::from(key_array))
 }
 
 /// Encrypt a message using AES-256-GCM
@@ -70,7 +68,7 @@ pub fn encrypt_message(plaintext: &[u8], shared_key: &[u8; 32]) -> Result<(Vec<u
         .map_err(|e| BridgeError::Crypto(format!("Invalid key: {}", e)))?;
 
     let mut iv = [0u8; IV_LENGTH];
-    rand::RngCore::fill_bytes(&mut OsRng, &mut iv);
+    rand::fill(&mut iv);
     let nonce = Nonce::from(iv);
 
     let ciphertext = cipher
@@ -104,7 +102,7 @@ pub struct EncryptedEnvelope {
     pub message: String,      // Base64 encrypted payload
     pub iv: String,           // Base64 12-byte IV
     pub client_id: String,
-    pub public_key: String,   // Ephemeral public key (SPKI base64)
+    pub public_key: String,   // Ephemeral public key (Base64 raw 32 bytes)
     /// Target extension's public key (from manifest) - identifies the developer
     #[serde(default)]
     pub extension_public_key: Option<String>,
@@ -117,7 +115,7 @@ impl EncryptedEnvelope {
     /// Decrypt this envelope using the server's private key
     pub fn decrypt(&self, server_keypair: &ServerKeyPair) -> Result<serde_json::Value, BridgeError> {
         // Import client's ephemeral public key
-        let client_public_key = import_public_key_spki(&self.public_key)?;
+        let client_public_key = import_public_key(&self.public_key)?;
 
         // Derive shared secret
         let shared_secret = server_keypair.derive_shared_secret(&client_public_key);
@@ -155,13 +153,13 @@ impl EncryptedEnvelope {
 pub fn create_encrypted_response(
     action: &str,
     payload: &serde_json::Value,
-    client_public_key_spki: &str,
+    client_public_key_base64: &str,
 ) -> Result<EncryptedEnvelope, BridgeError> {
     // Generate ephemeral keypair for forward secrecy
     let ephemeral = ServerKeyPair::generate();
 
     // Import client's public key
-    let client_public_key = import_public_key_spki(client_public_key_spki)?;
+    let client_public_key = import_public_key(client_public_key_base64)?;
 
     // Derive shared secret
     let shared_secret = ephemeral.derive_shared_secret(&client_public_key);
@@ -177,31 +175,29 @@ pub fn create_encrypted_response(
         action: action.to_string(),
         message: BASE64.encode(&ciphertext),
         iv: BASE64.encode(&iv),
-        client_id: String::new(), // Server doesn't have a client_id
-        public_key: ephemeral.public_key_spki_base64()?,
-        extension_public_key: None, // Not needed for responses
-        extension_name: None,       // Not needed for responses
+        client_id: String::new(),
+        public_key: ephemeral.public_key_base64(),
+        extension_public_key: None,
+        extension_name: None,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use p256::elliptic_curve::sec1::ToEncodedPoint;
 
     #[test]
     fn test_keypair_generation() {
         let keypair = ServerKeyPair::generate();
-        let spki = keypair.public_key_spki_base64().unwrap();
-        assert!(!spki.is_empty());
-        // SPKI format should be decodable
-        let decoded = BASE64.decode(&spki).unwrap();
-        assert!(!decoded.is_empty());
+        let pub_base64 = keypair.public_key_base64();
+        assert!(!pub_base64.is_empty());
+        let decoded = BASE64.decode(&pub_base64).unwrap();
+        assert_eq!(decoded.len(), X25519_PUBLIC_KEY_LENGTH);
     }
 
     #[test]
     fn test_encrypt_decrypt_roundtrip() {
-        let key = [0u8; 32]; // Test key
+        let key = [0u8; 32];
         let plaintext = b"Hello, World!";
 
         let (ciphertext, iv) = encrypt_message(plaintext, &key).unwrap();
@@ -211,14 +207,22 @@ mod tests {
     }
 
     #[test]
-    fn test_spki_import_export() {
+    fn test_key_import_export() {
         let keypair = ServerKeyPair::generate();
-        let spki = keypair.public_key_spki_base64().unwrap();
-        let imported = import_public_key_spki(&spki).unwrap();
+        let pub_base64 = keypair.public_key_base64();
+        let imported = import_public_key(&pub_base64).unwrap();
 
-        // Verify the imported key matches by comparing encoded points
-        let original_point = keypair.public_key.to_encoded_point(false);
-        let imported_point = imported.to_encoded_point(false);
-        assert_eq!(original_point.as_bytes(), imported_point.as_bytes());
+        assert_eq!(keypair.public_key.as_bytes(), imported.as_bytes());
+    }
+
+    #[test]
+    fn test_shared_secret_agreement() {
+        let alice = ServerKeyPair::generate();
+        let bob = ServerKeyPair::generate();
+
+        let shared_a = alice.derive_shared_secret(&bob.public_key);
+        let shared_b = bob.derive_shared_secret(&alice.public_key);
+
+        assert_eq!(shared_a, shared_b);
     }
 }
