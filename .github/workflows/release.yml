@@ -466,6 +466,10 @@ jobs:
         run: |
           sed -i 's/kotlin-gradle-plugin:1.9.25/kotlin-gradle-plugin:2.1.0/' src-tauri/gen/android/build.gradle.kts
 
+      - name: Copy custom MainActivity with camera permission handler
+        run: |
+          cp .github/android-MainActivity.kt src-tauri/gen/android/app/src/main/java/space/haex/vault/MainActivity.kt
+
       - name: Generate app icons
         run: pnpm tauri icon app-icon.json
 
