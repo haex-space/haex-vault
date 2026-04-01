@@ -78,7 +78,7 @@ const onWizardCompleteAsync = async (wizardData: {
     syncBackendsStore.setTemporaryBackend({
       id: wizardData.backendId,
       name: new URL(wizardData.serverUrl).host,
-      serverUrl: wizardData.serverUrl,
+      homeServerUrl: wizardData.serverUrl,
       spaceId: wizardData.spaceId,
       identityId: wizardData.identityId,
       enabled: true,

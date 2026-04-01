@@ -16,7 +16,7 @@
             <div class="min-w-0">
               <p class="font-medium">{{ backend.name }}</p>
               <p class="text-sm text-gray-500 dark:text-gray-400 truncate">
-                {{ getBackendHostByUrl(backend.serverUrl) }}
+                {{ getBackendHostByUrl(backend.homeServerUrl) }}
               </p>
             </div>
           </div>

@@ -20,12 +20,15 @@ importers:
       '@dicebear/core':
         specifier: ^9.4.2
         version: 9.4.2
+      '@haex-space/federation-sdk':
+        specifier: 0.2.2
+        version: 0.2.2
       '@haex-space/marketplace-sdk':
         specifier: ^0.1.6
         version: 0.1.6(vue@3.5.30(typescript@5.9.3))
       '@haex-space/ucan':
-        specifier: ^0.1.6
-        version: 0.1.6
+        specifier: ^0.1.9
+        version: 0.1.9
       '@haex-space/vault-sdk':
         specifier: ^2.8.0
         version: 2.8.0(@libsql/client@0.17.0)(@nuxt/kit@4.3.1(magicast@0.5.2))(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.5.0)(vite@7.3.1(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))(vue@3.5.30(typescript@5.9.3))
@@ -1259,6 +1262,9 @@ packages:
   '@floating-ui/vue@1.1.10':
     resolution: {integrity: sha512-vdf8f6rHnFPPLRsmL4p12wYl+Ux4mOJOkjzKEMYVnwdf7UFdvBtHlLvQyx8iKG5vhPRbDRgZxdtpmyigDPjzYg==}
 
+  '@haex-space/federation-sdk@0.2.2':
+    resolution: {integrity: sha512-g4cxbWDH1vCF70my4b9mxxCoS6jxiQVItNoErNxLz1Ktb67TUXXcEjY8PrI08lTVrgpefUgfiMJgpITnY2W4Mg==}
+
   '@haex-space/marketplace-sdk@0.1.6':
     resolution: {integrity: sha512-TXMxYdmETxMPjMix7yq/i+dXP+WVSHZ3N/2ED2GaVjQ88nwanUkYqNZNO4MwWOACNKNmFeEYchFmYdfsGXDJOQ==}
     peerDependencies:
@@ -1267,8 +1273,8 @@ packages:
       vue:
         optional: true
 
-  '@haex-space/ucan@0.1.6':
-    resolution: {integrity: sha512-lQDWZsBLJ52KlaPdRbEjFdb2HVHnp83EHXEfKdhMpDP+I0V34UcDlvFUL2QhqO5GGPcyA3V5dXx5WA9rWE4/ig==}
+  '@haex-space/ucan@0.1.9':
+    resolution: {integrity: sha512-HUrV7YOteFMBNtNI9DUv7yNUL+tztkg2xvwxU6EMw8dMCTwH8bYeMmspxjlOY7H03gMtTrJkqf3rOxbaHYQ9Rw==}
 
   '@haex-space/vault-sdk@2.8.0':
     resolution: {integrity: sha512-kDcnqTA79TnJ/WxPRnDy5XcMtkmxYnCk3mNZt1S/9hPSeiO4gSx1rzXYDCg1ivr8M6oCJpYl9VsNrPR0b5hO4A==}
@@ -8440,11 +8446,13 @@ snapshots:
       - '@vue/composition-api'
       - vue
 
+  '@haex-space/federation-sdk@0.2.2': {}
+
   '@haex-space/marketplace-sdk@0.1.6(vue@3.5.30(typescript@5.9.3))':
     optionalDependencies:
       vue: 3.5.30(typescript@5.9.3)
 
-  '@haex-space/ucan@0.1.6': {}
+  '@haex-space/ucan@0.1.9': {}
 
   '@haex-space/vault-sdk@2.8.0(@libsql/client@0.17.0)(@nuxt/kit@4.3.1(magicast@0.5.2))(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.5.0)(vite@7.3.1(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))(vue@3.5.30(typescript@5.9.3))':
     dependencies:

@@ -12,7 +12,7 @@ import {
   type ColumnChange,
 } from '../tableScanner'
 import { DidAuthAction } from '@haex-space/ucan'
-import { createDidAuthHeader } from '@/utils/auth/didAuth'
+import { createDidAuthHeader, createFederatedDidAuthHeader } from '@/utils/auth/didAuth'
 import { orchestratorLog as log, type BackendSyncState, syncMutex } from './types'
 import type { MlsEpochKey } from '@bindings/MlsEpochKey'
 
@@ -65,7 +65,7 @@ export const pushToBackendAsync = async (
     log.debug('Backend config:', {
       backendId,
       spaceId: backend.spaceId,
-      serverUrl: backend.serverUrl,
+      serverUrl: backend.homeServerUrl,
       lastPushHlc: lastPushHlc || '(none)',
     })
 
@@ -307,14 +307,27 @@ export const pushChangesToServerAsync = async (
   const identity = backend.identityId ? await identityStore.getIdentityAsync(backend.identityId) : null
   if (!identity) throw new Error('No identity configured for this backend')
 
-  const url = `${backend.serverUrl}/sync/push`
+  const url = `${backend.homeServerUrl}/sync/push`
   const requestBody = JSON.stringify({ spaceId, changes: formattedChanges })
 
   log.debug('Sending POST to:', url)
   log.debug('Request payload:', { spaceId, changesCount: formattedChanges.length })
 
-  // Send to server with DID-Auth
-  const authHeader = await createDidAuthHeader(identity.privateKey, identity.did, DidAuthAction.SyncPush, requestBody)
+  // Send to server with appropriate auth
+  const authHeader = backend.type === 'relay' && backend.homeServerDid && backend.originServerDid
+    ? await createFederatedDidAuthHeader({
+        did: identity.did,
+        privateKeyBase64: identity.privateKey,
+        action: DidAuthAction.SyncPush,
+        federation: {
+          spaceId,
+          serverDid: backend.originServerDid,
+          relayDid: backend.homeServerDid,
+        },
+        body: requestBody,
+      })
+    : await createDidAuthHeader(identity.privateKey, identity.did, DidAuthAction.SyncPush, requestBody)
+
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: authHeader },
@@ -363,7 +376,7 @@ export const pushAllDataToBackendAsync = async (
   log.debug('Backend config:', {
     backendId,
     spaceId: backend.spaceId,
-    serverUrl: backend.serverUrl,
+    serverUrl: backend.homeServerUrl,
   })
 
   // Get encryption key: vault sync key from local DB

@@ -99,7 +99,7 @@
       "columns": {
         "id": "id",
         "name": "name",
-        "serverUrl": "server_url",
+        "homeServerUrl": "home_server_url",
         "spaceId": "space_id",
         "syncKey": "sync_key",
         "vaultKeySalt": "vault_key_salt",
@@ -109,6 +109,9 @@
         "lastPushHlcTimestamp": "last_push_hlc_timestamp",
         "lastPullServerTimestamp": "last_pull_server_timestamp",
         "pendingVaultKeyUpdate": "pending_vault_key_update",
+        "type": "type",
+        "homeServerDid": "home_server_did",
+        "originServerDid": "origin_server_did",
         "createdAt": "created_at",
         "updatedAt": "updated_at"
       }

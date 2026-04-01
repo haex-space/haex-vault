@@ -212,7 +212,7 @@ export const haexSyncBackends = sqliteTable(
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
     name: text(tableNames.haex.sync_backends.columns.name).notNull(),
-    serverUrl: text(tableNames.haex.sync_backends.columns.serverUrl).notNull(),
+    homeServerUrl: text(tableNames.haex.sync_backends.columns.homeServerUrl).notNull(),
     spaceId: text(tableNames.haex.sync_backends.columns.spaceId)
       .references(() => haexSpaces.id),
     syncKey: text(tableNames.haex.sync_backends.columns.syncKey),
@@ -233,6 +233,9 @@ export const haexSyncBackends = sqliteTable(
     })
       .default(false)
       .notNull(),
+    type: text(tableNames.haex.sync_backends.columns.type).notNull().default('home'),
+    homeServerDid: text(tableNames.haex.sync_backends.columns.homeServerDid),
+    originServerDid: text(tableNames.haex.sync_backends.columns.originServerDid),
     createdAt: text(tableNames.haex.sync_backends.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),
@@ -241,7 +244,7 @@ export const haexSyncBackends = sqliteTable(
     }).$onUpdate(() => new Date()),
   },
   (table) => [
-    uniqueIndex('haex_sync_backends_server_url_unique').on(table.serverUrl),
+    uniqueIndex('haex_sync_backends_home_server_url_unique').on(table.homeServerUrl),
   ],
 )
 export type InsertHaexSyncBackends = typeof haexSyncBackends.$inferInsert

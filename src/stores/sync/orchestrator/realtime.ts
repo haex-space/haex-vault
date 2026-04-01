@@ -165,8 +165,8 @@ export const subscribeToBackendAsync = async (
 
   // Only connect if not already connected (multiple backends share one WS)
   if (!realtime.connected.value) {
-    log.info(`SUBSCRIBE: Connecting WebSocket to ${backend.serverUrl}`)
-    await realtime.connect(backend.serverUrl, identity.privateKey, identity.did)
+    log.info(`SUBSCRIBE: Connecting WebSocket to ${backend.homeServerUrl}`)
+    await realtime.connect(backend.homeServerUrl, identity.privateKey, identity.did)
   }
 
   // Register event handlers for this backend
@@ -202,7 +202,7 @@ export const subscribeToBackendAsync = async (
         if (ucan) {
           const { fetchWithUcanAuth } = await import('@/utils/auth/ucanStore')
           const response = await fetchWithUcanAuth(
-            `${backend.serverUrl}/spaces/${event.spaceId}/invites`,
+            `${backend.homeServerUrl}/spaces/${event.spaceId}/invites`,
             event.spaceId,
             ucan,
           )
@@ -215,7 +215,7 @@ export const subscribeToBackendAsync = async (
                 // For token invites without UCAN: pass inviteId + capability so finalize creates one
                 const needsUcan = !invite.ucan
                 await spacesStore.finalizeInviteAsync(
-                  backend.serverUrl,
+                  backend.homeServerUrl,
                   event.spaceId,
                   invite.inviteeDid,
                   backend.identityId,
@@ -260,7 +260,7 @@ export const subscribeToBackendAsync = async (
       const identity = await identityStore.getIdentityAsync(backend.identityId)
       if (!identity) return
 
-      const delivery = useMlsDelivery(backend.serverUrl, event.spaceId, {
+      const delivery = useMlsDelivery(backend.homeServerUrl, event.spaceId, {
         privateKey: identity.privateKey,
         did: identity.did,
       })

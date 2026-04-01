@@ -646,7 +646,7 @@ const onConfirmDeleteBackendAsync = async () => {
           // Delete all spaces where user is admin (server validates role)
           try {
             await fetchWithDidAuth(
-              `${backend.serverUrl}/spaces/my-admin-spaces`,
+              `${backend.homeServerUrl}/spaces/my-admin-spaces`,
               identity.privateKey,
               identity.did,
               'delete-admin-spaces',
@@ -707,7 +707,7 @@ const loadVaultsForBackendAsync = async (
 
     // Fetch vaults from server using DID-Auth
     const response = await fetchWithDidAuth(
-      `${backend.serverUrl}/sync/vaults`,
+      `${backend.homeServerUrl}/sync/vaults`,
       identity.privateKey,
       identity.did,
       DidAuthAction.VaultList,

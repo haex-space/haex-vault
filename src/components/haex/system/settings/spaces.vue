@@ -306,7 +306,7 @@ const editingSpaceIsLocal = computed(() => {
 const editServerOptions = computed(() => {
   const options = [{ label: t('edit.noServer'), value: '' }]
   for (const backend of syncBackends.value) {
-    options.push({ label: backend.name, value: backend.serverUrl })
+    options.push({ label: backend.name, value: backend.homeServerUrl })
   }
   return options
 })
@@ -367,8 +367,8 @@ const serverUrlOptions = computed(() => {
   const options = [{ label: t('create.localOnly'), value: '' }]
   const urls = new Set<string>()
   for (const backend of syncBackends.value) {
-    if (backend.serverUrl) {
-      urls.add(backend.serverUrl)
+    if (backend.homeServerUrl) {
+      urls.add(backend.homeServerUrl)
     }
   }
   for (const url of urls) {
@@ -407,8 +407,8 @@ const loadSpacesAsync = async () => {
     // Load remote spaces from all backends
     const urls = new Set<string>()
     for (const backend of syncBackends.value) {
-      if (backend.serverUrl) {
-        urls.add(backend.serverUrl)
+      if (backend.homeServerUrl) {
+        urls.add(backend.homeServerUrl)
       }
     }
     for (const url of urls) {
@@ -534,7 +534,7 @@ const onJoinSpaceAsync = async () => {
     // Create a sync backend for this space
     await syncBackendsStore.addBackendAsync({
       name: `Space ${tokenLink.spaceId.slice(0, 8)}`,
-      serverUrl: tokenLink.serverUrl,
+      homeServerUrl: tokenLink.serverUrl,
       spaceId: tokenLink.spaceId,
       identityId,
       enabled: true,
@@ -563,7 +563,7 @@ const onJoinSpaceAsync = async () => {
 
 // Find the identity linked to a space via its sync backend
 const getIdentityForSpace = (spaceServerUrl: string): string | undefined => {
-  const backend = syncBackends.value.find(b => b.serverUrl === spaceServerUrl)
+  const backend = syncBackends.value.find(b => b.homeServerUrl === spaceServerUrl)
   return backend?.identityId ?? undefined
 }
 

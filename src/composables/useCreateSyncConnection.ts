@@ -139,7 +139,7 @@ export const useCreateSyncConnection = () => {
       const { backends } = storeToRefs(syncBackendsStore)
 
       const existingBackend = backends.value.find(
-        (b) => b.serverUrl === params.serverUrl,
+        (b) => b.homeServerUrl === params.serverUrl,
       )
       if (existingBackend) {
         error.value = `A connection to ${params.serverUrl} already exists`
@@ -314,7 +314,7 @@ export const useCreateSyncConnection = () => {
       const backendName = getBackendNameFromUrl(serverUrl)
       const tempBackend = await syncBackendsStore.addBackendAsync({
         name: backendName,
-        serverUrl,
+        homeServerUrl: serverUrl,
         enabled: false,
         spaceId: currentVaultId.value,
         identityId,

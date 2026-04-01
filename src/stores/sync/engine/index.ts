@@ -135,8 +135,8 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
           engineLog.warn('DID re-auth resolver: identity missing did or privateKey', { identityId: b.identityId, hasDid: !!identity?.did, hasKey: !!identity?.privateKey })
           return null
         }
-        engineLog.info('DID re-auth resolver: context ready', { serverUrl: b.serverUrl, did: identity.did.slice(0, 20) + '...' })
-        return { serverUrl: b.serverUrl, did: identity.did, privateKey: identity.privateKey }
+        engineLog.info('DID re-auth resolver: context ready', { serverUrl: b.homeServerUrl, did: identity.did.slice(0, 20) + '...' })
+        return { serverUrl: b.homeServerUrl, did: identity.did, privateKey: identity.privateKey }
       } catch (e) {
         engineLog.error('DID re-auth resolver: exception', e)
         return null
@@ -172,7 +172,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     const backend = findBackend(backendId)
     const identity = await resolveBackendIdentityAsync(backendId)
     const { vaultKeySalt } = await uploadVaultKeyAsync(
-      backend.serverUrl,
+      backend.homeServerUrl,
       spaceId,
       vaultKey,
       vaultName,
@@ -196,7 +196,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   ): Promise<Uint8Array> => {
     const backend = findBackend(backendId)
     const identity = await resolveBackendIdentityAsync(backendId)
-    return getVaultKeyFromServerAsync(backend.serverUrl, spaceId, password, identity.privateKey, identity.did)
+    return getVaultKeyFromServerAsync(backend.homeServerUrl, spaceId, password, identity.privateKey, identity.did)
   }
 
   /**
@@ -209,7 +209,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   ): Promise<void> => {
     const backend = findBackend(backendId)
     const identity = await resolveBackendIdentityAsync(backendId)
-    return pushChanges(backend.serverUrl, spaceId, changes, identity.privateKey, identity.did)
+    return pushChanges(backend.homeServerUrl, spaceId, changes, identity.privateKey, identity.did)
   }
 
   /**
@@ -224,7 +224,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   ): Promise<ReturnType<typeof pullChanges>> => {
     const backend = findBackend(backendId)
     const identity = await resolveBackendIdentityAsync(backendId)
-    return pullChanges(backend.serverUrl, spaceId, excludeDeviceId, afterCreatedAt, limit, identity.privateKey, identity.did)
+    return pullChanges(backend.homeServerUrl, spaceId, excludeDeviceId, afterCreatedAt, limit, identity.privateKey, identity.did)
   }
 
   /**
@@ -302,7 +302,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
         await saveSyncKeyToDb(backendId, cached.vaultKey)
       }
       // Verify the key exists on the server, re-upload if missing
-      const resolvedServerUrl = serverUrl ?? syncBackendsStore.backends.find((b) => b.id === backendId)?.serverUrl
+      const resolvedServerUrl = serverUrl ?? syncBackendsStore.backends.find((b) => b.id === backendId)?.homeServerUrl
       if (resolvedServerUrl) {
         try {
           const identity = await resolveBackendIdentityAsync(backendId)
@@ -409,7 +409,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     if (!backend) {
       return false
     }
-    return healthCheck(backend.serverUrl)
+    return healthCheck(backend.homeServerUrl)
   }
 
   /**
@@ -423,7 +423,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     let resolvedServerUrl = serverUrl
     if (!resolvedServerUrl) {
       const backend = findBackend(backendId)
-      resolvedServerUrl = backend.serverUrl
+      resolvedServerUrl = backend.homeServerUrl
     }
     const identity = await resolveBackendIdentityAsync(backendId)
     return deleteRemote(resolvedServerUrl, spaceId, identity.privateKey, identity.did)
@@ -439,7 +439,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     let resolvedServerUrl = serverUrl
     if (!resolvedServerUrl) {
       const backend = findBackend(backendId)
-      resolvedServerUrl = backend.serverUrl
+      resolvedServerUrl = backend.homeServerUrl
     }
     const identity = await resolveBackendIdentityAsync(backendId)
     return deleteAllVaults(resolvedServerUrl, identity.privateKey, identity.did)
@@ -456,7 +456,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     const backend = findBackend(backendId)
     const identity = await resolveBackendIdentityAsync(backendId)
     const identityPublicKey = await getIdentityPublicKeyAsync(backendId)
-    return updateName(backend.serverUrl, spaceId, newVaultName, identityPublicKey, identity.privateKey, identity.did)
+    return updateName(backend.homeServerUrl, spaceId, newVaultName, identityPublicKey, identity.privateKey, identity.did)
   }
 
   /**
@@ -475,7 +475,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
 
     const identity = await resolveBackendIdentityAsync(backendId)
     const result = await reEncryptVaultKeyAsync(
-      backend.serverUrl,
+      backend.homeServerUrl,
       spaceId,
       vaultKey,
       newPassword,

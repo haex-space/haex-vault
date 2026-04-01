@@ -145,7 +145,7 @@ export const useSyncOrchestratorStore = defineStore(
             currentVaultId.value,
             vaultName,
             currentVaultPassword.value,
-            backend.serverUrl,
+            backend.homeServerUrl,
           )
         }
 
@@ -663,17 +663,17 @@ export const useSyncOrchestratorStore = defineStore(
         log.debug('Initial pull config:', {
           backendId,
           spaceId: tempBackend.spaceId,
-          serverUrl: tempBackend.serverUrl,
+          serverUrl: tempBackend.homeServerUrl,
         })
 
         // Pull ALL changes (no cursor since this is initial sync)
         log.info('Downloading all changes from server...')
-        const pullResult = await pullChangesFromServerAsync(
-          tempBackend.serverUrl,
-          tempBackend.spaceId,
-          null, // No lastPullServerTimestamp - get everything
+        const pullResult = await pullChangesFromServerAsync({
+          serverUrl: tempBackend.homeServerUrl,
+          spaceId: tempBackend.spaceId,
+          lastPullServerTimestamp: null,
           syncEngineStore,
-        )
+        })
 
         const { changes: allChanges, serverTimestamp } = pullResult
 
@@ -704,7 +704,7 @@ export const useSyncOrchestratorStore = defineStore(
 
         // Find the backend (could have different ID if it existed from sync)
         const persistedBackend = await syncBackendsStore.findBackendByServerUrlAsync(
-          tempBackend.serverUrl,
+          tempBackend.homeServerUrl,
         )
 
         if (persistedBackend) {

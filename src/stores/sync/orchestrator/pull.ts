@@ -8,7 +8,7 @@ import { emit } from '@tauri-apps/api/event'
 import { decryptCrdtData } from '@haex-space/vault-sdk'
 import { DidAuthAction } from '@haex-space/ucan'
 import type { ColumnChange } from '../tableScanner'
-import { createDidAuthHeader } from '@/utils/auth/didAuth'
+import { createDidAuthHeader, createFederatedDidAuthHeader } from '@/utils/auth/didAuth'
 import { orchestratorLog as log, type BackendSyncState, type PullResult, syncMutex } from './types'
 import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
 import { SYNC_TABLES_INTERNAL_EVENT } from '../syncEvents'
@@ -75,13 +75,16 @@ export const pullFromBackendAsync = async (
 
     // Step 1: Download ALL changes from server (with pagination)
     log.info('Downloading changes from server...')
-    const pullResult = await pullChangesFromServerAsync(
-      backend.serverUrl,
-      backend.spaceId,
+    const pullResult = await pullChangesFromServerAsync({
+      serverUrl: backend.homeServerUrl,
+      spaceId: backend.spaceId,
       lastPullServerTimestamp,
       syncEngineStore,
-      backend.identityId,
-    )
+      backendIdentityId: backend.identityId,
+      federation: backend.type === 'relay' && backend.homeServerDid && backend.originServerDid
+        ? { serverDid: backend.homeServerDid, originServerDid: backend.originServerDid }
+        : undefined,
+    })
 
     const { changes: allChanges, serverTimestamp } = pullResult
 
@@ -111,7 +114,7 @@ export const pullFromBackendAsync = async (
     // that didn't exist locally (older app version), and now we have those columns
     // after an app update, we pull all data for them from the server
     const pendingColumnsPulled = await pullPendingColumnsAsync(
-      backend.serverUrl,
+      backend.homeServerUrl,
       backend.spaceId,
       encryptionKey,
       backendId,
@@ -198,13 +201,17 @@ export const pullFromBackendAsync = async (
  * @param lastPullServerTimestamp - Cursor for incremental sync (null for full sync)
  * @param syncEngineStore - Sync engine store for auth token
  */
-export const pullChangesFromServerAsync = async (
-  serverUrl: string,
-  spaceId: string,
-  lastPullServerTimestamp: string | null | undefined,
-  syncEngineStore: ReturnType<typeof useSyncEngineStore>,
-  backendIdentityId?: string | null,
-): Promise<PullResult> => {
+interface PullOptions {
+  serverUrl: string
+  spaceId: string
+  lastPullServerTimestamp: string | null | undefined
+  syncEngineStore: ReturnType<typeof useSyncEngineStore>
+  backendIdentityId?: string | null
+  federation?: { serverDid: string; originServerDid: string }
+}
+
+export const pullChangesFromServerAsync = async (options: PullOptions): Promise<PullResult> => {
+  const { serverUrl, spaceId, lastPullServerTimestamp, syncEngineStore, backendIdentityId, federation } = options
   log.info('pullChangesFromServerAsync: Starting pull from', serverUrl, 'space:', spaceId)
 
   // Resolve identity for DID-Auth
@@ -240,7 +247,17 @@ export const pullChangesFromServerAsync = async (
     const url = `${serverUrl}/sync/pull?${params.toString()}`
     log.info(`[PAGINATION] Fetching page ${pageCount} with cursor: ${currentCursor || '(none)'}, tableName: ${currentTableName || '(none)'}, rowPks: ${currentRowPks || '(none)'}`)
 
-    const authHeader = await createDidAuthHeader(identity.privateKey, identity.did, DidAuthAction.SyncPull)
+    const queryString = params.toString()
+    const authHeader = federation
+      ? await createFederatedDidAuthHeader({
+          did: identity.did,
+          privateKeyBase64: identity.privateKey,
+          action: DidAuthAction.SyncPull,
+          federation: { spaceId, serverDid: federation.originServerDid, relayDid: federation.serverDid },
+          queryString,
+        })
+      : await createDidAuthHeader(identity.privateKey, identity.did, DidAuthAction.SyncPull)
+
     const response = await fetch(url, {
       method: 'GET',
       headers: { Authorization: authHeader },
@@ -577,7 +594,16 @@ export const pullPendingColumnsAsync = async (
         afterTableName: lastTableName,
         afterRowPks: lastRowPks,
       })
-      const authHeader = await createDidAuthHeader(identity.privateKey, identity.did, DidAuthAction.SyncPullColumns, requestBody)
+      const authHeader = federation
+        ? await createFederatedDidAuthHeader({
+            did: identity.did,
+            privateKeyBase64: identity.privateKey,
+            action: DidAuthAction.SyncPullColumns,
+            federation: { spaceId, serverDid: federation.originServerDid, relayDid: federation.serverDid },
+            body: requestBody,
+          })
+        : await createDidAuthHeader(identity.privateKey, identity.did, DidAuthAction.SyncPullColumns, requestBody)
+
       const response = await fetch(`${serverUrl}/sync/pull-columns`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: authHeader },

@@ -53,7 +53,7 @@ export const useUpdateIdentityPassword = () => {
       for (const backend of backends) {
         try {
           const res = await fetchWithDidAuth(
-            `${backend.serverUrl}/identity-auth/update-recovery`,
+            `${backend.homeServerUrl}/identity-auth/update-recovery`,
             identity.privateKey,
             identity.did,
             DidAuthAction.UpdateRecovery,
@@ -69,8 +69,8 @@ export const useUpdateIdentityPassword = () => {
             throw new Error(data.error || `HTTP ${res.status}`)
           }
         } catch (err) {
-          console.error(`[UPDATE PASSWORD] Failed for backend ${backend.serverUrl}:`, err)
-          failures.push(backend.serverUrl)
+          console.error(`[UPDATE PASSWORD] Failed for backend ${backend.homeServerUrl}:`, err)
+          failures.push(backend.homeServerUrl)
         }
       }
 

@@ -180,7 +180,7 @@ const loadInvitesAsync = async () => {
 /** Find the server URL for a space from sync backends */
 const getServerUrlForSpace = (spaceId: string): string | undefined => {
   const backend = syncBackends.value.find(b => b.spaceId === spaceId)
-  return backend?.serverUrl
+  return backend?.homeServerUrl
 }
 
 /** Get the first available identity for auth */

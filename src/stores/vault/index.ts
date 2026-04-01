@@ -113,7 +113,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
 
           // Initialize token manager and authenticate via DID challenge-response
           syncEngineStore.initTokenManagerAsync(backend.id)
-          const session = await didAuthenticateAsync(backend.serverUrl, identity.did, identity.privateKey)
+          const session = await didAuthenticateAsync(backend.homeServerUrl, identity.did, identity.privateKey)
           syncEngineStore.setSession(session)
 
           // Ensure sync key exists
