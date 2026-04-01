@@ -130,8 +130,6 @@ jobs:
           git clone --depth 1 https://x-access-token:${{ github.token }}@github.com/haex-space/haex-sync-server.git repos/haex-sync-server
 
       - name: Start backend services
-        env:
-          HAEX_SYNC_SERVER_PATH: repos/haex-sync-server
         run: |
           docker compose -f docker/docker-compose.yml up -d sync-db sync-gotrue sync-kong sync-server
           echo "Waiting for backend services..."
