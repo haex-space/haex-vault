@@ -20,6 +20,15 @@
             {{ backendName }}
           </UBadge>
           <UBadge
+            v-if="federationOriginHost"
+            color="warning"
+            variant="subtle"
+            size="sm"
+            icon="i-lucide-globe"
+          >
+            {{ t('federation.label') }} {{ federationOriginHost }}
+          </UBadge>
+          <UBadge
             :color="roleBadgeColor"
             variant="subtle"
             size="sm"
@@ -91,6 +100,26 @@
 
       <template #content>
         <div class="mt-2">
+          <!-- Federation Info -->
+          <div
+            v-if="federationBackend?.type === 'relay'"
+            class="mb-3 p-2 rounded-md bg-warning-50 dark:bg-warning-950/30 text-xs space-y-1"
+          >
+            <p class="font-medium text-warning-700 dark:text-warning-300 flex items-center gap-1.5">
+              <UIcon name="i-lucide-globe" class="w-3.5 h-3.5" />
+              {{ t('federation.title') }}
+            </p>
+            <div class="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-gray-600 dark:text-gray-400">
+              <span>{{ t('federation.originServer') }}:</span>
+              <span class="truncate font-mono">{{ space.serverUrl }}</span>
+              <span>{{ t('federation.relayServer') }}:</span>
+              <span class="truncate font-mono">{{ federationBackend.homeServerUrl }}</span>
+              <span v-if="federationBackend.originServerDid">{{ t('federation.originDid') }}:</span>
+              <span v-if="federationBackend.originServerDid" class="truncate font-mono">{{ federationBackend.originServerDid }}</span>
+              <span v-if="federationBackend.homeServerDid">{{ t('federation.relayDid') }}:</span>
+              <span v-if="federationBackend.homeServerDid" class="truncate font-mono">{{ federationBackend.homeServerDid }}</span>
+            </div>
+          </div>
           <SpaceLinkedItems
             :groups="groups"
             :is-loading="isLoading"
@@ -138,9 +167,20 @@ const inviteMenuItems = computed(() => [
 
 const { t } = useI18n()
 
-const { getBackendNameByUrl } = useSyncBackendsStore()
+const { getBackendNameByUrl, isFederated, getBackendForSpace } = useSyncBackendsStore()
 
 const backendName = computed(() => getBackendNameByUrl(props.space.serverUrl))
+
+const federationBackend = computed(() => getBackendForSpace(props.space.id))
+
+const federationOriginHost = computed(() => {
+  if (!federationBackend.value || federationBackend.value.type !== 'relay') return null
+  try {
+    return new URL(props.space.serverUrl).hostname
+  } catch {
+    return props.space.serverUrl
+  }
+})
 
 const roleBadgeColor = computed(() => {
   switch (props.space.role) {
@@ -194,6 +234,13 @@ de:
     contact: Kontakt einladen
     link: Einladungslink erstellen
     open: Offene Einladung
+  federation:
+    label: "Föderiert:"
+    title: Föderation
+    originServer: Origin-Server
+    relayServer: Relay-Server
+    originDid: Origin-DID
+    relayDid: Relay-DID
   linkedItems:
     label: Verknüpfte Inhalte
 en:
@@ -212,6 +259,13 @@ en:
     contact: Invite contact
     link: Create invite link
     open: Open invitation
+  federation:
+    label: "Federated:"
+    title: Federation
+    originServer: Origin server
+    relayServer: Relay server
+    originDid: Origin DID
+    relayDid: Relay DID
   linkedItems:
     label: Linked content
 </i18n>
