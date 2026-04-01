@@ -22,6 +22,13 @@
       "when": 1774947855353,
       "tag": "0002_sleepy_dreaming_celestial",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1775073344357,
+      "tag": "0003_supreme_sunspot",
+      "breakpoints": true
     }
   ]
 }
