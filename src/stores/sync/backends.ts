@@ -247,11 +247,28 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
     }
   }
 
+  /**
+   * Find the sync backend for a given space ID.
+   */
+  const getBackendForSpace = (spaceId: string): SelectHaexSyncBackends | undefined => {
+    return backends.value.find(b => b.spaceId === spaceId)
+  }
+
+  /**
+   * Check if a space uses federation (relay backend).
+   */
+  const isFederated = (spaceId: string): boolean => {
+    const backend = getBackendForSpace(spaceId)
+    return backend?.type === 'relay'
+  }
+
   return {
     backends,
     enabledBackends,
     getBackendNameByUrl,
     getBackendHostByUrl,
+    getBackendForSpace,
+    isFederated,
     sortedBackends,
     temporaryBackend,
     loadBackendsAsync,
