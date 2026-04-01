@@ -574,6 +574,10 @@ export const pullPendingColumnsAsync = async (
   const identity = backendRecord?.identityId ? await identityStore.getIdentityAsync(backendRecord.identityId) : null
   if (!identity) throw new Error('No identity configured for this backend')
 
+  const federation = backendRecord?.type === 'relay' && backendRecord.homeServerDid && backendRecord.originServerDid
+    ? { serverDid: backendRecord.homeServerDid, originServerDid: backendRecord.originServerDid }
+    : undefined
+
   // Step 2: Pull data for each column from server (with pagination)
   let totalPulled = 0
 
