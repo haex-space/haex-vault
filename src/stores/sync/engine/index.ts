@@ -78,6 +78,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
    */
   const findBackend = (backendId: string) => {
     const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
+      ?? (syncBackendsStore.temporaryBackend?.id === backendId ? syncBackendsStore.temporaryBackend : null)
     if (!backend) {
       throw new Error('Backend not found')
     }
