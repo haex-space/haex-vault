@@ -6,6 +6,7 @@
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use tauri::{AppHandle, Emitter};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -23,6 +24,7 @@ const VALID_CAPABILITIES: &[&str] = &["space/read", "space/write", "space/invite
 pub fn handle_push_invite(
     db: &DbConnection,
     hlc: &Arc<Mutex<HlcService>>,
+    app_handle: &AppHandle,
     space_id: &str,
     space_name: &str,
     space_type: &str,
@@ -108,6 +110,8 @@ pub fn handle_push_invite(
         db,
         &hlc_guard,
     );
+
+    let _ = app_handle.emit("push-invite-received", ());
 
     Response::PushInviteAck { accepted: true }
 }

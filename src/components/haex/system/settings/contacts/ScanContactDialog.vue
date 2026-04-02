@@ -356,6 +356,11 @@ const onSaveContactAsync = async () => {
       .filter((c) => c.selected)
       .map((c) => ({ type: c.type, value: c.value }))
 
+    // Persist endpointId as a claim for P2P delivery
+    if (scannedContact.value.endpointId) {
+      selectedClaims.push({ type: 'endpointId', value: scannedContact.value.endpointId })
+    }
+
     const contact = await contactsStore.addContactWithClaimsAsync(
       scannedContact.value.label.trim(),
       scannedContact.value.publicKey,

@@ -3,6 +3,7 @@
  * Uses new table-scanning approach with column-level HLC timestamps
  */
 
+import { useTimeoutPoll } from '@vueuse/core'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, emit } from '@tauri-apps/api/event'
 import { orchestratorLog as log, type BackendSyncState } from './types'
@@ -39,9 +40,9 @@ export const useSyncOrchestratorStore = defineStore(
 
     // Dirty tables watcher
     let dirtyTablesDebounceTimer: ReturnType<typeof setTimeout> | null = null
-    let periodicSyncInterval: ReturnType<typeof setInterval> | null = null
-    let outboxProcessorInterval: ReturnType<typeof setInterval> | null = null // assigned in startWatchers, cleared in stopSync
-    const periodicPullIntervals: Map<string, ReturnType<typeof setInterval>> = new Map()
+    let fallbackPullPoll: ReturnType<typeof useTimeoutPoll> | null = null
+    let outboxProcessorPoll: ReturnType<typeof useTimeoutPoll> | null = null
+    const periodicPullPolls: Map<string, ReturnType<typeof useTimeoutPoll>> = new Map()
     let eventUnlisten: (() => void) | null = null
     let localSyncUnlisten: (() => void) | null = null
 
@@ -190,21 +191,17 @@ export const useSyncOrchestratorStore = defineStore(
 
         // Always start periodic pull as fallback (even if initial pull was already done)
         // Skip if already running
-        if (!periodicPullIntervals.has(backendId)) {
+        if (!periodicPullPolls.has(backendId)) {
           log.info('INIT: Step 4 - Setting up periodic pull (every 5 min)')
-          const periodicPullInterval = setInterval(
-            async () => {
-              try {
-                log.info(`PERIODIC: Pull triggered for backend ${backendId} at ${new Date().toISOString()}`)
-                await pullFromBackendWrapperAsync(backendId)
-              } catch (error) {
-                log.error(`PERIODIC: Pull failed for backend ${backendId}:`, error)
-              }
-            },
-            5 * 60 * 1000,
-          ) // 5 minutes
-
-          periodicPullIntervals.set(backendId, periodicPullInterval)
+          const poll = useTimeoutPoll(async () => {
+            try {
+              log.info(`PERIODIC: Pull triggered for backend ${backendId} at ${new Date().toISOString()}`)
+              await pullFromBackendWrapperAsync(backendId)
+            } catch (error) {
+              log.error(`PERIODIC: Pull failed for backend ${backendId}:`, error)
+            }
+          }, 5 * 60 * 1000)
+          periodicPullPolls.set(backendId, poll)
         } else {
           log.info('INIT: Step 4 - Skipping periodic pull (already running)')
         }
@@ -364,7 +361,8 @@ export const useSyncOrchestratorStore = defineStore(
       log.info(`[WATCHER] Push listener REGISTERED (debounce: ${config.continuousDebounceMs}ms)`)
 
       // Start fallback pull: Catch missed realtime updates
-      periodicSyncInterval = setInterval(async () => {
+      // Start fallback pull: Catch missed realtime updates
+      fallbackPullPoll = useTimeoutPoll(async () => {
         log.info('[WATCHER] Fallback pull timer elapsed - pulling from all backends')
         const enabledBackends = syncBackendsStore.enabledBackends
         for (const backend of enabledBackends) {
@@ -380,8 +378,7 @@ export const useSyncOrchestratorStore = defineStore(
       )
 
       // Start invite outbox processor (checks every 30s for pending deliveries)
-      const OUTBOX_INTERVAL_MS = 30_000
-      outboxProcessorInterval = setInterval(async () => {
+      outboxProcessorPoll = useTimeoutPoll(async () => {
         try {
           const { useInviteOutbox } = await import('@/composables/useInviteOutbox')
           const { processOutboxAsync } = useInviteOutbox()
@@ -389,8 +386,8 @@ export const useSyncOrchestratorStore = defineStore(
         } catch (error) {
           log.error('[WATCHER] Outbox processing failed:', error)
         }
-      }, OUTBOX_INTERVAL_MS)
-      log.info(`[WATCHER] Invite outbox processor started (interval: ${OUTBOX_INTERVAL_MS}ms)`)
+      }, 30_000)
+      log.info('[WATCHER] Invite outbox processor started (interval: 30000ms)')
     }
 
     /**
@@ -402,9 +399,9 @@ export const useSyncOrchestratorStore = defineStore(
         dirtyTablesDebounceTimer = null
       }
 
-      if (periodicSyncInterval) {
-        clearInterval(periodicSyncInterval)
-        periodicSyncInterval = null
+      if (fallbackPullPoll) {
+        fallbackPullPoll.pause()
+        fallbackPullPoll = null
       }
 
       if (eventUnlisten) {
@@ -595,15 +592,15 @@ export const useSyncOrchestratorStore = defineStore(
       stopDirtyTablesWatcher()
 
       // Stop invite outbox processor
-      if (outboxProcessorInterval) {
-        clearInterval(outboxProcessorInterval)
-        outboxProcessorInterval = null
+      if (outboxProcessorPoll) {
+        outboxProcessorPoll.pause()
+        outboxProcessorPoll = null
       }
 
-      // Stop all periodic pull intervals
-      for (const [backendId, interval] of periodicPullIntervals.entries()) {
-        clearInterval(interval)
-        periodicPullIntervals.delete(backendId)
+      // Stop all periodic pull polls
+      for (const [backendId, poll] of periodicPullPolls.entries()) {
+        poll.pause()
+        periodicPullPolls.delete(backendId)
       }
 
       // Unsubscribe individual backends and disconnect the shared WebSocket

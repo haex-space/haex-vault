@@ -1,6 +1,6 @@
 import { eq, and, lte } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
-import { haexInviteOutbox, haexSpaces, haexSpaceDevices } from '~/database/schemas'
+import { haexInviteOutbox, haexInviteTokens, haexSpaces, haexSpaceDevices } from '~/database/schemas'
 import { OutboxStatus } from '~/database/constants'
 import { createLogger } from '@/stores/logging'
 
@@ -81,6 +81,12 @@ export function useInviteOutbox() {
           .update(haexInviteOutbox)
           .set({ status: OutboxStatus.EXPIRED })
           .where(eq(haexInviteOutbox.id, entry.id))
+        // Delete token if expired > 2 weeks (keep for UI display)
+        const twoWeeksMs = 14 * 24 * 60 * 60 * 1000
+        if (Date.now() - new Date(entry.expiresAt).getTime() > twoWeeksMs) {
+          await db.delete(haexInviteTokens).where(eq(haexInviteTokens.id, entry.tokenId))
+          log.info(`Deleted stale invite token ${entry.tokenId} (expired > 2 weeks)`)
+        }
         log.info(`Outbox entry ${entry.id} expired`)
         continue
       }
@@ -97,6 +103,38 @@ export function useInviteOutbox() {
         continue
       }
 
+      // Load invite token for capabilities and history flag
+      const tokenRows = await db
+        .select()
+        .from(haexInviteTokens)
+        .where(eq(haexInviteTokens.id, entry.tokenId))
+        .limit(1)
+      const token = tokenRows[0]
+      if (!token || !token.capabilities) {
+        log.warn(`Outbox entry ${entry.id}: invite token ${entry.tokenId} not found or has no capabilities, skipping`)
+        await db
+          .update(haexInviteOutbox)
+          .set({ status: OutboxStatus.EXPIRED })
+          .where(eq(haexInviteOutbox.id, entry.id))
+        continue
+      }
+
+      // Token expired — mark outbox entry, clean up token after 2 weeks
+      if (token.expiresAt <= now) {
+        await db
+          .update(haexInviteOutbox)
+          .set({ status: OutboxStatus.EXPIRED })
+          .where(eq(haexInviteOutbox.id, entry.id))
+        const twoWeeksMs = 14 * 24 * 60 * 60 * 1000
+        if (Date.now() - new Date(token.expiresAt).getTime() > twoWeeksMs) {
+          await db.delete(haexInviteTokens).where(eq(haexInviteTokens.id, token.id))
+          log.info(`Deleted stale invite token ${token.id} (expired > 2 weeks)`)
+        }
+        continue
+      }
+
+      const capabilities: string[] = JSON.parse(token.capabilities)
+
       // Load all space device endpoints
       const devices = await db
         .select()
@@ -111,8 +149,8 @@ export function useInviteOutbox() {
           spaceName: space.name,
           spaceType: space.type,
           tokenId: entry.tokenId,
-          capabilities: ['space/read'], // TODO: load from invite token
-          includeHistory: false, // TODO: load from invite token
+          capabilities,
+          includeHistory: token.includeHistory ?? false,
           inviterDid: identity.did,
           inviterLabel: identity.label || null,
           spaceEndpoints,

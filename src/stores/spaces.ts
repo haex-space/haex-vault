@@ -816,7 +816,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   const inviteContactToLocalSpaceAsync = async ({
     spaceId,
     contactDid,
-    contactEndpointId,
+    contactEndpointIds,
     capabilities,
     includeHistory,
     expiresInSeconds,
@@ -824,12 +824,16 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   }: {
     spaceId: string
     contactDid: string
-    contactEndpointId: string
+    contactEndpointIds: string[]
     capabilities: string[]
     includeHistory: boolean
     expiresInSeconds: number
     spaceEndpoints: string[]
   }) => {
+    if (contactEndpointIds.length === 0) {
+      throw new Error('Contact has no known EndpointId — share identities via QR code first')
+    }
+
     const tokenId = await invoke<string>('local_delivery_create_invite', {
       spaceId,
       targetDid: contactDid,
@@ -843,15 +847,19 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const { createOutboxEntryAsync } = useInviteOutbox()
     const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString()
 
-    await createOutboxEntryAsync({
-      spaceId,
-      tokenId,
-      targetDid: contactDid,
-      targetEndpointId: contactEndpointId,
-      expiresAt,
-    })
+    // Create one outbox entry per EndpointId — first successful delivery wins,
+    // duplicates are ignored via INSERT OR IGNORE on the receiving side
+    for (const endpointId of contactEndpointIds) {
+      await createOutboxEntryAsync({
+        spaceId,
+        tokenId,
+        targetDid: contactDid,
+        targetEndpointId: endpointId,
+        expiresAt,
+      })
+    }
 
-    log.info(`Created contact invite for ${contactDid} in local space ${spaceId}`)
+    log.info(`Created contact invite for ${contactDid} in local space ${spaceId} (${contactEndpointIds.length} endpoint(s))`)
   }
 
   /**

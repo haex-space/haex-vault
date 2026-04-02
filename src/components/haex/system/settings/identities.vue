@@ -58,6 +58,7 @@
                 <UiAvatar
                   :src="identity.avatar"
                   :seed="identity.publicKey"
+                  avatar-style="toon-head"
                   size="sm"
                 />
                 <span class="font-medium truncate">{{ identity.label }}</span>
@@ -184,6 +185,7 @@
             <UiAvatarPicker
               v-model="createAvatar"
               :seed="createLabel || 'new'"
+              avatar-style="toon-head"
               size="xl"
             />
           </div>
@@ -318,6 +320,7 @@
                 v-if="importParsed.avatar"
                 :src="importParsed.avatar"
                 :seed="importParsed.publicKey"
+                avatar-style="toon-head"
                 size="sm"
               />
               <div class="min-w-0 flex-1">
@@ -342,6 +345,7 @@
               <UiAvatar
                 :src="importParsed.avatar"
                 :seed="importParsed.publicKey"
+                avatar-style="toon-head"
                 size="sm"
               />
               <span class="text-sm">{{ t('import.includeAvatar') }}</span>
@@ -416,6 +420,7 @@
           <UiAvatar
             :src="exportTarget.avatar"
             :seed="exportTarget.publicKey"
+            avatar-style="toon-head"
             size="sm"
           />
           <span class="text-sm">{{ t('export.includeAvatar') }}</span>
@@ -517,6 +522,7 @@
             <UiAvatarPicker
               :model-value="renameTarget?.avatar"
               :seed="renameTarget?.publicKey"
+              avatar-style="toon-head"
               size="xl"
               @update:model-value="(val) => renameTarget && updateAvatarAsync(renameTarget.publicKey, val)"
             />
@@ -627,8 +633,26 @@
       v-model:open="showDeleteConfirm"
       :title="t('delete.title')"
       :description="t('delete.description')"
+      :confirm-label="t('delete.confirmLabel')"
+      confirm-icon="i-lucide-trash-2"
       @confirm="onConfirmDeleteAsync"
-    />
+    >
+      <div v-if="affectedAdminSpaces.length > 0" class="mt-4 space-y-2">
+        <p class="text-sm font-medium text-highlighted">
+          {{ t('delete.adminSpacesWarning', { count: affectedAdminSpaces.length }) }}
+        </p>
+        <ul class="list-disc list-inside text-sm text-muted">
+          <li v-for="space in affectedAdminSpaces" :key="space.id" class="font-medium">
+            {{ space.name }}
+          </li>
+        </ul>
+      </div>
+      <div v-if="affectedMemberSpaces.length > 0" class="mt-3 space-y-2">
+        <p class="text-sm text-muted">
+          {{ t('delete.memberSpacesInfo', { count: affectedMemberSpaces.length }) }}
+        </p>
+      </div>
+    </UiDialogConfirm>
 
     <!-- Share Identity QR Dialog -->
     <ShareIdentityDialog
@@ -715,6 +739,8 @@ const canSaveEdit = computed(() => {
   return true
 })
 const deleteTarget = ref<SelectHaexIdentities | null>(null)
+const affectedAdminSpaces = ref<{ id: string; name: string }[]>([])
+const affectedMemberSpaces = ref<{ id: string; name: string }[]>([])
 const importJson = ref('')
 const importParsed = ref<{
   label: string
@@ -756,14 +782,13 @@ const onCreateAsync = async () => {
       createLabel.value.trim(),
     )
 
-    // Save avatar: use uploaded image, or generate from label seed for consistency
+    // Save avatar: use uploaded image, or generate toon-head from publicKey
     if (createAvatar.value) {
       await identityStore.updateAvatarAsync(identity.publicKey, createAvatar.value)
     } else {
-      // Generate the same avatar that was shown in the dialog (seed = label)
       const { createAvatar: createDicebear } = await import('@dicebear/core')
-      const bottts = await import('@dicebear/bottts')
-      const svg = createDicebear(bottts, { seed: createLabel.value.trim() }).toDataUri()
+      const toonHead = await import('@dicebear/toon-head')
+      const svg = createDicebear(toonHead, { seed: identity.publicKey }).toDataUri()
       await identityStore.updateAvatarAsync(identity.publicKey, svg)
     }
 
@@ -1057,8 +1082,11 @@ const onRenameAsync = async () => {
   }
 }
 
-const prepareDelete = (identity: SelectHaexIdentities) => {
+const prepareDelete = async (identity: SelectHaexIdentities) => {
   deleteTarget.value = identity
+  const affected = await identityStore.getAffectedSpacesAsync(identity.publicKey)
+  affectedAdminSpaces.value = affected.adminSpaces
+  affectedMemberSpaces.value = affected.memberSpaces
   showDeleteConfirm.value = true
 }
 
@@ -1300,7 +1328,10 @@ de:
     passwordOptional: Leer lassen, um das Passwort beizubehalten
   delete:
     title: Identität löschen
-    description: Möchtest du diese Identität wirklich löschen? Spaces, die diese Identität nutzen, werden den Zugriff verlieren. Diese Aktion kann nicht rückgängig gemacht werden.
+    description: Möchtest du diese Identität wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+    confirmLabel: Endgültig löschen
+    adminSpacesWarning: 'Diese Identität ist Admin von {count} Space(s), die unwiderruflich gelöscht werden:'
+    memberSpacesInfo: 'Du wirst außerdem aus {count} Space(s) entfernt, in denen du Mitglied bist.'
   claims:
     title: Claims
     add: Hinzufügen
@@ -1404,7 +1435,10 @@ en:
     passwordOptional: Leave empty to keep the current password
   delete:
     title: Delete Identity
-    description: Do you really want to delete this identity? Spaces using this identity will lose access. This action cannot be undone.
+    description: Do you really want to delete this identity? This action cannot be undone.
+    confirmLabel: Delete permanently
+    adminSpacesWarning: 'This identity is admin of {count} space(s) that will be permanently deleted:'
+    memberSpacesInfo: 'You will also be removed from {count} space(s) where you are a member.'
   claims:
     title: Claims
     add: Add

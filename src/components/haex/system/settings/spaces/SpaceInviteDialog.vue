@@ -323,10 +323,15 @@ const onSubmitAsync = async () => {
       // P2P push invite for local space — send to each selected contact
       for (const contact of selectedContacts.value) {
         const inviteeDid = await publicKeyToDidKeyAsync(contact.publicKey)
+        const claims = await contactsStore.getClaimsAsync(contact.id)
+        const endpointIds = claims
+          .filter(c => c.type === 'endpointId')
+          .map(c => c.value)
+
         await spacesStore.inviteContactToLocalSpaceAsync({
           spaceId: props.spaceId,
           contactDid: inviteeDid,
-          contactEndpointId: contact.publicKey, // TODO: resolve actual EndpointId from contact
+          contactEndpointIds: endpointIds,
           capabilities: selectedCapabilities.value,
           includeHistory: includeHistory.value,
           expiresInSeconds: selectedExpiry.value!.value,

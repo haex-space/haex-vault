@@ -8,6 +8,8 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use time::OffsetDateTime;
 use tokio::sync::RwLock;
 
+use tauri::AppHandle;
+
 use crate::crdt::hlc::HlcService;
 use crate::database::DbConnection;
 use crate::peer_storage::endpoint::DeliveryConnectionHandler;
@@ -29,6 +31,8 @@ pub struct LeaderState {
     pub db: DbConnection,
     /// HLC service for CRDT-synced writes
     pub hlc: Arc<Mutex<HlcService>>,
+    /// Tauri AppHandle for emitting events to the frontend
+    pub app_handle: AppHandle,
     /// Space ID this leader serves
     pub space_id: String,
     /// Currently connected peers (endpoint_id → peer info) — IN-MEMORY ONLY, never persisted
@@ -557,6 +561,7 @@ async fn handle_delivery_stream(
         } => push_invite::handle_push_invite(
             &state.db,
             &state.hlc,
+            &state.app_handle,
             &space_id,
             &space_name,
             &space_type,

@@ -120,12 +120,17 @@ export const useContactsStore = defineStore('contactsStore', () => {
     const db = currentVault.value?.drizzle
     if (!db) throw new Error('No vault open')
 
+    // Prevent exact duplicates (same type + same value)
     const existing = await db.select({ id: haexContactClaims.id })
       .from(haexContactClaims)
-      .where(and(eq(haexContactClaims.contactId, contactId), eq(haexContactClaims.type, type)))
+      .where(and(
+        eq(haexContactClaims.contactId, contactId),
+        eq(haexContactClaims.type, type),
+        eq(haexContactClaims.value, value),
+      ))
       .limit(1)
     if (existing.length > 0) {
-      throw new Error(`Claim type "${type}" already exists for this contact`)
+      throw new Error(`Claim "${type}: ${value}" already exists for this contact`)
     }
 
     const id = crypto.randomUUID()

@@ -1,6 +1,23 @@
-import { eq } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
+import { invoke } from '@tauri-apps/api/core'
+import { createAvatar } from '@dicebear/core'
+import * as toonHead from '@dicebear/toon-head'
 import { generateIdentityAsync, publicKeyToDidKeyAsync } from '@haex-space/vault-sdk'
-import { haexIdentities, haexIdentityClaims, type SelectHaexIdentities } from '~/database/schemas'
+import {
+  haexIdentities,
+  haexIdentityClaims,
+  haexUcanTokens,
+  haexSpaces,
+  haexSpaceDevices,
+  haexPeerShares,
+  haexSharedSpaceSync,
+  haexSyncBackends,
+  haexInviteOutbox,
+  haexInviteTokens,
+  type SelectHaexIdentities,
+  type SelectHaexSpaces,
+} from '~/database/schemas'
+import { SpaceType } from '~/database/constants'
 import { createLogger } from '@/stores/logging'
 
 export interface ExportedIdentity {
@@ -63,14 +80,93 @@ export const useIdentityStore = defineStore('identityStore', () => {
     return identities.value.find(i => i.publicKey === newIdentity.publicKey)!
   }
 
+  /**
+   * Returns spaces that would be affected by deleting an identity.
+   * Admin spaces (where identity issued UCANs) will be fully deleted.
+   * Member spaces will have this identity's devices removed.
+   */
+  const getAffectedSpacesAsync = async (publicKey: string): Promise<{
+    adminSpaces: SelectHaexSpaces[]
+    memberSpaces: SelectHaexSpaces[]
+  }> => {
+    const db = currentVault.value?.drizzle
+    if (!db) return { adminSpaces: [], memberSpaces: [] }
+
+    const identity = await getIdentityAsync(publicKey)
+    if (!identity) return { adminSpaces: [], memberSpaces: [] }
+
+    // Spaces where this identity issued UCANs → admin
+    const adminUcans = await db
+      .select({ spaceId: haexUcanTokens.spaceId })
+      .from(haexUcanTokens)
+      .where(eq(haexUcanTokens.issuerDid, identity.did))
+    const adminSpaceIds = [...new Set(adminUcans.map(u => u.spaceId))]
+
+    const adminSpaces = adminSpaceIds.length > 0
+      ? await db.select().from(haexSpaces)
+          .where(and(
+            inArray(haexSpaces.id, adminSpaceIds),
+            // Never delete the vault space
+            eq(haexSpaces.type, SpaceType.LOCAL),
+          ))
+      : []
+
+    // Spaces where this identity has devices but is not admin
+    const deviceSpaces = await db
+      .select({ spaceId: haexSpaceDevices.spaceId })
+      .from(haexSpaceDevices)
+      .where(eq(haexSpaceDevices.identityId, publicKey))
+    const memberSpaceIds = deviceSpaces
+      .map(d => d.spaceId)
+      .filter(id => !adminSpaceIds.includes(id))
+
+    const memberSpaces = memberSpaceIds.length > 0
+      ? await db.select().from(haexSpaces).where(inArray(haexSpaces.id, memberSpaceIds))
+      : []
+
+    return { adminSpaces, memberSpaces }
+  }
+
   const deleteIdentityAsync = async (publicKey: string) => {
-    if (!currentVault.value?.drizzle) return
+    const db = currentVault.value?.drizzle
+    if (!db) return
 
-    await currentVault.value.drizzle
-      .delete(haexIdentities)
-      .where(eq(haexIdentities.publicKey, publicKey))
+    const { adminSpaces, memberSpaces } = await getAffectedSpacesAsync(publicKey)
+    const spacesStore = useSpacesStore()
 
-    log.info(`Deleted identity ${publicKey.slice(0, 20)}...`)
+    // 1. Delete admin spaces and all their related data
+    for (const space of adminSpaces) {
+      // Stop leader mode for local spaces
+      try { await invoke('local_delivery_stop', { spaceId: space.id }) } catch { /* may not be running */ }
+
+      // Delete non-cascaded relations
+      await db.delete(haexSpaceDevices).where(eq(haexSpaceDevices.spaceId, space.id))
+      await db.delete(haexPeerShares).where(eq(haexPeerShares.spaceId, space.id))
+      await db.delete(haexSharedSpaceSync).where(eq(haexSharedSpaceSync.spaceId, space.id))
+      await db.delete(haexSyncBackends).where(eq(haexSyncBackends.spaceId, space.id))
+      await db.delete(haexInviteOutbox).where(eq(haexInviteOutbox.spaceId, space.id))
+      await db.delete(haexInviteTokens).where(eq(haexInviteTokens.spaceId, space.id))
+
+      // Delete space (cascades to UCAN tokens, MLS keys, enrollments, pending invites)
+      await spacesStore.removeSpaceFromDbAsync(space.id)
+      log.info(`Cascade-deleted admin space "${space.name}" (${space.id})`)
+    }
+
+    // 2. Remove identity's devices from member spaces
+    for (const space of memberSpaces) {
+      await db.delete(haexSpaceDevices).where(
+        and(
+          eq(haexSpaceDevices.spaceId, space.id),
+          eq(haexSpaceDevices.identityId, publicKey),
+        ),
+      )
+      log.info(`Removed identity from member space "${space.name}" (${space.id})`)
+    }
+
+    // 3. Delete the identity (claims cascade via FK)
+    await db.delete(haexIdentities).where(eq(haexIdentities.publicKey, publicKey))
+
+    log.info(`Deleted identity ${publicKey.slice(0, 20)}... (${adminSpaces.length} admin spaces deleted, ${memberSpaces.length} member spaces cleaned)`)
     await loadIdentitiesAsync()
   }
 
@@ -213,6 +309,26 @@ export const useIdentityStore = defineStore('identityStore', () => {
     }).where(eq(haexIdentityClaims.id, claimId))
   }
 
+  const ensureDefaultIdentityAsync = async () => {
+    if (!currentVault.value?.drizzle) return
+
+    const existing = await currentVault.value.drizzle
+      .select()
+      .from(haexIdentities)
+      .limit(1)
+
+    if (existing.length > 0) return
+
+    const locale = useNuxtApp().$i18n.locale.value
+    const label = locale === 'de' ? 'Meine Identität' : 'My Identity'
+
+    const identity = await createIdentityAsync(label)
+    const avatar = createAvatar(toonHead, { seed: identity.publicKey }).toDataUri()
+    await updateAvatarAsync(identity.publicKey, avatar)
+
+    log.info('Default identity created')
+  }
+
   const reset = () => {
     identities.value = []
     _identityPasswords.clear()
@@ -233,6 +349,8 @@ export const useIdentityStore = defineStore('identityStore', () => {
     updateClaimAsync,
     deleteClaimAsync,
     markClaimVerifiedAsync,
+    getAffectedSpacesAsync,
+    ensureDefaultIdentityAsync,
     setIdentityPassword,
     consumeIdentityPassword,
     reset,

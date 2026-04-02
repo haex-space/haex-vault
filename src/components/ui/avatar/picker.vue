@@ -11,6 +11,7 @@
         :src="modelValue"
         :seed="seed"
         :size="size"
+        :avatar-style="avatarStyle"
       />
       <div class="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
         <UIcon name="i-lucide-camera" class="size-5 text-white" />
@@ -81,6 +82,7 @@ defineProps<{
   modelValue?: string | null
   seed?: string
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+  avatarStyle?: 'bottts' | 'toon-head'
 }>()
 
 const emit = defineEmits<{

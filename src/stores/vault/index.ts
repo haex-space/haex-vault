@@ -417,6 +417,10 @@ export const useVaultStore = defineStore('vaultStore', () => {
     const spacesStore = useSpacesStore()
     await spacesStore.ensureVaultSpaceAsync(currentVaultId.value, currentVaultName.value)
 
+    // Ensure at least one identity exists (needed for UCAN signing in spaces)
+    const identityStore = useIdentityStore()
+    await identityStore.ensureDefaultIdentityAsync()
+
     // Load spaces from DB and ensure default local space exists
     await spacesStore.loadSpacesFromDbAsync()
     await spacesStore.ensureDefaultSpaceAsync()

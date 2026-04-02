@@ -18,6 +18,7 @@ use super::types::{ClaimInviteResult, DeliveryStatus, ElectionResultInfo, Leader
 /// Start leader mode for a local space.
 #[tauri::command]
 pub async fn local_delivery_start(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     space_id: String,
 ) -> Result<(), String> {
@@ -32,6 +33,7 @@ pub async fn local_delivery_start(
     let leader_state = Arc::new(LeaderState {
         db: db_conn,
         hlc: Arc::new(std::sync::Mutex::new(hlc_clone)),
+        app_handle: app,
         space_id: space_id.clone(),
         connected_peers: Arc::new(RwLock::new(HashMap::new())),
         notification_senders: Arc::new(RwLock::new(HashMap::new())),

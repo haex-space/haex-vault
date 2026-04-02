@@ -44,20 +44,25 @@
 </template>
 
 <script setup lang="ts">
-import { createAvatar } from '@dicebear/core'
+import { createAvatar, type Style } from '@dicebear/core'
 import * as bottts from '@dicebear/bottts'
+import * as toonHead from '@dicebear/toon-head'
+
+const avatarStyles: Record<string, Style<object>> = { bottts, 'toon-head': toonHead }
 
 const props = withDefaults(defineProps<{
   src?: string | null
   seed?: string
   alt?: string
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+  avatarStyle?: keyof typeof avatarStyles
   badgeSrc?: string | null
   badgeSeed?: string
   badgeAlt?: string
 }>(), {
   size: 'md',
   alt: 'Avatar',
+  avatarStyle: 'bottts',
   badgeAlt: 'Badge',
 })
 
@@ -79,7 +84,7 @@ const badgeSizeClasses: Record<string, string> = {
 
 const fallbackSvg = computed(() => {
   if (props.src || !props.seed) return ''
-  return createAvatar(bottts, { seed: props.seed }).toString()
+  return createAvatar(avatarStyles[props.avatarStyle] ?? bottts, { seed: props.seed }).toString()
 })
 
 const badgeFallbackSvg = computed(() => {
