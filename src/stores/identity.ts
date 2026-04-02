@@ -274,7 +274,9 @@ export const useIdentityStore = defineStore('identityStore', () => {
   }
 
   const getIdentityByPublicKeyAsync = async (publicKey: string): Promise<SelectHaexIdentities | undefined> => {
-    if (!currentVault.value?.drizzle) return undefined
+    if (!currentVault.value?.drizzle) {
+      return identities.value.find(i => i.publicKey === publicKey)
+    }
 
     const rows = await currentVault.value.drizzle
       .select()
