@@ -10,7 +10,9 @@ use tokio::sync::RwLock;
 
 use tauri::AppHandle;
 
+use crate::crdt::commands::{apply_remote_changes_to_db, RemoteColumnChange};
 use crate::crdt::hlc::HlcService;
+use crate::crdt::scanner::{scan_all_dirty_tables_for_local_changes, LocalColumnChange};
 use crate::database::DbConnection;
 use crate::peer_storage::endpoint::DeliveryConnectionHandler;
 
@@ -346,7 +348,7 @@ async fn handle_delivery_stream(
         }
 
         // -- CRDT Sync --
-        Request::SyncPush { space_id, changes: _ } => {
+        Request::SyncPush { space_id, changes } => {
             if space_id != state.space_id {
                 return send_response(
                     &mut send,
@@ -356,13 +358,106 @@ async fn handle_delivery_stream(
                 )
                 .await;
             }
-            // TODO: Apply CRDT changes from peer
+
+            // 1. Parse changes JSON into Vec<LocalColumnChange>
+            let local_changes: Vec<LocalColumnChange> = match serde_json::from_value(changes) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("[SpaceDelivery] SyncPush: failed to parse changes: {e}");
+                    return send_response(
+                        &mut send,
+                        &Response::Error {
+                            message: format!("Invalid changes JSON: {e}"),
+                        },
+                    )
+                    .await;
+                }
+            };
+
+            if local_changes.is_empty() {
+                return send_response(&mut send, &Response::Ok).await;
+            }
+
+            // 2. Convert to RemoteColumnChange
+            let batch_id = uuid::Uuid::new_v4().to_string();
+            let total = local_changes.len();
+            let remote_changes: Vec<RemoteColumnChange> = local_changes
+                .iter()
+                .enumerate()
+                .map(|(i, local)| {
+                    super::sync_loop::local_to_remote_change(local, &batch_id, i + 1, total)
+                })
+                .collect();
+
+            // Collect affected table names and max HLC before applying
+            let affected_tables: Vec<String> = local_changes
+                .iter()
+                .map(|c| c.table_name.clone())
+                .collect::<std::collections::HashSet<_>>()
+                .into_iter()
+                .collect();
+
+            let max_hlc = local_changes
+                .iter()
+                .map(|c| c.hlc_timestamp.as_str())
+                .max()
+                .unwrap_or("")
+                .to_string();
+
+            // 3. Apply changes to DB
+            if let Err(e) = apply_remote_changes_to_db(&state.db, remote_changes, None) {
+                eprintln!("[SpaceDelivery] SyncPush: failed to apply changes: {e}");
+                return send_response(
+                    &mut send,
+                    &Response::Error {
+                        message: format!("Failed to apply changes: {e}"),
+                    },
+                )
+                .await;
+            }
+
+            // 4. Mark affected tables as dirty so other peers can pull them
+            for table_name in &affected_tables {
+                let sql = "INSERT OR REPLACE INTO haex_crdt_dirty_tables (table_name, last_modified) VALUES (?1, datetime('now'))".to_string();
+                let params = vec![serde_json::Value::String(table_name.clone())];
+                if let Err(e) = crate::database::core::execute(sql, params, &state.db) {
+                    eprintln!(
+                        "[SpaceDelivery] SyncPush: failed to mark dirty table '{}': {e}",
+                        table_name
+                    );
+                }
+            }
+
+            // 5. Update HLC with the max timestamp from received changes
+            if !max_hlc.is_empty() {
+                if let Ok(parsed_ts) = std::str::FromStr::from_str(&max_hlc) {
+                    if let Ok(hlc) = state.hlc.lock() {
+                        if let Err(e) = hlc.update_with_timestamp(&parsed_ts) {
+                            eprintln!("[SpaceDelivery] SyncPush: HLC update failed: {e}");
+                        }
+                    }
+                }
+            }
+
+            // 6. Notify other connected peers (except the sender)
+            {
+                let senders = state.notification_senders.read().await;
+                for (endpoint_id, sender) in senders.iter() {
+                    if endpoint_id != peer_endpoint_id {
+                        let _ = sender.try_send(Notification::Sync {
+                            space_id: space_id.clone(),
+                            tables: affected_tables.clone(),
+                        });
+                    }
+                }
+            }
+
             Response::Ok
         }
 
         Request::SyncPull {
             space_id,
-            after_timestamp: _,
+            after_timestamp,
         } => {
             if space_id != state.space_id {
                 return send_response(
@@ -373,9 +468,28 @@ async fn handle_delivery_stream(
                 )
                 .await;
             }
-            // TODO: Return CRDT changes since timestamp
-            Response::SyncChanges {
-                changes: serde_json::json!([]),
+
+            let device_id = "leader";
+            match scan_all_dirty_tables_for_local_changes(
+                &state.db,
+                after_timestamp.as_deref(),
+                device_id,
+            ) {
+                Ok(changes) => match serde_json::to_value(&changes) {
+                    Ok(json) => Response::SyncChanges { changes: json },
+                    Err(e) => {
+                        eprintln!("[SpaceDelivery] SyncPull: failed to serialize changes: {e}");
+                        Response::Error {
+                            message: format!("Failed to serialize changes: {e}"),
+                        }
+                    }
+                },
+                Err(e) => {
+                    eprintln!("[SpaceDelivery] SyncPull: failed to scan changes: {e}");
+                    Response::Error {
+                        message: format!("Failed to scan changes: {e}"),
+                    }
+                }
             }
         }
 

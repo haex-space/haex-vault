@@ -95,7 +95,7 @@ pub async fn start_peer_sync_loop(
 }
 
 /// Convert a `LocalColumnChange` to a `RemoteColumnChange` for the apply function.
-fn local_to_remote_change(
+pub fn local_to_remote_change(
     local: &LocalColumnChange,
     batch_id: &str,
     seq: usize,
