@@ -261,8 +261,14 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     log.info('Generating new sync key...')
     const syncKey = generateNewVaultKey()
 
-    await saveSyncKeyToDb(backendId, syncKey)
+    // Cache immediately (always available)
     cacheSyncKey(spaceId, syncKey)
+
+    // Save to DB only if vault is already open (during initial connect, vault is created later)
+    if (currentVault.value?.drizzle) {
+      await saveSyncKeyToDb(backendId, syncKey)
+    }
+
     await uploadVaultKeyToServerAsync(
       backendId,
       spaceId,
@@ -271,7 +277,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       vaultPassword,
     )
 
-    log.info('New sync key generated, uploaded to server, and saved locally')
+    log.info('New sync key generated, uploaded to server, and cached')
     return syncKey
   }
 
