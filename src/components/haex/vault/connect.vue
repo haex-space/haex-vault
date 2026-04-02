@@ -74,13 +74,27 @@ const onWizardCompleteAsync = async (wizardData: {
       throw new Error('Vault password is required')
     }
 
-    // 2. Set up temporary backend FIRST (for vault key fetch/upload)
+    // 2. Ensure identity is available in-memory (vault DB may not be open yet)
+    const identityStore = useIdentityStore()
+    let identityId = wizardData.identityId
+    if (!identityId) {
+      identityId = crypto.randomUUID()
+      identityStore.registerTemporaryIdentity({
+        id: identityId,
+        publicKey: wizardData.identityPublicKey,
+        privateKey: wizardData.identityPrivateKey,
+        did: wizardData.identityDid,
+        label: 'Recovered Identity',
+      })
+    }
+
+    // 3. Set up temporary backend (for vault key fetch/upload)
     syncBackendsStore.setTemporaryBackend({
       id: wizardData.backendId,
       name: new URL(wizardData.serverUrl).host,
       homeServerUrl: wizardData.serverUrl,
       spaceId: wizardData.spaceId,
-      identityId: wizardData.identityId,
+      identityId,
       enabled: true,
     })
 

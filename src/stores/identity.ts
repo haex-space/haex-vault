@@ -62,6 +62,21 @@ export const useIdentityStore = defineStore('identityStore', () => {
     log.info(`Loaded ${identities.value.length} identities (${ownIdentities.value.length} own, ${contacts.value.length} contacts)`)
   }
 
+  /** Register a temporary identity in-memory (e.g. from server recovery before vault is open) */
+  const registerTemporaryIdentity = (identity: { id: string; publicKey: string; privateKey: string; did: string; label: string }) => {
+    if (identities.value.find(i => i.id === identity.id)) return
+    identities.value.push({
+      id: identity.id,
+      publicKey: identity.publicKey,
+      privateKey: identity.privateKey,
+      did: identity.did,
+      label: identity.label,
+      avatar: null,
+      notes: null,
+      createdAt: new Date().toISOString(),
+    } as SelectHaexIdentities)
+  }
+
   const createIdentityAsync = async (label: string): Promise<SelectHaexIdentities> => {
     if (!currentVault.value?.drizzle) throw new Error('No vault open')
 
@@ -445,6 +460,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
     ownIdentities,
     contacts,
     loadIdentitiesAsync,
+    registerTemporaryIdentity,
     createIdentityAsync,
     deleteIdentityAsync,
     getIdentityByIdAsync,
