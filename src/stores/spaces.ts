@@ -45,6 +45,20 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     spaces.value = rows.map(rowToSpace)
   }
 
+  /** Start leader mode for all active local spaces (call once on app startup) */
+  const startLocalSpaceLeadersAsync = async () => {
+    for (const space of spaces.value) {
+      if (space.type === SpaceType.LOCAL && space.status === SpaceStatus.ACTIVE) {
+        try {
+          await invoke('local_delivery_start', { spaceId: space.id })
+          log.info(`Started leader mode for local space ${space.id}`)
+        } catch {
+          // Already running — ignore
+        }
+      }
+    }
+  }
+
   /** Convert a DB row to SpaceWithType */
   const rowToSpace = (row: SelectHaexSpaces): SpaceWithType => ({
     id: row.id,
@@ -160,6 +174,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       const db = getDb()
       if (db) await persistUcanAsync(db, id, rootUcan)
     }
+
+    // Start leader mode so this device can handle invites and delivery
+    await invoke('local_delivery_start', { spaceId: id })
 
     log.info(`Created local space "${spaceName}" (${id})`)
     return { id }
@@ -914,6 +931,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     setupFederationForSpaceAsync,
     inviteContactToLocalSpaceAsync,
     acceptLocalInviteAsync,
+    startLocalSpaceLeadersAsync,
     removeSpaceFromDbAsync,
     clearCache,
   }

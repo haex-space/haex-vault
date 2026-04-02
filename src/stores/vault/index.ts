@@ -421,6 +421,9 @@ export const useVaultStore = defineStore('vaultStore', () => {
     await spacesStore.loadSpacesFromDbAsync()
     await spacesStore.ensureDefaultSpaceAsync()
 
+    // Start leader mode for all local spaces (enables invite handling)
+    await spacesStore.startLocalSpaceLeadersAsync()
+
     // Warm UCAN cache from DB (tokens survive app restarts)
     if (currentVault.value?.drizzle) {
       await loadUcansFromDbAsync(currentVault.value.drizzle)
