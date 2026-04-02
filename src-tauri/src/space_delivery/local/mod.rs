@@ -11,3 +11,6 @@ pub mod push_invite;
 pub mod sync_loop;
 pub mod types;
 pub mod ucan;
+
+#[cfg(test)]
+mod tests;

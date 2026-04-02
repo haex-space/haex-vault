@@ -64,6 +64,26 @@ impl HlcService {
         }
     }
 
+    /// Create an HLC service with a fixed device ID for unit tests.
+    /// No database or AppHandle required — the HLC is immediately usable.
+    #[cfg(test)]
+    pub fn new_for_testing(device_id: &str) -> Self {
+        use uhlc::{HLCBuilder, ID};
+        use uuid::Uuid;
+
+        let uuid = Uuid::parse_str(
+            &format!("{:0>32}", device_id.as_bytes().iter().map(|b| format!("{:02x}", b)).collect::<String>())
+                .chars().take(32).collect::<String>()
+        ).unwrap_or_else(|_| Uuid::new_v4());
+
+        let node_id = ID::try_from(*uuid.as_bytes()).unwrap();
+        let hlc = HLCBuilder::new().with_id(node_id).build();
+
+        HlcService {
+            hlc: Arc::new(Mutex::new(Some(hlc))),
+        }
+    }
+
     /// Factory-Funktion: Erstellt und initialisiert einen neuen HLC-Service aus einer bestehenden DB-Verbindung.
     /// Dies ist die bevorzugte Methode zur Instanziierung.
     pub fn try_initialize(conn: &Connection, app_handle: &AppHandle) -> Result<Self, HlcError> {
