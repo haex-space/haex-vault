@@ -92,6 +92,15 @@
           </div>
         </div>
 
+        <!-- Include history toggle -->
+        <div class="flex items-center justify-between mt-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+          <div>
+            <p class="text-sm font-medium">{{ t('form.includeHistory') }}</p>
+            <p class="text-xs text-muted">{{ t('form.includeHistoryHint') }}</p>
+          </div>
+          <UiToggle v-model="includeHistory" />
+        </div>
+
         <!-- Expiry / deadline -->
         <UiSelectMenu
           v-model="selectedExpiry"
@@ -185,6 +194,7 @@ const qrCanvas = ref<HTMLCanvasElement>()
 // Capability checkboxes (read is always on)
 const capWrite = ref(false)
 const capInvite = ref(false)
+const includeHistory = ref(true)
 
 const selectedExpiry = ref<{ label: string; value: number } | undefined>()
 
@@ -281,6 +291,7 @@ const resetForm = () => {
   generatedExpiresAt.value = ''
   capWrite.value = false
   capInvite.value = false
+  includeHistory.value = true
   selectedExpiry.value = undefined
   selectedEndpointIds.value = new Set()
 }
@@ -318,7 +329,7 @@ const onSubmitAsync = async () => {
           contactDid: inviteeDid,
           contactEndpointId: contact.publicKey, // TODO: resolve actual EndpointId from contact
           capabilities: selectedCapabilities.value,
-          includeHistory: true,
+          includeHistory: includeHistory.value,
           expiresInSeconds: selectedExpiry.value!.value,
           spaceEndpoints: selectedSpaceEndpoints.value,
         })
@@ -334,7 +345,7 @@ const onSubmitAsync = async () => {
         capability: selectedCapabilities.value[0],
         maxUses: props.mode === 'open' ? maxUses.value : 1,
         expiresInSeconds: selectedExpiry.value!.value,
-        includeHistory: true,
+        includeHistory: includeHistory.value,
       })
 
       generatedLink.value = buildLocalInviteLink({
@@ -436,6 +447,8 @@ de:
     labelPlaceholderLink: z.B. Einladung für Max
     labelPlaceholderOpen: z.B. Konferenz März 2026
     maxUses: Maximale Nutzungen
+    includeHistory: Bisherige Daten teilen
+    includeHistoryHint: Teile alle bisherigen Daten mit dem neuen Mitglied
     endpointsLabel: Geräte in der Einladung
     endpointsHint: Wähle aus, welche deiner Geräte in der Einladung enthalten sein sollen.
   capabilities:
@@ -483,6 +496,8 @@ en:
     labelPlaceholderLink: e.g. Invite for Max
     labelPlaceholderOpen: e.g. Conference March 2026
     maxUses: Maximum uses
+    includeHistory: Share existing data
+    includeHistoryHint: Share all existing data with the new member
     endpointsLabel: Devices in invitation
     endpointsHint: Choose which of your devices should be included in the invitation.
   capabilities:
