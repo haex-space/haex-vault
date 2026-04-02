@@ -104,8 +104,13 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   const resolveBackendIdentityAsync = async (backendId: string): Promise<{ publicKey: string; privateKey: string; did: string }> => {
     const backend = findBackend(backendId)
     const identityStore = useIdentityStore()
+    log.debug(`Resolving identity ${backend.identityId} for backend ${backendId}`)
+
+    // Try DB first, then fall back to in-memory identities (pre-vault-open)
     const identity = await identityStore.getIdentityByIdAsync(backend.identityId)
+      ?? identityStore.ownIdentities.find(i => i.id === backend.identityId)
     if (!identity?.privateKey) {
+      log.error(`Identity ${backend.identityId} not found (vault open: ${!!currentVault.value?.drizzle}, in-memory identities: ${identityStore.ownIdentities.length})`)
       throw new Error(`Identity not found or incomplete for backend ${backendId}`)
     }
     return { publicKey: identity.publicKey, privateKey: identity.privateKey, did: identity.did }
@@ -164,6 +169,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     vaultName: string,
     vaultPassword: string,
   ): Promise<void> => {
+    log.debug(`Uploading vault key for backend ${backendId}, space ${spaceId}`)
     const backend = findBackend(backendId)
     const identity = await resolveBackendIdentityAsync(backendId)
     const { vaultKeySalt } = await uploadVaultKeyAsync(
@@ -176,9 +182,13 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
       identity.privateKey,
       identity.did,
     )
-    // Save vault key salt locally
-    await saveVaultKeySaltAsync(getDrizzle(), backendId, vaultKeySalt)
-    log.info('Vault key uploaded to server, vault key salt saved locally')
+    // Save vault key salt to DB only if vault is open (during initial connect, vault is created later)
+    if (currentVault.value?.drizzle) {
+      await saveVaultKeySaltAsync(getDrizzle(), backendId, vaultKeySalt)
+      log.info('Vault key uploaded to server, vault key salt saved locally')
+    } else {
+      log.info('Vault key uploaded to server (salt will be saved after vault creation)')
+    }
   }
 
   /**
@@ -226,6 +236,10 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
    * Gets sync key from local DB
    */
   const getSyncKeyFromDb = async (backendId: string): Promise<Uint8Array | null> => {
+    if (!currentVault.value?.drizzle) {
+      log.debug('getSyncKeyFromDb: vault not open, returning null')
+      return null
+    }
     return getSyncKeyFromDbAsync(getDrizzle(), backendId)
   }
 
@@ -233,6 +247,10 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
    * Saves sync key to local DB
    */
   const saveSyncKeyToDb = async (backendId: string, syncKey: Uint8Array): Promise<void> => {
+    if (!currentVault.value?.drizzle) {
+      log.debug('saveSyncKeyToDb: vault not open, skipping')
+      return
+    }
     return saveSyncKeyToDbAsync(getDrizzle(), backendId, syncKey)
   }
 
@@ -240,6 +258,10 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
    * Saves vault key salt to local DB
    */
   const saveVaultKeySalt = async (backendId: string, vaultKeySalt: string): Promise<void> => {
+    if (!currentVault.value?.drizzle) {
+      log.debug('saveVaultKeySalt: vault not open, skipping')
+      return
+    }
     return saveVaultKeySaltAsync(getDrizzle(), backendId, vaultKeySalt)
   }
 
@@ -247,6 +269,10 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
    * Gets vault key salt from local DB
    */
   const getVaultKeySalt = async (backendId: string): Promise<string | null> => {
+    if (!currentVault.value?.drizzle) {
+      log.debug('getVaultKeySalt: vault not open, returning null')
+      return null
+    }
     return getVaultKeySaltAsync(getDrizzle(), backendId)
   }
 
@@ -259,7 +285,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     vaultName: string,
     vaultPassword: string,
   ): Promise<Uint8Array> => {
-    log.info('Generating new sync key...')
+    log.info(`Generating new sync key... (vault open: ${!!currentVault.value?.drizzle})`)
     const syncKey = generateNewVaultKey()
 
     // Cache immediately (always available)
@@ -268,6 +294,9 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     // Save to DB only if vault is already open (during initial connect, vault is created later)
     if (currentVault.value?.drizzle) {
       await saveSyncKeyToDb(backendId, syncKey)
+      log.debug('Sync key saved to DB')
+    } else {
+      log.debug('Skipping DB save (vault not open yet)')
     }
 
     await uploadVaultKeyToServerAsync(
