@@ -105,6 +105,7 @@
         <UiSelectMenu
           v-model="selectedExpiry"
           :items="expiryOptions"
+          :search-input="false"
           :label="t('form.deadlineLabel')"
           class="w-full mt-3"
         />
@@ -112,25 +113,26 @@
 
         <!-- Endpoint selector (only for local spaces) -->
         <template v-if="isLocalSpace && spaceDevices.length > 0">
-          <div class="space-y-2 mt-3">
-            <label class="text-sm font-medium">{{ t('form.endpointsLabel') }}</label>
-            <p class="text-xs text-muted">{{ t('form.endpointsHint') }}</p>
-            <div class="flex flex-col gap-2">
-              <UCheckbox
-                v-for="device in spaceDevices"
-                :key="device.id"
-                :model-value="selectedEndpointIds.has(device.deviceEndpointId)"
-                @update:model-value="toggleEndpoint(device.deviceEndpointId, $event as boolean)"
-              >
-                <template #label>
-                  <div class="flex items-center gap-2">
-                    <span class="text-sm">{{ device.deviceName }}</span>
-                    <code class="text-xs text-muted">{{ device.deviceEndpointId.slice(0, 12) }}…</code>
-                  </div>
-                </template>
-              </UCheckbox>
-            </div>
-          </div>
+          <UiSelectMenu
+            v-model="selectedDeviceIds"
+            :items="deviceOptions"
+            value-key="value"
+            multiple
+            :label="t('form.endpointsLabel')"
+            class="w-full mt-3"
+          >
+            <template #item="{ item }">
+              <div class="flex items-center gap-2">
+                <UiAvatar
+                  :src="item.avatar"
+                  :seed="item.endpointId"
+                  size="xs"
+                />
+                <span class="text-sm">{{ item.label }}</span>
+              </div>
+            </template>
+          </UiSelectMenu>
+          <p class="text-xs text-muted mt-1">{{ t('form.endpointsHint') }}</p>
         </template>
       </template>
     </template>
@@ -199,7 +201,7 @@ const includeHistory = ref(true)
 const selectedExpiry = ref<{ label: string; value: number } | undefined>()
 
 // Endpoint selection for local spaces
-const selectedEndpointIds = ref(new Set<string>())
+const selectedDeviceIds = ref<string[]>([])
 
 const isLocalSpace = computed(() => {
   const space = spacesStore.spaces.find(s => s.id === props.spaceId)
@@ -210,9 +212,18 @@ const spaceDevices = computed(() =>
   peerStorageStore.spaceDevices.filter(d => d.spaceId === props.spaceId),
 )
 
+const deviceOptions = computed(() =>
+  spaceDevices.value.map(d => ({
+    label: d.deviceName,
+    value: d.id,
+    avatar: d.avatar,
+    endpointId: d.deviceEndpointId,
+  })),
+)
+
 const selectedSpaceEndpoints = computed(() =>
   spaceDevices.value
-    .filter(d => selectedEndpointIds.value.has(d.deviceEndpointId))
+    .filter(d => selectedDeviceIds.value.includes(d.id))
     .map(d => d.deviceEndpointId),
 )
 
@@ -273,16 +284,6 @@ const canSubmit = computed(() => {
 
 const formatDate = (iso: string) => new Date(iso).toLocaleString()
 
-const toggleEndpoint = (endpointId: string, checked: boolean) => {
-  if (checked) {
-    selectedEndpointIds.value.add(endpointId)
-  } else {
-    if (selectedEndpointIds.value.size > 1) {
-      selectedEndpointIds.value.delete(endpointId)
-    }
-  }
-}
-
 const resetForm = () => {
   selectedContactIds.value = []
   inviteLabel.value = ''
@@ -293,7 +294,7 @@ const resetForm = () => {
   capInvite.value = false
   includeHistory.value = true
   selectedExpiry.value = undefined
-  selectedEndpointIds.value = new Set()
+  selectedDeviceIds.value = []
 }
 
 watch(open, async (isOpen) => {
@@ -306,9 +307,7 @@ watch(open, async (isOpen) => {
     }
     if (isLocalSpace.value) {
       await peerStorageStore.loadSpaceDevicesAsync()
-      selectedEndpointIds.value = new Set(
-        spaceDevices.value.map(d => d.deviceEndpointId),
-      )
+      selectedDeviceIds.value = spaceDevices.value.map(d => d.id)
     }
   }
 })
