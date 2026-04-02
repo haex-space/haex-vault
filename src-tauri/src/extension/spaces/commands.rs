@@ -345,7 +345,6 @@ pub struct DecryptedSpace {
 ///
 /// Returns both local and remote spaces — no server fetch needed.
 /// Includes the current user's capabilities per space (from UCAN tokens).
-/// Spaces without UCAN tokens are owned by this device and get full admin capabilities.
 #[tauri::command]
 pub async fn extension_space_list(
     app_handle: AppHandle,
@@ -387,8 +386,7 @@ pub async fn extension_space_list(
         .map(|row| {
             let caps_str = get_string(row, 4);
             let capabilities = if caps_str.is_empty() {
-                // No UCAN tokens → this device owns the space
-                vec!["space/admin".to_string()]
+                vec![]
             } else {
                 caps_str.split(',').map(|s| s.to_string()).collect()
             };
