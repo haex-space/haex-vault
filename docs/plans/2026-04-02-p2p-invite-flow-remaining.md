@@ -22,6 +22,24 @@ Offene Punkte nach der initialen Implementierung (v1.8.5).
 
 ---
 
+## 0b. Cascade-Delete: Identity → Spaces
+
+**Problem:** Wenn eine Identity gelöscht wird, bleiben die zugehörigen Spaces verwaist zurück. Ohne Identity kann man im Space nichts tun (keine UCAN-Signierung, kein DID-Auth, kein MLS).
+
+**Lösung:** Beim Löschen einer Identity alle Spaces mit-löschen die dieser Identity gehören. Das betrifft:
+- Spaces wo die Identity Admin ist (lokale Spaces, eigene Online-Spaces)
+- UCAN-Tokens die von dieser Identity ausgestellt wurden
+- Space Devices die dieser Identity zugeordnet sind
+- Outbox-Einträge für diese Spaces
+
+**Dateien:**
+- `src/stores/identity.ts` (deleteIdentityAsync)
+- Oder: DB-Level CASCADE über FK von `haex_ucan_tokens.issuer_did` → `haex_identities.did`
+
+**Offene Frage:** Sollen Spaces gelöscht werden bei denen man nur Member (nicht Admin) ist? Vermutlich ja — man verlässt den Space automatisch. Andere Members bemerken das über MLS.
+
+---
+
 ## 1. Outbox: Capabilities und History aus Invite-Token laden
 
 **Problem:** Der Outbox-Processor sendet aktuell hardcodierte Werte (`capabilities: ['space/read']`, `includeHistory: false`) statt die echten Werte aus dem Invite-Token zu laden.
@@ -143,7 +161,8 @@ const runOutboxLoop = async () => {
 
 | # | Task | Aufwand | Priorität |
 |---|------|---------|-----------|
-| 0 | Auto-Identity beim Vault-Start | Klein | Kritisch — Voraussetzung für alles andere |
+| 0a | Auto-Identity beim Vault-Start | Klein | Kritisch — Voraussetzung für alles andere |
+| 0b | Cascade-Delete Identity → Spaces | Klein | Kritisch — verwaiste Spaces ohne Identity sind nutzlos |
 | 1 | Outbox Capabilities laden | Klein | Hoch — ohne das werden falsche Capabilities gesendet |
 | 2 | Contact EndpointId | Mittel | Hoch — Contact-Invite funktioniert ohne nicht |
 | 4 | Push-Invite Event | Klein | Hoch — UI refresht nicht bei eingehenden Invites |
