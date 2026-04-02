@@ -259,6 +259,7 @@ const loadCameras = async () => {
     }
   } catch (error) {
     console.error('Failed to enumerate cameras:', error)
+    scanError.value = t('scan.cameraError')
   }
 }
 

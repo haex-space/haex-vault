@@ -466,7 +466,11 @@ jobs:
         run: |
           sed -i 's/kotlin-gradle-plugin:1.9.25/kotlin-gradle-plugin:2.1.0/' src-tauri/gen/android/build.gradle.kts
 
-      - name: Copy custom MainActivity with camera permission handler
+      - name: Add camera permission to Android manifest
+        run: |
+          sed -i '/<uses-permission android:name="android.permission.INTERNET" \/>/a \    <uses-permission android:name="android.permission.CAMERA" \/>\n    <uses-feature android:name="android.hardware.camera" android:required="false" \/>\n    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" \/>' src-tauri/gen/android/app/src/main/AndroidManifest.xml
+
+      - name: Copy custom MainActivity
         run: |
           cp .github/android-MainActivity.kt src-tauri/gen/android/app/src/main/java/space/haex/vault/MainActivity.kt
 
