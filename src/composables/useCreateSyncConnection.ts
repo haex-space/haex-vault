@@ -115,9 +115,9 @@ export const useCreateSyncConnection = () => {
   }
 
   const loginAsync = async (serverUrl: string, identityId: string): Promise<{ access_token: string; refresh_token: string }> => {
-    const identity = await identityStore.getIdentityAsync(identityId)
-    if (!identity) {
-      throw new Error('Identity not found')
+    const identity = await identityStore.getIdentityByIdAsync(identityId)
+    if (!identity?.privateKey) {
+      throw new Error('Identity not found or has no private key')
     }
 
     return didAuthenticateAsync(serverUrl, identity.did, identity.privateKey)
@@ -146,9 +146,9 @@ export const useCreateSyncConnection = () => {
         return null
       }
 
-      const identity = await identityStore.getIdentityAsync(params.identityId)
-      if (!identity) {
-        throw new Error('Identity not found')
+      const identity = await identityStore.getIdentityByIdAsync(params.identityId)
+      if (!identity?.privateKey) {
+        throw new Error('Identity not found or has no private key')
       }
 
       const presentation = await signClaimPresentation(

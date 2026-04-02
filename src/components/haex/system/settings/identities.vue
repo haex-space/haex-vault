@@ -40,20 +40,20 @@
       >
         <div
           v-for="identity in identities"
-          :key="identity.publicKey"
+          :key="identity.id"
           class="p-3 rounded-lg border border-default"
         >
           <UCollapsible
-            :open="expandedIdentity === identity.publicKey"
+            :open="expandedIdentity === identity.id"
             :unmount-on-hide="false"
-            @update:open="(val: boolean) => onToggleIdentity(identity.publicKey, val)"
+            @update:open="(val: boolean) => onToggleIdentity(identity.id, val)"
           >
             <div class="flex items-center justify-between cursor-pointer">
               <div class="flex items-center gap-2 flex-1 min-w-0">
                 <UIcon
                   name="i-lucide-chevron-right"
                   class="w-4 h-4 shrink-0 text-muted transition-transform duration-200"
-                  :class="{ 'rotate-90': expandedIdentity === identity.publicKey }"
+                  :class="{ 'rotate-90': expandedIdentity === identity.id }"
                 />
                 <UiAvatar
                   :src="identity.avatar"
@@ -114,18 +114,18 @@
                   <UButton
                     variant="outline"
                     icon="i-lucide-plus"
-                    @click="openAddClaim(identity.publicKey)"
+                    @click="openAddClaim(identity.id)"
                   >
                     {{ t('claims.add') }}
                   </UButton>
                 </div>
 
                 <div
-                  v-if="identityClaims[identity.publicKey]?.length"
+                  v-if="identityClaims[identity.id]?.length"
                   class="space-y-1"
                 >
                   <div
-                    v-for="claim in identityClaims[identity.publicKey]"
+                    v-for="claim in identityClaims[identity.id]"
                     :key="claim.id"
                     class="flex flex-wrap items-center justify-between gap-2 p-2 rounded bg-gray-50 dark:bg-gray-800/50"
                   >
@@ -150,7 +150,7 @@
                         variant="ghost"
                         color="error"
                         icon="i-lucide-trash-2"
-                        @click="deleteClaimAsync(claim.id, identity.publicKey)"
+                        @click="deleteClaimAsync(claim.id, identity.id)"
                       />
                     </div>
                   </div>
@@ -674,7 +674,7 @@ const { add } = useToast()
 
 const identityStore = useIdentityStore()
 const { updatePasswordAsync } = useUpdateIdentityPassword()
-const { identities } = storeToRefs(identityStore)
+const { ownIdentities: identities } = storeToRefs(identityStore)
 const { currentVaultPassword } = storeToRefs(useVaultStore())
 
 const isLoading = ref(false)
@@ -769,8 +769,8 @@ onMounted(async () => {
   }
 })
 
-const updateAvatarAsync = async (publicKey: string, avatar: string | null) => {
-  await identityStore.updateAvatarAsync(publicKey, avatar)
+const updateAvatarAsync = async (identityId: string, avatar: string | null) => {
+  await identityStore.updateAvatarAsync(identityId, avatar)
 }
 
 const onCreateAsync = async () => {
@@ -784,18 +784,18 @@ const onCreateAsync = async () => {
 
     // Save avatar: use uploaded image, or generate toon-head from publicKey
     if (createAvatar.value) {
-      await identityStore.updateAvatarAsync(identity.publicKey, createAvatar.value)
+      await identityStore.updateAvatarAsync(identity.id, createAvatar.value)
     } else {
       const { createAvatar: createDicebear } = await import('@dicebear/core')
       const toonHead = await import('@dicebear/toon-head')
       const svg = createDicebear(toonHead, { seed: identity.publicKey }).toDataUri()
-      await identityStore.updateAvatarAsync(identity.publicKey, svg)
+      await identityStore.updateAvatarAsync(identity.id, svg)
     }
 
     // Store identity password for use when connecting to a sync backend
     if (effectiveCreatePassword.value) {
       identityStore.setIdentityPassword(
-        identity.publicKey,
+        identity.id,
         effectiveCreatePassword.value,
       )
     }
@@ -805,7 +805,7 @@ const onCreateAsync = async () => {
       value.trim(),
     )
     for (const [type, value] of claimEntries) {
-      await identityStore.addClaimAsync(identity.publicKey, type, value.trim())
+      await identityStore.addClaimAsync(identity.id, type, value.trim())
     }
 
     add({ title: t('success.created'), color: 'success' })
@@ -919,14 +919,13 @@ const onImportAsync = async () => {
       add({ title: t('success.imported'), color: 'success' })
     } else {
       // No private key — import as contact
-      const contactsStore = useContactsStore()
-      const contact = await contactsStore.addContactWithClaimsAsync(
+      const contact = await identityStore.addContactWithClaimsAsync(
         data.label || `Imported ${data.publicKey.slice(0, 16)}...`,
         data.publicKey,
         selectedClaims,
       )
       if (avatar) {
-        await contactsStore.updateContactAsync(contact.id, { avatar })
+        await identityStore.updateContactAsync(contact.id, { avatar })
       }
       add({ title: t('success.importedAsContact'), color: 'success' })
     }
@@ -947,7 +946,7 @@ const onImportAsync = async () => {
 }
 
 const onShareQr = (identity: SelectHaexIdentities) => {
-  shareQrIdentityId.value = identity.publicKey
+  shareQrIdentityId.value = identity.id
   showShareQrDialog.value = true
 }
 
@@ -956,7 +955,7 @@ const onExport = async (identity: SelectHaexIdentities) => {
   exportIncludePrivateKey.value = false
   exportIncludeAvatar.value = !!identity.avatar
 
-  const claims = await identityStore.getClaimsAsync(identity.publicKey)
+  const claims = await identityStore.getClaimsAsync(identity.id)
   exportClaims.value = claims.map(c => ({ id: c.id, type: c.type, value: c.value }))
   exportSelectedClaimIds.value = new Set(exportClaims.value.map(c => c.id))
 
@@ -1051,13 +1050,13 @@ const onRenameAsync = async () => {
   isRenaming.value = true
   try {
     await identityStore.updateLabelAsync(
-      renameTarget.value.publicKey,
+      renameTarget.value.id,
       renameLabel.value.trim(),
     )
 
     if (editIdentityPassword.value) {
       const ok = await updatePasswordAsync(
-        renameTarget.value.publicKey,
+        renameTarget.value.id,
         editIdentityPassword.value,
       )
       if (!ok) {
@@ -1084,7 +1083,7 @@ const onRenameAsync = async () => {
 
 const prepareDelete = async (identity: SelectHaexIdentities) => {
   deleteTarget.value = identity
-  const affected = await identityStore.getAffectedSpacesAsync(identity.publicKey)
+  const affected = await identityStore.getAffectedSpacesAsync(identity.id)
   affectedAdminSpaces.value = affected.adminSpaces
   affectedMemberSpaces.value = affected.memberSpaces
   showDeleteConfirm.value = true
@@ -1094,7 +1093,7 @@ const onConfirmDeleteAsync = async () => {
   if (!deleteTarget.value) return
 
   try {
-    await identityStore.deleteIdentityAsync(deleteTarget.value.publicKey)
+    await identityStore.deleteIdentityAsync(deleteTarget.value.id)
     add({ title: t('success.deleted'), color: 'success' })
     showDeleteConfirm.value = false
     deleteTarget.value = null
@@ -1142,29 +1141,13 @@ const editingClaim = ref<{
 } | null>(null)
 const claimTargetIdentityId = ref<string | null>(null)
 
-const claimTypeOptions = computed(() => {
-  const existingTypes = new Set(
-    (claimTargetIdentityId.value
-      ? identityClaims.value[claimTargetIdentityId.value]
-      : []
-    )?.map((c) => c.type) ?? [],
-  )
-  return [
-    { label: 'Email', value: 'email', disabled: existingTypes.has('email') },
-    { label: 'Name', value: 'name', disabled: existingTypes.has('name') },
-    {
-      label: t('claims.phone'),
-      value: 'phone',
-      disabled: existingTypes.has('phone'),
-    },
-    {
-      label: t('claims.address'),
-      value: 'address',
-      disabled: existingTypes.has('address'),
-    },
-    { label: t('claims.custom'), value: 'custom' },
-  ]
-})
+const claimTypeOptions = computed(() => [
+  { label: 'Email', value: 'email' },
+  { label: 'Name', value: 'name' },
+  { label: t('claims.phone'), value: 'phone' },
+  { label: t('claims.address'), value: 'address' },
+  { label: t('claims.custom'), value: 'custom' },
+])
 
 const claimValuePlaceholder = computed(() => {
   if (editingClaim.value) return ''

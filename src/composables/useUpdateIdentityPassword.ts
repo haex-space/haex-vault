@@ -26,8 +26,8 @@ export const useUpdateIdentityPassword = () => {
     error.value = null
 
     try {
-      const identity = await identityStore.getIdentityAsync(identityId)
-      if (!identity) throw new Error('Identity not found')
+      const identity = await identityStore.getIdentityByIdAsync(identityId)
+      if (!identity?.privateKey) throw new Error('Identity not found or has no private key')
 
       // Ensure backends are loaded
       await syncBackendsStore.loadBackendsAsync()

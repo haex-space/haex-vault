@@ -397,7 +397,7 @@ const onSaveEditAsync = async () => {
 
     // Server changed?
     if (newServerUrl !== oldServerUrl) {
-      const identityId = identityStore.identities[0]?.publicKey
+      const identityId = identityStore.ownIdentities[0]?.id
       if (!identityId && newServerUrl) {
         add({ title: t('errors.noIdentity'), color: 'error' })
         return
@@ -465,14 +465,10 @@ const loadSpacesAsync = async () => {
     await spacesStore.ensureDefaultSpaceAsync()
 
     // Load remote spaces from all backends
-    const urls = new Set<string>()
     for (const backend of syncBackends.value) {
       if (backend.homeServerUrl) {
-        urls.add(backend.homeServerUrl)
+        await spacesStore.listSpacesAsync(backend.homeServerUrl, backend.identityId)
       }
-    }
-    for (const url of urls) {
-      await spacesStore.listSpacesAsync(url)
     }
   } catch (error) {
     console.error('Failed to load spaces:', error)
@@ -504,7 +500,7 @@ const onCreateSpaceAsync = async () => {
       let identityId = createForm.identityId
       if (!identityId) {
         await identityStore.loadIdentitiesAsync()
-        identityId = identityStore.identities[0]?.publicKey
+        identityId = identityStore.ownIdentities[0]?.id
       }
       if (!identityId) {
         add({ title: t('errors.noIdentity'), color: 'error' })
@@ -543,12 +539,12 @@ const onJoinSpaceAsync = async () => {
     const localLink = parseLocalInviteLink(joinInviteLink.value.trim())
     if (localLink) {
       await identityStore.loadIdentitiesAsync()
-      const identityId = identityStore.identities[0]?.publicKey
+      const identityId = identityStore.ownIdentities[0]?.id
       if (!identityId) {
         add({ title: t('errors.noIdentity'), color: 'error' })
         return
       }
-      const identity = await identityStore.getIdentityAsync(identityId)
+      const identity = await identityStore.getIdentityByIdAsync(identityId)
       if (!identity) {
         add({ title: t('errors.noIdentity'), color: 'error' })
         return
@@ -589,7 +585,7 @@ const onJoinSpaceAsync = async () => {
 
     // Use first available identity
     await identityStore.loadIdentitiesAsync()
-    const identityId = identityStore.identities[0]?.publicKey
+    const identityId = identityStore.ownIdentities[0]?.id
     if (!identityId) {
       add({ title: t('errors.noIdentity', 'No identity available. Create one first.'), color: 'error' })
       return

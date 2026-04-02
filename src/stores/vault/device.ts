@@ -55,13 +55,13 @@ export const useDeviceStore = defineStore('vaultDeviceStore', () => {
     const name = deviceName.value || hostname.value || 'device'
     const claimType = `device:${name}`
 
-    for (const identity of identityStore.identities) {
+    for (const identity of identityStore.ownIdentities) {
       try {
         // Verify identity exists in DB before touching claims
-        const dbIdentity = await identityStore.getIdentityAsync(identity.publicKey)
+        const dbIdentity = await identityStore.getIdentityByIdAsync(identity.id)
         if (!dbIdentity) continue
 
-        const claims = await identityStore.getClaimsAsync(identity.publicKey)
+        const claims = await identityStore.getClaimsAsync(identity.id)
         const existing = claims.find(c => c.type === claimType)
 
         if (existing && existing.value === deviceId.value) continue
@@ -69,7 +69,7 @@ export const useDeviceStore = defineStore('vaultDeviceStore', () => {
         if (existing) {
           await identityStore.updateClaimAsync(existing.id, deviceId.value)
         } else {
-          await identityStore.addClaimAsync(identity.publicKey, claimType, deviceId.value)
+          await identityStore.addClaimAsync(identity.id, claimType, deviceId.value)
         }
       } catch (e) {
         console.warn(`[DEVICE] Failed to update device claim for identity:`, e)

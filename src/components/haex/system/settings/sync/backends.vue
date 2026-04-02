@@ -638,11 +638,12 @@ const onConfirmDeleteBackendAsync = async () => {
 
     // Delete all server data for this backend
     try {
-      if (backend.identityId) {
+      {
         const identityStore = useIdentityStore()
-        const identity = await identityStore.getIdentityAsync(backend.identityId)
+        const identityResult = await identityStore.getIdentityByIdAsync(backend.identityId)
 
-        if (identity?.privateKey && identity?.did) {
+        if (identityResult?.privateKey) {
+          const identity = { privateKey: identityResult.privateKey, did: identityResult.did }
           // Delete all spaces where user is admin (server validates role)
           try {
             await fetchWithDidAuth(
@@ -695,15 +696,12 @@ const loadVaultsForBackendAsync = async (
   backend: SelectHaexSyncBackends,
 ): Promise<ServerVault[]> => {
   try {
-    if (!backend.identityId) {
-      throw new Error('Backend has no identity configured')
-    }
-
     const identityStore = useIdentityStore()
-    const identity = await identityStore.getIdentityAsync(backend.identityId)
-    if (!identity?.privateKey || !identity?.did) {
+    const resolved = await identityStore.getIdentityByIdAsync(backend.identityId)
+    if (!resolved?.privateKey) {
       throw new Error('Identity not found or incomplete')
     }
+    const identity = { publicKey: resolved.publicKey, privateKey: resolved.privateKey, did: resolved.did }
 
     // Fetch vaults from server using DID-Auth
     const response = await fetchWithDidAuth(

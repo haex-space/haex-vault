@@ -116,27 +116,27 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   // Space device registration
   // =========================================================================
 
-  const registerDeviceInSpaceAsync = async (spaceId: string, deviceName: string, identityPublicKey?: string) => {
+  const registerDeviceInSpaceAsync = async (spaceId: string, deviceName: string, identityIdParam?: string) => {
     const db = currentVault.value?.drizzle
     if (!db) throw new Error('No vault open')
     if (!nodeId.value) throw new Error('Endpoint ID not available')
 
     // Resolve identity: use provided or first available
-    let identityId = identityPublicKey
+    let identityId = identityIdParam
     if (!identityId) {
       const identityStore = useIdentityStore()
-      identityId = identityStore.identities[0]?.publicKey
+      identityId = identityStore.ownIdentities[0]?.id
     }
 
     // Verify identity exists in DB before inserting (may not be synced yet)
     if (identityId) {
       const [identityExists] = await db
-        .select({ pk: haexIdentities.publicKey })
+        .select({ id: haexIdentities.id })
         .from(haexIdentities)
-        .where(eq(haexIdentities.publicKey, identityId))
+        .where(eq(haexIdentities.id, identityId))
         .limit(1)
       if (!identityExists) {
-        console.warn(`[P2P] Identity ${identityId.substring(0, 20)}... not in DB yet, registering without identity`)
+        console.warn(`[P2P] Identity ${identityId.substring(0, 8)}... not in DB yet, registering without identity`)
         identityId = undefined
       }
     }

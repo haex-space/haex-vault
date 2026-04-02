@@ -677,7 +677,10 @@ const onRecoveryComplete = async (data: {
 
   try {
     credentials.value.serverUrl = data.serverUrl
-    credentials.value.identityId = data.identity.publicKey
+    // Look up identity UUID by publicKey (server response only has publicKey)
+    const identityStore = useIdentityStore()
+    const resolvedIdentity = await identityStore.getIdentityByPublicKeyAsync(data.identity.publicKey)
+    credentials.value.identityId = resolvedIdentity?.id ?? ''
     recoveredKeyData.value = data.recoveryKeyData
 
     // Pre-fill DID password with current vault password if available

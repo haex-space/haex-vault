@@ -200,12 +200,12 @@ const getServerUrlForSpace = (spaceId: string): string | undefined => {
   return backend?.homeServerUrl
 }
 
-/** Get the first available identity for auth */
-const getIdentityAsync = async () => {
+/** Get the first available own identity for auth */
+const getIdentityAsync = async (): Promise<{ privateKey: string; did: string }> => {
   await identityStore.loadIdentitiesAsync()
-  const identity = identityStore.identities[0]
-  if (!identity) throw new Error('No identity available')
-  return identity
+  const identity = identityStore.ownIdentities[0]
+  if (!identity?.privateKey) throw new Error('No identity available')
+  return { privateKey: identity.privateKey, did: identity.did }
 }
 
 const onAcceptAsync = async (invite: SelectHaexPendingInvites) => {

@@ -102,7 +102,7 @@ const { t } = useI18n()
 const { add } = useToast()
 
 const identityStore = useIdentityStore()
-const { identities } = storeToRefs(identityStore)
+const { ownIdentities } = storeToRefs(identityStore)
 
 const selectedIdentityId = ref<string>('')
 const selectedClaimIds = ref(new Set<string>())
@@ -111,10 +111,10 @@ const qrDataUrl = ref('')
 const isGenerating = ref(false)
 
 const identityOptions = computed(() =>
-  identities.value.map(i => ({
-    label: i.label,
-    value: i.publicKey,
-  })),
+  ownIdentities.value.map(i => ({
+      label: i.label,
+      value: i.id,
+    })),
 )
 
 const loadClaimsForIdentityAsync = async (id: string) => {
@@ -153,7 +153,7 @@ const generateQrAsync = async () => {
 
   isGenerating.value = true
   try {
-    const identity = identities.value.find(i => i.publicKey === selectedIdentityId.value)
+    const identity = ownIdentities.value.find(i => i.id === selectedIdentityId.value)
     if (!identity) throw new Error('Identity not found')
 
     const selectedClaims = availableClaims.value

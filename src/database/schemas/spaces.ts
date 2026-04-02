@@ -48,7 +48,7 @@ export const haexSpaceDevices = sqliteTable(
       .notNull()
       .references(() => haexSpaces.id),
     identityId: text(tableNames.haex.space_devices.columns.identityId)
-      .references(() => haexIdentities.publicKey),
+      .references(() => haexIdentities.id),
     deviceEndpointId: text(tableNames.haex.space_devices.columns.deviceEndpointId).notNull(),
     deviceName: text(tableNames.haex.space_devices.columns.deviceName).notNull(),
     avatar: text(tableNames.haex.space_devices.columns.avatar), // Base64 WebP 128x128
@@ -197,7 +197,7 @@ export const haexSyncBackends = sqliteTable(
       .references(() => haexSpaces.id),
     syncKey: text(tableNames.haex.sync_backends.columns.syncKey),
     vaultKeySalt: text(tableNames.haex.sync_backends.columns.vaultKeySalt),
-    identityId: text(tableNames.haex.sync_backends.columns.identityId), // FK → haex_identities.publicKey (for auth)
+    identityId: text(tableNames.haex.sync_backends.columns.identityId).notNull(), // FK → haex_identities.id (UUID, for auth)
     enabled: integer(tableNames.haex.sync_backends.columns.enabled, {
       mode: 'boolean',
     })

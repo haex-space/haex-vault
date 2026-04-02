@@ -153,11 +153,8 @@ export const subscribeToBackendAsync = async (
 
   // Resolve identity for DID-Auth WebSocket connection
   const identityStore = useIdentityStore()
-  if (!backend.identityId) {
-    throw new Error(`Backend ${backendId} has no identity configured`)
-  }
-  const identity = await identityStore.getIdentityAsync(backend.identityId)
-  if (!identity?.privateKey || !identity?.did) {
+  const identity = await identityStore.getIdentityByIdAsync(backend.identityId)
+  if (!identity?.privateKey) {
     throw new Error(`Identity not found or incomplete for backend ${backendId}`)
   }
 
@@ -195,7 +192,7 @@ export const subscribeToBackendAsync = async (
     // Auto-finalize accepted invites (admin adds new member to MLS group)
     try {
       const identityStore = useIdentityStore()
-      const identity = await identityStore.getIdentityAsync(backend.identityId)
+      const identity = await identityStore.getIdentityByIdAsync(backend.identityId)
       if (identity) {
         const { getUcanForSpaceAsync } = await import('@/utils/auth/ucanStore')
         const ucan = getUcanForSpaceAsync(event.spaceId)
@@ -257,8 +254,8 @@ export const subscribeToBackendAsync = async (
 
     try {
       const identityStore = useIdentityStore()
-      const identity = await identityStore.getIdentityAsync(backend.identityId)
-      if (!identity) return
+      const identity = await identityStore.getIdentityByIdAsync(backend.identityId)
+      if (!identity?.privateKey) return
 
       const delivery = useMlsDelivery(backend.homeServerUrl, event.spaceId, {
         privateKey: identity.privateKey,

@@ -56,7 +56,7 @@ vi.stubGlobal('useDeviceStore', vi.fn(() => ({
 })))
 
 vi.stubGlobal('useIdentityStore', vi.fn(() => ({
-  getIdentityAsync: vi.fn().mockResolvedValue({
+  getIdentityByIdAsync: vi.fn().mockResolvedValue({
     privateKey: 'test-private-key',
     did: 'did:key:test',
     publicKey: 'test-public-key',

@@ -486,15 +486,15 @@
 </template>
 
 <script setup lang="ts">
-import type { SelectHaexContacts } from '~/database/schemas'
+import type { SelectHaexIdentities } from '~/database/schemas'
 import ShareIdentityDialog from './contacts/ShareIdentityDialog.vue'
 import ScanContactDialog from './contacts/ScanContactDialog.vue'
 
 const { t } = useI18n()
 const { add } = useToast()
 
-const contactsStore = useContactsStore()
-const { contacts } = storeToRefs(contactsStore)
+const identityStore = useIdentityStore()
+const { contacts } = storeToRefs(identityStore)
 
 const isLoading = ref(false)
 const isAdding = ref(false)
@@ -534,12 +534,12 @@ const editForm = reactive({
   notes: '',
 })
 
-const deleteTarget = ref<SelectHaexContacts | null>(null)
+const deleteTarget = ref<SelectHaexIdentities | null>(null)
 
 onMounted(async () => {
   isLoading.value = true
   try {
-    await contactsStore.loadContactsAsync()
+    await identityStore.loadIdentitiesAsync()
   } finally {
     isLoading.value = false
   }
@@ -563,7 +563,7 @@ const onAddContactAsync = async () => {
 
   isAdding.value = true
   try {
-    await contactsStore.addContactAsync(
+    await identityStore.addContactAsync(
       addForm.label.trim(),
       addForm.publicKey.trim(),
       addForm.notes.trim() || undefined,
@@ -657,13 +657,13 @@ const onImportContactAsync = async () => {
     const selectedClaims = data.claims.filter((_, i) => importSelectedClaimIndices.value.has(i))
     const avatar = importIncludeAvatar.value ? data.avatar : null
 
-    const contact = await contactsStore.addContactWithClaimsAsync(
+    const contact = await identityStore.addContactWithClaimsAsync(
       data.label || `Imported ${data.publicKey.slice(0, 16)}...`,
       data.publicKey,
       selectedClaims,
     )
     if (avatar) {
-      await contactsStore.updateContactAsync(contact.id, { avatar })
+      await identityStore.updateContactAsync(contact.id, { avatar })
     }
 
     add({ title: t('success.added'), color: 'success' })
@@ -682,7 +682,7 @@ const onImportContactAsync = async () => {
   }
 }
 
-const openEditDialog = (contact: SelectHaexContacts) => {
+const openEditDialog = (contact: SelectHaexIdentities) => {
   editForm.id = contact.id
   editForm.label = contact.label
   editForm.notes = contact.notes ?? ''
@@ -694,7 +694,7 @@ const onEditContactAsync = async () => {
 
   isEditing.value = true
   try {
-    await contactsStore.updateContactAsync(editForm.id, {
+    await identityStore.updateContactAsync(editForm.id, {
       label: editForm.label.trim(),
       notes: editForm.notes.trim() || undefined,
     })
@@ -712,7 +712,7 @@ const onEditContactAsync = async () => {
   }
 }
 
-const prepareDelete = (contact: SelectHaexContacts) => {
+const prepareDelete = (contact: SelectHaexIdentities) => {
   deleteTarget.value = contact
   showDeleteConfirm.value = true
 }
@@ -721,7 +721,7 @@ const onConfirmDeleteAsync = async () => {
   if (!deleteTarget.value) return
 
   try {
-    await contactsStore.deleteContactAsync(deleteTarget.value.id)
+    await identityStore.deleteIdentityAsync(deleteTarget.value.id)
     add({ title: t('success.deleted'), color: 'success' })
     showDeleteConfirm.value = false
     deleteTarget.value = null
@@ -769,19 +769,11 @@ const editingClaim = ref<{
 } | null>(null)
 const claimTargetContactId = ref<string | null>(null)
 
-const claimTypeOptions = computed(() => {
-  const existingTypes = new Set(
-    (claimTargetContactId.value
-      ? contactClaims.value[claimTargetContactId.value]
-      : []
-    )?.map((c) => c.type) ?? [],
-  )
-  return [
-    { label: 'Email', value: 'email', disabled: existingTypes.has('email') },
-    { label: 'Name', value: 'name', disabled: existingTypes.has('name') },
-    { label: t('claims.custom'), value: 'custom' },
-  ]
-})
+const claimTypeOptions = computed(() => [
+  { label: 'Email', value: 'email' },
+  { label: 'Name', value: 'name' },
+  { label: t('claims.custom'), value: 'custom' },
+])
 
 const claimValuePlaceholder = computed(() => {
   if (editingClaim.value) return ''
@@ -811,7 +803,7 @@ const onToggleContact = async (contactId: string, open: boolean) => {
 }
 
 const loadClaimsAsync = async (contactId: string) => {
-  const claims = await contactsStore.getClaimsAsync(contactId)
+  const claims = await identityStore.getClaimsAsync(contactId)
   contactClaims.value[contactId] = claims.map((c) => ({
     id: c.id,
     type: c.type,
@@ -844,7 +836,7 @@ const onSaveClaimAsync = async () => {
 
   try {
     if (editingClaim.value) {
-      await contactsStore.updateClaimAsync(
+      await identityStore.updateClaimAsync(
         editingClaim.value.id,
         claimValue.value.trim(),
       )
@@ -855,7 +847,7 @@ const onSaveClaimAsync = async () => {
         claimType.value === 'custom'
           ? claimCustomType.value.trim()
           : claimType.value
-      await contactsStore.addClaimAsync(
+      await identityStore.addClaimAsync(
         claimTargetContactId.value!,
         type,
         claimValue.value.trim(),
@@ -876,7 +868,7 @@ const onSaveClaimAsync = async () => {
 
 const deleteClaimAsync = async (claimId: string, contactId: string) => {
   try {
-    await contactsStore.deleteClaimAsync(claimId)
+    await identityStore.deleteClaimAsync(claimId)
     await loadClaimsAsync(contactId)
     add({ title: t('claims.deleted'), color: 'success' })
   } catch (error) {

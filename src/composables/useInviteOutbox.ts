@@ -68,7 +68,7 @@ export function useInviteOutbox() {
     // Load identity for inviterDid
     const identityStore = useIdentityStore()
     await identityStore.loadIdentitiesAsync()
-    const identity = identityStore.identities[0]
+    const identity = identityStore.ownIdentities[0]
     if (!identity) {
       log.warn('No identity available for outbox processing')
       return

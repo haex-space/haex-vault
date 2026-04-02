@@ -480,14 +480,6 @@ export const useSyncOrchestratorStore = defineStore(
         },
       )
       registerStoreForTables(
-        ['haex_contacts', 'haex_contact_claims'],
-        async () => {
-          const contactsStore = useContactsStore()
-          await contactsStore.loadContactsAsync()
-        },
-      )
-
-      registerStoreForTables(
         ['haex_spaces', 'haex_pending_invites'],
         async () => {
           const spacesStore = useSpacesStore()

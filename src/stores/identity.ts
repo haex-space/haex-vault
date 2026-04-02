@@ -36,16 +36,20 @@ export const useIdentityStore = defineStore('identityStore', () => {
 
   const identities = ref<SelectHaexIdentities[]>([])
 
+  // Computed views: own identities (have privateKey) vs contacts (no privateKey)
+  const ownIdentities = computed(() => identities.value.filter(i => i.privateKey !== null))
+  const contacts = computed(() => identities.value.filter(i => i.privateKey === null))
+
   // Session-only: identity passwords set during creation, consumed on first backend registration
   const _identityPasswords = new Map<string, string>()
 
-  const setIdentityPassword = (publicKey: string, password: string) => {
-    _identityPasswords.set(publicKey, password)
+  const setIdentityPassword = (identityId: string, password: string) => {
+    _identityPasswords.set(identityId, password)
   }
 
-  const consumeIdentityPassword = (publicKey: string): string | undefined => {
-    const pw = _identityPasswords.get(publicKey)
-    _identityPasswords.delete(publicKey)
+  const consumeIdentityPassword = (identityId: string): string | undefined => {
+    const pw = _identityPasswords.get(identityId)
+    _identityPasswords.delete(identityId)
     return pw
   }
 
@@ -55,7 +59,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
       .select()
       .from(haexIdentities)
       .all()
-    log.info(`Loaded ${identities.value.length} identities`)
+    log.info(`Loaded ${identities.value.length} identities (${ownIdentities.value.length} own, ${contacts.value.length} contacts)`)
   }
 
   const createIdentityAsync = async (label: string): Promise<SelectHaexIdentities> => {
@@ -63,7 +67,9 @@ export const useIdentityStore = defineStore('identityStore', () => {
 
     const { did, signingPublicKey, signingPrivateKey } = await generateIdentityAsync()
 
+    const id = crypto.randomUUID()
     const newIdentity = {
+      id,
       label,
       did,
       publicKey: signingPublicKey,
@@ -77,22 +83,86 @@ export const useIdentityStore = defineStore('identityStore', () => {
     log.info(`Created identity "${label}" with DID ${did.slice(0, 30)}...`)
 
     await loadIdentitiesAsync()
-    return identities.value.find(i => i.publicKey === newIdentity.publicKey)!
+    return identities.value.find(i => i.id === id)!
   }
+
+  // ─── Contact methods (merged from contacts store) ─────────────────────
+
+  const addContactAsync = async (label: string, publicKey: string, notes?: string): Promise<SelectHaexIdentities> => {
+    const db = currentVault.value?.drizzle
+    if (!db) throw new Error('No vault open')
+
+    const existing = await db.select()
+      .from(haexIdentities)
+      .where(eq(haexIdentities.publicKey, publicKey))
+      .limit(1)
+    if (existing.length > 0) {
+      throw new Error('An identity with this public key already exists')
+    }
+
+    const did = await publicKeyToDidKeyAsync(publicKey)
+    const id = crypto.randomUUID()
+    await db.insert(haexIdentities).values({ id, label, publicKey, did, notes })
+
+    log.info(`Added contact "${label}" (${publicKey.slice(0, 16)}...)`)
+    await loadIdentitiesAsync()
+    return identities.value.find(i => i.id === id)!
+  }
+
+  const addContactWithClaimsAsync = async (
+    label: string,
+    publicKey: string,
+    claims: { type: string; value: string }[],
+    notes?: string,
+  ): Promise<SelectHaexIdentities> => {
+    const contact = await addContactAsync(label, publicKey, notes)
+
+    for (const claim of claims) {
+      await addClaimAsync(contact.id, claim.type, claim.value)
+    }
+
+    log.info(`Added contact "${label}" with ${claims.length} claims`)
+    return contact
+  }
+
+  const updateContactAsync = async (id: string, updates: { label?: string; notes?: string; avatar?: string | null }) => {
+    const db = currentVault.value?.drizzle
+    if (!db) throw new Error('No vault open')
+
+    await db.update(haexIdentities)
+      .set(updates)
+      .where(eq(haexIdentities.id, id))
+
+    log.info(`Updated contact ${id}`)
+    await loadIdentitiesAsync()
+  }
+
+  const getContactByPublicKeyAsync = async (publicKey: string): Promise<SelectHaexIdentities | undefined> => {
+    const db = currentVault.value?.drizzle
+    if (!db) return undefined
+
+    const rows = await db.select()
+      .from(haexIdentities)
+      .where(eq(haexIdentities.publicKey, publicKey))
+      .limit(1)
+    return rows[0]
+  }
+
+  // ─── Identity lookup / update ─────────────────────────────────────────
 
   /**
    * Returns spaces that would be affected by deleting an identity.
    * Admin spaces (where identity issued UCANs) will be fully deleted.
    * Member spaces will have this identity's devices removed.
    */
-  const getAffectedSpacesAsync = async (publicKey: string): Promise<{
+  const getAffectedSpacesAsync = async (identityId: string): Promise<{
     adminSpaces: SelectHaexSpaces[]
     memberSpaces: SelectHaexSpaces[]
   }> => {
     const db = currentVault.value?.drizzle
     if (!db) return { adminSpaces: [], memberSpaces: [] }
 
-    const identity = await getIdentityAsync(publicKey)
+    const identity = await getIdentityByIdAsync(identityId)
     if (!identity) return { adminSpaces: [], memberSpaces: [] }
 
     // Spaces where this identity issued UCANs → admin
@@ -115,7 +185,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
     const deviceSpaces = await db
       .select({ spaceId: haexSpaceDevices.spaceId })
       .from(haexSpaceDevices)
-      .where(eq(haexSpaceDevices.identityId, publicKey))
+      .where(eq(haexSpaceDevices.identityId, identityId))
     const memberSpaceIds = deviceSpaces
       .map(d => d.spaceId)
       .filter(id => !adminSpaceIds.includes(id))
@@ -127,11 +197,14 @@ export const useIdentityStore = defineStore('identityStore', () => {
     return { adminSpaces, memberSpaces }
   }
 
-  const deleteIdentityAsync = async (publicKey: string) => {
+  const deleteIdentityAsync = async (identityId: string) => {
     const db = currentVault.value?.drizzle
     if (!db) return
 
-    const { adminSpaces, memberSpaces } = await getAffectedSpacesAsync(publicKey)
+    const identity = await getIdentityByIdAsync(identityId)
+    if (!identity) return
+
+    const { adminSpaces, memberSpaces } = await getAffectedSpacesAsync(identityId)
     const spacesStore = useSpacesStore()
 
     // 1. Delete admin spaces and all their related data
@@ -157,20 +230,32 @@ export const useIdentityStore = defineStore('identityStore', () => {
       await db.delete(haexSpaceDevices).where(
         and(
           eq(haexSpaceDevices.spaceId, space.id),
-          eq(haexSpaceDevices.identityId, publicKey),
+          eq(haexSpaceDevices.identityId, identityId),
         ),
       )
       log.info(`Removed identity from member space "${space.name}" (${space.id})`)
     }
 
     // 3. Delete the identity (claims cascade via FK)
-    await db.delete(haexIdentities).where(eq(haexIdentities.publicKey, publicKey))
+    await db.delete(haexIdentities).where(eq(haexIdentities.id, identityId))
 
-    log.info(`Deleted identity ${publicKey.slice(0, 20)}... (${adminSpaces.length} admin spaces deleted, ${memberSpaces.length} member spaces cleaned)`)
+    log.info(`Deleted identity ${identity.publicKey.slice(0, 20)}... (${adminSpaces.length} admin spaces deleted, ${memberSpaces.length} member spaces cleaned)`)
     await loadIdentitiesAsync()
   }
 
-  const getIdentityAsync = async (publicKey: string): Promise<SelectHaexIdentities | undefined> => {
+  const getIdentityByIdAsync = async (id: string): Promise<SelectHaexIdentities | undefined> => {
+    if (!currentVault.value?.drizzle) return undefined
+
+    const rows = await currentVault.value.drizzle
+      .select()
+      .from(haexIdentities)
+      .where(eq(haexIdentities.id, id))
+      .limit(1)
+
+    return rows[0]
+  }
+
+  const getIdentityByPublicKeyAsync = async (publicKey: string): Promise<SelectHaexIdentities | undefined> => {
     if (!currentVault.value?.drizzle) return undefined
 
     const rows = await currentVault.value.drizzle
@@ -182,25 +267,25 @@ export const useIdentityStore = defineStore('identityStore', () => {
     return rows[0]
   }
 
-  const updateLabelAsync = async (publicKey: string, label: string) => {
+  const updateLabelAsync = async (identityId: string, label: string) => {
     if (!currentVault.value?.drizzle) return
 
     await currentVault.value.drizzle
       .update(haexIdentities)
       .set({ label })
-      .where(eq(haexIdentities.publicKey, publicKey))
+      .where(eq(haexIdentities.id, identityId))
 
-    log.info(`Updated identity ${publicKey.slice(0, 20)}... label to "${label}"`)
+    log.info(`Updated identity ${identityId.slice(0, 8)}... label to "${label}"`)
     await loadIdentitiesAsync()
   }
 
-  const updateAvatarAsync = async (publicKey: string, avatar: string | null) => {
+  const updateAvatarAsync = async (identityId: string, avatar: string | null) => {
     if (!currentVault.value?.drizzle) return
 
     await currentVault.value.drizzle
       .update(haexIdentities)
       .set({ avatar })
-      .where(eq(haexIdentities.publicKey, publicKey))
+      .where(eq(haexIdentities.id, identityId))
 
     await loadIdentitiesAsync()
   }
@@ -209,7 +294,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
     did: identity.did,
     label: identity.label,
     publicKey: identity.publicKey,
-    privateKey: identity.privateKey,
+    privateKey: identity.privateKey!,
   })
 
   const importIdentityAsync = async (exported: ExportedIdentity): Promise<SelectHaexIdentities> => {
@@ -237,7 +322,9 @@ export const useIdentityStore = defineStore('identityStore', () => {
       return existing[0]!
     }
 
+    const id = crypto.randomUUID()
     const newIdentity = {
+      id,
       label: exported.label || `Imported ${exported.did.slice(0, 20)}...`,
       did: exported.did,
       publicKey: exported.publicKey,
@@ -252,7 +339,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
     // Import claims if present
     if (exported.claims?.length) {
       for (const claim of exported.claims) {
-        await addClaimAsync(exported.publicKey, claim.type, claim.value)
+        await addClaimAsync(id, claim.type, claim.value)
       }
       log.info(`Imported ${exported.claims.length} claims`)
     }
@@ -260,32 +347,48 @@ export const useIdentityStore = defineStore('identityStore', () => {
     log.info(`Imported identity "${newIdentity.label}" with DID ${exported.did.slice(0, 30)}...`)
 
     await loadIdentitiesAsync()
-    return identities.value.find(i => i.publicKey === newIdentity.publicKey)!
+    return identities.value.find(i => i.id === id)!
   }
 
-  const addClaimAsync = async (identityPublicKey: string, type: string, value: string) => {
+  // ─── Claims (now always use identity UUID) ────────────────────────────
+
+  const addClaimAsync = async (identityId: string, type: string, value: string) => {
     const db = currentVault.value?.drizzle
     if (!db) throw new Error('No vault open')
 
     // Verify identity exists in DB before inserting claim (FK constraint)
     const identity = await db.query.haexIdentities.findFirst({
-      where: eq(haexIdentities.publicKey, identityPublicKey),
+      where: eq(haexIdentities.id, identityId),
     })
     if (!identity) {
-      log.warn(`Cannot add claim "${type}": identity ${identityPublicKey.slice(0, 20)}... not in DB`)
+      log.warn(`Cannot add claim "${type}": identity ${identityId.slice(0, 8)}... not in DB`)
       return null
     }
 
+    // Prevent exact duplicates (same type + same value)
+    const existing = await db.select({ id: haexIdentityClaims.id })
+      .from(haexIdentityClaims)
+      .where(and(
+        eq(haexIdentityClaims.identityId, identityId),
+        eq(haexIdentityClaims.type, type),
+        eq(haexIdentityClaims.value, value),
+      ))
+      .limit(1)
+    if (existing.length > 0) {
+      log.info(`Claim "${type}: ${value}" already exists for identity ${identityId.slice(0, 8)}...`)
+      return existing[0]
+    }
+
     const id = crypto.randomUUID()
-    await db.insert(haexIdentityClaims).values({ id, identityId: identityPublicKey, type, value })
-    log.info(`Added claim "${type}" for identity ${identityPublicKey.slice(0, 20)}...`)
-    return { id, identityId: identityPublicKey, type, value }
+    await db.insert(haexIdentityClaims).values({ id, identityId, type, value })
+    log.info(`Added claim "${type}" for identity ${identityId.slice(0, 8)}...`)
+    return { id, identityId, type, value }
   }
 
-  const getClaimsAsync = async (identityPublicKey: string) => {
+  const getClaimsAsync = async (identityId: string) => {
     const db = currentVault.value?.drizzle
     if (!db) return []
-    return db.select().from(haexIdentityClaims).where(eq(haexIdentityClaims.identityId, identityPublicKey))
+    return db.select().from(haexIdentityClaims).where(eq(haexIdentityClaims.identityId, identityId))
   }
 
   const updateClaimAsync = async (claimId: string, value: string) => {
@@ -324,7 +427,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
 
     const identity = await createIdentityAsync(label)
     const avatar = createAvatar(toonHead, { seed: identity.publicKey }).toDataUri()
-    await updateAvatarAsync(identity.publicKey, avatar)
+    await updateAvatarAsync(identity.id, avatar)
 
     log.info('Default identity created')
   }
@@ -336,14 +439,21 @@ export const useIdentityStore = defineStore('identityStore', () => {
 
   return {
     identities,
+    ownIdentities,
+    contacts,
     loadIdentitiesAsync,
     createIdentityAsync,
     deleteIdentityAsync,
-    getIdentityAsync,
+    getIdentityByIdAsync,
+    getIdentityByPublicKeyAsync,
     updateLabelAsync,
     updateAvatarAsync,
     exportIdentity,
     importIdentityAsync,
+    addContactAsync,
+    addContactWithClaimsAsync,
+    updateContactAsync,
+    getContactByPublicKeyAsync,
     addClaimAsync,
     getClaimsAsync,
     updateClaimAsync,

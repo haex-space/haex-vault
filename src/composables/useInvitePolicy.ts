@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import { haexBlockedDids, haexContacts, haexInvitePolicy } from '~/database/schemas'
+import { haexBlockedDids, haexIdentities, haexInvitePolicy } from '~/database/schemas'
 
 type InvitePolicy = 'all' | 'contacts_only' | 'nobody'
 
@@ -36,16 +36,12 @@ export function useInvitePolicy() {
       case 'nobody':
         return false
       case 'contacts_only': {
-        // Check if the inviterDid's public key exists in contacts.
-        // DID format: did:key:z6Mk... — contacts store publicKey (Base64 SPKI).
-        // We compare against the DID stored in identities or match by publicKey in contacts.
-        // Since contacts have publicKey (not DID), and we receive inviterDid,
-        // we check if any contact has a publicKey that could map to this DID.
-        // For now, we do a simple check: is there a contact whose publicKey matches?
-        // The caller should resolve DID → publicKey before calling, or we check all contacts.
-        const contacts = await db.select().from(haexContacts)
-        // If the inviterDid is found as a publicKey in contacts, allow it
-        return contacts.some(c => c.publicKey === inviterDid)
+        // Check if the inviter's DID matches a known contact (identity without privateKey)
+        const match = await db.select({ id: haexIdentities.id })
+          .from(haexIdentities)
+          .where(eq(haexIdentities.did, inviterDid))
+          .limit(1)
+        return match.length > 0
       }
       default:
         return true

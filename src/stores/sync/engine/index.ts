@@ -89,12 +89,9 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
    */
   const getIdentityPublicKeyAsync = async (backendId: string): Promise<string> => {
     const backend = findBackend(backendId)
-    if (!backend.identityId) {
-      throw new Error(`Backend ${backendId} has no identity configured`)
-    }
     const identityStore = useIdentityStore()
-    const identity = await identityStore.getIdentityAsync(backend.identityId)
-    if (!identity?.publicKey) {
+    const identity = await identityStore.getIdentityByIdAsync(backend.identityId)
+    if (!identity) {
       throw new Error(`Identity not found for backend ${backendId}`)
     }
     return identity.publicKey
@@ -103,17 +100,14 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   /**
    * Resolves the full identity (publicKey, privateKey, did) for a backend
    */
-  const resolveBackendIdentityAsync = async (backendId: string) => {
+  const resolveBackendIdentityAsync = async (backendId: string): Promise<{ publicKey: string; privateKey: string; did: string }> => {
     const backend = findBackend(backendId)
-    if (!backend.identityId) {
-      throw new Error(`Backend ${backendId} has no identity configured`)
-    }
     const identityStore = useIdentityStore()
-    const identity = await identityStore.getIdentityAsync(backend.identityId)
-    if (!identity?.publicKey || !identity?.privateKey || !identity?.did) {
+    const identity = await identityStore.getIdentityByIdAsync(backend.identityId)
+    if (!identity?.privateKey) {
       throw new Error(`Identity not found or incomplete for backend ${backendId}`)
     }
-    return identity
+    return { publicKey: identity.publicKey, privateKey: identity.privateKey, did: identity.did }
   }
 
   /**
@@ -130,7 +124,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
           return null
         }
         const identityStore = useIdentityStore()
-        const identity = await identityStore.getIdentityAsync(b.identityId)
+        const identity = await identityStore.getIdentityByIdAsync(b.identityId)
         if (!identity?.did || !identity?.privateKey) {
           engineLog.warn('DID re-auth resolver: identity missing did or privateKey', { identityId: b.identityId, hasDid: !!identity?.did, hasKey: !!identity?.privateKey })
           return null

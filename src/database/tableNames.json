@@ -189,11 +189,13 @@
     "identities": {
       "name": "haex_identities",
       "columns": {
+        "id": "id",
         "label": "label",
         "did": "did",
         "publicKey": "public_key",
         "privateKey": "private_key",
         "avatar": "avatar",
+        "notes": "notes",
         "createdAt": "created_at"
       }
     },
@@ -206,27 +208,6 @@
         "value": "value",
         "verifiedAt": "verified_at",
         "verifiedBy": "verified_by",
-        "createdAt": "created_at"
-      }
-    },
-    "contacts": {
-      "name": "haex_contacts",
-      "columns": {
-        "id": "id",
-        "label": "label",
-        "publicKey": "public_key",
-        "avatar": "avatar",
-        "notes": "notes",
-        "createdAt": "created_at"
-      }
-    },
-    "contact_claims": {
-      "name": "haex_contact_claims",
-      "columns": {
-        "id": "id",
-        "contactId": "contact_id",
-        "type": "type",
-        "value": "value",
         "createdAt": "created_at"
       }
     },

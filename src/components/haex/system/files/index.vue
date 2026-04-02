@@ -366,7 +366,7 @@ const props = defineProps<{
 const { t } = useI18n()
 const peerStore = usePeerStorageStore()
 const spacesStore = useSpacesStore()
-const contactsStore = useContactsStore()
+const identityStore = useIdentityStore()
 
 const browser = useFileBrowser(props.tabId)
 
@@ -391,8 +391,8 @@ const toggleEndpointAsync = async () => {
 // Aggregate remote peers from spaces + contacts
 const contactClaims = ref<Record<string, { type: string; value: string }[]>>({})
 const loadContactClaimsAsync = async () => {
-  for (const contact of contactsStore.contacts) {
-    const claims = await contactsStore.getClaimsAsync(contact.id)
+  for (const contact of identityStore.contacts) {
+    const claims = await identityStore.getClaimsAsync(contact.id)
     contactClaims.value[contact.id] = claims.map((c) => ({
       type: c.type,
       value: c.value,
@@ -437,7 +437,7 @@ const remotePeers = computed(() => {
     })
   }
 
-  for (const contact of contactsStore.contacts) {
+  for (const contact of identityStore.contacts) {
     const claims = contactClaims.value[contact.id] || []
     for (const claim of claims) {
       if (!claim.type.startsWith('device:') || !claim.value) continue
@@ -500,7 +500,7 @@ onMounted(async () => {
     peerStore.refreshStatusAsync(),
     peerStore.loadSharesAsync(),
     peerStore.loadSpaceDevicesAsync(),
-    contactsStore.loadContactsAsync(),
+    identityStore.loadIdentitiesAsync(),
   ])
   await loadContactClaimsAsync()
   await applyDeepLink(props.windowParams)

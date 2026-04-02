@@ -163,7 +163,7 @@
 import QRCode from 'qrcode'
 import { SettingsCategory } from '~/config/settingsCategories'
 import { publicKeyToDidKeyAsync } from '@haex-space/vault-sdk'
-import type { SelectHaexContacts } from '~/database/schemas'
+import type { SelectHaexIdentities } from '~/database/schemas'
 import { SpaceType, SpaceCapability } from '~/database/constants'
 import { buildLocalInviteLink } from '~/utils/inviteLink'
 
@@ -181,9 +181,9 @@ const { add } = useToast()
 
 const windowManager = useWindowManagerStore()
 const spacesStore = useSpacesStore()
-const contactsStore = useContactsStore()
+const identityStore = useIdentityStore()
 const peerStorageStore = usePeerStorageStore()
-const { contacts } = storeToRefs(contactsStore)
+const { contacts } = storeToRefs(identityStore)
 
 const isProcessing = ref(false)
 const selectedContactIds = ref<string[]>([])
@@ -234,7 +234,7 @@ const selectedCapabilities = computed((): string[] => {
   return caps
 })
 
-const selectedContacts = computed<SelectHaexContacts[]>(() =>
+const selectedContacts = computed<SelectHaexIdentities[]>(() =>
   contacts.value.filter(c => selectedContactIds.value.includes(c.id)),
 )
 
@@ -303,7 +303,7 @@ watch(open, async (isOpen) => {
     const defaults = expiryOptions.value
     selectedExpiry.value = props.mode === 'open' ? defaults[2] : defaults[1]
     if (props.mode === 'contact') {
-      await contactsStore.loadContactsAsync()
+      await identityStore.loadIdentitiesAsync()
     }
     if (isLocalSpace.value) {
       await peerStorageStore.loadSpaceDevicesAsync()
@@ -323,9 +323,9 @@ const onSubmitAsync = async () => {
       // P2P push invite for local space — send to each selected contact
       for (const contact of selectedContacts.value) {
         const inviteeDid = await publicKeyToDidKeyAsync(contact.publicKey)
-        const claims = await contactsStore.getClaimsAsync(contact.id)
+        const claims = await identityStore.getClaimsAsync(contact.id)
         const endpointIds = claims
-          .filter(c => c.type === 'endpointId')
+          .filter(c => c.type === 'endpointId' || c.type.startsWith('device:'))
           .map(c => c.value)
 
         await spacesStore.inviteContactToLocalSpaceAsync({

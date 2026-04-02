@@ -135,11 +135,11 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   // Identity Helper
   // =========================================================================
 
-  const resolveIdentityAsync = async (identityId: string) => {
+  const resolveIdentityAsync = async (identityId: string): Promise<{ id: string; publicKey: string; privateKey: string; did: string; label: string }> => {
     const identityStore = useIdentityStore()
-    const identity = await identityStore.getIdentityAsync(identityId)
-    if (!identity) throw new Error(`Identity ${identityId} not found`)
-    return identity
+    const identity = await identityStore.getIdentityByIdAsync(identityId)
+    if (!identity?.privateKey) throw new Error(`Identity ${identityId} not found or has no private key`)
+    return { id: identity.id, publicKey: identity.publicKey, privateKey: identity.privateKey, did: identity.did, label: identity.label }
   }
 
   // =========================================================================
@@ -168,8 +168,8 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     // Create root UCAN for this space
     const identityStore = useIdentityStore()
     await identityStore.loadIdentitiesAsync()
-    const identity = identityStore.identities[0]
-    if (identity) {
+    const identity = identityStore.ownIdentities[0]
+    if (identity?.privateKey) {
       const rootUcan = await createRootUcanAsync(identity.did, identity.privateKey, id)
       const db = getDb()
       if (db) await persistUcanAsync(db, id, rootUcan)
@@ -342,18 +342,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     log.info(`Migrated space "${spaceId}" from "${oldServerUrl || 'local'}" to "${newServerUrl || 'local'}"`)
   }
 
-  const listSpacesAsync = async (serverUrl: string, identityId?: string) => {
-    let response: Response
-    if (identityId) {
-      const identity = await resolveIdentityAsync(identityId)
-      response = await fetchWithDidAuth(`${serverUrl}/spaces`, identity.privateKey, identity.did, 'list-spaces')
-    } else {
-      // Fallback: try first identity available
-      const identityStore = useIdentityStore()
-      const first = identityStore.identities[0]
-      if (!first) throw new Error('No identity available for authentication')
-      response = await fetchWithDidAuth(`${serverUrl}/spaces`, first.privateKey, first.did, 'list-spaces')
-    }
+  const listSpacesAsync = async (serverUrl: string, identityId: string) => {
+    const identity = await resolveIdentityAsync(identityId)
+    const response = await fetchWithDidAuth(`${serverUrl}/spaces`, identity.privateKey, identity.did, 'list-spaces')
     if (!response.ok) throw new Error('Failed to list spaces')
     const rawSpaces = await response.json() as SharedSpace[]
 
@@ -787,7 +778,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
         name: `Federation: ${spaceId.slice(0, 8)}`,
         homeServerUrl: relayServerUrl,
         spaceId,
-        identityId: identity.publicKey,
+        identityId: identity.id,
         enabled: true,
         priority: 0,
         type: 'relay',
@@ -877,7 +868,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
     const identityStore = useIdentityStore()
     await identityStore.loadIdentitiesAsync()
-    const identity = identityStore.identities[0]
+    const identity = identityStore.ownIdentities[0]
     if (!identity) throw new Error('No identity available')
 
     const endpoints: string[] = JSON.parse(invite.spaceEndpoints)

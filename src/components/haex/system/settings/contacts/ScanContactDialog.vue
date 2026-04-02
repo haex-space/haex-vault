@@ -166,7 +166,7 @@
 
 <script setup lang="ts">
 import { Html5Qrcode } from 'html5-qrcode'
-import type { SelectHaexContacts } from '~/database/schemas'
+import type { SelectHaexIdentities } from '~/database/schemas'
 
 interface ScannedClaim {
   type: string
@@ -184,13 +184,13 @@ interface ScannedContact {
 const open = defineModel<boolean>('open', { required: true })
 
 const emit = defineEmits<{
-  saved: [contact: SelectHaexContacts]
+  saved: [contact: SelectHaexIdentities]
 }>()
 
 const { t } = useI18n()
 const { add } = useToast()
 
-const contactsStore = useContactsStore()
+const identityStore = useIdentityStore()
 
 const step = ref<'scan' | 'review'>('scan')
 const scannerContainer = ref<HTMLElement | null>(null)
@@ -198,7 +198,7 @@ const scanError = ref('')
 const scannedContact = ref<ScannedContact | null>(null)
 const contactNotes = ref('')
 const isSaving = ref(false)
-const existingContact = ref<SelectHaexContacts | null>(null)
+const existingContact = ref<SelectHaexIdentities | null>(null)
 const showAddClaimInline = ref(false)
 const newClaimType = ref('')
 const newClaimValue = ref('')
@@ -320,7 +320,7 @@ const onScanSuccess = async (decodedText: string) => {
     }
 
     // Check if contact already exists
-    const existing = await contactsStore.getContactByPublicKeyAsync(
+    const existing = await identityStore.getContactByPublicKeyAsync(
       payload.publicKey,
     )
     existingContact.value = existing ?? null
@@ -361,7 +361,7 @@ const onSaveContactAsync = async () => {
       selectedClaims.push({ type: 'endpointId', value: scannedContact.value.endpointId })
     }
 
-    const contact = await contactsStore.addContactWithClaimsAsync(
+    const contact = await identityStore.addContactWithClaimsAsync(
       scannedContact.value.label.trim(),
       scannedContact.value.publicKey,
       selectedClaims,

@@ -144,7 +144,19 @@ fn check_invite_policy(db: &DbConnection, inviter_did: &str) -> bool {
 
     match policy.as_str() {
         "nobody" => false,
-        // TODO: "contacts_only" needs DID→publicKey resolution to check against haex_contacts
+        "contacts_only" => {
+            // Check if inviter's DID matches a known contact (identity without private_key)
+            let count = core::select_with_crdt(
+                "SELECT COUNT(*) FROM haex_identities WHERE did = ?1 AND private_key IS NULL"
+                    .to_string(),
+                vec![serde_json::Value::String(inviter_did.to_string())],
+                db,
+            )
+            .ok()
+            .and_then(|rows| rows.first()?.first()?.as_i64())
+            .unwrap_or(0);
+            count > 0
+        }
         _ => true,
     }
 }

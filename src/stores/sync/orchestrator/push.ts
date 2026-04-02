@@ -252,10 +252,10 @@ export const pushChangesToServerAsync = async (
   // Resolve identity for record signing + auth (every backend has an identity)
   let identityPrivateKey: string | null = null
   let identityPublicKey: string | null = null
-  if (backend.identityId) {
+  {
     const identityStore = useIdentityStore()
-    const identity = await identityStore.getIdentityAsync(backend.identityId)
-    if (identity) {
+    const identity = await identityStore.getIdentityByIdAsync(backend.identityId)
+    if (identity?.privateKey) {
       identityPrivateKey = identity.privateKey
       identityPublicKey = identity.publicKey
     }
@@ -304,8 +304,9 @@ export const pushChangesToServerAsync = async (
 
   // Resolve identity for DID-Auth
   const identityStore = useIdentityStore()
-  const identity = backend.identityId ? await identityStore.getIdentityAsync(backend.identityId) : null
-  if (!identity) throw new Error('No identity configured for this backend')
+  const resolved = await identityStore.getIdentityByIdAsync(backend.identityId)
+  if (!resolved?.privateKey) throw new Error('No identity configured for this backend')
+  const identity = { privateKey: resolved.privateKey, did: resolved.did }
 
   const url = `${backend.homeServerUrl}/sync/push`
   const requestBody = JSON.stringify({ spaceId, changes: formattedChanges })

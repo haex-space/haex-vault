@@ -56,7 +56,6 @@ export const useVaultStore = defineStore('vaultStore', () => {
     useExtensionsStore().reset()
     useWorkspaceStore().reset()
     useIdentityStore().reset()
-    useContactsStore().reset()
     useDeviceStore().reset()
     useNotificationStore().reset()
     useNavigationStore().reset()
@@ -101,19 +100,14 @@ export const useVaultStore = defineStore('vaultStore', () => {
 
       for (const backend of enabledBackends) {
         try {
-          // Check if backend has an identity for auth
-          if (!backend.identityId) {
-            continue
-          }
-
-          const identity = await identityStore.getIdentityAsync(backend.identityId)
+          const identity = await identityStore.getIdentityByIdAsync(backend.identityId)
           if (!identity) {
             continue
           }
 
           // Initialize token manager and authenticate via DID challenge-response
           syncEngineStore.initTokenManagerAsync(backend.id)
-          const session = await didAuthenticateAsync(backend.homeServerUrl, identity.did, identity.privateKey)
+          const session = await didAuthenticateAsync(backend.homeServerUrl, identity.did, identity.privateKey!)
           syncEngineStore.setSession(session)
 
           // Ensure sync key exists
@@ -420,6 +414,11 @@ export const useVaultStore = defineStore('vaultStore', () => {
     // Ensure at least one identity exists (needed for UCAN signing in spaces)
     const identityStore = useIdentityStore()
     await identityStore.ensureDefaultIdentityAsync()
+
+    // Update device claims now that identity exists (initDeviceIdAsync ran before identity was created)
+    if (useDeviceStore().deviceId) {
+      await useDeviceStore().updateDeviceClaimsAsync()
+    }
 
     // Load spaces from DB and ensure default local space exists
     await spacesStore.loadSpacesFromDbAsync()

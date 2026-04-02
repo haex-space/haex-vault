@@ -218,8 +218,8 @@ export const pullChangesFromServerAsync = async (options: PullOptions): Promise<
   let identity: { privateKey: string; did: string } | null = null
   if (backendIdentityId) {
     const identityStore = useIdentityStore()
-    const id = await identityStore.getIdentityAsync(backendIdentityId)
-    if (id) identity = id
+    const id = await identityStore.getIdentityByIdAsync(backendIdentityId)
+    if (id?.privateKey) identity = { privateKey: id.privateKey, did: id.did }
   }
   if (!identity) throw new Error('No identity configured for this backend')
 
@@ -571,8 +571,9 @@ export const pullPendingColumnsAsync = async (
   const syncBackendsStore = useSyncBackendsStore()
   const backendRecord = syncBackendsStore.backends.find(b => b.id === backendId)
   const identityStore = useIdentityStore()
-  const identity = backendRecord?.identityId ? await identityStore.getIdentityAsync(backendRecord.identityId) : null
-  if (!identity) throw new Error('No identity configured for this backend')
+  const resolved = backendRecord?.identityId ? await identityStore.getIdentityByIdAsync(backendRecord.identityId) : null
+  if (!resolved?.privateKey) throw new Error('No identity configured for this backend')
+  const identity = { privateKey: resolved.privateKey, did: resolved.did }
 
   const federation = backendRecord?.type === 'relay' && backendRecord.homeServerDid && backendRecord.originServerDid
     ? { serverDid: backendRecord.homeServerDid, originServerDid: backendRecord.originServerDid }
