@@ -31,7 +31,7 @@
         </div>
         <template #content>
           <div class="mb-4">
-            <PendingInvites ref="pendingInvitesRef" />
+            <PendingInvites />
           </div>
         </template>
       </UCollapsible>
@@ -49,13 +49,41 @@
         />
       </div>
 
-      <!-- Spaces list -->
+      <!-- Pending Spaces (from push invites) -->
+      <div v-if="pendingSpaces.length" class="space-y-3 mb-4">
+        <p class="text-sm font-medium text-muted">
+          {{ t('list.pending') }}
+        </p>
+        <div
+          v-for="space in pendingSpaces"
+          :key="space.id"
+          class="p-3 rounded-lg border border-dashed border-primary/30 bg-primary/5"
+        >
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2 min-w-0">
+              <p class="font-medium text-sm truncate">{{ space.name }}</p>
+              <UBadge :label="space.type" color="info" variant="subtle" size="sm" />
+            </div>
+            <UButton
+              :label="t('list.viewInvite')"
+              color="primary"
+              variant="soft"
+              size="sm"
+              @click="showInvitesSection = true"
+            />
+          </div>
+        </div>
+      </div>
+
+      <USeparator v-if="pendingSpaces.length && activeSpaces.length" class="mb-4" />
+
+      <!-- Active Spaces list -->
       <div
-        v-else-if="visibleSpaces.length"
+        v-else-if="activeSpaces.length"
         class="space-y-3"
       >
         <SpaceListItem
-          v-for="space in visibleSpaces"
+          v-for="space in activeSpaces"
           :key="space.id"
           :space="space"
           @edit="openEditDialog"
@@ -69,7 +97,7 @@
 
       <!-- Empty state -->
       <HaexSystemSettingsLayoutEmpty
-        v-else
+        v-else-if="!pendingSpaces.length"
         :message="t('list.empty')"
         icon="i-lucide-layout-grid"
       />
@@ -85,7 +113,38 @@
           :label="t('create.nameLabel')"
           @keydown.enter.prevent="onCreateSpaceAsync"
         />
-        <div class="flex items-center gap-2">
+
+        <!-- Type selector -->
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium">{{ t('create.typeLabel') }}</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              class="flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-colors"
+              :class="createForm.type === SpaceType.LOCAL
+                ? 'border-primary bg-primary/5 text-primary'
+                : 'border-default hover:border-primary/50'"
+              @click="createForm.type = SpaceType.LOCAL"
+            >
+              <UIcon name="i-lucide-hard-drive" class="w-5 h-5" />
+              <span class="text-sm font-medium">{{ t('create.typeLocal') }}</span>
+              <span class="text-xs text-muted text-center">{{ t('create.typeLocalHint') }}</span>
+            </button>
+            <button
+              class="flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-colors"
+              :class="createForm.type === SpaceType.ONLINE
+                ? 'border-primary bg-primary/5 text-primary'
+                : 'border-default hover:border-primary/50'"
+              @click="createForm.type = SpaceType.ONLINE"
+            >
+              <UIcon name="i-lucide-cloud" class="w-5 h-5" />
+              <span class="text-sm font-medium">{{ t('create.typeOnline') }}</span>
+              <span class="text-xs text-muted text-center">{{ t('create.typeOnlineHint') }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Server selector (only for online) -->
+        <div v-if="createForm.type === SpaceType.ONLINE" class="flex items-center gap-2">
           <UiSelectMenu
             v-model="createForm.serverUrl"
             :items="serverUrlOptions"
@@ -241,6 +300,7 @@ import SpaceInviteDialog from './spaces/SpaceInviteDialog.vue'
 import PendingInvites from './spaces/PendingInvites.vue'
 import { parseInviteTokenLink, parseLocalInviteLink } from '~/utils/inviteLink'
 import { invoke } from '@tauri-apps/api/core'
+import { SpaceType, type SpaceType as SpaceTypeValue } from '~/database/constants'
 
 const props = defineProps<{
   inviteLink?: string
@@ -253,7 +313,7 @@ const spacesStore = useSpacesStore()
 const syncBackendsStore = useSyncBackendsStore()
 const windowManager = useWindowManagerStore()
 
-const { visibleSpaces, spaces } = storeToRefs(spacesStore)
+const { activeSpaces, pendingSpaces, spaces } = storeToRefs(spacesStore)
 const { backends: syncBackends } = storeToRefs(syncBackendsStore)
 
 // Loading states
@@ -268,11 +328,11 @@ const showInviteDialog = ref(false)
 const showDeleteConfirm = ref(false)
 const showLeaveConfirm = ref(false)
 const showInvitesSection = ref(false)
-const pendingInvitesRef = ref<InstanceType<typeof PendingInvites> | null>(null)
 
 // Create form
 const createForm = reactive({
   name: '',
+  type: SpaceType.LOCAL as SpaceTypeValue,
   serverUrl: undefined as { label: string; value: string } | undefined,
   identityId: undefined as string | undefined,
 })
@@ -300,7 +360,7 @@ const editForm = reactive({
 
 const editingSpaceIsLocal = computed(() => {
   const space = spaces.value.find(s => s.id === editingSpace.value?.id)
-  return space?.type === 'local'
+  return space?.type === SpaceType.LOCAL
 })
 
 const editServerOptions = computed(() => {
@@ -427,19 +487,19 @@ const onCreateSpaceAsync = async () => {
 
   isCreating.value = true
   try {
-    const isLocal = !createForm.serverUrl?.value
-
-    if (isLocal) {
-      // Local space — no server needed
-      const createdSpace = await spacesStore.createLocalSpaceAsync(createForm.name)
+    if (createForm.type === SpaceType.LOCAL) {
+      await spacesStore.createLocalSpaceAsync(createForm.name)
 
       add({ title: t('success.created'), color: 'success' })
       showCreateDialog.value = false
       createForm.name = ''
-      createForm.serverUrl = undefined
     } else {
-      // Remote space — requires server + identity
-      const serverUrl = createForm.serverUrl!.value
+      // Online space — requires server + identity
+      const serverUrl = createForm.serverUrl?.value
+      if (!serverUrl) {
+        add({ title: t('errors.noServer'), color: 'error' })
+        return
+      }
 
       let identityId = createForm.identityId
       if (!identityId) {
@@ -447,7 +507,7 @@ const onCreateSpaceAsync = async () => {
         identityId = identityStore.identities[0]?.publicKey
       }
       if (!identityId) {
-        add({ title: t('errors.noIdentity', 'No identity available. Create one first.'), color: 'error' })
+        add({ title: t('errors.noIdentity'), color: 'error' })
         return
       }
 
@@ -494,14 +554,25 @@ const onJoinSpaceAsync = async () => {
         return
       }
 
-      await invoke('local_delivery_claim_invite', {
-        leaderEndpointId: localLink.endpointId,
-        leaderRelayUrl: localLink.relayUrl || null,
-        spaceId: localLink.spaceId,
-        tokenId: localLink.tokenId,
-        identityDid: identity.did,
-        label: identity.label || null,
-      })
+      // Try each endpoint until one works
+      let lastError: Error | null = null
+      for (const endpointId of localLink.spaceEndpoints) {
+        try {
+          await invoke('local_delivery_claim_invite', {
+            leaderEndpointId: endpointId,
+            leaderRelayUrl: null,
+            spaceId: localLink.spaceId,
+            tokenId: localLink.tokenId,
+            identityDid: identity.did,
+            label: identity.label || null,
+          })
+          lastError = null
+          break
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error(String(error))
+        }
+      }
+      if (lastError) throw lastError
 
       add({ title: t('success.joined'), color: 'success' })
       showJoinDialog.value = false
@@ -652,10 +723,17 @@ de:
     title: Deine Spaces
     description: Geteilte Spaces für die Zusammenarbeit mit anderen
     empty: Keine Spaces vorhanden
+    pending: Ausstehende Einladungen
+    viewInvite: Einladung ansehen
   create:
     title: Space erstellen
     description: Erstelle einen neuen geteilten Space
     nameLabel: Name
+    typeLabel: Typ
+    typeLocal: Lokal
+    typeOnline: Online
+    typeLocalHint: Daten bleiben auf deinen Geräten
+    typeOnlineHint: Synchronisiert über einen Server
     serverLabel: Sync-Server
     localOnly: Lokal (ohne Server)
     defaultSelfLabel: Ich
@@ -705,10 +783,17 @@ en:
     title: Your Spaces
     description: Shared spaces for collaboration with others
     empty: No spaces found
+    pending: Pending Invitations
+    viewInvite: View Invitation
   create:
     title: Create Space
     description: Create a new shared space
     nameLabel: Name
+    typeLabel: Type
+    typeLocal: Local
+    typeOnline: Online
+    typeLocalHint: Data stays on your devices
+    typeOnlineHint: Synchronized via a server
     serverLabel: Sync Server
     localOnly: Local (no server)
     defaultSelfLabel: Me

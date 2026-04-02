@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import * as schema from '~/database/schemas/haex'
+import * as schema from '~/database/schemas'
 import * as crdtSchema from '~/database/schemas/crdt'
 import type { Locale } from 'vue-i18n'
 import { haexSyncBackends } from '~/database/schemas'

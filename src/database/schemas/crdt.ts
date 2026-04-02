@@ -8,7 +8,7 @@ import {
   type AnySQLiteColumn,
 } from 'drizzle-orm/sqlite-core'
 import tableNames from '@/database/tableNames.json'
-import { haexExtensions } from './haex'
+import { haexExtensions } from './core'
 
 export const crdtTableNames = tableNames.haex.crdt
 

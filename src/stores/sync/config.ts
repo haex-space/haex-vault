@@ -7,7 +7,7 @@
  * - Fallback Pull: Periodic fetch to catch missed changes if connection was interrupted
  */
 
-import { haexVaultSettings } from '@/database/schemas/haex'
+import { haexVaultSettings } from '@/database/schemas'
 import { eq } from 'drizzle-orm'
 
 // Setting keys as constants

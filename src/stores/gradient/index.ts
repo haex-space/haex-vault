@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import * as schema from '~/database/schemas/haex'
+import * as schema from '~/database/schemas'
 import type { GradientVariant } from '~/types/gradient'
 import { VaultSettingsKeyEnum } from '~/stores/vault/settings'
 

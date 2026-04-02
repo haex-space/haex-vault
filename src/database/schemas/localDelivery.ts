@@ -1,7 +1,7 @@
 import { sqliteTable, text, integer, index, blob } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 import tableNames from '../tableNames.json'
-import { haexSpaces } from './haex'
+import { haexSpaces } from './spaces'
 
 // ---------------------------------------------------------------------------
 // Local Delivery Service — MLS message buffering for local spaces (_no_sync)

@@ -235,8 +235,9 @@
       "columns": {
         "id": "id",
         "type": "type",
+        "status": "status",
         "name": "name",
-        "serverUrl": "server_url",
+        "originUrl": "origin_url",
         "role": "role",
         "createdAt": "created_at",
         "modifiedAt": "modified_at"
@@ -296,10 +297,11 @@
         "spaceId": "space_id",
         "inviterDid": "inviter_did",
         "inviterLabel": "inviter_label",
-        "spaceName": "space_name",
-        "capability": "capability",
-        "status": "status",
+        "capabilities": "capabilities",
         "includeHistory": "include_history",
+        "tokenId": "token_id",
+        "spaceEndpoints": "space_endpoints",
+        "status": "status",
         "createdAt": "created_at",
         "respondedAt": "responded_at"
       }
@@ -319,6 +321,36 @@
         "id": "id",
         "policy": "policy",
         "updatedAt": "updated_at"
+      }
+    },
+    "invite_outbox": {
+      "name": "haex_invite_outbox",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "tokenId": "token_id",
+        "targetDid": "target_did",
+        "targetEndpointId": "target_endpoint_id",
+        "status": "status",
+        "retryCount": "retry_count",
+        "nextRetryAt": "next_retry_at",
+        "expiresAt": "expires_at",
+        "createdAt": "created_at"
+      }
+    },
+    "invite_tokens": {
+      "name": "haex_invite_tokens",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "targetDid": "target_did",
+        "capabilities": "capabilities",
+        "preCreatedUcan": "pre_created_ucan",
+        "includeHistory": "include_history",
+        "maxUses": "max_uses",
+        "currentUses": "current_uses",
+        "expiresAt": "expires_at",
+        "createdAt": "created_at"
       }
     },
     "mls_sync_keys": {

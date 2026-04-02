@@ -39,7 +39,7 @@
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 flex-wrap">
               <p class="font-medium text-sm truncate">
-                {{ invite.spaceName || t('invite.unknownSpace') }}
+                {{ getSpaceName(invite.spaceId) || t('invite.unknownSpace') }}
               </p>
               <UBadge
                 color="info"
@@ -49,12 +49,12 @@
                 {{ t('invite.pending') }}
               </UBadge>
               <UBadge
-                v-if="invite.capability"
+                v-if="invite.capabilities"
                 color="neutral"
                 variant="subtle"
                 size="sm"
               >
-                {{ invite.capability }}
+                {{ formatCapabilities(invite.capabilities) }}
               </UBadge>
             </div>
             <p class="text-xs text-muted mt-1">
@@ -109,6 +109,7 @@
 
 <script setup lang="ts">
 import { eq } from 'drizzle-orm'
+import { listen } from '@tauri-apps/api/event'
 import { haexPendingInvites, type SelectHaexPendingInvites } from '~/database/schemas'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { useInvitePolicy } from '@/composables/useInvitePolicy'
@@ -157,6 +158,22 @@ const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString()
 }
 
+/** Look up space name from the spaces store */
+const getSpaceName = (spaceId: string): string | undefined => {
+  return spacesStore.spaces.find(s => s.id === spaceId)?.name
+}
+
+/** Parse capabilities JSON string and display as comma-separated list */
+const formatCapabilities = (capabilities: string | null): string => {
+  if (!capabilities) return ''
+  try {
+    const parsed = JSON.parse(capabilities) as string[]
+    return parsed.join(', ')
+  } catch {
+    return capabilities
+  }
+}
+
 const getDb = () => currentVault.value?.drizzle
 
 const loadInvitesAsync = async () => {
@@ -196,31 +213,43 @@ const onAcceptAsync = async (invite: SelectHaexPendingInvites) => {
   processingAction.value = 'accept'
 
   try {
-    const identity = await getIdentityAsync()
-    const serverUrl = getServerUrlForSpace(invite.spaceId)
-    if (!serverUrl) {
-      add({ title: t('errors.noServer'), color: 'error' })
-      return
+    if (invite.spaceEndpoints) {
+      // Local P2P invite — claim via space endpoints
+      await spacesStore.acceptLocalInviteAsync(invite)
+
+      // Mark invite as accepted
+      const db = getDb()
+      if (db) {
+        await db.update(haexPendingInvites).set({
+          status: 'accepted',
+          respondedAt: new Date().toISOString(),
+        }).where(eq(haexPendingInvites.id, invite.id))
+      }
+    } else {
+      // Server invite — existing flow
+      const identity = await getIdentityAsync()
+      const serverUrl = getServerUrlForSpace(invite.spaceId)
+      if (!serverUrl) {
+        add({ title: t('errors.noServer'), color: 'error' })
+        return
+      }
+
+      const delivery = useMlsDelivery(serverUrl, invite.spaceId, {
+        privateKey: identity.privateKey,
+        did: identity.did,
+      })
+      await delivery.acceptInviteAsync(invite.id)
+
+      const db = getDb()
+      if (db) {
+        await db.update(haexPendingInvites).set({
+          status: 'accepted',
+          respondedAt: new Date().toISOString(),
+        }).where(eq(haexPendingInvites.id, invite.id))
+      }
+
+      await spacesStore.loadSpacesFromDbAsync()
     }
-
-    // Accept invite on server + upload MLS KeyPackages
-    const delivery = useMlsDelivery(serverUrl, invite.spaceId, {
-      privateKey: identity.privateKey,
-      did: identity.did,
-    })
-    await delivery.acceptInviteAsync(invite.id)
-
-    // Mark invite as accepted in local DB
-    const db = getDb()
-    if (db) {
-      await db.update(haexPendingInvites).set({
-        status: 'accepted',
-        respondedAt: new Date().toISOString(),
-      }).where(eq(haexPendingInvites.id, invite.id))
-    }
-
-    // Reload spaces to include the newly joined space
-    await spacesStore.loadSpacesFromDbAsync()
 
     add({ title: t('success.accepted'), color: 'success' })
     await loadInvitesAsync()
@@ -242,10 +271,28 @@ const onDeclineAsync = async (invite: SelectHaexPendingInvites) => {
   processingAction.value = 'decline'
 
   try {
-    const identity = await getIdentityAsync()
-    const serverUrl = getServerUrlForSpace(invite.spaceId)
-    if (!serverUrl) {
-      // No server URL — just mark as declined locally
+    if (invite.spaceEndpoints) {
+      // Local invite — delete dummy space (CASCADE deletes the invite too)
+      await spacesStore.removeSpaceFromDbAsync(invite.spaceId)
+    } else {
+      // Server invite
+      const serverUrl = getServerUrlForSpace(invite.spaceId)
+      if (serverUrl) {
+        const identity = await getIdentityAsync()
+        const response = await fetchWithDidAuth(
+          `${serverUrl}/spaces/${invite.spaceId}/invites/${invite.id}/decline`,
+          identity.privateKey,
+          identity.did,
+          'decline-invite',
+          { method: 'POST', headers: { 'Content-Type': 'application/json' } },
+        )
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}))
+          throw new Error(error.error || response.statusText)
+        }
+      }
+
+      // Mark invite as declined
       const db = getDb()
       if (db) {
         await db.update(haexPendingInvites).set({
@@ -253,31 +300,6 @@ const onDeclineAsync = async (invite: SelectHaexPendingInvites) => {
           respondedAt: new Date().toISOString(),
         }).where(eq(haexPendingInvites.id, invite.id))
       }
-      add({ title: t('success.declined'), color: 'success' })
-      await loadInvitesAsync()
-      return
-    }
-
-    const response = await fetchWithDidAuth(
-      `${serverUrl}/spaces/${invite.spaceId}/invites/${invite.id}/decline`,
-      identity.privateKey,
-      identity.did,
-      'decline-invite',
-      { method: 'POST', headers: { 'Content-Type': 'application/json' } },
-    )
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error(error.error || response.statusText)
-    }
-
-    // Mark invite as declined
-    const db = getDb()
-    if (db) {
-      await db.update(haexPendingInvites).set({
-        status: 'declined',
-        respondedAt: new Date().toISOString(),
-      }).where(eq(haexPendingInvites.id, invite.id))
     }
 
     add({ title: t('success.declined'), color: 'success' })
@@ -320,7 +342,20 @@ const onBlockAsync = async (invite: SelectHaexPendingInvites) => {
   }
 }
 
-onMounted(() => loadInvitesAsync())
+let unlistenPushInvite: (() => void) | null = null
+
+onMounted(async () => {
+  await loadInvitesAsync()
+
+  unlistenPushInvite = await listen('push-invite-received', async () => {
+    await loadInvitesAsync()
+    add({ title: t('invite.newReceived'), color: 'info' })
+  })
+})
+
+onUnmounted(() => {
+  unlistenPushInvite?.()
+})
 
 defineExpose({ loadInvitesAsync })
 </script>
@@ -341,6 +376,7 @@ de:
     received: Empfangen
     empty: Keine ausstehenden Einladungen
     unknownSpace: Unbekannter Space
+    newReceived: Neue Einladung erhalten
   actions:
     accept: Annehmen
     decline: Ablehnen
@@ -369,6 +405,7 @@ en:
     received: Received
     empty: No pending invitations
     unknownSpace: Unknown space
+    newReceived: New invitation received
   actions:
     accept: Accept
     decline: Decline

@@ -2,7 +2,7 @@ import { and, eq, or, type SQLWrapper } from 'drizzle-orm'
 import {
   haexNotifications,
   type InsertHaexNotifications,
-} from '~/database/schemas/haex'
+} from '~/database/schemas'
 import {
   isPermissionGranted,
   requestPermission,

@@ -97,6 +97,25 @@ pub enum Request {
         /// Optional label to share with the leader
         label: Option<String>,
     },
+
+    // -- Push Invites (peer-to-peer, inviter → invitee) --
+    /// Push an invite directly to a peer's device.
+    /// The invitee creates a dummy space + pending invite locally.
+    PushInvite {
+        space_id: String,
+        space_name: String,
+        space_type: String,
+        token_id: String,
+        capabilities: Vec<String>,
+        include_history: bool,
+        inviter_did: String,
+        inviter_label: Option<String>,
+        /// All known space device EndpointIds — invitee tries each until one answers ClaimInvite
+        space_endpoints: Vec<String>,
+        origin_url: Option<String>,
+        /// RFC3339 deadline
+        expires_at: String,
+    },
 }
 
 // ============================================================================
@@ -133,6 +152,10 @@ pub enum Response {
         ucan: String,
         /// The capability granted (e.g. "space/write")
         capability: String,
+    },
+    /// Acknowledgment for a push invite
+    PushInviteAck {
+        accepted: bool,
     },
     /// Error response
     Error { message: String },

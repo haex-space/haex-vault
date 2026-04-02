@@ -9,10 +9,9 @@ export interface InviteTokenLink {
 }
 
 export interface LocalInviteLink {
-  endpointId: string
   spaceId: string
   tokenId: string
-  relayUrl?: string
+  spaceEndpoints: string[]
 }
 
 /**
@@ -31,35 +30,36 @@ export function isLocalInviteLink(str: string): boolean {
 
 /**
  * Parse a local invite link.
- * Supports: haexvault://invite/local?endpoint=ID&space=ID&token=TOKEN_ID&relay=URL
+ * New format: haexvault://invite/local?data=BASE64_JSON
+ * Legacy format: haexvault://invite/local?endpoint=ID&space=ID&token=TOKEN_ID
  */
 export function parseLocalInviteLink(link: string): LocalInviteLink | null {
   try {
     const url = new URL(link)
+
+    // New format: Base64-encoded JSON payload
+    const data = url.searchParams.get('data')
+    if (data) {
+      return JSON.parse(atob(decodeURIComponent(data)))
+    }
+
+    // Legacy format: individual params (backwards compat)
     const endpointId = url.searchParams.get('endpoint')
     const spaceId = url.searchParams.get('space')
     const tokenId = url.searchParams.get('token')
-    const relayUrl = url.searchParams.get('relay') || undefined
-
     if (!endpointId || !spaceId || !tokenId) return null
-    return { endpointId, spaceId, tokenId, relayUrl }
+    return { spaceId, tokenId, spaceEndpoints: [endpointId] }
   } catch {
     return null
   }
 }
 
 /**
- * Build a local invite link from components.
+ * Build a local invite link with Base64-encoded JSON payload.
  */
-export function buildLocalInviteLink(
-  endpointId: string,
-  spaceId: string,
-  tokenId: string,
-  relayUrl?: string,
-): string {
-  const params = new URLSearchParams({ endpoint: endpointId, space: spaceId, token: tokenId })
-  if (relayUrl) params.set('relay', relayUrl)
-  return `${LOCAL_INVITE_PREFIX}?${params.toString()}`
+export function buildLocalInviteLink(link: LocalInviteLink): string {
+  const payload = btoa(JSON.stringify(link))
+  return `${LOCAL_INVITE_PREFIX}?data=${encodeURIComponent(payload)}`
 }
 
 /**

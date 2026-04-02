@@ -11,10 +11,13 @@ import type { SelectHaexSpaces } from '~/database/schemas'
 import { createLogger } from '@/stores/logging'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { createRootUcanAsync, delegateUcanAsync, createServerRelayUcanAsync, persistUcanAsync, fetchWithUcanAuth, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
+import { SpaceType, SpaceStatus } from '~/database/constants'
+import type { SpaceType as SpaceTypeValue, SpaceStatus as SpaceStatusValue } from '~/database/constants'
 
-/** Extended space type including the DB type field (vault/shared/local) */
+/** Extended space type including the DB type field (vault/online/local) */
 export interface SpaceWithType extends DecryptedSpace {
-  type: 'vault' | 'shared' | 'local'
+  type: SpaceTypeValue
+  status: SpaceStatusValue
 }
 
 const log = createLogger('SPACES')
@@ -23,7 +26,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   const { currentVault } = storeToRefs(useVaultStore())
 
   const spaces = ref<SpaceWithType[]>([])
-  const visibleSpaces = computed(() => spaces.value.filter(s => s.type !== 'vault'))
+  const visibleSpaces = computed(() => spaces.value.filter(s => s.type !== SpaceType.VAULT))
+  const activeSpaces = computed(() => visibleSpaces.value.filter(s => s.status === SpaceStatus.ACTIVE))
+  const pendingSpaces = computed(() => visibleSpaces.value.filter(s => s.status === SpaceStatus.PENDING))
 
   // =========================================================================
   // DB Helpers
@@ -44,9 +49,10 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   const rowToSpace = (row: SelectHaexSpaces): SpaceWithType => ({
     id: row.id,
     name: row.name,
-    type: (row.type as SpaceWithType['type']) ?? 'shared',
+    type: (row.type as SpaceTypeValue) ?? SpaceType.ONLINE,
+    status: (row.status as SpaceStatusValue) ?? SpaceStatus.ACTIVE,
     role: row.role as SpaceRole,
-    serverUrl: row.serverUrl ?? '',
+    serverUrl: row.originUrl ?? '',
     createdAt: row.createdAt ?? '',
   })
 
@@ -60,8 +66,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     if (existing.length > 0) {
       await db.update(haexSpaces).set({
         name: space.name,
-        serverUrl: space.serverUrl || null,
+        originUrl: space.serverUrl || null,
         role: space.role,
+        status: space.status,
         modifiedAt: new Date().toISOString(),
       }).where(eq(haexSpaces.id, space.id))
     } else {
@@ -69,8 +76,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
         id: space.id,
         type: space.type,
         name: space.name,
-        serverUrl: space.serverUrl || null,
+        originUrl: space.serverUrl || null,
         role: space.role,
+        status: space.status,
       })
     }
 
@@ -130,7 +138,8 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const space: SpaceWithType = {
       id,
       name: spaceName,
-      type: 'local',
+      type: SpaceType.LOCAL,
+      status: SpaceStatus.ACTIVE,
       role: SpaceRoles.ADMIN,
       serverUrl: '',
       createdAt: new Date().toISOString(),
@@ -173,10 +182,10 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
     await db.insert(haexSpaces).values({
       id: vaultId,
-      type: 'vault',
+      type: SpaceType.VAULT,
       name: vaultName,
       role: SpaceRoles.ADMIN,
-      serverUrl: '',
+      originUrl: '',
     })
     log.info(`Created vault space "${vaultName}" (${vaultId})`)
   }
@@ -266,8 +275,8 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     identityId: string,
   ) => {
     const spaceEntry = spaces.value.find(s => s.id === spaceId)
-    if (spaceEntry?.type === 'local') throw new Error('Cannot change server for local spaces')
-    if (spaceEntry?.type === 'vault') throw new Error('Cannot change server for vault space')
+    if (spaceEntry?.type === SpaceType.LOCAL) throw new Error('Cannot change server for local spaces')
+    if (spaceEntry?.type === SpaceType.VAULT) throw new Error('Cannot change server for vault space')
 
     const identity = await resolveIdentityAsync(identityId)
 
@@ -329,7 +338,8 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const decrypted: SpaceWithType[] = rawSpaces.map((space) => ({
       id: space.id,
       name: space.encryptedName ?? `Space ${space.id.slice(0, 8)}`,
-      type: 'shared' as const,
+      type: SpaceType.ONLINE,
+      status: SpaceStatus.ACTIVE,
       role: space.role,
       serverUrl,
       createdAt: space.createdAt,
@@ -356,7 +366,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     includeHistory: boolean = false,
   ): Promise<{ inviteId: string }> => {
     const spaceEntry = spaces.value.find(s => s.id === spaceId)
-    if (spaceEntry?.type === 'vault') throw new Error('Cannot invite members to vault space')
+    if (spaceEntry?.type === SpaceType.VAULT) throw new Error('Cannot invite members to vault space')
 
     const identity = await resolveIdentityAsync(identityId)
 
@@ -408,7 +418,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     },
   ): Promise<{ tokenId: string; expiresAt: string }> => {
     const spaceEntry = spaces.value.find(s => s.id === spaceId)
-    if (spaceEntry?.type === 'vault') throw new Error('Cannot create invite tokens for vault space')
+    if (spaceEntry?.type === SpaceType.VAULT) throw new Error('Cannot create invite tokens for vault space')
 
     const response = await fetchWithSpaceUcanAuth(
       `${serverUrl}/spaces/${spaceId}/invite-tokens`,
@@ -487,7 +497,8 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       await persistSpaceAsync({
         id: spaceId,
         name: '',
-        type: 'shared',
+        type: SpaceType.ONLINE,
+        status: SpaceStatus.ACTIVE,
         role,
         serverUrl: relayServerUrl,
         createdAt: new Date().toISOString(),
@@ -499,7 +510,8 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       await persistSpaceAsync({
         id: spaceId,
         name: '',
-        type: 'shared',
+        type: SpaceType.ONLINE,
+        status: SpaceStatus.ACTIVE,
         role,
         serverUrl,
         createdAt: new Date().toISOString(),
@@ -614,7 +626,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
   const deleteSpaceAsync = async (serverUrl: string, spaceId: string) => {
     const spaceEntry = spaces.value.find(s => s.id === spaceId)
-    if (spaceEntry?.type === 'vault') throw new Error('Cannot delete vault space')
+    if (spaceEntry?.type === SpaceType.VAULT) throw new Error('Cannot delete vault space')
 
     const response = await fetchWithSpaceUcanAuth(`${serverUrl}/spaces/${spaceId}`, spaceId, {
       method: 'DELETE',
@@ -771,6 +783,108 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     return SpaceRoles.MEMBER
   }
 
+  // =========================================================================
+  // Local Space Invites (P2P)
+  // =========================================================================
+
+  /**
+   * Invite a contact to a local space via P2P push.
+   * Creates an invite token on the leader, then queues delivery in the outbox.
+   */
+  const inviteContactToLocalSpaceAsync = async ({
+    spaceId,
+    contactDid,
+    contactEndpointId,
+    capabilities,
+    includeHistory,
+    expiresInSeconds,
+    spaceEndpoints,
+  }: {
+    spaceId: string
+    contactDid: string
+    contactEndpointId: string
+    capabilities: string[]
+    includeHistory: boolean
+    expiresInSeconds: number
+    spaceEndpoints: string[]
+  }) => {
+    const tokenId = await invoke<string>('local_delivery_create_invite', {
+      spaceId,
+      targetDid: contactDid,
+      capability: capabilities[0] || 'space/read',
+      maxUses: 1,
+      expiresInSeconds,
+      includeHistory,
+    })
+
+    const { useInviteOutbox } = await import('@/composables/useInviteOutbox')
+    const { createOutboxEntryAsync } = useInviteOutbox()
+    const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString()
+
+    await createOutboxEntryAsync({
+      spaceId,
+      tokenId,
+      targetDid: contactDid,
+      targetEndpointId: contactEndpointId,
+      expiresAt,
+    })
+
+    log.info(`Created contact invite for ${contactDid} in local space ${spaceId}`)
+  }
+
+  /**
+   * Accept a local P2P invite. Tries all space endpoints until ClaimInvite succeeds.
+   */
+  const acceptLocalInviteAsync = async (invite: {
+    id: string
+    spaceId: string
+    spaceEndpoints: string | null
+    tokenId: string | null
+  }) => {
+    if (!invite.spaceEndpoints || !invite.tokenId) {
+      throw new Error('Missing invite data for local claim')
+    }
+
+    const identityStore = useIdentityStore()
+    await identityStore.loadIdentitiesAsync()
+    const identity = identityStore.identities[0]
+    if (!identity) throw new Error('No identity available')
+
+    const endpoints: string[] = JSON.parse(invite.spaceEndpoints)
+    if (endpoints.length === 0) throw new Error('No space endpoints in invite')
+
+    let lastError: Error | null = null
+    for (const endpointId of endpoints) {
+      try {
+        await invoke('local_delivery_claim_invite', {
+          leaderEndpointId: endpointId,
+          leaderRelayUrl: null,
+          spaceId: invite.spaceId,
+          tokenId: invite.tokenId,
+          identityDid: identity.did,
+          label: identity.label || null,
+        })
+        lastError = null
+        break
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error))
+        log.debug(`ClaimInvite to ${endpointId} failed: ${lastError.message}, trying next...`)
+      }
+    }
+    if (lastError) throw lastError
+
+    // Update space status from 'pending' → 'active'
+    const db = getDb()
+    if (db) {
+      await db.update(haexSpaces).set({
+        status: SpaceStatus.ACTIVE,
+      }).where(eq(haexSpaces.id, invite.spaceId))
+    }
+
+    await loadSpacesFromDbAsync()
+    log.info(`Accepted local invite for space ${invite.spaceId}`)
+  }
+
   const clearCache = () => {
     spaces.value = []
   }
@@ -778,6 +892,8 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   return {
     spaces,
     visibleSpaces,
+    activeSpaces,
+    pendingSpaces,
     loadSpacesFromDbAsync,
     createLocalSpaceAsync,
     ensureVaultSpaceAsync,
@@ -796,6 +912,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     deleteSpaceAsync,
     removeIdentityFromSpaceAsync,
     setupFederationForSpaceAsync,
+    inviteContactToLocalSpaceAsync,
+    acceptLocalInviteAsync,
+    removeSpaceFromDbAsync,
     clearCache,
   }
 })

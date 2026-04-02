@@ -469,6 +469,7 @@ pub fn run() {
             space_delivery::local::commands::local_delivery_list_invites,
             space_delivery::local::commands::local_delivery_revoke_invite,
             space_delivery::local::commands::local_delivery_claim_invite,
+            space_delivery::local::commands::local_delivery_push_invite,
             // MLS (RFC 9420) group key management
             mls::commands::mls_init_tables,
             mls::commands::mls_init_identity,

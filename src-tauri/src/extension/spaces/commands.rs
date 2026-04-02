@@ -352,7 +352,7 @@ pub struct DecryptedSpace {
     pub id: String,
     pub name: String,
     pub role: String,
-    pub server_url: String,
+    pub origin_url: String,
     pub created_at: String,
 }
 
@@ -378,7 +378,7 @@ pub async fn extension_space_list(
     perm_result?;
 
     let rows = core::select_with_crdt(
-        "SELECT id, name, server_url, role, created_at FROM haex_spaces".to_string(),
+        "SELECT id, name, origin_url, role, created_at FROM haex_spaces".to_string(),
         vec![],
         &state.db,
     )
@@ -393,7 +393,7 @@ pub async fn extension_space_list(
         .map(|row| DecryptedSpace {
             id: get_string(row, 0),
             name: get_string(row, 1),
-            server_url: get_string(row, 2),
+            origin_url: get_string(row, 2),
             role: get_string(row, 3),
             created_at: get_string(row, 4),
         })

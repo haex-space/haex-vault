@@ -40,6 +40,7 @@ export const useSyncOrchestratorStore = defineStore(
     // Dirty tables watcher
     let dirtyTablesDebounceTimer: ReturnType<typeof setTimeout> | null = null
     let periodicSyncInterval: ReturnType<typeof setInterval> | null = null
+    let outboxProcessorInterval: ReturnType<typeof setInterval> | null = null // assigned in startWatchers, cleared in stopSync
     const periodicPullIntervals: Map<string, ReturnType<typeof setInterval>> = new Map()
     let eventUnlisten: (() => void) | null = null
     let localSyncUnlisten: (() => void) | null = null
@@ -377,6 +378,19 @@ export const useSyncOrchestratorStore = defineStore(
       log.info(
         `[WATCHER] Fallback pull started (interval: ${config.periodicIntervalMs}ms)`,
       )
+
+      // Start invite outbox processor (checks every 30s for pending deliveries)
+      const OUTBOX_INTERVAL_MS = 30_000
+      outboxProcessorInterval = setInterval(async () => {
+        try {
+          const { useInviteOutbox } = await import('@/composables/useInviteOutbox')
+          const { processOutboxAsync } = useInviteOutbox()
+          await processOutboxAsync()
+        } catch (error) {
+          log.error('[WATCHER] Outbox processing failed:', error)
+        }
+      }, OUTBOX_INTERVAL_MS)
+      log.info(`[WATCHER] Invite outbox processor started (interval: ${OUTBOX_INTERVAL_MS}ms)`)
     }
 
     /**
@@ -476,6 +490,14 @@ export const useSyncOrchestratorStore = defineStore(
         },
       )
 
+      registerStoreForTables(
+        ['haex_spaces', 'haex_pending_invites'],
+        async () => {
+          const spacesStore = useSpacesStore()
+          await spacesStore.loadSpacesFromDbAsync()
+        },
+      )
+
       // Listen for local sync completions from Rust sync loop
       // This fires when the local delivery service applies buffered changes
       if (!localSyncUnlisten) {
@@ -571,6 +593,12 @@ export const useSyncOrchestratorStore = defineStore(
 
       // Stop dirty tables watcher
       stopDirtyTablesWatcher()
+
+      // Stop invite outbox processor
+      if (outboxProcessorInterval) {
+        clearInterval(outboxProcessorInterval)
+        outboxProcessorInterval = null
+      }
 
       // Stop all periodic pull intervals
       for (const [backendId, interval] of periodicPullIntervals.entries()) {

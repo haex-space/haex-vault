@@ -10,6 +10,7 @@ use tokio::sync::RwLock;
 use crate::database::DbConnection;
 use crate::AppState;
 
+use super::invite_tokens;
 use super::leader::{LeaderConnectionHandler, LeaderState};
 use super::protocol::{Request, Response};
 use super::types::{ClaimInviteResult, DeliveryStatus, ElectionResultInfo, LeaderInfo, LocalInviteInfo};
@@ -20,12 +21,21 @@ pub async fn local_delivery_start(
     state: State<'_, AppState>,
     space_id: String,
 ) -> Result<(), String> {
+    // Load existing invite tokens from DB (persisted across restarts)
+    let db_conn = DbConnection(state.db.0.clone());
+    let existing_tokens = invite_tokens::load_invite_tokens(&db_conn, &space_id)
+        .unwrap_or_default();
+
+    // Share the HLC service from AppState — clone is cheap (inner Arc)
+    let hlc_clone = state.hlc.lock().map_err(|_| "HLC lock poisoned".to_string())?.clone();
+
     let leader_state = Arc::new(LeaderState {
-        db: DbConnection(state.db.0.clone()),
+        db: db_conn,
+        hlc: Arc::new(std::sync::Mutex::new(hlc_clone)),
         space_id: space_id.clone(),
         connected_peers: Arc::new(RwLock::new(HashMap::new())),
         notification_senders: Arc::new(RwLock::new(HashMap::new())),
-        invite_tokens: Arc::new(RwLock::new(Vec::new())),
+        invite_tokens: Arc::new(RwLock::new(existing_tokens)),
     });
 
     // Store leader_state in AppState for invite management commands
@@ -49,7 +59,7 @@ pub async fn local_delivery_stop(
     space_id: String,
 ) -> Result<(), String> {
     // Clear buffer tables
-    super::leader::clear_buffers(&DbConnection(state.db.0.clone()), &space_id)
+    super::buffer::clear_buffers(&DbConnection(state.db.0.clone()), &space_id)
         .map_err(|e| e.to_string())?;
 
     // Clear leader_state from AppState
@@ -266,6 +276,7 @@ pub async fn local_delivery_create_invite(
     capability: String,
     max_uses: u32,
     expires_in_seconds: u64,
+    include_history: bool,
 ) -> Result<String, String> {
     let leader_state = get_leader_state(&state).await?;
 
@@ -277,18 +288,43 @@ pub async fn local_delivery_create_invite(
     }
 
     match target_did {
-        Some(did) => super::leader::create_contact_invite_token(
-            &leader_state,
-            &did,
-            &capability,
-            expires_in_seconds,
-        )
-        .map_err(|e| e.to_string()),
-        None => super::leader::create_conference_invite_token(
-            &leader_state,
+        Some(did) => {
+            // Contact invite: pre-create UCAN since target DID is known
+            let admin = super::ucan::load_admin_identity(&leader_state.db, &leader_state.space_id)
+                .map_err(|e| e.to_string())?;
+            let ucan_token = super::ucan::create_delegated_ucan(
+                &admin.did,
+                &admin.private_key_base64,
+                &did,
+                &leader_state.space_id,
+                &capability,
+                Some(&admin.root_ucan),
+                86400 * 365,
+            )
+            .map_err(|e| e.to_string())?;
+
+            invite_tokens::create_contact_invite_token(
+                &leader_state.db,
+                &leader_state.hlc,
+                &leader_state.invite_tokens,
+                &space_id,
+                &did,
+                &capability,
+                expires_in_seconds,
+                include_history,
+                ucan_token,
+            )
+            .map_err(|e| e.to_string())
+        }
+        None => invite_tokens::create_conference_invite_token(
+            &leader_state.db,
+            &leader_state.hlc,
+            &leader_state.invite_tokens,
+            &space_id,
             &capability,
             max_uses,
             expires_in_seconds,
+            include_history,
         )
         .await
         .map_err(|e| e.to_string()),
@@ -445,13 +481,15 @@ pub async fn local_delivery_claim_invite(
         .process_message(&space_id, &welcome_bytes)
         .map_err(|e| format!("Failed to process MLS welcome: {e}"))?;
 
-    // 6. Persist space locally (type = 'local')
+    // 6. Persist space locally (type = 'local', status = 'active')
+    // role is derived from UCAN capability at runtime via mapCapabilityToRole
     let db = DbConnection(state.db.0.clone());
     crate::database::core::execute(
-        "INSERT OR IGNORE INTO haex_spaces (id, type, name) VALUES (?1, 'local', ?2)".to_string(),
+        "INSERT OR IGNORE INTO haex_spaces (id, type, status, name, role) VALUES (?1, 'local', 'active', ?2, ?3)".to_string(),
         vec![
             serde_json::Value::String(space_id.clone()),
             serde_json::Value::String(format!("Local Space {}", &space_id[..8.min(space_id.len())])),
+            serde_json::Value::String(capability.clone()),
         ],
         &db,
     )
@@ -479,4 +517,84 @@ pub async fn local_delivery_claim_invite(
         space_id,
         capability,
     })
+}
+
+/// Push an invite directly to a peer's device via QUIC.
+/// The peer creates a dummy space + pending invite locally.
+#[tauri::command]
+pub async fn local_delivery_push_invite(
+    state: State<'_, AppState>,
+    target_endpoint_id: String,
+    space_id: String,
+    space_name: String,
+    space_type: String,
+    token_id: String,
+    capabilities: Vec<String>,
+    include_history: bool,
+    inviter_did: String,
+    inviter_label: Option<String>,
+    space_endpoints: Vec<String>,
+    origin_url: Option<String>,
+    expires_at: String,
+) -> Result<bool, String> {
+    let endpoint = state.peer_storage.lock().await;
+    if !endpoint.is_running() {
+        return Err("Peer endpoint not running".to_string());
+    }
+    let iroh_endpoint = endpoint
+        .endpoint_ref()
+        .ok_or("Endpoint not running")?
+        .clone();
+    drop(endpoint);
+
+    let remote_id: iroh::EndpointId = target_endpoint_id
+        .parse()
+        .map_err(|e| format!("Invalid endpoint ID: {e}"))?;
+
+    // iroh discovers relay transparently from EndpointId
+    let addr = iroh::EndpointAddr::new(remote_id);
+
+    let conn = iroh_endpoint
+        .connect(addr, super::protocol::ALPN)
+        .await
+        .map_err(|e| format!("Failed to connect: {e}"))?;
+
+    let (mut send, mut recv) = conn
+        .open_bi()
+        .await
+        .map_err(|e| format!("Failed to open stream: {e}"))?;
+
+    let request = super::protocol::Request::PushInvite {
+        space_id,
+        space_name,
+        space_type,
+        token_id,
+        capabilities,
+        include_history,
+        inviter_did,
+        inviter_label,
+        space_endpoints,
+        origin_url,
+        expires_at,
+    };
+
+    let bytes = super::protocol::encode(&request)
+        .map_err(|e| format!("Encode error: {e}"))?;
+    send.write_all(&bytes)
+        .await
+        .map_err(|e| format!("Send error: {e}"))?;
+    send.finish()
+        .map_err(|e| format!("Finish error: {e}"))?;
+
+    let response = super::protocol::read_response(&mut recv)
+        .await
+        .map_err(|e| format!("Read response error: {e}"))?;
+
+    conn.close(0u32.into(), b"done");
+
+    match response {
+        super::protocol::Response::PushInviteAck { accepted } => Ok(accepted),
+        super::protocol::Response::Error { message } => Err(format!("Remote error: {message}")),
+        _ => Err("Unexpected response".to_string()),
+    }
 }

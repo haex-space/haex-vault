@@ -137,6 +137,7 @@ export function useSpaceLinkedItems(spaceId: MaybeRefOrGetter<string>) {
       for (const [, assignments] of logicalGroups) {
         // Use metadata from the first assignment that has label/type
         const representative = assignments.find((a) => a.label) ?? assignments[0]
+        if (!representative) continue
 
         items.push({
           label: representative.label || representative.tableName.split('__').pop() || representative.tableName,

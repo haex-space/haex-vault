@@ -83,20 +83,66 @@
           </UFormField>
         </template>
 
-        <!-- All modes: role + expiry -->
-        <UiSelectMenu
-          v-model="selectedCapability"
-          :items="capabilityOptions"
-          :label="t('form.capabilityLabel')"
-          class="w-full mt-3"
-        />
+        <!-- Capability checkboxes -->
+        <div class="space-y-2 mt-3">
+          <label class="text-sm font-medium">{{ t('form.capabilityLabel') }}</label>
+          <div class="flex flex-col gap-2">
+            <UCheckbox
+              :model-value="true"
+              disabled
+              :label="t('capabilities.read')"
+            />
+            <UCheckbox
+              v-model="capWrite"
+              :label="t('capabilities.write')"
+            />
+            <UCheckbox
+              v-model="capInvite"
+              :label="t('capabilities.invite')"
+            />
+          </div>
+        </div>
 
+        <!-- Include history toggle -->
+        <div class="flex items-center justify-between mt-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+          <div>
+            <p class="text-sm font-medium">{{ t('form.includeHistory') }}</p>
+            <p class="text-xs text-muted">{{ t('form.includeHistoryHint') }}</p>
+          </div>
+          <UToggle v-model="includeHistory" />
+        </div>
+
+        <!-- Expiry / deadline -->
         <UiSelectMenu
           v-model="selectedExpiry"
           :items="expiryOptions"
-          :label="t('form.expiryLabel')"
+          :label="t('form.deadlineLabel')"
           class="w-full mt-3"
         />
+        <p class="text-xs text-muted mt-1">{{ t('form.deadlineHint') }}</p>
+
+        <!-- Endpoint selector (only for local spaces) -->
+        <template v-if="isLocalSpace && spaceDevices.length > 0">
+          <div class="space-y-2 mt-3">
+            <label class="text-sm font-medium">{{ t('form.endpointsLabel') }}</label>
+            <p class="text-xs text-muted">{{ t('form.endpointsHint') }}</p>
+            <div class="flex flex-col gap-2">
+              <UCheckbox
+                v-for="device in spaceDevices"
+                :key="device.id"
+                :model-value="selectedEndpointIds.has(device.deviceEndpointId)"
+                @update:model-value="toggleEndpoint(device.deviceEndpointId, $event as boolean)"
+              >
+                <template #label>
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm">{{ device.deviceName }}</span>
+                    <code class="text-xs text-muted">{{ device.deviceEndpointId.slice(0, 12) }}…</code>
+                  </div>
+                </template>
+              </UCheckbox>
+            </div>
+          </div>
+        </template>
       </template>
     </template>
     <template #footer>
@@ -126,8 +172,9 @@
 import QRCode from 'qrcode'
 import { SettingsCategory } from '~/config/settingsCategories'
 import { publicKeyToDidKeyAsync } from '@haex-space/vault-sdk'
-import type { SpaceCapability } from '@haex-space/ucan'
 import type { SelectHaexContacts } from '~/database/schemas'
+import { SpaceType, SpaceCapability } from '~/database/constants'
+import { buildLocalInviteLink } from '~/utils/inviteLink'
 
 const open = defineModel<boolean>('open', { required: true })
 
@@ -144,6 +191,7 @@ const { add } = useToast()
 const windowManager = useWindowManagerStore()
 const spacesStore = useSpacesStore()
 const contactsStore = useContactsStore()
+const peerStorageStore = usePeerStorageStore()
 const { contacts } = storeToRefs(contactsStore)
 
 const isProcessing = ref(false)
@@ -154,8 +202,37 @@ const generatedLink = ref('')
 const generatedExpiresAt = ref('')
 const qrCanvas = ref<HTMLCanvasElement>()
 
-const selectedCapability = ref<{ label: string; value: SpaceCapability } | undefined>()
+// Capability checkboxes (read is always on)
+const capWrite = ref(false)
+const capInvite = ref(false)
+const includeHistory = ref(false)
+
 const selectedExpiry = ref<{ label: string; value: number } | undefined>()
+
+// Endpoint selection for local spaces
+const selectedEndpointIds = ref(new Set<string>())
+
+const isLocalSpace = computed(() => {
+  const space = spacesStore.spaces.find(s => s.id === props.spaceId)
+  return space?.type === SpaceType.LOCAL
+})
+
+const spaceDevices = computed(() =>
+  peerStorageStore.spaceDevices.filter(d => d.spaceId === props.spaceId),
+)
+
+const selectedSpaceEndpoints = computed(() =>
+  spaceDevices.value
+    .filter(d => selectedEndpointIds.value.has(d.deviceEndpointId))
+    .map(d => d.deviceEndpointId),
+)
+
+const selectedCapabilities = computed((): string[] => {
+  const caps: string[] = [SpaceCapability.READ]
+  if (capWrite.value) caps.push(SpaceCapability.WRITE)
+  if (capInvite.value) caps.push(SpaceCapability.INVITE)
+  return caps
+})
 
 const dialogTitle = computed(() => {
   switch (props.mode) {
@@ -181,13 +258,6 @@ const selectedContact = computed<SelectHaexContacts | undefined>(() =>
   contacts.value.find(c => c.id === selectedContactId.value),
 )
 
-const capabilityOptions = computed((): { label: string; value: SpaceCapability }[] => [
-  { label: t('capabilities.admin'), value: 'space/admin' },
-  { label: t('capabilities.invite'), value: 'space/invite' },
-  { label: t('capabilities.write'), value: 'space/write' },
-  { label: t('capabilities.read'), value: 'space/read' },
-])
-
 const expiryOptions = computed(() => {
   if (props.mode === 'open') {
     return [
@@ -207,12 +277,23 @@ const expiryOptions = computed(() => {
 })
 
 const canSubmit = computed(() => {
-  if (!selectedCapability.value || !selectedExpiry.value) return false
+  if (!selectedExpiry.value) return false
   if (props.mode === 'contact') return !!selectedContact.value
   return true
 })
 
 const formatDate = (iso: string) => new Date(iso).toLocaleString()
+
+const toggleEndpoint = (endpointId: string, checked: boolean) => {
+  if (checked) {
+    selectedEndpointIds.value.add(endpointId)
+  } else {
+    // At least one must remain selected
+    if (selectedEndpointIds.value.size > 1) {
+      selectedEndpointIds.value.delete(endpointId)
+    }
+  }
+}
 
 const resetForm = () => {
   selectedContactId.value = ''
@@ -220,19 +301,27 @@ const resetForm = () => {
   maxUses.value = 50
   generatedLink.value = ''
   generatedExpiresAt.value = ''
-  selectedCapability.value = undefined
+  capWrite.value = false
+  capInvite.value = false
+  includeHistory.value = false
   selectedExpiry.value = undefined
+  selectedEndpointIds.value = new Set()
 }
 
 watch(open, async (isOpen) => {
   if (isOpen) {
     resetForm()
-    // Set defaults
-    selectedCapability.value = capabilityOptions.value[3] // space/read (least privilege)
     const defaults = expiryOptions.value
-    selectedExpiry.value = props.mode === 'open' ? defaults[2] : defaults[1] // 1d for open, 7d for link/contact
+    selectedExpiry.value = props.mode === 'open' ? defaults[2] : defaults[1]
     if (props.mode === 'contact') {
       await contactsStore.loadContactsAsync()
+    }
+    // Load space devices and select all by default
+    if (isLocalSpace.value) {
+      await peerStorageStore.loadSpaceDevicesAsync()
+      selectedEndpointIds.value = new Set(
+        spaceDevices.value.map(d => d.deviceEndpointId),
+      )
     }
   }
 })
@@ -242,25 +331,70 @@ const onSubmitAsync = async () => {
   isProcessing.value = true
 
   try {
-    if (props.mode === 'contact') {
-      // Direct invite: DID known, UCAN created immediately
+    const space = spacesStore.spaces.find(s => s.id === props.spaceId)
+
+    if (space?.type === SpaceType.LOCAL && props.mode === 'contact') {
+      // P2P push invite for local space
+      const inviteeDid = await publicKeyToDidKeyAsync(selectedContact.value!.publicKey)
+      await spacesStore.inviteContactToLocalSpaceAsync({
+        spaceId: props.spaceId,
+        contactDid: inviteeDid,
+        contactEndpointId: selectedContact.value!.publicKey, // TODO: resolve actual EndpointId from contact
+        capabilities: selectedCapabilities.value,
+        includeHistory: includeHistory.value,
+        expiresInSeconds: selectedExpiry.value!.value,
+        spaceEndpoints: selectedSpaceEndpoints.value,
+      })
+      add({ title: t('success.invited'), color: 'success' })
+      open.value = false
+    } else if (space?.type === SpaceType.LOCAL) {
+      // Local link/QR invite — create token on leader, generate local link
+      const { invoke } = await import('@tauri-apps/api/core')
+      const tokenId = await invoke<string>('local_delivery_create_invite', {
+        spaceId: props.spaceId,
+        targetDid: null,
+        capability: selectedCapabilities.value[0],
+        maxUses: props.mode === 'open' ? maxUses.value : 1,
+        expiresInSeconds: selectedExpiry.value!.value,
+        includeHistory: includeHistory.value,
+      })
+
+      generatedLink.value = buildLocalInviteLink({
+        spaceId: props.spaceId,
+        tokenId,
+        spaceEndpoints: selectedSpaceEndpoints.value,
+      })
+      generatedExpiresAt.value = new Date(Date.now() + selectedExpiry.value!.value * 1000).toISOString()
+
+      await nextTick()
+      if (qrCanvas.value) {
+        await QRCode.toCanvas(qrCanvas.value, generatedLink.value, {
+          width: 200,
+          margin: 1,
+          color: { dark: '#000000', light: '#ffffff' },
+        })
+      }
+      add({ title: t('success.linkCreated'), color: 'success' })
+    } else if (props.mode === 'contact') {
+      // Online space: direct invite via server
       const inviteeDid = await publicKeyToDidKeyAsync(selectedContact.value!.publicKey)
       await spacesStore.inviteMemberAsync(
         props.serverUrl,
         props.spaceId,
         inviteeDid,
-        selectedCapability.value!.value,
+        selectedCapabilities.value[0]!,
         props.identityId,
+        includeHistory.value,
       )
       add({ title: t('success.invited'), color: 'success' })
       open.value = false
     } else {
-      // Link or Open: create invite token
+      // Online space: link or open invite token
       const result = await spacesStore.createInviteTokenAsync(
         props.serverUrl,
         props.spaceId,
         {
-          capability: selectedCapability.value!.value,
+          capability: selectedCapabilities.value[0],
           maxUses: props.mode === 'open' ? maxUses.value : 1,
           expiresInSeconds: selectedExpiry.value!.value,
           label: inviteLabel.value || undefined,
@@ -277,7 +411,6 @@ const onSubmitAsync = async () => {
           color: { dark: '#000000', light: '#ffffff' },
         })
       }
-
       add({ title: t('success.linkCreated'), color: 'success' })
     }
   } catch (error) {
@@ -316,17 +449,21 @@ de:
     selectContact: Kontakt auswählen
     noContacts: Keine Kontakte vorhanden
     manageContacts: Kontakte verwalten
-    capabilityLabel: Berechtigung
-    expiryLabel: Gültigkeit
+    capabilityLabel: Berechtigungen
+    deadlineLabel: Annahmefrist
+    deadlineHint: Die Einladung verfällt, wenn sie nicht innerhalb dieser Zeit angenommen wird.
     label: Bezeichnung
     labelPlaceholderLink: z.B. Einladung für Max
     labelPlaceholderOpen: z.B. Konferenz März 2026
     maxUses: Maximale Nutzungen
+    includeHistory: Bisherige Daten teilen
+    includeHistoryHint: Teile alle bisherigen Daten mit dem neuen Mitglied
+    endpointsLabel: Geräte in der Einladung
+    endpointsHint: Wähle aus, welche deiner Geräte in der Einladung enthalten sein sollen.
   capabilities:
-    admin: Admin (Vollzugriff)
-    invite: Einladen (Lesen + Schreiben + Einladen)
-    write: Schreiben (Lesen + Schreiben)
-    read: Lesen (nur Lesen)
+    read: Lesen
+    write: Schreiben
+    invite: Einladen
   expiry:
     1h: 1 Stunde
     6h: 6 Stunden
@@ -361,17 +498,21 @@ en:
     selectContact: Select contact
     noContacts: No contacts found
     manageContacts: Manage contacts
-    capabilityLabel: Permission
-    expiryLabel: Valid for
+    capabilityLabel: Permissions
+    deadlineLabel: Acceptance deadline
+    deadlineHint: The invitation expires if not accepted within this time.
     label: Label
     labelPlaceholderLink: e.g. Invite for Max
     labelPlaceholderOpen: e.g. Conference March 2026
     maxUses: Maximum uses
+    includeHistory: Share existing data
+    includeHistoryHint: Share all existing data with the new member
+    endpointsLabel: Devices in invitation
+    endpointsHint: Choose which of your devices should be included in the invitation.
   capabilities:
-    admin: Admin (full access)
-    invite: Invite (read + write + invite)
-    write: Write (read + write)
-    read: Read (read only)
+    read: Read
+    write: Write
+    invite: Invite
   expiry:
     1h: 1 hour
     6h: 6 hours

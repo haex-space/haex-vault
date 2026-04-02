@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { eq, and } from 'drizzle-orm'
 import { haexDeviceMlsEnrollments, haexSpaces } from '~/database/schemas'
 import { createLogger } from '@/stores/logging'
+import { SpaceType } from '~/database/constants'
 
 const log = createLogger('DEVICE_ENROLLMENT')
 
@@ -38,7 +39,7 @@ export function useDeviceEnrollment() {
     // Get all shared spaces (type != 'vault' and type != 'local-only')
     const spaces = await db.select({ id: haexSpaces.id, type: haexSpaces.type })
       .from(haexSpaces)
-      .where(eq(haexSpaces.type, 'shared'))
+      .where(eq(haexSpaces.type, SpaceType.ONLINE))
 
     for (const space of spaces) {
       // Check if this device already has an MLS group

@@ -106,7 +106,7 @@ export function useInvitePolicy() {
       .limit(1)
 
     if (rows.length === 0) return 'all'
-    return (rows[0].policy as InvitePolicy) ?? 'all'
+    return (rows[0]!.policy as InvitePolicy) ?? 'all'
   }
 
   async function getBlockedDids() {

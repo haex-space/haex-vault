@@ -77,7 +77,7 @@ export const pushToBackendAsync = async (
     if (isSharedSpace) {
       const epochKey: MlsEpochKey = await invoke('mls_export_epoch_key', { spaceId: backend.spaceId })
       encryptionKey = new Uint8Array(epochKey.key)
-      epoch = epochKey.epoch
+      epoch = Number(epochKey.epoch)
       log.debug(`Using MLS epoch key (epoch ${epoch}) for shared space`)
     } else {
       const vaultKey = await syncEngineStore.getSyncKeyFromDbAsync(backendId)

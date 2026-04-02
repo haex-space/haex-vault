@@ -167,7 +167,7 @@ export function clearUcanCache(spaceId?: string): void {
  * Also caches the token in memory.
  */
 export async function persistUcanAsync(
-  db: SqliteRemoteDatabase,
+  db: SqliteRemoteDatabase<Record<string, unknown>>,
   spaceId: string,
   token: string,
 ): Promise<void> {
@@ -198,7 +198,7 @@ export async function persistUcanAsync(
  * Load all non-expired UCAN tokens from DB into the in-memory cache.
  * Call this on vault open to warm the cache.
  */
-export async function loadUcansFromDbAsync(db: SqliteRemoteDatabase): Promise<void> {
+export async function loadUcansFromDbAsync(db: SqliteRemoteDatabase<Record<string, unknown>>): Promise<void> {
   const now = Math.floor(Date.now() / 1000)
   const rows = await db
     .select({ spaceId: haexUcanTokens.spaceId, token: haexUcanTokens.token })
