@@ -50,21 +50,17 @@
           </div>
         </template>
 
-        <!-- Link/Open mode: label -->
-        <template v-if="mode === 'link' || mode === 'open'">
+        <!-- Link mode: label + max uses -->
+        <template v-if="mode === 'link'">
           <UiInput
             v-model="inviteLabel"
             :label="t('form.label')"
-            :placeholder="mode === 'open' ? t('form.labelPlaceholderOpen') : t('form.labelPlaceholderLink')"
+            :placeholder="t('form.labelPlaceholder')"
           />
-        </template>
-
-        <!-- Open mode: max uses -->
-        <template v-if="mode === 'open'">
           <UFormField :label="t('form.maxUses')" class="mt-3">
             <UInputNumber
               v-model="maxUses"
-              :min="2"
+              :min="1"
               :max="1000"
               :step="1"
               class="w-full"
@@ -173,7 +169,7 @@ const props = defineProps<{
   spaceId: string
   serverUrl: string
   identityId: string
-  mode: 'contact' | 'link' | 'open'
+  mode: 'contact' | 'link'
 }>()
 
 const { t } = useI18n()
@@ -188,7 +184,7 @@ const { contacts } = storeToRefs(identityStore)
 const isProcessing = ref(false)
 const selectedContactIds = ref<string[]>([])
 const inviteLabel = ref('')
-const maxUses = ref(50)
+const maxUses = ref(1)
 const generatedLink = ref('')
 const generatedExpiresAt = ref('')
 const qrCanvas = ref<HTMLCanvasElement>()
@@ -238,43 +234,24 @@ const selectedContacts = computed<SelectHaexIdentities[]>(() =>
   contacts.value.filter(c => selectedContactIds.value.includes(c.id)),
 )
 
-const dialogTitle = computed(() => {
-  switch (props.mode) {
-    case 'contact': return t('title.contact')
-    case 'link': return t('title.link')
-    case 'open': return t('title.open')
-  }
-})
+const dialogTitle = computed(() =>
+  props.mode === 'contact' ? t('title.contact') : t('title.link'),
+)
 
-const dialogDescription = computed(() => {
-  switch (props.mode) {
-    case 'contact': return t('description.contact')
-    case 'link': return t('description.link')
-    case 'open': return t('description.open')
-  }
-})
+const dialogDescription = computed(() =>
+  props.mode === 'contact' ? t('description.contact') : t('description.link'),
+)
 
 const contactOptions = computed(() =>
   contacts.value.map(c => ({ label: c.label, value: c.id })),
 )
 
-const expiryOptions = computed(() => {
-  if (props.mode === 'open') {
-    return [
-      { label: t('expiry.1h'), value: 60 * 60 },
-      { label: t('expiry.6h'), value: 6 * 60 * 60 },
-      { label: t('expiry.1d'), value: 24 * 60 * 60 },
-      { label: t('expiry.3d'), value: 3 * 24 * 60 * 60 },
-      { label: t('expiry.7d'), value: 7 * 24 * 60 * 60 },
-    ]
-  }
-  return [
-    { label: t('expiry.1d'), value: 24 * 60 * 60 },
-    { label: t('expiry.7d'), value: 7 * 24 * 60 * 60 },
-    { label: t('expiry.30d'), value: 30 * 24 * 60 * 60 },
-    { label: t('expiry.90d'), value: 90 * 24 * 60 * 60 },
-  ]
-})
+const expiryOptions = computed(() => [
+  { label: t('expiry.1d'), value: 24 * 60 * 60 },
+  { label: t('expiry.7d'), value: 7 * 24 * 60 * 60 },
+  { label: t('expiry.30d'), value: 30 * 24 * 60 * 60 },
+  { label: t('expiry.90d'), value: 90 * 24 * 60 * 60 },
+])
 
 const canSubmit = computed(() => {
   if (!selectedExpiry.value) return false
@@ -287,7 +264,7 @@ const formatDate = (iso: string) => new Date(iso).toLocaleString()
 const resetForm = () => {
   selectedContactIds.value = []
   inviteLabel.value = ''
-  maxUses.value = 50
+  maxUses.value = 1
   generatedLink.value = ''
   generatedExpiresAt.value = ''
   capWrite.value = false
@@ -300,8 +277,7 @@ const resetForm = () => {
 watch(open, async (isOpen) => {
   if (isOpen) {
     resetForm()
-    const defaults = expiryOptions.value
-    selectedExpiry.value = props.mode === 'open' ? defaults[2] : defaults[1]
+    selectedExpiry.value = expiryOptions.value[1]
     if (props.mode === 'contact') {
       await identityStore.loadIdentitiesAsync()
     }
@@ -347,7 +323,7 @@ const onSubmitAsync = async () => {
         spaceId: props.spaceId,
         targetDid: null,
         capability: selectedCapabilities.value[0],
-        maxUses: props.mode === 'open' ? maxUses.value : 1,
+        maxUses: maxUses.value,
         expiresInSeconds: selectedExpiry.value!.value,
         includeHistory: includeHistory.value,
       })
@@ -384,13 +360,13 @@ const onSubmitAsync = async () => {
       add({ title: t('success.invited'), color: 'success' })
       open.value = false
     } else {
-      // Online space: link or open invite token
+      // Online space: invite link
       const result = await spacesStore.createInviteTokenAsync(
         props.serverUrl,
         props.spaceId,
         {
           capability: selectedCapabilities.value[0],
-          maxUses: props.mode === 'open' ? maxUses.value : 1,
+          maxUses: maxUses.value,
           expiresInSeconds: selectedExpiry.value!.value,
           label: inviteLabel.value || undefined,
         },
@@ -435,11 +411,9 @@ de:
   title:
     contact: Kontakte einladen
     link: Einladungslink erstellen
-    open: Offene Einladung
   description:
     contact: Lade Kontakte direkt in diesen Space ein
-    link: Erstelle einen Link, den du per Messenger oder E-Mail teilen kannst
-    open: Erstelle einen QR-Code, über den mehrere Personen beitreten können
+    link: Erstelle einen Link oder QR-Code zum Teilen
   form:
     selectContacts: Kontakte auswählen
     noContacts: Keine Kontakte vorhanden
@@ -448,8 +422,7 @@ de:
     deadlineLabel: Annahmefrist
     deadlineHint: Die Einladung verfällt, wenn sie nicht innerhalb dieser Zeit angenommen wird.
     label: Bezeichnung
-    labelPlaceholderLink: z.B. Einladung für Max
-    labelPlaceholderOpen: z.B. Konferenz März 2026
+    labelPlaceholder: z.B. Einladung für Max
     maxUses: Maximale Nutzungen
     includeHistory: Bisherige Daten teilen
     includeHistoryHint: Teile alle bisherigen Daten mit dem neuen Mitglied
@@ -460,10 +433,7 @@ de:
     write: Schreiben
     invite: Einladen
   expiry:
-    1h: 1 Stunde
-    6h: 6 Stunden
     1d: 1 Tag
-    3d: 3 Tage
     7d: 7 Tage
     30d: 30 Tage
     90d: 90 Tage
@@ -484,11 +454,9 @@ en:
   title:
     contact: Invite Contacts
     link: Create Invite Link
-    open: Open Invitation
   description:
     contact: Directly invite contacts to this space
-    link: Create a link to share via messenger or email
-    open: Create a QR code that allows multiple people to join
+    link: Create a link or QR code to share
   form:
     selectContacts: Select contacts
     noContacts: No contacts found
@@ -497,8 +465,7 @@ en:
     deadlineLabel: Acceptance deadline
     deadlineHint: The invitation expires if not accepted within this time.
     label: Label
-    labelPlaceholderLink: e.g. Invite for Max
-    labelPlaceholderOpen: e.g. Conference March 2026
+    labelPlaceholder: e.g. Invite for Max
     maxUses: Maximum uses
     includeHistory: Share existing data
     includeHistoryHint: Share all existing data with the new member
@@ -509,10 +476,7 @@ en:
     write: Write
     invite: Invite
   expiry:
-    1h: 1 hour
-    6h: 6 hours
     1d: 1 day
-    3d: 3 days
     7d: 7 days
     30d: 30 days
     90d: 90 days

@@ -142,7 +142,6 @@ const emit = defineEmits<{
   edit: [space: SpaceWithType]
   'invite-contact': [space: SpaceWithType]
   'invite-link': [space: SpaceWithType]
-  'invite-open': [space: SpaceWithType]
   delete: [space: SpaceWithType]
   leave: [space: SpaceWithType]
 }>()
@@ -157,11 +156,6 @@ const inviteMenuItems = computed(() => [
     label: t('invite.link'),
     icon: 'i-lucide-link',
     onSelect: () => emit('invite-link', props.space),
-  },
-  {
-    label: t('invite.open'),
-    icon: 'i-lucide-qr-code',
-    onSelect: () => emit('invite-open', props.space),
   }],
 ])
 
@@ -236,7 +230,6 @@ de:
   invite:
     contact: Kontakt einladen
     link: Einladungslink erstellen
-    open: Offene Einladung
   federation:
     label: "Föderiert:"
     title: Föderation
@@ -256,7 +249,6 @@ en:
   invite:
     contact: Invite contact
     link: Create invite link
-    open: Open invitation
   federation:
     label: "Federated:"
     title: Federation

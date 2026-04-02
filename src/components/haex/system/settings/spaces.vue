@@ -89,7 +89,6 @@
           @edit="openEditDialog"
           @invite-contact="openInviteDialog($event, 'contact')"
           @invite-link="openInviteDialog($event, 'link')"
-          @invite-open="openInviteDialog($event, 'open')"
           @delete="prepareDeleteSpace"
           @leave="prepareLeaveSpace"
         />
@@ -346,7 +345,7 @@ const joinInviteLink = ref('')
 // Invite dialog state
 const inviteSpaceId = ref('')
 const inviteServerUrl = ref('')
-const inviteMode = ref<'contact' | 'link' | 'open'>('contact')
+const inviteMode = ref<'contact' | 'link'>('contact')
 const inviteIdentityId = ref('')
 
 // Edit dialog
@@ -635,7 +634,7 @@ const getIdentityForSpace = (spaceServerUrl: string): string | undefined => {
 }
 
 // Open invite dialog
-const openInviteDialog = (space: SpaceWithType, mode: 'contact' | 'link' | 'open' = 'contact') => {
+const openInviteDialog = (space: SpaceWithType, mode: 'contact' | 'link' = 'contact') => {
   inviteSpaceId.value = space.id
   inviteServerUrl.value = space.serverUrl
   inviteIdentityId.value = getIdentityForSpace(space.serverUrl) ?? ''
