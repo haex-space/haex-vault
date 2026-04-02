@@ -1,6 +1,24 @@
 # P2P Invite Flow — Remaining Work
 
-Offene Punkte nach der initialen Implementierung (v1.8.4).
+Offene Punkte nach der initialen Implementierung (v1.8.5).
+
+---
+
+## 0. Auto-Identity beim Vault-Start
+
+**Problem:** Der Default-Space wird beim Vault-Start angelegt, aber zu dem Zeitpunkt existiert möglicherweise noch keine Identity. Ohne Identity kann keine Root-UCAN erstellt werden → Invites schlagen fehl mit "No admin UCAN found".
+
+**Entscheidung:** Beim Vault-Start automatisch eine Identity erstellen falls keine existiert. Label = Gerätename, keine Claims, kein Avatar. Der Nutzer kann das später anpassen. Damit ist die kryptographische Grundlage (Ed25519 Keypair, DID) immer da wenn Spaces erstellt werden.
+
+**Dateien:**
+- `src/stores/vault/index.ts` (openVaultAsync — Identity vor Space-Erstellung sicherstellen)
+- `src/stores/identity.ts` (ensureDefaultIdentityAsync)
+
+**Schritte:**
+1. In `identity.ts` eine `ensureDefaultIdentityAsync()` Funktion anlegen
+2. Diese generiert ein Ed25519-Keypair, leitet den DID ab, speichert in DB
+3. In `vault/index.ts` vor `ensureDefaultSpaceAsync()` aufrufen
+4. Alle `if (!identity)` Guards in Space-Flows können dann entfallen
 
 ---
 
@@ -125,10 +143,11 @@ const runOutboxLoop = async () => {
 
 | # | Task | Aufwand | Priorität |
 |---|------|---------|-----------|
+| 0 | Auto-Identity beim Vault-Start | Klein | Kritisch — Voraussetzung für alles andere |
 | 1 | Outbox Capabilities laden | Klein | Hoch — ohne das werden falsche Capabilities gesendet |
 | 2 | Contact EndpointId | Mittel | Hoch — Contact-Invite funktioniert ohne nicht |
 | 4 | Push-Invite Event | Klein | Hoch — UI refresht nicht bei eingehenden Invites |
-| 8 | Migration-Fix Vaults | Klein | Hoch — bestehende Vaults sind kaputt |
+| 8 | Migration-Fix Vaults | Klein | Erledigt in v1.8.5 |
 | 3 | contacts_only Policy | Klein | Mittel |
 | 5 | CRDT SyncPush/Pull | Groß | Mittel — Kernfeature für Datensync in lokalen Spaces |
 | 7 | Timer Refactoring | Klein | Mittel |
