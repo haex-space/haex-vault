@@ -4,7 +4,7 @@
 //! - Assign/unassign their table rows to shared spaces for selective sync
 //! - List shared spaces from the local database
 
-use crate::database::core::{self, with_connection};
+use crate::database::core;
 use crate::database::error::DatabaseError;
 use crate::database::row::get_string;
 use crate::extension::error::ExtensionError;
@@ -125,33 +125,35 @@ pub async fn extension_space_assign(
         return Ok(0);
     }
 
-    let total_inserted = with_connection(&state.db, |conn| {
-        let mut inserted: u64 = 0;
-        for assignment in &assignments {
-            let id = uuid::Uuid::new_v4().to_string();
-            let sql = format!(
-                "INSERT OR IGNORE INTO {} (id, table_name, row_pks, space_id, extension_id, group_id, type, label) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                TABLE_SHARED_SPACE_SYNC
-            );
-            let rows = conn
-                .execute(
-                    &sql,
-                    rusqlite::params![
-                        id,
-                        assignment.table_name,
-                        assignment.row_pks,
-                        assignment.space_id,
-                        extension_id,
-                        assignment.group_id,
-                        assignment.type_name,
-                        assignment.label,
-                    ],
-                )
-                .map_err(DatabaseError::from)?;
-            inserted += rows as u64;
-        }
-        Ok(inserted)
+    let hlc_guard = state.hlc.lock().map_err(|_| ExtensionError::Database {
+        source: DatabaseError::MutexPoisoned { reason: "HLC lock poisoned".to_string() },
     })?;
+
+    let mut total_inserted: u64 = 0;
+    for assignment in &assignments {
+        let id = uuid::Uuid::new_v4().to_string();
+        let sql = format!(
+            "INSERT OR IGNORE INTO {} (id, table_name, row_pks, space_id, extension_id, group_id, type, label) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            TABLE_SHARED_SPACE_SYNC
+        );
+        core::execute_with_crdt(
+            sql,
+            vec![
+                serde_json::Value::String(id),
+                serde_json::Value::String(assignment.table_name.clone()),
+                serde_json::Value::String(assignment.row_pks.clone()),
+                serde_json::Value::String(assignment.space_id.clone()),
+                serde_json::Value::String(extension_id.clone()),
+                assignment.group_id.as_ref().map_or(serde_json::Value::Null, |v| serde_json::Value::String(v.clone())),
+                assignment.type_name.as_ref().map_or(serde_json::Value::Null, |v| serde_json::Value::String(v.clone())),
+                assignment.label.as_ref().map_or(serde_json::Value::Null, |v| serde_json::Value::String(v.clone())),
+            ],
+            &state.db,
+            &hlc_guard,
+        )
+        .map_err(|e| ExtensionError::Database { source: e })?;
+        total_inserted += 1;
+    }
 
     Ok(total_inserted)
 }
@@ -196,27 +198,29 @@ pub async fn extension_space_unassign(
         return Ok(0);
     }
 
-    let total_deleted = with_connection(&state.db, |conn| {
-        let mut deleted: u64 = 0;
-        for assignment in &assignments {
-            let sql = format!(
-                "DELETE FROM {} WHERE table_name = ?1 AND row_pks = ?2 AND space_id = ?3",
-                TABLE_SHARED_SPACE_SYNC
-            );
-            let rows = conn
-                .execute(
-                    &sql,
-                    rusqlite::params![
-                        assignment.table_name,
-                        assignment.row_pks,
-                        assignment.space_id,
-                    ],
-                )
-                .map_err(DatabaseError::from)?;
-            deleted += rows as u64;
-        }
-        Ok(deleted)
+    let hlc_guard = state.hlc.lock().map_err(|_| ExtensionError::Database {
+        source: DatabaseError::MutexPoisoned { reason: "HLC lock poisoned".to_string() },
     })?;
+
+    let mut total_deleted: u64 = 0;
+    for assignment in &assignments {
+        let sql = format!(
+            "DELETE FROM {} WHERE table_name = ?1 AND row_pks = ?2 AND space_id = ?3",
+            TABLE_SHARED_SPACE_SYNC
+        );
+        core::execute_with_crdt(
+            sql,
+            vec![
+                serde_json::Value::String(assignment.table_name.clone()),
+                serde_json::Value::String(assignment.row_pks.clone()),
+                serde_json::Value::String(assignment.space_id.clone()),
+            ],
+            &state.db,
+            &hlc_guard,
+        )
+        .map_err(|e| ExtensionError::Database { source: e })?;
+        total_deleted += 1;
+    }
 
     Ok(total_deleted)
 }
@@ -258,68 +262,49 @@ pub async fn extension_space_get_assignments(
 
     validate_single_table_prefix(&table_name, &prefix)?;
 
-    let rows = with_connection(&state.db, |conn| {
-        let select_cols = format!(
-            "SELECT id, table_name, row_pks, space_id, extension_id, group_id, type, label, created_at FROM {}",
-            TABLE_SHARED_SPACE_SYNC
-        );
+    let select_cols = format!(
+        "SELECT id, table_name, row_pks, space_id, extension_id, group_id, type, label, created_at FROM {}",
+        TABLE_SHARED_SPACE_SYNC
+    );
 
-        let map_row = |row: &rusqlite::Row| -> rusqlite::Result<SpaceAssignmentRow> {
-            Ok(SpaceAssignmentRow {
-                id: row.get(0)?,
-                table_name: row.get(1)?,
-                row_pks: row.get(2)?,
-                space_id: row.get(3)?,
-                extension_id: row.get(4)?,
-                group_id: row.get(5)?,
-                type_name: row.get(6)?,
-                label: row.get(7)?,
-                created_at: row.get(8)?,
-            })
-        };
-
-        match &row_pks {
-            Some(pks) if !pks.is_empty() => {
-                let placeholders: Vec<String> =
-                    (2..=pks.len() + 1).map(|i| format!("?{}", i)).collect();
-                let sql = format!(
-                    "{} WHERE table_name = ?1 AND row_pks IN ({})",
-                    select_cols,
-                    placeholders.join(", ")
-                );
-
-                let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
-                params.push(Box::new(table_name.clone()));
-                for pk in pks {
-                    params.push(Box::new(pk.clone()));
-                }
-
-                let param_refs: Vec<&dyn rusqlite::types::ToSql> =
-                    params.iter().map(|p| p.as_ref()).collect();
-
-                let mut stmt = conn.prepare(&sql).map_err(DatabaseError::from)?;
-                let result = stmt
-                    .query_map(param_refs.as_slice(), map_row)
-                    .map_err(DatabaseError::from)?;
-
-                result
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(DatabaseError::from)
+    let (sql, params) = match &row_pks {
+        Some(pks) if !pks.is_empty() => {
+            let placeholders: Vec<String> =
+                (2..=pks.len() + 1).map(|i| format!("?{}", i)).collect();
+            let sql = format!(
+                "{} WHERE table_name = ?1 AND row_pks IN ({})",
+                select_cols,
+                placeholders.join(", ")
+            );
+            let mut params = vec![serde_json::Value::String(table_name.clone())];
+            for pk in pks {
+                params.push(serde_json::Value::String(pk.clone()));
             }
-            _ => {
-                let sql = format!("{} WHERE table_name = ?1", select_cols);
-
-                let mut stmt = conn.prepare(&sql).map_err(DatabaseError::from)?;
-                let result = stmt
-                    .query_map([&table_name], map_row)
-                    .map_err(DatabaseError::from)?;
-
-                result
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(DatabaseError::from)
-            }
+            (sql, params)
         }
-    })?;
+        _ => {
+            let sql = format!("{} WHERE table_name = ?1", select_cols);
+            (sql, vec![serde_json::Value::String(table_name.clone())])
+        }
+    };
+
+    let raw_rows = core::select_with_crdt(sql, params, &state.db)
+        .map_err(|e| ExtensionError::Database { source: e })?;
+
+    let rows: Vec<SpaceAssignmentRow> = raw_rows
+        .iter()
+        .map(|row| SpaceAssignmentRow {
+            id: get_string(row, 0),
+            table_name: get_string(row, 1),
+            row_pks: get_string(row, 2),
+            space_id: get_string(row, 3),
+            extension_id: Some(get_string(row, 4)).filter(|s| !s.is_empty()),
+            group_id: Some(get_string(row, 5)).filter(|s| !s.is_empty()),
+            type_name: Some(get_string(row, 6)).filter(|s| !s.is_empty()),
+            label: Some(get_string(row, 7)).filter(|s| !s.is_empty()),
+            created_at: Some(get_string(row, 8)).filter(|s| !s.is_empty()),
+        })
+        .collect();
 
     Ok(rows)
 }
@@ -351,7 +336,6 @@ pub async fn set_auth_token(
 pub struct DecryptedSpace {
     pub id: String,
     pub name: String,
-    pub role: String,
     pub origin_url: String,
     pub created_at: String,
 }
@@ -378,7 +362,7 @@ pub async fn extension_space_list(
     perm_result?;
 
     let rows = core::select_with_crdt(
-        "SELECT id, name, origin_url, role, created_at FROM haex_spaces".to_string(),
+        "SELECT id, name, origin_url, created_at FROM haex_spaces".to_string(),
         vec![],
         &state.db,
     )
@@ -394,8 +378,7 @@ pub async fn extension_space_list(
             id: get_string(row, 0),
             name: get_string(row, 1),
             origin_url: get_string(row, 2),
-            role: get_string(row, 3),
-            created_at: get_string(row, 4),
+            created_at: get_string(row, 3),
         })
         .collect();
 

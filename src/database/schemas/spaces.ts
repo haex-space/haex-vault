@@ -22,7 +22,6 @@ export const haexSpaces = sqliteTable(
     status: text(tableNames.haex.spaces.columns.status).notNull().default('active'), // 'active' | 'pending'
     name: text(tableNames.haex.spaces.columns.name).notNull(),
     originUrl: text(tableNames.haex.spaces.columns.originUrl),
-    role: text(tableNames.haex.spaces.columns.role).notNull(),
     createdAt: text(tableNames.haex.spaces.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),

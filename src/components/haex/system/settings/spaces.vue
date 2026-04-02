@@ -294,7 +294,7 @@
 
 <script setup lang="ts">
 import { SettingsCategory } from '~/config/settingsCategories'
-import { SpaceRoles, type DecryptedSpace } from '@haex-space/vault-sdk'
+import type { SpaceWithType } from '@/stores/spaces'
 import SpaceListItem from './spaces/SpaceListItem.vue'
 import SpaceInviteDialog from './spaces/SpaceInviteDialog.vue'
 import PendingInvites from './spaces/PendingInvites.vue'
@@ -352,7 +352,7 @@ const inviteIdentityId = ref('')
 // Edit dialog
 const showEditDialog = ref(false)
 const isSavingEdit = ref(false)
-const editingSpace = ref<DecryptedSpace | null>(null)
+const editingSpace = ref<SpaceWithType | null>(null)
 const editForm = reactive({
   name: '',
   serverUrl: undefined as { label: string; value: string } | undefined,
@@ -371,7 +371,7 @@ const editServerOptions = computed(() => {
   return options
 })
 
-const openEditDialog = (space: DecryptedSpace) => {
+const openEditDialog = (space: SpaceWithType) => {
   editingSpace.value = space
   editForm.name = space.name
   editForm.serverUrl = space.serverUrl
@@ -420,7 +420,7 @@ const onSaveEditAsync = async () => {
 }
 
 // Delete/Leave target
-const targetSpace = ref<DecryptedSpace | null>(null)
+const targetSpace = ref<SpaceWithType | null>(null)
 
 // Server URL options from existing sync backends (with local-only default)
 const serverUrlOptions = computed(() => {
@@ -515,7 +515,7 @@ const onCreateSpaceAsync = async () => {
       createForm.serverUrl = undefined
 
       // Open invite dialog for the newly created space
-      openInviteDialog({ ...createdSpace, name: createForm.name, role: SpaceRoles.ADMIN, serverUrl, createdAt: new Date().toISOString() })
+      openInviteDialog({ ...createdSpace, name: createForm.name, serverUrl, createdAt: new Date().toISOString() } as SpaceWithType)
     }
   } catch (error) {
     console.error('Failed to create space:', error)
@@ -635,7 +635,7 @@ const getIdentityForSpace = (spaceServerUrl: string): string | undefined => {
 }
 
 // Open invite dialog
-const openInviteDialog = (space: DecryptedSpace, mode: 'contact' | 'link' | 'open' = 'contact') => {
+const openInviteDialog = (space: SpaceWithType, mode: 'contact' | 'link' | 'open' = 'contact') => {
   inviteSpaceId.value = space.id
   inviteServerUrl.value = space.serverUrl
   inviteIdentityId.value = getIdentityForSpace(space.serverUrl) ?? ''
@@ -644,12 +644,12 @@ const openInviteDialog = (space: DecryptedSpace, mode: 'contact' | 'link' | 'ope
 }
 
 // Prepare delete/leave
-const prepareDeleteSpace = (space: DecryptedSpace) => {
+const prepareDeleteSpace = (space: SpaceWithType) => {
   targetSpace.value = space
   showDeleteConfirm.value = true
 }
 
-const prepareLeaveSpace = (space: DecryptedSpace) => {
+const prepareLeaveSpace = (space: SpaceWithType) => {
   targetSpace.value = space
   showLeaveConfirm.value = true
 }

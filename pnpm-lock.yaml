@@ -33,8 +33,8 @@ importers:
         specifier: ^0.1.9
         version: 0.1.9
       '@haex-space/vault-sdk':
-        specifier: ^2.8.0
-        version: 2.8.0(@libsql/client@0.17.0)(@nuxt/kit@4.3.1(magicast@0.5.2))(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.5.0)(vite@7.3.1(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))(vue@3.5.30(typescript@5.9.3))
+        specifier: ^2.9.1
+        version: 2.9.1(@libsql/client@0.17.0)(@nuxt/kit@4.3.1(magicast@0.5.2))(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.5.0)(vite@7.3.1(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))(vue@3.5.30(typescript@5.9.3))
       '@nuxt/eslint':
         specifier: 1.15.2
         version: 1.15.2(@typescript-eslint/utils@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(@vue/compiler-sfc@3.5.30)(eslint@9.39.4(jiti@2.6.1))(magicast@0.5.2)(typescript@5.9.3)(vite@7.3.1(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
@@ -1285,8 +1285,8 @@ packages:
   '@haex-space/ucan@0.1.9':
     resolution: {integrity: sha512-HUrV7YOteFMBNtNI9DUv7yNUL+tztkg2xvwxU6EMw8dMCTwH8bYeMmspxjlOY7H03gMtTrJkqf3rOxbaHYQ9Rw==}
 
-  '@haex-space/vault-sdk@2.8.0':
-    resolution: {integrity: sha512-kDcnqTA79TnJ/WxPRnDy5XcMtkmxYnCk3mNZt1S/9hPSeiO4gSx1rzXYDCg1ivr8M6oCJpYl9VsNrPR0b5hO4A==}
+  '@haex-space/vault-sdk@2.9.1':
+    resolution: {integrity: sha512-5WpbvWBaCMPpzIuyuSmIfGHWU9SKIIIH84oMhw+55q60qJh8XGIDljzK3m08D7cER9w0roq0cSdydK+nQi1ASQ==}
     hasBin: true
     peerDependencies:
       '@nuxt/kit': ^3.0.0 || ^4.0.0
@@ -8467,7 +8467,7 @@ snapshots:
 
   '@haex-space/ucan@0.1.9': {}
 
-  '@haex-space/vault-sdk@2.8.0(@libsql/client@0.17.0)(@nuxt/kit@4.3.1(magicast@0.5.2))(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.5.0)(vite@7.3.1(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))(vue@3.5.30(typescript@5.9.3))':
+  '@haex-space/vault-sdk@2.9.1(@libsql/client@0.17.0)(@nuxt/kit@4.3.1(magicast@0.5.2))(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.5.0)(vite@7.3.1(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))(vue@3.5.30(typescript@5.9.3))':
     dependencies:
       archiver: 7.0.1
       commander: 14.0.3

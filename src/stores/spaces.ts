@@ -1,12 +1,7 @@
-import {
-  type SharedSpace,
-  SpaceRoles,
-  type SpaceRole,
-  type DecryptedSpace,
-} from '@haex-space/vault-sdk'
+import type { DecryptedSpace } from '@haex-space/vault-sdk'
 import { eq, and } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
-import { haexSpaces } from '~/database/schemas'
+import { haexSpaces, haexUcanTokens } from '~/database/schemas'
 import type { SelectHaexSpaces } from '~/database/schemas'
 import { createLogger } from '@/stores/logging'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
@@ -65,7 +60,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     name: row.name,
     type: (row.type as SpaceTypeValue) ?? SpaceType.ONLINE,
     status: (row.status as SpaceStatusValue) ?? SpaceStatus.ACTIVE,
-    role: row.role as SpaceRole,
     serverUrl: row.originUrl ?? '',
     createdAt: row.createdAt ?? '',
   })
@@ -81,7 +75,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       await db.update(haexSpaces).set({
         name: space.name,
         originUrl: space.serverUrl || null,
-        role: space.role,
         status: space.status,
         modifiedAt: new Date().toISOString(),
       }).where(eq(haexSpaces.id, space.id))
@@ -91,7 +84,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
         type: space.type,
         name: space.name,
         originUrl: space.serverUrl || null,
-        role: space.role,
         status: space.status,
       })
     }
@@ -154,7 +146,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       name: spaceName,
       type: SpaceType.LOCAL,
       status: SpaceStatus.ACTIVE,
-      role: SpaceRoles.ADMIN,
       serverUrl: '',
       createdAt: new Date().toISOString(),
     }
@@ -201,7 +192,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       id: vaultId,
       type: SpaceType.VAULT,
       name: vaultName,
-      role: SpaceRoles.ADMIN,
       originUrl: '',
     })
     log.info(`Created vault space "${vaultName}" (${vaultId})`)
@@ -346,14 +336,13 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const identity = await resolveIdentityAsync(identityId)
     const response = await fetchWithDidAuth(`${serverUrl}/spaces`, identity.privateKey, identity.did, 'list-spaces')
     if (!response.ok) throw new Error('Failed to list spaces')
-    const rawSpaces = await response.json() as SharedSpace[]
+    const rawSpaces = await response.json() as Array<{ id: string; encryptedName?: string; createdAt: string }>
 
     const decrypted: SpaceWithType[] = rawSpaces.map((space) => ({
       id: space.id,
       name: space.encryptedName ?? `Space ${space.id.slice(0, 8)}`,
       type: SpaceType.ONLINE,
       status: SpaceStatus.ACTIVE,
-      role: space.role,
       serverUrl,
       createdAt: space.createdAt,
     }))
@@ -501,7 +490,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     }
 
     const data = await response.json()
-    const role = mapCapabilityToRole(data.capability)
 
     if (relayServerUrl) {
       // Cross-server: set up federation, then persist space pointing to relay
@@ -512,7 +500,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
         name: '',
         type: SpaceType.ONLINE,
         status: SpaceStatus.ACTIVE,
-        role,
         serverUrl: relayServerUrl,
         createdAt: new Date().toISOString(),
       })
@@ -525,7 +512,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
         name: '',
         type: SpaceType.ONLINE,
         status: SpaceStatus.ACTIVE,
-        role,
         serverUrl,
         createdAt: new Date().toISOString(),
       })
@@ -790,10 +776,31 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     log.info(`Federation established: relay ${relayServerUrl} → origin ${originServerUrl} for space ${spaceId}`)
   }
 
-  const mapCapabilityToRole = (capability: string): SpaceRole => {
-    if (capability === 'space/admin') return SpaceRoles.ADMIN
-    if (capability === 'space/read') return SpaceRoles.READER
-    return SpaceRoles.MEMBER
+  // =========================================================================
+  // Capability Lookups
+  // =========================================================================
+
+  /** Get all capabilities the current user has for a given space */
+  const getCapabilitiesForSpaceAsync = async (spaceId: string): Promise<string[]> => {
+    const db = getDb()
+    if (!db) return []
+
+    const identityStore = useIdentityStore()
+    const myDids = identityStore.ownIdentities.map(i => i.did)
+
+    const tokens = await db.select()
+      .from(haexUcanTokens)
+      .where(eq(haexUcanTokens.spaceId, spaceId))
+
+    return tokens
+      .filter(t => myDids.includes(t.audienceDid) || myDids.includes(t.issuerDid))
+      .map(t => t.capability)
+  }
+
+  /** Check if the current user has a specific capability (or space/admin) for a space */
+  const hasCapabilityAsync = async (spaceId: string, capability: string): Promise<boolean> => {
+    const capabilities = await getCapabilitiesForSpaceAsync(spaceId)
+    return capabilities.includes(capability) || capabilities.includes('space/admin')
   }
 
   // =========================================================================
@@ -933,6 +940,8 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     deleteSpaceAsync,
     removeIdentityFromSpaceAsync,
     setupFederationForSpaceAsync,
+    getCapabilitiesForSpaceAsync,
+    hasCapabilityAsync,
     inviteContactToLocalSpaceAsync,
     acceptLocalInviteAsync,
     startLocalSpaceLeadersAsync,

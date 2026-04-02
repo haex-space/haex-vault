@@ -63,8 +63,8 @@ pub fn handle_push_invite(
 
     // 4. Create dummy space with status 'pending'
     let _ = core::execute_with_crdt(
-        "INSERT OR IGNORE INTO haex_spaces (id, type, status, name, origin_url, role) \
-         VALUES (?1, ?2, 'pending', ?3, ?4, ?5)"
+        "INSERT OR IGNORE INTO haex_spaces (id, type, status, name, origin_url) \
+         VALUES (?1, ?2, 'pending', ?3, ?4)"
             .to_string(),
         vec![
             serde_json::Value::String(space_id.to_string()),
@@ -73,7 +73,6 @@ pub fn handle_push_invite(
             origin_url.map_or(serde_json::Value::Null, |u| {
                 serde_json::Value::String(u.to_string())
             }),
-            serde_json::Value::String(capabilities.join(",")),
         ],
         db,
         &hlc_guard,

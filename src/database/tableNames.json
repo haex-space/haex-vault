@@ -219,7 +219,6 @@
         "status": "status",
         "name": "name",
         "originUrl": "origin_url",
-        "role": "role",
         "createdAt": "created_at",
         "modifiedAt": "modified_at"
       }

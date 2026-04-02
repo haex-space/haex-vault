@@ -29,11 +29,11 @@
             {{ t('federation.label') }} {{ federationOriginHost }}
           </UBadge>
           <UBadge
-            :color="roleBadgeColor"
+            :color="permissionBadgeColor"
             variant="subtle"
             size="sm"
           >
-            {{ t(`roles.${space.role}`) }}
+            {{ permissionLabel }}
           </UBadge>
         </div>
         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -42,7 +42,7 @@
       </div>
       <div class="flex gap-2 @xs:shrink-0">
         <UButton
-          v-if="space.role === SpaceRoles.ADMIN || space.role === SpaceRoles.OWNER"
+          v-if="isAdmin"
           color="neutral"
           variant="ghost"
           icon="i-lucide-pencil"
@@ -50,7 +50,7 @@
           @click="$emit('edit', space)"
         />
         <UDropdownMenu
-          v-if="space.role === SpaceRoles.ADMIN || space.role === SpaceRoles.OWNER"
+          v-if="isAdmin"
           :items="inviteMenuItems"
         >
           <UButton
@@ -61,7 +61,7 @@
           />
         </UDropdownMenu>
         <UButton
-          v-if="space.role === SpaceRoles.ADMIN || space.role === SpaceRoles.OWNER"
+          v-if="isAdmin"
           color="error"
           variant="ghost"
           icon="i-lucide-trash-2"
@@ -69,7 +69,7 @@
           @click="$emit('delete', space)"
         />
         <UButton
-          v-if="space.role !== SpaceRoles.ADMIN"
+          v-if="!isAdmin"
           color="warning"
           variant="ghost"
           icon="i-lucide-log-out"
@@ -131,20 +131,20 @@
 </template>
 
 <script setup lang="ts">
-import { SpaceRoles, type DecryptedSpace } from '@haex-space/vault-sdk'
+import type { SpaceWithType } from '@/stores/spaces'
 import SpaceLinkedItems from './SpaceLinkedItems.vue'
 
 const props = defineProps<{
-  space: DecryptedSpace
+  space: SpaceWithType
 }>()
 
 const emit = defineEmits<{
-  edit: [space: DecryptedSpace]
-  'invite-contact': [space: DecryptedSpace]
-  'invite-link': [space: DecryptedSpace]
-  'invite-open': [space: DecryptedSpace]
-  delete: [space: DecryptedSpace]
-  leave: [space: DecryptedSpace]
+  edit: [space: SpaceWithType]
+  'invite-contact': [space: SpaceWithType]
+  'invite-link': [space: SpaceWithType]
+  'invite-open': [space: SpaceWithType]
+  delete: [space: SpaceWithType]
+  leave: [space: SpaceWithType]
 }>()
 
 const inviteMenuItems = computed(() => [
@@ -167,6 +167,28 @@ const inviteMenuItems = computed(() => [
 
 const { t } = useI18n()
 
+const spacesStore = useSpacesStore()
+const capabilities = ref<string[]>([])
+
+const isAdmin = computed(() => capabilities.value.includes('space/admin'))
+
+const permissionLabel = computed(() => {
+  if (capabilities.value.includes('space/admin')) return 'Admin'
+  if (capabilities.value.includes('space/invite')) return 'Invite'
+  if (capabilities.value.includes('space/write')) return 'Write'
+  return 'Read'
+})
+
+const permissionBadgeColor = computed(() => {
+  if (capabilities.value.includes('space/admin')) return 'primary' as const
+  if (capabilities.value.includes('space/write')) return 'info' as const
+  return 'neutral' as const
+})
+
+onMounted(async () => {
+  capabilities.value = await spacesStore.getCapabilitiesForSpaceAsync(props.space.id)
+})
+
 const { getBackendNameByUrl, isFederated, getBackendForSpace } = useSyncBackendsStore()
 
 const backendName = computed(() => getBackendNameByUrl(props.space.serverUrl))
@@ -182,20 +204,6 @@ const federationOriginHost = computed(() => {
   }
 })
 
-const roleBadgeColor = computed(() => {
-  switch (props.space.role) {
-    case 'admin':
-      return 'primary' as const
-    case 'owner':
-      return 'warning' as const
-    case 'member':
-      return 'info' as const
-    case 'reader':
-      return 'neutral' as const
-    default:
-      return 'neutral' as const
-  }
-})
 
 const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString()
@@ -219,11 +227,6 @@ watch(isExpanded, async (expanded) => {
 
 <i18n lang="yaml">
 de:
-  roles:
-    admin: Admin
-    owner: Eigentümer
-    member: Mitglied
-    reader: Leser
   createdAt: Erstellt am
   actions:
     edit: Bearbeiten
@@ -244,11 +247,6 @@ de:
   linkedItems:
     label: Verknüpfte Inhalte
 en:
-  roles:
-    admin: Admin
-    owner: Owner
-    member: Member
-    reader: Reader
   createdAt: Created at
   actions:
     edit: Edit

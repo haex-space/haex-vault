@@ -484,34 +484,43 @@ pub async fn local_delivery_claim_invite(
         .map_err(|e| format!("Failed to process MLS welcome: {e}"))?;
 
     // 6. Persist space locally (type = 'local', status = 'active')
-    // role is derived from UCAN capability at runtime via mapCapabilityToRole
+    // Capabilities are derived at runtime from UCAN tokens, not stored on the space
     let db = DbConnection(state.db.0.clone());
-    crate::database::core::execute(
-        "INSERT OR IGNORE INTO haex_spaces (id, type, status, name, role) VALUES (?1, 'local', 'active', ?2, ?3)".to_string(),
+    let hlc_guard = state.hlc.lock().map_err(|_| "HLC lock poisoned".to_string())?;
+
+    crate::database::core::execute_with_crdt(
+        "INSERT OR IGNORE INTO haex_spaces (id, type, status, name) VALUES (?1, 'local', 'active', ?2)".to_string(),
         vec![
             serde_json::Value::String(space_id.clone()),
             serde_json::Value::String(format!("Local Space {}", &space_id[..8.min(space_id.len())])),
-            serde_json::Value::String(capability.clone()),
         ],
         &db,
+        &hlc_guard,
     )
     .map_err(|e| format!("Failed to persist space: {e}"))?;
 
     // 7. Persist UCAN token
     let ucan_id = uuid::Uuid::new_v4().to_string();
-    crate::database::core::execute(
-        "INSERT INTO haex_ucan_tokens (id, space_id, issuer_did, audience_did, capability, token) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)"
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+    crate::database::core::execute_with_crdt(
+        "INSERT INTO haex_ucan_tokens (id, space_id, issuer_did, audience_did, capability, token, issued_at, expires_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
             .to_string(),
         vec![
             serde_json::Value::String(ucan_id),
             serde_json::Value::String(space_id.clone()),
-            serde_json::Value::Null, // issuer_did not known here
+            serde_json::Value::String(identity_did.clone()), // self-issued for local claims
             serde_json::Value::String(identity_did),
             serde_json::Value::String(capability.clone()),
             serde_json::Value::String(ucan_token),
+            serde_json::Value::Number(serde_json::Number::from(now_secs)),
+            serde_json::Value::Number(serde_json::Number::from(now_secs + 86400 * 365)), // 1 year
         ],
         &db,
+        &hlc_guard,
     )
     .map_err(|e| format!("Failed to persist UCAN: {e}"))?;
 

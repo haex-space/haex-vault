@@ -386,7 +386,6 @@ CREATE TABLE `haex_spaces` (
 	`status` text DEFAULT 'active' NOT NULL,
 	`name` text NOT NULL,
 	`origin_url` text,
-	`role` text NOT NULL,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
 	`modified_at` text DEFAULT (CURRENT_TIMESTAMP)
 );

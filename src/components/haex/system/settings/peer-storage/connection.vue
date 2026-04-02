@@ -207,7 +207,6 @@
 
 <script setup lang="ts">
 import type { ContextMenuItem } from '@nuxt/ui'
-import { SpaceRoles } from '@haex-space/vault-sdk'
 import { SettingsCategory } from '~/config/settingsCategories'
 import { and, eq, isNull } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
@@ -228,6 +227,7 @@ const { currentVault } = storeToRefs(useVaultStore())
 const isToggling = ref(false)
 const autostart = ref(false)
 const expandedSpaces = ref(new Set<string>())
+const spaceCapabilities = ref(new Map<string, string[]>())
 
 const onToggleSpace = (spaceId: string, open: boolean) => {
   const next = new Set(expandedSpaces.value)
@@ -275,6 +275,12 @@ onMounted(async () => {
   await store.refreshStatusAsync()
   await store.loadSharesAsync()
   await store.loadSpaceDevicesAsync()
+
+  // Pre-load capabilities for all visible spaces
+  for (const space of spacesStore.visibleSpaces) {
+    const capabilities = await spacesStore.getCapabilitiesForSpaceAsync(space.id)
+    spaceCapabilities.value.set(space.id, capabilities)
+  }
 
   if (currentVault.value?.drizzle && deviceStore.deviceId) {
     const row =
@@ -326,8 +332,8 @@ const getDeviceName = (deviceEndpointId: string): string | undefined => {
 const canDeleteShare = (spaceId: string, share: SelectHaexPeerShares): boolean => {
   if (share.deviceEndpointId === store.nodeId) return true
 
-  const space = spacesStore.visibleSpaces.find((s) => s.id === spaceId)
-  if (space && (space.role === SpaceRoles.ADMIN || space.role === SpaceRoles.OWNER)) return true
+  const capabilities = spaceCapabilities.value.get(spaceId) ?? []
+  if (capabilities.includes('space/admin') || capabilities.includes('space/write')) return true
 
   const shareDevice = store.spaceDevices.find(
     (d) => d.deviceEndpointId === share.deviceEndpointId && d.spaceId === spaceId,
