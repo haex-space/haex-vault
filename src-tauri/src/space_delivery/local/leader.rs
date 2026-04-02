@@ -12,7 +12,7 @@ use tauri::AppHandle;
 
 use crate::crdt::commands::{apply_remote_changes_to_db, RemoteColumnChange};
 use crate::crdt::hlc::HlcService;
-use crate::crdt::scanner::{scan_all_dirty_tables_for_local_changes, LocalColumnChange};
+use crate::crdt::scanner::{scan_all_crdt_tables_for_local_changes, LocalColumnChange};
 use crate::database::DbConnection;
 use crate::peer_storage::endpoint::DeliveryConnectionHandler;
 
@@ -416,19 +416,7 @@ async fn handle_delivery_stream(
                 .await;
             }
 
-            // 4. Mark affected tables as dirty so other peers can pull them
-            for table_name in &affected_tables {
-                let sql = "INSERT OR REPLACE INTO haex_crdt_dirty_tables (table_name, last_modified) VALUES (?1, datetime('now'))".to_string();
-                let params = vec![serde_json::Value::String(table_name.clone())];
-                if let Err(e) = crate::database::core::execute(sql, params, &state.db) {
-                    eprintln!(
-                        "[SpaceDelivery] SyncPush: failed to mark dirty table '{}': {e}",
-                        table_name
-                    );
-                }
-            }
-
-            // 5. Update HLC with the max timestamp from received changes
+            // 4. Update HLC with the max timestamp from received changes
             if !max_hlc.is_empty() {
                 if let Ok(parsed_ts) = std::str::FromStr::from_str(&max_hlc) {
                     if let Ok(hlc) = state.hlc.lock() {
@@ -470,7 +458,7 @@ async fn handle_delivery_stream(
             }
 
             let device_id = "leader";
-            match scan_all_dirty_tables_for_local_changes(
+            match scan_all_crdt_tables_for_local_changes(
                 &state.db,
                 after_timestamp.as_deref(),
                 device_id,

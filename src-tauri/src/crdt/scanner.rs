@@ -228,6 +228,28 @@ pub fn scan_all_dirty_tables_for_local_changes(
     })
 }
 
+/// Scans ALL CRDT-enabled tables for changes (not just dirty ones).
+///
+/// Used by the P2P leader for SyncPull — must return all changes including
+/// those applied from other peers (which don't trigger dirty markers).
+pub fn scan_all_crdt_tables_for_local_changes(
+    db: &DbConnection,
+    after_hlc: Option<&str>,
+    device_id: &str,
+) -> Result<Vec<LocalColumnChange>, DatabaseError> {
+    with_connection(db, |conn| {
+        let table_names = crate::database::init::discover_crdt_tables(conn)?;
+
+        let mut all_changes: Vec<LocalColumnChange> = Vec::new();
+        for table_name in &table_names {
+            let changes = scan_table_for_local_changes(conn, table_name, after_hlc, device_id)?;
+            all_changes.extend(changes);
+        }
+
+        Ok(all_changes)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
