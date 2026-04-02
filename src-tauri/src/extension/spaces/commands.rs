@@ -338,11 +338,14 @@ pub struct DecryptedSpace {
     pub name: String,
     pub origin_url: String,
     pub created_at: String,
+    pub capabilities: Vec<String>,
 }
 
 /// List all spaces from the local database.
 ///
 /// Returns both local and remote spaces — no server fetch needed.
+/// Includes the current user's capabilities per space (from UCAN tokens).
+/// Spaces without UCAN tokens are owned by this device and get full admin capabilities.
 #[tauri::command]
 pub async fn extension_space_list(
     app_handle: AppHandle,
@@ -362,7 +365,14 @@ pub async fn extension_space_list(
     perm_result?;
 
     let rows = core::select_with_crdt(
-        "SELECT id, name, origin_url, created_at FROM haex_spaces".to_string(),
+        "SELECT s.id, s.name, s.origin_url, s.created_at, \
+                GROUP_CONCAT(DISTINCT t.capability) as capabilities \
+         FROM haex_spaces s \
+         LEFT JOIN haex_ucan_tokens t ON t.space_id = s.id \
+           AND (t.audience_did IN (SELECT did FROM haex_identities WHERE private_key IS NOT NULL) \
+                OR t.issuer_did IN (SELECT did FROM haex_identities WHERE private_key IS NOT NULL)) \
+         GROUP BY s.id"
+            .to_string(),
         vec![],
         &state.db,
     )
@@ -374,11 +384,21 @@ pub async fn extension_space_list(
 
     let spaces: Vec<DecryptedSpace> = rows
         .iter()
-        .map(|row| DecryptedSpace {
-            id: get_string(row, 0),
-            name: get_string(row, 1),
-            origin_url: get_string(row, 2),
-            created_at: get_string(row, 3),
+        .map(|row| {
+            let caps_str = get_string(row, 4);
+            let capabilities = if caps_str.is_empty() {
+                // No UCAN tokens → this device owns the space
+                vec!["space/admin".to_string()]
+            } else {
+                caps_str.split(',').map(|s| s.to_string()).collect()
+            };
+            DecryptedSpace {
+                id: get_string(row, 0),
+                name: get_string(row, 1),
+                origin_url: get_string(row, 2),
+                created_at: get_string(row, 3),
+                capabilities,
+            }
         })
         .collect();
 
