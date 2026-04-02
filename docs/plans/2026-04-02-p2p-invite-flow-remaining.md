@@ -38,6 +38,11 @@ Offene Punkte nach der initialen Implementierung (v1.8.5).
 
 **Offene Frage:** Sollen Spaces gelöscht werden bei denen man nur Member (nicht Admin) ist? Vermutlich ja — man verlässt den Space automatisch. Andere Members bemerken das über MLS.
 
+**UX-Warnung:** Der Lösch-Dialog muss prominent anzeigen welche Spaces betroffen sind, z.B.:
+- "Diese Identität ist Admin von 3 Spaces: **Projekt X**, **Team Y**, **Personal**"
+- "Alle diese Spaces werden unwiderruflich gelöscht. Andere Mitglieder verlieren den Zugang."
+- Zweistufige Bestätigung oder Eingabe des Space-Namens bei Admin-Spaces
+
 ---
 
 ## 1. Outbox: Capabilities und History aus Invite-Token laden
