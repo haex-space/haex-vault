@@ -147,7 +147,7 @@ const onWizardCompleteAsync = async (wizardData: {
     // Close drawer before navigating
     open.value = false
 
-    // 5. Navigate to vault
+    // 5. Navigate to vault (sets currentVaultId via route params)
     // The vault.vue page will detect remoteSync=true and wait for initial sync
     await navigateTo(
       useLocaleRoute()({
@@ -156,7 +156,24 @@ const onWizardCompleteAsync = async (wizardData: {
         query: { remoteSync: 'true' },
       }),
     )
-    // 6. Perform initial pull using temporary backend
+    // 6. Persist recovered identity to DB (vault is now open via route)
+    await identityStore.importIdentityAsync({
+      publicKey: wizardData.identityPublicKey,
+      privateKey: wizardData.identityPrivateKey,
+      did: wizardData.identityDid,
+      label: 'Recovered Identity',
+    })
+
+    // Update temporary backend with the DB-persisted identity ID
+    const persistedIdentity = await identityStore.getIdentityByPublicKeyAsync(wizardData.identityPublicKey)
+    if (persistedIdentity) {
+      syncBackendsStore.setTemporaryBackend({
+        ...syncBackendsStore.temporaryBackend!,
+        identityId: persistedIdentity.id,
+      })
+    }
+
+    // 7. Perform initial pull using temporary backend
     // For new vaults: this will be empty but sets up the sync infrastructure
     // For existing vaults: this pulls ALL data from server
     // After successful pull, the backend is persisted to DB
