@@ -7,7 +7,6 @@
 use crate::crdt::trigger::{get_table_schema, ColumnInfo, COLUMN_HLCS_COLUMN, HLC_TIMESTAMP_COLUMN};
 use crate::database::core::{convert_value_ref_to_json, with_connection};
 use crate::database::error::DatabaseError;
-use crate::database::init::discover_crdt_tables;
 use crate::database::DbConnection;
 use crate::table_names::TABLE_CRDT_DIRTY_TABLES;
 use rusqlite::Connection;
@@ -218,28 +217,6 @@ pub fn scan_all_dirty_tables_for_local_changes(
             .map_err(DatabaseError::from)?
             .collect::<Result<Vec<_>, _>>()
             .map_err(DatabaseError::from)?;
-
-        let mut all_changes: Vec<LocalColumnChange> = Vec::new();
-        for table_name in &table_names {
-            let changes = scan_table_for_local_changes(conn, table_name, after_hlc, device_id)?;
-            all_changes.extend(changes);
-        }
-
-        Ok(all_changes)
-    })
-}
-
-/// Scans all CRDT-enabled tables for column-level local changes (full sync / pull response).
-///
-/// Discovers tables by looking for the `haex_tombstone` column, then delegates
-/// to [`scan_table_for_local_changes`] for each.
-pub fn scan_all_crdt_tables_for_local_changes(
-    db: &DbConnection,
-    after_hlc: Option<&str>,
-    device_id: &str,
-) -> Result<Vec<LocalColumnChange>, DatabaseError> {
-    with_connection(db, |conn| {
-        let table_names = discover_crdt_tables(conn)?;
 
         let mut all_changes: Vec<LocalColumnChange> = Vec::new();
         for table_name in &table_names {
