@@ -10,6 +10,8 @@ export interface SpaceLinkedItemGroup {
   icon: string
   /** Type discriminator */
   type: 'p2p-shares' | 'extension'
+  /** Extension ID (only for type 'extension') */
+  extensionId?: string
   /** Individual items within this group */
   items: SpaceLinkedItem[]
 }
@@ -153,6 +155,7 @@ export function useSpaceLinkedItems(spaceId: MaybeRefOrGetter<string>) {
           label: ext?.name ?? extKey,
           icon: extensionIcon,
           type: 'extension',
+          extensionId: ext?.id,
           items,
         })
       }

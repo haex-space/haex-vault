@@ -1,6 +1,10 @@
 <template>
   <div
-    class="flex flex-col gap-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50"
+    class="flex flex-col gap-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 transition-colors"
+    :class="[
+      pending ? 'border border-dashed border-primary/30' : 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50',
+    ]"
+    @click="!pending && $emit('select', space)"
   >
     <div
       class="flex flex-col @xs:flex-row @xs:items-center @xs:justify-between gap-2"
@@ -11,7 +15,16 @@
             {{ space.name }}
           </p>
           <UBadge
-            v-if="space.serverUrl"
+            v-if="pending"
+            color="warning"
+            variant="subtle"
+            size="sm"
+            icon="i-lucide-clock"
+          >
+            {{ t('status.pending') }}
+          </UBadge>
+          <UBadge
+            v-if="!pending && space.serverUrl"
             color="info"
             variant="subtle"
             size="sm"
@@ -20,15 +33,16 @@
             {{ backendName }}
           </UBadge>
           <UBadge
-            v-if="federationOriginHost"
-            color="warning"
+            v-if="!pending && !space.serverUrl"
+            color="neutral"
             variant="subtle"
             size="sm"
-            icon="i-lucide-globe"
+            icon="i-lucide-hard-drive"
           >
-            {{ t('federation.label') }} {{ federationOriginHost }}
+            {{ t('type.local') }}
           </UBadge>
           <UBadge
+            v-if="!pending"
             :color="permissionBadgeColor"
             variant="subtle"
             size="sm"
@@ -36,114 +50,107 @@
             {{ permissionLabel }}
           </UBadge>
         </div>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+        <!-- Pending: inviter info + capabilities -->
+        <template v-if="pending && invite">
+          <p class="text-xs text-muted mt-1">
+            {{ t('invite.from') }}: {{ invite.inviterLabel || invite.inviterDid }}
+          </p>
+          <p v-if="invite.capabilities" class="text-xs text-muted">
+            {{ formatCapabilities(invite.capabilities) }}
+          </p>
+        </template>
+        <!-- Active: created date -->
+        <p v-else class="text-xs text-gray-500 dark:text-gray-400 mt-1">
           {{ t('createdAt') }}: {{ formatDate(space.createdAt) }}
         </p>
       </div>
       <div class="flex gap-2 @xs:shrink-0">
-        <UButton
-          v-if="isAdmin"
-          color="neutral"
-          variant="ghost"
-          icon="i-lucide-pencil"
-          :title="t('actions.edit')"
-          @click="$emit('edit', space)"
-        />
-        <UDropdownMenu
-          v-if="isAdmin"
-          :items="inviteMenuItems"
-        >
+        <!-- Pending: Accept/Decline only -->
+        <template v-if="pending">
           <UButton
             color="primary"
+            variant="soft"
+            icon="i-lucide-check"
+            @click.stop="$emit('accept')"
+          >
+            {{ t('actions.accept') }}
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="outline"
+            icon="i-lucide-x"
+            @click.stop="$emit('decline')"
+          >
+            {{ t('actions.decline') }}
+          </UButton>
+        </template>
+
+        <!-- Active: admin actions -->
+        <template v-else>
+          <UButton
+            v-if="isAdmin || canInvite"
+            color="neutral"
             variant="ghost"
-            icon="i-lucide-user-plus"
-            :title="t('actions.invite')"
+            icon="i-lucide-pencil"
+            :title="t('actions.edit')"
+            @click.stop="$emit('edit', space)"
           />
-        </UDropdownMenu>
-        <UButton
-          v-if="isAdmin"
-          color="error"
-          variant="ghost"
-          icon="i-lucide-trash-2"
-          :title="t('actions.delete')"
-          @click="$emit('delete', space)"
-        />
-        <UButton
-          v-if="!isAdmin"
-          color="warning"
-          variant="ghost"
-          icon="i-lucide-log-out"
-          :title="t('actions.leave')"
-          @click="$emit('leave', space)"
-        />
+          <UDropdownMenu
+            v-if="isAdmin || canInvite"
+            :items="inviteMenuItems"
+          >
+            <UButton
+              color="primary"
+              variant="ghost"
+              icon="i-lucide-user-plus"
+              :title="t('actions.invite')"
+              @click.stop
+            />
+          </UDropdownMenu>
+          <UButton
+            v-if="isAdmin"
+            color="error"
+            variant="ghost"
+            icon="i-lucide-trash-2"
+            :title="t('actions.delete')"
+            @click.stop="$emit('delete', space)"
+          />
+          <UButton
+            v-if="!isAdmin"
+            color="warning"
+            variant="ghost"
+            icon="i-lucide-log-out"
+            :title="t('actions.leave')"
+            @click.stop="$emit('leave', space)"
+          />
+        </template>
       </div>
     </div>
 
-    <!-- Linked items collapsible -->
-    <UCollapsible v-model:open="isExpanded" :unmount-on-hide="false">
-      <div class="flex items-center gap-1.5 py-2 text-xs text-muted hover:text-foreground transition-colors cursor-pointer">
-        <UIcon
-          name="i-lucide-chevron-right"
-          class="w-3.5 h-3.5 transition-transform duration-200"
-          :class="{ 'rotate-90': isExpanded }"
-        />
-        <span>{{ t('linkedItems.label') }}</span>
-        <UBadge
-          v-if="totalCount > 0"
-          variant="subtle"
-          size="sm"
-          color="neutral"
-        >
-          {{ totalCount }}
-        </UBadge>
-      </div>
-
-      <template #content>
-        <div class="mt-2">
-          <!-- Federation Info -->
-          <div
-            v-if="federationBackend?.type === 'relay'"
-            class="mb-3 p-2 rounded-md bg-warning-50 dark:bg-warning-950/30 text-xs space-y-1"
-          >
-            <p class="font-medium text-warning-700 dark:text-warning-300 flex items-center gap-1.5">
-              <UIcon name="i-lucide-globe" class="w-3.5 h-3.5" />
-              {{ t('federation.title') }}
-            </p>
-            <div class="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-gray-600 dark:text-gray-400">
-              <span>{{ t('federation.originServer') }}:</span>
-              <span class="truncate font-mono">{{ space.serverUrl }}</span>
-              <span>{{ t('federation.relayServer') }}:</span>
-              <span class="truncate font-mono">{{ federationBackend.homeServerUrl }}</span>
-              <span v-if="federationBackend.originServerDid">{{ t('federation.originDid') }}:</span>
-              <span v-if="federationBackend.originServerDid" class="truncate font-mono">{{ federationBackend.originServerDid }}</span>
-              <span v-if="federationBackend.homeServerDid">{{ t('federation.relayDid') }}:</span>
-              <span v-if="federationBackend.homeServerDid" class="truncate font-mono">{{ federationBackend.homeServerDid }}</span>
-            </div>
-          </div>
-          <SpaceLinkedItems
-            :groups="groups"
-            :is-loading="isLoading"
-          />
-        </div>
-      </template>
-    </UCollapsible>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { SpaceWithType } from '@/stores/spaces'
-import SpaceLinkedItems from './SpaceLinkedItems.vue'
+import type { SelectHaexPendingInvites } from '~/database/schemas'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   space: SpaceWithType
-}>()
+  pending?: boolean
+  invite?: SelectHaexPendingInvites
+}>(), {
+  pending: false,
+})
 
 const emit = defineEmits<{
+  select: [space: SpaceWithType]
   edit: [space: SpaceWithType]
   'invite-contact': [space: SpaceWithType]
   'invite-link': [space: SpaceWithType]
   delete: [space: SpaceWithType]
   leave: [space: SpaceWithType]
+  accept: []
+  decline: []
 }>()
 
 const inviteMenuItems = computed(() => [
@@ -165,6 +172,7 @@ const spacesStore = useSpacesStore()
 const capabilities = ref<string[]>([])
 
 const isAdmin = computed(() => capabilities.value.includes('space/admin'))
+const canInvite = computed(() => capabilities.value.includes('space/invite'))
 
 const permissionLabel = computed(() => {
   if (capabilities.value.includes('space/admin')) return 'Admin'
@@ -180,82 +188,63 @@ const permissionBadgeColor = computed(() => {
 })
 
 onMounted(async () => {
-  capabilities.value = await spacesStore.getCapabilitiesForSpaceAsync(props.space.id)
-})
-
-const { getBackendNameByUrl, isFederated, getBackendForSpace } = useSyncBackendsStore()
-
-const backendName = computed(() => getBackendNameByUrl(props.space.serverUrl))
-
-const federationBackend = computed(() => getBackendForSpace(props.space.id))
-
-const federationOriginHost = computed(() => {
-  if (!federationBackend.value || federationBackend.value.type !== 'relay') return null
-  try {
-    return new URL(props.space.serverUrl).hostname
-  } catch {
-    return props.space.serverUrl
+  if (!props.pending) {
+    capabilities.value = await spacesStore.getCapabilitiesForSpaceAsync(props.space.id)
   }
 })
 
+const { getBackendNameByUrl } = useSyncBackendsStore()
+
+const backendName = computed(() => getBackendNameByUrl(props.space.serverUrl))
 
 const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString()
 }
 
-// Linked items
-const isExpanded = ref(false)
-const hasLoaded = ref(false)
-
-const { groups, totalCount, isLoading, loadAsync } = useSpaceLinkedItems(
-  () => props.space.id,
-)
-
-watch(isExpanded, async (expanded) => {
-  if (expanded && !hasLoaded.value) {
-    await loadAsync()
-    hasLoaded.value = true
+const formatCapabilities = (capabilities: string | null): string => {
+  if (!capabilities) return ''
+  try {
+    const parsed = JSON.parse(capabilities) as string[]
+    return parsed.map(c => c.replace('space/', '')).join(', ')
+  } catch {
+    return capabilities
   }
-})
+}
 </script>
 
 <i18n lang="yaml">
 de:
+  status:
+    pending: Ausstehend
+  type:
+    local: Lokal
   createdAt: Erstellt am
   actions:
+    accept: Annehmen
+    decline: Ablehnen
     edit: Bearbeiten
     invite: Einladen
     delete: Löschen
     leave: Verlassen
   invite:
+    from: Von
     contact: Kontakt einladen
     link: Einladungslink erstellen
-  federation:
-    label: "Föderiert:"
-    title: Föderation
-    originServer: Origin-Server
-    relayServer: Relay-Server
-    originDid: Origin-DID
-    relayDid: Relay-DID
-  linkedItems:
-    label: Verknüpfte Inhalte
 en:
+  status:
+    pending: Pending
+  type:
+    local: Local
   createdAt: Created at
   actions:
+    accept: Accept
+    decline: Decline
     edit: Edit
     invite: Invite
     delete: Delete
     leave: Leave
   invite:
+    from: From
     contact: Invite contact
     link: Create invite link
-  federation:
-    label: "Federated:"
-    title: Federation
-    originServer: Origin server
-    relayServer: Relay server
-    originDid: Origin DID
-    relayDid: Relay DID
-  linkedItems:
-    label: Linked content
 </i18n>

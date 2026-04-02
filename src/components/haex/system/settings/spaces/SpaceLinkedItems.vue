@@ -46,6 +46,15 @@
           >
             {{ group.items.length }}
           </UBadge>
+          <div class="flex-1" />
+          <UButton
+            icon="i-lucide-external-link"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            :title="t('open')"
+            @click.stop="emit('open-group', group)"
+          />
         </div>
 
         <!-- Items -->
@@ -82,6 +91,7 @@
                 </div>
               </div>
               <UiButton
+                v-if="canEdit"
                 color="error"
                 variant="ghost"
                 icon="i-lucide-trash-2"
@@ -105,10 +115,12 @@ import type {
 defineProps<{
   groups: SpaceLinkedItemGroup[]
   isLoading: boolean
+  canEdit?: boolean
 }>()
 
 const emit = defineEmits<{
   remove: [item: SpaceLinkedItem]
+  'open-group': [group: SpaceLinkedItemGroup]
 }>()
 
 const { t } = useI18n()
@@ -132,11 +144,13 @@ const onRemoveItem = async (item: SpaceLinkedItem) => {
 <i18n lang="yaml">
 de:
   empty: Keine verknüpften Inhalte
+  open: Öffnen
   remove: Aus Space entfernen
   removed: Verknüpfung entfernt
   error: Fehler
 en:
   empty: No linked content
+  open: Open
   remove: Remove from space
   removed: Link removed
   error: Error

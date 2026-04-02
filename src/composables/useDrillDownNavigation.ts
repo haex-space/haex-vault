@@ -14,7 +14,8 @@
  * @param tabId       - Tab ID for per-tab navigation scoping
  */
 
-const registry = new Map<string, Ref<string>>()
+const viewRegistry = new Map<string, Ref<string>>()
+const contextRegistry = new Map<string, Ref<Record<string, unknown>>>()
 
 export function useDrillDownNavigation<T extends string>(
   defaultView: T,
@@ -27,20 +28,41 @@ export function useDrillDownNavigation<T extends string>(
   const key = `${id}-${tabId}`
 
   // Reuse existing ref if component was remounted, preserving undo/redo state
-  if (!registry.has(key)) {
-    registry.set(key, ref<string>(defaultView) as Ref<string>)
+  if (!viewRegistry.has(key)) {
+    viewRegistry.set(key, ref<string>(defaultView) as Ref<string>)
   }
-  const activeView = registry.get(key) as Ref<T>
+  if (!contextRegistry.has(key)) {
+    contextRegistry.set(key, ref<Record<string, unknown>>({}))
+  }
+  const activeView = viewRegistry.get(key) as Ref<T>
+  const navigationContext = contextRegistry.get(key) as Ref<Record<string, unknown>>
 
-  const navigateTo = (view: T) => {
-    if (view === activeView.value) return
+  /**
+   * Navigate to a new view, optionally with context data that will be
+   * restored on undo/redo (e.g. a selected item ID).
+   */
+  const navigateTo = (view: T, context?: Record<string, unknown>) => {
+    if (view === activeView.value && !context) return
 
-    const previous = activeView.value
+    const previousView = activeView.value
+    const previousContext = { ...navigationContext.value }
+
     activeView.value = view
+    if (context) {
+      navigationContext.value = context
+    }
 
     navigationStore.pushBack({
-      undo: () => { activeView.value = previous },
-      redo: () => { activeView.value = view },
+      undo: () => {
+        activeView.value = previousView
+        navigationContext.value = previousContext
+      },
+      redo: () => {
+        activeView.value = view
+        if (context) {
+          navigationContext.value = context
+        }
+      },
     }, tabId)
   }
 
@@ -50,8 +72,9 @@ export function useDrillDownNavigation<T extends string>(
 
   // Clean up on unmount so the next mount starts from the default view
   onUnmounted(() => {
-    registry.delete(key)
+    viewRegistry.delete(key)
+    contextRegistry.delete(key)
   })
 
-  return { activeView, navigateTo, goBack }
+  return { activeView, navigationContext, navigateTo, goBack }
 }

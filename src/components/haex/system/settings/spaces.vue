@@ -1,6 +1,28 @@
 <template>
-  <HaexSystemSettingsLayout :title="t('title')" :description="t('description')">
+  <div class="h-full">
+    <!-- Detail view -->
+    <SpaceDetail
+      v-if="activeView === 'detail' && selectedSpaceId"
+      :space-id="selectedSpaceId"
+      @back="goBack"
+      @invite-contact="openInviteDialog($event, 'contact')"
+      @invite-link="openInviteDialog($event, 'link')"
+    />
+
+    <!-- Index view -->
+    <HaexSystemSettingsLayout
+      v-else
+      :title="t('title')"
+      :description="t('description')"
+    >
     <template #actions>
+      <!-- Invite Policy -->
+      <USelectMenu
+        :model-value="policyOption"
+        :items="policyOptions"
+        class="w-52"
+        @update:model-value="onPolicyChangeAsync"
+      />
       <UButton
         color="neutral"
         variant="outline"
@@ -18,26 +40,6 @@
       </UButton>
     </template>
 
-      <!-- Pending Invites Section -->
-      <UCollapsible v-model:open="showInvitesSection" :unmount-on-hide="false">
-        <div class="flex items-center gap-1.5 py-2 mb-3 text-sm font-medium hover:text-primary transition-colors cursor-pointer">
-          <UIcon
-            name="i-lucide-chevron-right"
-            class="w-4 h-4 transition-transform duration-200"
-            :class="{ 'rotate-90': showInvitesSection }"
-          />
-          <UIcon name="i-lucide-mail" class="w-4 h-4" />
-          <span>{{ t('invites.title') }}</span>
-        </div>
-        <template #content>
-          <div class="mb-4">
-            <PendingInvites />
-          </div>
-        </template>
-      </UCollapsible>
-
-      <USeparator class="mb-4" />
-
       <!-- Loading -->
       <div
         v-if="isLoadingSpaces"
@@ -49,43 +51,20 @@
         />
       </div>
 
-      <!-- Pending Spaces (from push invites) -->
-      <div v-if="pendingSpaces.length" class="space-y-3 mb-4">
-        <p class="text-sm font-medium text-muted">
-          {{ t('list.pending') }}
-        </p>
-        <div
-          v-for="space in pendingSpaces"
-          :key="space.id"
-          class="p-3 rounded-lg border border-dashed border-primary/30 bg-primary/5"
-        >
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2 min-w-0">
-              <p class="font-medium text-sm truncate">{{ space.name }}</p>
-              <UBadge :label="space.type" color="info" variant="subtle" size="sm" />
-            </div>
-            <UButton
-              :label="t('list.viewInvite')"
-              color="primary"
-              variant="soft"
-              size="sm"
-              @click="showInvitesSection = true"
-            />
-          </div>
-        </div>
-      </div>
-
-      <USeparator v-if="pendingSpaces.length && activeSpaces.length" class="mb-4" />
-
-      <!-- Active Spaces list -->
+      <!-- Unified Space list -->
       <div
-        v-else-if="activeSpaces.length"
+        v-else-if="spaceListEntries.length"
         class="space-y-3"
       >
         <SpaceListItem
-          v-for="space in activeSpaces"
-          :key="space.id"
-          :space="space"
+          v-for="entry in spaceListEntries"
+          :key="entry.space.id"
+          :space="entry.space"
+          :pending="entry.kind === 'pending'"
+          :invite="entry.kind === 'pending' ? entry.invite : undefined"
+          @select="openSpaceDetail"
+          @accept="onAcceptInviteAsync(entry.kind === 'pending' ? entry.invite : undefined)"
+          @decline="onDeclineInviteAsync(entry.kind === 'pending' ? entry.invite : undefined)"
           @edit="openEditDialog"
           @invite-contact="openInviteDialog($event, 'contact')"
           @invite-link="openInviteDialog($event, 'link')"
@@ -96,10 +75,11 @@
 
       <!-- Empty state -->
       <HaexSystemSettingsLayoutEmpty
-        v-else-if="!pendingSpaces.length"
+        v-else
         :message="t('list.empty')"
         icon="i-lucide-layout-grid"
       />
+
     <!-- Create Space Dialog -->
     <UiDrawerModal
       v-model:open="showCreateDialog"
@@ -213,7 +193,9 @@
       </template>
     </UiDrawerModal>
 
-    <!-- Edit Space Dialog -->
+    </HaexSystemSettingsLayout>
+
+    <!-- Dialogs (rendered outside layout so they work in both index and detail views) -->
     <UiDrawerModal
       v-model:open="showEditDialog"
       :title="t('edit.title')"
@@ -264,7 +246,6 @@
       </template>
     </UiDrawerModal>
 
-    <!-- Invite Member Dialog -->
     <SpaceInviteDialog
       v-model:open="showInviteDialog"
       :space-id="inviteSpaceId"
@@ -273,7 +254,6 @@
       :mode="inviteMode"
     />
 
-    <!-- Delete Space Confirmation -->
     <UiDialogConfirm
       v-model:open="showDeleteConfirm"
       :title="t('delete.title')"
@@ -281,25 +261,34 @@
       @confirm="onConfirmDeleteAsync"
     />
 
-    <!-- Leave Space Confirmation -->
     <UiDialogConfirm
       v-model:open="showLeaveConfirm"
       :title="t('leave.title')"
       :description="t('leave.description')"
       @confirm="onConfirmLeaveAsync"
     />
-  </HaexSystemSettingsLayout>
+  </div>
 </template>
 
 <script setup lang="ts">
+import { eq } from 'drizzle-orm'
+import { listen } from '@tauri-apps/api/event'
+import { invoke } from '@tauri-apps/api/core'
 import { SettingsCategory } from '~/config/settingsCategories'
 import type { SpaceWithType } from '@/stores/spaces'
+import { haexPendingInvites, type SelectHaexPendingInvites } from '~/database/schemas'
 import SpaceListItem from './spaces/SpaceListItem.vue'
+import SpaceDetail from './spaces/SpaceDetail.vue'
 import SpaceInviteDialog from './spaces/SpaceInviteDialog.vue'
-import PendingInvites from './spaces/PendingInvites.vue'
 import { parseInviteTokenLink, parseLocalInviteLink } from '~/utils/inviteLink'
-import { invoke } from '@tauri-apps/api/core'
 import { SpaceType, type SpaceType as SpaceTypeValue } from '~/database/constants'
+import { fetchWithDidAuth } from '@/utils/auth/didAuth'
+import { useInvitePolicy } from '@/composables/useInvitePolicy'
+import { useMlsDelivery } from '@/composables/useMlsDelivery'
+
+type SpaceListEntry =
+  | { kind: 'active'; space: SpaceWithType }
+  | { kind: 'pending'; space: SpaceWithType; invite: SelectHaexPendingInvites }
 
 const props = defineProps<{
   inviteLink?: string
@@ -308,25 +297,214 @@ const props = defineProps<{
 const { t } = useI18n()
 const { add } = useToast()
 
+const tabId = inject<string>('haex-tab-id')!
+const { activeView, navigationContext, navigateTo, goBack } = useDrillDownNavigation<'index' | 'detail'>('index', 'spaces', tabId)
+const selectedSpaceId = computed(() => navigationContext.value.spaceId as string | null)
+
+const openSpaceDetail = (space: SpaceWithType) => {
+  navigateTo('detail', { spaceId: space.id })
+}
+
 const spacesStore = useSpacesStore()
 const syncBackendsStore = useSyncBackendsStore()
+const identityStore = useIdentityStore()
 const windowManager = useWindowManagerStore()
+const { currentVault } = storeToRefs(useVaultStore())
 
-const { activeSpaces, pendingSpaces, spaces } = storeToRefs(spacesStore)
+const { activeSpaces, spaces } = storeToRefs(spacesStore)
 const { backends: syncBackends } = storeToRefs(syncBackendsStore)
 
-// Loading states
+const getDb = () => currentVault.value?.drizzle
+
+// =========================================================================
+// Pending invites (migrated from PendingInvites.vue)
+// =========================================================================
+
+const { blockDid, setPolicy, getPolicy } = useInvitePolicy()
+
+const pendingInvites = ref<SelectHaexPendingInvites[]>([])
+const currentPolicy = ref<'all' | 'contacts_only' | 'nobody'>('all')
+
+const policyOptions = computed(() => [
+  { label: t('policy.all'), value: 'all' },
+  { label: t('policy.contactsOnly'), value: 'contacts_only' },
+  { label: t('policy.nobody'), value: 'nobody' },
+])
+
+const policyOption = computed(() =>
+  policyOptions.value.find(o => o.value === currentPolicy.value),
+)
+
+const onPolicyChangeAsync = async (option: { label: string; value: string }) => {
+  try {
+    await setPolicy(option.value as 'all' | 'contacts_only' | 'nobody')
+    currentPolicy.value = option.value as 'all' | 'contacts_only' | 'nobody'
+  } catch (error) {
+    console.error('Failed to update policy:', error)
+    add({ title: t('errors.policyFailed'), color: 'error' })
+  }
+}
+
+const loadInvitesAsync = async () => {
+  const db = getDb()
+  if (!db) return
+
+  const rows = await db
+    .select()
+    .from(haexPendingInvites)
+    .where(eq(haexPendingInvites.status, 'pending'))
+
+  pendingInvites.value = rows
+  currentPolicy.value = await getPolicy()
+}
+
+// =========================================================================
+// Unified space list
+// =========================================================================
+
+const spaceListEntries = computed((): SpaceListEntry[] => {
+  const entries: SpaceListEntry[] = []
+
+  // Pending invites first
+  for (const invite of pendingInvites.value) {
+    const space = spaces.value.find(s => s.id === invite.spaceId)
+    if (space) {
+      entries.push({ kind: 'pending', space, invite })
+    }
+  }
+
+  // Active spaces
+  for (const space of activeSpaces.value) {
+    entries.push({ kind: 'active', space })
+  }
+
+  return entries
+})
+
+// =========================================================================
+// Accept / Decline invite
+// =========================================================================
+
+const getServerUrlForSpace = (spaceId: string): string | undefined => {
+  const backend = syncBackends.value.find(b => b.spaceId === spaceId)
+  return backend?.homeServerUrl
+}
+
+const getIdentityAsync = async (): Promise<{ privateKey: string; did: string }> => {
+  await identityStore.loadIdentitiesAsync()
+  const identity = identityStore.ownIdentities[0]
+  if (!identity?.privateKey) throw new Error('No identity available')
+  return { privateKey: identity.privateKey, did: identity.did }
+}
+
+const onAcceptInviteAsync = async (invite?: SelectHaexPendingInvites) => {
+  if (!invite) return
+
+  try {
+    if (invite.spaceEndpoints) {
+      await spacesStore.acceptLocalInviteAsync(invite)
+
+      const db = getDb()
+      if (db) {
+        await db.update(haexPendingInvites).set({
+          status: 'accepted',
+          respondedAt: new Date().toISOString(),
+        }).where(eq(haexPendingInvites.id, invite.id))
+      }
+    } else {
+      const identity = await getIdentityAsync()
+      const serverUrl = getServerUrlForSpace(invite.spaceId)
+      if (!serverUrl) {
+        add({ title: t('errors.noServerUrl'), color: 'error' })
+        return
+      }
+
+      const delivery = useMlsDelivery(serverUrl, invite.spaceId, {
+        privateKey: identity.privateKey,
+        did: identity.did,
+      })
+      await delivery.acceptInviteAsync(invite.id)
+
+      const db = getDb()
+      if (db) {
+        await db.update(haexPendingInvites).set({
+          status: 'accepted',
+          respondedAt: new Date().toISOString(),
+        }).where(eq(haexPendingInvites.id, invite.id))
+      }
+
+      await spacesStore.loadSpacesFromDbAsync()
+    }
+
+    add({ title: t('success.accepted'), color: 'success' })
+    await loadInvitesAsync()
+  } catch (error) {
+    console.error('Failed to accept invite:', error)
+    add({
+      title: t('errors.acceptFailed'),
+      description: error instanceof Error ? error.message : undefined,
+      color: 'error',
+    })
+  }
+}
+
+const onDeclineInviteAsync = async (invite?: SelectHaexPendingInvites) => {
+  if (!invite) return
+
+  try {
+    if (invite.spaceEndpoints) {
+      await spacesStore.removeSpaceFromDbAsync(invite.spaceId)
+    } else {
+      const serverUrl = getServerUrlForSpace(invite.spaceId)
+      if (serverUrl) {
+        const identity = await getIdentityAsync()
+        const response = await fetchWithDidAuth(
+          `${serverUrl}/spaces/${invite.spaceId}/invites/${invite.id}/decline`,
+          identity.privateKey,
+          identity.did,
+          'decline-invite',
+          { method: 'POST', headers: { 'Content-Type': 'application/json' } },
+        )
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}))
+          throw new Error(error.error || response.statusText)
+        }
+      }
+
+      const db = getDb()
+      if (db) {
+        await db.update(haexPendingInvites).set({
+          status: 'declined',
+          respondedAt: new Date().toISOString(),
+        }).where(eq(haexPendingInvites.id, invite.id))
+      }
+    }
+
+    add({ title: t('success.declined'), color: 'success' })
+    await loadInvitesAsync()
+  } catch (error) {
+    console.error('Failed to decline invite:', error)
+    add({
+      title: t('errors.declineFailed'),
+      description: error instanceof Error ? error.message : undefined,
+      color: 'error',
+    })
+  }
+}
+
+// =========================================================================
+// Loading states & dialog visibility
+// =========================================================================
+
 const isLoadingSpaces = ref(false)
 const isCreating = ref(false)
 const isJoining = ref(false)
 
-// Dialog visibility
 const showCreateDialog = ref(false)
 const showJoinDialog = ref(false)
 const showInviteDialog = ref(false)
 const showDeleteConfirm = ref(false)
 const showLeaveConfirm = ref(false)
-const showInvitesSection = ref(false)
 
 // Create form
 const createForm = reactive({
@@ -335,9 +513,6 @@ const createForm = reactive({
   serverUrl: undefined as { label: string; value: string } | undefined,
   identityId: undefined as string | undefined,
 })
-
-// Identity store
-const identityStore = useIdentityStore()
 
 // Join form
 const joinInviteLink = ref('')
@@ -389,12 +564,10 @@ const onSaveEditAsync = async () => {
     const newServerUrl = editForm.serverUrl?.value || ''
     const oldServerUrl = space.serverUrl
 
-    // Name changed?
     if (newName !== space.name) {
       await spacesStore.updateSpaceNameAsync(space.id, newName)
     }
 
-    // Server changed?
     if (newServerUrl !== oldServerUrl) {
       const identityId = identityStore.ownIdentities[0]?.id
       if (!identityId && newServerUrl) {
@@ -421,14 +594,12 @@ const onSaveEditAsync = async () => {
 // Delete/Leave target
 const targetSpace = ref<SpaceWithType | null>(null)
 
-// Server URL options from existing sync backends (with local-only default)
+// Server URL options
 const serverUrlOptions = computed(() => {
   const options = [{ label: t('create.localOnly'), value: '' }]
   const urls = new Set<string>()
   for (const backend of syncBackends.value) {
-    if (backend.homeServerUrl) {
-      urls.add(backend.homeServerUrl)
-    }
+    if (backend.homeServerUrl) urls.add(backend.homeServerUrl)
   }
   for (const url of urls) {
     options.push({ label: url, value: url })
@@ -446,7 +617,12 @@ const onNavigateToSync = () => {
   })
 }
 
-// Load spaces on mount
+// =========================================================================
+// Lifecycle
+// =========================================================================
+
+let unlistenPushInvite: (() => void) | null = null
+
 onMounted(async () => {
   await loadSpacesAsync()
 
@@ -455,20 +631,30 @@ onMounted(async () => {
     joinInviteLink.value = props.inviteLink
     showJoinDialog.value = true
   }
+
+  // Listen for incoming P2P invites
+  unlistenPushInvite = await listen('push-invite-received', async () => {
+    await loadInvitesAsync()
+    add({ title: t('success.newInvite'), color: 'info' })
+  })
+})
+
+onUnmounted(() => {
+  unlistenPushInvite?.()
 })
 
 const loadSpacesAsync = async () => {
   isLoadingSpaces.value = true
   try {
-    // Ensure default space is loaded
     await spacesStore.ensureDefaultSpaceAsync()
 
-    // Load remote spaces from all backends
     for (const backend of syncBackends.value) {
       if (backend.homeServerUrl) {
         await spacesStore.listSpacesAsync(backend.homeServerUrl, backend.identityId)
       }
     }
+
+    await loadInvitesAsync()
   } catch (error) {
     console.error('Failed to load spaces:', error)
   } finally {
@@ -476,7 +662,10 @@ const loadSpacesAsync = async () => {
   }
 }
 
-// Create space
+// =========================================================================
+// Create / Join / Invite / Delete / Leave
+// =========================================================================
+
 const onCreateSpaceAsync = async () => {
   if (!createForm.name.trim()) return
 
@@ -484,12 +673,10 @@ const onCreateSpaceAsync = async () => {
   try {
     if (createForm.type === SpaceType.LOCAL) {
       await spacesStore.createLocalSpaceAsync(createForm.name)
-
       add({ title: t('success.created'), color: 'success' })
       showCreateDialog.value = false
       createForm.name = ''
     } else {
-      // Online space — requires server + identity
       const serverUrl = createForm.serverUrl?.value
       if (!serverUrl) {
         add({ title: t('errors.noServer'), color: 'error' })
@@ -507,13 +694,11 @@ const onCreateSpaceAsync = async () => {
       }
 
       const createdSpace = await spacesStore.createSpaceAsync(serverUrl, createForm.name, t('create.defaultSelfLabel'), identityId)
-
       add({ title: t('success.created'), color: 'success' })
       showCreateDialog.value = false
       createForm.name = ''
       createForm.serverUrl = undefined
 
-      // Open invite dialog for the newly created space
       openInviteDialog({ ...createdSpace, name: createForm.name, serverUrl, createdAt: new Date().toISOString() } as SpaceWithType)
     }
   } catch (error) {
@@ -528,13 +713,11 @@ const onCreateSpaceAsync = async () => {
   }
 }
 
-// Join space via invite token link
 const onJoinSpaceAsync = async () => {
   if (!joinInviteLink.value) return
 
   isJoining.value = true
   try {
-    // Check if it's a local invite first
     const localLink = parseLocalInviteLink(joinInviteLink.value.trim())
     if (localLink) {
       await identityStore.loadIdentitiesAsync()
@@ -549,7 +732,6 @@ const onJoinSpaceAsync = async () => {
         return
       }
 
-      // Try each endpoint until one works
       let lastError: Error | null = null
       for (const endpointId of localLink.spaceEndpoints) {
         try {
@@ -582,22 +764,15 @@ const onJoinSpaceAsync = async () => {
       return
     }
 
-    // Use first available identity
     await identityStore.loadIdentitiesAsync()
     const identityId = identityStore.ownIdentities[0]?.id
     if (!identityId) {
-      add({ title: t('errors.noIdentity', 'No identity available. Create one first.'), color: 'error' })
+      add({ title: t('errors.noIdentity'), color: 'error' })
       return
     }
 
-    await spacesStore.claimInviteTokenAsync(
-      tokenLink.serverUrl,
-      tokenLink.spaceId,
-      tokenLink.tokenId,
-      identityId,
-    )
+    await spacesStore.claimInviteTokenAsync(tokenLink.serverUrl, tokenLink.spaceId, tokenLink.tokenId, identityId)
 
-    // Create a sync backend for this space
     await syncBackendsStore.addBackendAsync({
       name: `Space ${tokenLink.spaceId.slice(0, 8)}`,
       homeServerUrl: tokenLink.serverUrl,
@@ -606,14 +781,9 @@ const onJoinSpaceAsync = async () => {
       enabled: true,
     })
 
-    add({
-      title: t('success.joined'),
-      color: 'success',
-    })
-
+    add({ title: t('success.joined'), color: 'success' })
     showJoinDialog.value = false
     joinInviteLink.value = ''
-
     await loadSpacesAsync()
   } catch (error) {
     console.error('Failed to join space:', error)
@@ -627,13 +797,11 @@ const onJoinSpaceAsync = async () => {
   }
 }
 
-// Find the identity linked to a space via its sync backend
 const getIdentityForSpace = (spaceServerUrl: string): string | undefined => {
   const backend = syncBackends.value.find(b => b.homeServerUrl === spaceServerUrl)
   return backend?.identityId ?? undefined
 }
 
-// Open invite dialog
 const openInviteDialog = (space: SpaceWithType, mode: 'contact' | 'link' = 'contact') => {
   inviteSpaceId.value = space.id
   inviteServerUrl.value = space.serverUrl
@@ -642,7 +810,6 @@ const openInviteDialog = (space: SpaceWithType, mode: 'contact' | 'link' = 'cont
   showInviteDialog.value = true
 }
 
-// Prepare delete/leave
 const prepareDeleteSpace = (space: SpaceWithType) => {
   targetSpace.value = space
   showDeleteConfirm.value = true
@@ -653,18 +820,11 @@ const prepareLeaveSpace = (space: SpaceWithType) => {
   showLeaveConfirm.value = true
 }
 
-// Confirm delete
 const onConfirmDeleteAsync = async () => {
   if (!targetSpace.value) return
-
   try {
     await spacesStore.deleteSpaceAsync(targetSpace.value.serverUrl, targetSpace.value.id)
-
-    add({
-      title: t('success.deleted'),
-      color: 'success',
-    })
-
+    add({ title: t('success.deleted'), color: 'success' })
     showDeleteConfirm.value = false
     targetSpace.value = null
   } catch (error) {
@@ -677,24 +837,16 @@ const onConfirmDeleteAsync = async () => {
   }
 }
 
-// Confirm leave
 const onConfirmLeaveAsync = async () => {
   if (!targetSpace.value) return
-
   try {
     const identityId = getIdentityForSpace(targetSpace.value.serverUrl)
     if (!identityId) {
-      add({ title: t('errors.noIdentity', 'No identity linked to this space.'), color: 'error' })
+      add({ title: t('errors.noIdentity'), color: 'error' })
       return
     }
-
     await spacesStore.leaveSpaceAsync(targetSpace.value.serverUrl, targetSpace.value.id, identityId)
-
-    add({
-      title: t('success.left'),
-      color: 'success',
-    })
-
+    add({ title: t('success.left'), color: 'success' })
     showLeaveConfirm.value = false
     targetSpace.value = null
   } catch (error) {
@@ -712,14 +864,12 @@ const onConfirmLeaveAsync = async () => {
 de:
   title: Spaces
   description: Erstelle, verwalte und tritt geteilten Spaces bei
-  invites:
-    title: Einladungen
+  policy:
+    all: Alle Einladungen
+    contactsOnly: Nur Kontakte
+    nobody: Keine Einladungen
   list:
-    title: Deine Spaces
-    description: Geteilte Spaces für die Zusammenarbeit mit anderen
     empty: Keine Spaces vorhanden
-    pending: Ausstehende Einladungen
-    viewInvite: Einladung ansehen
   create:
     title: Space erstellen
     description: Erstelle einen neuen geteilten Space
@@ -760,6 +910,9 @@ de:
     deleted: Space gelöscht
     updated: Space aktualisiert
     left: Space verlassen
+    accepted: Einladung angenommen
+    declined: Einladung abgelehnt
+    newInvite: Neue Einladung erhalten
   errors:
     updateFailed: Space konnte nicht aktualisiert werden
     createFailed: Space konnte nicht erstellt werden
@@ -767,19 +920,21 @@ de:
     deleteFailed: Löschen fehlgeschlagen
     leaveFailed: Verlassen fehlgeschlagen
     invalidInviteLink: Ungültiger Einladungslink
-    invalidInvite: Unvollständige Einladung
     noServerUrl: Server-URL für diesen Space nicht gefunden
+    noIdentity: Keine Identität verfügbar
+    noServer: Kein Server ausgewählt
+    acceptFailed: Einladung konnte nicht angenommen werden
+    declineFailed: Einladung konnte nicht abgelehnt werden
+    policyFailed: Richtlinie konnte nicht aktualisiert werden
 en:
   title: Spaces
   description: Create, manage and join shared spaces
-  invites:
-    title: Invitations
+  policy:
+    all: All invitations
+    contactsOnly: Contacts only
+    nobody: No invitations
   list:
-    title: Your Spaces
-    description: Shared spaces for collaboration with others
     empty: No spaces found
-    pending: Pending Invitations
-    viewInvite: View Invitation
   create:
     title: Create Space
     description: Create a new shared space
@@ -820,6 +975,9 @@ en:
     deleted: Space deleted
     updated: Space updated
     left: Left space
+    accepted: Invitation accepted
+    declined: Invitation declined
+    newInvite: New invitation received
   errors:
     createFailed: Failed to create space
     updateFailed: Failed to update space
@@ -827,6 +985,10 @@ en:
     deleteFailed: Failed to delete space
     leaveFailed: Failed to leave space
     invalidInviteLink: Invalid invite link
-    invalidInvite: Invalid or incomplete invitation
     noServerUrl: Server URL for this space not found
+    noIdentity: No identity available
+    noServer: No server selected
+    acceptFailed: Failed to accept invitation
+    declineFailed: Failed to decline invitation
+    policyFailed: Failed to update policy
 </i18n>
