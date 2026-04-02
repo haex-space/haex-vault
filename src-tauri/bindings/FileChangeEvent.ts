@@ -2,7 +2,7 @@
 import type { FileChangeType } from "./FileChangeType";
 
 /**
- * Event emitted when files change in a watched directory
+ * Event emitted when files change in a watched directory (desktop only)
  */
 export type FileChangeEvent = { 
 /**
