@@ -690,6 +690,7 @@ export const useSyncOrchestratorStore = defineStore(
           spaceId: tempBackend.spaceId,
           lastPullServerTimestamp: null,
           syncEngineStore,
+          backendIdentityId: tempBackend.identityId,
         })
 
         const { changes: allChanges, serverTimestamp } = pullResult

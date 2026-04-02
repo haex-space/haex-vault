@@ -244,7 +244,10 @@ export const useIdentityStore = defineStore('identityStore', () => {
   }
 
   const getIdentityByIdAsync = async (id: string): Promise<SelectHaexIdentities | undefined> => {
-    if (!currentVault.value?.drizzle) return undefined
+    if (!currentVault.value?.drizzle) {
+      // Fallback to in-memory identities (e.g. during pre-vault-open connect flow)
+      return identities.value.find(i => i.id === id)
+    }
 
     const rows = await currentVault.value.drizzle
       .select()

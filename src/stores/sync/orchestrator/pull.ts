@@ -214,7 +214,7 @@ export const pullChangesFromServerAsync = async (options: PullOptions): Promise<
   const { serverUrl, spaceId, lastPullServerTimestamp, syncEngineStore, backendIdentityId, federation } = options
   log.info('pullChangesFromServerAsync: Starting pull from', serverUrl, 'space:', spaceId)
 
-  // Resolve identity for DID-Auth
+  // Resolve identity for DID-Auth (getIdentityByIdAsync falls back to in-memory when vault not open)
   let identity: { privateKey: string; did: string } | null = null
   if (backendIdentityId) {
     const identityStore = useIdentityStore()
