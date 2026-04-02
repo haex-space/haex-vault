@@ -213,6 +213,11 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
     const existing = await db.select().from(haexSpaces).where(eq(haexSpaces.id, DEFAULT_SPACE_ID)).limit(1)
     if (existing.length > 0) {
+      // Fix type if migrated from 'shared'/'online' — default space is always local
+      if (existing[0]!.type !== SpaceType.LOCAL) {
+        await db.update(haexSpaces).set({ type: SpaceType.LOCAL }).where(eq(haexSpaces.id, DEFAULT_SPACE_ID))
+        existing[0]!.type = SpaceType.LOCAL
+      }
       // Ensure in-memory list is populated
       if (!spaces.value.find(s => s.id === DEFAULT_SPACE_ID)) {
         spaces.value.push(rowToSpace(existing[0]!))
