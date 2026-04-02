@@ -84,6 +84,13 @@ const onWizardCompleteAsync = async (wizardData: {
       enabled: true,
     })
 
+    // Provide identity for pre-vault-open operations (DB not available yet)
+    syncEngineStore.setIdentityOverride({
+      publicKey: wizardData.identityPublicKey,
+      privateKey: wizardData.identityPrivateKey,
+      did: wizardData.identityDid,
+    })
+
     if (wizardData.isNewVault) {
       // NEW VAULT: Generate spaceId and upload vault key
       // POST /sync/vault-key creates the space (type: vault) + partition via DB trigger
@@ -170,8 +177,9 @@ const onWizardCompleteAsync = async (wizardData: {
       }
     }
 
-    // Clear temporary backend on error
+    // Clear temporary backend and identity override on error
     syncBackendsStore.clearTemporaryBackend()
+    syncEngineStore.setIdentityOverride(null)
 
     // Check if it's a network error and provide user-friendly message
     const isNetworkError = error instanceof Error && error.message.startsWith('NETWORK_ERROR:')

@@ -101,19 +101,36 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   /**
    * Resolves the full identity (publicKey, privateKey, did) for a backend
    */
+  /**
+   * Identity override for pre-vault-open operations (e.g. initial connect).
+   * Set via setIdentityOverride(), used as fallback when DB is not available.
+   */
+  let identityOverride: { publicKey: string; privateKey: string; did: string } | null = null
+
+  const setIdentityOverride = (identity: { publicKey: string; privateKey: string; did: string } | null) => {
+    identityOverride = identity
+  }
+
   const resolveBackendIdentityAsync = async (backendId: string): Promise<{ publicKey: string; privateKey: string; did: string }> => {
     const backend = findBackend(backendId)
     const identityStore = useIdentityStore()
     log.debug(`Resolving identity ${backend.identityId} for backend ${backendId}`)
 
-    // Try DB first, then fall back to in-memory identities (pre-vault-open)
+    // Try DB first, then in-memory, then override (for pre-vault-open)
     const identity = await identityStore.getIdentityByIdAsync(backend.identityId)
       ?? identityStore.ownIdentities.find(i => i.id === backend.identityId)
-    if (!identity?.privateKey) {
-      log.error(`Identity ${backend.identityId} not found (vault open: ${!!currentVault.value?.drizzle}, in-memory identities: ${identityStore.ownIdentities.length})`)
-      throw new Error(`Identity not found or incomplete for backend ${backendId}`)
+    if (identity?.privateKey) {
+      return { publicKey: identity.publicKey, privateKey: identity.privateKey, did: identity.did }
     }
-    return { publicKey: identity.publicKey, privateKey: identity.privateKey, did: identity.did }
+
+    // Fallback to override (set by connect wizard before vault is open)
+    if (identityOverride) {
+      log.debug('Using identity override (pre-vault-open)')
+      return identityOverride
+    }
+
+    log.error(`Identity ${backend.identityId} not found (vault open: ${!!currentVault.value?.drizzle}, in-memory: ${identityStore.ownIdentities.length}, override: ${!!identityOverride})`)
+    throw new Error(`Identity not found or incomplete for backend ${backendId}`)
   }
 
   /**
@@ -626,6 +643,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     currentBackendId,
     initTokenManagerAsync,
     setSession,
+    setIdentityOverride,
     registerReauthResolver,
     getAuthTokenAsync,
     uploadVaultKeyAsync: uploadVaultKeyToServerAsync,
