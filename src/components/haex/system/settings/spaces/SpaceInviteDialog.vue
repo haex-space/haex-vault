@@ -25,14 +25,15 @@
 
       <!-- Form view -->
       <template v-else>
-        <!-- Contact mode: contact selector -->
+        <!-- Contact mode: multi-select contacts -->
         <template v-if="mode === 'contact'">
           <div class="flex gap-2">
             <UiSelectMenu
-              v-model="selectedContactId"
+              v-model="selectedContactIds"
               :items="contactOptions"
               value-key="value"
-              :label="t('form.selectContact')"
+              multiple
+              :label="t('form.selectContacts')"
               class="flex-1"
             >
               <template #empty>
@@ -46,18 +47,6 @@
               :title="t('form.manageContacts')"
               @click="navigateToContacts"
             />
-          </div>
-          <div
-            v-if="selectedContact"
-            class="mt-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50"
-          >
-            <div class="flex items-center gap-2">
-              <UIcon name="i-lucide-user" class="w-4 h-4 text-primary shrink-0" />
-              <span class="font-medium text-sm">{{ selectedContact.label }}</span>
-            </div>
-            <code class="block text-xs text-muted mt-1 truncate">
-              {{ selectedContact.publicKey }}
-            </code>
           </div>
         </template>
 
@@ -83,10 +72,10 @@
           </UFormField>
         </template>
 
-        <!-- Capability checkboxes -->
-        <div class="space-y-2 mt-3">
+        <!-- Capabilities: horizontal layout -->
+        <div class="mt-3">
           <label class="text-sm font-medium">{{ t('form.capabilityLabel') }}</label>
-          <div class="flex flex-col gap-2">
+          <div class="flex items-center gap-4 mt-1.5">
             <UCheckbox
               :model-value="true"
               disabled
@@ -101,15 +90,6 @@
               :label="t('capabilities.invite')"
             />
           </div>
-        </div>
-
-        <!-- Include history toggle -->
-        <div class="flex items-center justify-between mt-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
-          <div>
-            <p class="text-sm font-medium">{{ t('form.includeHistory') }}</p>
-            <p class="text-xs text-muted">{{ t('form.includeHistoryHint') }}</p>
-          </div>
-          <UToggle v-model="includeHistory" />
         </div>
 
         <!-- Expiry / deadline -->
@@ -195,7 +175,7 @@ const peerStorageStore = usePeerStorageStore()
 const { contacts } = storeToRefs(contactsStore)
 
 const isProcessing = ref(false)
-const selectedContactId = ref('')
+const selectedContactIds = ref<string[]>([])
 const inviteLabel = ref('')
 const maxUses = ref(50)
 const generatedLink = ref('')
@@ -205,7 +185,6 @@ const qrCanvas = ref<HTMLCanvasElement>()
 // Capability checkboxes (read is always on)
 const capWrite = ref(false)
 const capInvite = ref(false)
-const includeHistory = ref(false)
 
 const selectedExpiry = ref<{ label: string; value: number } | undefined>()
 
@@ -234,6 +213,10 @@ const selectedCapabilities = computed((): string[] => {
   return caps
 })
 
+const selectedContacts = computed<SelectHaexContacts[]>(() =>
+  contacts.value.filter(c => selectedContactIds.value.includes(c.id)),
+)
+
 const dialogTitle = computed(() => {
   switch (props.mode) {
     case 'contact': return t('title.contact')
@@ -252,10 +235,6 @@ const dialogDescription = computed(() => {
 
 const contactOptions = computed(() =>
   contacts.value.map(c => ({ label: c.label, value: c.id })),
-)
-
-const selectedContact = computed<SelectHaexContacts | undefined>(() =>
-  contacts.value.find(c => c.id === selectedContactId.value),
 )
 
 const expiryOptions = computed(() => {
@@ -278,7 +257,7 @@ const expiryOptions = computed(() => {
 
 const canSubmit = computed(() => {
   if (!selectedExpiry.value) return false
-  if (props.mode === 'contact') return !!selectedContact.value
+  if (props.mode === 'contact') return selectedContacts.value.length > 0
   return true
 })
 
@@ -288,7 +267,6 @@ const toggleEndpoint = (endpointId: string, checked: boolean) => {
   if (checked) {
     selectedEndpointIds.value.add(endpointId)
   } else {
-    // At least one must remain selected
     if (selectedEndpointIds.value.size > 1) {
       selectedEndpointIds.value.delete(endpointId)
     }
@@ -296,14 +274,13 @@ const toggleEndpoint = (endpointId: string, checked: boolean) => {
 }
 
 const resetForm = () => {
-  selectedContactId.value = ''
+  selectedContactIds.value = []
   inviteLabel.value = ''
   maxUses.value = 50
   generatedLink.value = ''
   generatedExpiresAt.value = ''
   capWrite.value = false
   capInvite.value = false
-  includeHistory.value = false
   selectedExpiry.value = undefined
   selectedEndpointIds.value = new Set()
 }
@@ -316,7 +293,6 @@ watch(open, async (isOpen) => {
     if (props.mode === 'contact') {
       await contactsStore.loadContactsAsync()
     }
-    // Load space devices and select all by default
     if (isLocalSpace.value) {
       await peerStorageStore.loadSpaceDevicesAsync()
       selectedEndpointIds.value = new Set(
@@ -334,21 +310,23 @@ const onSubmitAsync = async () => {
     const space = spacesStore.spaces.find(s => s.id === props.spaceId)
 
     if (space?.type === SpaceType.LOCAL && props.mode === 'contact') {
-      // P2P push invite for local space
-      const inviteeDid = await publicKeyToDidKeyAsync(selectedContact.value!.publicKey)
-      await spacesStore.inviteContactToLocalSpaceAsync({
-        spaceId: props.spaceId,
-        contactDid: inviteeDid,
-        contactEndpointId: selectedContact.value!.publicKey, // TODO: resolve actual EndpointId from contact
-        capabilities: selectedCapabilities.value,
-        includeHistory: includeHistory.value,
-        expiresInSeconds: selectedExpiry.value!.value,
-        spaceEndpoints: selectedSpaceEndpoints.value,
-      })
+      // P2P push invite for local space — send to each selected contact
+      for (const contact of selectedContacts.value) {
+        const inviteeDid = await publicKeyToDidKeyAsync(contact.publicKey)
+        await spacesStore.inviteContactToLocalSpaceAsync({
+          spaceId: props.spaceId,
+          contactDid: inviteeDid,
+          contactEndpointId: contact.publicKey, // TODO: resolve actual EndpointId from contact
+          capabilities: selectedCapabilities.value,
+          includeHistory: true,
+          expiresInSeconds: selectedExpiry.value!.value,
+          spaceEndpoints: selectedSpaceEndpoints.value,
+        })
+      }
       add({ title: t('success.invited'), color: 'success' })
       open.value = false
     } else if (space?.type === SpaceType.LOCAL) {
-      // Local link/QR invite — create token on leader, generate local link
+      // Local link/QR invite
       const { invoke } = await import('@tauri-apps/api/core')
       const tokenId = await invoke<string>('local_delivery_create_invite', {
         spaceId: props.spaceId,
@@ -356,7 +334,7 @@ const onSubmitAsync = async () => {
         capability: selectedCapabilities.value[0],
         maxUses: props.mode === 'open' ? maxUses.value : 1,
         expiresInSeconds: selectedExpiry.value!.value,
-        includeHistory: includeHistory.value,
+        includeHistory: true,
       })
 
       generatedLink.value = buildLocalInviteLink({
@@ -376,16 +354,18 @@ const onSubmitAsync = async () => {
       }
       add({ title: t('success.linkCreated'), color: 'success' })
     } else if (props.mode === 'contact') {
-      // Online space: direct invite via server
-      const inviteeDid = await publicKeyToDidKeyAsync(selectedContact.value!.publicKey)
-      await spacesStore.inviteMemberAsync(
-        props.serverUrl,
-        props.spaceId,
-        inviteeDid,
-        selectedCapabilities.value[0]!,
-        props.identityId,
-        includeHistory.value,
-      )
+      // Online space: direct invite via server — send to each selected contact
+      for (const contact of selectedContacts.value) {
+        const inviteeDid = await publicKeyToDidKeyAsync(contact.publicKey)
+        await spacesStore.inviteMemberAsync(
+          props.serverUrl,
+          props.spaceId,
+          inviteeDid,
+          selectedCapabilities.value[0]!,
+          props.identityId,
+          true,
+        )
+      }
       add({ title: t('success.invited'), color: 'success' })
       open.value = false
     } else {
@@ -438,15 +418,15 @@ const navigateToContacts = () => {
 <i18n lang="yaml">
 de:
   title:
-    contact: Kontakt einladen
+    contact: Kontakte einladen
     link: Einladungslink erstellen
     open: Offene Einladung
   description:
-    contact: Lade einen Kontakt direkt in diesen Space ein
+    contact: Lade Kontakte direkt in diesen Space ein
     link: Erstelle einen Link, den du per Messenger oder E-Mail teilen kannst
     open: Erstelle einen QR-Code, über den mehrere Personen beitreten können
   form:
-    selectContact: Kontakt auswählen
+    selectContacts: Kontakte auswählen
     noContacts: Keine Kontakte vorhanden
     manageContacts: Kontakte verwalten
     capabilityLabel: Berechtigungen
@@ -456,8 +436,6 @@ de:
     labelPlaceholderLink: z.B. Einladung für Max
     labelPlaceholderOpen: z.B. Konferenz März 2026
     maxUses: Maximale Nutzungen
-    includeHistory: Bisherige Daten teilen
-    includeHistoryHint: Teile alle bisherigen Daten mit dem neuen Mitglied
     endpointsLabel: Geräte in der Einladung
     endpointsHint: Wähle aus, welche deiner Geräte in der Einladung enthalten sein sollen.
   capabilities:
@@ -487,15 +465,15 @@ de:
     failed: Einladung fehlgeschlagen
 en:
   title:
-    contact: Invite Contact
+    contact: Invite Contacts
     link: Create Invite Link
     open: Open Invitation
   description:
-    contact: Directly invite a contact to this space
+    contact: Directly invite contacts to this space
     link: Create a link to share via messenger or email
     open: Create a QR code that allows multiple people to join
   form:
-    selectContact: Select contact
+    selectContacts: Select contacts
     noContacts: No contacts found
     manageContacts: Manage contacts
     capabilityLabel: Permissions
@@ -505,8 +483,6 @@ en:
     labelPlaceholderLink: e.g. Invite for Max
     labelPlaceholderOpen: e.g. Conference March 2026
     maxUses: Maximum uses
-    includeHistory: Share existing data
-    includeHistoryHint: Share all existing data with the new member
     endpointsLabel: Devices in invitation
     endpointsHint: Choose which of your devices should be included in the invitation.
   capabilities:
