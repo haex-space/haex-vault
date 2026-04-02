@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import {
   integer,
   sqliteTable,
@@ -24,7 +25,7 @@ export const haexPendingInvites = sqliteTable(
     tokenId: text(tableNames.haex.pending_invites.columns.tokenId),
     spaceEndpoints: text(tableNames.haex.pending_invites.columns.spaceEndpoints), // JSON array of EndpointId strings
     status: text(tableNames.haex.pending_invites.columns.status).notNull().default('pending'),
-    createdAt: text(tableNames.haex.pending_invites.columns.createdAt).notNull(),
+    createdAt: text(tableNames.haex.pending_invites.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
     respondedAt: text(tableNames.haex.pending_invites.columns.respondedAt),
   },
 )
@@ -41,7 +42,7 @@ export const haexBlockedDids = sqliteTable(
     id: text(tableNames.haex.blocked_dids.columns.id).primaryKey(),
     did: text(tableNames.haex.blocked_dids.columns.did).notNull().unique(),
     label: text(tableNames.haex.blocked_dids.columns.label),
-    blockedAt: text(tableNames.haex.blocked_dids.columns.blockedAt).notNull(),
+    blockedAt: text(tableNames.haex.blocked_dids.columns.blockedAt).default(sql`(CURRENT_TIMESTAMP)`),
   },
 )
 export type InsertHaexBlockedDids = typeof haexBlockedDids.$inferInsert
@@ -56,7 +57,7 @@ export const haexInvitePolicy = sqliteTable(
   {
     id: text(tableNames.haex.invite_policy.columns.id).primaryKey(),
     policy: text(tableNames.haex.invite_policy.columns.policy).notNull().default('all'),
-    updatedAt: text(tableNames.haex.invite_policy.columns.updatedAt).notNull(),
+    updatedAt: text(tableNames.haex.invite_policy.columns.updatedAt).default(sql`(CURRENT_TIMESTAMP)`),
   },
 )
 export type InsertHaexInvitePolicy = typeof haexInvitePolicy.$inferInsert
@@ -77,9 +78,9 @@ export const haexInviteOutbox = sqliteTable(
     targetEndpointId: text(tableNames.haex.invite_outbox.columns.targetEndpointId).notNull(),
     status: text(tableNames.haex.invite_outbox.columns.status).notNull().default('pending'), // 'pending' | 'delivered' | 'expired'
     retryCount: integer(tableNames.haex.invite_outbox.columns.retryCount).notNull().default(0),
-    nextRetryAt: text(tableNames.haex.invite_outbox.columns.nextRetryAt).notNull(),
-    expiresAt: text(tableNames.haex.invite_outbox.columns.expiresAt).notNull(),
-    createdAt: text(tableNames.haex.invite_outbox.columns.createdAt).notNull(),
+    nextRetryAt: text(tableNames.haex.invite_outbox.columns.nextRetryAt).default(sql`(CURRENT_TIMESTAMP)`),
+    expiresAt: text(tableNames.haex.invite_outbox.columns.expiresAt).default(''),
+    createdAt: text(tableNames.haex.invite_outbox.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
   },
 )
 export type InsertHaexInviteOutbox = typeof haexInviteOutbox.$inferInsert
@@ -100,8 +101,8 @@ export const haexInviteTokens = sqliteTable(
     includeHistory: integer(tableNames.haex.invite_tokens.columns.includeHistory, { mode: 'boolean' }).default(false),
     maxUses: integer(tableNames.haex.invite_tokens.columns.maxUses).notNull().default(1),
     currentUses: integer(tableNames.haex.invite_tokens.columns.currentUses).notNull().default(0),
-    expiresAt: text(tableNames.haex.invite_tokens.columns.expiresAt).notNull(),
-    createdAt: text(tableNames.haex.invite_tokens.columns.createdAt).notNull(),
+    expiresAt: text(tableNames.haex.invite_tokens.columns.expiresAt).default(''),
+    createdAt: text(tableNames.haex.invite_tokens.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
   },
 )
 export type InsertHaexInviteTokens = typeof haexInviteTokens.$inferInsert

@@ -206,7 +206,7 @@ CREATE TABLE `haex_blocked_dids` (
 	`id` text PRIMARY KEY NOT NULL,
 	`did` text NOT NULL,
 	`label` text,
-	`blocked_at` text NOT NULL
+	`blocked_at` text DEFAULT (CURRENT_TIMESTAMP)
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_blocked_dids_did_unique` ON `haex_blocked_dids` (`did`);--> statement-breakpoint
@@ -218,15 +218,15 @@ CREATE TABLE `haex_invite_outbox` (
 	`target_endpoint_id` text NOT NULL,
 	`status` text DEFAULT 'pending' NOT NULL,
 	`retry_count` integer DEFAULT 0 NOT NULL,
-	`next_retry_at` text NOT NULL,
-	`expires_at` text NOT NULL,
-	`created_at` text NOT NULL
+	`next_retry_at` text DEFAULT (CURRENT_TIMESTAMP),
+	`expires_at` text DEFAULT '',
+	`created_at` text DEFAULT (CURRENT_TIMESTAMP)
 );
 --> statement-breakpoint
 CREATE TABLE `haex_invite_policy` (
 	`id` text PRIMARY KEY NOT NULL,
 	`policy` text DEFAULT 'all' NOT NULL,
-	`updated_at` text NOT NULL
+	`updated_at` text DEFAULT (CURRENT_TIMESTAMP)
 );
 --> statement-breakpoint
 CREATE TABLE `haex_invite_tokens` (
@@ -238,8 +238,8 @@ CREATE TABLE `haex_invite_tokens` (
 	`include_history` integer DEFAULT false,
 	`max_uses` integer DEFAULT 1 NOT NULL,
 	`current_uses` integer DEFAULT 0 NOT NULL,
-	`expires_at` text NOT NULL,
-	`created_at` text NOT NULL
+	`expires_at` text DEFAULT '',
+	`created_at` text DEFAULT (CURRENT_TIMESTAMP)
 );
 --> statement-breakpoint
 CREATE TABLE `haex_pending_invites` (
@@ -252,7 +252,7 @@ CREATE TABLE `haex_pending_invites` (
 	`token_id` text,
 	`space_endpoints` text,
 	`status` text DEFAULT 'pending' NOT NULL,
-	`created_at` text NOT NULL,
+	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
 	`responded_at` text,
 	FOREIGN KEY (`space_id`) REFERENCES `haex_spaces`(`id`) ON UPDATE no action ON DELETE cascade
 );
