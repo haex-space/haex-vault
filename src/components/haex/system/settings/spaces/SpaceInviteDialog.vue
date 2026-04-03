@@ -321,32 +321,18 @@ const onSubmitAsync = async () => {
           }
         }
 
-        // 2. Always queue QUIC PushInvite
+        // 2. Always queue QUIC PushInvite (DB-based, works for both local and online spaces)
         if (endpointIds.length > 0) {
           try {
-            if (space?.type === SpaceType.LOCAL) {
-              // Local space: use leader-based flow (token in leader memory for QUIC claim)
-              await spacesStore.inviteContactToLocalSpaceAsync({
-                spaceId: props.spaceId,
-                contactDid: inviteeDid,
-                contactEndpointIds: endpointIds,
-                capabilities: selectedCapabilities.value,
-                includeHistory: includeHistory.value,
-                expiresInSeconds: selectedExpiry.value!.value,
-                spaceEndpoints: selectedSpaceEndpoints.value,
-              })
-            } else {
-              // Online space: DB-based token (no leader needed), serverInviteId as tokenId
-              await spacesStore.queueQuicInviteAsync({
-                spaceId: props.spaceId,
-                tokenId: serverInviteId,
-                contactDid: inviteeDid,
-                contactEndpointIds: endpointIds,
-                capabilities: selectedCapabilities.value,
-                includeHistory: includeHistory.value,
-                expiresInSeconds: selectedExpiry.value!.value,
-              })
-            }
+            await spacesStore.queueQuicInviteAsync({
+              spaceId: props.spaceId,
+              tokenId: serverInviteId,
+              contactDid: inviteeDid,
+              contactEndpointIds: endpointIds,
+              capabilities: selectedCapabilities.value,
+              includeHistory: includeHistory.value,
+              expiresInSeconds: selectedExpiry.value!.value,
+            })
           } catch (error) {
             // If server invite succeeded, QUIC failure is not fatal
             if (!serverInviteId) throw error

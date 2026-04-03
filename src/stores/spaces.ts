@@ -803,63 +803,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     return capabilities.includes(capability) || capabilities.includes('space/admin')
   }
 
-  // =========================================================================
-  // Local Space Invites (P2P)
-  // =========================================================================
-
-  /**
-   * Invite a contact to a local space via P2P push.
-   * Creates an invite token on the leader, then queues delivery in the outbox.
-   */
-  const inviteContactToLocalSpaceAsync = async ({
-    spaceId,
-    contactDid,
-    contactEndpointIds,
-    capabilities,
-    includeHistory,
-    expiresInSeconds,
-    spaceEndpoints,
-  }: {
-    spaceId: string
-    contactDid: string
-    contactEndpointIds: string[]
-    capabilities: string[]
-    includeHistory: boolean
-    expiresInSeconds: number
-    spaceEndpoints: string[]
-  }) => {
-    if (contactEndpointIds.length === 0) {
-      throw new Error('Contact has no known EndpointId — share identities via QR code first')
-    }
-
-    const tokenId = await invoke<string>('local_delivery_create_invite', {
-      spaceId,
-      targetDid: contactDid,
-      capability: capabilities[0] || 'space/read',
-      maxUses: 1,
-      expiresInSeconds,
-      includeHistory,
-    })
-
-    const { useInviteOutbox } = await import('@/composables/useInviteOutbox')
-    const { createOutboxEntryAsync } = useInviteOutbox()
-    const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString()
-
-    // Create one outbox entry per EndpointId — first successful delivery wins,
-    // duplicates are ignored via INSERT OR IGNORE on the receiving side
-    for (const endpointId of contactEndpointIds) {
-      await createOutboxEntryAsync({
-        spaceId,
-        tokenId,
-        targetDid: contactDid,
-        targetEndpointId: endpointId,
-        expiresAt,
-      })
-    }
-
-    log.info(`Created contact invite for ${contactDid} in local space ${spaceId} (${contactEndpointIds.length} endpoint(s))`)
-  }
-
   /**
    * Accept a local P2P invite. Tries all space endpoints until ClaimInvite succeeds.
    */
@@ -1005,7 +948,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     setupFederationForSpaceAsync,
     getCapabilitiesForSpaceAsync,
     hasCapabilityAsync,
-    inviteContactToLocalSpaceAsync,
     queueQuicInviteAsync,
     acceptLocalInviteAsync,
     persistSpaceAsync,

@@ -7,6 +7,7 @@ use tauri::{Manager, State};
 use tauri::ipc::Channel;
 
 use crate::AppState;
+use crate::database::DbConnection;
 use crate::peer_storage::endpoint::is_content_uri;
 use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::protocol::FileEntry;
@@ -145,6 +146,26 @@ pub async fn peer_storage_start(
 
     let mut endpoint = state.peer_storage.lock().await;
     let node_id = endpoint.start(relay_url).await?;
+
+    // Register invite receiver so this device can accept PushInvite from peers
+    // even without leader mode. Leader mode replaces this handler when started.
+    {
+        let db_conn = DbConnection(state.db.0.clone());
+        let hlc_clone = state.hlc.lock().map_err(|_| PeerStorageError::EndpointNotRunning)?.clone();
+        let receiver_state = std::sync::Arc::new(
+            crate::space_delivery::local::invite_receiver::InviteReceiverState {
+                db: db_conn,
+                hlc: std::sync::Arc::new(std::sync::Mutex::new(hlc_clone)),
+                app_handle: app.clone(),
+            },
+        );
+        let handler = std::sync::Arc::new(
+            crate::space_delivery::local::invite_receiver::InviteReceiverHandler {
+                state: receiver_state,
+            },
+        );
+        endpoint.set_delivery_handler(handler).await;
+    }
 
     // Wait briefly for relay connection so we can advertise our relay URL to peers
     let relay_url = if let Some(ep) = endpoint.endpoint_ref() {

@@ -1,0 +1,117 @@
+//! Lightweight connection handler that accepts PushInvite requests.
+//!
+//! Registered automatically when the QUIC endpoint starts so that
+//! every device can receive space invitations — regardless of whether
+//! the device is currently running in leader mode.
+//!
+//! When leader mode starts, the `LeaderConnectionHandler` replaces this
+//! handler (it handles PushInvite too). When leader mode stops, this
+//! handler is restored.
+
+use std::sync::{Arc, Mutex};
+
+use tauri::AppHandle;
+
+use crate::crdt::hlc::HlcService;
+use crate::database::DbConnection;
+use crate::peer_storage::endpoint::DeliveryConnectionHandler;
+
+use super::protocol::{self, Request, Response};
+use super::push_invite;
+
+/// Shared state for the invite receiver (subset of LeaderState).
+pub struct InviteReceiverState {
+    pub db: DbConnection,
+    pub hlc: Arc<Mutex<HlcService>>,
+    pub app_handle: AppHandle,
+}
+
+/// Minimal connection handler that only understands PushInvite.
+pub struct InviteReceiverHandler {
+    pub state: Arc<InviteReceiverState>,
+}
+
+impl DeliveryConnectionHandler for InviteReceiverHandler {
+    fn handle_connection(
+        &self,
+        conn: iroh::endpoint::Connection,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
+        Box::pin(self.handle_connection_inner(conn))
+    }
+}
+
+impl InviteReceiverHandler {
+    async fn handle_connection_inner(&self, conn: iroh::endpoint::Connection) {
+        let remote = conn.remote_id();
+        let remote_str = remote.to_string();
+
+        loop {
+            match conn.accept_bi().await {
+                Ok((send, mut recv)) => {
+                    let state = self.state.clone();
+                    let peer = remote_str.clone();
+                    tokio::spawn(async move {
+                        if let Err(e) = handle_stream(send, &mut recv, &state, &peer).await {
+                            eprintln!("[InviteReceiver] Stream error from {peer}: {e}");
+                        }
+                    });
+                }
+                Err(_) => {
+                    break;
+                }
+            }
+        }
+    }
+}
+
+async fn handle_stream(
+    mut send: iroh::endpoint::SendStream,
+    recv: &mut iroh::endpoint::RecvStream,
+    state: &InviteReceiverState,
+    _peer: &str,
+) -> Result<(), String> {
+    let request = protocol::read_request(recv)
+        .await
+        .map_err(|e| format!("Read error: {e}"))?;
+
+    let response = match request {
+        Request::PushInvite {
+            space_id,
+            space_name,
+            space_type,
+            token_id,
+            capabilities,
+            include_history,
+            inviter_did,
+            inviter_label,
+            space_endpoints,
+            origin_url,
+            expires_at: _,
+        } => push_invite::handle_push_invite(
+            &state.db,
+            &state.hlc,
+            &state.app_handle,
+            &space_id,
+            &space_name,
+            &space_type,
+            &token_id,
+            &capabilities,
+            include_history,
+            &inviter_did,
+            inviter_label.as_deref(),
+            &space_endpoints,
+            origin_url.as_deref(),
+        ),
+        _ => Response::Error {
+            message: "This endpoint only accepts PushInvite requests".to_string(),
+        },
+    };
+
+    let bytes = protocol::encode(&response).map_err(|e| format!("Encode error: {e}"))?;
+    send.write_all(&bytes)
+        .await
+        .map_err(|e| format!("Send error: {e}"))?;
+    send.finish().map_err(|e| format!("Finish error: {e}"))?;
+
+    Ok(())
+}

@@ -54,9 +54,10 @@ pub async fn local_delivery_start(
     Ok(())
 }
 
-/// Stop leader mode — clears buffers and unregisters handler.
+/// Stop leader mode — clears buffers and restores the invite-only handler.
 #[tauri::command]
 pub async fn local_delivery_stop(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     space_id: String,
 ) -> Result<(), String> {
@@ -67,11 +68,21 @@ pub async fn local_delivery_stop(
     // Clear leader_state from AppState
     *state.leader_state.lock().await = None;
 
-    // Remove delivery handler
+    // Restore the lightweight invite receiver handler
     let endpoint = state.peer_storage.lock().await;
-    endpoint.state.write().await.delivery_handler = None;
+    let db_conn = DbConnection(state.db.0.clone());
+    let hlc_clone = state.hlc.lock().map_err(|_| "HLC lock poisoned".to_string())?.clone();
+    let receiver_state = Arc::new(super::invite_receiver::InviteReceiverState {
+        db: db_conn,
+        hlc: Arc::new(std::sync::Mutex::new(hlc_clone)),
+        app_handle: app,
+    });
+    let handler = Arc::new(super::invite_receiver::InviteReceiverHandler {
+        state: receiver_state,
+    });
+    endpoint.set_delivery_handler(handler).await;
 
-    eprintln!("[SpaceDelivery] Stopped leader mode for space {space_id}");
+    eprintln!("[SpaceDelivery] Stopped leader mode for space {space_id}, invite receiver restored");
     Ok(())
 }
 
