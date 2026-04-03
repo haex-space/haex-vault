@@ -44,6 +44,8 @@ const { isSmallScreen } = storeToRefs(useUiStore())
 
 const mergedUi = computed(() => ({
   ...props.ui,
+  header: `pt-[env(safe-area-inset-top)] ${props.ui?.header ?? ''}`.trim(),
   body: `flex flex-col justify-center ${props.ui?.body ?? ''}`.trim(),
+  footer: `pb-[env(safe-area-inset-bottom)] ${props.ui?.footer ?? ''}`.trim(),
 }))
 </script>

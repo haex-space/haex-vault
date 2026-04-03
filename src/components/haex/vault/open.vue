@@ -49,7 +49,7 @@
         </UForm>
 
         <!-- Biometry retry button -->
-        <UButton
+        <UiButton
           v-if="hasBiometryData"
           color="primary"
           variant="outline"
@@ -58,24 +58,24 @@
           @click="onBiometryUnlock"
         >
           {{ t('biometry.retry') }}
-        </UButton>
+        </UiButton>
 
         <div class="flex gap-3 pt-4">
-          <UButton
+          <UiButton
             color="neutral"
             variant="outline"
             block
             @click="open = false"
           >
             {{ t('cancel') }}
-          </UButton>
-          <UButton
+          </UiButton>
+          <UiButton
             color="primary"
             block
             @click="onOpenDatabase()"
           >
             {{ t('open') }}
-          </UButton>
+          </UiButton>
         </div>
       </div>
     </template>

@@ -60,13 +60,13 @@
     </template>
     <template #footer>
       <div class="flex justify-between gap-4">
-        <UButton
+        <UiButton
           color="neutral"
           variant="outline"
           @click="onClose"
         >
           {{ qrDataUrl ? t('actions.close') : t('actions.cancel') }}
-        </UButton>
+        </UiButton>
         <UiButton
           v-if="!qrDataUrl"
           icon="i-lucide-qr-code"

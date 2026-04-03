@@ -40,7 +40,7 @@
                 {{ t('form.noContacts') }}
               </template>
             </UiSelectMenu>
-            <UButton
+            <UiButton
               icon="i-lucide-contact"
               color="neutral"
               variant="outline"
@@ -134,13 +134,13 @@
     </template>
     <template #footer>
       <div class="flex justify-between gap-4">
-        <UButton
+        <UiButton
           color="neutral"
           variant="outline"
           @click="open = false"
         >
           {{ generatedLink ? t('actions.close') : t('actions.cancel') }}
-        </UButton>
+        </UiButton>
         <UiButton
           v-if="!generatedLink"
           :icon="mode === 'contact' ? 'i-lucide-user-plus' : 'i-lucide-link'"
@@ -281,10 +281,8 @@ watch(open, async (isOpen) => {
     if (props.mode === 'contact') {
       await identityStore.loadIdentitiesAsync()
     }
-    if (isLocalSpace.value) {
-      await peerStorageStore.loadSpaceDevicesAsync()
-      selectedDeviceIds.value = spaceDevices.value.map(d => d.id)
-    }
+    await peerStorageStore.loadSpaceDevicesAsync()
+    selectedDeviceIds.value = spaceDevices.value.map(d => d.id)
   }
 })
 
@@ -295,8 +293,8 @@ const onSubmitAsync = async () => {
   try {
     const space = spacesStore.spaces.find(s => s.id === props.spaceId)
 
-    if (space?.type === SpaceType.LOCAL && props.mode === 'contact') {
-      // P2P push invite for local space — send to each selected contact
+    if (props.mode === 'contact') {
+      // Contact invite — dual-channel: always QUIC + server if available
       for (const contact of selectedContacts.value) {
         const inviteeDid = await publicKeyToDidKeyAsync(contact.publicKey)
         const claims = await identityStore.getClaimsAsync(contact.id)
@@ -304,15 +302,57 @@ const onSubmitAsync = async () => {
           .filter(c => c.type === 'endpointId' || c.type.startsWith('device:'))
           .map(c => c.value)
 
-        await spacesStore.inviteContactToLocalSpaceAsync({
-          spaceId: props.spaceId,
-          contactDid: inviteeDid,
-          contactEndpointIds: endpointIds,
-          capabilities: selectedCapabilities.value,
-          includeHistory: includeHistory.value,
-          expiresInSeconds: selectedExpiry.value!.value,
-          spaceEndpoints: selectedSpaceEndpoints.value,
-        })
+        let serverInviteId: string | undefined
+
+        // 1. Server invite if available
+        if (space?.serverUrl) {
+          try {
+            const result = await spacesStore.inviteMemberAsync(
+              props.serverUrl,
+              props.spaceId,
+              inviteeDid,
+              selectedCapabilities.value[0]!,
+              props.identityId,
+              includeHistory.value,
+            )
+            serverInviteId = result.inviteId
+          } catch (error) {
+            console.warn('Server invite failed, continuing with QUIC:', error)
+          }
+        }
+
+        // 2. Always queue QUIC PushInvite
+        if (endpointIds.length > 0) {
+          try {
+            if (space?.type === SpaceType.LOCAL) {
+              // Local space: use leader-based flow (token in leader memory for QUIC claim)
+              await spacesStore.inviteContactToLocalSpaceAsync({
+                spaceId: props.spaceId,
+                contactDid: inviteeDid,
+                contactEndpointIds: endpointIds,
+                capabilities: selectedCapabilities.value,
+                includeHistory: includeHistory.value,
+                expiresInSeconds: selectedExpiry.value!.value,
+                spaceEndpoints: selectedSpaceEndpoints.value,
+              })
+            } else {
+              // Online space: DB-based token (no leader needed), serverInviteId as tokenId
+              await spacesStore.queueQuicInviteAsync({
+                spaceId: props.spaceId,
+                tokenId: serverInviteId,
+                contactDid: inviteeDid,
+                contactEndpointIds: endpointIds,
+                capabilities: selectedCapabilities.value,
+                includeHistory: includeHistory.value,
+                expiresInSeconds: selectedExpiry.value!.value,
+              })
+            }
+          } catch (error) {
+            // If server invite succeeded, QUIC failure is not fatal
+            if (!serverInviteId) throw error
+            console.warn('QUIC invite failed, server invite was sent:', error)
+          }
+        }
       }
       add({ title: t('success.invited'), color: 'success' })
       open.value = false
@@ -344,21 +384,6 @@ const onSubmitAsync = async () => {
         })
       }
       add({ title: t('success.linkCreated'), color: 'success' })
-    } else if (props.mode === 'contact') {
-      // Online space: direct invite via server — send to each selected contact
-      for (const contact of selectedContacts.value) {
-        const inviteeDid = await publicKeyToDidKeyAsync(contact.publicKey)
-        await spacesStore.inviteMemberAsync(
-          props.serverUrl,
-          props.spaceId,
-          inviteeDid,
-          selectedCapabilities.value[0]!,
-          props.identityId,
-          true,
-        )
-      }
-      add({ title: t('success.invited'), color: 'success' })
-      open.value = false
     } else {
       // Online space: invite link
       const result = await spacesStore.createInviteTokenAsync(

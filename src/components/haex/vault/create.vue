@@ -57,21 +57,21 @@
 
     <template #footer>
       <div class="flex gap-3 w-full">
-        <UButton
+        <UiButton
           color="neutral"
           variant="outline"
           block
           @click="open = false"
         >
           {{ t('cancel') }}
-        </UButton>
-        <UButton
+        </UiButton>
+        <UiButton
           color="primary"
           block
           @click="onCreateAsync"
         >
           {{ t('create') }}
-        </UButton>
+        </UiButton>
       </div>
     </template>
   </UiDrawerModal>

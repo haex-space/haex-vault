@@ -54,7 +54,7 @@
         >
           <div class="flex items-center justify-between">
             <span class="font-medium">{{ t('selectedFile') }}:</span>
-            <UButton
+            <UiButton
               color="neutral"
               variant="ghost"
               icon="mdi:close"
@@ -102,15 +102,15 @@
         </UForm>
 
         <div class="flex gap-3 pt-4">
-          <UButton
+          <UiButton
             color="neutral"
             variant="outline"
             block
             @click="onClose"
           >
             {{ t('cancel') }}
-          </UButton>
-          <UButton
+          </UiButton>
+          <UiButton
             color="primary"
             block
             :disabled="!selectedPath"
@@ -118,7 +118,7 @@
             @click="onImportAsync"
           >
             {{ t('import') }}
-          </UButton>
+          </UiButton>
         </div>
       </div>
     </template>

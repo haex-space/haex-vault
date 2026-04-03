@@ -39,14 +39,14 @@
         v-if="isAdmin || canInvite"
         :items="inviteMenuItems"
       >
-        <UButton
+        <UiButton
           color="primary"
           icon="i-lucide-user-plus"
         >
           <span class="hidden @sm:inline">{{ t('invite.label') }}</span>
-        </UButton>
+        </UiButton>
       </UDropdownMenu>
-      <UButton
+      <UiButton
         v-if="isAdmin || canInvite"
         color="neutral"
         variant="outline"
@@ -54,7 +54,7 @@
         @click="showMembersDrawer = true"
       >
         <span class="hidden @sm:inline">{{ t('actions.members') }}</span>
-      </UButton>
+      </UiButton>
     </template>
 
     <!-- Loading -->
@@ -103,13 +103,11 @@
                 · {{ t('members.uses', { current: token.currentUses, max: token.maxUses }) }}
               </p>
             </div>
-            <UButton
+            <UiButton
               v-if="isAdmin"
               color="error"
               variant="ghost"
-              icon="i-lucide-trash-2"
-              size="xs"
-              @click="onRevokeTokenAsync(token.id)"
+              icon="i-lucide-trash-2"              @click="onRevokeTokenAsync(token.id)"
             />
           </div>
         </div>
@@ -135,13 +133,11 @@
                 <p class="text-xs text-muted truncate">{{ member.deviceEndpointId.slice(0, 16) }}…</p>
               </div>
             </div>
-            <UButton
+            <UiButton
               v-if="isAdmin && !isOwnDevice(member.deviceEndpointId)"
               color="error"
               variant="ghost"
-              icon="i-lucide-user-minus"
-              size="xs"
-              :title="t('members.remove')"
+              icon="i-lucide-user-minus"              :title="t('members.remove')"
               @click="onRemoveMemberAsync(member)"
             />
           </div>

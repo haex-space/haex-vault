@@ -1,7 +1,7 @@
 import type { DecryptedSpace } from '@haex-space/vault-sdk'
 import { eq, and } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
-import { haexSpaces, haexUcanTokens } from '~/database/schemas'
+import { haexSpaces, haexUcanTokens, haexInviteTokens } from '~/database/schemas'
 import type { SelectHaexSpaces } from '~/database/schemas'
 import { createLogger } from '@/stores/logging'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
@@ -913,6 +913,69 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     log.info(`Accepted local invite for space ${invite.spaceId}`)
   }
 
+  /**
+   * Queue a QUIC PushInvite without requiring leader mode.
+   * Creates the invite token directly in the DB and queues outbox entries.
+   * Used for online spaces where no QUIC leader is running.
+   *
+   * If tokenId is provided (e.g. the server inviteId), it is reused so
+   * the receiver can later accept via the server using the same ID.
+   */
+  const queueQuicInviteAsync = async ({
+    spaceId,
+    tokenId,
+    contactDid,
+    contactEndpointIds,
+    capabilities,
+    includeHistory,
+    expiresInSeconds,
+  }: {
+    spaceId: string
+    tokenId?: string
+    contactDid: string
+    contactEndpointIds: string[]
+    capabilities: string[]
+    includeHistory: boolean
+    expiresInSeconds: number
+  }) => {
+    const db = getDb()
+    if (!db) throw new Error('No vault open')
+    if (contactEndpointIds.length === 0) {
+      throw new Error('Contact has no known EndpointId — share identities via QR code first')
+    }
+
+    const id = tokenId || crypto.randomUUID()
+    const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString()
+    const now = new Date().toISOString()
+
+    await db.insert(haexInviteTokens).values({
+      id,
+      spaceId,
+      targetDid: contactDid,
+      capabilities: JSON.stringify(capabilities),
+      includeHistory,
+      maxUses: 1,
+      currentUses: 0,
+      expiresAt,
+      createdAt: now,
+    })
+
+    const { useInviteOutbox } = await import('@/composables/useInviteOutbox')
+    const { createOutboxEntryAsync } = useInviteOutbox()
+
+    for (const endpointId of contactEndpointIds) {
+      await createOutboxEntryAsync({
+        spaceId,
+        tokenId: id,
+        targetDid: contactDid,
+        targetEndpointId: endpointId,
+        expiresAt,
+      })
+    }
+
+    log.info(`Queued QUIC invite for ${contactDid} in space ${spaceId} (${contactEndpointIds.length} endpoint(s))`)
+  }
+
   const clearCache = () => {
     spaces.value = []
   }
@@ -943,7 +1006,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     getCapabilitiesForSpaceAsync,
     hasCapabilityAsync,
     inviteContactToLocalSpaceAsync,
+    queueQuicInviteAsync,
     acceptLocalInviteAsync,
+    persistSpaceAsync,
     startLocalSpaceLeadersAsync,
     removeSpaceFromDbAsync,
     clearCache,

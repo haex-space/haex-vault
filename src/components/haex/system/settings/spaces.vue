@@ -284,7 +284,7 @@ import SpaceListItem from './spaces/SpaceListItem.vue'
 import SpaceDetail from './spaces/SpaceDetail.vue'
 import SpaceInviteDialog from './spaces/SpaceInviteDialog.vue'
 import { parseInviteTokenLink, parseLocalInviteLink } from '~/utils/inviteLink'
-import { SpaceType, type SpaceType as SpaceTypeValue } from '~/database/constants'
+import { SpaceType, SpaceStatus, type SpaceType as SpaceTypeValue } from '~/database/constants'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { useInvitePolicy } from '@/composables/useInvitePolicy'
 import { useMlsDelivery } from '@/composables/useMlsDelivery'
@@ -404,39 +404,47 @@ const onAcceptInviteAsync = async (invite?: SelectHaexPendingInvites) => {
   if (!invite) return
 
   try {
-    if (invite.spaceEndpoints) {
-      await spacesStore.acceptLocalInviteAsync(invite)
+    // Determine the best acceptance path:
+    // 1. Space has a server URL → accept via server (tokenId = server inviteId)
+    // 2. Invite has QUIC endpoints → accept via QUIC ClaimInvite
+    const space = spacesStore.spaces.find(s => s.id === invite.spaceId)
+    const serverUrl = space?.serverUrl || getServerUrlForSpace(invite.spaceId)
+    const endpoints: string[] = invite.spaceEndpoints
+      ? JSON.parse(invite.spaceEndpoints)
+      : []
 
-      const db = getDb()
-      if (db) {
-        await db.update(haexPendingInvites).set({
-          status: 'accepted',
-          respondedAt: new Date().toISOString(),
-        }).where(eq(haexPendingInvites.id, invite.id))
-      }
-    } else {
+    if (serverUrl && invite.tokenId) {
+      // Online space — accept via server using tokenId as server inviteId
       const identity = await getIdentityAsync()
-      const serverUrl = getServerUrlForSpace(invite.spaceId)
-      if (!serverUrl) {
-        add({ title: t('errors.noServerUrl'), color: 'error' })
-        return
-      }
-
       const delivery = useMlsDelivery(serverUrl, invite.spaceId, {
         privateKey: identity.privateKey,
         did: identity.did,
       })
-      await delivery.acceptInviteAsync(invite.id)
+      await delivery.acceptInviteAsync(invite.tokenId)
 
-      const db = getDb()
-      if (db) {
-        await db.update(haexPendingInvites).set({
-          status: 'accepted',
-          respondedAt: new Date().toISOString(),
-        }).where(eq(haexPendingInvites.id, invite.id))
+      // Activate the space locally
+      if (space) {
+        await spacesStore.persistSpaceAsync({
+          ...space,
+          status: SpaceStatus.ACTIVE,
+        })
       }
-
       await spacesStore.loadSpacesFromDbAsync()
+    } else if (endpoints.length > 0) {
+      // Local space — accept via QUIC ClaimInvite
+      await spacesStore.acceptLocalInviteAsync(invite)
+    } else {
+      add({ title: t('errors.noServerUrl'), color: 'error' })
+      return
+    }
+
+    // Mark invite as accepted
+    const db = getDb()
+    if (db) {
+      await db.update(haexPendingInvites).set({
+        status: 'accepted',
+        respondedAt: new Date().toISOString(),
+      }).where(eq(haexPendingInvites.id, invite.id))
     }
 
     add({ title: t('success.accepted'), color: 'success' })
@@ -455,32 +463,34 @@ const onDeclineInviteAsync = async (invite?: SelectHaexPendingInvites) => {
   if (!invite) return
 
   try {
-    if (invite.spaceEndpoints) {
-      await spacesStore.removeSpaceFromDbAsync(invite.spaceId)
-    } else {
-      const serverUrl = getServerUrlForSpace(invite.spaceId)
-      if (serverUrl) {
+    // If the space has a server, also decline there (best-effort)
+    const space = spacesStore.spaces.find(s => s.id === invite.spaceId)
+    const serverUrl = space?.serverUrl || getServerUrlForSpace(invite.spaceId)
+
+    if (serverUrl && invite.tokenId) {
+      try {
         const identity = await getIdentityAsync()
-        const response = await fetchWithDidAuth(
-          `${serverUrl}/spaces/${invite.spaceId}/invites/${invite.id}/decline`,
+        await fetchWithDidAuth(
+          `${serverUrl}/spaces/${invite.spaceId}/invites/${invite.tokenId}/decline`,
           identity.privateKey,
           identity.did,
           'decline-invite',
           { method: 'POST', headers: { 'Content-Type': 'application/json' } },
         )
-        if (!response.ok) {
-          const error = await response.json().catch(() => ({}))
-          throw new Error(error.error || response.statusText)
-        }
+      } catch {
+        // Server decline is best-effort — invite will expire on server
       }
+    }
 
-      const db = getDb()
-      if (db) {
-        await db.update(haexPendingInvites).set({
-          status: 'declined',
-          respondedAt: new Date().toISOString(),
-        }).where(eq(haexPendingInvites.id, invite.id))
-      }
+    // Always clean up locally
+    await spacesStore.removeSpaceFromDbAsync(invite.spaceId)
+
+    const db = getDb()
+    if (db) {
+      await db.update(haexPendingInvites).set({
+        status: 'declined',
+        respondedAt: new Date().toISOString(),
+      }).where(eq(haexPendingInvites.id, invite.id))
     }
 
     add({ title: t('success.declined'), color: 'success' })

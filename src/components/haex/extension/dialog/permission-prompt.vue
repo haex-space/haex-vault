@@ -19,7 +19,7 @@
             +{{ props.pendingCount }} {{ t('pending') }}
           </span>
         </div>
-        <UButton
+        <UiButton
           icon="i-heroicons-x-mark"
           color="neutral"
           variant="ghost"

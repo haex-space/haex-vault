@@ -47,11 +47,10 @@
             {{ group.items.length }}
           </UBadge>
           <div class="flex-1" />
-          <UButton
+          <UiButton
             icon="i-lucide-external-link"
             color="neutral"
             variant="ghost"
-            size="xs"
             :title="t('open')"
             @click.stop="emit('open-group', group)"
           />

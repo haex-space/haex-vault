@@ -67,27 +67,27 @@
       <div class="flex gap-2 @xs:shrink-0">
         <!-- Pending: Accept/Decline only -->
         <template v-if="pending">
-          <UButton
+          <UiButton
             color="primary"
             variant="soft"
             icon="i-lucide-check"
             @click.stop="$emit('accept')"
           >
             {{ t('actions.accept') }}
-          </UButton>
-          <UButton
+          </UiButton>
+          <UiButton
             color="neutral"
             variant="outline"
             icon="i-lucide-x"
             @click.stop="$emit('decline')"
           >
             {{ t('actions.decline') }}
-          </UButton>
+          </UiButton>
         </template>
 
         <!-- Active: admin actions -->
         <template v-else>
-          <UButton
+          <UiButton
             v-if="isAdmin || canInvite"
             color="neutral"
             variant="ghost"
@@ -99,7 +99,7 @@
             v-if="isAdmin || canInvite"
             :items="inviteMenuItems"
           >
-            <UButton
+            <UiButton
               color="primary"
               variant="ghost"
               icon="i-lucide-user-plus"
@@ -107,7 +107,7 @@
               @click.stop
             />
           </UDropdownMenu>
-          <UButton
+          <UiButton
             v-if="isAdmin"
             color="error"
             variant="ghost"
@@ -115,7 +115,7 @@
             :title="t('actions.delete')"
             @click.stop="$emit('delete', space)"
           />
-          <UButton
+          <UiButton
             v-if="!isAdmin"
             color="warning"
             variant="ghost"

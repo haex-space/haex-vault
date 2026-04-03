@@ -12,6 +12,7 @@ use rusqlite::types::Value as SqlValue;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::State;
 use ts_rs::TS;
@@ -348,7 +349,29 @@ pub fn apply_remote_changes_in_transaction(
     max_hlc: String,
     state: State<'_, AppState>,
 ) -> Result<(), DatabaseError> {
-    apply_remote_changes_to_db(&state.db, changes, Some((&backend_id, &max_hlc)))
+    let result = apply_remote_changes_to_db(&state.db, changes, Some((&backend_id, &max_hlc)));
+
+    // CRITICAL: Advance the local HLC clock past the highest received remote timestamp.
+    // Without this, locally created rows (e.g. device claims via updateDeviceClaimsAsync)
+    // can get HLC timestamps <= lastPushHlcTimestamp (set to maxHlc from the pull).
+    // Those columns are then filtered out during push, resulting in incomplete rows
+    // on the server (only later-updated columns like "value" get pushed).
+    // When other devices pull, they get partial row data and fail with
+    // NOT NULL constraint violations on INSERT.
+    if !max_hlc.is_empty() {
+        if let Ok(remote_ts) = uhlc::Timestamp::from_str(&max_hlc) {
+            if let Ok(hlc_guard) = state.hlc.lock() {
+                if let Err(e) = hlc_guard.update_with_timestamp(&remote_ts) {
+                    eprintln!(
+                        "[SYNC RUST] Warning: Failed to advance HLC clock with remote timestamp: {:?}",
+                        e
+                    );
+                }
+            }
+        }
+    }
+
+    result
 }
 
 /// Inner implementation that applies remote CRDT changes to a database connection.

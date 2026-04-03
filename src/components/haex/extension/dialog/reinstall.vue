@@ -15,7 +15,7 @@
               : t('reinstall.title', { extensionName: preview?.manifest.name })
           }}
         </h3>
-        <UButton
+        <UiButton
           icon="i-heroicons-x-mark"
           color="neutral"
           variant="ghost"

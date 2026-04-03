@@ -55,13 +55,13 @@
       </template>
       <template #footer>
         <div class="flex justify-between gap-4">
-          <UButton
+          <UiButton
             color="neutral"
             variant="outline"
             @click="showAddDialog = false"
           >
             {{ t('add.cancel') }}
-          </UButton>
+          </UiButton>
           <UiButton
             icon="i-lucide-plus"
             :disabled="!newRelayUrl.trim()"

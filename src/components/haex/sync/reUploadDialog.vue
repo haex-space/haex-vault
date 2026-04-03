@@ -16,16 +16,16 @@
 
     <template #footer>
       <div class="flex justify-between w-full">
-        <UButton
+        <UiButton
           color="neutral"
           variant="outline"
           :disabled="loading"
           @click="open = false"
         >
           {{ t('cancel') }}
-        </UButton>
+        </UiButton>
 
-        <UButton
+        <UiButton
           color="primary"
           icon="i-lucide-upload"
           :loading="loading"
@@ -33,7 +33,7 @@
           @click="emit('confirm')"
         >
           {{ t('confirm') }}
-        </UButton>
+        </UiButton>
       </div>
     </template>
   </UiDrawerModal>

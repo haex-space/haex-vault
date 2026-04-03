@@ -12,7 +12,7 @@
         <h3 class="text-lg font-semibold">
           {{ isUpdate ? t('titleUpdate') : t('title') }}
         </h3>
-        <UButton
+        <UiButton
           icon="i-heroicons-x-mark"
           color="neutral"
           variant="ghost"

@@ -46,13 +46,13 @@
         <div class="mt-4 space-y-2">
           <div class="flex items-center justify-between">
             <span class="text-sm font-medium">{{ t('review.claims') }}</span>
-            <UButton
+            <UiButton
               variant="outline"
               icon="i-lucide-plus"
               @click="showAddClaimInline = true"
             >
               {{ t('review.addClaim') }}
-            </UButton>
+            </UiButton>
           </div>
 
           <div
@@ -70,7 +70,7 @@
                 class="mt-1"
               />
             </div>
-            <UButton
+            <UiButton
               variant="ghost"
               color="error"
               icon="i-lucide-x"
@@ -95,12 +95,12 @@
               class="flex-1"
               @keydown.enter.prevent="addInlineClaim"
             />
-            <UButton
+            <UiButton
               icon="i-lucide-check"
               :disabled="!newClaimType.trim() || !newClaimValue.trim()"
               @click="addInlineClaim"
             />
-            <UButton
+            <UiButton
               variant="ghost"
               icon="i-lucide-x"
               @click="showAddClaimInline = false"
@@ -134,14 +134,14 @@
     <template #footer>
       <div class="flex justify-between gap-4">
         <div class="flex gap-2">
-          <UButton
+          <UiButton
             color="neutral"
             variant="outline"
             @click="onClose"
           >
             {{ t('actions.cancel') }}
-          </UButton>
-          <UButton
+          </UiButton>
+          <UiButton
             v-if="step === 'scan'"
             icon="i-lucide-refresh-cw"
             color="neutral"
