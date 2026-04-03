@@ -1,6 +1,6 @@
 import { eq, and, lte } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
-import { haexInviteOutbox, haexInviteTokens, haexSpaces, haexSpaceDevices } from '~/database/schemas'
+import { haexInviteOutbox, haexInviteTokens, haexSpaces, haexSpaceDevices, haexUcanTokens } from '~/database/schemas'
 import { OutboxStatus } from '~/database/constants'
 import { createLogger } from '@/stores/logging'
 
@@ -65,11 +65,10 @@ export function useInviteOutbox() {
 
     if (entries.length === 0) return
 
-    // Load identity for inviterDid
+    // Load identities for inviterDid resolution
     const identityStore = useIdentityStore()
     await identityStore.loadIdentitiesAsync()
-    const identity = identityStore.ownIdentities[0]
-    if (!identity) {
+    if (identityStore.ownIdentities.length === 0) {
       log.warn('No identity available for outbox processing')
       return
     }
@@ -135,6 +134,20 @@ export function useInviteOutbox() {
 
       const capabilities: string[] = JSON.parse(token.capabilities)
 
+      // Resolve the identity that issued UCANs for this space (the admin)
+      const ucanRows = await db
+        .select({ issuerDid: haexUcanTokens.issuerDid })
+        .from(haexUcanTokens)
+        .where(eq(haexUcanTokens.spaceId, entry.spaceId))
+        .limit(1)
+      const identity = ucanRows[0]
+        ? identityStore.ownIdentities.find(id => id.did === ucanRows[0]!.issuerDid)
+        : undefined
+      if (!identity) {
+        log.warn(`Outbox entry ${entry.id}: no identity found for space ${entry.spaceId}, using first available`)
+      }
+      const inviterIdentity = identity ?? identityStore.ownIdentities[0]!
+
       // Load all space device endpoints
       const devices = await db
         .select()
@@ -151,8 +164,8 @@ export function useInviteOutbox() {
           tokenId: entry.tokenId,
           capabilities,
           includeHistory: token.includeHistory ?? false,
-          inviterDid: identity.did,
-          inviterLabel: identity.label || null,
+          inviterDid: inviterIdentity.did,
+          inviterLabel: inviterIdentity.label || null,
           spaceEndpoints,
           originUrl: space.originUrl || null,
           expiresAt: entry.expiresAt,

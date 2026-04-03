@@ -17,6 +17,7 @@ import { isInviteLink, parseInviteTokenLink, type InviteTokenLink } from '~/util
 // Store pending deep-link outside of composable for persistence across component mounts
 const pendingExtensionId = ref<string | null>(null)
 const pendingInviteLink = ref<string | null>(null)
+let initialized = false
 
 export const useDeepLink = () => {
   const windowManager = useWindowManagerStore()
@@ -126,9 +127,10 @@ export const useDeepLink = () => {
    * Should be called once when the app starts
    */
   const init = async () => {
-    if (!isDesktop()) {
+    if (initialized || !isDesktop()) {
       return
     }
+    initialized = true
 
     try {
       // Check if app was launched with a deep-link URL

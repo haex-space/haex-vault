@@ -271,7 +271,12 @@ pub async fn extension_database_query(
 
     let rows = with_connection(&state.db, |conn| {
         let sql_params = ValueConverter::convert_params(&params)?;
-        let mut stmt_to_execute = ast_vec.pop().unwrap();
+        let mut stmt_to_execute = ast_vec.pop().ok_or_else(|| {
+            DatabaseError::ParseError {
+                reason: "No statement found after validation".to_string(),
+                sql: sql.clone(),
+            }
+        })?;
 
         // Apply CRDT tombstone filter to SELECT queries
         // This ensures tombstoned (soft-deleted) rows are filtered out

@@ -78,7 +78,7 @@ pub struct PendingAuthorization {
 
 // ============================================================================
 // SQL queries for authorized clients
-// Note: No haex_tombstone filter needed - select_with_crdt handles this automatically
+// No manual haex_tombstone filter — select_with_crdt handles this automatically
 // ============================================================================
 
 lazy_static::lazy_static! {

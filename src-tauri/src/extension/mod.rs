@@ -79,7 +79,9 @@ pub async fn get_all_extensions(
             .extension_manager
             .available_extensions
             .lock()
-            .unwrap();
+            .map_err(|e| ExtensionError::MutexPoisoned {
+                reason: e.to_string(),
+            })?;
         for ext in available_exts.values() {
             extensions.push(ExtensionInfoResponse::from_extension(ext)?);
         }
