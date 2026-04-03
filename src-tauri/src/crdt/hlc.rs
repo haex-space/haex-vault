@@ -203,6 +203,34 @@ impl HlcService {
             .map_err(|e| HlcError::Parse(format!("Failed to update HLC: {e:?}")))
     }
 
+    /// Advances the HLC clock past a remote HLC timestamp string.
+    ///
+    /// Call this after applying remote CRDT changes to ensure all future local
+    /// timestamps are strictly greater than any received remote timestamp.
+    /// Without this, locally created rows can get HLC timestamps that are
+    /// filtered out during push (causing incomplete rows on the server).
+    pub fn advance_past_remote(&self, hlc_string: &str) {
+        if hlc_string.is_empty() {
+            return;
+        }
+        match Timestamp::from_str(hlc_string) {
+            Ok(remote_ts) => {
+                if let Err(e) = self.update_with_timestamp(&remote_ts) {
+                    eprintln!(
+                        "[HLC] Warning: Failed to advance clock past remote timestamp: {:?}",
+                        e
+                    );
+                }
+            }
+            Err(e) => {
+                eprintln!(
+                    "[HLC] Warning: Failed to parse remote HLC timestamp '{}': {:?}",
+                    hlc_string, e
+                );
+            }
+        }
+    }
+
     /// Lädt den letzten persistierten Zeitstempel aus der Datenbank.
     fn load_last_timestamp(conn: &Connection) -> Result<Option<Timestamp>, HlcError> {
         let query =

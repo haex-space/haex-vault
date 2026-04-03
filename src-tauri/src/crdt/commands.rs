@@ -1,3 +1,4 @@
+use crate::crdt::hlc::HlcService;
 use crate::crdt::trigger;
 use crate::crdt::trigger::{
     get_table_schema as get_table_schema_internal, ColumnInfo, COLUMN_HLCS_COLUMN,
@@ -12,7 +13,6 @@ use rusqlite::types::Value as SqlValue;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
-use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::State;
 use ts_rs::TS;
@@ -349,39 +349,29 @@ pub fn apply_remote_changes_in_transaction(
     max_hlc: String,
     state: State<'_, AppState>,
 ) -> Result<(), DatabaseError> {
-    let result = apply_remote_changes_to_db(&state.db, changes, Some((&backend_id, &max_hlc)));
-
-    // CRITICAL: Advance the local HLC clock past the highest received remote timestamp.
-    // Without this, locally created rows (e.g. device claims via updateDeviceClaimsAsync)
-    // can get HLC timestamps <= lastPushHlcTimestamp (set to maxHlc from the pull).
-    // Those columns are then filtered out during push, resulting in incomplete rows
-    // on the server (only later-updated columns like "value" get pushed).
-    // When other devices pull, they get partial row data and fail with
-    // NOT NULL constraint violations on INSERT.
-    if !max_hlc.is_empty() {
-        if let Ok(remote_ts) = uhlc::Timestamp::from_str(&max_hlc) {
-            if let Ok(hlc_guard) = state.hlc.lock() {
-                if let Err(e) = hlc_guard.update_with_timestamp(&remote_ts) {
-                    eprintln!(
-                        "[SYNC RUST] Warning: Failed to advance HLC clock with remote timestamp: {:?}",
-                        e
-                    );
-                }
-            }
-        }
-    }
-
-    result
+    let hlc_service = state.hlc.lock().ok().map(|guard| guard.clone());
+    apply_remote_changes_to_db(
+        &state.db,
+        changes,
+        Some((&backend_id, &max_hlc)),
+        hlc_service.as_ref(),
+    )
 }
 
 /// Inner implementation that applies remote CRDT changes to a database connection.
 ///
 /// If `backend_info` is `Some((backend_id, max_hlc))`, updates `haex_sync_backends`
 /// with the push HLC timestamp (used by server sync). For local delivery, pass `None`.
+///
+/// If `hlc_service` is provided, the local HLC clock is advanced past the highest
+/// received remote timestamp after applying all changes. This ensures future local
+/// operations generate timestamps strictly greater than any received remote timestamp,
+/// preventing incomplete rows on the server during push.
 pub fn apply_remote_changes_to_db(
     db: &crate::database::DbConnection,
     changes: Vec<RemoteColumnChange>,
     backend_info: Option<(&str, &str)>,
+    hlc_service: Option<&HlcService>,
 ) -> Result<(), DatabaseError> {
     eprintln!("[SYNC RUST] ========== APPLY REMOTE CHANGES START ==========");
     eprintln!(
@@ -419,9 +409,12 @@ pub fn apply_remote_changes_to_db(
         );
         tx.execute(&disable_sql, []).map_err(DatabaseError::from)?;
 
-        // Group changes by (table, row) so we can insert/update all columns of a row together
+        // Group changes by (table, row) so we can insert/update all columns of a row together.
+        // Also collect all HLC timestamps for advancing the local clock after applying.
         let mut row_changes: HashMap<(String, String), Vec<RemoteColumnChange>> = HashMap::new();
+        let mut all_hlc_timestamps: Vec<String> = Vec::new();
         for change in changes {
+            all_hlc_timestamps.push(change.hlc_timestamp.clone());
             let key = (change.table_name.clone(), change.row_pks.clone());
             row_changes.entry(key).or_insert_with(Vec::new).push(change);
         }
@@ -803,6 +796,19 @@ pub fn apply_remote_changes_to_db(
         eprintln!("[SYNC RUST] Re-enabling foreign_keys");
         conn.pragma_update(None, "foreign_keys", "ON")
             .map_err(DatabaseError::from)?;
+
+        // Advance the local HLC clock past the highest received remote timestamp.
+        // This ensures future local operations generate timestamps > any remote HLC,
+        // so all columns of locally created rows are pushed (not filtered by lastPushHlcTimestamp).
+        if let Some(hlc) = hlc_service {
+            // Use backend_info max_hlc if available (server sync), otherwise
+            // compute from the changes themselves (local delivery).
+            let max_hlc_str = match backend_info {
+                Some((_, hlc_str)) if !hlc_str.is_empty() => hlc_str.to_string(),
+                _ => all_hlc_timestamps.into_iter().max().unwrap_or_default(),
+            };
+            hlc.advance_past_remote(&max_hlc_str);
+        }
 
         Ok(())
     })

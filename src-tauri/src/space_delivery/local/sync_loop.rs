@@ -6,7 +6,7 @@
 use std::collections::HashSet;
 use std::time::Duration;
 
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use tokio::sync::watch;
 
 use crate::crdt::commands::{apply_remote_changes_to_db, clear_dirty_table_inner, RemoteColumnChange};
@@ -341,12 +341,18 @@ async fn run_sync_cycle(
                     .into_iter()
                     .collect();
 
-                // Apply remote changes to local DB (no backend_info for local delivery)
-                apply_remote_changes_to_db(db, remote_changes, None).map_err(|e| {
-                    DeliveryError::Database {
-                        reason: format!("Failed to apply remote changes: {}", e),
-                    }
-                })?;
+                // Apply remote changes to local DB (no backend_info for local delivery).
+                // HLC clock is advanced internally by apply_remote_changes_to_db.
+                let hlc_service = {
+                    let state: tauri::State<'_, crate::AppState> = app_handle.state();
+                    state.hlc.lock().ok().map(|guard| guard.clone())
+                };
+                apply_remote_changes_to_db(db, remote_changes, None, hlc_service.as_ref())
+                    .map_err(|e| {
+                        DeliveryError::Database {
+                            reason: format!("Failed to apply remote changes: {}", e),
+                        }
+                    })?;
 
                 // Update last_pull_timestamp
                 if !max_pulled_hlc.is_empty() {

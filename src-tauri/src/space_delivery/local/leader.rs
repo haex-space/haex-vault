@@ -397,15 +397,14 @@ async fn handle_delivery_stream(
                 .into_iter()
                 .collect();
 
-            let max_hlc = local_changes
-                .iter()
-                .map(|c| c.hlc_timestamp.as_str())
-                .max()
-                .unwrap_or("")
-                .to_string();
-
-            // 3. Apply changes to DB
-            if let Err(e) = apply_remote_changes_to_db(&state.db, remote_changes, None) {
+            // 3. Apply changes to DB (HLC clock is advanced internally)
+            let hlc_service = state.hlc.lock().ok().map(|guard| guard.clone());
+            if let Err(e) = apply_remote_changes_to_db(
+                &state.db,
+                remote_changes,
+                None,
+                hlc_service.as_ref(),
+            ) {
                 eprintln!("[SpaceDelivery] SyncPush: failed to apply changes: {e}");
                 return send_response(
                     &mut send,
@@ -414,17 +413,6 @@ async fn handle_delivery_stream(
                     },
                 )
                 .await;
-            }
-
-            // 4. Update HLC with the max timestamp from received changes
-            if !max_hlc.is_empty() {
-                if let Ok(parsed_ts) = std::str::FromStr::from_str(&max_hlc) {
-                    if let Ok(hlc) = state.hlc.lock() {
-                        if let Err(e) = hlc.update_with_timestamp(&parsed_ts) {
-                            eprintln!("[SpaceDelivery] SyncPush: HLC update failed: {e}");
-                        }
-                    }
-                }
             }
 
             // 6. Notify other connected peers (except the sender)
