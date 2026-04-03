@@ -44,7 +44,7 @@
         />
       </div>
       <p
-        v-if="identities.length === 0"
+        v-if="ownIdentities.length === 0"
         class="text-xs text-amber-500"
       >
         {{ t('identity.noIdentities') }}
@@ -139,7 +139,7 @@ const approvedClaims = defineModel<Record<string, string>>('approvedClaims')
 
 const windowManager = useWindowManagerStore()
 const identityStore = useIdentityStore()
-const { identities } = storeToRefs(identityStore)
+const { ownIdentities } = storeToRefs(identityStore)
 
 // Requirements state (declared early — used by watchers below)
 const requirements = ref<ServerRequirements | null>(null)
@@ -154,7 +154,7 @@ onMounted(async () => {
 
 // Identity options for selector
 const identityOptions = computed(() =>
-  identities.value.map((id) => ({
+  ownIdentities.value.map((id) => ({
     label: `${id.label} (${id.did.slice(0, 24)}...)`,
     value: id.id,
   })),
