@@ -103,7 +103,7 @@
       </div>
     </template>
 
-    <template #content>
+    <template #body>
       <!-- Loading -->
       <div
         v-if="isLoading"

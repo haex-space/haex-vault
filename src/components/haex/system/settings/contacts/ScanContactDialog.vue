@@ -4,7 +4,7 @@
     :title="currentTitle"
     :description="currentDescription"
   >
-    <template #content>
+    <template #body>
       <!-- Step 1: Scan QR code -->
       <template v-if="step === 'scan'">
         <USelectMenu

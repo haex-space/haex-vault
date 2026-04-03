@@ -4,7 +4,7 @@
     :title="t('title')"
     :description="t('description')"
   >
-    <template #content>
+    <template #body>
       <!-- Step 1: Select identity and claims -->
       <template v-if="!qrDataUrl">
         <USelectMenu

@@ -1,6 +1,6 @@
 <template>
   <!-- Hide workspace drawer on small screens - workspaces are desktop-only -->
-  <UiDrawer
+  <UDrawer
     v-if="!isSmallScreen"
     v-model:open="isOverviewMode"
     direction="left"
@@ -47,7 +47,7 @@
         />
       </div>
     </template>
-  </UiDrawer>
+  </UDrawer>
 </template>
 
 <script setup lang="ts">

@@ -19,7 +19,7 @@
     </template>
 
     <!-- Content -->
-    <template #content>
+    <template #body>
       <HaexSyncConnectWizard
         ref="wizardRef"
         :is-loading="isLoading"

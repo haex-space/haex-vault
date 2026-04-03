@@ -1,7 +1,6 @@
 <template>
   <div
     class="relative w-full"
-    :class="$attrs.class"
   >
     <label
       v-if="label"

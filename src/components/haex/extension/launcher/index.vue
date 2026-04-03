@@ -1,5 +1,5 @@
 <template>
-  <UiDrawer
+  <UDrawer
     v-model:open="open"
     direction="right"
     :title="t('launcher.title')"
@@ -91,7 +91,7 @@
         @click="onLogout"
       />
     </template>
-  </UiDrawer>
+  </UDrawer>
 </template>
 
 <script setup lang="ts">

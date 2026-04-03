@@ -179,7 +179,7 @@
       :title="t('create.title')"
       :description="t('create.description')"
     >
-      <template #content>
+      <template #body>
         <div class="space-y-4">
           <div class="flex justify-center">
             <UiAvatarPicker
@@ -286,7 +286,7 @@
       :title="t('import.title')"
       :description="t('import.description')"
     >
-      <template #content>
+      <template #body>
         <!-- Step 1: Load data -->
         <template v-if="!importParsed">
           <div class="space-y-4">
@@ -410,7 +410,7 @@
       :title="t('export.title')"
       :description="t('export.description')"
     >
-      <template #content>
+      <template #body>
         <!-- Avatar -->
         <div
           v-if="exportTarget?.avatar"
@@ -516,7 +516,7 @@
       v-model:open="showRenameDialog"
       :title="t('edit.title')"
     >
-      <template #content>
+      <template #body>
         <div class="space-y-4">
           <div class="flex justify-center">
             <UiAvatarPicker
@@ -585,7 +585,7 @@
       v-model:open="showClaimDialog"
       :title="editingClaim ? t('claims.editTitle') : t('claims.addTitle')"
     >
-      <template #content>
+      <template #body>
         <div class="space-y-4">
           <USelectMenu
             v-if="!editingClaim"

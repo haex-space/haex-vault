@@ -227,7 +227,7 @@
       :title="t('add.title')"
       :description="t('add.description')"
     >
-      <template #content>
+      <template #body>
         <UTabs
           v-model="addMode"
           :items="addTabItems"
@@ -388,7 +388,7 @@
       v-model:open="showEditDialog"
       :title="t('edit.title')"
     >
-      <template #content>
+      <template #body>
         <UiInput
           v-model="editForm.label"
           :label="t('fields.label')"
@@ -425,7 +425,7 @@
       v-model:open="showClaimDialog"
       :title="editingClaim ? t('claims.editTitle') : t('claims.addTitle')"
     >
-      <template #content>
+      <template #body>
         <div class="space-y-4">
           <USelect
             v-if="!editingClaim"

@@ -17,12 +17,15 @@
     >
     <template #actions>
       <!-- Invite Policy -->
-      <USelectMenu
-        :model-value="policyOption"
-        :items="policyOptions"
-        class="w-52"
-        @update:model-value="onPolicyChangeAsync"
-      />
+      <div class="w-52">
+        <UiSelectMenu
+          :model-value="policyOption"
+          :items="policyOptions"
+          :label="t('policy.label')"
+          :search-input="false"
+          @update:model-value="onPolicyChangeAsync"
+        />
+      </div>
       <UButton
         color="neutral"
         variant="outline"
@@ -86,7 +89,7 @@
       :title="t('create.title')"
       :description="t('create.description')"
     >
-      <template #content>
+      <template #body>
         <UiInput
           v-model="createForm.name"
           :label="t('create.nameLabel')"
@@ -165,7 +168,7 @@
       :title="t('join.title')"
       :description="t('join.description')"
     >
-      <template #content>
+      <template #body>
         <UiInput
           v-model="joinInviteLink"
           :label="t('join.inviteLabel')"
@@ -200,7 +203,7 @@
       v-model:open="showEditDialog"
       :title="t('edit.title')"
     >
-      <template #content>
+      <template #body>
         <UiInput
           v-model="editForm.name"
           :label="t('edit.nameLabel')"
@@ -320,10 +323,10 @@ const getDb = () => currentVault.value?.drizzle
 // Pending invites (migrated from PendingInvites.vue)
 // =========================================================================
 
-const { blockDid, setPolicy, getPolicy } = useInvitePolicy()
+const { setPolicy, getPolicy } = useInvitePolicy()
 
 const pendingInvites = ref<SelectHaexPendingInvites[]>([])
-const currentPolicy = ref<'all' | 'contacts_only' | 'nobody'>('all')
+const currentPolicy = ref<'all' | 'contacts_only' | 'nobody'>('contacts_only')
 
 const policyOptions = computed(() => [
   { label: t('policy.all'), value: 'all' },
@@ -865,9 +868,10 @@ de:
   title: Spaces
   description: Erstelle, verwalte und tritt geteilten Spaces bei
   policy:
-    all: Alle Einladungen
+    label: "Einladungen erlaubt von:"
+    all: Alle
     contactsOnly: Nur Kontakte
-    nobody: Keine Einladungen
+    nobody: Niemand
   list:
     empty: Keine Spaces vorhanden
   create:
@@ -930,9 +934,10 @@ en:
   title: Spaces
   description: Create, manage and join shared spaces
   policy:
-    all: All invitations
+    label: "Invitations allowed from:"
+    all: Everyone
     contactsOnly: Contacts only
-    nobody: No invitations
+    nobody: Nobody
   list:
     empty: No spaces found
   create:

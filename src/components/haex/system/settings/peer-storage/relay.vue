@@ -44,7 +44,7 @@
       :title="t('add.title')"
       :description="t('add.description')"
     >
-      <template #content>
+      <template #body>
         <UiInput
           v-model="newRelayUrl"
           :label="t('add.urlLabel')"

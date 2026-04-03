@@ -21,7 +21,7 @@
       </div>
     </template>
 
-    <template #content>
+    <template #body>
       <div class="flex flex-col gap-6 pt-2">
         <!-- Extension Info -->
         <UCard>

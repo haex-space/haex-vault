@@ -47,7 +47,7 @@
               icon="i-heroicons-key"
             />
           </template>
-          <template #content>
+          <template #body>
             <form class="space-y-4 pt-2" @submit.prevent="onChangePasswordAsync">
               <UiInputPassword v-model="passwordForm.currentPassword" v-model:errors="currentPasswordErrors" :label="t('password.modal.currentPassword')" />
               <UiInputPassword v-model="passwordForm.newPassword" v-model:errors="newPasswordErrors" :label="t('password.modal.newPassword')" />

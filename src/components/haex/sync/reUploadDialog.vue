@@ -4,13 +4,15 @@
     :title="t('title')"
     :description="t('description')"
   >
-    <div class="pt-2">
-      <UAlert
-        color="info"
-        icon="i-lucide-info"
-        :description="t('info')"
-      />
-    </div>
+    <template #body>
+      <div class="pt-2">
+        <UAlert
+          color="info"
+          icon="i-lucide-info"
+          :description="t('info')"
+        />
+      </div>
+    </template>
 
     <template #footer>
       <div class="flex justify-between w-full">

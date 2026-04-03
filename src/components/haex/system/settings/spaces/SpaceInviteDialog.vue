@@ -4,7 +4,7 @@
     :title="dialogTitle"
     :description="dialogDescription"
   >
-    <template #content>
+    <template #body>
       <!-- Result view: show generated link -->
       <template v-if="generatedLink">
         <div class="space-y-3">

@@ -83,7 +83,7 @@
       :title="t('members.title')"
       :description="t('members.description')"
     >
-      <template #content>
+      <template #body>
         <!-- Pending invite tokens -->
         <div v-if="pendingTokens.length" class="space-y-2 mb-4">
           <p class="text-xs font-medium text-muted uppercase tracking-wide">

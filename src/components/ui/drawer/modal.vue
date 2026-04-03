@@ -1,59 +1,49 @@
 <template>
-  <UiDrawer
+  <UModal
     v-model:open="open"
     :title="title"
-    :description="$slots.description ? ' ' : (description || ' ')"
+    :description="description"
+    :fullscreen="isSmallScreen"
     v-bind="$attrs"
-    :ui="{
-      content: 'md:w-full md:max-w-4xl md:left-1/2 md:right-auto md:-translate-x-1/2 md:rounded-xl',
-    }"
+    :ui="mergedUi"
   >
-    <!-- Trigger -->
+    <!-- Trigger: maps #trigger to UModal's default slot -->
     <slot name="trigger" />
 
-    <!-- Content -->
-    <template #content>
-      <div class="p-6 pb-[calc(2rem+env(safe-area-inset-bottom))] flex flex-col max-h-[95vh]">
-        <!-- Header -->
-        <div class="shrink-0 mb-4">
-          <slot name="header">
-            <h2
-              v-if="title"
-              class="text-xl font-semibold"
-            >
-              {{ title }}
-            </h2>
-            <p
-              v-if="$slots.description || description"
-              class="mt-1 text-muted text-sm"
-            >
-              <slot name="description">{{ description }}</slot>
-            </p>
-          </slot>
-        </div>
-
-        <!-- Scrollable Content -->
-        <div class="flex-1 overflow-y-auto space-y-4 min-h-0 pt-3 pb-4">
-          <slot name="content" />
-        </div>
-
-        <!-- Footer (optional) -->
-        <div
-          v-if="$slots.footer"
-          class="mt-6 shrink-0"
-        >
-          <slot name="footer" />
-        </div>
-      </div>
+    <!-- Header: pass-through to UModal's native header -->
+    <template v-if="$slots.header" #header>
+      <slot name="header" />
     </template>
-  </UiDrawer>
+
+    <!-- Description: pass-through -->
+    <template v-if="$slots.description" #description>
+      <slot name="description" />
+    </template>
+
+    <!-- Body -->
+    <template v-if="$slots.body" #body>
+      <slot name="body" />
+    </template>
+
+    <!-- Footer: pass-through -->
+    <template v-if="$slots.footer" #footer>
+      <slot name="footer" />
+    </template>
+  </UModal>
 </template>
 
 <script setup lang="ts">
-defineProps<{
+const props = defineProps<{
   title?: string
   description?: string
+  ui?: Record<string, string>
 }>()
 
 const open = defineModel<boolean>('open', { default: false })
+const { isSmallScreen } = storeToRefs(useUiStore())
+
+const mergedUi = computed(() => ({
+  ...props.ui,
+  body: `flex flex-col justify-center ${props.ui?.body ?? ''}`.trim(),
+}))
 </script>

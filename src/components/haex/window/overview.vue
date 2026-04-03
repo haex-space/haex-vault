@@ -1,5 +1,5 @@
 <template>
-  <UiDrawer
+  <UDrawer
     v-model:open="localShowWindowOverview"
     direction="bottom"
     :title="t('modal.title')"
@@ -87,7 +87,7 @@
         </div>
       </div>
     </template>
-  </UiDrawer>
+  </UDrawer>
 </template>
 
 <script setup lang="ts">

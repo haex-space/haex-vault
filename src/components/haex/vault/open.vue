@@ -29,7 +29,7 @@
     </template>
 
     <!-- Content -->
-    <template #content>
+    <template #body>
       <div class="space-y-4 pt-2">
         <UForm
           :state="vault"

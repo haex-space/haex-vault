@@ -1,24 +1,19 @@
 <template>
-  <UiDrawer
-    v-if="isSmallScreen"
+  <UiDrawerModal
     v-model:open="open"
     :title="t('title')"
     :description="t('description')"
   >
-    <UiButton
-      :label="t('button.label')"
-      :ui="{
-        base: 'px-4 py-3',
-      }"
-      icon="mdi:plus"
-      variant="outline"
-      block
-    />
-
-    <template #header>
-      <h2 class="text-xl font-semibold">
-        {{ t('title') }}
-      </h2>
+    <template #trigger>
+      <UiButton
+        :label="t('button.label')"
+        :ui="{
+          base: 'px-4 py-3',
+        }"
+        icon="mdi:plus"
+        variant="outline"
+        block
+      />
     </template>
 
     <template #body>
@@ -31,7 +26,7 @@
           v-model="vault.name"
           v-model:errors="errors.name"
           icon="mdi:safe"
-          :label="t('vault.placeholder')"
+          :label="t('vault.label')"
           :schema="vaultSchema.name"
           :check="check"
           :custom-validators="[checkVaultNameExists]"
@@ -52,90 +47,12 @@
         <UiInputPassword
           v-model="vault.passwordConfirm"
           v-model:errors="errors.passwordConfirm"
-          :label="t('passwordConfirm.placeholder')"
+          :label="t('passwordConfirm.label')"
           :check="check"
           leading-icon="i-lucide-lock"
           class="w-full"
         />
       </UForm>
-    </template>
-
-    <template #footer>
-      <div class="flex gap-3">
-        <UButton
-          color="neutral"
-          variant="outline"
-          block
-          @click="open = false"
-        >
-          {{ t('cancel') }}
-        </UButton>
-        <UButton
-          color="primary"
-          block
-          @click="onCreateAsync"
-        >
-          {{ t('create') }}
-        </UButton>
-      </div>
-    </template>
-  </UiDrawer>
-
-  <UModal
-    v-else
-    v-model:open="open"
-    :title="t('title')"
-    :description="t('description')"
-  >
-    <UiButton
-      :label="t('button.label')"
-      :ui="{
-        base: 'px-4 py-3 ',
-      }"
-      icon="mdi:plus"
-      variant="outline"
-      block
-    />
-
-    <template #body>
-      <div class="space-y-4">
-        <UForm
-          :state="vault"
-          class="w-full space-y-6"
-          @keyup.enter="onCreateAsync"
-        >
-          <UiInput
-            v-model="vault.name"
-            v-model:errors="errors.name"
-            icon="mdi:safe"
-            :label="t('vault.label')"
-            :schema="vaultSchema.name"
-            :check="check"
-            :custom-validators="[checkVaultNameExists]"
-            autofocus
-            class="w-full"
-          />
-
-          <UiInputPassword
-            v-model="vault.password"
-            v-model:errors="errors.password"
-            :label="t('password.placeholder')"
-            :schema="vaultSchema.password"
-            :check="check"
-            leading-icon="i-lucide-lock"
-            class="w-full"
-          />
-
-          <UiInputPassword
-            v-model="vault.passwordConfirm"
-            v-model:errors="errors.passwordConfirm"
-            :label="t('passwordConfirm.label')"
-            :check="check"
-            leading-icon="i-lucide-lock"
-            class="w-full"
-          />
-        </UForm>
-      </div>
     </template>
 
     <template #footer>
@@ -157,7 +74,7 @@
         </UButton>
       </div>
     </template>
-  </UModal>
+  </UiDrawerModal>
 </template>
 
 <script setup lang="ts">
@@ -165,7 +82,6 @@ import type { AcceptableValue } from '@nuxt/ui/runtime/types/utils.js'
 import { vaultSchema } from './schema'
 
 const open = defineModel<boolean>('open', { default: false })
-const { isSmallScreen } = storeToRefs(useUiStore())
 
 const { t } = useI18n({
   useScope: 'local',

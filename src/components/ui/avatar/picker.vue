@@ -42,7 +42,7 @@
       v-model:open="showCropDialog"
       :title="t('crop.title')"
     >
-      <template #content>
+      <template #body>
         <Cropper
           ref="cropperRef"
           :src="cropImageSrc"

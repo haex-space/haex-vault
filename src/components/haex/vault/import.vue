@@ -20,7 +20,7 @@
     </template>
 
     <!-- Content -->
-    <template #content>
+    <template #body>
       <div class="space-y-4">
         <!-- Dropzone / File selector -->
         <div

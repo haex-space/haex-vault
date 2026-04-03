@@ -28,7 +28,7 @@
       </div>
     </template>
 
-    <template #content>
+    <template #body>
       <div
         v-if="promptData"
         class="flex flex-col gap-4"

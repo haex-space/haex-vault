@@ -20,7 +20,7 @@
       </div>
     </template>
 
-    <template #content>
+    <template #body>
       <div class="flex flex-col gap-4">
         <i18n-t
           keypath="question"
