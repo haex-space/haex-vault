@@ -10,6 +10,7 @@ use tauri::{Emitter, Manager};
 use tokio::sync::watch;
 
 use crate::crdt::commands::{apply_remote_changes_to_db, clear_dirty_table_inner, RemoteColumnChange};
+use crate::crdt::hlc::hlc_max;
 use crate::crdt::scanner::{scan_all_dirty_tables_for_local_changes, LocalColumnChange};
 use crate::database::DbConnection;
 
@@ -260,10 +261,7 @@ async fn run_sync_cycle(
             .map(|c| c.table_name.clone())
             .collect();
 
-        let max_hlc = changes
-            .iter()
-            .map(|c| c.hlc_timestamp.as_str())
-            .max()
+        let max_hlc = hlc_max(changes.iter().map(|c| c.hlc_timestamp.as_str()))
             .unwrap_or("")
             .to_string();
 
@@ -326,10 +324,7 @@ async fn run_sync_cycle(
                     .collect();
 
                 // Find the max HLC from pulled changes
-                let max_pulled_hlc = remote_locals
-                    .iter()
-                    .map(|c| c.hlc_timestamp.as_str())
-                    .max()
+                let max_pulled_hlc = hlc_max(remote_locals.iter().map(|c| c.hlc_timestamp.as_str()))
                     .unwrap_or("")
                     .to_string();
 

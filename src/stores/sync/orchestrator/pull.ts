@@ -8,6 +8,7 @@ import { emit } from '@tauri-apps/api/event'
 import { decryptCrdtData } from '@haex-space/vault-sdk'
 import { DidAuthAction } from '@haex-space/ucan'
 import type { ColumnChange } from '../tableScanner'
+import { hlcIsNewer } from '@/utils/hlc'
 import { createDidAuthHeader, createFederatedDidAuthHeader } from '@/utils/auth/didAuth'
 import { orchestratorLog as log, type BackendSyncState, type PullResult, syncMutex } from './types'
 import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
@@ -39,16 +40,7 @@ export const pullFromBackendAsync = async (
   }
 
   // Acquire mutex lock to prevent concurrent sync operations
-  // This replaces the non-atomic check-then-set pattern
   const releaseLock = await syncMutex.acquire(backendId)
-
-  // Double-check after acquiring lock (another operation might have just finished)
-  if (state.isSyncing) {
-    log.debug(`PULL SKIPPED: Already syncing with backend ${backendId}`)
-    releaseLock()
-    return
-  }
-
   state.isSyncing = true
   state.error = null
 
@@ -351,7 +343,7 @@ export const applyAllChangesWithMigrationsAsync = async (
   if (migrationChanges.length > 0) {
     log.info(`Applying ${migrationChanges.length} extension migration changes...`)
     const migrationMaxHlc = await applyRemoteChangesInTransactionAsync(migrationChanges, vaultKey, backendId, spaceId)
-    if (migrationMaxHlc > maxHlc) {
+    if (hlcIsNewer(migrationMaxHlc, maxHlc)) {
       maxHlc = migrationMaxHlc
     }
   }
@@ -390,7 +382,7 @@ export const applyAllChangesWithMigrationsAsync = async (
   if (otherChanges.length > 0) {
     log.info(`Applying ${otherChanges.length} remaining changes to local database...`)
     const otherMaxHlc = await applyRemoteChangesInTransactionAsync(otherChanges, vaultKey, backendId, spaceId)
-    if (otherMaxHlc > maxHlc) {
+    if (hlcIsNewer(otherMaxHlc, maxHlc)) {
       maxHlc = otherMaxHlc
     }
   }
@@ -447,7 +439,7 @@ export const applyRemoteChangesInTransactionAsync = async (
       log.info(`[PERF] Decrypted ${decryptCount}/${changes.length} (${elapsed.toFixed(1)}s, ${rate.toFixed(0)} changes/s)`)
     }
     // Track max HLC
-    if (change.hlcTimestamp > maxHlc) {
+    if (hlcIsNewer(change.hlcTimestamp, maxHlc)) {
       maxHlc = change.hlcTimestamp
     }
 

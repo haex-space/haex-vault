@@ -85,10 +85,15 @@ fn test_select_with_join_adds_qualified_tombstone_filter() {
     let sql = "SELECT i.*, c.name FROM items i JOIN categories c ON i.category_id = c.id";
     let result = parse_and_transform_query(sql);
 
-    // Should add tombstone filter WITH table qualifier (alias 'i')
+    // Both tables are CRDT tables, so both should get tombstone filters
     assert!(
         result.contains(&tombstone_filter_qualified("i")),
         "Expected qualified tombstone filter with alias 'i' in: {}",
+        result
+    );
+    assert!(
+        result.contains(&tombstone_filter_qualified("c")),
+        "Expected qualified tombstone filter with alias 'c' in: {}",
         result
     );
 }
@@ -98,10 +103,15 @@ fn test_select_with_join_no_alias_uses_table_name() {
     let sql = "SELECT items.*, categories.name FROM items JOIN categories ON items.category_id = categories.id";
     let result = parse_and_transform_query(sql);
 
-    // Should add tombstone filter WITH table name qualifier
+    // Both tables are CRDT tables, so both should get tombstone filters using table names
     assert!(
         result.contains(&tombstone_filter_qualified("items")),
         "Expected qualified tombstone filter with table name 'items' in: {}",
+        result
+    );
+    assert!(
+        result.contains(&tombstone_filter_qualified("categories")),
+        "Expected qualified tombstone filter with table name 'categories' in: {}",
         result
     );
 }
@@ -111,23 +121,44 @@ fn test_select_with_left_join_adds_qualified_tombstone_filter() {
     let sql = "SELECT a.*, b.value FROM accounts a LEFT JOIN balances b ON a.id = b.account_id";
     let result = parse_and_transform_query(sql);
 
-    // Should add tombstone filter for the main table (accounts with alias 'a')
+    // Both tables are CRDT tables, so both should get tombstone filters
     assert!(
         result.contains(&tombstone_filter_qualified("a")),
         "Expected qualified tombstone filter with alias 'a' in: {}",
         result
     );
+    assert!(
+        result.contains(&tombstone_filter_qualified("b")),
+        "Expected qualified tombstone filter with alias 'b' in: {}",
+        result
+    );
 }
 
 #[test]
-fn test_select_with_multiple_joins_uses_first_table() {
+fn test_select_with_multiple_joins_filters_all_crdt_tables() {
     let sql = "SELECT p.*, u.name, c.title FROM posts p JOIN users u ON p.user_id = u.id JOIN categories c ON p.category_id = c.id";
     let result = parse_and_transform_query(sql);
 
-    // Should use the first (main) table's alias 'p'
+    // All three tables are CRDT tables, so all should get tombstone filters
     assert!(
         result.contains(&tombstone_filter_qualified("p")),
         "Expected qualified tombstone filter with alias 'p' in: {}",
+        result
+    );
+    assert!(
+        result.contains(&tombstone_filter_qualified("u")),
+        "Expected qualified tombstone filter with alias 'u' in: {}",
+        result
+    );
+    assert!(
+        result.contains(&tombstone_filter_qualified("c")),
+        "Expected qualified tombstone filter with alias 'c' in: {}",
+        result
+    );
+    let ifnull_count = result.matches("IFNULL").count();
+    assert_eq!(
+        ifnull_count, 3,
+        "All three CRDT tables should have tombstone filters: {}",
         result
     );
 }
@@ -208,10 +239,15 @@ fn test_join_with_where_clause_adds_qualified_filter() {
     let sql = "SELECT i.*, c.name FROM items i JOIN categories c ON i.category_id = c.id WHERE i.title LIKE '%test%'";
     let result = parse_and_transform_query(sql);
 
-    // Should add qualified tombstone filter AND preserve existing WHERE
+    // Both tables are CRDT tables, should add tombstone filter for each AND preserve existing WHERE
     assert!(
         result.contains(&tombstone_filter_qualified("i")),
-        "Expected qualified tombstone filter in: {}",
+        "Expected qualified tombstone filter for 'i' in: {}",
+        result
+    );
+    assert!(
+        result.contains(&tombstone_filter_qualified("c")),
+        "Expected qualified tombstone filter for 'c' in: {}",
         result
     );
     assert!(
@@ -226,10 +262,15 @@ fn test_right_join_adds_qualified_tombstone_filter() {
     let sql = "SELECT a.*, b.value FROM items a RIGHT JOIN related b ON a.id = b.item_id";
     let result = parse_and_transform_query(sql);
 
-    // Should add tombstone filter for the first table (items with alias 'a')
+    // Both tables are CRDT tables, so both should get tombstone filters
     assert!(
         result.contains(&tombstone_filter_qualified("a")),
         "Expected qualified tombstone filter with alias 'a' in: {}",
+        result
+    );
+    assert!(
+        result.contains(&tombstone_filter_qualified("b")),
+        "Expected qualified tombstone filter with alias 'b' in: {}",
         result
     );
 }
@@ -239,10 +280,15 @@ fn test_cross_join_adds_qualified_tombstone_filter() {
     let sql = "SELECT a.*, b.* FROM items a CROSS JOIN tags b";
     let result = parse_and_transform_query(sql);
 
-    // Should add qualified tombstone filter for the main table
+    // Both tables are CRDT tables, so both should get tombstone filters
     assert!(
         result.contains(&tombstone_filter_qualified("a")),
-        "Expected qualified tombstone filter in: {}",
+        "Expected qualified tombstone filter with alias 'a' in: {}",
+        result
+    );
+    assert!(
+        result.contains(&tombstone_filter_qualified("b")),
+        "Expected qualified tombstone filter with alias 'b' in: {}",
         result
     );
 }
@@ -407,6 +453,91 @@ fn test_unique_index_on_no_sync_table_no_predicate() {
     assert!(
         !result.contains("IFNULL"),
         "No-sync table index should not get tombstone predicate: {}",
+        result
+    );
+}
+
+// =============================================================================
+// JOIN WITH MIXED CRDT / NO_SYNC TABLES
+// =============================================================================
+
+#[test]
+fn test_join_crdt_with_no_sync_table_only_filters_crdt() {
+    let sql = "SELECT a.*, b.value FROM items a JOIN cache_no_sync b ON a.id = b.item_id";
+    let result = parse_and_transform_query(sql);
+
+    // Only 'items' (alias 'a') is a CRDT table; cache_no_sync should not get a filter
+    assert!(
+        result.contains(&tombstone_filter_qualified("a")),
+        "Expected qualified tombstone filter for CRDT table 'a' in: {}",
+        result
+    );
+    let ifnull_count = result.matches("IFNULL").count();
+    assert_eq!(
+        ifnull_count, 1,
+        "Only one CRDT table should have tombstone filter: {}",
+        result
+    );
+}
+
+#[test]
+fn test_join_no_sync_main_with_crdt_joined_table() {
+    let sql =
+        "SELECT a.*, b.name FROM local_cache_no_sync a JOIN items b ON a.item_id = b.id";
+    let result = parse_and_transform_query(sql);
+
+    // Only 'items' (alias 'b') is a CRDT table; the main table is _no_sync
+    assert!(
+        result.contains(&tombstone_filter_qualified("b")),
+        "Expected qualified tombstone filter for joined CRDT table 'b' in: {}",
+        result
+    );
+    assert!(
+        !result.contains(&tombstone_filter_qualified("a")),
+        "Should not have tombstone filter for no_sync table 'a' in: {}",
+        result
+    );
+    let ifnull_count = result.matches("IFNULL").count();
+    assert_eq!(
+        ifnull_count, 1,
+        "Only the CRDT joined table should have tombstone filter: {}",
+        result
+    );
+}
+
+#[test]
+fn test_join_both_no_sync_tables_no_filter() {
+    let sql = "SELECT a.*, b.value FROM cache_no_sync a JOIN session_no_sync b ON a.id = b.cache_id";
+    let result = parse_and_transform_query(sql);
+
+    // Neither table is a CRDT table, so no tombstone filter should be added
+    assert!(
+        !result.contains("IFNULL"),
+        "No tombstone filter should be added for two no_sync tables: {}",
+        result
+    );
+}
+
+#[test]
+fn test_multiple_joins_mixed_crdt_and_no_sync() {
+    let sql = "SELECT p.*, u.name, c.data FROM posts p JOIN users u ON p.user_id = u.id JOIN settings_no_sync c ON p.id = c.post_id";
+    let result = parse_and_transform_query(sql);
+
+    // posts (p) and users (u) are CRDT; settings_no_sync (c) is not
+    assert!(
+        result.contains(&tombstone_filter_qualified("p")),
+        "Expected tombstone filter for CRDT table 'p' in: {}",
+        result
+    );
+    assert!(
+        result.contains(&tombstone_filter_qualified("u")),
+        "Expected tombstone filter for CRDT table 'u' in: {}",
+        result
+    );
+    let ifnull_count = result.matches("IFNULL").count();
+    assert_eq!(
+        ifnull_count, 2,
+        "Only two CRDT tables should have tombstone filters: {}",
         result
     );
 }

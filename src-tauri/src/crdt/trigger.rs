@@ -95,7 +95,7 @@ impl ColumnInfo {
     }
 }
 
-fn is_safe_identifier(name: &str) -> bool {
+pub fn is_safe_identifier(name: &str) -> bool {
     // Allow alphanumeric characters, underscores, and hyphens (for extension names like "nuxt-app")
     !name.is_empty()
         && name
@@ -271,7 +271,7 @@ fn generate_insert_trigger_sql(table_name: &str, cols_to_track: &[String]) -> St
     // Generate JSON object for haex_column_hlcs with all tracked columns
     let json_pairs: Vec<String> = cols_to_track
         .iter()
-        .map(|col| format!("'{}', NEW.{}", col, HLC_TIMESTAMP_COLUMN))
+        .map(|col| format!("'{}', NEW.\"{}\"", col, HLC_TIMESTAMP_COLUMN))
         .collect();
     let json_object = if json_pairs.is_empty() {
         "'{}'".to_string()
@@ -314,8 +314,8 @@ fn generate_update_trigger_sql(table_name: &str, cols_to_track: &[String]) -> St
     for col in cols_to_track {
         update_statements.push(format!(
             "UPDATE \"{table_name}\"
-            SET haex_column_hlcs = json_set(haex_column_hlcs, '$.{col}', NEW.{HLC_TIMESTAMP_COLUMN})
-            WHERE rowid = NEW.rowid AND NEW.{col} IS NOT OLD.{col};"
+            SET haex_column_hlcs = json_set(haex_column_hlcs, '$.{col}', NEW.\"{HLC_TIMESTAMP_COLUMN}\")
+            WHERE rowid = NEW.rowid AND NEW.\"{col}\" IS NOT OLD.\"{col}\";"
         ));
     }
 
@@ -329,7 +329,7 @@ fn generate_update_trigger_sql(table_name: &str, cols_to_track: &[String]) -> St
     } else {
         cols_to_track
             .iter()
-            .map(|col| format!("NEW.{col} IS NOT OLD.{col}"))
+            .map(|col| format!("NEW.\"{col}\" IS NOT OLD.\"{col}\""))
             .collect::<Vec<_>>()
             .join(" OR ")
     };

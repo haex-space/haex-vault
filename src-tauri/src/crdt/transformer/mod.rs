@@ -83,10 +83,15 @@ impl CrdtColumns {
     /// Prüft ob ein Ausdruck bereits eine haex_tombstone Bedingung enthält
     fn has_tombstone_condition(&self, expr: &Expr) -> bool {
         match expr {
-            // Direkte Bedingung: haex_tombstone = X
-            Expr::BinaryOp { left, op, .. } => {
-                if matches!(op, BinaryOperator::Eq) {
+            Expr::BinaryOp { left, op, right } => {
+                // Direkte Bedingung: haex_tombstone = X oder haex_tombstone != X
+                if matches!(op, BinaryOperator::Eq | BinaryOperator::NotEq) {
                     if let Expr::Identifier(ident) = left.as_ref() {
+                        if ident.value == self.tombstone {
+                            return true;
+                        }
+                    }
+                    if let Expr::Identifier(ident) = right.as_ref() {
                         if ident.value == self.tombstone {
                             return true;
                         }
@@ -94,14 +99,33 @@ impl CrdtColumns {
                 }
                 // Rekursiv in verschachtelten BinaryOps suchen (AND, OR)
                 if matches!(op, BinaryOperator::And | BinaryOperator::Or) {
-                    if let Expr::BinaryOp { left, right, .. } = expr {
-                        return self.has_tombstone_condition(left)
-                            || self.has_tombstone_condition(right);
-                    }
+                    return self.has_tombstone_condition(left)
+                        || self.has_tombstone_condition(right);
                 }
                 false
             }
-            // In anderen Ausdrücken könnte auch haex_tombstone vorkommen
+            // Function calls like IFNULL(haex_tombstone, 0)
+            Expr::Function(func) => {
+                if let sqlparser::ast::FunctionArguments::List(ref list) = func.args {
+                    list.args.iter().any(|arg| {
+                        if let sqlparser::ast::FunctionArg::Unnamed(
+                            sqlparser::ast::FunctionArgExpr::Expr(inner),
+                        ) = arg
+                        {
+                            if let Expr::Identifier(ident) = inner {
+                                return ident.value == self.tombstone;
+                            }
+                        }
+                        false
+                    })
+                } else {
+                    false
+                }
+            }
+            // Compound identifier: table.haex_tombstone
+            Expr::CompoundIdentifier(parts) => {
+                parts.last().map_or(false, |p| p.value == self.tombstone)
+            }
             _ => false,
         }
     }
@@ -216,18 +240,18 @@ impl CrdtTransformer {
         Cow::Owned(name_str.trim_matches('`').trim_matches('"').to_string())
     }
 
-    /// Prüft ob ein TableWithJoins eine CRDT-Tabelle referenziert
-    fn is_crdt_table_with_joins(&self, table: &sqlparser::ast::TableWithJoins) -> bool {
-        if let TableFactor::Table { name, .. } = &table.relation {
+    /// Prüft ob ein TableFactor eine CRDT-Tabelle referenziert
+    fn is_crdt_table_factor(&self, relation: &TableFactor) -> bool {
+        if let TableFactor::Table { name, .. } = relation {
             self.is_crdt_sync_table(name)
         } else {
             false
         }
     }
 
-    /// Extrahiert den Tabellennamen oder Alias aus einem TableWithJoins
-    fn get_table_qualifier(&self, table: &sqlparser::ast::TableWithJoins) -> Option<String> {
-        if let TableFactor::Table { name, alias, .. } = &table.relation {
+    /// Extrahiert den Tabellennamen oder Alias aus einem TableFactor
+    fn get_table_factor_qualifier(&self, relation: &TableFactor) -> Option<String> {
+        if let TableFactor::Table { name, alias, .. } = relation {
             // Bevorzuge Alias, falls vorhanden
             if let Some(table_alias) = alias {
                 return Some(table_alias.name.value.clone());
@@ -254,26 +278,35 @@ impl CrdtTransformer {
             }
         }
 
-        // Finde die erste CRDT-Tabelle und ihren Qualifier
-        let crdt_table_qualifier = select
-            .from
-            .iter()
-            .find(|t| self.is_crdt_table_with_joins(t))
-            .and_then(|t| self.get_table_qualifier(t));
+        // Sammle alle CRDT-Tabellen-Qualifier (FROM-Tabellen und JOINs)
+        let has_joins = select.from.iter().any(|t| !t.joins.is_empty());
+        let mut crdt_qualifiers: Vec<Option<String>> = Vec::new();
 
-        if crdt_table_qualifier.is_some() || select.from.iter().any(|t| self.is_crdt_table_with_joins(t)) {
-            // Bei JOINs: Qualifier verwenden, sonst None (für einfache Queries ohne JOINs)
-            let has_joins = select.from.iter().any(|t| !t.joins.is_empty());
-            let qualifier = if has_joins {
-                crdt_table_qualifier.as_deref()
-            } else {
-                None
-            };
+        for table_with_joins in &select.from {
+            // Prüfe die Haupttabelle (FROM-Klausel)
+            if self.is_crdt_table_factor(&table_with_joins.relation) {
+                if has_joins {
+                    crdt_qualifiers
+                        .push(self.get_table_factor_qualifier(&table_with_joins.relation));
+                } else {
+                    // Einfache Queries ohne JOINs: kein Qualifier nötig
+                    crdt_qualifiers.push(None);
+                }
+            }
 
-            // Füge WHERE IFNULL(haex_tombstone, 0) != 1 hinzu (falls noch nicht vorhanden)
+            // Prüfe alle JOINed Tabellen
+            for join in &table_with_joins.joins {
+                if self.is_crdt_table_factor(&join.relation) {
+                    crdt_qualifiers.push(self.get_table_factor_qualifier(&join.relation));
+                }
+            }
+        }
+
+        // Füge für jede CRDT-Tabelle einen Tombstone-Filter hinzu
+        for qualifier in &crdt_qualifiers {
             select.selection = self
                 .columns
-                .add_tombstone_filter_to_where(select.selection.take(), qualifier);
+                .add_tombstone_filter_to_where(select.selection.take(), qualifier.as_deref());
         }
     }
 

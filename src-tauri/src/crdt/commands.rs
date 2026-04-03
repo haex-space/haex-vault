@@ -1,8 +1,8 @@
-use crate::crdt::hlc::HlcService;
+use crate::crdt::hlc::{hlc_is_newer, hlc_max, HlcService};
 use crate::crdt::trigger;
 use crate::crdt::trigger::{
-    get_table_schema as get_table_schema_internal, ColumnInfo, COLUMN_HLCS_COLUMN,
-    HLC_TIMESTAMP_COLUMN, TOMBSTONE_COLUMN,
+    get_table_schema as get_table_schema_internal, is_safe_identifier, ColumnInfo,
+    COLUMN_HLCS_COLUMN, HLC_TIMESTAMP_COLUMN, TOMBSTONE_COLUMN,
 };
 use crate::database::core::{with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
@@ -385,6 +385,27 @@ pub fn apply_remote_changes_to_db(
     validate_batch_completeness(&changes)?;
     eprintln!("[SYNC RUST] Batch validation passed");
 
+    // Validate all table and column names from remote changes to prevent SQL injection
+    for change in &changes {
+        if !is_safe_identifier(&change.table_name) {
+            return Err(DatabaseError::ValidationError {
+                reason: format!(
+                    "Invalid table name '{}' in remote change",
+                    change.table_name
+                ),
+            });
+        }
+        if !is_safe_identifier(&change.column_name) {
+            return Err(DatabaseError::ValidationError {
+                reason: format!(
+                    "Invalid column name '{}' in table '{}'",
+                    change.column_name, change.table_name
+                ),
+            });
+        }
+    }
+    eprintln!("[SYNC RUST] Identifier validation passed");
+
     with_connection(db, |conn| {
         // Disable foreign key constraints BEFORE starting the transaction
         // IMPORTANT: PRAGMA foreign_keys cannot be changed inside a transaction!
@@ -543,7 +564,7 @@ pub fn apply_remote_changes_to_db(
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
 
-                if change.hlc_timestamp.as_str() > current_hlc {
+                if hlc_is_newer(change.hlc_timestamp.as_str(), current_hlc) {
                     // Remote change is newer, include it
                     column_hlcs.insert(
                         change.column_name.clone(),
@@ -556,7 +577,7 @@ pub fn apply_remote_changes_to_db(
                     ));
 
                     // Track max HLC for row timestamp
-                    if change.hlc_timestamp > max_hlc_for_row {
+                    if hlc_is_newer(&change.hlc_timestamp, &max_hlc_for_row) {
                         max_hlc_for_row = change.hlc_timestamp.clone();
                     }
                 }
@@ -592,7 +613,7 @@ pub fn apply_remote_changes_to_db(
                     // Row exists, update it with all changed columns
                     let set_clauses: Vec<String> = columns_to_update
                         .iter()
-                        .map(|(col_name, _, _)| format!("{} = ?", col_name))
+                        .map(|(col_name, _, _)| format!("\"{}\" = ?", col_name))
                         .collect();
 
                     let update_sql = format!(
@@ -656,10 +677,14 @@ pub fn apply_remote_changes_to_db(
                     values.push(SqlValue::Text(max_hlc_for_row.clone()));
 
                     let placeholders = vec!["?"; columns.len()].join(", ");
+                    let quoted_columns: Vec<String> = columns
+                        .iter()
+                        .map(|c| format!("\"{}\"", c))
+                        .collect();
                     let insert_sql = format!(
                         "INSERT INTO \"{}\" ({}) VALUES ({})",
                         first_change.table_name,
-                        columns.join(", "),
+                        quoted_columns.join(", "),
                         placeholders
                     );
 
@@ -805,7 +830,10 @@ pub fn apply_remote_changes_to_db(
             // compute from the changes themselves (local delivery).
             let max_hlc_str = match backend_info {
                 Some((_, hlc_str)) if !hlc_str.is_empty() => hlc_str.to_string(),
-                _ => all_hlc_timestamps.into_iter().max().unwrap_or_default(),
+                _ => {
+                    let max = hlc_max(all_hlc_timestamps.iter().map(|s| s.as_str()));
+                    max.unwrap_or_default().to_string()
+                }
             };
             hlc.advance_past_remote(&max_hlc_str);
         }

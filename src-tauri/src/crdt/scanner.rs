@@ -4,6 +4,7 @@
 //! It produces unencrypted column-level changes for local space sync over QUIC,
 //! which provides transport encryption.
 
+use crate::crdt::hlc::hlc_is_newer;
 use crate::crdt::trigger::{get_table_schema, ColumnInfo, COLUMN_HLCS_COLUMN, HLC_TIMESTAMP_COLUMN};
 use crate::database::core::{convert_value_ref_to_json, with_connection};
 use crate::database::error::DatabaseError;
@@ -170,7 +171,7 @@ pub fn scan_table_for_local_changes(
 
             // Check if this column's HLC is newer than after_hlc
             let should_include = match after_hlc {
-                Some(threshold) => hlc_to_use > threshold,
+                Some(threshold) => hlc_is_newer(hlc_to_use, threshold),
                 None => true,
             };
 
@@ -321,13 +322,13 @@ mod tests {
     #[test]
     fn test_scan_with_after_hlc_filters_old_rows() {
         let conn = setup_test_db();
-        insert_row(&conn, "old", "old", 1, "2025-01-01T00:00:00.000Z-0001-device1");
-        insert_row(&conn, "new", "new", 2, "2025-06-01T00:00:00.000Z-0001-device1");
+        insert_row(&conn, "old", "old", 1, "1000000000000000000/aabbccdd");
+        insert_row(&conn, "new", "new", 2, "3000000000000000000/aabbccdd");
 
         let changes = scan_table_for_local_changes(
             &conn,
             "test_items",
-            Some("2025-03-01T00:00:00.000Z-0001-device1"),
+            Some("2000000000000000000/aabbccdd"),
             "device-1",
         )
         .unwrap();
@@ -410,10 +411,10 @@ mod tests {
     fn test_column_level_hlc_filtering() {
         let conn = setup_test_db();
         // Insert a row where 'name' has a newer HLC but 'value' has an older one
-        let hlcs = r#"{"name":"2025-06-01T00:00:00.000Z-0001-d1","value":"2025-01-01T00:00:00.000Z-0001-d1","haex_tombstone":"2025-01-01T00:00:00.000Z-0001-d1"}"#;
+        let hlcs = r#"{"name":"3000000000000000000/aabbccdd","value":"1000000000000000000/aabbccdd","haex_tombstone":"1000000000000000000/aabbccdd"}"#;
         conn.execute(
             "INSERT INTO test_items (id, name, value, haex_timestamp, haex_column_hlcs)
-             VALUES ('r1', 'updated', 10, '2025-06-01T00:00:00.000Z-0001-d1', ?1)",
+             VALUES ('r1', 'updated', 10, '3000000000000000000/aabbccdd', ?1)",
             [hlcs],
         )
         .unwrap();
@@ -421,7 +422,7 @@ mod tests {
         let changes = scan_table_for_local_changes(
             &conn,
             "test_items",
-            Some("2025-03-01T00:00:00.000Z-0001-d1"),
+            Some("2000000000000000000/aabbccdd"),
             "device-1",
         )
         .unwrap();

@@ -1,4 +1,4 @@
-import { eq, and, inArray } from 'drizzle-orm'
+import { eq, ne, and, inArray } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
 import { createAvatar } from '@dicebear/core'
 import * as toonHead from '@dicebear/toon-head'
@@ -192,7 +192,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
           .where(and(
             inArray(haexSpaces.id, adminSpaceIds),
             // Never delete the vault space
-            eq(haexSpaces.type, SpaceType.LOCAL),
+            ne(haexSpaces.type, SpaceType.VAULT),
           ))
       : []
 

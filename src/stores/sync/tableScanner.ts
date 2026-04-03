@@ -8,6 +8,7 @@ import type { ColumnInfo } from '@bindings/ColumnInfo'
 import type { DirtyTable } from '@bindings/DirtyTable'
 import { encryptCrdtData } from '@haex-space/vault-sdk'
 import tableNames from '@/database/tableNames.json'
+import { hlcIsNewer } from '@/utils/hlc'
 import { createLogger } from '@/stores/logging'
 
 const CRDT_COLUMNS = tableNames.crdt.columns
@@ -173,7 +174,7 @@ async function processRowsToChangesAsync(
       // Check if this column's HLC is newer than lastPushHlcTimestamp
       if (
         !lastPushHlcTimestamp ||
-        hlcToUse > lastPushHlcTimestamp
+        hlcIsNewer(hlcToUse, lastPushHlcTimestamp)
       ) {
         // Encrypt the column value (wrap in object for encryptCrdtDataAsync)
         const value = row[col.name]

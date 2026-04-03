@@ -270,6 +270,31 @@ impl Default for HlcService {
     }
 }
 
+/// Compares two HLC timestamp strings numerically.
+/// Format: "<u64_ntp_nanoseconds>/<node_id_hex>"
+/// Returns Ordering based on the numeric time component, then node ID.
+pub fn compare_hlc_strings(a: &str, b: &str) -> std::cmp::Ordering {
+    fn parse(s: &str) -> (u64, &str) {
+        match s.split_once('/') {
+            Some((time_str, node_id)) => (time_str.parse::<u64>().unwrap_or(0), node_id),
+            None => (s.parse::<u64>().unwrap_or(0), ""),
+        }
+    }
+    let (a_time, a_node) = parse(a);
+    let (b_time, b_node) = parse(b);
+    a_time.cmp(&b_time).then_with(|| a_node.cmp(b_node))
+}
+
+/// Returns true if `a` is strictly newer than `b`.
+pub fn hlc_is_newer(a: &str, b: &str) -> bool {
+    compare_hlc_strings(a, b) == std::cmp::Ordering::Greater
+}
+
+/// Returns the maximum HLC timestamp string from an iterator, using numeric comparison.
+pub fn hlc_max<'a>(iter: impl Iterator<Item = &'a str>) -> Option<&'a str> {
+    iter.max_by(|a, b| compare_hlc_strings(a, b))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
