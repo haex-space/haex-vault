@@ -390,6 +390,12 @@ const reconnectAllBackendsAsync = async (): Promise<void> => {
       realtimeInstance.disconnect()
       realtimeInstance = null
 
+      // Clear old event handlers before reconnecting
+      for (const cleanup of eventCleanups) {
+        cleanup()
+      }
+      eventCleanups.length = 0
+
       // Re-subscribe (will create new instance and connect)
       for (const backend of enabledBackends) {
         const state = syncStates[backend.id]

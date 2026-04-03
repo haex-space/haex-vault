@@ -1,10 +1,10 @@
 /**
  * Token Manager
  * Manages DID authentication tokens for sync server communication.
- * Replaces the Supabase client which was only used as a token container.
+ * Supports multiple backends concurrently via Map-based state.
  */
 
-import { shallowRef } from 'vue'
+import { computed, shallowRef } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { importUserPrivateKeyAsync } from '@haex-space/vault-sdk'
 import { engineLog as log } from './types'
@@ -19,55 +19,85 @@ export type ReauthContextResolver = () => Promise<{
   privateKey: string
 } | null>
 
-// Module state
-export const isInitializedRef = shallowRef(false)
+interface TokenState {
+  accessToken: string | null
+  refreshToken: string | null
+  reauthResolver: ReauthContextResolver | null
+  lastReauthAttempt: number
+  pendingReauthPromise: Promise<string | null> | null
+  pendingReauth: Promise<string | null> | null
+}
+
+const tokenStates = new Map<string, TokenState>()
 export const currentBackendIdRef = shallowRef<string | null>(null)
-let cachedAccessToken: string | null = null
-let cachedRefreshToken: string | null = null
-let reauthResolver: ReauthContextResolver | null = null
-let lastReauthAttempt = 0
+
+/**
+ * Whether any backend has been initialized.
+ */
+export const isInitializedRef = computed(() => tokenStates.size > 0)
+
 const REAUTH_COOLDOWN_MS = 30_000
+
+const getOrCreateState = (backendId: string): TokenState => {
+  let state = tokenStates.get(backendId)
+  if (!state) {
+    state = {
+      accessToken: null,
+      refreshToken: null,
+      reauthResolver: null,
+      lastReauthAttempt: 0,
+      pendingReauthPromise: null,
+      pendingReauth: null,
+    }
+    tokenStates.set(backendId, state)
+  }
+  return state
+}
+
+const resolveBackendId = (backendId?: string): string => {
+  const resolved = backendId ?? currentBackendIdRef.value
+  if (!resolved) {
+    throw new Error('No backendId provided and no current backend set')
+  }
+  return resolved
+}
 
 /**
  * Central token setter — keeps JS cache and Rust backend in sync.
+ * Only invokes Rust set_auth_token when the token belongs to the current backend.
  */
-const updateCachedToken = (token: string | null): void => {
-  cachedAccessToken = token
-  invoke('set_auth_token', { token }).catch(() => {})
+const updateCachedToken = (backendId: string, token: string | null): void => {
+  const state = getOrCreateState(backendId)
+  state.accessToken = token
+  if (backendId === currentBackendIdRef.value) {
+    invoke('set_auth_token', { token }).catch(() => {})
+  }
 }
 
 /**
  * Initializes the token manager for a specific backend.
- * No HTTP calls needed — just stores the backend ID.
+ * Does NOT clear other backends' tokens when switching.
  */
 export const initTokenManager = (backendId: string): void => {
-  if (isInitializedRef.value && currentBackendIdRef.value === backendId) {
-    return
-  }
-
-  // Reset state if switching backends
-  if (currentBackendIdRef.value !== backendId) {
-    updateCachedToken(null)
-    cachedRefreshToken = null
-  }
-
+  getOrCreateState(backendId)
   currentBackendIdRef.value = backendId
-  isInitializedRef.value = true
 }
 
 /**
  * Stores session tokens from DID authentication.
  */
-export const setSession = (tokens: { access_token: string; refresh_token: string }): void => {
-  updateCachedToken(tokens.access_token)
-  cachedRefreshToken = tokens.refresh_token
+export const setSession = (backendId: string, tokens: { access_token: string; refresh_token: string }): void => {
+  const state = getOrCreateState(backendId)
+  updateCachedToken(backendId, tokens.access_token)
+  state.refreshToken = tokens.refresh_token
 }
 
 /**
- * Registers a callback that resolves the DID auth context for the current backend.
+ * Registers a callback that resolves the DID auth context for a specific backend.
  */
-export const setReauthResolver = (resolver: ReauthContextResolver | null): void => {
-  reauthResolver = resolver
+export const setReauthResolver = (backendId: string, resolver: ReauthContextResolver | null): void => {
+  const state = getOrCreateState(backendId)
+  state.reauthResolver = resolver
 }
 
 /**
@@ -115,32 +145,30 @@ export const didAuthenticateAsync = async (
 }
 
 /**
- * Shared promise so parallel callers wait on the same re-auth attempt.
- */
-let pendingReauthPromise: Promise<string | null> | null = null
-
-/**
  * Attempts to re-authenticate via DID challenge when token is expired.
  * Parallel calls share the same promise — no duplicate auth requests.
  */
-export const attemptDidReauthAsync = async (): Promise<string | null> => {
-  if (!reauthResolver || !isInitializedRef.value) return null
+export const attemptDidReauthAsync = async (backendId?: string): Promise<string | null> => {
+  const id = resolveBackendId(backendId)
+  const state = getOrCreateState(id)
 
-  if (pendingReauthPromise) {
+  if (!state.reauthResolver) return null
+
+  if (state.pendingReauthPromise) {
     log.debug('DID re-auth: waiting for ongoing attempt...')
-    return pendingReauthPromise
+    return state.pendingReauthPromise
   }
 
   const now = Date.now()
-  if (now - lastReauthAttempt < REAUTH_COOLDOWN_MS) {
-    log.warn(`DID re-auth: cooldown active (${Math.round((REAUTH_COOLDOWN_MS - (now - lastReauthAttempt)) / 1000)}s remaining)`)
+  if (now - state.lastReauthAttempt < REAUTH_COOLDOWN_MS) {
+    log.warn(`DID re-auth: cooldown active (${Math.round((REAUTH_COOLDOWN_MS - (now - state.lastReauthAttempt)) / 1000)}s remaining)`)
     return null
   }
 
-  lastReauthAttempt = now
-  pendingReauthPromise = (async () => {
+  state.lastReauthAttempt = now
+  state.pendingReauthPromise = (async () => {
     try {
-      const ctx = await reauthResolver!()
+      const ctx = await state.reauthResolver!()
       if (!ctx) {
         log.warn('DID re-auth: no context available (vault not open?)')
         return null
@@ -149,8 +177,8 @@ export const attemptDidReauthAsync = async (): Promise<string | null> => {
       log.info('DID re-auth: token expired, re-authenticating via DID challenge...')
       const session = await didAuthenticateAsync(ctx.serverUrl, ctx.did, ctx.privateKey)
 
-      setSession(session)
-      lastReauthAttempt = 0
+      setSession(id, session)
+      state.lastReauthAttempt = 0
       log.info('DID re-auth: successfully re-authenticated')
       return session.access_token
     } catch (e) {
@@ -160,9 +188,9 @@ export const attemptDidReauthAsync = async (): Promise<string | null> => {
   })()
 
   try {
-    return await pendingReauthPromise
+    return await state.pendingReauthPromise
   } finally {
-    pendingReauthPromise = null
+    state.pendingReauthPromise = null
   }
 }
 
@@ -184,41 +212,61 @@ const isTokenExpired = (token: string): boolean => {
 /**
  * Gets the current auth token, automatically re-authenticating if expired.
  */
-export const getAuthTokenAsync = async (): Promise<string | null> => {
-  if (!cachedAccessToken) {
+export const getAuthTokenAsync = async (backendId?: string): Promise<string | null> => {
+  const id = resolveBackendId(backendId)
+  const state = getOrCreateState(id)
+
+  if (!state.accessToken) {
     log.warn('No auth token available — attempting DID re-authentication...')
-    return attemptDidReauthAsync()
+    return attemptDidReauthAsync(id)
   }
 
-  if (isTokenExpired(cachedAccessToken)) {
+  if (isTokenExpired(state.accessToken)) {
     log.info('Auth token expired, re-authenticating via DID...')
-    return attemptDidReauthAsync()
+    return attemptDidReauthAsync(id)
   }
 
-  return cachedAccessToken
+  return state.accessToken
 }
 
 /**
  * Caches an access token directly.
  */
-export const cacheAccessToken = (token: string): void => {
-  updateCachedToken(token)
+export const cacheAccessToken = (backendId: string, token: string): void => {
+  updateCachedToken(backendId, token)
+}
+
+/**
+ * Checks if a specific backend has been initialized.
+ */
+export const isTokenManagerInitializedForBackend = (backendId: string): boolean => {
+  return tokenStates.has(backendId)
+}
+
+/**
+ * Clears token state for a specific backend.
+ */
+export const clearTokenState = (backendId: string): void => {
+  tokenStates.delete(backendId)
+}
+
+/**
+ * Clears all token states.
+ */
+export const clearAllTokenStates = (): void => {
+  tokenStates.clear()
+  currentBackendIdRef.value = null
 }
 
 /**
  * Resets all token manager state.
  */
 export const resetTokenManager = (): void => {
-  isInitializedRef.value = false
+  // Inform Rust that there is no auth token
+  invoke('set_auth_token', { token: null }).catch(() => {})
+  tokenStates.clear()
   currentBackendIdRef.value = null
-  cachedRefreshToken = null
-  updateCachedToken(null)
 }
-
-/**
- * Shared promise so parallel 401s wait on the same re-auth attempt.
- */
-let pendingReauth: Promise<string | null> | null = null
 
 /**
  * Fetch wrapper that automatically retries with DID re-auth on 401 responses.
@@ -226,20 +274,23 @@ let pendingReauth: Promise<string | null> | null = null
 export const fetchWithReauthAsync = async (
   url: string,
   init: RequestInit,
+  backendId?: string,
 ): Promise<Response> => {
+  const id = resolveBackendId(backendId)
+  const state = getOrCreateState(id)
   const response = await fetch(url, init)
   if (response.status !== 401) return response
 
-  if (!pendingReauth) {
+  if (!state.pendingReauth) {
     log.warn('Server returned 401 — attempting DID re-authentication...')
-    pendingReauth = attemptDidReauthAsync().finally(() => {
-      pendingReauth = null
+    state.pendingReauth = attemptDidReauthAsync(id).finally(() => {
+      state.pendingReauth = null
     })
   } else {
     log.debug('Server returned 401 — waiting for ongoing re-auth...')
   }
 
-  const newToken = await pendingReauth
+  const newToken = await state.pendingReauth
   if (!newToken) return response
 
   const headers = new Headers(init.headers)

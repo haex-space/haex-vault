@@ -21,6 +21,22 @@ pub struct CleanupResult {
     pub total_deleted: usize,
 }
 
+/// RAII guard to ensure PRAGMA foreign_keys is re-enabled on drop.
+struct ForeignKeyGuard<'a>(&'a Connection);
+
+impl<'a> ForeignKeyGuard<'a> {
+    fn disable(conn: &'a Connection) -> Result<Self, rusqlite::Error> {
+        conn.execute("PRAGMA foreign_keys = OFF", [])?;
+        Ok(Self(conn))
+    }
+}
+
+impl Drop for ForeignKeyGuard<'_> {
+    fn drop(&mut self) {
+        let _ = self.0.execute("PRAGMA foreign_keys = ON", []);
+    }
+}
+
 /// Cleans up old tombstones (hard-deletes rows with haex_tombstone = 1)
 ///
 /// Converts soft-deletes older than `retention_days` into hard deletes
@@ -51,16 +67,14 @@ pub fn cleanup_tombstones(
     let mut tables_processed = 0;
 
     // Temporarily disable foreign key checks to avoid constraint errors
-    // when deleting parent rows that are still referenced by child tombstones
-    conn.execute("PRAGMA foreign_keys = OFF", [])?;
+    // when deleting parent rows that are still referenced by child tombstones.
+    // RAII guard ensures FK is re-enabled even on error or panic.
+    let _fk_guard = ForeignKeyGuard::disable(conn)?;
 
-    // Ensure foreign keys are re-enabled even if an error occurs
-    let result = cleanup_tombstones_internal(conn, retention_days, &mut total_deleted, &mut tables_processed);
+    cleanup_tombstones_internal(conn, retention_days, &mut total_deleted, &mut tables_processed)?;
 
-    // Re-enable foreign keys
-    conn.execute("PRAGMA foreign_keys = ON", [])?;
-
-    result.map(|_| CleanupResult {
+    // FK re-enabled automatically when _fk_guard drops
+    Ok(CleanupResult {
         tombstones_deleted: total_deleted,
         applied_deleted: tables_processed,
         total_deleted,
@@ -153,6 +167,7 @@ fn cleanup_tombstones_internal(
             let delete_sql = format!(
                 "DELETE FROM \"{}\"
                  WHERE {TOMBSTONE_COLUMN} = 1
+                 AND haex_timestamp IS NOT NULL
                  AND CAST(substr(haex_timestamp, 1, instr(haex_timestamp, '/') - 1) AS INTEGER) < ?1",
                 table_name
             );

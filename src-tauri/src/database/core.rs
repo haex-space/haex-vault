@@ -237,8 +237,13 @@ pub fn execute(
         .collect::<Result<Vec<_>, _>>()?;
     let params_sql: Vec<&dyn ToSql> = params_converted.iter().map(|v| v as &dyn ToSql).collect();
 
+    let has_returning = match parse_single_statement(&sql) {
+        Ok(stmt) => statement_has_returning(&stmt),
+        Err(_) => false,
+    };
+
     with_connection(connection, |conn| {
-        if sql.to_uppercase().contains("RETURNING") {
+        if has_returning {
             let mut stmt = conn.prepare(&sql)?;
             let num_columns = stmt.column_count();
             let mut rows = stmt.query(&params_sql[..])?;
