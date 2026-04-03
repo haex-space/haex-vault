@@ -17,6 +17,7 @@ pub mod commands;
 pub mod database;
 pub mod filesystem;
 pub mod service;
+pub mod shared;
 pub mod types;
 pub mod web;
 

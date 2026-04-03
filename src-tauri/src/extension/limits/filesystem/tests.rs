@@ -3,18 +3,19 @@
 //! Tests for filesystem limit enforcement
 
 use super::*;
-use crate::extension::limits::filesystem::enforcer::{FileOpGuard, FileOpTracker};
+use crate::extension::limits::filesystem::enforcer::FileOpGuard;
+use crate::extension::limits::shared::ConcurrencyTracker;
 use crate::extension::limits::types::{FilesystemLimits, LimitError};
 
 #[test]
 fn test_file_op_tracker_initial_count() {
-    let tracker = FileOpTracker::new();
+    let tracker = ConcurrencyTracker::new();
     assert_eq!(tracker.get_count("ext1"), 0);
 }
 
 #[test]
 fn test_file_op_tracker_acquire_release() {
-    let tracker = FileOpTracker::new();
+    let tracker = ConcurrencyTracker::new();
 
     let count1 = tracker.acquire("ext1");
     assert_eq!(count1, 1);
@@ -31,7 +32,7 @@ fn test_file_op_tracker_acquire_release() {
 
 #[test]
 fn test_file_op_guard_raii() {
-    let tracker = FileOpTracker::new();
+    let tracker = ConcurrencyTracker::new();
 
     {
         let _guard = FileOpGuard::new(&tracker, "ext1".to_string());

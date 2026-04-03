@@ -2,13 +2,14 @@
 //!
 //! Web request limit enforcement implementation (placeholder)
 
+use crate::extension::limits::shared::ConcurrencyTracker;
 use crate::extension::limits::types::{LimitError, WebLimits};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
-/// Rate limit window entry
+/// Rate limit window entry with byte tracking for web requests
 #[derive(Debug)]
 struct RateLimitWindow {
     count: AtomicUsize,
@@ -51,61 +52,15 @@ impl RateLimitWindow {
     }
 }
 
-/// Tracks concurrent web requests per extension
-#[derive(Debug, Default)]
-pub struct WebRequestTracker {
-    counts: RwLock<HashMap<String, Arc<AtomicUsize>>>,
-}
-
-impl WebRequestTracker {
-    pub fn new() -> Self {
-        Self {
-            counts: RwLock::new(HashMap::new()),
-        }
-    }
-
-    pub fn acquire(&self, extension_id: &str) -> usize {
-        let counter = {
-            let counts = self.counts.read().unwrap_or_else(|e| e.into_inner());
-            counts.get(extension_id).cloned()
-        };
-
-        match counter {
-            Some(counter) => counter.fetch_add(1, Ordering::SeqCst) + 1,
-            None => {
-                let mut counts = self.counts.write().unwrap_or_else(|e| e.into_inner());
-                let counter = counts
-                    .entry(extension_id.to_string())
-                    .or_insert_with(|| Arc::new(AtomicUsize::new(0)));
-                counter.fetch_add(1, Ordering::SeqCst) + 1
-            }
-        }
-    }
-
-    pub fn release(&self, extension_id: &str) {
-        let counts = self.counts.read().unwrap_or_else(|e| e.into_inner());
-        if let Some(counter) = counts.get(extension_id) {
-            counter.fetch_sub(1, Ordering::SeqCst);
-        }
-    }
-
-    pub fn get_count(&self, extension_id: &str) -> usize {
-        let counts = self.counts.read().unwrap_or_else(|e| e.into_inner());
-        counts
-            .get(extension_id)
-            .map(|c| c.load(Ordering::SeqCst))
-            .unwrap_or(0)
-    }
-}
 
 /// RAII guard for concurrent web requests
 pub struct WebRequestGuard<'a> {
-    tracker: &'a WebRequestTracker,
+    tracker: &'a ConcurrencyTracker,
     extension_id: String,
 }
 
 impl<'a> WebRequestGuard<'a> {
-    pub fn new(tracker: &'a WebRequestTracker, extension_id: String) -> Self {
+    pub fn new(tracker: &'a ConcurrencyTracker, extension_id: String) -> Self {
         tracker.acquire(&extension_id);
         Self {
             tracker,
@@ -123,14 +78,14 @@ impl Drop for WebRequestGuard<'_> {
 /// Web request limit enforcer
 #[derive(Debug, Default)]
 pub struct WebLimitEnforcer {
-    concurrency: WebRequestTracker,
+    concurrency: ConcurrencyTracker,
     rate_limits: RwLock<HashMap<String, Arc<RateLimitWindow>>>,
 }
 
 impl WebLimitEnforcer {
     pub fn new() -> Self {
         Self {
-            concurrency: WebRequestTracker::new(),
+            concurrency: ConcurrencyTracker::new(),
             rate_limits: RwLock::new(HashMap::new()),
         }
     }
@@ -214,7 +169,7 @@ impl WebLimitEnforcer {
     }
 
     /// Get the concurrency tracker reference
-    pub fn concurrency(&self) -> &WebRequestTracker {
+    pub fn concurrency(&self) -> &ConcurrencyTracker {
         &self.concurrency
     }
 }

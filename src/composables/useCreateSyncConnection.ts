@@ -3,6 +3,7 @@ import {
   encryptPrivateKeyAsync,
 } from '@haex-space/vault-sdk'
 import { didAuthenticateAsync } from '~/stores/sync/engine/tokenManager'
+import { getErrorMessage } from '~/utils/errors'
 
 export interface ServerRequirements {
   serverName: string
@@ -209,7 +210,7 @@ export const useCreateSyncConnection = () => {
       return { status: 'connected' as const, backendId }
     } catch (err) {
       console.error('[SYNC] Failed to create connection:', err)
-      error.value = err instanceof Error ? err.message : 'Unknown error'
+      error.value = getErrorMessage(err)
       return null
     } finally {
       isLoading.value = false
@@ -238,7 +239,7 @@ export const useCreateSyncConnection = () => {
       return true
     } catch (err) {
       console.error('[SYNC] Email verification failed:', err)
-      error.value = err instanceof Error ? err.message : 'Unknown error'
+      error.value = getErrorMessage(err)
       return false
     } finally {
       isLoading.value = false
@@ -264,7 +265,7 @@ export const useCreateSyncConnection = () => {
       return true
     } catch (err) {
       console.error('[SYNC] Resend verification failed:', err)
-      error.value = err instanceof Error ? err.message : 'Unknown error'
+      error.value = getErrorMessage(err)
       return false
     }
   }
@@ -285,7 +286,7 @@ export const useCreateSyncConnection = () => {
       return backendId
     } catch (err) {
       console.error('[SYNC] Failed to complete connection:', err)
-      error.value = err instanceof Error ? err.message : 'Unknown error'
+      error.value = getErrorMessage(err)
       return null
     } finally {
       isLoading.value = false
@@ -332,7 +333,7 @@ export const useCreateSyncConnection = () => {
       syncEngineStore.initTokenManagerAsync(backendId)
 
       const session = await loginAsync(serverUrl, identityId)
-      syncEngineStore.setSession(session)
+      syncEngineStore.setSession(backendId, session)
 
       if (!currentVaultPassword.value) {
         throw new Error('Vault password not available')

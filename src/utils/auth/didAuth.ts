@@ -4,13 +4,9 @@ import {
   type FederatedAuthParams,
   type CreateFederatedAuthOptions,
 } from '@haex-space/federation-sdk'
+import { toBase64Url } from '~/utils/encoding'
 
 export type { FederatedAuthParams }
-
-function base64urlEncode(data: Uint8Array): string {
-  const base64 = btoa(String.fromCharCode(...data))
-  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
 
 export async function createDidAuthHeader(
   privateKeyBase64: string,
@@ -18,7 +14,7 @@ export async function createDidAuthHeader(
   action: string,
   body?: string,
 ): Promise<string> {
-  const bodyHash = base64urlEncode(
+  const bodyHash = toBase64Url(
     new Uint8Array(
       await crypto.subtle.digest('SHA-256', new TextEncoder().encode(body ?? '')),
     ),
@@ -32,7 +28,7 @@ export async function createDidAuthHeader(
   })
 
   const payloadBytes = new TextEncoder().encode(payload)
-  const base64urlPayload = base64urlEncode(payloadBytes)
+  const base64urlPayload = toBase64Url(payloadBytes)
 
   const privateKey = await importUserPrivateKeyAsync(privateKeyBase64)
   const signatureBuffer = await crypto.subtle.sign(
@@ -40,7 +36,7 @@ export async function createDidAuthHeader(
     privateKey,
     new TextEncoder().encode(base64urlPayload),
   )
-  const base64urlSignature = base64urlEncode(new Uint8Array(signatureBuffer))
+  const base64urlSignature = toBase64Url(new Uint8Array(signatureBuffer))
 
   return `DID ${base64urlPayload}.${base64urlSignature}`
 }

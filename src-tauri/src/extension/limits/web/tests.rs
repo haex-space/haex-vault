@@ -4,17 +4,18 @@
 
 use super::*;
 use crate::extension::limits::types::{LimitError, WebLimits};
-use crate::extension::limits::web::enforcer::{WebRequestGuard, WebRequestTracker};
+use crate::extension::limits::web::enforcer::WebRequestGuard;
+use crate::extension::limits::shared::ConcurrencyTracker;
 
 #[test]
 fn test_web_request_tracker_initial_count() {
-    let tracker = WebRequestTracker::new();
+    let tracker = ConcurrencyTracker::new();
     assert_eq!(tracker.get_count("ext1"), 0);
 }
 
 #[test]
 fn test_web_request_tracker_acquire_release() {
-    let tracker = WebRequestTracker::new();
+    let tracker = ConcurrencyTracker::new();
 
     let count1 = tracker.acquire("ext1");
     assert_eq!(count1, 1);
@@ -31,7 +32,7 @@ fn test_web_request_tracker_acquire_release() {
 
 #[test]
 fn test_web_request_guard_raii() {
-    let tracker = WebRequestTracker::new();
+    let tracker = ConcurrencyTracker::new();
 
     {
         let _guard = WebRequestGuard::new(&tracker, "ext1".to_string());

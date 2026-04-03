@@ -2,6 +2,7 @@ import {
   decryptPrivateKeyAsync,
   publicKeyToDidKeyAsync,
 } from '@haex-space/vault-sdk'
+import { getErrorMessage } from '~/utils/errors'
 
 export interface RecoveryKeyData {
   did: string
@@ -62,7 +63,7 @@ export const useIdentityRecovery = () => {
       return true
     } catch (err) {
       console.error('[RECOVERY] OTP request failed:', err)
-      error.value = err instanceof Error ? err.message : 'Unknown error'
+      error.value = getErrorMessage(err)
       return false
     } finally {
       isLoading.value = false
@@ -98,7 +99,7 @@ export const useIdentityRecovery = () => {
       return await res.json()
     } catch (err) {
       console.error('[RECOVERY] OTP verify failed:', err)
-      error.value = err instanceof Error ? err.message : 'Unknown error'
+      error.value = getErrorMessage(err)
       return null
     } finally {
       isLoading.value = false
@@ -135,7 +136,7 @@ export const useIdentityRecovery = () => {
       return true
     } catch (err) {
       console.error('[RECOVERY] Decrypt/verify failed:', err)
-      error.value = err instanceof Error ? err.message : 'Unknown error'
+      error.value = getErrorMessage(err)
       return false
     } finally {
       isLoading.value = false

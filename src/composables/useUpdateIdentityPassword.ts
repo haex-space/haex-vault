@@ -3,6 +3,7 @@ import {
 } from '@haex-space/vault-sdk'
 import { DidAuthAction } from '@haex-space/ucan'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
+import { getErrorMessage } from '~/utils/errors'
 
 /**
  * Composable for updating the identity password on all connected sync backends.
@@ -81,7 +82,7 @@ export const useUpdateIdentityPassword = () => {
       return true
     } catch (err) {
       console.error('[UPDATE PASSWORD] Failed:', err)
-      error.value = err instanceof Error ? err.message : 'Unknown error'
+      error.value = getErrorMessage(err)
       return false
     } finally {
       isLoading.value = false

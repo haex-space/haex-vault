@@ -3,7 +3,8 @@
 //! Tests for database limit enforcement
 
 use super::*;
-use crate::extension::limits::database::enforcer::{ConcurrencyTracker, QueryGuard};
+use crate::extension::limits::database::enforcer::QueryGuard;
+use crate::extension::limits::shared::ConcurrencyTracker;
 use crate::extension::limits::types::{DatabaseLimits, LimitError};
 
 #[test]

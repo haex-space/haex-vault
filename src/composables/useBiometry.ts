@@ -13,6 +13,7 @@ import {
   type GetDataOptions,
   type SetDataOptions,
 } from '@choochmeque/tauri-plugin-biometry-api'
+import { getErrorMessage } from '~/utils/errors'
 
 export { BiometryType }
 
@@ -28,7 +29,7 @@ export function useBiometry() {
       status.value = await biometryCheckStatus()
       return status.value
     } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e)
+      error.value = getErrorMessage(e)
       throw e
     } finally {
       isLoading.value = false
@@ -45,7 +46,7 @@ export function useBiometry() {
       await biometryAuthenticate(reason, options)
       return true
     } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e)
+      error.value = getErrorMessage(e)
       return false
     } finally {
       isLoading.value = false
@@ -56,7 +57,7 @@ export function useBiometry() {
     try {
       return await biometryHasData(options)
     } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e)
+      error.value = getErrorMessage(e)
       return false
     }
   }
@@ -68,7 +69,7 @@ export function useBiometry() {
       const response = await biometryGetData(options)
       return response.data
     } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e)
+      error.value = getErrorMessage(e)
       return null
     } finally {
       isLoading.value = false
@@ -82,7 +83,7 @@ export function useBiometry() {
       await biometrySetData(options)
       return true
     } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e)
+      error.value = getErrorMessage(e)
       return false
     } finally {
       isLoading.value = false
@@ -94,7 +95,7 @@ export function useBiometry() {
       await biometryRemoveData(options)
       return true
     } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e)
+      error.value = getErrorMessage(e)
       return false
     }
   }
