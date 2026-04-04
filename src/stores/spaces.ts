@@ -172,6 +172,18 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       if (db) await persistUcanAsync(db, id, rootUcan)
     }
 
+    // Add creator as space member
+    if (identity) {
+      await addMemberToSpaceAsync({
+        spaceId: id,
+        memberDid: identity.did,
+        label: identity.label || identity.did.slice(0, 16),
+        role: 'admin',
+        avatar: identity.avatar,
+        avatarOptions: identity.avatarOptions,
+      })
+    }
+
     // Start leader mode so this device can handle invites and delivery
     await invoke('local_delivery_start', { spaceId: id })
 
@@ -261,6 +273,20 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const { useMlsDelivery } = await import('@/composables/useMlsDelivery')
     const delivery = useMlsDelivery(serverUrl, spaceId, { privateKey: identity.privateKey, did: identity.did })
     await delivery.uploadKeyPackagesAsync()
+
+    // Add creator as space member
+    const identityStore = useIdentityStore()
+    const fullIdentity = identityStore.ownIdentities.find(i => i.did === identity.did)
+    if (fullIdentity) {
+      await addMemberToSpaceAsync({
+        spaceId,
+        memberDid: fullIdentity.did,
+        label: fullIdentity.label || fullIdentity.did.slice(0, 16),
+        role: 'admin',
+        avatar: fullIdentity.avatar,
+        avatarOptions: fullIdentity.avatarOptions,
+      })
+    }
 
     log.info(`Created space ${spaceId}`)
     await listSpacesAsync(serverUrl, identityId)
@@ -523,6 +549,20 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       })
 
       log.info(`Claimed invite token for space ${spaceId} (capability: ${data.capability})`)
+    }
+
+    // Add self as space member
+    const identityStore = useIdentityStore()
+    const myIdentity = identityStore.ownIdentities[0]
+    if (myIdentity) {
+      await addMemberToSpaceAsync({
+        spaceId,
+        memberDid: myIdentity.did,
+        label: myIdentity.label || myIdentity.did.slice(0, 16),
+        role: data.capability?.replace('space/', '') || 'read',
+        avatar: myIdentity.avatar,
+        avatarOptions: myIdentity.avatarOptions,
+      })
     }
 
     return { capability: data.capability }
@@ -964,6 +1004,17 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     }
 
     await loadSpacesFromDbAsync()
+
+    // Add self as space member
+    await addMemberToSpaceAsync({
+      spaceId: invite.spaceId,
+      memberDid: identity.did,
+      label: identity.label || identity.did.slice(0, 16),
+      role: 'read',
+      avatar: identity.avatar,
+      avatarOptions: identity.avatarOptions,
+    })
+
     log.info(`Accepted local invite for space ${invite.spaceId}`)
   }
 
