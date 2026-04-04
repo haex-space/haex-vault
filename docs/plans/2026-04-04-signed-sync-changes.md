@@ -1,122 +1,149 @@
 # ADR: Kryptographisch signierte Sync-Changes
 
-**Status:** Geplant
+**Status:** In Arbeit (aktualisiert 2026-04-05)
 **Datum:** 2026-04-04
 **Kontext:** Capability-Enforcement bei CRDT-Sync
 
 ## Problem
 
-Aktuell werden CRDT-Changes unsigniert über den Sync-Server und QUIC übertragen. Es gibt keine Möglichkeit zu verifizieren:
-1. **Wer** eine Änderung gemacht hat (Authentizität)
-2. **Ob** die Änderung manipuliert wurde (Integrität)
-3. **Ob** der Absender die nötige Berechtigung hatte (Autorisierung)
+CRDT-Changes werden über den Sync-Server übertragen. Dabei signiert der Sender jeden Change mit Ed25519, und der Server verifiziert die Signatur beim Push. **Allerdings verifiziert der Empfänger (Pull-Seite) die Signaturen nicht.** Ein kompromittierter Server könnte daher manipulierte Changes mit gefälschten Signaturen an Clients liefern.
 
-### Angriffsvektoren
-- Kompromittierter Sync-Server kann Änderungen injizieren oder manipulieren
-- Man-in-the-Middle auf dem Transportweg kann Changes verfälschen
-- Read-Only Peer kann auf QUIC-Ebene Writes senden (gefixt in leader.rs, aber nicht end-to-end abgesichert)
+### Angriffsvektor
 
-## Entscheidung
+Kompromittierter Sync-Server kann beim Pull:
+- Changes mit gefälschten Signaturen injizieren
+- Bestehende Changes manipulieren (encryptedValue austauschen)
+- Changes von nicht-autorisierten DIDs einspeisen
 
-**Jeder CRDT-Change wird vom Absender signiert.** Der Empfänger verifiziert die Signatur und prüft die UCAN-Capability bevor er die Änderung anwendet.
+### Kein Problem: QUIC (Local Delivery)
 
-## Design
+QUIC-Verbindungen sind direkter Peer-to-Peer-Transport mit:
+- TLS 1.3 Authentifizierung im QUIC-Handshake
+- Capability-Check in `leader.rs` (`check_write_capability()`)
+- Kein Mittelsmann → kein Manipulationsrisiko
 
-### 1. Change-Format erweitern
+**Entscheidung:** QUIC braucht keine zusätzliche Signaturschicht.
 
-Aktuell (`RemoteColumnChange`):
-```rust
-pub struct RemoteColumnChange {
-    pub table_name: String,
-    pub row_pks: String,
-    pub column_name: String,
-    pub hlc_timestamp: String,
-    pub batch_id: String,
-    pub batch_seq: usize,
-    pub batch_total: usize,
-    pub decrypted_value: JsonValue,
-}
-```
+## Ist-Zustand (was bereits existiert)
 
-Erweitert um:
-```rust
-pub struct RemoteColumnChange {
-    // ... bestehende Felder ...
-    pub author_did: String,        // DID des Absenders
-    pub signature: String,         // Ed25519 Signatur über den Change-Hash
-    pub content_hash: String,      // SHA-256 Hash über (table_name, row_pks, column_name, hlc_timestamp, value)
-}
-```
+| Komponente | Status | Details |
+|-----------|--------|---------|
+| `signRecordAsync` (vault-sdk) | ✅ Fertig | Ed25519, Kanonisierung via `\0`-Separator |
+| `verifyRecordSignatureAsync` (vault-sdk) | ✅ Fertig | Gegenstück zu sign, gleiche Kanonisierung |
+| Push signiert Changes | ✅ Fertig | `push.ts:275-291`, signiert über `{tableName, rowPks, columnName, encryptedValue, hlcTimestamp}` |
+| Server-Schema `signature`/`signedBy` Spalten | ✅ Fertig | `sync_changes` Tabelle hat beide Spalten |
+| Server verifiziert beim Push | ✅ Fertig | `sync.helpers.ts` → `verifyRecordSignatureAsync()` |
+| Pull-Response enthält Signaturen | ✅ Fertig | `signature`, `signedBy`, `recordOwner` für Space-Syncs |
+| **Client-seitige Verifikation beim Pull** | ❌ Fehlt | TODO in `pull.ts:159-162` |
+| **E2E Tests für Signatur-Integrität** | ❌ Fehlt | `evil-scenarios.spec.ts` testet keine Signaturen |
 
-### 2. Signatur-Flow
+## Verbleibende Arbeit
 
-**Sender (bei jedem CRDT-Write):**
-1. Change-Daten serialisieren → deterministisches JSON (sortierte Keys)
-2. SHA-256 Hash über das serialisierte JSON → `content_hash`
-3. `content_hash` mit DID-Private-Key signieren → `signature`
-4. `author_did` + `signature` + `content_hash` dem Change hinzufügen
+### 1. Client-seitige Signatur-Verifikation beim Pull
 
-**Empfänger (bei apply_remote_changes_to_db):**
-1. `content_hash` aus den Change-Daten neu berechnen
-2. Berechneten Hash mit mitgeliefertem `content_hash` vergleichen (Integrität)
-3. `signature` mit `author_did`'s Public Key verifizieren (Authentizität)
-4. UCAN-Capability für `author_did` + `space_id` prüfen (Autorisierung)
-5. Nur bei Success: Change anwenden
+**Datei:** `src/stores/sync/orchestrator/pull.ts`
 
-### 3. Sync-Server Schema
+**Wo:** Nach dem Empfang der Changes vom Server, **vor** der Entschlüsselung und Anwendung.
 
-`sync_changes` Tabelle erweitern:
-```sql
-ALTER TABLE sync_changes ADD COLUMN author_did TEXT;
-ALTER TABLE sync_changes ADD COLUMN signature TEXT;
-ALTER TABLE sync_changes ADD COLUMN content_hash TEXT;
-```
+**Ablauf:**
+1. Für jeden Change mit `signature` + `signedBy`:
+   - `verifyRecordSignatureAsync(record, signature, signedBy)` aufrufen
+   - Record = `{tableName, rowPks, columnName, encryptedValue, hlcTimestamp}` (verschlüsselter Wert, wie er vom Server kommt)
+2. Public Key des Signers gegen bekannte Space-Member prüfen (siehe Punkt 2)
+3. Bei fehlgeschlagener Verifikation: **gesamten Pull-Batch verwerfen** und Error loggen
 
-Server prüft beim Push:
-1. `author_did` muss zum authentifizierten User gehören
-2. `signature` muss gültig sein
-3. Capability wird wie bisher über `requireCapability` geprüft
+**Warum ganzen Batch verwerfen?** Ein teilweise angewendeter Batch mit manipulierten Changes könnte inkonsistente CRDT-State erzeugen. Lieber den gesamten Pull ablehnen und den User/Log informieren.
 
-### 4. Betroffene Komponenten
+**Grace Period:** Changes ohne `signature` (von vor der Signatur-Einführung) werden akzeptiert. Nur Changes MIT Signatur werden verifiziert — eine ungültige Signatur ist schlimmer als keine.
 
-| Komponente | Änderung |
-|-----------|----------|
-| `crdt/commands.rs` | `execute_with_crdt` signiert jeden Change |
-| `crdt/commands.rs` | `apply_remote_changes_to_db` verifiziert Signatur + Capability |
-| `space_delivery/local/leader.rs` | SyncPush verifiziert Signaturen |
-| `space_delivery/local/sync_loop.rs` | Pull verifiziert Signaturen |
-| Frontend: Sync-Push TypeScript | `author_did` + `signature` mitsenden |
-| Frontend: Sync-Pull TypeScript | Signatur verifizieren vor `apply_remote_changes_in_transaction` |
-| haex-sync-server: `sync.ts` | `author_did`, `signature`, `content_hash` Spalten speichern/validieren |
-| haex-sync-server: Schema | Migration für neue Spalten |
+### 2. Member-Public-Key-Auflösung
 
-### 5. Migration / Backward Compatibility
+**Voraussetzung:** [Space Members Tabelle](2026-04-05-space-members-table.md) — separiert Space-Member vom Kontaktbuch.
 
-- Changes ohne Signatur werden während der Migration akzeptiert (grace period)
-- Nach der Migration: unsignierte Changes werden rejected
-- Bestandsdaten in `sync_changes` werden nicht nachträglich signiert (nur neue Changes)
+**Problem:** `signedBy` im Pull-Response ist ein Raw-Public-Key (Base64 SPKI). Der Client muss verifizieren, dass dieser Key zu einem bekannten Space-Member gehört.
 
-### 6. Performance-Überlegungen
+**Lösung:** Gegen `haex_space_members_no_sync` Tabelle prüfen:
+- `signedBy` muss einem `memberPublicKey`-Eintrag für den betreffenden Space entsprechen
+- Lookup: `WHERE spaceId = X AND memberPublicKey = signedBy`
+- Index auf `(spaceId, memberPublicKey)` macht das effizient
 
-- Ed25519 Signatur: ~60µs pro Signatur, ~30µs pro Verify → vernachlässigbar
-- SHA-256 Hash: ~1µs pro Change → vernachlässigbar
-- Zusätzliche DB-Queries für Capability-Check: 1 Query pro unique `author_did` im Batch
-- Batch-Optimierung: Capability-Cache pro `author_did` innerhalb eines Batches
+**Cache:** Pro Pull-Batch einmal die bekannten Public Keys für den Space laden und im Memory cachen. Die Tabelle ist lokal und klein.
+
+**Unbekannte Signer:** Wenn `signedBy` keinem bekannten Member entspricht → Change verwerfen. Das deckt den Fall ab, dass ein kompromittierter Server Changes von "Phantom-Membern" injiziert.
+
+### 3. E2E Tests
+
+**Datei:** `haex-e2e-tests/tests/sync/signature-verification.spec.ts` (neu)
+
+Die bestehende `evil-scenarios.spec.ts` testet Server-seitige Abwehr. Die neuen Tests prüfen **Client-seitige** Verifikation und den **End-to-End-Signatur-Flow**.
+
+#### Testfälle
+
+**Happy Path:**
+
+| Test | Beschreibung |
+|------|-------------|
+| Signierter Change wird akzeptiert | Admin pushed signiert → Puller verifiziert erfolgreich |
+| Cross-Device Sync mit Signaturen | Device A pushed → Device B pulled und verifiziert → Daten korrekt |
+| Batch mit mehreren Autoren | Zwei autorisierte Member pushed → Puller akzeptiert beide Signaturen |
+
+**Angriffsvektoren (Server-seitig — `evil-scenarios.spec.ts` erweitern):**
+
+| Test | Beschreibung |
+|------|-------------|
+| Push ohne Signatur in Space wird rejected | Server muss `signature` + `signedBy` für Space-Syncs erzwingen |
+| Push mit falscher Signatur wird rejected | Gültige Struktur, aber falscher Private Key → Server rejected |
+| Push mit `signedBy` ≠ authentifizierter DID | Attacker signiert korrekt, gibt aber fremden Public Key an |
+| recordOwner-Manipulation: Attacker überschreibt fremden Record | Non-collaborative Record von Victim → Attacker versucht Update |
+
+**Angriffsvektoren (Client-seitig — `signature-verification.spec.ts`):**
+
+| Test | Beschreibung |
+|------|-------------|
+| Manipulierter `encryptedValue` bei intakter Signatur | Direkt in DB ändern → Pull-Client muss Signatur-Mismatch erkennen |
+| Manipulierter `hlcTimestamp` bei intakter Signatur | Timestamp in DB ändern → Verifikation schlägt fehl |
+| Gefälschte Signatur (gültiges Format, falscher Key) | Change in DB mit neuer Signatur von fremdem Key → Client rejected |
+| Change von unbekanntem Signer | `signedBy` zeigt auf Key der nicht in Space-Members ist → Client rejected |
+| Replay-Angriff: gültige Signatur, falscher Kontext | Signierter Change von Space A in Space B replayed → Client erkennt Kontext-Mismatch |
+| Batch mit gemischten validen/invaliden Signaturen | Ein manipulierter Change in Batch von 10 → gesamter Batch rejected |
+
+#### Test-Infrastruktur
+
+Die Tests nutzen die bestehenden Helpers:
+- `signAndPushSpaceChanges()` für valide Pushes
+- `pushChanges()` für Pushes ohne/mit manipulierter Signatur
+- Direkte DB-Manipulation für Server-seitige Tampering-Tests (Supabase-Client oder SQL)
+- `pullChanges()` + manuelle Verifikation mit `verifyRecordSignatureAsync`
+
+Für Client-seitige Tests (die tatsächlich die Vault-App testen):
+- `VaultAutomation` + `VaultBridgeClient` für App-Interaktion
+- Change in Server-DB manipulieren → App pullt → prüfen dass Change nicht angewendet wurde
+
+## Betroffene Dateien
+
+| Datei | Änderung |
+|-------|----------|
+| `haex-vault/src/stores/sync/orchestrator/pull.ts` | Signatur-Verifikation vor Anwendung |
+| `haex-e2e-tests/tests/sync/signature-verification.spec.ts` | Neue Testdatei |
+| `haex-e2e-tests/tests/sync/evil-scenarios.spec.ts` | Erweitert um Signatur-Angriffsvektoren |
 
 ## Implementierungs-Reihenfolge
 
-1. **Phase 1:** `content_hash` + `signature` Felder zum Change-Format hinzufügen (Rust + TS)
-2. **Phase 2:** Sender signiert alle Changes
-3. **Phase 3:** Empfänger verifiziert Signatur (Warnung bei fehlender Signatur)
-4. **Phase 4:** Sync-Server speichert/validiert Signaturen
-5. **Phase 5:** Fehlende Signatur wird rejected (kein Grace Period mehr)
+1. **[Space Members Tabelle](2026-04-05-space-members-table.md)** zuerst (Voraussetzung)
+2. **Pull-Verifikation:** `verifyRecordSignatureAsync` in `pull.ts` einbauen, Lookup gegen `haex_space_members_no_sync`
+3. **E2E Tests — Server-seitig:** `evil-scenarios.spec.ts` um Signatur-Tests erweitern
+4. **E2E Tests — Client-seitig:** `signature-verification.spec.ts` für End-to-End-Flow
+5. **Strict Mode:** Grace Period entfernen → unsignierte Changes rejected
 
-## E2E Tests
+## Nicht im Scope
 
-Folgende Tests werden benötigt:
-- Signierter Change wird akzeptiert
-- Change mit ungültiger Signatur wird rejected
-- Change mit gültiger Signatur aber ohne Capability wird rejected
-- Change von unbekanntem DID wird rejected
-- Manipulierter content_hash wird erkannt
-- Batch mit gemischten Autoren (einige autorisiert, einige nicht) wird komplett rejected
+- **QUIC-Signierung:** Nicht nötig (Peer-to-Peer mit TLS + Capability-Check)
+- **Rust-seitige Verifikation:** `apply_remote_changes_to_db` bleibt wie es ist — die Verifikation passiert im TypeScript-Layer vor der Übergabe an Rust
+- **Schema-Migration:** Keine neuen Spalten nötig — `signature`, `signedBy`, `recordOwner` existieren bereits
+- **Nachträgliche Signierung:** Bestandsdaten werden nicht nachsigniert
+
+## Performance
+
+- Ed25519 Verify: ~30µs pro Change → bei 1000 Changes im Batch: ~30ms
+- Public-Key-Lookup: 1 Query pro Pull-Batch (nicht pro Change)
+- Kein messbarer Impact auf die Sync-Performance
