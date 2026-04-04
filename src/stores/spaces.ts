@@ -939,6 +939,53 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     return new Map(members.map(m => [m.memberPublicKey, m.memberDid]))
   }
 
+  /** One-time migration: populate haex_space_members from existing haex_ucan_tokens */
+  const migrateExistingMembersAsync = async () => {
+    const db = getDb()
+    if (!db) return
+
+    const allTokens = await db.select().from(haexUcanTokens)
+    if (allTokens.length === 0) return
+
+    const { didKeyToPublicKeyAsync } = await import('@haex-space/vault-sdk')
+
+    // Group by (spaceId, audienceDid) — pick highest capability
+    const memberMap = new Map<string, { spaceId: string; did: string; capability: string }>()
+    const roleOrder = ['admin', 'invite', 'write', 'read']
+
+    for (const token of allTokens) {
+      const key = `${token.spaceId}:${token.audienceDid}`
+      const existing = memberMap.get(key)
+      const tokenRole = token.capability.replace('space/', '')
+      if (!existing || roleOrder.indexOf(tokenRole) < roleOrder.indexOf(existing.capability)) {
+        memberMap.set(key, { spaceId: token.spaceId, did: token.audienceDid, capability: tokenRole })
+      }
+    }
+
+    const identityStore = useIdentityStore()
+    await identityStore.loadIdentitiesAsync()
+
+    for (const member of memberMap.values()) {
+      try {
+        const memberPublicKey = await didKeyToPublicKeyAsync(member.did)
+        const knownIdentity = identityStore.allIdentities.find(i => i.did === member.did)
+
+        await db.insert(haexSpaceMembers).values({
+          spaceId: member.spaceId,
+          memberDid: member.did,
+          memberPublicKey,
+          label: knownIdentity?.label || member.did.slice(8, 24),
+          role: member.capability,
+          avatar: knownIdentity?.avatar ?? null,
+          avatarOptions: knownIdentity?.avatarOptions ?? null,
+          joinedAt: new Date().toISOString(),
+        }).onConflictDoNothing()
+      } catch (error) {
+        console.warn(`Failed to migrate member ${member.did}:`, error)
+      }
+    }
+  }
+
   /**
    * Accept a local P2P invite. Tries all space endpoints until ClaimInvite succeeds.
    */
@@ -1121,6 +1168,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     getSpaceMembersAsync,
     updateOwnSpaceProfileAsync,
     getMemberPublicKeysForSpaceAsync,
+    migrateExistingMembersAsync,
     queueQuicInviteAsync,
     acceptLocalInviteAsync,
     persistSpaceAsync,

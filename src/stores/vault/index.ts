@@ -427,6 +427,11 @@ export const useVaultStore = defineStore('vaultStore', () => {
     await spacesStore.loadSpacesFromDbAsync()
     await spacesStore.ensureDefaultSpaceAsync()
 
+    // One-time migration: backfill space members from existing UCAN tokens (non-blocking)
+    spacesStore.migrateExistingMembersAsync().catch((error) => {
+      console.warn('[HaexSpace] Member migration from UCANs failed:', error)
+    })
+
     // Start leader mode for all local spaces (enables invite handling)
     await spacesStore.startLocalSpaceLeadersAsync()
 
