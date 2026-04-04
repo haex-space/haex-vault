@@ -127,6 +127,39 @@ async fn lookup_peer_did(
         })
 }
 
+/// Check if a peer has write capability for the given space.
+/// Returns Ok(()) if the peer has space/write or space/admin, Err otherwise.
+fn check_write_capability(
+    db: &crate::database::DbConnection,
+    peer_did: &str,
+    space_id: &str,
+) -> Result<(), DeliveryError> {
+    let rows = crate::database::core::select_with_crdt(
+        "SELECT capability FROM haex_ucan_tokens WHERE space_id = ?1 AND audience_did = ?2"
+            .to_string(),
+        vec![
+            serde_json::Value::String(space_id.to_string()),
+            serde_json::Value::String(peer_did.to_string()),
+        ],
+        db,
+    )
+    .unwrap_or_default();
+
+    for row in &rows {
+        if let Some(cap) = row.first().and_then(|v| v.as_str()) {
+            if cap == "space/write" || cap == "space/admin" {
+                return Ok(());
+            }
+        }
+    }
+
+    Err(DeliveryError::AccessDenied {
+        reason: format!(
+            "Peer {peer_did} does not have space/write capability for space {space_id}"
+        ),
+    })
+}
+
 // ============================================================================
 // Request dispatcher
 // ============================================================================
@@ -357,6 +390,34 @@ async fn handle_delivery_stream(
                     },
                 )
                 .await;
+            }
+
+            // Capability enforcement: only peers with space/write or space/admin
+            // may push CRDT changes. Read-only peers are rejected.
+            match lookup_peer_did(state, peer_endpoint_id).await {
+                Ok(did) => {
+                    if let Err(e) = check_write_capability(&state.db, &did, &space_id) {
+                        eprintln!("[SpaceDelivery] SyncPush REJECTED: {e}");
+                        return send_response(
+                            &mut send,
+                            &Response::Error {
+                                message: format!("Access denied: {e}"),
+                            },
+                        )
+                        .await;
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[SpaceDelivery] SyncPush: peer not announced: {e}");
+                    return send_response(
+                        &mut send,
+                        &Response::Error {
+                            message: "Peer has not announced — cannot verify write capability"
+                                .to_string(),
+                        },
+                    )
+                    .await;
+                }
             }
 
             // 1. Parse changes JSON into Vec<LocalColumnChange>
