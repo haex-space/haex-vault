@@ -538,6 +538,7 @@ async fn handle_delivery_stream(
             endpoint_id,
             key_packages,
             label,
+            public_key,
         } => {
             if space_id != state.space_id {
                 return send_response(
@@ -670,6 +671,7 @@ async fn handle_delivery_stream(
             }
 
             // 7. Register peer as connected
+            let member_label = label.clone();
             state.connected_peers.write().await.insert(
                 endpoint_id.clone(),
                 ConnectedPeer {
@@ -682,6 +684,40 @@ async fn handle_delivery_stream(
                         .unwrap_or_default(),
                 },
             );
+
+            // 7b. Persist new member to haex_space_members (CRDT-synced to all devices)
+            if let Some(ref pk) = public_key {
+                let hlc = state.hlc.lock().map_err(|e| format!("HLC lock error: {e}")).ok();
+                if let Some(ref hlc_guard) = hlc {
+                    let member_id = uuid::Uuid::new_v4().to_string();
+                    let now = OffsetDateTime::now_utc()
+                        .format(&time::format_description::well_known::Rfc3339)
+                        .unwrap_or_default();
+                    let resolved_label = member_label
+                        .unwrap_or_else(|| did.chars().take(16).collect());
+
+                    let sql = "INSERT OR IGNORE INTO haex_space_members \
+                        (id, space_id, member_did, member_public_key, label, role, joined_at) \
+                        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)".to_string();
+
+                    use serde_json::Value as JsonValue;
+                    let params = vec![
+                        JsonValue::String(member_id),
+                        JsonValue::String(space_id.clone()),
+                        JsonValue::String(did.clone()),
+                        JsonValue::String(pk.clone()),
+                        JsonValue::String(resolved_label),
+                        JsonValue::String(capability.clone()),
+                        JsonValue::String(now),
+                    ];
+
+                    if let Err(e) = crate::database::core::execute_with_crdt(
+                        sql, params, &state.db, hlc_guard,
+                    ) {
+                        eprintln!("[SpaceDelivery] Failed to persist space member: {e}");
+                    }
+                }
+            }
 
             // 8. Return welcome + UCAN
             match bundle.welcome {

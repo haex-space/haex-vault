@@ -973,6 +973,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
           tokenId: invite.tokenId,
           identityDid: identity.did,
           label: identity.label || null,
+          identityPublicKey: identity.publicKey,
         })
         lastError = null
         break
