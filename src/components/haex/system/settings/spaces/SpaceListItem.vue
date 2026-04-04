@@ -6,87 +6,98 @@
     ]"
     @click="!pending && $emit('select', space)"
   >
-    <div
-      class="flex flex-col @xs:flex-row @xs:items-center @xs:justify-between gap-2"
-    >
-      <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-2 flex-wrap">
-          <p class="font-medium text-sm truncate">
-            {{ space.name }}
-          </p>
-          <UBadge
-            v-if="pending"
-            color="warning"
-            variant="subtle"
-            size="sm"
-            icon="i-lucide-clock"
-          >
-            {{ t('status.pending') }}
-          </UBadge>
-          <UBadge
-            v-if="!pending && space.serverUrl"
-            color="info"
-            variant="subtle"
-            size="sm"
-            icon="i-lucide-cloud"
-          >
-            {{ backendName }}
-          </UBadge>
-          <UBadge
-            v-if="!pending && !space.serverUrl"
-            color="neutral"
-            variant="subtle"
-            size="sm"
-            icon="i-lucide-hard-drive"
-          >
-            {{ t('type.local') }}
-          </UBadge>
-          <UBadge
-            v-if="!pending"
-            :color="permissionBadgeColor"
-            variant="subtle"
-            size="sm"
-          >
-            {{ permissionLabel }}
-          </UBadge>
-        </div>
-        <!-- Pending: inviter info + capabilities -->
-        <template v-if="pending && invite">
-          <p class="text-xs text-muted mt-1">
-            {{ t('invite.from') }}: {{ invite.inviterLabel || invite.inviterDid }}
-          </p>
-          <p v-if="invite.capabilities" class="text-xs text-muted">
-            {{ formatCapabilities(invite.capabilities) }}
-          </p>
-        </template>
-        <!-- Active: created date -->
-        <p v-else class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+    <!-- Row 1: Name + badges -->
+    <div class="flex items-center gap-2 flex-wrap">
+      <p class="font-medium text-sm truncate">
+        {{ space.name }}
+      </p>
+      <UBadge
+        v-if="pending"
+        color="warning"
+        variant="subtle"
+        size="sm"
+        icon="i-lucide-clock"
+      >
+        {{ t('status.pending') }}
+      </UBadge>
+      <UBadge
+        v-if="!pending && space.serverUrl"
+        color="info"
+        variant="subtle"
+        size="sm"
+        icon="i-lucide-cloud"
+      >
+        {{ backendName }}
+      </UBadge>
+      <UBadge
+        v-if="!pending && !space.serverUrl"
+        color="neutral"
+        variant="subtle"
+        size="sm"
+        icon="i-lucide-hard-drive"
+      >
+        {{ t('type.local') }}
+      </UBadge>
+      <UBadge
+        v-if="!pending"
+        :color="permissionBadgeColor"
+        variant="subtle"
+        size="sm"
+      >
+        {{ permissionLabel }}
+      </UBadge>
+    </div>
+
+    <!-- Pending invite details -->
+    <template v-if="pending && invite">
+      <!-- Inviter (clickable) -->
+      <button
+        class="text-xs text-primary hover:underline text-left truncate cursor-pointer"
+        @click.stop="showInviteDetail = true"
+      >
+        {{ t('invite.from') }}: {{ invite.inviterLabel || truncateDid(invite.inviterDid) }}
+      </button>
+
+      <!-- Meta row: capabilities, date, expiry -->
+      <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+        <span v-if="formattedCapabilities">
+          <UIcon name="i-lucide-shield" class="w-3 h-3 inline -mt-px" />
+          {{ formattedCapabilities }}
+        </span>
+        <span v-if="invite.createdAt">
+          <UIcon name="i-lucide-calendar" class="w-3 h-3 inline -mt-px" />
+          {{ formatDate(invite.createdAt) }}
+        </span>
+      </div>
+
+      <!-- Accept / Decline buttons (own row) -->
+      <div class="flex gap-2 pt-1">
+        <UiButton
+          color="primary"
+          variant="soft"
+          icon="i-lucide-check"
+          @click.stop="$emit('accept')"
+        >
+          {{ t('actions.accept') }}
+        </UiButton>
+        <UiButton
+          color="neutral"
+          variant="outline"
+          icon="i-lucide-x"
+          @click.stop="$emit('decline')"
+        >
+          {{ t('actions.decline') }}
+        </UiButton>
+      </div>
+    </template>
+
+    <!-- Active space info -->
+    <template v-else>
+      <div class="flex items-center justify-between">
+        <p class="text-xs text-gray-500 dark:text-gray-400">
           {{ t('createdAt') }}: {{ formatDate(space.createdAt) }}
         </p>
-      </div>
-      <div class="flex gap-2 @xs:shrink-0">
-        <!-- Pending: Accept/Decline only -->
-        <template v-if="pending">
-          <UiButton
-            color="primary"
-            variant="soft"
-            icon="i-lucide-check"
-            @click.stop="$emit('accept')"
-          >
-            {{ t('actions.accept') }}
-          </UiButton>
-          <UiButton
-            color="neutral"
-            variant="outline"
-            icon="i-lucide-x"
-            @click.stop="$emit('decline')"
-          >
-            {{ t('actions.decline') }}
-          </UiButton>
-        </template>
-
-        <!-- Active: admin actions -->
-        <template v-else>
+        <div class="flex gap-1">
           <UiButton
             v-if="isAdmin || canInvite"
             color="neutral"
@@ -123,10 +134,104 @@
             :title="t('actions.leave')"
             @click.stop="$emit('leave', space)"
           />
-        </template>
+        </div>
       </div>
-    </div>
+    </template>
 
+    <!-- Invite Detail Modal -->
+    <UModal
+      v-if="pending && invite"
+      v-model:open="showInviteDetail"
+    >
+      <template #content>
+        <UCard>
+          <template #header>
+            <div class="flex items-center justify-between">
+              <h3 class="text-base font-semibold">{{ t('detail.title') }}</h3>
+              <UiButton
+                color="neutral"
+                variant="ghost"
+                icon="i-lucide-x"
+                @click="showInviteDetail = false"
+              />
+            </div>
+          </template>
+
+          <div class="space-y-3 text-sm">
+            <!-- Space -->
+            <div>
+              <p class="text-xs text-muted uppercase tracking-wide mb-1">{{ t('detail.space') }}</p>
+              <p class="font-medium">{{ space.name }}</p>
+              <p v-if="space.serverUrl" class="text-xs text-muted break-all">{{ space.serverUrl }}</p>
+              <p v-else class="text-xs text-muted">{{ t('type.local') }}</p>
+            </div>
+
+            <!-- Inviter -->
+            <div>
+              <p class="text-xs text-muted uppercase tracking-wide mb-1">{{ t('detail.inviter') }}</p>
+              <p v-if="invite.inviterLabel" class="font-medium">{{ invite.inviterLabel }}</p>
+              <p class="text-xs text-muted break-all font-mono">{{ invite.inviterDid }}</p>
+            </div>
+
+            <!-- Capabilities -->
+            <div v-if="formattedCapabilities">
+              <p class="text-xs text-muted uppercase tracking-wide mb-1">{{ t('detail.capabilities') }}</p>
+              <div class="flex flex-wrap gap-1">
+                <UBadge
+                  v-for="cap in parsedCapabilities"
+                  :key="cap"
+                  color="info"
+                  variant="subtle"
+                  size="sm"
+                >
+                  {{ cap }}
+                </UBadge>
+              </div>
+            </div>
+
+            <!-- Dates -->
+            <div>
+              <p class="text-xs text-muted uppercase tracking-wide mb-1">{{ t('detail.dates') }}</p>
+              <div class="space-y-1 text-xs">
+                <p v-if="invite.createdAt">
+                  {{ t('detail.created') }}: {{ formatDate(invite.createdAt) }}
+                </p>
+                <p v-if="invite.includeHistory" class="text-info">
+                  <UIcon name="i-lucide-history" class="w-3 h-3 inline -mt-px" />
+                  {{ t('detail.includesHistory') }}
+                </p>
+              </div>
+            </div>
+
+            <!-- Token ID -->
+            <div v-if="invite.tokenId">
+              <p class="text-xs text-muted uppercase tracking-wide mb-1">{{ t('detail.tokenId') }}</p>
+              <p class="text-xs text-muted break-all font-mono">{{ invite.tokenId }}</p>
+            </div>
+          </div>
+
+          <template #footer>
+            <div class="flex gap-2 justify-end">
+              <UiButton
+                color="neutral"
+                variant="outline"
+                icon="i-lucide-x"
+                @click="showInviteDetail = false; $emit('decline')"
+              >
+                {{ t('actions.decline') }}
+              </UiButton>
+              <UiButton
+                color="primary"
+                icon="i-lucide-check"
+                @click="showInviteDetail = false; $emit('accept')"
+              >
+                {{ t('actions.accept') }}
+              </UiButton>
+            </div>
+          </template>
+        </UCard>
+      </template>
+    </UModal>
   </div>
 </template>
 
@@ -153,20 +258,9 @@ const emit = defineEmits<{
   decline: []
 }>()
 
-const inviteMenuItems = computed(() => [
-  [{
-    label: t('invite.contact'),
-    icon: 'i-lucide-user-plus',
-    onSelect: () => emit('invite-contact', props.space),
-  },
-  {
-    label: t('invite.link'),
-    icon: 'i-lucide-link',
-    onSelect: () => emit('invite-link', props.space),
-  }],
-])
-
 const { t } = useI18n()
+
+const showInviteDetail = ref(false)
 
 const spacesStore = useSpacesStore()
 const capabilities = ref<string[]>([])
@@ -187,6 +281,19 @@ const permissionBadgeColor = computed(() => {
   return 'neutral' as const
 })
 
+const inviteMenuItems = computed(() => [
+  [{
+    label: t('invite.contact'),
+    icon: 'i-lucide-user-plus',
+    onSelect: () => emit('invite-contact', props.space),
+  },
+  {
+    label: t('invite.link'),
+    icon: 'i-lucide-link',
+    onSelect: () => emit('invite-link', props.space),
+  }],
+])
+
 onMounted(async () => {
   if (!props.pending) {
     capabilities.value = await spacesStore.getCapabilitiesForSpaceAsync(props.space.id)
@@ -197,19 +304,34 @@ const { getBackendNameByUrl } = useSyncBackendsStore()
 
 const backendName = computed(() => getBackendNameByUrl(props.space.serverUrl))
 
-const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString()
+const formatDate = (dateStr: string | null) => {
+  if (!dateStr) return ''
+  return new Date(dateStr).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
-const formatCapabilities = (capabilities: string | null): string => {
-  if (!capabilities) return ''
-  try {
-    const parsed = JSON.parse(capabilities) as string[]
-    return parsed.map(c => c.replace('space/', '')).join(', ')
-  } catch {
-    return capabilities
-  }
+const truncateDid = (did: string) => {
+  if (did.length <= 24) return did
+  return `${did.slice(0, 20)}…${did.slice(-4)}`
 }
+
+const parsedCapabilities = computed((): string[] => {
+  if (!props.invite?.capabilities) return []
+  try {
+    return JSON.parse(props.invite.capabilities) as string[]
+  } catch {
+    return []
+  }
+})
+
+const formattedCapabilities = computed(() => {
+  return parsedCapabilities.value.map(c => c.replace('space/', '')).join(', ')
+})
 </script>
 
 <i18n lang="yaml">
@@ -230,6 +352,15 @@ de:
     from: Von
     contact: Kontakt einladen
     link: Einladungslink erstellen
+  detail:
+    title: Einladungsdetails
+    space: Space
+    inviter: Einladender
+    capabilities: Berechtigungen
+    dates: Details
+    created: Erstellt
+    includesHistory: Enthält Verlauf
+    tokenId: Token-ID
 en:
   status:
     pending: Pending
@@ -247,4 +378,13 @@ en:
     from: From
     contact: Invite contact
     link: Create invite link
+  detail:
+    title: Invitation details
+    space: Space
+    inviter: Invited by
+    capabilities: Permissions
+    dates: Details
+    created: Created
+    includesHistory: Includes history
+    tokenId: Token ID
 </i18n>

@@ -647,6 +647,7 @@ onMounted(async () => {
 
   // Listen for incoming P2P invites
   unlistenPushInvite = await listen('push-invite-received', async () => {
+    await spacesStore.loadSpacesFromDbAsync()
     await loadInvitesAsync()
     add({ title: t('success.newInvite'), color: 'info' })
   })

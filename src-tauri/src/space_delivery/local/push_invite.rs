@@ -78,7 +78,20 @@ pub fn handle_push_invite(
         &hlc_guard,
     );
 
-    // 5. Create pending invite entry
+    // 5. Remove older pending invites from the same inviter for this space
+    let _ = core::execute_with_crdt(
+        "DELETE FROM haex_pending_invites \
+         WHERE space_id = ?1 AND inviter_did = ?2 AND status = 'pending'"
+            .to_string(),
+        vec![
+            serde_json::Value::String(space_id.to_string()),
+            serde_json::Value::String(inviter_did.to_string()),
+        ],
+        db,
+        &hlc_guard,
+    );
+
+    // 6. Create new pending invite entry
     let invite_id = Uuid::new_v4().to_string();
     let now = OffsetDateTime::now_utc()
         .format(&time::format_description::well_known::Rfc3339)
