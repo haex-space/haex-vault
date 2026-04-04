@@ -239,6 +239,20 @@
         "createdAt": "created_at"
       }
     },
+    "space_members": {
+      "name": "haex_space_members",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "memberDid": "member_did",
+        "memberPublicKey": "member_public_key",
+        "label": "label",
+        "avatar": "avatar",
+        "avatarOptions": "avatar_options",
+        "role": "role",
+        "joinedAt": "joined_at"
+      }
+    },
     "peer_shares": {
       "name": "haex_peer_shares",
       "columns": {
