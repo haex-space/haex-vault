@@ -136,6 +136,9 @@ pub async fn create_conference_invite_token(
 // ============================================================================
 
 /// Validate and consume an invite token. Returns (capability, Option<pre-created UCAN>).
+///
+/// Checks in-memory tokens first, then falls back to DB lookup for tokens
+/// created by other flows (e.g. queueQuicInviteAsync via Drizzle).
 pub async fn validate_and_consume_invite(
     db: &DbConnection,
     hlc: &Arc<Mutex<HlcService>>,
@@ -144,6 +147,14 @@ pub async fn validate_and_consume_invite(
     claimer_did: &str,
 ) -> Result<(String, Option<String>), DeliveryError> {
     let mut tokens = invite_tokens.write().await;
+
+    // Try in-memory first; if not found, look up this specific token from DB
+    if !tokens.iter().any(|t| t.id == token_id) {
+        if let Some(db_token) = load_invite_token_by_id(db, token_id)? {
+            tokens.push(db_token);
+        }
+    }
+
     let token = tokens
         .iter_mut()
         .find(|t| t.id == token_id)
@@ -284,6 +295,68 @@ pub fn load_invite_tokens(
         });
     }
     Ok(tokens)
+}
+
+/// Load a single invite token by ID from the DB.
+fn load_invite_token_by_id(
+    db: &DbConnection,
+    token_id: &str,
+) -> Result<Option<LocalInviteToken>, DeliveryError> {
+    let rows = core::select_with_crdt(
+        "SELECT id, space_id, target_did, capabilities, pre_created_ucan, include_history, \
+         max_uses, current_uses, expires_at, created_at \
+         FROM haex_invite_tokens WHERE id = ?1"
+            .to_string(),
+        vec![serde_json::Value::String(token_id.to_string())],
+        db,
+    )
+    .map_err(|e| DeliveryError::Database {
+        reason: e.to_string(),
+    })?;
+
+    let row = match rows.first() {
+        Some(r) => r,
+        None => return Ok(None),
+    };
+
+    let id = row.get(0).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+    let space_id = row.get(1).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+    let target_did = row.get(2).and_then(|v| v.as_str()).map(|s| s.to_string());
+    let caps_json = row.get(3).and_then(|v| v.as_str()).unwrap_or("[]");
+    let capability = serde_json::from_str::<Vec<String>>(caps_json)
+        .ok()
+        .and_then(|v| v.into_iter().next())
+        .unwrap_or_else(|| "space/read".to_string());
+    let pre_created_ucan = row.get(4).and_then(|v| v.as_str()).map(|s| s.to_string());
+    let include_history = row.get(5).and_then(|v| v.as_i64()).unwrap_or(0) != 0;
+    let max_uses = row.get(6).and_then(|v| v.as_u64()).unwrap_or(1) as u32;
+    let current_uses = row.get(7).and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+    let expires_str = row.get(8).and_then(|v| v.as_str()).unwrap_or_default();
+    let created_str = row.get(9).and_then(|v| v.as_str()).unwrap_or_default();
+
+    let expires_at = time::OffsetDateTime::parse(
+        expires_str,
+        &time::format_description::well_known::Rfc3339,
+    )
+    .unwrap_or_else(|_| OffsetDateTime::now_utc());
+    let created_at = time::OffsetDateTime::parse(
+        created_str,
+        &time::format_description::well_known::Rfc3339,
+    )
+    .unwrap_or_else(|_| OffsetDateTime::now_utc());
+
+    Ok(Some(LocalInviteToken {
+        id,
+        space_id,
+        target_did,
+        pre_created_ucan,
+        capability,
+        include_history,
+        max_uses,
+        current_uses,
+        expires_at,
+        created_at,
+    }))
 }
 
 /// Update token usage count in DB after claim.
