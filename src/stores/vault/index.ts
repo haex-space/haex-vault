@@ -62,6 +62,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
     useExtensionBroadcastStore().cleanup()
     useExtensionReadyStore().resetAll()
     useSpacesStore().clearCache()
+    useSyncBackendsStore().reset()
   }
 
   // Watch for vault becoming unavailable (e.g., webview reload, navigation away)
