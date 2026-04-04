@@ -476,6 +476,13 @@ export const useSyncOrchestratorStore = defineStore(
           await spacesStore.loadSpacesFromDbAsync()
         },
       )
+      registerStoreForTables(
+        ['haex_space_members'],
+        async () => {
+          const spacesStore = useSpacesStore()
+          await spacesStore.loadSpacesFromDbAsync()
+        },
+      )
 
       // Listen for local sync completions from Rust sync loop
       // This fires when the local delivery service applies buffered changes

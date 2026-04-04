@@ -64,6 +64,36 @@ export type InsertHaexSpaceDevices = typeof haexSpaceDevices.$inferInsert
 export type SelectHaexSpaceDevices = typeof haexSpaceDevices.$inferSelect
 
 // ---------------------------------------------------------------------------
+// Space Members — human-readable member profiles per space (CRDT-synced)
+// ---------------------------------------------------------------------------
+
+export const haexSpaceMembers = sqliteTable(
+  tableNames.haex.space_members.name,
+  {
+    id: text(tableNames.haex.space_members.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    spaceId: text(tableNames.haex.space_members.columns.spaceId)
+      .notNull()
+      .references(() => haexSpaces.id, { onDelete: 'cascade' }),
+    memberDid: text(tableNames.haex.space_members.columns.memberDid).notNull(),
+    memberPublicKey: text(tableNames.haex.space_members.columns.memberPublicKey).notNull(),
+    label: text(tableNames.haex.space_members.columns.label).notNull(),
+    avatar: text(tableNames.haex.space_members.columns.avatar),
+    avatarOptions: text(tableNames.haex.space_members.columns.avatarOptions),
+    role: text(tableNames.haex.space_members.columns.role).notNull().default('read'),
+    joinedAt: text(tableNames.haex.space_members.columns.joinedAt).default(
+      sql`(CURRENT_TIMESTAMP)`,
+    ),
+  },
+  (table) => [
+    uniqueIndex('haex_space_members_space_did_unique').on(table.spaceId, table.memberDid),
+  ],
+)
+export type InsertHaexSpaceMembers = typeof haexSpaceMembers.$inferInsert
+export type SelectHaexSpaceMembers = typeof haexSpaceMembers.$inferSelect
+
+// ---------------------------------------------------------------------------
 // Peer Shares — folders shared in Spaces from specific devices
 // ---------------------------------------------------------------------------
 

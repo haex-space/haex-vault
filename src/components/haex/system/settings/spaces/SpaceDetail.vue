@@ -125,34 +125,76 @@
           </div>
         </div>
 
-        <!-- Members (from space devices) -->
+        <!-- Members -->
         <div class="space-y-2">
           <p class="text-xs font-medium text-muted uppercase tracking-wide">
             {{ t('members.active') }}
           </p>
           <div
             v-for="member in members"
-            :key="member.deviceEndpointId"
+            :key="member.id"
             class="flex items-center justify-between gap-2 p-2 rounded-md bg-gray-50 dark:bg-gray-800/50"
           >
             <div class="flex items-center gap-2 min-w-0">
               <UiAvatar
                 :src="member.avatar"
-                :seed="member.deviceEndpointId"
+                :seed="member.memberDid"
                 size="xs"
               />
-              <div class="min-w-0">
-                <p class="text-sm font-medium truncate">{{ member.deviceName }}</p>
-                <p class="text-xs text-muted truncate">{{ member.deviceEndpointId.slice(0, 16) }}…</p>
+              <div v-if="editingMemberId === member.id" class="flex items-center gap-2 min-w-0">
+                <UiInput
+                  v-model="editLabel"
+                  size="sm"
+                  :placeholder="t('members.labelPlaceholder')"
+                  @keyup.enter="onUpdateProfileAsync"
+                  @keyup.escape="onCancelEditProfile"
+                />
+                <UiButton
+                  color="primary"
+                  variant="ghost"
+                  icon="i-lucide-check"
+                  :loading="savingProfile"
+                  @click="onUpdateProfileAsync"
+                />
+                <UiButton
+                  color="neutral"
+                  variant="ghost"
+                  icon="i-lucide-x"
+                  @click="onCancelEditProfile"
+                />
+              </div>
+              <div v-else class="min-w-0">
+                <div class="flex items-center gap-1.5">
+                  <p class="text-sm font-medium truncate">{{ member.label }}</p>
+                  <UBadge
+                    :color="member.role === 'admin' ? 'primary' : 'neutral'"
+                    variant="subtle"
+                    size="xs"
+                  >
+                    {{ member.role }}
+                  </UBadge>
+                </div>
+                <p class="text-xs text-muted truncate">{{ member.memberDid.slice(0, 24) }}…</p>
               </div>
             </div>
-            <UiButton
-              v-if="isAdmin && !isOwnDevice(member.deviceEndpointId)"
-              color="error"
-              variant="ghost"
-              icon="i-lucide-user-minus"              :title="t('members.remove')"
-              @click="onRemoveMemberAsync(member)"
-            />
+            <div class="flex gap-1">
+              <UiButton
+                v-if="isOwnMember(member) && editingMemberId !== member.id"
+                color="neutral"
+                variant="ghost"
+                icon="i-lucide-pencil"
+                :title="t('members.editProfile')"
+                @click="onStartEditProfile(member)"
+              />
+              <UiButton
+                v-if="isAdmin && !isOwnMember(member)"
+                color="error"
+                variant="ghost"
+                icon="i-lucide-user-minus"
+                :title="t('members.remove')"
+                @click="onRemoveMemberAsync(member)"
+              />
+            </div>
           </div>
 
           <p
@@ -170,9 +212,9 @@
 <script setup lang="ts">
 import { eq } from 'drizzle-orm'
 import type { SpaceWithType } from '@/stores/spaces'
-import type { SelectHaexSpaceDevices, SelectHaexInviteTokens } from '~/database/schemas'
+import type { SelectHaexSpaceMembers, SelectHaexInviteTokens } from '~/database/schemas'
 import type { SpaceLinkedItemGroup } from '~/composables/useSpaceLinkedItems'
-import { haexSpaceDevices, haexInviteTokens } from '~/database/schemas'
+import { haexInviteTokens } from '~/database/schemas'
 import { SettingsCategory } from '~/config/settingsCategories'
 import SpaceLinkedItems from './SpaceLinkedItems.vue'
 
@@ -190,7 +232,7 @@ const { t } = useI18n()
 const { add } = useToast()
 
 const spacesStore = useSpacesStore()
-const peerStorageStore = usePeerStorageStore()
+const identityStore = useIdentityStore()
 const { getBackendNameByUrl } = useSyncBackendsStore()
 const { currentVault } = storeToRefs(useVaultStore())
 
@@ -198,8 +240,15 @@ const getDb = () => currentVault.value?.drizzle
 
 const showMembersDrawer = ref(false)
 const capabilities = ref<string[]>([])
-const members = ref<SelectHaexSpaceDevices[]>([])
+const members = ref<SelectHaexSpaceMembers[]>([])
 const pendingTokens = ref<SelectHaexInviteTokens[]>([])
+
+const editingMemberId = ref<string | null>(null)
+const editLabel = ref('')
+const savingProfile = ref(false)
+
+const myDids = computed(() => identityStore.ownIdentities.map(i => i.did))
+const isOwnMember = (member: SelectHaexSpaceMembers) => myDids.value.includes(member.memberDid)
 
 const space = computed(() => spacesStore.spaces.find(s => s.id === props.spaceId))
 const backendName = computed(() => space.value ? getBackendNameByUrl(space.value.serverUrl) : '')
@@ -250,17 +299,14 @@ const onOpenGroup = (group: SpaceLinkedItemGroup) => {
   }
 }
 
-const isOwnDevice = (endpointId: string) => endpointId === peerStorageStore.nodeId
-
 // Linked items
 const { groups, isLoading, loadAsync } = useSpaceLinkedItems(() => props.spaceId)
 
 const loadMembersAsync = async () => {
+  members.value = await spacesStore.getSpaceMembersAsync(props.spaceId)
+
   const db = getDb()
   if (!db) return
-
-  members.value = await db.select().from(haexSpaceDevices)
-    .where(eq(haexSpaceDevices.spaceId, props.spaceId))
 
   const allTokens = await db.select().from(haexInviteTokens)
     .where(eq(haexInviteTokens.spaceId, props.spaceId))
@@ -280,16 +326,9 @@ const formatCapabilities = (capabilities: string | null): string => {
   }
 }
 
-const onRemoveMemberAsync = async (member: SelectHaexSpaceDevices) => {
+const onRemoveMemberAsync = async (member: SelectHaexSpaceMembers) => {
   try {
-    if (member.identityId) {
-      await spacesStore.removeIdentityFromSpaceAsync(props.spaceId, member.identityId)
-    } else {
-      const db = getDb()
-      if (db) {
-        await db.delete(haexSpaceDevices).where(eq(haexSpaceDevices.id, member.id))
-      }
-    }
+    await spacesStore.removeSpaceMemberAsync(props.spaceId, member.memberDid)
     add({ title: t('members.removed'), color: 'success' })
     await loadMembersAsync()
   } catch (error) {
@@ -301,6 +340,37 @@ const onRemoveMemberAsync = async (member: SelectHaexSpaceDevices) => {
   }
 }
 
+const onStartEditProfile = (member: SelectHaexSpaceMembers) => {
+  editingMemberId.value = member.id
+  editLabel.value = member.label
+}
+
+const onCancelEditProfile = () => {
+  editingMemberId.value = null
+  editLabel.value = ''
+}
+
+const onUpdateProfileAsync = async () => {
+  savingProfile.value = true
+  try {
+    await spacesStore.updateOwnSpaceProfileAsync(props.spaceId, {
+      label: editLabel.value,
+    })
+    editingMemberId.value = null
+    editLabel.value = ''
+    await loadMembersAsync()
+    add({ title: t('members.profileUpdated'), color: 'success' })
+  } catch (error) {
+    add({
+      title: t('members.profileUpdateFailed'),
+      description: error instanceof Error ? error.message : undefined,
+      color: 'error',
+    })
+  } finally {
+    savingProfile.value = false
+  }
+}
+
 const resendingTokenId = ref<string | null>(null)
 
 const onResendInviteAsync = async (token: SelectHaexInviteTokens) => {
@@ -308,7 +378,6 @@ const onResendInviteAsync = async (token: SelectHaexInviteTokens) => {
 
   resendingTokenId.value = token.id
   try {
-    const identityStore = useIdentityStore()
     await identityStore.loadIdentitiesAsync()
 
     // Find the contact by DID to get their endpoint IDs
@@ -400,6 +469,10 @@ de:
     remove: Entfernen
     removed: Mitglied entfernt
     removeFailed: Mitglied konnte nicht entfernt werden
+    editProfile: Profil bearbeiten
+    labelPlaceholder: Anzeigename
+    profileUpdated: Profil aktualisiert
+    profileUpdateFailed: Profil konnte nicht aktualisiert werden
     tokenRevoked: Einladung widerrufen
     revokeFailed: Einladung konnte nicht widerrufen werden
     revokeInvite: Einladung widerrufen
@@ -428,6 +501,10 @@ en:
     remove: Remove
     removed: Member removed
     removeFailed: Failed to remove member
+    editProfile: Edit profile
+    labelPlaceholder: Display name
+    profileUpdated: Profile updated
+    profileUpdateFailed: Failed to update profile
     tokenRevoked: Invitation revoked
     revokeFailed: Failed to revoke invitation
     revokeInvite: Revoke invitation

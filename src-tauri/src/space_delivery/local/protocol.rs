@@ -96,6 +96,8 @@ pub enum Request {
         key_packages: Vec<String>,
         /// Optional label to share with the leader
         label: Option<String>,
+        /// SPKI Base64 public key for haex_space_members (derived from DID on sender side)
+        public_key: Option<String>,
     },
 
     // -- Push Invites (peer-to-peer, inviter → invitee) --

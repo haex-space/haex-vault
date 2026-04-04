@@ -441,6 +441,19 @@ const onAcceptInviteAsync = async (invite?: SelectHaexPendingInvites) => {
         createdAt: new Date().toISOString(),
       })
       await spacesStore.loadSpacesFromDbAsync()
+
+      // Add self as space member
+      const myIdentity = identityStore.ownIdentities[0]
+      if (myIdentity) {
+        await spacesStore.addMemberToSpaceAsync({
+          spaceId: invite.spaceId,
+          memberDid: myIdentity.did,
+          label: myIdentity.label || myIdentity.did.slice(0, 16),
+          role: 'read',
+          avatar: myIdentity.avatar,
+          avatarOptions: myIdentity.avatarOptions,
+        })
+      }
     } else {
       add({ title: t('errors.noServerUrl'), color: 'error' })
       return

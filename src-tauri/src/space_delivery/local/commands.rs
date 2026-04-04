@@ -409,6 +409,7 @@ pub async fn local_delivery_claim_invite(
     token_id: String,
     identity_did: String,
     label: Option<String>,
+    identity_public_key: Option<String>,
 ) -> Result<ClaimInviteResult, String> {
     // 1. Get iroh endpoint
     let endpoint = state.peer_storage.lock().await;
@@ -460,6 +461,7 @@ pub async fn local_delivery_claim_invite(
         endpoint_id: our_endpoint_id,
         key_packages: key_packages_b64,
         label,
+        public_key: identity_public_key,
     };
 
     let bytes = super::protocol::encode(&req).map_err(|e| format!("Failed to encode request: {e}"))?;

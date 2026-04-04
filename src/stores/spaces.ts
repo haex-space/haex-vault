@@ -1,8 +1,8 @@
 import type { DecryptedSpace } from '@haex-space/vault-sdk'
 import { eq, and } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
-import { haexSpaces, haexUcanTokens, haexInviteTokens } from '~/database/schemas'
-import type { SelectHaexSpaces } from '~/database/schemas'
+import { haexSpaces, haexUcanTokens, haexInviteTokens, haexSpaceMembers } from '~/database/schemas'
+import type { SelectHaexSpaces, SelectHaexSpaceMembers } from '~/database/schemas'
 import { createLogger } from '@/stores/logging'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { createRootUcanAsync, delegateUcanAsync, createServerRelayUcanAsync, persistUcanAsync, fetchWithUcanAuth, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
@@ -172,6 +172,18 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       if (db) await persistUcanAsync(db, id, rootUcan)
     }
 
+    // Add creator as space member
+    if (identity) {
+      await addMemberToSpaceAsync({
+        spaceId: id,
+        memberDid: identity.did,
+        label: identity.label || identity.did.slice(0, 16),
+        role: 'admin',
+        avatar: identity.avatar,
+        avatarOptions: identity.avatarOptions,
+      })
+    }
+
     // Start leader mode so this device can handle invites and delivery
     await invoke('local_delivery_start', { spaceId: id })
 
@@ -261,6 +273,20 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const { useMlsDelivery } = await import('@/composables/useMlsDelivery')
     const delivery = useMlsDelivery(serverUrl, spaceId, { privateKey: identity.privateKey, did: identity.did })
     await delivery.uploadKeyPackagesAsync()
+
+    // Add creator as space member
+    const identityStore = useIdentityStore()
+    const fullIdentity = identityStore.ownIdentities.find(i => i.did === identity.did)
+    if (fullIdentity) {
+      await addMemberToSpaceAsync({
+        spaceId,
+        memberDid: fullIdentity.did,
+        label: fullIdentity.label || fullIdentity.did.slice(0, 16),
+        role: 'admin',
+        avatar: fullIdentity.avatar,
+        avatarOptions: fullIdentity.avatarOptions,
+      })
+    }
 
     log.info(`Created space ${spaceId}`)
     await listSpacesAsync(serverUrl, identityId)
@@ -525,6 +551,21 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       log.info(`Claimed invite token for space ${spaceId} (capability: ${data.capability})`)
     }
 
+    // Add self as space member
+    const identityStore = useIdentityStore()
+    await identityStore.loadIdentitiesAsync()
+    const myIdentity = identityStore.ownIdentities[0]
+    if (myIdentity) {
+      await addMemberToSpaceAsync({
+        spaceId,
+        memberDid: myIdentity.did,
+        label: myIdentity.label || myIdentity.did.slice(0, 16),
+        role: data.capability?.replace('space/', '') || 'read',
+        avatar: myIdentity.avatar,
+        avatarOptions: myIdentity.avatarOptions,
+      })
+    }
+
     return { capability: data.capability }
   }
 
@@ -683,6 +724,16 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     log.info(`Removed identity ${identityPublicKey.slice(0, 20)}... from space ${spaceId}`)
   }
 
+  const removeSpaceMemberAsync = async (spaceId: string, memberDid: string) => {
+    const db = getDb()
+    if (!db) throw new Error('No vault open')
+
+    await db.delete(haexSpaceMembers)
+      .where(and(eq(haexSpaceMembers.spaceId, spaceId), eq(haexSpaceMembers.memberDid, memberDid)))
+
+    log.info(`Removed member ${memberDid.slice(0, 20)}... from space ${spaceId}`)
+  }
+
   // =========================================================================
   // Federation Helpers
   // =========================================================================
@@ -809,6 +860,149 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     return capabilities.includes(capability) || capabilities.includes('space/admin')
   }
 
+  // =========================================================================
+  // Space Members
+  // =========================================================================
+
+  /**
+   * Add a member to a space. Derives and validates SPKI public key from DID.
+   * Validates DID <-> public key match once at join time — after this, values are immutable.
+   * Uses read-first pattern because CRDT partial unique indices are incompatible with ON CONFLICT.
+   */
+  const addMemberToSpaceAsync = async (params: {
+    spaceId: string
+    memberDid: string
+    label: string
+    role: string
+    avatar?: string | null
+    avatarOptions?: string | null
+  }) => {
+    const db = getDb()
+    if (!db) return
+
+    const { didKeyToPublicKeyAsync } = await import('@haex-space/vault-sdk')
+    const memberPublicKey = await didKeyToPublicKeyAsync(params.memberDid)
+
+    const existing = await db.select({ id: haexSpaceMembers.id })
+      .from(haexSpaceMembers)
+      .where(and(eq(haexSpaceMembers.spaceId, params.spaceId), eq(haexSpaceMembers.memberDid, params.memberDid)))
+      .limit(1)
+
+    if (existing.length > 0) {
+      await db.update(haexSpaceMembers)
+        .set({
+          label: params.label,
+          role: params.role,
+          avatar: params.avatar ?? null,
+          avatarOptions: params.avatarOptions ?? null,
+        })
+        .where(and(eq(haexSpaceMembers.spaceId, params.spaceId), eq(haexSpaceMembers.memberDid, params.memberDid)))
+    } else {
+      await db.insert(haexSpaceMembers).values({
+        spaceId: params.spaceId,
+        memberDid: params.memberDid,
+        memberPublicKey,
+        label: params.label,
+        role: params.role,
+        avatar: params.avatar ?? null,
+        avatarOptions: params.avatarOptions ?? null,
+        joinedAt: new Date().toISOString(),
+      })
+    }
+  }
+
+  /** Get all members of a space */
+  const getSpaceMembersAsync = async (spaceId: string): Promise<SelectHaexSpaceMembers[]> => {
+    const db = getDb()
+    if (!db) return []
+    return db.select().from(haexSpaceMembers).where(eq(haexSpaceMembers.spaceId, spaceId))
+  }
+
+  /** Update own profile in a space (label, avatar) */
+  const updateOwnSpaceProfileAsync = async (spaceId: string, profile: {
+    label?: string
+    avatar?: string | null
+    avatarOptions?: string | null
+  }) => {
+    const db = getDb()
+    if (!db) return
+
+    const identityStore = useIdentityStore()
+    const myDids = identityStore.ownIdentities.map(i => i.did)
+    if (myDids.length === 0) return
+
+    for (const did of myDids) {
+      await db.update(haexSpaceMembers)
+        .set(profile)
+        .where(
+          and(
+            eq(haexSpaceMembers.spaceId, spaceId),
+            eq(haexSpaceMembers.memberDid, did),
+          ),
+        )
+    }
+  }
+
+  /** Lookup member public keys for signature verification. Returns Map<publicKey, memberDid> */
+  const getMemberPublicKeysForSpaceAsync = async (spaceId: string): Promise<Map<string, string>> => {
+    const db = getDb()
+    if (!db) return new Map()
+
+    const members = await db.select({
+      memberPublicKey: haexSpaceMembers.memberPublicKey,
+      memberDid: haexSpaceMembers.memberDid,
+    }).from(haexSpaceMembers).where(eq(haexSpaceMembers.spaceId, spaceId))
+
+    return new Map(members.map(m => [m.memberPublicKey, m.memberDid]))
+  }
+
+  /** One-time migration: populate haex_space_members from existing haex_ucan_tokens */
+  const migrateExistingMembersAsync = async () => {
+    const db = getDb()
+    if (!db) return
+
+    const allTokens = await db.select().from(haexUcanTokens)
+    if (allTokens.length === 0) return
+
+    const { didKeyToPublicKeyAsync } = await import('@haex-space/vault-sdk')
+
+    // Group by (spaceId, audienceDid) — pick highest capability
+    const memberMap = new Map<string, { spaceId: string; did: string; capability: string }>()
+    const roleOrder = ['admin', 'invite', 'write', 'read']
+
+    for (const token of allTokens) {
+      const key = `${token.spaceId}:${token.audienceDid}`
+      const existing = memberMap.get(key)
+      const tokenRole = token.capability.replace('space/', '')
+      if (!existing || roleOrder.indexOf(tokenRole) < roleOrder.indexOf(existing.capability)) {
+        memberMap.set(key, { spaceId: token.spaceId, did: token.audienceDid, capability: tokenRole })
+      }
+    }
+
+    const identityStore = useIdentityStore()
+    await identityStore.loadIdentitiesAsync()
+
+    for (const member of memberMap.values()) {
+      try {
+        const memberPublicKey = await didKeyToPublicKeyAsync(member.did)
+        const knownIdentity = identityStore.allIdentities.find(i => i.did === member.did)
+
+        await db.insert(haexSpaceMembers).values({
+          spaceId: member.spaceId,
+          memberDid: member.did,
+          memberPublicKey,
+          label: knownIdentity?.label || member.did.slice(8, 24),
+          role: member.capability,
+          avatar: knownIdentity?.avatar ?? null,
+          avatarOptions: knownIdentity?.avatarOptions ?? null,
+          joinedAt: new Date().toISOString(),
+        }).onConflictDoNothing()
+      } catch (error) {
+        console.warn(`Failed to migrate member ${member.did}:`, error)
+      }
+    }
+  }
+
   /**
    * Accept a local P2P invite. Tries all space endpoints until ClaimInvite succeeds.
    */
@@ -843,6 +1037,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
           tokenId: invite.tokenId,
           identityDid: identity.did,
           label: identity.label || null,
+          identityPublicKey: identity.publicKey,
         })
         lastError = null
         break
@@ -874,6 +1069,17 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     }
 
     await loadSpacesFromDbAsync()
+
+    // Add self as space member
+    await addMemberToSpaceAsync({
+      spaceId: invite.spaceId,
+      memberDid: identity.did,
+      label: identity.label || identity.did.slice(0, 16),
+      role: 'read',
+      avatar: identity.avatar,
+      avatarOptions: identity.avatarOptions,
+    })
+
     log.info(`Accepted local invite for space ${invite.spaceId}`)
   }
 
@@ -972,9 +1178,15 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     leaveSpaceAsync,
     deleteSpaceAsync,
     removeIdentityFromSpaceAsync,
+    removeSpaceMemberAsync,
     setupFederationForSpaceAsync,
     getCapabilitiesForSpaceAsync,
     hasCapabilityAsync,
+    addMemberToSpaceAsync,
+    getSpaceMembersAsync,
+    updateOwnSpaceProfileAsync,
+    getMemberPublicKeysForSpaceAsync,
+    migrateExistingMembersAsync,
     queueQuicInviteAsync,
     acceptLocalInviteAsync,
     persistSpaceAsync,
