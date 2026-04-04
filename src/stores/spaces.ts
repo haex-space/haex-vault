@@ -553,6 +553,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
     // Add self as space member
     const identityStore = useIdentityStore()
+    await identityStore.loadIdentitiesAsync()
     const myIdentity = identityStore.ownIdentities[0]
     if (myIdentity) {
       await addMemberToSpaceAsync({
@@ -856,7 +857,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   /**
    * Add a member to a space. Derives and validates SPKI public key from DID.
    * Validates DID <-> public key match once at join time — after this, values are immutable.
-   * Uses UPSERT to handle CRDT race conditions (both sides may create the same member).
+   * Uses read-first pattern because CRDT partial unique indices are incompatible with ON CONFLICT.
    */
   const addMemberToSpaceAsync = async (params: {
     spaceId: string
@@ -869,29 +870,35 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const db = getDb()
     if (!db) return
 
-    // Derive SPKI public key from DID and validate the match.
-    // This is the one-time validation at join — DID and public key never change after this.
     const { didKeyToPublicKeyAsync } = await import('@haex-space/vault-sdk')
     const memberPublicKey = await didKeyToPublicKeyAsync(params.memberDid)
 
-    await db.insert(haexSpaceMembers).values({
-      spaceId: params.spaceId,
-      memberDid: params.memberDid,
-      memberPublicKey,
-      label: params.label,
-      role: params.role,
-      avatar: params.avatar ?? null,
-      avatarOptions: params.avatarOptions ?? null,
-      joinedAt: new Date().toISOString(),
-    }).onConflictDoUpdate({
-      target: [haexSpaceMembers.spaceId, haexSpaceMembers.memberDid],
-      set: {
+    const existing = await db.select({ id: haexSpaceMembers.id })
+      .from(haexSpaceMembers)
+      .where(and(eq(haexSpaceMembers.spaceId, params.spaceId), eq(haexSpaceMembers.memberDid, params.memberDid)))
+      .limit(1)
+
+    if (existing.length > 0) {
+      await db.update(haexSpaceMembers)
+        .set({
+          label: params.label,
+          role: params.role,
+          avatar: params.avatar ?? null,
+          avatarOptions: params.avatarOptions ?? null,
+        })
+        .where(and(eq(haexSpaceMembers.spaceId, params.spaceId), eq(haexSpaceMembers.memberDid, params.memberDid)))
+    } else {
+      await db.insert(haexSpaceMembers).values({
+        spaceId: params.spaceId,
+        memberDid: params.memberDid,
+        memberPublicKey,
         label: params.label,
         role: params.role,
-        avatar: params.avatar ?? undefined,
-        avatarOptions: params.avatarOptions ?? undefined,
-      },
-    })
+        avatar: params.avatar ?? null,
+        avatarOptions: params.avatarOptions ?? null,
+        joinedAt: new Date().toISOString(),
+      })
+    }
   }
 
   /** Get all members of a space */

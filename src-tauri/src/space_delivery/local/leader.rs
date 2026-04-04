@@ -22,6 +22,7 @@ use super::invite_tokens::{self, LocalInviteToken};
 use super::protocol::{self, MlsMessageEntry, Notification, Request, Response};
 use super::push_invite;
 use super::types::{ConnectedPeer, PeerClaim};
+use serde_json::Value as JsonValue;
 
 // ============================================================================
 // State
@@ -700,7 +701,6 @@ async fn handle_delivery_stream(
                         (id, space_id, member_did, member_public_key, label, role, joined_at) \
                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)".to_string();
 
-                    use serde_json::Value as JsonValue;
                     let params = vec![
                         JsonValue::String(member_id),
                         JsonValue::String(space_id.clone()),
