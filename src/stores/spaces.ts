@@ -8,6 +8,8 @@ import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { createRootUcanAsync, delegateUcanAsync, createServerRelayUcanAsync, persistUcanAsync, fetchWithUcanAuth, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
 import { SpaceType, SpaceStatus } from '~/database/constants'
 import type { SpaceType as SpaceTypeValue, SpaceStatus as SpaceStatusValue } from '~/database/constants'
+import spacesDe from './spaces.de.json'
+import spacesEn from './spaces.en.json'
 
 /** Extended space type including the DB type field (vault/online/local) */
 export interface SpaceWithType extends DecryptedSpace {
@@ -18,6 +20,10 @@ export interface SpaceWithType extends DecryptedSpace {
 const log = createLogger('SPACES')
 
 export const useSpacesStore = defineStore('spacesStore', () => {
+  const { $i18n } = useNuxtApp()
+  $i18n.mergeLocaleMessage('de', { spaces: spacesDe })
+  $i18n.mergeLocaleMessage('en', { spaces: spacesEn })
+
   const { currentVault } = storeToRefs(useVaultStore())
 
   const spaces = ref<SpaceWithType[]>([])
@@ -173,8 +179,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     return { id }
   }
 
-  const DEFAULT_SPACE_ID = 'default'
-
   const ensureVaultSpaceAsync = async (vaultId: string, vaultName: string) => {
     const db = getDb()
     if (!db) {
@@ -201,22 +205,24 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const db = getDb()
     if (!db) return
 
-    const existing = await db.select().from(haexSpaces).where(eq(haexSpaces.id, DEFAULT_SPACE_ID)).limit(1)
-    if (existing.length > 0) {
-      // Fix type if migrated from 'shared'/'online' — default space is always local
-      if (existing[0]!.type !== SpaceType.LOCAL) {
-        await db.update(haexSpaces).set({ type: SpaceType.LOCAL }).where(eq(haexSpaces.id, DEFAULT_SPACE_ID))
-        existing[0]!.type = SpaceType.LOCAL
-      }
-      // Ensure in-memory list is populated
-      if (!spaces.value.find(s => s.id === DEFAULT_SPACE_ID)) {
-        spaces.value.push(rowToSpace(existing[0]!))
+    // Check if any local space already exists (regardless of name/ID)
+    const localSpaces = await db
+      .select()
+      .from(haexSpaces)
+      .where(eq(haexSpaces.type, SpaceType.LOCAL))
+      .limit(1)
+
+    if (localSpaces.length > 0) {
+      if (!spaces.value.find(s => s.id === localSpaces[0]!.id)) {
+        spaces.value.push(rowToSpace(localSpaces[0]!))
       }
       return
     }
 
-    await createLocalSpaceAsync('Personal', DEFAULT_SPACE_ID)
-    log.info('Default space created')
+    // No local space yet — create one with a random UUID and localized name
+    const name = $i18n.t('spaces.defaultSpaceName')
+    await createLocalSpaceAsync(name)
+    log.info(`Default space "${name}" created`)
   }
 
   const createSpaceAsync = async (serverUrl: string, spaceName: string, selfLabel: string, identityId: string) => {
@@ -809,6 +815,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   const acceptLocalInviteAsync = async (invite: {
     id: string
     spaceId: string
+    spaceName?: string | null
+    spaceType?: string | null
+    originUrl?: string | null
     spaceEndpoints: string | null
     tokenId: string | null
   }) => {
@@ -844,12 +853,24 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     }
     if (lastError) throw lastError
 
-    // Update space status from 'pending' → 'active'
+    // Create or activate the space entry.
+    // handle_push_invite does NOT create a dummy space (to avoid CRDT tombstone issues),
+    // so we need to create it here on successful claim.
     const db = getDb()
     if (db) {
-      await db.update(haexSpaces).set({
-        status: SpaceStatus.ACTIVE,
-      }).where(eq(haexSpaces.id, invite.spaceId))
+      const existing = await db.select().from(haexSpaces).where(eq(haexSpaces.id, invite.spaceId)).limit(1)
+      if (existing.length > 0) {
+        await db.update(haexSpaces).set({ status: SpaceStatus.ACTIVE }).where(eq(haexSpaces.id, invite.spaceId))
+      } else {
+        await persistSpaceAsync({
+          id: invite.spaceId,
+          name: invite.spaceName || invite.spaceId.slice(0, 8),
+          type: (invite.spaceType as SpaceTypeValue) || SpaceType.LOCAL,
+          status: SpaceStatus.ACTIVE,
+          serverUrl: invite.originUrl || '',
+          createdAt: new Date().toISOString(),
+        })
+      }
     }
 
     await loadSpacesFromDbAsync()
