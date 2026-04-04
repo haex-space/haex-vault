@@ -448,5 +448,14 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     cancelTransferAsync,
     pauseTransferAsync,
     resumeTransferAsync,
+    reset: () => {
+      running.value = false
+      nodeId.value = ''
+      relayUrl.value = null
+      configuredRelayUrl.value = null
+      shares.value = []
+      spaceDevices.value = []
+      transfers.value.clear()
+    },
   }
 })

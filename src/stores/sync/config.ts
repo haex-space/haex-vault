@@ -148,10 +148,15 @@ export const useSyncConfigStore = defineStore('syncConfigStore', () => {
     await saveConfigAsync(DEFAULT_SYNC_CONFIG)
   }
 
+  const reset = () => {
+    config.value = { ...DEFAULT_SYNC_CONFIG }
+  }
+
   return {
     config: readonly(config),
     loadConfigAsync,
     saveConfigAsync,
     resetConfigAsync,
+    reset,
   }
 })
