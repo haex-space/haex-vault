@@ -5,25 +5,26 @@
       type="button"
       class="relative group cursor-pointer"
       :title="t('change')"
-      @click="openFilePicker"
+      @click="showCustomizer = true"
     >
       <UiAvatar
         :src="modelValue"
         :seed="seed"
         :size="size"
         :avatar-style="avatarStyle"
+        :avatar-options="avatarOptions"
       />
       <div class="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-        <UIcon name="i-lucide-camera" class="size-5 text-white" />
+        <UIcon name="i-lucide-pencil" class="size-5 text-white" />
       </div>
     </button>
 
     <!-- Remove button -->
     <button
-      v-if="modelValue"
+      v-if="modelValue || avatarOptions"
       type="button"
       class="text-xs text-muted hover:text-error transition-colors"
-      @click="$emit('update:modelValue', null)"
+      @click="onRemove"
     >
       {{ t('remove') }}
     </button>
@@ -36,6 +37,16 @@
       class="hidden"
       @change="onFileSelected"
     >
+
+    <!-- Customizer modal -->
+    <UiAvatarCustomizer
+      v-model:open="showCustomizer"
+      :avatar-style="avatarStyle ?? 'bottts'"
+      :seed="seed"
+      :initial-options="avatarOptions"
+      @confirm="onCustomizerConfirmAsync"
+      @upload-image="openFilePicker"
+    />
 
     <!-- Crop dialog -->
     <UiDrawerModal
@@ -74,12 +85,17 @@
 </template>
 
 <script setup lang="ts">
+import { createAvatar } from '@dicebear/core'
+import * as toonHead from '@dicebear/toon-head'
+import * as bottts from '@dicebear/bottts'
 import { Cropper, CircleStencil } from 'vue-advanced-cropper'
 import 'vue-advanced-cropper/dist/style.css'
-import { compressCanvasToBase64 } from '~/utils/imageCompression'
+import { compressCanvasToBase64, compressSvgToBase64 } from '~/utils/imageCompression'
+import type { AvatarOptions } from './customizer/index.vue'
 
 defineProps<{
   modelValue?: string | null
+  avatarOptions?: Record<string, unknown> | null
   seed?: string
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
   avatarStyle?: 'bottts' | 'toon-head'
@@ -87,6 +103,7 @@ defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [value: string | null]
+  'update:avatarOptions': [value: Record<string, unknown> | null]
 }>()
 
 const { t } = useI18n()
@@ -94,11 +111,42 @@ const { t } = useI18n()
 const fileInput = ref<HTMLInputElement>()
 const cropperRef = ref<InstanceType<typeof Cropper>>()
 const cropImageSrc = ref('')
+const showCustomizer = ref(false)
 const showCropDialog = ref(false)
 const isCropping = ref(false)
 
 function openFilePicker() {
+  showCustomizer.value = false
   fileInput.value?.click()
+}
+
+function onRemove() {
+  emit('update:avatarOptions', null)
+  emit('update:modelValue', null)
+}
+
+async function onCustomizerConfirmAsync(options: AvatarOptions) {
+  const svgString = renderAvatarSvg(options)
+  const base64 = await compressSvgToBase64(svgString)
+
+  emit('update:avatarOptions', { ...options })
+  emit('update:modelValue', base64)
+}
+
+function renderAvatarSvg(options: AvatarOptions): string {
+  // Build DiceBear options with arrays
+  const diceBearOptions: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(options)) {
+    if (key === 'style') continue
+    diceBearOptions[key] = typeof value === 'string' && !key.endsWith('Probability')
+      ? [value]
+      : value
+  }
+
+  if (options.style === 'toon-head') {
+    return createAvatar(toonHead, diceBearOptions).toString()
+  }
+  return createAvatar(bottts, diceBearOptions).toString()
 }
 
 function onFileSelected(event: Event) {
@@ -133,6 +181,8 @@ async function onCropConfirm() {
     ctx.drawImage(canvas, 0, 0, 128, 128)
 
     const base64 = await compressCanvasToBase64(resized)
+    // Upload overrides customizer options
+    emit('update:avatarOptions', null)
     emit('update:modelValue', base64)
     showCropDialog.value = false
   } finally {
@@ -143,15 +193,15 @@ async function onCropConfirm() {
 
 <i18n lang="yaml">
 de:
-  change: Avatar ändern
-  remove: Entfernen
+  change: Avatar anpassen
+  remove: Zurücksetzen
   crop:
     title: Bild zuschneiden
     cancel: Abbrechen
     confirm: Übernehmen
 en:
-  change: Change avatar
-  remove: Remove
+  change: Customize avatar
+  remove: Reset
   crop:
     title: Crop image
     cancel: Cancel

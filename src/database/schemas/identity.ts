@@ -22,6 +22,7 @@ export const haexIdentities = sqliteTable(
     label: text(tableNames.haex.identities.columns.label).notNull(),
     privateKey: text(tableNames.haex.identities.columns.privateKey), // null = contact, non-null = own identity
     avatar: text(tableNames.haex.identities.columns.avatar), // Base64 WebP 128x128
+    avatarOptions: text(tableNames.haex.identities.columns.avatarOptions), // JSON DiceBear options
     notes: text(tableNames.haex.identities.columns.notes),
     createdAt: text(tableNames.haex.identities.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,

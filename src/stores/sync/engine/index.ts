@@ -117,7 +117,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
    * so expired sessions can be automatically recovered via DID re-auth.
    */
   const registerReauthResolver = (backendId: string): void => {
-    setReauthResolver(async () => {
+    setReauthResolver(backendId, async () => {
       try {
         const b = syncBackendsStore.backends.find((x) => x.id === backendId)
         if (!b?.identityId) {
@@ -608,7 +608,6 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
    */
   const reset = async (): Promise<void> => {
     clearVaultKeyCache()
-    setReauthResolver(null)
     resetTokenManager()
     // Sync the ref with the actual cache
     vaultKeyCache.value = getVaultKeyCache()

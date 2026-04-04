@@ -184,6 +184,7 @@
           <div class="flex justify-center">
             <UiAvatarPicker
               v-model="createAvatar"
+              v-model:avatar-options="createAvatarOptions"
               :seed="createLabel || 'new'"
               avatar-style="toon-head"
               size="xl"
@@ -521,10 +522,12 @@
           <div class="flex justify-center">
             <UiAvatarPicker
               :model-value="renameTarget?.avatar"
+              :avatar-options="parsedRenameAvatarOptions"
               :seed="renameTarget?.publicKey"
               avatar-style="toon-head"
               size="xl"
-              @update:model-value="(val) => renameTarget && updateAvatarAsync(renameTarget.publicKey, val)"
+              @update:model-value="(val) => onEditAvatarUpdate(val)"
+              @update:avatar-options="(val) => onEditAvatarOptionsUpdate(val)"
             />
           </div>
 
@@ -692,6 +695,7 @@ const shareQrIdentityId = ref('')
 
 const createLabel = ref('')
 const createAvatar = ref<string | null>(null)
+const createAvatarOptions = ref<Record<string, unknown> | null>(null)
 const useVaultPasswordForIdentity = ref(true)
 const createIdentityPassword = ref('')
 const createIdentityPasswordConfirm = ref('')
@@ -769,8 +773,31 @@ onMounted(async () => {
   }
 })
 
-const updateAvatarAsync = async (identityId: string, avatar: string | null) => {
-  await identityStore.updateAvatarAsync(identityId, avatar)
+const parsedRenameAvatarOptions = computed(() => {
+  if (!renameTarget.value?.avatarOptions) return null
+  try { return JSON.parse(renameTarget.value.avatarOptions) } catch { return null }
+})
+
+// Picker emits avatarOptions before modelValue — collect options, save on modelValue
+const pendingEditOptions = ref<Record<string, unknown> | null | undefined>(undefined)
+
+const onEditAvatarOptionsUpdate = (options: Record<string, unknown> | null) => {
+  pendingEditOptions.value = options
+}
+
+const onEditAvatarUpdate = async (avatar: string | null) => {
+  if (!renameTarget.value) return
+  const optionsJson = pendingEditOptions.value !== undefined
+    ? (pendingEditOptions.value ? JSON.stringify(pendingEditOptions.value) : null)
+    : undefined
+  await identityStore.updateAvatarAsync(renameTarget.value.id, avatar, optionsJson)
+  // Update local snapshot so the modal shows the new avatar immediately
+  renameTarget.value = {
+    ...renameTarget.value,
+    avatar,
+    avatarOptions: optionsJson ?? renameTarget.value.avatarOptions,
+  }
+  pendingEditOptions.value = undefined
 }
 
 const onCreateAsync = async () => {
@@ -782,9 +809,10 @@ const onCreateAsync = async () => {
       createLabel.value.trim(),
     )
 
-    // Save avatar: use uploaded image, or generate toon-head from publicKey
+    // Save avatar: use uploaded/customized image, or generate toon-head from publicKey
     if (createAvatar.value) {
-      await identityStore.updateAvatarAsync(identity.id, createAvatar.value)
+      const optionsJson = createAvatarOptions.value ? JSON.stringify(createAvatarOptions.value) : null
+      await identityStore.updateAvatarAsync(identity.id, createAvatar.value, optionsJson)
     } else {
       const { createAvatar: createDicebear } = await import('@dicebear/core')
       const toonHead = await import('@dicebear/toon-head')
@@ -812,6 +840,7 @@ const onCreateAsync = async () => {
     showCreateDialog.value = false
     createLabel.value = ''
     createAvatar.value = null
+    createAvatarOptions.value = null
     useVaultPasswordForIdentity.value = true
     createIdentityPassword.value = ''
     createIdentityPasswordConfirm.value = ''
@@ -1141,7 +1170,7 @@ const editingClaim = ref<{
 } | null>(null)
 const claimTargetIdentityId = ref<string | null>(null)
 
-const claimTypeOptions = computed(() => [
+const claimTypeOptions = computed<{ label: string; value: string; disabled?: boolean }[]>(() => [
   { label: 'Email', value: 'email' },
   { label: 'Name', value: 'name' },
   { label: t('claims.phone'), value: 'phone' },

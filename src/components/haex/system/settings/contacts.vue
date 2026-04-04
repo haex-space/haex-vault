@@ -13,14 +13,6 @@
         <span class="hidden @sm:inline">{{ t('actions.share') }}</span>
       </UButton>
       <UButton
-        color="neutral"
-        variant="outline"
-        icon="i-lucide-scan-line"
-        @click="showScanDialog = true"
-      >
-        <span class="hidden @sm:inline">{{ t('actions.scan') }}</span>
-      </UButton>
-      <UButton
         color="primary"
         icon="i-lucide-plus"
         @click="showAddDialog = true"
@@ -317,7 +309,7 @@
         </template>
 
         <!-- Manual mode -->
-        <template v-else>
+        <template v-else-if="addMode === 'manual'">
           <div class="space-y-4 mt-4">
             <UiInput
               v-model="addForm.label"
@@ -338,16 +330,156 @@
             />
           </div>
         </template>
+
+        <!-- Scan QR mode -->
+        <template v-else-if="addMode === 'scan'">
+          <!-- Step 1: Scan QR code -->
+          <template v-if="scanStep === 'scan'">
+            <div class="space-y-3 mt-4">
+              <USelectMenu
+                v-if="scanCameras.length > 1"
+                v-model="scanSelectedCameraId"
+                :items="scanCameraOptions"
+                value-key="value"
+                :placeholder="t('scan.selectCamera')"
+                class="w-full"
+              />
+              <div
+                ref="scannerContainer"
+                class="w-full rounded-lg overflow-hidden"
+              />
+              <p
+                v-if="scanError"
+                class="text-sm text-red-500"
+              >
+                {{ scanError }}
+              </p>
+            </div>
+          </template>
+
+          <!-- Step 2: Review scanned contact -->
+          <template v-if="scanStep === 'review' && scannedContact">
+            <div class="space-y-4 mt-4">
+              <UiInput
+                v-model="scannedContact.label"
+                :label="t('scan.reviewLabel')"
+              />
+
+              <div>
+                <label class="text-sm font-medium">{{ t('fields.publicKey') }}</label>
+                <code
+                  class="block text-xs text-muted p-2 rounded bg-gray-50 dark:bg-gray-800/50 break-all mt-1"
+                >
+                  {{ scannedContact.publicKey }}
+                </code>
+              </div>
+
+              <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-sm font-medium">{{ t('claims.title') }}</span>
+                  <UiButton
+                    variant="outline"
+                    icon="i-lucide-plus"
+                    @click="scanShowAddClaimInline = true"
+                  >
+                    {{ t('claims.add') }}
+                  </UiButton>
+                </div>
+
+                <div
+                  v-for="(claim, index) in scannedContact.claims"
+                  :key="index"
+                  class="flex items-center gap-3 p-2 rounded bg-gray-50 dark:bg-gray-800/50"
+                >
+                  <UiToggle v-model="claim.selected" />
+                  <div class="min-w-0 flex-1">
+                    <span class="text-xs font-medium text-muted">{{ claim.type }}</span>
+                    <UiInput
+                      v-model="claim.value"
+                      class="mt-1"
+                    />
+                  </div>
+                  <UiButton
+                    variant="ghost"
+                    color="error"
+                    icon="i-lucide-x"
+                    @click="scannedContact.claims.splice(index, 1)"
+                  />
+                </div>
+
+                <!-- Inline add claim form -->
+                <div
+                  v-if="scanShowAddClaimInline"
+                  class="flex items-end gap-2 p-2 rounded border border-dashed border-default"
+                >
+                  <UiInput
+                    v-model="scanNewClaimType"
+                    :label="t('claims.type')"
+                    placeholder="email, phone, ..."
+                    class="flex-1"
+                  />
+                  <UiInput
+                    v-model="scanNewClaimValue"
+                    :label="t('claims.value')"
+                    class="flex-1"
+                    @keydown.enter.prevent="addScanInlineClaim"
+                  />
+                  <UiButton
+                    icon="i-lucide-check"
+                    :disabled="!scanNewClaimType.trim() || !scanNewClaimValue.trim()"
+                    @click="addScanInlineClaim"
+                  />
+                  <UiButton
+                    variant="ghost"
+                    icon="i-lucide-x"
+                    @click="scanShowAddClaimInline = false"
+                  />
+                </div>
+
+                <p
+                  v-if="!scannedContact.claims.length && !scanShowAddClaimInline"
+                  class="text-xs text-muted"
+                >
+                  {{ t('scan.noClaims') }}
+                </p>
+              </div>
+
+              <UiTextarea
+                v-model="scanContactNotes"
+                :label="t('fields.notes')"
+                :placeholder="t('add.notesPlaceholder')"
+                :rows="2"
+              />
+
+              <p
+                v-if="scanExistingContact"
+                class="text-sm text-amber-500"
+              >
+                {{ t('scan.alreadyExists', { name: scanExistingContact.label }) }}
+              </p>
+            </div>
+          </template>
+        </template>
       </template>
       <template #footer>
         <div class="flex justify-between gap-4">
-          <UButton
-            color="neutral"
-            variant="outline"
-            @click="addMode === 'file' && importParsed ? (importParsed = null) : (showAddDialog = false)"
-          >
-            {{ addMode === 'file' && importParsed ? t('actions.back') : t('actions.cancel') }}
-          </UButton>
+          <div class="flex gap-2">
+            <UButton
+              color="neutral"
+              variant="outline"
+              @click="onAddDialogBack"
+            >
+              {{ addDialogBackLabel }}
+            </UButton>
+            <UiButton
+              v-if="addMode === 'scan' && scanStep === 'scan'"
+              icon="i-lucide-refresh-cw"
+              color="neutral"
+              variant="outline"
+              :title="t('scan.refreshCameras')"
+              @click="refreshScanCameras"
+            />
+          </div>
 
           <!-- File mode buttons -->
           <template v-if="addMode === 'file'">
@@ -371,11 +503,22 @@
 
           <!-- Manual mode button -->
           <UiButton
-            v-else
+            v-else-if="addMode === 'manual'"
             icon="i-lucide-plus"
             :loading="isAdding"
             :disabled="!addForm.label.trim() || !addForm.publicKey.trim()"
             @click="onAddContactAsync"
+          >
+            {{ t('actions.add') }}
+          </UiButton>
+
+          <!-- Scan mode: save button (only in review step) -->
+          <UiButton
+            v-else-if="addMode === 'scan' && scanStep === 'review'"
+            icon="i-lucide-user-plus"
+            :loading="scanIsSaving"
+            :disabled="!scannedContact?.label.trim() || !!scanExistingContact"
+            @click="onSaveScanContactAsync"
           >
             {{ t('actions.add') }}
           </UiButton>
@@ -480,15 +623,26 @@
     <!-- Share Identity QR Dialog -->
     <ShareIdentityDialog v-model:open="showShareDialog" />
 
-    <!-- Scan Contact QR Dialog -->
-    <ScanContactDialog v-model:open="showScanDialog" />
   </HaexSystemSettingsLayout>
 </template>
 
 <script setup lang="ts">
+import { Html5Qrcode } from 'html5-qrcode'
 import type { SelectHaexIdentities } from '~/database/schemas'
 import ShareIdentityDialog from './contacts/ShareIdentityDialog.vue'
-import ScanContactDialog from './contacts/ScanContactDialog.vue'
+
+interface ScannedClaim {
+  type: string
+  value: string
+  selected: boolean
+}
+
+interface ScannedContact {
+  publicKey: string
+  endpointId?: string
+  label: string
+  claims: ScannedClaim[]
+}
 
 const { t } = useI18n()
 const { add } = useToast()
@@ -504,10 +658,10 @@ const showAddDialog = ref(false)
 const showEditDialog = ref(false)
 const showDeleteConfirm = ref(false)
 const showShareDialog = ref(false)
-const showScanDialog = ref(false)
 
 const addMode = ref<string>('file')
 const addTabItems = computed(() => [
+  { label: t('add.tabScan'), value: 'scan' },
   { label: t('add.tabFile'), value: 'file' },
   { label: t('add.tabManual'), value: 'manual' },
 ])
@@ -528,6 +682,28 @@ const addForm = reactive({
   notes: '',
 })
 
+// QR scan state
+const scanStep = ref<'scan' | 'review'>('scan')
+const scannerContainer = ref<HTMLElement | null>(null)
+const scanError = ref('')
+const scannedContact = ref<ScannedContact | null>(null)
+const scanContactNotes = ref('')
+const scanIsSaving = ref(false)
+const scanExistingContact = ref<SelectHaexIdentities | null>(null)
+const scanShowAddClaimInline = ref(false)
+const scanNewClaimType = ref('')
+const scanNewClaimValue = ref('')
+const scanCameras = ref<{ id: string; label: string }[]>([])
+const scanSelectedCameraId = ref('')
+let qrScanner: Html5Qrcode | null = null
+
+const scanCameraOptions = computed(() =>
+  scanCameras.value.map(c => ({
+    label: c.label || c.id,
+    value: c.id,
+  })),
+)
+
 const editForm = reactive({
   id: '',
   label: '',
@@ -545,9 +721,10 @@ onMounted(async () => {
   }
 })
 
-watch(showAddDialog, (isOpen) => {
+watch(showAddDialog, async (isOpen) => {
   if (isOpen) {
-    addMode.value = 'file'
+    // Reset to a non-scan value first so the addMode watcher always triggers
+    addMode.value = ''
     importJson.value = ''
     importParsed.value = null
     importSelectedClaimIndices.value.clear()
@@ -555,8 +732,207 @@ watch(showAddDialog, (isOpen) => {
     addForm.label = ''
     addForm.publicKey = ''
     addForm.notes = ''
+    resetScanState()
+    // Setting to 'scan' triggers the addMode watcher which starts the scanner
+    addMode.value = 'scan'
+  } else {
+    await stopQrScanner()
   }
 })
+
+watch(addMode, async (newMode, oldMode) => {
+  if (oldMode === 'scan') await stopQrScanner()
+  if (newMode === 'scan' && showAddDialog.value) {
+    resetScanState()
+    await nextTick()
+    await loadScanCameras()
+    startQrScanner()
+  }
+})
+
+watch(scanSelectedCameraId, async (newId, oldId) => {
+  if (newId && oldId && newId !== oldId) {
+    await stopQrScanner()
+    await nextTick()
+    startQrScanner()
+  }
+})
+
+// Footer helpers
+const addDialogBackLabel = computed(() => {
+  if (addMode.value === 'file' && importParsed.value) return t('actions.back')
+  if (addMode.value === 'scan' && scanStep.value === 'review') return t('actions.back')
+  return t('actions.cancel')
+})
+
+const onAddDialogBack = () => {
+  if (addMode.value === 'file' && importParsed.value) {
+    importParsed.value = null
+  } else if (addMode.value === 'scan' && scanStep.value === 'review') {
+    backToScan()
+  } else {
+    showAddDialog.value = false
+  }
+}
+
+// QR scanner methods
+const resetScanState = () => {
+  scanStep.value = 'scan'
+  scanError.value = ''
+  scannedContact.value = null
+  scanContactNotes.value = ''
+  scanExistingContact.value = null
+  scanShowAddClaimInline.value = false
+  scanNewClaimType.value = ''
+  scanNewClaimValue.value = ''
+  scanCameras.value = []
+  scanSelectedCameraId.value = ''
+}
+
+const loadScanCameras = async () => {
+  try {
+    const devices = await Html5Qrcode.getCameras()
+    scanCameras.value = devices.map(d => ({ id: d.id, label: d.label }))
+    if (scanCameras.value.length > 0 && !scanCameras.value.some(c => c.id === scanSelectedCameraId.value)) {
+      scanSelectedCameraId.value = scanCameras.value[0]?.id ?? ''
+    }
+  } catch (error) {
+    console.error('Failed to enumerate cameras:', error)
+    scanError.value = t('scan.cameraError')
+  }
+}
+
+const startQrScanner = async () => {
+  if (!scannerContainer.value) return
+
+  const containerId = 'qr-scanner-' + Date.now()
+  scannerContainer.value.id = containerId
+
+  try {
+    qrScanner = new Html5Qrcode(containerId)
+    await qrScanner.start(
+      scanSelectedCameraId.value || { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      onQrScanSuccess,
+      undefined,
+    )
+  } catch (error) {
+    console.error('Failed to start scanner:', error)
+    scanError.value = t('scan.cameraError')
+  }
+}
+
+const stopQrScanner = async () => {
+  if (qrScanner) {
+    try {
+      if (qrScanner.isScanning) {
+        await qrScanner.stop()
+      }
+    } catch {
+      // Scanner might already be stopped
+    }
+    qrScanner = null
+  }
+}
+
+const refreshScanCameras = async () => {
+  await stopQrScanner()
+  await loadScanCameras()
+  await nextTick()
+  startQrScanner()
+}
+
+const onQrScanSuccess = async (decodedText: string) => {
+  await stopQrScanner()
+
+  try {
+    const payload = JSON.parse(decodedText)
+
+    if (!payload.publicKey) {
+      scanError.value = t('scan.invalidQr')
+      scanStep.value = 'scan'
+      await nextTick()
+      startQrScanner()
+      return
+    }
+
+    const existing = await identityStore.getContactByPublicKeyAsync(payload.publicKey)
+    scanExistingContact.value = existing ?? null
+
+    scannedContact.value = {
+      publicKey: payload.publicKey,
+      endpointId: payload.endpointId || undefined,
+      label: payload.label || '',
+      claims: (payload.claims || []).map((c: { type: string; value: string }) => ({
+        type: c.type,
+        value: c.value,
+        selected: true,
+      })),
+    }
+
+    scanContactNotes.value = ''
+    scanStep.value = 'review'
+  } catch {
+    scanError.value = t('scan.invalidQr')
+    await nextTick()
+    startQrScanner()
+  }
+}
+
+const backToScan = async () => {
+  scanStep.value = 'scan'
+  scannedContact.value = null
+  scanExistingContact.value = null
+  scanError.value = ''
+  await nextTick()
+  startQrScanner()
+}
+
+const onSaveScanContactAsync = async () => {
+  if (!scannedContact.value || !scannedContact.value.label.trim()) return
+
+  scanIsSaving.value = true
+  try {
+    const selectedClaims = scannedContact.value.claims
+      .filter(c => c.selected)
+      .map(c => ({ type: c.type, value: c.value }))
+
+    if (scannedContact.value.endpointId) {
+      selectedClaims.push({ type: 'endpointId', value: scannedContact.value.endpointId })
+    }
+
+    await identityStore.addContactWithClaimsAsync(
+      scannedContact.value.label.trim(),
+      scannedContact.value.publicKey,
+      selectedClaims,
+      scanContactNotes.value.trim() || undefined,
+    )
+
+    add({ title: t('success.added'), color: 'success' })
+    showAddDialog.value = false
+  } catch (error) {
+    console.error('Failed to save scanned contact:', error)
+    add({
+      title: t('errors.addFailed'),
+      description: error instanceof Error ? error.message : undefined,
+      color: 'error',
+    })
+  } finally {
+    scanIsSaving.value = false
+  }
+}
+
+const addScanInlineClaim = () => {
+  if (!scannedContact.value || !scanNewClaimType.value.trim() || !scanNewClaimValue.value.trim()) return
+  scannedContact.value.claims.push({
+    type: scanNewClaimType.value.trim(),
+    value: scanNewClaimValue.value.trim(),
+    selected: true,
+  })
+  scanNewClaimType.value = ''
+  scanNewClaimValue.value = ''
+  scanShowAddClaimInline.value = false
+}
 
 const onAddContactAsync = async () => {
   if (!addForm.label.trim() || !addForm.publicKey.trim()) return
@@ -769,7 +1145,7 @@ const editingClaim = ref<{
 } | null>(null)
 const claimTargetContactId = ref<string | null>(null)
 
-const claimTypeOptions = computed(() => [
+const claimTypeOptions = computed<{ label: string; value: string; disabled?: boolean }[]>(() => [
   { label: 'Email', value: 'email' },
   { label: 'Name', value: 'name' },
   { label: t('claims.custom'), value: 'custom' },
@@ -876,6 +1252,10 @@ const deleteClaimAsync = async (claimId: string, contactId: string) => {
     add({ title: t('claims.deleteFailed'), color: 'error' })
   }
 }
+
+onBeforeUnmount(() => {
+  stopQrScanner()
+})
 </script>
 
 <i18n lang="yaml">
@@ -889,7 +1269,8 @@ de:
     added: Hinzugefügt
   add:
     title: Kontakt hinzufügen
-    description: Importiere einen Kontakt aus einer Datei oder füge ihn manuell hinzu
+    description: Scanne einen QR-Code, importiere aus einer Datei oder füge manuell hinzu
+    tabScan: QR-Code
     tabFile: Aus Datei
     tabManual: Manuell
     selectFile: JSON-Datei auswählen
@@ -902,6 +1283,14 @@ de:
     labelPlaceholder: z.B. Alice, Bob, Team-Lead
     publicKeyPlaceholder: Base58-kodierten Public Key einfügen
     notesPlaceholder: Optionale Notizen
+  scan:
+    selectCamera: Kamera auswählen
+    refreshCameras: Kameras neu laden
+    cameraError: Kamera konnte nicht gestartet werden. Bitte erlaube den Kamerazugriff.
+    invalidQr: Ungültiger QR-Code. Bitte scanne einen Identitäts-QR-Code.
+    reviewLabel: Name
+    noClaims: Keine Claims vorhanden. Du kannst eigene hinzufügen.
+    alreadyExists: 'Ein Kontakt mit diesem Public Key existiert bereits: {name}'
   edit:
     title: Kontakt bearbeiten
   delete:
@@ -929,7 +1318,6 @@ de:
   actions:
     add: Hinzufügen
     share: Teilen
-    scan: Scannen
     edit: Bearbeiten
     delete: Löschen
     cancel: Abbrechen
@@ -960,7 +1348,8 @@ en:
     added: Added
   add:
     title: Add Contact
-    description: Import a contact from a file or add one manually
+    description: Scan a QR code, import from a file or add manually
+    tabScan: QR Code
     tabFile: From file
     tabManual: Manual
     selectFile: Select JSON file
@@ -973,6 +1362,14 @@ en:
     labelPlaceholder: e.g. Alice, Bob, Team Lead
     publicKeyPlaceholder: Paste Base58-encoded public key
     notesPlaceholder: Optional notes
+  scan:
+    selectCamera: Select camera
+    refreshCameras: Refresh cameras
+    cameraError: Could not start camera. Please allow camera access.
+    invalidQr: Invalid QR code. Please scan an identity QR code.
+    reviewLabel: Name
+    noClaims: No claims yet. You can add your own.
+    alreadyExists: 'A contact with this public key already exists: {name}'
   edit:
     title: Edit Contact
   delete:
@@ -1000,7 +1397,6 @@ en:
   actions:
     add: Add
     share: Share
-    scan: Scan
     edit: Edit
     delete: Delete
     cancel: Cancel

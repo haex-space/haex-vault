@@ -10,8 +10,11 @@
       <div class="flex items-center gap-4">
         <UiAvatarPicker
           :model-value="currentDeviceAvatar"
+          :avatar-options="currentDeviceAvatarOptions"
           :seed="deviceId || 'device'"
+          avatar-style="bottts"
           size="lg"
+          @update:avatar-options="onUpdateAvatarOptionsAsync"
           @update:model-value="onUpdateAvatarAsync"
         />
         <span class="text-sm text-muted">{{ t('currentDevice.avatarHint') }}</span>
@@ -59,6 +62,7 @@
 <script setup lang="ts">
 import { eq } from 'drizzle-orm'
 import { haexSpaceDevices } from '~/database/schemas'
+type AvatarOptions = Record<string, unknown>
 
 defineEmits<{ back: [] }>()
 
@@ -71,16 +75,32 @@ const { currentVault } = storeToRefs(useVaultStore())
 
 const isSaving = ref(false)
 const currentDeviceAvatar = ref<string | null>(null)
+const currentDeviceAvatarOptions = ref<AvatarOptions | null>(null)
+
+// Picker emits avatarOptions before modelValue
+const pendingOptions = ref<AvatarOptions | null | undefined>(undefined)
+
+const onUpdateAvatarOptionsAsync = (options: AvatarOptions | null) => {
+  pendingOptions.value = options
+}
 
 const onUpdateAvatarAsync = async (avatar: string | null) => {
   if (!currentVault.value?.drizzle || !deviceId.value) return
 
+  const avatarOptions = pendingOptions.value !== undefined
+    ? (pendingOptions.value ? JSON.stringify(pendingOptions.value) : null)
+    : undefined
+
   await currentVault.value.drizzle
     .update(haexSpaceDevices)
-    .set({ avatar })
+    .set({ avatar, ...(avatarOptions !== undefined ? { avatarOptions } : {}) })
     .where(eq(haexSpaceDevices.deviceEndpointId, deviceId.value))
 
   currentDeviceAvatar.value = avatar
+  if (pendingOptions.value !== undefined) {
+    currentDeviceAvatarOptions.value = pendingOptions.value
+  }
+  pendingOptions.value = undefined
 }
 
 const onUpdateDeviceNameAsync = async () => {
@@ -118,6 +138,9 @@ const loadDeviceNameAsync = async () => {
 
   deviceName.value = entry?.deviceName ?? ''
   currentDeviceAvatar.value = entry?.avatar ?? null
+  if (entry?.avatarOptions) {
+    try { currentDeviceAvatarOptions.value = JSON.parse(entry.avatarOptions) } catch { /* ignore */ }
+  }
 }
 
 onMounted(async () => {
@@ -130,7 +153,7 @@ de:
   currentDevice:
     title: Aktuelles Gerät
     description: Dieses Gerät wird automatisch über einen kryptographischen Schlüssel identifiziert
-    avatarHint: Klicke auf das Bild, um ein Geräte-Avatar hochzuladen
+    avatarHint: Klicke auf den Avatar, um ihn anzupassen
     name: Gerätename
     namePlaceholder: z.B. Mein Laptop
     endpointId: Endpoint-ID
@@ -144,7 +167,7 @@ en:
   currentDevice:
     title: Current Device
     description: This device is automatically identified via a cryptographic key
-    avatarHint: Click the image to upload a device avatar
+    avatarHint: Click the avatar to customize it
     name: Device Name
     namePlaceholder: e.g. My Laptop
     endpointId: Endpoint ID

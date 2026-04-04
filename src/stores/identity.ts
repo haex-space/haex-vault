@@ -299,12 +299,12 @@ export const useIdentityStore = defineStore('identityStore', () => {
     await loadIdentitiesAsync()
   }
 
-  const updateAvatarAsync = async (identityId: string, avatar: string | null) => {
+  const updateAvatarAsync = async (identityId: string, avatar: string | null, avatarOptions?: string | null) => {
     if (!currentVault.value?.drizzle) return
 
     await currentVault.value.drizzle
       .update(haexIdentities)
-      .set({ avatar })
+      .set({ avatar, ...(avatarOptions !== undefined ? { avatarOptions } : {}) })
       .where(eq(haexIdentities.id, identityId))
 
     await loadIdentitiesAsync()

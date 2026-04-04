@@ -53,6 +53,7 @@ const avatarStyles: Record<string, Style<object>> = { bottts, 'toon-head': toonH
 const props = withDefaults(defineProps<{
   src?: string | null
   seed?: string
+  avatarOptions?: Record<string, unknown> | null
   alt?: string
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
   avatarStyle?: keyof typeof avatarStyles
@@ -83,7 +84,12 @@ const badgeSizeClasses: Record<string, string> = {
 }
 
 const fallbackSvg = computed(() => {
-  if (props.src || !props.seed) return ''
+  if (props.src) return ''
+  if (props.avatarOptions) {
+    const style = avatarStyles[props.avatarOptions.style as string] ?? avatarStyles[props.avatarStyle] ?? bottts
+    return createAvatar(style, { seed: props.seed, ...props.avatarOptions }).toString()
+  }
+  if (!props.seed) return ''
   return createAvatar(avatarStyles[props.avatarStyle] ?? bottts, { seed: props.seed }).toString()
 })
 

@@ -51,6 +51,7 @@ export const haexSpaceDevices = sqliteTable(
     deviceEndpointId: text(tableNames.haex.space_devices.columns.deviceEndpointId).notNull(),
     deviceName: text(tableNames.haex.space_devices.columns.deviceName).notNull(),
     avatar: text(tableNames.haex.space_devices.columns.avatar), // Base64 WebP 128x128
+    avatarOptions: text(tableNames.haex.space_devices.columns.avatarOptions), // JSON DiceBear options
     relayUrl: text(tableNames.haex.space_devices.columns.relayUrl),
     leaderPriority: integer(tableNames.haex.space_devices.columns.leaderPriority).default(10),
     createdAt: text(tableNames.haex.space_devices.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),

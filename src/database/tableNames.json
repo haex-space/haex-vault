@@ -195,6 +195,7 @@
         "publicKey": "public_key",
         "privateKey": "private_key",
         "avatar": "avatar",
+        "avatarOptions": "avatar_options",
         "notes": "notes",
         "createdAt": "created_at"
       }
@@ -232,6 +233,7 @@
         "deviceEndpointId": "device_endpoint_id",
         "deviceName": "device_name",
         "avatar": "avatar",
+        "avatarOptions": "avatar_options",
         "relayUrl": "relay_url",
         "leaderPriority": "leader_priority",
         "createdAt": "created_at"
