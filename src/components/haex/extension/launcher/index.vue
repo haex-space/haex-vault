@@ -39,7 +39,7 @@
     </span>
 
     <template #body>
-      <div class="flex flex-wrap justify-center gap-2 max-w-[512px] mx-auto">
+      <div class="flex flex-wrap justify-center gap-2 max-w-[512px] mx-auto pr-[env(safe-area-inset-right)]">
         <!-- All launcher items (system windows + enabled extensions, alphabetically sorted) -->
         <HaexExtensionLauncherItem
           v-for="item in launcherItems"
@@ -81,15 +81,17 @@
     </template>
 
     <template #footer>
-      <UButton
-        color="error"
-        variant="soft"
-        block
-        size="xl"
-        icon="i-heroicons-arrow-left-on-rectangle"
-        :label="t('logout.label')"
-        @click="onLogout"
-      />
+      <div class="pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)]">
+        <UButton
+          color="error"
+          variant="soft"
+          block
+          size="xl"
+          icon="i-heroicons-arrow-left-on-rectangle"
+          :label="t('logout.label')"
+          @click="onLogout"
+        />
+      </div>
     </template>
   </UDrawer>
 </template>
