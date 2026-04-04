@@ -1,8 +1,8 @@
 import type { DecryptedSpace } from '@haex-space/vault-sdk'
 import { eq, and } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
-import { haexSpaces, haexUcanTokens, haexInviteTokens } from '~/database/schemas'
-import type { SelectHaexSpaces } from '~/database/schemas'
+import { haexSpaces, haexUcanTokens, haexInviteTokens, haexSpaceMembers } from '~/database/schemas'
+import type { SelectHaexSpaces, SelectHaexSpaceMembers } from '~/database/schemas'
 import { createLogger } from '@/stores/logging'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { createRootUcanAsync, delegateUcanAsync, createServerRelayUcanAsync, persistUcanAsync, fetchWithUcanAuth, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
@@ -809,6 +809,96 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     return capabilities.includes(capability) || capabilities.includes('space/admin')
   }
 
+  // =========================================================================
+  // Space Members
+  // =========================================================================
+
+  /**
+   * Add a member to a space. Derives and validates SPKI public key from DID.
+   * Validates DID <-> public key match once at join time — after this, values are immutable.
+   * Uses UPSERT to handle CRDT race conditions (both sides may create the same member).
+   */
+  const addMemberToSpaceAsync = async (params: {
+    spaceId: string
+    memberDid: string
+    label: string
+    role: string
+    avatar?: string | null
+    avatarOptions?: string | null
+  }) => {
+    const db = getDb()
+    if (!db) return
+
+    // Derive SPKI public key from DID and validate the match.
+    // This is the one-time validation at join — DID and public key never change after this.
+    const { didKeyToPublicKeyAsync } = await import('@haex-space/vault-sdk')
+    const memberPublicKey = await didKeyToPublicKeyAsync(params.memberDid)
+
+    await db.insert(haexSpaceMembers).values({
+      spaceId: params.spaceId,
+      memberDid: params.memberDid,
+      memberPublicKey,
+      label: params.label,
+      role: params.role,
+      avatar: params.avatar ?? null,
+      avatarOptions: params.avatarOptions ?? null,
+      joinedAt: new Date().toISOString(),
+    }).onConflictDoUpdate({
+      target: [haexSpaceMembers.spaceId, haexSpaceMembers.memberDid],
+      set: {
+        label: params.label,
+        role: params.role,
+        avatar: params.avatar ?? undefined,
+        avatarOptions: params.avatarOptions ?? undefined,
+      },
+    })
+  }
+
+  /** Get all members of a space */
+  const getSpaceMembersAsync = async (spaceId: string): Promise<SelectHaexSpaceMembers[]> => {
+    const db = getDb()
+    if (!db) return []
+    return db.select().from(haexSpaceMembers).where(eq(haexSpaceMembers.spaceId, spaceId))
+  }
+
+  /** Update own profile in a space (label, avatar) */
+  const updateOwnSpaceProfileAsync = async (spaceId: string, profile: {
+    label?: string
+    avatar?: string | null
+    avatarOptions?: string | null
+  }) => {
+    const db = getDb()
+    if (!db) return
+
+    const identityStore = useIdentityStore()
+    const myDids = identityStore.ownIdentities.map(i => i.did)
+    if (myDids.length === 0) return
+
+    for (const did of myDids) {
+      await db.update(haexSpaceMembers)
+        .set(profile)
+        .where(
+          and(
+            eq(haexSpaceMembers.spaceId, spaceId),
+            eq(haexSpaceMembers.memberDid, did),
+          ),
+        )
+    }
+  }
+
+  /** Lookup member public keys for signature verification. Returns Map<publicKey, memberDid> */
+  const getMemberPublicKeysForSpaceAsync = async (spaceId: string): Promise<Map<string, string>> => {
+    const db = getDb()
+    if (!db) return new Map()
+
+    const members = await db.select({
+      memberPublicKey: haexSpaceMembers.memberPublicKey,
+      memberDid: haexSpaceMembers.memberDid,
+    }).from(haexSpaceMembers).where(eq(haexSpaceMembers.spaceId, spaceId))
+
+    return new Map(members.map(m => [m.memberPublicKey, m.memberDid]))
+  }
+
   /**
    * Accept a local P2P invite. Tries all space endpoints until ClaimInvite succeeds.
    */
@@ -975,6 +1065,10 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     setupFederationForSpaceAsync,
     getCapabilitiesForSpaceAsync,
     hasCapabilityAsync,
+    addMemberToSpaceAsync,
+    getSpaceMembersAsync,
+    updateOwnSpaceProfileAsync,
+    getMemberPublicKeysForSpaceAsync,
     queueQuicInviteAsync,
     acceptLocalInviteAsync,
     persistSpaceAsync,
