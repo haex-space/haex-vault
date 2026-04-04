@@ -103,12 +103,25 @@
                 · {{ t('members.uses', { current: token.currentUses, max: token.maxUses }) }}
               </p>
             </div>
-            <UiButton
-              v-if="isAdmin"
-              color="error"
-              variant="ghost"
-              icon="i-lucide-trash-2"              @click="onRevokeTokenAsync(token.id)"
-            />
+            <div class="flex gap-1">
+              <UiButton
+                v-if="token.targetDid"
+                color="primary"
+                variant="ghost"
+                icon="i-lucide-send"
+                :title="t('members.resend')"
+                :loading="resendingTokenId === token.id"
+                @click="onResendInviteAsync(token)"
+              />
+              <UiButton
+                v-if="isAdmin"
+                color="error"
+                variant="ghost"
+                icon="i-lucide-trash-2"
+                :title="t('members.revokeInvite')"
+                @click="onRevokeTokenAsync(token.id)"
+              />
+            </div>
           </div>
         </div>
 
@@ -249,7 +262,6 @@ const loadMembersAsync = async () => {
   members.value = await db.select().from(haexSpaceDevices)
     .where(eq(haexSpaceDevices.spaceId, props.spaceId))
 
-  const now = Math.floor(Date.now() / 1000)
   const allTokens = await db.select().from(haexInviteTokens)
     .where(eq(haexInviteTokens.spaceId, props.spaceId))
 
@@ -286,6 +298,60 @@ const onRemoveMemberAsync = async (member: SelectHaexSpaceDevices) => {
       description: error instanceof Error ? error.message : undefined,
       color: 'error',
     })
+  }
+}
+
+const resendingTokenId = ref<string | null>(null)
+
+const onResendInviteAsync = async (token: SelectHaexInviteTokens) => {
+  if (!token.targetDid) return
+
+  resendingTokenId.value = token.id
+  try {
+    const identityStore = useIdentityStore()
+    await identityStore.loadIdentitiesAsync()
+
+    // Find the contact by DID to get their endpoint IDs
+    const contact = identityStore.contacts.find(c => c.did === token.targetDid)
+    if (!contact) {
+      add({ title: t('members.resendNoContact'), color: 'error' })
+      return
+    }
+
+    const claims = await identityStore.getClaimsAsync(contact.id)
+    const endpointIds = claims
+      .filter(c => c.type === 'endpointId' || c.type.startsWith('device:'))
+      .map(c => c.value)
+
+    if (endpointIds.length === 0) {
+      add({ title: t('members.resendNoEndpoint'), color: 'error' })
+      return
+    }
+
+    const { useInviteOutbox } = await import('@/composables/useInviteOutbox')
+    const { createOutboxEntryAsync } = useInviteOutbox()
+
+    const expiresAt = token.expiresAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+
+    for (const endpointId of endpointIds) {
+      await createOutboxEntryAsync({
+        spaceId: token.spaceId,
+        tokenId: token.id,
+        targetDid: token.targetDid,
+        targetEndpointId: endpointId,
+        expiresAt,
+      })
+    }
+
+    add({ title: t('members.resendSuccess'), color: 'success' })
+  } catch (error) {
+    add({
+      title: t('members.resendFailed'),
+      description: error instanceof Error ? error.message : undefined,
+      color: 'error',
+    })
+  } finally {
+    resendingTokenId.value = null
   }
 }
 
@@ -336,6 +402,12 @@ de:
     removeFailed: Mitglied konnte nicht entfernt werden
     tokenRevoked: Einladung widerrufen
     revokeFailed: Einladung konnte nicht widerrufen werden
+    revokeInvite: Einladung widerrufen
+    resend: Erneut senden
+    resendSuccess: Einladung erneut gesendet
+    resendFailed: Erneutes Senden fehlgeschlagen
+    resendNoContact: Kontakt nicht gefunden
+    resendNoEndpoint: Kontakt hat keine bekannten Endpoints
 en:
   type:
     local: Local
@@ -358,4 +430,10 @@ en:
     removeFailed: Failed to remove member
     tokenRevoked: Invitation revoked
     revokeFailed: Failed to revoke invitation
+    revokeInvite: Revoke invitation
+    resend: Resend
+    resendSuccess: Invitation resent
+    resendFailed: Failed to resend invitation
+    resendNoContact: Contact not found
+    resendNoEndpoint: Contact has no known endpoints
 </i18n>
