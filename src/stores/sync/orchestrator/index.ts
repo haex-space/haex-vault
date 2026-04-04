@@ -378,17 +378,6 @@ export const useSyncOrchestratorStore = defineStore(
         `[WATCHER] Fallback pull started (interval: ${config.periodicIntervalMs}ms)`,
       )
 
-      // Start invite outbox processor (checks every 30s for pending deliveries)
-      outboxProcessorPoll = useTimeoutPoll(async () => {
-        try {
-          const { useInviteOutbox } = await import('@/composables/useInviteOutbox')
-          const { processOutboxAsync } = useInviteOutbox()
-          await processOutboxAsync()
-        } catch (error) {
-          log.error('[WATCHER] Outbox processing failed:', error)
-        }
-      }, 30_000)
-      log.info('[WATCHER] Invite outbox processor started (interval: 30000ms)')
     }
 
     /**
@@ -499,6 +488,20 @@ export const useSyncOrchestratorStore = defineStore(
           }
         })
         log.info('[START-SYNC] Local sync listener registered')
+      }
+
+      // Always start the invite outbox processor (works for local-only vaults too)
+      if (!outboxProcessorPoll) {
+        outboxProcessorPoll = useTimeoutPoll(async () => {
+          try {
+            const { useInviteOutbox } = await import('@/composables/useInviteOutbox')
+            const { processOutboxAsync } = useInviteOutbox()
+            await processOutboxAsync()
+          } catch (error) {
+            log.error('[WATCHER] Outbox processing failed:', error)
+          }
+        }, 30_000)
+        log.info('[START-SYNC] Invite outbox processor started')
       }
 
       const enabledBackends = syncBackendsStore.enabledBackends
