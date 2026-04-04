@@ -96,6 +96,44 @@ pub fn get_effective_log_level(
     LogLevel::from_str(DEFAULT_LOG_LEVEL).unwrap()
 }
 
+/// Log to both stderr and the CRDT-synced DB log table.
+/// Use this from subsystems that have direct DB/HLC access but no AppState.
+/// Locks HLC internally — safe to call from anywhere.
+pub fn log_to_db(
+    db: &crate::database::DbConnection,
+    hlc: &std::sync::Arc<std::sync::Mutex<crate::crdt::hlc::HlcService>>,
+    level: &str,
+    source: &str,
+    message: &str,
+) {
+    // Always print to stderr for immediate visibility
+    eprintln!("[{source}] [{level}] {message}");
+
+    let hlc_guard = match hlc.lock() {
+        Ok(g) => g,
+        Err(_) => return, // Can't log without HLC — stderr fallback above is enough
+    };
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let now = time::OffsetDateTime::now_utc();
+    let timestamp = now.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
+
+    let sql = format!(
+        "INSERT INTO {} (id, timestamp, level, source, extension_id, message, metadata, device_id) VALUES (?1, ?2, ?3, ?4, NULL, ?5, NULL, 'rust')",
+        crate::table_names::TABLE_LOGS
+    );
+
+    let params: Vec<serde_json::Value> = vec![
+        serde_json::Value::String(id),
+        serde_json::Value::String(timestamp),
+        serde_json::Value::String(level.to_string()),
+        serde_json::Value::String(source.to_string()),
+        serde_json::Value::String(message.to_string()),
+    ];
+
+    let _ = crate::database::core::execute_with_crdt(sql, params, db, &hlc_guard);
+}
+
 /// Insert a log entry via CRDT-aware execution (synced across devices).
 /// NOTE: The console interceptor filters out sync-related messages (`[SYNC]` prefix)
 /// to prevent a feedback loop: sync log → interceptor → insert → CRDT dirty → push → ∞

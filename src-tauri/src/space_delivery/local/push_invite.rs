@@ -1,7 +1,7 @@
 //! PushInvite handler: receives push invites on the invitee side.
 //!
-//! Creates a dummy space (status='pending') and a pending invite entry.
-//! Uses `execute_with_crdt` / `select_with_crdt` since both tables are CRDT-synced.
+//! Creates a pending invite entry with embedded space metadata.
+//! Uses `execute_with_crdt` / `select_with_crdt` since the table is CRDT-synced.
 
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -13,8 +13,11 @@ use uuid::Uuid;
 use crate::crdt::hlc::HlcService;
 use crate::database::core;
 use crate::database::DbConnection;
+use crate::logging;
 
 use super::protocol::Response;
+
+const LOG_SOURCE: &str = "PushInvite";
 
 const VALID_CAPABILITIES: &[&str] = &["space/read", "space/write", "space/invite"];
 
@@ -36,14 +39,20 @@ pub fn handle_push_invite(
     space_endpoints: &[String],
     origin_url: Option<&str>,
 ) -> Response {
+    logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
+        "Received invite for space {space_id} ({space_name}) from {inviter_did}, token={token_id}"
+    ));
+
     // 1. Validate capabilities — reject if empty or containing unknown values
     if capabilities.is_empty() {
+        logging::log_to_db(db, hlc, "warn", LOG_SOURCE, "REJECTED: no capabilities");
         return Response::Error {
             message: "Invite has no capabilities".to_string(),
         };
     }
     for cap in capabilities {
         if !VALID_CAPABILITIES.contains(&cap.as_str()) {
+            logging::log_to_db(db, hlc, "warn", LOG_SOURCE, &format!("REJECTED: unknown capability {cap}"));
             return Response::Error {
                 message: format!("Unknown capability: {cap}"),
             };
@@ -62,18 +71,23 @@ pub fn handle_push_invite(
     .unwrap_or(0);
 
     if already_active > 0 {
+        logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!("SKIPPED: space {space_id} already active on this device"));
         return Response::PushInviteAck { accepted: true };
     }
 
     // 3. Check invite policy
     if !check_invite_policy(db, inviter_did) {
+        logging::log_to_db(db, hlc, "warn", LOG_SOURCE, &format!("REJECTED: invite policy blocked inviter {inviter_did}"));
         return Response::PushInviteAck { accepted: false };
     }
 
     // 4. Lock HLC for CRDT-synced writes
     let hlc_guard = match hlc.lock() {
         Ok(guard) => guard,
-        Err(_) => return Response::PushInviteAck { accepted: false },
+        Err(_) => {
+            eprintln!("[{LOG_SOURCE}] ERROR: HLC lock poisoned");
+            return Response::PushInviteAck { accepted: false };
+        }
     };
 
     // 5. Remove older pending invites from the same inviter for this space
@@ -102,14 +116,16 @@ pub fn handle_push_invite(
     let endpoints_json =
         serde_json::to_string(space_endpoints).unwrap_or_else(|_| "[]".to_string());
 
-    let _ = core::execute_with_crdt(
+    eprintln!("[{LOG_SOURCE}] [info] Inserting pending invite {invite_id} for space {space_id}");
+
+    match core::execute_with_crdt(
         "INSERT OR IGNORE INTO haex_pending_invites \
          (id, space_id, space_name, space_type, origin_url, inviter_did, inviter_label, \
           capabilities, include_history, token_id, space_endpoints, status, created_at) \
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'pending', ?12)"
             .to_string(),
         vec![
-            serde_json::Value::String(invite_id),
+            serde_json::Value::String(invite_id.clone()),
             serde_json::Value::String(space_id.to_string()),
             serde_json::Value::String(space_name.to_string()),
             serde_json::Value::String(space_type.to_string()),
@@ -128,7 +144,17 @@ pub fn handle_push_invite(
         ],
         db,
         &hlc_guard,
-    );
+    ) {
+        Ok(_) => eprintln!("[{LOG_SOURCE}] [info] SUCCESS: pending invite {invite_id} created"),
+        Err(e) => eprintln!("[{LOG_SOURCE}] [error] FAILED to insert pending invite: {e}"),
+    }
+
+    // Drop HLC lock before logging to DB (log_to_db locks internally)
+    drop(hlc_guard);
+
+    logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
+        "Invite processing complete for {invite_id} in space {space_id}"
+    ));
 
     let _ = app_handle.emit("push-invite-received", ());
 

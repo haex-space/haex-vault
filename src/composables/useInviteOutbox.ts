@@ -65,9 +65,12 @@ export function useInviteOutbox() {
 
     if (entries.length === 0) return
 
+    log.info(`Processing ${entries.length} pending outbox entries`)
+
     // Skip entries targeting our own endpoint (prevents self-invites via CRDT-synced outbox)
     const peerStore = usePeerStorageStore()
     const ownEndpointId = peerStore.nodeId
+    log.info(`Own endpoint ID: ${ownEndpointId || '(not running)'}`)
 
     // Load identities for inviterDid resolution
     const identityStore = useIdentityStore()
@@ -96,13 +99,15 @@ export function useInviteOutbox() {
 
       // Skip if targeting our own endpoint
       if (ownEndpointId && entry.targetEndpointId === ownEndpointId) {
-        log.debug(`Outbox entry ${entry.id}: target is own endpoint, marking delivered`)
+        log.info(`Outbox ${entry.id}: SKIP own endpoint ${ownEndpointId}`)
         await db
           .update(haexInviteOutbox)
           .set({ status: OutboxStatus.DELIVERED })
           .where(eq(haexInviteOutbox.id, entry.id))
         continue
       }
+
+      log.info(`Outbox ${entry.id}: processing → target=${entry.targetEndpointId.slice(0, 12)}… did=${entry.targetDid.slice(0, 20)}… space=${entry.spaceId.slice(0, 8)}…`)
 
       // Load space info
       const spaceRows = await db
@@ -112,7 +117,7 @@ export function useInviteOutbox() {
         .limit(1)
       const space = spaceRows[0]
       if (!space) {
-        log.warn(`Outbox entry ${entry.id}: space ${entry.spaceId} not found`)
+        log.warn(`Outbox ${entry.id}: SKIP space ${entry.spaceId} not found in haex_spaces`)
         continue
       }
 
@@ -124,7 +129,7 @@ export function useInviteOutbox() {
         .limit(1)
       const token = tokenRows[0]
       if (!token || !token.capabilities) {
-        log.warn(`Outbox entry ${entry.id}: invite token ${entry.tokenId} not found or has no capabilities, skipping`)
+        log.warn(`Outbox ${entry.id}: SKIP token ${entry.tokenId} not found or no capabilities`)
         await db
           .update(haexInviteOutbox)
           .set({ status: OutboxStatus.EXPIRED })
@@ -170,6 +175,8 @@ export function useInviteOutbox() {
       const spaceEndpoints = devices.map(d => d.deviceEndpointId)
 
       try {
+        log.info(`Outbox ${entry.id}: SENDING PushInvite to ${entry.targetEndpointId.slice(0, 12)}… (space=${space.name}, endpoints=${spaceEndpoints.length})`)
+
         const accepted = await invoke<boolean>('local_delivery_push_invite', {
           targetEndpointId: entry.targetEndpointId,
           spaceId: entry.spaceId,
@@ -190,7 +197,9 @@ export function useInviteOutbox() {
             .update(haexInviteOutbox)
             .set({ status: OutboxStatus.DELIVERED })
             .where(eq(haexInviteOutbox.id, entry.id))
-          log.info(`Outbox entry ${entry.id} delivered successfully`)
+          log.info(`Outbox ${entry.id}: DELIVERED successfully (accepted=${accepted})`)
+        } else {
+          log.warn(`Outbox ${entry.id}: PushInvite returned accepted=false`)
         }
       } catch (error) {
         const nextCount = entry.retryCount + 1
@@ -205,9 +214,7 @@ export function useInviteOutbox() {
           })
           .where(eq(haexInviteOutbox.id, entry.id))
 
-        log.debug(
-          `Outbox entry ${entry.id} retry #${nextCount}, next at ${nextRetry}: ${error}`,
-        )
+        log.warn(`Outbox ${entry.id}: FAILED retry #${nextCount}, next at ${nextRetry}: ${error}`)
       }
     }
   }

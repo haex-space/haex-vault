@@ -5,7 +5,6 @@ import {
   text,
 } from 'drizzle-orm/sqlite-core'
 import tableNames from '@/database/tableNames.json'
-import { haexSpaces } from './spaces'
 
 // ---------------------------------------------------------------------------
 // Pending Invites — incoming space invitations awaiting user response
@@ -15,9 +14,7 @@ export const haexPendingInvites = sqliteTable(
   tableNames.haex.pending_invites.name,
   {
     id: text(tableNames.haex.pending_invites.columns.id).primaryKey(),
-    spaceId: text(tableNames.haex.pending_invites.columns.spaceId)
-      .notNull()
-      .references(() => haexSpaces.id, { onDelete: 'cascade' }),
+    spaceId: text(tableNames.haex.pending_invites.columns.spaceId).notNull(),
     spaceName: text('space_name'),
     spaceType: text('space_type'),
     originUrl: text('origin_url'),

@@ -22,6 +22,13 @@
       "when": 1775303018717,
       "tag": "0002_goofy_gateway",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1775320110703,
+      "tag": "0003_naive_matthew_murdock",
+      "breakpoints": true
     }
   ]
 }
