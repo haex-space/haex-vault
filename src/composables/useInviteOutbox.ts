@@ -67,8 +67,21 @@ export function useInviteOutbox() {
 
     log.info(`Processing ${entries.length} pending outbox entries`)
 
-    // Skip entries targeting our own endpoint (prevents self-invites via CRDT-synced outbox)
+    // Ensure peer storage is running — local_delivery_push_invite requires it.
+    // Without this, outbox entries silently fail and retry forever.
     const peerStore = usePeerStorageStore()
+    if (!peerStore.nodeId) {
+      log.info('Peer storage not running — starting automatically for outbox delivery')
+      try {
+        await peerStore.startAsync()
+        log.info(`Peer storage started: ${peerStore.nodeId?.slice(0, 16)}…`)
+      }
+      catch (error) {
+        log.warn(`Failed to start peer storage for outbox delivery: ${error}`)
+        return
+      }
+    }
+
     const ownEndpointId = peerStore.nodeId
     log.info(`Own endpoint ID: ${ownEndpointId || '(not running)'}`)
 

@@ -904,7 +904,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     })
 
     const { useInviteOutbox } = await import('@/composables/useInviteOutbox')
-    const { createOutboxEntryAsync } = useInviteOutbox()
+    const { createOutboxEntryAsync, processOutboxAsync } = useInviteOutbox()
 
     for (const endpointId of contactEndpointIds) {
       await createOutboxEntryAsync({
@@ -917,6 +917,12 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     }
 
     log.info(`Queued QUIC invite for ${contactDid} in space ${spaceId} (${contactEndpointIds.length} endpoint(s))`)
+
+    // Trigger immediate outbox processing so the invite is sent right away
+    // instead of waiting for the next 30s orchestrator tick
+    processOutboxAsync().catch(err =>
+      log.warn(`Immediate outbox processing failed (will retry): ${err}`),
+    )
   }
 
   const clearCache = () => {

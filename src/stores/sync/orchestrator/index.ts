@@ -501,7 +501,8 @@ export const useSyncOrchestratorStore = defineStore(
           } catch (error) {
             log.error('[WATCHER] Outbox processing failed:', error)
           }
-        }, 30_000)
+        }, 30_000, { immediate: true })
+        outboxProcessorPoll.resume()
         log.info('[START-SYNC] Invite outbox processor started')
       }
 
