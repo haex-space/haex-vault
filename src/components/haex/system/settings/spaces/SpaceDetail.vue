@@ -328,7 +328,7 @@ const formatCapabilities = (capabilities: string | null): string => {
 
 const onRemoveMemberAsync = async (member: SelectHaexSpaceMembers) => {
   try {
-    await spacesStore.removeIdentityFromSpaceAsync(props.spaceId, member.memberDid)
+    await spacesStore.removeSpaceMemberAsync(props.spaceId, member.memberDid)
     add({ title: t('members.removed'), color: 'success' })
     await loadMembersAsync()
   } catch (error) {

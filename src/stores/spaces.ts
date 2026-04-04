@@ -724,6 +724,16 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     log.info(`Removed identity ${identityPublicKey.slice(0, 20)}... from space ${spaceId}`)
   }
 
+  const removeSpaceMemberAsync = async (spaceId: string, memberDid: string) => {
+    const db = getDb()
+    if (!db) throw new Error('No vault open')
+
+    await db.delete(haexSpaceMembers)
+      .where(and(eq(haexSpaceMembers.spaceId, spaceId), eq(haexSpaceMembers.memberDid, memberDid)))
+
+    log.info(`Removed member ${memberDid.slice(0, 20)}... from space ${spaceId}`)
+  }
+
   // =========================================================================
   // Federation Helpers
   // =========================================================================
@@ -1168,6 +1178,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     leaveSpaceAsync,
     deleteSpaceAsync,
     removeIdentityFromSpaceAsync,
+    removeSpaceMemberAsync,
     setupFederationForSpaceAsync,
     getCapabilitiesForSpaceAsync,
     hasCapabilityAsync,
