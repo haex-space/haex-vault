@@ -547,7 +547,7 @@ jobs:
 
     steps:
       - name: Checkout E2E tests
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: haex-space/haex-e2e-tests
           ref: main
