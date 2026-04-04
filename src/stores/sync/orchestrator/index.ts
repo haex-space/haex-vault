@@ -495,8 +495,9 @@ export const useSyncOrchestratorStore = defineStore(
         outboxProcessorPoll = useTimeoutPoll(async () => {
           try {
             const { useInviteOutbox } = await import('@/composables/useInviteOutbox')
-            const { processOutboxAsync } = useInviteOutbox()
+            const { processOutboxAsync, cleanupOldInvitesAsync } = useInviteOutbox()
             await processOutboxAsync()
+            await cleanupOldInvitesAsync()
           } catch (error) {
             log.error('[WATCHER] Outbox processing failed:', error)
           }

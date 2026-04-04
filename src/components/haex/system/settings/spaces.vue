@@ -368,12 +368,18 @@ const loadInvitesAsync = async () => {
 const spaceListEntries = computed((): SpaceListEntry[] => {
   const entries: SpaceListEntry[] = []
 
-  // Pending invites first
+  // Pending invites first — construct space from invite metadata
+  // (no dummy entry in haex_spaces to avoid CRDT tombstone issues)
   for (const invite of pendingInvites.value) {
-    const space = spaces.value.find(s => s.id === invite.spaceId)
-    if (space) {
-      entries.push({ kind: 'pending', space, invite })
+    const space: SpaceWithType = {
+      id: invite.spaceId,
+      name: invite.spaceName || invite.spaceId.slice(0, 8),
+      type: (invite.spaceType as SpaceWithType['type']) || SpaceType.LOCAL,
+      status: SpaceStatus.PENDING,
+      serverUrl: invite.originUrl || '',
+      createdAt: invite.createdAt || '',
     }
+    entries.push({ kind: 'pending', space, invite })
   }
 
   // Active spaces
@@ -405,16 +411,19 @@ const onAcceptInviteAsync = async (invite?: SelectHaexPendingInvites) => {
 
   try {
     // Determine the best acceptance path:
-    // 1. Space has a server URL → accept via server (tokenId = server inviteId)
-    // 2. Invite has QUIC endpoints → accept via QUIC ClaimInvite
-    const space = spacesStore.spaces.find(s => s.id === invite.spaceId)
-    const serverUrl = space?.serverUrl || getServerUrlForSpace(invite.spaceId)
+    // 1. Invite has QUIC endpoints → accept via QUIC ClaimInvite (invite was pushed via P2P)
+    // 2. Invite has origin URL → accept via server (tokenId = server inviteId)
+    const serverUrl = invite.originUrl || getServerUrlForSpace(invite.spaceId)
     const endpoints: string[] = invite.spaceEndpoints
       ? JSON.parse(invite.spaceEndpoints)
       : []
 
-    if (serverUrl && invite.tokenId) {
-      // Online space — accept via server using tokenId as server inviteId
+    if (endpoints.length > 0) {
+      // QUIC invite — accept via ClaimInvite to one of the space endpoints
+      // (acceptLocalInviteAsync creates the real space entry on success)
+      await spacesStore.acceptLocalInviteAsync(invite)
+    } else if (serverUrl && invite.tokenId) {
+      // Online space without QUIC endpoints — accept via server
       const identity = await getIdentityAsync()
       const delivery = useMlsDelivery(serverUrl, invite.spaceId, {
         privateKey: identity.privateKey,
@@ -422,17 +431,16 @@ const onAcceptInviteAsync = async (invite?: SelectHaexPendingInvites) => {
       })
       await delivery.acceptInviteAsync(invite.tokenId)
 
-      // Activate the space locally
-      if (space) {
-        await spacesStore.persistSpaceAsync({
-          ...space,
-          status: SpaceStatus.ACTIVE,
-        })
-      }
+      // Create the real space entry (no dummy space exists anymore)
+      await spacesStore.persistSpaceAsync({
+        id: invite.spaceId,
+        name: invite.spaceName || invite.spaceId.slice(0, 8),
+        type: (invite.spaceType as SpaceWithType['type']) || SpaceType.ONLINE,
+        status: SpaceStatus.ACTIVE,
+        serverUrl,
+        createdAt: new Date().toISOString(),
+      })
       await spacesStore.loadSpacesFromDbAsync()
-    } else if (endpoints.length > 0) {
-      // Local space — accept via QUIC ClaimInvite
-      await spacesStore.acceptLocalInviteAsync(invite)
     } else {
       add({ title: t('errors.noServerUrl'), color: 'error' })
       return
@@ -463,9 +471,8 @@ const onDeclineInviteAsync = async (invite?: SelectHaexPendingInvites) => {
   if (!invite) return
 
   try {
-    // If the space has a server, also decline there (best-effort)
-    const space = spacesStore.spaces.find(s => s.id === invite.spaceId)
-    const serverUrl = space?.serverUrl || getServerUrlForSpace(invite.spaceId)
+    // If the invite has a server URL, also decline there (best-effort)
+    const serverUrl = invite.originUrl || getServerUrlForSpace(invite.spaceId)
 
     if (serverUrl && invite.tokenId) {
       try {
@@ -482,15 +489,11 @@ const onDeclineInviteAsync = async (invite?: SelectHaexPendingInvites) => {
       }
     }
 
-    // Always clean up locally
-    await spacesStore.removeSpaceFromDbAsync(invite.spaceId)
-
+    // Mark invite as declined (CRDT delete is safe — haex_pending_invites rows
+    // have unique UUIDs that don't collide with any row on the sender's device)
     const db = getDb()
     if (db) {
-      await db.update(haexPendingInvites).set({
-        status: 'declined',
-        respondedAt: new Date().toISOString(),
-      }).where(eq(haexPendingInvites.id, invite.id))
+      await db.delete(haexPendingInvites).where(eq(haexPendingInvites.id, invite.id))
     }
 
     add({ title: t('success.declined'), color: 'success' })

@@ -18,6 +18,9 @@ export const haexPendingInvites = sqliteTable(
     spaceId: text(tableNames.haex.pending_invites.columns.spaceId)
       .notNull()
       .references(() => haexSpaces.id, { onDelete: 'cascade' }),
+    spaceName: text('space_name'),
+    spaceType: text('space_type'),
+    originUrl: text('origin_url'),
     inviterDid: text(tableNames.haex.pending_invites.columns.inviterDid).notNull(),
     inviterLabel: text(tableNames.haex.pending_invites.columns.inviterLabel),
     capabilities: text(tableNames.haex.pending_invites.columns.capabilities), // JSON array: ["space/read", "space/write"]

@@ -50,33 +50,31 @@ pub fn handle_push_invite(
         }
     }
 
-    // 2. Check invite policy
+    // 2. Reject if this device already has the space as 'active' (prevents self-invites
+    //    when CRDT-synced outbox entries are processed by the sender's other devices)
+    let already_active = core::select_with_crdt(
+        "SELECT COUNT(*) FROM haex_spaces WHERE id = ?1 AND status = 'active'".to_string(),
+        vec![serde_json::Value::String(space_id.to_string())],
+        db,
+    )
+    .ok()
+    .and_then(|rows| rows.first()?.first()?.as_i64())
+    .unwrap_or(0);
+
+    if already_active > 0 {
+        return Response::PushInviteAck { accepted: true };
+    }
+
+    // 3. Check invite policy
     if !check_invite_policy(db, inviter_did) {
         return Response::PushInviteAck { accepted: false };
     }
 
-    // 3. Lock HLC for CRDT-synced writes
+    // 4. Lock HLC for CRDT-synced writes
     let hlc_guard = match hlc.lock() {
         Ok(guard) => guard,
         Err(_) => return Response::PushInviteAck { accepted: false },
     };
-
-    // 4. Create dummy space with status 'pending'
-    let _ = core::execute_with_crdt(
-        "INSERT OR IGNORE INTO haex_spaces (id, type, status, name, origin_url) \
-         VALUES (?1, ?2, 'pending', ?3, ?4)"
-            .to_string(),
-        vec![
-            serde_json::Value::String(space_id.to_string()),
-            serde_json::Value::String(space_type.to_string()),
-            serde_json::Value::String(space_name.to_string()),
-            origin_url.map_or(serde_json::Value::Null, |u| {
-                serde_json::Value::String(u.to_string())
-            }),
-        ],
-        db,
-        &hlc_guard,
-    );
 
     // 5. Remove older pending invites from the same inviter for this space
     let _ = core::execute_with_crdt(
@@ -91,7 +89,10 @@ pub fn handle_push_invite(
         &hlc_guard,
     );
 
-    // 6. Create new pending invite entry
+    // 6. Create pending invite with embedded space metadata.
+    //    No dummy space in haex_spaces — that table is CRDT-synced and shares
+    //    the same PK as the inviter's active space. Any delete/tombstone on a
+    //    dummy entry would propagate and destroy the inviter's real space.
     let invite_id = Uuid::new_v4().to_string();
     let now = OffsetDateTime::now_utc()
         .format(&time::format_description::well_known::Rfc3339)
@@ -103,12 +104,18 @@ pub fn handle_push_invite(
 
     let _ = core::execute_with_crdt(
         "INSERT OR IGNORE INTO haex_pending_invites \
-         (id, space_id, inviter_did, inviter_label, capabilities, include_history, token_id, space_endpoints, status, created_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'pending', ?9)"
+         (id, space_id, space_name, space_type, origin_url, inviter_did, inviter_label, \
+          capabilities, include_history, token_id, space_endpoints, status, created_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'pending', ?12)"
             .to_string(),
         vec![
             serde_json::Value::String(invite_id),
             serde_json::Value::String(space_id.to_string()),
+            serde_json::Value::String(space_name.to_string()),
+            serde_json::Value::String(space_type.to_string()),
+            origin_url.map_or(serde_json::Value::Null, |u| {
+                serde_json::Value::String(u.to_string())
+            }),
             serde_json::Value::String(inviter_did.to_string()),
             inviter_label.map_or(serde_json::Value::Null, |l| {
                 serde_json::Value::String(l.to_string())

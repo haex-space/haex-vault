@@ -1,7 +1,7 @@
 import { eq, and, lte } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
-import { haexInviteOutbox, haexInviteTokens, haexSpaces, haexSpaceDevices, haexUcanTokens } from '~/database/schemas'
-import { OutboxStatus } from '~/database/constants'
+import { haexInviteOutbox, haexInviteTokens, haexPendingInvites, haexSpaces, haexSpaceDevices, haexUcanTokens } from '~/database/schemas'
+import { OutboxStatus, SpaceStatus } from '~/database/constants'
 import { createLogger } from '@/stores/logging'
 
 const log = createLogger('INVITE-OUTBOX')
@@ -65,6 +65,10 @@ export function useInviteOutbox() {
 
     if (entries.length === 0) return
 
+    // Skip entries targeting our own endpoint (prevents self-invites via CRDT-synced outbox)
+    const peerStore = usePeerStorageStore()
+    const ownEndpointId = peerStore.nodeId
+
     // Load identities for inviterDid resolution
     const identityStore = useIdentityStore()
     await identityStore.loadIdentitiesAsync()
@@ -75,18 +79,28 @@ export function useInviteOutbox() {
 
     for (const entry of entries) {
       // Check if expired
-      if (entry.expiresAt <= now) {
+      if (entry.expiresAt && entry.expiresAt <= now) {
         await db
           .update(haexInviteOutbox)
           .set({ status: OutboxStatus.EXPIRED })
           .where(eq(haexInviteOutbox.id, entry.id))
         // Delete token if expired > 2 weeks (keep for UI display)
         const twoWeeksMs = 14 * 24 * 60 * 60 * 1000
-        if (Date.now() - new Date(entry.expiresAt).getTime() > twoWeeksMs) {
+        if (Date.now() - new Date(entry.expiresAt!).getTime() > twoWeeksMs) {
           await db.delete(haexInviteTokens).where(eq(haexInviteTokens.id, entry.tokenId))
           log.info(`Deleted stale invite token ${entry.tokenId} (expired > 2 weeks)`)
         }
         log.info(`Outbox entry ${entry.id} expired`)
+        continue
+      }
+
+      // Skip if targeting our own endpoint
+      if (ownEndpointId && entry.targetEndpointId === ownEndpointId) {
+        log.debug(`Outbox entry ${entry.id}: target is own endpoint, marking delivered`)
+        await db
+          .update(haexInviteOutbox)
+          .set({ status: OutboxStatus.DELIVERED })
+          .where(eq(haexInviteOutbox.id, entry.id))
         continue
       }
 
@@ -119,13 +133,13 @@ export function useInviteOutbox() {
       }
 
       // Token expired — mark outbox entry, clean up token after 2 weeks
-      if (token.expiresAt <= now) {
+      if (token.expiresAt && token.expiresAt <= now) {
         await db
           .update(haexInviteOutbox)
           .set({ status: OutboxStatus.EXPIRED })
           .where(eq(haexInviteOutbox.id, entry.id))
         const twoWeeksMs = 14 * 24 * 60 * 60 * 1000
-        if (Date.now() - new Date(token.expiresAt).getTime() > twoWeeksMs) {
+        if (Date.now() - new Date(token.expiresAt!).getTime() > twoWeeksMs) {
           await db.delete(haexInviteTokens).where(eq(haexInviteTokens.id, token.id))
           log.info(`Deleted stale invite token ${token.id} (expired > 2 weeks)`)
         }
@@ -198,5 +212,30 @@ export function useInviteOutbox() {
     }
   }
 
-  return { createOutboxEntryAsync, processOutboxAsync }
+  /**
+   * Clean up old responded invites via CRDT delete.
+   * Safe because haex_pending_invites rows have unique UUIDs — tombstones
+   * won't collide with any row on the sender's device.
+   * The CRDT purge mechanism handles tombstone cleanup.
+   *
+   * Note: haex_spaces entries with status='declined' are NOT deleted here
+   * because their primary key (space ID) matches the sender's active space.
+   * A CRDT tombstone for that ID would destroy the sender's space.
+   * These rows are tiny and filtered out by the UI.
+   */
+  const cleanupOldInvitesAsync = async () => {
+    const db = getDb()
+    if (!db) return
+
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
+    await db.delete(haexPendingInvites).where(
+      and(
+        lte(haexPendingInvites.respondedAt, sevenDaysAgo),
+        lte(haexPendingInvites.createdAt, sevenDaysAgo),
+      ),
+    )
+  }
+
+  return { createOutboxEntryAsync, processOutboxAsync, cleanupOldInvitesAsync }
 }
