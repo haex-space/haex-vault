@@ -442,17 +442,21 @@ const onAcceptInviteAsync = async (invite?: SelectHaexPendingInvites) => {
       })
       await spacesStore.loadSpacesFromDbAsync()
 
-      // Add self as space member
+      // Add self as space member (non-fatal)
       const myIdentity = identityStore.ownIdentities[0]
       if (myIdentity) {
-        await spacesStore.addMemberToSpaceAsync({
-          spaceId: invite.spaceId,
-          memberDid: myIdentity.did,
-          label: myIdentity.label || myIdentity.did.slice(0, 16),
-          role: 'read',
-          avatar: myIdentity.avatar,
-          avatarOptions: myIdentity.avatarOptions,
-        })
+        try {
+          await spacesStore.addMemberToSpaceAsync({
+            spaceId: invite.spaceId,
+            memberDid: myIdentity.did,
+            label: myIdentity.label || myIdentity.did.slice(0, 16),
+            role: 'read',
+            avatar: myIdentity.avatar,
+            avatarOptions: myIdentity.avatarOptions,
+          })
+        } catch (error) {
+          console.warn('Failed to add self as space member:', error)
+        }
       }
     } else {
       add({ title: t('errors.noServerUrl'), color: 'error' })
