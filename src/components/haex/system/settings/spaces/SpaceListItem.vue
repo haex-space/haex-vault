@@ -115,6 +115,7 @@
               variant="ghost"
               icon="i-lucide-user-plus"
               :title="t('actions.invite')"
+              data-testid="space-invite-trigger"
               @click.stop
             />
           </UDropdownMenu>

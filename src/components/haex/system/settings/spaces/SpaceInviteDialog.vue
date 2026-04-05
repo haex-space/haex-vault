@@ -35,6 +35,7 @@
               multiple
               :label="t('form.selectContacts')"
               class="flex-1"
+              data-testid="invite-contact-select"
             >
               <template #empty>
                 {{ t('form.noContacts') }}
@@ -80,6 +81,7 @@
             <UCheckbox
               v-model="capWrite"
               :label="t('capabilities.write')"
+              data-testid="invite-cap-write"
             />
             <UCheckbox
               v-model="capInvite"
@@ -146,6 +148,7 @@
           :icon="mode === 'contact' ? 'i-lucide-user-plus' : 'i-lucide-link'"
           :loading="isProcessing"
           :disabled="!canSubmit"
+          data-testid="invite-submit"
           @click="onSubmitAsync"
         >
           {{ mode === 'contact' ? t('actions.invite') : t('actions.createLink') }}

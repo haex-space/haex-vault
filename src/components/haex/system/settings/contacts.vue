@@ -15,6 +15,7 @@
       <UButton
         color="primary"
         icon="i-lucide-plus"
+        data-testid="contacts-add-trigger"
         @click="showAddDialog = true"
       >
         <span class="hidden @sm:inline">{{ t('actions.add') }}</span>
@@ -248,6 +249,7 @@
                 :label="t('add.jsonLabel')"
                 :placeholder="t('add.jsonPlaceholder')"
                 :rows="6"
+                data-testid="contacts-import-json"
               />
             </div>
           </template>
@@ -487,6 +489,7 @@
               v-if="!importParsed"
               icon="i-lucide-arrow-right"
               :disabled="!importJson.trim()"
+              data-testid="contacts-import-preview"
               @click="onParseImport"
             >
               {{ t('add.preview') }}
@@ -495,6 +498,7 @@
               v-else
               icon="i-lucide-plus"
               :loading="isAdding"
+              data-testid="contacts-import-submit"
               @click="onImportContactAsync"
             >
               {{ t('actions.add') }}
