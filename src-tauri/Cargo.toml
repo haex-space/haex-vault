@@ -1,6 +1,6 @@
 [package]
 name = "haex-vault"
-version = "1.8.31"
+version = "1.8.32"
 description = "Build once. Run everywhere. Sync automatically"
 authors = ["Haex"]
 edition = "2021"
