@@ -37,6 +37,7 @@
       <UButton
         color="primary"
         icon="i-lucide-plus"
+        data-testid="spaces-create-trigger"
         @click="showCreateDialog = true"
       >
         <span class="hidden @sm:inline">{{ t('actions.create') }}</span>
@@ -93,6 +94,7 @@
         <UiInput
           v-model="createForm.name"
           :label="t('create.nameLabel')"
+          data-testid="spaces-create-name"
           @keydown.enter.prevent="onCreateSpaceAsync"
         />
 
@@ -101,6 +103,7 @@
           <label class="text-sm font-medium">{{ t('create.typeLabel') }}</label>
           <div class="grid grid-cols-2 gap-2">
             <button
+              data-testid="spaces-create-type-local"
               class="flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-colors"
               :class="createForm.type === SpaceType.LOCAL
                 ? 'border-primary bg-primary/5 text-primary'
@@ -112,6 +115,7 @@
               <span class="text-xs text-muted text-center">{{ t('create.typeLocalHint') }}</span>
             </button>
             <button
+              data-testid="spaces-create-type-online"
               class="flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-colors"
               :class="createForm.type === SpaceType.ONLINE
                 ? 'border-primary bg-primary/5 text-primary'
@@ -154,6 +158,7 @@
             icon="i-lucide-plus"
             :loading="isCreating"
             :disabled="!createForm.name?.trim()"
+            data-testid="spaces-create-submit"
             @click="onCreateSpaceAsync"
           >
             {{ t('actions.create') }}
