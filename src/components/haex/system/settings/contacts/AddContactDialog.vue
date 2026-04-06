@@ -9,6 +9,7 @@
         v-model="addMode"
         :items="addTabItems"
         class="w-full"
+        data-testid="contacts-add-tabs"
       />
 
       <!-- File import mode -->
