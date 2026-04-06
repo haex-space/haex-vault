@@ -315,6 +315,9 @@
 <script setup lang="ts">
 import { Html5Qrcode } from 'html5-qrcode'
 import type { SelectHaexIdentities } from '~/database/schemas'
+import { createLogger } from '@/stores/logging'
+
+const log = createLogger('CONTACTS:ADD')
 
 interface ScannedClaim {
   type: string
@@ -421,6 +424,7 @@ watch(open, async (isOpen) => {
 watch(addMode, async (newMode, oldMode) => {
   if (oldMode === 'scan') await stopQrScanner()
   if (newMode === 'scan' && open.value) {
+    log.info(`Mode changed to scan`)
     resetScanState()
     await nextTick()
     await loadScanCameras()
@@ -468,11 +472,12 @@ const loadScanCameras = async () => {
   try {
     const devices = await Html5Qrcode.getCameras()
     scanCameras.value = devices.map(d => ({ id: d.id, label: d.label }))
+    log.info(`Found ${devices.length} camera(s)`, scanCameras.value.map(c => c.label))
     if (scanCameras.value.length > 0 && !scanCameras.value.some(c => c.id === scanSelectedCameraId.value)) {
       scanSelectedCameraId.value = scanCameras.value[0]?.id ?? ''
     }
   } catch (error) {
-    console.error('Failed to enumerate cameras:', error)
+    log.error('Failed to enumerate cameras', error)
     scanError.value = t('scan.cameraError')
   }
 }
@@ -482,6 +487,8 @@ const startQrScanner = async () => {
 
   const containerId = 'qr-scanner-' + Date.now()
   scannerContainer.value.id = containerId
+  const cameraId = scanSelectedCameraId.value || 'environment'
+  log.info(`Starting QR scanner (camera: ${cameraId})`)
 
   try {
     qrScanner = new Html5Qrcode(containerId)
@@ -491,8 +498,9 @@ const startQrScanner = async () => {
       onQrScanSuccess,
       undefined,
     )
+    log.info('QR scanner started successfully')
   } catch (error) {
-    console.error('Failed to start scanner:', error)
+    log.error('Failed to start QR scanner', error)
     scanError.value = t('scan.cameraError')
   }
 }
@@ -521,12 +529,14 @@ const refreshScanCameras = async () => {
 }
 
 const onQrScanSuccess = async (decodedText: string) => {
+  log.info('QR code decoded, processing payload')
   await stopQrScanner()
 
   try {
     const payload = JSON.parse(decodedText)
 
     if (!payload.publicKey) {
+      log.warn('QR payload missing publicKey, restarting scanner')
       scanError.value = t('scan.invalidQr')
       scanStep.value = 'scan'
       await nextTick()
@@ -536,6 +546,10 @@ const onQrScanSuccess = async (decodedText: string) => {
 
     const existing = await identityStore.getContactByPublicKeyAsync(payload.publicKey)
     scanExistingContact.value = existing ?? null
+
+    if (existing) {
+      log.info(`Scanned contact already exists: ${existing.label} (${existing.id})`)
+    }
 
     scannedContact.value = {
       publicKey: payload.publicKey,
@@ -548,9 +562,11 @@ const onQrScanSuccess = async (decodedText: string) => {
       })),
     }
 
+    log.info(`Scanned contact: "${payload.label || '(no label)'}", ${payload.claims?.length ?? 0} claims, endpointId: ${!!payload.endpointId}`)
     scanContactNotes.value = ''
     scanStep.value = 'review'
-  } catch {
+  } catch (error) {
+    log.warn('QR payload is not valid JSON, restarting scanner', error)
     scanError.value = t('scan.invalidQr')
     await nextTick()
     startQrScanner()
@@ -579,6 +595,7 @@ const onSaveScanContactAsync = async () => {
       selectedClaims.push({ type: 'endpointId', value: scannedContact.value.endpointId })
     }
 
+    log.info(`Saving scanned contact: "${scannedContact.value.label}", ${selectedClaims.length} claims`)
     await identityStore.addContactWithClaimsAsync(
       scannedContact.value.label.trim(),
       scannedContact.value.publicKey,
@@ -586,11 +603,12 @@ const onSaveScanContactAsync = async () => {
       scanContactNotes.value.trim() || undefined,
     )
 
+    log.info('Scanned contact saved successfully')
     addToast({ title: t('success.added'), color: 'success' })
     open.value = false
     emit('added')
   } catch (error) {
-    console.error('Failed to save scanned contact:', error)
+    log.error('Failed to save scanned contact', error)
     addToast({
       title: t('errors.addFailed'),
       description: error instanceof Error ? error.message : undefined,
@@ -617,6 +635,7 @@ const addScanInlineClaim = () => {
 const onAddManualContactAsync = async () => {
   if (!manualForm.label.trim() || !manualForm.publicKey.trim()) return
 
+  log.info(`Adding contact manually: "${manualForm.label}"`)
   isAdding.value = true
   try {
     await identityStore.addContactAsync(
@@ -624,11 +643,12 @@ const onAddManualContactAsync = async () => {
       manualForm.publicKey.trim(),
       manualForm.notes.trim() || undefined,
     )
+    log.info('Manual contact added successfully')
     addToast({ title: t('success.added'), color: 'success' })
     open.value = false
     emit('added')
   } catch (error) {
-    console.error('Failed to add contact:', error)
+    log.error('Failed to add manual contact', error)
     addToast({
       title: t('errors.addFailed'),
       description: error instanceof Error ? error.message : undefined,
@@ -652,10 +672,12 @@ const onSelectImportFileAsync = async () => {
     })
     if (!filePath) return
 
+    log.info(`Reading contact file: ${filePath}`)
     const data = await readFile(filePath as string)
     importJson.value = new TextDecoder().decode(data)
+    log.info(`File loaded (${data.byteLength} bytes)`)
   } catch (error) {
-    console.error('Failed to read file:', error)
+    log.error('Failed to read import file', error)
     addToast({
       title: t('errors.importFailed'),
       description: error instanceof Error ? error.message : undefined,
@@ -679,11 +701,13 @@ const onParseImport = () => {
   try {
     parsed = JSON.parse(importJson.value)
   } catch {
+    log.warn('Import JSON parse failed')
     addToast({ title: t('errors.invalidJson'), color: 'error' })
     return
   }
 
   if (!parsed.publicKey) {
+    log.warn('Import data missing publicKey')
     addToast({ title: t('errors.invalidData'), color: 'error' })
     return
   }
@@ -712,6 +736,7 @@ const onImportContactAsync = async () => {
     const selectedClaims = data.claims.filter((_, i) => importSelectedClaimIndices.value.has(i))
     const avatar = importIncludeAvatar.value ? data.avatar : null
 
+    log.info(`Importing contact: "${data.label}", ${selectedClaims.length}/${data.claims.length} claims, avatar: ${!!avatar}`)
     const contact = await identityStore.addContactWithClaimsAsync(
       data.label || `Imported ${data.publicKey.slice(0, 16)}...`,
       data.publicKey,
@@ -721,11 +746,12 @@ const onImportContactAsync = async () => {
       await identityStore.updateContactAsync(contact.id, { avatar })
     }
 
+    log.info(`Contact imported successfully (id: ${contact.id})`)
     addToast({ title: t('success.added'), color: 'success' })
     open.value = false
     emit('added')
   } catch (error) {
-    console.error('Failed to import contact:', error)
+    log.error('Failed to import contact', error)
     addToast({
       title: t('errors.addFailed'),
       description: error instanceof Error ? error.message : undefined,

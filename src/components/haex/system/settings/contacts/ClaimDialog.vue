@@ -60,6 +60,10 @@ const emit = defineEmits<{
   saved: [contactId: string]
 }>()
 
+import { createLogger } from '@/stores/logging'
+
+const log = createLogger('CONTACTS:CLAIMS')
+
 const { t } = useI18n()
 const { add: addToast } = useToast()
 const identityStore = useIdentityStore()
@@ -107,27 +111,31 @@ const onSaveAsync = async () => {
 
   try {
     if (props.editingClaim) {
+      log.info(`Updating claim ${props.editingClaim.id} (type: ${props.editingClaim.type})`)
       await identityStore.updateClaimAsync(
         props.editingClaim.id,
         claimValue.value.trim(),
       )
+      log.info('Claim updated successfully')
       addToast({ title: t('updated'), color: 'success' })
       emit('saved', props.editingClaim.contactId)
     } else if (props.contactId) {
       const type = claimType.value === 'custom'
         ? claimCustomType.value.trim()
         : claimType.value
+      log.info(`Adding claim: type="${type}" to contact ${props.contactId}`)
       await identityStore.addClaimAsync(
         props.contactId,
         type,
         claimValue.value.trim(),
       )
+      log.info('Claim added successfully')
       addToast({ title: t('added'), color: 'success' })
       emit('saved', props.contactId)
     }
     open.value = false
   } catch (error) {
-    console.error('Failed to save claim:', error)
+    log.error('Failed to save claim', error)
     addToast({
       title: t('saveFailed'),
       description: error instanceof Error ? error.message : undefined,

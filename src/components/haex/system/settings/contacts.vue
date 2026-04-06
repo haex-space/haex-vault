@@ -93,11 +93,14 @@
 
 <script setup lang="ts">
 import type { SelectHaexIdentities } from '~/database/schemas'
+import { createLogger } from '@/stores/logging'
 import AddContactDialog from './contacts/AddContactDialog.vue'
 import ClaimDialog from './contacts/ClaimDialog.vue'
 import ContactListItem from './contacts/ContactListItem.vue'
 import EditContactDialog from './contacts/EditContactDialog.vue'
 import ShareIdentityDialog from './contacts/ShareIdentityDialog.vue'
+
+const log = createLogger('CONTACTS')
 
 const { t } = useI18n()
 const { add: addToast } = useToast()
@@ -153,13 +156,15 @@ const prepareDelete = (contact: SelectHaexIdentities) => {
 const onConfirmDeleteAsync = async () => {
   if (!deleteTarget.value) return
 
+  log.info(`Deleting contact: "${deleteTarget.value.label}" (${deleteTarget.value.id})`)
   try {
     await identityStore.deleteIdentityAsync(deleteTarget.value.id)
+    log.info('Contact deleted successfully')
     addToast({ title: t('success.deleted'), color: 'success' })
     showDeleteConfirm.value = false
     deleteTarget.value = null
   } catch (error) {
-    console.error('Failed to delete contact:', error)
+    log.error('Failed to delete contact', error)
     addToast({
       title: t('errors.deleteFailed'),
       description: error instanceof Error ? error.message : undefined,
@@ -207,12 +212,14 @@ const openEditClaim = (claim: { id: string; type: string; value: string }) => {
 }
 
 const deleteClaimAsync = async (claimId: string, contactId: string) => {
+  log.info(`Deleting claim ${claimId} from contact ${contactId}`)
   try {
     await identityStore.deleteClaimAsync(claimId)
     await loadClaimsAsync(contactId)
+    log.info('Claim deleted successfully')
     addToast({ title: t('claims.deleted'), color: 'success' })
   } catch (error) {
-    console.error('Failed to delete claim:', error)
+    log.error('Failed to delete claim', error)
     addToast({ title: t('claims.deleteFailed'), color: 'error' })
   }
 }

@@ -165,6 +165,9 @@ import { publicKeyToDidKeyAsync } from '@haex-space/vault-sdk'
 import type { SelectHaexIdentities } from '~/database/schemas'
 import { SpaceType, SpaceCapability } from '~/database/constants'
 import { buildLocalInviteLink } from '~/utils/inviteLink'
+import { createLogger } from '@/stores/logging'
+
+const log = createLogger('SPACES:INVITE-UI')
 
 const open = defineModel<boolean>('open', { required: true })
 
@@ -293,17 +296,23 @@ const onSubmitAsync = async () => {
   if (!canSubmit.value) return
   isProcessing.value = true
 
+  const capabilities = selectedCapabilities.value.join(', ')
+  log.info(`Invite submit: mode=${props.mode}, space=${props.spaceId}, capabilities=[${capabilities}], expiry=${selectedExpiry.value?.value}s`)
+
   try {
     const space = spacesStore.spaces.find(s => s.id === props.spaceId)
 
     if (props.mode === 'contact') {
       // Contact invite — dual-channel: always QUIC + server if available
+      log.info(`Inviting ${selectedContacts.value.length} contact(s) to space ${props.spaceId}`)
       for (const contact of selectedContacts.value) {
         const inviteeDid = await publicKeyToDidKeyAsync(contact.publicKey)
         const claims = await identityStore.getClaimsAsync(contact.id)
         const endpointIds = claims
           .filter(c => c.type === 'endpointId' || c.type.startsWith('device:'))
           .map(c => c.value)
+
+        log.info(`Processing contact "${contact.label}" (did: ${inviteeDid.slice(0, 24)}..., ${endpointIds.length} endpoint(s))`)
 
         let serverInviteId: string | undefined
 
@@ -319,8 +328,9 @@ const onSubmitAsync = async () => {
               includeHistory.value,
             )
             serverInviteId = result.inviteId
+            log.info(`Server invite created: ${result.inviteId}`)
           } catch (error) {
-            console.warn('Server invite failed, continuing with QUIC:', error)
+            log.warn(`Server invite failed for "${contact.label}", continuing with QUIC`, error)
           }
         }
 
@@ -336,17 +346,22 @@ const onSubmitAsync = async () => {
               includeHistory: includeHistory.value,
               expiresInSeconds: selectedExpiry.value!.value,
             })
+            log.info(`QUIC invite queued for "${contact.label}" → ${endpointIds.length} endpoint(s)`)
           } catch (error) {
             // If server invite succeeded, QUIC failure is not fatal
             if (!serverInviteId) throw error
-            console.warn('QUIC invite failed, server invite was sent:', error)
+            log.warn(`QUIC invite failed for "${contact.label}", server invite was sent`, error)
           }
+        } else {
+          log.warn(`No endpoints for "${contact.label}", QUIC invite skipped`)
         }
       }
+      log.info(`All contact invites processed for space ${props.spaceId}`)
       add({ title: t('success.invited'), color: 'success' })
       open.value = false
     } else if (space?.type === SpaceType.LOCAL) {
       // Local link/QR invite
+      log.info(`Creating local invite link for space ${props.spaceId} (maxUses: ${maxUses.value})`)
       const { invoke } = await import('@tauri-apps/api/core')
       const tokenId = await invoke<string>('local_delivery_create_invite', {
         spaceId: props.spaceId,
@@ -363,6 +378,7 @@ const onSubmitAsync = async () => {
         spaceEndpoints: selectedSpaceEndpoints.value,
       })
       generatedExpiresAt.value = new Date(Date.now() + selectedExpiry.value!.value * 1000).toISOString()
+      log.info(`Local invite link created (token: ${tokenId}, endpoints: ${selectedSpaceEndpoints.value.length})`)
 
       await nextTick()
       if (qrCanvas.value) {
@@ -375,6 +391,7 @@ const onSubmitAsync = async () => {
       add({ title: t('success.linkCreated'), color: 'success' })
     } else {
       // Online space: invite link
+      log.info(`Creating online invite token for space ${props.spaceId} (maxUses: ${maxUses.value})`)
       const result = await spacesStore.createInviteTokenAsync(
         props.serverUrl,
         props.spaceId,
@@ -387,6 +404,7 @@ const onSubmitAsync = async () => {
       )
       generatedLink.value = spacesStore.buildInviteLink(props.serverUrl, props.spaceId, result.tokenId)
       generatedExpiresAt.value = result.expiresAt
+      log.info(`Online invite link created (token: ${result.tokenId}, expires: ${result.expiresAt})`)
 
       await nextTick()
       if (qrCanvas.value) {
@@ -399,7 +417,7 @@ const onSubmitAsync = async () => {
       add({ title: t('success.linkCreated'), color: 'success' })
     }
   } catch (error) {
-    console.error('Invite failed:', error)
+    log.error(`Invite failed (mode: ${props.mode}, space: ${props.spaceId})`, error)
     add({
       title: t('errors.failed'),
       description: error instanceof Error ? error.message : undefined,
