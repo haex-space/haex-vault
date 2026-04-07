@@ -5,7 +5,7 @@ mod crdt;
 mod database;
 mod device;
 mod extension;
-mod file_sync;
+pub mod file_sync;
 mod filesystem;
 mod logging;
 mod mls;

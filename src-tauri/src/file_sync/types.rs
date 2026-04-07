@@ -17,16 +17,18 @@ pub struct FileState {
 }
 
 /// Sync direction
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
+#[ts(export)]
 pub enum SyncDirection {
     OneWay,
     TwoWay,
 }
 
 /// How to handle deletions during sync
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
+#[ts(export)]
 pub enum DeleteMode {
     Trash,
     Permanent,
@@ -39,6 +41,7 @@ pub enum DeleteMode {
 #[ts(export)]
 pub struct SyncActions {
     pub to_download: Vec<FileState>,
+    pub to_upload: Vec<FileState>,
     /// Relative paths of files to delete
     pub to_delete: Vec<String>,
     pub to_create_directories: Vec<String>,
