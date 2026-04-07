@@ -569,16 +569,18 @@ pub async fn local_delivery_push_invite(
         .endpoint_ref()
         .ok_or("Endpoint not running")?
         .clone();
+    let configured_relay = endpoint.configured_relay_url().cloned();
     drop(endpoint);
 
     let remote_id: iroh::EndpointId = target_endpoint_id
         .parse()
         .map_err(|e| format!("Invalid endpoint ID: {e}"))?;
 
-    // Include our own relay URL so iroh can discover the peer through it.
-    // Both endpoints likely connect to the same relay.
-    let own_relay = iroh_endpoint.addr().relay_urls().next().cloned();
-    let addr = match own_relay {
+    // Use the configured relay URL (from DB settings / env / default).
+    // Falls back to the live relay from endpoint.addr() if available.
+    let relay = configured_relay
+        .or_else(|| iroh_endpoint.addr().relay_urls().next().cloned());
+    let addr = match relay {
         Some(url) => iroh::EndpointAddr::new(remote_id).with_relay_url(url),
         None => iroh::EndpointAddr::new(remote_id),
     };

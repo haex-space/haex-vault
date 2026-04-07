@@ -96,6 +96,8 @@ pub struct PeerEndpoint {
     pub(crate) state: Arc<RwLock<PeerState>>,
     /// Handle to the accept loop task
     accept_task: Option<tokio::task::JoinHandle<()>>,
+    /// Configured relay URL (set at start, available even before relay connection is established)
+    configured_relay_url: Option<RelayUrl>,
 }
 
 impl PeerEndpoint {
@@ -106,6 +108,7 @@ impl PeerEndpoint {
             secret_key,
             state: Arc::new(RwLock::new(PeerState::default())),
             accept_task: None,
+            configured_relay_url: None,
         }
     }
 
@@ -147,6 +150,11 @@ impl PeerEndpoint {
         self.endpoint.is_some()
     }
 
+    /// Get the configured relay URL (available even before relay connection is established)
+    pub fn configured_relay_url(&self) -> Option<&RelayUrl> {
+        self.configured_relay_url.as_ref()
+    }
+
     /// Start the iroh endpoint and begin accepting connections.
     /// `relay_url` — optional relay URL from vault settings; falls back to
     /// `HAEX_RELAY_URL` env var, then iroh's default relay servers.
@@ -163,6 +171,7 @@ impl PeerEndpoint {
         let relay_mode = match effective_relay.parse::<RelayUrl>() {
             Ok(parsed) => {
                 eprintln!("[PeerStorage] Using relay: {effective_relay}");
+                self.configured_relay_url = Some(parsed.clone());
                 RelayMode::custom([parsed])
             }
             Err(e) => {
