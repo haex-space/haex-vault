@@ -37,3 +37,4 @@ src-tauri/gen/android/
 playwright-report/
 test-results/
 docs/plans/*
+.worktrees
