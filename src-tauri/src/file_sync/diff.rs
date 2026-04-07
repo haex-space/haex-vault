@@ -4,9 +4,32 @@ use std::collections::HashMap;
 
 use super::types::{DeleteMode, FileState, SyncActions, SyncConflict, SyncDirection};
 
-/// Compare source and target file manifests and compute the actions needed to sync them.
+/// Compute the actions needed to synchronize two file manifests.
 ///
-/// This is a pure function — no IO, no async, just data comparison.
+/// # One-way sync (source → target)
+///
+/// Source is authoritative: source files always overwrite target files when
+/// size or timestamp differs, even if the target is newer. This is intentional —
+/// one-way sync treats the source as the single source of truth.
+///
+/// `delete_mode` controls what happens to target-only files:
+/// - `Trash` / `Permanent`: target-only files are added to `to_delete`
+/// - `Ignore`: target-only files are left untouched
+///
+/// # Two-way sync
+///
+/// Newest timestamp wins. When both sides have the same `modified_at` but
+/// different `size`, the entry is added to `conflicts` for manual resolution.
+///
+/// `delete_mode` is NOT applied in two-way mode — files missing on one side
+/// are treated as "new" (downloaded/uploaded), not as "deleted on the other
+/// side". Deletion propagation requires sync state (tombstones), which is
+/// handled by the sync engine, not the diff engine.
+///
+/// # Duplicate paths
+///
+/// Input manifests must not contain duplicate `relative_path` entries.
+/// If duplicates exist, only the last entry for each path is considered.
 pub fn compute_sync_actions(
     source_files: &[FileState],
     target_files: &[FileState],
@@ -48,6 +71,11 @@ pub fn compute_sync_actions(
     actions
 }
 
+/// One-way diff: source is authoritative.
+/// Files are downloaded when source differs from target in size or timestamp.
+/// Target files not present on source are deleted (unless delete_mode is Ignore).
+/// Directories on target that become empty are NOT automatically deleted —
+/// empty directory cleanup is the executor's responsibility.
 fn compute_one_way(
     source_map: &HashMap<&str, &FileState>,
     target_map: &HashMap<&str, &FileState>,
@@ -340,6 +368,27 @@ mod tests {
         assert!(actions.to_create_directories.contains(&"x".to_string()));
         assert!(actions.to_create_directories.contains(&"a/b".to_string()));
         assert!(actions.to_create_directories.contains(&"a/b/c".to_string()));
+    }
+
+    #[test]
+    fn one_way_source_authoritative_overwrites_newer_target() {
+        // One-way: source is authoritative — overwrites target even when target is newer
+        let source = vec![file("a.txt", 200, 1000)];
+        let target = vec![file("a.txt", 100, 2000)];
+        let actions = compute_sync_actions(&source, &target, SyncDirection::OneWay, DeleteMode::Trash);
+        assert_eq!(actions.to_download.len(), 1, "source overwrites newer target in one-way mode");
+        assert_eq!(actions.to_download[0].size, 200);
+    }
+
+    #[test]
+    fn two_way_both_modified_newer_wins() {
+        // Both sides changed (different size AND different timestamp) — newer wins, no conflict
+        let source = vec![file("a.txt", 300, 2000)];
+        let target = vec![file("a.txt", 400, 1500)];
+        let actions = compute_sync_actions(&source, &target, SyncDirection::TwoWay, DeleteMode::Trash);
+        assert_eq!(actions.to_download.len(), 1, "source is newer → download");
+        assert!(actions.to_upload.is_empty());
+        assert!(actions.conflicts.is_empty(), "no conflict when timestamps differ");
     }
 
     #[test]
