@@ -31,6 +31,8 @@ pub enum Request {
         #[serde(skip_serializing_if = "Option::is_none")]
         range: Option<[u64; 2]>,
     },
+    /// Recursive file manifest for sync
+    Manifest { path: String },
 }
 
 // ============================================================================
@@ -46,6 +48,8 @@ pub enum Response {
     Stat { entry: FileEntry },
     /// File data header (actual bytes follow on the stream)
     ReadHeader { size: u64 },
+    /// Recursive manifest of all files
+    Manifest { entries: Vec<crate::file_sync::types::FileState> },
     /// Error response
     Error { message: String },
 }

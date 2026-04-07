@@ -445,6 +445,134 @@ impl PeerEndpoint {
             }),
         }
     }
+
+    /// Connect to a remote peer and get a recursive file manifest.
+    pub async fn remote_manifest(
+        &self,
+        remote_id: EndpointId,
+        relay_url: Option<RelayUrl>,
+        path: &str,
+    ) -> Result<Vec<crate::file_sync::types::FileState>, PeerStorageError> {
+        let endpoint = self
+            .endpoint
+            .as_ref()
+            .ok_or(PeerStorageError::EndpointNotRunning)?;
+
+        let addr = match relay_url {
+            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
+            None => EndpointAddr::new(remote_id),
+        };
+
+        let conn = endpoint
+            .connect(addr, ALPN)
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
+
+        let (mut send, mut recv) = conn
+            .open_bi()
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
+
+        let req = Request::Manifest { path: path.to_string() };
+        let req_bytes = protocol::encode_request(&req)
+            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+        send.write_all(&req_bytes)
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+        send.finish()
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+
+        let response: Response = protocol::read_response(&mut recv)
+            .await
+            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+
+        match response {
+            Response::Manifest { entries } => Ok(entries),
+            Response::Error { message } => Err(PeerStorageError::ProtocolError { reason: message }),
+            _ => Err(PeerStorageError::ProtocolError {
+                reason: "Unexpected response type".to_string(),
+            }),
+        }
+    }
+
+    /// Connect to a remote peer and read a file into memory.
+    /// For large files prefer `remote_read_to_file`; this is for sync-sized reads.
+    pub async fn remote_read_bytes(
+        &self,
+        remote_id: EndpointId,
+        relay_url: Option<RelayUrl>,
+        path: &str,
+    ) -> Result<Vec<u8>, PeerStorageError> {
+        let endpoint = self
+            .endpoint
+            .as_ref()
+            .ok_or(PeerStorageError::EndpointNotRunning)?;
+
+        let addr = match relay_url {
+            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
+            None => EndpointAddr::new(remote_id),
+        };
+
+        let conn = endpoint
+            .connect(addr, ALPN)
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
+
+        let (mut send, mut recv) = conn
+            .open_bi()
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
+
+        let req = Request::Read {
+            path: path.to_string(),
+            range: None,
+        };
+        let req_bytes = protocol::encode_request(&req)
+            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+        send.write_all(&req_bytes)
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+        send.finish()
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+
+        let response: Response = protocol::read_response(&mut recv)
+            .await
+            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+
+        match response {
+            Response::ReadHeader { size } => {
+                let mut data = Vec::with_capacity(size as usize);
+                let mut buf = [0u8; 64 * 1024];
+
+                loop {
+                    let chunk = recv.read(&mut buf).await
+                        .map_err(|e| PeerStorageError::ConnectionFailed {
+                            reason: format!("Failed to read from stream: {e}"),
+                        })?;
+                    match chunk {
+                        Some(n) => data.extend_from_slice(&buf[..n]),
+                        None => break,
+                    }
+                }
+
+                Ok(data)
+            }
+            Response::Error { message } => {
+                Err(PeerStorageError::ProtocolError { reason: message })
+            }
+            _ => Err(PeerStorageError::ProtocolError {
+                reason: "Unexpected response type".to_string(),
+            }),
+        }
+    }
 }
 
 // ============================================================================
@@ -559,6 +687,7 @@ async fn handle_stream(
     let response = match request {
         Request::List { path } => handle_list(state, &path, allowed_spaces).await,
         Request::Stat { path } => handle_stat(state, &path, allowed_spaces).await,
+        Request::Manifest { path } => handle_manifest(state, &path, allowed_spaces).await,
         Request::Read { path, range } => {
             if let Err(e) = handle_read(&mut send, state, &path, range, allowed_spaces).await {
                 // Try to send an error response so the client sees a proper error
@@ -719,6 +848,99 @@ async fn handle_list(
             message: format!("Failed to list directory: {e}"),
         },
     }
+}
+
+async fn handle_manifest(
+    state: &RwLock<PeerState>,
+    path: &str,
+    allowed_spaces: &HashSet<String>,
+) -> Response {
+    let state = state.read().await;
+
+    // Manifest requires a share path (no root-level manifest)
+    if path.is_empty() || path == "/" {
+        return Response::Error {
+            message: "Manifest requires a share path".to_string(),
+        };
+    }
+
+    // Content URIs not supported for manifest (Android-only)
+    if let Ok((share, _sub)) = find_share_and_subpath(&state.shares, allowed_spaces, path) {
+        if is_content_uri(&share.local_path) {
+            return Response::Error {
+                message: "Manifest not supported for Content URI shares".to_string(),
+            };
+        }
+    }
+
+    let local_path = match resolve_path_filtered(&state.shares, allowed_spaces, path) {
+        Ok(p) => p,
+        Err(resp) => return resp,
+    };
+
+    if !local_path.is_dir() {
+        return Response::Error {
+            message: "Not a directory".to_string(),
+        };
+    }
+
+    // Use the same recursive scan as LocalProvider
+    match tokio::task::spawn_blocking({
+        let base = local_path.clone();
+        move || scan_directory_recursive(&local_path, &base)
+    })
+    .await
+    {
+        Ok(Ok(entries)) => Response::Manifest { entries },
+        Ok(Err(e)) => Response::Error {
+            message: format!("Failed to scan directory: {e}"),
+        },
+        Err(e) => Response::Error {
+            message: format!("Task failed: {e}"),
+        },
+    }
+}
+
+/// Recursively scan a directory and collect FileState entries for the manifest.
+fn scan_directory_recursive(
+    dir: &Path,
+    base: &Path,
+) -> Result<Vec<crate::file_sync::types::FileState>, std::io::Error> {
+    let mut entries = Vec::new();
+    let read_dir = std::fs::read_dir(dir)?;
+
+    for entry in read_dir {
+        let entry = entry?;
+        let metadata = entry.metadata()?;
+
+        let relative = entry
+            .path()
+            .strip_prefix(base)
+            .unwrap_or(&entry.path())
+            .to_string_lossy()
+            .to_string()
+            .replace('\\', "/");
+
+        let modified_at = metadata
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+
+        entries.push(crate::file_sync::types::FileState {
+            relative_path: relative,
+            size: if metadata.is_dir() { 0 } else { metadata.len() },
+            modified_at,
+            is_directory: metadata.is_dir(),
+        });
+
+        if metadata.is_dir() {
+            entries.extend(scan_directory_recursive(&entry.path(), base)?);
+        }
+    }
+
+    Ok(entries)
 }
 
 async fn handle_stat(

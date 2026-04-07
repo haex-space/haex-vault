@@ -6,5 +6,6 @@
 pub mod cloud_provider;
 pub mod diff;
 pub mod local_provider;
+pub mod peer_provider;
 pub mod provider;
 pub mod types;
