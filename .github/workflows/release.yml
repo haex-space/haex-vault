@@ -1,63 +1,54 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+  actions: read
 
 jobs:
-  # Run tests first before creating release
-  test:
-    runs-on: ubuntu-22.04
+  # ─────────────────────────────────────────────────────────────────────────
+  # Gate: only release when the last Build on main was green
+  # ─────────────────────────────────────────────────────────────────────────
+  verify-main-green:
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v5
-        with:
-          run_install: false
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install dependencies (Ubuntu)
+      - name: Check latest main build status
+        env:
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
+          CONCLUSION=$(gh run list --repo "$REPO" --branch main --workflow Build --limit 1 --json conclusion --jq '.[0].conclusion')
+          echo "Latest main Build: $CONCLUSION"
+          if [ "$CONCLUSION" != "success" ]; then
+            echo "::error::Cannot release — last main build was '$CONCLUSION'"
+            exit 1
+          fi
 
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run Rust tests
-        run: cd src-tauri && cargo test
-
-      - name: Run TypeScript tests
-        run: pnpm test
-
-  create-release:
-    needs: test
-    permissions:
-      contents: write
+  # ─────────────────────────────────────────────────────────────────────────
+  # Bump version in package.json, tauri.conf.json, Cargo.toml → commit + tag
+  # ─────────────────────────────────────────────────────────────────────────
+  version-bump:
+    needs: verify-main-green
     runs-on: ubuntu-22.04
     outputs:
-      release_id: ${{ steps.create-release.outputs.release_id }}
-      upload_url: ${{ steps.create-release.outputs.upload_url }}
-
+      new_version: ${{ steps.bump.outputs.new_version }}
+      tag_name: ${{ steps.bump.outputs.tag_name }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          ref: main
           fetch-depth: 0
           fetch-tags: true
 
@@ -66,171 +57,6 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Get version
-        run: echo "PACKAGE_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
-
-      - name: Generate release notes
-        id: release-notes
-        run: |
-          # Get all tags sorted by version
-          CURRENT_TAG="v${PACKAGE_VERSION}"
-          echo "Current tag: $CURRENT_TAG"
-
-          # Find the previous tag (the one before current in sorted list)
-          PREVIOUS_TAG=$(git tag -l 'v*' --sort=-v:refname | grep -A1 "^${CURRENT_TAG}$" | tail -1)
-
-          # If previous tag equals current (no match after), try another method
-          if [ "$PREVIOUS_TAG" = "$CURRENT_TAG" ] || [ -z "$PREVIOUS_TAG" ]; then
-            PREVIOUS_TAG=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || echo "")
-          fi
-
-          echo "Previous tag: '$PREVIOUS_TAG'"
-
-          if [ -z "$PREVIOUS_TAG" ] || [ "$PREVIOUS_TAG" = "$CURRENT_TAG" ]; then
-            echo "No previous tag found, using all commits"
-            COMMITS=$(git log --pretty=format:"%s|%b" --no-merges)
-          else
-            echo "Getting commits between $PREVIOUS_TAG and $CURRENT_TAG"
-            COMMITS=$(git log ${PREVIOUS_TAG}..${CURRENT_TAG} --pretty=format:"%s|%b" --no-merges)
-          fi
-
-          echo "Commits found:"
-          echo "$COMMITS" | head -20
-
-          # Parse commits into categories (only conventional commits: feat, fix, break)
-          BREAKING=""
-          FEATURES=""
-          FIXES=""
-
-          while IFS='|' read -r subject body; do
-            # Skip version bump commits
-            if [[ "$subject" == "Bump version to"* ]]; then
-              continue
-            fi
-
-            # Extract bullet points from body if present
-            DETAILS=""
-            if [ -n "$body" ]; then
-              DETAILS=$(echo "$body" | grep -E "^- " | head -10 || true)
-            fi
-
-            # Check for breaking changes (break:, break(scope):, or BREAKING CHANGE in body)
-            if [[ "$subject" == break:* ]] || [[ "$subject" == break\(*\):* ]] || [[ "$subject" == BREAKING* ]] || [[ "$body" == *"BREAKING CHANGE"* ]]; then
-              CLEAN=$(echo "$subject" | sed 's/^break[^:]*: //' | sed 's/^BREAKING CHANGE: //')
-              BREAKING="${BREAKING}- ${CLEAN}"$'\n'
-              if [ -n "$DETAILS" ]; then
-                BREAKING="${BREAKING}${DETAILS}"$'\n'
-              fi
-            elif [[ "$subject" == feat:* ]] || [[ "$subject" == feat\(*\):* ]] || [[ "$subject" == feature:* ]] || [[ "$subject" == feature\(*\):* ]]; then
-              # Remove prefix and format
-              CLEAN=$(echo "$subject" | sed 's/^feat[^:]*: //' | sed 's/^feature[^:]*: //')
-              FEATURES="${FEATURES}- ${CLEAN}"$'\n'
-              if [ -n "$DETAILS" ]; then
-                FEATURES="${FEATURES}${DETAILS}"$'\n'
-              fi
-            elif [[ "$subject" == fix:* ]] || [[ "$subject" == fix\(*\):* ]]; then
-              CLEAN=$(echo "$subject" | sed 's/^fix[^:]*: //')
-              FIXES="${FIXES}- ${CLEAN}"$'\n'
-              if [ -n "$DETAILS" ]; then
-                FIXES="${FIXES}${DETAILS}"$'\n'
-              fi
-            fi
-            # Ignore all other commits (chore, refactor, docs, etc.)
-          done <<< "$COMMITS"
-
-          # Build release notes
-          NOTES=""
-
-          if [ -n "$BREAKING" ]; then
-            NOTES="${NOTES}## ⚠️ Breaking Changes"$'\n\n'"${BREAKING}"$'\n'
-          fi
-
-          if [ -n "$FEATURES" ]; then
-            NOTES="${NOTES}## ✨ Features"$'\n\n'"${FEATURES}"$'\n'
-          fi
-
-          if [ -n "$FIXES" ]; then
-            NOTES="${NOTES}## 🐛 Bug Fixes"$'\n\n'"${FIXES}"$'\n'
-          fi
-
-          # Fallback if no conventional commits found
-          if [ -z "$NOTES" ]; then
-            NOTES="Release v${PACKAGE_VERSION}"$'\n\n'"See commit history for changes."
-          fi
-
-          # Add download instructions
-          NOTES="${NOTES}"$'\n'"---"$'\n\n'"📥 **Downloads**: See assets below for your platform."
-
-          # Save to file (multi-line output)
-          echo "$NOTES" > release_notes.md
-          echo "Generated release notes:"
-          cat release_notes.md
-
-      - name: Create release
-        id: create-release
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const fs = require('fs');
-            const releaseNotes = fs.readFileSync('release_notes.md', 'utf8');
-            const tagName = `v${process.env.PACKAGE_VERSION}`;
-
-            // Check if a release already exists for this tag
-            let existingRelease = null;
-            try {
-              const { data: releases } = await github.rest.repos.listReleases({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                per_page: 10
-              });
-              existingRelease = releases.find(r => r.tag_name === tagName);
-            } catch (e) {
-              console.log('No existing releases found');
-            }
-
-            if (existingRelease) {
-              console.log(`Found existing release for ${tagName}: ${existingRelease.id} (draft: ${existingRelease.draft})`);
-              // Delete existing release to start fresh
-              await github.rest.repos.deleteRelease({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                release_id: existingRelease.id
-              });
-              console.log('Deleted existing release');
-            }
-
-            const { data } = await github.rest.repos.createRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag_name: tagName,
-              name: `haex-vault v${process.env.PACKAGE_VERSION}`,
-              body: releaseNotes,
-              draft: true,
-              prerelease: false
-            })
-            core.setOutput('release_id', data.id)
-            core.setOutput('upload_url', data.upload_url)
-            return data.id
-
-  # Linux build runs separately so E2E tests can start as soon as it completes,
-  # without waiting for macOS/Windows builds.
-  build-linux:
-    needs: create-release
-    permissions:
-      contents: write
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v5
-
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -239,50 +65,184 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
 
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v5
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
 
-      - name: Clean stale migration caches
-        shell: bash
-        run: find src-tauri/target -path "*/database/migrations" -type d -exec rm -rf {} + 2>/dev/null || true
-
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build and release Tauri app
-        uses: tauri-apps/tauri-action@v0
+      - name: Bump version
+        id: bump
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          releaseId: ${{ needs.create-release.outputs.release_id }}
+          BUMP_TYPE: ${{ inputs.version_bump }}
+        run: |
+          CURRENT=$(node -p "require('./package.json').version")
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
 
-      - name: Upload Linux binary for E2E tests
-        uses: actions/upload-artifact@v7
-        with:
-          name: haex-vault-linux-e2e
-          path: src-tauri/target/release/haex-vault
-          retention-days: 1
+          case "$BUMP_TYPE" in
+            major) NEW_VERSION="$((MAJOR + 1)).0.0" ;;
+            minor) NEW_VERSION="${MAJOR}.$((MINOR + 1)).0" ;;
+            patch) NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))" ;;
+          esac
 
-  # macOS and Windows builds run in parallel, independent of E2E tests
+          echo "Bumping $CURRENT → $NEW_VERSION"
+
+          # Update package.json
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '$NEW_VERSION';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+          # Update tauri.conf.json
+          node -e "
+            const fs = require('fs');
+            const conf = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+            conf.version = '$NEW_VERSION';
+            fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(conf, null, 2) + '\n');
+          "
+
+          # Update Cargo.toml
+          sed -i "s/^version = \".*\"/version = \"$NEW_VERSION\"/" src-tauri/Cargo.toml
+
+          # Update Cargo.lock
+          cd src-tauri && cargo check && cd ..
+
+          echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag_name=v$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and tag
+        env:
+          NEW_VERSION: ${{ steps.bump.outputs.new_version }}
+          TAG_NAME: ${{ steps.bump.outputs.tag_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
+          git commit -m "Bump version to $NEW_VERSION"
+          git tag "$TAG_NAME"
+          git push origin main
+          git push origin "$TAG_NAME"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Create a draft GitHub release with generated notes
+  # ─────────────────────────────────────────────────────────────────────────
+  create-draft-release:
+    needs: version-bump
+    runs-on: ubuntu-22.04
+    outputs:
+      release_id: ${{ steps.create-release.outputs.release_id }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.version-bump.outputs.tag_name }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Generate release notes
+        env:
+          PACKAGE_VERSION: ${{ needs.version-bump.outputs.new_version }}
+        run: |
+          CURRENT_TAG="v${PACKAGE_VERSION}"
+          PREVIOUS_TAG=$(git tag -l 'v*' --sort=-v:refname | grep -A1 "^${CURRENT_TAG}$" | tail -1)
+
+          if [ "$PREVIOUS_TAG" = "$CURRENT_TAG" ] || [ -z "$PREVIOUS_TAG" ]; then
+            PREVIOUS_TAG=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || echo "")
+          fi
+
+          echo "Release notes: $PREVIOUS_TAG → $CURRENT_TAG"
+
+          if [ -z "$PREVIOUS_TAG" ] || [ "$PREVIOUS_TAG" = "$CURRENT_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"%s|%b" --no-merges)
+          else
+            COMMITS=$(git log ${PREVIOUS_TAG}..${CURRENT_TAG} --pretty=format:"%s|%b" --no-merges)
+          fi
+
+          BREAKING=""
+          FEATURES=""
+          FIXES=""
+
+          while IFS='|' read -r subject body; do
+            [[ "$subject" == "Bump version to"* ]] && continue
+
+            DETAILS=""
+            if [ -n "$body" ]; then
+              DETAILS=$(echo "$body" | grep -E "^- " | head -10 || true)
+            fi
+
+            if [[ "$subject" == break:* ]] || [[ "$subject" == break\(*\):* ]] || [[ "$subject" == BREAKING* ]] || [[ "$body" == *"BREAKING CHANGE"* ]]; then
+              CLEAN=$(echo "$subject" | sed 's/^break[^:]*: //' | sed 's/^BREAKING CHANGE: //')
+              BREAKING="${BREAKING}- ${CLEAN}"$'\n'
+              [ -n "$DETAILS" ] && BREAKING="${BREAKING}${DETAILS}"$'\n'
+            elif [[ "$subject" == feat:* ]] || [[ "$subject" == feat\(*\):* ]] || [[ "$subject" == feature:* ]] || [[ "$subject" == feature\(*\):* ]]; then
+              CLEAN=$(echo "$subject" | sed 's/^feat[^:]*: //' | sed 's/^feature[^:]*: //')
+              FEATURES="${FEATURES}- ${CLEAN}"$'\n'
+              [ -n "$DETAILS" ] && FEATURES="${FEATURES}${DETAILS}"$'\n'
+            elif [[ "$subject" == fix:* ]] || [[ "$subject" == fix\(*\):* ]]; then
+              CLEAN=$(echo "$subject" | sed 's/^fix[^:]*: //')
+              FIXES="${FIXES}- ${CLEAN}"$'\n'
+              [ -n "$DETAILS" ] && FIXES="${FIXES}${DETAILS}"$'\n'
+            fi
+          done <<< "$COMMITS"
+
+          NOTES=""
+          [ -n "$BREAKING" ] && NOTES="${NOTES}## ⚠️ Breaking Changes"$'\n\n'"${BREAKING}"$'\n'
+          [ -n "$FEATURES" ] && NOTES="${NOTES}## ✨ Features"$'\n\n'"${FEATURES}"$'\n'
+          [ -n "$FIXES" ] && NOTES="${NOTES}## 🐛 Bug Fixes"$'\n\n'"${FIXES}"$'\n'
+
+          if [ -z "$NOTES" ]; then
+            NOTES="Release v${PACKAGE_VERSION}"$'\n\n'"See commit history for changes."
+          fi
+
+          NOTES="${NOTES}"$'\n'"---"$'\n\n'"📥 **Downloads**: See assets below for your platform."
+          echo "$NOTES" > release_notes.md
+          cat release_notes.md
+
+      - name: Create release
+        id: create-release
+        uses: actions/github-script@v8
+        env:
+          PACKAGE_VERSION: ${{ needs.version-bump.outputs.new_version }}
+          TAG_NAME: ${{ needs.version-bump.outputs.tag_name }}
+        with:
+          script: |
+            const fs = require('fs');
+            const releaseNotes = fs.readFileSync('release_notes.md', 'utf8');
+
+            // Delete existing release for this tag if any (idempotent re-runs)
+            try {
+              const { data: releases } = await github.rest.repos.listReleases({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per_page: 10
+              });
+              const existing = releases.find(r => r.tag_name === process.env.TAG_NAME);
+              if (existing) {
+                await github.rest.repos.deleteRelease({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  release_id: existing.id
+                });
+              }
+            } catch (e) { /* no existing release */ }
+
+            const { data } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: process.env.TAG_NAME,
+              name: `haex-vault v${process.env.PACKAGE_VERSION}`,
+              body: releaseNotes,
+              draft: true,
+              prerelease: false
+            });
+            core.setOutput('release_id', data.id);
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Build desktop apps (all 4 platforms) and upload to GitHub release
+  # ─────────────────────────────────────────────────────────────────────────
   build-desktop:
-    needs: create-release
-    permissions:
-      contents: write
+    needs: [version-bump, create-draft-release]
     strategy:
       fail-fast: false
       matrix:
@@ -291,13 +251,16 @@ jobs:
             args: '--target aarch64-apple-darwin'
           - platform: 'macos-latest'
             args: '--target x86_64-apple-darwin'
+          - platform: 'ubuntu-22.04'
+            args: ''
           - platform: 'windows-latest'
             args: ''
-
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.version-bump.outputs.tag_name }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -312,18 +275,11 @@ jobs:
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
-      - name: Get pnpm store directory
-        shell: bash
+      - name: Install dependencies (Ubuntu)
+        if: matrix.platform == 'ubuntu-22.04'
         run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v5
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
@@ -337,29 +293,29 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build and release Tauri app
+      - name: Build and upload to release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          releaseId: ${{ needs.create-release.outputs.release_id }}
+          releaseId: ${{ needs.create-draft-release.outputs.release_id }}
           args: ${{ matrix.args }}
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # Build signed Android APK + AAB and upload to GitHub release
+  # ─────────────────────────────────────────────────────────────────────────
   build-android:
-    needs: create-release
-    permissions:
-      contents: write
+    needs: [version-bump, create-draft-release]
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.version-bump.outputs.tag_name }}
 
       - name: Free disk space
         run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
           df -h
 
       - name: Setup Node.js
@@ -399,11 +355,8 @@ jobs:
         run: |
           echo "ANDROID_NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
           echo "NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
-
-          # Add all Android toolchains to PATH for OpenSSL cross-compilation
           echo "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
 
-          # Set CC, AR, RANLIB for each target
           echo "CC_aarch64_linux_android=aarch64-linux-android24-clang" >> $GITHUB_ENV
           echo "AR_aarch64_linux_android=llvm-ar" >> $GITHUB_ENV
           echo "RANLIB_aarch64_linux_android=llvm-ranlib" >> $GITHUB_ENV
@@ -420,7 +373,6 @@ jobs:
           echo "AR_x86_64_linux_android=llvm-ar" >> $GITHUB_ENV
           echo "RANLIB_x86_64_linux_android=llvm-ranlib" >> $GITHUB_ENV
 
-          # 16KB page alignment for native libraries (required by API 30+ emulators and Android 15+ devices)
           echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS=-C link-arg=-z -C link-arg=max-page-size=16384" >> $GITHUB_ENV
           echo "CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_RUSTFLAGS=-C link-arg=-z -C link-arg=max-page-size=16384" >> $GITHUB_ENV
           echo "CARGO_TARGET_I686_LINUX_ANDROID_RUSTFLAGS=-C link-arg=-z -C link-arg=max-page-size=16384" >> $GITHUB_ENV
@@ -430,19 +382,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y perl make
-
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v5
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-android-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-android-pnpm-store-
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
@@ -478,190 +417,55 @@ jobs:
         run: pnpm tauri icon app-icon.json
 
       - name: Setup Keystore and Signing Config
+        env:
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          # Decode keystore from base64 secret
-          echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > /tmp/keystore.jks
-          ls -la /tmp/keystore.jks
-
-          # Create keystore.properties for Gradle signing config
+          echo "$ANDROID_KEYSTORE" | base64 -d > /tmp/keystore.jks
           echo "storeFile=/tmp/keystore.jks" > src-tauri/gen/android/keystore.properties
-          echo "storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> src-tauri/gen/android/keystore.properties
-          echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> src-tauri/gen/android/keystore.properties
-          echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> src-tauri/gen/android/keystore.properties
-
-          # Copy pre-configured build.gradle.kts with signing config
+          echo "storePassword=$ANDROID_KEYSTORE_PASSWORD" >> src-tauri/gen/android/keystore.properties
+          echo "keyAlias=$ANDROID_KEY_ALIAS" >> src-tauri/gen/android/keystore.properties
+          echo "keyPassword=$ANDROID_KEY_PASSWORD" >> src-tauri/gen/android/keystore.properties
           cp .github/android-signing-build.gradle.kts src-tauri/gen/android/app/build.gradle.kts
-
-          echo "Keystore configured for signing"
 
       - name: Build Android APK and AAB (signed)
         run: pnpm tauri android build
 
-      - name: Get version
-        run: echo "PACKAGE_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
-
-      - name: Rename Android artifacts
+      - name: Rename and upload Android artifacts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGE_VERSION: ${{ needs.version-bump.outputs.new_version }}
+          TAG_NAME: ${{ needs.version-bump.outputs.tag_name }}
         run: |
           mv src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk \
              src-tauri/gen/android/app/build/outputs/apk/universal/release/haex-vault_${PACKAGE_VERSION}_universal.apk
           mv src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab \
              src-tauri/gen/android/app/build/outputs/bundle/universalRelease/haex-vault_${PACKAGE_VERSION}_universal.aab
 
-      - name: Upload Android artifacts to Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release upload ${{ github.ref_name }} \
+          gh release upload "$TAG_NAME" \
             src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk \
             src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab \
             --clobber
 
-      # Upload Android APK as artifact for E2E tests
-      - name: Upload Android APK for E2E tests
-        uses: actions/upload-artifact@v7
-        with:
-          name: haex-vault-android-e2e
-          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
-          retention-days: 1
-
-  # Desktop E2E tests start as soon as Linux build completes (don't wait for Android)
-  e2e-tests:
-    needs: [create-release, build-linux]
-    uses: haex-space/haex-e2e-tests/.github/workflows/e2e-tests.yml@main
-    with:
-      build_type: release
-      haex_vault_artifact: haex-vault-linux-e2e
-      haex_vault_artifact_run_id: ${{ github.run_id }}
-      haextension_version: main
-      vault_sdk_version: main
-      sync_server_version: main
-
-  # Android E2E tests run independently after build-android completes.
-  # This is a standalone job (not the reusable workflow) to avoid re-running
-  # desktop tests. Uses Maestro for Android UI automation.
-  e2e-tests-android:
-    name: Android E2E Tests
-    needs: [create-release, build-android]
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-
-    steps:
-      - name: Checkout E2E tests
-        uses: actions/checkout@v6
-        with:
-          repository: haex-space/haex-e2e-tests
-          ref: main
-
-      - name: Enable KVM for Android emulator
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-
-      - name: Download Android APK artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: haex-vault-android-e2e
-          path: ./apk
-
-      - name: Install Maestro
-        run: |
-          curl -Ls https://get.maestro.mobile.dev | bash
-          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
-
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
-          sudo rm -rf /usr/local/lib/android/sdk/ndk
-
-      - name: Clone sync-server for docker-compose config
-        run: |
-          mkdir -p repos
-          git clone --depth 1 https://x-access-token:${{ github.token }}@github.com/haex-space/haex-sync-server.git repos/haex-sync-server
-
-      - name: Start backend services
-        env:
-          HAEX_SYNC_SERVER_PATH: ${{ github.workspace }}/repos/haex-sync-server
-        run: |
-          docker compose -f docker/docker-compose.yml up -d sync-db sync-gotrue sync-kong sync-server
-          echo "Waiting for backend services..."
-          for i in {1..60}; do
-            if curl -s http://localhost:3002/ > /dev/null 2>&1; then
-              echo "Sync server ready after ~$((i*2))s"
-              break
-            fi
-            sleep 2
-          done
-
-      - name: Create test script
-        run: |
-          cat > /tmp/run-android-e2e.sh << 'SCRIPT'
-          #!/bin/bash
-          set -e
-          WS="$GITHUB_WORKSPACE"
-          echo "Workspace: $WS"
-          ls -la "$WS/apk/" || echo "apk dir not found"
-          APK_FILE=$(find "$WS/apk" -name "*.apk" -type f | head -1)
-          echo "Installing APK: $APK_FILE"
-          if [ -z "$APK_FILE" ]; then
-            echo "ERROR: No APK file found!"
-            exit 1
-          fi
-          adb install "$APK_FILE"
-          adb reverse tcp:3002 tcp:3002
-          adb reverse tcp:8000 tcp:8000
-          cd "$WS"
-          ~/.maestro/bin/maestro test .maestro/android-smoke-test.yaml --format junit --output maestro-results.xml || true
-          if [ -f .maestro/android-sync-test.yaml ]; then
-            ~/.maestro/bin/maestro test .maestro/android-sync-test.yaml --format junit --output maestro-sync-results.xml || true
-          fi
-          SCRIPT
-          chmod +x /tmp/run-android-e2e.sh
-
-      - name: Run Android E2E Tests
-        id: test
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 30
-          arch: x86_64
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          disable-animations: true
-          script: /tmp/run-android-e2e.sh
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: android-e2e-results-${{ github.run_id }}
-          path: |
-            maestro-results.xml
-            maestro-sync-results.xml
-          retention-days: 30
-
-      - name: Stop backend services
-        if: always()
-        env:
-          HAEX_SYNC_SERVER_PATH: ${{ github.workspace }}/repos/haex-sync-server
-        run: docker compose -f docker/docker-compose.yml down -v
-
+  # ─────────────────────────────────────────────────────────────────────────
+  # Flip the release from draft → published
+  # ─────────────────────────────────────────────────────────────────────────
   publish-release:
-    permissions:
-      contents: write
-    runs-on: ubuntu-22.04
-    needs: [create-release, build-linux, build-desktop, build-android, e2e-tests, e2e-tests-android]
-
+    needs: [create-draft-release, build-desktop, build-android]
+    runs-on: ubuntu-latest
     steps:
       - name: Publish release
-        id: publish-release
         uses: actions/github-script@v8
         env:
-          release_id: ${{ needs.create-release.outputs.release_id }}
+          RELEASE_ID: ${{ needs.create-draft-release.outputs.release_id }}
         with:
           script: |
-            github.rest.repos.updateRelease({
+            await github.rest.repos.updateRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              release_id: process.env.release_id,
+              release_id: parseInt(process.env.RELEASE_ID),
               draft: false,
               prerelease: false
-            })
+            });

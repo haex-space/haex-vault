@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 
+// Local convenience script for version bumping + tagging.
+// The CI release flow lives in .github/workflows/release.yml (workflow_dispatch)
+// and inlines the same logic. This script is for local developer use only.
+
 import { readFileSync, writeFileSync } from 'fs';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
