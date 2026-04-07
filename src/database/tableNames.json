@@ -426,6 +426,36 @@
       }
     },
 
+    "sync_rules": {
+      "name": "haex_sync_rules",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "name": "name",
+        "sourceType": "source_type",
+        "sourceConfig": "source_config",
+        "targetType": "target_type",
+        "targetConfig": "target_config",
+        "direction": "direction",
+        "enabled": "enabled",
+        "syncIntervalSeconds": "sync_interval_seconds",
+        "deleteMode": "delete_mode",
+        "createdAt": "created_at"
+      }
+    },
+    "sync_state": {
+      "name": "haex_sync_state_no_sync",
+      "columns": {
+        "id": "id",
+        "ruleId": "rule_id",
+        "relativePath": "relative_path",
+        "fileSize": "file_size",
+        "modifiedAt": "modified_at",
+        "syncedAt": "synced_at",
+        "deleted": "deleted"
+      }
+    },
+
     "crdt": {
       "changes": {
         "name": "haex_crdt_changes_no_sync",
