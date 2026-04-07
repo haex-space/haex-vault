@@ -6,7 +6,7 @@ import { createLogger } from '@/stores/logging'
 
 const log = createLogger('INVITE-OUTBOX')
 
-const BACKOFF_SECONDS = [0, 60, 300, 900, 3600] // immediate, 1m, 5m, 15m, 1h
+const BACKOFF_SECONDS = [0, 5, 15, 60, 300, 900] // immediate, 5s, 15s, 1m, 5m, 15m
 
 function nextRetryDelay(retryCount: number): number {
   const seconds = BACKOFF_SECONDS[Math.min(retryCount, BACKOFF_SECONDS.length - 1)]!

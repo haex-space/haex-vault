@@ -575,8 +575,13 @@ pub async fn local_delivery_push_invite(
         .parse()
         .map_err(|e| format!("Invalid endpoint ID: {e}"))?;
 
-    // iroh discovers relay transparently from EndpointId
-    let addr = iroh::EndpointAddr::new(remote_id);
+    // Include our own relay URL so iroh can discover the peer through it.
+    // Both endpoints likely connect to the same relay.
+    let own_relay = iroh_endpoint.addr().relay_urls().next().cloned();
+    let addr = match own_relay {
+        Some(url) => iroh::EndpointAddr::new(remote_id).with_relay_url(url),
+        None => iroh::EndpointAddr::new(remote_id),
+    };
 
     let conn = iroh_endpoint
         .connect(addr, super::protocol::ALPN)
