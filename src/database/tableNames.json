@@ -412,6 +412,17 @@
       }
     },
 
+    "devices": {
+      "name": "haex_devices",
+      "columns": {
+        "id": "id",
+        "endpointId": "endpoint_id",
+        "name": "name",
+        "platform": "platform",
+        "createdAt": "created_at"
+      }
+    },
+
     "logs": {
       "name": "haex_logs",
       "columns": {
@@ -431,6 +442,7 @@
       "columns": {
         "id": "id",
         "spaceId": "space_id",
+        "deviceId": "device_id",
         "name": "name",
         "sourceType": "source_type",
         "sourceConfig": "source_config",

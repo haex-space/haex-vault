@@ -9,6 +9,7 @@ import {
 import tableNames from '@/database/tableNames.json'
 import { haexIdentities } from './identity'
 import { haexExtensions } from './core'
+import { haexDevices } from './devices'
 
 // ---------------------------------------------------------------------------
 // Spaces — local + remote spaces (CRDT-synced)
@@ -273,6 +274,9 @@ export const haexSyncRules = sqliteTable(
     spaceId: text(tableNames.haex.sync_rules.columns.spaceId)
       .notNull()
       .references(() => haexSpaces.id),
+    deviceId: text(tableNames.haex.sync_rules.columns.deviceId)
+      .notNull()
+      .references(() => haexDevices.id),
     name: text(tableNames.haex.sync_rules.columns.name).notNull(),
     sourceType: text(tableNames.haex.sync_rules.columns.sourceType).notNull(), // 'local' | 'peer' | 'cloud'
     sourceConfig: text(tableNames.haex.sync_rules.columns.sourceConfig, { mode: 'json' }).notNull(),
