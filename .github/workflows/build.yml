@@ -15,23 +15,40 @@ on:
 
 jobs:
   # Skip build for version bump commits (they trigger the Release workflow via tag)
+  # and for Dependabot PRs when the last main build was not green
   check-skip:
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
     outputs:
-      should_skip: ${{ steps.check.outputs.should_skip }}
+      should_skip: ${{ steps.dependabot-gate.outputs.should_skip || steps.check.outputs.should_skip }}
     steps:
+      - name: Check if Dependabot PR with broken main
+        if: github.actor == 'dependabot[bot]' && github.event_name == 'pull_request'
+        id: dependabot-gate
+        env:
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CONCLUSION=$(gh run list --repo "$REPO" --branch main --workflow Build --limit 1 --json conclusion --jq '.[0].conclusion')
+          echo "Latest main Build: $CONCLUSION"
+          if [ "$CONCLUSION" != "success" ]; then
+            echo "::notice::Skipping Dependabot build — last main build was '$CONCLUSION'"
+            echo "should_skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Check if version bump commit
+        if: steps.dependabot-gate.outputs.should_skip != 'true'
         id: check
         env:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
-          # Extract only the first line to handle multi-line commit messages
           FIRST_LINE=$(echo "$COMMIT_MSG" | head -n 1)
           if [[ "$FIRST_LINE" == "Bump version to"* ]]; then
-            echo "should_skip=true" >> $GITHUB_OUTPUT
+            echo "should_skip=true" >> "$GITHUB_OUTPUT"
             echo "Skipping build for version bump commit"
           else
-            echo "should_skip=false" >> $GITHUB_OUTPUT
+            echo "should_skip=false" >> "$GITHUB_OUTPUT"
           fi
 
   # Run tests first before building
