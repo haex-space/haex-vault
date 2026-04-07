@@ -298,13 +298,16 @@ export const haexSyncState = sqliteTable(
     id: text(tableNames.haex.sync_state.columns.id)
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
-    ruleId: text(tableNames.haex.sync_state.columns.ruleId).notNull(),
+    ruleId: text(tableNames.haex.sync_state.columns.ruleId).notNull(), // No FK: parent table is CRDT-synced, state is local-only
     relativePath: text(tableNames.haex.sync_state.columns.relativePath).notNull(),
     fileSize: integer(tableNames.haex.sync_state.columns.fileSize).notNull(),
     modifiedAt: integer(tableNames.haex.sync_state.columns.modifiedAt).notNull(),
     syncedAt: text(tableNames.haex.sync_state.columns.syncedAt).notNull(),
     deleted: integer(tableNames.haex.sync_state.columns.deleted, { mode: 'boolean' }).notNull().default(false),
   },
+  (table) => [
+    uniqueIndex('haex_sync_state_rule_path_unique').on(table.ruleId, table.relativePath),
+  ],
 )
 export type InsertHaexSyncState = typeof haexSyncState.$inferInsert
 export type SelectHaexSyncState = typeof haexSyncState.$inferSelect

@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `haex_sync_state_rule_path_unique` ON `haex_sync_state_no_sync` (`rule_id`,`relative_path`);
