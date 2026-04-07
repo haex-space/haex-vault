@@ -13,6 +13,10 @@ on:
       - develop
   workflow_dispatch:
 
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # Skip build for version bump commits (they trigger the Release workflow via tag)
   # and for Dependabot PRs when the last main build was not green
