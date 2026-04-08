@@ -6,6 +6,7 @@
 use std::collections::HashSet;
 use std::time::Duration;
 
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use tauri::{Emitter, Manager};
 use tokio::sync::watch;
 
@@ -13,6 +14,7 @@ use crate::crdt::commands::{apply_remote_changes_to_db, clear_dirty_table_inner,
 use crate::crdt::hlc::hlc_max;
 use crate::crdt::scanner::{scan_all_dirty_tables_for_local_changes, LocalColumnChange};
 use crate::database::DbConnection;
+use crate::mls::manager::MlsManager;
 
 use super::error::DeliveryError;
 use super::peer::PeerSession;
@@ -130,6 +132,7 @@ async fn run_sync_loop(
 ) {
     let mut last_push_hlc: Option<String> = None;
     let mut last_pull_timestamp: Option<String> = None;
+    let mut last_mls_message_id: Option<i64> = None;
 
     eprintln!("[SyncLoop] Started for space {}", space_id);
 
@@ -148,6 +151,7 @@ async fn run_sync_loop(
             &app_handle,
             &mut last_push_hlc,
             &mut last_pull_timestamp,
+            &mut last_mls_message_id,
         )
         .await
         {
@@ -237,6 +241,7 @@ async fn run_sync_cycle(
     app_handle: &tauri::AppHandle,
     last_push_hlc: &mut Option<String>,
     last_pull_timestamp: &mut Option<String>,
+    last_mls_message_id: &mut Option<i64>,
 ) -> Result<(), DeliveryError> {
     // 1. PUSH: Scan dirty tables for local changes
     let changes = scan_all_dirty_tables_for_local_changes(
@@ -364,6 +369,85 @@ async fn run_sync_cycle(
                 );
             }
         }
+    }
+
+    // 3. MLS: Fetch commits from leader, process, and ACK
+    if let Err(e) = fetch_and_process_mls_messages(db, session, space_id, last_mls_message_id, app_handle).await {
+        eprintln!("[SyncLoop] MLS message processing failed: {e}");
+        // Non-fatal: CRDT sync still worked, MLS will retry next cycle
+    }
+
+    Ok(())
+}
+
+/// Fetch MLS messages from leader, process them locally, and send ACKs.
+async fn fetch_and_process_mls_messages(
+    db: &DbConnection,
+    session: &PeerSession,
+    space_id: &str,
+    last_mls_message_id: &mut Option<i64>,
+    app_handle: &tauri::AppHandle,
+) -> Result<(), DeliveryError> {
+    let messages = session
+        .fetch_mls_messages(space_id, *last_mls_message_id)
+        .await?;
+
+    if messages.is_empty() {
+        return Ok(());
+    }
+
+    eprintln!(
+        "[SyncLoop] Processing {} MLS message(s) for space {}",
+        messages.len(),
+        space_id
+    );
+
+    let mls_manager = MlsManager::new(db.0.clone());
+    let mut acked_ids = Vec::new();
+
+    for msg in &messages {
+        let blob = match BASE64.decode(&msg.message) {
+            Ok(b) => b,
+            Err(e) => {
+                eprintln!("[SyncLoop] Failed to decode MLS message {}: {e}", msg.id);
+                continue;
+            }
+        };
+
+        match mls_manager.process_message(space_id, &blob) {
+            Ok(_) => {
+                acked_ids.push(msg.id);
+                eprintln!(
+                    "[SyncLoop] Processed MLS {} message (id={})",
+                    msg.message_type, msg.id
+                );
+            }
+            Err(e) => {
+                eprintln!(
+                    "[SyncLoop] Failed to process MLS message {}: {e}",
+                    msg.id
+                );
+                // Don't ACK failed messages — they'll be retried next cycle
+            }
+        }
+
+        // Track highest seen ID regardless of success (avoid re-fetching failures forever)
+        *last_mls_message_id = Some(msg.id);
+    }
+
+    // ACK successfully processed messages
+    if !acked_ids.is_empty() {
+        let count = acked_ids.len();
+        session.ack_commits(space_id, acked_ids).await?;
+
+        // Emit event for frontend (e.g., epoch key re-derivation)
+        let _ = app_handle.emit(
+            "local-mls-commit-processed",
+            serde_json::json!({
+                "spaceId": space_id,
+                "processedCount": count,
+            }),
+        );
     }
 
     Ok(())
