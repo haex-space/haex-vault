@@ -41,7 +41,7 @@ pub async fn local_delivery_start(
     });
 
     // Store leader_state in AppState for invite management commands
-    *state.leader_state.lock().await = Some(leader_state.clone());
+    state.leader_states.lock().await.insert(space_id.clone(), leader_state.clone());
 
     let handler = Arc::new(LeaderConnectionHandler {
         state: leader_state,
@@ -66,7 +66,7 @@ pub async fn local_delivery_stop(
         .map_err(|e| e.to_string())?;
 
     // Clear leader_state from AppState
-    *state.leader_state.lock().await = None;
+    state.leader_states.lock().await.remove(&space_id);
 
     // Restore the lightweight invite receiver handler
     let endpoint = state.peer_storage.lock().await;
@@ -76,7 +76,7 @@ pub async fn local_delivery_stop(
         db: db_conn,
         hlc: Arc::new(std::sync::Mutex::new(hlc_clone)),
         app_handle: app,
-        leader_state: state.leader_state.clone(),
+        leader_states: state.leader_states.clone(),
     });
     let handler = Arc::new(super::invite_receiver::InviteReceiverHandler {
         state: receiver_state,
@@ -267,14 +267,15 @@ pub async fn local_delivery_elect(
 // Invite management commands
 // ============================================================================
 
-/// Helper to get the LeaderState from AppState or return an error.
-async fn get_leader_state(state: &AppState) -> Result<Arc<LeaderState>, String> {
+/// Helper to get the LeaderState for a given space from AppState or return an error.
+async fn get_leader_state(state: &AppState, space_id: &str) -> Result<Arc<LeaderState>, String> {
     state
-        .leader_state
+        .leader_states
         .lock()
         .await
-        .clone()
-        .ok_or_else(|| "Leader mode not active".to_string())
+        .get(space_id)
+        .cloned()
+        .ok_or_else(|| format!("Leader mode not active for space {space_id}"))
 }
 
 /// Create a local invite token (admin-side, requires leader mode).
@@ -292,14 +293,7 @@ pub async fn local_delivery_create_invite(
     expires_in_seconds: u64,
     include_history: bool,
 ) -> Result<String, String> {
-    let leader_state = get_leader_state(&state).await?;
-
-    if leader_state.space_id != space_id {
-        return Err(format!(
-            "Leader is serving space {}, not {space_id}",
-            leader_state.space_id
-        ));
-    }
+    let leader_state = get_leader_state(&state, &space_id).await?;
 
     match target_did {
         Some(did) => {
@@ -351,14 +345,7 @@ pub async fn local_delivery_list_invites(
     state: State<'_, AppState>,
     space_id: String,
 ) -> Result<Vec<LocalInviteInfo>, String> {
-    let leader_state = get_leader_state(&state).await?;
-
-    if leader_state.space_id != space_id {
-        return Err(format!(
-            "Leader is serving space {}, not {space_id}",
-            leader_state.space_id
-        ));
-    }
+    let leader_state = get_leader_state(&state, &space_id).await?;
 
     let tokens = leader_state.invite_tokens.read().await;
     let infos = tokens
@@ -384,9 +371,10 @@ pub async fn local_delivery_list_invites(
 #[tauri::command]
 pub async fn local_delivery_revoke_invite(
     state: State<'_, AppState>,
+    space_id: String,
     token_id: String,
 ) -> Result<(), String> {
-    let leader_state = get_leader_state(&state).await?;
+    let leader_state = get_leader_state(&state, &space_id).await?;
 
     let mut tokens = leader_state.invite_tokens.write().await;
     let len_before = tokens.len();

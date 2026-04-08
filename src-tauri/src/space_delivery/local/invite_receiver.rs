@@ -9,6 +9,7 @@
 //! handler (it handles PushInvite too). When leader mode stops, this
 //! handler is restored.
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use tauri::AppHandle;
@@ -26,10 +27,10 @@ pub struct InviteReceiverState {
     pub db: DbConnection,
     pub hlc: Arc<Mutex<HlcService>>,
     pub app_handle: AppHandle,
-    /// Shared reference to the active leader state (if leader mode is running).
+    /// Shared reference to the active leader states, keyed by space_id.
     /// Allows forwarding ClaimInvite requests even when this lightweight handler
     /// is registered instead of the full LeaderConnectionHandler.
-    pub leader_state: Arc<tokio::sync::Mutex<Option<Arc<LeaderState>>>>,
+    pub leader_states: Arc<tokio::sync::Mutex<HashMap<String, Arc<LeaderState>>>>,
 }
 
 /// Connection handler that handles PushInvite directly and forwards
@@ -109,15 +110,18 @@ async fn handle_stream(
             &space_endpoints,
             origin_url.as_deref(),
         ),
-        Request::ClaimInvite { .. } => {
-            // Forward to active leader if one is running
-            let leader = state.leader_state.lock().await;
-            match leader.as_ref() {
+        Request::ClaimInvite { ref space_id, .. } => {
+            // Forward to the leader for this space if one is running
+            let sid = space_id.clone();
+            let leaders = state.leader_states.lock().await;
+            match leaders.get(&sid) {
                 Some(leader_state) => {
-                    super::leader::handle_claim_invite(leader_state, request).await
+                    let ls = leader_state.clone();
+                    drop(leaders);
+                    super::leader::handle_claim_invite(&ls, request).await
                 }
                 None => Response::Error {
-                    message: "No leader running to handle ClaimInvite".to_string(),
+                    message: format!("No leader running for space {sid}"),
                 },
             }
         }

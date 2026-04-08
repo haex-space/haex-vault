@@ -160,7 +160,7 @@ pub async fn peer_storage_start(
                     db: db_conn,
                     hlc: std::sync::Arc::new(std::sync::Mutex::new(hlc_clone)),
                     app_handle: app.clone(),
-                    leader_state: state.leader_state.clone(),
+                    leader_states: state.leader_states.clone(),
                 },
             );
             let handler = std::sync::Arc::new(
