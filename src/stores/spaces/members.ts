@@ -113,14 +113,18 @@ export async function removeSpaceMember(db: DB, spaceId: string, memberDid: stri
     }
   }
 
-  // 4. Delete member from local DB (CRDT-synced to all devices)
+  // 4. Revoke UCAN tokens for the removed member (prevents further writes)
+  await db.delete(haexUcanTokens)
+    .where(and(eq(haexUcanTokens.spaceId, spaceId), eq(haexUcanTokens.audienceDid, memberDid)))
+
+  // 5. Delete member from local DB (CRDT-synced to all devices)
   await db.delete(haexSpaceMembers)
     .where(and(eq(haexSpaceMembers.spaceId, spaceId), eq(haexSpaceMembers.memberDid, memberDid)))
 
-  // 5. Re-derive epoch key (forward secrecy — new key excludes removed member)
+  // 6. Re-derive epoch key (forward secrecy — new key excludes removed member)
   await invoke('mls_export_epoch_key', { spaceId })
 
-  log.info(`Removed member ${memberDid.slice(0, 20)}... from space ${spaceId} (MLS + DB)`)
+  log.info(`Removed member ${memberDid.slice(0, 20)}... from space ${spaceId} (MLS + UCAN revoked + DB)`)
 }
 
 /** One-time migration: populate haex_space_members from existing haex_ucan_tokens */
