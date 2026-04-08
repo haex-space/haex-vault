@@ -481,6 +481,15 @@ const onAcceptInviteAsync = async (invite?: SelectHaexPendingInvites) => {
     await loadInvitesAsync()
   } catch (error) {
     console.error('Failed to accept invite:', error)
+    // Persist error to pending invite so failures are diagnosable
+    const db = getDb()
+    if (db && invite) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      await db.update(haexPendingInvites).set({
+        status: `error:${errorMessage.slice(0, 200)}`,
+        respondedAt: new Date().toISOString(),
+      }).where(eq(haexPendingInvites.id, invite.id)).catch(() => {})
+    }
     add({
       title: t('errors.acceptFailed'),
       description: error instanceof Error ? error.message : undefined,

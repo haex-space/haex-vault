@@ -312,9 +312,12 @@ export async function acceptLocalInvite(
   const endpoints: string[] = JSON.parse(invite.spaceEndpoints)
   if (endpoints.length === 0) throw new Error('No space endpoints in invite')
 
+  log.info(`ClaimInvite: trying ${endpoints.length} endpoint(s) for space ${invite.spaceId}, token=${invite.tokenId}`)
+
   let lastError: Error | null = null
   for (const endpointId of endpoints) {
     try {
+      log.info(`ClaimInvite: connecting to ${endpointId.slice(0, 16)}...`)
       await invoke('local_delivery_claim_invite', {
         leaderEndpointId: endpointId,
         leaderRelayUrl: null,
@@ -324,11 +327,12 @@ export async function acceptLocalInvite(
         label: identity.label || null,
         identityPublicKey: identity.publicKey,
       })
+      log.info(`ClaimInvite: success to ${endpointId.slice(0, 16)}`)
       lastError = null
       break
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error))
-      log.error(`ClaimInvite to ${endpointId} failed: ${lastError.message}, trying next...`)
+      log.error(`ClaimInvite to ${endpointId.slice(0, 16)} failed: ${lastError.message}`)
     }
   }
   if (lastError) throw lastError
