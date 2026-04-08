@@ -484,6 +484,9 @@ fn emit_sync_result(
 // ---------------------------------------------------------------------------
 
 /// Run periodic sync for a rule. Cancellable via `CancellationToken`.
+///
+/// The optional `trigger_receiver` allows external events (e.g. file watcher)
+/// to interrupt the sleep timer and trigger an immediate sync cycle.
 pub async fn run_sync_loop(
     source: Box<dyn SyncProvider>,
     target: Box<dyn SyncProvider>,
@@ -492,6 +495,7 @@ pub async fn run_sync_loop(
     rule_id: String,
     interval: Duration,
     cancel: CancellationToken,
+    mut trigger_receiver: tokio::sync::mpsc::Receiver<()>,
     db: DbConnection,
     app_handle: tauri::AppHandle,
 ) {
@@ -515,6 +519,21 @@ pub async fn run_sync_loop(
                 break;
             }
             _ = tokio::time::sleep(interval) => {
+                let result = execute_sync(
+                    &*source,
+                    &*target,
+                    direction,
+                    delete_mode,
+                    &rule_id,
+                    &db,
+                    Some(&app_handle),
+                )
+                .await;
+                emit_sync_result(&app_handle, &rule_id, &result);
+            }
+            _ = trigger_receiver.recv() => {
+                // Drain any additional pending triggers to avoid redundant syncs
+                while trigger_receiver.try_recv().is_ok() {}
                 let result = execute_sync(
                     &*source,
                     &*target,

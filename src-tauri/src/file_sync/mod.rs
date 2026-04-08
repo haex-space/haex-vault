@@ -4,6 +4,7 @@
 //! and a diff engine that compares two FileState manifests.
 
 pub mod cloud_provider;
+pub mod commands;
 pub mod diff;
 pub mod engine;
 pub mod local_provider;

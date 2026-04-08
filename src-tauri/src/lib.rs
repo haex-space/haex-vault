@@ -19,7 +19,10 @@ mod window;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use crate::external_bridge::ExternalBridge;
-use crate::{crdt::hlc::HlcService, database::DbConnection, extension::core::ExtensionManager};
+use crate::{
+    crdt::hlc::HlcService, database::DbConnection, extension::core::ExtensionManager,
+    file_sync::commands::SyncManager,
+};
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use crate::extension::webview::ExtensionWebviewManager;
@@ -57,9 +60,11 @@ pub struct AppState {
     /// Extension resource limits service (database, filesystem, web)
     pub limits: extension::limits::LimitsService,
     /// Peer storage endpoint for P2P file sharing via iroh/QUIC
-    pub peer_storage: tokio::sync::Mutex<peer_storage::endpoint::PeerEndpoint>,
+    pub peer_storage: Arc<tokio::sync::Mutex<peer_storage::endpoint::PeerEndpoint>>,
     /// Active P2P transfer control (transfer_id → (cancel_token, pause_flag))
     pub transfer_tokens: tokio::sync::Mutex<HashMap<String, (tokio_util::sync::CancellationToken, Arc<std::sync::atomic::AtomicBool>)>>,
+    /// Active file sync loops (rule_id → cancellation token)
+    pub sync_manager: tokio::sync::Mutex<SyncManager>,
     /// Supabase JWT auth token, synced from frontend for Rust HTTP calls.
     pub auth_token: Arc<Mutex<Option<String>>>,
     /// PTY manager for shell/terminal sessions
@@ -155,8 +160,9 @@ pub fn run() {
             file_watcher: extension::filesystem::watcher::FileWatcherManager::new(),
             session_permissions: extension::permissions::session::SessionPermissionStore::new(),
             limits: extension::limits::LimitsService::new(),
-            peer_storage: tokio::sync::Mutex::new(peer_storage::endpoint::PeerEndpoint::new_ephemeral()),
+            peer_storage: Arc::new(tokio::sync::Mutex::new(peer_storage::endpoint::PeerEndpoint::new_ephemeral())),
             transfer_tokens: tokio::sync::Mutex::new(HashMap::new()),
+            sync_manager: tokio::sync::Mutex::new(SyncManager::new()),
             auth_token: Arc::new(Mutex::new(None)),
             pty_manager: extension::shell::pty::PtyManager::new(),
             local_sync_loops: tokio::sync::Mutex::new(HashMap::new()),
@@ -485,6 +491,13 @@ pub fn run() {
             mls::commands::mls_has_group,
             mls::commands::mls_export_epoch_key,
             mls::commands::mls_get_epoch_key,
+            // File Sync commands
+            file_sync::commands::file_sync_start_rule,
+            file_sync::commands::file_sync_stop_rule,
+            file_sync::commands::file_sync_trigger_now,
+            file_sync::commands::file_sync_trigger_by_watcher,
+            file_sync::commands::file_sync_status,
+            file_sync::commands::file_sync_stop_all,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
