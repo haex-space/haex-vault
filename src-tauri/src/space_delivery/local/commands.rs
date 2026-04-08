@@ -76,6 +76,7 @@ pub async fn local_delivery_stop(
         db: db_conn,
         hlc: Arc::new(std::sync::Mutex::new(hlc_clone)),
         app_handle: app,
+        leader_state: state.leader_state.clone(),
     });
     let handler = Arc::new(super::invite_receiver::InviteReceiverHandler {
         state: receiver_state,

@@ -1,4 +1,5 @@
-//! Lightweight connection handler that accepts PushInvite requests.
+//! Lightweight connection handler that accepts PushInvite requests and
+//! forwards ClaimInvite to the active leader (if any).
 //!
 //! Registered automatically when the QUIC endpoint starts so that
 //! every device can receive space invitations — regardless of whether
@@ -16,6 +17,7 @@ use crate::crdt::hlc::HlcService;
 use crate::database::DbConnection;
 use crate::peer_storage::endpoint::DeliveryConnectionHandler;
 
+use super::leader::LeaderState;
 use super::protocol::{self, Request, Response};
 use super::push_invite;
 
@@ -24,9 +26,14 @@ pub struct InviteReceiverState {
     pub db: DbConnection,
     pub hlc: Arc<Mutex<HlcService>>,
     pub app_handle: AppHandle,
+    /// Shared reference to the active leader state (if leader mode is running).
+    /// Allows forwarding ClaimInvite requests even when this lightweight handler
+    /// is registered instead of the full LeaderConnectionHandler.
+    pub leader_state: Arc<tokio::sync::Mutex<Option<Arc<LeaderState>>>>,
 }
 
-/// Minimal connection handler that only understands PushInvite.
+/// Connection handler that handles PushInvite directly and forwards
+/// ClaimInvite to the active leader if one is running.
 pub struct InviteReceiverHandler {
     pub state: Arc<InviteReceiverState>,
 }
@@ -102,8 +109,20 @@ async fn handle_stream(
             &space_endpoints,
             origin_url.as_deref(),
         ),
+        Request::ClaimInvite { .. } => {
+            // Forward to active leader if one is running
+            let leader = state.leader_state.lock().await;
+            match leader.as_ref() {
+                Some(leader_state) => {
+                    super::leader::handle_claim_invite(leader_state, request).await
+                }
+                None => Response::Error {
+                    message: "No leader running to handle ClaimInvite".to_string(),
+                },
+            }
+        }
         _ => Response::Error {
-            message: "This endpoint only accepts PushInvite requests".to_string(),
+            message: "Unsupported request type".to_string(),
         },
     };
 

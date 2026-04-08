@@ -65,8 +65,9 @@ pub struct AppState {
     pub pty_manager: extension::shell::pty::PtyManager,
     /// Active local sync loops (space_id -> handle)
     pub local_sync_loops: tokio::sync::Mutex<HashMap<String, space_delivery::local::sync_loop::SyncLoopHandle>>,
-    /// Leader state for local space delivery (set when leader mode is active)
-    pub leader_state: tokio::sync::Mutex<Option<Arc<space_delivery::local::leader::LeaderState>>>,
+    /// Leader state for local space delivery (set when leader mode is active).
+    /// Wrapped in Arc so InviteReceiverHandler can hold a reference to forward ClaimInvite.
+    pub leader_state: Arc<tokio::sync::Mutex<Option<Arc<space_delivery::local::leader::LeaderState>>>>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -158,7 +159,7 @@ pub fn run() {
             auth_token: Arc::new(Mutex::new(None)),
             pty_manager: extension::shell::pty::PtyManager::new(),
             local_sync_loops: tokio::sync::Mutex::new(HashMap::new()),
-            leader_state: tokio::sync::Mutex::new(None),
+            leader_state: Arc::new(tokio::sync::Mutex::new(None)),
         })
         //.manage(ExtensionState::default())
         .plugin(tauri_plugin_dialog::init())

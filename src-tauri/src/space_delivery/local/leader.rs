@@ -162,6 +162,192 @@ fn check_write_capability(
 }
 
 // ============================================================================
+// ClaimInvite handler (used by both LeaderConnectionHandler and InviteReceiverHandler)
+// ============================================================================
+
+/// Handle a ClaimInvite request. Extracted so the InviteReceiverHandler can
+/// forward ClaimInvite to the active leader without replacing the whole handler.
+pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Response {
+    let (space_id, token, did, endpoint_id, key_packages, label, public_key) = match request {
+        Request::ClaimInvite {
+            space_id,
+            token,
+            did,
+            endpoint_id,
+            key_packages,
+            label,
+            public_key,
+        } => (space_id, token, did, endpoint_id, key_packages, label, public_key),
+        _ => {
+            return Response::Error {
+                message: "Expected ClaimInvite request".to_string(),
+            }
+        }
+    };
+
+    if space_id != state.space_id {
+        return Response::Error {
+            message: format!("Wrong space: expected {}", state.space_id),
+        };
+    }
+
+    // 1. Validate and consume invite token
+    let (capability, pre_ucan) =
+        match invite_tokens::validate_and_consume_invite(
+            &state.db,
+            &state.hlc,
+            &state.invite_tokens,
+            &token,
+            &did,
+        )
+        .await
+        {
+            Ok(result) => result,
+            Err(e) => {
+                return Response::Error {
+                    message: e.to_string(),
+                }
+            }
+        };
+
+    // 2. Determine UCAN: use pre-created (contact) or create now (conference)
+    let ucan_token = match pre_ucan {
+        Some(ucan) => ucan,
+        None => {
+            let admin = match super::ucan::load_admin_identity(&state.db, &space_id) {
+                Ok(a) => a,
+                Err(e) => {
+                    return Response::Error {
+                        message: format!("Failed to load admin identity: {e}"),
+                    }
+                }
+            };
+            match super::ucan::create_delegated_ucan(
+                &admin.did,
+                &admin.private_key_base64,
+                &did,
+                &space_id,
+                &capability,
+                Some(&admin.root_ucan),
+                86400 * 365,
+            ) {
+                Ok(t) => t,
+                Err(e) => {
+                    return Response::Error {
+                        message: format!("Failed to create UCAN: {e}"),
+                    }
+                }
+            }
+        }
+    };
+
+    // 3. Store key packages from invitee
+    for pkg_b64 in &key_packages {
+        if let Ok(blob) = base64_decode(pkg_b64) {
+            let _ = buffer::store_key_package(&state.db, &space_id, &did, &blob);
+        }
+    }
+
+    // 4. Consume one key package for MLS add_member
+    let key_package_blob = match buffer::consume_key_package(&state.db, &space_id, &did) {
+        Ok(Some(blob)) => blob,
+        Ok(None) => {
+            return Response::Error {
+                message: "No key package available after upload".to_string(),
+            }
+        }
+        Err(e) => {
+            return Response::Error {
+                message: format!("Key package error: {e}"),
+            }
+        }
+    };
+
+    // 5. MLS add_member
+    let mls_manager = crate::mls::manager::MlsManager::new(state.db.0.clone());
+    let bundle = match mls_manager.add_member(&space_id, &key_package_blob) {
+        Ok(b) => b,
+        Err(e) => {
+            return Response::Error {
+                message: format!("MLS add_member failed: {e}"),
+            }
+        }
+    };
+
+    // 6. Store and broadcast commit to existing members
+    if !bundle.commit.is_empty() {
+        let _ = buffer::store_message(&state.db, &space_id, &did, "commit", &bundle.commit);
+        let senders = state.notification_senders.read().await;
+        for (_, sender) in senders.iter() {
+            let _ = sender.try_send(Notification::Mls {
+                space_id: space_id.clone(),
+                message_type: "commit".to_string(),
+            });
+        }
+    }
+
+    // 7. Register peer as connected
+    let member_label = label.clone();
+    state.connected_peers.write().await.insert(
+        endpoint_id.clone(),
+        ConnectedPeer {
+            endpoint_id,
+            did: did.clone(),
+            label,
+            claims: vec![],
+            connected_at: OffsetDateTime::now_utc()
+                .format(&time::format_description::well_known::Rfc3339)
+                .unwrap_or_default(),
+        },
+    );
+
+    // 7b. Persist new member to haex_space_members (CRDT-synced to all devices)
+    if let Some(ref pk) = public_key {
+        let hlc = state.hlc.lock().map_err(|e| format!("HLC lock error: {e}")).ok();
+        if let Some(ref hlc_guard) = hlc {
+            let member_id = uuid::Uuid::new_v4().to_string();
+            let now = OffsetDateTime::now_utc()
+                .format(&time::format_description::well_known::Rfc3339)
+                .unwrap_or_default();
+            let resolved_label = member_label
+                .unwrap_or_else(|| did.chars().take(16).collect());
+
+            let sql = "INSERT OR IGNORE INTO haex_space_members \
+                (id, space_id, member_did, member_public_key, label, role, joined_at) \
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)".to_string();
+
+            let params = vec![
+                JsonValue::String(member_id),
+                JsonValue::String(space_id.clone()),
+                JsonValue::String(did.clone()),
+                JsonValue::String(pk.clone()),
+                JsonValue::String(resolved_label),
+                JsonValue::String(capability.clone()),
+                JsonValue::String(now),
+            ];
+
+            if let Err(e) = crate::database::core::execute_with_crdt(
+                sql, params, &state.db, hlc_guard,
+            ) {
+                eprintln!("[SpaceDelivery] Failed to persist space member: {e}");
+            }
+        }
+    }
+
+    // 8. Return welcome + UCAN
+    match bundle.welcome {
+        Some(welcome) => Response::InviteClaimed {
+            welcome: base64_encode(&welcome),
+            ucan: ucan_token,
+            capability,
+        },
+        None => Response::Error {
+            message: "MLS add_member produced no welcome".to_string(),
+        },
+    }
+}
+
+// ============================================================================
 // Request dispatcher
 // ============================================================================
 
@@ -532,204 +718,8 @@ async fn handle_delivery_stream(
         }
 
         // -- Invites (ClaimInvite) --
-        Request::ClaimInvite {
-            space_id,
-            token,
-            did,
-            endpoint_id,
-            key_packages,
-            label,
-            public_key,
-        } => {
-            if space_id != state.space_id {
-                return send_response(
-                    &mut send,
-                    &Response::Error {
-                        message: format!("Wrong space: expected {}", state.space_id),
-                    },
-                )
-                .await;
-            }
-
-            // 1. Validate and consume invite token
-            let (capability, pre_ucan) =
-                match invite_tokens::validate_and_consume_invite(
-                    &state.db,
-                    &state.hlc,
-                    &state.invite_tokens,
-                    &token,
-                    &did,
-                )
-                .await
-                {
-                    Ok(result) => result,
-                    Err(e) => {
-                        return send_response(
-                            &mut send,
-                            &Response::Error {
-                                message: e.to_string(),
-                            },
-                        )
-                        .await
-                    }
-                };
-
-            // 2. Determine UCAN: use pre-created (contact) or create now (conference)
-            let ucan_token = match pre_ucan {
-                Some(ucan) => ucan,
-                None => {
-                    // Conference invite — create UCAN now with claimer's DID
-                    let admin = match super::ucan::load_admin_identity(&state.db, &space_id) {
-                        Ok(a) => a,
-                        Err(e) => {
-                            return send_response(
-                                &mut send,
-                                &Response::Error {
-                                    message: format!("Failed to load admin identity: {e}"),
-                                },
-                            )
-                            .await
-                        }
-                    };
-                    match super::ucan::create_delegated_ucan(
-                        &admin.did,
-                        &admin.private_key_base64,
-                        &did,
-                        &space_id,
-                        &capability,
-                        Some(&admin.root_ucan),
-                        86400 * 365, // 1 year expiry (admin can revoke via MLS)
-                    ) {
-                        Ok(t) => t,
-                        Err(e) => {
-                            return send_response(
-                                &mut send,
-                                &Response::Error {
-                                    message: format!("Failed to create UCAN: {e}"),
-                                },
-                            )
-                            .await
-                        }
-                    }
-                }
-            };
-
-            // 3. Store key packages from invitee
-            for pkg_b64 in &key_packages {
-                if let Ok(blob) = base64_decode(pkg_b64) {
-                    let _ = buffer::store_key_package(&state.db, &space_id, &did, &blob);
-                }
-            }
-
-            // 4. Consume one key package for MLS add_member
-            let key_package_blob = match buffer::consume_key_package(&state.db, &space_id, &did) {
-                Ok(Some(blob)) => blob,
-                Ok(None) => {
-                    return send_response(
-                        &mut send,
-                        &Response::Error {
-                            message: "No key package available after upload".to_string(),
-                        },
-                    )
-                    .await
-                }
-                Err(e) => {
-                    return send_response(
-                        &mut send,
-                        &Response::Error {
-                            message: format!("Key package error: {e}"),
-                        },
-                    )
-                    .await
-                }
-            };
-
-            // 5. MLS add_member
-            let mls_manager = crate::mls::manager::MlsManager::new(state.db.0.clone());
-            let bundle = match mls_manager.add_member(&space_id, &key_package_blob) {
-                Ok(b) => b,
-                Err(e) => {
-                    return send_response(
-                        &mut send,
-                        &Response::Error {
-                            message: format!("MLS add_member failed: {e}"),
-                        },
-                    )
-                    .await
-                }
-            };
-
-            // 6. Store and broadcast commit to existing members
-            if !bundle.commit.is_empty() {
-                let _ = buffer::store_message(&state.db, &space_id, &did, "commit", &bundle.commit);
-                let senders = state.notification_senders.read().await;
-                for (_, sender) in senders.iter() {
-                    let _ = sender.try_send(Notification::Mls {
-                        space_id: space_id.clone(),
-                        message_type: "commit".to_string(),
-                    });
-                }
-            }
-
-            // 7. Register peer as connected
-            let member_label = label.clone();
-            state.connected_peers.write().await.insert(
-                endpoint_id.clone(),
-                ConnectedPeer {
-                    endpoint_id,
-                    did: did.clone(),
-                    label,
-                    claims: vec![],
-                    connected_at: OffsetDateTime::now_utc()
-                        .format(&time::format_description::well_known::Rfc3339)
-                        .unwrap_or_default(),
-                },
-            );
-
-            // 7b. Persist new member to haex_space_members (CRDT-synced to all devices)
-            if let Some(ref pk) = public_key {
-                let hlc = state.hlc.lock().map_err(|e| format!("HLC lock error: {e}")).ok();
-                if let Some(ref hlc_guard) = hlc {
-                    let member_id = uuid::Uuid::new_v4().to_string();
-                    let now = OffsetDateTime::now_utc()
-                        .format(&time::format_description::well_known::Rfc3339)
-                        .unwrap_or_default();
-                    let resolved_label = member_label
-                        .unwrap_or_else(|| did.chars().take(16).collect());
-
-                    let sql = "INSERT OR IGNORE INTO haex_space_members \
-                        (id, space_id, member_did, member_public_key, label, role, joined_at) \
-                        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)".to_string();
-
-                    let params = vec![
-                        JsonValue::String(member_id),
-                        JsonValue::String(space_id.clone()),
-                        JsonValue::String(did.clone()),
-                        JsonValue::String(pk.clone()),
-                        JsonValue::String(resolved_label),
-                        JsonValue::String(capability.clone()),
-                        JsonValue::String(now),
-                    ];
-
-                    if let Err(e) = crate::database::core::execute_with_crdt(
-                        sql, params, &state.db, hlc_guard,
-                    ) {
-                        eprintln!("[SpaceDelivery] Failed to persist space member: {e}");
-                    }
-                }
-            }
-
-            // 8. Return welcome + UCAN
-            match bundle.welcome {
-                Some(welcome) => Response::InviteClaimed {
-                    welcome: base64_encode(&welcome),
-                    ucan: ucan_token,
-                    capability,
-                },
-                None => Response::Error {
-                    message: "MLS add_member produced no welcome".to_string(),
-                },
-            }
+        req @ Request::ClaimInvite { .. } => {
+            handle_claim_invite(state, req).await
         }
 
         // -- Push Invites (peer-to-peer, invitee side) --
