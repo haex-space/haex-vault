@@ -91,3 +91,50 @@ pub fn validate_relative_path(path: &str) -> Result<(), SyncProviderError> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn path_traversal_dotdot_rejected() {
+        assert!(validate_relative_path("../etc/passwd").is_err());
+        assert!(validate_relative_path("foo/../../etc/passwd").is_err());
+        assert!(validate_relative_path("..").is_err());
+    }
+
+    #[test]
+    fn absolute_path_rejected() {
+        assert!(validate_relative_path("/etc/passwd").is_err());
+        assert!(validate_relative_path("/home/user/file.txt").is_err());
+    }
+
+    #[test]
+    fn null_byte_rejected() {
+        assert!(validate_relative_path("foo\0bar").is_err());
+        assert!(validate_relative_path("\0").is_err());
+    }
+
+    #[test]
+    fn empty_path_rejected() {
+        assert!(validate_relative_path("").is_err());
+    }
+
+    #[test]
+    fn normal_relative_path_accepted() {
+        assert!(validate_relative_path("notes.md").is_ok());
+        assert!(validate_relative_path("readme.txt").is_ok());
+    }
+
+    #[test]
+    fn nested_relative_path_accepted() {
+        assert!(validate_relative_path("folder/subfolder/file.md").is_ok());
+        assert!(validate_relative_path("a/b/c/d.txt").is_ok());
+    }
+
+    #[test]
+    fn dotdot_in_filename_accepted() {
+        assert!(validate_relative_path("data..backup").is_ok());
+        assert!(validate_relative_path("foo/data..v2").is_ok());
+    }
+}
