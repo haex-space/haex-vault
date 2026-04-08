@@ -506,12 +506,12 @@ pub async fn local_delivery_claim_invite(
         _ => return Err("Unexpected response from leader".to_string()),
     };
 
-    // 5. Process MLS welcome
+    // 5. Process MLS welcome (creates the local group from the Welcome message)
     let welcome_bytes = BASE64
         .decode(&welcome_b64)
         .map_err(|e| format!("Failed to decode welcome: {e}"))?;
     mls_manager
-        .process_message(&space_id, &welcome_bytes)
+        .process_welcome(&space_id, &welcome_bytes)
         .map_err(|e| format!("Failed to process MLS welcome: {e}"))?;
 
     // 6. Persist space locally (type = 'local', status = 'active')

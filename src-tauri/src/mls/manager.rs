@@ -206,6 +206,36 @@ impl MlsManager {
         self.decrypt(space_id, message)
     }
 
+    /// Process an MLS Welcome message to join an existing group.
+    /// Creates the local group state from the Welcome (the group does NOT need to exist yet).
+    pub fn process_welcome(&self, space_id: &str, welcome_bytes: &[u8]) -> Result<MlsGroupInfo, String> {
+        let welcome = Welcome::tls_deserialize_exact_bytes(welcome_bytes)
+            .map_err(|e| format!("Failed to deserialize welcome: {e}"))?;
+
+        let group_config = MlsGroupJoinConfig::default();
+
+        let group = StagedWelcome::new_from_welcome(&self.provider, &group_config, welcome, None)
+            .map_err(|e| format!("Failed to stage welcome: {e}"))?
+            .into_group(&self.provider)
+            .map_err(|e| format!("Failed to join group from welcome: {e}"))?;
+
+        // Verify the group ID matches the expected space
+        let expected_group_id = GroupId::from_slice(space_id.as_bytes());
+        if group.group_id() != &expected_group_id {
+            return Err(format!(
+                "Group ID mismatch: expected {} but welcome contains {}",
+                space_id,
+                String::from_utf8_lossy(group.group_id().as_slice()),
+            ));
+        }
+
+        Ok(MlsGroupInfo {
+            group_id: space_id.to_string(),
+            epoch: group.epoch().as_u64(),
+            member_count: group.members().count() as u32,
+        })
+    }
+
     pub fn generate_key_packages(&self, count: u32) -> Result<Vec<Vec<u8>>, String> {
         let signer = self.get_signer()?;
         let credential_with_key = self.get_credential_with_key(&signer);
