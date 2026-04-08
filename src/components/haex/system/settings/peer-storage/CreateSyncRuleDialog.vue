@@ -5,217 +5,179 @@
     :description="t('description')"
   >
     <template #body>
-      <!-- Step indicator -->
-      <div class="flex gap-2 mb-4">
-        <UBadge
-          v-for="s in steps"
-          :key="s.number"
-          :variant="step >= s.number ? 'solid' : 'outline'"
-          :color="step >= s.number ? 'primary' : 'neutral'"
-          size="sm"
-          class="cursor-pointer"
-          @click="s.number < step ? step = s.number : undefined"
-        >
-          {{ s.number }}. {{ s.label }}
-        </UBadge>
-      </div>
+      <UStepper
+        v-model="step"
+        :items="stepperItems"
+        orientation="horizontal"
+        class="mb-6"
+      >
+        <!-- Step 1: Source -->
+        <template #source>
+          <div class="space-y-4 pt-4">
+            <div class="flex flex-wrap gap-2">
+              <UiButton
+                v-for="providerType in sourceProviderTypes"
+                :key="providerType.value"
+                :variant="sourceType === providerType.value ? 'solid' : 'outline'"
+                :icon="providerType.icon"
+                @click="sourceType = providerType.value"
+              >
+                {{ providerType.label }}
+              </UiButton>
+            </div>
 
-      <!-- Step 1: Source -->
-      <div v-if="step === 1" class="space-y-4">
-        <h3 class="text-sm font-medium">{{ t('source.title') }}</h3>
+            <!-- Local folder picker -->
+            <div v-if="sourceType === 'local'" class="space-y-2">
+              <UButton
+                icon="i-lucide-folder"
+                color="neutral"
+                variant="outline"
+                block
+                @click="selectSourceFolderAsync"
+              >
+                {{ sourcePath || t('source.selectFolder') }}
+              </UButton>
+            </div>
 
-        <!-- Provider type selector -->
-        <div class="flex gap-2">
-          <UiButton
-            v-for="providerType in providerTypes"
-            :key="providerType.value"
-            :variant="sourceType === providerType.value ? 'solid' : 'outline'"
-            :icon="providerType.icon"
-            size="sm"
-            @click="sourceType = providerType.value"
-          >
-            {{ providerType.label }}
-          </UiButton>
-        </div>
+            <!-- Peer: space + device + share pickers -->
+            <div v-if="sourceType === 'peer'" class="space-y-3">
+              <UiSelectMenu
+                v-model="sourceSpaceId"
+                :items="spaceOptions"
+                :label="t('source.space')"
+                value-key="value"
+              />
+              <UiSelectMenu
+                v-if="sourceSpaceId"
+                v-model="sourceDeviceEndpointId"
+                :items="deviceOptionsForSpace(sourceSpaceId)"
+                :label="t('source.device')"
+                value-key="value"
+              />
+              <UiSelectMenu
+                v-if="sourceDeviceEndpointId"
+                v-model="sourceShareId"
+                :items="shareOptionsForDevice(sourceDeviceEndpointId)"
+                :label="t('source.share')"
+                value-key="value"
+              />
+            </div>
 
-        <!-- Local folder picker -->
-        <div v-if="sourceType === 'local'" class="space-y-2">
-          <UButton
-            icon="i-lucide-folder"
-            color="neutral"
-            variant="outline"
-            block
-            @click="selectSourceFolderAsync"
-          >
-            {{ sourcePath || t('source.selectFolder') }}
-          </UButton>
-        </div>
-
-        <!-- Peer: space + device + share pickers -->
-        <div v-if="sourceType === 'peer'" class="space-y-3">
-          <UiSelectMenu
-            v-model="sourceSpaceId"
-            :items="spaceOptions"
-            :label="t('source.space')"
-            value-key="value"
-          />
-          <UiSelectMenu
-            v-if="sourceSpaceId"
-            v-model="sourceDeviceEndpointId"
-            :items="deviceOptionsForSpace(sourceSpaceId)"
-            :label="t('source.device')"
-            value-key="value"
-          />
-          <UiSelectMenu
-            v-if="sourceDeviceEndpointId"
-            v-model="sourceShareId"
-            :items="shareOptionsForDevice(sourceDeviceEndpointId)"
-            :label="t('source.share')"
-            value-key="value"
-          />
-        </div>
-
-        <!-- Cloud: backend + prefix -->
-        <div v-if="sourceType === 'cloud'" class="space-y-3">
-          <UiSelectMenu
-            v-model="sourceBackendId"
-            :items="backendOptions"
-            :label="t('source.backend')"
-            value-key="value"
-          />
-          <UiInput
-            v-model="sourcePrefix"
-            :label="t('source.prefix')"
-            placeholder="photos/"
-          />
-        </div>
-      </div>
-
-      <!-- Step 2: Target -->
-      <div v-if="step === 2" class="space-y-4">
-        <h3 class="text-sm font-medium">{{ t('target.title') }}</h3>
-
-        <!-- Provider type selector -->
-        <div class="flex gap-2">
-          <UiButton
-            v-for="providerType in providerTypes"
-            :key="providerType.value"
-            :variant="targetType === providerType.value ? 'solid' : 'outline'"
-            :icon="providerType.icon"
-            size="sm"
-            @click="targetType = providerType.value"
-          >
-            {{ providerType.label }}
-          </UiButton>
-        </div>
-
-        <!-- Local folder picker -->
-        <div v-if="targetType === 'local'" class="space-y-2">
-          <UButton
-            icon="i-lucide-folder"
-            color="neutral"
-            variant="outline"
-            block
-            @click="selectTargetFolderAsync"
-          >
-            {{ targetPath || t('target.selectFolder') }}
-          </UButton>
-        </div>
-
-        <!-- Peer: space + device + share pickers -->
-        <div v-if="targetType === 'peer'" class="space-y-3">
-          <UiSelectMenu
-            v-model="targetSpaceId"
-            :items="spaceOptions"
-            :label="t('target.space')"
-            value-key="value"
-          />
-          <UiSelectMenu
-            v-if="targetSpaceId"
-            v-model="targetDeviceEndpointId"
-            :items="deviceOptionsForSpace(targetSpaceId)"
-            :label="t('target.device')"
-            value-key="value"
-          />
-          <UiSelectMenu
-            v-if="targetDeviceEndpointId"
-            v-model="targetShareId"
-            :items="shareOptionsForDevice(targetDeviceEndpointId)"
-            :label="t('target.share')"
-            value-key="value"
-          />
-        </div>
-
-        <!-- Cloud: backend + prefix -->
-        <div v-if="targetType === 'cloud'" class="space-y-3">
-          <UiSelectMenu
-            v-model="targetBackendId"
-            :items="backendOptions"
-            :label="t('target.backend')"
-            value-key="value"
-          />
-          <UiInput
-            v-model="targetPrefix"
-            :label="t('target.prefix')"
-            placeholder="backup/"
-          />
-        </div>
-      </div>
-
-      <!-- Step 3: Settings -->
-      <div v-if="step === 3" class="space-y-4">
-        <h3 class="text-sm font-medium">{{ t('settings.title') }}</h3>
-
-        <!-- Direction -->
-        <div>
-          <label class="text-sm font-medium">{{ t('settings.direction') }}</label>
-          <div class="flex gap-2 mt-1">
-            <UiButton
-              :variant="direction === 'one_way' ? 'solid' : 'outline'"
-              icon="i-lucide-arrow-right"
-              size="sm"
-              @click="direction = 'one_way'"
-            >
-              {{ t('settings.oneWay') }}
-            </UiButton>
-            <UiButton
-              :variant="direction === 'two_way' ? 'solid' : 'outline'"
-              icon="i-lucide-arrow-left-right"
-              size="sm"
-              @click="direction = 'two_way'"
-            >
-              {{ t('settings.twoWay') }}
-            </UiButton>
+            <!-- Cloud: backend + prefix -->
+            <div v-if="sourceType === 'cloud'" class="space-y-3">
+              <UiSelectMenu
+                v-model="sourceBackendId"
+                :items="backendOptions"
+                :label="t('source.backend')"
+                value-key="value"
+              />
+              <UiInput
+                v-model="sourcePrefix"
+                :label="t('source.prefix')"
+                placeholder="photos/"
+              />
+            </div>
           </div>
-        </div>
+        </template>
 
-        <!-- Sync interval -->
-        <UFormField :label="t('settings.interval')">
-          <USelectMenu
-            v-model="intervalSeconds"
-            :items="intervalOptions"
-            value-key="value"
-            class="w-full"
-          />
-        </UFormField>
+        <!-- Step 2: Target -->
+        <template #target>
+          <div class="space-y-4 pt-4">
+            <div class="flex flex-wrap gap-2">
+              <UiButton
+                v-for="providerType in targetProviderTypes"
+                :key="providerType.value"
+                :variant="targetType === providerType.value ? 'solid' : 'outline'"
+                :icon="providerType.icon"
+                @click="targetType = providerType.value"
+              >
+                {{ providerType.label }}
+              </UiButton>
+            </div>
 
-        <!-- Delete mode -->
-        <UFormField :label="t('settings.deleteMode')">
-          <USelectMenu
-            v-model="deleteMode"
-            :items="deleteModeOptions"
-            value-key="value"
-            class="w-full"
-          />
-        </UFormField>
+            <!-- Local folder picker -->
+            <div v-if="targetType === 'local'" class="space-y-2">
+              <UButton
+                icon="i-lucide-folder"
+                color="neutral"
+                variant="outline"
+                block
+                @click="selectTargetFolderAsync"
+              >
+                {{ targetPath || t('target.selectFolder') }}
+              </UButton>
+            </div>
 
-        <!-- Rule name -->
-        <UiInput
-          v-model="ruleName"
-          :label="t('settings.name')"
-          :placeholder="t('settings.namePlaceholder')"
-        />
-      </div>
+            <!-- Cloud: backend + prefix -->
+            <div v-if="targetType === 'cloud'" class="space-y-3">
+              <UiSelectMenu
+                v-model="targetBackendId"
+                :items="backendOptions"
+                :label="t('target.backend')"
+                value-key="value"
+              />
+              <UiInput
+                v-model="targetPrefix"
+                :label="t('target.prefix')"
+                placeholder="backup/"
+              />
+            </div>
+          </div>
+        </template>
+
+        <!-- Step 3: Settings -->
+        <template #settings>
+          <div class="space-y-4 pt-4">
+            <!-- Direction -->
+            <div>
+              <label class="text-sm font-medium">{{ t('settings.direction') }}</label>
+              <div class="flex gap-2 mt-1">
+                <UiButton
+                  :variant="direction === 'one_way' ? 'solid' : 'outline'"
+                  icon="i-lucide-arrow-right"
+                  @click="direction = 'one_way'"
+                >
+                  {{ t('settings.oneWay') }}
+                </UiButton>
+                <UiButton
+                  :variant="direction === 'two_way' ? 'solid' : 'outline'"
+                  icon="i-lucide-arrow-left-right"
+                  @click="direction = 'two_way'"
+                >
+                  {{ t('settings.twoWay') }}
+                </UiButton>
+              </div>
+            </div>
+
+            <!-- Sync interval -->
+            <UFormField :label="t('settings.interval')">
+              <USelectMenu
+                v-model="intervalSeconds"
+                :items="intervalOptions"
+                value-key="value"
+                class="w-full"
+              />
+            </UFormField>
+
+            <!-- Delete mode -->
+            <UFormField :label="t('settings.deleteMode')">
+              <USelectMenu
+                v-model="deleteMode"
+                :items="deleteModeOptions"
+                value-key="value"
+                class="w-full"
+              />
+            </UFormField>
+
+            <!-- Rule name -->
+            <UiInput
+              v-model="ruleName"
+              :label="t('settings.name')"
+              :placeholder="t('settings.namePlaceholder')"
+            />
+          </div>
+        </template>
+      </UStepper>
     </template>
 
     <template #footer>
@@ -225,11 +187,11 @@
           variant="outline"
           @click="onBack"
         >
-          {{ step > 1 ? t('actions.back') : t('actions.cancel') }}
+          {{ step > 0 ? t('actions.back') : t('actions.cancel') }}
         </UiButton>
 
         <UiButton
-          v-if="step < 3"
+          v-if="step < 2"
           icon="i-lucide-arrow-right"
           :disabled="!canProceed"
           @click="step++"
@@ -252,6 +214,7 @@
 </template>
 
 <script setup lang="ts">
+import type { StepperItem } from '@nuxt/ui'
 import { invoke } from '@tauri-apps/api/core'
 import { eq } from 'drizzle-orm'
 import { haexDevices } from '~/database/schemas'
@@ -273,20 +236,44 @@ const syncBackendsStore = useSyncBackendsStore()
 const deviceStore = useDeviceStore()
 const { currentVault } = storeToRefs(useVaultStore())
 
-const step = ref(1)
+// UStepper uses 0-based index
+const step = ref(0)
 const isCreating = ref(false)
 
+// -- Stepper items --
+const stepperItems = computed<StepperItem[]>(() => [
+  {
+    slot: 'source',
+    title: t('steps.source'),
+    description: t('steps.sourceDescription'),
+    icon: 'i-lucide-upload',
+  },
+  {
+    slot: 'target',
+    title: t('steps.target'),
+    description: t('steps.targetDescription'),
+    icon: 'i-lucide-download',
+  },
+  {
+    slot: 'settings',
+    title: t('steps.settings'),
+    description: t('steps.settingsDescription'),
+    icon: 'i-lucide-settings',
+  },
+])
+
 // -- Provider types --
-const providerTypes = computed(() => [
+// All providers available as source
+const sourceProviderTypes = computed(() => [
   { value: 'local' as ProviderType, label: t('provider.local'), icon: 'i-lucide-folder' },
   { value: 'peer' as ProviderType, label: t('provider.peer'), icon: 'i-lucide-monitor-smartphone' },
   { value: 'cloud' as ProviderType, label: t('provider.cloud'), icon: 'i-lucide-cloud' },
 ])
 
-const steps = computed(() => [
-  { number: 1, label: t('steps.source') },
-  { number: 2, label: t('steps.target') },
-  { number: 3, label: t('steps.settings') },
+// P2P is read-only — only Local and Cloud can be targets
+const targetProviderTypes = computed(() => [
+  { value: 'local' as ProviderType, label: t('provider.local'), icon: 'i-lucide-folder' },
+  { value: 'cloud' as ProviderType, label: t('provider.cloud'), icon: 'i-lucide-cloud' },
 ])
 
 // -- Source state --
@@ -301,9 +288,6 @@ const sourcePrefix = ref('')
 // -- Target state --
 const targetType = ref<ProviderType>('local')
 const targetPath = ref('')
-const targetSpaceId = ref('')
-const targetDeviceEndpointId = ref('')
-const targetShareId = ref('')
 const targetBackendId = ref('')
 const targetPrefix = ref('')
 
@@ -360,15 +344,14 @@ const isSourceValid = computed(() => {
 const isTargetValid = computed(() => {
   switch (targetType.value) {
     case 'local': return !!targetPath.value
-    case 'peer': return !!targetShareId.value
     case 'cloud': return !!targetBackendId.value
     default: return false
   }
 })
 
 const canProceed = computed(() => {
-  if (step.value === 1) return isSourceValid.value
-  if (step.value === 2) return isTargetValid.value
+  if (step.value === 0) return isSourceValid.value
+  if (step.value === 1) return isTargetValid.value
   return true
 })
 
@@ -378,7 +361,7 @@ const canCreate = computed(() =>
 
 // -- Auto-generate rule name --
 const autoGenerateName = () => {
-  if (ruleName.value) return // Don't overwrite manual edits
+  if (ruleName.value) return
 
   let name = ''
   if (sourceType.value === 'local' && sourcePath.value) {
@@ -395,7 +378,6 @@ const autoGenerateName = () => {
   }
 }
 
-// Watch source changes to auto-generate name
 watch([sourcePath, sourceShareId, sourcePrefix], autoGenerateName)
 
 // -- Folder selection --
@@ -428,11 +410,6 @@ const buildSourceConfig = () => {
 const buildTargetConfig = () => {
   switch (targetType.value) {
     case 'local': return { path: targetPath.value }
-    case 'peer': return {
-      endpointId: targetDeviceEndpointId.value,
-      shareId: targetShareId.value,
-      spaceId: targetSpaceId.value,
-    }
     case 'cloud': return {
       backendId: targetBackendId.value,
       prefix: targetPrefix.value,
@@ -455,7 +432,6 @@ const resolveCurrentDeviceIdAsync = async (): Promise<string> => {
 
   if (rows.length > 0) return rows[0]!.id
 
-  // Device record doesn't exist yet -- create one
   const id = crypto.randomUUID()
   await db.insert(haexDevices).values({
     id,
@@ -468,16 +444,13 @@ const resolveCurrentDeviceIdAsync = async (): Promise<string> => {
 
 // -- Determine spaceId for the rule --
 const resolveSpaceId = (): string => {
-  // Use whichever side has a peer provider -- that's the space context
   if (sourceType.value === 'peer' && sourceSpaceId.value) return sourceSpaceId.value
-  if (targetType.value === 'peer' && targetSpaceId.value) return targetSpaceId.value
-  // For local-to-local or cloud rules, pick first active space or vault space
   return spacesStore.spaces[0]?.id ?? ''
 }
 
 // -- Navigation --
 const onBack = () => {
-  if (step.value > 1) {
+  if (step.value > 0) {
     step.value--
   } else {
     open.value = false
@@ -525,7 +498,7 @@ const onCreateAsync = async () => {
 
 // -- Reset on open --
 const resetForm = () => {
-  step.value = 1
+  step.value = 0
   sourceType.value = 'local'
   sourcePath.value = ''
   sourceSpaceId.value = ''
@@ -535,9 +508,6 @@ const resetForm = () => {
   sourcePrefix.value = ''
   targetType.value = 'local'
   targetPath.value = ''
-  targetSpaceId.value = ''
-  targetDeviceEndpointId.value = ''
-  targetShareId.value = ''
   targetBackendId.value = ''
   targetPrefix.value = ''
   direction.value = 'one_way'
@@ -563,14 +533,16 @@ de:
   description: Dateien automatisch zwischen Quell- und Zielordner synchronisieren
   steps:
     source: Quelle
+    sourceDescription: Woher kommen die Daten
     target: Ziel
+    targetDescription: Wohin sollen sie synchronisiert werden
     settings: Einstellungen
+    settingsDescription: Intervall, Richtung und Verhalten
   provider:
     local: Lokaler Ordner
     peer: P2P Peer
     cloud: Cloud-Speicher
   source:
-    title: Quelle auswählen
     selectFolder: Ordner auswählen
     space: Space
     device: Gerät
@@ -578,15 +550,10 @@ de:
     backend: Storage-Backend
     prefix: Pfad-Präfix
   target:
-    title: Ziel auswählen
     selectFolder: Ordner auswählen
-    space: Space
-    device: Gerät
-    share: Freigabe
     backend: Storage-Backend
     prefix: Pfad-Präfix
   settings:
-    title: Synchronisationseinstellungen
     direction: Richtung
     oneWay: Einseitig
     twoWay: Beidseitig
@@ -619,14 +586,16 @@ en:
   description: Automatically synchronize files between source and target
   steps:
     source: Source
+    sourceDescription: Where the data comes from
     target: Target
+    targetDescription: Where to synchronize it to
     settings: Settings
+    settingsDescription: Interval, direction and behavior
   provider:
     local: Local Folder
     peer: P2P Peer
     cloud: Cloud Storage
   source:
-    title: Choose source
     selectFolder: Select folder
     space: Space
     device: Device
@@ -634,15 +603,10 @@ en:
     backend: Storage backend
     prefix: Path prefix
   target:
-    title: Choose target
     selectFolder: Select folder
-    space: Space
-    device: Device
-    share: Share
     backend: Storage backend
     prefix: Path prefix
   settings:
-    title: Sync settings
     direction: Direction
     oneWay: One-way
     twoWay: Two-way
