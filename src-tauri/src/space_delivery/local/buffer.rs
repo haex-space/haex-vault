@@ -155,12 +155,13 @@ pub fn store_welcome(
     Ok(id)
 }
 
-/// Fetch and mark consumed all welcomes for a recipient DID.
-pub fn consume_welcomes(
+/// Fetch unconsumed welcomes for a recipient DID without marking them consumed.
+/// Call `mark_welcome_consumed` after successful processing of each welcome.
+pub fn fetch_welcomes(
     db: &DbConnection,
     space_id: &str,
     recipient_did: &str,
-) -> Result<Vec<Vec<u8>>, DeliveryError> {
+) -> Result<Vec<(String, Vec<u8>)>, DeliveryError> {
     let rows = core::select(
         "SELECT id, welcome_blob FROM haex_local_delivery_welcomes_no_sync \
          WHERE space_id = ?1 AND recipient_did = ?2 AND consumed = 0 \
@@ -172,23 +173,26 @@ pub fn consume_welcomes(
         db,
     ).map_err(map_db)?;
 
-    let mut blobs = Vec::new();
+    let mut results = Vec::new();
     for row in &rows {
         let id = row.get(0).and_then(|v| v.as_str()).unwrap_or_default().to_string();
         let blob_b64 = row.get(1).and_then(|v| v.as_str()).unwrap_or_default();
         let blob = base64::engine::general_purpose::STANDARD.decode(blob_b64)
             .unwrap_or_default();
-        blobs.push(blob);
-
-        // Mark as consumed
-        let _ = core::execute(
-            "UPDATE haex_local_delivery_welcomes_no_sync SET consumed = 1 WHERE id = ?1".to_string(),
-            vec![serde_json::Value::String(id)],
-            db,
-        );
+        results.push((id, blob));
     }
 
-    Ok(blobs)
+    Ok(results)
+}
+
+/// Mark a single welcome as consumed after successful processing.
+pub fn mark_welcome_consumed(db: &DbConnection, welcome_id: &str) -> Result<(), DeliveryError> {
+    core::execute(
+        "UPDATE haex_local_delivery_welcomes_no_sync SET consumed = 1 WHERE id = ?1".to_string(),
+        vec![serde_json::Value::String(welcome_id.to_string())],
+        db,
+    ).map_err(map_db)?;
+    Ok(())
 }
 
 /// Clear all buffer tables for a space (called when leadership ends).

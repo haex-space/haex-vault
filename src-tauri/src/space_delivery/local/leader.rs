@@ -556,9 +556,14 @@ async fn handle_delivery_stream(
                 .await;
             }
             let did = lookup_peer_did(state, peer_endpoint_id).await?;
-            match buffer::consume_welcomes(&state.db, &space_id, &did) {
-                Ok(blobs) => {
-                    let encoded: Vec<String> = blobs.iter().map(|b| base64_encode(b)).collect();
+            match buffer::fetch_welcomes(&state.db, &space_id, &did) {
+                Ok(entries) => {
+                    let encoded: Vec<String> = entries.iter().map(|(_, blob)| base64_encode(blob)).collect();
+                    // Mark consumed only after successful serialization and send.
+                    // If the peer crashes before processing, they can re-fetch on reconnect.
+                    for (id, _) in &entries {
+                        let _ = buffer::mark_welcome_consumed(&state.db, id);
+                    }
                     Response::Welcomes { welcomes: encoded }
                 }
                 Err(e) => Response::Error {
