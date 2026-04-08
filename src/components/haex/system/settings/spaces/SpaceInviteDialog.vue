@@ -335,7 +335,6 @@ const onSubmitAsync = async () => {
         }
 
         // 2. Always queue QUIC PushInvite (DB-based, works for both local and online spaces)
-        log.info(`QUIC check: endpointIds=${JSON.stringify(endpointIds)}, contact.id=${contact.id}`)
         if (endpointIds.length > 0) {
           try {
             await spacesStore.queueQuicInviteAsync({
@@ -349,7 +348,6 @@ const onSubmitAsync = async () => {
             })
             log.info(`QUIC invite queued for "${contact.label}" → ${endpointIds.length} endpoint(s)`)
           } catch (error) {
-            log.error(`QUIC invite FAILED for "${contact.label}": ${error}`)
             // If server invite succeeded, QUIC failure is not fatal
             if (!serverInviteId) throw error
             log.warn(`QUIC invite failed for "${contact.label}", server invite was sent`, error)
