@@ -184,6 +184,11 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     }
 
     await autoRegisterInSpacesAsync()
+
+    // Start enabled file sync rules
+    const fileSyncStore = useFileSyncStore()
+    await fileSyncStore.loadRulesAsync()
+    await fileSyncStore.startEnabledRulesAsync()
   }
 
   const autoRegisterInSpacesAsync = async () => {
@@ -233,6 +238,11 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   }
 
   const stopAsync = async () => {
+    // Stop all active sync rules before shutting down P2P endpoint
+    try {
+      await invoke('file_sync_stop_all')
+    } catch { /* ok if no syncs running */ }
+
     await invoke('peer_storage_stop')
     running.value = false
   }
