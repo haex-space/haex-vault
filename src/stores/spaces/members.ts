@@ -92,6 +92,8 @@ export async function removeSpaceMember(db: DB, spaceId: string, memberDid: stri
   const memberIndex = await invoke<number | null>('mls_find_member_index', { spaceId, memberDid })
   if (memberIndex === null) {
     log.warn(`Member ${memberDid.slice(0, 20)}... not found in MLS group, removing from DB only`)
+    await db.delete(haexUcanTokens)
+      .where(and(eq(haexUcanTokens.spaceId, spaceId), eq(haexUcanTokens.audienceDid, memberDid)))
     await db.delete(haexSpaceMembers)
       .where(and(eq(haexSpaceMembers.spaceId, spaceId), eq(haexSpaceMembers.memberDid, memberDid)))
     return
