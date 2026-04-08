@@ -460,6 +460,7 @@ pub fn run() {
             // Space Delivery (local leader mode)
             space_delivery::local::commands::local_delivery_start,
             space_delivery::local::commands::local_delivery_stop,
+            space_delivery::local::commands::local_delivery_broadcast_commit,
             space_delivery::local::commands::local_delivery_status,
             space_delivery::local::commands::local_delivery_get_leader,
             space_delivery::local::commands::local_delivery_elect,

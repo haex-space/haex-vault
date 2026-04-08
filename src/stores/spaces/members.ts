@@ -1,4 +1,5 @@
 import { eq, and } from 'drizzle-orm'
+import { invoke } from '@tauri-apps/api/core'
 import { haexSpaceMembers, haexUcanTokens } from '~/database/schemas'
 import type { SelectHaexSpaceMembers } from '~/database/schemas'
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
@@ -87,10 +88,39 @@ export async function getMemberPublicKeysForSpace(db: DB, spaceId: string): Prom
 }
 
 export async function removeSpaceMember(db: DB, spaceId: string, memberDid: string) {
+  // 1. Find the member's leaf index in the MLS group
+  const memberIndex = await invoke<number | null>('mls_find_member_index', { spaceId, memberDid })
+  if (memberIndex === null) {
+    log.warn(`Member ${memberDid.slice(0, 20)}... not found in MLS group, removing from DB only`)
+    await db.delete(haexSpaceMembers)
+      .where(and(eq(haexSpaceMembers.spaceId, spaceId), eq(haexSpaceMembers.memberDid, memberDid)))
+    return
+  }
+
+  // 2. MLS remove_member — creates a commit that rotates the group key
+  const bundle = await invoke<{ commit: number[]; welcome: number[] | null; groupInfo: number[] }>(
+    'mls_remove_member', { spaceId, memberIndex },
+  )
+
+  // 3. Broadcast commit to other members via local delivery
+  if (bundle.commit.length > 0) {
+    try {
+      await invoke('local_delivery_broadcast_commit', { spaceId, commit: bundle.commit })
+    }
+    catch (error) {
+      log.warn(`Failed to broadcast removal commit via local delivery: ${error}`)
+      // Non-fatal: the commit is still valid, peers will get it on next sync
+    }
+  }
+
+  // 4. Delete member from local DB (CRDT-synced to all devices)
   await db.delete(haexSpaceMembers)
     .where(and(eq(haexSpaceMembers.spaceId, spaceId), eq(haexSpaceMembers.memberDid, memberDid)))
 
-  log.info(`Removed member ${memberDid.slice(0, 20)}... from space ${spaceId}`)
+  // 5. Re-derive epoch key (forward secrecy — new key excludes removed member)
+  await invoke('mls_export_epoch_key', { spaceId })
+
+  log.info(`Removed member ${memberDid.slice(0, 20)}... from space ${spaceId} (MLS + DB)`)
 }
 
 /** One-time migration: populate haex_space_members from existing haex_ucan_tokens */
