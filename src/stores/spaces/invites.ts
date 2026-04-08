@@ -328,7 +328,7 @@ export async function acceptLocalInvite(
       break
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error))
-      log.debug(`ClaimInvite to ${endpointId} failed: ${lastError.message}, trying next...`)
+      log.error(`ClaimInvite to ${endpointId} failed: ${lastError.message}, trying next...`)
     }
   }
   if (lastError) throw lastError

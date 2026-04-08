@@ -444,15 +444,28 @@ pub async fn local_delivery_claim_invite(
         .or(configured_relay)
         .or_else(|| iroh_endpoint.addr().relay_urls().next().cloned());
 
+    eprintln!(
+        "[SpaceDelivery] ClaimInvite: connecting to {} via relay {:?} (our endpoint: {})",
+        &leader_endpoint_id[..16.min(leader_endpoint_id.len())],
+        relay.as_ref().map(|u| u.to_string()),
+        &our_endpoint_id[..16.min(our_endpoint_id.len())],
+    );
+
     let addr = match relay {
         Some(url) => iroh::EndpointAddr::new(remote_id).with_relay_url(url),
         None => iroh::EndpointAddr::new(remote_id),
     };
 
-    let conn = iroh_endpoint
-        .connect(addr, super::protocol::ALPN)
-        .await
-        .map_err(|e| format!("Failed to connect to leader: {e}"))?;
+    let conn = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        iroh_endpoint.connect(addr, super::protocol::ALPN),
+    )
+    .await
+    .map_err(|_| format!(
+        "ClaimInvite connect timeout (10s) to {}",
+        &leader_endpoint_id[..16.min(leader_endpoint_id.len())]
+    ))?
+    .map_err(|e| format!("Failed to connect to leader: {e}"))?;
 
     let (mut send, mut recv) = conn
         .open_bi()
