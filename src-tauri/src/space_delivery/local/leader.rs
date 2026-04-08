@@ -755,6 +755,10 @@ async fn handle_delivery_stream(
             &space_endpoints,
             origin_url.as_deref(),
         ),
+        Request::MlsAckCommit { space_id: _, message_ids: _ } => {
+            // TODO: implement commit acknowledgment storage
+            Response::Ok
+        }
     };
 
     send_response(&mut send, &response).await
