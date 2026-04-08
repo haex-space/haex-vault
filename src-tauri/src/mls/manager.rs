@@ -102,9 +102,37 @@ impl MlsManager {
             .validate(self.provider.crypto(), ProtocolVersion::Mls10)
             .map_err(|e| format!("Invalid key package: {e}"))?;
 
+        // Check for duplicate signature key in existing group members.
+        // This can happen on re-invite after partial success or retry scenarios.
+        let new_sig_key = key_package.leaf_node().signature_key().as_slice().to_vec();
+        let own_leaf = group.own_leaf_index();
+        let conflicting_index = group.members()
+            .find(|m| m.index != own_leaf && m.signature_key == new_sig_key.as_slice())
+            .map(|m| m.index);
+
+        if let Some(leaf_index) = conflicting_index {
+            eprintln!(
+                "[MLS] Duplicate signature key at leaf {leaf_index:?} in group {space_id} — removing before re-add"
+            );
+            group.remove_members(&self.provider, &signer, &[leaf_index])
+                .map_err(|e| format!("Failed to remove conflicting member: {e}"))?;
+            group.merge_pending_commit(&self.provider)
+                .map_err(|e| format!("Failed to merge remove commit: {e}"))?;
+        }
+
         let (commit, welcome, _group_info) = group
             .add_members(&self.provider, &signer, &[key_package])
-            .map_err(|e| format!("Failed to add member: {e}"))?;
+            .map_err(|e| {
+                let member_keys: Vec<String> = group.members()
+                    .map(|m| hex::encode(&m.signature_key[..8.min(m.signature_key.len())]))
+                    .collect();
+                format!(
+                    "Failed to add member: {e} (group has {} members, sig_keys: [{:?}], new_key: {})",
+                    member_keys.len(),
+                    member_keys.join(", "),
+                    hex::encode(&new_sig_key[..8.min(new_sig_key.len())]),
+                )
+            })?;
 
         group.merge_pending_commit(&self.provider)
             .map_err(|e| format!("Failed to merge commit: {e}"))?;

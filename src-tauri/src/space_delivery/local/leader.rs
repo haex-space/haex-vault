@@ -264,6 +264,12 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
     };
 
     // 5. MLS add_member
+    eprintln!(
+        "[SpaceDelivery] ClaimInvite: adding {} to MLS group {} (key_package {} bytes)",
+        &did[..20.min(did.len())],
+        &space_id[..12.min(space_id.len())],
+        key_package_blob.len(),
+    );
     let mls_manager = crate::mls::manager::MlsManager::new(state.db.0.clone());
     let bundle = match mls_manager.add_member(&space_id, &key_package_blob) {
         Ok(b) => b,
