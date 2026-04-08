@@ -276,7 +276,27 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
 
     // 6. Store and broadcast commit to existing members
     if !bundle.commit.is_empty() {
-        let _ = buffer::store_message(&state.db, &space_id, &did, "commit", &bundle.commit);
+        let msg_id = match buffer::store_message(&state.db, &space_id, &did, "commit", &bundle.commit) {
+            Ok(id) => id,
+            Err(e) => {
+                eprintln!("[SpaceDelivery] Failed to store commit: {e}");
+                0
+            }
+        };
+
+        // Track pending ACKs from all currently connected peers
+        if msg_id > 0 {
+            let peers = state.connected_peers.read().await;
+            let expected_dids: Vec<String> = peers
+                .values()
+                .map(|p| p.did.clone())
+                .filter(|d| d != &did) // exclude the new member
+                .collect();
+            if !expected_dids.is_empty() {
+                let _ = buffer::store_pending_commit(&state.db, &space_id, msg_id, &expected_dids);
+            }
+        }
+
         let senders = state.notification_senders.read().await;
         for (_, sender) in senders.iter() {
             let _ = sender.try_send(Notification::Mls {
@@ -372,6 +392,7 @@ async fn handle_delivery_stream(
             label,
             claims,
         } => {
+            let did_clone = did.clone();
             let peer = ConnectedPeer {
                 endpoint_id: endpoint_id.clone(),
                 did,
@@ -392,7 +413,31 @@ async fn handle_delivery_stream(
                 .connected_peers
                 .write()
                 .await
-                .insert(endpoint_id, peer);
+                .insert(endpoint_id.clone(), peer);
+
+            // Re-notify about unacked commits for this peer
+            let unacked = buffer::get_unacked_message_ids_for_member(
+                &state.db,
+                &state.space_id,
+                &did_clone,
+            )
+            .unwrap_or_default();
+
+            if !unacked.is_empty() {
+                eprintln!(
+                    "[SpaceDelivery] Peer {} has {} unacked commits, re-notifying",
+                    &did_clone[..20.min(did_clone.len())],
+                    unacked.len(),
+                );
+                let senders = state.notification_senders.read().await;
+                if let Some(sender) = senders.get(&endpoint_id) {
+                    let _ = sender.try_send(Notification::Mls {
+                        space_id: state.space_id.clone(),
+                        message_type: "commit".to_string(),
+                    });
+                }
+            }
+
             Response::Ok
         }
 
@@ -755,9 +800,36 @@ async fn handle_delivery_stream(
             &space_endpoints,
             origin_url.as_deref(),
         ),
-        Request::MlsAckCommit { space_id: _, message_ids: _ } => {
-            // TODO: implement commit acknowledgment storage
-            Response::Ok
+        Request::MlsAckCommit {
+            space_id,
+            message_ids,
+        } => {
+            if space_id != state.space_id {
+                return send_response(
+                    &mut send,
+                    &Response::Error {
+                        message: format!("Wrong space: expected {}", state.space_id),
+                    },
+                )
+                .await;
+            }
+            let did = lookup_peer_did(state, peer_endpoint_id).await?;
+
+            match buffer::ack_commits(&state.db, &space_id, &did, &message_ids) {
+                Ok(fully_acked) => {
+                    if !fully_acked.is_empty() {
+                        eprintln!(
+                            "[SpaceDelivery] Commits fully acked, cleaning up {} messages",
+                            fully_acked.len()
+                        );
+                        let _ = buffer::cleanup_acked_commits(&state.db, &space_id, &fully_acked);
+                    }
+                    Response::Ok
+                }
+                Err(e) => Response::Error {
+                    message: e.to_string(),
+                },
+            }
         }
     };
 
