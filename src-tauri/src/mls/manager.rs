@@ -209,8 +209,12 @@ impl MlsManager {
     /// Process an MLS Welcome message to join an existing group.
     /// Creates the local group state from the Welcome (the group does NOT need to exist yet).
     pub fn process_welcome(&self, space_id: &str, welcome_bytes: &[u8]) -> Result<MlsGroupInfo, String> {
-        let welcome = Welcome::tls_deserialize_exact_bytes(welcome_bytes)
-            .map_err(|e| format!("Failed to deserialize welcome: {e}"))?;
+        let mls_message_in = MlsMessageIn::tls_deserialize_exact_bytes(welcome_bytes)
+            .map_err(|e| format!("Failed to deserialize welcome message: {e}"))?;
+        let welcome = match mls_message_in.extract() {
+            MlsMessageBodyIn::Welcome(w) => w,
+            _ => return Err("Expected Welcome message but got a different MLS message type".to_string()),
+        };
 
         let group_config = MlsGroupJoinConfig::default();
 
