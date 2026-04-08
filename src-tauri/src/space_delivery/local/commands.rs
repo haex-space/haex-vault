@@ -421,6 +421,7 @@ pub async fn local_delivery_claim_invite(
         .endpoint_ref()
         .ok_or("Endpoint not running")?
         .clone();
+    let configured_relay = endpoint.configured_relay_url().cloned();
     drop(endpoint);
 
     // 2. Generate MLS KeyPackages
@@ -435,9 +436,12 @@ pub async fn local_delivery_claim_invite(
         .parse()
         .map_err(|e| format!("Invalid leader endpoint ID: {e}"))?;
 
+    // Use explicit relay URL if provided, fall back to configured relay, then live relay
     let relay = leader_relay_url
         .as_deref()
-        .and_then(|s| s.parse::<iroh::RelayUrl>().ok());
+        .and_then(|s| s.parse::<iroh::RelayUrl>().ok())
+        .or(configured_relay)
+        .or_else(|| iroh_endpoint.addr().relay_urls().next().cloned());
 
     let addr = match relay {
         Some(url) => iroh::EndpointAddr::new(remote_id).with_relay_url(url),
