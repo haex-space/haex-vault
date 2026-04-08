@@ -29,10 +29,14 @@ impl MlsManager {
             .map_err(|e| format!("Failed to init MLS tables: {e}"))
     }
 
-    pub fn init_identity(&self) -> Result<MlsIdentityInfo, String> {
+    pub fn init_identity(&self, did: &str) -> Result<MlsIdentityInfo, String> {
         // Return existing identity if one exists (idempotent)
         if let Ok(Some(pub_key)) = self.provider.storage().load_own_identity_key() {
-            let credential = BasicCredential::new(vec![]);
+            // Update stored DID (may have changed)
+            self.provider.storage().store_own_did(did)
+                .map_err(|e| format!("Failed to store DID: {e}"))?;
+
+            let credential = BasicCredential::new(did.as_bytes().to_vec());
             let credential_with_key = CredentialWithKey {
                 credential: credential.into(),
                 signature_key: pub_key.clone().into(),
@@ -44,7 +48,7 @@ impl MlsManager {
         }
 
         // Create new identity
-        let credential = BasicCredential::new(vec![]);
+        let credential = BasicCredential::new(did.as_bytes().to_vec());
         let signer = SignatureKeyPair::new(CIPHERSUITE.signature_algorithm())
             .map_err(|e| format!("Failed to generate signature key pair: {e}"))?;
         signer.store(self.provider.storage())
@@ -52,6 +56,9 @@ impl MlsManager {
 
         self.provider.storage().store_own_identity_key(&signer.to_public_vec())
             .map_err(|e| format!("Failed to store identity key: {e}"))?;
+
+        self.provider.storage().store_own_did(did)
+            .map_err(|e| format!("Failed to store DID: {e}"))?;
 
         let credential_with_key = CredentialWithKey {
             credential: credential.into(),
@@ -293,8 +300,29 @@ impl MlsManager {
         ).ok_or_else(|| "Signature key pair not found in storage".to_string())
     }
 
+    pub fn find_member_index_by_did(&self, space_id: &str, target_did: &str) -> Result<Option<u32>, String> {
+        let group_id = GroupId::from_slice(space_id.as_bytes());
+        let group = MlsGroup::load(self.provider.storage(), &group_id)
+            .map_err(|e| format!("Failed to load group: {e}"))?
+            .ok_or_else(|| format!("Group not found for space: {space_id}"))?;
+
+        let target_bytes = target_did.as_bytes();
+        for member in group.members() {
+            if member.credential.serialized_content() == target_bytes {
+                return Ok(Some(member.index.u32()));
+            }
+        }
+        Ok(None)
+    }
+
     fn get_credential_with_key(&self, signer: &SignatureKeyPair) -> CredentialWithKey {
-        let credential = BasicCredential::new(vec![]);
+        let did_bytes = self.provider.storage()
+            .load_own_did()
+            .ok()
+            .flatten()
+            .map(|d| d.into_bytes())
+            .unwrap_or_default();
+        let credential = BasicCredential::new(did_bytes);
         CredentialWithKey {
             credential: credential.into(),
             signature_key: signer.to_public_vec().into(),

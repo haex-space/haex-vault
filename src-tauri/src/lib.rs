@@ -473,6 +473,7 @@ pub fn run() {
             // MLS (RFC 9420) group key management
             mls::commands::mls_init_tables,
             mls::commands::mls_init_identity,
+            mls::commands::mls_find_member_index,
             mls::commands::mls_create_group,
             mls::commands::mls_add_member,
             mls::commands::mls_remove_member,

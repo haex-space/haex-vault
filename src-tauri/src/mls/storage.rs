@@ -171,6 +171,33 @@ impl SqlCipherMlsStorage {
             }
         })
     }
+
+    pub fn store_own_did(&self, did: &str) -> Result<(), MlsStorageError> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "INSERT OR REPLACE INTO haex_mls_values_no_sync (store_type, key_bytes, value_blob) VALUES ('_own_did', X'00', ?1)",
+                rusqlite::params![did.as_bytes()],
+            ).map_err(|e| MlsStorageError::Database(e.to_string()))?;
+            Ok(())
+        })
+    }
+
+    pub fn load_own_did(&self) -> Result<Option<String>, MlsStorageError> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT value_blob FROM haex_mls_values_no_sync WHERE store_type = '_own_did' AND key_bytes = X'00'"
+            ).map_err(|e| MlsStorageError::Database(e.to_string()))?;
+            let mut rows = stmt.query([])
+                .map_err(|e| MlsStorageError::Database(e.to_string()))?;
+            match rows.next().map_err(|e| MlsStorageError::Database(e.to_string()))? {
+                Some(row) => {
+                    let blob: Vec<u8> = row.get(0).map_err(|e| MlsStorageError::Database(e.to_string()))?;
+                    Ok(Some(String::from_utf8(blob).map_err(|e| MlsStorageError::Serialization(format!("Invalid DID UTF-8: {e}")))?))
+                }
+                None => Ok(None),
+            }
+        })
+    }
 }
 
 // Store type constants
