@@ -86,7 +86,10 @@
       </div>
     </UiListContainer>
 
-    <!-- Create dialog will be a separate component -->
+    <HaexSystemSettingsPeerStorageCreateSyncRuleDialog
+      v-model:open="showCreateDialog"
+      @created="onRuleCreated"
+    />
   </HaexSystemSettingsLayout>
 </template>
 
@@ -160,6 +163,11 @@ const onToggleAsync = async (ruleId: string, enabled: boolean) => {
       color: 'error',
     })
   }
+}
+
+const onRuleCreated = async () => {
+  await syncStore.loadRulesAsync()
+  await syncStore.refreshStatusAsync()
 }
 
 const onDeleteAsync = async (ruleId: string) => {
