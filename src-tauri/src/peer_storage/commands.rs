@@ -230,6 +230,7 @@ pub async fn peer_storage_remote_list(
     node_id: String,
     relay_url: Option<String>,
     path: String,
+    ucan_token: String,
 ) -> Result<Vec<FileEntry>, PeerStorageError> {
     let remote_id: iroh::EndpointId = node_id
         .parse()
@@ -240,7 +241,7 @@ pub async fn peer_storage_remote_list(
     let parsed_relay = relay_url.and_then(|s| s.parse::<iroh::RelayUrl>().ok());
 
     let endpoint = state.peer_storage.lock().await;
-    endpoint.remote_list(remote_id, parsed_relay, &path).await
+    endpoint.remote_list(remote_id, parsed_relay, &path, &ucan_token).await
 }
 
 /// Download a file from a remote peer directly to disk.
@@ -257,6 +258,7 @@ pub async fn peer_storage_remote_read(
     path: String,
     transfer_id: Option<String>,
     save_to: Option<String>,
+    ucan_token: String,
     on_event: Channel<TransferEvent>,
 ) -> Result<String, PeerStorageError> {
     let remote_id: iroh::EndpointId = node_id
@@ -329,7 +331,7 @@ pub async fn peer_storage_remote_read(
         let endpoint = state.peer_storage.lock().await;
         let result = endpoint.remote_read_to_file(
             remote_id, parsed_relay, &path, &output_path,
-            None, progress_cb, cancel_token, pause_flag,
+            None, progress_cb, cancel_token, pause_flag, &ucan_token,
         ).await;
         drop(endpoint);
 

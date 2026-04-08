@@ -13,6 +13,7 @@ import {
   type SelectHaexSpaceDevices,
 } from '~/database/schemas'
 import { VaultSettingsKeyEnum } from '~/config/vault-settings'
+import { getUcanForSpaceAsync } from '~/utils/auth/ucanStore'
 
 export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   const { currentVault } = storeToRefs(useVaultStore())
@@ -349,12 +350,15 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
 
   const remoteListAsync = async (remoteNodeId: string, path: string) => {
     const device = spaceDevices.value.find(d => d.deviceEndpointId === remoteNodeId)
+    const ucanToken = device?.spaceId ? getUcanForSpaceAsync(device.spaceId) : null
+    if (!ucanToken) throw new Error('No valid UCAN token for this peer\'s space')
     activeTransfers.value++
     try {
       return await invoke<FileEntry[]>('peer_storage_remote_list', {
         nodeId: remoteNodeId,
         relayUrl: device?.relayUrl ?? null,
         path,
+        ucanToken,
       })
     } finally {
       activeTransfers.value--
@@ -364,6 +368,8 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   /** Download a remote file to disk. Returns the local file path once the download completes. */
   const remoteReadAsync = async (remoteNodeId: string, path: string, saveTo?: string) => {
     const device = spaceDevices.value.find(d => d.deviceEndpointId === remoteNodeId)
+    const ucanToken = device?.spaceId ? getUcanForSpaceAsync(device.spaceId) : null
+    if (!ucanToken) throw new Error('No valid UCAN token for this peer\'s space')
     const transferId = crypto.randomUUID()
     const { channel, promise } = createTransferChannel(transferId, path)
 
@@ -375,6 +381,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
         path,
         transferId,
         saveTo: saveTo ?? null,
+        ucanToken,
         onEvent: channel,
       })
 
@@ -388,10 +395,13 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   const checkPeerOnlineAsync = async (remoteNodeId: string): Promise<boolean> => {
     try {
       const device = spaceDevices.value.find(d => d.deviceEndpointId === remoteNodeId)
+      const ucanToken = device?.spaceId ? getUcanForSpaceAsync(device.spaceId) : null
+      if (!ucanToken) return false
       await invoke<FileEntry[]>('peer_storage_remote_list', {
         nodeId: remoteNodeId,
         relayUrl: device?.relayUrl ?? null,
         path: '/',
+        ucanToken,
       })
       return true
     } catch {

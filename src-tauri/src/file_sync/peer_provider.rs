@@ -1,7 +1,7 @@
-//! PeerProvider — SyncProvider implementation for reading from a remote P2P peer
+//! PeerProvider — SyncProvider implementation for P2P sync via iroh/QUIC
 //!
-//! Read-only provider that fetches files from a remote peer via iroh/QUIC.
-//! Write, delete, and create_directory operations return AccessDenied.
+//! Supports both read and write operations. Each request carries a UCAN token
+//! for authorization — the remote endpoint validates capabilities per-request.
 
 use std::sync::Arc;
 
@@ -14,14 +14,11 @@ use super::provider::{SyncProvider, SyncProviderError};
 use super::types::FileState;
 
 pub struct PeerProvider {
-    /// The shared PeerEndpoint (behind AppState mutex)
     endpoint: Arc<tokio::sync::Mutex<PeerEndpoint>>,
-    /// Remote peer's endpoint ID
     remote_id: EndpointId,
-    /// Relay URL for NAT traversal
     relay_url: Option<RelayUrl>,
-    /// Base path on the remote share (e.g. "MyShare" or "MyShare/subfolder")
     remote_base_path: String,
+    ucan_token: String,
 }
 
 impl PeerProvider {
@@ -30,16 +27,17 @@ impl PeerProvider {
         remote_id: EndpointId,
         relay_url: Option<RelayUrl>,
         remote_base_path: String,
+        ucan_token: String,
     ) -> Self {
         Self {
             endpoint,
             remote_id,
             relay_url,
             remote_base_path,
+            ucan_token,
         }
     }
 
-    /// Build the full remote path by joining the base path with a relative path.
     fn full_remote_path(&self, relative_path: &str) -> String {
         if relative_path.is_empty() {
             self.remote_base_path.clone()
@@ -62,6 +60,7 @@ impl SyncProvider for PeerProvider {
                 self.remote_id,
                 self.relay_url.clone(),
                 &self.remote_base_path,
+                &self.ucan_token,
             )
             .await
             .map_err(|e| SyncProviderError::ConnectionFailed {
@@ -77,6 +76,7 @@ impl SyncProvider for PeerProvider {
                 self.remote_id,
                 self.relay_url.clone(),
                 &full_path,
+                &self.ucan_token,
             )
             .await
             .map_err(|e| SyncProviderError::ConnectionFailed {
@@ -84,26 +84,58 @@ impl SyncProvider for PeerProvider {
             })
     }
 
-    async fn write_file(&self, _relative_path: &str, _data: &[u8]) -> Result<(), SyncProviderError> {
-        Err(SyncProviderError::AccessDenied {
-            reason: "PeerProvider is read-only".to_string(),
-        })
+    async fn write_file(&self, relative_path: &str, data: &[u8]) -> Result<(), SyncProviderError> {
+        let full_path = self.full_remote_path(relative_path);
+        let endpoint = self.endpoint.lock().await;
+        endpoint
+            .remote_write_file(
+                self.remote_id,
+                self.relay_url.clone(),
+                &full_path,
+                data,
+                &self.ucan_token,
+            )
+            .await
+            .map_err(|e| SyncProviderError::ConnectionFailed {
+                reason: e.to_string(),
+            })
     }
 
     async fn delete_file(
         &self,
-        _relative_path: &str,
-        _to_trash: bool,
+        relative_path: &str,
+        to_trash: bool,
     ) -> Result<(), SyncProviderError> {
-        Err(SyncProviderError::AccessDenied {
-            reason: "PeerProvider is read-only".to_string(),
-        })
+        let full_path = self.full_remote_path(relative_path);
+        let endpoint = self.endpoint.lock().await;
+        endpoint
+            .remote_delete_file(
+                self.remote_id,
+                self.relay_url.clone(),
+                &full_path,
+                to_trash,
+                &self.ucan_token,
+            )
+            .await
+            .map_err(|e| SyncProviderError::ConnectionFailed {
+                reason: e.to_string(),
+            })
     }
 
-    async fn create_directory(&self, _relative_path: &str) -> Result<(), SyncProviderError> {
-        Err(SyncProviderError::AccessDenied {
-            reason: "PeerProvider is read-only".to_string(),
-        })
+    async fn create_directory(&self, relative_path: &str) -> Result<(), SyncProviderError> {
+        let full_path = self.full_remote_path(relative_path);
+        let endpoint = self.endpoint.lock().await;
+        endpoint
+            .remote_create_directory(
+                self.remote_id,
+                self.relay_url.clone(),
+                &full_path,
+                &self.ucan_token,
+            )
+            .await
+            .map_err(|e| SyncProviderError::ConnectionFailed {
+                reason: e.to_string(),
+            })
     }
 
     fn supports_trash(&self) -> bool {

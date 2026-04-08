@@ -14,6 +14,7 @@ mod shortcuts;
 pub mod peer_storage;
 mod remote_storage;
 mod space_delivery;
+pub mod ucan;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod window;
 

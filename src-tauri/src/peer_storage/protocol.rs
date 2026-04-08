@@ -1,6 +1,7 @@
 //! File access protocol over QUIC streams
 //!
-//! Simple request/response protocol for browsing and reading remote files.
+//! Simple request/response protocol for browsing, reading, and writing remote files.
+//! Every request carries a UCAN token for per-request authorization.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -8,7 +9,7 @@ use ts_rs::TS;
 /// ALPN protocol identifier for peer storage
 pub const ALPN: &[u8] = b"haex-peer/1";
 
-/// Maximum request size (1 MB)
+/// Maximum request size (1 MB — covers Write header but not file data)
 const MAX_REQUEST_SIZE: usize = 1024 * 1024;
 
 /// Maximum metadata response size (10 MB — large directory listings)
@@ -22,17 +23,67 @@ const MAX_RESPONSE_META_SIZE: usize = 10 * 1024 * 1024;
 #[serde(tag = "op", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Request {
     /// List directory contents
-    List { path: String },
+    List {
+        path: String,
+        ucan_token: String,
+    },
     /// Get file/directory metadata
-    Stat { path: String },
+    Stat {
+        path: String,
+        ucan_token: String,
+    },
     /// Read a file (with optional byte range)
     Read {
         path: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         range: Option<[u64; 2]>,
+        ucan_token: String,
     },
     /// Recursive file manifest for sync
-    Manifest { path: String },
+    Manifest {
+        path: String,
+        ucan_token: String,
+    },
+    /// Write a file. File data follows on the stream after this header.
+    Write {
+        path: String,
+        size: u64,
+        ucan_token: String,
+    },
+    /// Delete a file
+    Delete {
+        path: String,
+        to_trash: bool,
+        ucan_token: String,
+    },
+    /// Create a directory (including parents)
+    CreateDirectory {
+        path: String,
+        ucan_token: String,
+    },
+}
+
+impl Request {
+    /// Extract the UCAN token from any request variant.
+    pub fn ucan_token(&self) -> &str {
+        match self {
+            Request::List { ucan_token, .. }
+            | Request::Stat { ucan_token, .. }
+            | Request::Read { ucan_token, .. }
+            | Request::Manifest { ucan_token, .. }
+            | Request::Write { ucan_token, .. }
+            | Request::Delete { ucan_token, .. }
+            | Request::CreateDirectory { ucan_token, .. } => ucan_token,
+        }
+    }
+
+    /// Whether this request requires write capability.
+    pub fn requires_write(&self) -> bool {
+        matches!(
+            self,
+            Request::Write { .. } | Request::Delete { .. } | Request::CreateDirectory { .. }
+        )
+    }
 }
 
 // ============================================================================
@@ -50,6 +101,12 @@ pub enum Response {
     ReadHeader { size: u64 },
     /// Recursive manifest of all files
     Manifest { entries: Vec<crate::file_sync::types::FileState> },
+    /// Write completed successfully
+    WriteOk,
+    /// Delete completed successfully
+    DeleteOk,
+    /// Directory created successfully
+    CreateDirectoryOk,
     /// Error response
     Error { message: String },
 }

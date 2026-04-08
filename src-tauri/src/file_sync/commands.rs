@@ -160,9 +160,18 @@ async fn create_provider(
                 .and_then(|v| v.as_str())
                 .unwrap_or("/")
                 .to_string();
+            let ucan_token = config
+                .get("ucanToken")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| {
+                    FileSyncCommandError::InvalidConfig(
+                        "peer provider requires 'ucanToken'".into(),
+                    )
+                })?
+                .to_string();
 
             let endpoint = state.peer_storage.clone();
-            let provider = PeerProvider::new(endpoint, endpoint_id, relay_url, base_path);
+            let provider = PeerProvider::new(endpoint, endpoint_id, relay_url, base_path, ucan_token);
             Ok(Box::new(provider))
         }
         "cloud" => {

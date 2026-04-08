@@ -443,7 +443,6 @@
         "id": "id",
         "spaceId": "space_id",
         "deviceId": "device_id",
-        "name": "name",
         "sourceType": "source_type",
         "sourceConfig": "source_config",
         "targetType": "target_type",

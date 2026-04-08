@@ -1,7 +1,6 @@
 CREATE TABLE `haex_sync_rules` (
 	`id` text PRIMARY KEY NOT NULL,
 	`space_id` text NOT NULL,
-	`name` text NOT NULL,
 	`source_type` text NOT NULL,
 	`source_config` text NOT NULL,
 	`target_type` text NOT NULL,

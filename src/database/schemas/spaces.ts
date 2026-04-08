@@ -277,7 +277,6 @@ export const haexSyncRules = sqliteTable(
     deviceId: text(tableNames.haex.sync_rules.columns.deviceId)
       .notNull()
       .references(() => haexDevices.id),
-    name: text(tableNames.haex.sync_rules.columns.name).notNull(),
     sourceType: text(tableNames.haex.sync_rules.columns.sourceType).notNull(), // 'local' | 'peer' | 'cloud'
     sourceConfig: text(tableNames.haex.sync_rules.columns.sourceConfig, { mode: 'json' }).notNull(),
     targetType: text(tableNames.haex.sync_rules.columns.targetType).notNull(), // 'local' | 'peer' | 'cloud'

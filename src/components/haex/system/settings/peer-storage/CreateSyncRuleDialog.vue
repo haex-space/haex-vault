@@ -1,7 +1,7 @@
 <template>
   <UiDrawerModal
     v-model:open="open"
-    :title="t('title')"
+    :title="isEditMode ? t('titleEdit') : t('title')"
     :description="t('description')"
   >
     <template #body>
@@ -14,17 +14,13 @@
         <!-- Step 1: Source -->
         <template #source>
           <div class="space-y-4 pt-4">
-            <div class="flex flex-wrap gap-2">
-              <UiButton
-                v-for="providerType in sourceProviderTypes"
-                :key="providerType.value"
-                :variant="sourceType === providerType.value ? 'solid' : 'outline'"
-                :icon="providerType.icon"
-                @click="sourceType = providerType.value"
-              >
-                {{ providerType.label }}
-              </UiButton>
-            </div>
+            <USelectMenu
+              v-model="sourceType"
+              :items="sourceProviderTypes"
+              value-key="value"
+              :label="t('source.type')"
+              class="w-full"
+            />
 
             <!-- Local folder picker -->
             <div v-if="sourceType === 'local'" class="space-y-2">
@@ -83,17 +79,13 @@
         <!-- Step 2: Target -->
         <template #target>
           <div class="space-y-4 pt-4">
-            <div class="flex flex-wrap gap-2">
-              <UiButton
-                v-for="providerType in targetProviderTypes"
-                :key="providerType.value"
-                :variant="targetType === providerType.value ? 'solid' : 'outline'"
-                :icon="providerType.icon"
-                @click="targetType = providerType.value"
-              >
-                {{ providerType.label }}
-              </UiButton>
-            </div>
+            <USelectMenu
+              v-model="targetType"
+              :items="targetProviderTypes"
+              value-key="value"
+              :label="t('target.type')"
+              class="w-full"
+            />
 
             <!-- Local folder picker -->
             <div v-if="targetType === 'local'" class="space-y-2">
@@ -106,6 +98,56 @@
               >
                 {{ targetPath || t('target.selectFolder') }}
               </UButton>
+            </div>
+
+            <!-- Peer: space + device + folder -->
+            <div v-if="targetType === 'peer'" class="space-y-3">
+              <UiSelectMenu
+                v-model="targetSpaceId"
+                :items="spaceOptions"
+                :label="t('target.space')"
+                value-key="value"
+              />
+              <UiSelectMenu
+                v-if="targetSpaceId"
+                v-model="targetDeviceEndpointId"
+                :items="deviceOptionsForSpace(targetSpaceId)"
+                :label="t('target.device')"
+                value-key="value"
+              />
+              <template v-if="targetDeviceEndpointId">
+                <!-- Toggle: existing folder vs new folder -->
+                <div class="flex items-center gap-2">
+                  <label class="text-sm font-medium flex-1">{{ t('target.folder') }}</label>
+                  <UButton
+                    size="xs"
+                    variant="link"
+                    :icon="targetCreateNewFolder ? 'i-lucide-list' : 'i-lucide-folder-plus'"
+                    @click="targetCreateNewFolder = !targetCreateNewFolder; targetShareId = ''; targetNewFolderName = ''"
+                  >
+                    {{ targetCreateNewFolder ? t('target.chooseExisting') : t('target.createNew') }}
+                  </UButton>
+                </div>
+                <!-- Existing folder -->
+                <UiSelectMenu
+                  v-if="!targetCreateNewFolder"
+                  v-model="targetShareId"
+                  :items="shareOptionsForDevice(targetDeviceEndpointId)"
+                  value-key="value"
+                />
+                <!-- New folder name -->
+                <UiInput
+                  v-else
+                  v-model="targetNewFolderName"
+                  :placeholder="t('target.newFolderPlaceholder')"
+                />
+              </template>
+              <UiInput
+                v-if="targetShareId || targetNewFolderName"
+                v-model="targetSubfolder"
+                :label="t('target.subfolder')"
+                :placeholder="t('target.subfolderPlaceholder')"
+              />
             </div>
 
             <!-- Cloud: backend + prefix -->
@@ -150,30 +192,19 @@
             </div>
 
             <!-- Sync interval -->
-            <UFormField :label="t('settings.interval')">
-              <USelectMenu
-                v-model="intervalSeconds"
-                :items="intervalOptions"
-                value-key="value"
-                class="w-full"
-              />
-            </UFormField>
+            <UiSelectMenu
+              v-model="intervalSeconds"
+              :items="intervalOptions"
+              :label="t('settings.interval')"
+              value-key="value"
+            />
 
             <!-- Delete mode -->
-            <UFormField :label="t('settings.deleteMode')">
-              <USelectMenu
-                v-model="deleteMode"
-                :items="deleteModeOptions"
-                value-key="value"
-                class="w-full"
-              />
-            </UFormField>
-
-            <!-- Rule name -->
-            <UiInput
-              v-model="ruleName"
-              :label="t('settings.name')"
-              :placeholder="t('settings.namePlaceholder')"
+            <UiSelectMenu
+              v-model="deleteMode"
+              :items="deleteModeOptions"
+              :label="t('settings.deleteMode')"
+              value-key="value"
             />
           </div>
         </template>
@@ -204,9 +235,9 @@
           color="primary"
           :loading="isCreating"
           :disabled="!canCreate"
-          @click="onCreateAsync"
+          @click="onSaveAsync"
         >
-          {{ t('actions.create') }}
+          {{ isEditMode ? t('actions.save') : t('actions.create') }}
         </UiButton>
       </div>
     </template>
@@ -217,15 +248,23 @@
 import type { StepperItem } from '@nuxt/ui'
 import { invoke } from '@tauri-apps/api/core'
 import { eq } from 'drizzle-orm'
-import { haexDevices } from '~/database/schemas'
+import { haexDevices, type SelectHaexSyncRules } from '~/database/schemas'
+import { getUcanForSpaceAsync } from '~/utils/auth/ucanStore'
 
 type ProviderType = 'local' | 'peer' | 'cloud'
 
 const open = defineModel<boolean>('open', { required: true })
 
+const props = defineProps<{
+  editRule?: SelectHaexSyncRules | null
+}>()
+
 const emit = defineEmits<{
   created: []
+  updated: []
 }>()
+
+const isEditMode = computed(() => !!props.editRule)
 
 const { t } = useI18n()
 const { add: addToast } = useToast()
@@ -245,19 +284,16 @@ const stepperItems = computed<StepperItem[]>(() => [
   {
     slot: 'source',
     title: t('steps.source'),
-    description: t('steps.sourceDescription'),
     icon: 'i-lucide-upload',
   },
   {
     slot: 'target',
     title: t('steps.target'),
-    description: t('steps.targetDescription'),
     icon: 'i-lucide-download',
   },
   {
     slot: 'settings',
     title: t('steps.settings'),
-    description: t('steps.settingsDescription'),
     icon: 'i-lucide-settings',
   },
 ])
@@ -270,9 +306,9 @@ const sourceProviderTypes = computed(() => [
   { value: 'cloud' as ProviderType, label: t('provider.cloud'), icon: 'i-lucide-cloud' },
 ])
 
-// P2P is read-only — only Local and Cloud can be targets
 const targetProviderTypes = computed(() => [
   { value: 'local' as ProviderType, label: t('provider.local'), icon: 'i-lucide-folder' },
+  { value: 'peer' as ProviderType, label: t('provider.peer'), icon: 'i-lucide-monitor-smartphone' },
   { value: 'cloud' as ProviderType, label: t('provider.cloud'), icon: 'i-lucide-cloud' },
 ])
 
@@ -288,14 +324,19 @@ const sourcePrefix = ref('')
 // -- Target state --
 const targetType = ref<ProviderType>('local')
 const targetPath = ref('')
+const targetSpaceId = ref('')
+const targetDeviceEndpointId = ref('')
+const targetShareId = ref('')
+const targetCreateNewFolder = ref(false)
+const targetNewFolderName = ref('')
+const targetSubfolder = ref('')
 const targetBackendId = ref('')
 const targetPrefix = ref('')
 
 // -- Settings state --
 const direction = ref<'one_way' | 'two_way'>('one_way')
-const intervalSeconds = ref<{ label: string; value: number }>()
-const deleteMode = ref<{ label: string; value: string }>()
-const ruleName = ref('')
+const intervalSeconds = ref(300)
+const deleteMode = ref('trash')
 
 // -- Options --
 const intervalOptions = computed(() => [
@@ -344,6 +385,9 @@ const isSourceValid = computed(() => {
 const isTargetValid = computed(() => {
   switch (targetType.value) {
     case 'local': return !!targetPath.value
+    case 'peer': return targetCreateNewFolder.value
+      ? !!targetNewFolderName.value.trim()
+      : !!targetShareId.value
     case 'cloud': return !!targetBackendId.value
     default: return false
   }
@@ -356,29 +400,10 @@ const canProceed = computed(() => {
 })
 
 const canCreate = computed(() =>
-  isSourceValid.value && isTargetValid.value && !!ruleName.value.trim(),
+  isSourceValid.value && isTargetValid.value,
 )
 
-// -- Auto-generate rule name --
-const autoGenerateName = () => {
-  if (ruleName.value) return
 
-  let name = ''
-  if (sourceType.value === 'local' && sourcePath.value) {
-    name = sourcePath.value.split(/[/\\]/).pop() || sourcePath.value
-  } else if (sourceType.value === 'peer' && sourceShareId.value) {
-    const share = peerStorageStore.shares.find(s => s.id === sourceShareId.value)
-    name = share?.name || ''
-  } else if (sourceType.value === 'cloud' && sourcePrefix.value) {
-    name = sourcePrefix.value.replace(/\/$/, '').split('/').pop() || 'cloud-sync'
-  }
-
-  if (name) {
-    ruleName.value = name
-  }
-}
-
-watch([sourcePath, sourceShareId, sourcePrefix], autoGenerateName)
 
 // -- Folder selection --
 const selectSourceFolderAsync = async () => {
@@ -395,10 +420,16 @@ const selectTargetFolderAsync = async () => {
 const buildSourceConfig = () => {
   switch (sourceType.value) {
     case 'local': return { path: sourcePath.value }
-    case 'peer': return {
-      endpointId: sourceDeviceEndpointId.value,
-      shareId: sourceShareId.value,
-      spaceId: sourceSpaceId.value,
+    case 'peer': {
+      const spaceId = sourceSpaceId.value
+      const ucanToken = spaceId ? getUcanForSpaceAsync(spaceId) : null
+      if (!ucanToken) throw new Error('No valid UCAN token for this space')
+      return {
+        endpointId: sourceDeviceEndpointId.value,
+        path: sourceShareId.value,
+        spaceId,
+        ucanToken,
+      }
     }
     case 'cloud': return {
       backendId: sourceBackendId.value,
@@ -410,6 +441,22 @@ const buildSourceConfig = () => {
 const buildTargetConfig = () => {
   switch (targetType.value) {
     case 'local': return { path: targetPath.value }
+    case 'peer': {
+      const spaceId = targetSpaceId.value
+      const ucanToken = spaceId ? getUcanForSpaceAsync(spaceId) : null
+      if (!ucanToken) throw new Error('No valid UCAN token for this space')
+      const basePath = targetCreateNewFolder.value
+        ? targetNewFolderName.value.trim()
+        : targetShareId.value
+      const sub = targetSubfolder.value.trim().replace(/^\/+|\/+$/g, '')
+      const path = sub ? `${basePath}/${sub}` : basePath
+      return {
+        endpointId: targetDeviceEndpointId.value,
+        path,
+        spaceId,
+        ucanToken,
+      }
+    }
     case 'cloud': return {
       backendId: targetBackendId.value,
       prefix: targetPrefix.value,
@@ -445,6 +492,7 @@ const resolveCurrentDeviceIdAsync = async (): Promise<string> => {
 // -- Determine spaceId for the rule --
 const resolveSpaceId = (): string => {
   if (sourceType.value === 'peer' && sourceSpaceId.value) return sourceSpaceId.value
+  if (targetType.value === 'peer' && targetSpaceId.value) return targetSpaceId.value
   return spacesStore.spaces[0]?.id ?? ''
 }
 
@@ -457,34 +505,47 @@ const onBack = () => {
   }
 }
 
-// -- Create rule --
-const onCreateAsync = async () => {
+// -- Save rule (create or update) --
+const onSaveAsync = async () => {
   if (!canCreate.value) return
   isCreating.value = true
 
   try {
-    const deviceId = await resolveCurrentDeviceIdAsync()
-    const spaceId = resolveSpaceId()
-    if (!spaceId) throw new Error('No space available')
+    if (isEditMode.value && props.editRule) {
+      await fileSyncStore.updateRuleAsync(props.editRule.id, {
+        sourceType: sourceType.value,
+        sourceConfig: buildSourceConfig(),
+        targetType: targetType.value,
+        targetConfig: buildTargetConfig(),
+        direction: direction.value,
+        syncIntervalSeconds: intervalSeconds.value,
+        deleteMode: deleteMode.value,
+      })
+      addToast({ title: t('success.updated'), color: 'success' })
+      emit('updated')
+    } else {
+      const deviceId = await resolveCurrentDeviceIdAsync()
+      const spaceId = resolveSpaceId()
+      if (!spaceId) throw new Error('No space available')
 
-    await fileSyncStore.createRuleAsync({
-      id: crypto.randomUUID(),
-      spaceId,
-      deviceId,
-      name: ruleName.value.trim(),
-      sourceType: sourceType.value,
-      sourceConfig: buildSourceConfig(),
-      targetType: targetType.value,
-      targetConfig: buildTargetConfig(),
-      direction: direction.value,
-      syncIntervalSeconds: intervalSeconds.value?.value ?? 300,
-      deleteMode: deleteMode.value?.value ?? 'trash',
-      enabled: true,
-    })
+      await fileSyncStore.createRuleAsync({
+        id: crypto.randomUUID(),
+        spaceId,
+        deviceId,
+        sourceType: sourceType.value,
+        sourceConfig: buildSourceConfig(),
+        targetType: targetType.value,
+        targetConfig: buildTargetConfig(),
+        direction: direction.value,
+        syncIntervalSeconds: intervalSeconds.value,
+        deleteMode: deleteMode.value,
+        enabled: true,
+      })
+      addToast({ title: t('success.created'), color: 'success' })
+      emit('created')
+    }
 
-    addToast({ title: t('success.created'), color: 'success' })
     open.value = false
-    emit('created')
   } catch (error) {
     addToast({
       title: t('errors.createFailed'),
@@ -508,21 +569,62 @@ const resetForm = () => {
   sourcePrefix.value = ''
   targetType.value = 'local'
   targetPath.value = ''
+  targetSpaceId.value = ''
+  targetDeviceEndpointId.value = ''
+  targetShareId.value = ''
+  targetCreateNewFolder.value = false
+  targetNewFolderName.value = ''
+  targetSubfolder.value = ''
   targetBackendId.value = ''
   targetPrefix.value = ''
   direction.value = 'one_way'
-  intervalSeconds.value = undefined
-  deleteMode.value = undefined
-  ruleName.value = ''
+  intervalSeconds.value = 300
+  deleteMode.value = 'trash'
+}
+
+const populateFromRule = (rule: SelectHaexSyncRules) => {
+  const srcCfg = rule.sourceConfig as Record<string, unknown>
+  const tgtCfg = rule.targetConfig as Record<string, unknown>
+
+  sourceType.value = rule.sourceType as ProviderType
+  targetType.value = rule.targetType as ProviderType
+  direction.value = rule.direction as 'one_way' | 'two_way'
+  intervalSeconds.value = rule.syncIntervalSeconds
+  deleteMode.value = rule.deleteMode
+
+  // Source
+  if (rule.sourceType === 'local') {
+    sourcePath.value = (srcCfg?.path as string) || ''
+  } else if (rule.sourceType === 'peer') {
+    sourceSpaceId.value = (srcCfg?.spaceId as string) || ''
+    sourceDeviceEndpointId.value = (srcCfg?.endpointId as string) || ''
+    sourceShareId.value = (srcCfg?.path as string) || ''
+  } else if (rule.sourceType === 'cloud') {
+    sourceBackendId.value = (srcCfg?.backendId as string) || ''
+    sourcePrefix.value = (srcCfg?.prefix as string) || ''
+  }
+
+  // Target
+  if (rule.targetType === 'local') {
+    targetPath.value = (tgtCfg?.path as string) || ''
+  } else if (rule.targetType === 'peer') {
+    targetSpaceId.value = (tgtCfg?.spaceId as string) || ''
+    targetDeviceEndpointId.value = (tgtCfg?.endpointId as string) || ''
+    targetShareId.value = (tgtCfg?.path as string) || ''
+  } else if (rule.targetType === 'cloud') {
+    targetBackendId.value = (tgtCfg?.backendId as string) || ''
+    targetPrefix.value = (tgtCfg?.prefix as string) || ''
+  }
 }
 
 watch(open, async (isOpen) => {
   if (isOpen) {
     resetForm()
-    intervalSeconds.value = intervalOptions.value[1] // 5 min default
-    deleteMode.value = deleteModeOptions.value[0] // trash default
     await peerStorageStore.loadSharesAsync()
     await peerStorageStore.loadSpaceDevicesAsync()
+    if (props.editRule) {
+      populateFromRule(props.editRule)
+    }
   }
 })
 </script>
@@ -530,6 +632,7 @@ watch(open, async (isOpen) => {
 <i18n lang="yaml">
 de:
   title: Sync-Regel erstellen
+  titleEdit: Sync-Regel bearbeiten
   description: Dateien automatisch zwischen Quell- und Zielordner synchronisieren
   steps:
     source: Quelle
@@ -543,6 +646,7 @@ de:
     peer: P2P Peer
     cloud: Cloud-Speicher
   source:
+    type: Quelltyp
     selectFolder: Ordner auswählen
     space: Space
     device: Gerät
@@ -550,7 +654,16 @@ de:
     backend: Storage-Backend
     prefix: Pfad-Präfix
   target:
+    type: Zieltyp
     selectFolder: Ordner auswählen
+    space: Space
+    device: Gerät
+    folder: Zielordner
+    createNew: Neuen Ordner erstellen
+    chooseExisting: Vorhandenen wählen
+    newFolderPlaceholder: Ordnername eingeben
+    subfolder: Unterordner (optional)
+    subfolderPlaceholder: z.B. Backup/Fotos
     backend: Storage-Backend
     prefix: Pfad-Präfix
   settings:
@@ -577,12 +690,15 @@ de:
     back: Zurück
     next: Weiter
     create: Erstellen
+    save: Speichern
   success:
     created: Sync-Regel erstellt
+    updated: Sync-Regel aktualisiert
   errors:
     createFailed: Sync-Regel konnte nicht erstellt werden
 en:
   title: Create Sync Rule
+  titleEdit: Edit Sync Rule
   description: Automatically synchronize files between source and target
   steps:
     source: Source
@@ -596,6 +712,7 @@ en:
     peer: P2P Peer
     cloud: Cloud Storage
   source:
+    type: Source type
     selectFolder: Select folder
     space: Space
     device: Device
@@ -603,7 +720,16 @@ en:
     backend: Storage backend
     prefix: Path prefix
   target:
+    type: Target type
     selectFolder: Select folder
+    space: Space
+    device: Device
+    folder: Target folder
+    createNew: Create new folder
+    chooseExisting: Choose existing
+    newFolderPlaceholder: Enter folder name
+    subfolder: Subfolder (optional)
+    subfolderPlaceholder: e.g. Backup/Photos
     backend: Storage backend
     prefix: Path prefix
   settings:
@@ -630,8 +756,10 @@ en:
     back: Back
     next: Next
     create: Create
+    save: Save
   success:
     created: Sync rule created
+    updated: Sync rule updated
   errors:
-    createFailed: Failed to create sync rule
+    createFailed: Failed to save sync rule
 </i18n>
