@@ -70,10 +70,9 @@ pub async fn local_delivery_broadcast_commit(
     )
     .map_err(|e| format!("Failed to store commit: {e}"))?;
 
-    // Track pending ACKs from all currently connected peers
-    let peers = leader_state.connected_peers.read().await;
-    let expected_dids: Vec<String> = peers.values().map(|p| p.did.clone()).collect();
-    drop(peers);
+    // Track pending ACKs from all space members (not just connected peers)
+    let expected_dids: Vec<String> = super::buffer::get_space_member_dids(&leader_state.db, &space_id)
+        .unwrap_or_default();
 
     if !expected_dids.is_empty() {
         let _ = super::buffer::store_pending_commit(&leader_state.db, &space_id, msg_id, &expected_dids);

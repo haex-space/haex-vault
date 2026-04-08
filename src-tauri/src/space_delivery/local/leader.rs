@@ -284,13 +284,12 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
             }
         };
 
-        // Track pending ACKs from all currently connected peers
+        // Track pending ACKs from all space members (not just connected peers)
         if msg_id > 0 {
-            let peers = state.connected_peers.read().await;
-            let expected_dids: Vec<String> = peers
-                .values()
-                .map(|p| p.did.clone())
-                .filter(|d| d != &did) // exclude the new member
+            let expected_dids: Vec<String> = buffer::get_space_member_dids(&state.db, &space_id)
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|d| d != &did) // exclude the new member (gets Welcome, not commit)
                 .collect();
             if !expected_dids.is_empty() {
                 let _ = buffer::store_pending_commit(&state.db, &space_id, msg_id, &expected_dids);
@@ -510,6 +509,18 @@ async fn handle_delivery_stream(
                 Ok(blob) => {
                     match buffer::store_message(&state.db, &space_id, &did, &message_type, &blob) {
                         Ok(id) => {
+                            // Track pending ACKs for commits
+                            if message_type == "commit" {
+                                let expected_dids: Vec<String> = buffer::get_space_member_dids(&state.db, &space_id)
+                                    .unwrap_or_default()
+                                    .into_iter()
+                                    .filter(|d| d != &did) // exclude sender
+                                    .collect();
+                                if !expected_dids.is_empty() {
+                                    let _ = buffer::store_pending_commit(&state.db, &space_id, id, &expected_dids);
+                                }
+                            }
+
                             // Notify all connected peers
                             let senders = state.notification_senders.read().await;
                             for (_, sender) in senders.iter() {

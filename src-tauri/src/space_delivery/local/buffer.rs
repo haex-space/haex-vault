@@ -5,7 +5,7 @@
 
 use base64::Engine;
 
-use crate::database::core;
+use crate::database::{core, core::select_with_crdt};
 use crate::database::DbConnection;
 use uuid::Uuid;
 
@@ -15,6 +15,22 @@ fn map_db(e: crate::database::error::DatabaseError) -> DeliveryError {
     DeliveryError::Database {
         reason: e.to_string(),
     }
+}
+
+/// Get all member DIDs for a space from the CRDT-synced haex_space_members table.
+/// Used to determine expected ACKers for pending commits (all members, not just connected peers).
+pub fn get_space_member_dids(db: &DbConnection, space_id: &str) -> Result<Vec<String>, DeliveryError> {
+    let rows = select_with_crdt(
+        "SELECT member_did FROM haex_space_members WHERE space_id = ?1".to_string(),
+        vec![serde_json::Value::String(space_id.to_string())],
+        db,
+    )
+    .map_err(map_db)?;
+
+    Ok(rows
+        .into_iter()
+        .filter_map(|row| row.first().and_then(|v| v.as_str()).map(|s| s.to_string()))
+        .collect())
 }
 
 /// Store an MLS message in the leader buffer. Returns the auto-incremented ID.
@@ -227,6 +243,9 @@ pub fn store_pending_commit(
 
 /// Record ACKs from `member_did` for the given `message_ids`.
 /// Returns the list of message_ids that are now fully ACKed (all expected DIDs have ACKed).
+///
+/// Uses atomic SQL UPDATE with json_insert to avoid read-modify-write race conditions
+/// when multiple peers ACK concurrently.
 pub fn ack_commits(
     db: &DbConnection,
     space_id: &str,
@@ -236,6 +255,25 @@ pub fn ack_commits(
     let mut fully_acked = Vec::new();
 
     for &msg_id in message_ids {
+        // Atomic update: add DID to acked_dids only if not already present
+        core::execute(
+            "UPDATE haex_local_delivery_pending_commits_no_sync \
+             SET acked_dids = CASE \
+               WHEN instr(acked_dids, ?1) > 0 THEN acked_dids \
+               ELSE json_insert(acked_dids, '$[#]', ?1) \
+             END \
+             WHERE space_id = ?2 AND message_id = ?3"
+                .to_string(),
+            vec![
+                serde_json::Value::String(member_did.to_string()),
+                serde_json::Value::String(space_id.to_string()),
+                serde_json::Value::Number(serde_json::Number::from(msg_id)),
+            ],
+            db,
+        )
+        .map_err(map_db)?;
+
+        // Read back to check if fully acked
         let rows = core::select(
             "SELECT expected_dids, acked_dids FROM haex_local_delivery_pending_commits_no_sync \
              WHERE space_id = ?1 AND message_id = ?2"
@@ -253,30 +291,9 @@ pub fn ack_commits(
         let expected_str = row.get(0).and_then(|v| v.as_str()).unwrap_or("[]");
         let acked_str = row.get(1).and_then(|v| v.as_str()).unwrap_or("[]");
 
-        let expected: Vec<String> =
-            serde_json::from_str(expected_str).unwrap_or_default();
-        let mut acked: Vec<String> =
-            serde_json::from_str(acked_str).unwrap_or_default();
+        let expected: Vec<String> = serde_json::from_str(expected_str).unwrap_or_default();
+        let acked: Vec<String> = serde_json::from_str(acked_str).unwrap_or_default();
 
-        if !acked.contains(&member_did.to_string()) {
-            acked.push(member_did.to_string());
-        }
-
-        let acked_json = serde_json::to_string(&acked).unwrap_or_else(|_| "[]".to_string());
-        core::execute(
-            "UPDATE haex_local_delivery_pending_commits_no_sync \
-             SET acked_dids = ?1 WHERE space_id = ?2 AND message_id = ?3"
-                .to_string(),
-            vec![
-                serde_json::Value::String(acked_json),
-                serde_json::Value::String(space_id.to_string()),
-                serde_json::Value::Number(serde_json::Number::from(msg_id)),
-            ],
-            db,
-        )
-        .map_err(map_db)?;
-
-        // Check if fully acked
         if expected.iter().all(|did| acked.contains(did)) {
             fully_acked.push(msg_id);
         }

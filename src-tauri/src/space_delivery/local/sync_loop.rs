@@ -417,6 +417,7 @@ async fn fetch_and_process_mls_messages(
         match mls_manager.process_message(space_id, &blob) {
             Ok(_) => {
                 acked_ids.push(msg.id);
+                *last_mls_message_id = Some(msg.id);
                 eprintln!(
                     "[SyncLoop] Processed MLS {} message (id={})",
                     msg.message_type, msg.id
@@ -427,12 +428,11 @@ async fn fetch_and_process_mls_messages(
                     "[SyncLoop] Failed to process MLS message {}: {e}",
                     msg.id
                 );
-                // Don't ACK failed messages — they'll be retried next cycle
+                // Stop processing — later messages depend on this epoch advancing.
+                // This message will be retried on the next sync cycle.
+                break;
             }
         }
-
-        // Track highest seen ID regardless of success (avoid re-fetching failures forever)
-        *last_mls_message_id = Some(msg.id);
     }
 
     // ACK successfully processed messages
