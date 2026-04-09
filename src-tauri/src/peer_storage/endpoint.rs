@@ -1001,7 +1001,7 @@ fn resolve_path_filtered(
 ) -> Result<PathBuf, Response> {
     let (share, sub_path) = find_share_and_subpath(shares, allowed_spaces, request_path)?;
 
-    crate::filesystem::check_relative_path(&sub_path).map_err(|message| Response::Error { message })?;
+    crate::filesystem::reject_path_traversal(&sub_path).map_err(|message| Response::Error { message })?;
 
     let full_path = PathBuf::from(&share.local_path).join(&sub_path);
 
