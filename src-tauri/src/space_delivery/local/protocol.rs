@@ -76,7 +76,7 @@ pub enum Request {
     Announce {
         did: String,
         endpoint_id: String,
-        /// Optional claims the peer chooses to share
+        space_id: String,
         label: Option<String>,
         claims: Option<Vec<IdentityClaim>>,
     },

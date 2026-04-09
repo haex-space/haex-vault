@@ -29,7 +29,7 @@ pub struct PeerClaim {
 #[ts(export)]
 pub struct DeliveryStatus {
     pub is_leader: bool,
-    pub space_id: Option<String>,
+    pub active_spaces: Vec<String>,
     pub connected_peers: Vec<ConnectedPeer>,
     pub buffered_messages: u32,
     pub buffered_welcomes: u32,

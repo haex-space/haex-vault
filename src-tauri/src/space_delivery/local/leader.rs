@@ -14,8 +14,6 @@ use crate::crdt::commands::{apply_remote_changes_to_db, RemoteColumnChange};
 use crate::crdt::hlc::HlcService;
 use crate::crdt::scanner::{scan_all_crdt_tables_for_local_changes, LocalColumnChange};
 use crate::database::DbConnection;
-use crate::peer_storage::endpoint::DeliveryConnectionHandler;
-
 use super::buffer;
 use super::error::DeliveryError;
 use super::invite_tokens::{self, LocalInviteToken};
@@ -48,7 +46,7 @@ pub struct LeaderState {
 }
 
 // ============================================================================
-// Connection handler
+// Helpers
 // ============================================================================
 
 fn base64_encode(data: &[u8]) -> String {
@@ -57,61 +55,6 @@ fn base64_encode(data: &[u8]) -> String {
 
 fn base64_decode(s: &str) -> Result<Vec<u8>, String> {
     BASE64.decode(s).map_err(|e| format!("base64 decode error: {e}"))
-}
-
-/// Connection handler for the leader side of space delivery.
-pub struct LeaderConnectionHandler {
-    pub state: Arc<LeaderState>,
-}
-
-impl DeliveryConnectionHandler for LeaderConnectionHandler {
-    fn handle_connection(
-        &self,
-        conn: iroh::endpoint::Connection,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
-        Box::pin(self.handle_connection_inner(conn))
-    }
-}
-
-impl LeaderConnectionHandler {
-    async fn handle_connection_inner(&self, conn: iroh::endpoint::Connection) {
-        let remote = conn.remote_id();
-        let remote_str = remote.to_string();
-
-        loop {
-            match conn.accept_bi().await {
-                Ok((send, mut recv)) => {
-                    let state = self.state.clone();
-                    let peer_endpoint_id = remote_str.clone();
-                    tokio::spawn(async move {
-                        if let Err(e) =
-                            handle_delivery_stream(send, &mut recv, &state, &peer_endpoint_id).await
-                        {
-                            eprintln!(
-                                "[SpaceDelivery] Stream error from {peer_endpoint_id}: {e}"
-                            );
-                        }
-                    });
-                }
-                Err(_) => {
-                    eprintln!("[SpaceDelivery] Connection from {remote_str} closed");
-                    break;
-                }
-            }
-        }
-
-        // Clean up peer state on disconnect
-        self.state
-            .connected_peers
-            .write()
-            .await
-            .remove(&remote_str);
-        self.state
-            .notification_senders
-            .write()
-            .await
-            .remove(&remote_str);
-    }
 }
 
 /// Look up the DID for a connected peer by endpoint_id.
@@ -162,11 +105,10 @@ fn check_write_capability(
 }
 
 // ============================================================================
-// ClaimInvite handler (used by both LeaderConnectionHandler and InviteReceiverHandler)
+// ClaimInvite handler
 // ============================================================================
 
-/// Handle a ClaimInvite request. Extracted so the InviteReceiverHandler can
-/// forward ClaimInvite to the active leader without replacing the whole handler.
+/// Handle a ClaimInvite request.
 pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Response {
     let (space_id, token, did, endpoint_id, key_packages, label, public_key) = match request {
         Request::ClaimInvite {
@@ -357,24 +299,18 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
 // Request dispatcher
 // ============================================================================
 
-/// Process a single request/response exchange on a QUIC bidirectional stream.
-async fn handle_delivery_stream(
-    mut send: iroh::endpoint::SendStream,
-    recv: &mut iroh::endpoint::RecvStream,
+/// Dispatch an already-parsed request to the appropriate handler and return the response.
+/// Used by `MultiSpaceLeaderHandler` after routing to the correct `LeaderState`.
+pub(super) async fn handle_delivery_request(
     state: &LeaderState,
+    request: Request,
     peer_endpoint_id: &str,
-) -> Result<(), DeliveryError> {
-    let request =
-        protocol::read_request(recv)
-            .await
-            .map_err(|e| DeliveryError::ProtocolError {
-                reason: e.to_string(),
-            })?;
-
-    let response = match request {
+) -> Response {
+    match request {
         Request::Announce {
             did,
             endpoint_id,
+            space_id: _,
             label,
             claims,
         } => {
@@ -408,15 +344,14 @@ async fn handle_delivery_stream(
             packages,
         } => {
             if space_id != state.space_id {
-                return send_response(
-                    &mut send,
-                    &Response::Error {
-                        message: format!("Wrong space: expected {}", state.space_id),
-                    },
-                )
-                .await;
+                return Response::Error {
+                    message: format!("Wrong space: expected {}", state.space_id),
+                };
             }
-            let did = lookup_peer_did(state, peer_endpoint_id).await?;
+            let did = match lookup_peer_did(state, peer_endpoint_id).await {
+                Ok(did) => did,
+                Err(e) => return Response::Error { message: e.to_string() },
+            };
             for pkg_b64 in &packages {
                 if let Ok(blob) = base64_decode(pkg_b64) {
                     let _ = buffer::store_key_package(&state.db, &space_id, &did, &blob);
@@ -430,13 +365,9 @@ async fn handle_delivery_stream(
             target_did,
         } => {
             if space_id != state.space_id {
-                return send_response(
-                    &mut send,
-                    &Response::Error {
-                        message: format!("Wrong space: expected {}", state.space_id),
-                    },
-                )
-                .await;
+                return Response::Error {
+                    message: format!("Wrong space: expected {}", state.space_id),
+                };
             }
             match buffer::consume_key_package(&state.db, &space_id, &target_did) {
                 Ok(Some(blob)) => Response::KeyPackage {
@@ -458,15 +389,14 @@ async fn handle_delivery_stream(
             message_type,
         } => {
             if space_id != state.space_id {
-                return send_response(
-                    &mut send,
-                    &Response::Error {
-                        message: format!("Wrong space: expected {}", state.space_id),
-                    },
-                )
-                .await;
+                return Response::Error {
+                    message: format!("Wrong space: expected {}", state.space_id),
+                };
             }
-            let did = lookup_peer_did(state, peer_endpoint_id).await?;
+            let did = match lookup_peer_did(state, peer_endpoint_id).await {
+                Ok(did) => did,
+                Err(e) => return Response::Error { message: e.to_string() },
+            };
             match base64_decode(&message) {
                 Ok(blob) => {
                     match buffer::store_message(&state.db, &space_id, &did, &message_type, &blob) {
@@ -495,13 +425,9 @@ async fn handle_delivery_stream(
             after_id,
         } => {
             if space_id != state.space_id {
-                return send_response(
-                    &mut send,
-                    &Response::Error {
-                        message: format!("Wrong space: expected {}", state.space_id),
-                    },
-                )
-                .await;
+                return Response::Error {
+                    message: format!("Wrong space: expected {}", state.space_id),
+                };
             }
             match buffer::fetch_messages(&state.db, &space_id, after_id) {
                 Ok(msgs) => {
@@ -530,13 +456,9 @@ async fn handle_delivery_stream(
             welcome,
         } => {
             if space_id != state.space_id {
-                return send_response(
-                    &mut send,
-                    &Response::Error {
-                        message: format!("Wrong space: expected {}", state.space_id),
-                    },
-                )
-                .await;
+                return Response::Error {
+                    message: format!("Wrong space: expected {}", state.space_id),
+                };
             }
             match base64_decode(&welcome) {
                 Ok(blob) => {
@@ -553,20 +475,17 @@ async fn handle_delivery_stream(
 
         Request::MlsFetchWelcomes { space_id } => {
             if space_id != state.space_id {
-                return send_response(
-                    &mut send,
-                    &Response::Error {
-                        message: format!("Wrong space: expected {}", state.space_id),
-                    },
-                )
-                .await;
+                return Response::Error {
+                    message: format!("Wrong space: expected {}", state.space_id),
+                };
             }
-            let did = lookup_peer_did(state, peer_endpoint_id).await?;
+            let did = match lookup_peer_did(state, peer_endpoint_id).await {
+                Ok(did) => did,
+                Err(e) => return Response::Error { message: e.to_string() },
+            };
             match buffer::fetch_welcomes(&state.db, &space_id, &did) {
                 Ok(entries) => {
                     let encoded: Vec<String> = entries.iter().map(|(_, blob)| base64_encode(blob)).collect();
-                    // Mark consumed only after successful serialization and send.
-                    // If the peer crashes before processing, they can re-fetch on reconnect.
                     for (id, _) in &entries {
                         let _ = buffer::mark_welcome_consumed(&state.db, id);
                     }
@@ -581,13 +500,9 @@ async fn handle_delivery_stream(
         // -- CRDT Sync --
         Request::SyncPush { space_id, changes } => {
             if space_id != state.space_id {
-                return send_response(
-                    &mut send,
-                    &Response::Error {
-                        message: format!("Wrong space: expected {}", state.space_id),
-                    },
-                )
-                .await;
+                return Response::Error {
+                    message: format!("Wrong space: expected {}", state.space_id),
+                };
             }
 
             // Capability enforcement: only peers with space/write or space/admin
@@ -596,25 +511,17 @@ async fn handle_delivery_stream(
                 Ok(did) => {
                     if let Err(e) = check_write_capability(&state.db, &did, &space_id) {
                         eprintln!("[SpaceDelivery] SyncPush REJECTED: {e}");
-                        return send_response(
-                            &mut send,
-                            &Response::Error {
-                                message: format!("Access denied: {e}"),
-                            },
-                        )
-                        .await;
+                        return Response::Error {
+                            message: format!("Access denied: {e}"),
+                        };
                     }
                 }
                 Err(e) => {
                     eprintln!("[SpaceDelivery] SyncPush: peer not announced: {e}");
-                    return send_response(
-                        &mut send,
-                        &Response::Error {
-                            message: "Peer has not announced — cannot verify write capability"
-                                .to_string(),
-                        },
-                    )
-                    .await;
+                    return Response::Error {
+                        message: "Peer has not announced — cannot verify write capability"
+                            .to_string(),
+                    };
                 }
             }
 
@@ -623,18 +530,14 @@ async fn handle_delivery_stream(
                 Ok(c) => c,
                 Err(e) => {
                     eprintln!("[SpaceDelivery] SyncPush: failed to parse changes: {e}");
-                    return send_response(
-                        &mut send,
-                        &Response::Error {
-                            message: format!("Invalid changes JSON: {e}"),
-                        },
-                    )
-                    .await;
+                    return Response::Error {
+                        message: format!("Invalid changes JSON: {e}"),
+                    };
                 }
             };
 
             if local_changes.is_empty() {
-                return send_response(&mut send, &Response::Ok).await;
+                return Response::Ok;
             }
 
             // 2. Convert to RemoteColumnChange
@@ -665,16 +568,12 @@ async fn handle_delivery_stream(
                 hlc_service.as_ref(),
             ) {
                 eprintln!("[SpaceDelivery] SyncPush: failed to apply changes: {e}");
-                return send_response(
-                    &mut send,
-                    &Response::Error {
-                        message: format!("Failed to apply changes: {e}"),
-                    },
-                )
-                .await;
+                return Response::Error {
+                    message: format!("Failed to apply changes: {e}"),
+                };
             }
 
-            // 6. Notify other connected peers (except the sender)
+            // Notify other connected peers (except the sender)
             {
                 let senders = state.notification_senders.read().await;
                 for (endpoint_id, sender) in senders.iter() {
@@ -695,13 +594,9 @@ async fn handle_delivery_stream(
             after_timestamp,
         } => {
             if space_id != state.space_id {
-                return send_response(
-                    &mut send,
-                    &Response::Error {
-                        message: format!("Wrong space: expected {}", state.space_id),
-                    },
-                )
-                .await;
+                return Response::Error {
+                    message: format!("Wrong space: expected {}", state.space_id),
+                };
             }
 
             let device_id = "leader";
@@ -761,13 +656,11 @@ async fn handle_delivery_stream(
             &space_endpoints,
             origin_url.as_deref(),
         ),
-    };
-
-    send_response(&mut send, &response).await
+    }
 }
 
 /// Encode and send a response on the QUIC send stream, then finish.
-async fn send_response(
+pub(super) async fn send_response(
     send: &mut iroh::endpoint::SendStream,
     response: &Response,
 ) -> Result<(), DeliveryError> {

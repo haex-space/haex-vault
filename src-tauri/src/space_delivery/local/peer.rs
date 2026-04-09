@@ -14,6 +14,7 @@ impl PeerSession {
         iroh_endpoint: &iroh::Endpoint,
         leader_endpoint_id: &str,
         leader_relay_url: Option<&str>,
+        space_id: &str,
         our_did: &str,
         our_endpoint_id: &str,
         label: Option<&str>,
@@ -46,6 +47,7 @@ impl PeerSession {
         let req = Request::Announce {
             did: our_did.to_string(),
             endpoint_id: our_endpoint_id.to_string(),
+            space_id: space_id.to_string(),
             label: label.map(|s| s.to_string()),
             claims: None,
         };

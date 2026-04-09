@@ -11,97 +11,82 @@ use crate::database::DbConnection;
 use crate::AppState;
 
 use super::invite_tokens;
-use super::leader::{LeaderConnectionHandler, LeaderState};
+use super::leader::LeaderState;
+use super::multi_leader::MultiSpaceLeaderHandler;
 use super::protocol::{Request, Response};
 use super::types::{ClaimInviteResult, DeliveryStatus, ElectionResultInfo, LeaderInfo, LocalInviteInfo};
 
 /// Start leader mode for a local space.
+/// Inserts a new LeaderState into the shared map. On the first call,
+/// registers the MultiSpaceLeaderHandler on the QUIC endpoint.
 #[tauri::command]
 pub async fn local_delivery_start(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     space_id: String,
 ) -> Result<(), String> {
-    // Load existing invite tokens from DB (persisted across restarts)
     let db_conn = DbConnection(state.db.0.clone());
     let existing_tokens = invite_tokens::load_invite_tokens(&db_conn, &space_id)
         .unwrap_or_default();
 
-    // Share the HLC service from AppState — clone is cheap (inner Arc)
     let hlc_clone = state.hlc.lock().map_err(|_| "HLC lock poisoned".to_string())?.clone();
 
     let leader_state = Arc::new(LeaderState {
         db: db_conn,
         hlc: Arc::new(std::sync::Mutex::new(hlc_clone)),
-        app_handle: app,
+        app_handle: app.clone(),
         space_id: space_id.clone(),
         connected_peers: Arc::new(RwLock::new(HashMap::new())),
         notification_senders: Arc::new(RwLock::new(HashMap::new())),
         invite_tokens: Arc::new(RwLock::new(existing_tokens)),
     });
 
-    // Store leader_state in AppState for invite management commands
-    *state.leader_state.lock().await = Some(leader_state.clone());
+    let mut leaders = state.leader_state.write().await;
+    let is_first = leaders.is_empty();
+    leaders.insert(space_id.clone(), leader_state);
+    drop(leaders);
 
-    let handler = Arc::new(LeaderConnectionHandler {
-        state: leader_state,
-    });
-
-    let endpoint = state.peer_storage.lock().await;
-    endpoint.set_delivery_handler(handler).await;
+    // Register handler only once — it holds the same Arc as leader_state map
+    if is_first {
+        let hlc_clone = state.hlc.lock().map_err(|_| "HLC lock poisoned".to_string())?.clone();
+        let handler = Arc::new(MultiSpaceLeaderHandler {
+            leaders: state.leader_state.clone(),
+            db: DbConnection(state.db.0.clone()),
+            hlc: Arc::new(std::sync::Mutex::new(hlc_clone)),
+            app_handle: app,
+        });
+        let endpoint = state.peer_storage.lock().await;
+        endpoint.set_delivery_handler(handler).await;
+    }
 
     eprintln!("[SpaceDelivery] Started leader mode for space {space_id}");
     Ok(())
 }
 
-/// Stop leader mode — clears buffers and restores the invite-only handler.
+/// Stop leader mode for a space — clears buffers and removes from leader map.
+/// The MultiSpaceLeaderHandler stays registered (handles PushInvite even with empty map).
 #[tauri::command]
 pub async fn local_delivery_stop(
-    app: tauri::AppHandle,
     state: State<'_, AppState>,
     space_id: String,
 ) -> Result<(), String> {
-    // Clear buffer tables
     super::buffer::clear_buffers(&DbConnection(state.db.0.clone()), &space_id)
         .map_err(|e| e.to_string())?;
 
-    // Clear leader_state from AppState
-    *state.leader_state.lock().await = None;
+    state.leader_state.write().await.remove(&space_id);
 
-    // Restore the lightweight invite receiver handler
-    let endpoint = state.peer_storage.lock().await;
-    let db_conn = DbConnection(state.db.0.clone());
-    let hlc_clone = state.hlc.lock().map_err(|_| "HLC lock poisoned".to_string())?.clone();
-    let receiver_state = Arc::new(super::invite_receiver::InviteReceiverState {
-        db: db_conn,
-        hlc: Arc::new(std::sync::Mutex::new(hlc_clone)),
-        app_handle: app,
-        leader_state: state.leader_state.clone(),
-    });
-    let handler = Arc::new(super::invite_receiver::InviteReceiverHandler {
-        state: receiver_state,
-    });
-    endpoint.set_delivery_handler(handler).await;
-
-    eprintln!("[SpaceDelivery] Stopped leader mode for space {space_id}, invite receiver restored");
+    eprintln!("[SpaceDelivery] Stopped leader mode for space {space_id}");
     Ok(())
 }
 
 /// Get the current delivery status.
 #[tauri::command]
 pub async fn local_delivery_status(state: State<'_, AppState>) -> Result<DeliveryStatus, String> {
-    let endpoint = state.peer_storage.lock().await;
-    let peer_state = endpoint.state.read().await;
-    let is_leader = peer_state.delivery_handler.is_some();
-    drop(peer_state);
-    drop(endpoint);
-
-    let loops = state.local_sync_loops.lock().await;
-    let active_space = loops.keys().next().cloned();
+    let leaders = state.leader_state.read().await;
 
     Ok(DeliveryStatus {
-        is_leader,
-        space_id: active_space,
+        is_leader: !leaders.is_empty(),
+        active_spaces: leaders.keys().cloned().collect(),
         connected_peers: vec![],
         buffered_messages: 0,
         buffered_welcomes: 0,
@@ -267,14 +252,15 @@ pub async fn local_delivery_elect(
 // Invite management commands
 // ============================================================================
 
-/// Helper to get the LeaderState from AppState or return an error.
-async fn get_leader_state(state: &AppState) -> Result<Arc<LeaderState>, String> {
+/// Helper to get the LeaderState for a specific space.
+async fn get_leader_state(state: &AppState, space_id: &str) -> Result<Arc<LeaderState>, String> {
     state
         .leader_state
-        .lock()
+        .read()
         .await
-        .clone()
-        .ok_or_else(|| "Leader mode not active".to_string())
+        .get(space_id)
+        .cloned()
+        .ok_or_else(|| format!("Leader mode not active for space {space_id}"))
 }
 
 /// Create a local invite token (admin-side, requires leader mode).
@@ -292,14 +278,7 @@ pub async fn local_delivery_create_invite(
     expires_in_seconds: u64,
     include_history: bool,
 ) -> Result<String, String> {
-    let leader_state = get_leader_state(&state).await?;
-
-    if leader_state.space_id != space_id {
-        return Err(format!(
-            "Leader is serving space {}, not {space_id}",
-            leader_state.space_id
-        ));
-    }
+    let leader_state = get_leader_state(&state, &space_id).await?;
 
     match target_did {
         Some(did) => {
@@ -351,14 +330,7 @@ pub async fn local_delivery_list_invites(
     state: State<'_, AppState>,
     space_id: String,
 ) -> Result<Vec<LocalInviteInfo>, String> {
-    let leader_state = get_leader_state(&state).await?;
-
-    if leader_state.space_id != space_id {
-        return Err(format!(
-            "Leader is serving space {}, not {space_id}",
-            leader_state.space_id
-        ));
-    }
+    let leader_state = get_leader_state(&state, &space_id).await?;
 
     let tokens = leader_state.invite_tokens.read().await;
     let infos = tokens
@@ -384,9 +356,10 @@ pub async fn local_delivery_list_invites(
 #[tauri::command]
 pub async fn local_delivery_revoke_invite(
     state: State<'_, AppState>,
+    space_id: String,
     token_id: String,
 ) -> Result<(), String> {
-    let leader_state = get_leader_state(&state).await?;
+    let leader_state = get_leader_state(&state, &space_id).await?;
 
     let mut tokens = leader_state.invite_tokens.write().await;
     let len_before = tokens.len();

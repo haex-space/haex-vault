@@ -147,25 +147,20 @@ pub async fn peer_storage_start(
     let mut endpoint = state.peer_storage.lock().await;
     let node_id = endpoint.start(relay_url).await?;
 
-    // Register invite receiver so this device can accept PushInvite from peers
-    // even without leader mode. Skip if a handler is already set (e.g. leader
-    // mode was started before the endpoint).
+    // Register the unified multi-space handler so this device can accept
+    // PushInvite/ClaimInvite from peers and route leader requests by space_id.
+    // With an empty leader map it only handles PushInvite.
     {
         let has_handler = endpoint.state.read().await.delivery_handler.is_some();
         if !has_handler {
             let db_conn = DbConnection(state.db.0.clone());
             let hlc_clone = state.hlc.lock().map_err(|_| PeerStorageError::EndpointNotRunning)?.clone();
-            let receiver_state = std::sync::Arc::new(
-                crate::space_delivery::local::invite_receiver::InviteReceiverState {
+            let handler = std::sync::Arc::new(
+                crate::space_delivery::local::multi_leader::MultiSpaceLeaderHandler {
+                    leaders: state.leader_state.clone(),
                     db: db_conn,
                     hlc: std::sync::Arc::new(std::sync::Mutex::new(hlc_clone)),
                     app_handle: app.clone(),
-                    leader_state: state.leader_state.clone(),
-                },
-            );
-            let handler = std::sync::Arc::new(
-                crate::space_delivery::local::invite_receiver::InviteReceiverHandler {
-                    state: receiver_state,
                 },
             );
             endpoint.set_delivery_handler(handler).await;
