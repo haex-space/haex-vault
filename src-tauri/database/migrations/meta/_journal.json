@@ -64,6 +64,13 @@
       "when": 1775641379482,
       "tag": "0008_brief_naoko",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1775685030134,
+      "tag": "0009_far_frightful_four",
+      "breakpoints": true
     }
   ]
 }

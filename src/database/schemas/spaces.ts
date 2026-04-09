@@ -285,6 +285,7 @@ export const haexSyncRules = sqliteTable(
     enabled: integer(tableNames.haex.sync_rules.columns.enabled, { mode: 'boolean' }).notNull().default(true),
     syncIntervalSeconds: integer(tableNames.haex.sync_rules.columns.syncIntervalSeconds).notNull().default(300),
     deleteMode: text(tableNames.haex.sync_rules.columns.deleteMode).notNull().default('trash'), // 'trash' | 'permanent' | 'ignore'
+    lastSyncedAt: integer(tableNames.haex.sync_rules.columns.lastSyncedAt),
     createdAt: text(tableNames.haex.sync_rules.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
   },
 )

@@ -57,6 +57,12 @@
                 :label="t('source.share')"
                 value-key="value"
               />
+              <UiInput
+                v-if="sourceShareId"
+                v-model="sourceSubfolder"
+                :label="t('source.subfolder')"
+                :placeholder="t('source.subfolderPlaceholder')"
+              />
             </div>
 
             <!-- Cloud: backend + prefix -->
@@ -191,14 +197,6 @@
               </div>
             </div>
 
-            <!-- Sync interval -->
-            <UiSelectMenu
-              v-model="intervalSeconds"
-              :items="intervalOptions"
-              :label="t('settings.interval')"
-              value-key="value"
-            />
-
             <!-- Delete mode -->
             <UiSelectMenu
               v-model="deleteMode"
@@ -213,13 +211,29 @@
 
     <template #footer>
       <div class="flex justify-between gap-4">
-        <UiButton
-          color="neutral"
-          variant="outline"
-          @click="onBack"
-        >
-          {{ step > 0 ? t('actions.back') : t('actions.cancel') }}
-        </UiButton>
+        <div class="flex gap-2">
+          <UiButton
+            color="neutral"
+            variant="outline"
+            @click="onBack"
+          >
+            {{ step > 0 ? t('actions.back') : t('actions.cancel') }}
+          </UiButton>
+          <template v-if="isEditMode && editRule">
+            <UiButton
+              :icon="editRule.enabled ? 'i-lucide-pause' : 'i-lucide-play'"
+              variant="outline"
+              :color="editRule.enabled ? 'warning' : 'success'"
+              @click="onToggleRuleAsync"
+            />
+            <UiButton
+              icon="i-lucide-trash-2"
+              variant="outline"
+              color="error"
+              @click="onDeleteRuleAsync"
+            />
+          </template>
+        </div>
 
         <UiButton
           v-if="step < 2"
@@ -257,11 +271,19 @@ const open = defineModel<boolean>('open', { required: true })
 
 const props = defineProps<{
   editRule?: SelectHaexSyncRules | null
+  prefill?: {
+    sourceType: 'local' | 'peer'
+    spaceId: string
+    deviceEndpointId: string
+    shareName: string
+    localPath?: string
+  } | null
 }>()
 
 const emit = defineEmits<{
   created: []
   updated: []
+  deleted: []
 }>()
 
 const isEditMode = computed(() => !!props.editRule)
@@ -318,6 +340,7 @@ const sourcePath = ref('')
 const sourceSpaceId = ref('')
 const sourceDeviceEndpointId = ref('')
 const sourceShareId = ref('')
+const sourceSubfolder = ref('')
 const sourceBackendId = ref('')
 const sourcePrefix = ref('')
 
@@ -339,15 +362,6 @@ const intervalSeconds = ref(300)
 const deleteMode = ref('trash')
 
 // -- Options --
-const intervalOptions = computed(() => [
-  { label: t('intervals.1min'), value: 60 },
-  { label: t('intervals.5min'), value: 300 },
-  { label: t('intervals.15min'), value: 900 },
-  { label: t('intervals.30min'), value: 1800 },
-  { label: t('intervals.1hour'), value: 3600 },
-  { label: t('intervals.manual'), value: 0 },
-])
-
 const deleteModeOptions = computed(() => [
   { label: t('deleteModes.trash'), value: 'trash' },
   { label: t('deleteModes.permanent'), value: 'permanent' },
@@ -424,9 +438,12 @@ const buildSourceConfig = () => {
       const spaceId = sourceSpaceId.value
       const ucanToken = spaceId ? getUcanForSpaceAsync(spaceId) : null
       if (!ucanToken) throw new Error('No valid UCAN token for this space')
+      const basePath = sourceShareId.value
+      const sub = sourceSubfolder.value.trim().replace(/^\/+|\/+$/g, '')
+      const path = sub ? `${basePath}/${sub}` : basePath
       return {
         endpointId: sourceDeviceEndpointId.value,
-        path: sourceShareId.value,
+        path,
         spaceId,
         ucanToken,
       }
@@ -505,6 +522,31 @@ const onBack = () => {
   }
 }
 
+// -- Toggle / Delete rule --
+const onToggleRuleAsync = async () => {
+  if (!props.editRule) return
+  try {
+    await fileSyncStore.toggleRuleAsync(props.editRule.id, !props.editRule.enabled)
+    addToast({ title: props.editRule.enabled ? t('success.paused') : t('success.resumed'), color: 'success' })
+    open.value = false
+    emit('updated')
+  } catch (error) {
+    addToast({ title: t('errors.createFailed'), description: error instanceof Error ? error.message : String(error), color: 'error' })
+  }
+}
+
+const onDeleteRuleAsync = async () => {
+  if (!props.editRule) return
+  try {
+    await fileSyncStore.deleteRuleAsync(props.editRule.id)
+    addToast({ title: t('success.deleted'), color: 'success' })
+    open.value = false
+    emit('deleted')
+  } catch (error) {
+    addToast({ title: t('errors.createFailed'), description: error instanceof Error ? error.message : String(error), color: 'error' })
+  }
+}
+
 // -- Save rule (create or update) --
 const onSaveAsync = async () => {
   if (!canCreate.value) return
@@ -565,6 +607,7 @@ const resetForm = () => {
   sourceSpaceId.value = ''
   sourceDeviceEndpointId.value = ''
   sourceShareId.value = ''
+  sourceSubfolder.value = ''
   sourceBackendId.value = ''
   sourcePrefix.value = ''
   targetType.value = 'local'
@@ -624,6 +667,16 @@ watch(open, async (isOpen) => {
     await peerStorageStore.loadSpaceDevicesAsync()
     if (props.editRule) {
       populateFromRule(props.editRule)
+    } else if (props.prefill) {
+      sourceType.value = props.prefill.sourceType
+      if (props.prefill.sourceType === 'local' && props.prefill.localPath) {
+        sourcePath.value = props.prefill.localPath
+      } else {
+        sourceSpaceId.value = props.prefill.spaceId
+        sourceDeviceEndpointId.value = props.prefill.deviceEndpointId
+        sourceShareId.value = props.prefill.shareName
+      }
+      step.value = 1 // Jump to target step
     }
   }
 })
@@ -651,6 +704,8 @@ de:
     space: Space
     device: Gerät
     share: Freigabe
+    subfolder: Unterordner (optional)
+    subfolderPlaceholder: z.B. Bilder/Urlaub
     backend: Storage-Backend
     prefix: Pfad-Präfix
   target:
@@ -691,9 +746,15 @@ de:
     next: Weiter
     create: Erstellen
     save: Speichern
+    pause: Pausieren
+    resume: Fortsetzen
+    delete: Löschen
   success:
     created: Sync-Regel erstellt
     updated: Sync-Regel aktualisiert
+    paused: Sync-Regel pausiert
+    resumed: Sync-Regel fortgesetzt
+    deleted: Sync-Regel gelöscht
   errors:
     createFailed: Sync-Regel konnte nicht erstellt werden
 en:
@@ -717,6 +778,8 @@ en:
     space: Space
     device: Device
     share: Share
+    subfolder: Subfolder (optional)
+    subfolderPlaceholder: e.g. Pictures/Vacation
     backend: Storage backend
     prefix: Path prefix
   target:
@@ -757,9 +820,15 @@ en:
     next: Next
     create: Create
     save: Save
+    pause: Pause
+    resume: Resume
+    delete: Delete
   success:
     created: Sync rule created
     updated: Sync rule updated
+    paused: Sync rule paused
+    resumed: Sync rule resumed
+    deleted: Sync rule deleted
   errors:
     createFailed: Failed to save sync rule
 </i18n>

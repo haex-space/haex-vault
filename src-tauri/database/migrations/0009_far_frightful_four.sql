@@ -1,0 +1,1 @@
+ALTER TABLE `haex_sync_rules` ADD `last_synced_at` integer;

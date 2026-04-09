@@ -122,7 +122,7 @@
                 <UContextMenu
                   v-for="(share, idx) in getSharesForDevice(space.id, store.nodeId)"
                   :key="share.id"
-                  :items="getShareContextMenuItems(share)"
+                  :items="getShareContextMenuItems(share, space.id)"
                 >
                   <div
                     class="group flex items-center justify-between gap-3 px-3 py-2 cursor-pointer hover:bg-primary/10 transition-colors"
@@ -136,13 +136,35 @@
                         <p class="text-xs text-muted truncate">{{ formatPath(share.localPath) }}</p>
                       </div>
                     </div>
-                    <UiButton
-                      color="error"
-                      variant="ghost"
-                      icon="i-lucide-trash-2"
-                      class="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                      @click.stop="onRemoveShareAsync(share.id)"
-                    />
+                    <div class="shrink-0 flex items-center">
+                      <UDropdownMenu
+                        :items="getSyncDropdownItems(space.id, share)"
+                      >
+                        <UiButton
+                          variant="ghost"
+                          color="primary"
+                          icon="i-lucide-refresh-cw"
+                          @click.stop
+                          class="opacity-0 group-hover:opacity-100 transition-opacity"
+                          :class="{ 'opacity-100!': getRulesForShare(share).length > 0 }"
+                        >
+                          <UBadge
+                            v-if="getRulesForShare(share).length > 0"
+                            :label="String(getRulesForShare(share).length)"
+                            color="primary"
+                            variant="subtle"
+                            size="sm"
+                          />
+                        </UiButton>
+                      </UDropdownMenu>
+                      <UiButton
+                        color="error"
+                        variant="ghost"
+                        icon="i-lucide-trash-2"
+                        class="opacity-0 group-hover:opacity-100 transition-opacity"
+                        @click.stop="onRemoveShareAsync(share.id)"
+                      />
+                    </div>
                   </div>
                 </UContextMenu>
               </div>
@@ -175,6 +197,26 @@
                       <p class="text-sm flex-1 truncate">{{ share.name }}</p>
                     </div>
                     <div class="shrink-0 flex items-center">
+                      <UDropdownMenu
+                        :items="getSyncDropdownItems(space.id, share)"
+                      >
+                        <UiButton
+                          variant="ghost"
+                          color="primary"
+                          icon="i-lucide-refresh-cw"
+                          @click.stop
+                          class="opacity-0 group-hover:opacity-100 transition-opacity"
+                          :class="{ 'opacity-100!': getRulesForShare(share).length > 0 }"
+                        >
+                          <UBadge
+                            v-if="getRulesForShare(share).length > 0"
+                            :label="String(getRulesForShare(share).length)"
+                            color="primary"
+                            variant="subtle"
+                            size="sm"
+                          />
+                        </UiButton>
+                      </UDropdownMenu>
                       <UiButton
                         v-if="canDeleteShare(space.id, share)"
                         color="error"
@@ -202,6 +244,14 @@
       </div>
     </UiListContainer>
 
+    <HaexSystemSettingsPeerStorageCreateSyncRuleDialog
+      v-model:open="showSyncDialog"
+      :prefill="syncPrefill"
+      :edit-rule="syncEditRule"
+      @created="onSyncDialogDone"
+      @updated="onSyncDialogDone"
+      @deleted="onSyncDialogDone"
+    />
   </HaexSystemSettingsLayout>
 </template>
 
@@ -210,7 +260,7 @@ import type { ContextMenuItem } from '@nuxt/ui'
 import { SettingsCategory } from '~/config/settingsCategories'
 import { and, eq, isNull } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
-import type { SelectHaexPeerShares } from '~/database/schemas'
+import type { SelectHaexPeerShares, SelectHaexSyncRules } from '~/database/schemas'
 import { haexVaultSettings } from '~/database/schemas'
 import { VaultSettingsKeyEnum } from '~/config/vault-settings'
 
@@ -221,6 +271,7 @@ const { add } = useToast()
 const { copy } = useClipboard()
 const store = usePeerStorageStore()
 const spacesStore = useSpacesStore()
+const syncStore = useFileSyncStore()
 const windowManager = useWindowManagerStore()
 const { currentVault } = storeToRefs(useVaultStore())
 
@@ -228,6 +279,33 @@ const isToggling = ref(false)
 const autostart = ref(false)
 const expandedSpaces = ref(new Set<string>())
 const spaceCapabilities = ref(new Map<string, string[]>())
+
+// -- Sync Rules per Share --
+const getRulesForShare = (share: SelectHaexPeerShares): SelectHaexSyncRules[] => {
+  return syncStore.syncRules.filter((rule) => {
+    const cfg = rule.sourceConfig as Record<string, unknown>
+    if (share.deviceEndpointId === store.nodeId) {
+      // Own device: match local path
+      return rule.sourceType === 'local' && cfg?.path === share.localPath
+    }
+    // Remote device: match peer endpointId + share name in path
+    return rule.sourceType === 'peer'
+      && cfg?.endpointId === share.deviceEndpointId
+      && typeof cfg?.path === 'string'
+      && (cfg.path as string).startsWith(share.name)
+  })
+}
+
+// Sync dialog state
+const showSyncDialog = ref(false)
+const syncPrefill = ref<{
+  sourceType: 'local' | 'peer'
+  spaceId: string
+  deviceEndpointId: string
+  shareName: string
+  localPath?: string
+} | null>(null)
+const syncEditRule = ref<SelectHaexSyncRules | null>(null)
 
 const onToggleSpace = (spaceId: string, open: boolean) => {
   const next = new Set(expandedSpaces.value)
@@ -275,6 +353,7 @@ onMounted(async () => {
   await store.refreshStatusAsync()
   await store.loadSharesAsync()
   await store.loadSpaceDevicesAsync()
+  await syncStore.loadRulesAsync()
 
   // Pre-load capabilities for all visible spaces
   for (const space of spacesStore.visibleSpaces) {
@@ -476,6 +555,13 @@ const copyEndpointId = async () => {
 
 const getShareContextMenuItems = (share: SelectHaexPeerShares, spaceId?: string) => {
   const items: ContextMenuItem[] = []
+  if (spaceId) {
+    items.push({
+      label: t('contextMenu.sync'),
+      icon: 'i-lucide-refresh-cw',
+      onSelect: () => onSyncShare(spaceId, share),
+    })
+  }
   if (!spaceId || canDeleteShare(spaceId, share)) {
     items.push({
       label: t('contextMenu.delete'),
@@ -485,6 +571,59 @@ const getShareContextMenuItems = (share: SelectHaexPeerShares, spaceId?: string)
     })
   }
   return items
+}
+
+const getSyncDropdownItems = (spaceId: string, share: SelectHaexPeerShares) => {
+  const rules = getRulesForShare(share)
+  const items: ContextMenuItem[][] = []
+
+  if (rules.length > 0) {
+    items.push(rules.map((rule) => {
+      const tgtCfg = rule.targetConfig as Record<string, unknown>
+      const targetLabel = rule.targetType === 'local'
+        ? ((tgtCfg?.path as string) || '').split(/[/\\]/).pop() || 'Local'
+        : rule.targetType === 'cloud'
+          ? `S3:${(tgtCfg?.prefix as string) || '/'}`
+          : 'Peer'
+      return {
+        label: `→ ${targetLabel}`,
+        icon: rule.enabled ? 'i-lucide-circle-check' : 'i-lucide-circle-pause',
+        onSelect: () => onEditRule(rule),
+      }
+    }))
+  }
+
+  items.push([{
+    label: t('syncDropdown.createNew'),
+    icon: 'i-lucide-plus',
+    onSelect: () => onCreateSyncRule(spaceId, share),
+  }])
+
+  return items
+}
+
+const onCreateSyncRule = (spaceId: string, share: SelectHaexPeerShares) => {
+  const isOwnDevice = share.deviceEndpointId === store.nodeId
+  syncEditRule.value = null
+  syncPrefill.value = {
+    sourceType: isOwnDevice ? 'local' : 'peer',
+    spaceId,
+    deviceEndpointId: share.deviceEndpointId,
+    shareName: share.name,
+    localPath: isOwnDevice ? share.localPath : undefined,
+  }
+  showSyncDialog.value = true
+}
+
+const onEditRule = (rule: SelectHaexSyncRules) => {
+  syncPrefill.value = null
+  syncEditRule.value = rule
+  showSyncDialog.value = true
+}
+
+const onSyncDialogDone = async () => {
+  showSyncDialog.value = false
+  await syncStore.loadRulesAsync()
 }
 
 const onRemoveShareAsync = async (shareId: string) => {
@@ -518,7 +657,10 @@ de:
   emptySpace: Noch keine Ordner oder Dateien geteilt
   thisDevice: Dieses Gerät
   error: Fehler
+  syncDropdown:
+    createNew: Neue Sync-Regel erstellen
   contextMenu:
+    sync: Ordner syncen
     delete: Freigabe entfernen
   toast:
     copied: Endpoint-ID kopiert
@@ -542,7 +684,10 @@ en:
   emptySpace: No folders or files shared yet
   thisDevice: This device
   error: Error
+  syncDropdown:
+    createNew: Create new sync rule
   contextMenu:
+    sync: Sync folder
     delete: Remove share
   toast:
     copied: Endpoint ID copied

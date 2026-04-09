@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { eq } from 'drizzle-orm'
 import { haexSyncRules, haexSyncState, type SelectHaexSyncRules } from '~/database/schemas'
+import { subscribeToSyncUpdates, unsubscribeFromSyncUpdates } from '~/stores/sync/syncEvents'
 
 interface SyncRuleStatus {
   ruleId: string
@@ -32,6 +33,8 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
   const syncStatuses = ref<Map<string, SyncRuleStatus>>(new Map())
   const lastResults = ref<Map<string, SyncResult>>(new Map())
   const currentProgress = ref<Map<string, SyncProgress>>(new Map())
+  // Track lastSyncedAt per rule to detect remote changes
+  const knownSyncTimestamps = new Map<string, number | null>()
 
   // =========================================================================
   // CRUD operations via Drizzle
@@ -41,6 +44,12 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
     const db = currentVault.value?.drizzle
     if (!db) return
     syncRules.value = await db.select().from(haexSyncRules).all()
+    // Seed the timestamp cache so we only trigger on actual changes
+    for (const rule of syncRules.value) {
+      if (!knownSyncTimestamps.has(rule.id)) {
+        knownSyncTimestamps.set(rule.id, rule.lastSyncedAt ?? null)
+      }
+    }
   }
 
   const createRuleAsync = async (rule: typeof haexSyncRules.$inferInsert) => {
@@ -48,6 +57,11 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
     if (!db) throw new Error('No vault open')
     await db.insert(haexSyncRules).values(rule)
     await loadRulesAsync()
+    // Start sync immediately
+    const created = syncRules.value.find(r => r.id === rule.id)
+    if (created?.enabled) {
+      await startRuleAsync(created)
+    }
   }
 
   const updateRuleAsync = async (id: string, updates: Partial<typeof haexSyncRules.$inferInsert>) => {
@@ -85,12 +99,13 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
   // =========================================================================
 
   const startRuleAsync = async (rule: SelectHaexSyncRules) => {
+    console.log(`[FileSync] Starting rule ${rule.id}: ${rule.sourceType} → ${rule.targetType}, interval=${rule.syncIntervalSeconds}s`)
     await invoke('file_sync_start_rule', {
       ruleId: rule.id,
       sourceType: rule.sourceType,
-      sourceConfig: rule.sourceConfig,
+      sourceConfig: typeof rule.sourceConfig === 'string' ? JSON.parse(rule.sourceConfig) : rule.sourceConfig,
       targetType: rule.targetType,
-      targetConfig: rule.targetConfig,
+      targetConfig: typeof rule.targetConfig === 'string' ? JSON.parse(rule.targetConfig) : rule.targetConfig,
       direction: rule.direction,
       deleteMode: rule.deleteMode,
       intervalSeconds: rule.syncIntervalSeconds,
@@ -103,9 +118,9 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
     const result = await invoke<SyncResult>('file_sync_trigger_now', {
       ruleId: rule.id,
       sourceType: rule.sourceType,
-      sourceConfig: rule.sourceConfig,
+      sourceConfig: typeof rule.sourceConfig === 'string' ? JSON.parse(rule.sourceConfig) : rule.sourceConfig,
       targetType: rule.targetType,
-      targetConfig: rule.targetConfig,
+      targetConfig: typeof rule.targetConfig === 'string' ? JSON.parse(rule.targetConfig) : rule.targetConfig,
       direction: rule.direction,
       deleteMode: rule.deleteMode,
     })
@@ -157,12 +172,34 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
       currentProgress.value.delete(event.payload.ruleId)
       currentProgress.value = new Map(currentProgress.value)
     })
+
+    // Subscribe to CRDT changes on sync_rules table.
+    // When a remote device syncs and updates lastSyncedAt, trigger only affected rules.
+    subscribeToSyncUpdates('file-sync', ['haex_sync_rules'], async () => {
+      const previousRules = [...syncRules.value]
+      await loadRulesAsync()
+
+      for (const rule of syncRules.value) {
+        const knownTimestamp = knownSyncTimestamps.get(rule.id)
+        const currentTimestamp = rule.lastSyncedAt
+        if (currentTimestamp && currentTimestamp !== knownTimestamp) {
+          knownSyncTimestamps.set(rule.id, currentTimestamp)
+          console.log(`[FileSync] Remote sync detected for rule ${rule.id}, triggering local sync`)
+          try {
+            await invoke('file_sync_trigger_by_watcher', { ruleId: rule.id })
+          } catch {
+            // Rule might not be running locally — that's fine
+          }
+        }
+      }
+    })
   }
 
   const cleanupEventListeners = () => {
     unlistenProgress?.()
     unlistenComplete?.()
     unlistenError?.()
+    unsubscribeFromSyncUpdates('file-sync')
   }
 
   // =========================================================================

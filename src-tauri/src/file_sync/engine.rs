@@ -454,6 +454,31 @@ fn make_conflict_path(relative_path: &str, timestamp: i64) -> String {
 }
 
 // ---------------------------------------------------------------------------
+// Update lastSyncedAt via CRDT (propagates to other devices)
+// ---------------------------------------------------------------------------
+
+fn update_last_synced_at(app: &tauri::AppHandle, rule_id: &str) {
+    use tauri::Manager;
+    let state = app.state::<crate::AppState>();
+    let hlc = state.hlc.lock().unwrap();
+    let now = unix_now();
+
+    let sql = "UPDATE haex_sync_rules SET last_synced_at = ?1 WHERE id = ?2".to_string();
+    let params = vec![
+        JsonValue::Number(serde_json::Number::from(now)),
+        JsonValue::String(rule_id.to_string()),
+    ];
+
+    if let Err(e) = crate::database::core::execute_with_crdt(sql, params, &state.db, &hlc) {
+        eprintln!("[FileSyncEngine] Failed to update lastSyncedAt for rule {rule_id}: {e}");
+    }
+
+    // Notify frontend that CRDT dirty tables changed (triggers sync push)
+    use tauri::Emitter;
+    let _ = app.emit(crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
+}
+
+// ---------------------------------------------------------------------------
 // Event emission
 // ---------------------------------------------------------------------------
 
@@ -465,6 +490,7 @@ fn emit_sync_result(
     use tauri::Emitter;
     match result {
         Ok(r) => {
+            update_last_synced_at(app, rule_id);
             let _ = app.emit(
                 "file-sync:complete",
                 serde_json::json!({ "ruleId": rule_id, "result": r }),
@@ -500,6 +526,7 @@ pub async fn run_sync_loop(
     app_handle: tauri::AppHandle,
 ) {
     // Run initial sync immediately
+    eprintln!("[FileSyncEngine] Rule {} initial sync starting", rule_id);
     let result = execute_sync(
         &*source,
         &*target,
@@ -510,7 +537,11 @@ pub async fn run_sync_loop(
         Some(&app_handle),
     )
     .await;
+    eprintln!("[FileSyncEngine] Rule {} initial sync done: {:?}", rule_id, result.as_ref().map(|r| r.files_downloaded));
     emit_sync_result(&app_handle, &rule_id, &result);
+
+    // Manual mode (interval = 0): only sync on trigger, no periodic timer
+    let use_timer = !interval.is_zero();
 
     loop {
         tokio::select! {
@@ -518,7 +549,7 @@ pub async fn run_sync_loop(
                 eprintln!("[FileSyncEngine] Rule {} cancelled", rule_id);
                 break;
             }
-            _ = tokio::time::sleep(interval) => {
+            _ = tokio::time::sleep(interval), if use_timer => {
                 let result = execute_sync(
                     &*source,
                     &*target,

@@ -451,6 +451,7 @@
         "enabled": "enabled",
         "syncIntervalSeconds": "sync_interval_seconds",
         "deleteMode": "delete_mode",
+        "lastSyncedAt": "last_synced_at",
         "createdAt": "created_at"
       }
     },

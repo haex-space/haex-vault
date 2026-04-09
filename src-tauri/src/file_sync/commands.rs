@@ -243,6 +243,8 @@ pub async fn file_sync_start_rule(
     delete_mode: String,
     interval_seconds: u64,
 ) -> Result<(), FileSyncCommandError> {
+    eprintln!("[FileSync] Starting rule {rule_id}: {source_type} → {target_type}, interval={interval_seconds}s");
+
     let dir = parse_direction(&direction)?;
     let del = parse_delete_mode(&delete_mode)?;
 
@@ -252,8 +254,10 @@ pub async fn file_sync_start_rule(
         manager.stop(&rule_id);
     }
 
-    let source = create_provider(&source_type, &source_config, &state).await?;
-    let target = create_provider(&target_type, &target_config, &state).await?;
+    let source = create_provider(&source_type, &source_config, &state).await
+        .inspect_err(|e| eprintln!("[FileSync] Failed to create source provider: {e}"))?;
+    let target = create_provider(&target_type, &target_config, &state).await
+        .inspect_err(|e| eprintln!("[FileSync] Failed to create target provider: {e}"))?;
 
     let cancel = CancellationToken::new();
     let (trigger_sender, trigger_receiver) = tokio::sync::mpsc::channel::<()>(16);
@@ -263,24 +267,23 @@ pub async fn file_sync_start_rule(
     // Register before spawning so status queries see it immediately
     {
         let mut manager = state.sync_manager.lock().await;
-        manager.register(rule_id.clone(), cancel.clone(), trigger_sender);
+        manager.register(rule_id.clone(), cancel.clone(), trigger_sender.clone());
     }
 
-    // Start file watcher for local providers
+    // Start file watcher for local providers — directly triggers sync loop
     if target_type == "local" {
         if let Some(path) = target_config.get("path").and_then(|v| v.as_str()) {
             let _ = state
                 .file_watcher
-                .watch(app.clone(), rule_id.clone(), path.to_string());
+                .watch(app.clone(), rule_id.clone(), path.to_string(), Some(trigger_sender.clone()));
         }
     }
     if source_type == "local" {
         if let Some(path) = source_config.get("path").and_then(|v| v.as_str()) {
-            // Use a prefixed key to avoid collision with the target watcher for the same rule
             let watcher_key = format!("{}_source", rule_id);
             let _ = state
                 .file_watcher
-                .watch(app.clone(), watcher_key, path.to_string());
+                .watch(app.clone(), watcher_key, path.to_string(), Some(trigger_sender.clone()));
         }
     }
 
