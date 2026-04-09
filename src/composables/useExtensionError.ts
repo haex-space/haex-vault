@@ -14,9 +14,11 @@ export function isSerializedExtensionError(error: unknown): error is SerializedE
 }
 
 /**
- * Extract error message from unknown error type
+ * Extract error message from unknown error type.
+ * Not exported standalone to avoid duplicate auto-import with utils/errors.ts.
+ * Use via useExtensionError() composable or import from ~/utils/errors.
  */
-export function getErrorMessage(error: unknown): string {
+function getErrorMessage(error: unknown): string {
   if (isSerializedExtensionError(error)) {
     return error.message
   }
