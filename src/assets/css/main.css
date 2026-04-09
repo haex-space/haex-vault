@@ -70,6 +70,39 @@
   pointer-events: none !important;
 }
 
+/* Settings navigation transitions */
+.settings-fade-enter-active,
+.settings-fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+.settings-fade-enter-from,
+.settings-fade-leave-to {
+  opacity: 0;
+}
+
+.slide-forward-enter-active,
+.slide-forward-leave-active,
+.slide-back-enter-active,
+.slide-back-leave-active {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.slide-forward-enter-from {
+  transform: translateX(40px);
+  opacity: 0;
+}
+.slide-forward-leave-to {
+  transform: translateX(-40px);
+  opacity: 0;
+}
+.slide-back-enter-from {
+  transform: translateX(-40px);
+  opacity: 0;
+}
+.slide-back-leave-to {
+  transform: translateX(40px);
+  opacity: 0;
+}
+
 /* Tour popover: larger buttons and controls */
 .haex-tour-popover .driver-popover-footer button,
 .haex-tour-popover .driver-popover-close-btn {

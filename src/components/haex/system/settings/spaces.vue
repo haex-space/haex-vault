@@ -1,8 +1,9 @@
 <template>
-  <div class="h-full">
-    <!-- Detail view -->
-    <SpaceDetail
-      v-if="activeView === 'detail' && selectedSpaceId"
+  <Transition :name="direction === 'back' ? 'slide-back' : 'slide-forward'" mode="out-in">
+    <div :key="activeView" class="h-full">
+      <!-- Detail view -->
+      <SpaceDetail
+        v-if="activeView === 'detail' && selectedSpaceId"
       :space-id="selectedSpaceId"
       @back="goBack"
       @invite-contact="openInviteDialog($event, 'contact')"
@@ -275,7 +276,8 @@
       :description="t('leave.description')"
       @confirm="onConfirmLeaveAsync"
     />
-  </div>
+    </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
@@ -306,7 +308,7 @@ const { t } = useI18n()
 const { add } = useToast()
 
 const tabId = inject<string>('haex-tab-id')!
-const { activeView, navigationContext, navigateTo, goBack } = useDrillDownNavigation<'index' | 'detail'>('index', 'spaces', tabId)
+const { activeView, navigationContext, direction, navigateTo, goBack } = useDrillDownNavigation<'index' | 'detail'>('index', 'spaces', tabId)
 const selectedSpaceId = computed(() => navigationContext.value.spaceId as string | null)
 
 const openSpaceDetail = (space: SpaceWithType) => {

@@ -1,20 +1,22 @@
 <template>
-  <div class="h-full">
-    <HaexSystemSettingsDevicesCurrent v-if="activeView === 'current'" @back="goBack" />
-    <HaexSystemSettingsDevicesOthers v-else-if="activeView === 'others'" @back="goBack" />
-    <HaexSystemSettingsLayout v-else :title="t('title')" :description="t('description')">
-      <div class="space-y-1">
-        <HaexSystemSettingsLayoutMenuItem :label="t('menu.current')" :description="t('menu.currentDesc')" icon="i-lucide-monitor" @click="navigateTo('current')" />
-        <HaexSystemSettingsLayoutMenuItem :label="t('menu.others')" :description="t('menu.othersDesc')" icon="i-lucide-smartphone" @click="navigateTo('others')" />
-      </div>
-    </HaexSystemSettingsLayout>
-  </div>
+  <Transition :name="direction === 'back' ? 'slide-back' : 'slide-forward'" mode="out-in">
+    <div :key="activeView" class="h-full">
+      <HaexSystemSettingsDevicesCurrent v-if="activeView === 'current'" @back="goBack" />
+      <HaexSystemSettingsDevicesOthers v-else-if="activeView === 'others'" @back="goBack" />
+      <HaexSystemSettingsLayout v-else :title="t('title')" :description="t('description')">
+        <div class="space-y-1">
+          <HaexSystemSettingsLayoutMenuItem :label="t('menu.current')" :description="t('menu.currentDesc')" icon="i-lucide-monitor" @click="navigateTo('current')" />
+          <HaexSystemSettingsLayoutMenuItem :label="t('menu.others')" :description="t('menu.othersDesc')" icon="i-lucide-smartphone" @click="navigateTo('others')" />
+        </div>
+      </HaexSystemSettingsLayout>
+    </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
 const { t } = useI18n()
 const tabId = inject<string>('haex-tab-id')!
-const { activeView, navigateTo, goBack } = useDrillDownNavigation<'index' | 'current' | 'others'>('index', 'devices', tabId)
+const { activeView, direction, navigateTo, goBack } = useDrillDownNavigation<'index' | 'current' | 'others'>('index', 'devices', tabId)
 </script>
 
 <i18n lang="yaml">

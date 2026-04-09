@@ -1,33 +1,35 @@
 <template>
-  <div class="h-full">
-    <!-- Subviews -->
-    <HaexSystemSettingsGeneralBasic v-if="activeView === 'basic'" @back="goBack" />
-    <HaexSystemSettingsGeneralAppearance v-else-if="activeView === 'appearance'" @back="goBack" />
+  <Transition :name="direction === 'back' ? 'slide-back' : 'slide-forward'" mode="out-in">
+    <div :key="activeView" class="h-full">
+      <!-- Subviews -->
+      <HaexSystemSettingsGeneralBasic v-if="activeView === 'basic'" @back="goBack" />
+      <HaexSystemSettingsGeneralAppearance v-else-if="activeView === 'appearance'" @back="goBack" />
 
-    <!-- Index / Menu -->
-    <HaexSystemSettingsLayout v-else :title="t('title')">
-      <div class="space-y-1">
-        <HaexSystemSettingsLayoutMenuItem
-          :label="t('menu.basic')"
-          :description="t('menu.basicDesc')"
-          icon="i-lucide-settings"
-          @click="navigateTo('basic')"
-        />
-        <HaexSystemSettingsLayoutMenuItem
-          :label="t('menu.appearance')"
-          :description="t('menu.appearanceDesc')"
-          icon="i-lucide-palette"
-          @click="navigateTo('appearance')"
-        />
-      </div>
-    </HaexSystemSettingsLayout>
-  </div>
+      <!-- Index / Menu -->
+      <HaexSystemSettingsLayout v-else :title="t('title')">
+        <div class="space-y-1">
+          <HaexSystemSettingsLayoutMenuItem
+            :label="t('menu.basic')"
+            :description="t('menu.basicDesc')"
+            icon="i-lucide-settings"
+            @click="navigateTo('basic')"
+          />
+          <HaexSystemSettingsLayoutMenuItem
+            :label="t('menu.appearance')"
+            :description="t('menu.appearanceDesc')"
+            icon="i-lucide-palette"
+            @click="navigateTo('appearance')"
+          />
+        </div>
+      </HaexSystemSettingsLayout>
+    </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
 const { t } = useI18n()
 const tabId = inject<string>('haex-tab-id')!
-const { activeView, navigateTo, goBack } = useDrillDownNavigation<'index' | 'basic' | 'appearance'>('index', 'general', tabId)
+const { activeView, direction, navigateTo, goBack } = useDrillDownNavigation<'index' | 'basic' | 'appearance'>('index', 'general', tabId)
 </script>
 
 <i18n lang="yaml">
