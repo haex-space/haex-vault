@@ -128,21 +128,27 @@ async fn handle_stream(
             space_endpoints,
             origin_url,
             expires_at: _,
-        } => push_invite::handle_push_invite(
-            db,
-            hlc,
-            app_handle,
-            &space_id,
-            &space_name,
-            &space_type,
-            &token_id,
-            &capabilities,
-            include_history,
-            &inviter_did,
-            inviter_label.as_deref(),
-            &space_endpoints,
-            origin_url.as_deref(),
-        ),
+        } => {
+            crate::logging::log_to_db(db, hlc, "info", "MultiLeader", &format!(
+                "PushInvite received from {peer_endpoint_id} → space={} inviter={}",
+                &space_id[..8.min(space_id.len())], &inviter_did[..24.min(inviter_did.len())]
+            ));
+            push_invite::handle_push_invite(
+                db,
+                hlc,
+                app_handle,
+                &space_id,
+                &space_name,
+                &space_type,
+                &token_id,
+                &capabilities,
+                include_history,
+                &inviter_did,
+                inviter_label.as_deref(),
+                &space_endpoints,
+                origin_url.as_deref(),
+            )
+        }
 
         // ClaimInvite — look up the leader for the space
         Request::ClaimInvite { ref space_id, .. } => {

@@ -188,7 +188,7 @@ export function useInviteOutbox() {
       const spaceEndpoints = devices.map(d => d.deviceEndpointId)
 
       try {
-        log.info(`Outbox ${entry.id}: SENDING PushInvite to ${entry.targetEndpointId.slice(0, 12)}… (space=${space.name}, endpoints=${spaceEndpoints.length})`)
+        log.info(`Outbox ${entry.id}: SENDING PushInvite → target=${entry.targetEndpointId.slice(0, 16)}… space="${space.name}" (${space.type}) inviter=${inviterIdentity.did.slice(0, 24)}… endpoints=[${spaceEndpoints.map(e => e.slice(0, 12)).join(',')}] caps=[${capabilities.join(',')}] retry=${entry.retryCount}`)
 
         const accepted = await invoke<boolean>('local_delivery_push_invite', {
           targetEndpointId: entry.targetEndpointId,
@@ -210,9 +210,9 @@ export function useInviteOutbox() {
             .update(haexInviteOutbox)
             .set({ status: OutboxStatus.DELIVERED })
             .where(eq(haexInviteOutbox.id, entry.id))
-          log.info(`Outbox ${entry.id}: DELIVERED successfully (accepted=${accepted})`)
+          log.info(`Outbox ${entry.id}: DELIVERED ✓ (target=${entry.targetEndpointId.slice(0, 16)}…)`)
         } else {
-          log.warn(`Outbox ${entry.id}: PushInvite returned accepted=false`)
+          log.warn(`Outbox ${entry.id}: PushInvite rejected (accepted=false, target=${entry.targetEndpointId.slice(0, 16)}…)`)
         }
       } catch (error) {
         const nextCount = entry.retryCount + 1
@@ -227,7 +227,7 @@ export function useInviteOutbox() {
           })
           .where(eq(haexInviteOutbox.id, entry.id))
 
-        log.warn(`Outbox ${entry.id}: FAILED retry #${nextCount}, next at ${nextRetry}: ${error}`)
+        log.warn(`Outbox ${entry.id}: FAILED → target=${entry.targetEndpointId.slice(0, 16)}… retry=${nextCount}/${BACKOFF_SECONDS.length} next=${nextRetry} error="${error}"`)
       }
     }
   }

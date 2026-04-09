@@ -553,8 +553,15 @@ pub async fn local_delivery_push_invite(
     origin_url: Option<String>,
     expires_at: String,
 ) -> Result<bool, String> {
+    let log = |level: &str, msg: &str| {
+        let _ = crate::logging::insert_log(&state, level, "PushInvite-Send", None, msg, None, "rust");
+    };
+
+    log("info", &format!("Sending → target={} space={} token={}", &target_endpoint_id[..16.min(target_endpoint_id.len())], &space_id[..8.min(space_id.len())], &token_id[..8.min(token_id.len())]));
+
     let endpoint = state.peer_storage.lock().await;
     if !endpoint.is_running() {
+        log("error", "ABORT: peer endpoint not running");
         return Err("Peer endpoint not running".to_string());
     }
     let iroh_endpoint = endpoint
@@ -572,20 +579,35 @@ pub async fn local_delivery_push_invite(
     // Falls back to the live relay from endpoint.addr() if available.
     let relay = configured_relay
         .or_else(|| iroh_endpoint.addr().relay_urls().next().cloned());
+    let has_relay = relay.is_some();
     let addr = match relay {
-        Some(url) => iroh::EndpointAddr::new(remote_id).with_relay_url(url),
-        None => iroh::EndpointAddr::new(remote_id),
+        Some(url) => {
+            log("info", &format!("Connecting via relay: {url}"));
+            iroh::EndpointAddr::new(remote_id).with_relay_url(url)
+        }
+        None => {
+            log("warn", "Connecting without relay (mDNS only)");
+            iroh::EndpointAddr::new(remote_id)
+        }
     };
 
+    log("info", &format!("Connecting to {remote_id} (relay={has_relay})"));
     let conn = iroh_endpoint
         .connect(addr, super::protocol::ALPN)
         .await
-        .map_err(|e| format!("Failed to connect: {e}"))?;
+        .map_err(|e| {
+            log("error", &format!("Connection FAILED: {e}"));
+            format!("Failed to connect: {e}")
+        })?;
+    log("info", "Connected, opening bi-stream");
 
     let (mut send, mut recv) = conn
         .open_bi()
         .await
-        .map_err(|e| format!("Failed to open stream: {e}"))?;
+        .map_err(|e| {
+            log("error", &format!("Open bi-stream FAILED: {e}"));
+            format!("Failed to open stream: {e}")
+        })?;
 
     let request = super::protocol::Request::PushInvite {
         space_id,
@@ -608,16 +630,29 @@ pub async fn local_delivery_push_invite(
         .map_err(|e| format!("Send error: {e}"))?;
     send.finish()
         .map_err(|e| format!("Finish error: {e}"))?;
+    log("info", "Request sent, awaiting response");
 
     let response = super::protocol::read_response(&mut recv)
         .await
-        .map_err(|e| format!("Read response error: {e}"))?;
+        .map_err(|e| {
+            log("error", &format!("Read response FAILED: {e}"));
+            format!("Read response error: {e}")
+        })?;
 
     conn.close(0u32.into(), b"done");
 
-    match response {
-        super::protocol::Response::PushInviteAck { accepted } => Ok(accepted),
-        super::protocol::Response::Error { message } => Err(format!("Remote error: {message}")),
-        _ => Err("Unexpected response".to_string()),
+    match &response {
+        super::protocol::Response::PushInviteAck { accepted } => {
+            log("info", &format!("Response: accepted={accepted}"));
+            Ok(*accepted)
+        }
+        super::protocol::Response::Error { message } => {
+            log("error", &format!("Response: remote error={message}"));
+            Err(format!("Remote error: {message}"))
+        }
+        _ => {
+            log("error", "Response: unexpected variant");
+            Err("Unexpected response".to_string())
+        }
     }
 }
