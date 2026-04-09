@@ -71,6 +71,7 @@ impl MlsManager {
         let group_id = GroupId::from_slice(space_id.as_bytes());
         let group_config = MlsGroupCreateConfig::builder()
             .ciphersuite(CIPHERSUITE)
+            .use_ratchet_tree_extension(true)
             .build();
 
         let group = MlsGroup::new_with_group_id(
@@ -244,7 +245,9 @@ impl MlsManager {
             _ => return Err("Expected Welcome message but got a different MLS message type".to_string()),
         };
 
-        let group_config = MlsGroupJoinConfig::default();
+        let group_config = MlsGroupJoinConfig::builder()
+            .use_ratchet_tree_extension(true)
+            .build();
 
         let group = StagedWelcome::new_from_welcome(&self.provider, &group_config, welcome, None)
             .map_err(|e| format!("Failed to stage welcome: {e}"))?
