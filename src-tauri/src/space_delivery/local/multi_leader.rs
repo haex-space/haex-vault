@@ -152,14 +152,27 @@ async fn handle_stream(
 
         // ClaimInvite — look up the leader for the space
         Request::ClaimInvite { ref space_id, .. } => {
+            crate::logging::log_to_db(db, hlc, "info", "MultiLeader", &format!(
+                "ClaimInvite received from {peer_endpoint_id} for space {}",
+                &space_id[..8.min(space_id.len())]
+            ));
             let map = leaders.read().await;
+            let active_spaces: Vec<String> = map.keys().map(|k| k[..8.min(k.len())].to_string()).collect();
             match map.get(space_id.as_str()) {
                 Some(leader) => {
+                    crate::logging::log_to_db(db, hlc, "info", "MultiLeader", &format!(
+                        "Routing ClaimInvite to leader for space {}", &space_id[..8.min(space_id.len())]
+                    ));
                     super::leader::handle_claim_invite(leader, request).await
                 }
-                None => Response::Error {
-                    message: format!("No leader active for space {space_id}"),
-                },
+                None => {
+                    crate::logging::log_to_db(db, hlc, "error", "MultiLeader", &format!(
+                        "No leader active for space {} (active: {:?})", space_id, active_spaces
+                    ));
+                    Response::Error {
+                        message: format!("No leader active for space {space_id}"),
+                    }
+                }
             }
         }
 

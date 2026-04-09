@@ -386,9 +386,16 @@ pub async fn local_delivery_claim_invite(
     label: Option<String>,
     identity_public_key: Option<String>,
 ) -> Result<ClaimInviteResult, String> {
+    let log = |level: &str, msg: &str| {
+        let _ = crate::logging::insert_log(&state, level, "ClaimInvite", None, msg, None, "rust");
+    };
+
+    log("info", &format!("Starting claim: leader={} space={} token={}", &leader_endpoint_id[..16.min(leader_endpoint_id.len())], &space_id[..8.min(space_id.len())], &token_id[..8.min(token_id.len())]));
+
     // 1. Get iroh endpoint
     let endpoint = state.peer_storage.lock().await;
     if !endpoint.is_running() {
+        log("error", "ABORT: peer endpoint not running");
         return Err("Peer storage endpoint not running".to_string());
     }
     let our_endpoint_id = endpoint.endpoint_id().to_string();
@@ -403,8 +410,12 @@ pub async fn local_delivery_claim_invite(
     let mls_manager = crate::mls::manager::MlsManager::new(state.db.0.clone());
     let key_packages_raw = mls_manager
         .generate_key_packages(10)
-        .map_err(|e| format!("Failed to generate key packages: {e}"))?;
+        .map_err(|e| {
+            log("error", &format!("MLS KeyPackage generation failed: {e}"));
+            format!("Failed to generate key packages: {e}")
+        })?;
     let key_packages_b64: Vec<String> = key_packages_raw.iter().map(|p| BASE64.encode(p)).collect();
+    log("info", &format!("Generated {} MLS KeyPackages", key_packages_b64.len()));
 
     // 3. Connect to leader via QUIC and send ClaimInvite
     let remote_id: iroh::EndpointId = leader_endpoint_id
@@ -418,12 +429,7 @@ pub async fn local_delivery_claim_invite(
         .or(configured_relay)
         .or_else(|| iroh_endpoint.addr().relay_urls().next().cloned());
 
-    eprintln!(
-        "[SpaceDelivery] ClaimInvite: connecting to {} via relay {:?} (our endpoint: {})",
-        &leader_endpoint_id[..16.min(leader_endpoint_id.len())],
-        relay.as_ref().map(|u| u.to_string()),
-        &our_endpoint_id[..16.min(our_endpoint_id.len())],
-    );
+    log("info", &format!("Connecting to {} via relay {:?}", &leader_endpoint_id[..16.min(leader_endpoint_id.len())], relay.as_ref().map(|u| u.to_string())));
 
     let addr = match relay {
         Some(url) => iroh::EndpointAddr::new(remote_id).with_relay_url(url),
@@ -435,16 +441,24 @@ pub async fn local_delivery_claim_invite(
         iroh_endpoint.connect(addr, super::protocol::ALPN),
     )
     .await
-    .map_err(|_| format!(
-        "ClaimInvite connect timeout (10s) to {}",
-        &leader_endpoint_id[..16.min(leader_endpoint_id.len())]
-    ))?
-    .map_err(|e| format!("Failed to connect to leader: {e}"))?;
+    .map_err(|_| {
+        let msg = format!("ClaimInvite connect timeout (10s) to {}", &leader_endpoint_id[..16.min(leader_endpoint_id.len())]);
+        log("error", &msg);
+        msg
+    })?
+    .map_err(|e| {
+        log("error", &format!("Connection failed: {e}"));
+        format!("Failed to connect to leader: {e}")
+    })?;
+    log("info", "Connected, opening bi-stream");
 
     let (mut send, mut recv) = conn
         .open_bi()
         .await
-        .map_err(|e| format!("Failed to open stream: {e}"))?;
+        .map_err(|e| {
+            log("error", &format!("Open bi-stream failed: {e}"));
+            format!("Failed to open stream: {e}")
+        })?;
 
     let req = Request::ClaimInvite {
         space_id: space_id.clone(),
@@ -463,9 +477,13 @@ pub async fn local_delivery_claim_invite(
     send.finish()
         .map_err(|e| format!("Failed to finish send: {e}"))?;
 
+    log("info", "Request sent, awaiting response");
     let response = super::protocol::read_response(&mut recv)
         .await
-        .map_err(|e| format!("Failed to read response: {e}"))?;
+        .map_err(|e| {
+            log("error", &format!("Read response failed: {e}"));
+            format!("Failed to read response: {e}")
+        })?;
 
     conn.close(0u32.into(), b"done");
 
@@ -475,9 +493,18 @@ pub async fn local_delivery_claim_invite(
             welcome,
             ucan,
             capability,
-        } => (welcome, ucan, capability),
-        Response::Error { message } => return Err(format!("Leader rejected invite: {message}")),
-        _ => return Err("Unexpected response from leader".to_string()),
+        } => {
+            log("info", &format!("Invite claimed successfully, capability={capability}"));
+            (welcome, ucan, capability)
+        }
+        Response::Error { message } => {
+            log("error", &format!("Leader rejected: {message}"));
+            return Err(format!("Leader rejected invite: {message}"));
+        }
+        _ => {
+            log("error", "Unexpected response variant from leader");
+            return Err("Unexpected response from leader".to_string());
+        }
     };
 
     // 5. Process MLS welcome (creates the local group from the Welcome message)
