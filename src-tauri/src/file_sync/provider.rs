@@ -69,27 +69,8 @@ pub trait SyncProvider: Send + Sync {
 /// Validate a relative path against path traversal attacks.
 /// Call this at the start of every `SyncProvider` method that takes a path.
 pub fn validate_relative_path(path: &str) -> Result<(), SyncProviderError> {
-    if path.is_empty() {
-        return Err(SyncProviderError::PathTraversal { path: path.to_string() });
-    }
-    if path.contains('\0') {
-        return Err(SyncProviderError::PathTraversal { path: path.to_string() });
-    }
-    let p = std::path::Path::new(path);
-    if p.is_absolute() {
-        return Err(SyncProviderError::PathTraversal { path: path.to_string() });
-    }
-    for component in p.components() {
-        match component {
-            std::path::Component::ParentDir
-            | std::path::Component::RootDir
-            | std::path::Component::Prefix(_) => {
-                return Err(SyncProviderError::PathTraversal { path: path.to_string() });
-            }
-            _ => {}
-        }
-    }
-    Ok(())
+    crate::filesystem::check_relative_path(path)
+        .map_err(|_| SyncProviderError::PathTraversal { path: path.to_string() })
 }
 
 #[cfg(test)]

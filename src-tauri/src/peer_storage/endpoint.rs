@@ -1001,9 +1001,10 @@ fn resolve_path_filtered(
 ) -> Result<PathBuf, Response> {
     let (share, sub_path) = find_share_and_subpath(shares, allowed_spaces, request_path)?;
 
+    crate::filesystem::check_relative_path(&sub_path).map_err(|message| Response::Error { message })?;
+
     let full_path = PathBuf::from(&share.local_path).join(&sub_path);
 
-    // Prevent path traversal
     let canonical = full_path.canonicalize().map_err(|_| Response::Error {
         message: "Path not found".to_string(),
     })?;
@@ -1381,6 +1382,8 @@ fn resolve_content_uri_subpath(
 ) -> Result<(tauri_plugin_android_fs::FileUri, bool), String> {
     use tauri_plugin_android_fs::{AndroidFsExt, FileUri};
 
+    crate::filesystem::reject_path_traversal(sub_path)?;
+
     let api = app_handle.android_fs();
     let root = FileUri::from_json_str(root_uri_json)
         .map_err(|e| format!("Invalid Content URI: {e:?}"))?;
@@ -1707,7 +1710,7 @@ async fn handle_write_content_uri(
             .map_err(|e| format!("Failed to resolve parent: {e}"))?;
 
         // Create file in parent directory
-        let file_uri = api.create_file(&parent_uri, file_name)
+        let file_uri = api.create_new_file(&parent_uri, file_name, None)
             .map_err(|e| format!("Failed to create file: {e:?}"))?;
 
         // Write data
@@ -1746,10 +1749,14 @@ fn delete_content_uri(
 ) -> Result<(), String> {
     use tauri_plugin_android_fs::AndroidFsExt;
 
-    let (target_uri, _) = resolve_content_uri_subpath(app_handle, root_uri_json, sub_path)?;
+    let (target_uri, is_dir) = resolve_content_uri_subpath(app_handle, root_uri_json, sub_path)?;
     let api = app_handle.android_fs();
-    api.remove(&target_uri)
-        .map_err(|e| format!("Failed to delete: {e:?}"))
+    if is_dir {
+        api.remove_dir_all(&target_uri)
+    } else {
+        api.remove_file(&target_uri)
+    }
+    .map_err(|e| format!("Failed to delete: {e:?}"))
 }
 
 /// Create a directory via Content URI.
@@ -1761,13 +1768,10 @@ fn create_directory_content_uri(
 ) -> Result<(), String> {
     use tauri_plugin_android_fs::AndroidFsExt;
 
-    let segments: Vec<&str> = sub_path
-        .trim_start_matches('/')
-        .split('/')
-        .filter(|s| !s.is_empty())
-        .collect();
+    crate::filesystem::reject_path_traversal(sub_path)?;
 
-    if segments.is_empty() {
+    let trimmed = sub_path.trim_start_matches('/');
+    if trimmed.is_empty() {
         return Ok(()); // Root already exists
     }
 
@@ -1775,20 +1779,8 @@ fn create_directory_content_uri(
     let root = tauri_plugin_android_fs::FileUri::from_json_str(root_uri_json)
         .map_err(|e| format!("Invalid Content URI: {e:?}"))?;
 
-    let mut current = root;
-    for segment in &segments {
-        // Check if child already exists
-        let entries = api.read_dir(&current)
-            .map_err(|e| format!("Failed to read dir: {e:?}"))?;
-        let existing = entries.into_iter().find(|e| e.name() == *segment && e.is_dir());
-
-        if let Some(entry) = existing {
-            current = entry.uri().clone();
-        } else {
-            current = api.create_dir(&current, segment)
-                .map_err(|e| format!("Failed to create dir '{}': {e:?}", segment))?;
-        }
-    }
+    api.create_dir_all(&root, trimmed)
+        .map_err(|e| format!("Failed to create directory '{}': {e:?}", trimmed))?;
 
     Ok(())
 }
@@ -2117,12 +2109,7 @@ fn resolve_path_for_write(
 ) -> Result<PathBuf, Response> {
     let (share, sub_path) = find_share_and_subpath(shares, allowed_spaces, request_path)?;
 
-    // Validate the sub_path to prevent traversal
-    if sub_path.contains("..") {
-        return Err(Response::Error {
-            message: "Access denied: path traversal".to_string(),
-        });
-    }
+    crate::filesystem::check_relative_path(&sub_path).map_err(|message| Response::Error { message })?;
 
     let full_path = PathBuf::from(&share.local_path).join(&sub_path);
 
