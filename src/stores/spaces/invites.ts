@@ -322,6 +322,7 @@ export async function acceptLocalInvite(
         leaderEndpointId: endpointId,
         leaderRelayUrl: null,
         spaceId: invite.spaceId,
+        spaceName: invite.spaceName || invite.spaceId.slice(0, 8),
         tokenId: invite.tokenId,
         identityDid: identity.did,
         label: identity.label || null,
@@ -340,11 +341,7 @@ export async function acceptLocalInvite(
   // Create or activate the space entry
   const existing = await db.select().from(haexSpaces).where(eq(haexSpaces.id, invite.spaceId)).limit(1)
   if (existing.length > 0) {
-    await db.update(haexSpaces).set({
-      status: SpaceStatus.ACTIVE,
-      ...(invite.spaceName ? { name: invite.spaceName } : {}),
-      ...(invite.spaceType ? { type: invite.spaceType as SpaceTypeValue } : {}),
-    }).where(eq(haexSpaces.id, invite.spaceId))
+    await db.update(haexSpaces).set({ status: SpaceStatus.ACTIVE }).where(eq(haexSpaces.id, invite.spaceId))
   } else {
     await persistSpaceAsync({
       id: invite.spaceId,

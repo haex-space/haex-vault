@@ -407,6 +407,7 @@ pub async fn local_delivery_claim_invite(
     leader_endpoint_id: String,
     leader_relay_url: Option<String>,
     space_id: String,
+    space_name: String,
     token_id: String,
     identity_did: String,
     label: Option<String>,
@@ -523,7 +524,7 @@ pub async fn local_delivery_claim_invite(
         "INSERT OR IGNORE INTO haex_spaces (id, type, status, name) VALUES (?1, 'local', 'active', ?2)".to_string(),
         vec![
             serde_json::Value::String(space_id.clone()),
-            serde_json::Value::String(format!("Local Space {}", &space_id[..8.min(space_id.len())])),
+            serde_json::Value::String(space_name),
         ],
         &db,
         &hlc_guard,
