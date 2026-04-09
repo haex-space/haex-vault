@@ -117,7 +117,8 @@
       </div>
     </template>
 
-    <div class="p-6 space-y-4">
+    <Transition :name="browser.direction.value === 'back' ? 'slide-back' : 'slide-forward'" mode="out-in">
+      <div :key="browser.selectedPeer.value ? `peer-${browser.currentPath.value}` : 'overview'" class="p-6 space-y-4">
       <!-- File Browser (peer selected via deep-link or click) -->
       <div
         v-if="browser.selectedPeer.value"
@@ -350,7 +351,8 @@
         </div>
       </div>
 
-    </div>
+      </div>
+    </Transition>
   </HaexSystem>
 </template>
 

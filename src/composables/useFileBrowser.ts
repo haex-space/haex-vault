@@ -70,6 +70,7 @@ export function useFileBrowser(tabId: string) {
   const isLoading = ref(false)
   const isLoadingMore = ref(false)
   const loadError = ref<string | null>(null)
+  const direction = ref<'forward' | 'back'>('forward')
 
   // Navigation stack for Android Content URI support.
   // Each entry stores the display name and the actual path/URI to navigate to.
@@ -155,6 +156,7 @@ export function useFileBrowser(tabId: string) {
 
   const selectPeer = (peer: RemotePeer) => {
     clearSelection()
+    direction.value = 'forward'
     selectedPeer.value = peer
     currentPath.value = '/'
     navStack.value = []
@@ -168,6 +170,7 @@ export function useFileBrowser(tabId: string) {
   const navigateToRoot = () => {
     clearSelection()
     preview.close()
+    direction.value = 'back'
     selectedPeer.value = null
     currentPath.value = '/'
     navStack.value = []
@@ -185,6 +188,7 @@ export function useFileBrowser(tabId: string) {
 
   const navigateUp = () => {
     pushToForwardStack()
+    direction.value = 'back'
     if (navStack.value.length > 0) {
       const newStack = navStack.value.slice(0, -1)
       navStack.value = newStack
@@ -200,6 +204,7 @@ export function useFileBrowser(tabId: string) {
 
   const navigateForward = () => {
     if (forwardStack.value.length === 0) return
+    direction.value = 'forward'
     const entry = forwardStack.value[forwardStack.value.length - 1]!
     forwardStack.value = forwardStack.value.slice(0, -1)
     currentPath.value = entry.path
@@ -212,6 +217,7 @@ export function useFileBrowser(tabId: string) {
 
   const navigateToSegment = (index: number) => {
     pushToForwardStack()
+    direction.value = 'back'
     if (navStack.value.length > 0) {
       const newStack = navStack.value.slice(0, index + 1)
       navStack.value = newStack
@@ -225,6 +231,7 @@ export function useFileBrowser(tabId: string) {
   }
 
   const navigateToPath = (path: string) => {
+    direction.value = 'forward'
     currentPath.value = path
     forwardStack.value = [] // New navigation clears forward history
     loadFiles()
@@ -314,6 +321,7 @@ export function useFileBrowser(tabId: string) {
   const onFileClick = async (file: FileEntry) => {
     if (file.isDir) {
       forwardStack.value = [] // New navigation clears forward history
+      direction.value = 'forward'
       const filePath = resolveFilePath(file)
       // Android: track Content URI navigation in navStack for correct breadcrumbs / back-navigation
       if (file.path && isContentUri(file.path)) {
@@ -448,6 +456,7 @@ export function useFileBrowser(tabId: string) {
     preview,
 
     // Navigation
+    direction: readonly(direction),
     selectPeer,
     navigateToRoot,
     navigateUp,
