@@ -439,16 +439,15 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
         redo: () => { openWindowAsync({ type, sourceId, title: newWindow.title, icon: newWindow.icon, params }).catch(() => {}) },
       })
 
-      // Remove opening flag after one paint cycle so browser renders the
-      // initial state first, then CSS transition animates to the final state.
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const window = windows.value.find((w) => w.id === windowId)
-          if (window) {
-            window.isOpening = false
-          }
-        })
-      })
+      // Remove opening flag after the CSS transition completes.
+      // The component internally handles the two-phase animation (start → ready)
+      // via requestAnimationFrame to ensure the initial state is painted first.
+      setTimeout(() => {
+        const window = windows.value.find((w) => w.id === windowId)
+        if (window) {
+          window.isOpening = false
+        }
+      }, windowAnimationDuration.value)
 
       return windowId
     } catch (error) {

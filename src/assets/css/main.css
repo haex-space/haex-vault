@@ -103,6 +103,18 @@
   opacity: 0;
 }
 
+/* Window open/close: only animate opacity + transform */
+.window-animate {
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+/* Window idle: also animate position/size for maximize/restore */
+.window-idle {
+  transition: left 300ms ease-out, top 300ms ease-out,
+              width 300ms ease-out, height 300ms ease-out,
+              border-radius 300ms ease-out,
+              opacity 200ms ease, transform 200ms ease;
+}
+
 /* Tour popover: larger buttons and controls */
 .haex-tour-popover .driver-popover-footer button,
 .haex-tour-popover .driver-popover-close-btn {
