@@ -162,7 +162,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
   }
 
   // Window animation settings
-  const windowAnimationDuration = ref(600) // in milliseconds (matches Tailwind duration-600)
+  const windowAnimationDuration = ref(300) // in milliseconds (matches CSS transition duration)
 
   // Get windows for current workspace only
   const currentWorkspaceWindows = computed(() => {
@@ -439,13 +439,16 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
         redo: () => { openWindowAsync({ type, sourceId, title: newWindow.title, icon: newWindow.icon, params }).catch(() => {}) },
       })
 
-      // Remove opening flag after animation
-      setTimeout(() => {
-        const window = windows.value.find((w) => w.id === windowId)
-        if (window) {
-          window.isOpening = false
-        }
-      }, windowAnimationDuration.value)
+      // Remove opening flag after one paint cycle so browser renders the
+      // initial state first, then CSS transition animates to the final state.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const window = windows.value.find((w) => w.id === windowId)
+          if (window) {
+            window.isOpening = false
+          }
+        })
+      })
 
       return windowId
     } catch (error) {

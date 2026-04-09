@@ -6,7 +6,11 @@
       'absolute bg-default/80 backdrop-blur-xl rounded-lg shadow-xl overflow-hidden',
       'flex flex-col @container',
       // Only apply transition when NOT dragging/resizing for smooth animations
-      isResizingOrDragging ? '' : 'transition-all ease-out duration-300',
+      isResizingOrDragging
+        ? ''
+        : props.isClosing
+          ? 'transition-all duration-200 ease-in'
+          : 'transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
       { 'select-none': isResizingOrDragging },
       isActive ? 'z-20' : 'z-10',
       // Border colors based on warning level
@@ -485,7 +489,7 @@ useEventListener(window, 'touchend', () => {
 const windowStyle = computed(() => {
   const baseStyle: Record<string, string> = {}
 
-  // Opening animation
+  // Opening animation: start at source position, slightly scaled down
   if (
     props.isOpening &&
     props.sourceX !== undefined &&
@@ -496,9 +500,9 @@ const windowStyle = computed(() => {
     baseStyle.width = `${props.sourceWidth || 100}px`
     baseStyle.height = `${props.sourceHeight || 100}px`
     baseStyle.opacity = '0'
-    baseStyle.transform = 'scale(0.3)'
+    baseStyle.transform = 'scale(0.85)'
   }
-  // Closing animation
+  // Closing animation: shrink toward source position
   else if (
     props.isClosing &&
     props.sourceX !== undefined &&
@@ -509,18 +513,16 @@ const windowStyle = computed(() => {
     baseStyle.width = `${props.sourceWidth || 100}px`
     baseStyle.height = `${props.sourceHeight || 100}px`
     baseStyle.opacity = '0'
-    baseStyle.transform = 'scale(0.3)'
+    baseStyle.transform = 'scale(0.85)'
   }
-  // Closing fallback
+  // Closing fallback: shrink in place
   else if (props.isClosing) {
-    const centerX = x.value + width.value / 2 - 50
-    const centerY = y.value + height.value / 2 - 50
-    baseStyle.left = `${centerX}px`
-    baseStyle.top = `${centerY}px`
-    baseStyle.width = '100px'
-    baseStyle.height = '100px'
+    baseStyle.left = `${x.value}px`
+    baseStyle.top = `${y.value}px`
+    baseStyle.width = `${width.value}px`
+    baseStyle.height = `${height.value}px`
     baseStyle.opacity = '0'
-    baseStyle.transform = 'scale(0.3)'
+    baseStyle.transform = 'scale(0.92)'
   }
   // Normal state
   else {
