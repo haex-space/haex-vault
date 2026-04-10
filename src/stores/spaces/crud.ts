@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
-import { haexSpaceDevices } from '~/database/schemas'
+import { haexSpaceDevices, haexSpaces } from '~/database/schemas'
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
 import type { schema } from '~/database'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
@@ -44,18 +44,30 @@ export async function createLocalSpace(
     createdAt: new Date().toISOString(),
   }
 
-  await persistSpaceAsync(space)
+  // 1. Persist to DB (without pushing to reactive list yet)
+  await db.insert(haexSpaces).values({
+    id,
+    type: SpaceType.LOCAL,
+    name: spaceName,
+    originUrl: null,
+    status: SpaceStatus.ACTIVE,
+  })
 
+  // 2. Create MLS group + epoch key
   await invoke('mls_create_group', { spaceId: id })
   await invoke('mls_export_epoch_key', { spaceId: id })
 
+  // 3. Create admin UCAN (must exist before UI renders SpaceListItem)
   const identityStore = useIdentityStore()
   await identityStore.loadIdentitiesAsync()
   const identity = identityStore.ownIdentities[0]
   if (identity?.privateKey) {
     const rootUcan = await createRootUcanAsync(identity.did, identity.privateKey, id)
-    if (db) await persistUcanAsync(db, id, rootUcan)
+    await persistUcanAsync(db, id, rootUcan)
   }
+
+  // 4. Push to reactive list — SpaceListItem.onMounted will find the UCAN
+  await persistSpaceAsync(space)
 
   // Add creator as space member (non-fatal — space must work even if member insert fails)
   if (identity) {
