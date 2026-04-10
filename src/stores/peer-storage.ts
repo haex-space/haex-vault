@@ -184,6 +184,10 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     }
 
     await autoRegisterInSpacesAsync()
+
+    // Start leader mode for local spaces now that the P2P endpoint is active
+    const spacesStore = useSpacesStore()
+    await spacesStore.startLocalSpaceLeadersAsync()
   }
 
   const autoRegisterInSpacesAsync = async () => {
