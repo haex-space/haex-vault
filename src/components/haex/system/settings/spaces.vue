@@ -858,6 +858,12 @@ const openInviteDialog = (space: SpaceWithType, mode: 'contact' | 'link' = 'cont
   showInviteDialog.value = true
 }
 
+// Expose for E2E tests — allows opening the invite dialog with the correct space
+;(window as any).__openInviteDialog = (spaceId: string, mode: 'contact' | 'link' = 'contact') => {
+  const space = spaces.value.find(s => s.id === spaceId)
+  if (space) openInviteDialog(space, mode)
+}
+
 const prepareDeleteSpace = (space: SpaceWithType) => {
   targetSpace.value = space
   showDeleteConfirm.value = true
