@@ -8,11 +8,58 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+use std::sync::LazyLock;
 use tokio::time::{sleep, Duration};
 
 use iroh::Endpoint;
 use haex_vault_lib::peer_storage::endpoint::PeerEndpoint;
 use haex_vault_lib::peer_storage::protocol::{self, Request, Response, ALPN};
+
+/// Test UCAN token generator — creates a valid signed token for a given space.
+fn test_ucan_token(space_id: &str) -> String {
+    use base64::Engine;
+    use ed25519_dalek::{Signer, SigningKey};
+
+    const BASE64URL: base64::engine::GeneralPurpose = base64::engine::GeneralPurpose::new(
+        &base64::alphabet::URL_SAFE,
+        base64::engine::general_purpose::NO_PAD,
+    );
+
+    static TEST_KEY: LazyLock<SigningKey> = LazyLock::new(|| {
+        let mut seed = [0u8; 32];
+        seed[0] = 42; // deterministic test key
+        SigningKey::from_bytes(&seed)
+    });
+
+    let vk = TEST_KEY.verifying_key();
+    let multicodec: [u8; 2] = [0xed, 0x01];
+    let mut key_bytes = Vec::with_capacity(34);
+    key_bytes.extend_from_slice(&multicodec);
+    key_bytes.extend_from_slice(vk.as_bytes());
+    let did = format!("did:key:z{}", bs58::encode(&key_bytes).into_string());
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let header = serde_json::json!({"alg": "EdDSA", "typ": "JWT"});
+    let payload = serde_json::json!({
+        "ucv": "1.0",
+        "iss": did,
+        "aud": did,
+        "cap": { format!("space:{}", space_id): "space/admin" },
+        "exp": now + 86400,
+        "iat": now,
+        "prf": [],
+        "nnc": "test"
+    });
+
+    let h = BASE64URL.encode(serde_json::to_string(&header).unwrap().as_bytes());
+    let p = BASE64URL.encode(serde_json::to_string(&payload).unwrap().as_bytes());
+    let sig = TEST_KEY.sign(format!("{h}.{p}").as_bytes());
+    format!("{h}.{p}.{}", BASE64URL.encode(sig.to_bytes()))
+}
 
 // =============================================================================
 // Helper: proper protocol client
@@ -59,6 +106,17 @@ async fn send_read_request(
     path: &str,
     range: Option<[u64; 2]>,
 ) -> Result<(Response, Vec<u8>), String> {
+    send_read_request_for_space(client_ep, server_addr, path, range, "space-1").await
+}
+
+/// Like `send_read_request`, but with a custom space ID for the UCAN token.
+async fn send_read_request_for_space(
+    client_ep: &Endpoint,
+    server_addr: iroh::EndpointAddr,
+    path: &str,
+    range: Option<[u64; 2]>,
+    space_id: &str,
+) -> Result<(Response, Vec<u8>), String> {
     let conn = tokio::time::timeout(
         Duration::from_secs(5),
         client_ep.connect(server_addr, ALPN),
@@ -72,7 +130,7 @@ async fn send_read_request(
         .await
         .map_err(|e| format!("open_bi error: {e}"))?;
 
-    let request = Request::Read { path: path.to_string(), range };
+    let request = Request::Read { path: path.to_string(), range, ucan_token: test_ucan_token(space_id) };
     let req_bytes = protocol::encode_request(&request)
         .map_err(|e| format!("encode: {e}"))?;
     send.write_all(&req_bytes)
@@ -156,7 +214,7 @@ async fn list_root_shows_shared_folders() {
     ).await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
-    let resp = send_request(&client_ep, addr, &Request::List { path: "/".to_string() }).await.unwrap();
+    let resp = send_request(&client_ep, addr, &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
 
     match resp {
         Response::List { entries } => {
@@ -184,7 +242,7 @@ async fn list_share_shows_files_and_dirs() {
     ).await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
-    let resp = send_request(&client_ep, addr, &Request::List { path: "/MyShare".to_string() }).await.unwrap();
+    let resp = send_request(&client_ep, addr, &Request::List { path: "/MyShare".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
 
     match resp {
         Response::List { entries } => {
@@ -224,7 +282,7 @@ async fn list_nested_directory() {
     // List /DeepShare/deep/level1
     let resp = send_request(
         &client_ep, addr,
-        &Request::List { path: "/DeepShare/deep/level1".to_string() },
+        &Request::List { path: "/DeepShare/deep/level1".to_string(), ucan_token: test_ucan_token("space-1") },
     ).await.unwrap();
 
     match resp {
@@ -251,7 +309,7 @@ async fn list_nonexistent_path_returns_error() {
     let client_ep = client.endpoint_ref().unwrap().clone();
     let resp = send_request(
         &client_ep, addr,
-        &Request::List { path: "/Share/nonexistent".to_string() },
+        &Request::List { path: "/Share/nonexistent".to_string(), ucan_token: test_ucan_token("space-1") },
     ).await.unwrap();
 
     match resp {
@@ -282,7 +340,7 @@ async fn stat_file_returns_metadata() {
     let client_ep = client.endpoint_ref().unwrap().clone();
     let resp = send_request(
         &client_ep, addr,
-        &Request::Stat { path: "/StatTest/hello.txt".to_string() },
+        &Request::Stat { path: "/StatTest/hello.txt".to_string(), ucan_token: test_ucan_token("space-1") },
     ).await.unwrap();
 
     match resp {
@@ -310,7 +368,7 @@ async fn stat_directory_returns_metadata() {
     let client_ep = client.endpoint_ref().unwrap().clone();
     let resp = send_request(
         &client_ep, addr,
-        &Request::Stat { path: "/StatDir/subdir".to_string() },
+        &Request::Stat { path: "/StatDir/subdir".to_string(), ucan_token: test_ucan_token("space-1") },
     ).await.unwrap();
 
     match resp {
@@ -479,7 +537,7 @@ async fn path_traversal_is_blocked() {
     // Try to escape the share with ../
     let resp = send_request(
         &client_ep, addr,
-        &Request::List { path: "/Secure/../../../etc".to_string() },
+        &Request::List { path: "/Secure/../../../etc".to_string(), ucan_token: test_ucan_token("space-1") },
     ).await.unwrap();
 
     match resp {
@@ -524,7 +582,7 @@ async fn cross_space_isolation() {
     let server_addr = server.endpoint_ref().unwrap().addr();
 
     // List root — should only show Public
-    let resp = send_request(&client_ep, server_addr.clone(), &Request::List { path: "/".to_string() }).await.unwrap();
+    let resp = send_request(&client_ep, server_addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
     match resp {
         Response::List { entries } => {
             let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
@@ -535,7 +593,7 @@ async fn cross_space_isolation() {
     }
 
     // Try to access Private directly — should fail
-    let resp = send_request(&client_ep, server_addr, &Request::List { path: "/Private".to_string() }).await.unwrap();
+    let resp = send_request(&client_ep, server_addr, &Request::List { path: "/Private".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
     match resp {
         Response::Error { .. } => { /* expected */ }
         other => panic!("Accessing Private share should fail, got: {:?}", other),
@@ -575,7 +633,7 @@ async fn multiple_shares_in_same_space() {
     let server_addr = server.endpoint_ref().unwrap().addr();
 
     // List root — should show both shares
-    let resp = send_request(&client_ep, server_addr.clone(), &Request::List { path: "/".to_string() }).await.unwrap();
+    let resp = send_request(&client_ep, server_addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
     match resp {
         Response::List { entries } => {
             assert_eq!(entries.len(), 2);
@@ -587,10 +645,10 @@ async fn multiple_shares_in_same_space() {
     }
 
     // Read file from each share
-    let (_, doc_data) = send_read_request(&client_ep, server_addr.clone(), "/Documents/doc.txt", None).await.unwrap();
+    let (_, doc_data) = send_read_request_for_space(&client_ep, server_addr.clone(), "/Documents/doc.txt", None, "shared-space").await.unwrap();
     assert_eq!(doc_data, b"document");
 
-    let (_, photo_data) = send_read_request(&client_ep, server_addr, "/Photos/photo.jpg", None).await.unwrap();
+    let (_, photo_data) = send_read_request_for_space(&client_ep, server_addr, "/Photos/photo.jpg", None, "shared-space").await.unwrap();
     assert_eq!(photo_data, b"\xFF\xD8\xFF\xE0");
 
     let _ = server.stop().await;
@@ -672,7 +730,7 @@ async fn malformed_json_request_does_not_crash_server() {
     // Verify server is still alive by making a valid request
     let valid_resp = send_request(
         &client_ep, server_addr,
-        &Request::List { path: "/".to_string() },
+        &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") },
     ).await;
     assert!(valid_resp.is_ok(), "Server should still work after malformed request");
 
@@ -704,7 +762,7 @@ async fn oversized_length_prefix_is_rejected() {
     // Server still alive
     let valid = send_request(
         &client_ep, server_addr,
-        &Request::List { path: "/".to_string() },
+        &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") },
     ).await;
     assert!(valid.is_ok(), "Server must survive oversized requests");
 
@@ -733,7 +791,7 @@ async fn empty_stream_does_not_crash() {
     // Server still alive
     let valid = send_request(
         &client_ep, server_addr,
-        &Request::List { path: "/".to_string() },
+        &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") },
     ).await;
     assert!(valid.is_ok(), "Server must survive empty streams");
 
@@ -777,7 +835,7 @@ async fn filenames_with_spaces_and_special_chars() {
     ).await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
-    let resp = send_request(&client_ep, addr.clone(), &Request::List { path: "/SpecialNames".to_string() }).await.unwrap();
+    let resp = send_request(&client_ep, addr.clone(), &Request::List { path: "/SpecialNames".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
     match &resp {
         Response::List { entries } => {
             assert_eq!(entries.len(), 4);
@@ -829,7 +887,7 @@ async fn empty_directory_listing_returns_zero_entries() {
     ).await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
-    let resp = send_request(&client_ep, addr, &Request::List { path: "/EmptyDir/emptydir".to_string() }).await.unwrap();
+    let resp = send_request(&client_ep, addr, &Request::List { path: "/EmptyDir/emptydir".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
     match resp {
         Response::List { entries } => assert!(entries.is_empty()),
         other => panic!("Expected empty List, got: {:?}", other),
@@ -863,7 +921,7 @@ async fn share_removed_while_client_browsing() {
     let server_addr = server.endpoint_ref().unwrap().addr();
 
     // First access succeeds
-    let resp = send_request(&client_ep, server_addr.clone(), &Request::List { path: "/Volatile".to_string() }).await.unwrap();
+    let resp = send_request(&client_ep, server_addr.clone(), &Request::List { path: "/Volatile".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
     match &resp {
         Response::List { entries } => assert_eq!(entries.len(), 1),
         other => panic!("Expected List, got: {:?}", other),
@@ -874,7 +932,7 @@ async fn share_removed_while_client_browsing() {
     sleep(Duration::from_millis(50)).await;
 
     // Root listing should be empty
-    let resp = send_request(&client_ep, server_addr, &Request::List { path: "/".to_string() }).await.unwrap();
+    let resp = send_request(&client_ep, server_addr, &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
     match resp {
         Response::List { entries } => {
             assert!(!entries.iter().any(|e| e.name == "Volatile"), "Removed share must not appear");
@@ -895,7 +953,7 @@ async fn file_deleted_on_disk_between_list_and_read() {
     let client_ep = client.endpoint_ref().unwrap().clone();
 
     // Listing shows both
-    let resp = send_request(&client_ep, addr.clone(), &Request::List { path: "/DiskRace".to_string() }).await.unwrap();
+    let resp = send_request(&client_ep, addr.clone(), &Request::List { path: "/DiskRace".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
     match &resp {
         Response::List { entries } => assert_eq!(entries.len(), 2),
         other => panic!("Expected 2 entries, got: {:?}", other),
@@ -939,7 +997,7 @@ async fn path_traversal_attack_vectors() {
     ];
 
     for path in &attacks {
-        let resp = send_request(&client_ep, addr.clone(), &Request::List { path: path.to_string() }).await;
+        let resp = send_request(&client_ep, addr.clone(), &Request::List { path: path.to_string(), ucan_token: test_ucan_token("space-1") }).await;
         match resp {
             Ok(Response::Error { .. }) => { /* blocked */ }
             Ok(Response::List { entries }) => {
@@ -1036,7 +1094,7 @@ async fn listing_100_files() {
     ).await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
-    let resp = send_request(&client_ep, addr, &Request::List { path: "/Bulk".to_string() }).await.unwrap();
+    let resp = send_request(&client_ep, addr, &Request::List { path: "/Bulk".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
 
     match resp {
         Response::List { entries } => {
@@ -1059,7 +1117,7 @@ async fn rapid_20_sequential_requests() {
     let client_ep = client.endpoint_ref().unwrap().clone();
 
     for i in 0..20 {
-        let resp = send_request(&client_ep, addr.clone(), &Request::List { path: "/".to_string() }).await;
+        let resp = send_request(&client_ep, addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") }).await;
         assert!(resp.is_ok(), "Request {i}/20 failed: {:?}", resp.err());
     }
 
@@ -1111,7 +1169,7 @@ async fn leaked_endpoint_id_cannot_access_files() {
     // Attempt LIST root
     let list_result = send_request(
         &attacker_ep, server_addr.clone(),
-        &Request::List { path: "/".to_string() },
+        &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") },
     ).await;
     match list_result {
         Err(_) => { /* Connection rejected */ }
@@ -1125,7 +1183,7 @@ async fn leaked_endpoint_id_cannot_access_files() {
     // Attempt to LIST inside a share by guessing the name
     let direct_result = send_request(
         &attacker_ep, server_addr.clone(),
-        &Request::List { path: "/Secrets".to_string() },
+        &Request::List { path: "/Secrets".to_string(), ucan_token: test_ucan_token("space-1") },
     ).await;
     match direct_result {
         Err(_) | Ok(Response::Error { .. }) => { /* rejected */ }
@@ -1152,7 +1210,7 @@ async fn leaked_endpoint_id_cannot_access_files() {
     // Attempt to STAT a file
     let stat_result = send_request(
         &attacker_ep, server_addr.clone(),
-        &Request::Stat { path: "/Secrets/passwords.db".to_string() },
+        &Request::Stat { path: "/Secrets/passwords.db".to_string(), ucan_token: test_ucan_token("space-1") },
     ).await;
     match stat_result {
         Err(_) | Ok(Response::Error { .. }) => { /* rejected */ }
@@ -1164,8 +1222,8 @@ async fn leaked_endpoint_id_cannot_access_files() {
 
     // Legitimate peer CAN access
     let legit_ep = legitimate.endpoint_ref().unwrap().clone();
-    let (_, data) = send_read_request(
-        &legit_ep, server_addr, "/Secrets/confidential.txt", None,
+    let (_, data) = send_read_request_for_space(
+        &legit_ep, server_addr, "/Secrets/confidential.txt", None, "private-space",
     ).await.unwrap();
     assert_eq!(data, b"TOP SECRET DATA");
 
@@ -1200,11 +1258,11 @@ async fn space_a_peer_cannot_access_space_b_by_any_means() {
     let addr = server.endpoint_ref().unwrap().addr();
 
     // Can access public
-    let (_, data) = send_read_request(&ep, addr.clone(), "/PublicDocs/readme.txt", None).await.unwrap();
+    let (_, data) = send_read_request_for_space(&ep, addr.clone(), "/PublicDocs/readme.txt", None, "space-public").await.unwrap();
     assert_eq!(data, b"public");
 
     // Cannot access internal — by share name
-    let resp = send_request(&ep, addr.clone(), &Request::List { path: "/InternalOps".to_string() }).await.unwrap();
+    let resp = send_request(&ep, addr.clone(), &Request::List { path: "/InternalOps".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
     match resp {
         Response::Error { .. } => { /* blocked */ }
         Response::List { entries } => panic!("LEAKED: listed internal files: {:?}", entries),
@@ -1212,7 +1270,7 @@ async fn space_a_peer_cannot_access_space_b_by_any_means() {
     }
 
     // Cannot access internal — by share ID
-    let resp = send_request(&ep, addr.clone(), &Request::List { path: "/priv".to_string() }).await.unwrap();
+    let resp = send_request(&ep, addr.clone(), &Request::List { path: "/priv".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
     match resp {
         Response::Error { .. } => { /* blocked */ }
         Response::List { entries } => panic!("LEAKED via ID: {:?}", entries),
@@ -1268,7 +1326,7 @@ async fn revoked_peer_stays_blocked_across_multiple_attempts() {
 
     // 5 attempts — all must fail
     for i in 0..5 {
-        let list = send_request(&ep, addr.clone(), &Request::List { path: "/".to_string() }).await;
+        let list = send_request(&ep, addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") }).await;
         match list {
             Err(_) => { /* rejected */ }
             Ok(Response::Error { .. }) => { /* rejected */ }
@@ -1329,12 +1387,12 @@ async fn three_peers_three_spaces_complete_isolation() {
     let ec = pc.endpoint_ref().unwrap().clone();
 
     // Each sees only their share
-    for (label, ep, expected, file, content) in [
-        ("Alice", &ea, "Alice", "a.txt", b"alice".as_slice()),
-        ("Bob", &eb, "Bob", "b.txt", b"bob".as_slice()),
-        ("Charlie", &ec, "Charlie", "c.txt", b"charlie".as_slice()),
+    for (label, ep, expected, file, content, space) in [
+        ("Alice", &ea, "Alice", "a.txt", b"alice".as_slice(), "sp-a"),
+        ("Bob", &eb, "Bob", "b.txt", b"bob".as_slice(), "sp-b"),
+        ("Charlie", &ec, "Charlie", "c.txt", b"charlie".as_slice(), "sp-c"),
     ] {
-        let resp = send_request(ep, addr.clone(), &Request::List { path: "/".to_string() }).await.unwrap();
+        let resp = send_request(ep, addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
         match &resp {
             Response::List { entries } => {
                 assert_eq!(entries.len(), 1, "{label} should see exactly 1 share");
@@ -1342,7 +1400,7 @@ async fn three_peers_three_spaces_complete_isolation() {
             }
             other => panic!("{label}: Expected List, got: {:?}", other),
         }
-        let (_, data) = send_read_request(ep, addr.clone(), &format!("/{expected}/{file}"), None).await.unwrap();
+        let (_, data) = send_read_request_for_space(ep, addr.clone(), &format!("/{expected}/{file}"), None, space).await.unwrap();
         assert_eq!(data, content, "{label}: wrong file content");
     }
 
@@ -1392,7 +1450,7 @@ async fn dynamic_space_grant_upgrade_and_downgrade() {
     allowed.insert(user.endpoint_id().to_string(), basic_only);
     server.set_allowed_peers(allowed).await;
 
-    let resp = send_request(&ep, addr.clone(), &Request::List { path: "/".to_string() }).await.unwrap();
+    let resp = send_request(&ep, addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
     match &resp {
         Response::List { entries } => assert_eq!(entries.len(), 1, "Phase 1: only basic"),
         other => panic!("Phase 1: {:?}", other),
@@ -1407,12 +1465,12 @@ async fn dynamic_space_grant_upgrade_and_downgrade() {
     server.set_allowed_peers(upgraded).await;
     sleep(Duration::from_millis(50)).await;
 
-    let resp = send_request(&ep, addr.clone(), &Request::List { path: "/".to_string() }).await.unwrap();
+    let resp = send_request(&ep, addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
     match &resp {
         Response::List { entries } => assert_eq!(entries.len(), 2, "Phase 2: basic + premium"),
         other => panic!("Phase 2: {:?}", other),
     }
-    let (_, data) = send_read_request(&ep, addr.clone(), "/Premium/premium.txt", None).await.unwrap();
+    let (_, data) = send_read_request_for_space(&ep, addr.clone(), "/Premium/premium.txt", None, "tier-premium").await.unwrap();
     assert_eq!(data, b"premium");
 
     // Phase 3: Downgrade back to basic only
@@ -1423,7 +1481,7 @@ async fn dynamic_space_grant_upgrade_and_downgrade() {
     server.set_allowed_peers(downgraded).await;
     sleep(Duration::from_millis(50)).await;
 
-    let resp = send_request(&ep, addr.clone(), &Request::List { path: "/".to_string() }).await.unwrap();
+    let resp = send_request(&ep, addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
     match &resp {
         Response::List { entries } => {
             assert_eq!(entries.len(), 1, "Phase 3: back to basic only");

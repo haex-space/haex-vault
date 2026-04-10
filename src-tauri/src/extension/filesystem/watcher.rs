@@ -78,12 +78,15 @@ impl FileWatcherManager {
         }
     }
 
-    /// Start watching a directory for a sync rule
+    /// Start watching a directory for a sync rule.
+    /// If `sync_trigger` is provided, file changes will directly trigger a sync
+    /// via the mpsc channel (backend-only, no frontend roundtrip).
     pub fn watch(
         &self,
         app_handle: AppHandle,
         rule_id: String,
         path: String,
+        sync_trigger: Option<tokio::sync::mpsc::Sender<()>>,
     ) -> Result<(), String> {
         let path_buf = PathBuf::from(&path);
 
@@ -112,10 +115,17 @@ impl FileWatcherManager {
             move |result: Result<Vec<notify_debouncer_mini::DebouncedEvent>, notify::Error>| {
                 match result {
                     Ok(events) => {
-                        // Determine the change type from events
-                        let change_type = if events.is_empty() {
+                        if events.is_empty() {
                             return;
-                        } else if events.len() == 1 {
+                        }
+
+                        // Directly trigger sync loop if sender is available
+                        if let Some(ref trigger) = sync_trigger {
+                            let _ = trigger.try_send(());
+                        }
+
+                        // Determine the change type from events
+                        let change_type = if events.len() == 1 {
                             match events[0].kind {
                                 DebouncedEventKind::Any => FileChangeType::Any,
                                 DebouncedEventKind::AnyContinuous => FileChangeType::Modified,
@@ -138,7 +148,7 @@ impl FileWatcherManager {
                             path: relative_path,
                         };
 
-                        // Emit event to frontend
+                        // Also emit event to frontend (for UI updates)
                         if let Err(e) = app_handle.emit(FILE_CHANGE_EVENT, &event) {
                             eprintln!("[FileWatcher] Failed to emit event: {}", e);
                         }
@@ -238,6 +248,7 @@ impl FileWatcherManager {
         _app_handle: tauri::AppHandle,
         _rule_id: String,
         _path: String,
+        _sync_trigger: Option<tokio::sync::mpsc::Sender<()>>,
     ) -> Result<(), String> {
         // File watching is not supported on Android
         Ok(())

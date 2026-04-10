@@ -266,6 +266,7 @@ impl PeerEndpoint {
         remote_id: EndpointId,
         relay_url: Option<RelayUrl>,
         path: &str,
+        ucan_token: &str,
     ) -> Result<Vec<FileEntry>, PeerStorageError> {
         let endpoint = self
             .endpoint
@@ -292,7 +293,7 @@ impl PeerEndpoint {
             })?;
 
         // Send LIST request
-        let req = Request::List { path: path.to_string() };
+        let req = Request::List { path: path.to_string(), ucan_token: ucan_token.to_string() };
         let req_bytes = protocol::encode_request(&req)
             .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
         send.write_all(&req_bytes)
@@ -329,6 +330,7 @@ impl PeerEndpoint {
         on_progress: Option<Box<dyn Fn(u64, u64) + Send>>,
         cancel_token: Option<tokio_util::sync::CancellationToken>,
         pause_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
+        ucan_token: &str,
     ) -> Result<u64, PeerStorageError> {
         let endpoint = self
             .endpoint
@@ -358,6 +360,7 @@ impl PeerEndpoint {
         let req = Request::Read {
             path: path.to_string(),
             range,
+            ucan_token: ucan_token.to_string(),
         };
         let req_bytes = protocol::encode_request(&req)
             .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
@@ -440,6 +443,308 @@ impl PeerEndpoint {
             Response::Error { message } => {
                 Err(PeerStorageError::ProtocolError { reason: message })
             }
+            _ => Err(PeerStorageError::ProtocolError {
+                reason: "Unexpected response type".to_string(),
+            }),
+        }
+    }
+
+    /// Connect to a remote peer and get a recursive file manifest.
+    pub async fn remote_manifest(
+        &self,
+        remote_id: EndpointId,
+        relay_url: Option<RelayUrl>,
+        path: &str,
+        ucan_token: &str,
+    ) -> Result<Vec<crate::file_sync::types::FileState>, PeerStorageError> {
+        let endpoint = self
+            .endpoint
+            .as_ref()
+            .ok_or(PeerStorageError::EndpointNotRunning)?;
+
+        let addr = match relay_url {
+            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
+            None => EndpointAddr::new(remote_id),
+        };
+
+        let conn = endpoint
+            .connect(addr, ALPN)
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
+
+        let (mut send, mut recv) = conn
+            .open_bi()
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
+
+        let req = Request::Manifest { path: path.to_string(), ucan_token: ucan_token.to_string() };
+        let req_bytes = protocol::encode_request(&req)
+            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+        send.write_all(&req_bytes)
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+        send.finish()
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+
+        let response: Response = protocol::read_response(&mut recv)
+            .await
+            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+
+        match response {
+            Response::Manifest { entries } => Ok(entries),
+            Response::Error { message } => Err(PeerStorageError::ProtocolError { reason: message }),
+            _ => Err(PeerStorageError::ProtocolError {
+                reason: "Unexpected response type".to_string(),
+            }),
+        }
+    }
+
+    /// Connect to a remote peer and read a file into memory.
+    /// For large files prefer `remote_read_to_file`; this is for sync-sized reads.
+    pub async fn remote_read_bytes(
+        &self,
+        remote_id: EndpointId,
+        relay_url: Option<RelayUrl>,
+        path: &str,
+        ucan_token: &str,
+    ) -> Result<Vec<u8>, PeerStorageError> {
+        let endpoint = self
+            .endpoint
+            .as_ref()
+            .ok_or(PeerStorageError::EndpointNotRunning)?;
+
+        let addr = match relay_url {
+            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
+            None => EndpointAddr::new(remote_id),
+        };
+
+        let conn = endpoint
+            .connect(addr, ALPN)
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
+
+        let (mut send, mut recv) = conn
+            .open_bi()
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
+
+        let req = Request::Read {
+            path: path.to_string(),
+            range: None,
+            ucan_token: ucan_token.to_string(),
+        };
+        let req_bytes = protocol::encode_request(&req)
+            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+        send.write_all(&req_bytes)
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+        send.finish()
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+
+        let response: Response = protocol::read_response(&mut recv)
+            .await
+            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+
+        match response {
+            Response::ReadHeader { size } => {
+                let mut data = Vec::with_capacity(size as usize);
+                let mut buf = [0u8; 64 * 1024];
+
+                loop {
+                    let chunk = recv.read(&mut buf).await
+                        .map_err(|e| PeerStorageError::ConnectionFailed {
+                            reason: format!("Failed to read from stream: {e}"),
+                        })?;
+                    match chunk {
+                        Some(n) => data.extend_from_slice(&buf[..n]),
+                        None => break,
+                    }
+                }
+
+                Ok(data)
+            }
+            Response::Error { message } => {
+                Err(PeerStorageError::ProtocolError { reason: message })
+            }
+            _ => Err(PeerStorageError::ProtocolError {
+                reason: "Unexpected response type".to_string(),
+            }),
+        }
+    }
+
+    /// Connect to a remote peer and write a file.
+    /// Sends the Write request header, then streams the file data.
+    pub async fn remote_write_file(
+        &self,
+        remote_id: EndpointId,
+        relay_url: Option<RelayUrl>,
+        path: &str,
+        data: &[u8],
+        ucan_token: &str,
+    ) -> Result<(), PeerStorageError> {
+        let endpoint = self
+            .endpoint
+            .as_ref()
+            .ok_or(PeerStorageError::EndpointNotRunning)?;
+
+        let addr = match relay_url {
+            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
+            None => EndpointAddr::new(remote_id),
+        };
+
+        let conn = endpoint
+            .connect(addr, ALPN)
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+
+        let (mut send, mut recv) = conn
+            .open_bi()
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+
+        // Send Write request header (do NOT finish — data follows)
+        let req = Request::Write {
+            path: path.to_string(),
+            size: data.len() as u64,
+            ucan_token: ucan_token.to_string(),
+        };
+        let req_bytes = protocol::encode_request(&req)
+            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+        send.write_all(&req_bytes)
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+
+        // Stream file data
+        send.write_all(data)
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+        send.finish()
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+
+        // Read response
+        let response: Response = protocol::read_response(&mut recv)
+            .await
+            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+
+        match response {
+            Response::WriteOk => Ok(()),
+            Response::Error { message } => Err(PeerStorageError::ProtocolError { reason: message }),
+            _ => Err(PeerStorageError::ProtocolError {
+                reason: "Unexpected response type".to_string(),
+            }),
+        }
+    }
+
+    /// Connect to a remote peer and delete a file.
+    pub async fn remote_delete_file(
+        &self,
+        remote_id: EndpointId,
+        relay_url: Option<RelayUrl>,
+        path: &str,
+        to_trash: bool,
+        ucan_token: &str,
+    ) -> Result<(), PeerStorageError> {
+        let endpoint = self
+            .endpoint
+            .as_ref()
+            .ok_or(PeerStorageError::EndpointNotRunning)?;
+
+        let addr = match relay_url {
+            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
+            None => EndpointAddr::new(remote_id),
+        };
+
+        let conn = endpoint
+            .connect(addr, ALPN)
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+
+        let (mut send, mut recv) = conn
+            .open_bi()
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+
+        let req = Request::Delete {
+            path: path.to_string(),
+            to_trash,
+            ucan_token: ucan_token.to_string(),
+        };
+        let req_bytes = protocol::encode_request(&req)
+            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+        send.write_all(&req_bytes)
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+        send.finish()
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+
+        let response: Response = protocol::read_response(&mut recv)
+            .await
+            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+
+        match response {
+            Response::DeleteOk => Ok(()),
+            Response::Error { message } => Err(PeerStorageError::ProtocolError { reason: message }),
+            _ => Err(PeerStorageError::ProtocolError {
+                reason: "Unexpected response type".to_string(),
+            }),
+        }
+    }
+
+    /// Connect to a remote peer and create a directory.
+    pub async fn remote_create_directory(
+        &self,
+        remote_id: EndpointId,
+        relay_url: Option<RelayUrl>,
+        path: &str,
+        ucan_token: &str,
+    ) -> Result<(), PeerStorageError> {
+        let endpoint = self
+            .endpoint
+            .as_ref()
+            .ok_or(PeerStorageError::EndpointNotRunning)?;
+
+        let addr = match relay_url {
+            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
+            None => EndpointAddr::new(remote_id),
+        };
+
+        let conn = endpoint
+            .connect(addr, ALPN)
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+
+        let (mut send, mut recv) = conn
+            .open_bi()
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+
+        let req = Request::CreateDirectory {
+            path: path.to_string(),
+            ucan_token: ucan_token.to_string(),
+        };
+        let req_bytes = protocol::encode_request(&req)
+            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+        send.write_all(&req_bytes)
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+        send.finish()
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+
+        let response: Response = protocol::read_response(&mut recv)
+            .await
+            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+
+        match response {
+            Response::CreateDirectoryOk => Ok(()),
+            Response::Error { message } => Err(PeerStorageError::ProtocolError { reason: message }),
             _ => Err(PeerStorageError::ProtocolError {
                 reason: "Unexpected response type".to_string(),
             }),
@@ -556,13 +861,57 @@ async fn handle_stream(
             reason: e.to_string(),
         })?;
 
+    // ── Layer 1 (first line of defense): validate UCAN signature + expiry ──
+    let validated_ucan = match crate::ucan::validate_token(request.ucan_token()) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("[PeerStorage] UCAN validation failed: {e}");
+            let resp = Response::Error { message: format!("UCAN validation failed: {e}") };
+            let bytes = protocol::encode_response(&resp)
+                .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+            send.write_all(&bytes).await.ok();
+            send.finish().ok();
+            return Ok(());
+        }
+    };
+
+    // ── Layer 2 (source of truth): check capability matches operation ──
+    // Determine which space this request targets
+    let target_space_id = {
+        let s = state.read().await;
+        let path = match &request {
+            Request::List { path, .. } | Request::Stat { path, .. }
+            | Request::Read { path, .. } | Request::Manifest { path, .. }
+            | Request::Write { path, .. } | Request::Delete { path, .. }
+            | Request::CreateDirectory { path, .. } => path.as_str(),
+        };
+        find_space_for_path(&s.shares, allowed_spaces, path)
+    };
+
+    if let Some(space_id) = &target_space_id {
+        let required = if request.requires_write() {
+            crate::ucan::CapabilityLevel::Write
+        } else {
+            crate::ucan::CapabilityLevel::Read
+        };
+
+        if let Err(e) = crate::ucan::require_capability(&validated_ucan, space_id, required) {
+            eprintln!("[PeerStorage] UCAN capability check failed: {e}");
+            let resp = Response::Error { message: format!("Access denied: {e}") };
+            let bytes = protocol::encode_response(&resp)
+                .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+            send.write_all(&bytes).await.ok();
+            send.finish().ok();
+            return Ok(());
+        }
+    }
+
     let response = match request {
-        Request::List { path } => handle_list(state, &path, allowed_spaces).await,
-        Request::Stat { path } => handle_stat(state, &path, allowed_spaces).await,
-        Request::Read { path, range } => {
+        Request::List { path, .. } => handle_list(state, &path, allowed_spaces).await,
+        Request::Stat { path, .. } => handle_stat(state, &path, allowed_spaces).await,
+        Request::Manifest { path, .. } => handle_manifest(state, &path, allowed_spaces).await,
+        Request::Read { path, range, .. } => {
             if let Err(e) = handle_read(&mut send, state, &path, range, allowed_spaces).await {
-                // Try to send an error response so the client sees a proper error
-                // instead of "connection lost". Best-effort — may fail if stream broke.
                 eprintln!("[PeerStorage] Read error for '{path}': {e}");
                 let error_resp = Response::Error { message: format!("{e}") };
                 if let Ok(bytes) = protocol::encode_response(&error_resp) {
@@ -572,6 +921,24 @@ async fn handle_stream(
                 return Err(e);
             }
             return Ok(());
+        }
+        Request::Write { path, size, .. } => {
+            if let Err(e) = handle_write(&mut send, recv, state, &path, size, allowed_spaces).await {
+                eprintln!("[PeerStorage] Write error for '{path}': {e}");
+                let error_resp = Response::Error { message: format!("{e}") };
+                if let Ok(bytes) = protocol::encode_response(&error_resp) {
+                    let _ = send.write_all(&bytes).await;
+                    let _ = send.finish();
+                }
+                return Err(e);
+            }
+            return Ok(());
+        }
+        Request::Delete { path, to_trash, .. } => {
+            handle_delete(state, &path, to_trash, allowed_spaces).await
+        }
+        Request::CreateDirectory { path, .. } => {
+            handle_create_directory(state, &path, allowed_spaces).await
         }
     };
 
@@ -634,9 +1001,10 @@ fn resolve_path_filtered(
 ) -> Result<PathBuf, Response> {
     let (share, sub_path) = find_share_and_subpath(shares, allowed_spaces, request_path)?;
 
+    crate::filesystem::reject_path_traversal(&sub_path).map_err(|message| Response::Error { message })?;
+
     let full_path = PathBuf::from(&share.local_path).join(&sub_path);
 
-    // Prevent path traversal
     let canonical = full_path.canonicalize().map_err(|_| Response::Error {
         message: "Path not found".to_string(),
     })?;
@@ -719,6 +1087,99 @@ async fn handle_list(
             message: format!("Failed to list directory: {e}"),
         },
     }
+}
+
+async fn handle_manifest(
+    state: &RwLock<PeerState>,
+    path: &str,
+    allowed_spaces: &HashSet<String>,
+) -> Response {
+    let state = state.read().await;
+
+    // Manifest requires a share path (no root-level manifest)
+    if path.is_empty() || path == "/" {
+        return Response::Error {
+            message: "Manifest requires a share path".to_string(),
+        };
+    }
+
+    // Content URIs not supported for manifest (Android-only)
+    if let Ok((share, _sub)) = find_share_and_subpath(&state.shares, allowed_spaces, path) {
+        if is_content_uri(&share.local_path) {
+            return Response::Error {
+                message: "Manifest not supported for Content URI shares".to_string(),
+            };
+        }
+    }
+
+    let local_path = match resolve_path_filtered(&state.shares, allowed_spaces, path) {
+        Ok(p) => p,
+        Err(resp) => return resp,
+    };
+
+    if !local_path.is_dir() {
+        return Response::Error {
+            message: "Not a directory".to_string(),
+        };
+    }
+
+    // Use the same recursive scan as LocalProvider
+    match tokio::task::spawn_blocking({
+        let base = local_path.clone();
+        move || scan_directory_recursive(&local_path, &base)
+    })
+    .await
+    {
+        Ok(Ok(entries)) => Response::Manifest { entries },
+        Ok(Err(e)) => Response::Error {
+            message: format!("Failed to scan directory: {e}"),
+        },
+        Err(e) => Response::Error {
+            message: format!("Task failed: {e}"),
+        },
+    }
+}
+
+/// Recursively scan a directory and collect FileState entries for the manifest.
+fn scan_directory_recursive(
+    dir: &Path,
+    base: &Path,
+) -> Result<Vec<crate::file_sync::types::FileState>, std::io::Error> {
+    let mut entries = Vec::new();
+    let read_dir = std::fs::read_dir(dir)?;
+
+    for entry in read_dir {
+        let entry = entry?;
+        let metadata = entry.metadata()?;
+
+        let relative = entry
+            .path()
+            .strip_prefix(base)
+            .unwrap_or(&entry.path())
+            .to_string_lossy()
+            .to_string()
+            .replace('\\', "/");
+
+        let modified_at = metadata
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+
+        entries.push(crate::file_sync::types::FileState {
+            relative_path: relative,
+            size: if metadata.is_dir() { 0 } else { metadata.len() },
+            modified_at,
+            is_directory: metadata.is_dir(),
+        });
+
+        if metadata.is_dir() {
+            entries.extend(scan_directory_recursive(&entry.path(), base)?);
+        }
+    }
+
+    Ok(entries)
 }
 
 async fn handle_stat(
@@ -920,6 +1381,8 @@ fn resolve_content_uri_subpath(
     sub_path: &str,
 ) -> Result<(tauri_plugin_android_fs::FileUri, bool), String> {
     use tauri_plugin_android_fs::{AndroidFsExt, FileUri};
+
+    crate::filesystem::reject_path_traversal(sub_path)?;
 
     let api = app_handle.android_fs();
     let root = FileUri::from_json_str(root_uri_json)
@@ -1197,6 +1660,131 @@ async fn handle_read_content_uri(
     Ok(())
 }
 
+/// Write a file via Content URI. Receives file data from QUIC stream.
+#[cfg(target_os = "android")]
+async fn handle_write_content_uri(
+    send: &mut iroh::endpoint::SendStream,
+    recv: &mut iroh::endpoint::RecvStream,
+    app_handle: &tauri::AppHandle,
+    root_uri_json: &str,
+    sub_path: &str,
+    size: u64,
+) -> Result<(), PeerStorageError> {
+    use tauri_plugin_android_fs::AndroidFsExt;
+    use std::io::Write;
+
+    // Read all data from the stream first
+    let mut data = Vec::with_capacity(size as usize);
+    let mut buf = [0u8; 64 * 1024];
+    let mut remaining = size;
+    while remaining > 0 {
+        let to_read = (remaining as usize).min(buf.len());
+        let chunk = recv.read(&mut buf[..to_read]).await
+            .map_err(|e| PeerStorageError::ConnectionFailed {
+                reason: format!("Failed to read file data: {e}"),
+            })?;
+        match chunk {
+            Some(n) => {
+                data.extend_from_slice(&buf[..n]);
+                remaining -= n as u64;
+            }
+            None => break,
+        }
+    }
+
+    // Write via android_fs (blocking JNI)
+    let app = app_handle.clone();
+    let root = root_uri_json.to_string();
+    let sub = sub_path.to_string();
+
+    let result = tokio::task::spawn_blocking(move || -> Result<(), String> {
+        let api = app.android_fs();
+
+        // Navigate to parent directory, creating as needed
+        let path = std::path::Path::new(&sub);
+        let file_name = path.file_name()
+            .and_then(|n| n.to_str())
+            .ok_or("Invalid file name")?;
+
+        let (parent_uri, _) = resolve_content_uri_subpath(&app, &root, path.parent().and_then(|p| p.to_str()).unwrap_or(""))
+            .map_err(|e| format!("Failed to resolve parent: {e}"))?;
+
+        // Create file in parent directory
+        let file_uri = api.create_new_file(&parent_uri, file_name, None)
+            .map_err(|e| format!("Failed to create file: {e:?}"))?;
+
+        // Write data
+        let mut file = api.open_file_writable(&file_uri)
+            .map_err(|e| format!("Failed to open for writing: {e:?}"))?;
+        file.write_all(&data)
+            .map_err(|e| format!("Failed to write: {e}"))?;
+
+        Ok(())
+    }).await.map_err(|e| PeerStorageError::ProtocolError {
+        reason: format!("Task failed: {e}"),
+    })?;
+
+    let resp = match result {
+        Ok(()) => Response::WriteOk,
+        Err(e) => Response::Error { message: e },
+    };
+
+    let resp_bytes = protocol::encode_response(&resp)
+        .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+    send.write_all(&resp_bytes).await
+        .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+    send.finish()
+        .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+
+    Ok(())
+}
+
+/// Delete a file/directory via Content URI.
+#[cfg(target_os = "android")]
+fn delete_content_uri(
+    app_handle: &tauri::AppHandle,
+    root_uri_json: &str,
+    sub_path: &str,
+    _to_trash: bool,
+) -> Result<(), String> {
+    use tauri_plugin_android_fs::AndroidFsExt;
+
+    let (target_uri, is_dir) = resolve_content_uri_subpath(app_handle, root_uri_json, sub_path)?;
+    let api = app_handle.android_fs();
+    if is_dir {
+        api.remove_dir_all(&target_uri)
+    } else {
+        api.remove_file(&target_uri)
+    }
+    .map_err(|e| format!("Failed to delete: {e:?}"))
+}
+
+/// Create a directory via Content URI.
+#[cfg(target_os = "android")]
+fn create_directory_content_uri(
+    app_handle: &tauri::AppHandle,
+    root_uri_json: &str,
+    sub_path: &str,
+) -> Result<(), String> {
+    use tauri_plugin_android_fs::AndroidFsExt;
+
+    crate::filesystem::reject_path_traversal(sub_path)?;
+
+    let trimmed = sub_path.trim_start_matches('/');
+    if trimmed.is_empty() {
+        return Ok(()); // Root already exists
+    }
+
+    let api = app_handle.android_fs();
+    let root = tauri_plugin_android_fs::FileUri::from_json_str(root_uri_json)
+        .map_err(|e| format!("Invalid Content URI: {e:?}"))?;
+
+    api.create_dir_all(&root, trimmed)
+        .map_err(|e| format!("Failed to create directory '{}': {e:?}", trimmed))?;
+
+    Ok(())
+}
+
 // ============================================================================
 // Filesystem helpers
 // ============================================================================
@@ -1250,4 +1838,298 @@ fn file_entry_from_path(path: &Path) -> Result<FileEntry, std::io::Error> {
         is_dir: metadata.is_dir(),
         modified,
     })
+}
+
+// ============================================================================
+// UCAN helpers
+// ============================================================================
+
+/// Determine which space a request path targets, for UCAN capability checking.
+fn find_space_for_path(
+    shares: &HashMap<String, SharedFolder>,
+    allowed_spaces: &HashSet<String>,
+    request_path: &str,
+) -> Option<String> {
+    if request_path.is_empty() || request_path == "/" {
+        return None; // Root listing — no specific space
+    }
+    find_share_and_subpath(shares, allowed_spaces, request_path)
+        .ok()
+        .map(|(share, _)| share.space_id.clone())
+}
+
+// ============================================================================
+// Write handlers
+// ============================================================================
+
+/// Handle an incoming Write request: read file data from the stream, write to disk.
+async fn handle_write(
+    send: &mut iroh::endpoint::SendStream,
+    recv: &mut iroh::endpoint::RecvStream,
+    state: &RwLock<PeerState>,
+    path: &str,
+    size: u64,
+    allowed_spaces: &HashSet<String>,
+) -> Result<(), PeerStorageError> {
+    // Check for Content URI shares (Android)
+    let content_uri_info = {
+        let state = state.read().await;
+        if let Ok((share, sub_path)) = find_share_and_subpath(&state.shares, allowed_spaces, path) {
+            if is_content_uri(&share.local_path) {
+                Some((share.local_path.clone(), sub_path, state.app_handle.clone()))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    };
+
+    if let Some((_root_uri, _sub_path, _app_handle_opt)) = content_uri_info {
+        #[cfg(target_os = "android")]
+        {
+            return handle_write_content_uri(
+                send, recv, &_app_handle_opt.ok_or_else(|| PeerStorageError::ProtocolError {
+                    reason: "AppHandle not available".to_string(),
+                })?,
+                &_root_uri, &_sub_path, size,
+            ).await;
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            let resp = Response::Error { message: "Content URIs are only supported on Android".to_string() };
+            let resp_bytes = protocol::encode_response(&resp)
+                .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+            send.write_all(&resp_bytes).await.ok();
+            send.finish().ok();
+            return Ok(());
+        }
+    }
+
+    let local_path = {
+        let state = state.read().await;
+        match resolve_path_for_write(&state.shares, allowed_spaces, path) {
+            Ok(p) => p,
+            Err(resp) => {
+                let resp_bytes = protocol::encode_response(&resp)
+                    .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+                send.write_all(&resp_bytes).await.ok();
+                send.finish().ok();
+                return Ok(());
+            }
+        }
+    };
+
+    // Create parent directories
+    if let Some(parent) = local_path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(PeerStorageError::Io)?;
+    }
+
+    // Read file data from the stream and write to disk
+    use tokio::io::AsyncWriteExt;
+    let mut file = tokio::fs::File::create(&local_path)
+        .await
+        .map_err(PeerStorageError::Io)?;
+
+    let mut remaining = size;
+    let mut buf = [0u8; 64 * 1024];
+
+    while remaining > 0 {
+        let to_read = (remaining as usize).min(buf.len());
+        let chunk = recv.read(&mut buf[..to_read]).await
+            .map_err(|e| PeerStorageError::ConnectionFailed {
+                reason: format!("Failed to read file data: {e}"),
+            })?;
+        match chunk {
+            Some(n) => {
+                file.write_all(&buf[..n]).await.map_err(PeerStorageError::Io)?;
+                remaining -= n as u64;
+            }
+            None => break,
+        }
+    }
+
+    file.flush().await.map_err(PeerStorageError::Io)?;
+
+    // Send success response
+    let resp = Response::WriteOk;
+    let resp_bytes = protocol::encode_response(&resp)
+        .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+    send.write_all(&resp_bytes)
+        .await
+        .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+    send.finish()
+        .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+
+    Ok(())
+}
+
+/// Handle an incoming Delete request.
+async fn handle_delete(
+    state: &RwLock<PeerState>,
+    path: &str,
+    to_trash: bool,
+    allowed_spaces: &HashSet<String>,
+) -> Response {
+    // Check for Content URI shares (Android)
+    if let Ok((share, _sub)) = {
+        let s = state.read().await;
+        find_share_and_subpath(&s.shares, allowed_spaces, path).map(|(sh, sub)| (sh.clone(), sub))
+    } {
+        if is_content_uri(&share.local_path) {
+            #[cfg(target_os = "android")]
+            {
+                let app_handle = {
+                    let s = state.read().await;
+                    match &s.app_handle {
+                        Some(h) => h.clone(),
+                        None => return Response::Error { message: "AppHandle not available".to_string() },
+                    }
+                };
+                let root_uri = share.local_path.clone();
+                return match tokio::task::spawn_blocking(move || {
+                    delete_content_uri(&app_handle, &root_uri, &_sub, to_trash)
+                }).await {
+                    Ok(Ok(())) => Response::DeleteOk,
+                    Ok(Err(e)) => Response::Error { message: e },
+                    Err(e) => Response::Error { message: format!("Task failed: {e}") },
+                };
+            }
+            #[cfg(not(target_os = "android"))]
+            return Response::Error { message: "Content URIs are only supported on Android".to_string() };
+        }
+    }
+
+    let local_path = {
+        let state = state.read().await;
+        match resolve_path_filtered(&state.shares, allowed_spaces, path) {
+            Ok(p) => p,
+            Err(resp) => return resp,
+        }
+    };
+
+    if !local_path.exists() {
+        return Response::Error {
+            message: "File not found".to_string(),
+        };
+    }
+
+    if to_trash {
+        #[cfg(not(target_os = "android"))]
+        {
+            if let Err(e) = trash::delete(&local_path) {
+                return Response::Error {
+                    message: format!("Failed to trash: {e}"),
+                };
+            }
+        }
+        #[cfg(target_os = "android")]
+        {
+            if let Err(e) = tokio::fs::remove_file(&local_path).await {
+                return Response::Error {
+                    message: format!("Failed to delete: {e}"),
+                };
+            }
+        }
+    } else if local_path.is_dir() {
+        if let Err(e) = tokio::fs::remove_dir_all(&local_path).await {
+            return Response::Error {
+                message: format!("Failed to delete directory: {e}"),
+            };
+        }
+    } else if let Err(e) = tokio::fs::remove_file(&local_path).await {
+        return Response::Error {
+            message: format!("Failed to delete file: {e}"),
+        };
+    }
+
+    Response::DeleteOk
+}
+
+/// Handle an incoming CreateDirectory request.
+async fn handle_create_directory(
+    state: &RwLock<PeerState>,
+    path: &str,
+    allowed_spaces: &HashSet<String>,
+) -> Response {
+    // Check for Content URI shares (Android)
+    if let Ok((share, _sub)) = {
+        let s = state.read().await;
+        find_share_and_subpath(&s.shares, allowed_spaces, path).map(|(sh, sub)| (sh.clone(), sub))
+    } {
+        if is_content_uri(&share.local_path) {
+            #[cfg(target_os = "android")]
+            {
+                let app_handle = {
+                    let s = state.read().await;
+                    match &s.app_handle {
+                        Some(h) => h.clone(),
+                        None => return Response::Error { message: "AppHandle not available".to_string() },
+                    }
+                };
+                let root_uri = share.local_path.clone();
+                return match tokio::task::spawn_blocking(move || {
+                    create_directory_content_uri(&app_handle, &root_uri, &_sub)
+                }).await {
+                    Ok(Ok(())) => Response::CreateDirectoryOk,
+                    Ok(Err(e)) => Response::Error { message: e },
+                    Err(e) => Response::Error { message: format!("Task failed: {e}") },
+                };
+            }
+            #[cfg(not(target_os = "android"))]
+            return Response::Error { message: "Content URIs are only supported on Android".to_string() };
+        }
+    }
+
+    let local_path = {
+        let state = state.read().await;
+        match resolve_path_for_write(&state.shares, allowed_spaces, path) {
+            Ok(p) => p,
+            Err(resp) => return resp,
+        }
+    };
+
+    match tokio::fs::create_dir_all(&local_path).await {
+        Ok(()) => Response::CreateDirectoryOk,
+        Err(e) => Response::Error {
+            message: format!("Failed to create directory: {e}"),
+        },
+    }
+}
+
+/// Resolve a request path for write operations.
+/// Similar to `resolve_path_filtered` but doesn't require the path to exist yet
+/// (needed for creating new files/directories).
+fn resolve_path_for_write(
+    shares: &HashMap<String, SharedFolder>,
+    allowed_spaces: &HashSet<String>,
+    request_path: &str,
+) -> Result<PathBuf, Response> {
+    let (share, sub_path) = find_share_and_subpath(shares, allowed_spaces, request_path)?;
+
+    crate::filesystem::check_relative_path(&sub_path).map_err(|message| Response::Error { message })?;
+
+    let full_path = PathBuf::from(&share.local_path).join(&sub_path);
+
+    // Canonicalize the share root and check the target is within it
+    let share_canonical = PathBuf::from(&share.local_path).canonicalize().map_err(|_| Response::Error {
+        message: "Share path invalid".to_string(),
+    })?;
+
+    // For new files, canonicalize the parent (which must exist) and verify containment
+    let parent = full_path.parent().unwrap_or(&full_path);
+    if parent.exists() {
+        let parent_canonical = parent.canonicalize().map_err(|_| Response::Error {
+            message: "Parent path invalid".to_string(),
+        })?;
+        if !parent_canonical.starts_with(&share_canonical) {
+            return Err(Response::Error {
+                message: "Access denied: path outside share".to_string(),
+            });
+        }
+    }
+
+    Ok(full_path)
 }

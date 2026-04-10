@@ -9,6 +9,10 @@
       v-else-if="activeView === 'relay'"
       @back="goBack"
     />
+    <HaexSystemSettingsPeerStorageSyncRules
+      v-else-if="activeView === 'sync-rules'"
+      @back="goBack"
+    />
 
     <!-- Index / Menu -->
     <HaexSystemSettingsLayout
@@ -40,6 +44,13 @@
           icon="i-lucide-server"
           @click="navigateTo('relay')"
         />
+
+        <HaexSystemSettingsLayoutMenuItem
+          :label="t('menu.syncRules')"
+          :description="t('menu.syncRulesDesc')"
+          icon="i-lucide-refresh-cw"
+          @click="navigateTo('sync-rules')"
+        />
       </div>
     </HaexSystemSettingsLayout>
   </div>
@@ -49,7 +60,7 @@
 const { t } = useI18n()
 const store = usePeerStorageStore()
 const tabId = inject<string>('haex-tab-id')!
-const { activeView, navigateTo, goBack } = useDrillDownNavigation<'index' | 'connection' | 'relay'>('index', 'peer-storage', tabId)
+const { activeView, navigateTo, goBack } = useDrillDownNavigation<'index' | 'connection' | 'relay' | 'sync-rules'>('index', 'peer-storage', tabId)
 
 onMounted(async () => {
   await store.refreshStatusAsync()
@@ -65,6 +76,8 @@ de:
     connectionDesc: Endpoint starten und Ordner teilen
     relay: Relay-Server
     relayDesc: Relay für NAT-Traversal konfigurieren
+    syncRules: Sync-Regeln
+    syncRulesDesc: Dateien automatisch zwischen Geräten synchronisieren
   status:
     active: Aktiv
     inactive: Inaktiv
@@ -76,6 +89,8 @@ en:
     connectionDesc: Start endpoint and share folders
     relay: Relay Server
     relayDesc: Configure relay for NAT traversal
+    syncRules: Sync Rules
+    syncRulesDesc: Automatically synchronize files between devices
   status:
     active: Active
     inactive: Inactive

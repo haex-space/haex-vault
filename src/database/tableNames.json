@@ -412,6 +412,17 @@
       }
     },
 
+    "devices": {
+      "name": "haex_devices",
+      "columns": {
+        "id": "id",
+        "endpointId": "endpoint_id",
+        "name": "name",
+        "platform": "platform",
+        "createdAt": "created_at"
+      }
+    },
+
     "logs": {
       "name": "haex_logs",
       "columns": {
@@ -423,6 +434,37 @@
         "message": "message",
         "metadata": "metadata",
         "deviceId": "device_id"
+      }
+    },
+
+    "sync_rules": {
+      "name": "haex_sync_rules",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "deviceId": "device_id",
+        "sourceType": "source_type",
+        "sourceConfig": "source_config",
+        "targetType": "target_type",
+        "targetConfig": "target_config",
+        "direction": "direction",
+        "enabled": "enabled",
+        "syncIntervalSeconds": "sync_interval_seconds",
+        "deleteMode": "delete_mode",
+        "lastSyncedAt": "last_synced_at",
+        "createdAt": "created_at"
+      }
+    },
+    "sync_state": {
+      "name": "haex_sync_state_no_sync",
+      "columns": {
+        "id": "id",
+        "ruleId": "rule_id",
+        "relativePath": "relative_path",
+        "fileSize": "file_size",
+        "modifiedAt": "modified_at",
+        "syncedAt": "synced_at",
+        "deleted": "deleted"
       }
     },
 

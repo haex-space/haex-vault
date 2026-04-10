@@ -389,7 +389,53 @@ pub async fn remote_storage_list(
 // Helper Functions
 // ============================================================================
 
-/// Get a backend instance by ID
+/// Get a backend instance by ID, using a `DbConnection` directly.
+///
+/// This is the shared implementation used by both the Tauri command helper
+/// and the file-sync provider factory.
+pub async fn get_backend_instance_from_db(
+    db: &crate::database::DbConnection,
+    backend_id: &str,
+) -> Result<Box<dyn super::backend::StorageBackend>, StorageError> {
+    let rows = core::select_with_crdt(
+        SQL_GET_BACKEND_CONFIG.clone(),
+        vec![JsonValue::String(backend_id.to_string())],
+        db,
+    )
+    .map_err(|e| StorageError::DatabaseError {
+        reason: e.to_string(),
+    })?;
+
+    if rows.is_empty() {
+        return Err(StorageError::BackendNotFound {
+            id: backend_id.to_string(),
+        });
+    }
+
+    let row = &rows[0];
+    let backend_type = get_string(row, 0);
+    if backend_type.is_empty() {
+        return Err(StorageError::Internal {
+            reason: "Missing backend type".to_string(),
+        });
+    }
+
+    let config_str = get_string(row, 1);
+    if config_str.is_empty() {
+        return Err(StorageError::Internal {
+            reason: "Missing backend config".to_string(),
+        });
+    }
+
+    let config: serde_json::Value =
+        serde_json::from_str(&config_str).map_err(|e| StorageError::InvalidConfig {
+            reason: format!("Failed to parse config: {}", e),
+        })?;
+
+    create_backend(&backend_type, &config).await
+}
+
+/// Get a backend instance by ID (from Tauri State)
 async fn get_backend_instance(
     state: &State<'_, AppState>,
     backend_id: &str,

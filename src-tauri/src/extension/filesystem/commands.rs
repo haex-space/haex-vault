@@ -560,7 +560,7 @@ pub async fn extension_filesystem_watch(
     // Start watching the directory (no-op on Android)
     state
         .file_watcher
-        .watch(app_handle, rule_id, path)
+        .watch(app_handle, rule_id, path, None)
         .map_err(|e| ExtensionError::FilesystemError { reason: e })?;
 
     Ok(())

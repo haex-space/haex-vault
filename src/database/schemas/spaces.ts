@@ -9,6 +9,7 @@ import {
 import tableNames from '@/database/tableNames.json'
 import { haexIdentities } from './identity'
 import { haexExtensions } from './core'
+import { haexDevices } from './devices'
 
 // ---------------------------------------------------------------------------
 // Spaces — local + remote spaces (CRDT-synced)
@@ -259,3 +260,58 @@ export const haexSyncBackends = sqliteTable(
 )
 export type InsertHaexSyncBackends = typeof haexSyncBackends.$inferInsert
 export type SelectHaexSyncBackends = typeof haexSyncBackends.$inferSelect
+
+// ---------------------------------------------------------------------------
+// Sync Rules — persistent file sync configuration (CRDT-synced)
+// ---------------------------------------------------------------------------
+
+export const haexSyncRules = sqliteTable(
+  tableNames.haex.sync_rules.name,
+  {
+    id: text(tableNames.haex.sync_rules.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    spaceId: text(tableNames.haex.sync_rules.columns.spaceId)
+      .notNull()
+      .references(() => haexSpaces.id),
+    deviceId: text(tableNames.haex.sync_rules.columns.deviceId)
+      .notNull()
+      .references(() => haexDevices.id),
+    sourceType: text(tableNames.haex.sync_rules.columns.sourceType).notNull(), // 'local' | 'peer' | 'cloud'
+    sourceConfig: text(tableNames.haex.sync_rules.columns.sourceConfig, { mode: 'json' }).notNull(),
+    targetType: text(tableNames.haex.sync_rules.columns.targetType).notNull(), // 'local' | 'peer' | 'cloud'
+    targetConfig: text(tableNames.haex.sync_rules.columns.targetConfig, { mode: 'json' }).notNull(),
+    direction: text(tableNames.haex.sync_rules.columns.direction).notNull().default('one_way'), // 'one_way' | 'two_way'
+    enabled: integer(tableNames.haex.sync_rules.columns.enabled, { mode: 'boolean' }).notNull().default(true),
+    syncIntervalSeconds: integer(tableNames.haex.sync_rules.columns.syncIntervalSeconds).notNull().default(300),
+    deleteMode: text(tableNames.haex.sync_rules.columns.deleteMode).notNull().default('trash'), // 'trash' | 'permanent' | 'ignore'
+    lastSyncedAt: integer(tableNames.haex.sync_rules.columns.lastSyncedAt),
+    createdAt: text(tableNames.haex.sync_rules.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
+  },
+)
+export type InsertHaexSyncRules = typeof haexSyncRules.$inferInsert
+export type SelectHaexSyncRules = typeof haexSyncRules.$inferSelect
+
+// ---------------------------------------------------------------------------
+// Sync State — local-only file sync tracking (no CRDT)
+// ---------------------------------------------------------------------------
+
+export const haexSyncState = sqliteTable(
+  tableNames.haex.sync_state.name,
+  {
+    id: text(tableNames.haex.sync_state.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    ruleId: text(tableNames.haex.sync_state.columns.ruleId).notNull(), // No FK: parent table is CRDT-synced, state is local-only
+    relativePath: text(tableNames.haex.sync_state.columns.relativePath).notNull(),
+    fileSize: integer(tableNames.haex.sync_state.columns.fileSize).notNull(),
+    modifiedAt: integer(tableNames.haex.sync_state.columns.modifiedAt).notNull(),
+    syncedAt: text(tableNames.haex.sync_state.columns.syncedAt).notNull(),
+    deleted: integer(tableNames.haex.sync_state.columns.deleted, { mode: 'boolean' }).notNull().default(false),
+  },
+  (table) => [
+    uniqueIndex('haex_sync_state_rule_path_unique').on(table.ruleId, table.relativePath),
+  ],
+)
+export type InsertHaexSyncState = typeof haexSyncState.$inferInsert
+export type SelectHaexSyncState = typeof haexSyncState.$inferSelect
