@@ -553,6 +553,10 @@ const copyEndpointId = async () => {
   add({ title: t('toast.copied'), color: 'success' })
 }
 
+const onSyncShare = (_spaceId: string, _share: SelectHaexPeerShares) => {
+  // TODO: Implement file sync trigger (feature/file-sync)
+}
+
 const getShareContextMenuItems = (share: SelectHaexPeerShares, spaceId?: string) => {
   const items: ContextMenuItem[] = []
   if (spaceId) {

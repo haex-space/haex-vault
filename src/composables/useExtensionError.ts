@@ -1,4 +1,5 @@
 import type { SerializedExtensionError } from '~~/src-tauri/bindings/SerializedExtensionError'
+import { getErrorMessage } from '~/utils/errors'
 
 /**
  * Type guard to check if error is a SerializedExtensionError
@@ -19,5 +20,6 @@ export function isSerializedExtensionError(error: unknown): error is SerializedE
 export function useExtensionError() {
   return {
     isSerializedExtensionError,
+    getErrorMessage,
   }
 }
