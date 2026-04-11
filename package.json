@@ -57,7 +57,7 @@
     "@vueuse/gesture": "^2.0.0",
     "@vueuse/nuxt": "^14.2.1",
     "driver.js": "^1.4.0",
-    "drizzle-orm": "^0.45.1",
+    "drizzle-orm": "^0.45.2",
     "html5-qrcode": "^2.3.8",
     "md-editor-v3": "^6.4.1",
     "nuxt-zod-i18n": "^1.12.1",
