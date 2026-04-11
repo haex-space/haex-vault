@@ -16,6 +16,7 @@
 
 const viewRegistry = new Map<string, Ref<string>>()
 const contextRegistry = new Map<string, Ref<Record<string, unknown>>>()
+const directionRegistry = new Map<string, Ref<'forward' | 'back'>>()
 
 export function useDrillDownNavigation<T extends string>(
   defaultView: T,
@@ -34,8 +35,12 @@ export function useDrillDownNavigation<T extends string>(
   if (!contextRegistry.has(key)) {
     contextRegistry.set(key, ref<Record<string, unknown>>({}))
   }
+  if (!directionRegistry.has(key)) {
+    directionRegistry.set(key, ref<'forward' | 'back'>('forward'))
+  }
   const activeView = viewRegistry.get(key) as Ref<T>
   const navigationContext = contextRegistry.get(key) as Ref<Record<string, unknown>>
+  const direction = directionRegistry.get(key) as Ref<'forward' | 'back'>
 
   /**
    * Navigate to a new view, optionally with context data that will be
@@ -47,6 +52,7 @@ export function useDrillDownNavigation<T extends string>(
     const previousView = activeView.value
     const previousContext = { ...navigationContext.value }
 
+    direction.value = 'forward'
     activeView.value = view
     if (context) {
       navigationContext.value = context
@@ -54,10 +60,12 @@ export function useDrillDownNavigation<T extends string>(
 
     navigationStore.pushBack({
       undo: () => {
+        direction.value = 'back'
         activeView.value = previousView
         navigationContext.value = previousContext
       },
       redo: () => {
+        direction.value = 'forward'
         activeView.value = view
         if (context) {
           navigationContext.value = context
@@ -74,7 +82,8 @@ export function useDrillDownNavigation<T extends string>(
   onUnmounted(() => {
     viewRegistry.delete(key)
     contextRegistry.delete(key)
+    directionRegistry.delete(key)
   })
 
-  return { activeView, navigationContext, navigateTo, goBack }
+  return { activeView, navigationContext, direction, navigateTo, goBack }
 }

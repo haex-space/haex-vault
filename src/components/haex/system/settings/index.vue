@@ -29,26 +29,28 @@
       </nav>
     </template>
 
-    <div class="h-full">
-      <HaexSystemSettingsGeneral v-if="activeCategory === SettingsCategory.General || activeCategory === SettingsCategory.Appearance" />
-      <HaexSystemSettingsExtensions v-if="activeCategory === SettingsCategory.Extensions" />
-      <HaexSystemSettingsExternalClients
-        v-if="activeCategory === SettingsCategory.ExternalClients"
-      />
-      <HaexSystemSettingsDatabase v-if="activeCategory === SettingsCategory.Database" />
-      <HaexSystemSettingsSync v-if="activeCategory === SettingsCategory.Sync" />
-      <HaexSystemSettingsSpaces
-        v-if="activeCategory === SettingsCategory.Spaces"
-        :invite-link="props.inviteLink"
-      />
-      <HaexSystemSettingsIdentities v-if="activeCategory === SettingsCategory.Identities" />
-      <HaexSystemSettingsContacts v-if="activeCategory === SettingsCategory.Contacts" />
-      <HaexSystemSettingsStorage v-if="activeCategory === SettingsCategory.Storage" />
-      <HaexSystemSettingsPeerStorage v-if="activeCategory === SettingsCategory.PeerStorage" />
-      <HaexSystemSettingsDevices v-if="activeCategory === SettingsCategory.Devices" />
-      <HaexSystemSettingsLogs v-if="activeCategory === SettingsCategory.Logs" />
-      <HaexSystemSettingsDeveloper v-if="activeCategory === SettingsCategory.Developer" />
-    </div>
+    <Transition name="settings-fade" mode="out-in">
+      <div :key="activeCategory" class="h-full">
+        <HaexSystemSettingsGeneral v-if="activeCategory === SettingsCategory.General || activeCategory === SettingsCategory.Appearance" />
+        <HaexSystemSettingsExtensions v-else-if="activeCategory === SettingsCategory.Extensions" />
+        <HaexSystemSettingsExternalClients
+          v-else-if="activeCategory === SettingsCategory.ExternalClients"
+        />
+        <HaexSystemSettingsDatabase v-else-if="activeCategory === SettingsCategory.Database" />
+        <HaexSystemSettingsSync v-else-if="activeCategory === SettingsCategory.Sync" />
+        <HaexSystemSettingsSpaces
+          v-else-if="activeCategory === SettingsCategory.Spaces"
+          :invite-link="props.inviteLink"
+        />
+        <HaexSystemSettingsIdentities v-else-if="activeCategory === SettingsCategory.Identities" />
+        <HaexSystemSettingsContacts v-else-if="activeCategory === SettingsCategory.Contacts" />
+        <HaexSystemSettingsStorage v-else-if="activeCategory === SettingsCategory.Storage" />
+        <HaexSystemSettingsPeerStorage v-else-if="activeCategory === SettingsCategory.PeerStorage" />
+        <HaexSystemSettingsDevices v-else-if="activeCategory === SettingsCategory.Devices" />
+        <HaexSystemSettingsLogs v-else-if="activeCategory === SettingsCategory.Logs" />
+        <HaexSystemSettingsDeveloper v-else-if="activeCategory === SettingsCategory.Developer" />
+      </div>
+    </Transition>
   </HaexSystem>
 </template>
 

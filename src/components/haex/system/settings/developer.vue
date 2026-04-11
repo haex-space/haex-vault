@@ -1,20 +1,22 @@
 <template>
-  <div class="h-full">
-    <HaexSystemSettingsDeveloperAdd v-if="activeView === 'add'" @back="goBack" />
-    <HaexSystemSettingsDeveloperList v-else-if="activeView === 'list'" @back="goBack" />
-    <HaexSystemSettingsLayout v-else :title="t('title')" :description="t('description')">
-      <div class="space-y-1">
-        <HaexSystemSettingsLayoutMenuItem :label="t('menu.add')" :description="t('menu.addDesc')" icon="i-lucide-plus-circle" @click="navigateTo('add')" />
-        <HaexSystemSettingsLayoutMenuItem :label="t('menu.list')" :description="t('menu.listDesc')" icon="i-lucide-puzzle" @click="navigateTo('list')" />
-      </div>
-    </HaexSystemSettingsLayout>
-  </div>
+  <Transition :name="direction === 'back' ? 'slide-back' : 'slide-forward'" mode="out-in">
+    <div :key="activeView" class="h-full">
+      <HaexSystemSettingsDeveloperAdd v-if="activeView === 'add'" @back="goBack" />
+      <HaexSystemSettingsDeveloperList v-else-if="activeView === 'list'" @back="goBack" />
+      <HaexSystemSettingsLayout v-else :title="t('title')" :description="t('description')">
+        <div class="space-y-1">
+          <HaexSystemSettingsLayoutMenuItem :label="t('menu.add')" :description="t('menu.addDesc')" icon="i-lucide-plus-circle" @click="navigateTo('add')" />
+          <HaexSystemSettingsLayoutMenuItem :label="t('menu.list')" :description="t('menu.listDesc')" icon="i-lucide-puzzle" @click="navigateTo('list')" />
+        </div>
+      </HaexSystemSettingsLayout>
+    </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
 const { t } = useI18n()
 const tabId = inject<string>('haex-tab-id')!
-const { activeView, navigateTo, goBack } = useDrillDownNavigation<'index' | 'add' | 'list'>('index', 'developer', tabId)
+const { activeView, direction, navigateTo, goBack } = useDrillDownNavigation<'index' | 'add' | 'list'>('index', 'developer', tabId)
 </script>
 
 <i18n lang="yaml">

@@ -246,7 +246,7 @@ function previewSvg(key: string, value: string): string {
   if (cached) return cached
 
   const o = options.value
-  const pick = (k: string) => k === key ? value : (o as Record<string, unknown>)[k]
+  const pick = (k: string) => k === key ? value : (o as unknown as Record<string, unknown>)[k]
 
   const previewOptions: Record<string, unknown> = {
     // Force-show the feature for preview

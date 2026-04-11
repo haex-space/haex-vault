@@ -1,43 +1,45 @@
 <template>
-  <div class="h-full">
-    <!-- Subviews -->
-    <HaexSystemSettingsExternalClientsBridge
-      v-if="activeView === 'bridge'"
-      @back="goBack"
-    />
-    <HaexSystemSettingsExternalClientsManage
-      v-else-if="activeView === 'clients'"
-      @back="goBack"
-    />
+  <Transition :name="direction === 'back' ? 'slide-back' : 'slide-forward'" mode="out-in">
+    <div :key="activeView" class="h-full">
+      <!-- Subviews -->
+      <HaexSystemSettingsExternalClientsBridge
+        v-if="activeView === 'bridge'"
+        @back="goBack"
+      />
+      <HaexSystemSettingsExternalClientsManage
+        v-else-if="activeView === 'clients'"
+        @back="goBack"
+      />
 
-    <!-- Index / Menu -->
-    <HaexSystemSettingsLayout
-      v-else
-      :title="t('title')"
-      :description="t('description')"
-    >
-      <div class="space-y-1">
-        <HaexSystemSettingsLayoutMenuItem
-          :label="t('menu.bridge')"
-          :description="t('menu.bridgeDesc')"
-          icon="i-lucide-radio-tower"
-          @click="navigateTo('bridge')"
-        />
-        <HaexSystemSettingsLayoutMenuItem
-          :label="t('menu.clients')"
-          :description="t('menu.clientsDesc')"
-          icon="i-lucide-shield-check"
-          @click="navigateTo('clients')"
-        />
-      </div>
-    </HaexSystemSettingsLayout>
-  </div>
+      <!-- Index / Menu -->
+      <HaexSystemSettingsLayout
+        v-else
+        :title="t('title')"
+        :description="t('description')"
+      >
+        <div class="space-y-1">
+          <HaexSystemSettingsLayoutMenuItem
+            :label="t('menu.bridge')"
+            :description="t('menu.bridgeDesc')"
+            icon="i-lucide-radio-tower"
+            @click="navigateTo('bridge')"
+          />
+          <HaexSystemSettingsLayoutMenuItem
+            :label="t('menu.clients')"
+            :description="t('menu.clientsDesc')"
+            icon="i-lucide-shield-check"
+            @click="navigateTo('clients')"
+          />
+        </div>
+      </HaexSystemSettingsLayout>
+    </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
 const { t } = useI18n()
 const tabId = inject<string>('haex-tab-id')!
-const { activeView, navigateTo, goBack } = useDrillDownNavigation<'index' | 'bridge' | 'clients'>('index', 'external-clients', tabId)
+const { activeView, direction, navigateTo, goBack } = useDrillDownNavigation<'index' | 'bridge' | 'clients'>('index', 'external-clients', tabId)
 </script>
 
 <i18n lang="yaml">

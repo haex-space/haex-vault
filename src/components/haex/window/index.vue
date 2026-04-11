@@ -5,8 +5,12 @@
     :class="[
       'absolute bg-default/80 backdrop-blur-xl rounded-lg shadow-xl overflow-hidden',
       'flex flex-col @container',
-      // Only apply transition when NOT dragging/resizing for smooth animations
-      isResizingOrDragging ? '' : 'transition-all ease-out duration-300',
+      // Transition classes: disabled during drag/resize and opening phase 'start'.
+      isResizingOrDragging || (props.isOpening && animationPhase === 'start')
+        ? ''
+        : props.isOpening || props.isClosing
+          ? 'window-animate'
+          : 'window-idle',
       { 'select-none': isResizingOrDragging },
       isActive ? 'z-20' : 'z-10',
       // Border colors based on warning level
@@ -482,57 +486,48 @@ useEventListener(window, 'touchend', () => {
   }
 })
 
+// Internal animation phase: controls the opening animation from within
+// the component so we can guarantee the browser paints the initial state
+// before transitioning to the final state.
+const animationPhase = ref<'start' | 'ready'>('start')
+
+onMounted(() => {
+  if (props.isOpening) {
+    requestAnimationFrame(() => {
+      animationPhase.value = 'ready'
+    })
+  } else {
+    animationPhase.value = 'ready'
+  }
+})
+
 const windowStyle = computed(() => {
   const baseStyle: Record<string, string> = {}
 
-  // Opening animation
-  if (
-    props.isOpening &&
-    props.sourceX !== undefined &&
-    props.sourceY !== undefined
-  ) {
-    baseStyle.left = `${props.sourceX}px`
-    baseStyle.top = `${props.sourceY}px`
-    baseStyle.width = `${props.sourceWidth || 100}px`
-    baseStyle.height = `${props.sourceHeight || 100}px`
-    baseStyle.opacity = '0'
-    baseStyle.transform = 'scale(0.3)'
-  }
-  // Closing animation
-  else if (
-    props.isClosing &&
-    props.sourceX !== undefined &&
-    props.sourceY !== undefined
-  ) {
-    baseStyle.left = `${props.sourceX}px`
-    baseStyle.top = `${props.sourceY}px`
-    baseStyle.width = `${props.sourceWidth || 100}px`
-    baseStyle.height = `${props.sourceHeight || 100}px`
-    baseStyle.opacity = '0'
-    baseStyle.transform = 'scale(0.3)'
-  }
-  // Closing fallback
-  else if (props.isClosing) {
-    const centerX = x.value + width.value / 2 - 50
-    const centerY = y.value + height.value / 2 - 50
-    baseStyle.left = `${centerX}px`
-    baseStyle.top = `${centerY}px`
-    baseStyle.width = '100px'
-    baseStyle.height = '100px'
-    baseStyle.opacity = '0'
-    baseStyle.transform = 'scale(0.3)'
-  }
-  // Normal state
-  else {
-    baseStyle.left = `${x.value}px`
-    baseStyle.top = `${y.value}px`
-    baseStyle.width = `${width.value}px`
-    baseStyle.height = `${height.value}px`
-    baseStyle.opacity = '1'
+  // Always position/size the window at its real location
+  baseStyle.left = `${x.value}px`
+  baseStyle.top = `${y.value}px`
+  baseStyle.width = `${width.value}px`
+  baseStyle.height = `${height.value}px`
 
-    if (isMaximized.value) {
-      baseStyle.borderRadius = '0'
-    }
+  if (isMaximized.value) {
+    baseStyle.borderRadius = '0'
+  }
+
+  // Opening phase 1: invisible + scaled down (no CSS transition active)
+  if (props.isOpening && animationPhase.value === 'start') {
+    baseStyle.opacity = '0'
+    baseStyle.transform = 'scale(0.92)'
+  }
+  // Closing: fade out + scale down in place
+  else if (props.isClosing) {
+    baseStyle.opacity = '0'
+    baseStyle.transform = 'scale(0.92)'
+  }
+  // Normal state (+ opening phase 2 where CSS transition animates in)
+  else {
+    baseStyle.opacity = '1'
+    baseStyle.transform = 'scale(1)'
   }
 
   return baseStyle
