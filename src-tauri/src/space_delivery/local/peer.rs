@@ -133,6 +133,64 @@ impl PeerSession {
         }
     }
 
+    /// Fetch MLS messages from the leader after a given ID.
+    pub async fn fetch_mls_messages(
+        &self,
+        space_id: &str,
+        after_id: Option<i64>,
+    ) -> Result<Vec<super::protocol::MlsMessageEntry>, DeliveryError> {
+        let req = Request::MlsFetchMessages {
+            space_id: space_id.to_string(),
+            after_id,
+        };
+        match self.request(req).await? {
+            Response::Messages { messages } => Ok(messages),
+            Response::Error { message } => Err(DeliveryError::ProtocolError { reason: message }),
+            _ => Err(DeliveryError::ProtocolError {
+                reason: "unexpected response to MlsFetchMessages".to_string(),
+            }),
+        }
+    }
+
+    /// Acknowledge successfully processed MLS commits.
+    pub async fn ack_commits(
+        &self,
+        space_id: &str,
+        message_ids: Vec<i64>,
+    ) -> Result<(), DeliveryError> {
+        if message_ids.is_empty() {
+            return Ok(());
+        }
+        let req = Request::MlsAckCommit {
+            space_id: space_id.to_string(),
+            message_ids,
+        };
+        match self.request(req).await? {
+            Response::Ok => Ok(()),
+            Response::Error { message } => Err(DeliveryError::ProtocolError { reason: message }),
+            _ => Err(DeliveryError::ProtocolError {
+                reason: "unexpected response to MlsAckCommit".to_string(),
+            }),
+        }
+    }
+
+    /// Fetch unconsumed welcome messages from the leader.
+    pub async fn fetch_welcomes(
+        &self,
+        space_id: &str,
+    ) -> Result<Vec<String>, DeliveryError> {
+        let req = Request::MlsFetchWelcomes {
+            space_id: space_id.to_string(),
+        };
+        match self.request(req).await? {
+            Response::Welcomes { welcomes } => Ok(welcomes),
+            Response::Error { message } => Err(DeliveryError::ProtocolError { reason: message }),
+            _ => Err(DeliveryError::ProtocolError {
+                reason: "unexpected response to MlsFetchWelcomes".to_string(),
+            }),
+        }
+    }
+
     /// Close the connection gracefully.
     pub fn close(&self) {
         self.conn.close(0u32.into(), b"done");

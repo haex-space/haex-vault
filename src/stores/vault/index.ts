@@ -405,18 +405,22 @@ export const useVaultStore = defineStore('vaultStore', () => {
       $setConsoleLoggerDeviceId(useDeviceStore().deviceId!)
     }
 
-    // Initialize MLS subsystem (tables + identity) — must happen before any space
-    // creation because createLocalSpaceAsync calls mls_create_group which needs identity
+    // Initialize MLS tables (must happen before any space creation)
     await invoke('mls_init_tables')
-    await invoke('mls_init_identity')
 
     // Ensure vault space exists in haex_spaces (FK target for sync backends)
     const spacesStore = useSpacesStore()
     await spacesStore.ensureVaultSpaceAsync(currentVaultId.value, currentVaultName.value)
 
-    // Ensure at least one identity exists (needed for UCAN signing in spaces)
+    // Ensure at least one identity exists (needed for UCAN signing and MLS)
     const identityStore = useIdentityStore()
     await identityStore.ensureDefaultIdentityAsync()
+
+    // Initialize MLS identity with the default identity's DID
+    const defaultIdentity = identityStore.identities[0]
+    if (defaultIdentity) {
+      await invoke('mls_init_identity', { did: defaultIdentity.did })
+    }
 
     // Update device claims now that identity exists (initDeviceIdAsync ran before identity was created)
     if (useDeviceStore().deviceId) {

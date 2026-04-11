@@ -224,7 +224,26 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
 
     // 6. Store and broadcast commit to existing members
     if !bundle.commit.is_empty() {
-        let _ = buffer::store_message(&state.db, &space_id, &did, "commit", &bundle.commit);
+        let msg_id = match buffer::store_message(&state.db, &space_id, &did, "commit", &bundle.commit) {
+            Ok(id) => id,
+            Err(e) => {
+                eprintln!("[SpaceDelivery] Failed to store commit: {e}");
+                0
+            }
+        };
+
+        // Track pending ACKs from all space members (not just connected peers)
+        if msg_id > 0 {
+            let expected_dids: Vec<String> = buffer::get_space_member_dids(&state.db, &space_id)
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|d| d != &did) // exclude the new member (gets Welcome, not commit)
+                .collect();
+            if !expected_dids.is_empty() {
+                let _ = buffer::store_pending_commit(&state.db, &space_id, msg_id, &expected_dids);
+            }
+        }
+
         let senders = state.notification_senders.read().await;
         for (_, sender) in senders.iter() {
             let _ = sender.try_send(Notification::Mls {
@@ -314,6 +333,7 @@ pub(super) async fn handle_delivery_request(
             label,
             claims,
         } => {
+            let did_clone = did.clone();
             let peer = ConnectedPeer {
                 endpoint_id: endpoint_id.clone(),
                 did,
@@ -334,7 +354,31 @@ pub(super) async fn handle_delivery_request(
                 .connected_peers
                 .write()
                 .await
-                .insert(endpoint_id, peer);
+                .insert(endpoint_id.clone(), peer);
+
+            // Re-notify about unacked commits for this peer
+            let unacked = buffer::get_unacked_message_ids_for_member(
+                &state.db,
+                &state.space_id,
+                &did_clone,
+            )
+            .unwrap_or_default();
+
+            if !unacked.is_empty() {
+                eprintln!(
+                    "[SpaceDelivery] Peer {} has {} unacked commits, re-notifying",
+                    &did_clone[..20.min(did_clone.len())],
+                    unacked.len(),
+                );
+                let senders = state.notification_senders.read().await;
+                if let Some(sender) = senders.get(&endpoint_id) {
+                    let _ = sender.try_send(Notification::Mls {
+                        space_id: state.space_id.clone(),
+                        message_type: "commit".to_string(),
+                    });
+                }
+            }
+
             Response::Ok
         }
 
@@ -401,6 +445,18 @@ pub(super) async fn handle_delivery_request(
                 Ok(blob) => {
                     match buffer::store_message(&state.db, &space_id, &did, &message_type, &blob) {
                         Ok(id) => {
+                            // Track pending ACKs for commits
+                            if message_type == "commit" {
+                                let expected_dids: Vec<String> = buffer::get_space_member_dids(&state.db, &space_id)
+                                    .unwrap_or_default()
+                                    .into_iter()
+                                    .filter(|d| d != &did) // exclude sender
+                                    .collect();
+                                if !expected_dids.is_empty() {
+                                    let _ = buffer::store_pending_commit(&state.db, &space_id, id, &expected_dids);
+                                }
+                            }
+
                             // Notify all connected peers
                             let senders = state.notification_senders.read().await;
                             for (_, sender) in senders.iter() {
@@ -656,6 +712,40 @@ pub(super) async fn handle_delivery_request(
             &space_endpoints,
             origin_url.as_deref(),
         ),
+        Request::MlsAckCommit {
+            space_id,
+            message_ids,
+        } => {
+            if space_id != state.space_id {
+                return Response::Error {
+                    message: format!("Wrong space: expected {}", state.space_id),
+                };
+            }
+            let did = match lookup_peer_did(state, peer_endpoint_id).await {
+                Ok(did) => did,
+                Err(_) => {
+                    return Response::Error {
+                        message: "Peer has not announced".to_string(),
+                    };
+                }
+            };
+
+            match buffer::ack_commits(&state.db, &space_id, &did, &message_ids) {
+                Ok(fully_acked) => {
+                    if !fully_acked.is_empty() {
+                        eprintln!(
+                            "[SpaceDelivery] Commits fully acked, cleaning up {} messages",
+                            fully_acked.len()
+                        );
+                        let _ = buffer::cleanup_acked_commits(&state.db, &space_id, &fully_acked);
+                    }
+                    Response::Ok
+                }
+                Err(e) => Response::Error {
+                    message: e.to_string(),
+                },
+            }
+        }
     }
 }
 

@@ -63,6 +63,43 @@ pub async fn local_delivery_start(
     Ok(())
 }
 
+/// Broadcast an MLS commit via the local leader buffer.
+/// Called by frontend after mls_remove_member (or other commit-producing operations).
+#[tauri::command]
+pub async fn local_delivery_broadcast_commit(
+    state: State<'_, AppState>,
+    space_id: String,
+    commit: Vec<u8>,
+) -> Result<(), String> {
+    let leader_state = get_leader_state(&state, &space_id).await?;
+
+    // Store commit in buffer
+    let msg_id = super::buffer::store_message(
+        &leader_state.db, &space_id, "leader", "commit", &commit,
+    )
+    .map_err(|e| format!("Failed to store commit: {e}"))?;
+
+    // Track pending ACKs from all space members (not just connected peers)
+    let expected_dids: Vec<String> = super::buffer::get_space_member_dids(&leader_state.db, &space_id)
+        .unwrap_or_default();
+
+    if !expected_dids.is_empty() {
+        let _ = super::buffer::store_pending_commit(&leader_state.db, &space_id, msg_id, &expected_dids);
+    }
+
+    // Broadcast notification to all connected peers
+    let senders = leader_state.notification_senders.read().await;
+    for (_, sender) in senders.iter() {
+        let _ = sender.try_send(super::protocol::Notification::Mls {
+            space_id: space_id.clone(),
+            message_type: "commit".to_string(),
+        });
+    }
+
+    eprintln!("[SpaceDelivery] Broadcast commit for space {space_id} (msg_id={msg_id}, expected_acks={})", expected_dids.len());
+    Ok(())
+}
+
 /// Stop leader mode for a space — clears buffers and removes from leader map.
 /// The MultiSpaceLeaderHandler stays registered (handles PushInvite even with empty map).
 #[tauri::command]

@@ -470,6 +470,7 @@ pub fn run() {
             // Space Delivery (local leader mode)
             space_delivery::local::commands::local_delivery_start,
             space_delivery::local::commands::local_delivery_stop,
+            space_delivery::local::commands::local_delivery_broadcast_commit,
             space_delivery::local::commands::local_delivery_status,
             space_delivery::local::commands::local_delivery_get_leader,
             space_delivery::local::commands::local_delivery_elect,
@@ -483,6 +484,7 @@ pub fn run() {
             // MLS (RFC 9420) group key management
             mls::commands::mls_init_tables,
             mls::commands::mls_init_identity,
+            mls::commands::mls_find_member_index,
             mls::commands::mls_create_group,
             mls::commands::mls_add_member,
             mls::commands::mls_remove_member,

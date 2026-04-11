@@ -76,8 +76,9 @@ export const haexLocalDeliveryPendingCommits = sqliteTable(
     spaceId: text(tableNames.haex.local_delivery_pending_commits.columns.spaceId)
       .notNull()
       .references(() => haexSpaces.id),
-    commitBlob: blob(tableNames.haex.local_delivery_pending_commits.columns.commitBlob, { mode: 'buffer' }).notNull(),
-    deliveredTo: text(tableNames.haex.local_delivery_pending_commits.columns.deliveredTo).default('[]'),
+    messageId: integer(tableNames.haex.local_delivery_pending_commits.columns.messageId).notNull(),
+    expectedDids: text(tableNames.haex.local_delivery_pending_commits.columns.expectedDids).notNull().default('[]'),
+    ackedDids: text(tableNames.haex.local_delivery_pending_commits.columns.ackedDids).notNull().default('[]'),
     createdAt: text(tableNames.haex.local_delivery_pending_commits.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
   },
   (table) => [

@@ -57,6 +57,13 @@ pub enum Request {
     MlsFetchWelcomes {
         space_id: String,
     },
+    /// Acknowledge successful processing of MLS messages (commits).
+    /// Sent by peer after processing commits from MlsFetchMessages.
+    MlsAckCommit {
+        space_id: String,
+        /// IDs of the messages that were successfully processed
+        message_ids: Vec<i64>,
+    },
 
     // -- CRDT Sync --
     /// Push CRDT changes to the leader

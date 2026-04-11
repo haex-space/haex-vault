@@ -19,8 +19,13 @@ pub fn mls_init_tables(state: State<'_, AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn mls_init_identity(state: State<'_, AppState>) -> Result<MlsIdentityInfo, String> {
-    with_mls_manager(&state, |mgr| mgr.init_identity())
+pub fn mls_init_identity(state: State<'_, AppState>, did: String) -> Result<MlsIdentityInfo, String> {
+    with_mls_manager(&state, |mgr| mgr.init_identity(&did))
+}
+
+#[tauri::command]
+pub fn mls_find_member_index(state: State<'_, AppState>, space_id: String, member_did: String) -> Result<Option<u32>, String> {
+    with_mls_manager(&state, |mgr| mgr.find_member_index_by_did(&space_id, &member_did))
 }
 
 #[tauri::command]

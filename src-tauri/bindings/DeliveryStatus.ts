@@ -4,4 +4,4 @@ import type { ConnectedPeer } from "./ConnectedPeer";
 /**
  * Status of the local delivery service
  */
-export type DeliveryStatus = { isLeader: boolean, spaceId: string | null, connectedPeers: Array<ConnectedPeer>, bufferedMessages: number, bufferedWelcomes: number, bufferedKeyPackages: number, };
+export type DeliveryStatus = { isLeader: boolean, activeSpaces: Array<string>, connectedPeers: Array<ConnectedPeer>, bufferedMessages: number, bufferedWelcomes: number, bufferedKeyPackages: number, };

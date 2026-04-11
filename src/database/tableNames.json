@@ -406,8 +406,9 @@
       "columns": {
         "id": "id",
         "spaceId": "space_id",
-        "commitBlob": "commit_blob",
-        "deliveredTo": "delivered_to",
+        "messageId": "message_id",
+        "expectedDids": "expected_dids",
+        "ackedDids": "acked_dids",
         "createdAt": "created_at"
       }
     },

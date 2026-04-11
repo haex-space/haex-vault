@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "94b347e2-3439-4a09-8eb9-31f546140e35",
+  "id": "aabc2f1b-c5d6-4303-9472-f5fc5eaf6864",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "haex_desktop_items_no_sync": {
@@ -1918,18 +1918,26 @@
           "notNull": true,
           "autoincrement": false
         },
-        "commit_blob": {
-          "name": "commit_blob",
-          "type": "blob",
+        "message_id": {
+          "name": "message_id",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "delivered_to": {
-          "name": "delivered_to",
+        "expected_dids": {
+          "name": "expected_dids",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "acked_dids": {
+          "name": "acked_dids",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
           "autoincrement": false,
           "default": "'[]'"
         },
