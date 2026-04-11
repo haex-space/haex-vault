@@ -1,1 +1,1 @@
-ALTER TABLE `haex_sync_rules` DROP COLUMN `name`;
+SELECT 1;
