@@ -354,20 +354,26 @@ impl MlsManager {
             other => return Err(format!("Expected GroupInfo but got {:?}", std::mem::discriminant(&other))),
         };
 
-        let (mut group, commit, _group_info) = MlsGroup::join_by_external_commit(
-            &self.provider,
-            &signer,
-            None, // no ratchet tree — it's embedded in the GroupInfo
-            verifiable_group_info,
-            &MlsGroupJoinConfig::builder()
-                .use_ratchet_tree_extension(true)
-                .build(),
-            None, // no required capabilities
-            None, // no leaf node extensions
-            &[],  // no PSKs
-            credential_with_key,
-        )
-        .map_err(|e| format!("Failed to create external commit: {e}"))?;
+        let (mut group, commit_bundle) = MlsGroup::external_commit_builder()
+            .with_config(
+                MlsGroupJoinConfig::builder()
+                    .use_ratchet_tree_extension(true)
+                    .build(),
+            )
+            .build_group(&self.provider, verifiable_group_info, credential_with_key)
+            .map_err(|e| format!("Failed to build external commit group: {e}"))?
+            .load_psks(self.provider.storage())
+            .map_err(|e| format!("Failed to load PSKs: {e}"))?
+            .build(
+                self.provider.rand(),
+                self.provider.crypto(),
+                &signer,
+                |_| true,
+            )
+            .map_err(|e| format!("Failed to build external commit: {e}"))?
+            .finalize(&self.provider)
+            .map_err(|e| format!("Failed to finalize external commit: {e}"))?;
+        let commit = commit_bundle.into_commit();
 
         // Verify group ID matches expected space
         let expected_group_id = GroupId::from_slice(space_id.as_bytes());
