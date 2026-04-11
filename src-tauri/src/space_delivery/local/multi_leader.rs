@@ -94,7 +94,10 @@ fn extract_space_id(request: &Request) -> Option<&str> {
         | Request::SyncPull { space_id, .. }
         | Request::Announce { space_id, .. }
         | Request::ClaimInvite { space_id, .. }
-        | Request::MlsAckCommit { space_id, .. } => Some(space_id.as_str()),
+        | Request::MlsAckCommit { space_id, .. }
+        | Request::MlsKeyPackageCount { space_id, .. }
+        | Request::RequestRejoin { space_id, .. }
+        | Request::SubmitExternalCommit { space_id, .. } => Some(space_id.as_str()),
         Request::PushInvite { .. } => None,
     }
 }

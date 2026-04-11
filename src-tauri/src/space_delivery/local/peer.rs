@@ -174,6 +174,43 @@ impl PeerSession {
         }
     }
 
+    /// Upload key packages to the leader for this peer's DID.
+    pub async fn upload_key_packages(
+        &self,
+        space_id: &str,
+        packages: Vec<String>,
+    ) -> Result<(), DeliveryError> {
+        let req = Request::MlsUploadKeyPackages {
+            space_id: space_id.to_string(),
+            packages,
+        };
+        match self.request(req).await? {
+            Response::Ok => Ok(()),
+            Response::Error { message } => Err(DeliveryError::ProtocolError { reason: message }),
+            _ => Err(DeliveryError::ProtocolError {
+                reason: "unexpected response to MlsUploadKeyPackages".to_string(),
+            }),
+        }
+    }
+
+    /// Query key package status: how many the leader has and how many more it needs.
+    /// Returns (available, needed).
+    pub async fn query_key_package_status(
+        &self,
+        space_id: &str,
+    ) -> Result<(u32, u32), DeliveryError> {
+        let req = Request::MlsKeyPackageCount {
+            space_id: space_id.to_string(),
+        };
+        match self.request(req).await? {
+            Response::KeyPackageCount { available, needed } => Ok((available, needed)),
+            Response::Error { message } => Err(DeliveryError::ProtocolError { reason: message }),
+            _ => Err(DeliveryError::ProtocolError {
+                reason: "unexpected response to MlsKeyPackageCount".to_string(),
+            }),
+        }
+    }
+
     /// Fetch unconsumed welcome messages from the leader.
     pub async fn fetch_welcomes(
         &self,
@@ -187,6 +224,46 @@ impl PeerSession {
             Response::Error { message } => Err(DeliveryError::ProtocolError { reason: message }),
             _ => Err(DeliveryError::ProtocolError {
                 reason: "unexpected response to MlsFetchWelcomes".to_string(),
+            }),
+        }
+    }
+
+    /// Request rejoin via External Commit. Returns base64-encoded GroupInfo.
+    pub async fn request_rejoin(
+        &self,
+        space_id: &str,
+        ucan_token: &str,
+    ) -> Result<String, DeliveryError> {
+        let req = Request::RequestRejoin {
+            space_id: space_id.to_string(),
+            ucan_token: ucan_token.to_string(),
+        };
+        match self.request(req).await? {
+            Response::GroupInfo { group_info } => Ok(group_info),
+            Response::Error { message } => Err(DeliveryError::ProtocolError { reason: message }),
+            _ => Err(DeliveryError::ProtocolError {
+                reason: "unexpected response to RequestRejoin".to_string(),
+            }),
+        }
+    }
+
+    /// Submit an External Commit to rejoin a group.
+    pub async fn submit_external_commit(
+        &self,
+        space_id: &str,
+        commit_b64: &str,
+        ucan_token: &str,
+    ) -> Result<(), DeliveryError> {
+        let req = Request::SubmitExternalCommit {
+            space_id: space_id.to_string(),
+            commit: commit_b64.to_string(),
+            ucan_token: ucan_token.to_string(),
+        };
+        match self.request(req).await? {
+            Response::Ok => Ok(()),
+            Response::Error { message } => Err(DeliveryError::ProtocolError { reason: message }),
+            _ => Err(DeliveryError::ProtocolError {
+                reason: "unexpected response to SubmitExternalCommit".to_string(),
             }),
         }
     }

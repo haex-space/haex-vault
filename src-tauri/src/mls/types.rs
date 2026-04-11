@@ -42,3 +42,13 @@ pub struct MlsEpochKey {
     pub epoch: u64,
     pub key: Vec<u8>,
 }
+
+/// Result of joining a group via External Commit.
+/// Contains the commit (to be sent to server/leader) and the new epoch key.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct MlsExternalCommitResult {
+    pub commit: Vec<u8>,
+    pub epoch_key: MlsEpochKey,
+}

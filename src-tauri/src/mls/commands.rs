@@ -5,7 +5,7 @@ use tauri::State;
 
 use crate::database::core::{execute_with_crdt, select_with_crdt};
 use crate::mls::manager::MlsManager;
-use crate::mls::types::{MlsCommitBundle, MlsEpochKey, MlsGroupInfo, MlsIdentityInfo, MlsProcessedMessage};
+use crate::mls::types::{MlsCommitBundle, MlsEpochKey, MlsExternalCommitResult, MlsGroupInfo, MlsIdentityInfo, MlsProcessedMessage};
 use crate::AppState;
 
 fn with_mls_manager<T>(state: &State<'_, AppState>, f: impl FnOnce(&MlsManager) -> Result<T, String>) -> Result<T, String> {
@@ -106,6 +106,19 @@ pub fn mls_export_epoch_key(state: State<'_, AppState>, space_id: String) -> Res
     ).map_err(|e| format!("Failed to store sync key: {e}"))?;
 
     Ok(epoch_key)
+}
+
+#[tauri::command]
+pub fn mls_get_group_info(state: State<'_, AppState>, space_id: String) -> Result<Vec<u8>, String> {
+    with_mls_manager(&state, |mgr| mgr.get_group_info(&space_id))
+}
+
+#[tauri::command]
+pub fn mls_join_by_external_commit(state: State<'_, AppState>, space_id: String, group_info: Vec<u8>) -> Result<MlsExternalCommitResult, String> {
+    with_mls_manager(&state, |mgr| {
+        let (commit, epoch_key) = mgr.join_by_external_commit(&space_id, &group_info)?;
+        Ok(MlsExternalCommitResult { commit, epoch_key })
+    })
 }
 
 #[tauri::command]

@@ -64,6 +64,26 @@ pub enum Request {
         /// IDs of the messages that were successfully processed
         message_ids: Vec<i64>,
     },
+    /// Query how many key packages the leader has stored for the calling peer.
+    MlsKeyPackageCount {
+        space_id: String,
+    },
+    /// Request rejoin via External Commit. Peer is stuck on old epoch.
+    /// Leader responds with current GroupInfo so peer can create External Commit.
+    RequestRejoin {
+        space_id: String,
+        /// UCAN token proving the peer's membership
+        ucan_token: String,
+    },
+    /// Submit an External Commit to rejoin a group.
+    /// Leader validates UCAN for the DID in the commit, then distributes it.
+    SubmitExternalCommit {
+        space_id: String,
+        /// Base64-encoded MLS commit message
+        commit: String,
+        /// UCAN token proving the peer's membership
+        ucan_token: String,
+    },
 
     // -- CRDT Sync --
     /// Push CRDT changes to the leader
@@ -150,6 +170,18 @@ pub enum Response {
     Welcomes {
         /// Base64-encoded welcomes
         welcomes: Vec<String>,
+    },
+    /// GroupInfo for External Commit rejoin
+    GroupInfo {
+        /// Base64-encoded MLS GroupInfo (with ratchet tree)
+        group_info: String,
+    },
+    /// Key package status: current count and how many the leader still needs
+    KeyPackageCount {
+        /// How many key packages the leader currently holds for this peer
+        available: u32,
+        /// How many more the leader wants the peer to upload (0 = sufficient)
+        needed: u32,
     },
     /// CRDT sync changes
     SyncChanges { changes: serde_json::Value },

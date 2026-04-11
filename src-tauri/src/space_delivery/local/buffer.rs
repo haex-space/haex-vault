@@ -149,6 +149,60 @@ pub fn consume_key_package(
     Ok(Some(blob))
 }
 
+/// Count available (unconsumed) key packages for a target DID.
+pub fn count_key_packages_for_did(
+    db: &DbConnection,
+    space_id: &str,
+    target_did: &str,
+) -> Result<u32, DeliveryError> {
+    let rows = core::select(
+        "SELECT COUNT(*) FROM haex_local_delivery_key_packages_no_sync \
+         WHERE space_id = ?1 AND target_did = ?2"
+            .to_string(),
+        vec![
+            serde_json::Value::String(space_id.to_string()),
+            serde_json::Value::String(target_did.to_string()),
+        ],
+        db,
+    )
+    .map_err(map_db)?;
+
+    let count = rows
+        .first()
+        .and_then(|row| row.first())
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
+    Ok(count as u32)
+}
+
+/// Trim excess key packages for a DID, keeping only the newest `max_count`.
+/// Deletes oldest packages first (by created_at).
+pub fn trim_key_packages(
+    db: &DbConnection,
+    space_id: &str,
+    target_did: &str,
+    max_count: u32,
+) -> Result<(), DeliveryError> {
+    core::execute(
+        "DELETE FROM haex_local_delivery_key_packages_no_sync \
+         WHERE id IN ( \
+             SELECT id FROM haex_local_delivery_key_packages_no_sync \
+             WHERE space_id = ?1 AND target_did = ?2 \
+             ORDER BY created_at DESC \
+             LIMIT -1 OFFSET ?3 \
+         )"
+        .to_string(),
+        vec![
+            serde_json::Value::String(space_id.to_string()),
+            serde_json::Value::String(target_did.to_string()),
+            serde_json::Value::Number(serde_json::Number::from(max_count)),
+        ],
+        db,
+    )
+    .map_err(map_db)?;
+    Ok(())
+}
+
 /// Store a welcome message for a recipient. Returns the generated UUID.
 pub fn store_welcome(
     db: &DbConnection,

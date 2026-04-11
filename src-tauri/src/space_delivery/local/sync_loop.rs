@@ -22,6 +22,7 @@ use super::peer::PeerSession;
 /// Default poll interval between sync cycles.
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
 
+
 /// Maximum backoff duration for reconnection attempts.
 const MAX_RECONNECT_BACKOFF: Duration = Duration::from_secs(60);
 
@@ -379,6 +380,11 @@ async fn run_sync_cycle(
         // Non-fatal: CRDT sync still worked, MLS will retry next cycle
     }
 
+    // 4. KeyPackage refill: ensure at least TARGET_KEY_PACKAGE_COUNT packages on leader
+    if let Err(e) = refill_key_packages_if_needed(db, session, space_id).await {
+        eprintln!("[SyncLoop] KeyPackage refill failed: {e}");
+    }
+
     Ok(())
 }
 
@@ -430,8 +436,22 @@ async fn fetch_and_process_mls_messages(
                     "[SyncLoop] Failed to process MLS message {}: {e}",
                     msg.id
                 );
-                // Stop processing — later messages depend on this epoch advancing.
-                // This message will be retried on the next sync cycle.
+
+                // Detect epoch gap — attempt rejoin via External Commit
+                if e.contains("epoch") || e.contains("Welcome") || e.contains("group") {
+                    eprintln!("[SyncLoop] Possible epoch gap detected, attempting rejoin for space {space_id}");
+                    match attempt_rejoin(db, session, space_id, app_handle).await {
+                        Ok(()) => {
+                            eprintln!("[SyncLoop] Rejoin successful, will retry messages next cycle");
+                            // Reset cursor so next cycle re-fetches from leader
+                            *last_mls_message_id = None;
+                        }
+                        Err(rejoin_err) => {
+                            eprintln!("[SyncLoop] Rejoin failed: {rejoin_err}");
+                        }
+                    }
+                }
+
                 break;
             }
         }
@@ -451,6 +471,95 @@ async fn fetch_and_process_mls_messages(
             }),
         );
     }
+
+    Ok(())
+}
+
+/// Attempt to rejoin an MLS group via External Commit after detecting an epoch gap.
+async fn attempt_rejoin(
+    db: &DbConnection,
+    session: &PeerSession,
+    space_id: &str,
+    app_handle: &tauri::AppHandle,
+) -> Result<(), DeliveryError> {
+    // TODO: Pass a real UCAN token here. For now, the leader validates the peer's
+    // identity via the Announce DID. A proper UCAN should be fetched from the local DB.
+    let ucan_token = String::new();
+
+    // 1. Request GroupInfo from leader
+    let group_info_b64 = session.request_rejoin(space_id, &ucan_token).await?;
+
+    let group_info_bytes = BASE64.decode(&group_info_b64).map_err(|e| {
+        DeliveryError::ProtocolError {
+            reason: format!("Failed to decode GroupInfo: {e}"),
+        }
+    })?;
+
+    // 2. Create External Commit
+    let mls_manager = MlsManager::new(db.0.clone());
+    let (commit_bytes, epoch_key) = mls_manager
+        .join_by_external_commit(space_id, &group_info_bytes)
+        .map_err(|e| DeliveryError::ProtocolError {
+            reason: format!("External commit failed: {e}"),
+        })?;
+
+    let commit_b64 = BASE64.encode(&commit_bytes);
+
+    // 3. Submit the External Commit to the leader for distribution
+    session
+        .submit_external_commit(space_id, &commit_b64, &ucan_token)
+        .await?;
+
+    // 4. Emit event so frontend can update the epoch key
+    let _ = app_handle.emit(
+        "local-mls-rejoin-completed",
+        serde_json::json!({
+            "spaceId": space_id,
+            "newEpoch": epoch_key.epoch,
+        }),
+    );
+
+    eprintln!(
+        "[SyncLoop] Rejoin completed for space {space_id}, new epoch: {}",
+        epoch_key.epoch
+    );
+
+    Ok(())
+}
+
+/// Query the leader for key package status and upload more if requested.
+async fn refill_key_packages_if_needed(
+    db: &DbConnection,
+    session: &PeerSession,
+    space_id: &str,
+) -> Result<(), DeliveryError> {
+    let (available, needed) = session.query_key_package_status(space_id).await?;
+
+    if needed == 0 {
+        return Ok(());
+    }
+
+    eprintln!(
+        "[SyncLoop] KeyPackage refill: {available} on leader, {needed} more requested"
+    );
+
+    let mls_manager = MlsManager::new(db.0.clone());
+    let packages = mls_manager
+        .generate_key_packages(needed)
+        .map_err(|e| DeliveryError::ProtocolError {
+            reason: format!("Failed to generate key packages: {e}"),
+        })?;
+
+    let packages_b64: Vec<String> = packages
+        .iter()
+        .map(|p| BASE64.encode(p))
+        .collect();
+
+    session.upload_key_packages(space_id, packages_b64).await?;
+
+    eprintln!(
+        "[SyncLoop] Uploaded {needed} key packages for space {space_id}"
+    );
 
     Ok(())
 }

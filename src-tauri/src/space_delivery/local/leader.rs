@@ -22,6 +22,9 @@ use super::push_invite;
 use super::types::{ConnectedPeer, PeerClaim};
 use serde_json::Value as JsonValue;
 
+/// Target number of key packages the leader wants each peer to maintain.
+const TARGET_KEY_PACKAGES_PER_PEER: u32 = 10;
+
 // ============================================================================
 // State
 // ============================================================================
@@ -69,6 +72,41 @@ async fn lookup_peer_did(
         .ok_or_else(|| DeliveryError::ProtocolError {
             reason: "peer has not announced yet".to_string(),
         })
+}
+
+/// Check if a peer has any UCAN capability for the given space.
+/// Returns Ok(()) if the peer has any valid UCAN (read, write, invite, or admin).
+fn check_space_membership(
+    db: &crate::database::DbConnection,
+    peer_did: &str,
+    space_id: &str,
+) -> Result<(), DeliveryError> {
+    let rows = crate::database::core::select_with_crdt(
+        "SELECT COUNT(*) FROM haex_ucan_tokens WHERE space_id = ?1 AND audience_did = ?2"
+            .to_string(),
+        vec![
+            serde_json::Value::String(space_id.to_string()),
+            serde_json::Value::String(peer_did.to_string()),
+        ],
+        db,
+    )
+    .unwrap_or_default();
+
+    let count = rows
+        .first()
+        .and_then(|row| row.first())
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
+
+    if count > 0 {
+        Ok(())
+    } else {
+        Err(DeliveryError::AccessDenied {
+            reason: format!(
+                "Peer {peer_did} has no UCAN for space {space_id}"
+            ),
+        })
+    }
 }
 
 /// Check if a peer has write capability for the given space.
@@ -401,6 +439,13 @@ pub(super) async fn handle_delivery_request(
                     let _ = buffer::store_key_package(&state.db, &space_id, &did, &blob);
                 }
             }
+            // Trim excess packages — keep only the target amount, discard oldest
+            let _ = buffer::trim_key_packages(
+                &state.db,
+                &space_id,
+                &did,
+                TARGET_KEY_PACKAGES_PER_PEER,
+            );
             Response::Ok
         }
 
@@ -740,6 +785,141 @@ pub(super) async fn handle_delivery_request(
                         let _ = buffer::cleanup_acked_commits(&state.db, &space_id, &fully_acked);
                     }
                     Response::Ok
+                }
+                Err(e) => Response::Error {
+                    message: e.to_string(),
+                },
+            }
+        }
+
+        Request::RequestRejoin {
+            space_id,
+            ucan_token: _,
+        } => {
+            if space_id != state.space_id {
+                return Response::Error {
+                    message: format!("Wrong space: expected {}", state.space_id),
+                };
+            }
+            // Validate the peer is a legitimate member of this space
+            let did = match lookup_peer_did(state, peer_endpoint_id).await {
+                Ok(did) => did,
+                Err(_) => {
+                    return Response::Error {
+                        message: "Peer has not announced".to_string(),
+                    };
+                }
+            };
+            if let Err(e) = check_space_membership(&state.db, &did, &space_id) {
+                return Response::Error {
+                    message: format!("Rejoin denied: {e}"),
+                };
+            }
+
+            // Export current GroupInfo with ratchet tree for External Commit
+            let mls_manager = crate::mls::manager::MlsManager::new(state.db.0.clone());
+            match mls_manager.get_group_info(&space_id) {
+                Ok(group_info_bytes) => Response::GroupInfo {
+                    group_info: base64_encode(&group_info_bytes),
+                },
+                Err(e) => Response::Error {
+                    message: format!("Failed to export GroupInfo: {e}"),
+                },
+            }
+        }
+
+        Request::SubmitExternalCommit {
+            space_id,
+            commit,
+            ucan_token: _,
+        } => {
+            if space_id != state.space_id {
+                return Response::Error {
+                    message: format!("Wrong space: expected {}", state.space_id),
+                };
+            }
+            // Validate the peer is a legitimate member of this space
+            let peer_did = match lookup_peer_did(state, peer_endpoint_id).await {
+                Ok(did) => did,
+                Err(_) => {
+                    return Response::Error {
+                        message: "Peer has not announced".to_string(),
+                    };
+                }
+            };
+            if let Err(e) = check_space_membership(&state.db, &peer_did, &space_id) {
+                return Response::Error {
+                    message: format!("External commit denied: {e}"),
+                };
+            }
+
+            let commit_blob = match base64_decode(&commit) {
+                Ok(b) => b,
+                Err(_) => {
+                    return Response::Error {
+                        message: "Invalid base64 in commit".to_string(),
+                    };
+                }
+            };
+
+            // Store the external commit as a regular MLS message
+            let did = match lookup_peer_did(state, peer_endpoint_id).await {
+                Ok(did) => did,
+                Err(_) => "unknown".to_string(),
+            };
+
+            match buffer::store_message(&state.db, &space_id, &did, "commit", &commit_blob) {
+                Ok(msg_id) => {
+                    // Track pending ACKs from all space members
+                    let expected_dids = buffer::get_space_member_dids(&state.db, &space_id)
+                        .unwrap_or_default();
+                    if !expected_dids.is_empty() {
+                        let _ = buffer::store_pending_commit(
+                            &state.db,
+                            &space_id,
+                            msg_id,
+                            &expected_dids,
+                        );
+                    }
+
+                    // Notify all connected peers
+                    let senders = state.notification_senders.read().await;
+                    for (_, sender) in senders.iter() {
+                        let _ = sender.try_send(Notification::Mls {
+                            space_id: space_id.clone(),
+                            message_type: "commit".to_string(),
+                        });
+                    }
+
+                    eprintln!(
+                        "[SpaceDelivery] External commit accepted for space {space_id} (msg_id={msg_id})"
+                    );
+                    Response::Ok
+                }
+                Err(e) => Response::Error {
+                    message: format!("Failed to store external commit: {e}"),
+                },
+            }
+        }
+
+        Request::MlsKeyPackageCount { space_id } => {
+            if space_id != state.space_id {
+                return Response::Error {
+                    message: format!("Wrong space: expected {}", state.space_id),
+                };
+            }
+            let did = match lookup_peer_did(state, peer_endpoint_id).await {
+                Ok(did) => did,
+                Err(_) => {
+                    return Response::Error {
+                        message: "Peer has not announced".to_string(),
+                    };
+                }
+            };
+            match buffer::count_key_packages_for_did(&state.db, &space_id, &did) {
+                Ok(available) => {
+                    let needed = TARGET_KEY_PACKAGES_PER_PEER.saturating_sub(available);
+                    Response::KeyPackageCount { available, needed }
                 }
                 Err(e) => Response::Error {
                     message: e.to_string(),

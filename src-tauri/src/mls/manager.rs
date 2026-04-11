@@ -232,6 +232,7 @@ impl MlsManager {
                 Ok(Vec::new())
             }
             ProcessedMessageContent::ProposalMessage(_) => {
+                eprintln!("[MLS] Unexpected ProposalMessage received for space {space_id}, ignoring");
                 Ok(Vec::new())
             }
             _ => Err("Unknown message type".to_string()),
@@ -316,6 +317,79 @@ impl MlsManager {
             .map_err(|e| format!("Failed to export secret: {e}"))?;
 
         Ok(MlsEpochKey { epoch, key })
+    }
+
+    /// Export the current GroupInfo for a space, including ratchet tree.
+    /// Used by the leader to serve External Commit rejoin requests.
+    pub fn get_group_info(&self, space_id: &str) -> Result<Vec<u8>, String> {
+        let signer = self.get_signer()?;
+        let group_id = GroupId::from_slice(space_id.as_bytes());
+        let group = MlsGroup::load(self.provider.storage(), &group_id)
+            .map_err(|e| format!("Failed to load group: {e}"))?
+            .ok_or_else(|| format!("Group not found for space: {space_id}"))?;
+
+        group
+            .export_group_info(self.provider.crypto(), &signer, true)
+            .map_err(|e| format!("Failed to export group info: {e}"))?
+            .tls_serialize_detached()
+            .map_err(|e| format!("Failed to serialize group info: {e}"))
+    }
+
+    /// Join a group via External Commit using a GroupInfo blob.
+    /// The blob is a TLS-serialized MlsMessageOut (from export_group_info).
+    /// Returns the commit bytes (to be sent to the leader/server) and the new epoch key.
+    pub fn join_by_external_commit(
+        &self,
+        space_id: &str,
+        group_info_bytes: &[u8],
+    ) -> Result<(Vec<u8>, MlsEpochKey), String> {
+        let signer = self.get_signer()?;
+        let credential_with_key = self.get_credential_with_key(&signer);
+
+        // The GroupInfo is wrapped in an MlsMessage — extract it
+        let mls_msg = MlsMessageIn::tls_deserialize_exact_bytes(group_info_bytes)
+            .map_err(|e| format!("Failed to deserialize MLS message: {e}"))?;
+        let verifiable_group_info = match mls_msg.extract() {
+            MlsMessageBodyIn::GroupInfo(gi) => gi,
+            other => return Err(format!("Expected GroupInfo but got {:?}", std::mem::discriminant(&other))),
+        };
+
+        let (mut group, commit, _group_info) = MlsGroup::join_by_external_commit(
+            &self.provider,
+            &signer,
+            None, // no ratchet tree — it's embedded in the GroupInfo
+            verifiable_group_info,
+            &MlsGroupJoinConfig::builder()
+                .use_ratchet_tree_extension(true)
+                .build(),
+            None, // no required capabilities
+            None, // no leaf node extensions
+            &[],  // no PSKs
+            credential_with_key,
+        )
+        .map_err(|e| format!("Failed to create external commit: {e}"))?;
+
+        // Verify group ID matches expected space
+        let expected_group_id = GroupId::from_slice(space_id.as_bytes());
+        if group.group_id() != &expected_group_id {
+            return Err(format!(
+                "Group ID mismatch: expected {space_id} but GroupInfo contains {}",
+                String::from_utf8_lossy(group.group_id().as_slice()),
+            ));
+        }
+
+        group.merge_pending_commit(&self.provider)
+            .map_err(|e| format!("Failed to merge external commit: {e}"))?;
+
+        let epoch = group.epoch().as_u64();
+        let key = group
+            .export_secret(self.provider.crypto(), "haex-vault-sync", &[], 32)
+            .map_err(|e| format!("Failed to export secret: {e}"))?;
+
+        let commit_bytes = commit.tls_serialize_detached()
+            .map_err(|e| format!("Failed to serialize commit: {e}"))?;
+
+        Ok((commit_bytes, MlsEpochKey { epoch, key }))
     }
 
     fn get_signer(&self) -> Result<SignatureKeyPair, String> {

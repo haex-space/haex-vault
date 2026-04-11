@@ -2,18 +2,18 @@
 mod external_bridge;
 mod crypto;
 mod crdt;
-mod database;
+pub mod database;
 mod device;
 mod extension;
 pub mod file_sync;
 mod filesystem;
 mod logging;
-mod mls;
+pub mod mls;
 #[cfg(desktop)]
 mod shortcuts;
 pub mod peer_storage;
 mod remote_storage;
-mod space_delivery;
+pub mod space_delivery;
 pub mod ucan;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod window;
@@ -495,6 +495,8 @@ pub fn run() {
             mls::commands::mls_has_group,
             mls::commands::mls_export_epoch_key,
             mls::commands::mls_get_epoch_key,
+            mls::commands::mls_get_group_info,
+            mls::commands::mls_join_by_external_commit,
             // File Sync commands
             file_sync::commands::file_sync_start_rule,
             file_sync::commands::file_sync_stop_rule,
