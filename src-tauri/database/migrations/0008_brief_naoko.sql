@@ -1,1 +1,2 @@
-SELECT 1;
+CREATE TABLE IF NOT EXISTS _noop (id integer);
+DROP TABLE IF EXISTS _noop;
