@@ -115,6 +115,7 @@ export function useMlsDelivery(serverUrl: string, spaceId: string, auth: AuthCon
     payload: Uint8Array,
     messageType: 'commit' | 'application',
     epoch?: number,
+    groupInfo?: Uint8Array,
   ): Promise<number> {
     const ucan = requireUcan(spaceId)
 
@@ -122,6 +123,7 @@ export function useMlsDelivery(serverUrl: string, spaceId: string, auth: AuthCon
       payload: toBase64(payload),
       messageType,
       epoch,
+      groupInfo: groupInfo ? toBase64(groupInfo) : undefined,
     })
 
     const response = await fetchWithUcanAuth(
