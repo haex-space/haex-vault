@@ -5,71 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1775170088380,
-      "tag": "0000_init",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1775299378466,
-      "tag": "0001_narrow_wallop",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1775303018717,
-      "tag": "0002_goofy_gateway",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1775320110703,
-      "tag": "0003_naive_matthew_murdock",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1775343768237,
-      "tag": "0004_living_the_phantom",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1775578818478,
-      "tag": "0005_rainy_molten_man",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1775579029822,
-      "tag": "0006_lush_agent_zero",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "6",
-      "when": 1775579567317,
-      "tag": "0007_needy_cable",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "6",
-      "when": 1775641379482,
-      "tag": "0008_brief_naoko",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "6",
-      "when": 1775685030134,
-      "tag": "0009_far_frightful_four",
+      "when": 1775908377472,
+      "tag": "0000_low_night_nurse",
       "breakpoints": true
     }
   ]

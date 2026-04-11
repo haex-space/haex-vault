@@ -178,6 +178,15 @@ CREATE TABLE `haex_crdt_pending_columns_no_sync` (
 	PRIMARY KEY(`table_name`, `column_name`)
 );
 --> statement-breakpoint
+CREATE TABLE `haex_devices` (
+	`id` text PRIMARY KEY NOT NULL,
+	`endpoint_id` text NOT NULL,
+	`name` text NOT NULL,
+	`platform` text NOT NULL,
+	`created_at` text DEFAULT (CURRENT_TIMESTAMP)
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_devices_endpoint_id_unique` ON `haex_devices` (`endpoint_id`);--> statement-breakpoint
 CREATE TABLE `haex_identities` (
 	`id` text PRIMARY KEY NOT NULL,
 	`public_key` text NOT NULL,
@@ -185,6 +194,7 @@ CREATE TABLE `haex_identities` (
 	`label` text NOT NULL,
 	`private_key` text,
 	`avatar` text,
+	`avatar_options` text,
 	`notes` text,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP)
 );
@@ -245,6 +255,9 @@ CREATE TABLE `haex_invite_tokens` (
 CREATE TABLE `haex_pending_invites` (
 	`id` text PRIMARY KEY NOT NULL,
 	`space_id` text NOT NULL,
+	`space_name` text,
+	`space_type` text,
+	`origin_url` text,
 	`inviter_did` text NOT NULL,
 	`inviter_label` text,
 	`capabilities` text,
@@ -253,8 +266,7 @@ CREATE TABLE `haex_pending_invites` (
 	`space_endpoints` text,
 	`status` text DEFAULT 'pending' NOT NULL,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
-	`responded_at` text,
-	FOREIGN KEY (`space_id`) REFERENCES `haex_spaces`(`id`) ON UPDATE no action ON DELETE cascade
+	`responded_at` text
 );
 --> statement-breakpoint
 CREATE TABLE `haex_local_delivery_key_packages_no_sync` (
@@ -372,6 +384,7 @@ CREATE TABLE `haex_space_devices` (
 	`device_endpoint_id` text NOT NULL,
 	`device_name` text NOT NULL,
 	`avatar` text,
+	`avatar_options` text,
 	`relay_url` text,
 	`leader_priority` integer DEFAULT 10,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
@@ -380,6 +393,20 @@ CREATE TABLE `haex_space_devices` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_space_devices_space_device_unique` ON `haex_space_devices` (`space_id`,`device_endpoint_id`);--> statement-breakpoint
+CREATE TABLE `haex_space_members` (
+	`id` text PRIMARY KEY NOT NULL,
+	`space_id` text NOT NULL,
+	`member_did` text NOT NULL,
+	`member_public_key` text NOT NULL,
+	`label` text NOT NULL,
+	`avatar` text,
+	`avatar_options` text,
+	`role` text DEFAULT 'read' NOT NULL,
+	`joined_at` text DEFAULT (CURRENT_TIMESTAMP),
+	FOREIGN KEY (`space_id`) REFERENCES `haex_spaces`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_space_members_space_did_unique` ON `haex_space_members` (`space_id`,`member_did`);--> statement-breakpoint
 CREATE TABLE `haex_spaces` (
 	`id` text PRIMARY KEY NOT NULL,
 	`type` text DEFAULT 'online' NOT NULL,
@@ -412,6 +439,35 @@ CREATE TABLE `haex_sync_backends` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_sync_backends_home_server_url_unique` ON `haex_sync_backends` (`home_server_url`);--> statement-breakpoint
+CREATE TABLE `haex_sync_rules` (
+	`id` text PRIMARY KEY NOT NULL,
+	`space_id` text NOT NULL,
+	`device_id` text NOT NULL,
+	`source_type` text NOT NULL,
+	`source_config` text NOT NULL,
+	`target_type` text NOT NULL,
+	`target_config` text NOT NULL,
+	`direction` text DEFAULT 'one_way' NOT NULL,
+	`enabled` integer DEFAULT true NOT NULL,
+	`sync_interval_seconds` integer DEFAULT 300 NOT NULL,
+	`delete_mode` text DEFAULT 'trash' NOT NULL,
+	`last_synced_at` integer,
+	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
+	FOREIGN KEY (`space_id`) REFERENCES `haex_spaces`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`device_id`) REFERENCES `haex_devices`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+CREATE TABLE `haex_sync_state_no_sync` (
+	`id` text PRIMARY KEY NOT NULL,
+	`rule_id` text NOT NULL,
+	`relative_path` text NOT NULL,
+	`file_size` integer NOT NULL,
+	`modified_at` integer NOT NULL,
+	`synced_at` text NOT NULL,
+	`deleted` integer DEFAULT false NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_sync_state_rule_path_unique` ON `haex_sync_state_no_sync` (`rule_id`,`relative_path`);--> statement-breakpoint
 CREATE TABLE `haex_ucan_tokens` (
 	`id` text PRIMARY KEY NOT NULL,
 	`space_id` text NOT NULL,
