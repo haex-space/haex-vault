@@ -255,6 +255,90 @@ export function useMlsDelivery(serverUrl: string, spaceId: string, auth: AuthCon
     log.info(`Invite ${inviteId} accepted, ${keyPackageCount} key packages uploaded`)
   }
 
+  // ===========================================================================
+  // Rejoin via External Commit (Epoch-Gap Recovery)
+  // ===========================================================================
+
+  /**
+   * Request GroupInfo from the server for External Commit rejoin.
+   * Server validates UCAN membership before returning GroupInfo.
+   */
+  async function requestRejoinAsync(): Promise<Uint8Array> {
+    const ucan = requireUcan(spaceId)
+
+    const response = await fetchWithUcanAuth(
+      `${baseUrl}/mls/rejoin`,
+      spaceId,
+      ucan,
+      { method: 'POST' },
+    )
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(`Failed to request rejoin: ${error.error || response.statusText}`)
+    }
+
+    const data = await response.json()
+    return fromBase64(data.groupInfo)
+  }
+
+  /**
+   * Submit an External Commit to rejoin the MLS group.
+   * Server validates the DID in the commit has a valid UCAN.
+   */
+  async function submitExternalCommitAsync(commit: Uint8Array): Promise<void> {
+    const ucan = requireUcan(spaceId)
+
+    const body = JSON.stringify({
+      commit: toBase64(commit),
+    })
+
+    const response = await fetchWithUcanAuth(
+      `${baseUrl}/mls/external-commit`,
+      spaceId,
+      ucan,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      },
+    )
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(`Failed to submit external commit: ${error.error || response.statusText}`)
+    }
+
+    log.info(`External commit submitted for space ${spaceId}`)
+  }
+
+  /**
+   * Full rejoin flow: request GroupInfo → create External Commit → submit.
+   * Returns the new epoch key on success.
+   */
+  async function rejoinAsync(): Promise<{ epoch: number; key: number[] }> {
+    log.info(`Starting rejoin for space ${spaceId}`)
+
+    // 1. Get GroupInfo from server
+    const groupInfo = await requestRejoinAsync()
+
+    // 2. Create External Commit locally
+    const result: { commit: number[]; epochKey: { epoch: number; key: number[] } } =
+      await invoke('mls_join_by_external_commit', {
+        spaceId,
+        groupInfo: Array.from(groupInfo),
+      })
+
+    // 3. Submit the commit to server for distribution
+    await submitExternalCommitAsync(new Uint8Array(result.commit))
+
+    // 4. Persist the new epoch key
+    await invoke('mls_export_epoch_key', { spaceId })
+
+    log.info(`Rejoin completed for space ${spaceId}, new epoch: ${result.epochKey.epoch}`)
+    return result.epochKey
+  }
+
   return {
     uploadKeyPackagesAsync,
     fetchKeyPackageAsync,
@@ -263,5 +347,8 @@ export function useMlsDelivery(serverUrl: string, spaceId: string, auth: AuthCon
     sendWelcomeAsync,
     fetchWelcomesAsync,
     acceptInviteAsync,
+    requestRejoinAsync,
+    submitExternalCommitAsync,
+    rejoinAsync,
   }
 }

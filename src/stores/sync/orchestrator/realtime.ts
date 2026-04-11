@@ -273,11 +273,30 @@ export const subscribeToBackendAsync = async (
 
       // Fetch and process MLS messages (commits, application data)
       const messages = await delivery.fetchMessagesAsync()
+      let epochGapDetected = false
       for (const msg of messages) {
         const payload = Uint8Array.from(atob(msg.payload), (c) => c.charCodeAt(0))
-        await invoke('mls_process_message', { spaceId: event.spaceId, message: Array.from(payload) })
+        try {
+          await invoke('mls_process_message', { spaceId: event.spaceId, message: Array.from(payload) })
+        } catch (processError) {
+          const errorStr = String(processError)
+          if (errorStr.includes('epoch') || errorStr.includes('group') || errorStr.includes('Welcome')) {
+            epochGapDetected = true
+            log.warn(`Epoch gap detected for space ${event.spaceId}, attempting rejoin`)
+            break
+          }
+          throw processError
+        }
       }
-      if (messages.length > 0) {
+
+      if (epochGapDetected) {
+        try {
+          await delivery.rejoinAsync()
+          log.info(`Rejoin successful for space ${event.spaceId}, retrying messages`)
+        } catch (rejoinError) {
+          log.error(`Rejoin failed for space ${event.spaceId}:`, rejoinError)
+        }
+      } else if (messages.length > 0) {
         log.info(`Processed ${messages.length} MLS message(s) for space ${event.spaceId}`)
       }
     } catch (error) {
