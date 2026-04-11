@@ -14,8 +14,6 @@ use crate::crdt::commands::{apply_remote_changes_to_db, clear_dirty_table_inner,
 use crate::crdt::hlc::hlc_max;
 use crate::crdt::scanner::{scan_all_dirty_tables_for_local_changes, LocalColumnChange};
 use crate::database::DbConnection;
-use crate::mls::manager::MlsManager;
-
 use super::error::DeliveryError;
 use super::peer::PeerSession;
 
@@ -135,6 +133,7 @@ async fn run_sync_loop(
     let mut last_push_hlc: Option<String> = None;
     let mut last_pull_timestamp: Option<String> = None;
     let mut last_mls_message_id: Option<i64> = None;
+    let mut key_packages_refilled = false;
 
     eprintln!("[SyncLoop] Started for space {}", space_id);
 
@@ -154,6 +153,7 @@ async fn run_sync_loop(
             &mut last_push_hlc,
             &mut last_pull_timestamp,
             &mut last_mls_message_id,
+            &mut key_packages_refilled,
         )
         .await
         {
@@ -245,6 +245,7 @@ async fn run_sync_cycle(
     last_push_hlc: &mut Option<String>,
     last_pull_timestamp: &mut Option<String>,
     last_mls_message_id: &mut Option<i64>,
+    key_packages_refilled: &mut bool,
 ) -> Result<(), DeliveryError> {
     // 1. PUSH: Scan dirty tables for local changes
     let changes = scan_all_dirty_tables_for_local_changes(
@@ -380,9 +381,12 @@ async fn run_sync_cycle(
         // Non-fatal: CRDT sync still worked, MLS will retry next cycle
     }
 
-    // 4. KeyPackage refill: ensure at least TARGET_KEY_PACKAGE_COUNT packages on leader
-    if let Err(e) = refill_key_packages_if_needed(db, session, space_id).await {
-        eprintln!("[SyncLoop] KeyPackage refill failed: {e}");
+    // 4. KeyPackage refill: run once per session (ClaimInvite already uploads 10)
+    if !*key_packages_refilled {
+        match refill_key_packages_if_needed(db, session, space_id).await {
+            Ok(()) => *key_packages_refilled = true,
+            Err(e) => eprintln!("[SyncLoop] KeyPackage refill failed (will retry next cycle): {e}"),
+        }
     }
 
     Ok(())
@@ -410,7 +414,6 @@ async fn fetch_and_process_mls_messages(
         space_id
     );
 
-    let mls_manager = MlsManager::new(db.0.clone());
     let mut acked_ids = Vec::new();
 
     for msg in &messages {
@@ -422,7 +425,7 @@ async fn fetch_and_process_mls_messages(
             }
         };
 
-        match mls_manager.process_message(space_id, &blob) {
+        match crate::mls::blocking::process_message(db.0.clone(), space_id.to_string(), blob).await {
             Ok(_) => {
                 acked_ids.push(msg.id);
                 *last_mls_message_id = Some(msg.id);
@@ -496,12 +499,15 @@ async fn attempt_rejoin(
     })?;
 
     // 2. Create External Commit
-    let mls_manager = MlsManager::new(db.0.clone());
-    let (commit_bytes, epoch_key) = mls_manager
-        .join_by_external_commit(space_id, &group_info_bytes)
-        .map_err(|e| DeliveryError::ProtocolError {
-            reason: format!("External commit failed: {e}"),
-        })?;
+    let (commit_bytes, epoch_key) = crate::mls::blocking::join_by_external_commit(
+        db.0.clone(),
+        space_id.to_string(),
+        group_info_bytes,
+    )
+    .await
+    .map_err(|e| DeliveryError::ProtocolError {
+        reason: format!("External commit failed: {e}"),
+    })?;
 
     let commit_b64 = BASE64.encode(&commit_bytes);
 
@@ -543,9 +549,8 @@ async fn refill_key_packages_if_needed(
         "[SyncLoop] KeyPackage refill: {available} on leader, {needed} more requested"
     );
 
-    let mls_manager = MlsManager::new(db.0.clone());
-    let packages = mls_manager
-        .generate_key_packages(needed)
+    let packages = crate::mls::blocking::generate_key_packages(db.0.clone(), needed)
+        .await
         .map_err(|e| DeliveryError::ProtocolError {
             reason: format!("Failed to generate key packages: {e}"),
         })?;

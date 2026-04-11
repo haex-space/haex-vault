@@ -250,8 +250,13 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
         &space_id[..12.min(space_id.len())],
         key_package_blob.len(),
     );
-    let mls_manager = crate::mls::manager::MlsManager::new(state.db.0.clone());
-    let bundle = match mls_manager.add_member(&space_id, &key_package_blob) {
+    let bundle = match crate::mls::blocking::add_member(
+        state.db.0.clone(),
+        space_id.clone(),
+        key_package_blob,
+    )
+    .await
+    {
         Ok(b) => b,
         Err(e) => {
             return Response::Error {
@@ -817,8 +822,12 @@ pub(super) async fn handle_delivery_request(
             }
 
             // Export current GroupInfo with ratchet tree for External Commit
-            let mls_manager = crate::mls::manager::MlsManager::new(state.db.0.clone());
-            match mls_manager.get_group_info(&space_id) {
+            match crate::mls::blocking::get_group_info(
+                state.db.0.clone(),
+                space_id.clone(),
+            )
+            .await
+            {
                 Ok(group_info_bytes) => Response::GroupInfo {
                     group_info: base64_encode(&group_info_bytes),
                 },

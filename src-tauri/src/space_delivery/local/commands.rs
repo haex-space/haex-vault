@@ -444,9 +444,8 @@ pub async fn local_delivery_claim_invite(
     drop(endpoint);
 
     // 2. Generate MLS KeyPackages
-    let mls_manager = crate::mls::manager::MlsManager::new(state.db.0.clone());
-    let key_packages_raw = mls_manager
-        .generate_key_packages(10)
+    let key_packages_raw = crate::mls::blocking::generate_key_packages(state.db.0.clone(), 10)
+        .await
         .map_err(|e| {
             log("error", &format!("MLS KeyPackage generation failed: {e}"));
             format!("Failed to generate key packages: {e}")
@@ -548,8 +547,8 @@ pub async fn local_delivery_claim_invite(
     let welcome_bytes = BASE64
         .decode(&welcome_b64)
         .map_err(|e| format!("Failed to decode welcome: {e}"))?;
-    mls_manager
-        .process_welcome(&space_id, &welcome_bytes)
+    crate::mls::blocking::process_welcome(state.db.0.clone(), space_id.clone(), welcome_bytes)
+        .await
         .map_err(|e| format!("Failed to process MLS welcome: {e}"))?;
 
     // 6. Persist space locally (type = 'local', status = 'active')
