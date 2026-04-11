@@ -204,7 +204,7 @@ export function useMlsDelivery(serverUrl: string, spaceId: string, auth: AuthCon
   /**
    * Fetch own unconsumed Welcome messages (marks them as consumed on server).
    */
-  async function fetchWelcomesAsync(): Promise<Uint8Array[]> {
+  async function fetchWelcomesAsync(): Promise<{ id: number; payload: Uint8Array }[]> {
     const ucan = requireUcan(spaceId)
 
     const response = await fetchWithUcanAuth(
@@ -219,7 +219,23 @@ export function useMlsDelivery(serverUrl: string, spaceId: string, auth: AuthCon
     }
 
     const data = await response.json()
-    return (data.welcomes as MlsWelcome[]).map((w) => fromBase64(w.payload))
+    return (data.welcomes as MlsWelcome[]).map((w) => ({ id: w.id, payload: fromBase64(w.payload) }))
+  }
+
+  async function ackWelcomeAsync(welcomeId: number): Promise<void> {
+    const ucan = requireUcan(spaceId)
+
+    const response = await fetchWithUcanAuth(
+      `${baseUrl}/mls/welcome/${welcomeId}`,
+      spaceId,
+      ucan,
+      { method: 'DELETE' },
+    )
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      log.warn(`Failed to ACK welcome ${welcomeId}: ${error.error || response.statusText}`)
+    }
   }
 
   // ===========================================================================
@@ -348,6 +364,7 @@ export function useMlsDelivery(serverUrl: string, spaceId: string, auth: AuthCon
     fetchMessagesAsync,
     sendWelcomeAsync,
     fetchWelcomesAsync,
+    ackWelcomeAsync,
     acceptInviteAsync,
     requestRejoinAsync,
     submitExternalCommitAsync,

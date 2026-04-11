@@ -13,7 +13,7 @@ import spacesEn from './spaces.en.json'
 import { addMemberToSpace, getSpaceMembers, updateOwnSpaceProfile, getMemberPublicKeysForSpace, removeSpaceMember, migrateExistingMembers } from './members'
 import { getCapabilitiesForSpace, hasCapability } from './capabilities'
 import { setupFederationForSpace } from './federation'
-import { inviteMember, createInviteToken, buildInviteLink, claimInviteToken, finalizeInvite, processWelcomes, acceptLocalInvite, queueQuicInvite } from './invites'
+import { inviteMember, createInviteToken, buildInviteLink, claimInviteToken, finalizeInvite, processWelcomes, retryPendingWelcomes, acceptLocalInvite, queueQuicInvite } from './invites'
 import { createLocalSpace, createOnlineSpace, updateSpaceName, migrateSpaceServer, listSpaces, leaveSpace, deleteSpace, removeIdentityFromSpace } from './crud'
 
 /** Extended space type including the DB type field (vault/online/local) */
@@ -142,6 +142,14 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     }
   }
 
+  const retryPendingWelcomesAsync = async () => {
+    try {
+      await retryPendingWelcomes(requireDb())
+    } catch (error) {
+      log.warn(`Pending welcome recovery failed: ${error}`)
+    }
+  }
+
   const ensureVaultSpaceAsync = async (vaultId: string, vaultName: string) => {
     const d = db.value
     if (!d) {
@@ -244,7 +252,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
   const processWelcomesAsync = async (serverUrl: string, spaceId: string, identityId: string) => {
     const identity = await resolveIdentityAsync(identityId)
-    return processWelcomes(serverUrl, spaceId, identity)
+    return processWelcomes(requireDb(), serverUrl, spaceId, identity)
   }
 
   const acceptLocalInviteAsync = (invite: Parameters<typeof acceptLocalInvite>[1]) =>
@@ -340,6 +348,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     acceptLocalInviteAsync,
     persistSpaceAsync,
     startLocalSpaceLeadersAsync,
+    retryPendingWelcomesAsync,
     removeSpaceFromDbAsync,
     clearCache,
   }

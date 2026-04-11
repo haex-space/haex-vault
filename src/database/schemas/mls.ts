@@ -48,3 +48,21 @@ export const haexMlsEpochKeyPairsNoSync = sqliteTable(
     primaryKey({ columns: [table.groupId, table.epochBytes, table.leafIndex] }),
   ],
 )
+
+// ---------------------------------------------------------------------------
+// MLS Pending Welcomes — crash-safe staging for Welcome processing
+// Written before processing, deleted after success. On startup, any remaining
+// rows are retried automatically.
+// ---------------------------------------------------------------------------
+
+export const haexMlsPendingWelcomesNoSync = sqliteTable(
+  'haex_mls_pending_welcomes_no_sync',
+  {
+    id: text('id').primaryKey(),
+    spaceId: text('space_id').notNull(),
+    welcomePayload: text('welcome_payload').notNull(), // Base64-encoded
+    source: text('source').notNull(), // 'quic' | 'server'
+    sourceId: text('source_id'), // server welcome UUID for ACK
+    createdAt: text('created_at'),
+  },
+)

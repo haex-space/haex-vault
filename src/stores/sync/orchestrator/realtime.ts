@@ -265,7 +265,8 @@ export const subscribeToBackendAsync = async (
       // Fetch and process welcome messages (new member joining)
       const welcomes = await delivery.fetchWelcomesAsync()
       for (const welcome of welcomes) {
-        await invoke('mls_process_message', { spaceId: event.spaceId, message: Array.from(welcome) })
+        await invoke('mls_process_message', { spaceId: event.spaceId, message: Array.from(welcome.payload) })
+        await delivery.ackWelcomeAsync(welcome.id)
       }
       if (welcomes.length > 0) {
         log.info(`Processed ${welcomes.length} MLS welcome(s) for space ${event.spaceId}`)

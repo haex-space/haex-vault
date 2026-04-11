@@ -543,13 +543,34 @@ pub async fn local_delivery_claim_invite(
         }
     };
 
-    // 5. Process MLS welcome (creates the local group from the Welcome message)
+    // 5. Process MLS welcome (crash-safe: stage → process → delete)
     let welcome_bytes = BASE64
         .decode(&welcome_b64)
         .map_err(|e| format!("Failed to decode welcome: {e}"))?;
+
+    let staging_id = uuid::Uuid::new_v4().to_string();
+    let staging_db = DbConnection(state.db.0.clone());
+    crate::database::core::execute(
+        "INSERT INTO haex_mls_pending_welcomes_no_sync (id, space_id, welcome_payload, source, created_at) \
+         VALUES (?1, ?2, ?3, 'quic', datetime('now'))".to_string(),
+        vec![
+            serde_json::Value::String(staging_id.clone()),
+            serde_json::Value::String(space_id.clone()),
+            serde_json::Value::String(BASE64.encode(&welcome_bytes)),
+        ],
+        &staging_db,
+    )
+    .map_err(|e| format!("Failed to stage welcome: {e}"))?;
+
     crate::mls::blocking::process_welcome(state.db.0.clone(), space_id.clone(), welcome_bytes)
         .await
         .map_err(|e| format!("Failed to process MLS welcome: {e}"))?;
+
+    let _ = crate::database::core::execute(
+        "DELETE FROM haex_mls_pending_welcomes_no_sync WHERE id = ?1".to_string(),
+        vec![serde_json::Value::String(staging_id)],
+        &staging_db,
+    );
 
     // 6. Persist space locally (type = 'local', status = 'active')
     // Capabilities are derived at runtime from UCAN tokens, not stored on the space

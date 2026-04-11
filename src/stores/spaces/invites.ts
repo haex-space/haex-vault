@@ -268,18 +268,62 @@ export async function finalizeInvite(
 
 /**
  * Invitee-side: process MLS welcome messages to join the group.
+ * Crash-safe: stages each Welcome locally before processing, ACKs on server after success.
  */
-export async function processWelcomes(serverUrl: string, spaceId: string, identity: ResolvedIdentity) {
+export async function processWelcomes(db: DB, serverUrl: string, spaceId: string, identity: ResolvedIdentity) {
   const { useMlsDelivery } = await import('@/composables/useMlsDelivery')
   const delivery = useMlsDelivery(serverUrl, spaceId, { privateKey: identity.privateKey, did: identity.did })
+  const { haexMlsPendingWelcomesNoSync } = await import('~/database/schemas/mls')
 
   const welcomes = await delivery.fetchWelcomesAsync()
   for (const welcome of welcomes) {
-    await invoke('mls_process_message', { spaceId, message: Array.from(welcome) })
+    const stagingId = crypto.randomUUID()
+
+    // Stage locally before processing
+    await db.insert(haexMlsPendingWelcomesNoSync).values({
+      id: stagingId,
+      spaceId,
+      welcomePayload: Buffer.from(welcome.payload).toString('base64'),
+      source: 'server',
+      sourceId: String(welcome.id),
+      createdAt: new Date().toISOString(),
+    })
+
+    await invoke('mls_process_message', { spaceId, message: Array.from(welcome.payload) })
+
+    // ACK on server + remove staging row
+    await delivery.ackWelcomeAsync(welcome.id)
+    await db.delete(haexMlsPendingWelcomesNoSync).where(eq(haexMlsPendingWelcomesNoSync.id, stagingId))
   }
 
   if (welcomes.length > 0) {
     log.info(`Processed ${welcomes.length} MLS welcome(s) for space ${spaceId}`)
+  }
+}
+
+/**
+ * Retry any pending Welcomes that weren't fully processed (crash recovery).
+ * Called on app startup.
+ */
+export async function retryPendingWelcomes(db: DB) {
+  const { haexMlsPendingWelcomesNoSync } = await import('~/database/schemas/mls')
+
+  const pending = await db.select().from(haexMlsPendingWelcomesNoSync)
+  if (pending.length === 0) return
+
+  log.info(`Retrying ${pending.length} pending Welcome(s) from previous session`)
+
+  for (const row of pending) {
+    try {
+      const binary = atob(row.welcomePayload)
+      const welcomeBytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) welcomeBytes[i] = binary.charCodeAt(i)
+      await invoke('mls_process_message', { spaceId: row.spaceId, message: Array.from(welcomeBytes) })
+      await db.delete(haexMlsPendingWelcomesNoSync).where(eq(haexMlsPendingWelcomesNoSync.id, row.id))
+      log.info(`Recovered Welcome for space ${row.spaceId} (source: ${row.source})`)
+    } catch (error) {
+      log.warn(`Failed to retry Welcome ${row.id}: ${error}`)
+    }
   }
 }
 

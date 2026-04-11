@@ -439,6 +439,9 @@ export const useVaultStore = defineStore('vaultStore', () => {
     // Start leader mode for all local spaces (enables invite handling)
     await spacesStore.startLocalSpaceLeadersAsync()
 
+    // Retry any Welcomes that weren't fully processed in a previous session
+    await spacesStore.retryPendingWelcomesAsync()
+
     // Warm UCAN cache from DB (tokens survive app restarts)
     if (currentVault.value?.drizzle) {
       await loadUcansFromDbAsync(currentVault.value.drizzle)

@@ -328,6 +328,15 @@ CREATE TABLE `haex_mls_list_no_sync` (
 	PRIMARY KEY(`store_type`, `key_bytes`, `index_num`)
 );
 --> statement-breakpoint
+CREATE TABLE `haex_mls_pending_welcomes_no_sync` (
+	`id` text PRIMARY KEY NOT NULL,
+	`space_id` text NOT NULL,
+	`welcome_payload` text NOT NULL,
+	`source` text NOT NULL,
+	`source_id` text,
+	`created_at` text
+);
+--> statement-breakpoint
 CREATE TABLE `haex_mls_values_no_sync` (
 	`store_type` text NOT NULL,
 	`key_bytes` blob NOT NULL,
