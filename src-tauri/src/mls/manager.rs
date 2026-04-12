@@ -253,6 +253,14 @@ impl MlsManager {
             _ => return Err("Expected Welcome message but got a different MLS message type".to_string()),
         };
 
+        // If a stale MLS group exists for this space (e.g. from a prior membership
+        // that was removed/declined), delete it before joining with the new Welcome.
+        let expected_group_id = GroupId::from_slice(space_id.as_bytes());
+        if let Ok(Some(mut old_group)) = MlsGroup::load(self.provider.storage(), &expected_group_id) {
+            eprintln!("[MLS] Deleting stale group for space {space_id} before re-joining");
+            let _ = old_group.delete(self.provider.storage());
+        }
+
         let group_config = MlsGroupJoinConfig::builder()
             .use_ratchet_tree_extension(true)
             .build();
@@ -263,7 +271,6 @@ impl MlsManager {
             .map_err(|e| format!("Failed to join group from welcome: {e}"))?;
 
         // Verify the group ID matches the expected space
-        let expected_group_id = GroupId::from_slice(space_id.as_bytes());
         if group.group_id() != &expected_group_id {
             return Err(format!(
                 "Group ID mismatch: expected {} but welcome contains {}",
