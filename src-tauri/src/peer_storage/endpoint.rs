@@ -12,7 +12,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::sync::RwLock;
 
 use iroh::{Endpoint, EndpointAddr, EndpointId, RelayMode, RelayUrl, SecretKey};
@@ -98,6 +98,10 @@ pub struct PeerEndpoint {
     accept_task: Option<tokio::task::JoinHandle<()>>,
     /// Configured relay URL (set at start, available even before relay connection is established)
     configured_relay_url: Option<RelayUrl>,
+    /// Cached connections to remote peers. Reusing a single QUIC connection for
+    /// multiple streams avoids per-request TLS handshakes and the race condition
+    /// where a closing connection interferes with a subsequent connect() call.
+    connections: Mutex<HashMap<EndpointId, iroh::endpoint::Connection>>,
 }
 
 impl PeerEndpoint {
@@ -109,6 +113,7 @@ impl PeerEndpoint {
             state: Arc::new(RwLock::new(PeerState::default())),
             accept_task: None,
             configured_relay_url: None,
+            connections: Mutex::new(HashMap::new()),
         }
     }
 
@@ -216,6 +221,10 @@ impl PeerEndpoint {
 
     /// Stop the endpoint
     pub async fn stop(&mut self) -> Result<(), PeerStorageError> {
+        if let Ok(mut cache) = self.connections.lock() {
+            cache.clear();
+        }
+
         if let Some(task) = self.accept_task.take() {
             task.abort();
         }
@@ -225,6 +234,95 @@ impl PeerEndpoint {
             eprintln!("[PeerStorage] Endpoint stopped");
         }
 
+        Ok(())
+    }
+
+    /// Get a cached QUIC connection or establish a new one, then open a
+    /// bidirectional stream. If a cached connection is stale, it is evicted
+    /// and a fresh one is created automatically.
+    async fn open_stream(
+        &self,
+        remote_id: EndpointId,
+        relay_url: Option<RelayUrl>,
+    ) -> Result<(iroh::endpoint::SendStream, iroh::endpoint::RecvStream), PeerStorageError> {
+        let endpoint = self
+            .endpoint
+            .as_ref()
+            .ok_or(PeerStorageError::EndpointNotRunning)?;
+
+        // Try the cached connection first
+        let cached = self.connections
+            .lock()
+            .ok()
+            .and_then(|cache| cache.get(&remote_id).cloned());
+
+        if let Some(conn) = cached {
+            match conn.open_bi().await {
+                Ok(streams) => return Ok(streams),
+                Err(_) => {
+                    // Connection is stale — evict it
+                    if let Ok(mut cache) = self.connections.lock() {
+                        cache.remove(&remote_id);
+                    }
+                }
+            }
+        }
+
+        // Establish a new connection
+        let addr = match relay_url {
+            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
+            None => EndpointAddr::new(remote_id),
+        };
+
+        let conn = endpoint
+            .connect(addr, ALPN)
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
+
+        let streams = conn
+            .open_bi()
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
+
+        if let Ok(mut cache) = self.connections.lock() {
+            cache.insert(remote_id, conn);
+        }
+        Ok(streams)
+    }
+
+    /// Encode a request, send it on the stream, signal end-of-send, and read the response.
+    async fn send_request(
+        send: &mut iroh::endpoint::SendStream,
+        recv: &mut iroh::endpoint::RecvStream,
+        req: &Request,
+    ) -> Result<Response, PeerStorageError> {
+        let req_bytes = protocol::encode_request(req)
+            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+        send.write_all(&req_bytes)
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+        send.finish()
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+
+        protocol::read_response(recv)
+            .await
+            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })
+    }
+
+    /// Send a request header without finishing the send side (caller will stream more data).
+    async fn send_request_header(
+        send: &mut iroh::endpoint::SendStream,
+        req: &Request,
+    ) -> Result<(), PeerStorageError> {
+        let req_bytes = protocol::encode_request(req)
+            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+        send.write_all(&req_bytes)
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
         Ok(())
     }
 
@@ -268,44 +366,9 @@ impl PeerEndpoint {
         path: &str,
         ucan_token: &str,
     ) -> Result<Vec<FileEntry>, PeerStorageError> {
-        let endpoint = self
-            .endpoint
-            .as_ref()
-            .ok_or(PeerStorageError::EndpointNotRunning)?;
-
-        let addr = match relay_url {
-            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
-            None => EndpointAddr::new(remote_id),
-        };
-
-        let conn = endpoint
-            .connect(addr, ALPN)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
-
-        let (mut send, mut recv) = conn
-            .open_bi()
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
-
-        // Send LIST request
+        let (mut send, mut recv) = self.open_stream(remote_id, relay_url).await?;
         let req = Request::List { path: path.to_string(), ucan_token: ucan_token.to_string() };
-        let req_bytes = protocol::encode_request(&req)
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
-        send.write_all(&req_bytes)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-        send.finish()
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        // Read response
-        let response: Response = protocol::read_response(&mut recv)
-            .await
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+        let response = Self::send_request(&mut send, &mut recv, &req).await?;
 
         match response {
             Response::List { entries } => Ok(entries),
@@ -332,48 +395,14 @@ impl PeerEndpoint {
         pause_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
         ucan_token: &str,
     ) -> Result<u64, PeerStorageError> {
-        let endpoint = self
-            .endpoint
-            .as_ref()
-            .ok_or(PeerStorageError::EndpointNotRunning)?;
+        let (mut send, mut recv) = self.open_stream(remote_id, relay_url).await?;
 
-        let addr = match relay_url {
-            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
-            None => EndpointAddr::new(remote_id),
-        };
-
-        let conn = endpoint
-            .connect(addr, ALPN)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
-
-        let (mut send, mut recv) = conn
-            .open_bi()
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
-
-        // Send READ request
         let req = Request::Read {
             path: path.to_string(),
             range,
             ucan_token: ucan_token.to_string(),
         };
-        let req_bytes = protocol::encode_request(&req)
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
-        send.write_all(&req_bytes)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-        send.finish()
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        // Read response header
-        let response: Response = protocol::read_response(&mut recv)
-            .await
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+        let response = Self::send_request(&mut send, &mut recv, &req).await?;
 
         match response {
             Response::ReadHeader { size } => {
@@ -457,42 +486,9 @@ impl PeerEndpoint {
         path: &str,
         ucan_token: &str,
     ) -> Result<Vec<crate::file_sync::types::FileState>, PeerStorageError> {
-        let endpoint = self
-            .endpoint
-            .as_ref()
-            .ok_or(PeerStorageError::EndpointNotRunning)?;
-
-        let addr = match relay_url {
-            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
-            None => EndpointAddr::new(remote_id),
-        };
-
-        let conn = endpoint
-            .connect(addr, ALPN)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
-
-        let (mut send, mut recv) = conn
-            .open_bi()
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
-
+        let (mut send, mut recv) = self.open_stream(remote_id, relay_url).await?;
         let req = Request::Manifest { path: path.to_string(), ucan_token: ucan_token.to_string() };
-        let req_bytes = protocol::encode_request(&req)
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
-        send.write_all(&req_bytes)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-        send.finish()
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        let response: Response = protocol::read_response(&mut recv)
-            .await
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+        let response = Self::send_request(&mut send, &mut recv, &req).await?;
 
         match response {
             Response::Manifest { entries } => Ok(entries),
@@ -512,46 +508,13 @@ impl PeerEndpoint {
         path: &str,
         ucan_token: &str,
     ) -> Result<Vec<u8>, PeerStorageError> {
-        let endpoint = self
-            .endpoint
-            .as_ref()
-            .ok_or(PeerStorageError::EndpointNotRunning)?;
-
-        let addr = match relay_url {
-            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
-            None => EndpointAddr::new(remote_id),
-        };
-
-        let conn = endpoint
-            .connect(addr, ALPN)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
-
-        let (mut send, mut recv) = conn
-            .open_bi()
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
-
+        let (mut send, mut recv) = self.open_stream(remote_id, relay_url).await?;
         let req = Request::Read {
             path: path.to_string(),
             range: None,
             ucan_token: ucan_token.to_string(),
         };
-        let req_bytes = protocol::encode_request(&req)
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
-        send.write_all(&req_bytes)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-        send.finish()
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        let response: Response = protocol::read_response(&mut recv)
-            .await
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+        let response = Self::send_request(&mut send, &mut recv, &req).await?;
 
         match response {
             Response::ReadHeader { size } => {
@@ -590,25 +553,7 @@ impl PeerEndpoint {
         data: &[u8],
         ucan_token: &str,
     ) -> Result<(), PeerStorageError> {
-        let endpoint = self
-            .endpoint
-            .as_ref()
-            .ok_or(PeerStorageError::EndpointNotRunning)?;
-
-        let addr = match relay_url {
-            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
-            None => EndpointAddr::new(remote_id),
-        };
-
-        let conn = endpoint
-            .connect(addr, ALPN)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        let (mut send, mut recv) = conn
-            .open_bi()
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+        let (mut send, mut recv) = self.open_stream(remote_id, relay_url).await?;
 
         // Send Write request header (do NOT finish — data follows)
         let req = Request::Write {
@@ -616,11 +561,7 @@ impl PeerEndpoint {
             size: data.len() as u64,
             ucan_token: ucan_token.to_string(),
         };
-        let req_bytes = protocol::encode_request(&req)
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
-        send.write_all(&req_bytes)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+        Self::send_request_header(&mut send, &req).await?;
 
         // Stream file data
         send.write_all(data)
@@ -629,7 +570,6 @@ impl PeerEndpoint {
         send.finish()
             .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
 
-        // Read response
         let response: Response = protocol::read_response(&mut recv)
             .await
             .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
@@ -652,42 +592,9 @@ impl PeerEndpoint {
         to_trash: bool,
         ucan_token: &str,
     ) -> Result<(), PeerStorageError> {
-        let endpoint = self
-            .endpoint
-            .as_ref()
-            .ok_or(PeerStorageError::EndpointNotRunning)?;
-
-        let addr = match relay_url {
-            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
-            None => EndpointAddr::new(remote_id),
-        };
-
-        let conn = endpoint
-            .connect(addr, ALPN)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        let (mut send, mut recv) = conn
-            .open_bi()
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        let req = Request::Delete {
-            path: path.to_string(),
-            to_trash,
-            ucan_token: ucan_token.to_string(),
-        };
-        let req_bytes = protocol::encode_request(&req)
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
-        send.write_all(&req_bytes)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-        send.finish()
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        let response: Response = protocol::read_response(&mut recv)
-            .await
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+        let (mut send, mut recv) = self.open_stream(remote_id, relay_url).await?;
+        let req = Request::Delete { path: path.to_string(), to_trash, ucan_token: ucan_token.to_string() };
+        let response = Self::send_request(&mut send, &mut recv, &req).await?;
 
         match response {
             Response::DeleteOk => Ok(()),
@@ -706,41 +613,9 @@ impl PeerEndpoint {
         path: &str,
         ucan_token: &str,
     ) -> Result<(), PeerStorageError> {
-        let endpoint = self
-            .endpoint
-            .as_ref()
-            .ok_or(PeerStorageError::EndpointNotRunning)?;
-
-        let addr = match relay_url {
-            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
-            None => EndpointAddr::new(remote_id),
-        };
-
-        let conn = endpoint
-            .connect(addr, ALPN)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        let (mut send, mut recv) = conn
-            .open_bi()
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        let req = Request::CreateDirectory {
-            path: path.to_string(),
-            ucan_token: ucan_token.to_string(),
-        };
-        let req_bytes = protocol::encode_request(&req)
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
-        send.write_all(&req_bytes)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-        send.finish()
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        let response: Response = protocol::read_response(&mut recv)
-            .await
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+        let (mut send, mut recv) = self.open_stream(remote_id, relay_url).await?;
+        let req = Request::CreateDirectory { path: path.to_string(), ucan_token: ucan_token.to_string() };
+        let response = Self::send_request(&mut send, &mut recv, &req).await?;
 
         match response {
             Response::CreateDirectoryOk => Ok(()),
