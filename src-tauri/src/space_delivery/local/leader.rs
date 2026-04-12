@@ -60,17 +60,16 @@ fn base64_decode(s: &str) -> Result<Vec<u8>, String> {
     BASE64.decode(s).map_err(|e| format!("base64 decode error: {e}"))
 }
 
-/// Look up the DID for a connected peer by endpoint_id.
-async fn lookup_peer_did(
-    state: &LeaderState,
-    endpoint_id: &str,
-) -> Result<String, DeliveryError> {
-    let peers = state.connected_peers.read().await;
-    peers
+/// Look up the DID for a connected peer, returning an error Response on failure.
+async fn require_peer_did(state: &LeaderState, endpoint_id: &str) -> Result<String, Response> {
+    state
+        .connected_peers
+        .read()
+        .await
         .get(endpoint_id)
         .map(|p| p.did.clone())
-        .ok_or_else(|| DeliveryError::ProtocolError {
-            reason: "peer has not announced yet".to_string(),
+        .ok_or_else(|| Response::Error {
+            message: "Peer has not announced".to_string(),
         })
 }
 
@@ -142,6 +141,35 @@ fn check_write_capability(
     })
 }
 
+/// Broadcast an MLS notification to all connected peers.
+async fn notify_all_mls(state: &LeaderState, space_id: &str, message_type: &str) {
+    let senders = state.notification_senders.read().await;
+    for (_, sender) in senders.iter() {
+        let _ = sender.try_send(Notification::Mls {
+            space_id: space_id.to_string(),
+            message_type: message_type.to_string(),
+        });
+    }
+}
+
+/// Broadcast a sync notification to all peers except the sender.
+async fn notify_others_sync(
+    state: &LeaderState,
+    space_id: &str,
+    tables: &[String],
+    exclude_endpoint: &str,
+) {
+    let senders = state.notification_senders.read().await;
+    for (endpoint_id, sender) in senders.iter() {
+        if endpoint_id != exclude_endpoint {
+            let _ = sender.try_send(Notification::Sync {
+                space_id: space_id.to_string(),
+                tables: tables.to_vec(),
+            });
+        }
+    }
+}
+
 // ============================================================================
 // ClaimInvite handler
 // ============================================================================
@@ -165,11 +193,7 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
         }
     };
 
-    if space_id != state.space_id {
-        return Response::Error {
-            message: format!("Wrong space: expected {}", state.space_id),
-        };
-    }
+    debug_assert_eq!(space_id, state.space_id, "ClaimInvite routed to wrong leader");
 
     // 1. Validate and consume invite token
     let (capability, pre_ucan) =
@@ -287,13 +311,7 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
             }
         }
 
-        let senders = state.notification_senders.read().await;
-        for (_, sender) in senders.iter() {
-            let _ = sender.try_send(Notification::Mls {
-                space_id: space_id.clone(),
-                message_type: "commit".to_string(),
-            });
-        }
+        notify_all_mls(state, &space_id, "commit").await;
     }
 
     // 7. Register peer as connected
@@ -362,7 +380,7 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
 // ============================================================================
 
 /// Dispatch an already-parsed request to the appropriate handler and return the response.
-/// Used by `MultiSpaceLeaderHandler` after routing to the correct `LeaderState`.
+/// Called by `MultiSpaceLeaderHandler` after routing to the correct `LeaderState` by space_id.
 pub(super) async fn handle_delivery_request(
     state: &LeaderState,
     request: Request,
@@ -430,14 +448,9 @@ pub(super) async fn handle_delivery_request(
             space_id,
             packages,
         } => {
-            if space_id != state.space_id {
-                return Response::Error {
-                    message: format!("Wrong space: expected {}", state.space_id),
-                };
-            }
-            let did = match lookup_peer_did(state, peer_endpoint_id).await {
+            let did = match require_peer_did(state, peer_endpoint_id).await {
                 Ok(did) => did,
-                Err(e) => return Response::Error { message: e.to_string() },
+                Err(resp) => return resp,
             };
             for pkg_b64 in &packages {
                 if let Ok(blob) = base64_decode(pkg_b64) {
@@ -458,11 +471,6 @@ pub(super) async fn handle_delivery_request(
             space_id,
             target_did,
         } => {
-            if space_id != state.space_id {
-                return Response::Error {
-                    message: format!("Wrong space: expected {}", state.space_id),
-                };
-            }
             match buffer::consume_key_package(&state.db, &space_id, &target_did) {
                 Ok(Some(blob)) => Response::KeyPackage {
                     package: base64_encode(&blob),
@@ -482,14 +490,9 @@ pub(super) async fn handle_delivery_request(
             message,
             message_type,
         } => {
-            if space_id != state.space_id {
-                return Response::Error {
-                    message: format!("Wrong space: expected {}", state.space_id),
-                };
-            }
-            let did = match lookup_peer_did(state, peer_endpoint_id).await {
+            let did = match require_peer_did(state, peer_endpoint_id).await {
                 Ok(did) => did,
-                Err(e) => return Response::Error { message: e.to_string() },
+                Err(resp) => return resp,
             };
             match base64_decode(&message) {
                 Ok(blob) => {
@@ -507,14 +510,7 @@ pub(super) async fn handle_delivery_request(
                                 }
                             }
 
-                            // Notify all connected peers
-                            let senders = state.notification_senders.read().await;
-                            for (_, sender) in senders.iter() {
-                                let _ = sender.try_send(Notification::Mls {
-                                    space_id: space_id.clone(),
-                                    message_type: message_type.clone(),
-                                });
-                            }
+                            notify_all_mls(state, &space_id, &message_type).await;
                             Response::MessageStored { message_id: id }
                         }
                         Err(e) => Response::Error {
@@ -530,11 +526,6 @@ pub(super) async fn handle_delivery_request(
             space_id,
             after_id,
         } => {
-            if space_id != state.space_id {
-                return Response::Error {
-                    message: format!("Wrong space: expected {}", state.space_id),
-                };
-            }
             match buffer::fetch_messages(&state.db, &space_id, after_id) {
                 Ok(msgs) => {
                     let entries: Vec<MlsMessageEntry> = msgs
@@ -561,11 +552,6 @@ pub(super) async fn handle_delivery_request(
             recipient_did,
             welcome,
         } => {
-            if space_id != state.space_id {
-                return Response::Error {
-                    message: format!("Wrong space: expected {}", state.space_id),
-                };
-            }
             match base64_decode(&welcome) {
                 Ok(blob) => {
                     match buffer::store_welcome(&state.db, &space_id, &recipient_did, &blob) {
@@ -580,14 +566,9 @@ pub(super) async fn handle_delivery_request(
         }
 
         Request::MlsFetchWelcomes { space_id } => {
-            if space_id != state.space_id {
-                return Response::Error {
-                    message: format!("Wrong space: expected {}", state.space_id),
-                };
-            }
-            let did = match lookup_peer_did(state, peer_endpoint_id).await {
+            let did = match require_peer_did(state, peer_endpoint_id).await {
                 Ok(did) => did,
-                Err(e) => return Response::Error { message: e.to_string() },
+                Err(resp) => return resp,
             };
             match buffer::fetch_welcomes(&state.db, &space_id, &did) {
                 Ok(entries) => {
@@ -605,15 +586,9 @@ pub(super) async fn handle_delivery_request(
 
         // -- CRDT Sync --
         Request::SyncPush { space_id, changes } => {
-            if space_id != state.space_id {
-                return Response::Error {
-                    message: format!("Wrong space: expected {}", state.space_id),
-                };
-            }
-
             // Capability enforcement: only peers with space/write or space/admin
             // may push CRDT changes. Read-only peers are rejected.
-            match lookup_peer_did(state, peer_endpoint_id).await {
+            match require_peer_did(state, peer_endpoint_id).await {
                 Ok(did) => {
                     if let Err(e) = check_write_capability(&state.db, &did, &space_id) {
                         eprintln!("[SpaceDelivery] SyncPush REJECTED: {e}");
@@ -622,8 +597,8 @@ pub(super) async fn handle_delivery_request(
                         };
                     }
                 }
-                Err(e) => {
-                    eprintln!("[SpaceDelivery] SyncPush: peer not announced: {e}");
+                Err(_) => {
+                    eprintln!("[SpaceDelivery] SyncPush: peer not announced");
                     return Response::Error {
                         message: "Peer has not announced — cannot verify write capability"
                             .to_string(),
@@ -679,32 +654,15 @@ pub(super) async fn handle_delivery_request(
                 };
             }
 
-            // Notify other connected peers (except the sender)
-            {
-                let senders = state.notification_senders.read().await;
-                for (endpoint_id, sender) in senders.iter() {
-                    if endpoint_id != peer_endpoint_id {
-                        let _ = sender.try_send(Notification::Sync {
-                            space_id: space_id.clone(),
-                            tables: affected_tables.clone(),
-                        });
-                    }
-                }
-            }
+            notify_others_sync(state, &space_id, &affected_tables, peer_endpoint_id).await;
 
             Response::Ok
         }
 
         Request::SyncPull {
-            space_id,
+            space_id: _,
             after_timestamp,
         } => {
-            if space_id != state.space_id {
-                return Response::Error {
-                    message: format!("Wrong space: expected {}", state.space_id),
-                };
-            }
-
             let device_id = "leader";
             match scan_all_crdt_tables_for_local_changes(
                 &state.db,
@@ -766,18 +724,9 @@ pub(super) async fn handle_delivery_request(
             space_id,
             message_ids,
         } => {
-            if space_id != state.space_id {
-                return Response::Error {
-                    message: format!("Wrong space: expected {}", state.space_id),
-                };
-            }
-            let did = match lookup_peer_did(state, peer_endpoint_id).await {
+            let did = match require_peer_did(state, peer_endpoint_id).await {
                 Ok(did) => did,
-                Err(_) => {
-                    return Response::Error {
-                        message: "Peer has not announced".to_string(),
-                    };
-                }
+                Err(resp) => return resp,
             };
 
             match buffer::ack_commits(&state.db, &space_id, &did, &message_ids) {
@@ -801,19 +750,10 @@ pub(super) async fn handle_delivery_request(
             space_id,
             ucan_token: _,
         } => {
-            if space_id != state.space_id {
-                return Response::Error {
-                    message: format!("Wrong space: expected {}", state.space_id),
-                };
-            }
             // Validate the peer is a legitimate member of this space
-            let did = match lookup_peer_did(state, peer_endpoint_id).await {
+            let did = match require_peer_did(state, peer_endpoint_id).await {
                 Ok(did) => did,
-                Err(_) => {
-                    return Response::Error {
-                        message: "Peer has not announced".to_string(),
-                    };
-                }
+                Err(resp) => return resp,
             };
             if let Err(e) = check_space_membership(&state.db, &did, &space_id) {
                 return Response::Error {
@@ -842,19 +782,10 @@ pub(super) async fn handle_delivery_request(
             commit,
             ucan_token: _,
         } => {
-            if space_id != state.space_id {
-                return Response::Error {
-                    message: format!("Wrong space: expected {}", state.space_id),
-                };
-            }
             // Validate the peer is a legitimate member of this space
-            let peer_did = match lookup_peer_did(state, peer_endpoint_id).await {
+            let peer_did = match require_peer_did(state, peer_endpoint_id).await {
                 Ok(did) => did,
-                Err(_) => {
-                    return Response::Error {
-                        message: "Peer has not announced".to_string(),
-                    };
-                }
+                Err(resp) => return resp,
             };
             if let Err(e) = check_space_membership(&state.db, &peer_did, &space_id) {
                 return Response::Error {
@@ -872,12 +803,7 @@ pub(super) async fn handle_delivery_request(
             };
 
             // Store the external commit as a regular MLS message
-            let did = match lookup_peer_did(state, peer_endpoint_id).await {
-                Ok(did) => did,
-                Err(_) => "unknown".to_string(),
-            };
-
-            match buffer::store_message(&state.db, &space_id, &did, "commit", &commit_blob) {
+            match buffer::store_message(&state.db, &space_id, &peer_did, "commit", &commit_blob) {
                 Ok(msg_id) => {
                     // Track pending ACKs from all space members
                     let expected_dids = buffer::get_space_member_dids(&state.db, &space_id)
@@ -891,14 +817,7 @@ pub(super) async fn handle_delivery_request(
                         );
                     }
 
-                    // Notify all connected peers
-                    let senders = state.notification_senders.read().await;
-                    for (_, sender) in senders.iter() {
-                        let _ = sender.try_send(Notification::Mls {
-                            space_id: space_id.clone(),
-                            message_type: "commit".to_string(),
-                        });
-                    }
+                    notify_all_mls(state, &space_id, "commit").await;
 
                     eprintln!(
                         "[SpaceDelivery] External commit accepted for space {space_id} (msg_id={msg_id})"
@@ -912,18 +831,9 @@ pub(super) async fn handle_delivery_request(
         }
 
         Request::MlsKeyPackageCount { space_id } => {
-            if space_id != state.space_id {
-                return Response::Error {
-                    message: format!("Wrong space: expected {}", state.space_id),
-                };
-            }
-            let did = match lookup_peer_did(state, peer_endpoint_id).await {
+            let did = match require_peer_did(state, peer_endpoint_id).await {
                 Ok(did) => did,
-                Err(_) => {
-                    return Response::Error {
-                        message: "Peer has not announced".to_string(),
-                    };
-                }
+                Err(resp) => return resp,
             };
             match buffer::count_key_packages_for_did(&state.db, &space_id, &did) {
                 Ok(available) => {
