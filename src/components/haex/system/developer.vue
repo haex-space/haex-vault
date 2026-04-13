@@ -57,11 +57,6 @@
 
         <div class="flex gap-2">
           <UiButton
-            :label="t('list.reload')"
-            variant="outline"
-            @click="reloadDevExtensionAsync(ext)"
-          />
-          <UiButton
             :label="t('list.remove')"
             variant="ghost"
             color="error"
@@ -188,25 +183,6 @@ const loadDevExtensionListAsync = async () => {
   }
 }
 
-// Reload a dev extension (removes and re-adds)
-const reloadDevExtensionAsync = async (extension: ExtensionInfoResponse) => {
-  try {
-    // Get the extension path from somewhere (we need to store this)
-    // For now, just show a message
-    add({
-      description: t('list.reloadInfo'),
-      color: 'info',
-    })
-  } catch (error) {
-    console.error('Failed to reload dev extension:', error)
-    const { getErrorMessage } = useExtensionError()
-    add({
-      description: `${t('list.errors.reloadFailed')}: ${getErrorMessage(error)}`,
-      color: 'error',
-    })
-  }
-}
-
 // Remove a dev extension
 const removeDevExtensionAsync = async (extension: ExtensionInfoResponse) => {
   try {
@@ -255,12 +231,9 @@ de:
   list:
     title: Geladene Dev-Extensions
     empty: Keine Dev-Extensions geladen
-    reload: Neu laden
     remove: Entfernen
-    reloadInfo: Extension wird beim nächsten Laden automatisch aktualisiert
     removeSuccess: Dev-Extension erfolgreich entfernt
     errors:
-      reloadFailed: Extension konnte nicht neu geladen werden
       removeFailed: Extension konnte nicht entfernt werden
 
 en:
@@ -281,11 +254,8 @@ en:
   list:
     title: Loaded Dev Extensions
     empty: No dev extensions loaded
-    reload: Reload
     remove: Remove
-    reloadInfo: Extension will be automatically updated on next load
     removeSuccess: Dev extension removed successfully
     errors:
-      reloadFailed: Failed to reload extension
       removeFailed: Failed to remove extension
 </i18n>
