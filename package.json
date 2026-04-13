@@ -65,7 +65,7 @@
     "qrcode": "^1.5.4",
     "swiper": "^12.1.2",
     "tailwindcss": "^4.2.1",
-    "vue": "^3.5.30",
+    "vue": "^3.5.32",
     "vue-advanced-cropper": "^2.8.9"
   },
   "devDependencies": {
@@ -83,7 +83,7 @@
     "@vitejs/plugin-vue": "6.0.5",
     "@vitest/ui": "^4.1.0",
     "@vue-dnd-kit/core": "1.7.0",
-    "@vue/compiler-sfc": "^3.5.30",
+    "@vue/compiler-sfc": "^3.5.32",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.39.4",
     "globals": "^17.4.0",
