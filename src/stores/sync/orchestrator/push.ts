@@ -229,7 +229,7 @@ export const pushChangesToServerAsync = async (
   spaceId: string,
   changes: ColumnChange[],
   syncBackendsStore: ReturnType<typeof useSyncBackendsStore>,
-  syncEngineStore: ReturnType<typeof useSyncEngineStore>,
+  _syncEngineStore: ReturnType<typeof useSyncEngineStore>,
 ): Promise<string | null> => {
   const backend = syncBackendsStore.backends.find((b) => b.id === backendId)
   if (!backend) {

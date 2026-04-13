@@ -144,9 +144,9 @@
                           variant="ghost"
                           color="primary"
                           icon="i-lucide-refresh-cw"
-                          @click.stop
                           class="opacity-0 group-hover:opacity-100 transition-opacity"
                           :class="{ 'opacity-100!': getRulesForShare(share).length > 0 }"
+                          @click.stop
                         >
                           <UBadge
                             v-if="getRulesForShare(share).length > 0"
@@ -204,9 +204,9 @@
                           variant="ghost"
                           color="primary"
                           icon="i-lucide-refresh-cw"
-                          @click.stop
                           class="opacity-0 group-hover:opacity-100 transition-opacity"
                           :class="{ 'opacity-100!': getRulesForShare(share).length > 0 }"
+                          @click.stop
                         >
                           <UBadge
                             v-if="getRulesForShare(share).length > 0"
@@ -258,7 +258,7 @@
 <script setup lang="ts">
 import type { ContextMenuItem } from '@nuxt/ui'
 import { SettingsCategory } from '~/config/settingsCategories'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
 import type { SelectHaexPeerShares, SelectHaexSyncRules } from '~/database/schemas'
 import { haexVaultSettings } from '~/database/schemas'

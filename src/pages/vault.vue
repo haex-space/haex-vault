@@ -15,6 +15,10 @@
 </template>
 
 <script setup lang="ts">
+import { and, eq } from 'drizzle-orm'
+import { haexVaultSettings } from '~/database/schemas'
+import { VaultSettingsKeyEnum } from '~/config/vault-settings'
+
 definePageMeta({
   middleware: 'database',
 })
@@ -25,10 +29,6 @@ const isVaultReady = ref(false)
 const isWaitingForInitialSync = ref(false)
 const syncProgress = ref<{ synced: number; total: number } | undefined>()
 const isRemoteSyncVault = computed(() => route.query.remoteSync === 'true')
-
-import { and, eq } from 'drizzle-orm'
-import { haexVaultSettings } from '~/database/schemas'
-import { VaultSettingsKeyEnum } from '~/config/vault-settings'
 
 const { readNotificationsAsync } = useNotificationStore()
 const tourStore = useTourStore()

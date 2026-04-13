@@ -61,6 +61,11 @@ const props = withDefaults(defineProps<{
   badgeSeed?: string
   badgeAlt?: string
 }>(), {
+  src: undefined,
+  seed: undefined,
+  avatarOptions: undefined,
+  badgeSrc: undefined,
+  badgeSeed: undefined,
   size: 'md',
   alt: 'Avatar',
   avatarStyle: 'bottts',

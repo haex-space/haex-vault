@@ -12,7 +12,7 @@ import { SettingsCategory } from '~/config/settingsCategories'
 import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link'
 import { listen } from '@tauri-apps/api/event'
 import { isDesktop } from '~/utils/platform'
-import { isInviteLink, parseInviteTokenLink, type InviteTokenLink } from '~/utils/inviteLink'
+import { isInviteLink, parseInviteTokenLink } from '~/utils/inviteLink'
 
 // Store pending deep-link outside of composable for persistence across component mounts
 const pendingExtensionId = ref<string | null>(null)

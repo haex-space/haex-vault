@@ -6,7 +6,7 @@
 import { useTimeoutPoll } from '@vueuse/core'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, emit } from '@tauri-apps/api/event'
-import { orchestratorLog as log, type BackendSyncState, syncMutex } from './types'
+import { orchestratorLog as log, type BackendSyncState } from './types'
 import { enterBulkMode, exitBulkMode } from '@/stores/logging'
 import { pushToBackendAsync, pushAllDataToBackendAsync } from './push'
 import {

@@ -176,7 +176,6 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
     // Subscribe to CRDT changes on sync_rules table.
     // When a remote device syncs and updates lastSyncedAt, trigger only affected rules.
     subscribeToSyncUpdates('file-sync', ['haex_sync_rules'], async () => {
-      const previousRules = [...syncRules.value]
       await loadRulesAsync()
 
       for (const rule of syncRules.value) {

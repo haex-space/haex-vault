@@ -164,7 +164,7 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
    * Download extension from URL and show preview
    * Caches bytes for subsequent install
    */
-  const downloadAndPreviewAsync = async (downloadUrl: string, expectedHash?: string) => {
+  const downloadAndPreviewAsync = async (downloadUrl: string, _expectedHash?: string) => {
     try {
       const response = await fetch(downloadUrl)
 

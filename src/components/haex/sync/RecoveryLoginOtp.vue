@@ -68,7 +68,6 @@ const emit = defineEmits<{
 }>()
 
 const {
-  isLoading,
   error: recoveryError,
   verifyOtpAsync,
   resendOtpAsync,

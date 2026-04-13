@@ -14,7 +14,7 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import { useRealtime, type RealtimeEvent } from '@/composables/useRealtime'
-import { useMlsDelivery, type MlsMessage } from '@/composables/useMlsDelivery'
+import { useMlsDelivery } from '@/composables/useMlsDelivery'
 import { orchestratorLog as log, type BackendSyncState } from './types'
 import { pullFromBackendAsync } from './pull'
 
@@ -204,8 +204,16 @@ export const subscribeToBackendAsync = async (
             ucan,
           )
           if (response.ok) {
-            const data = await response.json()
-            const accepted = (data.invites ?? []).filter((i: any) => i.status === 'accepted')
+            const data = await response.json() as {
+              invites?: Array<{
+                id: string
+                status: string
+                ucan?: string
+                capability?: string
+                inviteeDid: string
+              }>
+            }
+            const accepted = (data.invites ?? []).filter(i => i.status === 'accepted')
             const spacesStore = useSpacesStore()
             for (const invite of accepted) {
               try {

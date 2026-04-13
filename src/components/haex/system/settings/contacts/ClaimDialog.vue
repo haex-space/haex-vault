@@ -49,6 +49,8 @@
 </template>
 
 <script setup lang="ts">
+import { createLogger } from '@/stores/logging'
+
 const open = defineModel<boolean>('open', { required: true })
 
 const props = defineProps<{
@@ -59,8 +61,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   saved: [contactId: string]
 }>()
-
-import { createLogger } from '@/stores/logging'
 
 const log = createLogger('CONTACTS:CLAIMS')
 

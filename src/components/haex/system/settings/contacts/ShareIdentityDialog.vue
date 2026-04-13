@@ -161,7 +161,6 @@ const generateQrAsync = async () => {
       .map(c => ({ type: c.type, value: c.value }))
 
     // Include P2P endpoint info for direct connections
-    const deviceStore = useDeviceStore()
     const peerStore = usePeerStorageStore()
 
     const payload = {

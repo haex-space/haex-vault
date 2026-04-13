@@ -8,7 +8,7 @@
  * - rowToSpace maps DB rows without role
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 
 // ---------------------------------------------------------------------------
 // SpaceWithType: no role field

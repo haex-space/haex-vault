@@ -35,7 +35,7 @@ defineOptions({ inheritAttrs: false })
 
 defineProps<{
   label?: string
-  items?: any[]
+  items?: unknown[]
   placeholder?: string
 }>()
 

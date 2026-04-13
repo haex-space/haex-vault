@@ -203,7 +203,7 @@ interface PullOptions {
 }
 
 export const pullChangesFromServerAsync = async (options: PullOptions): Promise<PullResult> => {
-  const { serverUrl, spaceId, lastPullServerTimestamp, syncEngineStore, backendIdentityId, federation } = options
+  const { serverUrl, spaceId, lastPullServerTimestamp, backendIdentityId, federation } = options
   log.info('pullChangesFromServerAsync: Starting pull from', serverUrl, 'space:', spaceId)
 
   // Resolve identity for DID-Auth (getIdentityByIdAsync falls back to in-memory when vault not open)
@@ -548,7 +548,7 @@ export const pullPendingColumnsAsync = async (
   spaceId: string,
   vaultKey: Uint8Array,
   backendId: string,
-  syncEngineStore: ReturnType<typeof useSyncEngineStore>,
+  _syncEngineStore: ReturnType<typeof useSyncEngineStore>,
 ): Promise<number> => {
   // Step 1: Get list of pending columns from local database
   const pendingColumns = await invoke<PendingColumn[]>('get_pending_columns')
