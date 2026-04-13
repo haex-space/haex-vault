@@ -25,8 +25,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       actions: read
+      pull-requests: read
     outputs:
       should_skip: ${{ steps.dependabot-gate.outputs.should_skip || steps.check.outputs.should_skip }}
+      is_dependabot: ${{ steps.dep-context.outputs.is_dependabot }}
+      dep_update_type: ${{ steps.dep-meta.outputs.update-type }}
+      skip_e2e: ${{ steps.dep-context.outputs.skip_e2e }}
     steps:
       - name: Check if Dependabot PR with broken main
         if: github.actor == 'dependabot[bot]' && github.event_name == 'pull_request'
@@ -54,6 +58,41 @@ jobs:
             echo "Skipping build for version bump commit"
           else
             echo "should_skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Detect Dependabot semver level so we can gate E2E tests:
+      # patch/minor → skip E2E (pragmatic), major → run E2E (strict).
+      - name: Fetch Dependabot metadata
+        if: github.actor == 'dependabot[bot]' && github.event_name == 'pull_request' && steps.dependabot-gate.outputs.should_skip != 'true'
+        id: dep-meta
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute dependency context
+        id: dep-context
+        env:
+          ACTOR: ${{ github.actor }}
+          EVENT: ${{ github.event_name }}
+          UPDATE_TYPE: ${{ steps.dep-meta.outputs.update-type }}
+        run: |
+          if [ "$ACTOR" = "dependabot[bot]" ] && [ "$EVENT" = "pull_request" ]; then
+            echo "is_dependabot=true" >> "$GITHUB_OUTPUT"
+            # Skip E2E only when we have positive confirmation of patch/minor.
+            # Empty/unknown update-type → default to running E2E (strict).
+            case "$UPDATE_TYPE" in
+              version-update:semver-patch|version-update:semver-minor)
+                echo "skip_e2e=true" >> "$GITHUB_OUTPUT"
+                echo "Dependabot $UPDATE_TYPE — pragmatic gate (E2E skipped)"
+                ;;
+              *)
+                echo "skip_e2e=false" >> "$GITHUB_OUTPUT"
+                echo "Dependabot update-type='$UPDATE_TYPE' — strict gate (E2E required)"
+                ;;
+            esac
+          else
+            echo "is_dependabot=false" >> "$GITHUB_OUTPUT"
+            echo "skip_e2e=false" >> "$GITHUB_OUTPUT"
           fi
 
   # Run tests first before building
@@ -100,7 +139,7 @@ jobs:
   # Desktop E2E tests (run after desktop build, independent of Android)
   e2e-tests:
     needs: [test, check-skip, build-desktop]
-    if: needs.check-skip.outputs.should_skip != 'true'
+    if: needs.check-skip.outputs.should_skip != 'true' && needs.check-skip.outputs.skip_e2e != 'true'
     uses: haex-space/haex-e2e-tests/.github/workflows/e2e-tests.yml@main
     with:
       build_type: build
@@ -114,7 +153,7 @@ jobs:
   e2e-tests-android:
     name: Android E2E Tests
     needs: [check-skip, build-android]
-    if: needs.check-skip.outputs.should_skip != 'true'
+    if: needs.check-skip.outputs.should_skip != 'true' && needs.check-skip.outputs.skip_e2e != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -547,3 +586,62 @@ jobs:
           name: haex-vault-android-e2e
           path: e2e-apk/*.apk
           retention-days: 1
+
+  # Single aggregate gate used as the required check in branch protection.
+  # Pragmatic gate (always required): test, build-desktop, build-android.
+  # Strict gate (additionally required): e2e-tests, e2e-tests-android.
+  # E2E is skipped only for confirmed patch/minor Dependabot updates.
+  ci-success:
+    name: CI Success
+    needs: [check-skip, test, build-desktop, build-android, e2e-tests, e2e-tests-android]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify CI gate
+        env:
+          SHOULD_SKIP: ${{ needs.check-skip.outputs.should_skip }}
+          SKIP_E2E: ${{ needs.check-skip.outputs.skip_e2e }}
+          IS_DEPENDABOT: ${{ needs.check-skip.outputs.is_dependabot }}
+          DEP_TYPE: ${{ needs.check-skip.outputs.dep_update_type }}
+          TEST: ${{ needs.test.result }}
+          BUILD_DESKTOP: ${{ needs.build-desktop.result }}
+          BUILD_ANDROID: ${{ needs.build-android.result }}
+          E2E_DESKTOP: ${{ needs.e2e-tests.result }}
+          E2E_ANDROID: ${{ needs.e2e-tests-android.result }}
+        run: |
+          if [ "$SHOULD_SKIP" = "true" ]; then
+            echo "Build intentionally skipped (version bump or broken main) — gate passes"
+            exit 0
+          fi
+
+          echo "Context: is_dependabot=$IS_DEPENDABOT dep_type='$DEP_TYPE' skip_e2e=$SKIP_E2E"
+          echo "Results: test=$TEST build-desktop=$BUILD_DESKTOP build-android=$BUILD_ANDROID e2e=$E2E_DESKTOP e2e-android=$E2E_ANDROID"
+
+          fail=0
+          require() {
+            local name="$1" result="$2"
+            if [ "$result" != "success" ]; then
+              echo "::error::$name did not succeed (result=$result)"
+              fail=1
+            fi
+          }
+
+          # Pragmatic gate: always required
+          require "test" "$TEST"
+          require "build-desktop" "$BUILD_DESKTOP"
+          require "build-android" "$BUILD_ANDROID"
+
+          # Strict gate: E2E required unless this is a patch/minor Dependabot update
+          if [ "$SKIP_E2E" = "true" ]; then
+            echo "E2E gate relaxed: pragmatic mode for Dependabot $DEP_TYPE"
+          else
+            require "e2e-tests" "$E2E_DESKTOP"
+            require "e2e-tests-android" "$E2E_ANDROID"
+          fi
+
+          if [ "$fail" = "1" ]; then
+            echo "::error::CI gate failed — see results above"
+            exit 1
+          fi
+
+          echo "All required jobs passed"

@@ -1,31 +1,21 @@
 name: Dependabot Auto-Merge
 
+# Enables GitHub's auto-merge for Dependabot PRs. The actual merge gate is
+# enforced by branch protection on main (required check: "CI Success"), so
+# this workflow just flips the auto-merge flag — GitHub waits for CI itself.
+
 on:
   pull_request:
 
 permissions:
   contents: write
   pull-requests: write
-  actions: read
 
 jobs:
   automerge:
     if: github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
-      - name: Check latest main build status
-        id: main-status
-        env:
-          REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          CONCLUSION=$(gh run list --repo "$REPO" --branch main --workflow Build --limit 1 --json conclusion --jq '.[0].conclusion')
-          echo "Latest main Build: $CONCLUSION"
-          if [ "$CONCLUSION" != "success" ]; then
-            echo "::error::Last main build was '$CONCLUSION' — skipping auto-merge"
-            exit 1
-          fi
-
       - name: Enable auto-merge
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
