@@ -59,7 +59,7 @@
     "driver.js": "^1.4.0",
     "drizzle-orm": "^0.45.2",
     "html5-qrcode": "^2.3.8",
-    "md-editor-v3": "^6.4.1",
+    "md-editor-v3": "^6.4.2",
     "nuxt-zod-i18n": "^1.12.1",
     "pdfjs-dist": "^5.5.207",
     "qrcode": "^1.5.4",
