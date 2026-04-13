@@ -264,7 +264,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
 
             return windowId
           } catch (error) {
-            console.error('Failed to open native extension window:', error)
+            log.error('Failed to open native extension window:', error)
             throw error
           }
         }
@@ -279,20 +279,20 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
 
       // If no workspace is available yet (e.g., during initial sync), try to load/create one
       if (!targetWorkspaceId) {
-        console.warn('[windowManager] No active workspace - attempting to load/create workspaces')
+        log.warn('No active workspace - attempting to load/create workspaces')
         try {
           await workspaceStore.loadWorkspacesAsync()
           targetWorkspaceId = workspaceStore.currentWorkspace?.id
 
           if (!targetWorkspaceId) {
-            console.error('[windowManager] Cannot open window: Failed to create workspace after loading', {
+            log.error('Cannot open window: Failed to create workspace after loading', {
               workspacesCount: workspaceStore.workspaces?.length,
               currentWorkspaceIndex: workspaceStore.currentWorkspaceIndex,
             })
             return
           }
         } catch (error) {
-          console.error('[windowManager] Cannot open window: Failed to load/create workspace:', error)
+          log.error('Cannot open window: Failed to load/create workspace:', error)
           return
         }
       }
@@ -301,7 +301,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
         (w) => w.id === targetWorkspaceId,
       )
       if (!workspace) {
-        console.error('[windowManager] Cannot open window: Invalid workspace', {
+        log.error('Cannot open window: Invalid workspace', {
           targetWorkspaceId,
           availableWorkspaceIds: workspaceStore.workspaces?.map(w => w.id),
         })
@@ -312,7 +312,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       if (type === 'system') {
         const systemWindowDef = getSystemWindow(sourceId)
         if (!systemWindowDef) {
-          console.error(`System window '${sourceId}' not found in registry`)
+          log.error(`System window '${sourceId}' not found in registry`)
           return
         }
 
@@ -326,7 +326,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
               (ws) => ws.id === found.window.workspaceId,
             )
             if (!workspaceExists) {
-              console.warn(`[windowManager] Removing stale singleton window '${sourceId}' (workspace ${found.window.workspaceId} no longer exists)`)
+              log.warn(`Removing stale singleton window '${sourceId}' (workspace ${found.window.workspaceId} no longer exists)`)
               windows.value = windows.value.filter((w) => w.id !== found.window.id)
               // Fall through to create a new window below
             } else {
@@ -436,7 +436,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       const navigationStore = useNavigationStore()
       navigationStore.pushBack({
         undo: () => { closeWindow(windowId) },
-        redo: () => { openWindowAsync({ type, sourceId, title: newWindow.title, icon: newWindow.icon, params }).catch(() => {}) },
+        redo: () => { openWindowAsync({ type, sourceId, title: newWindow.title, icon: newWindow.icon, params }).catch((e) => log.debug('Redo open window failed:', e)) },
       })
 
       // Remove opening flag after the CSS transition completes.
@@ -451,8 +451,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
 
       return windowId
     } catch (error) {
-      console.error('Error opening window:', error)
-      // Optional: Fehler weiterwerfen wenn nötig
+      log.error('Error opening window:', error)
       throw error
     }
   }
@@ -483,7 +482,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
           await invoke('close_extension_webview_window', { windowId })
           // Backend will emit event, our listener will update frontend tracking
         } catch (error) {
-          console.error('Failed to close native extension window:', error)
+          log.error('Failed to close native extension window:', error)
         }
         return
       }
@@ -589,8 +588,8 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
         try {
           await closeWindow(window.id)
         } catch (error) {
-          console.error(
-            `[windowManager] Failed to close window ${window.id}:`,
+          log.error(
+            `Failed to close window ${window.id}:`,
             error,
           )
         }
@@ -612,7 +611,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       try {
         await invoke('close_all_extension_webview_windows')
       } catch (error) {
-        console.error('[windowManager] Failed to close native windows via backend:', error)
+        log.error('Failed to close native windows via backend:', error)
       }
     }
 
@@ -622,7 +621,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
         try {
           await closeWindow(window.id)
         } catch (error) {
-          console.error(
+          log.error(
             `Failed to close extension window ${window.id}:`,
             error,
           )

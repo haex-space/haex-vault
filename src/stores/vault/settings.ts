@@ -3,6 +3,8 @@ import * as schema from '~/database/schemas'
 import * as crdtSchema from '~/database/schemas/crdt'
 import type { Locale } from 'vue-i18n'
 import { haexSyncBackends } from '~/database/schemas'
+import { createLogger } from '@/stores/logging'
+import { requireDb } from '~/stores/vault'
 
 import {
   VaultSettingsKeyEnum,
@@ -14,6 +16,8 @@ export {
   DesktopIconSizePreset,
   iconSizePresetValues,
 } from '~/config/vault-settings'
+
+const log = createLogger('VAULT_SETTINGS')
 
 export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
   const { currentVault, currentVaultName } = storeToRefs(useVaultStore())
@@ -29,9 +33,10 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
   const syncLocaleAsync = async () => {
     try {
       const app = useNuxtApp()
+      const db = requireDb()
 
       const currentLocaleRow =
-        await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
+        await db.query.haexVaultSettings.findFirst({
           where: eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.locale),
         })
 
@@ -43,19 +48,20 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
       } else if (!isRemoteSyncMode.value) {
         // Only create new settings if NOT in remote sync mode
         // In remote sync mode, settings should come from the server
-        await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
+        await db.insert(schema.haexVaultSettings).values({
           id: crypto.randomUUID(),
           key: VaultSettingsKeyEnum.locale,
           value: app.$i18n.locale.value,
         })
       }
     } catch (error) {
-      console.error('syncLocaleAsync failed:', error)
+      log.error('syncLocaleAsync failed:', error)
     }
   }
 
   const updateLocaleAsync = async (locale: Locale) => {
-    await currentVault.value?.drizzle
+    const db = requireDb()
+    await db
       .update(schema.haexVaultSettings)
       .set({ value: locale })
       .where(eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.locale))
@@ -64,8 +70,9 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     const { defaultTheme, currentTheme, currentThemeName, availableThemes } =
       storeToRefs(useUiStore())
 
+    const db = requireDb()
     const currentThemeRow =
-      await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
+      await db.query.haexVaultSettings.findFirst({
         where: eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.theme),
       })
 
@@ -77,7 +84,7 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     } else if (!isRemoteSyncMode.value) {
       // Only create new settings if NOT in remote sync mode
       // In remote sync mode, settings should come from the server
-      await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
+      await db.insert(schema.haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.theme,
         value: currentTheme.value?.value,
@@ -86,15 +93,17 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
   }
 
   const updateThemeAsync = async (theme: string) => {
-    return await currentVault.value?.drizzle
+    const db = requireDb()
+    return await db
       .update(schema.haexVaultSettings)
       .set({ key: VaultSettingsKeyEnum.theme, value: theme })
       .where(eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.theme))
   }
 
   const syncVaultNameAsync = async () => {
+    const db = requireDb()
     const currentVaultNameRow =
-      await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
+      await db.query.haexVaultSettings.findFirst({
         where: eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.vaultName),
       })
 
@@ -104,7 +113,7 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     } else if (!isRemoteSyncMode.value) {
       // Only create new settings if NOT in remote sync mode
       // In remote sync mode, settings should come from the server
-      await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
+      await db.insert(schema.haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.vaultName,
         value: currentVaultName.value,
@@ -114,9 +123,10 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
 
   const updateVaultNameAsync = async (newVaultName?: string | null) => {
     const vaultName = newVaultName || haexVault.defaultVaultName || 'HaexSpace'
+    const db = requireDb()
 
     // Update locally in haex_vault_settings
-    await currentVault.value?.drizzle
+    await db
       .update(schema.haexVaultSettings)
       .set({ value: vaultName })
       .where(eq(schema.haexVaultSettings.key, 'vaultName'))
@@ -133,12 +143,14 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     const { currentVaultId } = storeToRefs(useVaultStore())
     const syncEngineStore = useSyncEngineStore()
 
-    if (!currentVaultId.value || !currentVault.value?.drizzle) {
+    if (!currentVaultId.value) {
       return
     }
 
+    const db = requireDb()
+
     // Get all enabled backends
-    const backends = await currentVault.value.drizzle.query.haexSyncBackends.findMany({
+    const backends = await db.query.haexSyncBackends.findMany({
       where: eq(haexSyncBackends.enabled, true),
     })
 
@@ -154,22 +166,23 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
           newVaultName,
         )
       } catch (error) {
-        console.error(`[VaultSettings] Failed to update vault name on server ${backend.name}:`, error)
+        log.error(`Failed to update vault name on server ${backend.name}:`, error)
         // Continue with other backends even if one fails
       }
     }
   }
 
   const syncDesktopIconSizeAsync = async () => {
+    const db = requireDb()
     const iconSizeRow =
-      await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
+      await db.query.haexVaultSettings.findFirst({
         where: eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.desktopIconSize),
       })
 
     if (!iconSizeRow?.id) {
       // Only create new settings if NOT in remote sync mode
       if (!isRemoteSyncMode.value) {
-        await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
+        await db.insert(schema.haexVaultSettings).values({
           id: crypto.randomUUID(),
           key: VaultSettingsKeyEnum.desktopIconSize,
           value: DesktopIconSizePreset.medium,
@@ -182,7 +195,8 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
   }
 
   const updateDesktopIconSizeAsync = async (preset: DesktopIconSizePreset) => {
-    return await currentVault.value?.drizzle
+    const db = requireDb()
+    return await db
       .update(schema.haexVaultSettings)
       .set({ value: preset })
       .where(eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.desktopIconSize))
@@ -192,14 +206,15 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
   const DEFAULT_EXTERNAL_BRIDGE_PORT = 19455
 
   const getTombstoneRetentionDaysAsync = async (): Promise<number> => {
+    const db = requireDb()
     const retentionRow =
-      await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
+      await db.query.haexVaultSettings.findFirst({
         where: eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.tombstoneRetentionDays),
       })
 
     if (!retentionRow?.id) {
       // No entry exists, create one with default
-      await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
+      await db.insert(schema.haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.tombstoneRetentionDays,
         value: String(DEFAULT_TOMBSTONE_RETENTION_DAYS),
@@ -211,21 +226,22 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
   }
 
   const updateTombstoneRetentionDaysAsync = async (days: number) => {
+    const db = requireDb()
     const clampedDays = Math.max(1, Math.min(365, days))
 
     // Check if entry exists
     const existingRow =
-      await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
+      await db.query.haexVaultSettings.findFirst({
         where: eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.tombstoneRetentionDays),
       })
 
     if (existingRow?.id) {
-      await currentVault.value?.drizzle
+      await db
         .update(schema.haexVaultSettings)
         .set({ value: String(clampedDays) })
         .where(eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.tombstoneRetentionDays))
     } else {
-      await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
+      await db.insert(schema.haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.tombstoneRetentionDays,
         value: String(clampedDays),
@@ -234,14 +250,15 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
   }
 
   const getExternalBridgePortAsync = async (): Promise<number> => {
+    const db = requireDb()
     const portRow =
-      await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
+      await db.query.haexVaultSettings.findFirst({
         where: eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.externalBridgePort),
       })
 
     if (!portRow?.id) {
       // No entry exists, create one with default
-      await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
+      await db.insert(schema.haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.externalBridgePort,
         value: String(DEFAULT_EXTERNAL_BRIDGE_PORT),
@@ -253,22 +270,23 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
   }
 
   const updateExternalBridgePortAsync = async (port: number) => {
+    const db = requireDb()
     // Validate port range (1024-65535, avoid system ports)
     const clampedPort = Math.max(1024, Math.min(65535, port))
 
     // Check if entry exists
     const existingRow =
-      await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
+      await db.query.haexVaultSettings.findFirst({
         where: eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.externalBridgePort),
       })
 
     if (existingRow?.id) {
-      await currentVault.value?.drizzle
+      await db
         .update(schema.haexVaultSettings)
         .set({ value: String(clampedPort) })
         .where(eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.externalBridgePort))
     } else {
-      await currentVault.value?.drizzle.insert(schema.haexVaultSettings).values({
+      await db.insert(schema.haexVaultSettings).values({
         id: crypto.randomUUID(),
         key: VaultSettingsKeyEnum.externalBridgePort,
         value: String(clampedPort),
@@ -284,18 +302,15 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
    * Each device tracks its own initial sync status independently.
    */
   const isInitialSyncCompleteAsync = async (): Promise<boolean> => {
-    if (!currentVault.value?.drizzle) {
-      return false
-    }
-
     try {
-      const result = await currentVault.value.drizzle.query.haexCrdtConfigs.findFirst({
+      const db = requireDb()
+      const result = await db.query.haexCrdtConfigs.findFirst({
         where: eq(crdtSchema.haexCrdtConfigs.key, 'initial_sync_complete'),
       })
 
       return result?.value === 'true'
     } catch (error) {
-      console.error('[VaultSettings] Failed to check initial sync status:', error)
+      log.error('Failed to check initial sync status:', error)
       return false
     }
   }
@@ -306,25 +321,22 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
    * Each device tracks its own initial sync status independently.
    */
   const setInitialSyncCompleteAsync = async (): Promise<void> => {
-    if (!currentVault.value?.drizzle) {
-      return
-    }
-
     try {
+      const db = requireDb()
       // Check if entry exists first (Drizzle's onConflictDoUpdate generates invalid SQLite syntax)
-      const existing = await currentVault.value.drizzle.query.haexCrdtConfigs.findFirst({
+      const existing = await db.query.haexCrdtConfigs.findFirst({
         where: eq(crdtSchema.haexCrdtConfigs.key, 'initial_sync_complete'),
       })
 
       // Check for existing.key instead of just existing, because Drizzle findFirst
       // returns undefined when no rows are found (after drizzleCallback fix)
       if (existing?.key) {
-        await currentVault.value.drizzle
+        await db
           .update(crdtSchema.haexCrdtConfigs)
           .set({ value: 'true' })
           .where(eq(crdtSchema.haexCrdtConfigs.key, 'initial_sync_complete'))
       } else {
-        await currentVault.value.drizzle
+        await db
           .insert(crdtSchema.haexCrdtConfigs)
           .values({
             key: 'initial_sync_complete',
@@ -333,7 +345,7 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
           })
       }
     } catch (error) {
-      console.error('[VaultSettings] Failed to set initial sync complete:', error)
+      log.error('Failed to set initial sync complete:', error)
     }
   }
 

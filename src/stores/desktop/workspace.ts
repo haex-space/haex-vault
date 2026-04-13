@@ -4,10 +4,14 @@ import {
   haexWorkspaces,
   type SelectHaexWorkspaces,
 } from '~/database/schemas'
+import { requireDb } from '~/stores/vault'
 import type { Swiper } from 'swiper/types'
 import { convertFileSrc } from '@tauri-apps/api/core'
+import { createLogger } from '@/stores/logging'
 
 export type IWorkspace = SelectHaexWorkspaces
+
+const log = createLogger('WORKSPACE')
 
 export const useWorkspaceStore = defineStore('workspaceStore', () => {
   const vaultStore = useVaultStore()
@@ -30,12 +34,12 @@ export const useWorkspaceStore = defineStore('workspaceStore', () => {
   // Load workspaces from database
   const loadWorkspacesAsync = async () => {
     if (!currentVault.value?.drizzle) {
-      console.error('[WORKSPACE] Kein Vault geöffnet')
+      log.warn('No vault open, skipping workspace load')
       return
     }
 
     if (!deviceId.value) {
-      console.error('[WORKSPACE] Keine DeviceId vergeben')
+      log.warn('No device ID assigned, skipping workspace load')
       return
     }
 
@@ -53,7 +57,7 @@ export const useWorkspaceStore = defineStore('workspaceStore', () => {
         await addWorkspaceAsync('Workspace 1')
       }
     } catch (error) {
-      console.error('[WORKSPACE] Fehler beim Laden der Workspaces:', error)
+      log.error('Failed to load workspaces:', error)
       throw error
     }
   }
@@ -61,7 +65,7 @@ export const useWorkspaceStore = defineStore('workspaceStore', () => {
   const currentWorkspace = computed(() => {
     const ws = workspaces.value[currentWorkspaceIndex.value]
     if (!ws && workspaces.value.length > 0) {
-      console.warn('[WORKSPACE] currentWorkspace is undefined but workspaces exist!', {
+      log.warn('currentWorkspace is undefined but workspaces exist!', {
         currentWorkspaceIndex: currentWorkspaceIndex.value,
         workspacesLength: workspaces.value.length,
         workspaceIds: workspaces.value.map(w => w.id),
@@ -71,15 +75,10 @@ export const useWorkspaceStore = defineStore('workspaceStore', () => {
   })
 
   const addWorkspaceAsync = async (name?: string) => {
-    if (!currentVault.value?.drizzle) {
-      throw new Error('Kein Vault geöffnet')
-    }
-
-    if (!deviceId.value) {
-      return
-    }
+    if (!deviceId.value) return
 
     try {
+      const db = requireDb()
       const newIndex = workspaces.value.length + 1
       const newWorkspace = {
         name: name || `Workspace ${newIndex}`,
@@ -87,7 +86,7 @@ export const useWorkspaceStore = defineStore('workspaceStore', () => {
         deviceId: deviceId.value,
       }
 
-      const result = await currentVault.value.drizzle
+      const result = await db
         .insert(haexWorkspaces)
         .values(newWorkspace)
         .returning()
@@ -98,7 +97,7 @@ export const useWorkspaceStore = defineStore('workspaceStore', () => {
         return result[0]
       }
     } catch (error) {
-      console.error('Fehler beim Hinzufügen des Workspace:', error)
+      log.error('Failed to add workspace:', error)
       throw error
     }
   }
@@ -117,15 +116,13 @@ export const useWorkspaceStore = defineStore('workspaceStore', () => {
     // Don't allow removing the last workspace
     if (workspaces.value.length <= 1) return
 
-    if (!currentVault.value?.drizzle) {
-      throw new Error('Kein Vault geöffnet')
-    }
+    const db = requireDb()
 
     const index = workspaces.value.findIndex((ws) => ws.id === workspaceId)
     if (index === -1) return
 
     try {
-      await currentVault.value.drizzle.transaction(async (tx) => {
+      await db.transaction(async (tx) => {
         // Delete workspace
         await tx
           .delete(haexWorkspaces)
@@ -151,7 +148,7 @@ export const useWorkspaceStore = defineStore('workspaceStore', () => {
         currentWorkspaceIndex.value = workspaces.value.length - 1
       }
     } catch (error) {
-      console.error('Fehler beim Entfernen des Workspace:', error)
+      log.error('Failed to remove workspace:', error)
       throw error
     }
   }
@@ -172,7 +169,7 @@ export const useWorkspaceStore = defineStore('workspaceStore', () => {
     if (workspace) {
       currentWorkspaceIndex.value = workspace.position
     } else {
-      console.warn('[WORKSPACE] Workspace not found, defaulting to index 0:', workspaceId)
+      log.warn('Workspace not found, defaulting to index 0:', workspaceId)
       currentWorkspaceIndex.value = 0
     }
 
@@ -192,12 +189,9 @@ export const useWorkspaceStore = defineStore('workspaceStore', () => {
   }
 
   const renameWorkspaceAsync = async (workspaceId: string, newName: string) => {
-    if (!currentVault.value?.drizzle) {
-      throw new Error('Kein Vault geöffnet')
-    }
-
     try {
-      const result = await currentVault.value.drizzle
+      const db = requireDb()
+      const result = await db
         .update(haexWorkspaces)
         .set({ name: newName })
         .where(eq(haexWorkspaces.id, workspaceId))
@@ -210,7 +204,7 @@ export const useWorkspaceStore = defineStore('workspaceStore', () => {
         }
       }
     } catch (error) {
-      console.error('Fehler beim Umbenennen des Workspace:', error)
+      log.error('Failed to rename workspace:', error)
       throw error
     }
   }
@@ -227,12 +221,9 @@ export const useWorkspaceStore = defineStore('workspaceStore', () => {
     workspaceId: string,
     base64Image: string | null,
   ) => {
-    if (!currentVault.value?.drizzle) {
-      throw new Error('Kein Vault geöffnet')
-    }
-
     try {
-      const result = await currentVault.value.drizzle
+      const db = requireDb()
+      const result = await db
         .update(haexWorkspaces)
         .set({ background: base64Image })
         .where(eq(haexWorkspaces.id, workspaceId))
@@ -245,7 +236,7 @@ export const useWorkspaceStore = defineStore('workspaceStore', () => {
         }
       }
     } catch (error) {
-      console.error('Fehler beim Aktualisieren des Workspace-Hintergrunds:', error)
+      log.error('Failed to update workspace background:', error)
       throw error
     }
   }
@@ -270,7 +261,7 @@ export const useWorkspaceStore = defineStore('workspaceStore', () => {
 
     return [[
       {
-        label: 'Hintergrund ändern',
+        label: 'Change background',
         icon: 'i-mdi-image',
         onSelect: async () => {
           // Store the workspace ID for settings to use

@@ -12,11 +12,14 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import { isDesktop } from '~/utils/platform'
+import { createLogger } from '@/stores/logging'
 
 interface ExtensionReadyState {
   isReady: boolean
   readyAt: Date | null
 }
+
+const log = createLogger('EXTENSION_READY')
 
 export const useExtensionReadyStore = defineStore('extensionReady', () => {
   // Map of extensionId -> ready state
@@ -51,7 +54,7 @@ export const useExtensionReadyStore = defineStore('extensionReady', () => {
       }
       catch (error) {
         // Don't fail if backend notification fails
-        console.warn(`[ExtensionReady] Failed to notify backend for ${extensionId}:`, error)
+        log.warn(`Failed to notify backend for ${extensionId}:`, error)
       }
     }
   }

@@ -19,6 +19,7 @@ import {
 } from '~/database/schemas'
 import { SpaceType } from '~/database/constants'
 import { createLogger } from '@/stores/logging'
+import { requireDb } from '~/stores/vault'
 
 export interface ExportedIdentity {
   did: string
@@ -62,8 +63,8 @@ export const useIdentityStore = defineStore('identityStore', () => {
   }
 
   const loadIdentitiesAsync = async () => {
-    if (!currentVault.value?.drizzle) return
-    identities.value = await currentVault.value.drizzle
+    const db = requireDb()
+    identities.value = await db
       .select()
       .from(haexIdentities)
       .all()
@@ -86,7 +87,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
   }
 
   const createIdentityAsync = async (label: string): Promise<SelectHaexIdentities> => {
-    if (!currentVault.value?.drizzle) throw new Error('No vault open')
+    const db = requireDb()
 
     const { did, signingPublicKey, signingPrivateKey } = await generateIdentityAsync()
 
@@ -97,24 +98,26 @@ export const useIdentityStore = defineStore('identityStore', () => {
       did,
       publicKey: signingPublicKey,
       privateKey: signingPrivateKey,
+      avatar: null,
+      notes: null,
+      avatarOptions: null,
+      createdAt: new Date().toISOString(),
     }
 
-    await currentVault.value.drizzle
+    await db
       .insert(haexIdentities)
       .values(newIdentity)
 
     log.info(`Created identity "${label}" with DID ${did.slice(0, 30)}...`)
 
     await loadIdentitiesAsync()
-    return identities.value.find(i => i.id === id)!
+    return newIdentity
   }
 
   // ─── Contact methods (merged from contacts store) ─────────────────────
 
   const addContactAsync = async (label: string, publicKey: string, notes?: string): Promise<SelectHaexIdentities> => {
-    const db = currentVault.value?.drizzle
-    if (!db) throw new Error('No vault open')
-
+    const db = requireDb()
     const existing = await db.select()
       .from(haexIdentities)
       .where(eq(haexIdentities.publicKey, publicKey))
@@ -149,8 +152,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
   }
 
   const updateContactAsync = async (id: string, updates: { label?: string; notes?: string; avatar?: string | null }) => {
-    const db = currentVault.value?.drizzle
-    if (!db) throw new Error('No vault open')
+    const db = requireDb()
 
     await db.update(haexIdentities)
       .set(updates)
@@ -161,8 +163,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
   }
 
   const getContactByPublicKeyAsync = async (publicKey: string): Promise<SelectHaexIdentities | undefined> => {
-    const db = currentVault.value?.drizzle
-    if (!db) return undefined
+    const db = requireDb()
 
     const rows = await db.select()
       .from(haexIdentities)
@@ -182,8 +183,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
     adminSpaces: SelectHaexSpaces[]
     memberSpaces: SelectHaexSpaces[]
   }> => {
-    const db = currentVault.value?.drizzle
-    if (!db) return { adminSpaces: [], memberSpaces: [] }
+    const db = requireDb()
 
     const identity = await getIdentityByIdAsync(identityId)
     if (!identity) return { adminSpaces: [], memberSpaces: [] }
@@ -221,8 +221,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
   }
 
   const deleteIdentityAsync = async (identityId: string) => {
-    const db = currentVault.value?.drizzle
-    if (!db) return
+    const db = requireDb()
 
     const identity = await getIdentityByIdAsync(identityId)
     if (!identity) return
@@ -296,9 +295,9 @@ export const useIdentityStore = defineStore('identityStore', () => {
   }
 
   const updateLabelAsync = async (identityId: string, label: string) => {
-    if (!currentVault.value?.drizzle) return
+    const db = requireDb()
 
-    await currentVault.value.drizzle
+    await db
       .update(haexIdentities)
       .set({ label })
       .where(eq(haexIdentities.id, identityId))
@@ -308,9 +307,9 @@ export const useIdentityStore = defineStore('identityStore', () => {
   }
 
   const updateAvatarAsync = async (identityId: string, avatar: string | null, avatarOptions?: string | null) => {
-    if (!currentVault.value?.drizzle) return
+    const db = requireDb()
 
-    await currentVault.value.drizzle
+    await db
       .update(haexIdentities)
       .set({ avatar, ...(avatarOptions !== undefined ? { avatarOptions } : {}) })
       .where(eq(haexIdentities.id, identityId))
@@ -326,7 +325,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
   })
 
   const importIdentityAsync = async (exported: ExportedIdentity): Promise<SelectHaexIdentities> => {
-    if (!currentVault.value?.drizzle) throw new Error('No vault open')
+    const db = requireDb()
 
     if (!exported.publicKey || !exported.privateKey || !exported.did) {
       throw new Error('Invalid identity data: missing publicKey, privateKey, or did')
@@ -339,7 +338,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
     }
 
     // Check if identity already exists (same publicKey = same identity)
-    const existing = await currentVault.value.drizzle
+    const existing = await db
       .select()
       .from(haexIdentities)
       .where(eq(haexIdentities.publicKey, exported.publicKey))
@@ -360,7 +359,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
       avatar: exported.avatar || null,
     }
 
-    await currentVault.value.drizzle
+    await db
       .insert(haexIdentities)
       .values(newIdentity)
 
@@ -381,8 +380,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
   // ─── Claims (now always use identity UUID) ────────────────────────────
 
   const addClaimAsync = async (identityId: string, type: string, value: string) => {
-    const db = currentVault.value?.drizzle
-    if (!db) throw new Error('No vault open')
+    const db = requireDb()
 
     // Verify identity exists in DB before inserting claim (FK constraint)
     const identity = await db.query.haexIdentities.findFirst({
@@ -420,8 +418,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
   }
 
   const getClaimsAsync = async (identityId: string) => {
-    const db = currentVault.value?.drizzle
-    if (!db) return []
+    const db = requireDb()
     return db.select().from(haexIdentityClaims).where(eq(haexIdentityClaims.identityId, identityId))
   }
 
@@ -437,8 +434,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
   }
 
   const updateClaimAsync = async (claimId: string, value: string) => {
-    const db = currentVault.value?.drizzle
-    if (!db) throw new Error('No vault open')
+    const db = requireDb()
     await db.update(haexIdentityClaims).set({ value }).where(eq(haexIdentityClaims.id, claimId))
 
     // Invalidate cache for any identity whose cached list contains this claim.
@@ -450,8 +446,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
   }
 
   const deleteClaimAsync = async (claimId: string) => {
-    const db = currentVault.value?.drizzle
-    if (!db) throw new Error('No vault open')
+    const db = requireDb()
     await db.delete(haexIdentityClaims).where(eq(haexIdentityClaims.id, claimId))
 
     for (const [identityId, claims] of Object.entries(claimsByIdentity.value)) {
@@ -462,8 +457,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
   }
 
   const markClaimVerifiedAsync = async (claimId: string, serverUrl: string) => {
-    const db = currentVault.value?.drizzle
-    if (!db) throw new Error('No vault open')
+    const db = requireDb()
     await db.update(haexIdentityClaims).set({
       verifiedAt: new Date().toISOString(),
       verifiedBy: serverUrl,
@@ -471,9 +465,9 @@ export const useIdentityStore = defineStore('identityStore', () => {
   }
 
   const ensureDefaultIdentityAsync = async () => {
-    if (!currentVault.value?.drizzle) return
+    const db = requireDb()
 
-    const existing = await currentVault.value.drizzle
+    const existing = await db
       .select()
       .from(haexIdentities)
       .limit(1)

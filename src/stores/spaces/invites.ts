@@ -6,11 +6,12 @@ import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
 import type { schema } from '~/database'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { delegateUcanAsync, fetchWithUcanAuth, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
+import { throwIfNotOk } from '@/utils/fetch'
 import { SpaceType, SpaceStatus } from '~/database/constants'
 import type { SpaceType as SpaceTypeValue } from '~/database/constants'
 import { createLogger } from '@/stores/logging'
 import { detectCrossServerInvite, setupFederationForSpace } from './federation'
-import { addMemberToSpace } from './members'
+import { addMemberToSpace, addSelfAsSpaceMember } from './members'
 import type { SpaceWithType, ResolvedIdentity } from './index'
 
 type DB = SqliteRemoteDatabase<typeof schema>
@@ -67,10 +68,7 @@ export async function inviteMember(
     },
   )
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new Error(`Failed to invite member: ${error.error || response.statusText}`)
-  }
+  await throwIfNotOk(response, 'invite member')
 
   const data = await response.json()
   log.info(`Invited ${inviteeDid} to space ${spaceId} with ${capability}`)
@@ -104,10 +102,7 @@ export async function createInviteToken(
     },
   )
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new Error(`Failed to create invite token: ${error.error || response.statusText}`)
-  }
+  await throwIfNotOk(response, 'create invite token')
 
   const data = await response.json()
   log.info(`Created invite token for space ${spaceId} (maxUses: ${options.maxUses ?? 1})`)
@@ -155,10 +150,7 @@ export async function claimInviteToken(
     },
   )
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new Error(`Failed to claim invite: ${error.error || response.statusText}`)
-  }
+  await throwIfNotOk(response, 'claim invite')
 
   const data = await response.json()
 
@@ -193,18 +185,8 @@ export async function claimInviteToken(
   await identityStore.loadIdentitiesAsync()
   const myIdentity = identityStore.ownIdentities[0]
   if (myIdentity) {
-    try {
-      await addMemberToSpace(db, {
-        spaceId,
-        memberDid: myIdentity.did,
-        label: myIdentity.label || myIdentity.did.slice(0, 16),
-        role: data.capability?.replace('space/', '') || 'read',
-        avatar: myIdentity.avatar,
-        avatarOptions: myIdentity.avatarOptions,
-      })
-    } catch (error) {
-      log.warn(`Failed to add self as space member: ${error}`)
-    }
+    const role = data.capability?.replace('space/', '') || 'read'
+    await addSelfAsSpaceMember(db, spaceId, myIdentity, role)
   }
 
   return { capability: data.capability }
@@ -401,18 +383,7 @@ export async function acceptLocalInvite(
   await loadSpacesFromDbAsync()
 
   // Add self as space member (non-fatal)
-  try {
-    await addMemberToSpace(db, {
-      spaceId: invite.spaceId,
-      memberDid: identity.did,
-      label: identity.label || identity.did.slice(0, 16),
-      role: 'read',
-      avatar: identity.avatar,
-      avatarOptions: identity.avatarOptions,
-    })
-  } catch (error) {
-    log.warn(`Failed to add self as space member: ${error}`)
-  }
+  await addSelfAsSpaceMember(db, invite.spaceId, identity, 'read')
 
   log.info(`Accepted local invite for space ${invite.spaceId}`)
 }

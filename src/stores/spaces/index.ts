@@ -4,13 +4,14 @@ import { invoke } from '@tauri-apps/api/core'
 import { haexSpaces } from '~/database/schemas'
 import type { SelectHaexSpaces } from '~/database/schemas'
 import { createLogger } from '@/stores/logging'
+import { requireDb } from '~/stores/vault'
 import { SpaceType, SpaceStatus } from '~/database/constants'
 import type { SpaceType as SpaceTypeValue, SpaceStatus as SpaceStatusValue } from '~/database/constants'
 import spacesDe from './spaces.de.json'
 import spacesEn from './spaces.en.json'
 
 // Module imports
-import { addMemberToSpace, getSpaceMembers, updateOwnSpaceProfile, getMemberPublicKeysForSpace, removeSpaceMember, migrateExistingMembers } from './members'
+import { addMemberToSpace, addSelfAsSpaceMember, getSpaceMembers, updateOwnSpaceProfile, getMemberPublicKeysForSpace, removeSpaceMember, migrateExistingMembers } from './members'
 import { getCapabilitiesForSpace, hasCapability } from './capabilities'
 import { setupFederationForSpace } from './federation'
 import { inviteMember, createInviteToken, buildInviteLink, claimInviteToken, finalizeInvite, processWelcomes, retryPendingWelcomes, acceptLocalInvite, queueQuicInvite } from './invites'
@@ -67,12 +68,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const identity = await identityStore.getIdentityByIdAsync(identityId)
     if (!identity?.privateKey) throw new Error(`Identity ${identityId} not found or has no private key`)
     return { id: identity.id, publicKey: identity.publicKey, privateKey: identity.privateKey, did: identity.did, label: identity.label }
-  }
-
-  const requireDb = () => {
-    const d = db.value
-    if (!d) throw new Error('No vault open')
-    return d
   }
 
   // =========================================================================
@@ -153,7 +148,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   const ensureVaultSpaceAsync = async (vaultId: string, vaultName: string) => {
     const d = db.value
     if (!d) {
-      console.error('[SPACES] ensureVaultSpaceAsync: no DB available')
+      log.error('ensureVaultSpaceAsync: no DB available')
       return
     }
 
@@ -283,6 +278,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   const addMemberToSpaceAsync = (params: Parameters<typeof addMemberToSpace>[1]) =>
     addMemberToSpace(requireDb(), params)
 
+  const addSelfAsSpaceMemberAsync = (spaceId: string, identity: { did: string; label: string; avatar?: string | null; avatarOptions?: string | null }, role: string) =>
+    addSelfAsSpaceMember(requireDb(), spaceId, identity, role)
+
   const getSpaceMembersAsync = (spaceId: string) =>
     getSpaceMembers(requireDb(), spaceId)
 
@@ -340,6 +338,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     getCapabilitiesForSpaceAsync,
     hasCapabilityAsync,
     addMemberToSpaceAsync,
+    addSelfAsSpaceMemberAsync,
     getSpaceMembersAsync,
     updateOwnSpaceProfileAsync,
     getMemberPublicKeysForSpaceAsync,

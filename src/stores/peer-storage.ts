@@ -1,5 +1,7 @@
 import { invoke, Channel } from '@tauri-apps/api/core'
 import { eq } from 'drizzle-orm'
+import { createLogger } from '@/stores/logging'
+import { requireDb } from '~/stores/vault'
 import type { PeerStorageStatus } from '~/../src-tauri/bindings/PeerStorageStatus'
 import type { PeerStorageStartInfo } from '~/../src-tauri/bindings/PeerStorageStartInfo'
 import type { FileEntry } from '~/../src-tauri/bindings/FileEntry'
@@ -14,6 +16,8 @@ import {
 } from '~/database/schemas'
 import { VaultSettingsKeyEnum } from '~/config/vault-settings'
 import { getUcanForSpaceAsync } from '~/utils/auth/ucanStore'
+
+const log = createLogger('PEER_STORAGE')
 
 export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   const { currentVault } = storeToRefs(useVaultStore())
@@ -31,7 +35,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
       running.value = status.running
       nodeId.value = status.nodeId
     } catch (error) {
-      console.error('[PeerStorage] Failed to get status:', error)
+      log.error('Failed to get status:', error)
     }
   }
 
@@ -40,8 +44,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   // =========================================================================
 
   const loadConfiguredRelayUrlAsync = async () => {
-    const db = currentVault.value?.drizzle
-    if (!db) return
+    const db = requireDb()
     const row = await db.query.haexVaultSettings.findFirst({
       where: eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageRelayUrl),
     })
@@ -49,8 +52,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   }
 
   const saveConfiguredRelayUrlAsync = async (url: string | null) => {
-    const db = currentVault.value?.drizzle
-    if (!db) throw new Error('No vault open')
+    const db = requireDb()
 
     const existing = await db.query.haexVaultSettings.findFirst({
       where: eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageRelayUrl),
@@ -76,20 +78,17 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   }
 
   const loadSharesAsync = async () => {
-    const db = currentVault.value?.drizzle
-    if (!db) return
+    const db = requireDb()
     shares.value = await db.select().from(haexPeerShares).all()
   }
 
   const loadSpaceDevicesAsync = async () => {
-    const db = currentVault.value?.drizzle
-    if (!db) return
+    const db = requireDb()
     spaceDevices.value = await db.select().from(haexSpaceDevices).all()
   }
 
   const addShareAsync = async (spaceId: string, name: string, localPath: string) => {
-    const db = currentVault.value?.drizzle
-    if (!db) throw new Error('No vault open')
+    const db = requireDb()
     if (!nodeId.value) throw new Error('Endpoint ID not available — start peer storage first')
 
     await db.insert(haexPeerShares).values({
@@ -104,8 +103,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   }
 
   const removeShareAsync = async (shareId: string) => {
-    const db = currentVault.value?.drizzle
-    if (!db) throw new Error('No vault open')
+    const db = requireDb()
 
     await db.delete(haexPeerShares).where(eq(haexPeerShares.id, shareId))
 
@@ -118,8 +116,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   // =========================================================================
 
   const registerDeviceInSpaceAsync = async (spaceId: string, deviceName: string, identityIdParam?: string) => {
-    const db = currentVault.value?.drizzle
-    if (!db) throw new Error('No vault open')
+    const db = requireDb()
     if (!nodeId.value) throw new Error('Endpoint ID not available')
 
     // Resolve identity: use provided or first available
@@ -137,7 +134,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
         .where(eq(haexIdentities.id, identityId))
         .limit(1)
       if (!identityExists) {
-        console.warn(`[P2P] Identity ${identityId.substring(0, 8)}... not in DB yet, registering without identity`)
+        log.warn(`Identity ${identityId.substring(0, 8)}... not in DB yet, registering without identity`)
         identityId = undefined
       }
     }
@@ -154,8 +151,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   }
 
   const unregisterDeviceFromSpaceAsync = async (deviceId: string) => {
-    const db = currentVault.value?.drizzle
-    if (!db) throw new Error('No vault open')
+    const db = requireDb()
 
     await db.delete(haexSpaceDevices).where(eq(haexSpaceDevices.id, deviceId))
     await loadSpaceDevicesAsync()
@@ -176,8 +172,8 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
 
     // Load existing devices and update relay URL for our existing registrations
     await loadSpaceDevicesAsync()
-    const db = currentVault.value?.drizzle
-    if (db && relayUrl.value) {
+    if (relayUrl.value) {
+      const db = requireDb()
       await db
         .update(haexSpaceDevices)
         .set({ relayUrl: relayUrl.value })
@@ -197,8 +193,8 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   }
 
   const autoRegisterInSpacesAsync = async () => {
-    const db = currentVault.value?.drizzle
-    if (!db || !nodeId.value) return
+    if (!nodeId.value) return
+    const db = requireDb()
 
     const spacesStore = useSpacesStore()
     const deviceStore = useDeviceStore()
@@ -237,7 +233,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
           await registerDeviceInSpaceAsync(space.id, hostname)
         }
       } catch (e) {
-        console.warn(`[P2P] Failed to register in space ${space.id}:`, e)
+        log.warn(`Failed to register in space ${space.id}:`, e)
       }
     }
   }

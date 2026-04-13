@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { haexDesktopItems } from '~/database/schemas'
+import { requireDb } from '~/stores/vault'
 import type {
   InsertHaexDesktopItems,
   SelectHaexDesktopItems,
@@ -10,6 +11,7 @@ import {
 } from '~/stores/vault/settings'
 import de from './de.json'
 import en from './en.json'
+import { createLogger } from '@/stores/logging'
 
 export type DesktopItemType = 'extension' | 'file' | 'folder' | 'system'
 
@@ -18,6 +20,8 @@ export interface IDesktopItem extends SelectHaexDesktopItems {
   icon?: string
   referenceId: string // Computed: extensionId or systemWindowId
 }
+
+const log = createLogger('DESKTOP')
 
 export const useDesktopStore = defineStore('desktopStore', () => {
   const { currentVault } = storeToRefs(useVaultStore())
@@ -109,18 +113,15 @@ export const useDesktopStore = defineStore('desktopStore', () => {
   }
 
   const loadDesktopItemsAsync = async () => {
-    if (!currentVault.value?.drizzle) {
-      console.error('[DESKTOP] Kein Vault geöffnet')
-      return
-    }
+    const db = requireDb()
 
     if (!currentWorkspace.value) {
-      console.error('[DESKTOP] Kein Workspace aktiv - cannot load desktop items')
+      log.error('No workspace active - cannot load desktop items')
       return
     }
 
     try {
-      const items = await currentVault.value.drizzle
+      const items = await db
         .select()
         .from(haexDesktopItems)
         .where(eq(haexDesktopItems.workspaceId, currentWorkspace.value.id))
@@ -133,7 +134,7 @@ export const useDesktopStore = defineStore('desktopStore', () => {
             : item.systemWindowId!,
       }))
     } catch (error) {
-      console.error('[DESKTOP] Fehler beim Laden der Desktop-Items:', error)
+      log.error('Failed to load desktop items:', error)
       throw error
     }
   }
@@ -145,13 +146,11 @@ export const useDesktopStore = defineStore('desktopStore', () => {
     positionY?: number,
     workspaceId?: string,
   ) => {
-    if (!currentVault.value?.drizzle) {
-      throw new Error('Kein Vault geöffnet')
-    }
+    const db = requireDb()
 
     const targetWorkspaceId = workspaceId || currentWorkspace.value?.id
     if (!targetWorkspaceId) {
-      throw new Error('Kein Workspace aktiv')
+      throw new Error('No workspace active')
     }
 
     // If no position provided, find a free position on the grid
@@ -183,7 +182,7 @@ export const useDesktopStore = defineStore('desktopStore', () => {
         positionY: finalY,
       }
 
-      const result = await currentVault.value.drizzle
+      const result = await db
         .insert(haexDesktopItems)
         .values(newItem)
         .returning()
@@ -200,7 +199,7 @@ export const useDesktopStore = defineStore('desktopStore', () => {
         return itemWithRef
       }
     } catch (error) {
-      console.error('Fehler beim Hinzufügen des Desktop-Items:', {
+      log.error('Failed to add desktop item:', {
         error,
         itemType,
         referenceId,
@@ -216,12 +215,10 @@ export const useDesktopStore = defineStore('desktopStore', () => {
     positionX: number,
     positionY: number,
   ) => {
-    if (!currentVault.value?.drizzle) {
-      throw new Error('Kein Vault geöffnet')
-    }
+    const db = requireDb()
 
     try {
-      const result = await currentVault.value.drizzle
+      const result = await db
         .update(haexDesktopItems)
         .set({
           positionX: positionX,
@@ -244,33 +241,29 @@ export const useDesktopStore = defineStore('desktopStore', () => {
         }
       }
     } catch (error) {
-      console.error('Fehler beim Aktualisieren der Position:', error)
+      log.error('Failed to update desktop item position:', error)
       throw error
     }
   }
 
   const removeDesktopItemAsync = async (id: string) => {
-    if (!currentVault.value?.drizzle) {
-      throw new Error('Kein Vault geöffnet')
-    }
+    const db = requireDb()
 
     try {
       // Soft delete using haexTombstone
-      await currentVault.value.drizzle
+      await db
         .delete(haexDesktopItems)
         .where(eq(haexDesktopItems.id, id))
 
       desktopItems.value = desktopItems.value.filter((item) => item.id !== id)
     } catch (error) {
-      console.error('Fehler beim Entfernen des Desktop-Items:', error)
+      log.error('Failed to remove desktop item:', error)
       throw error
     }
   }
 
   const removeDesktopItemsByExtensionIdAsync = async (extensionId: string) => {
-    if (!currentVault.value?.drizzle) {
-      throw new Error('Kein Vault geöffnet')
-    }
+    const db = requireDb()
 
     try {
       // Find all desktop items for this extension
@@ -281,7 +274,7 @@ export const useDesktopStore = defineStore('desktopStore', () => {
 
       // Delete from database
       for (const item of itemsToRemove) {
-        await currentVault.value.drizzle
+        await db
           .delete(haexDesktopItems)
           .where(eq(haexDesktopItems.id, item.id))
       }
@@ -293,8 +286,8 @@ export const useDesktopStore = defineStore('desktopStore', () => {
       )
 
     } catch (error) {
-      console.error(
-        'Fehler beim Entfernen der Desktop-Items für Extension:',
+      log.error(
+        'Failed to remove desktop items for extension:',
         error,
       )
       throw error
@@ -368,7 +361,7 @@ export const useDesktopStore = defineStore('desktopStore', () => {
           (ext) => ext.id === referenceId,
         )
         if (!extension) {
-          console.error('Extension nicht gefunden')
+          log.error('Extension not found')
           return
         }
 
@@ -385,7 +378,7 @@ export const useDesktopStore = defineStore('desktopStore', () => {
         // Remove desktop item
         await removeDesktopItemAsync(id)
       } catch (error) {
-        console.error('Fehler beim Deinstallieren:', error)
+        log.error('Failed to uninstall:', error)
       }
     }
     // Für später: file und folder handling

@@ -54,6 +54,32 @@ export async function addMemberToSpace(db: DB, params: {
   }
 }
 
+/**
+ * Add the current user as a space member (non-fatal).
+ * Centralises the repeated `loadIdentitiesAsync() + ownIdentities[0] + addMemberToSpace`
+ * pattern that appeared in createLocalSpace, createOnlineSpace, claimInviteToken,
+ * acceptLocalInvite, and acceptInviteAsync.
+ */
+export async function addSelfAsSpaceMember(
+  db: DB,
+  spaceId: string,
+  identity: { did: string; label: string; avatar?: string | null; avatarOptions?: string | null },
+  role: string,
+): Promise<void> {
+  try {
+    await addMemberToSpace(db, {
+      spaceId,
+      memberDid: identity.did,
+      label: identity.label || identity.did.slice(0, 16),
+      role,
+      avatar: identity.avatar,
+      avatarOptions: identity.avatarOptions,
+    })
+  } catch (error) {
+    log.warn(`Failed to add self as space member: ${error}`)
+  }
+}
+
 export async function getSpaceMembers(db: DB, spaceId: string): Promise<SelectHaexSpaceMembers[]> {
   return db.select().from(haexSpaceMembers).where(eq(haexSpaceMembers.spaceId, spaceId))
 }
@@ -168,7 +194,7 @@ export async function migrateExistingMembers(
         joinedAt: new Date().toISOString(),
       }).onConflictDoNothing()
     } catch (error) {
-      console.warn(`Failed to migrate member ${member.did}:`, error)
+      log.warn(`Failed to migrate member ${member.did}:`, error)
     }
   }
 }

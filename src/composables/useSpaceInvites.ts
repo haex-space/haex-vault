@@ -100,18 +100,7 @@ export function useSpaceInvites() {
 
         // Add self as space member (non-fatal) — reuses the identity resolved
         // for MlsDelivery above so we don't re-read the store.
-        try {
-          await spacesStore.addMemberToSpaceAsync({
-            spaceId: invite.spaceId,
-            memberDid: identity.did,
-            label: identity.label || identity.did.slice(0, 16),
-            role: 'read',
-            avatar: identity.avatar,
-            avatarOptions: identity.avatarOptions,
-          })
-        } catch (error) {
-          console.warn('Failed to add self as space member:', error)
-        }
+        await spacesStore.addSelfAsSpaceMemberAsync(invite.spaceId, identity, 'read')
       } else {
         throw new Error('No server URL or endpoints available for invite')
       }

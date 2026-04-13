@@ -11,6 +11,9 @@ import type {
 import type { CleanupResult } from '~~/src-tauri/bindings/CleanupResult'
 import { didAuthenticateAsync } from '~/stores/sync/engine/tokenManager'
 import { loadUcansFromDbAsync } from '~/utils/auth/ucanStore'
+import { createLogger } from '@/stores/logging'
+
+const log = createLogger('VAULT')
 
 interface IVault {
   name: string
@@ -122,11 +125,11 @@ export const useVaultStore = defineStore('vaultStore', () => {
               currentVaultPassword.value,
             )
           } else if (!backend.spaceId) {
-            console.warn(`[HaexSpace] Backend ${backend.name} has no spaceId configured`)
+            log.warn(`Backend ${backend.name} has no spaceId configured`)
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error)
-          console.error(`[HaexSpace] Auto-login error for ${backend.name}:`, errorMessage)
+          log.error(`Auto-login error for ${backend.name}:`, errorMessage)
         }
       }
 
@@ -139,7 +142,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
           )
 
           if (failedBackendIds.length > 0) {
-            console.warn(`[HaexSpace] Vault key update still pending for ${failedBackendIds.length} backend(s)`)
+            log.warn(`Vault key update still pending for ${failedBackendIds.length} backend(s)`)
             const { add } = useToast()
             add({
               color: 'warning',
@@ -148,14 +151,14 @@ export const useVaultStore = defineStore('vaultStore', () => {
             })
           }
         } catch (error) {
-          console.error('[HaexSpace] Error retrying pending vault key updates:', error)
+          log.error('Error retrying pending vault key updates:', error)
         }
       }
 
       // Start sync (initializes local sync listener + remote backends if any)
       await syncOrchestratorStore.startSyncAsync()
     } catch (error) {
-      console.error('[HaexSpace] Auto-login and sync start error:', error)
+      log.error('Auto-login and sync start error:', error)
     }
   }
 
@@ -197,7 +200,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
 
       return vaultId
     } catch (error) {
-      console.error('Error openAsync ', error)
+      log.error('Error in openAsync:', error)
       throw error
     }
   }
@@ -219,7 +222,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
 
       return result
     } catch (error) {
-      console.error('[HaexSpace] Automatic cleanup error:', error)
+      log.error('Automatic cleanup error:', error)
       return null
     }
   }
@@ -271,7 +274,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
     try {
       await invoke('close_database')
     } catch (error) {
-      console.error('[VAULT STORE] Failed to close database:', error)
+      log.error('Failed to close database:', error)
     }
 
     // Removing vault from openVaults triggers the currentVault watcher,
@@ -281,7 +284,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
 
   const existsVault = () => {
     if (!currentVault.value?.drizzle) {
-      console.error('Kein Vault geöffnet')
+      log.error('No vault open')
       return
     }
   }
@@ -294,7 +297,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
       const result = await invoke<boolean>('vault_exists', { vaultName })
       return result
     } catch (error) {
-      console.error('Failed to check if vault exists:', error)
+      log.error('Failed to check if vault exists:', error)
       return false
     }
   }
@@ -342,7 +345,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
         // Get the current vault key from cache
         const cachedKey = syncEngineStore.vaultKeyCache[vaultId ?? '']
         if (!cachedKey?.vaultKey) {
-          console.warn('[VAULT STORE] No vault key in cache, backends will be updated on next sync')
+          log.warn('No vault key in cache, backends will be updated on next sync')
           // Mark all backends as pending
           for (const backend of enabledBackends) {
             await syncEngineStore.markBackendPendingVaultKeyUpdateAsync(backend.id, true)
@@ -379,7 +382,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
 
       return { success: true, pendingBackends }
     } catch (error) {
-      console.error('[VAULT STORE] Failed to change password:', error)
+      log.error('Failed to change password:', error)
       return {
         success: false,
         pendingBackends: 0,
@@ -433,7 +436,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
 
     // One-time migration: backfill space members from existing UCAN tokens (non-blocking)
     spacesStore.migrateExistingMembersAsync().catch((error) => {
-      console.warn('[HaexSpace] Member migration from UCANs failed:', error)
+      log.warn('Member migration from UCANs failed:', error)
     })
 
     // Start leader mode for all local spaces (enables invite handling)
@@ -453,13 +456,13 @@ export const useVaultStore = defineStore('vaultStore', () => {
       const { useDeviceEnrollment } = await import('@/composables/useDeviceEnrollment')
       const { syncEnrollmentsAsync } = useDeviceEnrollment()
       syncEnrollmentsAsync(deviceStore.deviceId).catch((error) => {
-        console.warn('[HaexSpace] Device MLS enrollment failed:', error)
+        log.warn('Device MLS enrollment failed:', error)
       })
     }
 
     // Automatic cleanup (non-blocking)
     performAutomaticCleanupAsync().catch((error) => {
-      console.warn('[HaexSpace] Automatic cleanup failed:', error)
+      log.warn('Automatic cleanup failed:', error)
     })
   }
 
@@ -536,7 +539,7 @@ const drizzleCallback = (async (
       params,
     })
   } catch (error) {
-    console.error('SQL Error:', error, { sql, params, method })
+    log.error('SQL Error:', error, { sql, params, method })
     throw error
   }
 
@@ -548,3 +551,15 @@ const drizzleCallback = (async (
   }
   return { rows }
 }) satisfies AsyncRemoteCallback
+
+/**
+ * Centralized helper to get the current database connection.
+ * Throws an error if no vault is open.
+ * Use this in stores and composables for consistent DB access.
+ */
+export function requireDb() {
+  const vaultStore = useVaultStore()
+  const db = vaultStore.currentVault?.drizzle
+  if (!db) throw new Error('No vault open')
+  return db
+}

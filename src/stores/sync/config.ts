@@ -9,6 +9,7 @@
 
 import { haexVaultSettings } from '@/database/schemas'
 import { eq } from 'drizzle-orm'
+import { createLogger } from '@/stores/logging'
 
 // Setting keys as constants
 export const SYNC_SETTING_KEYS = {
@@ -25,6 +26,8 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
   continuousDebounceMs: 1000, // Wait 1s after last change before pushing
   periodicIntervalMs: 300000, // Pull every 5 minutes (300000ms)
 }
+
+const log = createLogger('SYNC_CONFIG')
 
 export const useSyncConfigStore = defineStore('syncConfigStore', () => {
   const config = ref<SyncConfig>({ ...DEFAULT_SYNC_CONFIG })
@@ -67,7 +70,7 @@ export const useSyncConfigStore = defineStore('syncConfigStore', () => {
       }
 
     } catch (error) {
-      console.error('Failed to load sync config:', error)
+      log.error('Failed to load sync config:', error)
     }
   }
 
@@ -136,7 +139,7 @@ export const useSyncConfigStore = defineStore('syncConfigStore', () => {
       }
 
     } catch (error) {
-      console.error('Failed to save sync config:', error)
+      log.error('Failed to save sync config:', error)
       throw error
     }
   }
