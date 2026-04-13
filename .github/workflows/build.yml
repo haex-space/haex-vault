@@ -102,6 +102,7 @@ jobs:
     needs: check-skip
     if: needs.check-skip.outputs.should_skip != 'true'
     runs-on: ubuntu-22.04
+    timeout-minutes: 20
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -254,6 +255,10 @@ jobs:
   build-desktop:
     needs: [test, check-skip]
     if: needs.check-skip.outputs.should_skip != 'true'
+    # Cap build time so a hung apt-get or CDN 504 doesn't silently burn
+    # 6 hours of runner time (GitHub's default) and block the release
+    # pipeline indefinitely. Observed normal runtime is ~12-15 min.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -370,6 +375,7 @@ jobs:
     needs: [test, check-skip]
     if: needs.check-skip.outputs.should_skip != 'true'
     runs-on: ubuntu-22.04
+    timeout-minutes: 40
     steps:
       - name: Free disk space
         run: |
