@@ -472,30 +472,8 @@ pub async fn local_delivery_claim_invite(
         None => iroh::EndpointAddr::new(remote_id),
     };
 
-    let conn = tokio::time::timeout(
-        std::time::Duration::from_secs(10),
-        iroh_endpoint.connect(addr, super::protocol::ALPN),
-    )
-    .await
-    .map_err(|_| {
-        let msg = format!("ClaimInvite connect timeout (10s) to {}", &leader_endpoint_id[..16.min(leader_endpoint_id.len())]);
-        log("error", &msg);
-        msg
-    })?
-    .map_err(|e| {
-        log("error", &format!("Connection failed: {e}"));
-        format!("Failed to connect to leader: {e}")
-    })?;
-    log("info", "Connected, opening bi-stream");
-
-    let (mut send, mut recv) = conn
-        .open_bi()
-        .await
-        .map_err(|e| {
-            log("error", &format!("Open bi-stream failed: {e}"));
-            format!("Failed to open stream: {e}")
-        })?;
-
+    // Encode once outside the retry loop — the request bytes are identical
+    // across attempts, including the (expensively-generated) KeyPackages.
     let req = Request::ClaimInvite {
         space_id: space_id.clone(),
         token: token_id,
@@ -505,23 +483,21 @@ pub async fn local_delivery_claim_invite(
         label,
         public_key: identity_public_key,
     };
+    let bytes = super::protocol::encode(&req)
+        .map_err(|e| format!("Failed to encode request: {e}"))?;
 
-    let bytes = super::protocol::encode(&req).map_err(|e| format!("Failed to encode request: {e}"))?;
-    send.write_all(&bytes)
-        .await
-        .map_err(|e| format!("Failed to send request: {e}"))?;
-    send.finish()
-        .map_err(|e| format!("Failed to finish send: {e}"))?;
-
-    log("info", "Request sent, awaiting response");
-    let response = super::protocol::read_response(&mut recv)
-        .await
-        .map_err(|e| {
-            log("error", &format!("Read response failed: {e}"));
-            format!("Failed to read response: {e}")
-        })?;
-
-    conn.close(0u32.into(), b"done");
+    // QUIC connect + send + read with automatic retry on transient failures.
+    let response = super::quic_retry::send_request_with_retry(
+        "ClaimInvite",
+        &iroh_endpoint,
+        addr,
+        &bytes,
+    )
+    .await
+    .map_err(|e| {
+        log("error", &format!("QUIC send failed: {e}"));
+        format!("{e}")
+    })?;
 
     // 4. Process response
     let (welcome_b64, ucan_token, capability) = match response {
@@ -676,22 +652,6 @@ pub async fn local_delivery_push_invite(
     };
 
     log("info", &format!("Connecting to {remote_id} (relay={has_relay})"));
-    let conn = iroh_endpoint
-        .connect(addr, super::protocol::ALPN)
-        .await
-        .map_err(|e| {
-            log("error", &format!("Connection FAILED: {e}"));
-            format!("Failed to connect: {e}")
-        })?;
-    log("info", "Connected, opening bi-stream");
-
-    let (mut send, mut recv) = conn
-        .open_bi()
-        .await
-        .map_err(|e| {
-            log("error", &format!("Open bi-stream FAILED: {e}"));
-            format!("Failed to open stream: {e}")
-        })?;
 
     let request = super::protocol::Request::PushInvite {
         space_id,
@@ -709,21 +669,19 @@ pub async fn local_delivery_push_invite(
 
     let bytes = super::protocol::encode(&request)
         .map_err(|e| format!("Encode error: {e}"))?;
-    send.write_all(&bytes)
-        .await
-        .map_err(|e| format!("Send error: {e}"))?;
-    send.finish()
-        .map_err(|e| format!("Finish error: {e}"))?;
-    log("info", "Request sent, awaiting response");
 
-    let response = super::protocol::read_response(&mut recv)
-        .await
-        .map_err(|e| {
-            log("error", &format!("Read response FAILED: {e}"));
-            format!("Read response error: {e}")
-        })?;
-
-    conn.close(0u32.into(), b"done");
+    // QUIC connect + send + read with automatic retry on transient failures.
+    let response = super::quic_retry::send_request_with_retry(
+        "PushInvite-Send",
+        &iroh_endpoint,
+        addr,
+        &bytes,
+    )
+    .await
+    .map_err(|e| {
+        log("error", &format!("QUIC send failed: {e}"));
+        format!("{e}")
+    })?;
 
     match &response {
         super::protocol::Response::PushInviteAck { accepted } => {

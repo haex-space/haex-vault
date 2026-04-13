@@ -9,6 +9,7 @@ pub mod multi_leader;
 pub mod peer;
 pub mod protocol;
 pub mod push_invite;
+pub mod quic_retry;
 pub mod sync_loop;
 pub mod types;
 pub mod ucan;
