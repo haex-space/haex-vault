@@ -25,6 +25,13 @@ permissions:
   pull-requests: write
   actions: read
 
+# Only one release at a time. cancel-in-progress=false means a second
+# trigger queues behind the running one — never mid-pipeline cancel
+# (which could leave a tag pushed without published artifacts).
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   # ─────────────────────────────────────────────────────────────────────────
   # Compute version, build prep branch (release + main + bump), open PR

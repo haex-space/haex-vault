@@ -18,7 +18,10 @@ on:
 
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: true
+  # Cancel in-progress runs only on the release branch (push-merge cadence is
+  # serial there anyway). On main and feature branches we let runs finish so
+  # the green/red signal for each commit is preserved (cancelled = ambiguous).
+  cancel-in-progress: ${{ github.ref == 'refs/heads/release' }}
 
 jobs:
   # Skip build only for version bump commits (they trigger the Release workflow via tag).
