@@ -87,6 +87,21 @@ export async function createLocalSpace(
 
   await invoke('local_delivery_start', { spaceId: id })
 
+  // Register this device in the new space so PushInvites to contacts carry
+  // a usable spaceEndpoints list. autoRegisterInSpacesAsync only runs when
+  // peer_storage starts; a runtime-created space would otherwise stay
+  // unregistered until the next app restart.
+  const peerStorageStore = usePeerStorageStore()
+  if (peerStorageStore.nodeId) {
+    try {
+      const deviceStore = useDeviceStore()
+      const deviceName = deviceStore.deviceName || deviceStore.hostname || 'Unknown'
+      await peerStorageStore.registerDeviceInSpaceAsync(id, deviceName)
+    } catch (error) {
+      log.warn(`Failed to register device in new space ${id}: ${error}`)
+    }
+  }
+
   log.info(`Created local space "${spaceName}" (${id})`)
   return { id }
 }

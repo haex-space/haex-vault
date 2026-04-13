@@ -41,6 +41,8 @@ export const OutboxStatus = {
   PENDING: 'pending',
   DELIVERED: 'delivered',
   EXPIRED: 'expired',
+  /** Max retries reached without a successful delivery — user intervention required. */
+  FAILED: 'failed',
 } as const
 
 export type OutboxStatus = (typeof OutboxStatus)[keyof typeof OutboxStatus]

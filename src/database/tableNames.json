@@ -331,7 +331,8 @@
         "retryCount": "retry_count",
         "nextRetryAt": "next_retry_at",
         "expiresAt": "expires_at",
-        "createdAt": "created_at"
+        "createdAt": "created_at",
+        "lastError": "last_error"
       }
     },
     "invite_tokens": {

@@ -1,0 +1,1 @@
+ALTER TABLE `haex_invite_outbox` ADD `last_error` text;

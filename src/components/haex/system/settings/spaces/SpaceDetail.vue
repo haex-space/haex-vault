@@ -84,8 +84,64 @@
       :description="t('members.description')"
     >
       <template #body>
+        <!-- Failed invite deliveries -->
+        <div
+          v-if="failedOutboxEntries.length"
+          class="space-y-2 mb-4"
+        >
+          <p class="text-xs font-medium text-error uppercase tracking-wide">
+            {{ t('members.failedDeliveries') }}
+          </p>
+          <div
+            v-for="entry in failedOutboxEntries"
+            :key="entry.id"
+            class="flex flex-col gap-1 p-2 rounded-md bg-error-50 dark:bg-error-950/30"
+          >
+            <div class="flex items-center justify-between gap-2">
+              <div class="min-w-0">
+                <p class="text-sm truncate">
+                  {{ contactLabelForDid(entry.targetDid) }}
+                </p>
+                <p class="text-xs text-muted break-all">
+                  {{ entry.targetDid.slice(0, 28) }}…
+                </p>
+              </div>
+              <div class="flex gap-1 shrink-0">
+                <UiButton
+                  color="primary"
+                  variant="soft"
+                  icon="i-lucide-rotate-cw"
+                  :title="t('members.failedRetry')"
+                  @click="onRetryFailedOutboxAsync(entry.id)"
+                >
+                  {{ t('members.failedRetry') }}
+                </UiButton>
+                <UiButton
+                  color="neutral"
+                  variant="ghost"
+                  icon="i-lucide-x"
+                  :title="t('members.failedDismiss')"
+                  @click="onDismissFailedOutboxAsync(entry.id)"
+                />
+              </div>
+            </div>
+            <p
+              v-if="entry.lastError"
+              class="text-xs text-error wrap-break-word"
+            >
+              {{ t('members.failedReason') }}: {{ entry.lastError }}
+            </p>
+            <p class="text-xs text-muted">
+              {{ t('members.failedHint') }}
+            </p>
+          </div>
+        </div>
+
         <!-- Pending invite tokens -->
-        <div v-if="pendingTokens.length" class="space-y-2 mb-4">
+        <div
+          v-if="pendingTokens.length"
+          class="space-y-2 mb-4"
+        >
           <p class="text-xs font-medium text-muted uppercase tracking-wide">
             {{ t('members.pendingInvites') }}
           </p>
@@ -96,11 +152,21 @@
           >
             <div class="min-w-0">
               <p class="text-sm truncate">
-                {{ token.targetDid ? token.targetDid.slice(0, 24) + '…' : t('members.openInvite') }}
+                {{
+                  token.targetDid
+                    ? token.targetDid.slice(0, 24) + '…'
+                    : t('members.openInvite')
+                }}
               </p>
               <p class="text-xs text-muted">
                 {{ formatCapabilities(token.capabilities) }}
-                · {{ t('members.uses', { current: token.currentUses, max: token.maxUses }) }}
+                ·
+                {{
+                  t('members.uses', {
+                    current: token.currentUses,
+                    max: token.maxUses,
+                  })
+                }}
               </p>
             </div>
             <div class="flex gap-1">
@@ -141,7 +207,10 @@
                 :seed="member.memberDid"
                 size="xs"
               />
-              <div v-if="editingMemberId === member.id" class="flex items-center gap-2 min-w-0">
+              <div
+                v-if="editingMemberId === member.id"
+                class="flex items-center gap-2 min-w-0"
+              >
                 <UiInput
                   v-model="editLabel"
                   size="sm"
@@ -163,7 +232,10 @@
                   @click="onCancelEditProfile"
                 />
               </div>
-              <div v-else class="min-w-0">
+              <div
+                v-else
+                class="min-w-0"
+              >
                 <div class="flex items-center gap-1.5">
                   <p class="text-sm font-medium truncate">{{ member.label }}</p>
                   <UBadge
@@ -174,7 +246,9 @@
                     {{ member.role }}
                   </UBadge>
                 </div>
-                <p class="text-xs text-muted truncate">{{ member.memberDid.slice(0, 24) }}…</p>
+                <p class="text-xs text-muted truncate">
+                  {{ member.memberDid.slice(0, 24) }}…
+                </p>
               </div>
             </div>
             <div class="flex gap-1">
@@ -210,11 +284,16 @@
 </template>
 
 <script setup lang="ts">
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import type { SpaceWithType } from '@/stores/spaces'
-import type { SelectHaexSpaceMembers, SelectHaexInviteTokens } from '~/database/schemas'
+import type {
+  SelectHaexSpaceMembers,
+  SelectHaexInviteTokens,
+  SelectHaexInviteOutbox,
+} from '~/database/schemas'
 import type { SpaceLinkedItemGroup } from '~/composables/useSpaceLinkedItems'
-import { haexInviteTokens } from '~/database/schemas'
+import { haexInviteTokens, haexInviteOutbox } from '~/database/schemas'
+import { OutboxStatus } from '~/database/constants'
 import { SettingsCategory } from '~/config/settingsCategories'
 import SpaceLinkedItems from './SpaceLinkedItems.vue'
 
@@ -242,16 +321,22 @@ const showMembersDrawer = ref(false)
 const capabilities = ref<string[]>([])
 const members = ref<SelectHaexSpaceMembers[]>([])
 const pendingTokens = ref<SelectHaexInviteTokens[]>([])
+const failedOutboxEntries = ref<SelectHaexInviteOutbox[]>([])
 
 const editingMemberId = ref<string | null>(null)
 const editLabel = ref('')
 const savingProfile = ref(false)
 
-const myDids = computed(() => identityStore.ownIdentities.map(i => i.did))
-const isOwnMember = (member: SelectHaexSpaceMembers) => myDids.value.includes(member.memberDid)
+const myDids = computed(() => identityStore.ownIdentities.map((i) => i.did))
+const isOwnMember = (member: SelectHaexSpaceMembers) =>
+  myDids.value.includes(member.memberDid)
 
-const space = computed(() => spacesStore.spaces.find(s => s.id === props.spaceId))
-const backendName = computed(() => space.value ? getBackendNameByUrl(space.value.serverUrl) : '')
+const space = computed(() =>
+  spacesStore.spaces.find((s) => s.id === props.spaceId),
+)
+const backendName = computed(() =>
+  space.value ? getBackendNameByUrl(space.value.serverUrl) : '',
+)
 const isAdmin = computed(() => capabilities.value.includes('space/admin'))
 const canInvite = computed(() => capabilities.value.includes('space/invite'))
 const canWrite = computed(() => capabilities.value.includes('space/write'))
@@ -270,16 +355,18 @@ const permissionBadgeColor = computed(() => {
 })
 
 const inviteMenuItems = computed(() => [
-  [{
-    label: t('invite.contact'),
-    icon: 'i-lucide-user-plus',
-    onSelect: () => space.value && emit('invite-contact', space.value),
-  },
-  {
-    label: t('invite.link'),
-    icon: 'i-lucide-link',
-    onSelect: () => space.value && emit('invite-link', space.value),
-  }],
+  [
+    {
+      label: t('invite.contact'),
+      icon: 'i-lucide-user-plus',
+      onSelect: () => space.value && emit('invite-contact', space.value),
+    },
+    {
+      label: t('invite.link'),
+      icon: 'i-lucide-link',
+      onSelect: () => space.value && emit('invite-link', space.value),
+    },
+  ],
 ])
 
 const windowManager = useWindowManagerStore()
@@ -300,7 +387,9 @@ const onOpenGroup = (group: SpaceLinkedItemGroup) => {
 }
 
 // Linked items
-const { groups, isLoading, loadAsync } = useSpaceLinkedItems(() => props.spaceId)
+const { groups, isLoading, loadAsync } = useSpaceLinkedItems(
+  () => props.spaceId,
+)
 
 const loadMembersAsync = async () => {
   members.value = await spacesStore.getSpaceMembersAsync(props.spaceId)
@@ -308,19 +397,40 @@ const loadMembersAsync = async () => {
   const db = getDb()
   if (!db) return
 
-  const allTokens = await db.select().from(haexInviteTokens)
+  const allTokens = await db
+    .select()
+    .from(haexInviteTokens)
     .where(eq(haexInviteTokens.spaceId, props.spaceId))
 
-  pendingTokens.value = allTokens.filter(t =>
-    t.currentUses < t.maxUses && (!t.expiresAt || new Date(t.expiresAt).getTime() > Date.now()),
+  pendingTokens.value = allTokens.filter(
+    (t) =>
+      t.currentUses < t.maxUses &&
+      (!t.expiresAt || new Date(t.expiresAt).getTime() > Date.now()),
   )
+
+  failedOutboxEntries.value = await db
+    .select()
+    .from(haexInviteOutbox)
+    .where(
+      and(
+        eq(haexInviteOutbox.spaceId, props.spaceId),
+        eq(haexInviteOutbox.status, OutboxStatus.FAILED),
+      ),
+    )
+}
+
+/** Resolve the DID of a failed invite target to a human-readable label,
+ *  preferring the local contact entry over the raw DID. */
+const contactLabelForDid = (did: string): string => {
+  const contact = identityStore.contacts.find((c) => c.did === did)
+  return contact?.label || `${did.slice(0, 20)}…`
 }
 
 const formatCapabilities = (capabilities: string | null): string => {
   if (!capabilities) return ''
   try {
     const parsed = JSON.parse(capabilities) as string[]
-    return parsed.map(c => c.replace('space/', '')).join(', ')
+    return parsed.map((c) => c.replace('space/', '')).join(', ')
   } catch {
     return capabilities
   }
@@ -381,7 +491,9 @@ const onResendInviteAsync = async (token: SelectHaexInviteTokens) => {
     await identityStore.loadIdentitiesAsync()
 
     // Find the contact by DID to get their endpoint IDs
-    const contact = identityStore.contacts.find(c => c.did === token.targetDid)
+    const contact = identityStore.contacts.find(
+      (c) => c.did === token.targetDid,
+    )
     if (!contact) {
       add({ title: t('members.resendNoContact'), color: 'error' })
       return
@@ -389,8 +501,8 @@ const onResendInviteAsync = async (token: SelectHaexInviteTokens) => {
 
     const claims = await identityStore.getClaimsAsync(contact.id)
     const endpointIds = claims
-      .filter(c => c.type === 'endpointId' || c.type.startsWith('device:'))
-      .map(c => c.value)
+      .filter((c) => c.type === 'endpointId' || c.type.startsWith('device:'))
+      .map((c) => c.value)
 
     if (endpointIds.length === 0) {
       add({ title: t('members.resendNoEndpoint'), color: 'error' })
@@ -400,7 +512,9 @@ const onResendInviteAsync = async (token: SelectHaexInviteTokens) => {
     const { useInviteOutbox } = await import('@/composables/useInviteOutbox')
     const { createOutboxEntryAsync } = useInviteOutbox()
 
-    const expiresAt = token.expiresAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    const expiresAt =
+      token.expiresAt ||
+      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
 
     for (const endpointId of endpointIds) {
       await createOutboxEntryAsync({
@@ -424,6 +538,37 @@ const onResendInviteAsync = async (token: SelectHaexInviteTokens) => {
   }
 }
 
+const onRetryFailedOutboxAsync = async (entryId: string) => {
+  try {
+    const { useInviteOutbox } = await import('@/composables/useInviteOutbox')
+    const { retryFailedOutboxEntryAsync } = useInviteOutbox()
+    await retryFailedOutboxEntryAsync(entryId)
+    add({ title: t('members.failedRetryStarted'), color: 'success' })
+    await loadMembersAsync()
+  } catch (error) {
+    add({
+      title: t('members.failedRetryError'),
+      description: error instanceof Error ? error.message : undefined,
+      color: 'error',
+    })
+  }
+}
+
+const onDismissFailedOutboxAsync = async (entryId: string) => {
+  try {
+    const { useInviteOutbox } = await import('@/composables/useInviteOutbox')
+    const { dismissFailedOutboxEntryAsync } = useInviteOutbox()
+    await dismissFailedOutboxEntryAsync(entryId)
+    await loadMembersAsync()
+  } catch (error) {
+    add({
+      title: t('members.failedDismissError'),
+      description: error instanceof Error ? error.message : undefined,
+      color: 'error',
+    })
+  }
+}
+
 const onRevokeTokenAsync = async (tokenId: string) => {
   try {
     const db = getDb()
@@ -442,7 +587,9 @@ const onRevokeTokenAsync = async (tokenId: string) => {
 }
 
 onMounted(async () => {
-  capabilities.value = await spacesStore.getCapabilitiesForSpaceAsync(props.spaceId)
+  capabilities.value = await spacesStore.getCapabilitiesForSpaceAsync(
+    props.spaceId,
+  )
   await loadAsync()
   await loadMembersAsync()
 })
@@ -464,7 +611,7 @@ de:
     active: Aktive Mitglieder
     pendingInvites: Ausstehende Einladungen
     openInvite: Offene Einladung
-    uses: "{current}/{max} genutzt"
+    uses: '{current}/{max} genutzt'
     empty: Keine Mitglieder
     remove: Entfernen
     removed: Mitglied entfernt
@@ -481,6 +628,14 @@ de:
     resendFailed: Erneutes Senden fehlgeschlagen
     resendNoContact: Kontakt nicht gefunden
     resendNoEndpoint: Kontakt hat keine bekannten Endpoints
+    failedDeliveries: Zustellung fehlgeschlagen
+    failedRetry: Erneut versuchen
+    failedDismiss: Verwerfen
+    failedReason: Fehler
+    failedHint: Der Empfänger war nicht erreichbar. Du kannst die Einladung erneut senden, sobald der Kontakt online ist.
+    failedRetryStarted: Einladung wird erneut zugestellt
+    failedRetryError: Erneuter Versuch fehlgeschlagen
+    failedDismissError: Einladung konnte nicht verworfen werden
 en:
   type:
     local: Local
@@ -496,7 +651,7 @@ en:
     active: Active members
     pendingInvites: Pending invitations
     openInvite: Open invitation
-    uses: "{current}/{max} used"
+    uses: '{current}/{max} used'
     empty: No members
     remove: Remove
     removed: Member removed
@@ -513,4 +668,12 @@ en:
     resendFailed: Failed to resend invitation
     resendNoContact: Contact not found
     resendNoEndpoint: Contact has no known endpoints
+    failedDeliveries: Delivery failed
+    failedRetry: Retry
+    failedDismiss: Dismiss
+    failedReason: Error
+    failedHint: The recipient was unreachable. You can resend the invitation once the contact is online again.
+    failedRetryStarted: Redelivering invitation
+    failedRetryError: Retry failed
+    failedDismissError: Failed to dismiss invitation
 </i18n>

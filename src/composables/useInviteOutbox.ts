@@ -1,12 +1,13 @@
 import { eq, and, lte } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
 import { haexInviteOutbox, haexInviteTokens, haexPendingInvites, haexSpaces, haexSpaceDevices, haexUcanTokens } from '~/database/schemas'
-import { OutboxStatus, SpaceStatus } from '~/database/constants'
+import { OutboxStatus } from '~/database/constants'
 import { createLogger } from '@/stores/logging'
 
 const log = createLogger('INVITE-OUTBOX')
 
 const BACKOFF_SECONDS = [0, 5, 15, 60, 300, 900] // immediate, 5s, 15s, 1m, 5m, 15m
+const MAX_RETRIES = BACKOFF_SECONDS.length // after this many failures, surface as FAILED to the user
 
 function nextRetryDelay(retryCount: number): number {
   const seconds = BACKOFF_SECONDS[Math.min(retryCount, BACKOFF_SECONDS.length - 1)]!
@@ -180,12 +181,21 @@ export function useInviteOutbox() {
       }
       const inviterIdentity = identity ?? identityStore.ownIdentities[0]!
 
-      // Load all space device endpoints
+      // Load all space device endpoints. Always include our own endpoint
+      // as a fallback (de-duplicated): the default "Personal" space is
+      // created before peer_storage starts, and any space created at
+      // runtime races autoRegisterInSpacesAsync. Without this fallback the
+      // invitee receives an empty spaceEndpoints array and cannot connect
+      // back for ClaimInvite — they see a confusing "no server URL"
+      // error even though a local space has no server by design.
       const devices = await db
         .select()
         .from(haexSpaceDevices)
         .where(eq(haexSpaceDevices.spaceId, entry.spaceId))
-      const spaceEndpoints = devices.map(d => d.deviceEndpointId)
+      const spaceEndpoints = Array.from(new Set([
+        ...(ownEndpointId ? [ownEndpointId] : []),
+        ...devices.map(d => d.deviceEndpointId),
+      ]))
 
       try {
         log.info(`Outbox ${entry.id}: SENDING PushInvite → target=${entry.targetEndpointId.slice(0, 16)}… space="${space.name}" (${space.type}) inviter=${inviterIdentity.did.slice(0, 24)}… endpoints=[${spaceEndpoints.map(e => e.slice(0, 12)).join(',')}] caps=[${capabilities.join(',')}] retry=${entry.retryCount}`)
@@ -216,6 +226,24 @@ export function useInviteOutbox() {
         }
       } catch (error) {
         const nextCount = entry.retryCount + 1
+        const errorMessage = error instanceof Error ? error.message : String(error)
+
+        if (nextCount >= MAX_RETRIES) {
+          // Exhausted all retries — surface to the user so they can decide
+          // whether to re-send the invite (the contact may be offline for
+          // days, or their endpoint may have changed).
+          await db
+            .update(haexInviteOutbox)
+            .set({
+              status: OutboxStatus.FAILED,
+              retryCount: nextCount,
+              lastError: errorMessage,
+            })
+            .where(eq(haexInviteOutbox.id, entry.id))
+          log.error(`Outbox ${entry.id}: exhausted retries (${nextCount}/${MAX_RETRIES}) → marked FAILED. target=${entry.targetEndpointId.slice(0, 16)}… error="${errorMessage}"`)
+          continue
+        }
+
         const delay = nextRetryDelay(nextCount)
         const nextRetry = new Date(Date.now() + delay).toISOString()
 
@@ -224,10 +252,11 @@ export function useInviteOutbox() {
           .set({
             retryCount: nextCount,
             nextRetryAt: nextRetry,
+            lastError: errorMessage,
           })
           .where(eq(haexInviteOutbox.id, entry.id))
 
-        log.warn(`Outbox ${entry.id}: FAILED → target=${entry.targetEndpointId.slice(0, 16)}… retry=${nextCount}/${BACKOFF_SECONDS.length} next=${nextRetry} error="${error}"`)
+        log.warn(`Outbox ${entry.id}: retry ${nextCount}/${MAX_RETRIES} → target=${entry.targetEndpointId.slice(0, 16)}… next=${nextRetry} error="${errorMessage}"`)
       }
     }
   }
@@ -257,5 +286,40 @@ export function useInviteOutbox() {
     )
   }
 
-  return { createOutboxEntryAsync, processOutboxAsync, cleanupOldInvitesAsync }
+  /** Reset a failed outbox entry back to pending so the next processor tick retries it. */
+  const retryFailedOutboxEntryAsync = async (entryId: string) => {
+    const db = getDb()
+    if (!db) return
+
+    await db
+      .update(haexInviteOutbox)
+      .set({
+        status: OutboxStatus.PENDING,
+        retryCount: 0,
+        nextRetryAt: new Date().toISOString(),
+        lastError: null,
+      })
+      .where(eq(haexInviteOutbox.id, entryId))
+
+    log.info(`Outbox ${entryId}: manually retried by user`)
+    processOutboxAsync().catch(err =>
+      log.warn(`Retry processing failed (will retry): ${err}`),
+    )
+  }
+
+  /** Discard a failed outbox entry — user decided not to re-send. */
+  const dismissFailedOutboxEntryAsync = async (entryId: string) => {
+    const db = getDb()
+    if (!db) return
+    await db.delete(haexInviteOutbox).where(eq(haexInviteOutbox.id, entryId))
+    log.info(`Outbox ${entryId}: dismissed by user`)
+  }
+
+  return {
+    createOutboxEntryAsync,
+    processOutboxAsync,
+    cleanupOldInvitesAsync,
+    retryFailedOutboxEntryAsync,
+    dismissFailedOutboxEntryAsync,
+  }
 }

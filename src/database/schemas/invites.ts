@@ -76,11 +76,13 @@ export const haexInviteOutbox = sqliteTable(
     tokenId: text(tableNames.haex.invite_outbox.columns.tokenId).notNull(),
     targetDid: text(tableNames.haex.invite_outbox.columns.targetDid).notNull(),
     targetEndpointId: text(tableNames.haex.invite_outbox.columns.targetEndpointId).notNull(),
-    status: text(tableNames.haex.invite_outbox.columns.status).notNull().default('pending'), // 'pending' | 'delivered' | 'expired'
+    status: text(tableNames.haex.invite_outbox.columns.status).notNull().default('pending'), // 'pending' | 'delivered' | 'expired' | 'failed'
     retryCount: integer(tableNames.haex.invite_outbox.columns.retryCount).notNull().default(0),
     nextRetryAt: text(tableNames.haex.invite_outbox.columns.nextRetryAt).default(sql`(CURRENT_TIMESTAMP)`),
     expiresAt: text(tableNames.haex.invite_outbox.columns.expiresAt).default(''),
     createdAt: text(tableNames.haex.invite_outbox.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
+    /** Most recent delivery error message. Kept even after status becomes 'failed' so the UI can explain what went wrong. */
+    lastError: text(tableNames.haex.invite_outbox.columns.lastError),
   },
 )
 export type InsertHaexInviteOutbox = typeof haexInviteOutbox.$inferInsert

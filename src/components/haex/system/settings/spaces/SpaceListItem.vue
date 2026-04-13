@@ -55,7 +55,7 @@
         class="text-xs text-primary hover:underline text-left truncate cursor-pointer"
         @click.stop="showInviteDetail = true"
       >
-        {{ t('invite.from') }}: {{ invite.inviterLabel || truncateDid(invite.inviterDid) }}
+        {{ t('invite.from') }}: {{ resolvedInviterLabel }}
       </button>
 
       <!-- Meta row: capabilities, date, expiry -->
@@ -170,7 +170,19 @@
             <!-- Inviter -->
             <div>
               <p class="text-xs text-muted uppercase tracking-wide mb-1">{{ t('detail.inviter') }}</p>
-              <p v-if="invite.inviterLabel" class="font-medium">{{ invite.inviterLabel }}</p>
+              <p class="font-medium">{{ resolvedInviterLabel }}</p>
+              <p
+                v-if="inviterLabelSource !== 'contact' && invite.inviterLabel"
+                class="text-xs text-muted"
+              >
+                {{ t('detail.senderProvidedLabel') }}: "{{ invite.inviterLabel }}"
+              </p>
+              <p
+                v-if="inviterLabelSource !== 'contact'"
+                class="text-xs text-muted italic"
+              >
+                {{ t('detail.remoteLabelNote') }}
+              </p>
               <p class="text-xs text-muted break-all font-mono">{{ invite.inviterDid }}</p>
             </div>
 
@@ -246,6 +258,7 @@ const props = withDefaults(defineProps<{
   invite?: SelectHaexPendingInvites
 }>(), {
   pending: false,
+  invite: undefined,
 })
 
 const emit = defineEmits<{
@@ -264,7 +277,38 @@ const { t } = useI18n()
 const showInviteDetail = ref(false)
 
 const spacesStore = useSpacesStore()
+const identityStore = useIdentityStore()
+const { contacts } = storeToRefs(identityStore)
 const capabilities = ref<string[]>([])
+
+/**
+ * Resolve the inviter display name without blindly trusting the label the
+ * sender shipped in the PushInvite. Every vault auto-creates an identity
+ * labeled "Meine Identität" / "My Identity", so if we rendered
+ * `invite.inviterLabel` directly the recipient would see their *own*
+ * default label as the sender — confusing and misleading.
+ *
+ * Preference order:
+ *   1. Local contact entry for the inviter's DID (the receiver named the sender themselves)
+ *   2. Truncated DID fallback — always unambiguous, even if ugly
+ *
+ * The raw `inviterLabel` is only surfaced in the detail modal with an
+ * explicit "provided by sender" note.
+ */
+const inviterLabelSource = computed<'contact' | 'remote' | 'none'>(() => {
+  if (!props.invite) return 'none'
+  const contact = contacts.value.find(c => c.did === props.invite?.inviterDid)
+  if (contact?.label) return 'contact'
+  if (props.invite.inviterLabel) return 'remote'
+  return 'none'
+})
+
+const resolvedInviterLabel = computed(() => {
+  if (!props.invite) return ''
+  const contact = contacts.value.find(c => c.did === props.invite?.inviterDid)
+  if (contact?.label) return contact.label
+  return truncateDid(props.invite.inviterDid)
+})
 
 const isAdmin = computed(() => capabilities.value.includes('space/admin'))
 const canInvite = computed(() => capabilities.value.includes('space/invite'))
@@ -298,6 +342,10 @@ const inviteMenuItems = computed(() => [
 onMounted(async () => {
   if (!props.pending) {
     capabilities.value = await spacesStore.getCapabilitiesForSpaceAsync(props.space.id)
+  } else {
+    // Pending invite: ensure contacts are loaded so resolvedInviterLabel can
+    // prefer the local contact name over the untrusted remote label.
+    await identityStore.loadIdentitiesAsync()
   }
 })
 
@@ -357,6 +405,8 @@ de:
     title: Einladungsdetails
     space: Space
     inviter: Einladender
+    senderProvidedLabel: Vom Absender angegeben
+    remoteLabelNote: Füge diese Identität als Kontakt hinzu, um einen eigenen Namen zu vergeben.
     capabilities: Berechtigungen
     dates: Details
     created: Erstellt
@@ -383,6 +433,8 @@ en:
     title: Invitation details
     space: Space
     inviter: Invited by
+    senderProvidedLabel: Provided by sender
+    remoteLabelNote: Add this identity as a contact to assign your own label.
     capabilities: Permissions
     dates: Details
     created: Created

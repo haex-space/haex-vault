@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
+import type { Capability } from '@haex-space/ucan'
 import { haexSpaces, haexInviteTokens } from '~/database/schemas'
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
 import type { schema } from '~/database'
@@ -52,7 +53,7 @@ export async function inviteMember(
     identity.privateKey,
     inviteeDid,
     spaceId,
-    capability as any,
+    capability as Capability,
     parentUcan,
   )
 
@@ -229,7 +230,7 @@ export async function finalizeInvite(
         identity.privateKey,
         inviteeDid,
         spaceId,
-        capability as any,
+        capability as Capability,
         parentUcan,
       )
       await fetchWithSpaceUcanAuth(

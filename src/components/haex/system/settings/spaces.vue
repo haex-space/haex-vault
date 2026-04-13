@@ -681,11 +681,13 @@ onMounted(async () => {
     showJoinDialog.value = true
   }
 
-  // Listen for incoming P2P invites
+  // Refresh the pending-invite list when a push invite arrives while this
+  // settings page is open. The app-wide plugin at
+  // plugins/push-invite-listener.client.ts already keeps spacesStore in sync
+  // and shows the toast — this listener exists only to re-run the local
+  // loadInvitesAsync() that is specific to this view.
   unlistenPushInvite = await listen('push-invite-received', async () => {
-    await spacesStore.loadSpacesFromDbAsync()
     await loadInvitesAsync()
-    add({ title: t('success.newInvite'), color: 'info' })
   })
 })
 
@@ -861,7 +863,9 @@ const openInviteDialog = (space: SpaceWithType, mode: 'contact' | 'link' = 'cont
 }
 
 // Expose for E2E tests — allows opening the invite dialog with the correct space
-;(window as any).__openInviteDialog = (spaceId: string, mode: 'contact' | 'link' = 'contact') => {
+;(window as Window & {
+  __openInviteDialog?: (spaceId: string, mode?: 'contact' | 'link') => void
+}).__openInviteDialog = (spaceId: string, mode: 'contact' | 'link' = 'contact') => {
   const space = spaces.value.find(s => s.id === spaceId)
   if (space) openInviteDialog(space, mode)
 }
