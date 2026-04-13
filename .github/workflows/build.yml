@@ -17,10 +17,11 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: build-${{ github.ref }}
-  # Cancel in-progress runs only on the release branch (push-merge cadence is
-  # serial there anyway). On main and feature branches we let runs finish so
-  # the green/red signal for each commit is preserved (cancelled = ambiguous).
+  # On release: shared group per branch → new push cancels previous (serial).
+  # Elsewhere: unique group per commit → runs in parallel (no queue, no cancel).
+  # This lets main / feature / PR pushes all build concurrently without
+  # blocking each other, while release stays disciplined.
+  group: build-${{ github.ref == 'refs/heads/release' && 'release' || github.sha }}
   cancel-in-progress: ${{ github.ref == 'refs/heads/release' }}
 
 jobs:
