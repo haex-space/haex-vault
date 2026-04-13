@@ -28,10 +28,11 @@ on:
 
 concurrency:
   # On release: shared group per branch → new push cancels previous (serial).
-  # Elsewhere: unique group per commit → runs in parallel (no queue, no cancel).
-  # This lets main / feature / PR pushes all build concurrently without
-  # blocking each other, while release stays disciplined.
-  group: build-${{ github.ref == 'refs/heads/release' && 'release' || github.sha }}
+  # Elsewhere: unique group per RUN → every invocation gets its own bucket,
+  # so a workflow_call from release.yml never queues behind the push-Build
+  # that was triggered for the same commit. (Previous expression used
+  # github.sha which collided in exactly that case.)
+  group: build-${{ github.ref == 'refs/heads/release' && 'release' || github.run_id }}
   cancel-in-progress: ${{ github.ref == 'refs/heads/release' }}
 
 jobs:
