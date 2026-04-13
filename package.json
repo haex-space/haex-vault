@@ -61,7 +61,7 @@
     "html5-qrcode": "^2.3.8",
     "md-editor-v3": "^6.4.1",
     "nuxt-zod-i18n": "^1.12.1",
-    "pdfjs-dist": "^5.5.207",
+    "pdfjs-dist": "^5.6.205",
     "qrcode": "^1.5.4",
     "swiper": "^12.1.2",
     "tailwindcss": "^4.2.1",
