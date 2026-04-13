@@ -1,14 +1,19 @@
 name: Release
 
 # Release pipeline operates on the `release` branch:
-#   1. prepare: fetch main, fast-forward release with main's commits, bump version,
-#      push to release-prep/vX.Y.Z, open PR to release with auto-merge enabled.
-#   2. wait-for-merge: poll until the prep PR merges (CI Success on release branch
-#      protection ensures the bumped commit passed all tests before tagging).
-#   3. tag-release: tag the merged release commit as vX.Y.Z.
-#   4. create-draft-release / build-desktop / build-android / publish-release:
-#      same as before, all checking out the new tag.
-#   5. sync-to-main: open a PR back to main with the bump commit so main's version
+#   1. prepare-release: fetch main, fast-forward release with main's commits, bump version,
+#      push to release-prep/vX.Y.Z.
+#   2. verify-prep: call build.yml via workflow_call on the prep branch so the
+#      full CI suite (tests + desktop/android builds + e2e) runs against the
+#      bumped commit. This replaces the old PR + branch-protection gate that
+#      couldn't trigger build.yml from a bot-authored PR (GitHub's
+#      anti-recursion rule blocks workflow events from the GITHUB_TOKEN).
+#   3. merge-prep: if verify succeeds, fast-forward release to prep HEAD and
+#      push directly (no PR, no auto-merge dance).
+#   4. tag-release: tag the release commit as vX.Y.Z.
+#   5. create-draft-release / build-desktop / build-android / publish-release:
+#      check out the new tag, build release artifacts, upload to GitHub release.
+#   6. sync-to-main: open a PR back to main with the bump commit so main's version
 #      files catch up (auto-merge enabled — fails open if there's a conflict).
 
 on:
@@ -34,7 +39,9 @@ concurrency:
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────
-  # Compute version, build prep branch (release + main + bump), open PR
+  # Compute version, build prep branch (release + main + bump), push it.
+  # No PR is created — verify-prep below runs CI against the pushed branch
+  # and merge-prep fast-forwards release directly on success.
   # ─────────────────────────────────────────────────────────────────────────
   prepare-release:
     runs-on: ubuntu-22.04
@@ -42,7 +49,6 @@ jobs:
       new_version: ${{ steps.compute.outputs.new_version }}
       tag_name: ${{ steps.compute.outputs.tag_name }}
       prep_branch: ${{ steps.compute.outputs.prep_branch }}
-      pr_number: ${{ steps.create-pr.outputs.pr_number }}
     steps:
       - name: Checkout main
         uses: actions/checkout@v6
@@ -160,77 +166,88 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
           git commit -m "Bump version to $NEW_VERSION"
-          git push origin "$PREP_BRANCH"
-
-      - name: Open PR to release with auto-merge
-        id: create-pr
-        env:
-          NEW_VERSION: ${{ steps.compute.outputs.new_version }}
-          PREP_BRANCH: ${{ steps.compute.outputs.prep_branch }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          PR_URL=$(gh pr create \
-            --base release \
-            --head "$PREP_BRANCH" \
-            --title "chore(release): v$NEW_VERSION" \
-            --body "Automated release prep for v$NEW_VERSION. Auto-merge enabled — release pipeline continues after CI Success on this PR.")
-          PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
-          gh pr merge "$PR_NUMBER" --squash --auto
-          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
-          echo "Created PR #$PR_NUMBER → release: $PR_URL"
+          # --force so a re-run after a failure can overwrite the stale
+          # branch from the previous attempt. Safe here because the prep
+          # branch is ephemeral and owned exclusively by this pipeline.
+          git push --force origin "$PREP_BRANCH"
 
   # ─────────────────────────────────────────────────────────────────────────
-  # Block until the prep PR is merged (or fail if it gets closed)
+  # Run the full CI suite against the prep branch by calling build.yml as a
+  # reusable workflow. This is the replacement for the old "PR + branch
+  # protection" gate — workflow_call runs explicitly inside the release
+  # workflow context, so it doesn't hit GitHub's anti-recursion rule.
   # ─────────────────────────────────────────────────────────────────────────
-  wait-for-merge:
+  verify-prep:
     needs: prepare-release
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    outputs:
-      merged_sha: ${{ steps.wait.outputs.merged_sha }}
-    steps:
-      - name: Poll for prep PR merge
-        id: wait
-        env:
-          PR_NUMBER: ${{ needs.prepare-release.outputs.pr_number }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          while true; do
-            STATE=$(gh pr view "$PR_NUMBER" --json state --jq '.state')
-            echo "$(date -u +%H:%M:%S): PR #$PR_NUMBER state = $STATE"
-            case "$STATE" in
-              MERGED)
-                MERGED_SHA=$(gh pr view "$PR_NUMBER" --json mergeCommit --jq '.mergeCommit.oid')
-                echo "Merged at: $MERGED_SHA"
-                echo "merged_sha=$MERGED_SHA" >> "$GITHUB_OUTPUT"
-                exit 0
-                ;;
-              CLOSED)
-                echo "::error::Prep PR was closed without merging — release aborted"
-                exit 1
-                ;;
-            esac
-            sleep 30
-          done
+    uses: ./.github/workflows/build.yml
+    with:
+      ref: ${{ needs.prepare-release.outputs.prep_branch }}
+    secrets: inherit
 
   # ─────────────────────────────────────────────────────────────────────────
-  # Tag the merged release commit as vX.Y.Z
+  # Fast-forward release branch to prep HEAD and push.
+  # No PR dance: verify-prep above is our gate; if we got here, CI is green.
+  # ─────────────────────────────────────────────────────────────────────────
+  merge-prep:
+    needs: [prepare-release, verify-prep]
+    runs-on: ubuntu-22.04
+    outputs:
+      merged_sha: ${{ steps.merge.outputs.merged_sha }}
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v6
+        with:
+          ref: release
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fast-forward release to prep HEAD
+        id: merge
+        env:
+          PREP_BRANCH: ${{ needs.prepare-release.outputs.prep_branch }}
+        run: |
+          git fetch origin "$PREP_BRANCH"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # FF-only: if release has drifted ahead of prep somehow, bail
+          # instead of creating a merge commit or rewriting history.
+          if ! git merge --ff-only "origin/$PREP_BRANCH"; then
+            echo "::error::release is not a fast-forward of $PREP_BRANCH. Manual reconciliation required."
+            exit 1
+          fi
+          git push origin release
+          MERGED_SHA=$(git rev-parse HEAD)
+          echo "merged_sha=$MERGED_SHA" >> "$GITHUB_OUTPUT"
+          echo "release fast-forwarded to $MERGED_SHA"
+
+      - name: Delete prep branch
+        env:
+          PREP_BRANCH: ${{ needs.prepare-release.outputs.prep_branch }}
+        run: |
+          # Cleanup: prep branch has done its job and release now points at
+          # the same commit. Leaving it around makes re-runs fail with
+          # non-fast-forward on the next same-version attempt.
+          git push origin --delete "$PREP_BRANCH" || \
+            echo "::warning::could not delete $PREP_BRANCH (may already be gone)"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Tag the release commit as vX.Y.Z
   # ─────────────────────────────────────────────────────────────────────────
   tag-release:
-    needs: [prepare-release, wait-for-merge]
+    needs: [prepare-release, merge-prep]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout merged commit
         uses: actions/checkout@v6
         with:
-          ref: ${{ needs.wait-for-merge.outputs.merged_sha }}
+          ref: ${{ needs.merge-prep.outputs.merged_sha }}
           fetch-depth: 0
           fetch-tags: true
 
       - name: Tag and push
         env:
           TAG_NAME: ${{ needs.prepare-release.outputs.tag_name }}
-          MERGED_SHA: ${{ needs.wait-for-merge.outputs.merged_sha }}
+          MERGED_SHA: ${{ needs.merge-prep.outputs.merged_sha }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

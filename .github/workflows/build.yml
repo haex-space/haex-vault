@@ -15,6 +15,16 @@ on:
       - develop
       - release
   workflow_dispatch:
+  # Expose as reusable workflow so release.yml can verify a prep branch
+  # directly, sidestepping the anti-recursion rule that blocks build.yml
+  # from triggering via bot-created PR events.
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Git ref to check out and verify (e.g. release-prep/vX.Y.Z)'
+        required: false
+        type: string
+        default: ''
 
 concurrency:
   # On release: shared group per branch → new push cancels previous (serial).
@@ -94,6 +104,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          # When invoked as a reusable workflow from release.yml, inputs.ref
+          # points at the prep branch we want to verify. For push/PR runs
+          # inputs.ref is empty and checkout falls back to the event's sha.
+          ref: ${{ inputs.ref || github.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -255,6 +270,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -363,6 +380,8 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
