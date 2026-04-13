@@ -159,13 +159,12 @@
 </template>
 
 <script setup lang="ts">
-import QRCode from 'qrcode'
 import { SettingsCategory } from '~/config/settingsCategories'
-import { publicKeyToDidKeyAsync } from '@haex-space/vault-sdk'
 import type { SelectHaexIdentities } from '~/database/schemas'
 import { SpaceType, SpaceCapability } from '~/database/constants'
-import { buildLocalInviteLink } from '~/utils/inviteLink'
 import { createLogger } from '@/stores/logging'
+import { useSpaceInviteCreation } from '@/composables/useSpaceInviteCreation'
+import { renderInviteQrAsync } from '~/utils/inviteQr'
 
 const log = createLogger('SPACES:INVITE-UI')
 
@@ -187,35 +186,40 @@ const identityStore = useIdentityStore()
 const peerStorageStore = usePeerStorageStore()
 const { contacts } = storeToRefs(identityStore)
 
-const isProcessing = ref(false)
+const {
+  inviteContactsAsync,
+  createLocalInviteLinkAsync,
+  createOnlineInviteLinkAsync,
+} = useSpaceInviteCreation()
+
+// Form state
 const selectedContactIds = ref<string[]>([])
 const inviteLabel = ref('')
 const maxUses = ref(1)
+const capWrite = ref(false)
+const capInvite = ref(false)
+const includeHistory = ref(true)
+const selectedExpiry = ref<{ label: string; value: number } | undefined>()
+const selectedDeviceIds = ref<string[]>([])
+
+// Submit / result state (UI-local — dialog toggles between form and result view)
+const isProcessing = ref(false)
 const generatedLink = ref('')
 const generatedExpiresAt = ref('')
 const qrCanvas = ref<HTMLCanvasElement>()
 
-// Capability checkboxes (read is always on)
-const capWrite = ref(false)
-const capInvite = ref(false)
-const includeHistory = ref(true)
-
-const selectedExpiry = ref<{ label: string; value: number } | undefined>()
-
-// Endpoint selection for local spaces
-const selectedDeviceIds = ref<string[]>([])
-
+// Reactive reads — UI depends on these for conditional rendering
 const isLocalSpace = computed(() => {
-  const space = spacesStore.spaces.find(s => s.id === props.spaceId)
+  const space = spacesStore.spaces.find((s) => s.id === props.spaceId)
   return space?.type === SpaceType.LOCAL
 })
 
 const spaceDevices = computed(() =>
-  peerStorageStore.spaceDevices.filter(d => d.spaceId === props.spaceId),
+  peerStorageStore.spaceDevices.filter((d) => d.spaceId === props.spaceId),
 )
 
 const deviceOptions = computed(() =>
-  spaceDevices.value.map(d => ({
+  spaceDevices.value.map((d) => ({
     label: d.deviceName,
     value: d.id,
     avatar: d.avatar,
@@ -225,8 +229,8 @@ const deviceOptions = computed(() =>
 
 const selectedSpaceEndpoints = computed(() =>
   spaceDevices.value
-    .filter(d => selectedDeviceIds.value.includes(d.id))
-    .map(d => d.deviceEndpointId),
+    .filter((d) => selectedDeviceIds.value.includes(d.id))
+    .map((d) => d.deviceEndpointId),
 )
 
 const selectedCapabilities = computed((): string[] => {
@@ -237,7 +241,7 @@ const selectedCapabilities = computed((): string[] => {
 })
 
 const selectedContacts = computed<SelectHaexIdentities[]>(() =>
-  contacts.value.filter(c => selectedContactIds.value.includes(c.id)),
+  contacts.value.filter((c) => selectedContactIds.value.includes(c.id)),
 )
 
 const dialogTitle = computed(() =>
@@ -249,7 +253,7 @@ const dialogDescription = computed(() =>
 )
 
 const contactOptions = computed(() =>
-  contacts.value.map(c => ({ label: c.label, value: c.id })),
+  contacts.value.map((c) => ({ label: c.label, value: c.id })),
 )
 
 const expiryOptions = computed(() => [
@@ -288,136 +292,72 @@ watch(open, async (isOpen) => {
       await identityStore.loadIdentitiesAsync()
     }
     await peerStorageStore.loadSpaceDevicesAsync()
-    selectedDeviceIds.value = spaceDevices.value.map(d => d.id)
+    selectedDeviceIds.value = spaceDevices.value.map((d) => d.id)
   }
 })
 
+const renderResultQrAsync = async () => {
+  await nextTick()
+  if (qrCanvas.value) {
+    await renderInviteQrAsync(qrCanvas.value, generatedLink.value)
+  }
+}
+
 const onSubmitAsync = async () => {
-  if (!canSubmit.value) return
+  if (!canSubmit.value || !selectedExpiry.value) return
   isProcessing.value = true
 
-  const capabilities = selectedCapabilities.value.join(', ')
-  log.info(`Invite submit: mode=${props.mode}, space=${props.spaceId}, capabilities=[${capabilities}], expiry=${selectedExpiry.value?.value}s`)
+  const capabilities = selectedCapabilities.value
+  log.info(
+    `Invite submit: mode=${props.mode}, space=${props.spaceId}, capabilities=[${capabilities.join(', ')}], expiry=${selectedExpiry.value.value}s`,
+  )
 
   try {
-    const space = spacesStore.spaces.find(s => s.id === props.spaceId)
-
     if (props.mode === 'contact') {
-      // Contact invite — dual-channel: always QUIC + server if available
-      log.info(`Inviting ${selectedContacts.value.length} contact(s) to space ${props.spaceId}`)
-      for (const contact of selectedContacts.value) {
-        const inviteeDid = await publicKeyToDidKeyAsync(contact.publicKey)
-        const claims = await identityStore.getClaimsAsync(contact.id)
-        const endpointIds = claims
-          .filter(c => c.type === 'endpointId' || c.type.startsWith('device:'))
-          .map(c => c.value)
-
-        log.info(`Processing contact "${contact.label}" (did: ${inviteeDid.slice(0, 24)}..., ${endpointIds.length} endpoint(s))`)
-
-        let serverInviteId: string | undefined
-
-        // 1. Server invite if available
-        if (space?.serverUrl) {
-          try {
-            const result = await spacesStore.inviteMemberAsync(
-              props.serverUrl,
-              props.spaceId,
-              inviteeDid,
-              selectedCapabilities.value[0]!,
-              props.identityId,
-              includeHistory.value,
-            )
-            serverInviteId = result.inviteId
-            log.info(`Server invite created: ${result.inviteId}`)
-          } catch (error) {
-            log.warn(`Server invite failed for "${contact.label}", continuing with QUIC`, error)
-          }
-        }
-
-        // 2. Always queue QUIC PushInvite (DB-based, works for both local and online spaces)
-        if (endpointIds.length > 0) {
-          try {
-            await spacesStore.queueQuicInviteAsync({
-              spaceId: props.spaceId,
-              tokenId: serverInviteId,
-              contactDid: inviteeDid,
-              contactEndpointIds: endpointIds,
-              capabilities: selectedCapabilities.value,
-              includeHistory: includeHistory.value,
-              expiresInSeconds: selectedExpiry.value!.value,
-            })
-            log.info(`QUIC invite queued for "${contact.label}" → ${endpointIds.length} endpoint(s)`)
-          } catch (error) {
-            // If server invite succeeded, QUIC failure is not fatal
-            if (!serverInviteId) throw error
-            log.warn(`QUIC invite failed for "${contact.label}", server invite was sent`, error)
-          }
-        } else {
-          log.warn(`No endpoints for "${contact.label}", QUIC invite skipped`)
-        }
-      }
-      log.info(`All contact invites processed for space ${props.spaceId}`)
+      await inviteContactsAsync({
+        spaceId: props.spaceId,
+        serverUrl: props.serverUrl,
+        identityId: props.identityId,
+        contacts: selectedContacts.value,
+        capabilities,
+        includeHistory: includeHistory.value,
+        expiresInSeconds: selectedExpiry.value.value,
+        localOnly: isLocalSpace.value,
+      })
       add({ title: t('success.invited'), color: 'success' })
       open.value = false
-    } else if (space?.type === SpaceType.LOCAL) {
-      // Local link/QR invite
-      log.info(`Creating local invite link for space ${props.spaceId} (maxUses: ${maxUses.value})`)
-      const { invoke } = await import('@tauri-apps/api/core')
-      const tokenId = await invoke<string>('local_delivery_create_invite', {
+    } else if (isLocalSpace.value) {
+      const result = await createLocalInviteLinkAsync({
         spaceId: props.spaceId,
-        targetDid: null,
-        capability: selectedCapabilities.value[0],
+        capability: capabilities[0]!,
         maxUses: maxUses.value,
-        expiresInSeconds: selectedExpiry.value!.value,
+        expiresInSeconds: selectedExpiry.value.value,
         includeHistory: includeHistory.value,
-      })
-
-      generatedLink.value = buildLocalInviteLink({
-        spaceId: props.spaceId,
-        tokenId,
         spaceEndpoints: selectedSpaceEndpoints.value,
       })
-      generatedExpiresAt.value = new Date(Date.now() + selectedExpiry.value!.value * 1000).toISOString()
-      log.info(`Local invite link created (token: ${tokenId}, endpoints: ${selectedSpaceEndpoints.value.length})`)
-
-      await nextTick()
-      if (qrCanvas.value) {
-        await QRCode.toCanvas(qrCanvas.value, generatedLink.value, {
-          width: 200,
-          margin: 1,
-          color: { dark: '#000000', light: '#ffffff' },
-        })
-      }
+      generatedLink.value = result.link
+      generatedExpiresAt.value = result.expiresAt
+      await renderResultQrAsync()
       add({ title: t('success.linkCreated'), color: 'success' })
     } else {
-      // Online space: invite link
-      log.info(`Creating online invite token for space ${props.spaceId} (maxUses: ${maxUses.value})`)
-      const result = await spacesStore.createInviteTokenAsync(
-        props.serverUrl,
-        props.spaceId,
-        {
-          capability: selectedCapabilities.value[0],
-          maxUses: maxUses.value,
-          expiresInSeconds: selectedExpiry.value!.value,
-          label: inviteLabel.value || undefined,
-        },
-      )
-      generatedLink.value = spacesStore.buildInviteLink(props.serverUrl, props.spaceId, result.tokenId)
+      const result = await createOnlineInviteLinkAsync({
+        spaceId: props.spaceId,
+        serverUrl: props.serverUrl,
+        capability: capabilities[0]!,
+        maxUses: maxUses.value,
+        expiresInSeconds: selectedExpiry.value.value,
+        label: inviteLabel.value || undefined,
+      })
+      generatedLink.value = result.link
       generatedExpiresAt.value = result.expiresAt
-      log.info(`Online invite link created (token: ${result.tokenId}, expires: ${result.expiresAt})`)
-
-      await nextTick()
-      if (qrCanvas.value) {
-        await QRCode.toCanvas(qrCanvas.value, generatedLink.value, {
-          width: 200,
-          margin: 1,
-          color: { dark: '#000000', light: '#ffffff' },
-        })
-      }
+      await renderResultQrAsync()
       add({ title: t('success.linkCreated'), color: 'success' })
     }
   } catch (error) {
-    log.error(`Invite failed (mode: ${props.mode}, space: ${props.spaceId})`, error)
+    log.error(
+      `Invite failed (mode: ${props.mode}, space: ${props.spaceId})`,
+      error,
+    )
     add({
       title: t('errors.failed'),
       description: error instanceof Error ? error.message : undefined,

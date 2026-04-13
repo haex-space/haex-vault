@@ -1,8 +1,7 @@
 import { eq, ne, and, inArray } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
-import { createAvatar } from '@dicebear/core'
-import * as toonHead from '@dicebear/toon-head'
 import { generateIdentityAsync, publicKeyToDidKeyAsync } from '@haex-space/vault-sdk'
+import { generateToonHeadAvatar } from '~/utils/identityAvatar'
 import {
   haexIdentities,
   haexIdentityClaims,
@@ -15,6 +14,7 @@ import {
   haexInviteOutbox,
   haexInviteTokens,
   type SelectHaexIdentities,
+  type SelectHaexIdentityClaims,
   type SelectHaexSpaces,
 } from '~/database/schemas'
 import { SpaceType } from '~/database/constants'
@@ -39,6 +39,14 @@ export const useIdentityStore = defineStore('identityStore', () => {
   // Computed views: own identities (have privateKey) vs contacts (no privateKey)
   const ownIdentities = computed(() => identities.value.filter(i => i.privateKey !== null))
   const contacts = computed(() => identities.value.filter(i => i.privateKey === null))
+
+  // Reactive claims cache keyed by identityId. Populated on-demand by
+  // `loadClaimsAsync`; invalidated (re-fetched) by the claim mutators below.
+  // Consumers that want a reactive array should use `getClaimsForIdentity(id)`.
+  const claimsByIdentity = ref<Record<string, SelectHaexIdentityClaims[]>>({})
+
+  const getClaimsForIdentity = (identityId: string) =>
+    computed(() => claimsByIdentity.value[identityId] ?? [])
 
   // Session-only: identity passwords set during creation, consumed on first backend registration
   const _identityPasswords = new Map<string, string>()
@@ -402,6 +410,12 @@ export const useIdentityStore = defineStore('identityStore', () => {
     const id = crypto.randomUUID()
     await db.insert(haexIdentityClaims).values({ id, identityId, type, value })
     log.info(`Added claim "${type}" for identity ${identityId.slice(0, 8)}...`)
+
+    // Refresh cache if the identity's claims were previously loaded.
+    if (identityId in claimsByIdentity.value) {
+      await loadClaimsAsync(identityId)
+    }
+
     return { id, identityId, type, value }
   }
 
@@ -411,16 +425,40 @@ export const useIdentityStore = defineStore('identityStore', () => {
     return db.select().from(haexIdentityClaims).where(eq(haexIdentityClaims.identityId, identityId))
   }
 
+  /**
+   * Loads claims for the given identity from the DB and populates the
+   * reactive cache. Subsequent reads via `getClaimsForIdentity(id)` see the
+   * cached result without re-hitting the DB.
+   */
+  const loadClaimsAsync = async (identityId: string) => {
+    const claims = await getClaimsAsync(identityId)
+    claimsByIdentity.value[identityId] = claims
+    return claims
+  }
+
   const updateClaimAsync = async (claimId: string, value: string) => {
     const db = currentVault.value?.drizzle
     if (!db) throw new Error('No vault open')
     await db.update(haexIdentityClaims).set({ value }).where(eq(haexIdentityClaims.id, claimId))
+
+    // Invalidate cache for any identity whose cached list contains this claim.
+    for (const [identityId, claims] of Object.entries(claimsByIdentity.value)) {
+      if (claims.some((c) => c.id === claimId)) {
+        await loadClaimsAsync(identityId)
+      }
+    }
   }
 
   const deleteClaimAsync = async (claimId: string) => {
     const db = currentVault.value?.drizzle
     if (!db) throw new Error('No vault open')
     await db.delete(haexIdentityClaims).where(eq(haexIdentityClaims.id, claimId))
+
+    for (const [identityId, claims] of Object.entries(claimsByIdentity.value)) {
+      if (claims.some((c) => c.id === claimId)) {
+        await loadClaimsAsync(identityId)
+      }
+    }
   }
 
   const markClaimVerifiedAsync = async (claimId: string, serverUrl: string) => {
@@ -446,7 +484,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
     const label = locale === 'de' ? 'Meine Identität' : 'My Identity'
 
     const identity = await createIdentityAsync(label)
-    const avatar = createAvatar(toonHead, { seed: identity.publicKey }).toDataUri()
+    const avatar = generateToonHeadAvatar(identity.publicKey)
     await updateAvatarAsync(identity.id, avatar)
 
     log.info('Default identity created')
@@ -454,6 +492,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
 
   const reset = () => {
     identities.value = []
+    claimsByIdentity.value = {}
     _identityPasswords.clear()
   }
 
@@ -475,6 +514,9 @@ export const useIdentityStore = defineStore('identityStore', () => {
     addContactWithClaimsAsync,
     updateContactAsync,
     getContactByPublicKeyAsync,
+    claimsByIdentity,
+    getClaimsForIdentity,
+    loadClaimsAsync,
     addClaimAsync,
     getClaimsAsync,
     updateClaimAsync,
