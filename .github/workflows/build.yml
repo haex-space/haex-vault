@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - develop
+      - release
       - 'feature/**'
     tags-ignore:
       - '**'
@@ -12,6 +13,7 @@ on:
     branches:
       - main
       - develop
+      - release
   workflow_dispatch:
 
 concurrency:
@@ -283,6 +285,15 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      # Inject -dev.<sha> suffix for non-release builds. The release branch
+      # carries the canonical version and tags get built from release.yml,
+      # so we skip injection for those flows.
+      - name: Inject dev version suffix
+        if: github.ref != 'refs/heads/release' && !startsWith(github.ref, 'refs/tags/')
+        run: |
+          node scripts/inject-dev-version.js
+          cd src-tauri && cargo check && cd ..
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -436,6 +447,14 @@ jobs:
           # after migration squash/regeneration. The Rust build will re-copy from
           # src-tauri/database/migrations/ (the source of truth).
           find src-tauri/target -path "*/database/migrations" -type d -exec rm -rf {} + 2>/dev/null || true
+
+      # Inject -dev.<sha> suffix for non-release builds (release.yml builds
+      # from tags and skips this step entirely).
+      - name: Inject dev version suffix
+        if: github.ref != 'refs/heads/release' && !startsWith(github.ref, 'refs/tags/')
+        run: |
+          node scripts/inject-dev-version.js
+          cd src-tauri && cargo check && cd ..
 
       - name: Initialize Android project
         run: |
