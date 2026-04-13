@@ -118,6 +118,38 @@
               :data-testid="`space-invite-trigger-${space.id}`"
               @click.stop
             />
+            <!--
+              Custom slots for the dropdown items so each option carries a
+              stable per-space data-testid. Click on the inner span bubbles
+              up to the Reka UI item container, which fires onSelect — no
+              global window hook needed for E2E targeting.
+            -->
+            <template #invite-option-contact="{ item }">
+              <span
+                class="flex items-center gap-1.5"
+                :data-testid="`space-invite-option-contact-${space.id}`"
+              >
+                <UIcon
+                  v-if="item.icon"
+                  :name="item.icon"
+                  class="w-4 h-4"
+                />
+                <span>{{ item.label }}</span>
+              </span>
+            </template>
+            <template #invite-option-link="{ item }">
+              <span
+                class="flex items-center gap-1.5"
+                :data-testid="`space-invite-option-link-${space.id}`"
+              >
+                <UIcon
+                  v-if="item.icon"
+                  :name="item.icon"
+                  class="w-4 h-4"
+                />
+                <span>{{ item.label }}</span>
+              </span>
+            </template>
           </UDropdownMenu>
           <UiButton
             v-if="isAdmin"
@@ -330,11 +362,13 @@ const inviteMenuItems = computed(() => [
   [{
     label: t('invite.contact'),
     icon: 'i-lucide-user-plus',
+    slot: 'invite-option-contact' as const,
     onSelect: () => emit('invite-contact', props.space),
   },
   {
     label: t('invite.link'),
     icon: 'i-lucide-link',
+    slot: 'invite-option-link' as const,
     onSelect: () => emit('invite-link', props.space),
   }],
 ])
