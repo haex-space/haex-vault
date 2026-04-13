@@ -1,25 +1,33 @@
 #!/usr/bin/env node
 
-// Injects a dev-version suffix into the version files (working tree only —
-// does NOT commit). Used for non-release builds (CI on main, local dev,
+// Injects a numeric pre-release suffix into the version files (working tree
+// only — does NOT commit). Used for non-release builds (CI on main, local dev,
 // nightly builds) so the resulting binary's version is unambiguously
 // distinguishable from a real release.
 //
-// Format: <base-version>-dev.<short-sha>
-//   e.g. "1.9.0" + "5f3a2c1" → "1.9.0-dev.5f3a2c1"
+// Format: <base-version>-<commits-since-tag>
+//   e.g. base "1.9.0" + 5 commits after v1.9.0 tag → "1.9.0-5"
 //
-// SemVer 2.0.0 conformant: the "-dev.<sha>" portion is a pre-release
-// identifier, which sorts BEFORE the same base version without a suffix
-// (so "1.9.0-dev.5f3a2c1" < "1.9.0"). That's intentional — a dev build of
-// 1.9.0 should be considered earlier than the released 1.9.0.
+// Why numeric-only:
+//   The Windows MSI bundler enforces "optional pre-release identifier must
+//   be numeric-only and cannot be greater than 65535". Alphanumeric suffixes
+//   like "-dev.5f3a2c1" fail MSI bundling. Numeric commit count works on
+//   all platforms (Windows MSI, macOS DMG, Linux DEB/AppImage).
+//
+// SemVer 2.0.0 conformant: "1.9.0-5" is a pre-release of "1.9.0" and sorts
+// BEFORE the released "1.9.0" — exactly what we want for dev builds.
 //
 // Files patched:
 //   - package.json
 //   - src-tauri/tauri.conf.json
 //   - src-tauri/Cargo.toml
 //
-// Cargo.lock is updated by running `cargo check` afterwards (caller's
-// responsibility — this script only touches the source files).
+// Cargo.lock: NOT updated by this script. The downstream `cargo build` /
+// `tauri build` will automatically refresh the lock entry for the local
+// crate when it sees the version mismatch (cargo's default behavior — only
+// `--locked` / `--frozen` would fail, and tauri-action doesn't pass those).
+// Avoiding `cargo check` here is important: on Android-build runners that
+// step would compile the desktop dep tree (gdk-sys etc) and fail.
 
 import { readFileSync, writeFileSync } from 'fs';
 import { execFileSync } from 'child_process';
@@ -42,10 +50,33 @@ if (/-/.test(baseVersion)) {
   process.exit(0);
 }
 
-const shortSha = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
-const newVersion = `${baseVersion}-dev.${shortSha}`;
+// Count commits since the corresponding release tag. If no such tag exists
+// or HEAD is exactly at the tag, skip injection (the build is at a release).
+let commitCount;
+try {
+  const out = execFileSync(
+    'git',
+    ['rev-list', '--count', `v${baseVersion}..HEAD`],
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+  );
+  commitCount = parseInt(out.trim(), 10);
+} catch {
+  console.log(`Tag v${baseVersion} not found — skipping injection (cannot derive commit count).`);
+  process.exit(0);
+}
 
-console.log(`Injecting dev version: ${baseVersion} → ${newVersion}`);
+if (!Number.isFinite(commitCount) || commitCount <= 0) {
+  console.log(`HEAD is at v${baseVersion} (no commits ahead) — skipping injection.`);
+  process.exit(0);
+}
+
+if (commitCount > 65535) {
+  console.warn(`::warning::Commit count ${commitCount} exceeds MSI limit (65535) — clamping.`);
+  commitCount = 65535;
+}
+
+const newVersion = `${baseVersion}-${commitCount}`;
+console.log(`Injecting dev version: ${baseVersion} → ${newVersion} (${commitCount} commits since v${baseVersion})`);
 
 pkg.version = newVersion;
 writeFileSync(packageJsonPath, JSON.stringify(pkg, null, 2) + '\n');
@@ -59,4 +90,3 @@ const updatedCargo = cargoToml.replace(/^version = ".*"$/m, `version = "${newVer
 writeFileSync(cargoTomlPath, updatedCargo);
 
 console.log('Patched: package.json, src-tauri/tauri.conf.json, src-tauri/Cargo.toml');
-console.log('Note: run `cd src-tauri && cargo check` to update Cargo.lock');

@@ -293,9 +293,7 @@ jobs:
       # so we skip injection for those flows.
       - name: Inject dev version suffix
         if: github.ref != 'refs/heads/release' && !startsWith(github.ref, 'refs/tags/')
-        run: |
-          node scripts/inject-dev-version.js
-          cd src-tauri && cargo check && cd ..
+        run: node scripts/inject-dev-version.js
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
@@ -455,9 +453,7 @@ jobs:
       # from tags and skips this step entirely).
       - name: Inject dev version suffix
         if: github.ref != 'refs/heads/release' && !startsWith(github.ref, 'refs/tags/')
-        run: |
-          node scripts/inject-dev-version.js
-          cd src-tauri && cargo check && cd ..
+        run: node scripts/inject-dev-version.js
 
       - name: Initialize Android project
         run: |
