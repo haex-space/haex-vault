@@ -158,16 +158,31 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
-          git commit -m "Bump version to $NEW_VERSION"
-          git tag "$TAG_NAME"
-          git push origin main
-          git push origin "$TAG_NAME"
+
+          # Idempotent: commit only if files changed
+          if git diff --cached --quiet; then
+            echo "No version file changes (already at $NEW_VERSION) — skipping commit/push"
+          else
+            git commit -m "Bump version to $NEW_VERSION"
+            git push origin main
+          fi
+
+          # Idempotent: tag only if not already present locally
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Tag $TAG_NAME already exists locally"
+          else
+            git tag "$TAG_NAME"
+          fi
+
+          # Idempotent push: ok if remote already has identical tag
+          git push origin "$TAG_NAME" 2>&1 | grep -v "Everything up-to-date" || true
 
   # ─────────────────────────────────────────────────────────────────────────
   # Create a draft GitHub release with generated notes
   # ─────────────────────────────────────────────────────────────────────────
   create-draft-release:
     needs: version-bump
+    if: ${{ always() && needs.version-bump.result == 'success' }}
     runs-on: ubuntu-22.04
     outputs:
       release_id: ${{ steps.create-release.outputs.release_id }}
@@ -282,6 +297,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────
   build-desktop:
     needs: [version-bump, create-draft-release]
+    if: ${{ always() && needs.version-bump.result == 'success' && needs.create-draft-release.result == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -345,6 +361,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────
   build-android:
     needs: [version-bump, create-draft-release]
+    if: ${{ always() && needs.version-bump.result == 'success' && needs.create-draft-release.result == 'success' }}
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
@@ -493,6 +510,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────
   publish-release:
     needs: [create-draft-release, build-desktop, build-android]
+    if: ${{ always() && needs.create-draft-release.result == 'success' && needs.build-desktop.result == 'success' && needs.build-android.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Publish release
