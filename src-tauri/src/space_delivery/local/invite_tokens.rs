@@ -135,13 +135,18 @@ pub async fn create_conference_invite_token(
 // Token validation
 // ============================================================================
 
-/// Validate and consume an invite token. Returns (capability, Option<pre-created UCAN>).
+/// Read-only check that the token is claimable by this DID. Returns
+/// (capability, Option<pre-created UCAN>) without mutating `current_uses`.
+///
+/// Caller must invoke [`consume_invite`] **after** the claim has fully
+/// succeeded (MLS add_member, welcome buffered, response ready) so that a
+/// mid-flight crash or dropped network response does not permanently burn
+/// a `max_uses == 1` contact invite.
 ///
 /// Checks in-memory tokens first, then falls back to DB lookup for tokens
 /// created by other flows (e.g. queueQuicInviteAsync via Drizzle).
-pub async fn validate_and_consume_invite(
+pub async fn validate_invite(
     db: &DbConnection,
-    hlc: &Arc<Mutex<HlcService>>,
     invite_tokens: &Arc<RwLock<Vec<LocalInviteToken>>>,
     token_id: &str,
     claimer_did: &str,
@@ -156,7 +161,7 @@ pub async fn validate_and_consume_invite(
     }
 
     let token = tokens
-        .iter_mut()
+        .iter()
         .find(|t| t.id == token_id)
         .ok_or_else(|| DeliveryError::AccessDenied {
             reason: "Invalid invite token".to_string(),
@@ -172,15 +177,32 @@ pub async fn validate_and_consume_invite(
         });
     }
 
+    Ok((token.capability.clone(), token.pre_created_ucan.clone()))
+}
+
+/// Increment `current_uses` on the token and persist it. Call **only after**
+/// the claim flow has fully succeeded.
+pub async fn consume_invite(
+    db: &DbConnection,
+    hlc: &Arc<Mutex<HlcService>>,
+    invite_tokens: &Arc<RwLock<Vec<LocalInviteToken>>>,
+    token_id: &str,
+) -> Result<(), DeliveryError> {
+    let mut tokens = invite_tokens.write().await;
+
+    let token = tokens
+        .iter_mut()
+        .find(|t| t.id == token_id)
+        .ok_or_else(|| DeliveryError::AccessDenied {
+            reason: "Invalid invite token".to_string(),
+        })?;
+
     token.current_uses += 1;
     let current_uses = token.current_uses;
-    let capability = token.capability.clone();
-    let pre_ucan = token.pre_created_ucan.clone();
 
-    // Persist updated usage count to DB
-    let _ = update_token_usage(db, hlc, token_id, current_uses);
-
-    Ok((capability, pre_ucan))
+    // Persist updated usage count to DB (CRDT-synced)
+    update_token_usage(db, hlc, token_id, current_uses)?;
+    Ok(())
 }
 
 // ============================================================================

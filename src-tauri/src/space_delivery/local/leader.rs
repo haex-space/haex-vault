@@ -175,6 +175,15 @@ async fn notify_others_sync(
 // ============================================================================
 
 /// Handle a ClaimInvite request.
+///
+/// Flow is designed to be **idempotent under retry**: the only step that
+/// mutates the invite token's `current_uses` is [`invite_tokens::consume_invite`],
+/// and it runs at the very end, after MLS add_member and welcome buffering
+/// have succeeded. If a previous attempt already completed the MLS add_member
+/// but the response was lost in flight, the retry takes the fast path:
+/// load the existing UCAN from DB, re-serve the buffered Welcome, and
+/// **do not re-consume the token or re-call MLS add_member** (which would
+/// fail for an already-added DID).
 pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Response {
     let (space_id, token, did, endpoint_id, key_packages, label, public_key) = match request {
         Request::ClaimInvite {
@@ -195,11 +204,39 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
 
     debug_assert_eq!(space_id, state.space_id, "ClaimInvite routed to wrong leader");
 
-    // 1. Validate and consume invite token
+    // 1. Idempotency check — has this DID already been fully claimed once?
+    //    If the MLS add_member already ran in a prior attempt (e.g. the
+    //    invitee never received the response due to a dropped QUIC stream),
+    //    the UCAN is persisted in haex_ucan_tokens and the Welcome is in
+    //    the buffer. Re-serve that state without re-consuming the token.
+    if let Some((existing_cap, existing_ucan)) =
+        load_existing_claim(&state.db, &space_id, &did)
+    {
+        if let Some(welcome_b64) = fetch_buffered_welcome(&state.db, &space_id, &did) {
+            eprintln!(
+                "[SpaceDelivery] ClaimInvite: idempotent retry for {} in space {} — re-serving buffered welcome",
+                &did[..20.min(did.len())],
+                &space_id[..12.min(space_id.len())],
+            );
+            return Response::InviteClaimed {
+                welcome: welcome_b64,
+                ucan: existing_ucan,
+                capability: existing_cap,
+            };
+        }
+        // UCAN exists but no buffered welcome means the original welcome was
+        // already consumed by the invitee in a previous successful attempt.
+        // Fall through to error — the invitee cannot re-join the MLS group
+        // via the same invite once the welcome is consumed.
+        return Response::Error {
+            message: "This invite has already been fully claimed".to_string(),
+        };
+    }
+
+    // 2. Read-only validate — does not consume the token yet.
     let (capability, pre_ucan) =
-        match invite_tokens::validate_and_consume_invite(
+        match invite_tokens::validate_invite(
             &state.db,
-            &state.hlc,
             &state.invite_tokens,
             &token,
             &did,
@@ -214,7 +251,7 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
             }
         };
 
-    // 2. Determine UCAN: use pre-created (contact) or create now (conference)
+    // 3. Determine UCAN: use pre-created (contact) or create now (conference)
     let ucan_token = match pre_ucan {
         Some(ucan) => ucan,
         None => {
@@ -245,14 +282,14 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
         }
     };
 
-    // 3. Store key packages from invitee
+    // 4. Store key packages from invitee
     for pkg_b64 in &key_packages {
         if let Ok(blob) = base64_decode(pkg_b64) {
             let _ = buffer::store_key_package(&state.db, &space_id, &did, &blob);
         }
     }
 
-    // 4. Consume one key package for MLS add_member
+    // 5. Consume one key package for MLS add_member
     let key_package_blob = match buffer::consume_key_package(&state.db, &space_id, &did) {
         Ok(Some(blob)) => blob,
         Ok(None) => {
@@ -267,7 +304,7 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
         }
     };
 
-    // 5. MLS add_member
+    // 6. MLS add_member
     eprintln!(
         "[SpaceDelivery] ClaimInvite: adding {} to MLS group {} (key_package {} bytes)",
         &did[..20.min(did.len())],
@@ -289,7 +326,7 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
         }
     };
 
-    // 6. Store and broadcast commit to existing members
+    // 7. Store and broadcast commit to existing members
     if !bundle.commit.is_empty() {
         let msg_id = match buffer::store_message(&state.db, &space_id, &did, "commit", &bundle.commit) {
             Ok(id) => id,
@@ -314,7 +351,30 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
         notify_all_mls(state, &space_id, "commit").await;
     }
 
-    // 7. Register peer as connected
+    // 8. Extract welcome — required for MLS group entry
+    let welcome_blob = match bundle.welcome {
+        Some(w) => w,
+        None => {
+            return Response::Error {
+                message: "MLS add_member produced no welcome".to_string(),
+            };
+        }
+    };
+
+    // 9. Buffer welcome for retry idempotency. If the invitee never receives
+    //    the response due to a dropped stream, the next ClaimInvite attempt
+    //    hits the idempotency fast path above and re-serves this buffered
+    //    welcome instead of re-running MLS add_member.
+    if let Err(e) = buffer::store_welcome(&state.db, &space_id, &did, &welcome_blob) {
+        eprintln!("[SpaceDelivery] Failed to buffer welcome: {e}");
+    }
+
+    // 10. Persist UCAN token to admin's local DB (CRDT-synced). Needed so
+    //     future invite retries by this DID can recognize the already-claimed
+    //     state (see step 1 idempotency check).
+    persist_admin_ucan(state, &space_id, &did, &capability, &ucan_token);
+
+    // 11. Register peer as connected
     let member_label = label.clone();
     state.connected_peers.write().await.insert(
         endpoint_id.clone(),
@@ -329,7 +389,7 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
         },
     );
 
-    // 7b. Persist new member to haex_space_members (CRDT-synced to all devices)
+    // 12. Persist new member to haex_space_members (CRDT-synced to all devices)
     if let Some(ref pk) = public_key {
         let hlc = state.hlc.lock().map_err(|e| format!("HLC lock error: {e}")).ok();
         if let Some(ref hlc_guard) = hlc {
@@ -362,16 +422,128 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
         }
     }
 
-    // 8. Return welcome + UCAN
-    match bundle.welcome {
-        Some(welcome) => Response::InviteClaimed {
-            welcome: base64_encode(&welcome),
-            ucan: ucan_token,
-            capability,
-        },
-        None => Response::Error {
-            message: "MLS add_member produced no welcome".to_string(),
-        },
+    // 13. Consume the token — **only now**, after the claim has fully
+    //     succeeded. If anything above failed, the token is still unspent
+    //     and the invitee can retry without a manually re-issued invite.
+    if let Err(e) = invite_tokens::consume_invite(
+        &state.db,
+        &state.hlc,
+        &state.invite_tokens,
+        &token,
+    )
+    .await
+    {
+        // Log but don't fail the response — the claim succeeded, only the
+        // usage-count persistence failed. At worst the token is usable once
+        // more, which is a recoverable soft failure.
+        eprintln!("[SpaceDelivery] Failed to consume invite token: {e}");
+    }
+
+    // 14. Return welcome + UCAN
+    Response::InviteClaimed {
+        welcome: base64_encode(&welcome_blob),
+        ucan: ucan_token,
+        capability,
+    }
+}
+
+/// Look up an already-granted UCAN for this DID in this space, if any.
+/// Returns (capability, ucan_token) so the idempotency path can re-serve
+/// exactly the same values a previous successful claim produced.
+fn load_existing_claim(
+    db: &crate::database::DbConnection,
+    space_id: &str,
+    claimer_did: &str,
+) -> Option<(String, String)> {
+    let rows = crate::database::core::select_with_crdt(
+        "SELECT capability, token FROM haex_ucan_tokens \
+         WHERE space_id = ?1 AND audience_did = ?2 \
+         ORDER BY issued_at DESC LIMIT 1"
+            .to_string(),
+        vec![
+            serde_json::Value::String(space_id.to_string()),
+            serde_json::Value::String(claimer_did.to_string()),
+        ],
+        db,
+    )
+    .ok()?;
+
+    let row = rows.first()?;
+    let capability = row.first()?.as_str()?.to_string();
+    let ucan = row.get(1)?.as_str()?.to_string();
+    Some((capability, ucan))
+}
+
+/// Fetch an unconsumed buffered welcome for this recipient in this space,
+/// base64-encoded for transport. Returns `None` if none is buffered.
+fn fetch_buffered_welcome(
+    db: &crate::database::DbConnection,
+    space_id: &str,
+    recipient_did: &str,
+) -> Option<String> {
+    let entries = buffer::fetch_welcomes(db, space_id, recipient_did).ok()?;
+    let (_id, blob) = entries.into_iter().next()?;
+    Some(base64_encode(&blob))
+}
+
+/// Persist the granted UCAN on the admin's side so subsequent idempotent
+/// retries can recognize an already-claimed invite. Errors are logged and
+/// swallowed: the UCAN was successfully delivered to the invitee regardless,
+/// and losing this row only means the next retry will not take the fast path.
+///
+/// Skips insertion if a row for this `(space_id, audience_did)` already
+/// exists — avoids duplicate entries when CRDT sync later propagates the
+/// claimant-side self-issued UCAN row back to the admin.
+fn persist_admin_ucan(
+    state: &LeaderState,
+    space_id: &str,
+    audience_did: &str,
+    capability: &str,
+    ucan_token: &str,
+) {
+    if load_existing_claim(&state.db, space_id, audience_did).is_some() {
+        return;
+    }
+
+    let admin = match super::ucan::load_admin_identity(&state.db, space_id) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("[SpaceDelivery] persist_admin_ucan: load admin failed: {e}");
+            return;
+        }
+    };
+
+    let hlc_guard = match state.hlc.lock() {
+        Ok(g) => g,
+        Err(_) => {
+            eprintln!("[SpaceDelivery] persist_admin_ucan: HLC lock poisoned");
+            return;
+        }
+    };
+
+    let ucan_id = uuid::Uuid::new_v4().to_string();
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+    let sql = "INSERT OR IGNORE INTO haex_ucan_tokens \
+        (id, space_id, issuer_did, audience_did, capability, token, issued_at, expires_at) \
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+        .to_string();
+    let params = vec![
+        JsonValue::String(ucan_id),
+        JsonValue::String(space_id.to_string()),
+        JsonValue::String(admin.did),
+        JsonValue::String(audience_did.to_string()),
+        JsonValue::String(capability.to_string()),
+        JsonValue::String(ucan_token.to_string()),
+        JsonValue::Number(serde_json::Number::from(now_secs)),
+        JsonValue::Number(serde_json::Number::from(now_secs + 86400 * 365)),
+    ];
+    if let Err(e) =
+        crate::database::core::execute_with_crdt(sql, params, &state.db, &hlc_guard)
+    {
+        eprintln!("[SpaceDelivery] persist_admin_ucan: insert failed: {e}");
     }
 }
 
