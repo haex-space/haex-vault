@@ -60,7 +60,8 @@
         <div
           v-for="space in filteredSpaces"
           :key="space.id"
-      >
+          class="rounded-lg border border-default bg-default/40 px-3"
+        >
         <UCollapsible
           :open="expandedSpaces.has(space.id)"
           :unmount-on-hide="false"
@@ -79,6 +80,12 @@
               <div class="min-w-0 flex-1">
                 <div class="flex flex-wrap items-center gap-1.5">
                   <span class="font-medium truncate">{{ space.name }}</span>
+                  <UTooltip :text="`${t('spaceId')}: ${space.id}`">
+                    <UIcon
+                      name="i-lucide-info"
+                      class="w-3.5 h-3.5 text-muted"
+                    />
+                  </UTooltip>
                   <UBadge
                     variant="subtle"
                     color="neutral"
@@ -88,9 +95,6 @@
                     {{ t('ownerBadge', { name: getOwnerName(space.ownerIdentityId) }) }}
                   </UBadge>
                 </div>
-                <p class="text-xs text-muted font-mono truncate">
-                  {{ t('spaceId') }}: {{ space.id }}
-                </p>
               </div>
               <UBadge
                 variant="subtle"
