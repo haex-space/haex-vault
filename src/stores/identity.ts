@@ -1,7 +1,15 @@
-import { eq, ne, and, inArray } from 'drizzle-orm'
+import { eq, ne, and, inArray, isNotNull } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
-import { generateIdentityAsync, publicKeyToDidKeyAsync } from '@haex-space/vault-sdk'
-import { generateToonHeadAvatar } from '~/utils/identityAvatar'
+import {
+  arrayBufferToBase64,
+  didKeyToPublicKeyAsync,
+  publicKeyToDidKeyAsync,
+  SIGNING_ALGO,
+} from '@haex-space/vault-sdk'
+import {
+  generateAvatarFromOptions,
+  generateRandomAvatarOptions,
+} from '~/utils/identityAvatar'
 import {
   haexIdentities,
   haexIdentityClaims,
@@ -23,14 +31,33 @@ import { requireDb } from '~/stores/vault'
 
 export interface ExportedIdentity {
   did: string
-  label: string
-  publicKey: string
+  name: string
+  publicKey?: string
   privateKey: string
   avatar?: string | null
   claims?: { type: string; value: string }[]
 }
 
 const log = createLogger('IDENTITY')
+
+const generateSigningIdentityAsync = async (): Promise<{ did: string; signingPrivateKey: string }> => {
+  const signing = await crypto.subtle.generateKey(
+    SIGNING_ALGO,
+    true,
+    ['sign', 'verify'],
+  ) as CryptoKeyPair
+
+  const [publicKey, privateKey] = await Promise.all([
+    crypto.subtle.exportKey('spki', signing.publicKey),
+    crypto.subtle.exportKey('pkcs8', signing.privateKey),
+  ])
+  const signingPublicKey = arrayBufferToBase64(publicKey)
+
+  return {
+    did: await publicKeyToDidKeyAsync(signingPublicKey),
+    signingPrivateKey: arrayBufferToBase64(privateKey),
+  }
+}
 
 export const useIdentityStore = defineStore('identityStore', () => {
   const { currentVault } = storeToRefs(useVaultStore())
@@ -39,7 +66,9 @@ export const useIdentityStore = defineStore('identityStore', () => {
 
   // Computed views: own identities (have privateKey) vs contacts (no privateKey)
   const ownIdentities = computed(() => identities.value.filter(i => i.privateKey !== null))
-  const contacts = computed(() => identities.value.filter(i => i.privateKey === null))
+  const contacts = computed(() =>
+    identities.value.filter(i => i.privateKey === null && i.source === 'contact'),
+  )
 
   // Reactive claims cache keyed by identityId. Populated on-demand by
   // `loadClaimsAsync`; invalidated (re-fetched) by the claim mutators below.
@@ -72,31 +101,32 @@ export const useIdentityStore = defineStore('identityStore', () => {
   }
 
   /** Register a temporary identity in-memory (e.g. from server recovery before vault is open) */
-  const registerTemporaryIdentity = (identity: { id: string; publicKey: string; privateKey: string; did: string; label: string }) => {
+  const registerTemporaryIdentity = (identity: { id: string; privateKey: string; did: string; name: string }) => {
     if (identities.value.find(i => i.id === identity.id)) return
     identities.value.push({
       id: identity.id,
-      publicKey: identity.publicKey,
       privateKey: identity.privateKey,
       did: identity.did,
-      label: identity.label,
+      name: identity.name,
+      source: 'contact',
+      avatarOptions: null,
       avatar: null,
       notes: null,
       createdAt: new Date().toISOString(),
     } as SelectHaexIdentities)
   }
 
-  const createIdentityAsync = async (label: string): Promise<SelectHaexIdentities> => {
+  const createIdentityAsync = async (name: string): Promise<SelectHaexIdentities> => {
     const db = requireDb()
 
-    const { did, signingPublicKey, signingPrivateKey } = await generateIdentityAsync()
+    const { did, signingPrivateKey } = await generateSigningIdentityAsync()
 
     const id = crypto.randomUUID()
     const newIdentity = {
       id,
-      label,
+      name,
       did,
-      publicKey: signingPublicKey,
+      source: 'contact',
       privateKey: signingPrivateKey,
       avatar: null,
       notes: null,
@@ -108,7 +138,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
       .insert(haexIdentities)
       .values(newIdentity)
 
-    log.info(`Created identity "${label}" with DID ${did.slice(0, 30)}...`)
+    log.info(`Created identity "${name}" with DID ${did.slice(0, 30)}...`)
 
     await loadIdentitiesAsync()
     return newIdentity
@@ -116,42 +146,48 @@ export const useIdentityStore = defineStore('identityStore', () => {
 
   // ─── Contact methods (merged from contacts store) ─────────────────────
 
-  const addContactAsync = async (label: string, publicKey: string, notes?: string): Promise<SelectHaexIdentities> => {
+  const addContactAsync = async (name: string, publicKey: string, notes?: string): Promise<SelectHaexIdentities> => {
     const db = requireDb()
+    const did = await publicKeyToDidKeyAsync(publicKey)
     const existing = await db.select()
       .from(haexIdentities)
-      .where(eq(haexIdentities.publicKey, publicKey))
+      .where(eq(haexIdentities.did, did))
       .limit(1)
     if (existing.length > 0) {
       throw new Error('An identity with this public key already exists')
     }
 
-    const did = await publicKeyToDidKeyAsync(publicKey)
     const id = crypto.randomUUID()
-    await db.insert(haexIdentities).values({ id, label, publicKey, did, notes })
+    await db.insert(haexIdentities).values({
+      id,
+      name,
+      did,
+      source: 'contact',
+      notes,
+    })
 
-    log.info(`Added contact "${label}" (${publicKey.slice(0, 16)}...)`)
+    log.info(`Added contact "${name}" (${did.slice(0, 24)}...)`)
     await loadIdentitiesAsync()
     return identities.value.find(i => i.id === id)!
   }
 
   const addContactWithClaimsAsync = async (
-    label: string,
+    name: string,
     publicKey: string,
     claims: { type: string; value: string }[],
     notes?: string,
   ): Promise<SelectHaexIdentities> => {
-    const contact = await addContactAsync(label, publicKey, notes)
+    const contact = await addContactAsync(name, publicKey, notes)
 
     for (const claim of claims) {
       await addClaimAsync(contact.id, claim.type, claim.value)
     }
 
-    log.info(`Added contact "${label}" with ${claims.length} claims`)
+    log.info(`Added contact "${name}" with ${claims.length} claims`)
     return contact
   }
 
-  const updateContactAsync = async (id: string, updates: { label?: string; notes?: string; avatar?: string | null }) => {
+  const updateContactAsync = async (id: string, updates: { name?: string; notes?: string; avatar?: string | null }) => {
     const db = requireDb()
 
     await db.update(haexIdentities)
@@ -163,13 +199,8 @@ export const useIdentityStore = defineStore('identityStore', () => {
   }
 
   const getContactByPublicKeyAsync = async (publicKey: string): Promise<SelectHaexIdentities | undefined> => {
-    const db = requireDb()
-
-    const rows = await db.select()
-      .from(haexIdentities)
-      .where(eq(haexIdentities.publicKey, publicKey))
-      .limit(1)
-    return rows[0]
+    const did = await publicKeyToDidKeyAsync(publicKey)
+    return getIdentityByDidAsync(did)
   }
 
   // ─── Identity lookup / update ─────────────────────────────────────────
@@ -261,7 +292,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
     // 3. Delete the identity (claims cascade via FK)
     await db.delete(haexIdentities).where(eq(haexIdentities.id, identityId))
 
-    log.info(`Deleted identity ${identity.publicKey.slice(0, 20)}... (${adminSpaces.length} admin spaces deleted, ${memberSpaces.length} member spaces cleaned)`)
+    log.info(`Deleted identity ${identity.did.slice(0, 20)}... (${adminSpaces.length} admin spaces deleted, ${memberSpaces.length} member spaces cleaned)`)
     await loadIdentitiesAsync()
   }
 
@@ -280,18 +311,23 @@ export const useIdentityStore = defineStore('identityStore', () => {
     return rows[0]
   }
 
-  const getIdentityByPublicKeyAsync = async (publicKey: string): Promise<SelectHaexIdentities | undefined> => {
+  const getIdentityByDidAsync = async (did: string): Promise<SelectHaexIdentities | undefined> => {
     if (!currentVault.value?.drizzle) {
-      return identities.value.find(i => i.publicKey === publicKey)
+      return identities.value.find(i => i.did === did)
     }
 
     const rows = await currentVault.value.drizzle
       .select()
       .from(haexIdentities)
-      .where(eq(haexIdentities.publicKey, publicKey))
+      .where(eq(haexIdentities.did, did))
       .limit(1)
 
     return rows[0]
+  }
+
+  const getIdentityByPublicKeyAsync = async (publicKey: string): Promise<SelectHaexIdentities | undefined> => {
+    const did = await publicKeyToDidKeyAsync(publicKey)
+    return getIdentityByDidAsync(did)
   }
 
   const updateLabelAsync = async (identityId: string, label: string) => {
@@ -299,7 +335,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
 
     await db
       .update(haexIdentities)
-      .set({ label })
+      .set({ name: label })
       .where(eq(haexIdentities.id, identityId))
 
     log.info(`Updated identity ${identityId.slice(0, 8)}... label to "${label}"`)
@@ -317,31 +353,66 @@ export const useIdentityStore = defineStore('identityStore', () => {
     await loadIdentitiesAsync()
   }
 
+  const ensureIdentityForDidAsync = async (
+    did: string,
+    options?: { name?: string | null; avatar?: string | null; avatarOptions?: string | null; source?: 'space' | 'contact' },
+  ): Promise<SelectHaexIdentities> => {
+    const db = requireDb()
+    const existing = await getIdentityByDidAsync(did)
+    if (existing) {
+      if (options?.source === 'contact' && existing.source !== 'contact') {
+        await db.update(haexIdentities)
+          .set({ source: 'contact' })
+          .where(eq(haexIdentities.id, existing.id))
+        await loadIdentitiesAsync()
+        return (await getIdentityByIdAsync(existing.id))!
+      }
+      return existing
+    }
+
+    const id = crypto.randomUUID()
+    const newIdentity = {
+      id,
+      did,
+      name: options?.name || did.slice(0, 24),
+      source: options?.source || 'space',
+      privateKey: null,
+      avatar: options?.avatar ?? null,
+      avatarOptions: options?.avatarOptions ?? null,
+      notes: null,
+      createdAt: new Date().toISOString(),
+    } satisfies SelectHaexIdentities
+
+    await db.insert(haexIdentities).values(newIdentity)
+    await loadIdentitiesAsync()
+    return identities.value.find(i => i.id === id)!
+  }
+
   const exportIdentity = (identity: SelectHaexIdentities): ExportedIdentity => ({
     did: identity.did,
-    label: identity.label,
-    publicKey: identity.publicKey,
+    name: identity.name,
     privateKey: identity.privateKey!,
   })
 
   const importIdentityAsync = async (exported: ExportedIdentity): Promise<SelectHaexIdentities> => {
     const db = requireDb()
 
-    if (!exported.publicKey || !exported.privateKey || !exported.did) {
-      throw new Error('Invalid identity data: missing publicKey, privateKey, or did')
+    if (!exported.privateKey || !exported.did) {
+      throw new Error('Invalid identity data: missing privateKey or did')
     }
 
-    // Verify DID matches the public key
-    const derivedDid = await publicKeyToDidKeyAsync(exported.publicKey)
-    if (derivedDid !== exported.did) {
-      throw new Error('DID does not match the public key — the identity data may be corrupted')
+    if (exported.publicKey) {
+      const derivedDid = await publicKeyToDidKeyAsync(exported.publicKey)
+      if (derivedDid !== exported.did) {
+        throw new Error('DID does not match the public key — the identity data may be corrupted')
+      }
     }
 
-    // Check if identity already exists (same publicKey = same identity)
+    // Check if identity already exists (same DID = same identity)
     const existing = await db
       .select()
       .from(haexIdentities)
-      .where(eq(haexIdentities.publicKey, exported.publicKey))
+      .where(eq(haexIdentities.did, exported.did))
       .limit(1)
     if (existing.length > 0) {
       // Identity already exists — update private key if needed, return existing
@@ -352,11 +423,13 @@ export const useIdentityStore = defineStore('identityStore', () => {
     const id = crypto.randomUUID()
     const newIdentity = {
       id,
-      label: exported.label || `Imported ${exported.did.slice(0, 20)}...`,
+      name: exported.name || `Imported ${exported.did.slice(0, 20)}...`,
       did: exported.did,
-      publicKey: exported.publicKey,
+      source: 'contact',
       privateKey: exported.privateKey,
       avatar: exported.avatar || null,
+      avatarOptions: null,
+      notes: null,
     }
 
     await db
@@ -371,7 +444,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
       log.info(`Imported ${exported.claims.length} claims`)
     }
 
-    log.info(`Imported identity "${newIdentity.label}" with DID ${exported.did.slice(0, 30)}...`)
+    log.info(`Imported identity "${newIdentity.name}" with DID ${exported.did.slice(0, 30)}...`)
 
     await loadIdentitiesAsync()
     return identities.value.find(i => i.id === id)!
@@ -470,16 +543,54 @@ export const useIdentityStore = defineStore('identityStore', () => {
     const existing = await db
       .select()
       .from(haexIdentities)
+      .where(isNotNull(haexIdentities.privateKey))
       .limit(1)
 
-    if (existing.length > 0) return
-
     const locale = useNuxtApp().$i18n.locale.value
-    const label = locale === 'de' ? 'Meine Identität' : 'My Identity'
+    const name = locale.startsWith('de') ? 'Meine Identität' : 'My Identity'
 
-    const identity = await createIdentityAsync(label)
-    const avatar = generateToonHeadAvatar(identity.publicKey)
-    await updateAvatarAsync(identity.id, avatar)
+    if (existing.length > 0) {
+      const identity = existing[0]!
+      const updates: Partial<SelectHaexIdentities> = {}
+
+      if (!identity.name?.trim()) {
+        updates.name = name
+      }
+
+      const isLocalizedDefaultName = identity.name === 'Meine Identität' || identity.name === 'My Identity'
+      let avatarOptions: Record<string, unknown> | null = null
+      if (identity.avatarOptions) {
+        try {
+          avatarOptions = JSON.parse(identity.avatarOptions) as Record<string, unknown>
+        } catch {
+          avatarOptions = null
+        }
+      }
+      if (
+        isLocalizedDefaultName &&
+        (!avatarOptions || avatarOptions.style !== 'toon-head')
+      ) {
+        const nextAvatarOptions = generateRandomAvatarOptions('toon-head')
+        updates.avatar = generateAvatarFromOptions(nextAvatarOptions)
+        updates.avatarOptions = JSON.stringify(nextAvatarOptions)
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await db.update(haexIdentities)
+          .set(updates)
+          .where(eq(haexIdentities.id, identity.id))
+        await loadIdentitiesAsync()
+      }
+      return
+    }
+
+    const identity = await createIdentityAsync(name)
+    const avatarOptions = generateRandomAvatarOptions()
+    await updateAvatarAsync(
+      identity.id,
+      generateAvatarFromOptions(avatarOptions),
+      JSON.stringify(avatarOptions),
+    )
 
     log.info('Default identity created')
   }
@@ -499,7 +610,9 @@ export const useIdentityStore = defineStore('identityStore', () => {
     createIdentityAsync,
     deleteIdentityAsync,
     getIdentityByIdAsync,
+    getIdentityByDidAsync,
     getIdentityByPublicKeyAsync,
+    ensureIdentityForDidAsync,
     updateLabelAsync,
     updateAvatarAsync,
     exportIdentity,

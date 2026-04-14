@@ -1,5 +1,5 @@
 import { invoke, Channel } from '@tauri-apps/api/core'
-import { eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { createLogger } from '@/stores/logging'
 import { requireDb } from '~/stores/vault'
 import type { PeerStorageStatus } from '~/../src-tauri/bindings/PeerStorageStatus'
@@ -10,6 +10,7 @@ import {
   haexIdentities,
   haexPeerShares,
   haexSpaceDevices,
+  haexSpaceMembers,
   haexVaultSettings,
   type SelectHaexPeerShares,
   type SelectHaexSpaceDevices,
@@ -150,6 +151,27 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     await loadSpaceDevicesAsync()
   }
 
+  const resolveOwnIdentityForSpaceAsync = async (spaceId: string, ownerIdentityId: string) => {
+    const identityStore = useIdentityStore()
+    await identityStore.loadIdentitiesAsync()
+
+    const ownIdentityIds = identityStore.ownIdentities.map(i => i.id)
+    if (ownIdentityIds.length === 0) return undefined
+    if (ownIdentityIds.includes(ownerIdentityId)) return ownerIdentityId
+
+    const db = requireDb()
+    const [membership] = await db
+      .select({ identityId: haexSpaceMembers.identityId })
+      .from(haexSpaceMembers)
+      .where(and(
+        eq(haexSpaceMembers.spaceId, spaceId),
+        inArray(haexSpaceMembers.identityId, ownIdentityIds),
+      ))
+      .limit(1)
+
+    return membership?.identityId ?? ownIdentityIds[0]
+  }
+
   const unregisterDeviceFromSpaceAsync = async (deviceId: string) => {
     const db = requireDb()
 
@@ -200,12 +222,26 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     const deviceStore = useDeviceStore()
     const hostname = deviceStore.deviceName || deviceStore.hostname || 'Unknown'
 
-    for (const space of spacesStore.spaces) {
+    for (const space of spacesStore.visibleSpaces) {
+      const identityId = await resolveOwnIdentityForSpaceAsync(
+        space.id,
+        space.ownerIdentityId,
+      )
+
       // Check if already registered with current endpoint ID
       const existingById = spaceDevices.value.find(
         d => d.spaceId === space.id && d.deviceEndpointId === nodeId.value,
       )
-      if (existingById) continue
+      if (existingById) {
+        if (identityId && existingById.identityId !== identityId) {
+          await db
+            .update(haexSpaceDevices)
+            .set({ identityId, relayUrl: relayUrl.value })
+            .where(eq(haexSpaceDevices.id, existingById.id))
+          await loadSpaceDevicesAsync()
+        }
+        continue
+      }
 
       // Check if this device was previously registered with a different endpoint ID
       // (happens when vault is deleted and reconnected → new device key → new endpoint ID)
@@ -219,7 +255,11 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
           const oldEndpointId = staleEntry.deviceEndpointId
           await db
             .update(haexSpaceDevices)
-            .set({ deviceEndpointId: nodeId.value, relayUrl: relayUrl.value })
+            .set({
+              deviceEndpointId: nodeId.value,
+              identityId: identityId || staleEntry.identityId,
+              relayUrl: relayUrl.value,
+            })
             .where(eq(haexSpaceDevices.id, staleEntry.id))
           // Also migrate shares from old endpoint ID to new one
           await db
@@ -230,7 +270,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
           await loadSharesAsync()
           await invoke('peer_storage_reload_shares')
         } else {
-          await registerDeviceInSpaceAsync(space.id, hostname)
+          await registerDeviceInSpaceAsync(space.id, hostname, identityId)
         }
       } catch (e) {
         log.warn(`Failed to register in space ${space.id}:`, e)

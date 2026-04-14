@@ -1,5 +1,8 @@
 import type { SelectHaexIdentities } from '~/database/schemas'
-import { generateToonHeadAvatar } from '~/utils/identityAvatar'
+import {
+  generateAvatarFromOptions,
+  generateRandomAvatarOptions,
+} from '~/utils/identityAvatar'
 
 export interface CreateIdentityPayload {
   label: string
@@ -12,7 +15,7 @@ export interface CreateIdentityPayload {
 /**
  * Orchestrates the full identity-creation flow:
  *   1. Creates the identity (new keypair) via the store.
- *   2. Saves the chosen avatar, or generates a toon-head from the public key.
+ *   2. Saves the chosen avatar, or generates a random avatar configuration.
  *   3. Stashes the sync password (for the first backend registration).
  *   4. Batch-inserts any non-empty claims.
  *
@@ -27,7 +30,7 @@ export function useIdentityCreation() {
   ): Promise<SelectHaexIdentities> => {
     const identity = await identityStore.createIdentityAsync(payload.label)
 
-    // Avatar: use uploaded/customized image, or generate a deterministic one.
+    // Avatar: use uploaded/customized image, or generate a random one.
     if (payload.avatar) {
       const optionsJson = payload.avatarOptions
         ? JSON.stringify(payload.avatarOptions)
@@ -38,8 +41,12 @@ export function useIdentityCreation() {
         optionsJson,
       )
     } else {
-      const generated = generateToonHeadAvatar(identity.publicKey)
-      await identityStore.updateAvatarAsync(identity.id, generated)
+      const avatarOptions = payload.avatarOptions ?? generateRandomAvatarOptions()
+      await identityStore.updateAvatarAsync(
+        identity.id,
+        generateAvatarFromOptions(avatarOptions),
+        JSON.stringify(avatarOptions),
+      )
     }
 
     // Stash the sync password for first backend registration.

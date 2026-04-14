@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
 import type { Capability } from '@haex-space/ucan'
+import { didKeyToPublicKeyAsync } from '@haex-space/vault-sdk'
 import { haexSpaces, haexInviteTokens } from '~/database/schemas'
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
 import type { schema } from '~/database'
@@ -11,7 +12,7 @@ import { SpaceType, SpaceStatus } from '~/database/constants'
 import type { SpaceType as SpaceTypeValue } from '~/database/constants'
 import { createLogger } from '@/stores/logging'
 import { detectCrossServerInvite, setupFederationForSpace } from './federation'
-import { addMemberToSpace, addSelfAsSpaceMember } from './members'
+import { addSelfAsSpaceMember } from './members'
 import type { SpaceWithType, ResolvedIdentity } from './index'
 
 type DB = SqliteRemoteDatabase<typeof schema>
@@ -136,7 +137,7 @@ export async function claimInviteToken(
 
   const claimBody = JSON.stringify({
     keyPackages: keyPackagesBase64,
-    label: identity.label,
+    label: identity.name,
   })
   const response = await fetchWithDidAuth(
     `${serverUrl}/spaces/${spaceId}/invite-tokens/${tokenId}/claim`,
@@ -162,6 +163,7 @@ export async function claimInviteToken(
       name: '',
       type: SpaceType.ONLINE,
       status: SpaceStatus.ACTIVE,
+      ownerIdentityId: identity.id,
       serverUrl: relayServerUrl,
       createdAt: new Date().toISOString(),
     })
@@ -173,6 +175,7 @@ export async function claimInviteToken(
       name: '',
       type: SpaceType.ONLINE,
       status: SpaceStatus.ACTIVE,
+      ownerIdentityId: identity.id,
       serverUrl,
       createdAt: new Date().toISOString(),
     })
@@ -321,6 +324,10 @@ export async function acceptLocalInvite(
     spaceName?: string | null
     spaceType?: string | null
     originUrl?: string | null
+    inviterDid?: string | null
+    inviterLabel?: string | null
+    inviterAvatar?: string | null
+    inviterAvatarOptions?: string | null
     spaceEndpoints: string | null
     tokenId: string | null
   },
@@ -335,6 +342,15 @@ export async function acceptLocalInvite(
   await identityStore.loadIdentitiesAsync()
   const identity = identityStore.ownIdentities[0]
   if (!identity) throw new Error('No identity available')
+  if (!invite.inviterDid) throw new Error('Missing inviter DID for local invite')
+
+  const ownerIdentity = await identityStore.ensureIdentityForDidAsync(invite.inviterDid, {
+    name: invite.inviterLabel,
+    avatar: invite.inviterAvatar,
+    avatarOptions: invite.inviterAvatarOptions,
+    source: 'space',
+  })
+  const identityPublicKey = await didKeyToPublicKeyAsync(identity.did)
 
   const endpoints: string[] = JSON.parse(invite.spaceEndpoints)
   if (endpoints.length === 0) throw new Error('No space endpoints in invite')
@@ -352,8 +368,8 @@ export async function acceptLocalInvite(
         spaceName: invite.spaceName || invite.spaceId.slice(0, 8),
         tokenId: invite.tokenId,
         identityDid: identity.did,
-        label: identity.label || null,
-        identityPublicKey: identity.publicKey,
+        label: identity.name || null,
+        identityPublicKey,
       })
       log.info(`ClaimInvite: success to ${endpointId.slice(0, 16)}`)
       lastError = null
@@ -375,6 +391,7 @@ export async function acceptLocalInvite(
       name: invite.spaceName || invite.spaceId.slice(0, 8),
       type: (invite.spaceType as SpaceTypeValue) || SpaceType.LOCAL,
       status: SpaceStatus.ACTIVE,
+      ownerIdentityId: ownerIdentity.id,
       serverUrl: invite.originUrl || '',
       createdAt: new Date().toISOString(),
     })

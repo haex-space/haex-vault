@@ -1,7 +1,15 @@
 import { eq, and } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
-import { haexSpaceMembers, haexUcanTokens } from '~/database/schemas'
-import type { SelectHaexSpaceMembers } from '~/database/schemas'
+import { didKeyToPublicKeyAsync } from '@haex-space/vault-sdk'
+import {
+  haexIdentities,
+  haexSpaceMembers,
+  haexUcanTokens,
+} from '~/database/schemas'
+import type {
+  SelectHaexIdentities,
+  SelectHaexSpaceMembers,
+} from '~/database/schemas'
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
 import type { schema } from '~/database'
 import { createLogger } from '@/stores/logging'
@@ -10,6 +18,11 @@ type DB = SqliteRemoteDatabase<typeof schema>
 
 const log = createLogger('SPACES:MEMBERS')
 
+export interface SpaceMemberWithIdentity {
+  membership: SelectHaexSpaceMembers
+  identity: SelectHaexIdentities
+}
+
 /**
  * Add a member to a space. Derives and validates SPKI public key from DID.
  * Validates DID <-> public key match once at join time — after this, values are immutable.
@@ -17,38 +30,25 @@ const log = createLogger('SPACES:MEMBERS')
  */
 export async function addMemberToSpace(db: DB, params: {
   spaceId: string
-  memberDid: string
-  label: string
+  identityId: string
   role: string
-  avatar?: string | null
-  avatarOptions?: string | null
 }) {
-  const { didKeyToPublicKeyAsync } = await import('@haex-space/vault-sdk')
-  const memberPublicKey = await didKeyToPublicKeyAsync(params.memberDid)
-
   const existing = await db.select({ id: haexSpaceMembers.id })
     .from(haexSpaceMembers)
-    .where(and(eq(haexSpaceMembers.spaceId, params.spaceId), eq(haexSpaceMembers.memberDid, params.memberDid)))
+    .where(and(eq(haexSpaceMembers.spaceId, params.spaceId), eq(haexSpaceMembers.identityId, params.identityId)))
     .limit(1)
 
   if (existing.length > 0) {
     await db.update(haexSpaceMembers)
       .set({
-        label: params.label,
         role: params.role,
-        avatar: params.avatar ?? null,
-        avatarOptions: params.avatarOptions ?? null,
       })
-      .where(and(eq(haexSpaceMembers.spaceId, params.spaceId), eq(haexSpaceMembers.memberDid, params.memberDid)))
+      .where(and(eq(haexSpaceMembers.spaceId, params.spaceId), eq(haexSpaceMembers.identityId, params.identityId)))
   } else {
     await db.insert(haexSpaceMembers).values({
       spaceId: params.spaceId,
-      memberDid: params.memberDid,
-      memberPublicKey,
-      label: params.label,
+      identityId: params.identityId,
       role: params.role,
-      avatar: params.avatar ?? null,
-      avatarOptions: params.avatarOptions ?? null,
       joinedAt: new Date().toISOString(),
     })
   }
@@ -63,42 +63,44 @@ export async function addMemberToSpace(db: DB, params: {
 export async function addSelfAsSpaceMember(
   db: DB,
   spaceId: string,
-  identity: { did: string; label: string; avatar?: string | null; avatarOptions?: string | null },
+  identity: { id: string },
   role: string,
 ): Promise<void> {
   try {
     await addMemberToSpace(db, {
       spaceId,
-      memberDid: identity.did,
-      label: identity.label || identity.did.slice(0, 16),
+      identityId: identity.id,
       role,
-      avatar: identity.avatar,
-      avatarOptions: identity.avatarOptions,
     })
   } catch (error) {
     log.warn(`Failed to add self as space member: ${error}`)
   }
 }
 
-export async function getSpaceMembers(db: DB, spaceId: string): Promise<SelectHaexSpaceMembers[]> {
-  return db.select().from(haexSpaceMembers).where(eq(haexSpaceMembers.spaceId, spaceId))
+export async function getSpaceMembers(db: DB, spaceId: string): Promise<SpaceMemberWithIdentity[]> {
+  const rows = await db.select()
+    .from(haexSpaceMembers)
+    .innerJoin(haexIdentities, eq(haexSpaceMembers.identityId, haexIdentities.id))
+    .where(eq(haexSpaceMembers.spaceId, spaceId))
+
+  return rows.map(row => ({
+    membership: row.haex_space_members,
+    identity: row.haex_identities,
+  }))
 }
 
-export async function updateOwnSpaceProfile(db: DB, myDids: string[], spaceId: string, profile: {
-  label?: string
+export async function updateOwnSpaceProfile(db: DB, myIdentityIds: string[], _spaceId: string, profile: {
+  name?: string
   avatar?: string | null
   avatarOptions?: string | null
 }) {
-  if (myDids.length === 0) return
+  if (myIdentityIds.length === 0) return
 
-  for (const did of myDids) {
-    await db.update(haexSpaceMembers)
+  for (const identityId of myIdentityIds) {
+    await db.update(haexIdentities)
       .set(profile)
       .where(
-        and(
-          eq(haexSpaceMembers.spaceId, spaceId),
-          eq(haexSpaceMembers.memberDid, did),
-        ),
+        eq(haexIdentities.id, identityId),
       )
   }
 }
@@ -106,22 +108,37 @@ export async function updateOwnSpaceProfile(db: DB, myDids: string[], spaceId: s
 /** Lookup member public keys for signature verification. Returns Map<publicKey, memberDid> */
 export async function getMemberPublicKeysForSpace(db: DB, spaceId: string): Promise<Map<string, string>> {
   const members = await db.select({
-    memberPublicKey: haexSpaceMembers.memberPublicKey,
-    memberDid: haexSpaceMembers.memberDid,
-  }).from(haexSpaceMembers).where(eq(haexSpaceMembers.spaceId, spaceId))
+    did: haexIdentities.did,
+  })
+    .from(haexSpaceMembers)
+    .innerJoin(haexIdentities, eq(haexSpaceMembers.identityId, haexIdentities.id))
+    .where(eq(haexSpaceMembers.spaceId, spaceId))
 
-  return new Map(members.map(m => [m.memberPublicKey, m.memberDid]))
+  const pairs = await Promise.all(
+    members.map(async (member) => [await didKeyToPublicKeyAsync(member.did), member.did] as const),
+  )
+  return new Map(pairs)
 }
 
 export async function removeSpaceMember(db: DB, spaceId: string, memberDid: string) {
+  const membership = await db.select({
+    identityId: haexSpaceMembers.identityId,
+  })
+    .from(haexSpaceMembers)
+    .innerJoin(haexIdentities, eq(haexSpaceMembers.identityId, haexIdentities.id))
+    .where(and(eq(haexSpaceMembers.spaceId, spaceId), eq(haexIdentities.did, memberDid)))
+    .limit(1)
+
   // 1. Find the member's leaf index in the MLS group
   const memberIndex = await invoke<number | null>('mls_find_member_index', { spaceId, memberDid })
   if (memberIndex === null) {
     log.warn(`Member ${memberDid.slice(0, 20)}... not found in MLS group, removing from DB only`)
     await db.delete(haexUcanTokens)
       .where(and(eq(haexUcanTokens.spaceId, spaceId), eq(haexUcanTokens.audienceDid, memberDid)))
-    await db.delete(haexSpaceMembers)
-      .where(and(eq(haexSpaceMembers.spaceId, spaceId), eq(haexSpaceMembers.memberDid, memberDid)))
+    if (membership[0]) {
+      await db.delete(haexSpaceMembers)
+        .where(and(eq(haexSpaceMembers.spaceId, spaceId), eq(haexSpaceMembers.identityId, membership[0].identityId)))
+    }
     return
   }
 
@@ -146,8 +163,10 @@ export async function removeSpaceMember(db: DB, spaceId: string, memberDid: stri
     .where(and(eq(haexUcanTokens.spaceId, spaceId), eq(haexUcanTokens.audienceDid, memberDid)))
 
   // 5. Delete member from local DB (CRDT-synced to all devices)
-  await db.delete(haexSpaceMembers)
-    .where(and(eq(haexSpaceMembers.spaceId, spaceId), eq(haexSpaceMembers.memberDid, memberDid)))
+  if (membership[0]) {
+    await db.delete(haexSpaceMembers)
+      .where(and(eq(haexSpaceMembers.spaceId, spaceId), eq(haexSpaceMembers.identityId, membership[0].identityId)))
+  }
 
   // 6. Re-derive epoch key (forward secrecy — new key excludes removed member)
   await invoke('mls_export_epoch_key', { spaceId })
@@ -158,12 +177,10 @@ export async function removeSpaceMember(db: DB, spaceId: string, memberDid: stri
 /** One-time migration: populate haex_space_members from existing haex_ucan_tokens */
 export async function migrateExistingMembers(
   db: DB,
-  identities: Array<{ did: string; label: string; avatar: string | null; avatarOptions: string | null }>,
+  identities: Array<{ id: string; did: string }>,
 ) {
   const allTokens = await db.select().from(haexUcanTokens)
   if (allTokens.length === 0) return
-
-  const { didKeyToPublicKeyAsync } = await import('@haex-space/vault-sdk')
 
   // Group by (spaceId, audienceDid) — pick highest capability
   const memberMap = new Map<string, { spaceId: string; did: string; capability: string }>()
@@ -180,17 +197,13 @@ export async function migrateExistingMembers(
 
   for (const member of memberMap.values()) {
     try {
-      const memberPublicKey = await didKeyToPublicKeyAsync(member.did)
       const knownIdentity = identities.find(i => i.did === member.did)
+      if (!knownIdentity) continue
 
       await db.insert(haexSpaceMembers).values({
         spaceId: member.spaceId,
-        memberDid: member.did,
-        memberPublicKey,
-        label: knownIdentity?.label || member.did.slice(8, 24),
+        identityId: knownIdentity.id,
         role: member.capability,
-        avatar: knownIdentity?.avatar ?? null,
-        avatarOptions: knownIdentity?.avatarOptions ?? null,
         joinedAt: new Date().toISOString(),
       }).onConflictDoNothing()
     } catch (error) {

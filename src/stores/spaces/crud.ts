@@ -8,7 +8,7 @@ import { createRootUcanAsync, persistUcanAsync, fetchWithUcanAuth, getUcanForSpa
 import { throwIfNotOk } from '@/utils/fetch'
 import { SpaceType, SpaceStatus } from '~/database/constants'
 import { createLogger } from '@/stores/logging'
-import { addMemberToSpace, addSelfAsSpaceMember } from './members'
+import { addSelfAsSpaceMember } from './members'
 import type { SpaceWithType, ResolvedIdentity } from './index'
 
 type DB = SqliteRemoteDatabase<typeof schema>
@@ -28,9 +28,17 @@ function fetchWithSpaceUcanAuth(url: string, spaceId: string, options?: RequestI
   })
 }
 
+async function ensureMlsGroupAsync(spaceId: string) {
+  const hasGroup = await invoke<boolean>('mls_has_group', { spaceId })
+  if (!hasGroup) {
+    await invoke('mls_create_group', { spaceId })
+  }
+}
+
 export async function createLocalSpace(
   db: DB,
   spaceName: string,
+  ownerIdentityId: string,
   persistSpaceAsync: (space: SpaceWithType) => Promise<void>,
   spaceId?: string,
 ): Promise<{ id: string }> {
@@ -41,33 +49,36 @@ export async function createLocalSpace(
     name: spaceName,
     type: SpaceType.LOCAL,
     status: SpaceStatus.ACTIVE,
+    ownerIdentityId,
     serverUrl: '',
     createdAt: new Date().toISOString(),
   }
 
-  // 1. Persist to DB (without pushing to reactive list yet)
+  const identityStore = useIdentityStore()
+  await identityStore.loadIdentitiesAsync()
+  const identity = identityStore.ownIdentities.find(i => i.id === ownerIdentityId)
+  if (!identity) throw new Error('Selected owner identity not available')
+
+  // Persist the space before MLS stores its FK-backed epoch sync key.
   await db.insert(haexSpaces).values({
     id,
     type: SpaceType.LOCAL,
     name: spaceName,
+    ownerIdentityId,
     originUrl: null,
     status: SpaceStatus.ACTIVE,
   })
 
-  // 2. Create MLS group + epoch key
-  await invoke('mls_create_group', { spaceId: id })
+  await ensureMlsGroupAsync(id)
   await invoke('mls_export_epoch_key', { spaceId: id })
 
-  // 3. Create admin UCAN (must exist before UI renders SpaceListItem)
-  const identityStore = useIdentityStore()
-  await identityStore.loadIdentitiesAsync()
-  const identity = identityStore.ownIdentities[0]
-  if (identity?.privateKey) {
+  // Create admin UCAN (must exist before UI renders SpaceListItem)
+  if (identity.privateKey) {
     const rootUcan = await createRootUcanAsync(identity.did, identity.privateKey, id)
     await persistUcanAsync(db, id, rootUcan)
   }
 
-  // 4. Push to reactive list — SpaceListItem.onMounted will find the UCAN
+  // Push to reactive list — SpaceListItem.onMounted will find the UCAN
   await persistSpaceAsync(space)
 
   // Add creator as space member (non-fatal — space must work even if member insert fails)
@@ -118,7 +129,16 @@ export async function createOnlineSpace(
 
   await throwIfNotOk(response, 'create space')
 
-  await invoke('mls_create_group', { spaceId })
+  await db.insert(haexSpaces).values({
+    id: spaceId,
+    type: SpaceType.ONLINE,
+    name: spaceName,
+    ownerIdentityId: identity.id,
+    originUrl: serverUrl,
+    status: SpaceStatus.ACTIVE,
+  })
+
+  await ensureMlsGroupAsync(spaceId)
   await invoke('mls_export_epoch_key', { spaceId })
 
   const rootUcan = await createRootUcanAsync(identity.did, identity.privateKey, spaceId)
@@ -134,6 +154,16 @@ export async function createOnlineSpace(
   if (fullIdentity) {
     await addSelfAsSpaceMember(db, spaceId, fullIdentity, 'admin')
   }
+
+  await persistSpaceAsync({
+    id: spaceId,
+    name: spaceName,
+    type: SpaceType.ONLINE,
+    status: SpaceStatus.ACTIVE,
+    ownerIdentityId: identity.id,
+    serverUrl,
+    createdAt: new Date().toISOString(),
+  })
 
   log.info(`Created space ${spaceId}`)
   await listSpaces()
@@ -190,7 +220,7 @@ export async function migrateSpaceServer(
   }
 
   if (newServerUrl) {
-    const body = JSON.stringify({ id: spaceId, name: space.name, label: identity.label })
+    const body = JSON.stringify({ id: spaceId, name: space.name, label: identity.name })
     const response = await fetchWithDidAuth(
       `${newServerUrl}/spaces`,
       identity.privateKey,
@@ -220,6 +250,7 @@ export async function listSpaces(
     name: space.encryptedName ?? `Space ${space.id.slice(0, 8)}`,
     type: SpaceType.ONLINE,
     status: SpaceStatus.ACTIVE,
+    ownerIdentityId: identity.id,
     serverUrl,
     createdAt: space.createdAt,
   }))

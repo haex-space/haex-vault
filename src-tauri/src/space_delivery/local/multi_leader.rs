@@ -129,6 +129,8 @@ async fn handle_stream(
             include_history,
             inviter_did,
             inviter_label,
+            inviter_avatar,
+            inviter_avatar_options,
             space_endpoints,
             origin_url,
             expires_at: _,
@@ -149,6 +151,8 @@ async fn handle_stream(
                 include_history,
                 &inviter_did,
                 inviter_label.as_deref(),
+                inviter_avatar.as_deref(),
+                inviter_avatar_options.as_deref(),
                 &space_endpoints,
                 origin_url.as_deref(),
             )
