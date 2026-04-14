@@ -139,12 +139,11 @@ jobs:
         run: |
           git fetch origin release main
 
-          # Start from release HEAD, then fast-forward main into it.
+          # Start from release HEAD, then merge main into it.
+          # Using --no-ff to handle diverging branches gracefully (release has
+          # version bump commits that main doesn't have).
           git checkout -b "$PREP_BRANCH" origin/release
-          if ! git merge --ff-only origin/main; then
-            echo "::error::main is not a fast-forward of release. Manual reconciliation required (release has commits not on main)."
-            exit 1
-          fi
+          git merge origin/main --no-ff -m "Merge main into release-prep/v${NEW_VERSION}"
 
           # Apply version bump
           node -e "
