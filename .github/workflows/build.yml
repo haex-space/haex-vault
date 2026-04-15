@@ -141,6 +141,9 @@ jobs:
       - name: Run Rust tests
         run: cd src-tauri && cargo test
 
+      - name: Run TypeScript typecheck
+        run: pnpm typecheck
+
       - name: Run TypeScript tests
         run: pnpm test
 

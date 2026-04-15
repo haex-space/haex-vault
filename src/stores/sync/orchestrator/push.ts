@@ -4,6 +4,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
+import { didKeyToPublicKeyAsync } from '@haex-space/vault-sdk'
 import {
   getDirtyTablesAsync,
   getAllCrdtTablesAsync,
@@ -249,7 +250,7 @@ export const pushChangesToServerAsync = async (
     const identity = await identityStore.getIdentityByIdAsync(backend.identityId)
     if (identity?.privateKey) {
       identityPrivateKey = identity.privateKey
-      identityPublicKey = identity.publicKey
+      identityPublicKey = await didKeyToPublicKeyAsync(identity.did)
     }
   }
 

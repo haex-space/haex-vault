@@ -112,7 +112,7 @@ const isGenerating = ref(false)
 
 const identityOptions = computed(() =>
   ownIdentities.value.map(i => ({
-      label: i.label,
+      label: i.name,
       value: i.id,
     })),
 )
@@ -165,8 +165,8 @@ const generateQrAsync = async () => {
 
     const payload = {
       v: 2,
-      publicKey: identity.publicKey,
-      label: identity.label,
+      did: identity.did,
+      name: identity.name,
       claims: selectedClaims,
       endpointId: peerStore.nodeId || undefined,
     }

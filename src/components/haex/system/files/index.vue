@@ -447,9 +447,9 @@ const remotePeers = computed(() => {
       seen.add(claim.value)
       peers.push({
         endpointId: claim.value,
-        name: `${contact.label} (${claim.type.replace('device:', '')})`,
+        name: `${contact.name} (${claim.type.replace('device:', '')})`,
         source: 'contact',
-        detail: contact.label,
+        detail: contact.name,
       })
     }
   }
@@ -459,7 +459,7 @@ const remotePeers = computed(() => {
 
 const getSpaceName = (spaceId: string) => {
   return (
-    spacesStore.spaces.find((s) => s.id === spaceId)?.name ||
+    spacesStore.visibleSpaces.find((s) => s.id === spaceId)?.name ||
     spaceId.slice(0, 8)
   )
 }

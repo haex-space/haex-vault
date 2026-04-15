@@ -330,15 +330,9 @@ const myIdentityIds = computed(() => identityStore.ownIdentities.map((i) => i.id
 const isOwnMember = (member: SpaceMemberWithIdentity) =>
   myIdentityIds.value.includes(member.identity.id)
 
-const space = computed(() => {
-  const row = spacesStore.spaces.find((s) => s.haex_spaces.id === props.spaceId)
-  if (!row) return null
-  return {
-    id: row.haex_spaces.id,
-    name: row.haex_spaces.name,
-    serverUrl: row.haex_spaces.originUrl || '',
-  }
-})
+const space = computed(
+  () => spacesStore.visibleSpaces.find((s) => s.id === props.spaceId) ?? null,
+)
 const backendName = computed(() =>
   space.value ? getBackendNameByUrl(space.value.serverUrl) : '',
 )

@@ -13,7 +13,7 @@
         <UCheckbox v-model="includeAvatar" />
         <UiAvatar
           :src="target.avatar"
-          :seed="target.publicKey"
+          :seed="target.did"
           avatar-style="toon-head"
           size="sm"
         />

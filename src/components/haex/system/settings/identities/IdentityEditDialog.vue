@@ -9,7 +9,7 @@
           <UiAvatarPicker
             :model-value="target?.avatar"
             :avatar-options="parsedAvatarOptions"
-            :seed="target?.publicKey"
+            :seed="target?.did"
             avatar-style="toon-head"
             size="xl"
             @update:model-value="onAvatarModelUpdate"
@@ -18,7 +18,7 @@
         </div>
 
         <UiInput
-          v-model="label"
+          v-model="name"
           :label="t('labelField')"
           @keydown.enter.prevent="onSubmit"
         />
@@ -71,7 +71,7 @@
 import type { SelectHaexIdentities } from '~/database/schemas'
 
 export interface EditSubmitPayload {
-  label: string
+  name: string
   /** Empty when the user did not set a new password. */
   newPassword: string
 }
@@ -96,7 +96,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const label = ref('')
+const name = ref('')
 const password = ref('')
 const passwordConfirm = ref('')
 
@@ -116,7 +116,7 @@ const parsedAvatarOptions = computed(() => {
 })
 
 const canSave = computed(() => {
-  if (!label.value.trim()) return false
+  if (!name.value.trim()) return false
   if (password.value) {
     return (
       password.value.length >= 8 && password.value === passwordConfirm.value
@@ -130,7 +130,7 @@ watch(
   () => [open.value, props.target] as const,
   ([isOpen, target]) => {
     if (!isOpen || !target) return
-    label.value = target.label
+    name.value = target.name
     password.value = ''
     passwordConfirm.value = ''
     pendingAvatarOptions.value = undefined
@@ -152,7 +152,7 @@ const onAvatarModelUpdate = (avatar: string | null) => {
 const onSubmit = () => {
   if (!canSave.value) return
   emit('submit', {
-    label: label.value.trim(),
+    name: name.value.trim(),
     newPassword: password.value,
   })
 }

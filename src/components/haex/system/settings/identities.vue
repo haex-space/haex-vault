@@ -497,7 +497,7 @@ const onRenameAsync = async (payload: EditSubmitPayload) => {
 
   isRenaming.value = true
   try {
-    await identityStore.updateLabelAsync(editTarget.value.id, payload.label)
+    await identityStore.updateNameAsync(editTarget.value.id, payload.name)
 
     if (payload.newPassword) {
       const ok = await updatePasswordAsync(

@@ -117,7 +117,7 @@ const { currentVault } = storeToRefs(useVaultStore())
 
 const getIdentityAvatar = (identityId: string | null) => {
   if (!identityId) return null
-  return identities.value.find(i => i.publicKey === identityId)?.avatar ?? null
+  return identities.value.find(i => i.id === identityId)?.avatar ?? null
 }
 
 const otherDevices = computed(() => {
@@ -131,7 +131,7 @@ const otherDevices = computed(() => {
 })
 
 const getSpaceName = (spaceId: string) => {
-  return spacesStore.spaces.find(s => s.id === spaceId)?.name
+  return spacesStore.visibleSpaces.find(s => s.id === spaceId)?.name
 }
 
 const editingDeviceId = ref<string | null>(null)

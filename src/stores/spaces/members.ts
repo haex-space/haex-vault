@@ -83,9 +83,11 @@ export async function getSpaceMembers(db: DB, spaceId: string): Promise<SpaceMem
     .innerJoin(haexIdentities, eq(haexSpaceMembers.identityId, haexIdentities.id))
     .where(eq(haexSpaceMembers.spaceId, spaceId))
 
+  // innerJoin guarantees both sides are non-null at runtime, but Drizzle's
+  // typings still widen to `| undefined` — assert non-null explicitly.
   return rows.map(row => ({
-    membership: row.haex_space_members,
-    identity: row.haex_identities,
+    membership: row.haex_space_members!,
+    identity: row.haex_identities!,
   }))
 }
 

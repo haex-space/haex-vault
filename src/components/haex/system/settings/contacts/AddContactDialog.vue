@@ -145,16 +145,16 @@
         <template v-if="scanStep === 'review' && scannedContact">
           <div class="space-y-4 mt-4">
             <UiInput
-              v-model="scannedContact.label"
+              v-model="scannedContact.name"
               :label="t('scan.reviewLabel')"
             />
 
             <div>
-              <label class="text-sm font-medium">{{ t('fields.publicKey') }}</label>
+              <label class="text-sm font-medium">DID</label>
               <code
                 class="block text-xs text-muted p-2 rounded bg-gray-50 dark:bg-gray-800/50 break-all mt-1"
               >
-                {{ scannedContact.publicKey }}
+                {{ scannedContact.did }}
               </code>
             </div>
 
@@ -303,7 +303,7 @@
           v-else-if="addMode === 'scan' && scanStep === 'review'"
           icon="i-lucide-user-plus"
           :loading="scanIsSaving"
-          :disabled="!scannedContact?.label.trim() || !!scanExistingContact"
+          :disabled="!scannedContact?.name.trim() || !!scanExistingContact"
           @click="onSaveScanContactAsync"
         >
           {{ t('actions.add') }}
@@ -328,9 +328,9 @@ interface ScannedClaim {
 }
 
 interface ScannedContact {
-  publicKey: string
+  did: string
   endpointId?: string
-  label: string
+  name: string
   claims: ScannedClaim[]
 }
 
@@ -537,8 +537,8 @@ const onQrScanSuccess = async (decodedText: string) => {
   try {
     const payload = JSON.parse(decodedText)
 
-    if (!payload.publicKey) {
-      log.warn('QR payload missing publicKey, restarting scanner')
+    if (!payload.did) {
+      log.warn('QR payload missing did, restarting scanner')
       scanError.value = t('scan.invalidQr')
       scanStep.value = 'scan'
       await nextTick()
@@ -546,7 +546,7 @@ const onQrScanSuccess = async (decodedText: string) => {
       return
     }
 
-    const existing = await identityStore.getContactByPublicKeyAsync(payload.publicKey)
+    const existing = await identityStore.getIdentityByDidAsync(payload.did)
     scanExistingContact.value = existing ?? null
 
     if (existing) {
@@ -554,9 +554,9 @@ const onQrScanSuccess = async (decodedText: string) => {
     }
 
     scannedContact.value = {
-      publicKey: payload.publicKey,
+      did: payload.did,
       endpointId: payload.endpointId || undefined,
-      label: payload.label || '',
+      name: payload.name || '',
       claims: (payload.claims || []).map((c: { type: string; value: string }) => ({
         type: c.type,
         value: c.value,
@@ -564,7 +564,7 @@ const onQrScanSuccess = async (decodedText: string) => {
       })),
     }
 
-    log.info(`Scanned contact: "${payload.label || '(no label)'}", ${payload.claims?.length ?? 0} claims, endpointId: ${!!payload.endpointId}`)
+    log.info(`Scanned contact: "${payload.name || '(no name)'}", ${payload.claims?.length ?? 0} claims, endpointId: ${!!payload.endpointId}`)
     scanContactNotes.value = ''
     scanStep.value = 'review'
   } catch (error) {
@@ -585,7 +585,7 @@ const backToScan = async () => {
 }
 
 const onSaveScanContactAsync = async () => {
-  if (!scannedContact.value || !scannedContact.value.label.trim()) return
+  if (!scannedContact.value || !scannedContact.value.name.trim()) return
 
   scanIsSaving.value = true
   try {
@@ -597,10 +597,10 @@ const onSaveScanContactAsync = async () => {
       selectedClaims.push({ type: 'endpointId', value: scannedContact.value.endpointId })
     }
 
-    log.info(`Saving scanned contact: "${scannedContact.value.label}", ${selectedClaims.length} claims`)
+    log.info(`Saving scanned contact: "${scannedContact.value.name}", ${selectedClaims.length} claims`)
     await identityStore.addContactWithClaimsAsync(
-      scannedContact.value.label.trim(),
-      scannedContact.value.publicKey,
+      scannedContact.value.name.trim(),
+      await didKeyToPublicKeyAsync(scannedContact.value.did),
       selectedClaims,
       scanContactNotes.value.trim() || undefined,
     )

@@ -373,7 +373,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   ) =>
     removeIdentityFromSpace(
       requireDb(),
-      spaces.value,
+      activeSpaces.value,
       spaceId,
       identityPublicKey,
     )
@@ -391,7 +391,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   ) => {
     const identity = await resolveIdentityAsync(identityId)
     return inviteMember(
-      spaces.value,
+      activeSpaces.value,
       serverUrl,
       spaceId,
       inviteeDid,
@@ -410,7 +410,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       expiresInSeconds: number
       label?: string
     },
-  ) => createInviteToken(spaces.value, serverUrl, spaceId, options)
+  ) => createInviteToken(activeSpaces.value, serverUrl, spaceId, options)
 
   const claimInviteTokenAsync = async (
     serverUrl: string,
@@ -464,7 +464,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       requireDb(),
       invite,
       persistSpaceAsync,
-      loadSpacesFromDbAsync,
+      async () => {
+        await loadSpacesFromDbAsync()
+      },
     )
 
   const queueQuicInviteAsync = (

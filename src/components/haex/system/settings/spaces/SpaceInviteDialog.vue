@@ -210,7 +210,7 @@ const qrCanvas = ref<HTMLCanvasElement>()
 
 // Reactive reads — UI depends on these for conditional rendering
 const isLocalSpace = computed(() => {
-  const space = spacesStore.spaces.find((s) => s.id === props.spaceId)
+  const space = spacesStore.visibleSpaces.find((s) => s.id === props.spaceId)
   return space?.type === SpaceType.LOCAL
 })
 

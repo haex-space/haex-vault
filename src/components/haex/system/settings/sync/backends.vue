@@ -701,7 +701,7 @@ const loadVaultsForBackendAsync = async (
     if (!resolved?.privateKey) {
       throw new Error('Identity not found or incomplete')
     }
-    const identity = { publicKey: resolved.publicKey, privateKey: resolved.privateKey, did: resolved.did }
+    const identity = { privateKey: resolved.privateKey, did: resolved.did }
 
     // Fetch vaults from server using DID-Auth
     const response = await fetchWithDidAuth(

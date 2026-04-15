@@ -39,15 +39,15 @@
             <UiAvatar
               v-if="parsed.avatar"
               :src="parsed.avatar"
-              :seed="parsed.publicKey"
+              :seed="parsed.did"
               avatar-style="toon-head"
               size="sm"
             />
             <div class="min-w-0 flex-1">
               <p class="font-medium truncate">
-                {{ parsed.label || parsed.publicKey.slice(0, 20) + '...' }}
+                {{ parsed.name || parsed.did.slice(0, 20) + '...' }}
               </p>
-              <p class="text-xs text-muted truncate">{{ parsed.publicKey }}</p>
+              <p class="text-xs text-muted truncate">{{ parsed.did }}</p>
             </div>
             <UBadge
               :color="parsed.privateKey ? 'primary' : 'neutral'"
@@ -66,7 +66,7 @@
             <UCheckbox v-model="includeAvatar" />
             <UiAvatar
               :src="parsed.avatar"
-              :seed="parsed.publicKey"
+              :seed="parsed.did"
               avatar-style="toon-head"
               size="sm"
             />

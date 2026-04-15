@@ -328,15 +328,15 @@ export const useIdentityStore = defineStore('identityStore', () => {
     return getIdentityByDidAsync(did)
   }
 
-  const updateLabelAsync = async (identityId: string, label: string) => {
+  const updateNameAsync = async (identityId: string, name: string) => {
     const db = requireDb()
 
     await db
       .update(haexIdentities)
-      .set({ name: label })
+      .set({ name })
       .where(eq(haexIdentities.id, identityId))
 
-    log.info(`Updated identity ${identityId.slice(0, 8)}... label to "${label}"`)
+    log.info(`Updated identity ${identityId.slice(0, 8)}... name to "${name}"`)
     await loadIdentitiesAsync()
   }
 
@@ -604,7 +604,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
     getIdentityByDidAsync,
     getIdentityByPublicKeyAsync,
     ensureIdentityForDidAsync,
-    updateLabelAsync,
+    updateNameAsync,
     updateAvatarAsync,
     exportIdentity,
     importIdentityAsync,

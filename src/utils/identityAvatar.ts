@@ -25,6 +25,11 @@ export function generateRandomAvatarOptions(
 export function generateAvatarFromOptions(
   avatarOptions: Record<string, unknown>,
 ): string {
-  const style = avatarOptions.style === 'toon-head' ? toonHead : bottts
-  return createAvatar(style, avatarOptions).toDataUri()
+  // Styles have distinct Options types; dispatching per-style keeps the
+  // generic in `createAvatar<Options>` bound to one concrete shape instead
+  // of an incompatible union.
+  if (avatarOptions.style === 'toon-head') {
+    return createAvatar(toonHead, avatarOptions as Parameters<typeof createAvatar<toonHead.Options>>[1]).toDataUri()
+  }
+  return createAvatar(bottts, avatarOptions as Parameters<typeof createAvatar<bottts.Options>>[1]).toDataUri()
 }
