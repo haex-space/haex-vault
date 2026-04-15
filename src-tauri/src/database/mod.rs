@@ -471,39 +471,38 @@ fn generate_default_identity_material() -> (String, String) {
 /// Ensures the currently open vault has at least one own identity. Idempotent:
 /// becomes a no-op when a row with private_key IS NOT NULL already exists.
 fn ensure_default_identity(state: &State<'_, AppState>) -> Result<(), DatabaseError> {
+    // CRDT-aware existence check: select_with_crdt strips tombstoned rows,
+    // so a previously-deleted default identity doesn't suppress re-seeding.
+    let existing = core::select_with_crdt(
+        "SELECT id FROM haex_identities WHERE private_key IS NOT NULL LIMIT 1".to_string(),
+        vec![],
+        &state.db,
+    )?;
+    if !existing.is_empty() {
+        return Ok(());
+    }
+
+    let (did, private_key_b64) = generate_default_identity_material();
+    let id = uuid::Uuid::new_v4().to_string();
+
     let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
         reason: "Failed to lock HLC service".to_string(),
     })?;
 
-    with_connection(&state.db, |conn| {
-        let tx = conn.transaction().map_err(DatabaseError::from)?;
+    core::execute_with_crdt(
+        "INSERT INTO haex_identities (id, did, name, source, private_key) VALUES (?1, ?2, ?3, 'contact', ?4)".to_string(),
+        vec![
+            JsonValue::String(id),
+            JsonValue::String(did.clone()),
+            JsonValue::String(DEFAULT_IDENTITY_NAME.to_string()),
+            JsonValue::String(private_key_b64),
+        ],
+        &state.db,
+        &hlc_service,
+    )?;
 
-        let existing: i64 = tx
-            .query_row(
-                "SELECT COUNT(*) FROM haex_identities WHERE private_key IS NOT NULL",
-                [],
-                |row| row.get(0),
-            )
-            .map_err(DatabaseError::from)?;
-
-        if existing > 0 {
-            return Ok(());
-        }
-
-        let (did, private_key_b64) = generate_default_identity_material();
-        let id = uuid::Uuid::new_v4().to_string();
-
-        SqlExecutor::execute_internal_typed(
-            &tx,
-            &hlc_service,
-            "INSERT INTO haex_identities (id, did, name, source, private_key) VALUES (?, ?, ?, 'contact', ?)",
-            rusqlite::params![id, did, DEFAULT_IDENTITY_NAME, private_key_b64],
-        )?;
-
-        tx.commit().map_err(DatabaseError::from)?;
-        println!("[IDENTITY] ✅ default identity seeded ({})", &did[..30.min(did.len())]);
-        Ok(())
-    })
+    println!("[IDENTITY] ✅ default identity seeded ({})", &did[..30.min(did.len())]);
+    Ok(())
 }
 
 #[tauri::command]
