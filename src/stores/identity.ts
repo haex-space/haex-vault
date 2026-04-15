@@ -97,16 +97,16 @@ export const useIdentityStore = defineStore('identityStore', () => {
     // Backfill avatar + options for rows created before every create path
     // persisted both fields. We only touch rows where BOTH are missing so
     // user-uploaded avatars (stored in `avatar` with `avatarOptions = null`)
-    // are never overwritten. Seeding from the DID keeps the backfilled
-    // avatar visually identical to the previous `:seed="did"` fallback
-    // that UiAvatar rendered on the fly.
+    // are never overwritten. The migrated avatar is a fresh random one,
+    // not visually identical to the old `:seed=did` fallback — that's
+    // the price of making the customizer hydrate cleanly.
     const toMigrate = identities.value.filter(
       (i) => !i.avatar && !i.avatarOptions,
     )
     if (toMigrate.length === 0) return
 
     for (const row of toMigrate) {
-      const set = buildDefaultAvatarSet('toon-head', row.did)
+      const set = buildDefaultAvatarSet('toon-head')
       await db
         .update(haexIdentities)
         .set({ avatar: set.avatar, avatarOptions: set.avatarOptions })
@@ -180,9 +180,9 @@ export const useIdentityStore = defineStore('identityStore', () => {
       throw new Error('An identity with this public key already exists')
     }
 
-    // Seed a deterministic avatar from the contact's DID so the list view
-    // and any future edit flow start from a consistent, editable state.
-    const avatarSet = buildDefaultAvatarSet('toon-head', did)
+    // Seed a random avatar so the list view and any future edit flow
+    // start from a consistent, editable state.
+    const avatarSet = buildDefaultAvatarSet('toon-head')
 
     const id = crypto.randomUUID()
     await db.insert(haexIdentities).values({
@@ -400,10 +400,9 @@ export const useIdentityStore = defineStore('identityStore', () => {
     }
 
     // Backfill an avatar/options set when the caller didn't bring its own
-    // (the DID doubles as a deterministic seed so existing consumers keep
-    // the same visual identity).
+    // so the row is immediately renderable AND editable in the customizer.
     const needsAvatar = !options?.avatar && !options?.avatarOptions
-    const avatarSet = needsAvatar ? buildDefaultAvatarSet('toon-head', did) : null
+    const avatarSet = needsAvatar ? buildDefaultAvatarSet('toon-head') : null
 
     const id = crypto.randomUUID()
     const newIdentity = {
@@ -448,12 +447,11 @@ export const useIdentityStore = defineStore('identityStore', () => {
       return existing[0]!
     }
 
-    // Imported identities without a bundled avatar get a deterministic one
-    // seeded from their DID — keeps the avatar stable across vaults and
-    // makes it editable via the customizer right away.
+    // Imported identities without a bundled avatar get a fresh random
+    // one so the customizer can hydrate it cleanly on first edit.
     const avatarSet = exported.avatar
       ? null
-      : buildDefaultAvatarSet('toon-head', exported.did)
+      : buildDefaultAvatarSet('toon-head')
 
     const id = crypto.randomUUID()
     const newIdentity = {

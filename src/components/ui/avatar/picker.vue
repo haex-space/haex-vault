@@ -85,13 +85,10 @@
 </template>
 
 <script setup lang="ts">
-import { createAvatar } from '@dicebear/core'
-import * as toonHead from '@dicebear/toon-head'
-import * as bottts from '@dicebear/bottts'
 import { Cropper, CircleStencil } from 'vue-advanced-cropper'
 import 'vue-advanced-cropper/dist/style.css'
 import { compressCanvasToBase64, compressSvgToBase64 } from '~/utils/imageCompression'
-import type { AvatarOptions } from './customizer/index.vue'
+import { renderAvatarSvg, type AvatarOptions } from '~/utils/identityAvatar'
 
 defineProps<{
   modelValue?: string | null
@@ -126,27 +123,10 @@ function onRemove() {
 }
 
 async function onCustomizerConfirmAsync(options: AvatarOptions) {
-  const svgString = renderAvatarSvg(options)
-  const base64 = await compressSvgToBase64(svgString)
+  const base64 = await compressSvgToBase64(renderAvatarSvg(options))
 
   emit('update:avatarOptions', { ...options })
   emit('update:modelValue', base64)
-}
-
-function renderAvatarSvg(options: AvatarOptions): string {
-  // Build DiceBear options with arrays
-  const diceBearOptions: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(options)) {
-    if (key === 'style') continue
-    diceBearOptions[key] = typeof value === 'string' && !key.endsWith('Probability')
-      ? [value]
-      : value
-  }
-
-  if (options.style === 'toon-head') {
-    return createAvatar(toonHead, diceBearOptions).toString()
-  }
-  return createAvatar(bottts, diceBearOptions).toString()
 }
 
 function onFileSelected(event: Event) {
