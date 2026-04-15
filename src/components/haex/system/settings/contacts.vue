@@ -156,7 +156,7 @@ const prepareDelete = (contact: SelectHaexIdentities) => {
 const onConfirmDeleteAsync = async () => {
   if (!deleteTarget.value) return
 
-  log.info(`Deleting contact: "${deleteTarget.value.label}" (${deleteTarget.value.id})`)
+  log.info(`Deleting contact: "${deleteTarget.value.name}" (${deleteTarget.value.id})`)
   try {
     await identityStore.deleteIdentityAsync(deleteTarget.value.id)
     log.info('Contact deleted successfully')

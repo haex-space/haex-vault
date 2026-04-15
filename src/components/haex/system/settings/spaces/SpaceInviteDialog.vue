@@ -253,7 +253,7 @@ const dialogDescription = computed(() =>
 )
 
 const contactOptions = computed(() =>
-  contacts.value.map((c) => ({ label: c.label, value: c.id })),
+  contacts.value.map((c) => ({ label: c.name, value: c.id })),
 )
 
 const expiryOptions = computed(() => [

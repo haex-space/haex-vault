@@ -19,11 +19,11 @@
           />
           <div class="min-w-0">
             <div class="flex items-center gap-2">
-              <span class="font-medium truncate">{{ contact.label }}</span>
+              <span class="font-medium truncate">{{ contact.name }}</span>
             </div>
             <div class="mt-1 flex items-center gap-2">
               <code class="text-xs text-muted truncate max-w-[300px]">{{
-                contact.publicKey
+                contact.did
               }}</code>
             </div>
           </div>
@@ -188,7 +188,7 @@ const { add: addToast } = useToast()
 
 const copyPublicKey = async () => {
   try {
-    await navigator.clipboard.writeText(props.contact.publicKey)
+    await navigator.clipboard.writeText(props.contact.did)
     addToast({ title: t('success.copied'), color: 'success' })
   } catch {
     addToast({ title: t('errors.copyFailed'), color: 'error' })
