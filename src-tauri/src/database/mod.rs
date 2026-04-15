@@ -15,8 +15,10 @@ use crate::database::error::DatabaseError;
 use crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED;
 use crate::extension::database::executor::SqlExecutor;
 use crate::table_names::{COL_CRDT_CONFIGS_KEY, COL_CRDT_CONFIGS_TYPE, COL_CRDT_CONFIGS_VALUE, TABLE_CRDT_CONFIGS, TABLE_VAULT_SETTINGS};
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use constants::vault_settings_key;
 use crate::AppState;
+use ed25519_dalek::SigningKey;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -410,6 +412,100 @@ pub fn delete_vault(app_handle: AppHandle, vault_name: String) -> Result<String,
     Ok(format!("Vault '{vault_name}' successfully deleted"))
 }
 
+// ---------------------------------------------------------------------------
+// Default identity bootstrap
+//
+// Every vault needs at least one "own" identity (a row in haex_identities with
+// a non-null private_key) before anything identity-backed can happen:
+// haex_spaces.owner_identity_id is NOT NULL, UCAN signing needs a private key,
+// and the JS side looks one up on vault mount.
+//
+// The UI flow (vault.vue onMounted → ensureDefaultIdentityAsync) handles this
+// for humans, but direct-Tauri paths (e.g. E2E tests that invoke
+// create_encrypted_database / open_encrypted_database without navigating)
+// would otherwise leave the vault without an identity. Seeding it here
+// guarantees that every freshly-opened vault is immediately usable.
+//
+// The key format mirrors the JS side so JS can transparently load and sign
+// with keys created here:
+//   - private_key: Base64-encoded 48-byte Ed25519 PKCS8 (16-byte prefix + 32-byte seed)
+//   - did: `did:key:z` + base58btc(0xed01 || raw-public-key)
+// ---------------------------------------------------------------------------
+
+// Ed25519 multicodec tag used in did:key format.
+const DEFAULT_IDENTITY_ED25519_MULTICODEC: [u8; 2] = [0xed, 0x01];
+
+// PKCS8 ASN.1 wrapper used by WebCrypto's exportKey('pkcs8') for Ed25519.
+// SEQUENCE(46) → INTEGER(0) → AlgorithmId(OID 1.3.101.112) → OCTET STRING(34 → OCTET STRING(32))
+const DEFAULT_IDENTITY_ED25519_PKCS8_PREFIX: [u8; 16] = [
+    0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20,
+];
+
+/// Default English name for auto-seeded identities. JS's
+/// `ensureDefaultIdentityAsync` recognises this value and will re-localise /
+/// generate an avatar on first UI mount, so we don't need locale awareness
+/// in Rust.
+const DEFAULT_IDENTITY_NAME: &str = "My Identity";
+
+fn generate_default_identity_material() -> (String, String) {
+    let mut seed = [0u8; 32];
+    rand::fill(&mut seed);
+    let signing_key = SigningKey::from_bytes(&seed);
+    let public_key = signing_key.verifying_key();
+
+    // did:key:z<base58btc(multicodec || pubkey)>
+    let mut did_bytes = Vec::with_capacity(34);
+    did_bytes.extend_from_slice(&DEFAULT_IDENTITY_ED25519_MULTICODEC);
+    did_bytes.extend_from_slice(public_key.as_bytes());
+    let did = format!("did:key:z{}", bs58::encode(did_bytes).into_string());
+
+    // PKCS8(prefix || seed), Base64 (matches crypto.subtle.exportKey('pkcs8')).
+    let mut pkcs8 = Vec::with_capacity(48);
+    pkcs8.extend_from_slice(&DEFAULT_IDENTITY_ED25519_PKCS8_PREFIX);
+    pkcs8.extend_from_slice(&seed);
+    let private_key_b64 = BASE64.encode(&pkcs8);
+
+    (did, private_key_b64)
+}
+
+/// Ensures the currently open vault has at least one own identity. Idempotent:
+/// becomes a no-op when a row with private_key IS NOT NULL already exists.
+fn ensure_default_identity(state: &State<'_, AppState>) -> Result<(), DatabaseError> {
+    let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
+        reason: "Failed to lock HLC service".to_string(),
+    })?;
+
+    with_connection(&state.db, |conn| {
+        let tx = conn.transaction().map_err(DatabaseError::from)?;
+
+        let existing: i64 = tx
+            .query_row(
+                "SELECT COUNT(*) FROM haex_identities WHERE private_key IS NOT NULL",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(DatabaseError::from)?;
+
+        if existing > 0 {
+            return Ok(());
+        }
+
+        let (did, private_key_b64) = generate_default_identity_material();
+        let id = uuid::Uuid::new_v4().to_string();
+
+        SqlExecutor::execute_internal_typed(
+            &tx,
+            &hlc_service,
+            "INSERT INTO haex_identities (id, did, name, source, private_key) VALUES (?, ?, ?, 'contact', ?)",
+            rusqlite::params![id, did, DEFAULT_IDENTITY_NAME, private_key_b64],
+        )?;
+
+        tx.commit().map_err(DatabaseError::from)?;
+        println!("[IDENTITY] ✅ default identity seeded ({})", &did[..30.min(did.len())]);
+        Ok(())
+    })
+}
+
 #[tauri::command]
 pub fn create_encrypted_database(
     app_handle: AppHandle,
@@ -593,6 +689,12 @@ pub fn create_encrypted_database(
         println!("[CREATE_DB] ✅ device_key_secret generated and stored");
     }
 
+    // Step 7: Seed the default own identity so the vault is immediately usable
+    // (haex_spaces.owner_identity_id is NOT NULL; UCAN signing needs this key).
+    println!("[CREATE_DB] Step 7: Seeding default identity...");
+    ensure_default_identity(&state)?;
+    println!("[CREATE_DB] ✅ default identity ensured");
+
     println!("[CREATE_DB] ========== create_encrypted_database COMPLETE ==========");
     Ok(vault_path)
 }
@@ -687,7 +789,11 @@ pub fn open_encrypted_database(
 
     // Apply any pending migrations to bring existing vaults up to date
     println!("[OPEN_DB] Checking for pending migrations...");
-    crate::database::migrations::apply_core_migrations(app_handle, state)?;
+    crate::database::migrations::apply_core_migrations(app_handle, state.clone())?;
+
+    // Backfill a default own identity for vaults that predate the seeding step
+    // in create_encrypted_database (idempotent — no-op when one already exists).
+    ensure_default_identity(&state)?;
 
     println!("[OPEN_DB] ✅ Vault opened successfully");
     Ok(format!("Vault '{vault_path}' opened successfully"))

@@ -2,7 +2,6 @@ import { eq, ne, and, inArray, isNotNull } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
 import {
   arrayBufferToBase64,
-  didKeyToPublicKeyAsync,
   publicKeyToDidKeyAsync,
   SIGNING_ALGO,
 } from '@haex-space/vault-sdk'
@@ -32,7 +31,6 @@ import { requireDb } from '~/stores/vault'
 export interface ExportedIdentity {
   did: string
   name: string
-  publicKey?: string
   privateKey: string
   avatar?: string | null
   claims?: { type: string; value: string }[]
@@ -399,13 +397,6 @@ export const useIdentityStore = defineStore('identityStore', () => {
 
     if (!exported.privateKey || !exported.did) {
       throw new Error('Invalid identity data: missing privateKey or did')
-    }
-
-    if (exported.publicKey) {
-      const derivedDid = await publicKeyToDidKeyAsync(exported.publicKey)
-      if (derivedDid !== exported.did) {
-        throw new Error('DID does not match the public key — the identity data may be corrupted')
-      }
     }
 
     // Check if identity already exists (same DID = same identity)

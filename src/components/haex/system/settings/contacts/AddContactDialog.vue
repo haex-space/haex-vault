@@ -46,12 +46,12 @@
               <UiAvatar
                 v-if="importParsed.avatar"
                 :src="importParsed.avatar"
-                :seed="importParsed.publicKey"
+                :seed="importParsed.did"
                 size="sm"
               />
               <div class="min-w-0 flex-1">
-                <p class="font-medium truncate">{{ importParsed.label || importParsed.publicKey.slice(0, 20) + '...' }}</p>
-                <p class="text-xs text-muted truncate">{{ importParsed.publicKey }}</p>
+                <p class="font-medium truncate">{{ importParsed.name || importParsed.did.slice(0, 20) + '...' }}</p>
+                <p class="text-xs text-muted truncate">{{ importParsed.did }}</p>
               </div>
             </div>
 
@@ -62,7 +62,7 @@
               <UCheckbox v-model="importIncludeAvatar" />
               <UiAvatar
                 :src="importParsed.avatar"
-                :seed="importParsed.publicKey"
+                :seed="importParsed.did"
                 size="sm"
               />
               <span class="text-sm">{{ t('file.includeAvatar') }}</span>
@@ -239,7 +239,7 @@
               v-if="scanExistingContact"
               class="text-sm text-amber-500"
             >
-              {{ t('scan.alreadyExists', { name: scanExistingContact.label }) }}
+              {{ t('scan.alreadyExists', { name: scanExistingContact.name }) }}
             </p>
           </div>
         </template>
@@ -315,6 +315,7 @@
 
 <script setup lang="ts">
 import { Html5Qrcode } from 'html5-qrcode'
+import { didKeyToPublicKeyAsync } from '@haex-space/vault-sdk'
 import type { SelectHaexIdentities } from '~/database/schemas'
 import { createLogger } from '@/stores/logging'
 
@@ -355,8 +356,8 @@ const addTabItems = computed(() => [
 // --- File import state ---
 const importJson = ref('')
 const importParsed = ref<{
-  label: string
-  publicKey: string
+  name: string
+  did: string
   avatar?: string | null
   claims: { type: string; value: string }[]
 } | null>(null)
@@ -549,7 +550,7 @@ const onQrScanSuccess = async (decodedText: string) => {
     scanExistingContact.value = existing ?? null
 
     if (existing) {
-      log.info(`Scanned contact already exists: ${existing.label} (${existing.id})`)
+      log.info(`Scanned contact already exists: ${existing.name} (${existing.id})`)
     }
 
     scannedContact.value = {
@@ -707,8 +708,10 @@ const onParseImport = () => {
     return
   }
 
-  if (!parsed.publicKey) {
-    log.warn('Import data missing publicKey')
+  const did = typeof parsed.did === 'string' ? parsed.did : undefined
+
+  if (!did) {
+    log.warn('Import data missing did')
     addToast({ title: t('errors.invalidData'), color: 'error' })
     return
   }
@@ -718,8 +721,8 @@ const onParseImport = () => {
     : []
 
   importParsed.value = {
-    label: (parsed.label as string) || '',
-    publicKey: parsed.publicKey as string,
+    name: (parsed.name as string) || '',
+    did,
     avatar: typeof parsed.avatar === 'string' ? parsed.avatar : null,
     claims,
   }
@@ -737,10 +740,14 @@ const onImportContactAsync = async () => {
     const selectedClaims = data.claims.filter((_, i) => importSelectedClaimIndices.value.has(i))
     const avatar = importIncludeAvatar.value ? data.avatar : null
 
-    log.info(`Importing contact: "${data.label}", ${selectedClaims.length}/${data.claims.length} claims, avatar: ${!!avatar}`)
+    // The store's contact APIs key off publicKey, so derive it from the DID.
+    const publicKey = await didKeyToPublicKeyAsync(data.did)
+    const displayName = data.name || `Imported ${data.did.slice(0, 16)}...`
+
+    log.info(`Importing contact: "${displayName}", ${selectedClaims.length}/${data.claims.length} claims, avatar: ${!!avatar}`)
     const contact = await identityStore.addContactWithClaimsAsync(
-      data.label || `Imported ${data.publicKey.slice(0, 16)}...`,
-      data.publicKey,
+      displayName,
+      publicKey,
       selectedClaims,
     )
     if (avatar) {
@@ -815,7 +822,7 @@ de:
     addFailed: Kontakt konnte nicht hinzugefügt werden
     importFailed: Import fehlgeschlagen
     invalidJson: Ungültiges JSON-Format
-    invalidData: Unvollständige Daten (mindestens publicKey erforderlich)
+    invalidData: Unvollständige Daten (did erforderlich)
 en:
   title: Add Contact
   description: Scan a QR code, import from a file or add manually
@@ -862,5 +869,5 @@ en:
     addFailed: Failed to add contact
     importFailed: Failed to import file
     invalidJson: Invalid JSON format
-    invalidData: Incomplete data (at least publicKey is required)
+    invalidData: Incomplete data (did is required)
 </i18n>

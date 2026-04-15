@@ -2,8 +2,7 @@ import { didKeyToPublicKeyAsync } from '@haex-space/vault-sdk'
 
 export interface ParsedIdentityImport {
   name: string
-  publicKey?: string
-  did?: string
+  did: string
   privateKey?: string
   avatar?: string | null
   claims: Array<{ type: string; value: string }>
@@ -63,10 +62,8 @@ export function useIdentityImport() {
     }
 
     const did = typeof parsed.did === 'string' ? parsed.did : undefined
-    const publicKey =
-      typeof parsed.publicKey === 'string' ? parsed.publicKey : undefined
 
-    if (!did && !publicKey) {
+    if (!did) {
       throw new InvalidImportDataError()
     }
 
@@ -76,7 +73,6 @@ export function useIdentityImport() {
 
     return {
       name: (parsed.name as string) || '',
-      publicKey,
       did,
       privateKey: parsed.privateKey as string | undefined,
       avatar: typeof parsed.avatar === 'string' ? parsed.avatar : null,
@@ -93,11 +89,10 @@ export function useIdentityImport() {
     )
     const avatar = options.includeAvatar ? data.avatar : null
 
-    if (data.privateKey && data.did) {
+    if (data.privateKey) {
       await identityStore.importIdentityAsync({
         did: data.did,
         name: data.name,
-        publicKey: data.publicKey,
         privateKey: data.privateKey,
         avatar,
         claims: selectedClaims,
@@ -106,9 +101,8 @@ export function useIdentityImport() {
     }
 
     const contact = await identityStore.addContactWithClaimsAsync(
-      data.name ||
-        `Imported ${(data.did || data.publicKey || '').slice(0, 16)}...`,
-      data.publicKey || (await didKeyToPublicKeyAsync(data.did!)),
+      data.name || `Imported ${data.did.slice(0, 16)}...`,
+      await didKeyToPublicKeyAsync(data.did),
       selectedClaims,
     )
     if (avatar) {
