@@ -1,5 +1,4 @@
 import { invoke } from '@tauri-apps/api/core'
-import { publicKeyToDidKeyAsync } from '@haex-space/vault-sdk'
 import type { SelectHaexIdentities } from '~/database/schemas'
 import { buildLocalInviteLink } from '~/utils/inviteLink'
 import { createLogger } from '@/stores/logging'
@@ -66,7 +65,7 @@ export function useSpaceInviteCreation() {
     )
 
     for (const contact of payload.contacts) {
-      const inviteeDid = await publicKeyToDidKeyAsync(contact.publicKey)
+      const inviteeDid = contact.did
       const claims = await identityStore.getClaimsAsync(contact.id)
       const endpointIds = claims
         .filter(
@@ -75,7 +74,7 @@ export function useSpaceInviteCreation() {
         .map((c) => c.value)
 
       log.info(
-        `Processing contact "${contact.label}" (did: ${inviteeDid.slice(0, 24)}..., ${endpointIds.length} endpoint(s))`,
+        `Processing contact "${contact.name}" (did: ${inviteeDid.slice(0, 24)}..., ${endpointIds.length} endpoint(s))`,
       )
 
       let serverInviteId: string | undefined
@@ -95,7 +94,7 @@ export function useSpaceInviteCreation() {
           log.info(`Server invite created: ${result.inviteId}`)
         } catch (error) {
           log.warn(
-            `Server invite failed for "${contact.label}", continuing with QUIC`,
+            `Server invite failed for "${contact.name}", continuing with QUIC`,
             error,
           )
         }
@@ -114,19 +113,19 @@ export function useSpaceInviteCreation() {
             expiresInSeconds: payload.expiresInSeconds,
           })
           log.info(
-            `QUIC invite queued for "${contact.label}" → ${endpointIds.length} endpoint(s)`,
+            `QUIC invite queued for "${contact.name}" → ${endpointIds.length} endpoint(s)`,
           )
         } catch (error) {
           // If server invite succeeded, QUIC failure is not fatal
           if (!serverInviteId) throw error
           log.warn(
-            `QUIC invite failed for "${contact.label}", server invite was sent`,
+            `QUIC invite failed for "${contact.name}", server invite was sent`,
             error,
           )
         }
       } else {
         log.warn(
-          `No endpoints for "${contact.label}", QUIC invite skipped`,
+          `No endpoints for "${contact.name}", QUIC invite skipped`,
         )
       }
     }

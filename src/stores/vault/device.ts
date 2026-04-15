@@ -6,12 +6,15 @@ import {
   isMobile as isMobilePlatform,
 } from '~/utils/platform'
 import { haexSpaceDevices } from '~/database/schemas'
+import { createLogger } from '@/stores/logging'
 
 export interface KnownDevice {
   deviceId: string
   name: string
   isCurrentDevice: boolean
 }
+
+const log = createLogger('DEVICE')
 
 export const useDeviceStore = defineStore('vaultDeviceStore', () => {
   const deviceId = ref<string>('')
@@ -72,7 +75,7 @@ export const useDeviceStore = defineStore('vaultDeviceStore', () => {
           await identityStore.addClaimAsync(identity.id, claimType, deviceId.value)
         }
       } catch (e) {
-        console.warn(`[DEVICE] Failed to update device claim for identity:`, e)
+        log.warn(`Failed to update device claim for identity:`, e)
       }
     }
   }

@@ -39,8 +39,7 @@ export function useIdentityExport() {
 
     const payload: Record<string, unknown> = {
       did: identity.did,
-      label: identity.label,
-      publicKey: identity.publicKey,
+      name: identity.name,
       claims: selectedClaims,
     }
 
@@ -67,7 +66,7 @@ export function useIdentityExport() {
 
     const filePath = await save({
       title: dialogTitle,
-      defaultPath: `${identity.label.replace(/[^a-zA-Z0-9_-]/g, '_')}.identity.json`,
+      defaultPath: `${identity.name.replace(/[^a-zA-Z0-9_-]/g, '_')}.identity.json`,
       filters: [{ name: 'JSON', extensions: ['json'] }],
     })
     if (!filePath) return { saved: false }

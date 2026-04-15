@@ -175,21 +175,9 @@
 <script setup lang="ts">
 import { createAvatar } from '@dicebear/core'
 import * as bottts from '@dicebear/bottts'
+import type { BotttsOptions } from '~/utils/identityAvatar'
 
-export interface BotttsOptions {
-  style: 'bottts'
-  face: string
-  eyes: string
-  mouth: string
-  mouthProbability: number
-  top: string
-  topProbability: number
-  sides: string
-  sidesProbability: number
-  texture: string
-  textureProbability: number
-  baseColor: string
-}
+export type { BotttsOptions } from '~/utils/identityAvatar'
 
 const options = defineModel<BotttsOptions>('options', { required: true })
 

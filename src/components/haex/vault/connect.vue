@@ -81,10 +81,9 @@ const onWizardCompleteAsync = async (wizardData: {
       identityId = crypto.randomUUID()
       identityStore.registerTemporaryIdentity({
         id: identityId,
-        publicKey: wizardData.identityPublicKey,
         privateKey: wizardData.identityPrivateKey,
         did: wizardData.identityDid,
-        label: 'Recovered Identity',
+        name: 'Recovered Identity',
       })
     }
 
@@ -158,14 +157,13 @@ const onWizardCompleteAsync = async (wizardData: {
     )
     // 6. Persist recovered identity to DB (vault is now open via route)
     await identityStore.importIdentityAsync({
-      publicKey: wizardData.identityPublicKey,
       privateKey: wizardData.identityPrivateKey,
       did: wizardData.identityDid,
-      label: 'Recovered Identity',
+      name: 'Recovered Identity',
     })
 
     // Update temporary backend with the DB-persisted identity ID
-    const persistedIdentity = await identityStore.getIdentityByPublicKeyAsync(wizardData.identityPublicKey)
+    const persistedIdentity = await identityStore.getIdentityByDidAsync(wizardData.identityDid)
     if (persistedIdentity) {
       syncBackendsStore.setTemporaryBackend({
         ...syncBackendsStore.temporaryBackend!,

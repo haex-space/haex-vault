@@ -151,7 +151,7 @@ export const pullFromBackendAsync = async (
       if (deviceStore.deviceId) {
         import('@/composables/useDeviceEnrollment').then(({ useDeviceEnrollment }) => {
           const { syncEnrollmentsAsync } = useDeviceEnrollment()
-          syncEnrollmentsAsync(deviceStore.deviceId!).catch(() => {})
+          syncEnrollmentsAsync(deviceStore.deviceId!).catch((e) => log.debug('Device enrollment sync failed:', e))
         })
       }
     }

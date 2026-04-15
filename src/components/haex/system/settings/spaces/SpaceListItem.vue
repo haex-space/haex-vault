@@ -330,7 +330,7 @@ const capabilities = ref<string[]>([])
 const inviterLabelSource = computed<'contact' | 'remote' | 'none'>(() => {
   if (!props.invite) return 'none'
   const contact = contacts.value.find(c => c.did === props.invite?.inviterDid)
-  if (contact?.label) return 'contact'
+  if (contact?.name) return 'contact'
   if (props.invite.inviterLabel) return 'remote'
   return 'none'
 })
@@ -338,7 +338,7 @@ const inviterLabelSource = computed<'contact' | 'remote' | 'none'>(() => {
 const resolvedInviterLabel = computed(() => {
   if (!props.invite) return ''
   const contact = contacts.value.find(c => c.did === props.invite?.inviterDid)
-  if (contact?.label) return contact.label
+  if (contact?.name) return contact.name
   return truncateDid(props.invite.inviterDid)
 })
 

@@ -5,6 +5,7 @@ import {
   type SelectHaexSyncBackends,
 } from '~/database/schemas'
 import { createLogger } from '@/stores/logging'
+import { requireDb } from '~/stores/vault'
 
 const log = createLogger('SYNC BACKENDS')
 
@@ -48,13 +49,10 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
 
   // Load all sync backends from database
   const loadBackendsAsync = async () => {
-    if (!currentVault.value?.drizzle) {
-      log.error('No vault opened')
-      return
-    }
+    const db = requireDb()
 
     try {
-      const result = await currentVault.value.drizzle
+      const result = await db
         .select()
         .from(haexSyncBackends)
 
@@ -67,12 +65,10 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
 
   // Add a new sync backend
   const addBackendAsync = async (backend: InsertHaexSyncBackends) => {
-    if (!currentVault.value?.drizzle) {
-      throw new Error('No vault opened')
-    }
+    const db = requireDb()
 
     try {
-      const result = await currentVault.value.drizzle
+      const result = await db
         .insert(haexSyncBackends)
         .values(backend)
         .returning()
@@ -92,12 +88,10 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
     id: string,
     updates: Partial<InsertHaexSyncBackends>,
   ) => {
-    if (!currentVault.value?.drizzle) {
-      throw new Error('No vault opened')
-    }
+    const db = requireDb()
 
     try {
-      const result = await currentVault.value.drizzle
+      const result = await db
         .update(haexSyncBackends)
         .set(updates)
         .where(eq(haexSyncBackends.id, id))
@@ -118,12 +112,10 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
 
   // Delete a sync backend
   const deleteBackendAsync = async (id: string) => {
-    if (!currentVault.value?.drizzle) {
-      throw new Error('No vault opened')
-    }
+    const db = requireDb()
 
     try {
-      await currentVault.value.drizzle
+      await db
         .delete(haexSyncBackends)
         .where(eq(haexSyncBackends.id, id))
 
@@ -148,12 +140,10 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
   const findBackendByServerUrlAsync = async (
     serverUrl: string,
   ): Promise<SelectHaexSyncBackends | null> => {
-    if (!currentVault.value?.drizzle) {
-      throw new Error('No vault opened')
-    }
+    const db = requireDb()
 
     try {
-      const result = await currentVault.value.drizzle
+      const result = await db
         .select()
         .from(haexSyncBackends)
         .where(eq(haexSyncBackends.homeServerUrl, serverUrl))

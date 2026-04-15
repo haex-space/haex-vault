@@ -1,16 +1,18 @@
 import { eq } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
 import type { Capability } from '@haex-space/ucan'
+import { didKeyToPublicKeyAsync } from '@haex-space/vault-sdk'
 import { haexSpaces, haexInviteTokens } from '~/database/schemas'
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
 import type { schema } from '~/database'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { delegateUcanAsync, fetchWithUcanAuth, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
+import { throwIfNotOk } from '@/utils/fetch'
 import { SpaceType, SpaceStatus } from '~/database/constants'
 import type { SpaceType as SpaceTypeValue } from '~/database/constants'
 import { createLogger } from '@/stores/logging'
 import { detectCrossServerInvite, setupFederationForSpace } from './federation'
-import { addMemberToSpace } from './members'
+import { addSelfAsSpaceMember } from './members'
 import type { SpaceWithType, ResolvedIdentity } from './index'
 
 type DB = SqliteRemoteDatabase<typeof schema>
@@ -67,10 +69,7 @@ export async function inviteMember(
     },
   )
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new Error(`Failed to invite member: ${error.error || response.statusText}`)
-  }
+  await throwIfNotOk(response, 'invite member')
 
   const data = await response.json()
   log.info(`Invited ${inviteeDid} to space ${spaceId} with ${capability}`)
@@ -104,10 +103,7 @@ export async function createInviteToken(
     },
   )
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new Error(`Failed to create invite token: ${error.error || response.statusText}`)
-  }
+  await throwIfNotOk(response, 'create invite token')
 
   const data = await response.json()
   log.info(`Created invite token for space ${spaceId} (maxUses: ${options.maxUses ?? 1})`)
@@ -141,7 +137,7 @@ export async function claimInviteToken(
 
   const claimBody = JSON.stringify({
     keyPackages: keyPackagesBase64,
-    label: identity.label,
+    label: identity.name,
   })
   const response = await fetchWithDidAuth(
     `${serverUrl}/spaces/${spaceId}/invite-tokens/${tokenId}/claim`,
@@ -155,10 +151,7 @@ export async function claimInviteToken(
     },
   )
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new Error(`Failed to claim invite: ${error.error || response.statusText}`)
-  }
+  await throwIfNotOk(response, 'claim invite')
 
   const data = await response.json()
 
@@ -170,6 +163,7 @@ export async function claimInviteToken(
       name: '',
       type: SpaceType.ONLINE,
       status: SpaceStatus.ACTIVE,
+      ownerIdentityId: identity.id,
       serverUrl: relayServerUrl,
       createdAt: new Date().toISOString(),
     })
@@ -181,6 +175,7 @@ export async function claimInviteToken(
       name: '',
       type: SpaceType.ONLINE,
       status: SpaceStatus.ACTIVE,
+      ownerIdentityId: identity.id,
       serverUrl,
       createdAt: new Date().toISOString(),
     })
@@ -193,18 +188,8 @@ export async function claimInviteToken(
   await identityStore.loadIdentitiesAsync()
   const myIdentity = identityStore.ownIdentities[0]
   if (myIdentity) {
-    try {
-      await addMemberToSpace(db, {
-        spaceId,
-        memberDid: myIdentity.did,
-        label: myIdentity.label || myIdentity.did.slice(0, 16),
-        role: data.capability?.replace('space/', '') || 'read',
-        avatar: myIdentity.avatar,
-        avatarOptions: myIdentity.avatarOptions,
-      })
-    } catch (error) {
-      log.warn(`Failed to add self as space member: ${error}`)
-    }
+    const role = data.capability?.replace('space/', '') || 'read'
+    await addSelfAsSpaceMember(db, spaceId, myIdentity, role)
   }
 
   return { capability: data.capability }
@@ -339,6 +324,10 @@ export async function acceptLocalInvite(
     spaceName?: string | null
     spaceType?: string | null
     originUrl?: string | null
+    inviterDid?: string | null
+    inviterLabel?: string | null
+    inviterAvatar?: string | null
+    inviterAvatarOptions?: string | null
     spaceEndpoints: string | null
     tokenId: string | null
   },
@@ -353,6 +342,15 @@ export async function acceptLocalInvite(
   await identityStore.loadIdentitiesAsync()
   const identity = identityStore.ownIdentities[0]
   if (!identity) throw new Error('No identity available')
+  if (!invite.inviterDid) throw new Error('Missing inviter DID for local invite')
+
+  const ownerIdentity = await identityStore.ensureIdentityForDidAsync(invite.inviterDid, {
+    name: invite.inviterLabel,
+    avatar: invite.inviterAvatar,
+    avatarOptions: invite.inviterAvatarOptions,
+    source: 'space',
+  })
+  const identityPublicKey = await didKeyToPublicKeyAsync(identity.did)
 
   const endpoints: string[] = JSON.parse(invite.spaceEndpoints)
   if (endpoints.length === 0) throw new Error('No space endpoints in invite')
@@ -370,8 +368,8 @@ export async function acceptLocalInvite(
         spaceName: invite.spaceName || invite.spaceId.slice(0, 8),
         tokenId: invite.tokenId,
         identityDid: identity.did,
-        label: identity.label || null,
-        identityPublicKey: identity.publicKey,
+        label: identity.name || null,
+        identityPublicKey,
       })
       log.info(`ClaimInvite: success to ${endpointId.slice(0, 16)}`)
       lastError = null
@@ -393,6 +391,7 @@ export async function acceptLocalInvite(
       name: invite.spaceName || invite.spaceId.slice(0, 8),
       type: (invite.spaceType as SpaceTypeValue) || SpaceType.LOCAL,
       status: SpaceStatus.ACTIVE,
+      ownerIdentityId: ownerIdentity.id,
       serverUrl: invite.originUrl || '',
       createdAt: new Date().toISOString(),
     })
@@ -401,18 +400,7 @@ export async function acceptLocalInvite(
   await loadSpacesFromDbAsync()
 
   // Add self as space member (non-fatal)
-  try {
-    await addMemberToSpace(db, {
-      spaceId: invite.spaceId,
-      memberDid: identity.did,
-      label: identity.label || identity.did.slice(0, 16),
-      role: 'read',
-      avatar: identity.avatar,
-      avatarOptions: identity.avatarOptions,
-    })
-  } catch (error) {
-    log.warn(`Failed to add self as space member: ${error}`)
-  }
+  await addSelfAsSpaceMember(db, invite.spaceId, identity, 'read')
 
   log.info(`Accepted local invite for space ${invite.spaceId}`)
 }

@@ -207,22 +207,9 @@
 <script setup lang="ts">
 import { createAvatar } from '@dicebear/core'
 import * as toonHead from '@dicebear/toon-head'
+import type { ToonHeadOptions } from '~/utils/identityAvatar'
 
-export interface ToonHeadOptions {
-  style: 'toon-head'
-  eyes: string
-  eyebrows: string
-  mouth: string
-  beard: string
-  beardProbability: number
-  hair: string
-  rearHair: string
-  rearHairProbability: number
-  clothes: string
-  skinColor: string
-  hairColor: string
-  clothesColor: string
-}
+export type { ToonHeadOptions } from '~/utils/identityAvatar'
 
 const options = defineModel<ToonHeadOptions>('options', { required: true })
 

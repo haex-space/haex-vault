@@ -3,6 +3,8 @@ import { listen } from '@tauri-apps/api/event'
 import { eq } from 'drizzle-orm'
 import { haexSyncRules, haexSyncState, type SelectHaexSyncRules } from '~/database/schemas'
 import { subscribeToSyncUpdates, unsubscribeFromSyncUpdates } from '~/stores/sync/syncEvents'
+import { createLogger } from '@/stores/logging'
+import { requireDb } from '~/stores/vault'
 
 interface SyncRuleStatus {
   ruleId: string
@@ -26,6 +28,8 @@ interface SyncProgress {
   bytesTotal: number
 }
 
+const log = createLogger('FILE_SYNC')
+
 export const useFileSyncStore = defineStore('fileSyncStore', () => {
   const { currentVault } = storeToRefs(useVaultStore())
 
@@ -41,8 +45,7 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
   // =========================================================================
 
   const loadRulesAsync = async () => {
-    const db = currentVault.value?.drizzle
-    if (!db) return
+    const db = requireDb()
     syncRules.value = await db.select().from(haexSyncRules).all()
     // Seed the timestamp cache so we only trigger on actual changes
     for (const rule of syncRules.value) {
@@ -53,8 +56,7 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
   }
 
   const createRuleAsync = async (rule: typeof haexSyncRules.$inferInsert) => {
-    const db = currentVault.value?.drizzle
-    if (!db) throw new Error('No vault open')
+    const db = requireDb()
     await db.insert(haexSyncRules).values(rule)
     await loadRulesAsync()
     // Start sync immediately
@@ -65,15 +67,13 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
   }
 
   const updateRuleAsync = async (id: string, updates: Partial<typeof haexSyncRules.$inferInsert>) => {
-    const db = currentVault.value?.drizzle
-    if (!db) throw new Error('No vault open')
+    const db = requireDb()
     await db.update(haexSyncRules).set(updates).where(eq(haexSyncRules.id, id))
     await loadRulesAsync()
   }
 
   const deleteRuleAsync = async (id: string) => {
-    const db = currentVault.value?.drizzle
-    if (!db) throw new Error('No vault open')
+    const db = requireDb()
     // Stop sync if running
     try { await invoke('file_sync_stop_rule', { ruleId: id }) } catch { /* may not be running */ }
     // Delete sync state
@@ -99,7 +99,7 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
   // =========================================================================
 
   const startRuleAsync = async (rule: SelectHaexSyncRules) => {
-    console.log(`[FileSync] Starting rule ${rule.id}: ${rule.sourceType} → ${rule.targetType}, interval=${rule.syncIntervalSeconds}s`)
+    log.info(`Starting rule ${rule.id}: ${rule.sourceType} → ${rule.targetType}, interval=${rule.syncIntervalSeconds}s`)
     await invoke('file_sync_start_rule', {
       ruleId: rule.id,
       sourceType: rule.sourceType,
@@ -141,7 +141,7 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
       try {
         await startRuleAsync(rule)
       } catch (e) {
-        console.warn(`[FileSync] Failed to start rule ${rule.id}:`, e)
+        log.warn(`Failed to start rule ${rule.id}:`, e)
       }
     }
   }
@@ -168,7 +168,7 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
     })
 
     unlistenError = await listen<{ ruleId: string; error: string }>('file-sync:error', (event) => {
-      console.error(`[FileSync] Rule ${event.payload.ruleId} error:`, event.payload.error)
+      log.error(`Rule ${event.payload.ruleId} error:`, event.payload.error)
       currentProgress.value.delete(event.payload.ruleId)
       currentProgress.value = new Map(currentProgress.value)
     })
@@ -183,7 +183,7 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
         const currentTimestamp = rule.lastSyncedAt
         if (currentTimestamp && currentTimestamp !== knownTimestamp) {
           knownSyncTimestamps.set(rule.id, currentTimestamp)
-          console.log(`[FileSync] Remote sync detected for rule ${rule.id}, triggering local sync`)
+          log.info(`Remote sync detected for rule ${rule.id}, triggering local sync`)
           try {
             await invoke('file_sync_trigger_by_watcher', { ruleId: rule.id })
           } catch {

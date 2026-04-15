@@ -14,16 +14,18 @@
           />
           <UiAvatar
             :src="contact.avatar"
-            :seed="contact.id"
+            :seed="contact.did"
+            :avatar-options="parsedAvatarOptions"
+            avatar-style="toon-head"
             size="sm"
           />
           <div class="min-w-0">
             <div class="flex items-center gap-2">
-              <span class="font-medium truncate">{{ contact.label }}</span>
+              <span class="font-medium truncate">{{ contact.name }}</span>
             </div>
             <div class="mt-1 flex items-center gap-2">
               <code class="text-xs text-muted truncate max-w-[300px]">{{
-                contact.publicKey
+                contact.did
               }}</code>
             </div>
           </div>
@@ -186,9 +188,18 @@ defineEmits<{
 const { t } = useI18n()
 const { add: addToast } = useToast()
 
+const parsedAvatarOptions = computed(() => {
+  if (!props.contact.avatarOptions) return null
+  try {
+    return JSON.parse(props.contact.avatarOptions) as Record<string, unknown>
+  } catch {
+    return null
+  }
+})
+
 const copyPublicKey = async () => {
   try {
-    await navigator.clipboard.writeText(props.contact.publicKey)
+    await navigator.clipboard.writeText(props.contact.did)
     addToast({ title: t('success.copied'), color: 'success' })
   } catch {
     addToast({ title: t('errors.copyFailed'), color: 'error' })

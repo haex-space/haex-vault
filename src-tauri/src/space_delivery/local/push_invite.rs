@@ -36,6 +36,8 @@ pub fn handle_push_invite(
     include_history: bool,
     inviter_did: &str,
     inviter_label: Option<&str>,
+    inviter_avatar: Option<&str>,
+    inviter_avatar_options: Option<&str>,
     space_endpoints: &[String],
     origin_url: Option<&str>,
 ) -> Response {
@@ -120,9 +122,9 @@ pub fn handle_push_invite(
 
     match core::execute_with_crdt(
         "INSERT OR IGNORE INTO haex_pending_invites \
-         (id, space_id, space_name, space_type, origin_url, inviter_did, inviter_label, \
+         (id, space_id, space_name, space_type, origin_url, inviter_did, inviter_label, inviter_avatar, inviter_avatar_options, \
           capabilities, include_history, token_id, space_endpoints, status, created_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'pending', ?12)"
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 'pending', ?14)"
             .to_string(),
         vec![
             serde_json::Value::String(invite_id.clone()),
@@ -135,6 +137,12 @@ pub fn handle_push_invite(
             serde_json::Value::String(inviter_did.to_string()),
             inviter_label.map_or(serde_json::Value::Null, |l| {
                 serde_json::Value::String(l.to_string())
+            }),
+            inviter_avatar.map_or(serde_json::Value::Null, |a| {
+                serde_json::Value::String(a.to_string())
+            }),
+            inviter_avatar_options.map_or(serde_json::Value::Null, |o| {
+                serde_json::Value::String(o.to_string())
             }),
             serde_json::Value::String(capabilities_json),
             serde_json::Value::Number(serde_json::Number::from(include_history as i32)),

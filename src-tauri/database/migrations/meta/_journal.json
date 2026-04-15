@@ -15,6 +15,20 @@
       "when": 1776073336707,
       "tag": "0001_mute_galactus",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1776162751135,
+      "tag": "0002_mysterious_vision",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1776165419184,
+      "tag": "0003_short_captain_universe",
+      "breakpoints": true
     }
   ]
 }

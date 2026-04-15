@@ -22,6 +22,9 @@ export const haexSpaces = sqliteTable(
     type: text(tableNames.haex.spaces.columns.type).notNull().default('online'), // 'vault' | 'online' | 'local'
     status: text(tableNames.haex.spaces.columns.status).notNull().default('active'), // 'active' | 'pending'
     name: text(tableNames.haex.spaces.columns.name).notNull(),
+    ownerIdentityId: text(tableNames.haex.spaces.columns.ownerIdentityId)
+      .notNull()
+      .references(() => haexIdentities.id),
     originUrl: text(tableNames.haex.spaces.columns.originUrl),
     createdAt: text(tableNames.haex.spaces.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
@@ -77,18 +80,16 @@ export const haexSpaceMembers = sqliteTable(
     spaceId: text(tableNames.haex.space_members.columns.spaceId)
       .notNull()
       .references(() => haexSpaces.id, { onDelete: 'cascade' }),
-    memberDid: text(tableNames.haex.space_members.columns.memberDid).notNull(),
-    memberPublicKey: text(tableNames.haex.space_members.columns.memberPublicKey).notNull(),
-    label: text(tableNames.haex.space_members.columns.label).notNull(),
-    avatar: text(tableNames.haex.space_members.columns.avatar),
-    avatarOptions: text(tableNames.haex.space_members.columns.avatarOptions),
+    identityId: text(tableNames.haex.space_members.columns.identityId)
+      .notNull()
+      .references(() => haexIdentities.id, { onDelete: 'cascade' }),
     role: text(tableNames.haex.space_members.columns.role).notNull().default('read'),
     joinedAt: text(tableNames.haex.space_members.columns.joinedAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),
   },
   (table) => [
-    uniqueIndex('haex_space_members_space_did_unique').on(table.spaceId, table.memberDid),
+    uniqueIndex('haex_space_members_space_identity_unique').on(table.spaceId, table.identityId),
   ],
 )
 export type InsertHaexSpaceMembers = typeof haexSpaceMembers.$inferInsert

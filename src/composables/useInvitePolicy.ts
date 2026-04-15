@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { haexBlockedDids, haexIdentities, haexInvitePolicy } from '~/database/schemas'
 
 type InvitePolicy = 'all' | 'contacts_only' | 'nobody'
@@ -39,7 +39,7 @@ export function useInvitePolicy() {
         // Check if the inviter's DID matches a known contact (identity without privateKey)
         const match = await db.select({ id: haexIdentities.id })
           .from(haexIdentities)
-          .where(eq(haexIdentities.did, inviterDid))
+          .where(and(eq(haexIdentities.did, inviterDid), eq(haexIdentities.source, 'contact')))
           .limit(1)
         return match.length > 0
       }

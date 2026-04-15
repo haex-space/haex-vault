@@ -14,11 +14,12 @@
           />
           <UiAvatar
             :src="identity.avatar"
-            :seed="identity.publicKey"
+            :seed="identity.did"
+            :avatar-options="avatarOptions"
             avatar-style="toon-head"
             size="sm"
           />
-          <span class="font-medium truncate">{{ identity.label }}</span>
+          <span class="font-medium truncate">{{ identity.name }}</span>
         </div>
 
         <div
@@ -156,12 +157,6 @@ export interface ListItemClaim {
   value: string
 }
 
-defineProps<{
-  identity: SelectHaexIdentities
-  expanded: boolean
-  claims: ListItemClaim[]
-}>()
-
 const emit = defineEmits<{
   toggle: [open: boolean]
   'share-qr': []
@@ -176,6 +171,21 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+const props = defineProps<{
+  identity: SelectHaexIdentities
+  expanded: boolean
+  claims: ListItemClaim[]
+}>()
+
+const avatarOptions = computed(() => {
+  if (!props.identity.avatarOptions) return null
+  try {
+    return JSON.parse(props.identity.avatarOptions) as Record<string, unknown>
+  } catch {
+    return null
+  }
+})
 
 const menuItems = computed(() => [
   [

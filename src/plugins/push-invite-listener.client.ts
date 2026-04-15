@@ -38,7 +38,8 @@ export default defineNuxtPlugin({
 
         try {
           const { add } = useToast()
-          const isDe = (nuxtApp.$i18n?.locale?.value ?? 'de') === 'de'
+          const i18n = nuxtApp.$i18n as { locale?: { value?: string } } | undefined
+          const isDe = (i18n?.locale?.value ?? 'de') === 'de'
           add({
             title: isDe ? 'Neue Einladung' : 'New invitation',
             description: isDe

@@ -17,6 +17,9 @@ import { invoke } from '@tauri-apps/api/core'
 import { TAURI_COMMANDS, type ApplicationContext } from '@haex-space/vault-sdk'
 import { useExtensionBroadcastStore } from './broadcast'
 import { isDesktop } from '~/utils/platform'
+import { createLogger } from '@/stores/logging'
+
+const log = createLogger('EXTENSION_CONTEXT')
 
 export const useExtensionContextStore = defineStore('extensionContextStore', () => {
   // Current context - cached so we can send it to newly registered iframes
@@ -59,7 +62,7 @@ export const useExtensionContextStore = defineStore('extensionContextStore', () 
       try {
         await invoke(TAURI_COMMANDS.extension.setContext, { context: newContext })
       } catch (error) {
-        console.error('[ExtensionContext] Failed to store context in Tauri:', error)
+        log.error('Failed to store context in Tauri:', error)
       }
     }
 
@@ -84,7 +87,7 @@ export const useExtensionContextStore = defineStore('extensionContextStore', () 
     () => {
       // Call async function with proper error handling to avoid unhandled rejections
       updateContext().catch((error) => {
-        console.error('[ExtensionContext] Failed to update context:', error)
+        log.error('Failed to update context:', error)
       })
     },
     { immediate: true },

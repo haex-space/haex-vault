@@ -1,6 +1,7 @@
 import {
   importUserPrivateKeyAsync,
   encryptPrivateKeyAsync,
+  didKeyToPublicKeyAsync,
 } from '@haex-space/vault-sdk'
 import { didAuthenticateAsync } from '~/stores/sync/engine/tokenManager'
 import { getErrorMessage } from '~/utils/errors'
@@ -154,7 +155,7 @@ export const useCreateSyncConnection = () => {
 
       const presentation = await signClaimPresentation(
         identity.did,
-        identity.publicKey,
+        await didKeyToPublicKeyAsync(identity.did),
         params.approvedClaims,
         identity.privateKey,
         serverClockOffsetMs.value,

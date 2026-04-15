@@ -198,17 +198,19 @@
           </p>
           <div
             v-for="member in members"
-            :key="member.id"
+            :key="member.membership.id"
             class="flex items-center justify-between gap-2 p-2 rounded-md bg-gray-50 dark:bg-gray-800/50"
           >
             <div class="flex items-center gap-2 min-w-0">
               <UiAvatar
-                :src="member.avatar"
-                :seed="member.memberDid"
+                :src="member.identity.avatar"
+                :seed="member.identity.did"
+                :avatar-options="parseAvatarOptions(member.identity.avatarOptions)"
+                avatar-style="toon-head"
                 size="xs"
               />
               <div
-                v-if="editingMemberId === member.id"
+                v-if="editingMemberId === member.membership.id"
                 class="flex items-center gap-2 min-w-0"
               >
                 <UiInput
@@ -237,23 +239,23 @@
                 class="min-w-0"
               >
                 <div class="flex items-center gap-1.5">
-                  <p class="text-sm font-medium truncate">{{ member.label }}</p>
+                  <p class="text-sm font-medium truncate">{{ member.identity.name }}</p>
                   <UBadge
-                    :color="member.role === 'admin' ? 'primary' : 'neutral'"
+                    :color="member.membership.role === 'admin' ? 'primary' : 'neutral'"
                     variant="subtle"
                     size="xs"
                   >
-                    {{ member.role }}
+                    {{ member.membership.role }}
                   </UBadge>
                 </div>
                 <p class="text-xs text-muted truncate">
-                  {{ member.memberDid.slice(0, 24) }}…
+                  {{ member.identity.did.slice(0, 24) }}…
                 </p>
               </div>
             </div>
             <div class="flex gap-1">
               <UiButton
-                v-if="isOwnMember(member) && editingMemberId !== member.id"
+                v-if="isOwnMember(member) && editingMemberId !== member.membership.id"
                 color="neutral"
                 variant="ghost"
                 icon="i-lucide-pencil"
@@ -285,9 +287,7 @@
 
 <script setup lang="ts">
 import { eq, and } from 'drizzle-orm'
-import type { SpaceWithType } from '@/stores/spaces'
 import type {
-  SelectHaexSpaceMembers,
   SelectHaexInviteTokens,
   SelectHaexInviteOutbox,
 } from '~/database/schemas'
@@ -295,11 +295,21 @@ import type { SpaceLinkedItemGroup } from '~/composables/useSpaceLinkedItems'
 import { haexInviteTokens, haexInviteOutbox } from '~/database/schemas'
 import { OutboxStatus } from '~/database/constants'
 import { SettingsCategory } from '~/config/settingsCategories'
+import type { SpaceMemberWithIdentity } from '@/stores/spaces/members'
 import SpaceLinkedItems from './SpaceLinkedItems.vue'
 
 const props = defineProps<{
   spaceId: string
 }>()
+
+const parseAvatarOptions = (raw: string | null): Record<string, unknown> | null => {
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
 
 const emit = defineEmits<{
   back: []
@@ -319,7 +329,7 @@ const getDb = () => currentVault.value?.drizzle
 
 const showMembersDrawer = ref(false)
 const capabilities = ref<string[]>([])
-const members = ref<SelectHaexSpaceMembers[]>([])
+const members = ref<SpaceMemberWithIdentity[]>([])
 const pendingTokens = ref<SelectHaexInviteTokens[]>([])
 const failedOutboxEntries = ref<SelectHaexInviteOutbox[]>([])
 
@@ -327,12 +337,12 @@ const editingMemberId = ref<string | null>(null)
 const editLabel = ref('')
 const savingProfile = ref(false)
 
-const myDids = computed(() => identityStore.ownIdentities.map((i) => i.did))
-const isOwnMember = (member: SelectHaexSpaceMembers) =>
-  myDids.value.includes(member.memberDid)
+const myIdentityIds = computed(() => identityStore.ownIdentities.map((i) => i.id))
+const isOwnMember = (member: SpaceMemberWithIdentity) =>
+  myIdentityIds.value.includes(member.identity.id)
 
-const space = computed(() =>
-  spacesStore.spaces.find((s) => s.id === props.spaceId),
+const space = computed(
+  () => spacesStore.visibleSpaces.find((s) => s.id === props.spaceId) ?? null,
 )
 const backendName = computed(() =>
   space.value ? getBackendNameByUrl(space.value.serverUrl) : '',
@@ -423,7 +433,7 @@ const loadMembersAsync = async () => {
  *  preferring the local contact entry over the raw DID. */
 const contactLabelForDid = (did: string): string => {
   const contact = identityStore.contacts.find((c) => c.did === did)
-  return contact?.label || `${did.slice(0, 20)}…`
+  return contact?.name || `${did.slice(0, 20)}…`
 }
 
 const formatCapabilities = (capabilities: string | null): string => {
@@ -436,9 +446,9 @@ const formatCapabilities = (capabilities: string | null): string => {
   }
 }
 
-const onRemoveMemberAsync = async (member: SelectHaexSpaceMembers) => {
+const onRemoveMemberAsync = async (member: SpaceMemberWithIdentity) => {
   try {
-    await spacesStore.removeSpaceMemberAsync(props.spaceId, member.memberDid)
+    await spacesStore.removeSpaceMemberAsync(props.spaceId, member.identity.did)
     add({ title: t('members.removed'), color: 'success' })
     await loadMembersAsync()
   } catch (error) {
@@ -450,9 +460,9 @@ const onRemoveMemberAsync = async (member: SelectHaexSpaceMembers) => {
   }
 }
 
-const onStartEditProfile = (member: SelectHaexSpaceMembers) => {
-  editingMemberId.value = member.id
-  editLabel.value = member.label
+const onStartEditProfile = (member: SpaceMemberWithIdentity) => {
+  editingMemberId.value = member.membership.id
+  editLabel.value = member.identity.name
 }
 
 const onCancelEditProfile = () => {
@@ -464,7 +474,7 @@ const onUpdateProfileAsync = async () => {
   savingProfile.value = true
   try {
     await spacesStore.updateOwnSpaceProfileAsync(props.spaceId, {
-      label: editLabel.value,
+      name: editLabel.value,
     })
     editingMemberId.value = null
     editLabel.value = ''

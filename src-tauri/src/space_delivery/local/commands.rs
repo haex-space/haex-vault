@@ -553,11 +553,37 @@ pub async fn local_delivery_claim_invite(
     let db = DbConnection(state.db.0.clone());
     let hlc_guard = state.hlc.lock().map_err(|_| "HLC lock poisoned".to_string())?;
 
+    // owner_identity_id is NOT NULL and must reference an existing row in
+    // haex_identities. The claimant always uses their own local identity as
+    // the owner of the local copy (matches the JS persist path in
+    // src/stores/spaces/invites.ts).
+    let owner_identity_id = {
+        let rows = crate::database::core::select_with_crdt(
+            "SELECT id FROM haex_identities WHERE did = ?1 AND private_key IS NOT NULL LIMIT 1"
+                .to_string(),
+            vec![serde_json::Value::String(identity_did.clone())],
+            &db,
+        )
+        .map_err(|e| format!("Failed to look up local identity: {e}"))?;
+
+        rows.first()
+            .and_then(|r| r.first())
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)
+            .ok_or_else(|| {
+                format!(
+                    "Local identity for DID {} not found — cannot claim invite without an owner",
+                    &identity_did[..30.min(identity_did.len())]
+                )
+            })?
+    };
+
     crate::database::core::execute_with_crdt(
-        "INSERT OR IGNORE INTO haex_spaces (id, type, status, name) VALUES (?1, 'local', 'active', ?2)".to_string(),
+        "INSERT OR IGNORE INTO haex_spaces (id, type, status, name, owner_identity_id) VALUES (?1, 'local', 'active', ?2, ?3)".to_string(),
         vec![
             serde_json::Value::String(space_id.clone()),
             serde_json::Value::String(space_name),
+            serde_json::Value::String(owner_identity_id),
         ],
         &db,
         &hlc_guard,
@@ -609,6 +635,8 @@ pub async fn local_delivery_push_invite(
     include_history: bool,
     inviter_did: String,
     inviter_label: Option<String>,
+    inviter_avatar: Option<String>,
+    inviter_avatar_options: Option<String>,
     space_endpoints: Vec<String>,
     origin_url: Option<String>,
     expires_at: String,
@@ -662,6 +690,8 @@ pub async fn local_delivery_push_invite(
         include_history,
         inviter_did,
         inviter_label,
+        inviter_avatar,
+        inviter_avatar_options,
         space_endpoints,
         origin_url,
         expires_at,

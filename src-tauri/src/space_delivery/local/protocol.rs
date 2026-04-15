@@ -139,6 +139,8 @@ pub enum Request {
         include_history: bool,
         inviter_did: String,
         inviter_label: Option<String>,
+        inviter_avatar: Option<String>,
+        inviter_avatar_options: Option<String>,
         /// All known space device EndpointIds — invitee tries each until one answers ClaimInvite
         space_endpoints: Vec<String>,
         origin_url: Option<String>,
@@ -271,4 +273,3 @@ pub async fn read_response(
 ) -> Result<Response, PeerProtocolError> {
     crate::peer_storage::protocol::read_message(recv, MAX_RESPONSE_SIZE).await
 }
-

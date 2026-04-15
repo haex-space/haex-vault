@@ -17,9 +17,9 @@ export const haexIdentities = sqliteTable(
     id: text(tableNames.haex.identities.columns.id)
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
-    publicKey: text(tableNames.haex.identities.columns.publicKey).notNull(),
     did: text(tableNames.haex.identities.columns.did).notNull(),
-    label: text(tableNames.haex.identities.columns.label).notNull(),
+    name: text(tableNames.haex.identities.columns.name).notNull(),
+    source: text(tableNames.haex.identities.columns.source).notNull().default('contact'),
     privateKey: text(tableNames.haex.identities.columns.privateKey), // null = contact, non-null = own identity
     avatar: text(tableNames.haex.identities.columns.avatar), // Base64 WebP 128x128
     avatarOptions: text(tableNames.haex.identities.columns.avatarOptions), // JSON DiceBear options
@@ -29,7 +29,6 @@ export const haexIdentities = sqliteTable(
     ),
   },
   (table) => [
-    uniqueIndex('haex_identities_public_key_unique').on(table.publicKey),
     uniqueIndex('haex_identities_did_unique').on(table.did),
   ],
 )
@@ -60,4 +59,3 @@ export const haexIdentityClaims = sqliteTable(
 )
 export type InsertHaexIdentityClaims = typeof haexIdentityClaims.$inferInsert
 export type SelectHaexIdentityClaims = typeof haexIdentityClaims.$inferSelect
-

@@ -57,6 +57,13 @@
         </div>
       </div>
 
+      <UiSelectMenu
+        v-model="form.ownerIdentityId"
+        :items="ownerIdentityOptions"
+        :label="t('ownerLabel')"
+        value-key="value"
+      />
+
       <!-- Server selector (only for online) -->
       <div
         v-if="form.type === SpaceType.ONLINE"
@@ -89,7 +96,7 @@
         <UiButton
           icon="i-lucide-plus"
           :loading="submitting"
-          :disabled="!form.name?.trim()"
+          :disabled="!form.name?.trim() || !form.ownerIdentityId"
           data-testid="spaces-create-submit"
           @click="onSubmit"
         >
@@ -104,10 +111,12 @@
 import { SpaceType, type SpaceType as SpaceTypeValue } from '~/database/constants'
 
 type ServerOption = { label: string; value: string }
+type IdentityOption = { label: string; value: string }
 
 export interface CreateSpacePayload {
   name: string
   type: SpaceTypeValue
+  ownerIdentityId: string
   serverUrl?: ServerOption
 }
 
@@ -115,6 +124,8 @@ const open = defineModel<boolean>('open', { required: true })
 
 const props = defineProps<{
   serverUrlOptions: ServerOption[]
+  ownerIdentityOptions: IdentityOption[]
+  defaultOwnerIdentityId?: string
   submitting: boolean
 }>()
 
@@ -128,6 +139,7 @@ const { t } = useI18n()
 const form = reactive({
   name: '',
   type: SpaceType.LOCAL as SpaceTypeValue,
+  ownerIdentityId: '',
   serverUrl: undefined as ServerOption | undefined,
 })
 
@@ -136,6 +148,7 @@ watch(open, (isOpen) => {
   if (isOpen) {
     form.name = ''
     form.type = SpaceType.LOCAL
+    form.ownerIdentityId = props.defaultOwnerIdentityId || props.ownerIdentityOptions[0]?.value || ''
     form.serverUrl = undefined
   }
 })
@@ -145,6 +158,7 @@ const onSubmit = () => {
   emit('submit', {
     name: form.name.trim(),
     type: form.type,
+    ownerIdentityId: form.ownerIdentityId,
     serverUrl: form.serverUrl,
   })
 }
@@ -160,6 +174,7 @@ de:
   typeOnline: Online
   typeLocalHint: Daten bleiben auf deinen Geräten
   typeOnlineHint: Synchronisiert über einen Server
+  ownerLabel: Besitzer-Identität
   serverLabel: Sync-Server
   submit: Erstellen
   cancel: Abbrechen
@@ -172,6 +187,7 @@ en:
   typeOnline: Online
   typeLocalHint: Data stays on your devices
   typeOnlineHint: Synchronized via a server
+  ownerLabel: Owner Identity
   serverLabel: Sync Server
   submit: Create
   cancel: Cancel

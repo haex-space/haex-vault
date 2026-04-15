@@ -24,6 +24,7 @@ export type InvitePolicyValue = 'all' | 'contacts_only' | 'nobody'
 export function useSpaceInvites() {
   const { currentVault } = storeToRefs(useVaultStore())
   const spacesStore = useSpacesStore()
+  const identityStore = useIdentityStore()
   const syncBackendsStore = useSyncBackendsStore()
   const { backends: syncBackends } = storeToRefs(syncBackendsStore)
   const { setPolicy, getPolicy } = useInvitePolicy()
@@ -43,7 +44,17 @@ export function useSpaceInvites() {
       .from(haexPendingInvites)
       .where(eq(haexPendingInvites.status, 'pending'))
 
-    pendingInvites.value = rows
+    await identityStore.loadIdentitiesAsync()
+    pendingInvites.value = rows.map((row) => {
+      const knownIdentity = identityStore.identities.find(i => i.did === row.inviterDid)
+      if (!knownIdentity) return row
+      return {
+        ...row,
+        inviterLabel: knownIdentity.name,
+        inviterAvatar: knownIdentity.avatar,
+        inviterAvatarOptions: knownIdentity.avatarOptions,
+      }
+    })
     currentPolicy.value = await getPolicy()
   }
 
@@ -81,6 +92,12 @@ export function useSpaceInvites() {
       } else if (serverUrl && invite.tokenId) {
         // Online space without QUIC endpoints — accept via server
         const identity = await ensureCurrentIdentityAsync()
+        const ownerIdentity = await identityStore.ensureIdentityForDidAsync(invite.inviterDid, {
+          name: invite.inviterLabel,
+          avatar: invite.inviterAvatar,
+          avatarOptions: invite.inviterAvatarOptions,
+          source: 'space',
+        })
         const delivery = useMlsDelivery(serverUrl, invite.spaceId, {
           privateKey: identity.privateKey,
           did: identity.did,
@@ -93,6 +110,7 @@ export function useSpaceInvites() {
           type:
             (invite.spaceType as SpaceWithType['type']) || SpaceType.ONLINE,
           status: SpaceStatus.ACTIVE,
+          ownerIdentityId: ownerIdentity.id,
           serverUrl,
           createdAt: new Date().toISOString(),
         })
@@ -100,18 +118,7 @@ export function useSpaceInvites() {
 
         // Add self as space member (non-fatal) — reuses the identity resolved
         // for MlsDelivery above so we don't re-read the store.
-        try {
-          await spacesStore.addMemberToSpaceAsync({
-            spaceId: invite.spaceId,
-            memberDid: identity.did,
-            label: identity.label || identity.did.slice(0, 16),
-            role: 'read',
-            avatar: identity.avatar,
-            avatarOptions: identity.avatarOptions,
-          })
-        } catch (error) {
-          console.warn('Failed to add self as space member:', error)
-        }
+        await spacesStore.addSelfAsSpaceMemberAsync(invite.spaceId, identity, 'read')
       } else {
         throw new Error('No server URL or endpoints available for invite')
       }

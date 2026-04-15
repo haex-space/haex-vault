@@ -537,21 +537,37 @@ pub fn apply_synced_extension_migrations(
     })
     .ok();
 
-    let pending_migrations: Vec<(String, String, String, String, String)> =
-        with_connection(&state.db, |conn| {
-            let mut stmt = conn.prepare(&SQL_GET_SYNCED_PENDING_MIGRATIONS)?;
-            let rows = stmt.query_map([], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, String>(3)?,
-                    row.get::<_, String>(4)?,
-                ))
-            })?;
-            rows.collect::<Result<Vec<_>, _>>()
-                .map_err(DatabaseError::from)
-        })?;
+    // CRDT-aware: the JOIN touches haex_extensions (a CRDT table), so we go
+    // through select_with_crdt to apply the tombstone filter automatically —
+    // a raw conn.prepare here would surface migrations from extensions the
+    // user has soft-deleted.
+    let pending_rows = crate::database::core::select_with_crdt(
+        SQL_GET_SYNCED_PENDING_MIGRATIONS.clone(),
+        vec![],
+        &state.db,
+    )?;
+    let pending_migrations: Vec<(String, String, String, String, String)> = pending_rows
+        .into_iter()
+        .map(|row| {
+            let mut cols = row.into_iter();
+            let pop = |it: &mut std::vec::IntoIter<JsonValue>, name: &str| -> Result<String, DatabaseError> {
+                it.next()
+                    .and_then(|v| v.as_str().map(str::to_owned))
+                    .ok_or_else(|| DatabaseError::ExecutionError {
+                        sql: SQL_GET_SYNCED_PENDING_MIGRATIONS.clone(),
+                        table: None,
+                        reason: format!("missing or non-string column `{name}` in pending migration row"),
+                    })
+            };
+            Ok::<_, DatabaseError>((
+                pop(&mut cols, "extension_id")?,
+                pop(&mut cols, "migration_name")?,
+                pop(&mut cols, "sql_statement")?,
+                pop(&mut cols, "public_key")?,
+                pop(&mut cols, "name")?,
+            ))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
     eprintln!(
         "[SYNC MIGRATIONS] Found {} pending migrations after JOIN",

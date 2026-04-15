@@ -1,7 +1,8 @@
+import { didKeyToPublicKeyAsync } from '@haex-space/vault-sdk'
+
 export interface ParsedIdentityImport {
-  label: string
-  publicKey: string
-  did?: string
+  name: string
+  did: string
   privateKey?: string
   avatar?: string | null
   claims: Array<{ type: string; value: string }>
@@ -31,8 +32,8 @@ export class InvalidImportJsonError extends Error {
 
 /**
  * Thrown when the parsed JSON does not contain the minimum required fields
- * (at least `publicKey`). A missing DID/private-key just downgrades it from
- * identity to contact — only `publicKey` is strictly required.
+ * (at least `did`). A missing private-key just downgrades it from
+ * identity to contact.
  */
 export class InvalidImportDataError extends Error {
   constructor() {
@@ -60,7 +61,9 @@ export function useIdentityImport() {
       throw new InvalidImportJsonError()
     }
 
-    if (!parsed.publicKey || typeof parsed.publicKey !== 'string') {
+    const did = typeof parsed.did === 'string' ? parsed.did : undefined
+
+    if (!did) {
       throw new InvalidImportDataError()
     }
 
@@ -69,9 +72,8 @@ export function useIdentityImport() {
       : []
 
     return {
-      label: (parsed.label as string) || '',
-      publicKey: parsed.publicKey,
-      did: parsed.did as string | undefined,
+      name: (parsed.name as string) || '',
+      did,
       privateKey: parsed.privateKey as string | undefined,
       avatar: typeof parsed.avatar === 'string' ? parsed.avatar : null,
       claims,
@@ -87,11 +89,10 @@ export function useIdentityImport() {
     )
     const avatar = options.includeAvatar ? data.avatar : null
 
-    if (data.privateKey && data.did) {
+    if (data.privateKey) {
       await identityStore.importIdentityAsync({
         did: data.did,
-        label: data.label,
-        publicKey: data.publicKey,
+        name: data.name,
         privateKey: data.privateKey,
         avatar,
         claims: selectedClaims,
@@ -100,8 +101,8 @@ export function useIdentityImport() {
     }
 
     const contact = await identityStore.addContactWithClaimsAsync(
-      data.label || `Imported ${data.publicKey.slice(0, 16)}...`,
-      data.publicKey,
+      data.name || `Imported ${data.did.slice(0, 16)}...`,
+      await didKeyToPublicKeyAsync(data.did),
       selectedClaims,
     )
     if (avatar) {

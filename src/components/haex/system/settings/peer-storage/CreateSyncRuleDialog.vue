@@ -510,7 +510,7 @@ const resolveCurrentDeviceIdAsync = async (): Promise<string> => {
 const resolveSpaceId = (): string => {
   if (sourceType.value === 'peer' && sourceSpaceId.value) return sourceSpaceId.value
   if (targetType.value === 'peer' && targetSpaceId.value) return targetSpaceId.value
-  return spacesStore.spaces[0]?.id ?? ''
+  return spacesStore.visibleSpaces[0]?.id ?? ''
 }
 
 // -- Navigation --

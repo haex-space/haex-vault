@@ -210,7 +210,7 @@ const qrCanvas = ref<HTMLCanvasElement>()
 
 // Reactive reads — UI depends on these for conditional rendering
 const isLocalSpace = computed(() => {
-  const space = spacesStore.spaces.find((s) => s.id === props.spaceId)
+  const space = spacesStore.visibleSpaces.find((s) => s.id === props.spaceId)
   return space?.type === SpaceType.LOCAL
 })
 
@@ -253,7 +253,7 @@ const dialogDescription = computed(() =>
 )
 
 const contactOptions = computed(() =>
-  contacts.value.map((c) => ({ label: c.label, value: c.id })),
+  contacts.value.map((c) => ({ label: c.name, value: c.id })),
 )
 
 const expiryOptions = computed(() => [

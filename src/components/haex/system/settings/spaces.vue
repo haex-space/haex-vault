@@ -102,6 +102,8 @@
         <SpaceCreateDialog
           v-model:open="showCreateDialog"
           :server-url-options="serverUrlOptions"
+          :owner-identity-options="ownerIdentityOptions"
+          :default-owner-identity-id="defaultOwnerIdentityId"
           :submitting="isCreating"
           @submit="onCreateSpaceAsync"
           @navigate-to-sync="onNavigateToSync"
@@ -152,6 +154,7 @@
 </template>
 
 <script setup lang="ts">
+import { didKeyToPublicKeyAsync } from '@haex-space/vault-sdk'
 import { invoke } from '@tauri-apps/api/core'
 import { SettingsCategory } from '~/config/settingsCategories'
 import type { SpaceWithType } from '@/stores/spaces'
@@ -282,6 +285,7 @@ const spaceListEntries = computed((): SpaceListEntry[] => {
       name: invite.spaceName || invite.spaceId.slice(0, 8),
       type: (invite.spaceType as SpaceWithType['type']) || SpaceType.LOCAL,
       status: SpaceStatus.PENDING,
+      ownerIdentityId: '',
       serverUrl: invite.originUrl || '',
       createdAt: invite.createdAt || '',
     }
@@ -321,8 +325,8 @@ const inviteIdentityId = ref('')
 // Edit dialog state
 const editingSpace = ref<SpaceWithType | null>(null)
 const editingSpaceIsLocal = computed(() => {
-  const space = spaces.value.find((s) => s.id === editingSpace.value?.id)
-  return space?.type === SpaceType.LOCAL
+  const space = spaces.value.find((s) => s.haex_spaces.id === editingSpace.value?.id)
+  return space?.haex_spaces.type === SpaceType.LOCAL
 })
 
 const editServerOptions = computed(() => {
@@ -348,6 +352,19 @@ const serverUrlOptions = computed(() => {
   }
   return options
 })
+
+const ownerIdentityOptions = computed(() =>
+  identityStore.ownIdentities.map((identity) => ({
+    label: `${identity.name} (${identity.did.slice(0, 24)}...)`,
+    value: identity.id,
+  })),
+)
+
+const defaultOwnerIdentityId = computed(() =>
+  spaces.value.find((s) => s.haex_spaces.type === SpaceType.VAULT)?.haex_spaces.ownerIdentityId
+    || identityStore.ownIdentities[0]?.id
+    || '',
+)
 
 const onNavigateToSync = () => {
   showCreateDialog.value = false
@@ -383,6 +400,7 @@ onUnmounted(() => {
 const loadSpacesAsync = async () => {
   isLoadingSpaces.value = true
   try {
+    await identityStore.loadIdentitiesAsync()
     await spacesStore.ensureDefaultSpaceAsync()
 
     for (const backend of syncBackends.value) {
@@ -410,7 +428,7 @@ const onCreateSpaceAsync = async (payload: CreateSpacePayload) => {
   isCreating.value = true
   try {
     if (payload.type === SpaceType.LOCAL) {
-      await spacesStore.createLocalSpaceAsync(payload.name)
+      await spacesStore.createLocalSpaceAsync(payload.name, payload.ownerIdentityId)
       add({ title: t('success.created'), color: 'success' })
       showCreateDialog.value = false
     } else {
@@ -461,7 +479,8 @@ const onJoinSpaceAsync = async (payload: { inviteLink: string }) => {
             spaceId: localLink.spaceId,
             tokenId: localLink.tokenId,
             identityDid: identity.did,
-            label: identity.label || null,
+            label: identity.name || null,
+            identityPublicKey: await didKeyToPublicKeyAsync(identity.did),
           })
           lastError = null
           break

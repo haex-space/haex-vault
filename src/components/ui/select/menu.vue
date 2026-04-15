@@ -13,8 +13,6 @@
 
     <USelectMenu
       v-bind="filteredAttrs"
-      :items="items"
-      :placeholder="placeholder"
       class="w-full"
     >
       <template
@@ -33,10 +31,12 @@
 <script setup lang="ts">
 defineOptions({ inheritAttrs: false })
 
+// Only `label` is wrapper-owned (rendered as a floating overlay above the
+// input); everything else (items, placeholder, model-value, search, etc.)
+// falls through to USelectMenu via $attrs so the underlying Nuxt UI types
+// stay intact.
 defineProps<{
   label?: string
-  items?: unknown[]
-  placeholder?: string
 }>()
 
 const filteredAttrs = computed(() => {

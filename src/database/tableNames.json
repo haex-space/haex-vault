@@ -190,9 +190,9 @@
       "name": "haex_identities",
       "columns": {
         "id": "id",
-        "label": "label",
+        "name": "name",
         "did": "did",
-        "publicKey": "public_key",
+        "source": "source",
         "privateKey": "private_key",
         "avatar": "avatar",
         "avatarOptions": "avatar_options",
@@ -219,6 +219,7 @@
         "type": "type",
         "status": "status",
         "name": "name",
+        "ownerIdentityId": "owner_identity_id",
         "originUrl": "origin_url",
         "createdAt": "created_at",
         "modifiedAt": "modified_at"
@@ -244,11 +245,7 @@
       "columns": {
         "id": "id",
         "spaceId": "space_id",
-        "memberDid": "member_did",
-        "memberPublicKey": "member_public_key",
-        "label": "label",
-        "avatar": "avatar",
-        "avatarOptions": "avatar_options",
+        "identityId": "identity_id",
         "role": "role",
         "joinedAt": "joined_at"
       }
@@ -293,6 +290,8 @@
         "spaceId": "space_id",
         "inviterDid": "inviter_did",
         "inviterLabel": "inviter_label",
+        "inviterAvatar": "inviter_avatar",
+        "inviterAvatarOptions": "inviter_avatar_options",
         "capabilities": "capabilities",
         "includeHistory": "include_history",
         "tokenId": "token_id",

@@ -139,7 +139,7 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
           }
         }
       } catch {
-        console.warn('[BroadcastStore] Failed to decode origin:', event.origin)
+        log.warn('Failed to decode origin:', event.origin)
       }
     }
 
@@ -207,7 +207,7 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
           payload: { context },
         })
       } catch (error) {
-        console.error('[BroadcastStore] Failed to broadcast to webview extensions:', error)
+        log.error('Failed to broadcast to webview extensions:', error)
       }
     }
   }
@@ -262,7 +262,7 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
           filteredExtensions: result,
         })
       } catch (error) {
-        console.error('[BroadcastStore] Failed to emit to webview extensions:', error)
+        log.error('Failed to emit to webview extensions:', error)
       }
     }
   }
@@ -417,7 +417,7 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
       )
 
     } catch (error) {
-      console.error('[BroadcastStore] Failed to setup event listeners:', error)
+      log.error('Failed to setup event listeners:', error)
     }
   }
 

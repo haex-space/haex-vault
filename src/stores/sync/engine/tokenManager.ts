@@ -70,7 +70,7 @@ const updateCachedToken = (backendId: string, token: string | null): void => {
   const state = getOrCreateState(backendId)
   state.accessToken = token
   if (backendId === currentBackendIdRef.value) {
-    invoke('set_auth_token', { token }).catch(() => {})
+    invoke('set_auth_token', { token }).catch((e) => log.debug('Failed to set auth token:', e))
   }
 }
 
@@ -263,7 +263,7 @@ export const clearAllTokenStates = (): void => {
  */
 export const resetTokenManager = (): void => {
   // Inform Rust that there is no auth token
-  invoke('set_auth_token', { token: null }).catch(() => {})
+  invoke('set_auth_token', { token: null }).catch((e) => log.debug('Failed to reset auth token:', e))
   tokenStates.clear()
   currentBackendIdRef.value = null
 }

@@ -5,7 +5,7 @@
   >
     <template #body>
       <UiInput
-        v-model="form.label"
+        v-model="form.name"
         :label="t('fields.label')"
       />
       <UiTextarea
@@ -26,7 +26,7 @@
         <UiButton
           icon="i-lucide-check"
           :loading="isEditing"
-          :disabled="!form.label.trim()"
+          :disabled="!form.name.trim()"
           @click="onSaveAsync"
         >
           {{ t('actions.save') }}
@@ -55,24 +55,24 @@ const identityStore = useIdentityStore()
 
 const isEditing = ref(false)
 const form = reactive({
-  label: '',
+  name: '',
   notes: '',
 })
 
 watch(() => props.contact, (contact) => {
   if (contact) {
-    form.label = contact.label
+    form.name = contact.name
     form.notes = contact.notes ?? ''
   }
 }, { immediate: true })
 
 const onSaveAsync = async () => {
-  if (!form.label.trim() || !props.contact) return
+  if (!form.name.trim() || !props.contact) return
 
   isEditing.value = true
   try {
     await identityStore.updateContactAsync(props.contact.id, {
-      label: form.label.trim(),
+      name: form.name.trim(),
       notes: form.notes.trim() || undefined,
     })
     addToast({ title: t('success.updated'), color: 'success' })

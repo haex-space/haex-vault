@@ -8,6 +8,8 @@ import {
   requestPermission,
   sendNotification,
 } from '@tauri-apps/plugin-notification'
+import { createLogger } from '@/stores/logging'
+import { requireDb } from '~/stores/vault'
 
 export interface IHaexNotification {
   id: string
@@ -19,6 +21,8 @@ export interface IHaexNotification {
   date: string | null
   type?: 'error' | 'success' | 'warning' | 'info' | 'log' | null
 }
+
+const log = createLogger('NOTIFICATIONS')
 
 export const useNotificationStore = defineStore('notificationStore', () => {
   const isNotificationAllowed = ref<boolean>(false)
@@ -32,7 +36,7 @@ export const useNotificationStore = defineStore('notificationStore', () => {
     try {
       isNotificationAllowed.value = await isPermissionGranted()
     } catch (error) {
-      console.warn('Notification permission check failed:', error)
+      log.warn('Notification permission check failed:', error)
       isNotificationAllowed.value = false
     }
     return isNotificationAllowed.value
@@ -41,15 +45,15 @@ export const useNotificationStore = defineStore('notificationStore', () => {
   const notifications = ref<IHaexNotification[]>([])
 
   const readNotificationsAsync = async (filter?: SQLWrapper[]) => {
-    const { currentVault } = storeToRefs(useVaultStore())
+    const db = requireDb()
 
     if (filter) {
-      return await currentVault.value?.drizzle
+      return await db
         .select()
         .from(haexNotifications)
         .where(and(...filter))
     } else {
-      return await currentVault.value?.drizzle.select().from(haexNotifications)
+      return await db.select().from(haexNotifications)
     }
   }
 
@@ -61,8 +65,8 @@ export const useNotificationStore = defineStore('notificationStore', () => {
   const addNotificationAsync = async (
     notification: Partial<InsertHaexNotifications>,
   ) => {
-    const { currentVault } = storeToRefs(useVaultStore())
     try {
+      const db = requireDb()
       const _notification: InsertHaexNotifications = {
         id: crypto.randomUUID(),
         alt: notification.alt,
@@ -76,7 +80,7 @@ export const useNotificationStore = defineStore('notificationStore', () => {
         type: notification.type || 'info',
       }
 
-      await currentVault.value?.drizzle
+      await db
         .insert(haexNotifications)
         .values(_notification)
 
@@ -94,15 +98,15 @@ export const useNotificationStore = defineStore('notificationStore', () => {
         })
       }
     } catch (error) {
-      console.error(error)
+      log.error('Failed to add notification:', error)
     }
   }
 
   const deleteNotificationsAsync = async (notificationIds: string[]) => {
-    const { currentVault } = storeToRefs(useVaultStore())
+    const db = requireDb()
     const filter = notificationIds.map((id) => eq(haexNotifications.id, id))
 
-    return currentVault.value?.drizzle
+    return db
       .delete(haexNotifications)
       .where(or(...filter))
   }

@@ -10,6 +10,8 @@
  * - server.ts: Server API operations
  */
 
+import { didKeyToPublicKeyAsync } from '@haex-space/vault-sdk'
+
 import { engineLog, type VaultKeyCache } from './types'
 import {
   initTokenManager,
@@ -95,7 +97,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     if (!identity) {
       throw new Error(`Identity not found for backend ${backendId}`)
     }
-    return identity.publicKey
+    return didKeyToPublicKeyAsync(identity.did)
   }
 
   /**
@@ -108,7 +110,11 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     if (!identity?.privateKey) {
       throw new Error(`Identity not found or incomplete for backend ${backendId}`)
     }
-    return { publicKey: identity.publicKey, privateKey: identity.privateKey, did: identity.did }
+    return {
+      publicKey: await didKeyToPublicKeyAsync(identity.did),
+      privateKey: identity.privateKey,
+      did: identity.did,
+    }
   }
 
   /**

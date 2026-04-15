@@ -1,5 +1,4 @@
 import type { SelectHaexIdentities } from '~/database/schemas'
-import { generateToonHeadAvatar } from '~/utils/identityAvatar'
 
 export interface CreateIdentityPayload {
   label: string
@@ -11,13 +10,13 @@ export interface CreateIdentityPayload {
 
 /**
  * Orchestrates the full identity-creation flow:
- *   1. Creates the identity (new keypair) via the store.
- *   2. Saves the chosen avatar, or generates a toon-head from the public key.
+ *   1. Creates the identity (new keypair) via the store — this also
+ *      persists a default avatar + options so every row is immediately
+ *      editable without a jump on first customizer open.
+ *   2. If the user picked an avatar in the dialog (upload or customizer),
+ *      override the store's default.
  *   3. Stashes the sync password (for the first backend registration).
  *   4. Batch-inserts any non-empty claims.
- *
- * Kept as a composable (not a store method) because the flow is UI-specific:
- * a headless creation would skip the avatar-fallback step.
  */
 export function useIdentityCreation() {
   const identityStore = useIdentityStore()
@@ -27,19 +26,15 @@ export function useIdentityCreation() {
   ): Promise<SelectHaexIdentities> => {
     const identity = await identityStore.createIdentityAsync(payload.label)
 
-    // Avatar: use uploaded/customized image, or generate a deterministic one.
-    if (payload.avatar) {
-      const optionsJson = payload.avatarOptions
-        ? JSON.stringify(payload.avatarOptions)
-        : null
+    // Only override the auto-seeded avatar when the user explicitly picked
+    // one in the dialog — otherwise we'd replace a perfectly good default
+    // with a different random avatar (the original source of this bug).
+    if (payload.avatar || payload.avatarOptions) {
       await identityStore.updateAvatarAsync(
         identity.id,
         payload.avatar,
-        optionsJson,
+        payload.avatarOptions ? JSON.stringify(payload.avatarOptions) : null,
       )
-    } else {
-      const generated = generateToonHeadAvatar(identity.publicKey)
-      await identityStore.updateAvatarAsync(identity.id, generated)
     }
 
     // Stash the sync password for first backend registration.
