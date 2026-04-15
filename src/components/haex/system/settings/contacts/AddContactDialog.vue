@@ -47,6 +47,7 @@
                 v-if="importParsed.avatar"
                 :src="importParsed.avatar"
                 :seed="importParsed.did"
+                avatar-style="toon-head"
                 size="sm"
               />
               <div class="min-w-0 flex-1">
@@ -63,6 +64,7 @@
               <UiAvatar
                 :src="importParsed.avatar"
                 :seed="importParsed.did"
+                avatar-style="toon-head"
                 size="sm"
               />
               <span class="text-sm">{{ t('file.includeAvatar') }}</span>

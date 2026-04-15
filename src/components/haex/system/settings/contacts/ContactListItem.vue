@@ -14,7 +14,9 @@
           />
           <UiAvatar
             :src="contact.avatar"
-            :seed="contact.id"
+            :seed="contact.did"
+            :avatar-options="parsedAvatarOptions"
+            avatar-style="toon-head"
             size="sm"
           />
           <div class="min-w-0">
@@ -185,6 +187,15 @@ defineEmits<{
 
 const { t } = useI18n()
 const { add: addToast } = useToast()
+
+const parsedAvatarOptions = computed(() => {
+  if (!props.contact.avatarOptions) return null
+  try {
+    return JSON.parse(props.contact.avatarOptions) as Record<string, unknown>
+  } catch {
+    return null
+  }
+})
 
 const copyPublicKey = async () => {
   try {

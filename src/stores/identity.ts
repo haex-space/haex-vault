@@ -5,10 +5,7 @@ import {
   publicKeyToDidKeyAsync,
   SIGNING_ALGO,
 } from '@haex-space/vault-sdk'
-import {
-  generateAvatarFromOptions,
-  generateRandomAvatarOptions,
-} from '~/utils/identityAvatar'
+import { buildDefaultAvatarSet } from '~/utils/identityAvatar'
 import {
   haexIdentities,
   haexIdentityClaims,
@@ -96,6 +93,29 @@ export const useIdentityStore = defineStore('identityStore', () => {
       .from(haexIdentities)
       .all()
     log.info(`Loaded ${identities.value.length} identities (${ownIdentities.value.length} own, ${contacts.value.length} contacts)`)
+
+    // Backfill avatar + options for rows created before every create path
+    // persisted both fields. We only touch rows where BOTH are missing so
+    // user-uploaded avatars (stored in `avatar` with `avatarOptions = null`)
+    // are never overwritten. Seeding from the DID keeps the backfilled
+    // avatar visually identical to the previous `:seed="did"` fallback
+    // that UiAvatar rendered on the fly.
+    const toMigrate = identities.value.filter(
+      (i) => !i.avatar && !i.avatarOptions,
+    )
+    if (toMigrate.length === 0) return
+
+    for (const row of toMigrate) {
+      const set = buildDefaultAvatarSet('toon-head', row.did)
+      await db
+        .update(haexIdentities)
+        .set({ avatar: set.avatar, avatarOptions: set.avatarOptions })
+        .where(eq(haexIdentities.id, row.id))
+    }
+    log.info(`Backfilled avatar + options for ${toMigrate.length} identity row(s)`)
+
+    // Reload so the in-memory list reflects the backfilled fields.
+    identities.value = await db.select().from(haexIdentities).all()
   }
 
   /** Register a temporary identity in-memory (e.g. from server recovery before vault is open) */
@@ -119,6 +139,11 @@ export const useIdentityStore = defineStore('identityStore', () => {
 
     const { did, signingPrivateKey } = await generateSigningIdentityAsync()
 
+    // Always persist an avatar + its options together; otherwise the
+    // list view (seed-only render) and the edit dialog (options-based
+    // customizer) render different avatars for the same row.
+    const avatarSet = buildDefaultAvatarSet('toon-head')
+
     const id = crypto.randomUUID()
     const newIdentity = {
       id,
@@ -126,9 +151,9 @@ export const useIdentityStore = defineStore('identityStore', () => {
       did,
       source: 'contact',
       privateKey: signingPrivateKey,
-      avatar: null,
+      avatar: avatarSet.avatar,
       notes: null,
-      avatarOptions: null,
+      avatarOptions: avatarSet.avatarOptions,
       createdAt: new Date().toISOString(),
     }
 
@@ -155,6 +180,10 @@ export const useIdentityStore = defineStore('identityStore', () => {
       throw new Error('An identity with this public key already exists')
     }
 
+    // Seed a deterministic avatar from the contact's DID so the list view
+    // and any future edit flow start from a consistent, editable state.
+    const avatarSet = buildDefaultAvatarSet('toon-head', did)
+
     const id = crypto.randomUUID()
     await db.insert(haexIdentities).values({
       id,
@@ -162,6 +191,8 @@ export const useIdentityStore = defineStore('identityStore', () => {
       did,
       source: 'contact',
       notes,
+      avatar: avatarSet.avatar,
+      avatarOptions: avatarSet.avatarOptions,
     })
 
     log.info(`Added contact "${name}" (${did.slice(0, 24)}...)`)
@@ -368,6 +399,12 @@ export const useIdentityStore = defineStore('identityStore', () => {
       return existing
     }
 
+    // Backfill an avatar/options set when the caller didn't bring its own
+    // (the DID doubles as a deterministic seed so existing consumers keep
+    // the same visual identity).
+    const needsAvatar = !options?.avatar && !options?.avatarOptions
+    const avatarSet = needsAvatar ? buildDefaultAvatarSet('toon-head', did) : null
+
     const id = crypto.randomUUID()
     const newIdentity = {
       id,
@@ -375,8 +412,8 @@ export const useIdentityStore = defineStore('identityStore', () => {
       name: options?.name || did.slice(0, 24),
       source: options?.source || 'space',
       privateKey: null,
-      avatar: options?.avatar ?? null,
-      avatarOptions: options?.avatarOptions ?? null,
+      avatar: options?.avatar ?? avatarSet?.avatar ?? null,
+      avatarOptions: options?.avatarOptions ?? avatarSet?.avatarOptions ?? null,
       notes: null,
       createdAt: new Date().toISOString(),
     } satisfies SelectHaexIdentities
@@ -411,6 +448,13 @@ export const useIdentityStore = defineStore('identityStore', () => {
       return existing[0]!
     }
 
+    // Imported identities without a bundled avatar get a deterministic one
+    // seeded from their DID — keeps the avatar stable across vaults and
+    // makes it editable via the customizer right away.
+    const avatarSet = exported.avatar
+      ? null
+      : buildDefaultAvatarSet('toon-head', exported.did)
+
     const id = crypto.randomUUID()
     const newIdentity = {
       id,
@@ -418,8 +462,8 @@ export const useIdentityStore = defineStore('identityStore', () => {
       did: exported.did,
       source: 'contact',
       privateKey: exported.privateKey,
-      avatar: exported.avatar || null,
-      avatarOptions: null,
+      avatar: exported.avatar || avatarSet?.avatar || null,
+      avatarOptions: avatarSet?.avatarOptions ?? null,
       notes: null,
     }
 
@@ -542,47 +586,19 @@ export const useIdentityStore = defineStore('identityStore', () => {
 
     if (existing.length > 0) {
       const identity = existing[0]!
-      const updates: Partial<SelectHaexIdentities> = {}
-
+      // Only touch the name; avatar + options were either set at create
+      // time or backfilled by loadIdentitiesAsync — re-generating here
+      // would produce exactly the "avatar jumps on edit" bug we fixed.
       if (!identity.name?.trim()) {
-        updates.name = name
-      }
-
-      const isLocalizedDefaultName = identity.name === 'Meine Identität' || identity.name === 'My Identity'
-      let avatarOptions: Record<string, unknown> | null = null
-      if (identity.avatarOptions) {
-        try {
-          avatarOptions = JSON.parse(identity.avatarOptions) as Record<string, unknown>
-        } catch {
-          avatarOptions = null
-        }
-      }
-      if (
-        isLocalizedDefaultName &&
-        (!avatarOptions || avatarOptions.style !== 'toon-head')
-      ) {
-        const nextAvatarOptions = generateRandomAvatarOptions('toon-head')
-        updates.avatar = generateAvatarFromOptions(nextAvatarOptions)
-        updates.avatarOptions = JSON.stringify(nextAvatarOptions)
-      }
-
-      if (Object.keys(updates).length > 0) {
         await db.update(haexIdentities)
-          .set(updates)
+          .set({ name })
           .where(eq(haexIdentities.id, identity.id))
         await loadIdentitiesAsync()
       }
       return
     }
 
-    const identity = await createIdentityAsync(name)
-    const avatarOptions = generateRandomAvatarOptions()
-    await updateAvatarAsync(
-      identity.id,
-      generateAvatarFromOptions(avatarOptions),
-      JSON.stringify(avatarOptions),
-    )
-
+    await createIdentityAsync(name)
     log.info('Default identity created')
   }
 

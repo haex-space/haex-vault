@@ -2,23 +2,39 @@ import { createAvatar } from '@dicebear/core'
 import * as bottts from '@dicebear/bottts'
 import * as toonHead from '@dicebear/toon-head'
 
+export type AvatarStyle = 'bottts' | 'toon-head'
+
 /**
- * Generates a deterministic toon-head avatar (as a data URI) from a seed.
- * Use this when the user doesn't upload their own avatar during identity
- * creation — the public key is the conventional seed.
+ * Builds a minimal avatar-options record (style + seed). The seed drives
+ * the deterministic pseudo-random sampling inside DiceBear — pass a known
+ * value (e.g. an identity DID) when you want a stable avatar for existing
+ * data, or omit it to get a fresh random UUID seed.
+ *
+ * The returned object is always persisted alongside `avatar` so that a
+ * later re-render or a customizer open reproduces the exact same look.
  */
-export function generateToonHeadAvatar(seed: string): string {
-  return createAvatar(toonHead, { seed }).toDataUri()
-}
-
-type AvatarStyle = 'bottts' | 'toon-head'
-
 export function generateRandomAvatarOptions(
   style: AvatarStyle = 'toon-head',
+  seed: string = crypto.randomUUID(),
 ): Record<string, unknown> {
+  return { style, seed }
+}
+
+/**
+ * Generates an avatar (data URI) + its options in one go. Used by every
+ * identity/contact create path so new rows are never left with a null
+ * `avatarOptions` — a missing options record is what causes the avatar
+ * shown in the list to drift away from what the customizer previews,
+ * because the customizer has nothing to initialize from.
+ */
+export function buildDefaultAvatarSet(
+  style: AvatarStyle = 'toon-head',
+  seed?: string,
+): { avatar: string; avatarOptions: string } {
+  const options = generateRandomAvatarOptions(style, seed)
   return {
-    style,
-    seed: crypto.randomUUID(),
+    avatar: generateAvatarFromOptions(options),
+    avatarOptions: JSON.stringify(options),
   }
 }
 

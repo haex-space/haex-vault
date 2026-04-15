@@ -205,6 +205,8 @@
               <UiAvatar
                 :src="member.identity.avatar"
                 :seed="member.identity.did"
+                :avatar-options="parseAvatarOptions(member.identity.avatarOptions)"
+                avatar-style="toon-head"
                 size="xs"
               />
               <div
@@ -299,6 +301,15 @@ import SpaceLinkedItems from './SpaceLinkedItems.vue'
 const props = defineProps<{
   spaceId: string
 }>()
+
+const parseAvatarOptions = (raw: string | null): Record<string, unknown> | null => {
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
 
 const emit = defineEmits<{
   back: []
