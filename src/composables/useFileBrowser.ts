@@ -1,5 +1,7 @@
-import { invoke } from '@tauri-apps/api/core'
+import Fuse from 'fuse.js'
+import { invoke, convertFileSrc } from '@tauri-apps/api/core'
 import type { FileEntry as BaseFileEntry } from '~/../src-tauri/bindings/FileEntry'
+import { getMediaType } from '~/composables/useFilePreview'
 
 // Extended FileEntry with optional path (used on Android for Content URIs)
 export type FileEntry = BaseFileEntry & { path?: string }
@@ -22,6 +24,21 @@ const FILE_ICONS: Record<string, string> = {
   pdf: 'i-lucide-file-text',
   zip: 'i-lucide-archive', tar: 'i-lucide-archive', gz: 'i-lucide-archive',
   '7z': 'i-lucide-archive', rar: 'i-lucide-archive',
+}
+
+export type ViewMode = 'list' | 'grid'
+
+// Search result entry with path context for deep (recursive) search
+export type SearchableFile = FileEntry & {
+  displayPath: string  // Relative directory for UI display, e.g. "photos/vacation"
+  searchPath: string   // Full path from share root, e.g. "/photos/vacation/beach.jpg"
+}
+
+// Global search result across all local shares
+export type GlobalSearchFile = SearchableFile & {
+  shareId: string
+  shareName: string
+  shareLocalPath: string
 }
 
 const SIZE_UNITS = ['B', 'KB', 'MB', 'GB']
@@ -72,6 +89,8 @@ export function useFileBrowser(tabId: string) {
   const loadError = ref<string | null>(null)
   const direction = ref<'forward' | 'back'>('forward')
 
+  const isContentUri = (p: string) => p.startsWith('{')
+
   // Navigation stack for Android Content URI support.
   // Each entry stores the display name and the actual path/URI to navigate to.
   // On desktop, currentPath alone is sufficient, but on Android we need
@@ -98,7 +117,7 @@ export function useFileBrowser(tabId: string) {
   }
 
   const selectAll = () => {
-    selectedFiles.value = new Set(files.value.map(f => f.name))
+    selectedFiles.value = new Set(filteredFiles.value.map(f => f.name))
   }
 
   const clearSelection = () => {
@@ -106,7 +125,7 @@ export function useFileBrowser(tabId: string) {
   }
 
   const selectionCount = computed(() => selectedFiles.value.size)
-  const allSelected = computed(() => files.value.length > 0 && selectedFiles.value.size === files.value.length)
+  const allSelected = computed(() => filteredFiles.value.length > 0 && filteredFiles.value.every(f => selectedFiles.value.has(f.name)))
 
   const selectedPeerName = computed(() => selectedPeer.value?.name || '')
 
@@ -130,12 +149,175 @@ export function useFileBrowser(tabId: string) {
   const hasMore = computed(() => files.value.length < totalFiles.value)
 
   // =========================================================================
+  // View mode & search
+  // =========================================================================
+
+  const viewMode = ref<ViewMode>('list')
+  const searchQuery = ref('')
+  const deepSearchFiles = ref<SearchableFile[]>([])
+  const globalSearchFiles = ref<GlobalSearchFile[]>([])
+  const isSearching = ref(false)
+  const isGlobalSearching = ref(false)
+  let searchGeneration = 0
+  let searchTimeout: ReturnType<typeof setTimeout> | undefined
+
+  const recursiveSearchAsync = async (basePath: string, generation: number) => {
+    interface QueueEntry { path: string; displayPrefix: string }
+    const queue: QueueEntry[] = [{ path: basePath, displayPrefix: '' }]
+    const results: SearchableFile[] = []
+
+    while (queue.length > 0) {
+      if (generation !== searchGeneration) return
+      const { path: dirPath, displayPrefix } = queue.shift()!
+
+      try {
+        let entries: FileEntry[]
+        if (selectedPeer.value?.localPath) {
+          const result = await peerStore.localListAsync(selectedPeer.value.localPath, dirPath)
+          entries = result.entries as FileEntry[]
+        } else {
+          entries = await peerStore.remoteListAsync(selectedPeer.value!.endpointId, dirPath)
+        }
+
+        for (const entry of entries) {
+          const entryPath = entry.path && isContentUri(entry.path)
+            ? entry.path
+            : dirPath === '/' ? `/${entry.name}` : `${dirPath}/${entry.name}`
+
+          results.push({
+            ...entry,
+            displayPath: displayPrefix,
+            searchPath: entryPath,
+          })
+
+          if (entry.isDir) {
+            queue.push({
+              path: entryPath,
+              displayPrefix: displayPrefix ? `${displayPrefix}/${entry.name}` : entry.name,
+            })
+          }
+        }
+
+        if (generation !== searchGeneration) return
+        deepSearchFiles.value = [...results]
+      } catch {
+        // Skip directories that fail to list (permissions, broken links, etc.)
+      }
+    }
+  }
+
+  const globalSearchAsync = async (generation: number) => {
+    const shares = peerStore.nodeId
+      ? peerStore.shares.filter(s => s.deviceEndpointId === peerStore.nodeId)
+      : peerStore.shares
+
+    const results: GlobalSearchFile[] = []
+
+    for (const share of shares) {
+      if (generation !== searchGeneration) return
+
+      interface QueueEntry { path: string; displayPrefix: string }
+      const queue: QueueEntry[] = [{ path: '/', displayPrefix: '' }]
+
+      while (queue.length > 0) {
+        if (generation !== searchGeneration) return
+        const { path: dirPath, displayPrefix } = queue.shift()!
+
+        try {
+          const result = await peerStore.localListAsync(share.localPath, dirPath)
+          const entries = result.entries as FileEntry[]
+
+          for (const entry of entries) {
+            const entryPath = dirPath === '/' ? `/${entry.name}` : `${dirPath}/${entry.name}`
+
+            results.push({
+              ...entry,
+              displayPath: displayPrefix ? `${share.name}/${displayPrefix}` : share.name,
+              searchPath: entryPath,
+              shareId: share.id,
+              shareName: share.name,
+              shareLocalPath: share.localPath,
+            })
+
+            if (entry.isDir) {
+              queue.push({
+                path: entryPath,
+                displayPrefix: displayPrefix ? `${displayPrefix}/${entry.name}` : entry.name,
+              })
+            }
+          }
+
+          if (generation !== searchGeneration) return
+          globalSearchFiles.value = [...results]
+        } catch {
+          // Skip directories that fail to list
+        }
+      }
+    }
+  }
+
+  watch(searchQuery, (query) => {
+    if (searchTimeout) clearTimeout(searchTimeout)
+
+    if (!query) {
+      searchGeneration++
+      deepSearchFiles.value = []
+      globalSearchFiles.value = []
+      isSearching.value = false
+      isGlobalSearching.value = false
+      return
+    }
+
+    searchTimeout = setTimeout(async () => {
+      const generation = ++searchGeneration
+
+      if (selectedPeer.value) {
+        deepSearchFiles.value = []
+        isSearching.value = true
+        await recursiveSearchAsync(currentPath.value, generation)
+        if (generation === searchGeneration) {
+          isSearching.value = false
+        }
+      } else {
+        globalSearchFiles.value = []
+        isGlobalSearching.value = true
+        await globalSearchAsync(generation)
+        if (generation === searchGeneration) {
+          isGlobalSearching.value = false
+        }
+      }
+    }, 300)
+  })
+
+  const fuse = computed(() => {
+    const source = searchQuery.value && deepSearchFiles.value.length > 0
+      ? deepSearchFiles.value
+      : sortedFiles.value
+    return new Fuse(source, { keys: ['name'], threshold: 0.4 })
+  })
+
+  const filteredFiles = computed((): (FileEntry & { displayPath?: string; searchPath?: string })[] => {
+    if (!searchQuery.value) return sortedFiles.value
+    if (deepSearchFiles.value.length === 0) return []
+    return fuse.value.search(searchQuery.value).map(r => r.item)
+  })
+
+  const globalFuse = computed(() => {
+    return new Fuse(globalSearchFiles.value, { keys: ['name'], threshold: 0.4 })
+  })
+
+  const filteredGlobalFiles = computed((): GlobalSearchFile[] => {
+    if (!searchQuery.value || globalSearchFiles.value.length === 0) return []
+    return globalFuse.value.search(searchQuery.value).map(r => r.item)
+  })
+
+  // =========================================================================
   // Path helpers
   // =========================================================================
 
-  const isContentUri = (p: string) => p.startsWith('{')
-
-  const resolveFilePath = (file: FileEntry) => {
+  const resolveFilePath = (file: FileEntry & { searchPath?: string }) => {
+    // Deep search result: use stored absolute path
+    if (file.searchPath) return file.searchPath
     // Android Content URI: use the full path from the DirEntry
     if (file.path && isContentUri(file.path)) return file.path
     return currentPath.value === '/'
@@ -154,17 +336,17 @@ export function useFileBrowser(tabId: string) {
   // Navigation
   // =========================================================================
 
-  const selectPeer = (peer: RemotePeer) => {
+  const selectPeer = (peer: RemotePeer, initialPath = '/') => {
     clearSelection()
     direction.value = 'forward'
     selectedPeer.value = peer
-    currentPath.value = '/'
+    currentPath.value = initialPath
     navStack.value = []
     forwardStack.value = []
     loadFiles()
 
     // Register back action so back button returns to device list
-    navigationStore.pushBack({ undo: () => navigateToRoot(), redo: () => selectPeer(peer) }, tabId)
+    navigationStore.pushBack({ undo: () => navigateToRoot(), redo: () => selectPeer(peer, initialPath) }, tabId)
   }
 
   const navigateToRoot = () => {
@@ -252,6 +434,10 @@ export function useFileBrowser(tabId: string) {
     isLoading.value = true
     isLoadingMore.value = false
     loadError.value = null
+    searchQuery.value = ''
+    deepSearchFiles.value = []
+    isSearching.value = false
+    searchGeneration++
     clearSelection()
 
     const generation = ++loadGeneration
@@ -351,6 +537,23 @@ export function useFileBrowser(tabId: string) {
     }
   }
 
+  const onGlobalSearchResultClick = async (file: GlobalSearchFile) => {
+    const peer: RemotePeer = {
+      endpointId: peerStore.nodeId || '',
+      name: file.shareName,
+      source: 'space',
+      detail: '',
+      localPath: file.shareLocalPath,
+    }
+
+    if (file.isDir) {
+      selectPeer(peer, file.searchPath)
+    } else {
+      const absPath = `${file.shareLocalPath}/${file.searchPath.replace(/^\//, '')}`
+      await preview.openWithSystem(absPath)
+    }
+  }
+
   const downloadFile = async (file: FileEntry) => {
     if (!selectedPeer.value) return
 
@@ -440,12 +643,26 @@ export function useFileBrowser(tabId: string) {
 
   const canPaste = computed(() => clipboard.hasClipboard.value && !!selectedPeer.value?.localPath)
 
+  // =========================================================================
+  // Thumbnails
+  // =========================================================================
+
+  const getThumbnailUrl = (file: FileEntry): string | null => {
+    if (file.isDir) return null
+    if (getMediaType(file.name) !== 'image') return null
+    if (!selectedPeer.value?.localPath) return null
+    const absPath = resolveLocalAbsolutePath(file)
+    if (!absPath || absPath.startsWith('{')) return null
+    return convertFileSrc(absPath)
+  }
+
   return {
     // State
     selectedPeer: readonly(selectedPeer),
     currentPath: readonly(currentPath),
     files: readonly(files),
     sortedFiles,
+    filteredFiles,
     totalFiles: readonly(totalFiles),
     hasMore,
     isLoading: readonly(isLoading),
@@ -454,6 +671,16 @@ export function useFileBrowser(tabId: string) {
     selectedPeerName,
     pathSegments,
     preview,
+
+    // View mode & search
+    viewMode,
+    searchQuery,
+    isSearching: readonly(isSearching),
+    isGlobalSearching: readonly(isGlobalSearching),
+    filteredGlobalFiles,
+
+    // Thumbnails
+    getThumbnailUrl,
 
     // Navigation
     direction: readonly(direction),
@@ -491,6 +718,7 @@ export function useFileBrowser(tabId: string) {
 
     // File actions
     onFileClick,
+    onGlobalSearchResultClick,
     downloadFile,
     downloadSelectedAsync,
     deleteSelectedAsync,

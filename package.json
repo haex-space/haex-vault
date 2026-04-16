@@ -59,6 +59,7 @@
     "@vueuse/nuxt": "^14.2.1",
     "driver.js": "^1.4.0",
     "drizzle-orm": "^0.45.2",
+    "fuse.js": "^7.3.0",
     "html5-qrcode": "^2.3.8",
     "md-editor-v3": "^6.4.1",
     "nuxt-zod-i18n": "^1.12.1",
