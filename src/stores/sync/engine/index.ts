@@ -137,8 +137,8 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
           engineLog.warn('DID re-auth resolver: identity missing did or privateKey', { identityId: b.identityId, hasDid: !!identity?.did, hasKey: !!identity?.privateKey })
           return null
         }
-        engineLog.info('DID re-auth resolver: context ready', { originUrl: b.homeServerUrl, did: identity.did.slice(0, 20) + '...' })
-        return { originUrl: b.homeServerUrl, did: identity.did, privateKey: identity.privateKey }
+        engineLog.info('DID re-auth resolver: context ready', { homeServerUrl: b.homeServerUrl, did: identity.did.slice(0, 20) + '...' })
+        return { homeServerUrl: b.homeServerUrl, did: identity.did, privateKey: identity.privateKey }
       } catch (e) {
         engineLog.error('DID re-auth resolver: exception', e)
         return null
@@ -321,7 +321,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     spaceId: string,
     vaultName: string,
     vaultPassword: string,
-    originUrl?: string,
+    homeServerUrl?: string,
   ): Promise<Uint8Array> => {
     // 1. Check cache first
     const cache = getVaultKeyCache()
@@ -334,7 +334,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
         await saveSyncKeyToDb(backendId, cached.vaultKey)
       }
       // Verify the key exists on the server, re-upload if missing
-      const resolvedServerUrl = originUrl ?? syncBackendsStore.backends.find((b) => b.id === backendId)?.homeServerUrl
+      const resolvedServerUrl = homeServerUrl ?? syncBackendsStore.backends.find((b) => b.id === backendId)?.homeServerUrl
       if (resolvedServerUrl) {
         try {
           const identity = await resolveBackendIdentityAsync(backendId)
@@ -351,12 +351,12 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
     }
 
     // 2. Initial sync mode: fetch directly from server
-    if (originUrl) {
+    if (homeServerUrl) {
       log.info('Initial sync mode: Fetching sync key from server...')
       try {
         const identity = await resolveBackendIdentityAsync(backendId)
         const syncKey = await fetchSyncKeyFromServerAsync(
-          originUrl,
+          homeServerUrl,
           spaceId,
           vaultPassword,
           identity.privateKey,
@@ -450,9 +450,9 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
   const deleteRemoteVaultAsync = async (
     backendId: string,
     spaceId: string,
-    originUrl?: string,
+    homeServerUrl?: string,
   ): Promise<void> => {
-    let resolvedServerUrl = originUrl
+    let resolvedServerUrl = homeServerUrl
     if (!resolvedServerUrl) {
       const backend = findBackend(backendId)
       resolvedServerUrl = backend.homeServerUrl
@@ -466,9 +466,9 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
    */
   const deleteAllVaultDataAsync = async (
     backendId: string,
-    originUrl?: string,
+    homeServerUrl?: string,
   ): Promise<void> => {
-    let resolvedServerUrl = originUrl
+    let resolvedServerUrl = homeServerUrl
     if (!resolvedServerUrl) {
       const backend = findBackend(backendId)
       resolvedServerUrl = backend.homeServerUrl

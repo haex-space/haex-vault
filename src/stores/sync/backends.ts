@@ -138,7 +138,7 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
 
   // Find backend by server URL (for checking duplicates)
   const findBackendByServerUrlAsync = async (
-    originUrl: string,
+    homeServerUrl: string,
   ): Promise<SelectHaexSyncBackends | null> => {
     const db = requireDb()
 
@@ -146,7 +146,7 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
       const result = await db
         .select()
         .from(haexSyncBackends)
-        .where(eq(haexSyncBackends.homeServerUrl, originUrl))
+        .where(eq(haexSyncBackends.homeServerUrl, homeServerUrl))
         .limit(1)
 
       return result[0] ?? null
@@ -224,16 +224,16 @@ export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
     await loadBackendsAsync()
   }
 
-  const getBackendNameByUrl = (originUrl: string): string => {
-    const backend = backends.value.find(b => b.homeServerUrl === originUrl)
-    return backend?.name || originUrl
+  const getBackendNameByUrl = (homeServerUrl: string): string => {
+    const backend = backends.value.find(b => b.homeServerUrl === homeServerUrl)
+    return backend?.name || homeServerUrl
   }
 
-  const getBackendHostByUrl = (originUrl: string): string => {
+  const getBackendHostByUrl = (homeServerUrl: string): string => {
     try {
-      return new URL(originUrl).hostname
+      return new URL(homeServerUrl).hostname
     } catch {
-      return originUrl
+      return homeServerUrl
     }
   }
 
