@@ -57,7 +57,17 @@ const makeEntry = (extensionId: string, opts: { ready?: boolean } = {}): Fixture
   }
 }
 
-const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
+/**
+ * Drain the event loop enough times for jsdom's MessageChannel to deliver
+ * queued messages to the paired port's listener. A single setTimeout(0) is
+ * insufficient on slower CI runners — message delivery hops through
+ * worker-thread messaging and may span several macrotask ticks.
+ */
+const flush = async (): Promise<void> => {
+  for (let i = 0; i < 10; i++) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 1))
+  }
+}
 
 const cleanup: Fixture[] = []
 
