@@ -2,59 +2,70 @@
  * Broadcast Routing — security-critical target selection + dispatch.
  *
  * These helpers decide which iframe instances receive a given broadcast and
- * perform the actual `postMessage` dispatch. They are extracted from the
- * store so the routing rules can be exercised by integration tests with
- * real iframes, independent of Pinia, Tauri, or the Nuxt runtime.
+ * perform the actual `postMessage` dispatch. Extracted from the store so
+ * the routing rules can be exercised by integration tests with real
+ * MessagePorts, independent of Pinia, Tauri, or the Nuxt runtime.
+ *
+ * Transport note: as of SDK 3.0 all extension fan-out flows through a
+ * dedicated `MessagePort` per iframe (established during registration).
+ * Dispatchers post on `port1`; if the extension's SDK hasn't finished its
+ * handshake yet, the entry buffers the message and the store flushes on
+ * PORT_READY. This keeps the early-events-during-startup case deterministic.
  *
  * Contracts enforced here:
  *   - `readerExtensionIds` on file-change events is the *only* authorisation
  *     signal — missing/empty ⇒ zero fan-out (fail-closed).
  *   - `extensionId` on shell events scopes delivery to the session owner
  *     only; no other extension sees stdout, not even those sharing an origin.
- *   - The `readerExtensionIds` field is stripped before forwarding so an
- *     iframe cannot learn which *other* extensions share the same permission.
- *   - An iframe without a live `contentWindow` is silently skipped.
+ *   - `readerExtensionIds` / routing `extensionId` are stripped from the
+ *     forwarded payload so iframes can never learn who else has access.
  */
 
 import { HAEXTENSION_EVENTS, type FileChangePayload } from '@haex-space/vault-sdk'
 
-export interface RoutableInstance {
-  extension: { id: string }
+/** A routable entry: extension identity + port + ready/buffer state. */
+export interface RoutableEntry<TPort extends RoutablePort = RoutablePort> {
+  instance: { extension: { id: string } }
+  port: TPort
+  ready: boolean
+  buffer: Array<Record<string, unknown>>
 }
 
-/** Iframe-like — has a `contentWindow` that can receive `postMessage`. */
-export interface RoutableIframe {
-  contentWindow: { postMessage: (message: unknown, targetOrigin: string) => void } | null
+/** Minimal MessagePort surface — `postMessage` is all the router touches. */
+export interface RoutablePort {
+  postMessage: (message: unknown) => void
 }
 
 export interface FileChangedBroadcastInput extends FileChangePayload {
   readerExtensionIds?: string[]
 }
 
-export interface BroadcastResult<TIframe> {
-  /** Iframes that were actually posted to. */
-  postedTo: TIframe[]
+export interface BroadcastResult<TEntry> {
+  /** Entries the message was actually delivered to (posted on the live port). */
+  postedTo: TEntry[]
+  /** Entries that buffered the message because their port is not yet ready. */
+  buffered: TEntry[]
   /** The message that was broadcast (null if no fan-out happened). */
   message: Record<string, unknown> | null
 }
 
 /**
- * Dispatch a file-change event to exactly those registered iframes whose
- * extension appears in `readerExtensionIds`. The readers list is server-side
- * computed against DB + session permissions and is treated as the ground
- * truth for this event.
+ * Dispatch a file-change event to the entries whose extension appears in
+ * `readerExtensionIds`. The readers list is server-side computed against
+ * DB + session permissions and is treated as the ground truth.
+ *
+ * Delivery rule:
+ *   - entry.ready === true  → `entry.port.postMessage(message)`
+ *   - entry.ready === false → `entry.buffer.push(message)` (store will flush on ACK)
  */
-export const dispatchFileChangedBroadcast = <
-  TIframe extends RoutableIframe,
-  TInstance extends RoutableInstance,
->(
+export const dispatchFileChangedBroadcast = <TEntry extends RoutableEntry>(
   payload: FileChangedBroadcastInput,
-  entries: Iterable<readonly [TIframe, TInstance]>,
+  entries: Iterable<TEntry>,
   now: () => number = Date.now,
-): BroadcastResult<TIframe> => {
+): BroadcastResult<TEntry> => {
   const readers = payload.readerExtensionIds ?? []
   if (readers.length === 0) {
-    return { postedTo: [], message: null }
+    return { postedTo: [], buffered: [], message: null }
   }
 
   const message: Record<string, unknown> = {
@@ -66,15 +77,14 @@ export const dispatchFileChangedBroadcast = <
   }
 
   const readerSet = new Set(readers)
-  const postedTo: TIframe[] = []
-  for (const [iframe, instance] of entries) {
-    if (!readerSet.has(instance.extension.id)) continue
-    if (!iframe.contentWindow) continue
-    iframe.contentWindow.postMessage(message, '*')
-    postedTo.push(iframe)
+  const postedTo: TEntry[] = []
+  const buffered: TEntry[] = []
+  for (const entry of entries) {
+    if (!readerSet.has(entry.instance.extension.id)) continue
+    deliver(entry, message, postedTo, buffered)
   }
 
-  return { postedTo, message }
+  return { postedTo, buffered, message }
 }
 
 export interface ShellEventBroadcastInput {
@@ -88,20 +98,17 @@ export interface ShellEventBroadcastInput {
  * derived from the session's stored owner.
  *
  * `extensionId` is stripped from the forwarded payload — iframes should not
- * receive (or need to see) metadata that only matters for routing.
+ * receive metadata that only matters for routing.
  */
-export const dispatchShellEventBroadcast = <
-  TIframe extends RoutableIframe,
-  TInstance extends RoutableInstance,
->(
+export const dispatchShellEventBroadcast = <TEntry extends RoutableEntry>(
   type: string,
   payload: ShellEventBroadcastInput,
-  entries: Iterable<readonly [TIframe, TInstance]>,
+  entries: Iterable<TEntry>,
   now: () => number = Date.now,
-): BroadcastResult<TIframe> => {
+): BroadcastResult<TEntry> => {
   const { extensionId, ...rest } = payload
   if (!extensionId) {
-    return { postedTo: [], message: null }
+    return { postedTo: [], buffered: [], message: null }
   }
 
   const message: Record<string, unknown> = {
@@ -110,13 +117,28 @@ export const dispatchShellEventBroadcast = <
     timestamp: now(),
   }
 
-  const postedTo: TIframe[] = []
-  for (const [iframe, instance] of entries) {
-    if (instance.extension.id !== extensionId) continue
-    if (!iframe.contentWindow) continue
-    iframe.contentWindow.postMessage(message, '*')
-    postedTo.push(iframe)
+  const postedTo: TEntry[] = []
+  const buffered: TEntry[] = []
+  for (const entry of entries) {
+    if (entry.instance.extension.id !== extensionId) continue
+    deliver(entry, message, postedTo, buffered)
   }
 
-  return { postedTo, message }
+  return { postedTo, buffered, message }
+}
+
+const deliver = <TEntry extends RoutableEntry>(
+  entry: TEntry,
+  message: Record<string, unknown>,
+  postedTo: TEntry[],
+  buffered: TEntry[],
+): void => {
+  if (entry.ready) {
+    entry.port.postMessage(message)
+    postedTo.push(entry)
+  }
+  else {
+    entry.buffer.push(message)
+    buffered.push(entry)
+  }
 }

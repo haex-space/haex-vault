@@ -1,89 +1,94 @@
 /**
  * Integration tests for extension broadcast routing.
  *
- * Every test runs against **real** jsdom iframes. The dispatch helpers call
- * the actual `iframe.contentWindow.postMessage`; iframes register real
- * `message` event listeners; receipt is asserted via those listeners firing
- * (not by spying on `postMessage`). This exercises the full browser delivery
- * chain as it behaves at runtime.
+ * Every test runs against **real** `MessageChannel` instances. Dispatchers
+ * call `entry.port.postMessage`; the paired port receives via a real
+ * `message` listener (no `postMessage` spies). Attack scenarios prove that
+ * unauthorised extensions observe nothing.
  *
- * The tests focus on security invariants — what must NOT leak — rather than
- * re-verifying that `Set.has` filters. Attack scenarios included:
- *   - unauthorised extension fishing for events
- *   - empty / missing readers list (fail-closed)
- *   - unknown extension ID in readers list
- *   - shell output addressed to wrong owner
- *   - reader list metadata leaking into per-extension payload
- *   - iframe that lost its contentWindow (e.g. detached)
- *   - multiple instances of the same extension all receive
- *   - payload field tampering isolation (payload shape integrity)
+ * Covered properties:
+ *   - authorisation scoping (file readers, shell owner)
+ *   - fail-closed defaults (empty / missing / unknown readers)
+ *   - multi-instance fan-out (same extension, multiple iframes)
+ *   - ready-ACK buffering (events before PORT_READY land in `buffer`)
+ *   - payload-integrity (routing metadata does not leak into iframe payload)
  */
 
-import { beforeEach, afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   dispatchFileChangedBroadcast,
   dispatchShellEventBroadcast,
-  type RoutableInstance,
+  type RoutableEntry,
+  type RoutablePort,
 } from '~/stores/extensions/broadcastRouting'
 
 // ---------------------------------------------------------------------------
-// Harness: real iframe + captured messages via real message-event listeners
+// Fixtures
 // ---------------------------------------------------------------------------
 
-interface IframeFixture {
-  iframe: HTMLIFrameElement
-  instance: RoutableInstance
-  received: Array<{ origin: string; data: unknown }>
+interface Fixture {
+  extensionId: string
+  channel: MessageChannel
+  port: MessagePort // main-side (port1 equivalent)
+  remoteReceived: Array<unknown>
+  entry: RoutableEntry<MessagePort>
 }
 
-const makeIframe = (extensionId: string): IframeFixture => {
-  const iframe = document.createElement('iframe')
-  document.body.appendChild(iframe)
-  // jsdom gives us a real contentWindow with working postMessage/addEventListener.
-  const received: Array<{ origin: string; data: unknown }> = []
-  iframe.contentWindow!.addEventListener('message', (event) => {
-    received.push({ origin: event.origin, data: event.data })
+/** Create a routable entry with a real MessageChannel; mark ready by default. */
+const makeEntry = (extensionId: string, opts: { ready?: boolean } = {}): Fixture => {
+  const channel = new MessageChannel()
+  const remoteReceived: unknown[] = []
+  channel.port2.addEventListener('message', (event: MessageEvent) => {
+    remoteReceived.push(event.data)
   })
+  channel.port2.start()
+
   return {
-    iframe,
-    instance: { extension: { id: extensionId } },
-    received,
+    extensionId,
+    channel,
+    port: channel.port1,
+    remoteReceived,
+    entry: {
+      instance: { extension: { id: extensionId } },
+      port: channel.port1,
+      ready: opts.ready ?? true,
+      buffer: [],
+    },
   }
 }
 
-const registryFrom = (fixtures: IframeFixture[]): Iterable<readonly [HTMLIFrameElement, RoutableInstance]> =>
-  fixtures.map((f) => [f.iframe, f.instance] as const)
+const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
-// jsdom's postMessage fires listeners asynchronously via the event loop — we
-// need to wait a microtask tick before asserting `received`.
-const flushMessages = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
-
-const cleanup: IframeFixture[] = []
+const cleanup: Fixture[] = []
 
 beforeEach(() => {
   cleanup.length = 0
 })
 
 afterEach(() => {
-  for (const fixture of cleanup) {
-    fixture.iframe.remove()
+  for (const fx of cleanup) {
+    fx.channel.port1.close()
+    fx.channel.port2.close()
   }
 })
 
-const track = (fixture: IframeFixture): IframeFixture => {
-  cleanup.push(fixture)
-  return fixture
+const track = (f: Fixture): Fixture => {
+  cleanup.push(f)
+  return f
 }
 
+const entriesOf = (fixtures: Fixture[]): RoutableEntry<MessagePort>[] =>
+  fixtures.map((f) => f.entry)
+
 // ---------------------------------------------------------------------------
-// File-change broadcast
+// File-change broadcast — authorisation
 // ---------------------------------------------------------------------------
 
 describe('dispatchFileChangedBroadcast — authorisation', () => {
-  it('delivers only to iframes whose extension id is in readerExtensionIds', async () => {
-    const a = track(makeIframe('ext-a'))
-    const b = track(makeIframe('ext-b'))
-    const c = track(makeIframe('ext-c'))
+  it('delivers only to entries whose extension id is in readerExtensionIds', async () => {
+    const a = track(makeEntry('ext-a'))
+    const b = track(makeEntry('ext-b'))
+    const c = track(makeEntry('ext-c'))
 
     dispatchFileChangedBroadcast(
       {
@@ -92,131 +97,146 @@ describe('dispatchFileChangedBroadcast — authorisation', () => {
         path: 'docs/note.md',
         readerExtensionIds: ['ext-a', 'ext-c'],
       },
-      registryFrom([a, b, c]),
+      entriesOf([a, b, c]),
     )
-    await flushMessages()
+    await flush()
 
-    expect(a.received.length).toBe(1)
-    expect(c.received.length).toBe(1)
-    // Security invariant: ext-b is NOT authorised; must not observe the event.
-    expect(b.received.length).toBe(0)
+    expect(a.remoteReceived.length).toBe(1)
+    expect(c.remoteReceived.length).toBe(1)
+    // Security invariant: ext-b is NOT authorised; must not observe anything.
+    expect(b.remoteReceived.length).toBe(0)
   })
 
-  it('delivers to all iframes of the same extension (multi-instance)', async () => {
-    const a1 = track(makeIframe('ext-a'))
-    const a2 = track(makeIframe('ext-a'))
-    const b = track(makeIframe('ext-b'))
+  it('delivers to all entries of the same extension (multi-instance)', async () => {
+    const a1 = track(makeEntry('ext-a'))
+    const a2 = track(makeEntry('ext-a'))
+    const b = track(makeEntry('ext-b'))
 
     dispatchFileChangedBroadcast(
-      {
-        ruleId: 'r',
-        changeType: 'created',
-        path: 'x',
-        readerExtensionIds: ['ext-a'],
-      },
-      registryFrom([a1, a2, b]),
+      { ruleId: 'r', changeType: 'created', path: 'x', readerExtensionIds: ['ext-a'] },
+      entriesOf([a1, a2, b]),
     )
-    await flushMessages()
+    await flush()
 
-    expect(a1.received.length).toBe(1)
-    expect(a2.received.length).toBe(1)
-    expect(b.received.length).toBe(0)
+    expect(a1.remoteReceived.length).toBe(1)
+    expect(a2.remoteReceived.length).toBe(1)
+    expect(b.remoteReceived.length).toBe(0)
   })
 })
+
+// ---------------------------------------------------------------------------
+// File-change broadcast — fail-closed defaults
+// ---------------------------------------------------------------------------
 
 describe('dispatchFileChangedBroadcast — fail-closed defaults', () => {
   it('does not broadcast when readerExtensionIds is undefined', async () => {
-    const a = track(makeIframe('ext-a'))
-    const b = track(makeIframe('ext-b'))
+    const a = track(makeEntry('ext-a'))
 
     const result = dispatchFileChangedBroadcast(
       { ruleId: 'r', changeType: 'modified', path: 'p' },
-      registryFrom([a, b]),
+      entriesOf([a]),
     )
-    await flushMessages()
+    await flush()
 
     expect(result.postedTo).toEqual([])
+    expect(result.buffered).toEqual([])
     expect(result.message).toBeNull()
-    expect(a.received.length).toBe(0)
-    expect(b.received.length).toBe(0)
+    expect(a.remoteReceived.length).toBe(0)
   })
 
   it('does not broadcast when readerExtensionIds is empty', async () => {
-    const a = track(makeIframe('ext-a'))
+    const a = track(makeEntry('ext-a'))
 
     dispatchFileChangedBroadcast(
       { ruleId: 'r', changeType: 'modified', path: 'p', readerExtensionIds: [] },
-      registryFrom([a]),
+      entriesOf([a]),
     )
-    await flushMessages()
+    await flush()
 
-    expect(a.received.length).toBe(0)
+    expect(a.remoteReceived.length).toBe(0)
   })
 })
 
-describe('dispatchFileChangedBroadcast — hostile input handling', () => {
-  it('ignores unknown extension IDs in readerExtensionIds without crashing', async () => {
-    const a = track(makeIframe('ext-a'))
+// ---------------------------------------------------------------------------
+// File-change broadcast — hostile input
+// ---------------------------------------------------------------------------
+
+describe('dispatchFileChangedBroadcast — hostile / malformed input', () => {
+  it('ignores unknown extension IDs without crashing', async () => {
+    const a = track(makeEntry('ext-a'))
 
     const result = dispatchFileChangedBroadcast(
-      {
-        ruleId: 'r',
-        changeType: 'modified',
-        path: 'p',
-        readerExtensionIds: ['ext-nonexistent-1', 'ext-nonexistent-2'],
-      },
-      registryFrom([a]),
+      { ruleId: 'r', changeType: 'modified', path: 'p', readerExtensionIds: ['ext-ghost'] },
+      entriesOf([a]),
     )
-    await flushMessages()
+    await flush()
 
     expect(result.postedTo).toEqual([])
-    expect(a.received.length).toBe(0)
+    expect(a.remoteReceived.length).toBe(0)
   })
 
   it('delivers to known readers even when unknown IDs are mixed in', async () => {
-    const a = track(makeIframe('ext-a'))
-    const b = track(makeIframe('ext-b'))
+    const a = track(makeEntry('ext-a'))
+    const b = track(makeEntry('ext-b'))
 
     dispatchFileChangedBroadcast(
-      {
-        ruleId: 'r',
-        changeType: 'modified',
-        path: 'p',
-        readerExtensionIds: ['ext-a', 'ext-ghost'],
-      },
-      registryFrom([a, b]),
+      { ruleId: 'r', changeType: 'modified', path: 'p', readerExtensionIds: ['ext-a', 'ext-ghost'] },
+      entriesOf([a, b]),
     )
-    await flushMessages()
+    await flush()
 
-    expect(a.received.length).toBe(1)
-    expect(b.received.length).toBe(0)
-  })
-
-  it('skips iframes whose contentWindow is null (detached) without erroring', async () => {
-    const a = track(makeIframe('ext-a'))
-    // Forcibly simulate a detached iframe — the iframe element remains in the
-    // registry but has no live window to post into.
-    const detachedInstance: RoutableInstance = { extension: { id: 'ext-a' } }
-    const detachedIframe = { contentWindow: null }
-
-    const result = dispatchFileChangedBroadcast(
-      { ruleId: 'r', changeType: 'modified', path: 'p', readerExtensionIds: ['ext-a'] },
-      [
-        [detachedIframe as unknown as HTMLIFrameElement, detachedInstance] as const,
-        [a.iframe, a.instance] as const,
-      ],
-    )
-    await flushMessages()
-
-    // Only the live iframe is counted + received the message.
-    expect(result.postedTo.length).toBe(1)
-    expect(a.received.length).toBe(1)
+    expect(a.remoteReceived.length).toBe(1)
+    expect(b.remoteReceived.length).toBe(0)
   })
 })
 
+// ---------------------------------------------------------------------------
+// File-change broadcast — buffering
+// ---------------------------------------------------------------------------
+
+describe('dispatchFileChangedBroadcast — pre-ready buffering', () => {
+  it('buffers messages for entries whose ready flag is false', async () => {
+    const a = track(makeEntry('ext-a', { ready: false }))
+
+    const result = dispatchFileChangedBroadcast(
+      { ruleId: 'r', changeType: 'modified', path: 'p', readerExtensionIds: ['ext-a'] },
+      entriesOf([a]),
+    )
+    await flush()
+
+    expect(result.postedTo).toEqual([])
+    expect(result.buffered).toHaveLength(1)
+    expect(a.entry.buffer).toHaveLength(1)
+    // The port did NOT deliver yet — buffered events must not hit the remote
+    // side until the store explicitly flushes after PORT_READY.
+    expect(a.remoteReceived.length).toBe(0)
+  })
+
+  it('delivers subsequent messages once ready flips true', async () => {
+    const a = track(makeEntry('ext-a', { ready: false }))
+
+    dispatchFileChangedBroadcast(
+      { ruleId: 'r', changeType: 'modified', path: 'p', readerExtensionIds: ['ext-a'] },
+      entriesOf([a]),
+    )
+
+    // Simulate the store's flush-on-ACK behaviour.
+    a.entry.ready = true
+    for (const buffered of a.entry.buffer) a.entry.port.postMessage(buffered)
+    a.entry.buffer.length = 0
+
+    await flush()
+    expect(a.remoteReceived.length).toBe(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// File-change broadcast — payload integrity
+// ---------------------------------------------------------------------------
+
 describe('dispatchFileChangedBroadcast — payload integrity', () => {
-  it('does NOT forward readerExtensionIds to the iframe (prevents meta-leak)', async () => {
-    const a = track(makeIframe('ext-a'))
+  it('does NOT forward readerExtensionIds to the extension (meta-leak guard)', async () => {
+    const a = track(makeEntry('ext-a'))
 
     dispatchFileChangedBroadcast(
       {
@@ -225,16 +245,12 @@ describe('dispatchFileChangedBroadcast — payload integrity', () => {
         path: 'secret/path.txt',
         readerExtensionIds: ['ext-a', 'ext-b', 'ext-c'],
       },
-      registryFrom([a]),
+      entriesOf([a]),
     )
-    await flushMessages()
+    await flush()
 
-    expect(a.received.length).toBe(1)
-    const payload = a.received[0]!.data as Record<string, unknown>
-    // An iframe learning who *else* has read access is a privacy leak —
-    // the reader list must stop at the broadcast boundary.
+    const payload = a.remoteReceived[0] as Record<string, unknown>
     expect(payload).not.toHaveProperty('readerExtensionIds')
-    // Correct forwarded fields:
     expect(payload.ruleId).toBe('r')
     expect(payload.changeType).toBe('modified')
     expect(payload.path).toBe('secret/path.txt')
@@ -242,107 +258,135 @@ describe('dispatchFileChangedBroadcast — payload integrity', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Shell event broadcast
+// Shell event broadcast — owner scoping
 // ---------------------------------------------------------------------------
 
 describe('dispatchShellEventBroadcast — owner scoping', () => {
-  it('delivers only to the owning extension, not to other extensions', async () => {
-    const owner = track(makeIframe('ext-owner'))
-    const other = track(makeIframe('ext-other'))
+  it('delivers only to the owning extension', async () => {
+    const owner = track(makeEntry('ext-owner'))
+    const other = track(makeEntry('ext-other'))
 
     dispatchShellEventBroadcast(
       'shell:output',
       { extensionId: 'ext-owner', sessionId: 's1', data: 'some-secret-stdout' },
-      registryFrom([owner, other]),
+      entriesOf([owner, other]),
     )
-    await flushMessages()
+    await flush()
 
-    expect(owner.received.length).toBe(1)
-    // Security invariant: stdout must not reach another extension even though
-    // they share the same main-window origin (Android case).
-    expect(other.received.length).toBe(0)
+    expect(owner.remoteReceived.length).toBe(1)
+    // Security invariant: stdout must not reach any other extension.
+    expect(other.remoteReceived.length).toBe(0)
   })
 
-  it('delivers to all iframes of the owner (multi-window extensions)', async () => {
-    const owner1 = track(makeIframe('ext-owner'))
-    const owner2 = track(makeIframe('ext-owner'))
-    const other = track(makeIframe('ext-other'))
+  it('delivers to all iframes of the owner', async () => {
+    const owner1 = track(makeEntry('ext-owner'))
+    const owner2 = track(makeEntry('ext-owner'))
+    const other = track(makeEntry('ext-other'))
 
     dispatchShellEventBroadcast(
       'shell:output',
       { extensionId: 'ext-owner', sessionId: 's1', data: 'x' },
-      registryFrom([owner1, owner2, other]),
+      entriesOf([owner1, owner2, other]),
     )
-    await flushMessages()
+    await flush()
 
-    expect(owner1.received.length).toBe(1)
-    expect(owner2.received.length).toBe(1)
-    expect(other.received.length).toBe(0)
+    expect(owner1.remoteReceived.length).toBe(1)
+    expect(owner2.remoteReceived.length).toBe(1)
+    expect(other.remoteReceived.length).toBe(0)
   })
 })
 
+// ---------------------------------------------------------------------------
+// Shell event broadcast — fail-closed
+// ---------------------------------------------------------------------------
+
 describe('dispatchShellEventBroadcast — fail-closed', () => {
-  it('does not broadcast when extensionId is missing / empty', async () => {
-    const a = track(makeIframe('ext-a'))
+  it('does not broadcast when extensionId is empty', async () => {
+    const a = track(makeEntry('ext-a'))
 
     const result = dispatchShellEventBroadcast(
       'shell:output',
       { extensionId: '', sessionId: 's', data: 'x' },
-      registryFrom([a]),
+      entriesOf([a]),
     )
-    await flushMessages()
+    await flush()
 
     expect(result.postedTo).toEqual([])
-    expect(a.received.length).toBe(0)
+    expect(a.remoteReceived.length).toBe(0)
   })
 
-  it('does not broadcast when target extensionId has no registered iframes', async () => {
-    const a = track(makeIframe('ext-a'))
+  it('does not broadcast when target extensionId has no registered entry', async () => {
+    const a = track(makeEntry('ext-a'))
 
     const result = dispatchShellEventBroadcast(
       'shell:output',
       { extensionId: 'ext-ghost', sessionId: 's', data: 'x' },
-      registryFrom([a]),
+      entriesOf([a]),
     )
-    await flushMessages()
+    await flush()
 
     expect(result.postedTo).toEqual([])
-    expect(a.received.length).toBe(0)
+    expect(a.remoteReceived.length).toBe(0)
   })
 })
 
+// ---------------------------------------------------------------------------
+// Shell event broadcast — payload integrity
+// ---------------------------------------------------------------------------
+
 describe('dispatchShellEventBroadcast — payload integrity', () => {
   it('strips extensionId from the forwarded message (routing-only metadata)', async () => {
-    const owner = track(makeIframe('ext-owner'))
+    const owner = track(makeEntry('ext-owner'))
 
     dispatchShellEventBroadcast(
       'shell:output',
       { extensionId: 'ext-owner', sessionId: 's1', data: 'abc' },
-      registryFrom([owner]),
+      entriesOf([owner]),
     )
-    await flushMessages()
+    await flush()
 
-    expect(owner.received.length).toBe(1)
-    const payload = owner.received[0]!.data as Record<string, unknown>
+    const payload = owner.remoteReceived[0] as Record<string, unknown>
     expect(payload).not.toHaveProperty('extensionId')
     expect(payload.sessionId).toBe('s1')
     expect(payload.data).toBe('abc')
     expect(payload.type).toBe('shell:output')
   })
 
-  it('preserves exit events with exitCode field shape', async () => {
-    const owner = track(makeIframe('ext-owner'))
+  it('preserves exit events with exitCode field', async () => {
+    const owner = track(makeEntry('ext-owner'))
 
     dispatchShellEventBroadcast(
       'shell:exit',
       { extensionId: 'ext-owner', sessionId: 's1', exitCode: 137 },
-      registryFrom([owner]),
+      entriesOf([owner]),
     )
-    await flushMessages()
+    await flush()
 
-    const payload = owner.received[0]!.data as Record<string, unknown>
+    const payload = owner.remoteReceived[0] as Record<string, unknown>
     expect(payload.type).toBe('shell:exit')
     expect(payload.exitCode).toBe(137)
     expect(payload).not.toHaveProperty('extensionId')
+  })
+
+  it('supports minimal port surface (any object with postMessage)', async () => {
+    // Demonstrates that broadcastRouting does not require a real MessagePort —
+    // stores that want to unit-test delivery in non-jsdom environments can
+    // pass any `RoutablePort`.
+    const calls: unknown[] = []
+    const port: RoutablePort = {
+      postMessage: (msg) => calls.push(msg),
+    }
+    const entry: RoutableEntry = {
+      instance: { extension: { id: 'ext-a' } },
+      port,
+      ready: true,
+      buffer: [],
+    }
+
+    dispatchFileChangedBroadcast(
+      { ruleId: 'r', changeType: 'modified', path: 'p', readerExtensionIds: ['ext-a'] },
+      [entry],
+    )
+    expect(calls).toHaveLength(1)
   })
 })
