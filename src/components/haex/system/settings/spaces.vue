@@ -85,6 +85,7 @@
               )
             "
             @edit="openEditDialog"
+            @add-share="onAddShareAsync"
             @invite-contact="openInviteDialog($event, 'contact')"
             @invite-link="openInviteDialog($event, 'link')"
             @delete="prepareDeleteSpace"
@@ -177,6 +178,7 @@ import {
 } from '@/composables/useSpaceInvites'
 import { useCurrentIdentity } from '@/composables/useCurrentIdentity'
 import { useOperationErrorToast } from '@/composables/useOperationErrorToast'
+import { useSpaceShares } from '@/composables/useSpaceShares'
 
 type SpaceListEntry =
   | { kind: 'active'; space: SpaceWithType }
@@ -208,6 +210,14 @@ const windowManager = useWindowManagerStore()
 const { ensureCurrentIdentityAsync, ensureCurrentIdentityIdAsync } =
   useCurrentIdentity()
 const { showOperationError } = useOperationErrorToast()
+const { addShareAsync: addShareToSpaceAsync } = useSpaceShares()
+
+const onAddShareAsync = async (payload: {
+  space: SpaceWithType
+  type: 'folder' | 'file'
+}) => {
+  await addShareToSpaceAsync({ spaceId: payload.space.id, type: payload.type })
+}
 
 const { activeSpaces, spaces } = storeToRefs(spacesStore)
 const { backends: syncBackends } = storeToRefs(syncBackendsStore)

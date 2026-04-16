@@ -8,12 +8,8 @@
       class="h-full"
     >
       <!-- Subview -->
-      <HaexSystemSettingsPeerStorageConnection
-        v-if="activeView === 'connection'"
-        @back="goBack"
-      />
       <HaexSystemSettingsPeerStorageRelay
-        v-else-if="activeView === 'relay'"
+        v-if="activeView === 'relay'"
         @back="goBack"
       />
       <HaexSystemSettingsPeerStorageSyncRules
@@ -63,13 +59,6 @@
         </template>
         <div class="space-y-1">
           <HaexSystemSettingsLayoutMenuItem
-            :label="t('menu.overview')"
-            :description="t('menu.overviewDesc')"
-            icon="i-lucide-folder"
-            @click="navigateTo('connection')"
-          />
-
-          <HaexSystemSettingsLayoutMenuItem
             :label="t('menu.relay')"
             :description="t('menu.relayDesc')"
             icon="i-lucide-server"
@@ -96,7 +85,7 @@ const { t } = useI18n()
 const store = usePeerStorageStore()
 const tabId = inject<string>('haex-tab-id')!
 const { activeView, direction, navigateTo, goBack } = useDrillDownNavigation<
-  'index' | 'connection' | 'relay' | 'sync-rules'
+  'index' | 'relay' | 'sync-rules'
 >('index', 'peer-storage', tabId)
 
 const { copy } = useClipboard()
@@ -175,23 +164,22 @@ onMounted(async () => {
         eq(haexVaultSettings.deviceId, deviceStore.deviceId),
       ),
     })
-    autostart.value = row?.value === 'true'
+    // Default-on: only explicit 'false' disables autostart.
+    autostart.value = row?.value !== 'false'
   }
 })
 </script>
 
 <i18n lang="yaml">
 de:
-  title: P2P Storage
-  description: Teile lokale Ordner direkt mit anderen Peers über eine verschlüsselte P2P-Verbindung
+  title: P2P Netzwerk
+  description: Verbindung zu anderen Peers über ein verschlüsseltes P2P-Netzwerk
   endpointId: Endpoint-ID
   autostart: Automatisch starten wenn die Vault geöffnet wird
   actions:
     start: Start
     stop: Stop
   menu:
-    overview: Spaces
-    overviewDesc: Dateien und Ordner nach Space, Owner und Gerät durchsuchen
     relay: Relay-Server
     relayDesc: Relay für NAT-Traversal konfigurieren
     syncRules: Sync-Regeln
@@ -202,16 +190,14 @@ de:
     stopped: P2P-Endpoint gestoppt
 
 en:
-  title: P2P Storage
-  description: Share local folders directly with other peers over an encrypted P2P connection
+  title: P2P Network
+  description: Connection to other peers over an encrypted P2P network
   endpointId: Endpoint-ID
   autostart: Automatically start when the vault is opened
   actions:
     start: Start
     stop: Stop
   menu:
-    overview: Spaces
-    overviewDesc: Browse files and folders by space, owner, and device
     relay: Relay Server
     relayDesc: Configure relay for NAT traversal
     syncRules: Sync Rules

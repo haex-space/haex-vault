@@ -152,7 +152,7 @@ const groups = computed(() => {
         label: t('downloads.active', { count: downloads.length, progress: Math.round(totalProgress * 100) }),
       }],
       tooltip: t('downloads.active', { count: downloads.length, progress: Math.round(totalProgress * 100) }),
-      onClick: () => openSettings(SettingsCategory.PeerStorage),
+      onClick: () => openSettings(SettingsCategory.Spaces),
     })
   }
 
@@ -165,7 +165,7 @@ const groups = computed(() => {
 
     result.push({
       id: 'p2p',
-      icon: SettingsCategoryIcon[SettingsCategory.PeerStorage],
+      icon: SettingsCategoryIcon[SettingsCategory.PeerNetwork],
       segments: [{
         id: 'p2p',
         colorClass: 'text-success',
@@ -177,7 +177,7 @@ const groups = computed(() => {
       tooltip: peerCount > 0
         ? t('p2p.active', { count: peerCount })
         : t('p2p.noPeers'),
-      onClick: () => openSettings(SettingsCategory.PeerStorage),
+      onClick: () => openSettings(SettingsCategory.Spaces),
     })
   }
 

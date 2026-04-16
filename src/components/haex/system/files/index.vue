@@ -408,7 +408,7 @@ const openP2PSettings = () => {
   windowManager.openWindowAsync({
     type: 'system',
     sourceId: 'settings',
-    params: { category: SettingsCategory.PeerStorage },
+    params: { category: SettingsCategory.Spaces },
   })
 }
 

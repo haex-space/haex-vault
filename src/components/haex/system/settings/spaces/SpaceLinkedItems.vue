@@ -48,6 +48,7 @@
           </UBadge>
           <div class="flex-1" />
           <UiButton
+            v-if="group.type === 'extension'"
             icon="i-lucide-external-link"
             color="neutral"
             variant="ghost"
