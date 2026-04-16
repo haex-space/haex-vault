@@ -375,223 +375,83 @@ jobs:
             core.setOutput('release_id', data.id);
 
   # ─────────────────────────────────────────────────────────────────────────
-  # Build desktop apps (all 4 platforms) and upload to GitHub release
+  # Reuse binaries built by verify-prep (via build.yml workflow_call).
+  # Because verify-prep runs nested under this workflow run, its uploaded
+  # artifacts are visible to this job without needing a run-id.
+  #
+  # Why this instead of re-building?
+  # - Verify-prep already built and tested signed desktop+Android binaries
+  #   for the same commit (prep branch HEAD == tag commit post-merge-prep).
+  # - The inject-dev-version.js script self-skips when the base-version tag
+  #   doesn't exist yet (the case on release-prep/vX.Y.Z), so verify-prep
+  #   binaries carry the clean release version.
+  # - Re-building would cost ~60-75min of redundant compute for
+  #   byte-identical outputs.
   # ─────────────────────────────────────────────────────────────────────────
-  build-desktop:
-    needs: [prepare-release, create-draft-release]
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin'
-          - platform: 'macos-latest'
-            args: '--target x86_64-apple-darwin'
-          - platform: 'ubuntu-22.04'
-            args: ''
-          - platform: 'windows-latest'
-            args: ''
-    runs-on: ${{ matrix.platform }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.prepare-release.outputs.tag_name }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v5
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
-
-      - name: Install dependencies (Ubuntu)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
-
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-
-      - name: Clean stale migration caches
-        shell: bash
-        run: find src-tauri/target -path "*/database/migrations" -type d -exec rm -rf {} + 2>/dev/null || true
-
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build and upload to release
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          releaseId: ${{ needs.create-draft-release.outputs.release_id }}
-          args: ${{ matrix.args }}
-
-  # ─────────────────────────────────────────────────────────────────────────
-  # Build signed Android APK + AAB and upload to GitHub release
-  # ─────────────────────────────────────────────────────────────────────────
-  build-android:
-    needs: [prepare-release, create-draft-release]
+  publish-artifacts:
+    needs: [prepare-release, verify-prep, create-draft-release]
     runs-on: ubuntu-22.04
-    timeout-minutes: 40
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      - name: Download verify-prep artifacts
+        uses: actions/download-artifact@v8
         with:
-          ref: ${{ needs.prepare-release.outputs.tag_name }}
+          path: ./artifacts
 
-      - name: Free disk space
+      - name: List downloaded artifacts
         run: |
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
-          df -h
+          echo "=== Artifact tree ==="
+          find ./artifacts -maxdepth 4 -type f | sort
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v5
-
-      - name: Setup Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Rust Android targets
-        run: |
-          rustup target add aarch64-linux-android
-          rustup target add armv7-linux-androideabi
-          rustup target add i686-linux-android
-          rustup target add x86_64-linux-android
-
-      - name: Setup NDK
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r26d
-        id: setup-ndk
-
-      - name: Setup Android NDK environment for OpenSSL
-        run: |
-          echo "ANDROID_NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
-          echo "NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
-          echo "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
-
-          echo "CC_aarch64_linux_android=aarch64-linux-android24-clang" >> $GITHUB_ENV
-          echo "AR_aarch64_linux_android=llvm-ar" >> $GITHUB_ENV
-          echo "RANLIB_aarch64_linux_android=llvm-ranlib" >> $GITHUB_ENV
-
-          echo "CC_armv7_linux_androideabi=armv7a-linux-androideabi24-clang" >> $GITHUB_ENV
-          echo "AR_armv7_linux_androideabi=llvm-ar" >> $GITHUB_ENV
-          echo "RANLIB_armv7_linux_androideabi=llvm-ranlib" >> $GITHUB_ENV
-
-          echo "CC_i686_linux_android=i686-linux-android24-clang" >> $GITHUB_ENV
-          echo "AR_i686_linux_android=llvm-ar" >> $GITHUB_ENV
-          echo "RANLIB_i686_linux_android=llvm-ranlib" >> $GITHUB_ENV
-
-          echo "CC_x86_64_linux_android=x86_64-linux-android24-clang" >> $GITHUB_ENV
-          echo "AR_x86_64_linux_android=llvm-ar" >> $GITHUB_ENV
-          echo "RANLIB_x86_64_linux_android=llvm-ranlib" >> $GITHUB_ENV
-
-          echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS=-C link-arg=-z -C link-arg=max-page-size=16384" >> $GITHUB_ENV
-          echo "CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_RUSTFLAGS=-C link-arg=-z -C link-arg=max-page-size=16384" >> $GITHUB_ENV
-          echo "CARGO_TARGET_I686_LINUX_ANDROID_RUSTFLAGS=-C link-arg=-z -C link-arg=max-page-size=16384" >> $GITHUB_ENV
-          echo "CARGO_TARGET_X86_64_LINUX_ANDROID_RUSTFLAGS=-C link-arg=-z -C link-arg=max-page-size=16384" >> $GITHUB_ENV
-
-      - name: Install build dependencies for OpenSSL
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y perl make
-
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-          prefix-key: android
-
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Clean stale migration caches
-        shell: bash
-        run: find src-tauri/target -path "*/database/migrations" -type d -exec rm -rf {} + 2>/dev/null || true
-
-      - name: Initialize Android project
-        run: |
-          rm -rf src-tauri/gen/android
-          pnpm tauri android init
-
-      - name: Update Kotlin version for biometry plugin
-        run: |
-          sed -i 's/kotlin-gradle-plugin:1.9.25/kotlin-gradle-plugin:2.1.0/' src-tauri/gen/android/build.gradle.kts
-
-      - name: Add camera permission to Android manifest
-        run: |
-          sed -i '/<uses-permission android:name="android.permission.INTERNET" \/>/a \    <uses-permission android:name="android.permission.CAMERA" \/>\n    <uses-feature android:name="android.hardware.camera" android:required="false" \/>\n    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" \/>' src-tauri/gen/android/app/src/main/AndroidManifest.xml
-
-      - name: Copy custom MainActivity
-        run: |
-          cp .github/android-MainActivity.kt src-tauri/gen/android/app/src/main/java/space/haex/vault/MainActivity.kt
-
-      - name: Generate app icons
-        run: pnpm tauri icon app-icon.json
-
-      - name: Setup Keystore and Signing Config
+      - name: Stage release assets
         env:
-          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          PACKAGE_VERSION: ${{ needs.prepare-release.outputs.new_version }}
         run: |
-          echo "$ANDROID_KEYSTORE" | base64 -d > /tmp/keystore.jks
-          echo "storeFile=/tmp/keystore.jks" > src-tauri/gen/android/keystore.properties
-          echo "storePassword=$ANDROID_KEYSTORE_PASSWORD" >> src-tauri/gen/android/keystore.properties
-          echo "keyAlias=$ANDROID_KEY_ALIAS" >> src-tauri/gen/android/keystore.properties
-          echo "keyPassword=$ANDROID_KEY_PASSWORD" >> src-tauri/gen/android/keystore.properties
-          cp .github/android-signing-build.gradle.kts src-tauri/gen/android/app/build.gradle.kts
+          mkdir -p release-assets
 
-      - name: Build Android APK and AAB (signed)
-        run: pnpm tauri android build
+          # macOS DMGs (skip raw .app bundles — those are folders, not user downloads)
+          find ./artifacts/macos-aarch64 -name "*.dmg" -exec cp {} release-assets/ \; 2>/dev/null || true
+          find ./artifacts/macos-x86_64 -name "*.dmg" -exec cp {} release-assets/ \; 2>/dev/null || true
 
-      - name: Rename and upload Android artifacts
+          # Linux
+          find ./artifacts/linux -name "*.deb" -exec cp {} release-assets/ \; 2>/dev/null || true
+          find ./artifacts/linux -name "*.AppImage" -exec cp {} release-assets/ \; 2>/dev/null || true
+          find ./artifacts/linux -name "*.rpm" -exec cp {} release-assets/ \; 2>/dev/null || true
+
+          # Windows
+          find ./artifacts/windows -name "*.msi" -exec cp {} release-assets/ \; 2>/dev/null || true
+          find ./artifacts/windows -name "*.exe" -exec cp {} release-assets/ \; 2>/dev/null || true
+
+          # Android: rename universal APK/AAB with versioned filename
+          UNIVERSAL_APK=$(find ./artifacts/android -path "*universal/release/*.apk" -type f 2>/dev/null | head -1)
+          UNIVERSAL_AAB=$(find ./artifacts/android -path "*universalRelease/*.aab" -type f 2>/dev/null | head -1)
+          if [ -n "$UNIVERSAL_APK" ]; then
+            cp "$UNIVERSAL_APK" "release-assets/haex-vault_${PACKAGE_VERSION}_universal.apk"
+          else
+            echo "::error::No universal Android APK found in android artifact"
+            exit 1
+          fi
+          if [ -n "$UNIVERSAL_AAB" ]; then
+            cp "$UNIVERSAL_AAB" "release-assets/haex-vault_${PACKAGE_VERSION}_universal.aab"
+          else
+            echo "::error::No universal Android AAB found in android artifact"
+            exit 1
+          fi
+
+          echo "=== Staged assets ==="
+          ls -la release-assets/
+
+      - name: Upload assets to GitHub release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PACKAGE_VERSION: ${{ needs.prepare-release.outputs.new_version }}
           TAG_NAME: ${{ needs.prepare-release.outputs.tag_name }}
         run: |
-          mv src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk \
-             src-tauri/gen/android/app/build/outputs/apk/universal/release/haex-vault_${PACKAGE_VERSION}_universal.apk
-          mv src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab \
-             src-tauri/gen/android/app/build/outputs/bundle/universalRelease/haex-vault_${PACKAGE_VERSION}_universal.aab
-
-          gh release upload "$TAG_NAME" \
-            src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk \
-            src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab \
-            --clobber
+          gh release upload "$TAG_NAME" release-assets/* --clobber
 
   # ─────────────────────────────────────────────────────────────────────────
   # Flip the release from draft → published
   # ─────────────────────────────────────────────────────────────────────────
   publish-release:
-    needs: [create-draft-release, build-desktop, build-android]
+    needs: [create-draft-release, publish-artifacts]
     runs-on: ubuntu-latest
     steps:
       - name: Publish release
