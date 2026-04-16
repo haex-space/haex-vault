@@ -46,6 +46,17 @@
       >
         {{ permissionLabel }}
       </UBadge>
+      <UBadge
+        v-if="!pending && ownerLabel"
+        color="neutral"
+        variant="subtle"
+        size="sm"
+        icon="i-lucide-user"
+        class="cursor-pointer"
+        @click.stop="showOwnerModal = true"
+      >
+        {{ ownerLabel }}
+      </UBadge>
     </div>
 
     <!-- Pending invite details -->
@@ -289,12 +300,20 @@
         </UCard>
       </template>
     </UModal>
+
+    <!-- Space Owner Modal -->
+    <SpaceOwnerModal
+      v-if="!pending"
+      v-model:open="showOwnerModal"
+      :space="space"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import type { SpaceWithType } from '@/stores/spaces'
 import type { SelectHaexPendingInvites } from '~/database/schemas'
+import SpaceOwnerModal from './SpaceOwnerModal.vue'
 
 const props = withDefaults(defineProps<{
   space: SpaceWithType
@@ -320,10 +339,11 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const showInviteDetail = ref(false)
+const showOwnerModal = ref(false)
 
 const spacesStore = useSpacesStore()
 const identityStore = useIdentityStore()
-const { contacts } = storeToRefs(identityStore)
+const { identities, contacts } = storeToRefs(identityStore)
 const capabilities = ref<string[]>([])
 
 /**
@@ -353,6 +373,13 @@ const resolvedInviterLabel = computed(() => {
   const contact = contacts.value.find(c => c.did === props.invite?.inviterDid)
   if (contact?.name) return contact.name
   return truncateDid(props.invite.inviterDid)
+})
+
+const ownerLabel = computed(() => {
+  const ownerId = props.space.ownerIdentityId
+  if (!ownerId) return ''
+  const identity = identities.value.find(i => i.id === ownerId)
+  return identity?.name || truncateDid(ownerId)
 })
 
 const isAdmin = computed(() => capabilities.value.includes('space/admin'))
