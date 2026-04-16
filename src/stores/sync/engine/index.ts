@@ -48,6 +48,7 @@ import {
   deleteAllVaultDataAsync as deleteAllVaults,
   updateVaultNameOnServerAsync as updateName,
 } from './server'
+import { clearUcanCache } from '~/utils/auth/ucanStore'
 
 const log = engineLog
 
@@ -614,6 +615,7 @@ export const useSyncEngineStore = defineStore('syncEngineStore', () => {
    */
   const reset = async (): Promise<void> => {
     clearVaultKeyCache()
+    clearUcanCache()
     resetTokenManager()
     // Sync the ref with the actual cache
     vaultKeyCache.value = getVaultKeyCache()
