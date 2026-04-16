@@ -153,8 +153,8 @@ pub fn setup_triggers_for_table(
         .map(|c| c.name.clone())
         .collect();
 
-    let insert_trigger_sql = generate_insert_trigger_sql(table_name, &cols_to_track);
-    let update_trigger_sql = generate_update_trigger_sql(table_name, &cols_to_track);
+    let insert_trigger_sql = generate_insert_trigger_sql(table_name, &cols_to_track, &pks);
+    let update_trigger_sql = generate_update_trigger_sql(table_name, &cols_to_track, &pks);
     let delete_trigger_sql = generate_delete_trigger_sql(table_name);
 
     if recreate {
@@ -265,7 +265,11 @@ pub fn drop_triggers_for_table(
 }
  */
 /// Generates SQL for INSERT trigger - populates column HLCs and marks table as dirty
-fn generate_insert_trigger_sql(table_name: &str, cols_to_track: &[String]) -> String {
+fn generate_insert_trigger_sql(
+    table_name: &str,
+    cols_to_track: &[String],
+    primary_key_columns: &[String],
+) -> String {
     let trigger_name = INSERT_TRIGGER_TPL.replace("{TABLE_NAME}", table_name);
 
     // Generate JSON object for haex_column_hlcs with all tracked columns
@@ -279,6 +283,17 @@ fn generate_insert_trigger_sql(table_name: &str, cols_to_track: &[String]) -> St
         format!("json_object({})", json_pairs.join(", "))
     };
 
+    // Use PK-based WHERE clause to support WITHOUT ROWID tables
+    let pk_where = if primary_key_columns.is_empty() {
+        "rowid = NEW.rowid".to_string()
+    } else {
+        primary_key_columns
+            .iter()
+            .map(|pk| format!("\"{}\" = NEW.\"{}\"", pk, pk))
+            .collect::<Vec<_>>()
+            .join(" AND ")
+    };
+
     format!(
         "CREATE TRIGGER IF NOT EXISTS \"{trigger_name}\"
             AFTER INSERT ON \"{table_name}\"
@@ -288,7 +303,7 @@ fn generate_insert_trigger_sql(table_name: &str, cols_to_track: &[String]) -> St
             BEGIN
             UPDATE \"{table_name}\"
             SET haex_column_hlcs = {json_object}
-            WHERE rowid = NEW.rowid;
+            WHERE {pk_where};
 
             INSERT OR REPLACE INTO {TABLE_CRDT_DIRTY_TABLES} (table_name, last_modified)
             VALUES ('{table_name}', datetime('now'));
@@ -304,8 +319,23 @@ fn drop_trigger_sql(trigger_name: String) -> String {
 /// Generates SQL for UPDATE trigger - updates column HLCs and marks table as dirty
 /// IMPORTANT: Only marks table as dirty if at least one TRACKED column changed.
 /// This prevents sync loops when only metadata columns (like last_push_hlc_timestamp) are updated.
-fn generate_update_trigger_sql(table_name: &str, cols_to_track: &[String]) -> String {
+fn generate_update_trigger_sql(
+    table_name: &str,
+    cols_to_track: &[String],
+    primary_key_columns: &[String],
+) -> String {
     let trigger_name = UPDATE_TRIGGER_TPL.replace("{TABLE_NAME}", table_name);
+
+    // Use PK-based WHERE clause to support WITHOUT ROWID tables
+    let pk_where = if primary_key_columns.is_empty() {
+        "rowid = NEW.rowid".to_string()
+    } else {
+        primary_key_columns
+            .iter()
+            .map(|pk| format!("\"{}\" = NEW.\"{}\"", pk, pk))
+            .collect::<Vec<_>>()
+            .join(" AND ")
+    };
 
     // Generate UPDATE statements for each changed column
     // We check each column individually and update its HLC timestamp if it changed
@@ -315,7 +345,7 @@ fn generate_update_trigger_sql(table_name: &str, cols_to_track: &[String]) -> St
         update_statements.push(format!(
             "UPDATE \"{table_name}\"
             SET haex_column_hlcs = json_set(haex_column_hlcs, '$.{col}', NEW.\"{HLC_TIMESTAMP_COLUMN}\")
-            WHERE rowid = NEW.rowid AND NEW.\"{col}\" IS NOT OLD.\"{col}\";"
+            WHERE {pk_where} AND NEW.\"{col}\" IS NOT OLD.\"{col}\";"
         ));
     }
 
