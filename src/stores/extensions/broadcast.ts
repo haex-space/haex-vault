@@ -36,6 +36,10 @@ import {
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type { IHaexSpaceExtension } from '~/types/haexspace'
 import { createLogger } from '~/stores/logging'
+import {
+  dispatchFileChangedBroadcast,
+  dispatchShellEventBroadcast,
+} from './broadcastRouting'
 
 const log = createLogger('BROADCAST')
 
@@ -268,42 +272,25 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
   }
 
   /**
-   * Broadcast file change event to ALL instances of extensions with filesystem permissions.
-   * Currently broadcasts to all - Rust filtering to be added.
+   * Broadcast a file change event only to extensions currently allowed to read
+   * the path. Delegates to the pure `dispatchFileChangedBroadcast` helper so
+   * the routing rules stay under unit-test coverage.
    */
-  const broadcastFileChanged = (payload: FileChangePayload) => {
-    const message = {
-      type: HAEXTENSION_EVENTS.FILE_CHANGED,
-      ruleId: payload.ruleId,
-      changeType: payload.changeType,
-      path: payload.path,
-      timestamp: Date.now(),
-    }
-
-    // Send to ALL iframe extension instances (TODO: add permission filtering)
-    for (const [iframe] of iframeRegistry.entries()) {
-      if (iframe.contentWindow) {
-        iframe.contentWindow.postMessage(message, '*')
-      }
-    }
+  const broadcastFileChanged = (
+    payload: FileChangePayload & { readerExtensionIds?: string[] },
+  ) => {
+    dispatchFileChangedBroadcast(payload, iframeRegistry.entries())
   }
 
   /**
-   * Broadcast shell PTY events (output/exit) to ALL iframe extensions.
-   * Extensions filter by sessionId on their side (they only know their own sessions).
+   * Broadcast a shell PTY event only to iframes of the session's owning
+   * extension. Delegates to the pure `dispatchShellEventBroadcast` helper.
    */
-  const broadcastShellEvent = (type: string, payload: Record<string, unknown>) => {
-    const message = {
-      type,
-      ...payload,
-      timestamp: Date.now(),
-    }
-
-    for (const [iframe] of iframeRegistry.entries()) {
-      if (iframe.contentWindow) {
-        iframe.contentWindow.postMessage(message, '*')
-      }
-    }
+  const broadcastShellEvent = (
+    type: string,
+    payload: Record<string, unknown> & { extensionId: string },
+  ) => {
+    dispatchShellEventBroadcast(type, payload, iframeRegistry.entries())
   }
 
   /**
@@ -397,23 +384,35 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
         }),
       )
 
-      // Listen for file change events from native file watcher
+      // Listen for file change events from native file watcher.
+      // Rust enriches the payload with readerExtensionIds — extensions are
+      // filtered server-side against DB and session permissions.
       unlistenFns.push(
-        await listen<FileChangePayload>(HAEXTENSION_EVENTS.FILE_CHANGED, (event) => {
-          broadcastFileChanged(event.payload)
-        }),
+        await listen<FileChangePayload & { readerExtensionIds: string[] }>(
+          HAEXTENSION_EVENTS.FILE_CHANGED,
+          (event) => {
+            broadcastFileChanged(event.payload)
+          },
+        ),
       )
 
-      // Listen for shell PTY events and forward to iframes
+      // Listen for shell PTY events. Rust includes the owning extension_id in
+      // the payload so the broadcast only reaches the session owner's iframes.
       unlistenFns.push(
-        await listen<{ sessionId: string; data: string }>(SHELL_EVENTS.OUTPUT, (event) => {
-          broadcastShellEvent(SHELL_EVENTS.OUTPUT, event.payload)
-        }),
+        await listen<{ sessionId: string; extensionId: string; data: string }>(
+          SHELL_EVENTS.OUTPUT,
+          (event) => {
+            broadcastShellEvent(SHELL_EVENTS.OUTPUT, event.payload)
+          },
+        ),
       )
       unlistenFns.push(
-        await listen<{ sessionId: string; exitCode: number | null }>(SHELL_EVENTS.EXIT, (event) => {
-          broadcastShellEvent(SHELL_EVENTS.EXIT, event.payload)
-        }),
+        await listen<{ sessionId: string; extensionId: string; exitCode: number | null }>(
+          SHELL_EVENTS.EXIT,
+          (event) => {
+            broadcastShellEvent(SHELL_EVENTS.EXIT, event.payload)
+          },
+        ),
       )
 
     } catch (error) {

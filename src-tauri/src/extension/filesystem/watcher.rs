@@ -36,6 +36,16 @@ pub struct FileChangeEvent {
     pub change_type: FileChangeType,
     /// Relative path of the changed file (if available)
     pub path: Option<String>,
+    /// Extensions that are currently allowed to read this path. Used by the
+    /// frontend broadcast layer to scope the fan-out to only authorized
+    /// extensions. Computed at emit time against both DB and session
+    /// permissions (no prompts).
+    ///
+    /// The list is for main-window-only consumption — it must never be
+    /// forwarded into extension iframes (they'd learn which *other*
+    /// extensions have access to the path).
+    #[serde(default)]
+    pub reader_extension_ids: Vec<String>,
 }
 
 #[cfg_attr(any(target_os = "android", target_os = "ios"), allow(dead_code))]
@@ -135,23 +145,35 @@ impl FileWatcherManager {
                             FileChangeType::Any
                         };
 
-                        // Get relative path of first event
-                        let relative_path = events.first().and_then(|e| {
-                            e.path.strip_prefix(&base_path)
+                        let absolute_path = events.first().map(|e| e.path.clone());
+                        let relative_path = absolute_path.as_ref().and_then(|abs| {
+                            abs.strip_prefix(&base_path)
                                 .ok()
                                 .map(|p| p.to_string_lossy().to_string())
                         });
 
-                        let event = FileChangeEvent {
-                            rule_id: rule_id_clone.clone(),
-                            change_type,
-                            path: relative_path,
-                        };
+                        // Compute reader extension_ids asynchronously against permissions
+                        // (both DB and session grants). The emit happens inside the task
+                        // so the enriched event carries the authorised reader list.
+                        let app_handle_for_emit = app_handle.clone();
+                        let rule_for_emit = rule_id_clone.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let reader_extension_ids = match absolute_path.as_ref() {
+                                Some(abs) => compute_fs_read_readers(&app_handle_for_emit, abs).await,
+                                None => Vec::new(),
+                            };
 
-                        // Also emit event to frontend (for UI updates)
-                        if let Err(e) = app_handle.emit(FILE_CHANGE_EVENT, &event) {
-                            eprintln!("[FileWatcher] Failed to emit event: {}", e);
-                        }
+                            let event = FileChangeEvent {
+                                rule_id: rule_for_emit,
+                                change_type,
+                                path: relative_path,
+                                reader_extension_ids,
+                            };
+
+                            if let Err(e) = app_handle_for_emit.emit(FILE_CHANGE_EVENT, &event) {
+                                eprintln!("[FileWatcher] Failed to emit event: {}", e);
+                            }
+                        });
                     }
                     Err(e) => {
                         eprintln!("[FileWatcher] Watch error for rule {}: {:?}", rule_id_clone, e);
@@ -231,6 +253,37 @@ impl Default for FileWatcherManager {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Collect every installed extension that may read `absolute_path` right now
+/// without prompting — combines DB `Granted` permissions and session grants.
+///
+/// Used by the watcher callback to enrich `FileChangeEvent` with an
+/// authorised-reader list so the broadcast layer can scope the fan-out.
+/// Errors are swallowed: if we cannot determine permissions, return an empty
+/// list so no data is broadcast (fail-closed).
+#[cfg(desktop)]
+async fn compute_fs_read_readers(
+    app_handle: &AppHandle,
+    absolute_path: &std::path::Path,
+) -> Vec<String> {
+    use crate::extension::permissions::manager::PermissionManager;
+    use crate::AppState;
+    use tauri::Manager;
+
+    let state: tauri::State<'_, AppState> = app_handle.state();
+
+    let Ok(extensions) = state.extension_manager.get_all_extensions() else {
+        return Vec::new();
+    };
+
+    let mut allowed = Vec::new();
+    for extension in extensions {
+        if PermissionManager::is_fs_read_allowed_silently(&state, &extension.id, absolute_path).await {
+            allowed.push(extension.id);
+        }
+    }
+    allowed
 }
 
 // Stub implementation for Android

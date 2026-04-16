@@ -21,21 +21,28 @@ pub struct ShellCreateOptions {
     pub env: Option<std::collections::HashMap<String, String>>,
 }
 
-/// Shell output event payload, emitted via Tauri events
+/// Shell output event payload, emitted via Tauri events.
+///
+/// `extension_id` identifies the owning extension so the broadcast layer can
+/// route the event only to iframes of that extension — stdout must not leak
+/// to other (potentially untrusted) extensions sharing the same origin.
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ShellOutputEvent {
     pub session_id: String,
+    pub extension_id: String,
     pub data: String,
 }
 
-/// Shell exit event payload
+/// Shell exit event payload. Includes `extension_id` for the same reason as
+/// `ShellOutputEvent` — owner-scoped routing.
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ShellExitEvent {
     pub session_id: String,
+    pub extension_id: String,
     pub exit_code: Option<i32>,
 }
 

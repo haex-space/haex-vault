@@ -3,9 +3,11 @@
 
 use crate::extension::core::types::Extension;
 use crate::extension::permissions::types::{
-    Action, DbAction, ExtensionPermission, PermissionStatus, ResourceType,
+    Action, DbAction, ExtensionPermission, FsAction, PermissionConstraints, PermissionStatus,
+    ResourceType,
 };
 use crate::extension::utils;
+use std::path::Path;
 
 /// Testable permission checker that doesn't depend on Tauri State
 ///
@@ -84,6 +86,84 @@ impl PermissionChecker {
     pub fn action_allows_db_action(&self, permission_action: &Action, required: DbAction) -> bool {
         matches_action(permission_action, required)
     }
+
+    /// Silent filesystem-read predicate for a specific path.
+    ///
+    /// Returns `true` iff the extension is *currently* allowed to read
+    /// `file_path` without prompting. Used by the file-change broadcast layer
+    /// to scope event fan-out to authorised extensions only.
+    ///
+    /// Rules, in order:
+    /// - An explicit session-`Denied` entry always wins → `false`.
+    /// - Otherwise: a DB permission with matching path + `Granted` status → `true`.
+    /// - A DB permission in `Ask` state, combined with a session grant → `true`
+    ///   (the user approved it for this session).
+    /// - A DB permission in `Ask` without session grant → `false`
+    ///   (we must not prompt from this context).
+    /// - A DB permission in `Denied` status → `false`.
+    /// - No matching DB permission, but a session grant exists → `true`.
+    /// - Constraint violations (e.g. file extension not in allow-list) → `false`.
+    /// - Anything else → `false`.
+    ///
+    /// `session_granted` / `session_denied` encode the state of
+    /// `AppState::session_permissions` for this `(extension, path)` pair. The
+    /// caller resolves them against the live store; the predicate stays pure.
+    pub fn can_read_path_silently(
+        &self,
+        file_path: &Path,
+        session_granted: bool,
+        session_denied: bool,
+    ) -> bool {
+        if session_denied {
+            return false;
+        }
+
+        let file_path_str = file_path.to_string_lossy();
+
+        let matching = self.permissions.iter().find(|perm| {
+            perm.resource_type == ResourceType::Fs
+                && matches_fs_action_for_read(&perm.action)
+                && super::manager::PermissionManager::matches_path_pattern(
+                    &perm.target,
+                    &file_path_str,
+                )
+        });
+
+        let passes_constraints = |perm: &ExtensionPermission| -> bool {
+            let Some(PermissionConstraints::Filesystem(constraints)) = &perm.constraints else {
+                return true;
+            };
+            let Some(allowed_ext) = &constraints.allowed_extensions else {
+                return true;
+            };
+            match file_path.extension() {
+                Some(ext) => {
+                    let ext_str = format!(".{}", ext.to_string_lossy());
+                    allowed_ext.contains(&ext_str)
+                }
+                None => false,
+            }
+        };
+
+        match matching {
+            Some(perm) if !passes_constraints(perm) => false,
+            Some(perm) => match perm.status {
+                PermissionStatus::Granted => true,
+                PermissionStatus::Denied => false,
+                PermissionStatus::Ask => session_granted,
+            },
+            None => session_granted,
+        }
+    }
+}
+
+/// Does `permission_action` authorise filesystem reads? Both `Read` and
+/// `ReadWrite` qualify.
+fn matches_fs_action_for_read(permission_action: &Action) -> bool {
+    matches!(
+        permission_action,
+        Action::Filesystem(FsAction::Read) | Action::Filesystem(FsAction::ReadWrite)
+    )
 }
 
 /// Checks if an action matches the required DbAction

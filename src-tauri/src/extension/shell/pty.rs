@@ -168,6 +168,7 @@ impl PtyManager {
         // Spawn background task to read PTY output and emit events
         let app_handle = app_handle.clone();
         let sid = session_id.clone();
+        let owner_extension_id = extension_id.to_string();
         let sessions = self.sessions.clone();
 
         tokio::task::spawn_blocking(move || {
@@ -181,6 +182,7 @@ impl PtyManager {
                             SHELL_EXIT_EVENT,
                             &ShellExitEvent {
                                 session_id: sid.clone(),
+                                extension_id: owner_extension_id.clone(),
                                 exit_code: None,
                             },
                         );
@@ -199,6 +201,7 @@ impl PtyManager {
                             SHELL_OUTPUT_EVENT,
                             &ShellOutputEvent {
                                 session_id: sid.clone(),
+                                extension_id: owner_extension_id.clone(),
                                 data,
                             },
                         );
@@ -209,6 +212,7 @@ impl PtyManager {
                             SHELL_EXIT_EVENT,
                             &ShellExitEvent {
                                 session_id: sid.clone(),
+                                extension_id: owner_extension_id.clone(),
                                 exit_code: None,
                             },
                         );
