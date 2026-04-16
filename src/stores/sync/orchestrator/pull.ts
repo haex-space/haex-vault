@@ -108,17 +108,15 @@ export const pullFromBackendAsync = async (
     const tablesAffected = [...new Set(allChanges.map((c) => c.tableName))]
     log.debug('Tables affected:', tablesAffected)
 
-    // Step 1b: Verify signatures on pulled changes (defense-in-depth)
-    // The server already verifies on push, but we verify client-side before applying.
-    // Invalid or unsigned changes from space backends are rejected.
-    const verifiedChanges = await verifyPulledChangesAsync(allChanges, backend.spaceId)
-
-    if (verifiedChanges.length < allChanges.length) {
-      log.warn(`Rejected ${allChanges.length - verifiedChanges.length} changes with invalid signatures`)
-    }
+    // Step 1b: Verify signatures + UCAN on pulled changes (defense-in-depth).
+    // Any unsigned, forged, or unauthorized change aborts the entire batch —
+    // we do not trust partial data from a potentially compromised server.
+    // On failure, the outer catch handles it: lastPullServerTimestamp is NOT advanced,
+    // so the next pull will retry the same batch (or the legitimate replacement).
+    await verifyPulledChangesAsync(allChanges, backend.spaceId)
 
     // Step 2: Apply all changes with proper migration ordering
-    await applyAllChangesWithMigrationsAsync(verifiedChanges, encryptionKey, backendId, backend.spaceId)
+    await applyAllChangesWithMigrationsAsync(allChanges, encryptionKey, backendId, backend.spaceId)
 
     // Step 2b: Check for and pull any pending columns
     // This handles schema version differences - if we previously skipped columns
@@ -200,20 +198,47 @@ export const pullFromBackendAsync = async (
 }
 
 /**
+ * Error raised when verification of a pulled change-batch fails.
+ *
+ * The batch is rejected as a whole on first invalid change — we don't trust
+ * any change from a batch where a compromised or misconfigured server has
+ * tampered with, forged, or skipped signatures for any entry.
+ */
+export class BatchVerificationError extends Error {
+  readonly reason: 'unsigned' | 'invalid-signature' | 'unauthorized'
+  readonly offendingChange: { tableName: string; columnName: string; rowPks: string }
+
+  constructor(
+    reason: 'unsigned' | 'invalid-signature' | 'unauthorized',
+    offendingChange: ColumnChange,
+    detail: string,
+  ) {
+    super(`Batch rejected (${reason}): ${detail}`)
+    this.name = 'BatchVerificationError'
+    this.reason = reason
+    this.offendingChange = {
+      tableName: offendingChange.tableName,
+      columnName: offendingChange.columnName,
+      rowPks: offendingChange.rowPks,
+    }
+  }
+}
+
+/**
  * Verifies signatures and UCAN authorization on pulled changes before applying them.
  *
  * Two-layer verification:
- * 1. Cryptographic: Ed25519 signature on the record is valid
- * 2. Authorization: Signer holds a valid UCAN with space/write (or higher) for this space
+ *   1. Cryptographic: every change has an Ed25519 signature and `signedBy`, and the signature verifies
+ *   2. Authorization (shared spaces only): signer holds a valid `space/write` UCAN or is the root admin
  *
- * Changes without signatures (vault-only backends) pass through.
- * Invalid changes are rejected individually — valid changes in the same batch are kept.
+ * Fails the entire batch on first invalid change — throws `BatchVerificationError`.
+ * All data must be signed; there is no pass-through for unsigned records.
  */
 const verifyPulledChangesAsync = async (
   changes: ColumnChange[],
   spaceId?: string,
-): Promise<ColumnChange[]> => {
-  if (!spaceId) return changes // vault-only backend, no signatures expected
+): Promise<void> => {
+  if (changes.length === 0) return
 
   const db = requireDb()
   const verify = createWebCryptoVerifier()
@@ -221,97 +246,100 @@ const verifyPulledChangesAsync = async (
   // Cache: signedBy public key → { did, authorized } to avoid re-checking per column change
   const signerCache = new Map<string, { did: string; authorized: boolean }>()
 
-  const verified: ColumnChange[] = []
   for (const change of changes) {
     if (!change.signature || !change.signedBy) {
-      verified.push(change)
-      continue
+      throw new BatchVerificationError(
+        'unsigned',
+        change,
+        `change ${change.tableName}/${change.columnName} is missing signature or signedBy`,
+      )
     }
 
-    try {
-      // Layer 1: Cryptographic signature verification
-      const isValid = await verifyRecordSignatureAsync(
-        {
-          tableName: change.tableName,
-          rowPks: change.rowPks,
-          columnName: change.columnName,
-          encryptedValue: change.encryptedValue ?? null,
-          hlcTimestamp: change.hlcTimestamp,
-        },
-        change.signature,
-        change.signedBy,
-      )
+    // Layer 1: Cryptographic signature verification
+    const isValid = await verifyRecordSignatureAsync(
+      {
+        tableName: change.tableName,
+        rowPks: change.rowPks,
+        columnName: change.columnName,
+        encryptedValue: change.encryptedValue ?? null,
+        hlcTimestamp: change.hlcTimestamp,
+      },
+      change.signature,
+      change.signedBy,
+    )
 
-      if (!isValid) {
-        log.warn(`Rejected change: invalid signature on ${change.tableName}/${change.columnName}`)
-        continue
+    if (!isValid) {
+      throw new BatchVerificationError(
+        'invalid-signature',
+        change,
+        `invalid Ed25519 signature on ${change.tableName}/${change.columnName}`,
+      )
+    }
+
+    // Layer 2: UCAN authorization check — only for shared spaces
+    if (!spaceId) continue
+
+    let cached = signerCache.get(change.signedBy)
+    if (!cached) {
+      const signerDid = await publicKeyToDidKeyAsync(change.signedBy)
+
+      // Look up a UCAN where this signer is the audience (was granted access)
+      // and the capability is at least space/write for this space
+      const ucanRows = await db
+        .select()
+        .from(haexUcanTokens)
+        .where(
+          and(
+            eq(haexUcanTokens.spaceId, spaceId),
+            eq(haexUcanTokens.audienceDid, signerDid),
+          ),
+        )
+
+      let authorized = false
+      for (const row of ucanRows) {
+        try {
+          const result = await validateUcan(
+            row.token,
+            spaceResource(spaceId),
+            'space/write' as Capability,
+            verify,
+          )
+          if (result.valid) {
+            authorized = true
+            break
+          }
+        } catch {
+          // Token invalid or expired — try next
+        }
       }
 
-      // Layer 2: UCAN authorization check
-      let cached = signerCache.get(change.signedBy)
-      if (!cached) {
-        const signerDid = await publicKeyToDidKeyAsync(change.signedBy)
-
-        // Look up a UCAN where this signer is the audience (was granted access)
-        // and the capability is at least space/write for this space
-        const ucanRows = await db
+      // Admin fallback: root UCAN where issuer === audience (self-issued by space owner)
+      if (!authorized) {
+        const rootUcans = await db
           .select()
           .from(haexUcanTokens)
           .where(
             and(
               eq(haexUcanTokens.spaceId, spaceId),
+              eq(haexUcanTokens.issuerDid, signerDid),
               eq(haexUcanTokens.audienceDid, signerDid),
             ),
           )
-
-        let authorized = false
-        for (const row of ucanRows) {
-          try {
-            const result = await validateUcan(
-              row.token,
-              spaceResource(spaceId),
-              'space/write' as Capability,
-              verify,
-            )
-            if (result.valid) {
-              authorized = true
-              break
-            }
-          } catch {
-            // Token invalid or expired — try next
-          }
-        }
-
-        // Also check if this signer is the admin (root UCAN: issuer === audience)
-        if (!authorized) {
-          const rootUcans = await db
-            .select()
-            .from(haexUcanTokens)
-            .where(
-              and(
-                eq(haexUcanTokens.spaceId, spaceId),
-                eq(haexUcanTokens.issuerDid, signerDid),
-                eq(haexUcanTokens.audienceDid, signerDid),
-              ),
-            )
-          authorized = rootUcans.length > 0
-        }
-
-        cached = { did: signerDid, authorized }
-        signerCache.set(change.signedBy, cached)
+        authorized = rootUcans.length > 0
       }
 
-      if (cached.authorized) {
-        verified.push(change)
-      } else {
-        log.warn(`Rejected change: signer ${cached.did.slice(0, 24)}... has no write UCAN for space ${spaceId}`)
-      }
-    } catch (error) {
-      log.warn(`Verification failed for change: ${change.tableName}/${change.columnName}`, error)
+      cached = { did: signerDid, authorized }
+      signerCache.set(change.signedBy, cached)
+    }
+
+    if (!cached.authorized) {
+      throw new BatchVerificationError(
+        'unauthorized',
+        change,
+        `signer ${cached.did.slice(0, 24)}... has no valid space/write UCAN for space ${spaceId}`,
+      )
     }
   }
-
-  return verified
 }
 
 /**
@@ -755,8 +783,11 @@ export const pullPendingColumnsAsync = async (
       log.debug(`Fetched ${changes.length} changes for ${pendingCol.tableName}.${pendingCol.columnName} (total: ${allChanges.length}, hasMore: ${hasMore})`)
     }
 
-    // Step 3: Apply the pulled changes
+    // Step 3: Verify signatures + UCAN authorization, then apply.
+    // A BatchVerificationError here aborts pullPendingColumnsAsync before clear_pending_column
+    // runs, so this pending column stays flagged for retry on the next pull.
     if (allChanges.length > 0) {
+      await verifyPulledChangesAsync(allChanges, spaceId)
       log.info(`Applying ${allChanges.length} changes for ${pendingCol.tableName}.${pendingCol.columnName}`)
       await applyRemoteChangesInTransactionAsync(allChanges, vaultKey, backendId, spaceId)
       totalPulled += allChanges.length
