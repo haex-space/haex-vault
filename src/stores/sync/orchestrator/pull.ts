@@ -5,14 +5,24 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import { emit } from '@tauri-apps/api/event'
-import { decryptCrdtData } from '@haex-space/vault-sdk'
-import { DidAuthAction } from '@haex-space/ucan'
+import { decryptCrdtData, verifyRecordSignatureAsync, publicKeyToDidKeyAsync } from '@haex-space/vault-sdk'
+import {
+  DidAuthAction,
+  decodeUcan,
+  validateUcan,
+  spaceResource,
+  createWebCryptoVerifier,
+  type Capability,
+} from '@haex-space/ucan'
+import { eq, and } from 'drizzle-orm'
 import type { ColumnChange } from '../tableScanner'
 import { hlcIsNewer } from '@/utils/hlc'
 import { createDidAuthHeader, createFederatedDidAuthHeader } from '@/utils/auth/didAuth'
 import { orchestratorLog as log, type BackendSyncState, type PullResult, syncMutex } from './types'
 import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
 import { SYNC_TABLES_INTERNAL_EVENT } from '../syncEvents'
+import { haexUcanTokens } from '~/database/schemas'
+import { requireDb } from '~/stores/vault'
 import type { PendingColumn } from '@bindings/PendingColumn'
 
 /**
@@ -98,8 +108,17 @@ export const pullFromBackendAsync = async (
     const tablesAffected = [...new Set(allChanges.map((c) => c.tableName))]
     log.debug('Tables affected:', tablesAffected)
 
+    // Step 1b: Verify signatures on pulled changes (defense-in-depth)
+    // The server already verifies on push, but we verify client-side before applying.
+    // Invalid or unsigned changes from space backends are rejected.
+    const verifiedChanges = await verifyPulledChangesAsync(allChanges, backend.spaceId)
+
+    if (verifiedChanges.length < allChanges.length) {
+      log.warn(`Rejected ${allChanges.length - verifiedChanges.length} changes with invalid signatures`)
+    }
+
     // Step 2: Apply all changes with proper migration ordering
-    await applyAllChangesWithMigrationsAsync(allChanges, encryptionKey, backendId, backend.spaceId)
+    await applyAllChangesWithMigrationsAsync(verifiedChanges, encryptionKey, backendId, backend.spaceId)
 
     // Step 2b: Check for and pull any pending columns
     // This handles schema version differences - if we previously skipped columns
@@ -156,10 +175,7 @@ export const pullFromBackendAsync = async (
       }
     }
 
-    // TODO: Client-side signature verification for space backends (defense-in-depth)
-    // The server already verifies signatures on push, but pulled records from space
-    // backends should also be verified client-side once the member public key cache
-    // is available. This requires resolving each signer's public key locally.
+    // Client-side signature verification is now done in Step 1b above
 
     log.info(`========== PULL SUCCESS: ${allChanges.length} changes applied ==========`)
   } catch (error) {
@@ -181,6 +197,121 @@ export const pullFromBackendAsync = async (
     state.isSyncing = false
     releaseLock()
   }
+}
+
+/**
+ * Verifies signatures and UCAN authorization on pulled changes before applying them.
+ *
+ * Two-layer verification:
+ * 1. Cryptographic: Ed25519 signature on the record is valid
+ * 2. Authorization: Signer holds a valid UCAN with space/write (or higher) for this space
+ *
+ * Changes without signatures (vault-only backends) pass through.
+ * Invalid changes are rejected individually — valid changes in the same batch are kept.
+ */
+const verifyPulledChangesAsync = async (
+  changes: ColumnChange[],
+  spaceId?: string,
+): Promise<ColumnChange[]> => {
+  if (!spaceId) return changes // vault-only backend, no signatures expected
+
+  const db = requireDb()
+  const verify = createWebCryptoVerifier()
+
+  // Cache: signedBy public key → { did, authorized } to avoid re-checking per column change
+  const signerCache = new Map<string, { did: string; authorized: boolean }>()
+
+  const verified: ColumnChange[] = []
+  for (const change of changes) {
+    if (!change.signature || !change.signedBy) {
+      verified.push(change)
+      continue
+    }
+
+    try {
+      // Layer 1: Cryptographic signature verification
+      const isValid = await verifyRecordSignatureAsync(
+        {
+          tableName: change.tableName,
+          rowPks: change.rowPks,
+          columnName: change.columnName,
+          encryptedValue: change.encryptedValue ?? null,
+          hlcTimestamp: change.hlcTimestamp,
+        },
+        change.signature,
+        change.signedBy,
+      )
+
+      if (!isValid) {
+        log.warn(`Rejected change: invalid signature on ${change.tableName}/${change.columnName}`)
+        continue
+      }
+
+      // Layer 2: UCAN authorization check
+      let cached = signerCache.get(change.signedBy)
+      if (!cached) {
+        const signerDid = await publicKeyToDidKeyAsync(change.signedBy)
+
+        // Look up a UCAN where this signer is the audience (was granted access)
+        // and the capability is at least space/write for this space
+        const ucanRows = await db
+          .select()
+          .from(haexUcanTokens)
+          .where(
+            and(
+              eq(haexUcanTokens.spaceId, spaceId),
+              eq(haexUcanTokens.audienceDid, signerDid),
+            ),
+          )
+
+        let authorized = false
+        for (const row of ucanRows) {
+          try {
+            const result = await validateUcan(
+              row.token,
+              spaceResource(spaceId),
+              'space/write' as Capability,
+              verify,
+            )
+            if (result.valid) {
+              authorized = true
+              break
+            }
+          } catch {
+            // Token invalid or expired — try next
+          }
+        }
+
+        // Also check if this signer is the admin (root UCAN: issuer === audience)
+        if (!authorized) {
+          const rootUcans = await db
+            .select()
+            .from(haexUcanTokens)
+            .where(
+              and(
+                eq(haexUcanTokens.spaceId, spaceId),
+                eq(haexUcanTokens.issuerDid, signerDid),
+                eq(haexUcanTokens.audienceDid, signerDid),
+              ),
+            )
+          authorized = rootUcans.length > 0
+        }
+
+        cached = { did: signerDid, authorized }
+        signerCache.set(change.signedBy, cached)
+      }
+
+      if (cached.authorized) {
+        verified.push(change)
+      } else {
+        log.warn(`Rejected change: signer ${cached.did.slice(0, 24)}... has no write UCAN for space ${spaceId}`)
+      }
+    } catch (error) {
+      log.warn(`Verification failed for change: ${change.tableName}/${change.columnName}`, error)
+    }
+  }
+
+  return verified
 }
 
 /**

@@ -28,6 +28,8 @@ export interface ColumnChange {
   nonce?: string
   deviceId: string // Device that created this change
   epoch?: number // MLS epoch that encrypted this change (absent = vaultKey encrypted)
+  signature?: string // Ed25519 signature over the record (present for space backends)
+  signedBy?: string // Base64 SPKI public key of the signer
 }
 
 /**
