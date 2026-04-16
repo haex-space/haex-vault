@@ -47,7 +47,6 @@
         </UiButton>
       </UDropdownMenu>
       <UiButton
-        v-if="isAdmin || canInvite"
         color="neutral"
         variant="outline"
         icon="i-lucide-users"
