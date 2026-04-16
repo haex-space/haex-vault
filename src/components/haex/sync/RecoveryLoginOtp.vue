@@ -53,13 +53,13 @@ const { t } = useI18n()
 const { add } = useToast()
 
 const props = defineProps<{
-  serverUrl: string
+  originUrl: string
   email: string
 }>()
 
 const emit = defineEmits<{
   recovered: [{
-    serverUrl: string
+    originUrl: string
     recoveryKeyData: RecoveryKeyData
     session: { access_token: string; refresh_token: string; expires_in: number; expires_at: number }
     identity: { publicKey: string; did: string; tier: string }
@@ -82,11 +82,11 @@ watch(() => props.email, () => {
 
 const onVerifyOtpAsync = async () => {
   const code = otpParts.value.join('')
-  const data = await verifyOtpAsync(props.serverUrl, props.email, code)
+  const data = await verifyOtpAsync(props.originUrl, props.email, code)
   if (data) {
     if (data.session && data.identity) {
       emit('recovered', {
-        serverUrl: props.serverUrl,
+        originUrl: props.originUrl,
         recoveryKeyData: data,
         session: data.session,
         identity: data.identity,
@@ -105,7 +105,7 @@ const onVerifyOtpAsync = async () => {
 }
 
 const onResendAsync = async () => {
-  const success = await resendOtpAsync(props.serverUrl, props.email)
+  const success = await resendOtpAsync(props.originUrl, props.email)
   if (success) {
     add({
       title: t('otp.resent'),

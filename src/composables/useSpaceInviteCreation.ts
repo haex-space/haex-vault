@@ -7,7 +7,7 @@ const log = createLogger('SPACES:INVITE-CREATE')
 
 export interface InviteContactsPayload {
   spaceId: string
-  serverUrl: string
+  originUrl: string
   identityId: string
   contacts: SelectHaexIdentities[]
   capabilities: string[]
@@ -28,7 +28,7 @@ export interface CreateLocalLinkPayload {
 
 export interface CreateOnlineLinkPayload {
   spaceId: string
-  serverUrl: string
+  originUrl: string
   capability: string
   maxUses: number
   expiresInSeconds: number
@@ -80,10 +80,10 @@ export function useSpaceInviteCreation() {
       let serverInviteId: string | undefined
 
       // 1. Server invite (skip for local-only spaces)
-      if (!payload.localOnly && payload.serverUrl) {
+      if (!payload.localOnly && payload.originUrl) {
         try {
           const result = await spacesStore.inviteMemberAsync(
-            payload.serverUrl,
+            payload.originUrl,
             payload.spaceId,
             inviteeDid,
             payload.capabilities[0]!,
@@ -182,7 +182,7 @@ export function useSpaceInviteCreation() {
     )
 
     const result = await spacesStore.createInviteTokenAsync(
-      payload.serverUrl,
+      payload.originUrl,
       payload.spaceId,
       {
         capability: payload.capability,
@@ -193,7 +193,7 @@ export function useSpaceInviteCreation() {
     )
 
     const link = spacesStore.buildInviteLink(
-      payload.serverUrl,
+      payload.originUrl,
       payload.spaceId,
       result.tokenId,
     )

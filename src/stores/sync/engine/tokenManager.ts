@@ -14,7 +14,7 @@ import { engineLog as log } from './types'
  * Returns null if the backend can't be resolved (e.g., no vault open).
  */
 export type ReauthContextResolver = () => Promise<{
-  serverUrl: string
+  originUrl: string
   did: string
   privateKey: string
 } | null>
@@ -105,11 +105,11 @@ export const setReauthResolver = (backendId: string, resolver: ReauthContextReso
  * Returns { access_token, refresh_token } on success.
  */
 export const didAuthenticateAsync = async (
-  serverUrl: string,
+  originUrl: string,
   did: string,
   privateKeyBase64: string,
 ): Promise<{ access_token: string; refresh_token: string }> => {
-  const challengeRes = await fetch(`${serverUrl}/identity-auth/challenge`, {
+  const challengeRes = await fetch(`${originUrl}/identity-auth/challenge`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ did }),
@@ -130,7 +130,7 @@ export const didAuthenticateAsync = async (
   )
   const signature = btoa(String.fromCharCode(...new Uint8Array(sig)))
 
-  const verifyRes = await fetch(`${serverUrl}/identity-auth/verify`, {
+  const verifyRes = await fetch(`${originUrl}/identity-auth/verify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ did, nonce, signature }),
@@ -175,7 +175,7 @@ export const attemptDidReauthAsync = async (backendId?: string): Promise<string 
       }
 
       log.info('DID re-auth: token expired, re-authenticating via DID challenge...')
-      const session = await didAuthenticateAsync(ctx.serverUrl, ctx.did, ctx.privateKey)
+      const session = await didAuthenticateAsync(ctx.originUrl, ctx.did, ctx.privateKey)
 
       setSession(id, session)
       state.lastReauthAttempt = 0

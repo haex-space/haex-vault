@@ -58,7 +58,7 @@ export const pushToBackendAsync = async (
     log.debug('Backend config:', {
       backendId,
       spaceId: backend.spaceId,
-      serverUrl: backend.homeServerUrl,
+      originUrl: backend.homeServerUrl,
       lastPushHlc: lastPushHlc || '(none)',
     })
 
@@ -374,7 +374,7 @@ export const pushAllDataToBackendAsync = async (
     log.debug('Backend config:', {
       backendId,
       spaceId: backend.spaceId,
-      serverUrl: backend.homeServerUrl,
+      originUrl: backend.homeServerUrl,
     })
 
     // Get encryption key: vault sync key from local DB

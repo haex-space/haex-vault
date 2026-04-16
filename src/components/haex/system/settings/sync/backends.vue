@@ -92,7 +92,7 @@
         v-else
         v-model:identity-id="newBackend.identityId"
         v-model:approved-claims="newBackend.approvedClaims"
-        v-model:server-url="newBackend.serverUrl"
+        v-model:origin-url="newBackend.originUrl"
         :items="serverOptions"
         @keydown.enter.prevent="onWizardCompleteAsync"
       />
@@ -389,7 +389,7 @@ const {
 const showAddBackendForm = ref(false)
 
 const newBackend = reactive({
-  serverUrl: '',
+  originUrl: '',
   identityId: '',
   approvedClaims: {} as Record<string, string>,
 })
@@ -397,7 +397,7 @@ const newBackend = reactive({
 // Verification state
 const verificationPending = ref<{
   did: string
-  serverUrl: string
+  originUrl: string
   identityId: string
   approvedClaims: Record<string, string>
 } | null>(null)
@@ -459,7 +459,7 @@ const getGroupedVaults = (backendId: string) => {
 // Cancel add backend
 const cancelAddBackend = () => {
   showAddBackendForm.value = false
-  newBackend.serverUrl = ''
+  newBackend.originUrl = ''
   newBackend.identityId = ''
   newBackend.approvedClaims = {}
   verificationPending.value = null
@@ -469,7 +469,7 @@ const cancelAddBackend = () => {
 // Handle wizard completion
 const onWizardCompleteAsync = async () => {
   const result = await createConnectionAsync({
-    serverUrl: newBackend.serverUrl,
+    originUrl: newBackend.originUrl,
     identityId: newBackend.identityId,
     approvedClaims: newBackend.approvedClaims,
   })
@@ -480,7 +480,7 @@ const onWizardCompleteAsync = async () => {
         add({
           title: t('errors.backendAlreadyExists'),
           description: t('errors.backendAlreadyExistsDescription', {
-            serverUrl: newBackend.serverUrl,
+            originUrl: newBackend.originUrl,
           }),
           color: 'warning',
         })
@@ -498,7 +498,7 @@ const onWizardCompleteAsync = async () => {
   if (result.status === 'verification_pending') {
     verificationPending.value = {
       did: result.did,
-      serverUrl: result.serverUrl,
+      originUrl: result.originUrl,
       identityId: result.identityId,
       approvedClaims: result.approvedClaims,
     }
@@ -520,10 +520,10 @@ const onWizardCompleteAsync = async () => {
 const onVerifyCodeAsync = async () => {
   if (!verificationPending.value || !verificationCode.value) return
 
-  const { did, serverUrl, identityId } = verificationPending.value
+  const { did, originUrl, identityId } = verificationPending.value
 
   const verified = await verifyEmailAsync(
-    serverUrl,
+    originUrl,
     did,
     verificationCode.value,
   )
@@ -537,7 +537,7 @@ const onVerifyCodeAsync = async () => {
   }
 
   // Verification succeeded — complete the connection
-  const backendId = await completeConnectionAsync({ serverUrl, identityId })
+  const backendId = await completeConnectionAsync({ originUrl, identityId })
 
   if (backendId) {
     await loadAllServerVaultsAsync()
@@ -555,8 +555,8 @@ const onVerifyCodeAsync = async () => {
 // Resend verification code
 const onResendCodeAsync = async () => {
   if (!verificationPending.value) return
-  const { serverUrl, did } = verificationPending.value
-  const sent = await resendVerificationAsync(serverUrl, did)
+  const { originUrl, did } = verificationPending.value
+  const sent = await resendVerificationAsync(originUrl, did)
   if (sent) {
     add({
       title: t('verification.codeResent'),
@@ -973,7 +973,7 @@ de:
   success:
     signedIn: Erfolgreich angemeldet
     signedOut: Erfolgreich abgemeldet
-    serverUrlUpdated: Server-URL aktualisiert
+    originUrlUpdated: Server-URL aktualisiert
     backendAdded: Backend hinzugefügt
     backendEnabled: Backend aktiviert
     backendDisabled: Backend deaktiviert
@@ -1018,7 +1018,7 @@ de:
     noVaultId: Keine Vault-ID für dieses Backend konfiguriert
     loadServerVaultsFailed: Server-Vaults konnten nicht geladen werden
     backendAlreadyExists: Backend bereits vorhanden
-    backendAlreadyExistsDescription: Es besteht bereits eine Verbindung zu {serverUrl}
+    backendAlreadyExistsDescription: Es besteht bereits eine Verbindung zu {originUrl}
 en:
   addBackend:
     title: Add Backend
@@ -1066,7 +1066,7 @@ en:
   success:
     signedIn: Successfully signed in
     signedOut: Successfully signed out
-    serverUrlUpdated: Server URL updated
+    originUrlUpdated: Server URL updated
     backendAdded: Backend added
     backendEnabled: Backend enabled
     backendDisabled: Backend disabled
@@ -1111,5 +1111,5 @@ en:
     noVaultId: No vault ID configured for this backend
     loadServerVaultsFailed: Failed to load server vaults
     backendAlreadyExists: Backend already exists
-    backendAlreadyExistsDescription: A connection to {serverUrl} already exists
+    backendAlreadyExistsDescription: A connection to {originUrl} already exists
 </i18n>

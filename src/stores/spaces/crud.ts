@@ -50,8 +50,9 @@ export async function createLocalSpace(
     type: SpaceType.LOCAL,
     status: SpaceStatus.ACTIVE,
     ownerIdentityId,
-    serverUrl: '',
+    originUrl: '',
     createdAt: new Date().toISOString(),
+    capabilities: [],
   }
 
   const identityStore = useIdentityStore()
@@ -109,7 +110,7 @@ export async function createLocalSpace(
 
 export async function createOnlineSpace(
   db: DB,
-  serverUrl: string,
+  originUrl: string,
   spaceName: string,
   selfLabel: string,
   identity: ResolvedIdentity,
@@ -120,7 +121,7 @@ export async function createOnlineSpace(
 
   const body = JSON.stringify({ id: spaceId, name: spaceName, label: selfLabel })
   const response = await fetchWithDidAuth(
-    `${serverUrl}/spaces`,
+    `${originUrl}/spaces`,
     identity.privateKey,
     identity.did,
     'create-space',
@@ -134,7 +135,7 @@ export async function createOnlineSpace(
     type: SpaceType.ONLINE,
     name: spaceName,
     ownerIdentityId: identity.id,
-    originUrl: serverUrl,
+    originUrl: originUrl,
     status: SpaceStatus.ACTIVE,
   })
 
@@ -145,7 +146,7 @@ export async function createOnlineSpace(
   if (db) await persistUcanAsync(db, spaceId, rootUcan)
 
   const { useMlsDelivery } = await import('@/composables/useMlsDelivery')
-  const delivery = useMlsDelivery(serverUrl, spaceId, { privateKey: identity.privateKey, did: identity.did })
+  const delivery = useMlsDelivery(originUrl, spaceId, { privateKey: identity.privateKey, did: identity.did })
   await delivery.uploadKeyPackagesAsync()
 
   // Add creator as space member (non-fatal)
@@ -161,8 +162,9 @@ export async function createOnlineSpace(
     type: SpaceType.ONLINE,
     status: SpaceStatus.ACTIVE,
     ownerIdentityId: identity.id,
-    serverUrl,
+    originUrl: originUrl,
     createdAt: new Date().toISOString(),
+    capabilities: [],
   })
 
   log.info(`Created space ${spaceId}`)
@@ -179,8 +181,8 @@ export async function updateSpaceName(
   const space = spaces.find(s => s.id === spaceId)
   if (!space) throw new Error('Space not found')
 
-  if (space.serverUrl) {
-    const response = await fetchWithSpaceUcanAuth(`${space.serverUrl}/spaces/${spaceId}`, spaceId, {
+  if (space.originUrl) {
+    const response = await fetchWithSpaceUcanAuth(`${space.originUrl}/spaces/${spaceId}`, spaceId, {
       method: 'PATCH',
       body: JSON.stringify({ name: newName }),
     })
@@ -232,16 +234,16 @@ export async function migrateSpaceServer(
     await throwIfNotOk(response, 'create space on new server')
   }
 
-  await persistSpaceAsync({ ...space, serverUrl: newServerUrl })
+  await persistSpaceAsync({ ...space, originUrl: newServerUrl })
   log.info(`Migrated space "${spaceId}" from "${oldServerUrl || 'local'}" to "${newServerUrl || 'local'}"`)
 }
 
 export async function listSpaces(
   identity: ResolvedIdentity,
-  serverUrl: string,
+  originUrl: string,
   persistSpaceAsync: (space: SpaceWithType) => Promise<void>,
 ): Promise<SpaceWithType[]> {
-  const response = await fetchWithDidAuth(`${serverUrl}/spaces`, identity.privateKey, identity.did, 'list-spaces')
+  const response = await fetchWithDidAuth(`${originUrl}/spaces`, identity.privateKey, identity.did, 'list-spaces')
   await throwIfNotOk(response, 'list spaces')
   const rawSpaces = await response.json() as Array<{ id: string; encryptedName?: string; createdAt: string }>
 
@@ -251,8 +253,9 @@ export async function listSpaces(
     type: SpaceType.ONLINE,
     status: SpaceStatus.ACTIVE,
     ownerIdentityId: identity.id,
-    serverUrl,
+    originUrl: originUrl,
     createdAt: space.createdAt,
+    capabilities: [],
   }))
 
   for (const space of decrypted) {
@@ -264,12 +267,12 @@ export async function listSpaces(
 
 export async function leaveSpace(
   identity: ResolvedIdentity,
-  serverUrl: string,
+  originUrl: string,
   spaceId: string,
   removeSpaceFromDbAsync: (spaceId: string) => Promise<void>,
 ) {
   const response = await fetchWithDidAuth(
-    `${serverUrl}/spaces/${spaceId}/members/${encodeURIComponent(identity.publicKey)}`,
+    `${originUrl}/spaces/${spaceId}/members/${encodeURIComponent(identity.publicKey)}`,
     identity.privateKey,
     identity.did,
     'leave-space',
@@ -286,14 +289,14 @@ export async function leaveSpace(
 
 export async function deleteSpace(
   spaces: SpaceWithType[],
-  serverUrl: string,
+  originUrl: string,
   spaceId: string,
   removeSpaceFromDbAsync: (spaceId: string) => Promise<void>,
 ) {
   const spaceEntry = spaces.find(s => s.id === spaceId)
   if (spaceEntry?.type === SpaceType.VAULT) throw new Error('Cannot delete vault space')
 
-  const response = await fetchWithSpaceUcanAuth(`${serverUrl}/spaces/${spaceId}`, spaceId, {
+  const response = await fetchWithSpaceUcanAuth(`${originUrl}/spaces/${spaceId}`, spaceId, {
     method: 'DELETE',
   })
 
@@ -313,10 +316,10 @@ export async function removeIdentityFromSpace(
     .where(eq(haexSpaceDevices.spaceId, spaceId))
 
   const space = spaces.find(s => s.id === spaceId)
-  if (space?.serverUrl) {
+  if (space?.originUrl) {
     try {
       const response = await fetchWithSpaceUcanAuth(
-        `${space.serverUrl}/spaces/${spaceId}/members/${encodeURIComponent(identityPublicKey)}`,
+        `${space.originUrl}/spaces/${spaceId}/members/${encodeURIComponent(identityPublicKey)}`,
         spaceId,
         { method: 'DELETE' },
       )

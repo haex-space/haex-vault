@@ -99,8 +99,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     type: (row.haex_spaces.type as SpaceTypeValue) ?? SpaceType.ONLINE,
     status: (row.haex_spaces.status as SpaceStatusValue) ?? SpaceStatus.ACTIVE,
     ownerIdentityId: row.haex_spaces.ownerIdentityId,
-    serverUrl: row.haex_spaces.originUrl ?? '',
+    originUrl: row.haex_spaces.originUrl ?? '',
     createdAt: row.haex_spaces.createdAt ?? '',
+    capabilities: [],
   })
   const visibleSpaces = computed(() =>
     spaces.value
@@ -154,7 +155,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
         .set({
           name: space.name,
           ownerIdentityId: space.ownerIdentityId,
-          originUrl: space.serverUrl || null,
+          originUrl: space.originUrl || null,
           status: space.status,
           modifiedAt: new Date().toISOString(),
         })
@@ -165,7 +166,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
         type: space.type,
         name: space.name,
         ownerIdentityId: space.ownerIdentityId,
-        originUrl: space.serverUrl || null,
+        originUrl: space.originUrl || null,
         status: space.status,
       })
     }
@@ -372,7 +373,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     )
 
   const createSpaceAsync = async (
-    serverUrl: string,
+    originUrl: string,
     spaceName: string,
     selfLabel: string,
     identityId: string,
@@ -380,13 +381,13 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const identity = await resolveIdentityAsync(identityId)
     return createOnlineSpace(
       requireDb(),
-      serverUrl,
+      originUrl,
       spaceName,
       selfLabel,
       identity,
       persistSpaceAsync,
       async () => {
-        await listSpacesAsync(serverUrl, identityId)
+        await listSpacesAsync(originUrl, identityId)
       },
     )
   }
@@ -411,22 +412,22 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     )
   }
 
-  const listSpacesAsync = async (serverUrl: string, identityId: string) => {
+  const listSpacesAsync = async (originUrl: string, identityId: string) => {
     const identity = await resolveIdentityAsync(identityId)
-    return listSpaces(identity, serverUrl, persistSpaceAsync)
+    return listSpaces(identity, originUrl, persistSpaceAsync)
   }
 
   const leaveSpaceAsync = async (
-    serverUrl: string,
+    originUrl: string,
     spaceId: string,
     identityId: string,
   ) => {
     const identity = await resolveIdentityAsync(identityId)
-    return leaveSpace(identity, serverUrl, spaceId, removeSpaceFromDbAsync)
+    return leaveSpace(identity, originUrl, spaceId, removeSpaceFromDbAsync)
   }
 
-  const deleteSpaceAsync = (serverUrl: string, spaceId: string) =>
-    deleteSpace(activeSpaces.value, serverUrl, spaceId, removeSpaceFromDbAsync)
+  const deleteSpaceAsync = (originUrl: string, spaceId: string) =>
+    deleteSpace(activeSpaces.value, originUrl, spaceId, removeSpaceFromDbAsync)
 
   const removeIdentityFromSpaceAsync = (
     spaceId: string,
@@ -443,7 +444,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     removeSpaceMember(requireDb(), spaceId, memberDid)
 
   const inviteMemberAsync = async (
-    serverUrl: string,
+    originUrl: string,
     spaceId: string,
     inviteeDid: string,
     capability: string,
@@ -453,7 +454,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const identity = await resolveIdentityAsync(identityId)
     return inviteMember(
       activeSpaces.value,
-      serverUrl,
+      originUrl,
       spaceId,
       inviteeDid,
       capability,
@@ -463,7 +464,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   }
 
   const createInviteTokenAsync = (
-    serverUrl: string,
+    originUrl: string,
     spaceId: string,
     options: {
       capability?: string
@@ -471,10 +472,10 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       expiresInSeconds: number
       label?: string
     },
-  ) => createInviteToken(activeSpaces.value, serverUrl, spaceId, options)
+  ) => createInviteToken(activeSpaces.value, originUrl, spaceId, options)
 
   const claimInviteTokenAsync = async (
-    serverUrl: string,
+    originUrl: string,
     spaceId: string,
     tokenId: string,
     identityId: string,
@@ -482,7 +483,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const identity = await resolveIdentityAsync(identityId)
     return claimInviteToken(
       requireDb(),
-      serverUrl,
+      originUrl,
       spaceId,
       tokenId,
       identity,
@@ -491,7 +492,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   }
 
   const finalizeInviteAsync = async (
-    serverUrl: string,
+    originUrl: string,
     spaceId: string,
     inviteeDid: string,
     identityId: string,
@@ -500,7 +501,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   ) => {
     const identity = await resolveIdentityAsync(identityId)
     return finalizeInvite(
-      serverUrl,
+      originUrl,
       spaceId,
       inviteeDid,
       identity,
@@ -510,12 +511,12 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   }
 
   const processWelcomesAsync = async (
-    serverUrl: string,
+    originUrl: string,
     spaceId: string,
     identityId: string,
   ) => {
     const identity = await resolveIdentityAsync(identityId)
-    return processWelcomes(requireDb(), serverUrl, spaceId, identity)
+    return processWelcomes(requireDb(), originUrl, spaceId, identity)
   }
 
   const acceptLocalInviteAsync = (

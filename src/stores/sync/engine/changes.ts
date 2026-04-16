@@ -37,7 +37,7 @@ const buildAuthHeaderAsync = async (
  * Pushes CRDT changes to the server
  */
 export const pushChangesAsync = async (
-  serverUrl: string,
+  originUrl: string,
   spaceId: string,
   changes: CrdtChange[],
   privateKey?: string,
@@ -74,7 +74,7 @@ export const pushChangesAsync = async (
   }
 
   // Send to server
-  const response = await fetch(`${serverUrl}/sync/push`, {
+  const response = await fetch(`${originUrl}/sync/push`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -98,7 +98,7 @@ export const pushChangesAsync = async (
  * Pulls CRDT changes from the server
  */
 export const pullChangesAsync = async (
-  serverUrl: string,
+  originUrl: string,
   spaceId: string,
   excludeDeviceId?: string,
   afterCreatedAt?: string,
@@ -119,7 +119,7 @@ export const pullChangesAsync = async (
   const authHeaders = await buildAuthHeaderAsync(spaceId, privateKey, did)
 
   // Fetch from server
-  const response = await fetch(`${serverUrl}/sync/pull`, {
+  const response = await fetch(`${originUrl}/sync/pull`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

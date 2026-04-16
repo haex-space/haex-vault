@@ -587,11 +587,11 @@ export const useIdentityStore = defineStore('identityStore', () => {
     }
   }
 
-  const markClaimVerifiedAsync = async (claimId: string, serverUrl: string) => {
+  const markClaimVerifiedAsync = async (claimId: string, originUrl: string) => {
     const db = requireDb()
     await db.update(haexIdentityClaims).set({
       verifiedAt: new Date().toISOString(),
-      verifiedBy: serverUrl,
+      verifiedBy: originUrl,
     }).where(eq(haexIdentityClaims.id, claimId))
   }
 

@@ -22,13 +22,13 @@ describe('SpaceWithType interface', () => {
       name: 'Test Space',
       type: 'online',
       status: 'active',
-      serverUrl: 'https://example.com',
+      originUrl: 'https://example.com',
       createdAt: '2026-01-01T00:00:00Z',
     }
 
     expect(space).not.toHaveProperty('role')
     expect(Object.keys(space)).toEqual(
-      expect.arrayContaining(['id', 'name', 'type', 'status', 'serverUrl', 'createdAt']),
+      expect.arrayContaining(['id', 'name', 'type', 'status', 'originUrl', 'createdAt']),
     )
   })
 })

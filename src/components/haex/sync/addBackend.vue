@@ -133,7 +133,7 @@ defineProps<{
   autofocus?: boolean
 }>()
 
-const serverUrl = defineModel<string>('serverUrl')
+const originUrl = defineModel<string>('originUrl')
 const identityId = defineModel<string>('identityId')
 const approvedClaims = defineModel<Record<string, string>>('approvedClaims')
 
@@ -172,7 +172,7 @@ const selectedIdentityId = computed({
 
 // Auto-fetch requirements when both identity and server URL are set
 watch(
-  [() => identityId.value, () => serverUrl.value],
+  [() => identityId.value, () => originUrl.value],
   async ([newIdentityId, newServerUrl]) => {
     if (newIdentityId && newServerUrl) {
       await checkRequirementsAsync()
@@ -201,10 +201,10 @@ watch(
   [customServerUrl, selectedServerOption],
   () => {
     if (selectedServerOption.value.value === 'custom') {
-      serverUrl.value = customServerUrl.value
+      originUrl.value = customServerUrl.value
     } else {
       customServerUrl.value = ''
-      serverUrl.value = selectedServerOption.value.value
+      originUrl.value = selectedServerOption.value.value
     }
     // Reset requirements when server changes
     requirements.value = null
@@ -243,7 +243,7 @@ watch(
 
 // Check requirements
 const checkRequirementsAsync = async () => {
-  if (!serverUrl.value) return
+  if (!originUrl.value) return
   isLoadingRequirements.value = true
   requirementsError.value = null
 
@@ -258,7 +258,7 @@ const checkRequirementsAsync = async () => {
       identityClaimsMap.value = map
     }
 
-    const reqs = await fetchRequirementsAsync(serverUrl.value)
+    const reqs = await fetchRequirementsAsync(originUrl.value)
     requirements.value = reqs
 
     // Auto-approve required claims and pre-approve optional ones that we have
@@ -300,7 +300,7 @@ const updateApprovedClaims = () => {
 
 <i18n lang="yaml">
 de:
-  serverUrl:
+  originUrl:
     label: Server-URL
     description: Wähle einen vorkonfigurierten Server oder gib eine benutzerdefinierte URL ein
   customUrl:
@@ -324,7 +324,7 @@ de:
     cancel: Abbrechen
 
 en:
-  serverUrl:
+  originUrl:
     label: Server URL
     description: Choose a preconfigured server or enter a custom URL
   customUrl:

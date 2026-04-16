@@ -78,7 +78,7 @@ export const pullFromBackendAsync = async (
     // Step 1: Download ALL changes from server (with pagination)
     log.info('Downloading changes from server...')
     const pullResult = await pullChangesFromServerAsync({
-      serverUrl: backend.homeServerUrl,
+      originUrl: backend.homeServerUrl,
       spaceId: backend.spaceId,
       lastPullServerTimestamp,
       syncEngineStore,
@@ -319,13 +319,13 @@ const verifyPulledChangesAsync = async (
  * Uses server timestamps (afterUpdatedAt) and secondary cursors (tableName, rowPks) for stable pagination
  * Returns both the changes and the server timestamp for storing as cursor
  *
- * @param serverUrl - Sync server URL
+ * @param originUrl - Sync server URL
  * @param spaceId - Space ID to pull changes for
  * @param lastPullServerTimestamp - Cursor for incremental sync (null for full sync)
  * @param syncEngineStore - Sync engine store for auth token
  */
 interface PullOptions {
-  serverUrl: string
+  originUrl: string
   spaceId: string
   lastPullServerTimestamp: string | null | undefined
   syncEngineStore: ReturnType<typeof useSyncEngineStore>
@@ -334,8 +334,8 @@ interface PullOptions {
 }
 
 export const pullChangesFromServerAsync = async (options: PullOptions): Promise<PullResult> => {
-  const { serverUrl, spaceId, lastPullServerTimestamp, backendIdentityId, federation } = options
-  log.info('pullChangesFromServerAsync: Starting pull from', serverUrl, 'space:', spaceId)
+  const { originUrl, spaceId, lastPullServerTimestamp, backendIdentityId, federation } = options
+  log.info('pullChangesFromServerAsync: Starting pull from', originUrl, 'space:', spaceId)
 
   // Resolve identity for DID-Auth (getIdentityByIdAsync falls back to in-memory when vault not open)
   let identity: { privateKey: string; did: string } | null = null
@@ -367,7 +367,7 @@ export const pullChangesFromServerAsync = async (options: PullOptions): Promise<
     if (currentTableName) params.set('afterTableName', currentTableName)
     if (currentRowPks) params.set('afterRowPks', currentRowPks)
 
-    const url = `${serverUrl}/sync/pull?${params.toString()}`
+    const url = `${originUrl}/sync/pull?${params.toString()}`
     log.info(`[PAGINATION] Fetching page ${pageCount} with cursor: ${currentCursor || '(none)'}, tableName: ${currentTableName || '(none)'}, rowPks: ${currentRowPks || '(none)'}`)
 
     const queryString = params.toString()
@@ -667,7 +667,7 @@ export const applyRemoteChangesInTransactionAsync = async (
  * those columns are tracked in haex_crdt_pending_columns_no_sync. After the app updates
  * and migrations add those columns, this function fetches ALL data for them from the server.
  *
- * @param serverUrl - Sync server URL
+ * @param originUrl - Sync server URL
  * @param spaceId - Space ID to pull data for
  * @param vaultKey - Vault encryption key for decryption
  * @param backendId - Backend ID for applying changes
@@ -675,7 +675,7 @@ export const applyRemoteChangesInTransactionAsync = async (
  * @returns Number of columns successfully pulled
  */
 export const pullPendingColumnsAsync = async (
-  serverUrl: string,
+  originUrl: string,
   spaceId: string,
   vaultKey: Uint8Array,
   backendId: string,
@@ -732,7 +732,7 @@ export const pullPendingColumnsAsync = async (
           })
         : await createDidAuthHeader(identity.privateKey, identity.did, DidAuthAction.SyncPullColumns, requestBody)
 
-      const response = await fetch(`${serverUrl}/sync/pull-columns`, {
+      const response = await fetch(`${originUrl}/sync/pull-columns`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: authHeader },
         body: requestBody,

@@ -172,7 +172,7 @@ const open = defineModel<boolean>('open', { required: true })
 
 const props = defineProps<{
   spaceId: string
-  serverUrl: string
+  originUrl: string
   identityId: string
   mode: 'contact' | 'link'
 }>()
@@ -316,7 +316,7 @@ const onSubmitAsync = async () => {
     if (props.mode === 'contact') {
       await inviteContactsAsync({
         spaceId: props.spaceId,
-        serverUrl: props.serverUrl,
+        originUrl: props.originUrl,
         identityId: props.identityId,
         contacts: selectedContacts.value,
         capabilities,
@@ -342,7 +342,7 @@ const onSubmitAsync = async () => {
     } else {
       const result = await createOnlineInviteLinkAsync({
         spaceId: props.spaceId,
-        serverUrl: props.serverUrl,
+        originUrl: props.originUrl,
         capability: capabilities[0]!,
         maxUses: maxUses.value,
         expiresInSeconds: selectedExpiry.value.value,

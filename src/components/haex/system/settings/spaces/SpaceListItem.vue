@@ -21,7 +21,7 @@
         {{ t('status.pending') }}
       </UBadge>
       <UBadge
-        v-if="!pending && space.serverUrl"
+        v-if="!pending && space.originUrl"
         color="info"
         variant="subtle"
         size="sm"
@@ -30,7 +30,7 @@
         {{ backendName }}
       </UBadge>
       <UBadge
-        v-if="!pending && !space.serverUrl"
+        v-if="!pending && !space.originUrl"
         color="neutral"
         variant="subtle"
         size="sm"
@@ -218,7 +218,7 @@
             <div>
               <p class="text-xs text-muted uppercase tracking-wide mb-1">{{ t('detail.space') }}</p>
               <p class="font-medium">{{ space.name }}</p>
-              <p v-if="space.serverUrl" class="text-xs text-muted break-all">{{ space.serverUrl }}</p>
+              <p v-if="space.originUrl" class="text-xs text-muted break-all">{{ space.originUrl }}</p>
               <p v-else class="text-xs text-muted">{{ t('type.local') }}</p>
             </div>
 
@@ -442,7 +442,7 @@ onMounted(async () => {
 
 const { getBackendNameByUrl } = useSyncBackendsStore()
 
-const backendName = computed(() => getBackendNameByUrl(props.space.serverUrl))
+const backendName = computed(() => getBackendNameByUrl(props.space.originUrl))
 
 const formatDate = (dateStr: string | null) => {
   if (!dateStr) return ''

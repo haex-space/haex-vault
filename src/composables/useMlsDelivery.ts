@@ -41,8 +41,8 @@ function requireUcan(spaceId: string): string {
  * - UCAN from ucanStore (for space-scoped operations)
  * - DID-Auth via AuthContext (for invite accept/decline)
  */
-export function useMlsDelivery(serverUrl: string, spaceId: string, auth: AuthContext) {
-  const baseUrl = `${serverUrl}/spaces/${spaceId}`
+export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthContext) {
+  const baseUrl = `${originUrl}/spaces/${spaceId}`
 
   // ===========================================================================
   // Key Packages

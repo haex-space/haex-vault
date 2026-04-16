@@ -116,20 +116,20 @@
           <div class="space-y-2">
             <!-- Server URL -->
             <div
-              v-if="space.serverUrl"
+              v-if="space.originUrl"
               class="flex items-center gap-2 p-2 rounded bg-gray-50 dark:bg-gray-800/50"
             >
               <UIcon name="i-lucide-cloud" class="w-4 h-4 text-muted shrink-0" />
               <div class="min-w-0 flex-1">
                 <span class="text-xs font-medium text-muted">{{ t('origin.server') }}</span>
-                <p class="text-sm truncate">{{ space.serverUrl }}</p>
+                <p class="text-sm truncate">{{ space.originUrl }}</p>
               </div>
               <UButton
                 variant="ghost"
                 color="neutral"
                 icon="i-lucide-copy"
                 size="xs"
-                @click="copyToClipboard(space.serverUrl)"
+                @click="copyToClipboard(space.originUrl)"
               />
             </div>
             <div

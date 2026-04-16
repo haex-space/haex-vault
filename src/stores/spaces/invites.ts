@@ -37,7 +37,7 @@ function fetchWithSpaceUcanAuth(url: string, spaceId: string, options?: RequestI
  */
 export async function inviteMember(
   spaces: SpaceWithType[],
-  serverUrl: string,
+  originUrl: string,
   spaceId: string,
   inviteeDid: string,
   capability: string,
@@ -60,7 +60,7 @@ export async function inviteMember(
   )
 
   const response = await fetchWithSpaceUcanAuth(
-    `${serverUrl}/spaces/${spaceId}/invites`,
+    `${originUrl}/spaces/${spaceId}/invites`,
     spaceId,
     {
       method: 'POST',
@@ -81,7 +81,7 @@ export async function inviteMember(
  */
 export async function createInviteToken(
   spaces: SpaceWithType[],
-  serverUrl: string,
+  originUrl: string,
   spaceId: string,
   options: {
     capability?: string
@@ -94,7 +94,7 @@ export async function createInviteToken(
   if (spaceEntry?.type === SpaceType.VAULT) throw new Error('Cannot create invite tokens for vault space')
 
   const response = await fetchWithSpaceUcanAuth(
-    `${serverUrl}/spaces/${spaceId}/invite-tokens`,
+    `${originUrl}/spaces/${spaceId}/invite-tokens`,
     spaceId,
     {
       method: 'POST',
@@ -110,8 +110,8 @@ export async function createInviteToken(
   return { tokenId: data.token.id, expiresAt: data.token.expiresAt }
 }
 
-export function buildInviteLink(serverUrl: string, spaceId: string, tokenId: string): string {
-  const params = new URLSearchParams({ server: serverUrl, space: spaceId, token: tokenId })
+export function buildInviteLink(originUrl: string, spaceId: string, tokenId: string): string {
+  const params = new URLSearchParams({ server: originUrl, space: spaceId, token: tokenId })
   return `https://haex.space/invite?${params.toString()}`
 }
 
@@ -121,7 +121,7 @@ export function buildInviteLink(serverUrl: string, spaceId: string, tokenId: str
  */
 export async function claimInviteToken(
   db: DB,
-  serverUrl: string,
+  originUrl: string,
   spaceId: string,
   tokenId: string,
   identity: ResolvedIdentity,
@@ -129,7 +129,7 @@ export async function claimInviteToken(
 ): Promise<{ capability: string }> {
   const backendsStore = useSyncBackendsStore()
   const userServerUrl = backendsStore.backends[0]?.homeServerUrl
-  const relayServerUrl = detectCrossServerInvite(serverUrl, userServerUrl)
+  const relayServerUrl = detectCrossServerInvite(originUrl, userServerUrl)
 
   // Generate MLS KeyPackages
   const packages: number[][] = await invoke('mls_get_key_packages', { count: 10 })
@@ -140,7 +140,7 @@ export async function claimInviteToken(
     label: identity.name,
   })
   const response = await fetchWithDidAuth(
-    `${serverUrl}/spaces/${spaceId}/invite-tokens/${tokenId}/claim`,
+    `${originUrl}/spaces/${spaceId}/invite-tokens/${tokenId}/claim`,
     identity.privateKey,
     identity.did,
     'accept-invite',
@@ -156,7 +156,7 @@ export async function claimInviteToken(
   const data = await response.json()
 
   if (relayServerUrl) {
-    await setupFederationForSpace(relayServerUrl, serverUrl, spaceId, identity)
+    await setupFederationForSpace(relayServerUrl, originUrl, spaceId, identity)
 
     await persistSpaceAsync({
       id: spaceId,
@@ -164,8 +164,9 @@ export async function claimInviteToken(
       type: SpaceType.ONLINE,
       status: SpaceStatus.ACTIVE,
       ownerIdentityId: identity.id,
-      serverUrl: relayServerUrl,
+      originUrl: relayServerUrl,
       createdAt: new Date().toISOString(),
+      capabilities: [],
     })
 
     log.info(`Claimed cross-server invite for space ${spaceId} (capability: ${data.capability}, relay: ${relayServerUrl})`)
@@ -176,8 +177,9 @@ export async function claimInviteToken(
       type: SpaceType.ONLINE,
       status: SpaceStatus.ACTIVE,
       ownerIdentityId: identity.id,
-      serverUrl,
+      originUrl: originUrl,
       createdAt: new Date().toISOString(),
+      capabilities: [],
     })
 
     log.info(`Claimed invite token for space ${spaceId} (capability: ${data.capability})`)
@@ -199,7 +201,7 @@ export async function claimInviteToken(
  * Admin-side: finalize an accepted invite by adding the member to the MLS group.
  */
 export async function finalizeInvite(
-  serverUrl: string,
+  originUrl: string,
   spaceId: string,
   inviteeDid: string,
   identity: ResolvedIdentity,
@@ -219,7 +221,7 @@ export async function finalizeInvite(
         parentUcan,
       )
       await fetchWithSpaceUcanAuth(
-        `${serverUrl}/spaces/${spaceId}/invites/${inviteId}/ucan`,
+        `${originUrl}/spaces/${spaceId}/invites/${inviteId}/ucan`,
         spaceId,
         {
           method: 'PATCH',
@@ -232,7 +234,7 @@ export async function finalizeInvite(
 
   // 2. Fetch invitee's KeyPackage from server
   const { useMlsDelivery } = await import('@/composables/useMlsDelivery')
-  const delivery = useMlsDelivery(serverUrl, spaceId, { privateKey: identity.privateKey, did: identity.did })
+  const delivery = useMlsDelivery(originUrl, spaceId, { privateKey: identity.privateKey, did: identity.did })
   const { keyPackage } = await delivery.fetchKeyPackageAsync(inviteeDid)
 
   // 3. Add member to MLS group → produces commit + welcome
@@ -256,9 +258,9 @@ export async function finalizeInvite(
  * Invitee-side: process MLS welcome messages to join the group.
  * Crash-safe: stages each Welcome locally before processing, ACKs on server after success.
  */
-export async function processWelcomes(db: DB, serverUrl: string, spaceId: string, identity: ResolvedIdentity) {
+export async function processWelcomes(db: DB, originUrl: string, spaceId: string, identity: ResolvedIdentity) {
   const { useMlsDelivery } = await import('@/composables/useMlsDelivery')
-  const delivery = useMlsDelivery(serverUrl, spaceId, { privateKey: identity.privateKey, did: identity.did })
+  const delivery = useMlsDelivery(originUrl, spaceId, { privateKey: identity.privateKey, did: identity.did })
   const { haexMlsPendingWelcomesNoSync } = await import('~/database/schemas/mls')
 
   const welcomes = await delivery.fetchWelcomesAsync()
@@ -412,8 +414,9 @@ export async function acceptLocalInvite(
       type: (invite.spaceType as SpaceTypeValue) || SpaceType.LOCAL,
       status: SpaceStatus.ACTIVE,
       ownerIdentityId: ownerIdentity.id,
-      serverUrl: invite.originUrl || '',
+      originUrl: invite.originUrl || '',
       createdAt: new Date().toISOString(),
+      capabilities: [],
     })
   }
 
