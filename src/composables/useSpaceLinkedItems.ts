@@ -1,15 +1,15 @@
 import { and, eq } from 'drizzle-orm'
-import { haexPeerShares, haexSharedSpaceSync, type SelectHaexPeerShares, type SelectHaexSharedSpaceSync } from '~/database/schemas'
+import { haexSharedSpaceSync, type SelectHaexSharedSpaceSync } from '~/database/schemas'
 
 export interface SpaceLinkedItemGroup {
-  /** Unique key for the group (e.g. 'p2p-shares' or extensionId) */
+  /** Unique key for the group (typically the extensionId) */
   key: string
   /** Display label for the group */
   label: string
   /** Icon for the group */
   icon: string
-  /** Type discriminator */
-  type: 'p2p-shares' | 'extension'
+  /** Type discriminator — currently only 'extension', reserved for future types */
+  type: 'extension'
   /** Extension ID (only for type 'extension') */
   extensionId?: string
   /** Individual items within this group */
@@ -29,11 +29,9 @@ export interface SpaceLinkedItem {
 
 export function useSpaceLinkedItems(spaceId: MaybeRefOrGetter<string>) {
   const { currentVault } = storeToRefs(useVaultStore())
-  const peerStorageStore = usePeerStorageStore()
   const extensionsStore = useExtensionsStore()
 
   const isLoading = ref(false)
-  const peerShares = ref<SelectHaexPeerShares[]>([])
   const spaceAssignments = ref<SelectHaexSharedSpaceSync[]>([])
 
   const loadAsync = async () => {
@@ -44,13 +42,10 @@ export function useSpaceLinkedItems(spaceId: MaybeRefOrGetter<string>) {
     try {
       const id = toValue(spaceId)
 
-      const [shares, assignments] = await Promise.all([
-        db.select().from(haexPeerShares).where(eq(haexPeerShares.spaceId, id)),
-        db.select().from(haexSharedSpaceSync).where(eq(haexSharedSpaceSync.spaceId, id)),
-      ])
-
-      peerShares.value = shares
-      spaceAssignments.value = assignments
+      spaceAssignments.value = await db
+        .select()
+        .from(haexSharedSpaceSync)
+        .where(eq(haexSharedSpaceSync.spaceId, id))
     } finally {
       isLoading.value = false
     }
@@ -85,27 +80,6 @@ export function useSpaceLinkedItems(spaceId: MaybeRefOrGetter<string>) {
   /** Build grouped linked items from raw data */
   const groups = computed<SpaceLinkedItemGroup[]>(() => {
     const result: SpaceLinkedItemGroup[] = []
-
-    // P2P Shares
-    if (peerShares.value.length > 0) {
-      result.push({
-        key: 'p2p-shares',
-        label: 'P2P Storage',
-        icon: 'i-lucide-hard-drive',
-        type: 'p2p-shares',
-        items: peerShares.value.map((share) => ({
-          label: share.name,
-          subtitle: share.localPath,
-          icon: share.name.includes('.') && !share.name.endsWith('/')
-            ? 'i-lucide-file'
-            : 'i-lucide-folder',
-          remove: async () => {
-            await peerStorageStore.removeShareAsync(share.id)
-            await loadAsync()
-          },
-        })),
-      })
-    }
 
     // Extension data — group by (extensionId, groupId) for logical units
     const byExtension = new Map<string, {

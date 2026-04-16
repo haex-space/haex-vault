@@ -97,7 +97,8 @@ onMounted(async () => {
       await tourStore.start()
     }
 
-    // Auto-start P2P endpoint if configured for this device
+    // Auto-start P2P endpoint unless the user explicitly disabled it on this device.
+    // Default-on semantics: missing row = enabled; only 'false' disables.
     const deviceStore = useDeviceStore()
     const peerAutostart = deviceStore.deviceId
       ? await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
@@ -107,7 +108,7 @@ onMounted(async () => {
           ),
         })
       : null
-    if (peerAutostart?.value === 'true') {
+    if (peerAutostart?.value !== 'false') {
       usePeerStorageStore().startAsync().catch((error) => {
         console.warn('[P2P] Autostart failed:', error)
       })

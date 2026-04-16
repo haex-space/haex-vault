@@ -98,6 +98,18 @@
           {{ t('createdAt') }}: {{ formatDate(space.createdAt) }}
         </p>
         <div class="flex gap-1">
+          <UDropdownMenu
+            v-if="canWrite"
+            :items="addShareMenuItems"
+          >
+            <UiButton
+              color="primary"
+              variant="ghost"
+              icon="i-lucide-plus"
+              :title="t('actions.addShare')"
+              @click.stop
+            />
+          </UDropdownMenu>
           <UiButton
             v-if="isAdmin || canInvite"
             color="neutral"
@@ -296,6 +308,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   select: [space: SpaceWithType]
   edit: [space: SpaceWithType]
+  'add-share': [payload: { space: SpaceWithType, type: 'folder' | 'file' }]
   'invite-contact': [space: SpaceWithType]
   'invite-link': [space: SpaceWithType]
   delete: [space: SpaceWithType]
@@ -344,6 +357,23 @@ const resolvedInviterLabel = computed(() => {
 
 const isAdmin = computed(() => capabilities.value.includes('space/admin'))
 const canInvite = computed(() => capabilities.value.includes('space/invite'))
+const canWrite = computed(() =>
+  capabilities.value.includes('space/admin')
+  || capabilities.value.includes('space/write'),
+)
+
+const addShareMenuItems = computed(() => [
+  [{
+    label: t('actions.addFolder'),
+    icon: 'i-lucide-folder-plus',
+    onSelect: () => emit('add-share', { space: props.space, type: 'folder' }),
+  },
+  {
+    label: t('actions.addFile'),
+    icon: 'i-lucide-file-plus',
+    onSelect: () => emit('add-share', { space: props.space, type: 'file' }),
+  }],
+])
 
 const permissionLabel = computed(() => {
   if (capabilities.value.includes('space/admin')) return 'Admin'
@@ -431,6 +461,9 @@ de:
     invite: Einladen
     delete: Löschen
     leave: Verlassen
+    addShare: Datei oder Ordner hinzufügen
+    addFolder: Ordner hinzufügen
+    addFile: Datei hinzufügen
   invite:
     from: Von
     contact: Kontakt einladen
@@ -459,6 +492,9 @@ en:
     invite: Invite
     delete: Delete
     leave: Leave
+    addShare: Add file or folder
+    addFolder: Add folder
+    addFile: Add file
   invite:
     from: From
     contact: Invite contact

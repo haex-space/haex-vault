@@ -68,14 +68,25 @@
       />
     </div>
 
-    <!-- Linked Items -->
-    <SpaceLinkedItems
+    <div
       v-else
-      :groups="groups"
-      :is-loading="isLoading"
-      :can-edit="isAdmin || canWrite"
-      @open-group="onOpenGroup"
-    />
+      class="space-y-4"
+    >
+      <!-- Shared files (P2P shares) -->
+      <SpaceShares
+        :space-id="spaceId"
+        :capabilities="capabilities"
+      />
+
+      <!-- Extension-linked items -->
+      <SpaceLinkedItems
+        v-if="groups.length"
+        :groups="groups"
+        :is-loading="isLoading"
+        :can-edit="isAdmin || canWrite"
+        @open-group="onOpenGroup"
+      />
+    </div>
 
     <!-- Members Drawer -->
     <UiDrawerModal
@@ -294,9 +305,9 @@ import type {
 import type { SpaceLinkedItemGroup } from '~/composables/useSpaceLinkedItems'
 import { haexInviteTokens, haexInviteOutbox } from '~/database/schemas'
 import { OutboxStatus } from '~/database/constants'
-import { SettingsCategory } from '~/config/settingsCategories'
 import type { SpaceMemberWithIdentity } from '@/stores/spaces/members'
 import SpaceLinkedItems from './SpaceLinkedItems.vue'
+import SpaceShares from './SpaceShares.vue'
 
 const props = defineProps<{
   spaceId: string
@@ -382,13 +393,7 @@ const inviteMenuItems = computed(() => [
 const windowManager = useWindowManagerStore()
 
 const onOpenGroup = (group: SpaceLinkedItemGroup) => {
-  if (group.type === 'p2p-shares') {
-    windowManager.openWindowAsync({
-      type: 'system',
-      sourceId: 'settings',
-      params: { category: SettingsCategory.PeerStorage },
-    })
-  } else if (group.type === 'extension' && group.extensionId) {
+  if (group.type === 'extension' && group.extensionId) {
     windowManager.openWindowAsync({
       type: 'extension',
       sourceId: group.extensionId,
