@@ -358,6 +358,7 @@ export async function acceptLocalInvite(
   log.info(`ClaimInvite: trying ${endpoints.length} endpoint(s) for space ${invite.spaceId}, token=${invite.tokenId}`)
 
   let lastError: Error | null = null
+  let acceptedEndpoint: string | null = null
   for (const endpointId of endpoints) {
     try {
       log.info(`ClaimInvite: connecting to ${endpointId.slice(0, 16)}...`)
@@ -373,6 +374,7 @@ export async function acceptLocalInvite(
       })
       log.info(`ClaimInvite: success to ${endpointId.slice(0, 16)}`)
       lastError = null
+      acceptedEndpoint = endpointId
       break
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error))
@@ -380,6 +382,24 @@ export async function acceptLocalInvite(
     }
   }
   if (lastError) throw lastError
+
+  // Start the peer-side CRDT sync loop so we pull the space's historical
+  // state (other members, shares, devices) from the leader. Without this,
+  // the invitee sees only locally-inserted rows (their own membership).
+  // Non-fatal on failure — Layer 2 (app-startup election) will retry.
+  if (acceptedEndpoint) {
+    try {
+      await invoke('local_delivery_connect', {
+        spaceId: invite.spaceId,
+        leaderEndpointId: acceptedEndpoint,
+        leaderRelayUrl: null,
+        identityDid: identity.did,
+      })
+      log.info(`ClaimInvite: started sync loop to ${acceptedEndpoint.slice(0, 16)}`)
+    } catch (error) {
+      log.warn(`ClaimInvite: failed to start sync loop: ${error}`)
+    }
+  }
 
   // Create or activate the space entry
   const existing = await db.select().from(haexSpaces).where(eq(haexSpaces.id, invite.spaceId)).limit(1)

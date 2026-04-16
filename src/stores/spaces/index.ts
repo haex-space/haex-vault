@@ -12,6 +12,7 @@ import type {
   SelectHaexSpaceDevices,
   SelectHaexSpaces,
 } from '~/database/schemas'
+import type { ElectionResultInfo } from '@bindings/ElectionResultInfo'
 import { createLogger } from '@/stores/logging'
 import { requireDb } from '~/stores/vault'
 import { SpaceType, SpaceStatus } from '~/database/constants'
@@ -216,6 +217,66 @@ export const useSpacesStore = defineStore('spacesStore', () => {
         } catch {
           // Already running — ignore
         }
+      }
+    }
+  }
+
+  /**
+   * For every joined local space, run leader election and — if another
+   * device is the elected leader — start a peer sync loop against them.
+   *
+   * Without this, an invitee-side vault accepts the MLS welcome but never
+   * pulls CRDT history (peer_shares, other members, space_devices), so the
+   * space appears mostly empty after joining.
+   *
+   * Idempotent: `local_delivery_connect` errors if a loop is already
+   * running for the space — we swallow that case.
+   */
+  const startLocalSpacePeerSyncAsync = async () => {
+    const identityStore = useIdentityStore()
+    const myIdentity = identityStore.ownIdentities[0]
+    if (!myIdentity) {
+      log.warn('Peer sync skipped: no own identity')
+      return
+    }
+
+    for (const space of spaces.value) {
+      if (
+        space.haex_spaces.type !== SpaceType.LOCAL ||
+        space.haex_spaces.status !== SpaceStatus.ACTIVE
+      ) {
+        continue
+      }
+
+      const spaceId = space.haex_spaces.id
+      try {
+        const election = await invoke<ElectionResultInfo>(
+          'local_delivery_elect',
+          { spaceId },
+        )
+
+        if (election.role === 'peer' && election.leaderEndpointId) {
+          try {
+            await invoke('local_delivery_connect', {
+              spaceId,
+              leaderEndpointId: election.leaderEndpointId,
+              leaderRelayUrl: election.leaderRelayUrl,
+              identityDid: myIdentity.did,
+            })
+            log.info(
+              `Started peer sync for space ${spaceId} → leader ${election.leaderEndpointId.slice(0, 16)}`,
+            )
+          } catch (error) {
+            // Already connected, or temporarily unreachable — non-fatal.
+            log.debug(`Peer sync connect for ${spaceId}: ${error}`)
+          }
+        } else if (election.role === 'leader') {
+          log.debug(`Space ${spaceId}: self is leader, no peer sync needed`)
+        } else {
+          log.debug(`Space ${spaceId}: no leader found (role=${election.role})`)
+        }
+      } catch (error) {
+        log.warn(`Election for space ${spaceId} failed: ${error}`)
       }
     }
   }
@@ -610,6 +671,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     acceptLocalInviteAsync,
     persistSpaceAsync,
     startLocalSpaceLeadersAsync,
+    startLocalSpacePeerSyncAsync,
     retryPendingWelcomesAsync,
     removeSpaceFromDbAsync,
     clearCache,

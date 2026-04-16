@@ -208,6 +208,11 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     const spacesStore = useSpacesStore()
     await spacesStore.startLocalSpaceLeadersAsync()
 
+    // For spaces where another device is the elected leader, start a
+    // peer sync loop so we pull CRDT history (members, shares, devices).
+    // Runs after leader start so elect_leader sees us as a candidate.
+    await spacesStore.startLocalSpacePeerSyncAsync()
+
     // Start enabled file sync rules
     const fileSyncStore = useFileSyncStore()
     await fileSyncStore.loadRulesAsync()
