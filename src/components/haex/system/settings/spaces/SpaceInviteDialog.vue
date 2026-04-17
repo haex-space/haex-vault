@@ -327,8 +327,11 @@ const onSubmitAsync = async () => {
       add({ title: t('success.invited'), color: 'success' })
       open.value = false
     } else if (isLocalSpace.value) {
+      const inviterIdentity = identityStore.identities.find(i => i.id === props.identityId)
+      if (!inviterIdentity) throw new Error(`Inviter identity ${props.identityId} not found`)
       const result = await createLocalInviteLinkAsync({
         spaceId: props.spaceId,
+        inviterDid: inviterIdentity.did,
         capability: capabilities[0]!,
         maxUses: maxUses.value,
         expiresInSeconds: selectedExpiry.value.value,

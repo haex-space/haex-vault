@@ -409,6 +409,81 @@ pub async fn local_delivery_revoke_invite(
     Ok(())
 }
 
+/// Parameters for persisting the UCAN row on the claimant's side. Grouped
+/// into a struct so callers can't accidentally swap `inviter_did` and
+/// `claimant_did` at the call site — that mistake is exactly the bug this
+/// helper was extracted to prevent.
+pub(crate) struct PersistClaimedUcan<'a> {
+    pub space_id: &'a str,
+    pub inviter_did: &'a str,
+    pub claimant_did: &'a str,
+    pub capability: &'a str,
+    pub token: &'a str,
+}
+
+/// Persist the UCAN row that represents the delegation `inviter → claimant`
+/// for a freshly-claimed local invite. `issuer` is the inviter because the
+/// ucan_token is signed by them; storing the claimant there (as an earlier
+/// revision did) misrepresents the delegation chain.
+pub(crate) fn persist_claimed_ucan(
+    db: &DbConnection,
+    hlc_guard: &std::sync::MutexGuard<'_, crate::crdt::hlc::HlcService>,
+    p: PersistClaimedUcan<'_>,
+) -> Result<(), String> {
+    let ucan_id = uuid::Uuid::new_v4().to_string();
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+    crate::database::core::execute_with_crdt(
+        "INSERT INTO haex_ucan_tokens (id, space_id, issuer_did, audience_did, capability, token, issued_at, expires_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+            .to_string(),
+        vec![
+            serde_json::Value::String(ucan_id),
+            serde_json::Value::String(p.space_id.to_string()),
+            serde_json::Value::String(p.inviter_did.to_string()),
+            serde_json::Value::String(p.claimant_did.to_string()),
+            serde_json::Value::String(p.capability.to_string()),
+            serde_json::Value::String(p.token.to_string()),
+            serde_json::Value::Number(serde_json::Number::from(now_secs)),
+            serde_json::Value::Number(serde_json::Number::from(now_secs + 86400 * 365)),
+        ],
+        db,
+        hlc_guard,
+    )
+    .map_err(|e| format!("Failed to persist UCAN: {e}"))?;
+    Ok(())
+}
+
+/// Resolve the local `haex_identities.id` for the inviter's DID.
+///
+/// The claimant's UI must ensure a row for `inviter_did` exists before calling
+/// `local_delivery_claim_invite` — the row represents the *other* party's
+/// identity and therefore has no `private_key` on the claimant's device.
+pub(crate) fn resolve_owner_identity_id(
+    inviter_did: &str,
+    db: &DbConnection,
+) -> Result<String, String> {
+    let rows = crate::database::core::select_with_crdt(
+        "SELECT id FROM haex_identities WHERE did = ?1 LIMIT 1".to_string(),
+        vec![serde_json::Value::String(inviter_did.to_string())],
+        db,
+    )
+    .map_err(|e| format!("Failed to look up inviter identity: {e}"))?;
+
+    rows.first()
+        .and_then(|r| r.first())
+        .and_then(|v| v.as_str())
+        .map(str::to_owned)
+        .ok_or_else(|| {
+            format!(
+                "Inviter identity for DID {} not present locally — UI must insert it before claiming",
+                &inviter_did[..30.min(inviter_did.len())]
+            )
+        })
+}
+
 /// Claim a local invite (invitee-side). Connects to leader via QUIC,
 /// sends KeyPackages and token, receives MLS welcome + UCAN.
 #[tauri::command]
@@ -420,6 +495,7 @@ pub async fn local_delivery_claim_invite(
     space_name: String,
     token_id: String,
     identity_did: String,
+    inviter_did: String,
     label: Option<String>,
     identity_public_key: Option<String>,
 ) -> Result<ClaimInviteResult, String> {
@@ -553,30 +629,11 @@ pub async fn local_delivery_claim_invite(
     let db = DbConnection(state.db.0.clone());
     let hlc_guard = state.hlc.lock().map_err(|_| "HLC lock poisoned".to_string())?;
 
-    // owner_identity_id is NOT NULL and must reference an existing row in
-    // haex_identities. The claimant always uses their own local identity as
-    // the owner of the local copy (matches the JS persist path in
-    // src/stores/spaces/invites.ts).
-    let owner_identity_id = {
-        let rows = crate::database::core::select_with_crdt(
-            "SELECT id FROM haex_identities WHERE did = ?1 AND private_key IS NOT NULL LIMIT 1"
-                .to_string(),
-            vec![serde_json::Value::String(identity_did.clone())],
-            &db,
-        )
-        .map_err(|e| format!("Failed to look up local identity: {e}"))?;
-
-        rows.first()
-            .and_then(|r| r.first())
-            .and_then(|v| v.as_str())
-            .map(str::to_owned)
-            .ok_or_else(|| {
-                format!(
-                    "Local identity for DID {} not found — cannot claim invite without an owner",
-                    &identity_did[..30.min(identity_did.len())]
-                )
-            })?
-    };
+    // owner_identity_id must reference the *inviter's* identity row — the
+    // space was created by them, not by us. The UI ensures a row for
+    // `inviter_did` exists on the claimant's device before invoking this
+    // command (see stores/spaces/invites.ts: ensureIdentityForDidAsync).
+    let owner_identity_id = resolve_owner_identity_id(&inviter_did, &db)?;
 
     crate::database::core::execute_with_crdt(
         "INSERT OR IGNORE INTO haex_spaces (id, type, status, name, owner_identity_id) VALUES (?1, 'local', 'active', ?2, ?3)".to_string(),
@@ -591,29 +648,17 @@ pub async fn local_delivery_claim_invite(
     .map_err(|e| format!("Failed to persist space: {e}"))?;
 
     // 7. Persist UCAN token
-    let ucan_id = uuid::Uuid::new_v4().to_string();
-    let now_secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64;
-    crate::database::core::execute_with_crdt(
-        "INSERT INTO haex_ucan_tokens (id, space_id, issuer_did, audience_did, capability, token, issued_at, expires_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
-            .to_string(),
-        vec![
-            serde_json::Value::String(ucan_id),
-            serde_json::Value::String(space_id.clone()),
-            serde_json::Value::String(identity_did.clone()), // self-issued for local claims
-            serde_json::Value::String(identity_did),
-            serde_json::Value::String(capability.clone()),
-            serde_json::Value::String(ucan_token),
-            serde_json::Value::Number(serde_json::Number::from(now_secs)),
-            serde_json::Value::Number(serde_json::Number::from(now_secs + 86400 * 365)), // 1 year
-        ],
+    persist_claimed_ucan(
         &db,
         &hlc_guard,
-    )
-    .map_err(|e| format!("Failed to persist UCAN: {e}"))?;
+        PersistClaimedUcan {
+            space_id: &space_id,
+            inviter_did: &inviter_did,
+            claimant_did: &identity_did,
+            capability: &capability,
+            token: &ucan_token,
+        },
+    )?;
 
     Ok(ClaimInviteResult {
         space_id,

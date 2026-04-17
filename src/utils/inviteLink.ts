@@ -11,6 +11,7 @@ export interface InviteTokenLink {
 export interface LocalInviteLink {
   spaceId: string
   tokenId: string
+  inviterDid: string
   spaceEndpoints: string[]
 }
 
@@ -30,25 +31,14 @@ export function isLocalInviteLink(str: string): boolean {
 
 /**
  * Parse a local invite link.
- * New format: haexvault://invite/local?data=BASE64_JSON
- * Legacy format: haexvault://invite/local?endpoint=ID&space=ID&token=TOKEN_ID
+ * Format: haexvault://invite/local?data=BASE64_JSON
  */
 export function parseLocalInviteLink(link: string): LocalInviteLink | null {
   try {
     const url = new URL(link)
-
-    // New format: Base64-encoded JSON payload
     const data = url.searchParams.get('data')
-    if (data) {
-      return JSON.parse(atob(decodeURIComponent(data)))
-    }
-
-    // Legacy format: individual params (backwards compat)
-    const endpointId = url.searchParams.get('endpoint')
-    const spaceId = url.searchParams.get('space')
-    const tokenId = url.searchParams.get('token')
-    if (!endpointId || !spaceId || !tokenId) return null
-    return { spaceId, tokenId, spaceEndpoints: [endpointId] }
+    if (!data) return null
+    return JSON.parse(atob(decodeURIComponent(data)))
   } catch {
     return null
   }

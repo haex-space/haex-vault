@@ -371,6 +371,7 @@ export async function acceptLocalInvite(
         spaceName: invite.spaceName || invite.spaceId.slice(0, 8),
         tokenId: invite.tokenId,
         identityDid: identity.did,
+        inviterDid: invite.inviterDid,
         label: identity.name || null,
         identityPublicKey,
       })
@@ -403,10 +404,15 @@ export async function acceptLocalInvite(
     }
   }
 
-  // Create or activate the space entry
+  // Create or activate the space entry. The Rust claim path already
+  // inserted the row with `owner_identity_id = inviter's identity`, so the
+  // update here just flips status; we refresh ownerIdentityId too in case a
+  // legacy row from before the inviter-based resolution landed is present.
   const existing = await db.select().from(haexSpaces).where(eq(haexSpaces.id, invite.spaceId)).limit(1)
   if (existing.length > 0) {
-    await db.update(haexSpaces).set({ status: SpaceStatus.ACTIVE }).where(eq(haexSpaces.id, invite.spaceId))
+    await db.update(haexSpaces)
+      .set({ status: SpaceStatus.ACTIVE, ownerIdentityId: ownerIdentity.id })
+      .where(eq(haexSpaces.id, invite.spaceId))
   } else {
     await persistSpaceAsync({
       id: invite.spaceId,
