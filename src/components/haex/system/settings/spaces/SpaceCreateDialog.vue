@@ -70,8 +70,8 @@
         class="flex items-center gap-2"
       >
         <UiSelectMenu
-          v-model="form.serverUrl"
-          :items="serverUrlOptions"
+          v-model="form.originUrl"
+          :items="originUrlOptions"
           :label="t('serverLabel')"
           class="flex-1"
         />
@@ -117,13 +117,13 @@ export interface CreateSpacePayload {
   name: string
   type: SpaceTypeValue
   ownerIdentityId: string
-  serverUrl?: ServerOption
+  originUrl?: ServerOption
 }
 
 const open = defineModel<boolean>('open', { required: true })
 
 const props = defineProps<{
-  serverUrlOptions: ServerOption[]
+  originUrlOptions: ServerOption[]
   ownerIdentityOptions: IdentityOption[]
   defaultOwnerIdentityId?: string
   submitting: boolean
@@ -140,7 +140,7 @@ const form = reactive({
   name: '',
   type: SpaceType.LOCAL as SpaceTypeValue,
   ownerIdentityId: '',
-  serverUrl: undefined as ServerOption | undefined,
+  originUrl: undefined as ServerOption | undefined,
 })
 
 // Reset form whenever the dialog opens so stale values don't leak across uses.
@@ -149,7 +149,7 @@ watch(open, (isOpen) => {
     form.name = ''
     form.type = SpaceType.LOCAL
     form.ownerIdentityId = props.defaultOwnerIdentityId || props.ownerIdentityOptions[0]?.value || ''
-    form.serverUrl = undefined
+    form.originUrl = undefined
   }
 })
 
@@ -159,7 +159,7 @@ const onSubmit = () => {
     name: form.name.trim(),
     type: form.type,
     ownerIdentityId: form.ownerIdentityId,
-    serverUrl: form.serverUrl,
+    originUrl: form.originUrl,
   })
 }
 </script>

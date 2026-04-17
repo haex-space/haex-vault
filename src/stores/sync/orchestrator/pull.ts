@@ -5,14 +5,24 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import { emit } from '@tauri-apps/api/event'
-import { decryptCrdtData } from '@haex-space/vault-sdk'
-import { DidAuthAction } from '@haex-space/ucan'
+import { decryptCrdtData, verifyRecordSignatureAsync, publicKeyToDidKeyAsync } from '@haex-space/vault-sdk'
+import {
+  DidAuthAction,
+  decodeUcan,
+  validateUcan,
+  spaceResource,
+  createWebCryptoVerifier,
+  type Capability,
+} from '@haex-space/ucan'
+import { eq, and } from 'drizzle-orm'
 import type { ColumnChange } from '../tableScanner'
 import { hlcIsNewer } from '@/utils/hlc'
 import { createDidAuthHeader, createFederatedDidAuthHeader } from '@/utils/auth/didAuth'
 import { orchestratorLog as log, type BackendSyncState, type PullResult, syncMutex } from './types'
 import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
 import { SYNC_TABLES_INTERNAL_EVENT } from '../syncEvents'
+import { haexUcanTokens } from '~/database/schemas'
+import { requireDb } from '~/stores/vault'
 import type { PendingColumn } from '@bindings/PendingColumn'
 
 /**
@@ -68,7 +78,7 @@ export const pullFromBackendAsync = async (
     // Step 1: Download ALL changes from server (with pagination)
     log.info('Downloading changes from server...')
     const pullResult = await pullChangesFromServerAsync({
-      serverUrl: backend.homeServerUrl,
+      homeServerUrl: backend.homeServerUrl,
       spaceId: backend.spaceId,
       lastPullServerTimestamp,
       syncEngineStore,
@@ -97,6 +107,13 @@ export const pullFromBackendAsync = async (
     // Log unique tables affected
     const tablesAffected = [...new Set(allChanges.map((c) => c.tableName))]
     log.debug('Tables affected:', tablesAffected)
+
+    // Step 1b: Verify signatures + UCAN on pulled changes (defense-in-depth).
+    // Any unsigned, forged, or unauthorized change aborts the entire batch —
+    // we do not trust partial data from a potentially compromised server.
+    // On failure, the outer catch handles it: lastPullServerTimestamp is NOT advanced,
+    // so the next pull will retry the same batch (or the legitimate replacement).
+    await verifyPulledChangesAsync(allChanges, backend.spaceId)
 
     // Step 2: Apply all changes with proper migration ordering
     await applyAllChangesWithMigrationsAsync(allChanges, encryptionKey, backendId, backend.spaceId)
@@ -156,10 +173,7 @@ export const pullFromBackendAsync = async (
       }
     }
 
-    // TODO: Client-side signature verification for space backends (defense-in-depth)
-    // The server already verifies signatures on push, but pulled records from space
-    // backends should also be verified client-side once the member public key cache
-    // is available. This requires resolving each signer's public key locally.
+    // Client-side signature verification is now done in Step 1b above
 
     log.info(`========== PULL SUCCESS: ${allChanges.length} changes applied ==========`)
   } catch (error) {
@@ -184,17 +198,162 @@ export const pullFromBackendAsync = async (
 }
 
 /**
+ * Error raised when verification of a pulled change-batch fails.
+ *
+ * The batch is rejected as a whole on first invalid change — we don't trust
+ * any change from a batch where a compromised or misconfigured server has
+ * tampered with, forged, or skipped signatures for any entry.
+ */
+export class BatchVerificationError extends Error {
+  readonly reason: 'unsigned' | 'invalid-signature' | 'unauthorized'
+  readonly offendingChange: { tableName: string; columnName: string; rowPks: string }
+
+  constructor(
+    reason: 'unsigned' | 'invalid-signature' | 'unauthorized',
+    offendingChange: ColumnChange,
+    detail: string,
+  ) {
+    super(`Batch rejected (${reason}): ${detail}`)
+    this.name = 'BatchVerificationError'
+    this.reason = reason
+    this.offendingChange = {
+      tableName: offendingChange.tableName,
+      columnName: offendingChange.columnName,
+      rowPks: offendingChange.rowPks,
+    }
+  }
+}
+
+/**
+ * Verifies signatures and UCAN authorization on pulled changes before applying them.
+ *
+ * Two-layer verification:
+ *   1. Cryptographic: every change has an Ed25519 signature and `signedBy`, and the signature verifies
+ *   2. Authorization (shared spaces only): signer holds a valid `space/write` UCAN or is the root admin
+ *
+ * Fails the entire batch on first invalid change — throws `BatchVerificationError`.
+ * All data must be signed; there is no pass-through for unsigned records.
+ */
+const verifyPulledChangesAsync = async (
+  changes: ColumnChange[],
+  spaceId?: string,
+): Promise<void> => {
+  if (changes.length === 0) return
+
+  const db = requireDb()
+  const verify = createWebCryptoVerifier()
+
+  // Cache: signedBy public key → { did, authorized } to avoid re-checking per column change
+  const signerCache = new Map<string, { did: string; authorized: boolean }>()
+
+  for (const change of changes) {
+    if (!change.signature || !change.signedBy) {
+      throw new BatchVerificationError(
+        'unsigned',
+        change,
+        `change ${change.tableName}/${change.columnName} is missing signature or signedBy`,
+      )
+    }
+
+    // Layer 1: Cryptographic signature verification
+    const isValid = await verifyRecordSignatureAsync(
+      {
+        tableName: change.tableName,
+        rowPks: change.rowPks,
+        columnName: change.columnName,
+        encryptedValue: change.encryptedValue ?? null,
+        hlcTimestamp: change.hlcTimestamp,
+      },
+      change.signature,
+      change.signedBy,
+    )
+
+    if (!isValid) {
+      throw new BatchVerificationError(
+        'invalid-signature',
+        change,
+        `invalid Ed25519 signature on ${change.tableName}/${change.columnName}`,
+      )
+    }
+
+    // Layer 2: UCAN authorization check — only for shared spaces
+    if (!spaceId) continue
+
+    let cached = signerCache.get(change.signedBy)
+    if (!cached) {
+      const signerDid = await publicKeyToDidKeyAsync(change.signedBy)
+
+      // Look up a UCAN where this signer is the audience (was granted access)
+      // and the capability is at least space/write for this space
+      const ucanRows = await db
+        .select()
+        .from(haexUcanTokens)
+        .where(
+          and(
+            eq(haexUcanTokens.spaceId, spaceId),
+            eq(haexUcanTokens.audienceDid, signerDid),
+          ),
+        )
+
+      let authorized = false
+      for (const row of ucanRows) {
+        try {
+          const result = await validateUcan(
+            row.token,
+            spaceResource(spaceId),
+            'space/write' as Capability,
+            verify,
+          )
+          if (result.valid) {
+            authorized = true
+            break
+          }
+        } catch {
+          // Token invalid or expired — try next
+        }
+      }
+
+      // Admin fallback: root UCAN where issuer === audience (self-issued by space owner)
+      if (!authorized) {
+        const rootUcans = await db
+          .select()
+          .from(haexUcanTokens)
+          .where(
+            and(
+              eq(haexUcanTokens.spaceId, spaceId),
+              eq(haexUcanTokens.issuerDid, signerDid),
+              eq(haexUcanTokens.audienceDid, signerDid),
+            ),
+          )
+        authorized = rootUcans.length > 0
+      }
+
+      cached = { did: signerDid, authorized }
+      signerCache.set(change.signedBy, cached)
+    }
+
+    if (!cached.authorized) {
+      throw new BatchVerificationError(
+        'unauthorized',
+        change,
+        `signer ${cached.did.slice(0, 24)}... has no valid space/write UCAN for space ${spaceId}`,
+      )
+    }
+  }
+}
+
+/**
  * Pulls column-level changes from server with pagination
  * Uses server timestamps (afterUpdatedAt) and secondary cursors (tableName, rowPks) for stable pagination
  * Returns both the changes and the server timestamp for storing as cursor
  *
- * @param serverUrl - Sync server URL
+ * @param homeServerUrl - Sync server URL
  * @param spaceId - Space ID to pull changes for
  * @param lastPullServerTimestamp - Cursor for incremental sync (null for full sync)
  * @param syncEngineStore - Sync engine store for auth token
  */
 interface PullOptions {
-  serverUrl: string
+  homeServerUrl: string
   spaceId: string
   lastPullServerTimestamp: string | null | undefined
   syncEngineStore: ReturnType<typeof useSyncEngineStore>
@@ -203,8 +362,8 @@ interface PullOptions {
 }
 
 export const pullChangesFromServerAsync = async (options: PullOptions): Promise<PullResult> => {
-  const { serverUrl, spaceId, lastPullServerTimestamp, backendIdentityId, federation } = options
-  log.info('pullChangesFromServerAsync: Starting pull from', serverUrl, 'space:', spaceId)
+  const { homeServerUrl, spaceId, lastPullServerTimestamp, backendIdentityId, federation } = options
+  log.info('pullChangesFromServerAsync: Starting pull from', homeServerUrl, 'space:', spaceId)
 
   // Resolve identity for DID-Auth (getIdentityByIdAsync falls back to in-memory when vault not open)
   let identity: { privateKey: string; did: string } | null = null
@@ -236,7 +395,7 @@ export const pullChangesFromServerAsync = async (options: PullOptions): Promise<
     if (currentTableName) params.set('afterTableName', currentTableName)
     if (currentRowPks) params.set('afterRowPks', currentRowPks)
 
-    const url = `${serverUrl}/sync/pull?${params.toString()}`
+    const url = `${homeServerUrl}/sync/pull?${params.toString()}`
     log.info(`[PAGINATION] Fetching page ${pageCount} with cursor: ${currentCursor || '(none)'}, tableName: ${currentTableName || '(none)'}, rowPks: ${currentRowPks || '(none)'}`)
 
     const queryString = params.toString()
@@ -536,7 +695,7 @@ export const applyRemoteChangesInTransactionAsync = async (
  * those columns are tracked in haex_crdt_pending_columns_no_sync. After the app updates
  * and migrations add those columns, this function fetches ALL data for them from the server.
  *
- * @param serverUrl - Sync server URL
+ * @param homeServerUrl - Sync server URL
  * @param spaceId - Space ID to pull data for
  * @param vaultKey - Vault encryption key for decryption
  * @param backendId - Backend ID for applying changes
@@ -544,7 +703,7 @@ export const applyRemoteChangesInTransactionAsync = async (
  * @returns Number of columns successfully pulled
  */
 export const pullPendingColumnsAsync = async (
-  serverUrl: string,
+  homeServerUrl: string,
   spaceId: string,
   vaultKey: Uint8Array,
   backendId: string,
@@ -601,7 +760,7 @@ export const pullPendingColumnsAsync = async (
           })
         : await createDidAuthHeader(identity.privateKey, identity.did, DidAuthAction.SyncPullColumns, requestBody)
 
-      const response = await fetch(`${serverUrl}/sync/pull-columns`, {
+      const response = await fetch(`${homeServerUrl}/sync/pull-columns`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: authHeader },
         body: requestBody,
@@ -624,8 +783,11 @@ export const pullPendingColumnsAsync = async (
       log.debug(`Fetched ${changes.length} changes for ${pendingCol.tableName}.${pendingCol.columnName} (total: ${allChanges.length}, hasMore: ${hasMore})`)
     }
 
-    // Step 3: Apply the pulled changes
+    // Step 3: Verify signatures + UCAN authorization, then apply.
+    // A BatchVerificationError here aborts pullPendingColumnsAsync before clear_pending_column
+    // runs, so this pending column stays flagged for retry on the next pull.
     if (allChanges.length > 0) {
+      await verifyPulledChangesAsync(allChanges, spaceId)
       log.info(`Applying ${allChanges.length} changes for ${pendingCol.tableName}.${pendingCol.columnName}`)
       await applyRemoteChangesInTransactionAsync(allChanges, vaultKey, backendId, spaceId)
       totalPulled += allChanges.length

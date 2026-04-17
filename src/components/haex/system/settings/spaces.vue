@@ -102,7 +102,7 @@
 
         <SpaceCreateDialog
           v-model:open="showCreateDialog"
-          :server-url-options="serverUrlOptions"
+          :origin-url-options="originUrlOptions"
           :owner-identity-options="ownerIdentityOptions"
           :default-owner-identity-id="defaultOwnerIdentityId"
           :submitting="isCreating"
@@ -132,7 +132,7 @@
       <SpaceInviteDialog
         v-model:open="showInviteDialog"
         :space-id="inviteSpaceId"
-        :server-url="inviteServerUrl"
+        :origin-url="inviteServerUrl"
         :identity-id="inviteIdentityId"
         :mode="inviteMode"
       />
@@ -296,8 +296,9 @@ const spaceListEntries = computed((): SpaceListEntry[] => {
       type: (invite.spaceType as SpaceWithType['type']) || SpaceType.LOCAL,
       status: SpaceStatus.PENDING,
       ownerIdentityId: '',
-      serverUrl: invite.originUrl || '',
+      originUrl: invite.originUrl || '',
       createdAt: invite.createdAt || '',
+      capabilities: [],
     }
     entries.push({ kind: 'pending', space, invite })
   }
@@ -351,7 +352,7 @@ const editServerOptions = computed(() => {
 const targetSpace = ref<SpaceWithType | null>(null)
 
 // Server URL options (for create dialog)
-const serverUrlOptions = computed(() => {
+const originUrlOptions = computed(() => {
   const options = [{ label: t('create.localOnly'), value: '' }]
   const urls = new Set<string>()
   for (const backend of syncBackends.value) {
@@ -442,15 +443,15 @@ const onCreateSpaceAsync = async (payload: CreateSpacePayload) => {
       add({ title: t('success.created'), color: 'success' })
       showCreateDialog.value = false
     } else {
-      const serverUrl = payload.serverUrl?.value
-      if (!serverUrl) {
+      const originUrl = payload.originUrl?.value
+      if (!originUrl) {
         add({ title: t('errors.noServer'), color: 'error' })
         return
       }
 
       const identityId = await ensureCurrentIdentityIdAsync()
       const createdSpace = await spacesStore.createSpaceAsync(
-        serverUrl,
+        originUrl,
         payload.name,
         t('create.defaultSelfLabel'),
         identityId,
@@ -461,9 +462,10 @@ const onCreateSpaceAsync = async (payload: CreateSpacePayload) => {
       openInviteDialog({
         ...createdSpace,
         name: payload.name,
-        serverUrl,
+        originUrl: originUrl,
         createdAt: new Date().toISOString(),
-      } as SpaceWithType)
+        capabilities: [],
+      } as unknown as SpaceWithType)
     }
   } catch (error) {
     console.error('Failed to create space:', error)
@@ -515,7 +517,7 @@ const onJoinSpaceAsync = async (payload: { inviteLink: string }) => {
     const identityId = await ensureCurrentIdentityIdAsync()
 
     await spacesStore.claimInviteTokenAsync(
-      tokenLink.serverUrl,
+      tokenLink.originUrl,
       tokenLink.spaceId,
       tokenLink.tokenId,
       identityId,
@@ -523,7 +525,7 @@ const onJoinSpaceAsync = async (payload: { inviteLink: string }) => {
 
     await syncBackendsStore.addBackendAsync({
       name: `Space ${tokenLink.spaceId.slice(0, 8)}`,
-      homeServerUrl: tokenLink.serverUrl,
+      homeServerUrl: tokenLink.originUrl,
       spaceId: tokenLink.spaceId,
       identityId,
       enabled: true,
@@ -551,22 +553,22 @@ const onSaveEditAsync = async (payload: EditSpacePayload) => {
   isSavingEdit.value = true
   try {
     const space = editingSpace.value
-    const oldServerUrl = space.serverUrl
+    const oldServerUrl = space.originUrl
 
     if (payload.name !== space.name) {
       await spacesStore.updateSpaceNameAsync(space.id, payload.name)
     }
 
-    if (payload.serverUrl !== oldServerUrl) {
+    if (payload.originUrl !== oldServerUrl) {
       // Identity only required when attaching to a server — clearing the
       // server (going back to local) needs no identity lookup.
-      const identityId = payload.serverUrl
+      const identityId = payload.originUrl
         ? await ensureCurrentIdentityIdAsync()
         : (identityStore.ownIdentities[0]?.id ?? '')
       await spacesStore.migrateSpaceServerAsync(
         space.id,
         oldServerUrl,
-        payload.serverUrl,
+        payload.originUrl,
         identityId,
       )
     }
@@ -593,8 +595,8 @@ const openInviteDialog = (
   mode: 'contact' | 'link' = 'contact',
 ) => {
   inviteSpaceId.value = space.id
-  inviteServerUrl.value = space.serverUrl
-  inviteIdentityId.value = getIdentityForSpace(space.serverUrl) ?? ''
+  inviteServerUrl.value = space.originUrl
+  inviteIdentityId.value = getIdentityForSpace(space.originUrl) ?? ''
   inviteMode.value = mode
   showInviteDialog.value = true
 }
@@ -613,7 +615,7 @@ const onConfirmDeleteAsync = async () => {
   if (!targetSpace.value) return
   try {
     await spacesStore.deleteSpaceAsync(
-      targetSpace.value.serverUrl,
+      targetSpace.value.originUrl,
       targetSpace.value.id,
     )
     add({ title: t('success.deleted'), color: 'success' })
@@ -628,13 +630,13 @@ const onConfirmDeleteAsync = async () => {
 const onConfirmLeaveAsync = async () => {
   if (!targetSpace.value) return
   try {
-    const identityId = getIdentityForSpace(targetSpace.value.serverUrl)
+    const identityId = getIdentityForSpace(targetSpace.value.originUrl)
     if (!identityId) {
       add({ title: t('errors.noIdentity'), color: 'error' })
       return
     }
     await spacesStore.leaveSpaceAsync(
-      targetSpace.value.serverUrl,
+      targetSpace.value.originUrl,
       targetSpace.value.id,
       identityId,
     )

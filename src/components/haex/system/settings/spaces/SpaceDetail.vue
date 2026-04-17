@@ -7,7 +7,7 @@
     <template #description>
       <div class="flex items-center gap-2">
         <UBadge
-          v-if="space?.serverUrl"
+          v-if="space?.originUrl"
           color="info"
           variant="subtle"
           size="sm"
@@ -355,7 +355,7 @@ const space = computed(
   () => spacesStore.visibleSpaces.find((s) => s.id === props.spaceId) ?? null,
 )
 const backendName = computed(() =>
-  space.value ? getBackendNameByUrl(space.value.serverUrl) : '',
+  space.value ? getBackendNameByUrl(space.value.originUrl) : '',
 )
 const isAdmin = computed(() => capabilities.value.includes('space/admin'))
 const canInvite = computed(() => capabilities.value.includes('space/invite'))

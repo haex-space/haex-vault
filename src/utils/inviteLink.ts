@@ -3,7 +3,7 @@ const APP_INVITE_PREFIX = 'haexvault://invite/'
 const LOCAL_INVITE_PREFIX = 'haexvault://invite/local'
 
 export interface InviteTokenLink {
-  serverUrl: string
+  originUrl: string
   spaceId: string
   tokenId: string
 }
@@ -71,12 +71,12 @@ export function buildLocalInviteLink(link: LocalInviteLink): string {
 export function parseInviteTokenLink(link: string): InviteTokenLink | null {
   try {
     const url = new URL(link)
-    const serverUrl = url.searchParams.get('server')
+    const originUrl = url.searchParams.get('server')
     const spaceId = url.searchParams.get('space')
     const tokenId = url.searchParams.get('token')
 
-    if (!serverUrl || !spaceId || !tokenId) return null
-    return { serverUrl, spaceId, tokenId }
+    if (!originUrl || !spaceId || !tokenId) return null
+    return { originUrl, spaceId, tokenId }
   } catch {
     return null
   }

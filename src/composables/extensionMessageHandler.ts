@@ -2,24 +2,20 @@
 /**
  * Extension Message Handler
  *
- * Handles incoming postMessage requests from extension iframes.
- * Routes requests to appropriate handlers (database, filesystem, web, etc.)
+ * Since SDK 3.0 all extension ↔ main-window messaging flows through a
+ * dedicated `MessagePort` established during iframe registration (see
+ * `broadcast.ts`). This module no longer installs a `window.addEventListener`
+ * — the port is the trust boundary, and every inbound request already carries
+ * an unambiguous extension identity via its owning port.
  *
- * Broadcasting is handled by the extensionBroadcastStore.
- * This composable only handles:
- * - Iframe registration (delegates to broadcast store)
- * - Message reception and routing
- * - Response sending
+ * What lives here:
+ *   - `handleExtensionRequestAsync` — routes a single request to the right
+ *     handler (database / filesystem / web / permissions / …).
+ *   - `useExtensionMessageHandler` — Vue composable that registers context
+ *     getters and wires an iframe into the broadcast store on mount.
  */
 import type { IHaexSpaceExtension } from '~/types/haexspace'
-import {
-  TAURI_COMMANDS,
-  HAEXSPACE_MESSAGE_TYPES,
-} from '@haex-space/vault-sdk'
-import {
-  EXTENSION_PROTOCOL_NAME,
-  EXTENSION_PROTOCOL_PREFIX,
-} from '~/config/constants'
+import { TAURI_COMMANDS } from '@haex-space/vault-sdk'
 import { handleDatabaseMethodAsync } from './handlers/database'
 import { handleFilesystemMethodAsync } from './handlers/filesystem'
 import { handleWebMethodAsync } from './handlers/web'
@@ -33,192 +29,115 @@ import { handleShellMethodAsync } from './handlers/shell'
 import type { ExtensionRequest, ExtensionInstance } from './handlers/types'
 import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
 
-// Globaler Handler - nur einmal registriert
-let globalHandlerRegistered = false
+/**
+ * Shape of a response sent back to the extension over its MessagePort.
+ * Either `result` or `error` is populated, never both. The `id` matches the
+ * `id` the extension included with the request.
+ */
+export interface ExtensionResponse {
+  id: string
+  result?: unknown
+  error?: {
+    code: string
+    message: string
+    details?: unknown
+  }
+}
 
-const registerGlobalMessageHandler = () => {
-  if (globalHandlerRegistered) return
+/**
+ * Route a single request from a known extension to the appropriate handler
+ * and return the response to send back on the port.
+ *
+ * Never throws — any handler error is wrapped into an `ExtensionResponse.error`
+ * so callers can post the response unconditionally. The `INVALID_REQUEST`
+ * error code surfaces malformed requests (missing id or method) so the
+ * extension sees a deterministic failure rather than a silent drop.
+ */
+export const handleExtensionRequestAsync = async (
+  request: ExtensionRequest,
+  instance: ExtensionInstance,
+): Promise<ExtensionResponse> => {
+  if (!request?.id || !request?.method) {
+    return {
+      id: request?.id ?? '',
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'Request must include id and method',
+        details: request,
+      },
+    }
+  }
 
-  // Get broadcast store for registry access and event listener setup
-  const broadcastStore = useExtensionBroadcastStore()
+  try {
+    const method = request.method
+    let result: unknown
 
-  // Setup Tauri event listeners for forwarding to iframes
-  broadcastStore.setupEventListeners()
-
-  window.addEventListener('message', async (event: MessageEvent) => {
-    // Ignore console.forward messages - they're handled elsewhere
-    if (event.data?.type === HAEXSPACE_MESSAGE_TYPES.CONSOLE_FORWARD) {
-      return
+    if (method === TAURI_COMMANDS.extension.getContext) {
+      result = await handleContextMethodAsync(request)
+    }
+    else if (
+      method === TAURI_COMMANDS.webStorage.getItem
+      || method === TAURI_COMMANDS.webStorage.setItem
+      || method === TAURI_COMMANDS.webStorage.removeItem
+      || method === TAURI_COMMANDS.webStorage.clear
+      || method === TAURI_COMMANDS.webStorage.keys
+    ) {
+      result = await handleWebStorageMethodAsync(request, instance)
+    }
+    else if (
+      method === TAURI_COMMANDS.database.query
+      || method === TAURI_COMMANDS.database.execute
+      || method === TAURI_COMMANDS.database.transaction
+      || method === TAURI_COMMANDS.database.registerMigrations
+    ) {
+      result = await handleDatabaseMethodAsync(request, instance.extension)
+    }
+    else if (
+      method === TAURI_COMMANDS.filesystem.saveFile
+      || method === TAURI_COMMANDS.filesystem.openFile
+      || method === TAURI_COMMANDS.filesystem.showImage
+      || method.startsWith('extension_filesystem_')
+    ) {
+      result = await handleFilesystemMethodAsync(request, instance.extension)
+    }
+    else if (
+      method === TAURI_COMMANDS.web.fetch
+      || method === TAURI_COMMANDS.web.open
+    ) {
+      result = await handleWebMethodAsync(request, instance.extension)
+    }
+    else if (method.startsWith('extension_permissions_')) {
+      result = await handlePermissionsMethodAsync(request, instance.extension)
+    }
+    else if (method.startsWith('extension_remote_storage_')) {
+      result = await handleRemoteStorageMethodAsync(request, instance.extension)
+    }
+    else if (method.startsWith('extension_space_')) {
+      result = await handleSpacesMethodAsync(request, instance.extension)
+    }
+    else if (method.startsWith('extension_logging_')) {
+      result = await handleLoggingMethodAsync(request, instance.extension)
+    }
+    else if (method.startsWith('extension_shell_')) {
+      result = await handleShellMethodAsync(request, instance.extension)
+    }
+    else {
+      throw new Error(`Unknown method: ${method}`)
     }
 
-    // Handle debug messages for Android debugging
-    if (event.data?.type === HAEXSPACE_MESSAGE_TYPES.DEBUG) {
-      return
+    return { id: request.id, result }
+  }
+  catch (error) {
+    console.error('[ExtensionHandler] Extension request error:', error)
+    return {
+      id: request.id,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        details: error,
+      },
     }
-
-    const request = event.data as ExtensionRequest
-
-    // Find extension instance using broadcast store
-    let instance: ExtensionInstance | undefined
-
-    // First try: Find by contentWindow match (works for sandboxed iframes with origin "null")
-    for (const [iframe, inst] of broadcastStore.iframeRegistry.entries()) {
-      if (iframe.contentWindow === event.source) {
-        instance = inst
-        // Cache for future lookups
-        broadcastStore.sourceCache.set(event.source as Window, inst)
-        break
-      }
-    }
-
-    // Try to decode extension info from origin (desktop custom protocol)
-    if (!instance && event.origin) {
-      let base64Host: string | null = null
-
-      if (event.origin.startsWith(EXTENSION_PROTOCOL_PREFIX)) {
-        // Desktop format: haex-extension://<base64>
-        base64Host = event.origin.replace(EXTENSION_PROTOCOL_PREFIX, '')
-      } else if (
-        event.origin === `http://${EXTENSION_PROTOCOL_NAME}.localhost`
-      ) {
-        // Android format: http://haex-extension.localhost/{base64} (origin doesn't contain extension info)
-        // Fallback to single iframe mode if contentWindow match didn't work
-        if (broadcastStore.iframeRegistry.size === 1) {
-          const entry = Array.from(broadcastStore.iframeRegistry.entries())[0]
-          if (entry) {
-            const [_, inst] = entry
-            instance = inst
-            broadcastStore.sourceCache.set(event.source as Window, inst)
-          }
-        }
-      }
-
-      if (base64Host && base64Host !== 'localhost') {
-        try {
-          const decodedInfo = JSON.parse(atob(base64Host)) as {
-            name: string
-            publicKey: string
-            version: string
-          }
-
-          // Find matching extension in registry
-          for (const [_, inst] of broadcastStore.iframeRegistry.entries()) {
-            if (
-              inst.extension.name === decodedInfo.name &&
-              inst.extension.publicKey === decodedInfo.publicKey &&
-              inst.extension.version === decodedInfo.version
-            ) {
-              instance = inst
-              // Cache for future lookups
-              broadcastStore.sourceCache.set(event.source as Window, inst)
-              break
-            }
-          }
-        } catch (e) {
-          console.error('[ExtensionHandler] Failed to decode origin:', e)
-        }
-      }
-    }
-
-    // Fallback: Try to find extension instance from cache
-    if (!instance) {
-      instance = broadcastStore.sourceCache.get(event.source as Window)
-    }
-
-    if (!instance) {
-      console.warn(
-        '[ExtensionHandler] Could not identify extension instance from event.source.',
-        'Registered iframes:',
-        broadcastStore.iframeRegistry.size,
-      )
-      return // Message ist nicht von einem registrierten IFrame
-    }
-
-    if (!request.id || !request.method) {
-      console.error('[ExtensionHandler] Invalid extension request:', request)
-      return
-    }
-
-    try {
-      let result: unknown
-
-      // Check specific methods first, then use direct routing to handlers
-      if (request.method === TAURI_COMMANDS.extension.getContext) {
-        result = await handleContextMethodAsync(request)
-      } else if (
-        request.method === TAURI_COMMANDS.webStorage.getItem ||
-        request.method === TAURI_COMMANDS.webStorage.setItem ||
-        request.method === TAURI_COMMANDS.webStorage.removeItem ||
-        request.method === TAURI_COMMANDS.webStorage.clear ||
-        request.method === TAURI_COMMANDS.webStorage.keys
-      ) {
-        result = await handleWebStorageMethodAsync(request, instance)
-      } else if (
-        request.method === TAURI_COMMANDS.database.query ||
-        request.method === TAURI_COMMANDS.database.execute ||
-        request.method === TAURI_COMMANDS.database.transaction ||
-        request.method === TAURI_COMMANDS.database.registerMigrations
-      ) {
-        result = await handleDatabaseMethodAsync(request, instance.extension)
-      } else if (
-        request.method === TAURI_COMMANDS.filesystem.saveFile ||
-        request.method === TAURI_COMMANDS.filesystem.openFile ||
-        request.method === TAURI_COMMANDS.filesystem.showImage ||
-        request.method.startsWith('extension_filesystem_')
-      ) {
-        result = await handleFilesystemMethodAsync(request, instance.extension)
-      } else if (
-        request.method === TAURI_COMMANDS.web.fetch ||
-        request.method === TAURI_COMMANDS.web.open
-      ) {
-        result = await handleWebMethodAsync(request, instance.extension)
-      } else if (request.method.startsWith('extension_permissions_')) {
-        result = await handlePermissionsMethodAsync(request, instance.extension)
-      } else if (request.method.startsWith('extension_remote_storage_')) {
-        result = await handleRemoteStorageMethodAsync(request, instance.extension)
-      } else if (request.method.startsWith('extension_space_')) {
-        result = await handleSpacesMethodAsync(request, instance.extension)
-      } else if (request.method.startsWith('extension_logging_')) {
-        result = await handleLoggingMethodAsync(request, instance.extension)
-      } else if (request.method.startsWith('extension_shell_')) {
-        result = await handleShellMethodAsync(request, instance.extension)
-      } else {
-        throw new Error(`Unknown method: ${request.method}`)
-      }
-
-      // Use event.source instead of contentWindow to work with sandboxed iframes
-      // For sandboxed iframes, event.origin is "null" (string), which is not valid for postMessage
-      const targetOrigin = event.origin === 'null' ? '*' : event.origin || '*'
-
-      ;(event.source as Window)?.postMessage(
-        {
-          id: request.id,
-          result,
-        },
-        targetOrigin,
-      )
-    } catch (error) {
-      console.error('[ExtensionHandler] Extension request error:', error)
-
-      // Use event.source instead of contentWindow to work with sandboxed iframes
-      // For sandboxed iframes, event.origin is "null" (string), which is not valid for postMessage
-      const targetOrigin = event.origin === 'null' ? '*' : event.origin || '*'
-
-      ;(event.source as Window)?.postMessage(
-        {
-          id: request.id,
-          error: {
-            code: 'INTERNAL_ERROR',
-            message: error instanceof Error ? error.message : 'Unknown error',
-            details: error,
-          },
-        },
-        targetOrigin,
-      )
-    }
-  })
-
-  globalHandlerRegistered = true
+  }
 }
 
 export const useExtensionMessageHandler = (
@@ -226,18 +145,16 @@ export const useExtensionMessageHandler = (
   extension: ComputedRef<IHaexSpaceExtension | undefined | null>,
   windowId: Ref<string>,
 ) => {
-  // Get broadcast store for registration
   const broadcastStore = useExtensionBroadcastStore()
 
-  // Initialize the context store - this starts watching for context changes
-  // and will broadcast to extensions when theme/locale/deviceId changes
+  // Initialize the context store — starts watching for context changes and
+  // broadcasts them to extensions when theme/locale/deviceId updates.
   useExtensionContextStore()
 
-  // Initialize context getters (can use composables here because we're in setup)
+  // Initialize context getters for non-setup callers (e.g. handlers).
   const { currentTheme } = storeToRefs(useUiStore())
   const { locale } = useI18n()
   const { platform, deviceId } = useDeviceStore()
-  // Store getters for use outside setup context
   setContextGetters({
     getTheme: () => currentTheme.value?.value || 'system',
     getLocale: () => locale.value,
@@ -245,13 +162,13 @@ export const useExtensionMessageHandler = (
     getDeviceId: () => deviceId,
   })
 
-  // Registriere globalen Handler beim ersten Aufruf
-  registerGlobalMessageHandler()
+  // Make sure the broadcast store's Tauri event listeners are up — these
+  // translate Rust-emitted events (file-change, shell output, etc.) into
+  // per-extension port dispatches.
+  broadcastStore.setupEventListeners()
 
-  // Track if we've already registered this iframe
   let registeredIframe: HTMLIFrameElement | null = null
 
-  // Registriere dieses IFrame via broadcast store - only once when iframe becomes available
   watch(
     [iframeRef, extension],
     ([iframe, ext]) => {
@@ -263,7 +180,6 @@ export const useExtensionMessageHandler = (
     { immediate: true },
   )
 
-  // Cleanup beim Unmount
   onUnmounted(() => {
     if (iframeRef.value) {
       broadcastStore.unregisterIframe(iframeRef.value)
@@ -271,17 +187,13 @@ export const useExtensionMessageHandler = (
   })
 }
 
-// Export Funktion für manuelle IFrame-Registrierung (kein Composable!)
 export const registerExtensionIFrame = (
   iframe: HTMLIFrameElement,
   extension: IHaexSpaceExtension,
   windowId: string,
 ) => {
-  // Stelle sicher, dass der globale Handler registriert ist
-  registerGlobalMessageHandler()
-
-  // Register via broadcast store
   const broadcastStore = useExtensionBroadcastStore()
+  broadcastStore.setupEventListeners()
   broadcastStore.registerIframe(iframe, extension, windowId)
 }
 
@@ -289,4 +201,3 @@ export const unregisterExtensionIFrame = (iframe: HTMLIFrameElement) => {
   const broadcastStore = useExtensionBroadcastStore()
   broadcastStore.unregisterIframe(iframe)
 }
-

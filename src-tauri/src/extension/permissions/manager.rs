@@ -547,6 +547,48 @@ impl PermissionManager {
         }
     }
 
+    /// Silent filesystem-read predicate — "may this extension read `file_path`
+    /// *right now*, without prompting?".
+    ///
+    /// Unlike `check_filesystem_permission`, this never returns
+    /// `PermissionPromptRequired`. Intended for fire-and-forget contexts
+    /// (event broadcasting) where extensions that aren't definitely allowed
+    /// are silently skipped.
+    ///
+    /// Loads the extension's DB permissions + session state, then delegates
+    /// the actual decision to the pure `PermissionChecker::can_read_path_silently`
+    /// (which is exhaustively unit-tested).
+    pub async fn is_fs_read_allowed_silently(
+        app_state: &State<'_, AppState>,
+        extension_id: &str,
+        file_path: &Path,
+    ) -> bool {
+        let Ok(permissions) = Self::get_permissions(app_state, extension_id).await else {
+            return false;
+        };
+        let Some(extension) = app_state.extension_manager.get_extension(extension_id) else {
+            return false;
+        };
+
+        let file_path_str = file_path.to_string_lossy();
+        let session_granted = app_state.session_permissions.is_granted(
+            extension_id,
+            ResourceType::Fs,
+            &file_path_str,
+        );
+        let session_denied = app_state.session_permissions.is_denied(
+            extension_id,
+            ResourceType::Fs,
+            &file_path_str,
+        );
+
+        PermissionChecker::new(extension, permissions).can_read_path_silently(
+            file_path,
+            session_granted,
+            session_denied,
+        )
+    }
+
     /// Prüft Shell-Berechtigungen
     /// Returns PermissionPromptRequired if status is Ask or no permission exists
     /// Returns PermissionDenied if status is explicitly Denied

@@ -1,8 +1,11 @@
-import { eq, ne, and, inArray, isNotNull } from 'drizzle-orm'
+import { eq, ne, and, inArray, isNotNull, asc } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
 import {
   arrayBufferToBase64,
   publicKeyToDidKeyAsync,
+  didKeyToPublicKeyAsync,
+  importUserPrivateKeyAsync,
+  importUserPublicKeyAsync,
   SIGNING_ALGO,
 } from '@haex-space/vault-sdk'
 import { buildDefaultAvatarSet } from '~/utils/identityAvatar'
@@ -91,6 +94,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
     identities.value = await db
       .select()
       .from(haexIdentities)
+      .orderBy(asc(haexIdentities.createdAt))
       .all()
     log.info(`Loaded ${identities.value.length} identities (${ownIdentities.value.length} own, ${contacts.value.length} contacts)`)
 
@@ -126,7 +130,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
       privateKey: identity.privateKey,
       did: identity.did,
       name: identity.name,
-      source: 'contact',
+      source: 'own',
       avatarOptions: null,
       avatar: null,
       notes: null,
@@ -197,7 +201,9 @@ export const useIdentityStore = defineStore('identityStore', () => {
 
     log.info(`Added contact "${name}" (${did.slice(0, 24)}...)`)
     await loadIdentitiesAsync()
-    return identities.value.find(i => i.id === id)!
+    const result = identities.value.find(i => i.id === id)
+    if (!result) throw new Error(`Failed to find newly created contact ${id}`)
+    return result
   }
 
   const addContactWithClaimsAsync = async (
@@ -394,7 +400,9 @@ export const useIdentityStore = defineStore('identityStore', () => {
           .set({ source: 'contact' })
           .where(eq(haexIdentities.id, existing.id))
         await loadIdentitiesAsync()
-        return (await getIdentityByIdAsync(existing.id))!
+        const updated = await getIdentityByIdAsync(existing.id)
+        if (!updated) throw new Error(`Identity ${existing.id} disappeared after update`)
+        return updated
       }
       return existing
     }
@@ -419,20 +427,36 @@ export const useIdentityStore = defineStore('identityStore', () => {
 
     await db.insert(haexIdentities).values(newIdentity)
     await loadIdentitiesAsync()
-    return identities.value.find(i => i.id === id)!
+    const result = identities.value.find(i => i.id === id)
+    if (!result) throw new Error(`Failed to find newly created identity ${id}`)
+    return result
   }
 
-  const exportIdentity = (identity: SelectHaexIdentities): ExportedIdentity => ({
-    did: identity.did,
-    name: identity.name,
-    privateKey: identity.privateKey!,
-  })
+  const exportIdentity = (identity: SelectHaexIdentities): ExportedIdentity => {
+    if (!identity.privateKey) throw new Error(`Cannot export identity ${identity.id}: no private key`)
+    return {
+      did: identity.did,
+      name: identity.name,
+      privateKey: identity.privateKey,
+    }
+  }
 
   const importIdentityAsync = async (exported: ExportedIdentity): Promise<SelectHaexIdentities> => {
     const db = requireDb()
 
     if (!exported.privateKey || !exported.did) {
       throw new Error('Invalid identity data: missing privateKey or did')
+    }
+
+    // Verify that the private key corresponds to the claimed DID
+    const challenge = crypto.getRandomValues(new Uint8Array(32))
+    const privateKey = await importUserPrivateKeyAsync(exported.privateKey)
+    const signature = await crypto.subtle.sign('Ed25519', privateKey, challenge)
+    const publicKeyBase64 = await didKeyToPublicKeyAsync(exported.did)
+    const publicKey = await importUserPublicKeyAsync(publicKeyBase64)
+    const isValid = await crypto.subtle.verify('Ed25519', publicKey, signature, challenge)
+    if (!isValid) {
+      throw new Error('Private key does not match the claimed DID')
     }
 
     // Check if identity already exists (same DID = same identity)
@@ -442,7 +466,6 @@ export const useIdentityStore = defineStore('identityStore', () => {
       .where(eq(haexIdentities.did, exported.did))
       .limit(1)
     if (existing.length > 0) {
-      // Identity already exists — update private key if needed, return existing
       log.info(`Identity already exists, skipping import`)
       return existing[0]!
     }
@@ -458,7 +481,7 @@ export const useIdentityStore = defineStore('identityStore', () => {
       id,
       name: exported.name || `Imported ${exported.did.slice(0, 20)}...`,
       did: exported.did,
-      source: 'contact',
+      source: 'own',
       privateKey: exported.privateKey,
       avatar: exported.avatar || avatarSet?.avatar || null,
       avatarOptions: avatarSet?.avatarOptions ?? null,
@@ -480,7 +503,9 @@ export const useIdentityStore = defineStore('identityStore', () => {
     log.info(`Imported identity "${newIdentity.name}" with DID ${exported.did.slice(0, 30)}...`)
 
     await loadIdentitiesAsync()
-    return identities.value.find(i => i.id === id)!
+    const result = identities.value.find(i => i.id === id)
+    if (!result) throw new Error(`Failed to find imported identity ${id}`)
+    return result
   }
 
   // ─── Claims (now always use identity UUID) ────────────────────────────
@@ -562,11 +587,11 @@ export const useIdentityStore = defineStore('identityStore', () => {
     }
   }
 
-  const markClaimVerifiedAsync = async (claimId: string, serverUrl: string) => {
+  const markClaimVerifiedAsync = async (claimId: string, originUrl: string) => {
     const db = requireDb()
     await db.update(haexIdentityClaims).set({
       verifiedAt: new Date().toISOString(),
-      verifiedBy: serverUrl,
+      verifiedBy: originUrl,
     }).where(eq(haexIdentityClaims.id, claimId))
   }
 

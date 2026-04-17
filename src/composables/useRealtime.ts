@@ -13,16 +13,16 @@ export function useRealtime() {
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
   let reconnectAttempts = 0
   let intentionalDisconnect = false
-  let lastConnectArgs: { serverUrl: string; privateKeyBase64: string; did: string } | null = null
+  let lastConnectArgs: { originUrl: string; privateKeyBase64: string; did: string } | null = null
 
   const handlers = new Map<string, Set<(event: RealtimeEvent) => void>>()
 
-  async function connect(serverUrl: string, privateKeyBase64: string, did: string) {
-    lastConnectArgs = { serverUrl, privateKeyBase64, did }
+  async function connect(originUrl: string, privateKeyBase64: string, did: string) {
+    lastConnectArgs = { originUrl, privateKeyBase64, did }
     intentionalDisconnect = false
 
     const token = await createDidAuthToken(privateKeyBase64, did)
-    const wsUrl = `${serverUrl.replace(/^http/, 'ws')}/ws?token=${encodeURIComponent(token)}`
+    const wsUrl = `${originUrl.replace(/^http/, 'ws')}/ws?token=${encodeURIComponent(token)}`
 
     ws = new WebSocket(wsUrl)
 
@@ -95,7 +95,7 @@ export function useRealtime() {
 
     reconnectTimer = setTimeout(() => {
       if (lastConnectArgs && !intentionalDisconnect) {
-        connect(lastConnectArgs.serverUrl, lastConnectArgs.privateKeyBase64, lastConnectArgs.did)
+        connect(lastConnectArgs.originUrl, lastConnectArgs.privateKeyBase64, lastConnectArgs.did)
       }
     }, delay)
   }

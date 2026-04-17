@@ -2,10 +2,10 @@ import { z } from 'zod'
 
 // Schema factory that takes i18n translate function
 export const createConnectWizardSchema = (t: (key: string) => string) => ({
-  serverUrl: z
+  originUrl: z
     .string()
-    .min(1, { message: t('validation.serverUrlRequired') })
-    .url({ message: t('validation.serverUrlInvalid') }),
+    .min(1, { message: t('validation.originUrlRequired') })
+    .url({ message: t('validation.originUrlInvalid') }),
   vaultName: z
     .string()
     .min(1, { message: t('validation.vaultNameRequired') })

@@ -45,7 +45,6 @@
         <HaexSystemSettingsIdentities v-else-if="activeCategory === SettingsCategory.Identities" />
         <HaexSystemSettingsContacts v-else-if="activeCategory === SettingsCategory.Contacts" />
         <HaexSystemSettingsStorage v-else-if="activeCategory === SettingsCategory.Storage" />
-        <HaexSystemSettingsPeerStorage v-else-if="activeCategory === SettingsCategory.PeerNetwork" />
         <HaexSystemSettingsDevices v-else-if="activeCategory === SettingsCategory.Devices" />
         <HaexSystemSettingsLogs v-else-if="activeCategory === SettingsCategory.Logs" />
         <HaexSystemSettingsDeveloper v-else-if="activeCategory === SettingsCategory.Developer" />
@@ -158,15 +157,6 @@ const categories = computed(() => [
     },
   },
   {
-    value: SettingsCategory.PeerNetwork,
-    label: t('categories.peerNetwork'),
-    icon: SettingsCategoryIcon[SettingsCategory.PeerNetwork],
-    active: activeCategory.value === SettingsCategory.PeerNetwork,
-    click: () => {
-      navigateToCategory(SettingsCategory.PeerNetwork)
-    },
-  },
-  {
     value: SettingsCategory.ExternalClients,
     label: t('categories.externalClients'),
     icon: SettingsCategoryIcon[SettingsCategory.ExternalClients],
@@ -227,7 +217,6 @@ de:
     identities: Identitäten
     contacts: Kontakte
     storage: Cloud Storage
-    peerNetwork: P2P Netzwerk
     devices: Geräte
     logs: Logs
     developer: Entwickler
@@ -243,7 +232,6 @@ en:
     identities: Identities
     contacts: Contacts
     storage: Cloud Storage
-    peerNetwork: P2P Network
     devices: Devices
     logs: Logs
     developer: Developer

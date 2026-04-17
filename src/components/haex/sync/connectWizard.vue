@@ -15,7 +15,7 @@
       <template #loginOtp>
         <div class="space-y-4">
           <HaexSyncRecoveryLoginOtp
-            :server-url="otpServerUrl"
+            :origin-url="otpServerUrl"
             :email="otpEmail"
             @recovered="onRecoveryComplete"
             @change-email="currentStepIndex = 0"
@@ -291,7 +291,7 @@ const emit = defineEmits<{
       spaceId: string
       vaultName: string
       localVaultName: string
-      serverUrl: string
+      originUrl: string
       identityId: string
       identityPublicKey: string
       identityPrivateKey: string
@@ -348,7 +348,7 @@ const { currentVaultPassword } = storeToRefs(useVaultStore())
 
 // Step 1: Identity Auth (via Recovery)
 const credentials = ref({
-  serverUrl: 'https://sync.haex.space',
+  originUrl: 'https://sync.haex.space',
   identityId: '',
 })
 // Recovery mode: stores encrypted private key data from OTP verification
@@ -431,8 +431,8 @@ whenever(enter, () => {
 })
 
 // Methods
-const onOtpRequested = (data: { serverUrl: string; email: string }) => {
-  otpServerUrl.value = data.serverUrl
+const onOtpRequested = (data: { originUrl: string; email: string }) => {
+  otpServerUrl.value = data.originUrl
   otpEmail.value = data.email
   currentStepIndex.value = 1
 }
@@ -486,7 +486,7 @@ const loadVaultsAsync = async () => {
 
   try {
     const response = await fetchWithDidAuth(
-      `${credentials.value.serverUrl}/sync/vaults`,
+      `${credentials.value.originUrl}/sync/vaults`,
       decryptedPrivateKey.value,
       recoveredKeyData.value.did,
       DidAuthAction.VaultList,
@@ -564,7 +564,7 @@ const completeSetupAsync = async () => {
       spaceId: '', // Server generates via /partitions/create
       vaultName: localVaultName.value,
       localVaultName: localVaultName.value,
-      serverUrl: credentials.value.serverUrl,
+      originUrl: credentials.value.originUrl,
       identityId: credentials.value.identityId,
       identityPublicKey: recoveredKeyData.value!.publicKey,
       identityPrivateKey: decryptedPrivateKey.value!,
@@ -583,7 +583,7 @@ const completeSetupAsync = async () => {
       spaceId: selectedVault.spaceId,
       vaultName: localVaultName.value,
       localVaultName: localVaultName.value,
-      serverUrl: credentials.value.serverUrl,
+      originUrl: credentials.value.originUrl,
       identityId: credentials.value.identityId,
       identityPublicKey: recoveredKeyData.value!.publicKey,
       identityPrivateKey: decryptedPrivateKey.value!,
@@ -617,7 +617,7 @@ const tryDIDPasswordAsVaultPasswordAsync = async (spaceId: string) => {
 
   try {
     const response = await fetchWithDidAuth(
-      `${credentials.value.serverUrl}/sync/vault-key/${spaceId}`,
+      `${credentials.value.originUrl}/sync/vault-key/${spaceId}`,
       decryptedPrivateKey.value,
       recoveredKeyData.value.did,
       DidAuthAction.VaultKeyGet,
@@ -663,7 +663,7 @@ const cancel = () => {
 }
 
 const onRecoveryComplete = async (data: {
-  serverUrl: string
+  originUrl: string
   recoveryKeyData: RecoveryKeyData
   session: {
     access_token: string
@@ -676,7 +676,7 @@ const onRecoveryComplete = async (data: {
   isLoading.value = true
 
   try {
-    credentials.value.serverUrl = data.serverUrl
+    credentials.value.originUrl = data.originUrl
     // Look up identity UUID by publicKey (server response only has publicKey)
     const identityStore = useIdentityStore()
     const resolvedIdentity = await identityStore.getIdentityByPublicKeyAsync(data.identity.publicKey)
@@ -707,7 +707,7 @@ const clearForm = async () => {
   otpServerUrl.value = ''
   otpEmail.value = ''
   credentials.value = {
-    serverUrl: 'https://sync.haex.space',
+    originUrl: 'https://sync.haex.space',
     identityId: '',
   }
   availableVaults.value = []
@@ -779,8 +779,8 @@ de:
     wrongPassword: Falsches Passwort – Vault konnte nicht entschlüsselt werden
     wrongDidPassword: Falsches Passwort – Identität konnte nicht entschlüsselt werden
   validation:
-    serverUrlRequired: Server-URL ist erforderlich
-    serverUrlInvalid: Muss eine gültige URL sein
+    originUrlRequired: Server-URL ist erforderlich
+    originUrlInvalid: Muss eine gültige URL sein
     vaultNameRequired: Vault-Name ist erforderlich
     vaultNameTooLong: Vault-Name ist zu lang (max. 255 Zeichen)
     vaultPasswordMinLength: Passwort muss mindestens 6 Zeichen lang sein
@@ -826,8 +826,8 @@ en:
     wrongPassword: Wrong password — could not decrypt vault
     wrongDidPassword: Wrong password — could not decrypt identity
   validation:
-    serverUrlRequired: Server URL is required
-    serverUrlInvalid: Must be a valid URL
+    originUrlRequired: Server URL is required
+    originUrlInvalid: Must be a valid URL
     vaultNameRequired: Vault name is required
     vaultNameTooLong: Vault name is too long (max. 255 characters)
     vaultPasswordMinLength: Password must be at least 6 characters

@@ -5,7 +5,7 @@
 //! These tests ensure that the database layer properly prevents various
 //! SQL injection attack vectors.
 
-use crate::database::core::parse_sql_statements;
+use crate::database::core::{extract_table_names_from_sql, parse_sql_statements};
 use crate::extension::database::helpers::{validate_sql_table_prefix, ExtensionSqlContext};
 use crate::extension::database::planner::SqlExecutionPlanner;
 use crate::extension::permissions::checker::{is_system_table, matches_target, PermissionChecker};
@@ -703,4 +703,43 @@ fn test_sql_with_special_identifiers() {
     // SQL reserved words as identifiers
     let sql = r#"SELECT "select", "from", "where" FROM "table""#;
     let _ = parse_sql_statements(sql);
+}
+
+// ============================================================================
+// Subquery Table Extraction Tests
+// ============================================================================
+
+#[test]
+fn test_subquery_in_update_set_clause_detected() {
+    let sql =
+        "UPDATE test_pub__test_ext__users SET name = (SELECT did FROM haex_identities LIMIT 1)";
+    let tables = extract_table_names_from_sql(sql).unwrap();
+    assert!(
+        tables.iter().any(|t| t.contains("haex_identities")),
+        "Should detect haex_identities in subquery. Found: {:?}",
+        tables
+    );
+}
+
+#[test]
+fn test_subquery_in_delete_where_clause_detected() {
+    let sql =
+        "DELETE FROM test_pub__test_ext__users WHERE id IN (SELECT id FROM haex_extensions)";
+    let tables = extract_table_names_from_sql(sql).unwrap();
+    assert!(
+        tables.iter().any(|t| t.contains("haex_extensions")),
+        "Should detect haex_extensions in subquery. Found: {:?}",
+        tables
+    );
+}
+
+#[test]
+fn test_subquery_in_insert_select_detected() {
+    let sql = "INSERT INTO test_pub__test_ext__users (name) SELECT did FROM haex_identities";
+    let tables = extract_table_names_from_sql(sql).unwrap();
+    assert!(
+        tables.iter().any(|t| t.contains("haex_identities")),
+        "Should detect haex_identities in INSERT...SELECT. Found: {:?}",
+        tables
+    );
 }

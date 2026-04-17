@@ -27,8 +27,8 @@ export interface RecoveryKeyData {
  * Composable for recovering an identity from a sync server via email + OTP.
  *
  * Flow:
- * 1. requestOtpAsync(serverUrl, email) -> triggers OTP email
- * 2. verifyOtpAsync(serverUrl, email, code) -> returns encrypted private key
+ * 1. requestOtpAsync(originUrl, email) -> triggers OTP email
+ * 2. verifyOtpAsync(originUrl, email, code) -> returns encrypted private key
  * 3. decryptAndImportAsync(recoveryData, vaultPassword) -> imports identity locally
  */
 export const useIdentityRecovery = () => {
@@ -39,7 +39,7 @@ export const useIdentityRecovery = () => {
    * Request OTP code to be sent to the user's email.
    */
   const requestOtpAsync = async (
-    serverUrl: string,
+    originUrl: string,
     email: string,
   ): Promise<boolean> => {
     isLoading.value = true
@@ -47,7 +47,7 @@ export const useIdentityRecovery = () => {
 
     try {
       const res = await fetch(
-        `${serverUrl}/identity-auth/recover-request`,
+        `${originUrl}/identity-auth/recover-request`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -74,7 +74,7 @@ export const useIdentityRecovery = () => {
    * Verify OTP code and retrieve encrypted private key from server.
    */
   const verifyOtpAsync = async (
-    serverUrl: string,
+    originUrl: string,
     email: string,
     code: string,
   ): Promise<RecoveryKeyData | null> => {
@@ -83,7 +83,7 @@ export const useIdentityRecovery = () => {
 
     try {
       const res = await fetch(
-        `${serverUrl}/identity-auth/recover-verify`,
+        `${originUrl}/identity-auth/recover-verify`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -147,10 +147,10 @@ export const useIdentityRecovery = () => {
    * Resend OTP code.
    */
   const resendOtpAsync = async (
-    serverUrl: string,
+    originUrl: string,
     email: string,
   ): Promise<boolean> => {
-    return requestOtpAsync(serverUrl, email)
+    return requestOtpAsync(originUrl, email)
   }
 
   return {

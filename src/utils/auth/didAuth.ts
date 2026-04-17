@@ -8,6 +8,14 @@ import { toBase64Url } from '~/utils/encoding'
 
 export type { FederatedAuthParams }
 
+/**
+ * Creates a signed DID auth header for API requests.
+ *
+ * Server-side contract:
+ * - Tokens past `exp` MUST be rejected (clock skew tolerance: ±30s recommended)
+ * - Seen `jti` values MUST be tracked and rejected to prevent replay attacks
+ * - `jti` tracking can use a TTL cache matching the token's max lifetime (exp + skew)
+ */
 export async function createDidAuthHeader(
   privateKeyBase64: string,
   did: string,
@@ -24,6 +32,8 @@ export async function createDidAuthHeader(
     did,
     action,
     timestamp: Date.now(),
+    exp: Date.now() + 60_000,
+    jti: crypto.randomUUID(),
     bodyHash,
   })
 

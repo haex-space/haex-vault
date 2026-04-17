@@ -61,7 +61,7 @@ whenever(enter, () => {
 })
 
 const emit = defineEmits<{
-  otpRequested: [{ serverUrl: string; email: string }]
+  otpRequested: [{ originUrl: string; email: string }]
 }>()
 
 const {
@@ -73,7 +73,7 @@ const {
 // Server selection
 const selectedServer = ref('https://sync.haex.space')
 const customServerUrl = ref('')
-const serverUrl = computed(() =>
+const originUrl = computed(() =>
   selectedServer.value === 'custom'
     ? customServerUrl.value
     : selectedServer.value,
@@ -89,9 +89,9 @@ const isEmailValid = computed(() => {
 })
 
 const onRequestOtpAsync = async () => {
-  const success = await requestOtpAsync(serverUrl.value, email.value)
+  const success = await requestOtpAsync(originUrl.value, email.value)
   if (success) {
-    emit('otpRequested', { serverUrl: serverUrl.value, email: email.value })
+    emit('otpRequested', { originUrl: originUrl.value, email: email.value })
   }
 }
 </script>

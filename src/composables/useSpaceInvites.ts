@@ -79,7 +79,7 @@ export function useSpaceInvites() {
   const acceptInviteAsync = async (invite: SelectHaexPendingInvites) => {
     const db = getDb()
     try {
-      const serverUrl =
+      const originUrl =
         invite.originUrl || getServerUrlForSpace(invite.spaceId)
       const endpoints: string[] = invite.spaceEndpoints
         ? JSON.parse(invite.spaceEndpoints)
@@ -89,7 +89,7 @@ export function useSpaceInvites() {
         // QUIC invite — accept via ClaimInvite to one of the space endpoints
         // (acceptLocalInviteAsync creates the real space entry on success)
         await spacesStore.acceptLocalInviteAsync(invite)
-      } else if (serverUrl && invite.tokenId) {
+      } else if (originUrl && invite.tokenId) {
         // Online space without QUIC endpoints — accept via server
         const identity = await ensureCurrentIdentityAsync()
         const ownerIdentity = await identityStore.ensureIdentityForDidAsync(invite.inviterDid, {
@@ -98,7 +98,7 @@ export function useSpaceInvites() {
           avatarOptions: invite.inviterAvatarOptions,
           source: 'space',
         })
-        const delivery = useMlsDelivery(serverUrl, invite.spaceId, {
+        const delivery = useMlsDelivery(originUrl, invite.spaceId, {
           privateKey: identity.privateKey,
           did: identity.did,
         })
@@ -111,8 +111,9 @@ export function useSpaceInvites() {
             (invite.spaceType as SpaceWithType['type']) || SpaceType.ONLINE,
           status: SpaceStatus.ACTIVE,
           ownerIdentityId: ownerIdentity.id,
-          serverUrl,
+          originUrl: originUrl,
           createdAt: new Date().toISOString(),
+          capabilities: [],
         })
         await spacesStore.loadSpacesFromDbAsync()
 
@@ -157,14 +158,14 @@ export function useSpaceInvites() {
    * network request does not block the local delete.
    */
   const declineInviteAsync = async (invite: SelectHaexPendingInvites) => {
-    const serverUrl =
+    const originUrl =
       invite.originUrl || getServerUrlForSpace(invite.spaceId)
 
-    if (serverUrl && invite.tokenId) {
+    if (originUrl && invite.tokenId) {
       try {
         const identity = await ensureCurrentIdentityAsync()
         await fetchWithDidAuth(
-          `${serverUrl}/spaces/${invite.spaceId}/invites/${invite.tokenId}/decline`,
+          `${originUrl}/spaces/${invite.spaceId}/invites/${invite.tokenId}/decline`,
           identity.privateKey,
           identity.did,
           'decline-invite',

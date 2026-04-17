@@ -443,6 +443,7 @@ jobs:
       - name: Upload assets to GitHub release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           TAG_NAME: ${{ needs.prepare-release.outputs.tag_name }}
         run: |
           gh release upload "$TAG_NAME" release-assets/* --clobber

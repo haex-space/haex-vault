@@ -12,9 +12,9 @@ import { engineLog as log } from './types'
 /**
  * Health check - verifies server is reachable
  */
-export const healthCheckAsync = async (serverUrl: string): Promise<boolean> => {
+export const healthCheckAsync = async (homeServerUrl: string): Promise<boolean> => {
   try {
-    const response = await fetch(serverUrl)
+    const response = await fetch(homeServerUrl)
     return response.ok
   } catch {
     return false
@@ -26,13 +26,13 @@ export const healthCheckAsync = async (serverUrl: string): Promise<boolean> => {
  * This will delete all CRDT changes, vault keys, and vault configuration from the server
  */
 export const deleteRemoteVaultAsync = async (
-  serverUrl: string,
+  homeServerUrl: string,
   spaceId: string,
   privateKey: string,
   did: string,
 ): Promise<void> => {
   const response = await fetchWithDidAuth(
-    `${serverUrl}/sync/vault/${spaceId}`,
+    `${homeServerUrl}/sync/vault/${spaceId}`,
     privateKey,
     did,
     DidAuthAction.VaultDelete,
@@ -55,12 +55,12 @@ export const deleteRemoteVaultAsync = async (
  * Keeps the account (identity, spaces, etc.) intact.
  */
 export const deleteAllVaultDataAsync = async (
-  serverUrl: string,
+  homeServerUrl: string,
   privateKey: string,
   did: string,
 ): Promise<void> => {
   const response = await fetchWithDidAuth(
-    `${serverUrl}/sync/vaults`,
+    `${homeServerUrl}/sync/vaults`,
     privateKey,
     did,
     DidAuthAction.VaultDeleteAll,
@@ -82,7 +82,7 @@ export const deleteAllVaultDataAsync = async (
  * Re-encrypts with identity public key (ECDH)
  */
 export const updateVaultNameOnServerAsync = async (
-  serverUrl: string,
+  homeServerUrl: string,
   spaceId: string,
   newVaultName: string,
   identityPublicKey: string,
@@ -100,7 +100,7 @@ export const updateVaultNameOnServerAsync = async (
   })
 
   const response = await fetchWithDidAuth(
-    `${serverUrl}/sync/vault-key/${spaceId}`,
+    `${homeServerUrl}/sync/vault-key/${spaceId}`,
     privateKey,
     did,
     DidAuthAction.VaultKeyUpdate,

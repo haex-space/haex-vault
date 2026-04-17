@@ -56,7 +56,7 @@ const onWizardCompleteAsync = async (wizardData: {
   spaceId: string
   vaultName: string
   localVaultName: string
-  serverUrl: string
+  originUrl: string
   identityId: string
   identityPublicKey: string
   identityPrivateKey: string
@@ -90,8 +90,8 @@ const onWizardCompleteAsync = async (wizardData: {
     // 3. Set up temporary backend (for vault key fetch/upload)
     syncBackendsStore.setTemporaryBackend({
       id: wizardData.backendId,
-      name: new URL(wizardData.serverUrl).host,
-      homeServerUrl: wizardData.serverUrl,
+      name: new URL(wizardData.originUrl).host,
+      homeServerUrl: wizardData.originUrl,
       spaceId: wizardData.spaceId,
       identityId,
       enabled: true,
@@ -107,7 +107,7 @@ const onWizardCompleteAsync = async (wizardData: {
       const vaultKey = generateNewVaultKey()
 
       await uploadVaultKeyAsync(
-        wizardData.serverUrl,
+        wizardData.originUrl,
         wizardData.spaceId,
         vaultKey,
         wizardData.vaultName,
@@ -127,7 +127,7 @@ const onWizardCompleteAsync = async (wizardData: {
         wizardData.spaceId,
         wizardData.vaultName,
         wizardData.vaultPassword,
-        wizardData.serverUrl,
+        wizardData.originUrl,
       )
     }
 

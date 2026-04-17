@@ -1,25 +1,23 @@
 /**
  * Extension Broadcast Store
  *
- * Centralized store for broadcasting events to extensions.
- * Handles both iframe (postMessage) and webview (Tauri emit) modes.
+ * Every registered iframe gets its own `MessageChannel` — the main window
+ * keeps `port1`, the extension's SDK receives `port2` during the PORT_INIT
+ * handshake. After that, all bidirectional traffic (host → iframe events,
+ * iframe → host requests) flows through the private port and never touches
+ * the window-level `postMessage` channel. The port is the trust anchor:
+ * whoever holds its pair is authentic by construction.
  *
- * Broadcasting architecture:
- * - Frontend-centralized: All logic in this store, Rust only provides filtering and targeted emit
- * - Events go to ALL instances of an extension (extensions handle deduplication if needed)
- * - Permission filtering by HOST (Rust filters, extensions do NOT filter - security requirement)
+ * Event categories (unchanged) — but routing is now permission-scoped:
+ *   - Context Changed: all extensions (public metadata).
+ *   - Sync Tables Updated: filtered by Rust `extension_filter_sync_tables`.
+ *   - File Changed: filtered by Rust-computed `readerExtensionIds`.
+ *   - Shell output / exit: scoped to the session's owning extension.
+ *   - External request: routed to the target extension only.
  *
- * Event categories:
- * - Context Changed: Public, sent to all extensions
- * - Sync Tables Updated: Filtered by database permissions
- * - File Changed: Filtered by filesystem permissions
- * - External Request: Sent to specific extension only (first instance)
- *
- * Extension identification:
- * - Desktop: Origin contains base64-encoded extension info (haex-extension://<base64>)
- * - Android: Origin is http://haex-extension.localhost, need contentWindow matching
- *
- * NOTE: This store only BROADCASTS. It does NOT store context or any other state.
+ * Startup buffering: events that arrive before the SDK finishes its handshake
+ * are buffered per-iframe and flushed on PORT_READY — no events are dropped
+ * during the startup window.
  */
 
 import { invoke } from '@tauri-apps/api/core'
@@ -28,6 +26,7 @@ import {
   HAEXTENSION_EVENTS,
   EXTERNAL_EVENTS,
   SHELL_EVENTS,
+  HAEXSPACE_MESSAGE_TYPES,
   type ApplicationContext,
   type FileChangePayload,
   type ExternalRequestPayload,
@@ -36,10 +35,34 @@ import {
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type { IHaexSpaceExtension } from '~/types/haexspace'
 import { createLogger } from '~/stores/logging'
+import {
+  dispatchFileChangedBroadcast,
+  dispatchShellEventBroadcast,
+} from './broadcastRouting'
+import {
+  handleExtensionRequestAsync,
+  type ExtensionResponse,
+} from '~/composables/extensionMessageHandler'
+import type { ExtensionRequest } from '~/composables/handlers/types'
 
 const log = createLogger('BROADCAST')
 
-// Extension instance info for iframe registry
+/**
+ * Per-iframe state. The port lives as long as the iframe is registered;
+ * closing the port (on unregister) disconnects both sides atomically.
+ *
+ * `ready` flips to `true` after PORT_READY arrives on port1. While `false`,
+ * broadcasts are collected in `buffer` and flushed at the moment of ACK.
+ */
+interface ExtensionIframeEntry {
+  extension: IHaexSpaceExtension
+  windowId: string
+  port: MessagePort
+  ready: boolean
+  buffer: Array<Record<string, unknown>>
+}
+
+/** Public shape — omits the port internals from consumers of the store. */
 interface ExtensionInstance {
   extension: IHaexSpaceExtension
   windowId: string
@@ -49,141 +72,173 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
   const deviceStore = useDeviceStore()
   const { isDesktop } = storeToRefs(deviceStore)
 
-  // ============================================================================
-  // Iframe Registry (for postMessage communication)
-  // ============================================================================
-
-  // Map iframe element to extension instance
-  // Use markRaw to prevent Vue reactivity from trying to proxy DOM elements
-  const iframeRegistry = markRaw(new Map<HTMLIFrameElement, ExtensionInstance>())
-
-  // Cache: event.source Window -> extension instance (performance optimization)
-  // On Android, origin doesn't contain extension info, so we use contentWindow
-  // matching on first message and cache the result for faster subsequent lookups.
-  // IMPORTANT: Use markRaw to prevent Vue from trying to access properties on
-  // cross-origin Window objects (which would throw SecurityError)
-  const sourceCache = markRaw(new Map<Window, ExtensionInstance>())
+  // Map iframe element to entry. Use markRaw to prevent Vue reactivity from
+  // trying to proxy DOM elements / MessagePorts.
+  const iframeRegistry = markRaw(new Map<HTMLIFrameElement, ExtensionIframeEntry>())
 
   /**
-   * Register an iframe for message handling.
-   * Context will be sent when the iframe requests it via extension_context_get.
+   * Register an iframe for MessagePort-based communication.
+   *
+   * 1. Create a MessageChannel.
+   * 2. Listen on port1 — receives PORT_READY (ACK) and subsequent extension
+   *    requests.
+   * 3. Send port2 to the iframe once its document has loaded; the SDK's
+   *    PORT_INIT handler grabs it, attaches its own listener, and sends
+   *    PORT_READY back on port1.
    */
   const registerIframe = (
     iframe: HTMLIFrameElement,
     extension: IHaexSpaceExtension,
     windowId: string,
   ) => {
-    log.info(`========== REGISTERING IFRAME ==========`)
-    log.info(`Extension: ${extension.name} (ID: ${extension.id})`)
-    log.info(`Window ID: ${windowId}`)
-    log.debug('Extension publicKey:', extension.publicKey)
-    log.debug('Has contentWindow:', !!iframe.contentWindow)
-    log.debug('Iframe connected:', iframe.isConnected)
-    log.debug('Current registry size:', iframeRegistry.size)
-    iframeRegistry.set(iframe, { extension, windowId })
-    log.info(`Iframe registered - new registry size: ${iframeRegistry.size}`)
+    const channel = new MessageChannel()
+    const entry: ExtensionIframeEntry = {
+      extension,
+      windowId,
+      port: channel.port1,
+      ready: false,
+      buffer: [],
+    }
+    iframeRegistry.set(iframe, entry)
+
+    channel.port1.addEventListener('message', (event) => {
+      handlePortMessageAsync(entry, event).catch((err) => {
+        log.error('Failed to handle port message:', err)
+      })
+    })
+    channel.port1.start()
+
+    // Transfer port2 to the iframe. We do this once the iframe's document has
+    // loaded so the SDK's handshake listener is guaranteed to be installed.
+    const sendPort = () => {
+      if (!iframe.contentWindow) return
+      try {
+        iframe.contentWindow.postMessage(
+          { type: HAEXSPACE_MESSAGE_TYPES.PORT_INIT },
+          '*',
+          [channel.port2],
+        )
+      }
+      catch (err) {
+        log.error(`Failed to send PORT_INIT to extension ${extension.name}:`, err)
+      }
+    }
+
+    // Best-effort detection: if the iframe is already loaded (readyState
+    // complete), send immediately; otherwise wait for the load event.
+    const alreadyLoaded
+      = iframe.contentDocument?.readyState === 'complete'
+      || iframe.contentDocument?.readyState === 'interactive'
+    if (alreadyLoaded) {
+      sendPort()
+    }
+    else {
+      iframe.addEventListener('load', sendPort, { once: true })
+    }
+
+    log.info(`Registered iframe for ${extension.name} (windowId: ${windowId})`)
   }
 
   /**
-   * Unregister an iframe
+   * Unregister an iframe. Closes its port — the extension's SDK observes
+   * the port as severed and the browser GCs both ends.
    */
   const unregisterIframe = (iframe: HTMLIFrameElement) => {
-    const instance = iframeRegistry.get(iframe)
-    log.info(`========== UNREGISTERING IFRAME ==========`)
-    log.debug('Has instance:', !!instance)
-    log.debug('Extension name:', instance?.extension.name)
-    log.debug('Window ID:', instance?.windowId)
-    log.debug('Current registry size:', iframeRegistry.size)
-    if (instance) {
-      // Remove from source cache
-      for (const [source, inst] of sourceCache.entries()) {
-        if (inst.windowId === instance.windowId) {
-          sourceCache.delete(source)
-        }
-      }
-      log.info(`Unregistered iframe: ${instance.extension.name} (windowId: ${instance.windowId})`)
+    const entry = iframeRegistry.get(iframe)
+    if (!entry) return
+    try {
+      entry.port.close()
     }
+    catch {
+      // Already closed — ignore.
+    }
+    entry.buffer.length = 0
     iframeRegistry.delete(iframe)
-    log.info(`After unregister - registry size: ${iframeRegistry.size}`)
+    log.info(`Unregistered iframe for ${entry.extension.name}`)
   }
 
   /**
-   * Find extension instance from message event.
-   * First tries origin decoding (Desktop), then contentWindow matching (Android fallback).
-   * Caches result for faster subsequent lookups.
+   * Handle a message arriving on port1 from the extension's port2.
+   * Two categories:
+   *   - PORT_READY: handshake ACK. Mark entry ready, flush buffered events.
+   *   - Anything else: extension request. Route to the handler and post
+   *     the response back on the same port.
    */
-  const findInstanceFromEvent = (event: MessageEvent): ExtensionInstance | undefined => {
-    // Check cache first (performance optimization)
-    const cached = sourceCache.get(event.source as Window)
-    if (cached) return cached
+  const handlePortMessageAsync = async (
+    entry: ExtensionIframeEntry,
+    event: MessageEvent,
+  ): Promise<void> => {
+    const data = event.data as { type?: string } | null
 
-    // Try to decode from origin (Desktop: haex-extension://<base64>)
-    if (event.origin?.startsWith('haex-extension://')) {
-      const base64Host = event.origin.replace('haex-extension://', '')
-      try {
-        const decoded = JSON.parse(atob(base64Host)) as {
-          name: string
-          publicKey: string
-          version: string
-        }
-        // Find matching extension in registry
-        for (const [_, inst] of iframeRegistry.entries()) {
-          if (
-            inst.extension.name === decoded.name
-            && inst.extension.publicKey === decoded.publicKey
-            && inst.extension.version === decoded.version
-          ) {
-            // Cache for future lookups
-            sourceCache.set(event.source as Window, inst)
-            return inst
-          }
-        }
-      } catch {
-        log.warn('Failed to decode origin:', event.origin)
+    if (data?.type === HAEXSPACE_MESSAGE_TYPES.PORT_READY) {
+      if (entry.ready) return // Ignore duplicate ACKs
+      entry.ready = true
+      log.info(`Port READY for ${entry.extension.name} (flushing ${entry.buffer.length} buffered events)`)
+      for (const bufferedMessage of entry.buffer) {
+        entry.port.postMessage(bufferedMessage)
       }
+      entry.buffer.length = 0
+      return
     }
 
-    // Fallback: Match by contentWindow (needed for Android)
-    for (const [iframe, inst] of iframeRegistry.entries()) {
-      if (iframe.contentWindow === event.source) {
-        // Cache for future lookups
-        sourceCache.set(event.source as Window, inst)
-        return inst
-      }
+    // Extension request (method + id + params + timestamp).
+    const request = event.data as ExtensionRequest
+    const instance: ExtensionInstance = {
+      extension: entry.extension,
+      windowId: entry.windowId,
     }
-
-    return undefined
+    const response: ExtensionResponse = await handleExtensionRequestAsync(request, instance)
+    entry.port.postMessage(response)
   }
 
   /**
-   * Get extension instance from iframe element
+   * Iterate entries — used by dispatchers and test helpers.
+   * Each call yields `{instance, port, ready, buffer}` pairs in registration order.
    */
-  const getInstanceFromIframe = (iframe: HTMLIFrameElement): ExtensionInstance | undefined => {
-    return iframeRegistry.get(iframe)
+  const entriesForDispatch = () => {
+    const out: Array<{
+      instance: { extension: { id: string } }
+      port: MessagePort
+      ready: boolean
+      buffer: Array<Record<string, unknown>>
+    }> = []
+    for (const entry of iframeRegistry.values()) {
+      out.push({
+        instance: { extension: { id: entry.extension.id } },
+        port: entry.port,
+        ready: entry.ready,
+        buffer: entry.buffer,
+      })
+    }
+    return out
   }
 
   /**
-   * Get all windows for a specific extension (all instances)
+   * Get all entries for a specific extension (multi-instance support).
+   * Preserves the legacy shape used by external callers.
    */
-  const getAllWindowsForExtension = (extensionId: string): { instance: ExtensionInstance; window: Window }[] => {
-    const result: { instance: ExtensionInstance; window: Window }[] = []
-    for (const [iframe, instance] of iframeRegistry.entries()) {
-      if (instance.extension.id === extensionId && iframe.contentWindow) {
-        result.push({ instance, window: iframe.contentWindow })
+  const getAllWindowsForExtension = (
+    extensionId: string,
+  ): Array<{ instance: ExtensionInstance; port: MessagePort }> => {
+    const result: Array<{ instance: ExtensionInstance; port: MessagePort }> = []
+    for (const entry of iframeRegistry.values()) {
+      if (entry.extension.id === extensionId) {
+        result.push({
+          instance: { extension: entry.extension, windowId: entry.windowId },
+          port: entry.port,
+        })
       }
     }
     return result
   }
 
   // ============================================================================
-  // Broadcasting Functions
+  // Broadcasting
   // ============================================================================
 
   /**
-   * Broadcast context changes to ALL extensions (all instances).
-   * Context is public - no permission filtering needed.
-   *
-   * NOTE: This only broadcasts. Context storage is handled by the caller (uiStore).
+   * Broadcast a context change. Public metadata — sent to every extension.
+   * Not-yet-ready iframes buffer the event and receive it after PORT_READY.
    */
   const broadcastContext = async (context: ApplicationContext) => {
     const message = {
@@ -192,270 +247,187 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
       timestamp: Date.now(),
     }
 
-    // Send to ALL iframe extension instances
-    for (const [iframe] of iframeRegistry.entries()) {
-      if (iframe.contentWindow) {
-        iframe.contentWindow.postMessage(message, '*')
-      }
+    for (const entry of iframeRegistry.values()) {
+      if (entry.ready) entry.port.postMessage(message)
+      else entry.buffer.push(message)
     }
 
-    // On desktop, also broadcast to webview extensions
+    // Webview-mode extensions still use Tauri emit — unaffected by the port
+    // handshake since they don't run in an iframe.
     if (isDesktop.value) {
       try {
         await invoke(TAURI_COMMANDS.extension.webviewBroadcast, {
           event: HAEXTENSION_EVENTS.CONTEXT_CHANGED,
           payload: { context },
         })
-      } catch (error) {
+      }
+      catch (error) {
         log.error('Failed to broadcast to webview extensions:', error)
       }
     }
   }
 
   /**
-   * Broadcast filtered sync:tables-updated events to ALL instances of each extension.
-   * Each extension only receives table names they have database permissions for.
-   * Extensions handle deduplication if multiple instances receive the same event.
-   *
-   * How filtering works:
-   * - Frontend passes updated table names to Rust (extension_filter_sync_tables)
-   * - Rust loads all installed extensions and their permissions from DB
-   * - For each extension, filters tables to only those they have access to:
-   *   - Extension's own tables (prefix match: publicKey__name__tableName)
-   *   - Tables with explicit DB permissions
-   * - Returns map: { extensions: { [extensionId]: [allowedTableNames] } }
+   * Broadcast filtered sync:tables-updated events. Each extension receives
+   * only the table names they are authorised for; the authorisation list is
+   * computed in Rust via `extension_filter_sync_tables`.
    */
   const broadcastSyncTablesUpdated = async (tables: string[]) => {
     if (tables.length === 0) return
 
-    // Get filtered tables by extension permissions from Rust
-    // Rust queries all extensions and their permissions, then filters
     const result = await invoke<FilteredSyncTablesResult>(
       TAURI_COMMANDS.extension.filterSyncTables,
       { tables },
     )
 
-    // Send to ALL iframe extension instances
-    for (const [iframe, instance] of iframeRegistry.entries()) {
-      const extensionId = instance.extension.id
+    for (const entry of iframeRegistry.values()) {
+      const allowedTables = result.extensions[entry.extension.id]
+      if (!allowedTables || allowedTables.length === 0) continue
 
-      // Get filtered tables for this extension
-      const allowedTables = result.extensions[extensionId]
-      if (!allowedTables || allowedTables.length === 0) {
-        continue
+      const message = {
+        type: HAEXTENSION_EVENTS.SYNC_TABLES_UPDATED,
+        data: { tables: allowedTables },
+        timestamp: Date.now(),
       }
-
-      if (iframe.contentWindow) {
-        const message = {
-          type: HAEXTENSION_EVENTS.SYNC_TABLES_UPDATED,
-          data: { tables: allowedTables },
-          timestamp: Date.now(),
-        }
-        iframe.contentWindow.postMessage(message, '*')
-      }
+      if (entry.ready) entry.port.postMessage(message)
+      else entry.buffer.push(message)
     }
 
-    // On desktop, emit to webview extensions
     if (isDesktop.value) {
       try {
         await invoke(TAURI_COMMANDS.extension.emitSyncTables, {
           filteredExtensions: result,
         })
-      } catch (error) {
+      }
+      catch (error) {
         log.error('Failed to emit to webview extensions:', error)
       }
     }
   }
 
-  /**
-   * Broadcast file change event to ALL instances of extensions with filesystem permissions.
-   * Currently broadcasts to all - Rust filtering to be added.
-   */
-  const broadcastFileChanged = (payload: FileChangePayload) => {
-    const message = {
-      type: HAEXTENSION_EVENTS.FILE_CHANGED,
-      ruleId: payload.ruleId,
-      changeType: payload.changeType,
-      path: payload.path,
-      timestamp: Date.now(),
-    }
+  const broadcastFileChanged = (
+    payload: FileChangePayload & { readerExtensionIds?: string[] },
+  ) => {
+    dispatchFileChangedBroadcast(payload, entriesForDispatch())
+  }
 
-    // Send to ALL iframe extension instances (TODO: add permission filtering)
-    for (const [iframe] of iframeRegistry.entries()) {
-      if (iframe.contentWindow) {
-        iframe.contentWindow.postMessage(message, '*')
-      }
-    }
+  const broadcastShellEvent = (
+    type: string,
+    payload: Record<string, unknown> & { extensionId: string },
+  ) => {
+    dispatchShellEventBroadcast(type, payload, entriesForDispatch())
   }
 
   /**
-   * Broadcast shell PTY events (output/exit) to ALL iframe extensions.
-   * Extensions filter by sessionId on their side (they only know their own sessions).
-   */
-  const broadcastShellEvent = (type: string, payload: Record<string, unknown>) => {
-    const message = {
-      type,
-      ...payload,
-      timestamp: Date.now(),
-    }
-
-    for (const [iframe] of iframeRegistry.entries()) {
-      if (iframe.contentWindow) {
-        iframe.contentWindow.postMessage(message, '*')
-      }
-    }
-  }
-
-  /**
-   * Forward external request to specific extension.
-   * Only sends to the FIRST matching iframe to avoid duplicate processing.
-   * (External requests are different - they expect a single response)
+   * Forward an external request to the extension it targets (first matching
+   * iframe). External requests expect a single response, so we fan out to
+   * exactly one instance.
    */
   const forwardExternalRequest = (payload: ExternalRequestPayload) => {
     const { extensionPublicKey, extensionName } = payload
 
-    log.info(`Forwarding external request to: ${extensionName}, action: ${payload.action}`)
-    log.debug('Looking for extension with publicKey:', extensionPublicKey)
-    log.debug('Iframe registry size:', iframeRegistry.size)
-
-    // Log all registered iframes for debugging
-    let iframeIndex = 0
-    for (const [iframe, instance] of iframeRegistry.entries()) {
-      log.debug(`Registered iframe ${iframeIndex}:`, {
-        extensionName: instance.extension.name,
-        extensionPublicKey: instance.extension.publicKey,
-        windowId: instance.windowId,
-        hasContentWindow: !!iframe.contentWindow,
-        iframeConnected: iframe.isConnected,
-      })
-      iframeIndex++
-    }
-
-    // Find first iframe for this extension (external requests need single handler)
-    for (const [iframe, instance] of iframeRegistry.entries()) {
+    for (const entry of iframeRegistry.values()) {
       if (
-        instance.extension.publicKey === extensionPublicKey
-        && instance.extension.name === extensionName
+        entry.extension.publicKey === extensionPublicKey
+        && entry.extension.name === extensionName
       ) {
-        log.info(`Found matching extension iframe: ${instance.extension.name}`)
-        if (iframe.contentWindow) {
-          const message = {
-            type: EXTERNAL_EVENTS.REQUEST,
-            data: {
-              requestId: payload.requestId,
-              publicKey: payload.publicKey,
-              action: payload.action,
-              payload: payload.payload,
-            },
-            timestamp: Date.now(),
-          }
-          log.info(`Sent external request to: ${instance.extension.name} (windowId: ${instance.windowId})`)
-          iframe.contentWindow.postMessage(message, '*')
-          return // Only send to first matching iframe (request expects single response)
+        const message = {
+          type: EXTERNAL_EVENTS.REQUEST,
+          data: {
+            requestId: payload.requestId,
+            publicKey: payload.publicKey,
+            action: payload.action,
+            payload: payload.payload,
+          },
+          timestamp: Date.now(),
         }
-        else {
-          log.warn('Iframe has no contentWindow!')
-        }
+        if (entry.ready) entry.port.postMessage(message)
+        else entry.buffer.push(message)
+        log.info(`Forwarded external request to: ${entry.extension.name}`)
+        return
       }
     }
 
-    log.warn(`No iframe found for extension: ${extensionName} (publicKey: ${extensionPublicKey})`)
+    log.warn(`No registered iframe for external request: ${extensionName}`)
   }
 
   // ============================================================================
-  // Tauri Event Listeners Setup
+  // Tauri event listeners
   // ============================================================================
 
   let eventListenersRegistered = false
   const unlistenFns: UnlistenFn[] = []
 
-  /**
-   * Setup Tauri event listeners for forwarding to iframes
-   */
   const setupEventListeners = async () => {
-    if (eventListenersRegistered) {
-      log.debug('Event listeners already registered, skipping')
-      return
-    }
+    if (eventListenersRegistered) return
     eventListenersRegistered = true
 
-    log.info('========== SETTING UP EVENT LISTENERS ==========')
-    log.debug('EXTERNAL_EVENTS.REQUEST:', EXTERNAL_EVENTS.REQUEST)
-    log.debug('isDesktop:', isDesktop.value)
-
     try {
-      // Listen for external requests
       unlistenFns.push(
         await listen<ExternalRequestPayload>(EXTERNAL_EVENTS.REQUEST, (event) => {
-          log.info('========== EXTERNAL REQUEST RECEIVED ==========')
-          log.info(`Extension: ${event.payload.extensionName}`)
-          log.info(`Action: ${event.payload.action}`)
-          log.debug('Request ID:', event.payload.requestId)
-          log.debug('Full payload:', JSON.stringify(event.payload))
-          log.debug('Current iframe registry size:', iframeRegistry.size)
           forwardExternalRequest(event.payload)
         }),
       )
 
-      // Listen for file change events from native file watcher
       unlistenFns.push(
-        await listen<FileChangePayload>(HAEXTENSION_EVENTS.FILE_CHANGED, (event) => {
-          broadcastFileChanged(event.payload)
-        }),
+        await listen<FileChangePayload & { readerExtensionIds: string[] }>(
+          HAEXTENSION_EVENTS.FILE_CHANGED,
+          (event) => {
+            broadcastFileChanged(event.payload)
+          },
+        ),
       )
 
-      // Listen for shell PTY events and forward to iframes
       unlistenFns.push(
-        await listen<{ sessionId: string; data: string }>(SHELL_EVENTS.OUTPUT, (event) => {
-          broadcastShellEvent(SHELL_EVENTS.OUTPUT, event.payload)
-        }),
+        await listen<{ sessionId: string; extensionId: string; data: string }>(
+          SHELL_EVENTS.OUTPUT,
+          (event) => {
+            broadcastShellEvent(SHELL_EVENTS.OUTPUT, event.payload)
+          },
+        ),
       )
       unlistenFns.push(
-        await listen<{ sessionId: string; exitCode: number | null }>(SHELL_EVENTS.EXIT, (event) => {
-          broadcastShellEvent(SHELL_EVENTS.EXIT, event.payload)
-        }),
+        await listen<{ sessionId: string; extensionId: string; exitCode: number | null }>(
+          SHELL_EVENTS.EXIT,
+          (event) => {
+            broadcastShellEvent(SHELL_EVENTS.EXIT, event.payload)
+          },
+        ),
       )
-
-    } catch (error) {
+    }
+    catch (error) {
       log.error('Failed to setup event listeners:', error)
     }
   }
 
-  /**
-   * Cleanup event listeners
-   */
   const cleanup = () => {
-    for (const unlisten of unlistenFns) {
-      unlisten()
-    }
+    for (const unlisten of unlistenFns) unlisten()
     unlistenFns.length = 0
     eventListenersRegistered = false
 
-    // Clear all registries
+    for (const entry of iframeRegistry.values()) {
+      try {
+        entry.port.close()
+      }
+      catch {
+        // ignore
+      }
+    }
     iframeRegistry.clear()
-    sourceCache.clear()
   }
 
   return {
-    // Iframe registry management
     registerIframe,
     unregisterIframe,
-    findInstanceFromEvent,
-    getInstanceFromIframe,
     getAllWindowsForExtension,
-
-    // Expose registry for backwards compatibility with extensionMessageHandler
     iframeRegistry,
-    sourceCache,
 
-    // Broadcasting functions
     broadcastContext,
     broadcastSyncTablesUpdated,
     broadcastFileChanged,
     broadcastShellEvent,
     forwardExternalRequest,
 
-    // Setup and cleanup
     setupEventListeners,
     cleanup,
   }

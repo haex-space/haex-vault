@@ -378,7 +378,7 @@ jobs:
     needs: [test, check-skip]
     if: needs.check-skip.outputs.should_skip != 'true'
     runs-on: ubuntu-22.04
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - name: Free disk space
         run: |

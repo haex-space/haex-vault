@@ -694,13 +694,13 @@ export const useSyncOrchestratorStore = defineStore(
         log.debug('Initial pull config:', {
           backendId,
           spaceId: tempBackend.spaceId,
-          serverUrl: tempBackend.homeServerUrl,
+          homeServerUrl: tempBackend.homeServerUrl,
         })
 
         // Pull ALL changes (no cursor since this is initial sync)
         log.info('Downloading all changes from server...')
         const pullResult = await pullChangesFromServerAsync({
-          serverUrl: tempBackend.homeServerUrl,
+          homeServerUrl: tempBackend.homeServerUrl,
           spaceId: tempBackend.spaceId,
           lastPullServerTimestamp: null,
           syncEngineStore,

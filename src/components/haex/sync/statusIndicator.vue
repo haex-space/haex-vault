@@ -165,7 +165,7 @@ const groups = computed(() => {
 
     result.push({
       id: 'p2p',
-      icon: SettingsCategoryIcon[SettingsCategory.PeerNetwork],
+      icon: 'i-mdi-lan-connect',
       segments: [{
         id: 'p2p',
         colorClass: 'text-success',

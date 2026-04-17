@@ -58,7 +58,7 @@ export const pushToBackendAsync = async (
     log.debug('Backend config:', {
       backendId,
       spaceId: backend.spaceId,
-      serverUrl: backend.homeServerUrl,
+      homeServerUrl: backend.homeServerUrl,
       lastPushHlc: lastPushHlc || '(none)',
     })
 
@@ -242,24 +242,32 @@ export const pushChangesToServerAsync = async (
   const deviceStore = useDeviceStore()
   const deviceId = deviceStore.deviceId
 
-  // Resolve identity for record signing + auth (every backend has an identity)
-  let identityPrivateKey: string | null = null
-  let identityPublicKey: string | null = null
-  {
-    const identityStore = useIdentityStore()
-    const identity = await identityStore.getIdentityByIdAsync(backend.identityId)
-    if (identity?.privateKey) {
-      identityPrivateKey = identity.privateKey
-      identityPublicKey = await didKeyToPublicKeyAsync(identity.did)
-    }
+  // Resolve identity for record signing + auth. Every push MUST be signed;
+  // an unsigned backend identity is a configuration error and aborts the push.
+  const identityStore = useIdentityStore()
+  const identity = await identityStore.getIdentityByIdAsync(backend.identityId)
+  if (!identity?.privateKey) {
+    throw new Error(`Cannot push: backend ${backend.id} has no identity private key — records cannot be signed`)
   }
+  const identityPrivateKey = identity.privateKey
+  const identityPublicKey = await didKeyToPublicKeyAsync(identity.did)
 
-  // Import signing function — all backends sign records
   const { signRecordAsync } = await import('@haex-space/vault-sdk')
 
-  // Format changes for server API, always signing records
+  // Format changes for server API — every change is signed.
   const formattedChanges = await Promise.all(changes.map(async (change) => {
-    const base: Record<string, unknown> = {
+    const signature = await signRecordAsync(
+      {
+        tableName: change.tableName,
+        rowPks: change.rowPks,
+        columnName: change.columnName,
+        encryptedValue: change.encryptedValue ?? null,
+        hlcTimestamp: change.hlcTimestamp,
+      },
+      identityPrivateKey,
+    )
+
+    const formatted: Record<string, unknown> = {
       tableName: change.tableName,
       rowPks: change.rowPks,
       columnName: change.columnName,
@@ -270,36 +278,13 @@ export const pushChangesToServerAsync = async (
       deviceId,
       encryptedValue: change.encryptedValue,
       nonce: change.nonce,
+      signature,
+      signedBy: identityPublicKey,
     }
-    if (change.epoch !== undefined) base.epoch = change.epoch
+    if (change.epoch !== undefined) formatted.epoch = change.epoch
 
-    if (signRecordAsync && identityPrivateKey && identityPublicKey) {
-      const signature = await signRecordAsync(
-        {
-          tableName: change.tableName,
-          rowPks: change.rowPks,
-          columnName: change.columnName,
-          encryptedValue: change.encryptedValue ?? null,
-          hlcTimestamp: change.hlcTimestamp,
-        },
-        identityPrivateKey,
-      )
-
-      return {
-        ...base,
-        signature,
-        signedBy: identityPublicKey,
-      }
-    }
-
-    return base
+    return formatted
   }))
-
-  // Resolve identity for DID-Auth
-  const identityStore = useIdentityStore()
-  const resolved = await identityStore.getIdentityByIdAsync(backend.identityId)
-  if (!resolved?.privateKey) throw new Error('No identity configured for this backend')
-  const identity = { privateKey: resolved.privateKey, did: resolved.did }
 
   const url = `${backend.homeServerUrl}/sync/push`
   const requestBody = JSON.stringify({ spaceId, changes: formattedChanges })
@@ -374,7 +359,7 @@ export const pushAllDataToBackendAsync = async (
     log.debug('Backend config:', {
       backendId,
       spaceId: backend.spaceId,
-      serverUrl: backend.homeServerUrl,
+      homeServerUrl: backend.homeServerUrl,
     })
 
     // Get encryption key: vault sync key from local DB

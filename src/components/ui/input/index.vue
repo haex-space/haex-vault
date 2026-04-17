@@ -40,6 +40,15 @@
         <slot name="trailing" />
 
         <UiButton
+          v-if="clearable && value"
+          color="neutral"
+          icon="i-lucide-x"
+          variant="link"
+          size="sm"
+          @click="value = ''"
+        />
+
+        <UiButton
           v-if="withCopyButton"
           :color="copied ? 'success' : 'neutral'"
           :tooltip="t('copy')"
@@ -89,6 +98,7 @@ interface IInputProps extends /* @vue-ignore */ InputProps {
 const props = defineProps<
   IInputProps & {
     withCopyButton?: boolean
+    clearable?: boolean
     readOnly?: boolean
     label?: string
     leadingIcon?: string
@@ -102,14 +112,8 @@ const props = defineProps<
   }
 >()
 
-const {
-  size,
-  type,
-  withCopyButton,
-  readOnly,
-  label,
-  leadingIcon,
-} = toRefs(props)
+const { size, type, withCopyButton, readOnly, label, leadingIcon } =
+  toRefs(props)
 
 const attrs = useAttrs()
 const placeholder = computed(() => attrs.placeholder as string | undefined)
@@ -118,7 +122,9 @@ const filteredAttrs = computed(() => {
   return rest
 })
 
-const hasDistinctPlaceholder = computed(() => !!label?.value && !!placeholder.value && placeholder.value !== ' ')
+const hasDistinctPlaceholder = computed(
+  () => !!label?.value && !!placeholder.value && placeholder.value !== ' ',
+)
 
 const isFocused = ref(false)
 const effectivePlaceholder = computed(() => {

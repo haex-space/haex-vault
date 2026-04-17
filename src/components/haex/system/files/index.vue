@@ -2,34 +2,49 @@
   <HaexSystem>
     <!-- Header: Breadcrumbs + Actions -->
     <template #header>
-      <div class="flex items-center gap-2 min-h-8">
-        <!-- Breadcrumbs -->
-        <div class="flex items-center gap-1 flex-wrap flex-1 min-w-0">
-          <UButton
-            variant="ghost"
-            color="neutral"
-            icon="i-lucide-hard-drive"
-            @click="browser.navigateToRoot()"
+      <div class="-my-1 space-y-2">
+        <!-- Search + View toggle -->
+        <div class="flex items-center gap-2">
+          <UiInput
+            v-model="browser.searchQuery.value"
+            :placeholder="t('search')"
+            class="flex-1"
+            leading-icon="i-lucide-search"
+            clearable
+          />
+          <div
+            v-if="browser.selectedPeer.value"
+            class="flex items-center rounded-lg border border-default"
           >
-            {{ t('title') }}
-          </UButton>
-          <template v-if="browser.selectedPeer.value">
-            <UIcon
-              name="i-lucide-chevron-right"
-              class="w-3.5 h-3.5 text-muted shrink-0"
+            <UiButton
+              variant="ghost"
+              icon="i-lucide-list"
+              :color="browser.viewMode.value === 'list' ? 'primary' : 'neutral'"
+              :title="t('viewList')"
+              @click="browser.viewMode.value = 'list'"
             />
+            <UiButton
+              variant="ghost"
+              icon="i-lucide-layout-grid"
+              :color="browser.viewMode.value === 'grid' ? 'primary' : 'neutral'"
+              :title="t('viewGrid')"
+              @click="browser.viewMode.value = 'grid'"
+            />
+          </div>
+        </div>
+
+        <!-- Breadcrumbs + Actions -->
+        <div class="flex items-center gap-2">
+          <div class="flex items-center gap-1 flex-wrap flex-1 min-w-0">
             <UButton
               variant="ghost"
               color="neutral"
-              :disabled="browser.currentPath.value === '/'"
-              @click="browser.navigateToPath('/')"
+              icon="i-lucide-hard-drive"
+              @click="browser.navigateToRoot()"
             >
-              {{ browser.selectedPeerName.value }}
+              {{ t('title') }}
             </UButton>
-            <template
-              v-for="(segment, i) in browser.pathSegments.value"
-              :key="i"
-            >
+            <template v-if="browser.selectedPeer.value">
               <UIcon
                 name="i-lucide-chevron-right"
                 class="w-3.5 h-3.5 text-muted shrink-0"
@@ -37,320 +52,555 @@
               <UButton
                 variant="ghost"
                 color="neutral"
-                :disabled="i === browser.pathSegments.value.length - 1"
-                @click="browser.navigateToSegment(i)"
+                :disabled="browser.currentPath.value === '/'"
+                @click="browser.navigateToPath('/')"
               >
-                {{ segment }}
+                {{ browser.selectedPeerName.value }}
               </UButton>
+              <template
+                v-for="(segment, i) in browser.pathSegments.value"
+                :key="i"
+              >
+                <UIcon
+                  name="i-lucide-chevron-right"
+                  class="w-3.5 h-3.5 text-muted shrink-0"
+                />
+                <UButton
+                  variant="ghost"
+                  color="neutral"
+                  :disabled="i === browser.pathSegments.value.length - 1"
+                  @click="browser.navigateToSegment(i)"
+                >
+                  {{ segment }}
+                </UButton>
+              </template>
             </template>
+          </div>
+
+          <!-- Selection actions -->
+          <template v-if="browser.selectionCount.value > 0">
+            <span class="text-xs font-medium text-primary shrink-0">
+              {{ browser.selectionCount.value }} {{ t('selected') }}
+            </span>
+            <UiButton
+              v-if="browser.selectedPeer.value?.localPath"
+              variant="ghost"
+              icon="i-lucide-copy"
+              :title="t('copy')"
+              @click="browser.copySelected()"
+            />
+            <UiButton
+              v-if="browser.selectedPeer.value?.localPath"
+              variant="ghost"
+              icon="i-lucide-scissors"
+              :title="t('cut')"
+              @click="browser.cutSelected()"
+            />
+            <UiButton
+              v-if="!browser.selectedPeer.value?.localPath"
+              variant="ghost"
+              icon="i-lucide-download"
+              :title="t('download')"
+              @click="browser.downloadSelectedAsync()"
+            />
+            <UiButton
+              v-if="browser.selectedPeer.value?.localPath"
+              variant="ghost"
+              color="error"
+              icon="i-lucide-trash-2"
+              :title="t('delete')"
+              @click="browser.deleteSelectedAsync()"
+            />
+            <UiButton
+              variant="ghost"
+              color="neutral"
+              icon="i-lucide-x"
+              @click="browser.clearSelection()"
+            />
+          </template>
+
+          <!-- Paste button (no selection, clipboard has content) -->
+          <UiButton
+            v-else-if="browser.canPaste.value"
+            variant="ghost"
+            icon="i-lucide-clipboard-paste"
+            @click="browser.pasteAsync()"
+          >
+            {{ t('paste') }} ({{ browser.clipboard.clipboardCount.value }})
+          </UiButton>
+
+          <!-- P2P endpoint toggle + settings -->
+          <template v-if="!browser.selectedPeer.value">
+            <UiButton
+              variant="ghost"
+              icon="i-lucide-settings"
+              :title="t('p2pSettings')"
+              @click="openP2PSettings"
+            />
+            <UiButton
+              :icon="
+                peerStore.running ? 'i-lucide-power-off' : 'i-lucide-power'
+              "
+              :color="peerStore.running ? 'error' : 'primary'"
+              :loading="isTogglingEndpoint"
+              :title="
+                peerStore.running ? t('stopEndpoint') : t('startEndpoint')
+              "
+              @click="toggleEndpointAsync"
+            />
           </template>
         </div>
-
-        <!-- Selection actions -->
-        <template v-if="browser.selectionCount.value > 0">
-          <span class="text-xs font-medium text-primary shrink-0">
-            {{ browser.selectionCount.value }} {{ t('selected') }}
-          </span>
-          <UiButton
-            v-if="browser.selectedPeer.value?.localPath"
-            variant="ghost"
-            icon="i-lucide-copy"
-            :title="t('copy')"
-            @click="browser.copySelected()"
-          />
-          <UiButton
-            v-if="browser.selectedPeer.value?.localPath"
-            variant="ghost"
-            icon="i-lucide-scissors"
-            :title="t('cut')"
-            @click="browser.cutSelected()"
-          />
-          <UiButton
-            v-if="!browser.selectedPeer.value?.localPath"
-            variant="ghost"
-            icon="i-lucide-download"
-            :title="t('download')"
-            @click="browser.downloadSelectedAsync()"
-          />
-          <UiButton
-            v-if="browser.selectedPeer.value?.localPath"
-            variant="ghost"
-            color="error"
-            icon="i-lucide-trash-2"
-            :title="t('delete')"
-            @click="browser.deleteSelectedAsync()"
-          />
-          <UiButton
-            variant="ghost"
-            color="neutral"
-            icon="i-lucide-x"
-            @click="browser.clearSelection()"
-          />
-        </template>
-
-        <!-- Paste button (no selection, clipboard has content) -->
-        <UiButton
-          v-else-if="browser.canPaste.value"
-          variant="ghost"
-          icon="i-lucide-clipboard-paste"
-          @click="browser.pasteAsync()"
-        >
-          {{ t('paste') }} ({{ browser.clipboard.clipboardCount.value }})
-        </UiButton>
-
-        <!-- P2P endpoint toggle + settings -->
-        <template v-if="!browser.selectedPeer.value">
-          <UiButton
-            variant="ghost"
-            icon="i-lucide-settings"
-            :title="t('p2pSettings')"
-            @click="openP2PSettings"
-          />
-          <UiButton
-            :icon="peerStore.running ? 'i-lucide-power-off' : 'i-lucide-power'"
-            :color="peerStore.running ? 'error' : 'primary'"
-            :loading="isTogglingEndpoint"
-            :title="peerStore.running ? t('stopEndpoint') : t('startEndpoint')"
-            @click="toggleEndpointAsync"
-          />
-        </template>
       </div>
     </template>
 
-    <Transition :name="browser.direction.value === 'back' ? 'slide-back' : 'slide-forward'" mode="out-in">
-      <div :key="browser.selectedPeer.value ? `peer-${browser.currentPath.value}` : 'overview'" class="p-6 space-y-4">
-      <!-- File Browser (peer selected via deep-link or click) -->
+    <Transition
+      :name="
+        browser.direction.value === 'back' ? 'slide-back' : 'slide-forward'
+      "
+      mode="out-in"
+    >
       <div
-        v-if="browser.selectedPeer.value"
-        class="flex flex-col gap-4 h-full"
+        :key="
+          browser.selectedPeer.value
+            ? `peer-${browser.currentPath.value}`
+            : 'overview'
+        "
+        class="p-6 space-y-4"
       >
-        <!-- Loading -->
+        <!-- File Browser (peer selected via deep-link or click) -->
         <div
-          v-if="browser.isLoading.value"
-          class="flex items-center justify-center py-16"
+          v-if="browser.selectedPeer.value"
+          class="flex flex-col gap-4 h-full"
         >
-          <UIcon
-            name="i-lucide-loader-2"
-            class="w-8 h-8 animate-spin text-muted"
-          />
-        </div>
-
-        <!-- Error -->
-        <div
-          v-else-if="browser.loadError.value"
-          class="flex flex-col items-center justify-center py-16 gap-3"
-        >
-          <UIcon
-            name="i-lucide-alert-circle"
-            class="w-8 h-8 text-error"
-          />
-          <p class="text-sm text-error">{{ browser.loadError.value }}</p>
-          <UiButton
-            variant="ghost"
-            icon="i-lucide-refresh-cw"
-            @click="browser.loadFiles()"
-          >
-            {{ t('retry') }}
-          </UiButton>
-        </div>
-
-        <!-- Empty folder -->
-        <div
-          v-else-if="browser.sortedFiles.value.length === 0"
-          class="text-center py-16"
-        >
-          <UIcon
-            name="i-lucide-folder-open"
-            class="w-12 h-12 mx-auto mb-2 opacity-30"
-          />
-          <p class="text-muted">{{ t('emptyFolder') }}</p>
-        </div>
-
-        <!-- File listing -->
-        <div
-          v-else
-          class="space-y-1"
-        >
-          <!-- Select all / Back row -->
-          <div class="flex items-center gap-3 p-3">
-            <UCheckbox
-              :model-value="browser.allSelected.value"
-              @update:model-value="
-                browser.allSelected.value
-                  ? browser.clearSelection()
-                  : browser.selectAll()
-              "
-            />
-            <div
-              v-if="browser.currentPath.value !== '/'"
-              class="flex items-center gap-2 cursor-pointer hover:text-primary transition-colors"
-              @click="browser.navigateUp()"
-            >
-              <UIcon
-                name="i-lucide-arrow-up"
-                class="w-4 h-4 text-muted"
-              />
-              <span class="text-sm text-muted">..</span>
-            </div>
-            <span
-              v-else
-              class="text-xs text-muted"
-            >
-              {{ t('selectAll') }}
-            </span>
-          </div>
-
-          <!-- Files and folders -->
+          <!-- Loading -->
           <div
-            v-for="file in browser.sortedFiles.value"
-            :key="file.name"
-            :class="[
-              'flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors relative overflow-hidden',
-              browser.isSelected(file) ? 'bg-primary/10' : 'hover:bg-muted/50',
-              browser.isCutFile(file) && 'opacity-40',
-            ]"
-            @click="browser.onFileClick(file)"
-          >
-            <!-- Download progress background -->
-            <div
-              v-if="getFileTransferProgress(file) !== undefined"
-              class="absolute inset-0 bg-primary/15 transition-all duration-300 ease-out"
-              :style="{ width: `${(getFileTransferProgress(file) ?? 0) * 100}%` }"
-            />
-            <UCheckbox
-              :model-value="browser.isSelected(file)"
-              class="relative z-10"
-              @click.stop
-              @update:model-value="browser.toggleSelect(file)"
-            />
-            <UIcon
-              :name="
-                file.isDir ? 'i-lucide-folder' : browser.getFileIcon(file.name)
-              "
-              :class="[
-                'w-5 h-5 shrink-0 relative z-10',
-                file.isDir ? 'text-primary' : 'text-muted',
-              ]"
-            />
-            <div class="flex-1 min-w-0 relative z-10">
-              <p class="text-sm truncate">{{ file.name }}</p>
-              <div class="flex gap-3 text-xs text-muted mt-0.5">
-                <span v-if="file.modified">{{ browser.formatDate(file.modified) }}</span>
-                <span v-if="!file.isDir && file.size">{{ browser.formatSize(file.size) }}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Loading more indicator -->
-          <div
-            v-if="browser.isLoadingMore.value"
-            class="flex items-center justify-center gap-2 py-3 text-muted"
+            v-if="browser.isLoading.value"
+            class="flex items-center justify-center py-16"
           >
             <UIcon
               name="i-lucide-loader-2"
-              class="w-4 h-4 animate-spin"
+              class="w-8 h-8 animate-spin text-muted"
             />
-            <span class="text-xs"
-              >{{ browser.totalFiles.value - browser.sortedFiles.value.length }}
-              {{ t('moreFiles') }}</span
-            >
           </div>
-        </div>
-      </div>
 
-      <!-- Storage overview (no peer selected) -->
-      <div
-        v-else
-        class="flex flex-col gap-6 h-full"
-      >
-        <!-- Local shares (this device) -->
-        <div v-if="localShares.length > 0">
-          <p
-            class="text-xs font-medium text-muted uppercase tracking-wider mb-2"
+          <!-- Error -->
+          <div
+            v-else-if="browser.loadError.value"
+            class="flex flex-col items-center justify-center py-16 gap-3"
           >
-            {{ t('sections.local') }}
-          </p>
-          <div class="space-y-1">
-            <div
-              v-for="share in localShares"
-              :key="share.id"
-              class="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
-              @click="
-                browser.selectPeer({
-                  endpointId: peerStore.nodeId,
-                  name: share.name,
-                  source: 'space',
-                  detail: t('sections.thisDevice'),
-                  localPath: share.localPath,
-                })
-              "
+            <UIcon
+              name="i-lucide-alert-circle"
+              class="w-8 h-8 text-error"
+            />
+            <p class="text-sm text-error">{{ browser.loadError.value }}</p>
+            <UiButton
+              variant="ghost"
+              icon="i-lucide-refresh-cw"
+              @click="browser.loadFiles()"
             >
-              <UIcon
-                name="i-lucide-folder"
-                class="w-5 h-5 text-primary shrink-0"
-              />
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium truncate">{{ share.name }}</p>
-                <p class="text-xs text-muted truncate">
-                  {{ t('sections.thisDevice') }}
-                </p>
-              </div>
-              <UIcon
-                name="i-lucide-chevron-right"
-                class="w-4 h-4 text-muted shrink-0"
-              />
-            </div>
+              {{ t('retry') }}
+            </UiButton>
           </div>
-        </div>
 
-        <!-- Remote peers -->
-        <div v-if="remotePeers.length > 0">
-          <p
-            class="text-xs font-medium text-muted uppercase tracking-wider mb-2"
+          <!-- Empty folder / no results / still searching -->
+          <div
+            v-else-if="browser.filteredFiles.value.length === 0"
+            class="text-center py-16"
           >
-            {{ t('sections.peers') }}
-          </p>
-          <div class="space-y-1">
-            <div
-              v-for="peer in remotePeers"
-              :key="peer.endpointId"
-              class="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
-              @click="browser.selectPeer(peer)"
-            >
+            <template v-if="browser.isSearching.value">
+              <UIcon
+                name="i-lucide-loader-2"
+                class="w-8 h-8 mx-auto mb-2 animate-spin text-muted"
+              />
+              <p class="text-muted">{{ t('searching') }}</p>
+            </template>
+            <template v-else>
               <UIcon
                 :name="
-                  peer.source === 'contact'
-                    ? 'i-lucide-user'
-                    : 'i-lucide-monitor'
+                  browser.searchQuery.value
+                    ? 'i-lucide-search-x'
+                    : 'i-lucide-folder-open'
                 "
-                class="w-5 h-5 text-primary shrink-0"
+                class="w-12 h-12 mx-auto mb-2 opacity-30"
               />
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium truncate">{{ peer.name }}</p>
-                <p class="text-xs text-muted truncate">{{ peer.detail }}</p>
+              <p class="text-muted">
+                {{
+                  browser.searchQuery.value ? t('noResults') : t('emptyFolder')
+                }}
+              </p>
+            </template>
+          </div>
+
+          <!-- File listing -->
+          <div v-else>
+            <!-- Select all / Back row -->
+            <div class="flex items-center gap-3 p-3">
+              <UCheckbox
+                :model-value="browser.allSelected.value"
+                @update:model-value="
+                  browser.allSelected.value
+                    ? browser.clearSelection()
+                    : browser.selectAll()
+                "
+              />
+              <div
+                v-if="browser.currentPath.value !== '/'"
+                class="flex items-center gap-2 cursor-pointer hover:text-primary transition-colors"
+                @click="browser.navigateUp()"
+              >
+                <UIcon
+                  name="i-lucide-arrow-up"
+                  class="w-4 h-4 text-muted"
+                />
+                <span class="text-sm text-muted">..</span>
               </div>
+              <span
+                v-else
+                class="text-xs text-muted"
+              >
+                {{ t('selectAll') }}
+              </span>
+            </div>
+
+            <!-- ===== List view ===== -->
+            <div
+              v-if="browser.viewMode.value === 'list'"
+              class="space-y-1"
+            >
+              <div
+                v-for="file in browser.filteredFiles.value"
+                :key="file.name"
+                :class="[
+                  'flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors relative overflow-hidden',
+                  browser.isSelected(file)
+                    ? 'bg-primary/10'
+                    : 'hover:bg-muted/50',
+                  browser.isCutFile(file) && 'opacity-40',
+                ]"
+                @click="browser.onFileClick(file)"
+              >
+                <!-- Download progress background -->
+                <div
+                  v-if="getFileTransferProgress(file) !== undefined"
+                  class="absolute inset-0 bg-primary/15 transition-all duration-300 ease-out"
+                  :style="{
+                    width: `${(getFileTransferProgress(file) ?? 0) * 100}%`,
+                  }"
+                />
+                <UCheckbox
+                  :model-value="browser.isSelected(file)"
+                  class="relative z-10"
+                  @click.stop
+                  @update:model-value="browser.toggleSelect(file)"
+                />
+                <!-- Thumbnail or icon -->
+                <img
+                  v-if="browser.getThumbnailUrl(file)"
+                  :src="browser.getThumbnailUrl(file)!"
+                  :alt="file.name"
+                  class="w-8 h-8 rounded object-cover shrink-0 relative z-10"
+                  loading="lazy"
+                />
+                <UIcon
+                  v-else
+                  :name="
+                    file.isDir
+                      ? 'i-lucide-folder'
+                      : browser.getFileIcon(file.name)
+                  "
+                  :class="[
+                    'w-5 h-5 shrink-0 relative z-10',
+                    file.isDir ? 'text-primary' : 'text-muted',
+                  ]"
+                />
+                <div class="flex-1 min-w-0 relative z-10">
+                  <p class="text-sm truncate">{{ file.name }}</p>
+                  <div class="flex gap-3 text-xs text-muted mt-0.5">
+                    <span
+                      v-if="file.displayPath"
+                      class="text-primary/70"
+                      >{{ file.displayPath }}/</span
+                    >
+                    <span v-if="file.modified">{{
+                      browser.formatDate(file.modified)
+                    }}</span>
+                    <span v-if="!file.isDir && file.size">{{
+                      browser.formatSize(file.size)
+                    }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ===== Grid view ===== -->
+            <div
+              v-else
+              class="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2"
+            >
+              <div
+                v-for="file in browser.filteredFiles.value"
+                :key="file.name"
+                :class="[
+                  'group relative flex flex-col items-center gap-2 p-3 rounded-lg cursor-pointer transition-colors overflow-hidden',
+                  browser.isSelected(file)
+                    ? 'bg-primary/10'
+                    : 'hover:bg-muted/50',
+                  browser.isCutFile(file) && 'opacity-40',
+                ]"
+                @click="browser.onFileClick(file)"
+              >
+                <!-- Selection checkbox (top-left, visible on hover or when selected) -->
+                <UCheckbox
+                  :model-value="browser.isSelected(file)"
+                  :class="[
+                    'absolute top-2 left-2 z-10 transition-opacity',
+                    browser.isSelected(file)
+                      ? 'opacity-100'
+                      : 'opacity-0 group-hover:opacity-100',
+                  ]"
+                  @click.stop
+                  @update:model-value="browser.toggleSelect(file)"
+                />
+                <!-- Download progress background -->
+                <div
+                  v-if="getFileTransferProgress(file) !== undefined"
+                  class="absolute inset-0 bg-primary/15 transition-all duration-300 ease-out"
+                  :style="{
+                    width: `${(getFileTransferProgress(file) ?? 0) * 100}%`,
+                  }"
+                />
+                <!-- Thumbnail or icon -->
+                <div
+                  class="w-full aspect-square rounded-md overflow-hidden flex items-center justify-center bg-muted/30"
+                >
+                  <img
+                    v-if="browser.getThumbnailUrl(file)"
+                    :src="browser.getThumbnailUrl(file)!"
+                    :alt="file.name"
+                    class="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                  <UIcon
+                    v-else
+                    :name="
+                      file.isDir
+                        ? 'i-lucide-folder'
+                        : browser.getFileIcon(file.name)
+                    "
+                    :class="[
+                      'w-10 h-10',
+                      file.isDir ? 'text-primary' : 'text-muted',
+                    ]"
+                  />
+                </div>
+                <!-- Filename + meta -->
+                <div class="w-full min-w-0 text-center">
+                  <p class="text-xs truncate">{{ file.name }}</p>
+                  <p
+                    v-if="file.displayPath"
+                    class="text-[10px] text-primary/70 truncate mt-0.5"
+                  >
+                    {{ file.displayPath }}/
+                  </p>
+                  <p
+                    v-else-if="!file.isDir && file.size"
+                    class="text-[10px] text-muted mt-0.5"
+                  >
+                    {{ browser.formatSize(file.size) }}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Searching indicator -->
+            <div
+              v-if="browser.isSearching.value"
+              class="flex items-center justify-center gap-2 py-3 text-muted"
+            >
               <UIcon
-                name="i-lucide-chevron-right"
-                class="w-4 h-4 text-muted shrink-0"
+                name="i-lucide-loader-2"
+                class="w-4 h-4 animate-spin"
               />
+              <span class="text-xs">{{ t('searching') }}</span>
+            </div>
+
+            <!-- Loading more indicator -->
+            <div
+              v-if="browser.isLoadingMore.value"
+              class="flex items-center justify-center gap-2 py-3 text-muted"
+            >
+              <UIcon
+                name="i-lucide-loader-2"
+                class="w-4 h-4 animate-spin"
+              />
+              <span class="text-xs"
+                >{{
+                  browser.totalFiles.value - browser.filteredFiles.value.length
+                }}
+                {{ t('moreFiles') }}</span
+              >
             </div>
           </div>
         </div>
 
-        <!-- Empty state -->
+        <!-- Storage overview (no peer selected) -->
         <div
-          v-if="localShares.length === 0 && remotePeers.length === 0"
-          class="flex flex-col items-center justify-center py-12 gap-3"
+          v-else
+          class="flex flex-col gap-6 h-full"
         >
-          <UIcon
-            name="i-lucide-hard-drive"
-            class="w-12 h-12 opacity-30"
-          />
-          <p class="text-muted">{{ t('noStorage') }}</p>
-          <p class="text-xs text-muted text-center">{{ t('noStorageHint') }}</p>
-        </div>
-      </div>
+          <!-- Global search results -->
+          <template v-if="browser.searchQuery.value">
+            <!-- Searching, no results yet -->
+            <div
+              v-if="browser.isGlobalSearching.value && browser.filteredGlobalFiles.value.length === 0"
+              class="flex items-center justify-center py-16 gap-2"
+            >
+              <UIcon
+                name="i-lucide-loader-2"
+                class="w-8 h-8 animate-spin text-muted"
+              />
+            </div>
 
+            <!-- No results -->
+            <div
+              v-else-if="!browser.isGlobalSearching.value && browser.filteredGlobalFiles.value.length === 0"
+              class="text-center py-16"
+            >
+              <UIcon
+                name="i-lucide-search-x"
+                class="w-12 h-12 mx-auto mb-2 opacity-30"
+              />
+              <p class="text-muted">{{ t('noResults') }}</p>
+            </div>
+
+            <!-- Results -->
+            <div v-else class="space-y-1">
+              <div
+                v-for="file in browser.filteredGlobalFiles.value"
+                :key="`${file.shareId}-${file.searchPath}`"
+                class="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                @click="browser.onGlobalSearchResultClick(file)"
+              >
+                <UIcon
+                  :name="file.isDir ? 'i-lucide-folder' : browser.getFileIcon(file.name)"
+                  :class="['w-5 h-5 shrink-0', file.isDir ? 'text-primary' : 'text-muted']"
+                />
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm truncate">{{ file.name }}</p>
+                  <div class="flex gap-3 text-xs text-muted mt-0.5">
+                    <span class="text-primary/70">{{ file.displayPath }}/</span>
+                    <span v-if="file.modified">{{ browser.formatDate(file.modified) }}</span>
+                    <span v-if="!file.isDir && file.size">{{ browser.formatSize(file.size) }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Still searching -->
+              <div
+                v-if="browser.isGlobalSearching.value"
+                class="flex items-center justify-center gap-2 py-3 text-muted"
+              >
+                <UIcon
+                  name="i-lucide-loader-2"
+                  class="w-4 h-4 animate-spin"
+                />
+                <span class="text-xs">{{ t('searching') }}</span>
+              </div>
+            </div>
+          </template>
+
+          <!-- Normal overview (no search active) -->
+          <template v-else>
+            <!-- Local shares (this device) -->
+            <div v-if="localShares.length > 0">
+              <p
+                class="text-xs font-medium text-muted uppercase tracking-wider mb-2"
+              >
+                {{ t('sections.local') }}
+              </p>
+              <div class="space-y-1">
+                <div
+                  v-for="share in localShares"
+                  :key="share.id"
+                  class="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+                  @click="
+                    browser.selectPeer({
+                      endpointId: peerStore.nodeId,
+                      name: share.name,
+                      source: 'space',
+                      detail: t('sections.thisDevice'),
+                      localPath: share.localPath,
+                    })
+                  "
+                >
+                  <UIcon
+                    name="i-lucide-folder"
+                    class="w-5 h-5 text-primary shrink-0"
+                  />
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium truncate">{{ share.name }}</p>
+                    <p class="text-xs text-muted truncate">
+                      {{ t('sections.thisDevice') }}
+                    </p>
+                  </div>
+                  <UIcon
+                    name="i-lucide-chevron-right"
+                    class="w-4 h-4 text-muted shrink-0"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Remote peers -->
+            <div v-if="remotePeers.length > 0">
+              <p
+                class="text-xs font-medium text-muted uppercase tracking-wider mb-2"
+              >
+                {{ t('sections.peers') }}
+              </p>
+              <div class="space-y-1">
+                <div
+                  v-for="peer in remotePeers"
+                  :key="peer.endpointId"
+                  class="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+                  @click="browser.selectPeer(peer)"
+                >
+                  <UIcon
+                    :name="
+                      peer.source === 'contact'
+                        ? 'i-lucide-user'
+                        : 'i-lucide-monitor'
+                    "
+                    class="w-5 h-5 text-primary shrink-0"
+                  />
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium truncate">{{ peer.name }}</p>
+                    <p class="text-xs text-muted truncate">{{ peer.detail }}</p>
+                  </div>
+                  <UIcon
+                    name="i-lucide-chevron-right"
+                    class="w-4 h-4 text-muted shrink-0"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Empty state -->
+            <div
+              v-if="localShares.length === 0 && remotePeers.length === 0"
+              class="flex flex-col items-center justify-center py-12 gap-3"
+            >
+              <UIcon
+                name="i-lucide-hard-drive"
+                class="w-12 h-12 opacity-30"
+              />
+              <p class="text-muted">{{ t('noStorage') }}</p>
+              <p class="text-xs text-muted text-center">
+                {{ t('noStorageHint') }}
+              </p>
+            </div>
+          </template>
+        </div>
       </div>
     </Transition>
   </HaexSystem>
@@ -375,7 +625,9 @@ const browser = useFileBrowser(props.tabId)
 /** Get transfer progress for a file (0-1, or undefined if not downloading) */
 const getFileTransferProgress = (file: { name: string; path?: string }) => {
   if (!browser.selectedPeer.value) return undefined
-  const fullPath = (file.path || `${browser.currentPath.value}/${file.name}`).replace(/\/+/g, '/')
+  const fullPath = (
+    file.path || `${browser.currentPath.value}/${file.name}`
+  ).replace(/\/+/g, '/')
   return peerStore.getTransferProgress(fullPath)
 }
 
@@ -518,10 +770,15 @@ de:
   startEndpoint: Endpoint starten
   stopEndpoint: Endpoint stoppen
   emptyFolder: Ordner ist leer
+  noResults: Keine Treffer
+  searching: Verzeichnisse werden durchsucht…
   retry: Erneut versuchen
   downloaded: '"{name}" heruntergeladen'
   downloadFailed: Download fehlgeschlagen
 
+  search: Suchen…
+  viewList: Listenansicht
+  viewGrid: Kachelansicht
   download: Herunterladen
   moreFiles: weitere Dateien werden geladen…
   selected: ausgewählt
@@ -546,10 +803,15 @@ en:
   startEndpoint: Start endpoint
   stopEndpoint: Stop endpoint
   emptyFolder: Folder is empty
+  noResults: No matches
+  searching: Searching directories…
   retry: Retry
   downloaded: '"{name}" downloaded'
   downloadFailed: Download failed
 
+  search: Search…
+  viewList: List view
+  viewGrid: Grid view
   download: Download
   moreFiles: more files loading…
   selected: selected

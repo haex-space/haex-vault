@@ -21,7 +21,7 @@
         {{ t('status.pending') }}
       </UBadge>
       <UBadge
-        v-if="!pending && space.serverUrl"
+        v-if="!pending && space.originUrl"
         color="info"
         variant="subtle"
         size="sm"
@@ -30,7 +30,7 @@
         {{ backendName }}
       </UBadge>
       <UBadge
-        v-if="!pending && !space.serverUrl"
+        v-if="!pending && !space.originUrl"
         color="neutral"
         variant="subtle"
         size="sm"
@@ -45,6 +45,17 @@
         size="sm"
       >
         {{ permissionLabel }}
+      </UBadge>
+      <UBadge
+        v-if="!pending && ownerLabel"
+        color="neutral"
+        variant="subtle"
+        size="sm"
+        icon="i-lucide-user"
+        class="cursor-pointer"
+        @click.stop="showOwnerModal = true"
+      >
+        {{ ownerLabel }}
       </UBadge>
     </div>
 
@@ -207,7 +218,7 @@
             <div>
               <p class="text-xs text-muted uppercase tracking-wide mb-1">{{ t('detail.space') }}</p>
               <p class="font-medium">{{ space.name }}</p>
-              <p v-if="space.serverUrl" class="text-xs text-muted break-all">{{ space.serverUrl }}</p>
+              <p v-if="space.originUrl" class="text-xs text-muted break-all">{{ space.originUrl }}</p>
               <p v-else class="text-xs text-muted">{{ t('type.local') }}</p>
             </div>
 
@@ -289,12 +300,20 @@
         </UCard>
       </template>
     </UModal>
+
+    <!-- Space Owner Modal -->
+    <SpaceOwnerModal
+      v-if="!pending"
+      v-model:open="showOwnerModal"
+      :space="space"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import type { SpaceWithType } from '@/stores/spaces'
 import type { SelectHaexPendingInvites } from '~/database/schemas'
+import SpaceOwnerModal from './SpaceOwnerModal.vue'
 
 const props = withDefaults(defineProps<{
   space: SpaceWithType
@@ -320,10 +339,11 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const showInviteDetail = ref(false)
+const showOwnerModal = ref(false)
 
 const spacesStore = useSpacesStore()
 const identityStore = useIdentityStore()
-const { contacts } = storeToRefs(identityStore)
+const { identities, contacts } = storeToRefs(identityStore)
 const capabilities = ref<string[]>([])
 
 /**
@@ -353,6 +373,13 @@ const resolvedInviterLabel = computed(() => {
   const contact = contacts.value.find(c => c.did === props.invite?.inviterDid)
   if (contact?.name) return contact.name
   return truncateDid(props.invite.inviterDid)
+})
+
+const ownerLabel = computed(() => {
+  const ownerId = props.space.ownerIdentityId
+  if (!ownerId) return ''
+  const identity = identities.value.find(i => i.id === ownerId)
+  return identity?.name || truncateDid(ownerId)
 })
 
 const isAdmin = computed(() => capabilities.value.includes('space/admin'))
@@ -415,7 +442,7 @@ onMounted(async () => {
 
 const { getBackendNameByUrl } = useSyncBackendsStore()
 
-const backendName = computed(() => getBackendNameByUrl(props.space.serverUrl))
+const backendName = computed(() => getBackendNameByUrl(props.space.originUrl))
 
 const formatDate = (dateStr: string | null) => {
   if (!dateStr) return ''

@@ -113,19 +113,61 @@ fn validate_params(sql: &str, params: &[JsonValue]) -> Result<(), DatabaseError>
     Ok(())
 }
 
-/// Counts the number of SQL placeholders (?) in a statement
+/// Counts the number of SQL placeholders (?) in a statement.
+/// Skips placeholders inside single-quoted strings (with SQL-style `''` escaping),
+/// `--` line comments, and `/* */` block comments.
 fn count_sql_placeholders(sql: &str) -> usize {
+    let bytes = sql.as_bytes();
+    let len = bytes.len();
     let mut count = 0;
-    let mut in_string = false;
-    let mut prev_char = None;
+    let mut i = 0;
 
-    for c in sql.chars() {
-        match c {
-            '\'' if prev_char != Some('\\') => in_string = !in_string,
-            '?' if !in_string => count += 1,
-            _ => {}
+    while i < len {
+        match bytes[i] {
+            // Single-quoted string: skip until closing quote, handling '' escapes
+            b'\'' => {
+                i += 1;
+                while i < len {
+                    if bytes[i] == b'\'' {
+                        // Check for escaped quote ('')
+                        if i + 1 < len && bytes[i + 1] == b'\'' {
+                            i += 2; // skip both quotes
+                        } else {
+                            i += 1; // closing quote
+                            break;
+                        }
+                    } else {
+                        i += 1;
+                    }
+                }
+            }
+            // Line comment: skip until newline
+            b'-' if i + 1 < len && bytes[i + 1] == b'-' => {
+                i += 2;
+                while i < len && bytes[i] != b'\n' {
+                    i += 1;
+                }
+            }
+            // Block comment: skip until */
+            b'/' if i + 1 < len && bytes[i + 1] == b'*' => {
+                i += 2;
+                while i + 1 < len {
+                    if bytes[i] == b'*' && bytes[i + 1] == b'/' {
+                        i += 2;
+                        break;
+                    }
+                    i += 1;
+                }
+            }
+            // Placeholder
+            b'?' => {
+                count += 1;
+                i += 1;
+            }
+            _ => {
+                i += 1;
+            }
         }
-        prev_char = Some(c);
     }
 
     count
@@ -583,5 +625,50 @@ pub fn split_migration_statements(sql: &str) -> Vec<&str> {
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
         .collect()
+}
+
+#[cfg(test)]
+mod placeholder_tests {
+    use super::count_sql_placeholders;
+
+    #[test]
+    fn test_basic_placeholders() {
+        assert_eq!(
+            count_sql_placeholders("SELECT * FROM t WHERE a = ? AND b = ?"),
+            2
+        );
+    }
+
+    #[test]
+    fn test_placeholder_in_sql_escaped_string() {
+        assert_eq!(
+            count_sql_placeholders("SELECT * FROM t WHERE name = 'it''s a ?'"),
+            0
+        );
+    }
+
+    #[test]
+    fn test_placeholder_in_line_comment() {
+        assert_eq!(
+            count_sql_placeholders("SELECT * FROM t -- WHERE a = ?\nWHERE b = ?"),
+            1
+        );
+    }
+
+    #[test]
+    fn test_placeholder_in_block_comment() {
+        assert_eq!(
+            count_sql_placeholders("SELECT * FROM t /* WHERE a = ? */ WHERE b = ?"),
+            1
+        );
+    }
+
+    #[test]
+    fn test_mixed() {
+        assert_eq!(
+            count_sql_placeholders("INSERT INTO t (a, b) VALUES (?, 'it''s ?') -- comment ?"),
+            1
+        );
+    }
 }
 

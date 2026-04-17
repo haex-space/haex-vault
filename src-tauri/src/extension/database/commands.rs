@@ -99,7 +99,7 @@ pub async fn extension_database_execute(
 pub async fn extension_database_transaction(
     window: WebviewWindow,
     state: State<'_, AppState>,
-    statements: Vec<String>,
+    statements: Vec<(String, Vec<JsonValue>)>,
     public_key: Option<String>,
     name: Option<String>,
 ) -> Result<DatabaseQueryResult, ExtensionError> {
@@ -131,7 +131,7 @@ pub async fn extension_database_transaction(
     );
 
     // Validate all statements upfront before starting the transaction
-    for sql in &statements {
+    for (sql, _params) in &statements {
         state
             .limits
             .database()
@@ -158,17 +158,17 @@ pub async fn extension_database_transaction(
         })?;
 
         let mut total = 0usize;
-        for sql in &statements {
+        for (sql, params) in &statements {
             let has_returning = {
                 let stmt = crate::database::core::parse_single_statement(sql)?;
                 crate::database::core::statement_has_returning(&stmt)
             };
 
             if has_returning {
-                let (_, rows) = SqlExecutor::query_internal(&tx, &hlc_service, sql, &[])?;
+                let (_, rows) = SqlExecutor::query_internal(&tx, &hlc_service, sql, params)?;
                 total += rows.len();
             } else {
-                SqlExecutor::execute_internal(&tx, &hlc_service, sql, &[])?;
+                SqlExecutor::execute_internal(&tx, &hlc_service, sql, params)?;
                 total += 1;
             }
         }

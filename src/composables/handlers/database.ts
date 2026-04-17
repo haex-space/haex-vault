@@ -60,11 +60,15 @@ export async function handleDatabaseMethodAsync(
     }
 
     case TAURI_COMMANDS.database.transaction: {
-      const statements =
-        (request.params as { statements?: string[] }).statements || []
+      const transactionParams = request.params as {
+        statements?: Array<{ sql: string; params?: unknown[] }>
+      }
+      const statementPairs = (transactionParams.statements || []).map(
+        s => [s.sql, s.params || []] as [string, unknown[]]
+      )
 
-      return invoke('extension_database_transaction', {
-        statements,
+      return invokeWithPermissionPrompt('extension_database_transaction', {
+        statements: statementPairs,
         publicKey: extension.publicKey,
         name: extension.name,
       })
