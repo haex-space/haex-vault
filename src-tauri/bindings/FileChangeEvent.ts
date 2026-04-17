@@ -16,4 +16,15 @@ changeType: FileChangeType,
 /**
  * Relative path of the changed file (if available)
  */
-path: string | null, };
+path: string | null, 
+/**
+ * Extensions that are currently allowed to read this path. Used by the
+ * frontend broadcast layer to scope the fan-out to only authorized
+ * extensions. Computed at emit time against both DB and session
+ * permissions (no prompts).
+ *
+ * The list is for main-window-only consumption — it must never be
+ * forwarded into extension iframes (they'd learn which *other*
+ * extensions have access to the path).
+ */
+readerExtensionIds: Array<string>, };
