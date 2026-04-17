@@ -19,7 +19,6 @@ export interface InviteContactsPayload {
 
 export interface CreateLocalLinkPayload {
   spaceId: string
-  inviterDid: string
   capability: string
   maxUses: number
   expiresInSeconds: number
@@ -157,7 +156,6 @@ export function useSpaceInviteCreation() {
     const link = buildLocalInviteLink({
       spaceId: payload.spaceId,
       tokenId,
-      inviterDid: payload.inviterDid,
       spaceEndpoints: payload.spaceEndpoints,
     })
 

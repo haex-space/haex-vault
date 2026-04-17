@@ -482,10 +482,6 @@ const onJoinSpaceAsync = async (payload: { inviteLink: string }) => {
     if (localLink) {
       const identity = await ensureCurrentIdentityAsync()
 
-      // Rust's claim path resolves owner_identity_id by the inviter's DID, so
-      // an identity row for that DID must exist locally before invoking.
-      await identityStore.ensureIdentityForDidAsync(localLink.inviterDid, { source: 'space' })
-
       let lastError: Error | null = null
       for (const endpointId of localLink.spaceEndpoints) {
         try {
@@ -493,10 +489,8 @@ const onJoinSpaceAsync = async (payload: { inviteLink: string }) => {
             leaderEndpointId: endpointId,
             leaderRelayUrl: null,
             spaceId: localLink.spaceId,
-            spaceName: localLink.spaceId.slice(0, 8),
             tokenId: localLink.tokenId,
             identityDid: identity.did,
-            inviterDid: localLink.inviterDid,
             label: identity.name || null,
             identityPublicKey: await didKeyToPublicKeyAsync(identity.did),
           })
