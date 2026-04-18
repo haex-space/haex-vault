@@ -8,6 +8,7 @@ pub mod manifest;
 pub mod migrations;
 pub mod path_utils;
 pub mod protocol;
+mod queries;
 pub mod removal;
 pub mod types;
 

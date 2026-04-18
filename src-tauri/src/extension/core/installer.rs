@@ -12,7 +12,10 @@ use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::utils::validate_public_key;
-use crate::table_names::{TABLE_EXTENSIONS, TABLE_EXTENSION_PERMISSIONS};
+use super::queries::{
+    SQL_INSERT_EXTENSION, SQL_INSERT_EXTENSION_PERMISSION, SQL_SELECT_EXTENSION_ID_BY_PUBKEY_NAME,
+    SQL_UPDATE_EXTENSION_METADATA, SQL_UPDATE_EXTENSION_ON_INSTALL,
+};
 use crate::AppState;
 use serde_json::Value as JsonValue;
 use std::fs;
@@ -189,14 +192,15 @@ impl ExtensionManager {
     ) -> Result<String, ExtensionError> {
         // 1. Check if extension already exists (e.g., from sync) using select_with_crdt
         // This automatically filters out tombstoned (soft-deleted) entries
-        let check_sql = format!(
-            "SELECT id FROM {TABLE_EXTENSIONS} WHERE public_key = ? AND name = ?"
-        );
         let check_params = vec![
             JsonValue::String(manifest.public_key.clone()),
             JsonValue::String(manifest.name.clone()),
         ];
-        let existing_results = select_with_crdt(check_sql, check_params, &state.db)?;
+        let existing_results = select_with_crdt(
+            SQL_SELECT_EXTENSION_ID_BY_PUBKEY_NAME.clone(),
+            check_params,
+            &state.db,
+        )?;
         let existing_id: Option<String> = existing_results
             .first()
             .and_then(|row| row.first())
@@ -224,16 +228,12 @@ impl ExtensionManager {
                     "Extension {}:{} already exists with id {}, updating instead of inserting",
                     manifest.public_key, manifest.name, existing_id
                 );
-                let update_ext_sql = format!(
-                    "UPDATE {TABLE_EXTENSIONS} SET version = ?, author = ?, entry = ?, icon = ?, signature = ?, homepage = ?, description = ?, enabled = ?, single_instance = ?, display_mode = ?, i18n = ? WHERE id = ?"
-                );
-
                 let i18n_json = manifest.i18n.as_ref().and_then(|m| serde_json::to_string(m).ok());
 
                 SqlExecutor::execute_internal_typed(
                     &tx,
                     &hlc_service,
-                    &update_ext_sql,
+                    &SQL_UPDATE_EXTENSION_ON_INSTALL,
                     rusqlite::params![
                         manifest.version,
                         manifest.author,
@@ -261,16 +261,12 @@ impl ExtensionManager {
                     "DEBUG: [register_extension_in_database] Inserting NEW extension: id={}, name={}, version={}",
                     new_extension_id, manifest.name, manifest.version
                 );
-                let insert_ext_sql = format!(
-                    "INSERT INTO {TABLE_EXTENSIONS} (id, name, version, author, entry, icon, public_key, signature, homepage, description, enabled, single_instance, display_mode, i18n) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                );
-
                 let i18n_json = manifest.i18n.as_ref().and_then(|m| serde_json::to_string(m).ok());
 
                 SqlExecutor::execute_internal_typed(
                     &tx,
                     &hlc_service,
-                    &insert_ext_sql,
+                    &SQL_INSERT_EXTENSION,
                     rusqlite::params![
                         new_extension_id,
                         manifest.name,
@@ -301,10 +297,6 @@ impl ExtensionManager {
 
             // 3. Permissions: Recreate with correct extension_id
             let permissions = custom_permissions.to_internal_permissions(&actual_id);
-            let insert_perm_sql = format!(
-                "INSERT INTO {TABLE_EXTENSION_PERMISSIONS} (id, extension_id, resource_type, action, target, constraints, status) VALUES (?, ?, ?, ?, ?, ?, ?)"
-            );
-
             for perm in &permissions {
                 use crate::database::generated::HaexExtensionPermissions;
                 let db_perm: HaexExtensionPermissions = perm.into();
@@ -312,7 +304,7 @@ impl ExtensionManager {
                 SqlExecutor::execute_internal_typed(
                     &tx,
                     &hlc_service,
-                    &insert_perm_sql,
+                    &SQL_INSERT_EXTENSION_PERMISSION,
                     rusqlite::params![
                         db_perm.id,
                         db_perm.extension_id,
@@ -487,14 +479,10 @@ impl ExtensionManager {
 
             let i18n_json = manifest.i18n.as_ref().and_then(|m| serde_json::to_string(m).ok());
 
-            let update_sql = format!(
-                "UPDATE {TABLE_EXTENSIONS} SET version = ?, author = ?, entry = ?, icon = ?, signature = ?, homepage = ?, description = ?, i18n = ? WHERE id = ?"
-            );
-
             SqlExecutor::execute_internal_typed(
                 &tx,
                 &hlc_service,
-                &update_sql,
+                &SQL_UPDATE_EXTENSION_METADATA,
                 rusqlite::params![
                     manifest.version,
                     manifest.author,
