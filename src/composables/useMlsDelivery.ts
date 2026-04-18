@@ -4,6 +4,7 @@ import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { DidAuthAction } from '@haex-space/ucan'
 import { createLogger } from '@/stores/logging'
 import { toBase64, fromBase64 } from '~/utils/encoding'
+import { throwIfNotOk, safeJson } from '~/utils/fetch'
 
 const log = createLogger('MLS_DELIVERY')
 
@@ -71,10 +72,7 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
       },
     )
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error(`Failed to upload key packages: ${error.error || response.statusText}`)
-    }
+    await throwIfNotOk(response, 'upload key packages')
 
     log.info(`Uploaded ${count} key packages for space ${spaceId}`)
   }
@@ -92,10 +90,7 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
       ucan,
     )
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error(`Failed to fetch key package: ${error.error || response.statusText}`)
-    }
+    await throwIfNotOk(response, 'fetch key package')
 
     const data = await response.json()
     return {
@@ -137,10 +132,7 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
       },
     )
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error(`Failed to send MLS message: ${error.error || response.statusText}`)
-    }
+    await throwIfNotOk(response, 'send MLS message')
 
     const data = await response.json()
     return data.messageId
@@ -158,10 +150,7 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
       ucan,
     )
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error(`Failed to fetch MLS messages: ${error.error || response.statusText}`)
-    }
+    await throwIfNotOk(response, 'fetch MLS messages')
 
     const data = await response.json()
     return data.messages
@@ -193,10 +182,7 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
       },
     )
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error(`Failed to send welcome: ${error.error || response.statusText}`)
-    }
+    await throwIfNotOk(response, 'send welcome')
 
     log.info(`Welcome sent to ${recipientDid} for space ${spaceId}`)
   }
@@ -213,10 +199,7 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
       ucan,
     )
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error(`Failed to fetch welcomes: ${error.error || response.statusText}`)
-    }
+    await throwIfNotOk(response, 'fetch welcomes')
 
     const data = await response.json()
     return (data.welcomes as MlsWelcome[]).map((w) => ({ id: w.id, payload: fromBase64(w.payload) }))
@@ -233,7 +216,7 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
     )
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
+      const error = await safeJson<{ error?: string }>(response)
       log.warn(`Failed to ACK welcome ${welcomeId}: ${error.error || response.statusText}`)
     }
   }
@@ -265,10 +248,7 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
       },
     )
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error(`Failed to accept invite: ${error.error || response.statusText}`)
-    }
+    await throwIfNotOk(response, 'accept invite')
 
     log.info(`Invite ${inviteId} accepted, ${keyPackageCount} key packages uploaded`)
   }
@@ -291,10 +271,7 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
       { method: 'POST' },
     )
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error(`Failed to request rejoin: ${error.error || response.statusText}`)
-    }
+    await throwIfNotOk(response, 'request rejoin')
 
     const data = await response.json()
     return fromBase64(data.groupInfo)
@@ -322,10 +299,7 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
       },
     )
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error(`Failed to submit external commit: ${error.error || response.statusText}`)
-    }
+    await throwIfNotOk(response, 'submit external commit')
 
     log.info(`External commit submitted for space ${spaceId}`)
   }

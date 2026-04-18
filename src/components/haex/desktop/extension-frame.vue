@@ -63,6 +63,7 @@ import {
   EXTENSION_PROTOCOL_PREFIX,
   EXTENSION_PROTOCOL_NAME,
 } from '~/config/constants'
+import { encodeExtensionInfo } from '~/utils/extension'
 
 const props = defineProps<{
   extensionId: string
@@ -120,12 +121,7 @@ const extensionUrl = computed(() => {
     return cleanPath ? `${cleanUrl}/${cleanPath}` : cleanUrl
   }
 
-  const extensionInfo = {
-    name,
-    publicKey,
-    version,
-  }
-  const encodedInfo = btoa(JSON.stringify(extensionInfo))
+  const encodedInfo = encodeExtensionInfo(name, publicKey, version)
 
   if (platform === 'android' || platform === 'windows') {
     // Android: Tauri uses http://{scheme}.localhost format
