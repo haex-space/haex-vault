@@ -7,25 +7,19 @@
     }"
   >
     <template #header>
-      <div class="flex items-center justify-between w-full">
-        <div class="flex items-center gap-2">
-          <h3 class="text-lg font-semibold">
-            {{ t('title') }}
-          </h3>
-          <span
-            v-if="props.pendingCount && props.pendingCount > 0"
-            class="text-xs text-muted bg-muted px-2 py-0.5 rounded-full"
-          >
+      <UiDialogHeader
+        :title="t('title')"
+        @close="onCancel"
+      >
+        <template
+          v-if="props.pendingCount && props.pendingCount > 0"
+          #suffix
+        >
+          <span class="text-xs text-muted bg-muted px-2 py-0.5 rounded-full">
             +{{ props.pendingCount }} {{ t('pending') }}
           </span>
-        </div>
-        <UiButton
-          icon="i-heroicons-x-mark"
-          color="neutral"
-          variant="ghost"
-          @click="onCancel"
-        />
-      </div>
+        </template>
+      </UiDialogHeader>
     </template>
 
     <template #body>
