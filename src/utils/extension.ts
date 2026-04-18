@@ -104,11 +104,12 @@ export function getExtensionUrl(
   // Encode extension info as base64 for unique origin per extension
   const encodedInfo = encodeExtensionInfo(name, publicKey, version)
 
-  if (getPlatform() === 'android') {
-    // Android: Tauri uses http://{scheme}.localhost format
+  // Android WebView and Windows WebView2 cannot load custom schemes directly;
+  // Tauri maps them to http://{scheme}.localhost. Linux/macOS load the scheme natively.
+  const platform = getPlatform()
+  if (platform === 'android' || platform === 'windows') {
     return `http://${EXTENSION_PROTOCOL_NAME}.localhost/${encodedInfo}/${assetPath}`
   } else {
-    // All other platforms: Use custom protocol
     return `${EXTENSION_PROTOCOL_PREFIX}${encodedInfo}/${assetPath}`
   }
 }
