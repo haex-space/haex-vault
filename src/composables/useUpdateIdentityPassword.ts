@@ -3,7 +3,7 @@ import {
 } from '@haex-space/vault-sdk'
 import { DidAuthAction } from '@haex-space/ucan'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
-import { getErrorMessage } from '~/utils/errors'
+import { throwIfNotOk } from '~/utils/fetch'
 
 /**
  * Composable for updating the identity password on all connected sync backends.
@@ -16,40 +16,31 @@ export const useUpdateIdentityPassword = () => {
   const identityStore = useIdentityStore()
   const syncBackendsStore = useSyncBackendsStore()
 
-  const isLoading = ref(false)
-  const error = ref<string | null>(null)
+  const { isLoading, error, execute } = useAsyncOperation({
+    onError: (err) => console.error('[UPDATE PASSWORD]', err),
+  })
 
-  const updatePasswordAsync = async (
+  const updatePasswordAsync = (
     identityId: string,
     newPassword: string,
-  ): Promise<boolean> => {
-    isLoading.value = true
-    error.value = null
-
-    try {
+  ): Promise<boolean> =>
+    execute(async () => {
       const identity = await identityStore.getIdentityByIdAsync(identityId)
       if (!identity?.privateKey) throw new Error('Identity not found or has no private key')
 
-      // Ensure backends are loaded
       await syncBackendsStore.loadBackendsAsync()
 
-      // Find all backends connected to this identity
       const backends = syncBackendsStore.backends.filter(
         (b) => b.identityId === identityId,
       )
 
-      if (backends.length === 0) {
-        // No backends connected — nothing to update on the server
-        return true
-      }
+      if (backends.length === 0) return true
 
-      // Re-encrypt the private key with the new password once
       const { encryptedPrivateKey, nonce, salt } =
         await encryptPrivateKeyAsync(identity.privateKey, newPassword)
       const privateKeyNonce = nonce
       const privateKeySalt = salt
 
-      // Update each connected backend
       const failures: string[] = []
       for (const backend of backends) {
         try {
@@ -64,11 +55,7 @@ export const useUpdateIdentityPassword = () => {
               body: JSON.stringify({ encryptedPrivateKey, privateKeyNonce, privateKeySalt }),
             },
           )
-
-          if (!res.ok) {
-            const data = await res.json().catch(() => ({ error: 'Unknown error' }))
-            throw new Error(data.error || `HTTP ${res.status}`)
-          }
+          await throwIfNotOk(res, 'update recovery key')
         } catch (err) {
           console.error(`[UPDATE PASSWORD] Failed for backend ${backend.homeServerUrl}:`, err)
           failures.push(backend.homeServerUrl)
@@ -80,18 +67,11 @@ export const useUpdateIdentityPassword = () => {
       }
 
       return true
-    } catch (err) {
-      console.error('[UPDATE PASSWORD] Failed:', err)
-      error.value = getErrorMessage(err)
-      return false
-    } finally {
-      isLoading.value = false
-    }
-  }
+    }).catch(() => false)
 
   return {
-    isLoading: readonly(isLoading),
-    error: readonly(error),
+    isLoading,
+    error,
     updatePasswordAsync,
   }
 }
