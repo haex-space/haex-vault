@@ -592,7 +592,7 @@ pub async fn local_delivery_claim_invite(
     // across attempts, including the (expensively-generated) KeyPackages.
     let req = Request::ClaimInvite {
         space_id: space_id.clone(),
-        token: token_id,
+        token: token_id.clone(),
         did: identity_did.clone(),
         endpoint_id: our_endpoint_id,
         key_packages: key_packages_b64,
@@ -709,7 +709,24 @@ pub async fn local_delivery_claim_invite(
             token: &ucan_token,
         },
     )?;
-    eprintln!("[ClaimInvite] [trace] AFTER persist_claimed_ucan — returning Ok");
+    eprintln!("[ClaimInvite] [trace] AFTER persist_claimed_ucan");
+
+    // 8. Mark the pending-invite row as accepted. Doing this here keeps the
+    // accept flow atomic inside the Tauri command — the UI previously did it
+    // after further async steps (persistSpace, loadSpaces, addSelfAsMember),
+    // which left the invite stuck on "pending" whenever any of those hung or
+    // threw.
+    crate::database::core::execute_with_crdt(
+        "UPDATE haex_pending_invites SET status = 'accepted', responded_at = datetime('now') WHERE space_id = ?1 AND token_id = ?2".to_string(),
+        vec![
+            serde_json::Value::String(space_id.clone()),
+            serde_json::Value::String(token_id),
+        ],
+        &db,
+        &hlc_guard,
+    )
+    .map_err(|e| format!("Failed to mark invite as accepted: {e}"))?;
+    eprintln!("[ClaimInvite] [trace] AFTER mark accepted — returning Ok");
 
     Ok(ClaimInviteResult {
         space_id,
