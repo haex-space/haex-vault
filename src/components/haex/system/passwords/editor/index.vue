@@ -147,28 +147,25 @@
           </div>
 
           <div v-if="isEditing || form.tagNames.length">
-            <p class="text-xs font-medium text-muted mb-1">
-              {{ t('fields.tags')
-              }}<span
-                v-if="isEditing"
-                class="text-error"
-              > *</span>
-            </p>
             <HaexSystemPasswordsEditorTagPicker
               v-if="isEditing"
               v-model="form.tagNames"
+              :label="t('fields.tags')"
+              required
             />
-            <div
-              v-else
-              class="flex flex-wrap gap-1"
-            >
-              <UBadge
-                v-for="name in form.tagNames"
-                :key="name"
-                :label="name"
-                color="neutral"
-                variant="soft"
-              />
+            <div v-else>
+              <p class="text-xs font-medium text-muted mb-1">
+                {{ t('fields.tags') }}
+              </p>
+              <div class="flex flex-wrap gap-1">
+                <UBadge
+                  v-for="name in form.tagNames"
+                  :key="name"
+                  :label="name"
+                  color="neutral"
+                  variant="soft"
+                />
+              </div>
             </div>
             <p
               v-if="errors.tags.length"
