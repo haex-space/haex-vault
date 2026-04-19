@@ -42,7 +42,31 @@
           {{ item.title || t('untitled') }}
         </h2>
       </div>
+      <div class="flex items-center gap-1 shrink-0">
+        <UiButton
+          :tooltip="t('edit')"
+          icon="i-lucide-pencil"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          @click="onEdit"
+        />
+        <UiButton
+          :tooltip="t('delete')"
+          icon="i-lucide-trash-2"
+          color="error"
+          variant="ghost"
+          size="sm"
+          @click="showDeleteDialog = true"
+        />
+      </div>
     </div>
+
+    <HaexSystemPasswordsDialogDeleteItem
+      v-model:open="showDeleteDialog"
+      :item-title="item.title ?? ''"
+      @confirm="onDelete"
+    />
 
     <div class="p-4 space-y-4">
       <!-- Tags -->
@@ -212,9 +236,38 @@ import * as OTPAuth from 'otpauth'
 import { useClipboard } from '@vueuse/core'
 
 const { t } = useI18n()
+const toast = useToast()
 const passwordsStore = usePasswordsStore()
 const { selectedItem: item, selectedItemTags: tags } = storeToRefs(passwordsStore)
-const { backToList: back } = passwordsStore
+const { backToList: back, startEdit, deleteItemAsync } = passwordsStore
+
+const showDeleteDialog = ref(false)
+
+const onEdit = () => {
+  if (item.value) startEdit(item.value.id)
+}
+
+const onDelete = async () => {
+  if (!item.value) return
+  const id = item.value.id
+  try {
+    await deleteItemAsync(id)
+    showDeleteDialog.value = false
+    back()
+    toast.add({
+      title: t('deleted'),
+      color: 'success',
+    })
+  } catch (error) {
+    console.error('[Details] Delete failed:', error)
+    toast.add({
+      title: t('deleteError'),
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+      icon: 'i-lucide-alert-triangle',
+    })
+  }
+}
 
 const { getIconDescriptor } = useIconComponents()
 const iconCacheStore = usePasswordsIconCacheStore()
@@ -305,6 +358,10 @@ const copyOtp = (value: string) => copyToClipboard(value)
 <i18n lang="yaml">
 de:
   back: Zurück
+  edit: Bearbeiten
+  delete: Löschen
+  deleted: Eintrag gelöscht
+  deleteError: Löschen fehlgeschlagen
   untitled: (ohne Titel)
   username: Benutzername
   password: Passwort
@@ -317,6 +374,10 @@ de:
   copied: Kopiert
 en:
   back: Back
+  edit: Edit
+  delete: Delete
+  deleted: Entry deleted
+  deleteError: Deletion failed
   untitled: (untitled)
   username: Username
   password: Password
