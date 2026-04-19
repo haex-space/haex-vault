@@ -27,14 +27,36 @@
             :key="selectedItemId ?? 'new'"
           />
           <template v-else>
-            <HaexSystemPasswordsBreadcrumb class="@3xl:hidden shrink-0" />
-            <HaexSystemPasswordsSelectionToolbar
-              class="shrink-0"
-              @tag="bulkTagOpen = true"
-              @delete="bulkDeleteOpen = true"
-              @paste="onPaste"
-              @edit-group="onEditGroupFromToolbar"
-            />
+            <!--
+              Single slot for either breadcrumb or selection toolbar. They share
+              the same 3rem height so the list below doesn't jump when selection
+              mode kicks in. On desktop (@3xl+) the breadcrumb is hidden — the
+              slot collapses unless the toolbar is active.
+            -->
+            <div
+              v-if="showAccessorySlot"
+              class="shrink-0 relative h-12"
+              :class="{
+                '@3xl:h-0': !isSelectionMode && !hasClipboard,
+              }"
+            >
+              <Transition name="toolbar-swap">
+                <HaexSystemPasswordsSelectionToolbar
+                  v-if="isSelectionMode || hasClipboard"
+                  key="toolbar"
+                  class="absolute inset-x-0 top-0"
+                  @tag="bulkTagOpen = true"
+                  @delete="bulkDeleteOpen = true"
+                  @paste="onPaste"
+                  @edit-group="onEditGroupFromToolbar"
+                />
+                <HaexSystemPasswordsBreadcrumb
+                  v-else-if="selectedGroupId !== null"
+                  key="breadcrumb"
+                  class="@3xl:hidden absolute inset-x-0 top-0"
+                />
+              </Transition>
+            </div>
             <HaexSystemPasswordsList class="flex-1 min-h-0" />
           </template>
         </main>
@@ -76,7 +98,13 @@ const {
   selectedEntries,
   clipboardEntries,
   clipboardMode,
+  isSelectionMode,
+  hasClipboard,
 } = storeToRefs(selection)
+
+const showAccessorySlot = computed(
+  () => isSelectionMode.value || hasClipboard.value || selectedGroupId.value !== null,
+)
 const toast = useToast()
 const { t } = useI18n()
 
@@ -207,3 +235,22 @@ en:
     cycleError: Target folder is inside the selection
 </i18n>
 
+<style scoped>
+/* Cross-fade + subtle slide so the toolbar swap with the breadcrumb reads as
+   a transition rather than a pop. Both children are absolute-positioned in
+   the same slot, so they overlap during the animation instead of reflowing. */
+.toolbar-swap-enter-active,
+.toolbar-swap-leave-active {
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+.toolbar-swap-enter-from {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+.toolbar-swap-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+}
+</style>

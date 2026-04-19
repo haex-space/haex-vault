@@ -1,7 +1,7 @@
 <template>
   <nav
     v-if="selectedGroupId !== null"
-    class="flex items-center gap-1 px-3 py-2 border-b border-default text-sm min-h-11 overflow-x-auto"
+    class="flex items-center gap-1 px-3 py-2 border-b border-default text-sm min-h-12 overflow-x-auto"
     :aria-label="t('ariaLabel')"
   >
     <button
