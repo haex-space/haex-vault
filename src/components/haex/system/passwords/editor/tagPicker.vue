@@ -7,7 +7,7 @@
     color="neutral"
     add-on-blur
     add-on-paste
-    :ui="{ root: 'min-h-9 items-center', input: 'py-1' }"
+    :ui="{ root: 'w-full min-h-9 items-center', input: 'py-1 flex-1' }"
   />
   <p
     v-if="suggestions.length"
