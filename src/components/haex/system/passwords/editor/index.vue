@@ -151,7 +151,6 @@
               v-if="isEditing"
               v-model="form.tagNames"
               :label="t('fields.tags')"
-              required
             />
             <div v-else>
               <p class="text-xs font-medium text-muted mb-1">
@@ -628,11 +627,6 @@ const onSave = async () => {
     activeTab.value = 'details'
     return
   }
-  if (form.tagNames.length === 0) {
-    errors.tags = [t('validation.tagRequired')]
-    activeTab.value = 'details'
-    return
-  }
 
   saving.value = true
   try {
@@ -754,7 +748,6 @@ de:
     comingSoon: Verlauf-Ansicht kommt mit den Snapshots in Etappe 3.
   validation:
     titleRequired: Titel ist Pflicht
-    tagRequired: Mindestens ein Tag ist Pflicht
   toast:
     created: Eintrag erstellt
     updated: Eintrag aktualisiert
@@ -801,7 +794,6 @@ en:
     comingSoon: History view ships with snapshots in stage 3.
   validation:
     titleRequired: Title is required
-    tagRequired: At least one tag is required
   toast:
     created: Entry created
     updated: Entry updated
