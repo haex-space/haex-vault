@@ -19,7 +19,7 @@
           @dblclick="sidebarWidth = DEFAULT_SIDEBAR_WIDTH"
         />
         <main class="flex-1 min-w-0 overflow-hidden">
-          <!-- content-switch lands in Schritt 1.5 -->
+          <HaexSystemPasswordsList />
         </main>
       </div>
     </div>
@@ -31,6 +31,23 @@ defineProps<{
   tabId?: string
   isDragging?: boolean
 }>()
+
+const passwordsStore = usePasswordsStore()
+const toast = useToast()
+const { t } = useI18n()
+
+onMounted(async () => {
+  try {
+    await passwordsStore.loadItemsAsync()
+  } catch (error) {
+    console.error('[Passwords] Failed to load items:', error)
+    toast.add({
+      title: t('loadError'),
+      color: 'error',
+      icon: 'i-lucide-alert-triangle',
+    })
+  }
+})
 
 const DEFAULT_SIDEBAR_WIDTH = 256
 const MIN_SIDEBAR_WIDTH = 180
@@ -63,3 +80,11 @@ const startResize = (event: MouseEvent) => {
   document.addEventListener('mouseup', onUp)
 }
 </script>
+
+<i18n lang="yaml">
+de:
+  loadError: Passwörter konnten nicht geladen werden
+en:
+  loadError: Failed to load passwords
+</i18n>
+
