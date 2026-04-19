@@ -9,9 +9,10 @@
 //!   - `target`: Tag filter. "*" = all tags; otherwise an exact tag name.
 //!     Multiple permissions are OR-ed (union of tags).
 //!
-//! Write-side tag enforcement: on create/update commands (to be added in a
-//! follow-up commit) the submitted item MUST carry at least one tag within
-//! the extension's scope, otherwise the write is rejected.
+//! Write-side tag enforcement: on create/update commands the submitted item
+//! MUST carry at least one tag within the extension's scope, otherwise the
+//! write is rejected (SecurityViolation). This prevents an extension from
+//! tagging items out of its own reach.
 
 use crate::database::core::{execute_with_crdt, select_with_crdt};
 use crate::database::error::DatabaseError;
@@ -384,7 +385,7 @@ fn build_list_query(scope: &PasswordsScope) -> (String, Vec<JsonValue>) {
 }
 
 // =============================================================================
-// Write side: store / update
+// Write side: create / update
 // =============================================================================
 
 /// Input for create & update operations.
@@ -395,7 +396,7 @@ fn build_list_query(scope: &PasswordsScope) -> (String, Vec<JsonValue>) {
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub struct PasswordStoreInput {
+pub struct PasswordInput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -439,11 +440,11 @@ pub struct PasswordKeyValueInput {
 
 /// Create a new password item. Returns the generated item id.
 #[tauri::command]
-pub async fn extension_password_store(
+pub async fn extension_password_create(
     app_handle: AppHandle,
     window: WebviewWindow,
     state: State<'_, AppState>,
-    input: PasswordStoreInput,
+    input: PasswordInput,
     public_key: Option<String>,
     name: Option<String>,
 ) -> Result<String, ExtensionError> {
@@ -481,7 +482,7 @@ pub async fn extension_password_update(
     window: WebviewWindow,
     state: State<'_, AppState>,
     item_id: String,
-    input: PasswordStoreInput,
+    input: PasswordInput,
     public_key: Option<String>,
     name: Option<String>,
 ) -> Result<(), ExtensionError> {
@@ -577,7 +578,7 @@ fn insert_item_row(
     state: &State<'_, AppState>,
     hlc: &std::sync::MutexGuard<crate::crdt::hlc::HlcService>,
     item_id: &str,
-    input: &PasswordStoreInput,
+    input: &PasswordInput,
 ) -> Result<(), ExtensionError> {
     let sql = "INSERT INTO haex_passwords_item_details \
                (id, title, username, password, note, icon, color, url, \
@@ -611,7 +612,7 @@ fn update_item_row(
     state: &State<'_, AppState>,
     hlc: &std::sync::MutexGuard<crate::crdt::hlc::HlcService>,
     item_id: &str,
-    input: &PasswordStoreInput,
+    input: &PasswordInput,
 ) -> Result<(), ExtensionError> {
     let sql = "UPDATE haex_passwords_item_details SET \
                title = ?2, username = ?3, password = ?4, note = ?5, icon = ?6, \

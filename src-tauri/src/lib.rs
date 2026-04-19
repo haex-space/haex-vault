@@ -315,7 +315,7 @@ pub fn run() {
             extension::spaces::commands::extension_space_assign,
             passwords::commands::extension_password_list,
             passwords::commands::extension_password_read,
-            passwords::commands::extension_password_store,
+            passwords::commands::extension_password_create,
             passwords::commands::extension_password_update,
             passwords::commands::extension_password_delete,
             extension::spaces::commands::extension_space_unassign,
