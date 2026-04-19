@@ -19,7 +19,9 @@
           @dblclick="sidebarWidth = DEFAULT_SIDEBAR_WIDTH"
         />
         <main class="flex-1 min-w-0 overflow-hidden">
-          <component :is="currentView" />
+          <HaexSystemPasswordsEditor v-if="viewMode === 'itemEditor'" />
+          <HaexSystemPasswordsDetails v-else-if="viewMode === 'itemDetail'" />
+          <HaexSystemPasswordsList v-else />
         </main>
       </div>
     </div>
@@ -36,18 +38,6 @@ const passwordsStore = usePasswordsStore()
 const { viewMode } = storeToRefs(passwordsStore)
 const toast = useToast()
 const { t } = useI18n()
-
-const currentView = computed(() => {
-  switch (viewMode.value) {
-    case 'itemEditor':
-      return 'HaexSystemPasswordsEditor'
-    case 'itemDetail':
-      return 'HaexSystemPasswordsDetails'
-    case 'list':
-    default:
-      return 'HaexSystemPasswordsList'
-  }
-})
 
 onMounted(async () => {
   try {
