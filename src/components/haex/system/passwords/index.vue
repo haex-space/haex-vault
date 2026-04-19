@@ -28,11 +28,32 @@
           />
           <template v-else>
             <HaexSystemPasswordsBreadcrumb class="@3xl:hidden shrink-0" />
+            <HaexSystemPasswordsSelectionToolbar
+              class="shrink-0"
+              @tag="bulkTagOpen = true"
+              @delete="bulkDeleteOpen = true"
+              @paste="onPaste"
+              @edit-group="onEditGroupFromToolbar"
+            />
             <HaexSystemPasswordsList class="flex-1 min-h-0" />
           </template>
         </main>
       </div>
     </div>
+
+    <HaexSystemPasswordsDialogBulkDelete
+      v-model:open="bulkDeleteOpen"
+      :entries="selectedEntries"
+    />
+    <HaexSystemPasswordsDialogBulkTag
+      v-model:open="bulkTagOpen"
+      :item-ids="selectedItemIds"
+    />
+    <HaexSystemPasswordsDialogGroupEditor
+      v-model:open="groupEditorOpen"
+      mode="edit"
+      :group="groupUnderEdit"
+    />
   </HaexSystem>
 </template>
 
@@ -48,9 +69,72 @@ provide('haex-tab-id', props.tabId ?? '')
 
 const passwordsStore = usePasswordsStore()
 const groupsStore = usePasswordsGroupsStore()
+const selection = usePasswordsSelectionStore()
 const { viewMode, selectedItemId } = storeToRefs(passwordsStore)
+const { selectedGroupId } = storeToRefs(groupsStore)
+const {
+  selectedEntries,
+  clipboardEntries,
+  clipboardMode,
+} = storeToRefs(selection)
 const toast = useToast()
 const { t } = useI18n()
+
+const selectedItemIds = computed(() =>
+  selectedEntries.value.filter((e) => e.type === 'item').map((e) => e.id),
+)
+
+const bulkDeleteOpen = ref(false)
+const bulkTagOpen = ref(false)
+const groupEditorOpen = ref(false)
+const groupUnderEdit = ref<null | ReturnType<typeof findGroup>>(null)
+
+function findGroup(id: string) {
+  return groupsStore.groupById.get(id) ?? null
+}
+
+const onEditGroupFromToolbar = (groupId: string) => {
+  groupUnderEdit.value = findGroup(groupId)
+  if (groupUnderEdit.value) groupEditorOpen.value = true
+}
+
+const onPaste = async () => {
+  const entries = clipboardEntries.value.slice()
+  const mode = clipboardMode.value
+  if (!mode || entries.length === 0) return
+  const target = selectedGroupId.value
+  try {
+    if (mode === 'cut') {
+      await groupsStore.bulkMoveAsync(entries, target)
+      toast.add({ title: t('toast.moved', { count: entries.length }), color: 'success' })
+    } else {
+      await groupsStore.bulkCloneAsync(entries, target)
+      await passwordsStore.loadItemsAsync()
+      toast.add({ title: t('toast.cloned', { count: entries.length }), color: 'success' })
+    }
+    selection.clearClipboard()
+  } catch (error) {
+    const key = error instanceof Error && error.message
+    const title =
+      key === 'cycleMove' || key === 'selfMove'
+        ? t('toast.cycleError')
+        : t('toast.pasteError')
+    console.error('[Paste] failed:', error)
+    toast.add({
+      title,
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+      icon: 'i-lucide-alert-triangle',
+    })
+  }
+}
+
+// Leaving a view where the selection makes sense clears it — matches the
+// file-manager convention where entering a different folder resets selection.
+watch(selectedGroupId, () => selection.clear())
+watch(viewMode, (mode) => {
+  if (mode === 'item') selection.clear()
+})
 
 const { armWindowCloseBoundary } = usePasswordsNavigation(props.tabId ?? '')
 
@@ -109,7 +193,17 @@ const startResize = (event: MouseEvent) => {
 <i18n lang="yaml">
 de:
   loadError: Passwörter konnten nicht geladen werden
+  toast:
+    moved: "{count} Einträge verschoben"
+    cloned: "{count} Einträge dupliziert"
+    pasteError: Einfügen fehlgeschlagen
+    cycleError: Ziel-Ordner ist in der Auswahl enthalten
 en:
   loadError: Failed to load passwords
+  toast:
+    moved: "{count} entries moved"
+    cloned: "{count} entries duplicated"
+    pasteError: Paste failed
+    cycleError: Target folder is inside the selection
 </i18n>
 

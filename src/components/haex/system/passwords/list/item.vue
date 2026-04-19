@@ -1,6 +1,11 @@
 <template>
   <div
-    :class="['group', isDragging && 'opacity-40']"
+    :class="[
+      'group',
+      isDragging && 'opacity-40',
+      isCut && 'opacity-50 grayscale',
+      isMultiSelected && 'ring-2 ring-primary rounded-lg',
+    ]"
     draggable="true"
     @dragstart="onDragStart"
     @dragend="onDragEnd"
@@ -8,9 +13,27 @@
     <UiListItem
       :highlight="selected"
       class="cursor-pointer"
-      @click="emit('click')"
+      @click="onRowClick"
     >
       <div class="flex items-center gap-3 min-h-14">
+      <button
+        v-if="isSelectionMode"
+        type="button"
+        :class="[
+          'shrink-0 size-6 rounded border flex items-center justify-center transition-colors',
+          isMultiSelected
+            ? 'bg-primary border-primary text-inverted'
+            : 'border-default hover:border-primary',
+        ]"
+        :aria-label="isMultiSelected ? t('deselect') : t('select')"
+        @click.stop="onCheckboxClick"
+      >
+        <UIcon
+          v-if="isMultiSelected"
+          name="i-lucide-check"
+          class="size-4"
+        />
+      </button>
       <!-- Icon -->
       <div
         class="shrink-0 size-10 rounded-md flex items-center justify-center bg-elevated overflow-hidden"
@@ -117,6 +140,45 @@ const { t } = useI18n()
 const { getIconDescriptor } = useIconComponents()
 const iconCacheStore = usePasswordsIconCacheStore()
 
+const selection = usePasswordsSelectionStore()
+const { isSelectionMode } = storeToRefs(selection)
+
+const isMultiSelected = computed(() => selection.isSelected(props.item.id))
+const isCut = computed(() => selection.isCut(props.item.id))
+
+const orderedIds = inject<Ref<string[]>>(
+  'passwordsList:orderedIds',
+  ref<string[]>([]),
+)
+
+const onRowClick = (event: MouseEvent) => {
+  if (event.shiftKey) {
+    event.preventDefault()
+    selection.selectRange(props.item.id, orderedIds.value)
+    return
+  }
+  if (event.ctrlKey || event.metaKey) {
+    event.preventDefault()
+    selection.toggle(props.item.id)
+    return
+  }
+  if (isSelectionMode.value) {
+    // In selection mode a plain click continues to toggle — matches
+    // file-manager conventions and avoids accidental drill-down.
+    selection.toggle(props.item.id)
+    return
+  }
+  emit('click')
+}
+
+const onCheckboxClick = (event: MouseEvent) => {
+  if (event.shiftKey) {
+    selection.selectRange(props.item.id, orderedIds.value)
+    return
+  }
+  selection.toggle(props.item.id)
+}
+
 const iconDescriptor = computed(() => getIconDescriptor(props.item.icon))
 
 // Binary icons are loaded from the DB via the cache store. Trigger lookup on first render.
@@ -173,6 +235,10 @@ const onDragEnd = () => {
 <i18n lang="yaml">
 de:
   untitled: (ohne Titel)
+  select: Auswählen
+  deselect: Abwählen
 en:
   untitled: (untitled)
+  select: Select
+  deselect: Deselect
 </i18n>

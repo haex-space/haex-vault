@@ -2,12 +2,16 @@ import { eq } from 'drizzle-orm'
 import {
   haexPasswordsGroupItems,
   haexPasswordsGroups,
+  haexPasswordsItemDetails,
+  haexPasswordsItemKeyValues,
+  haexPasswordsItemTags,
 } from '~/database/schemas'
 import type {
   InsertHaexPasswordsGroups,
   SelectHaexPasswordsGroups,
 } from '~/database/schemas'
 import { requireDb } from '~/stores/vault'
+import type { SelectionEntry } from '~/stores/passwords/selection'
 
 export type PasswordGroupDraft = Partial<InsertHaexPasswordsGroups> & {
   name: string
@@ -185,6 +189,161 @@ export const usePasswordsGroupsStore = defineStore(
       selectedGroupId.value = groupId
     }
 
+    // Bulk operations ---------------------------------------------------------
+
+    const deleteItemAsync = async (itemId: string): Promise<void> => {
+      const db = requireDb()
+      // FK cascade handles key_values, snapshots, binaries, group_items, tags.
+      await db
+        .delete(haexPasswordsItemDetails)
+        .where(eq(haexPasswordsItemDetails.id, itemId))
+    }
+
+    const bulkDeleteAsync = async (entries: SelectionEntry[]): Promise<void> => {
+      for (const entry of entries) {
+        if (entry.type === 'item') {
+          await deleteItemAsync(entry.id)
+        } else {
+          const db = requireDb()
+          await db
+            .delete(haexPasswordsGroups)
+            .where(eq(haexPasswordsGroups.id, entry.id))
+        }
+      }
+      await loadGroupsAsync()
+    }
+
+    // Move multiple entries to a target group. Throws if any group in the
+    // selection would create a cycle (target is a descendant of a moved group).
+    const bulkMoveAsync = async (
+      entries: SelectionEntry[],
+      targetGroupId: string | null,
+    ): Promise<void> => {
+      if (targetGroupId !== null) {
+        for (const entry of entries) {
+          if (entry.type !== 'group') continue
+          if (entry.id === targetGroupId) {
+            throw new Error('selfMove')
+          }
+          if (descendantIdSet(entry.id).has(targetGroupId)) {
+            throw new Error('cycleMove')
+          }
+        }
+      }
+      for (const entry of entries) {
+        if (entry.type === 'group') {
+          await moveGroupAsync(entry.id, targetGroupId)
+        } else {
+          await setItemGroupAsync(entry.id, targetGroupId)
+        }
+      }
+    }
+
+    // Duplicate an item (details + key_values + tag links) into a target group.
+    // Snapshots are NOT copied — they're per-item history, not semantic content.
+    const cloneItemAsync = async (
+      itemId: string,
+      targetGroupId: string | null,
+    ): Promise<string | null> => {
+      const db = requireDb()
+      const rows = await db
+        .select()
+        .from(haexPasswordsItemDetails)
+        .where(eq(haexPasswordsItemDetails.id, itemId))
+        .limit(1)
+      const source = rows[0]
+      if (!source) return null
+
+      const newId = crypto.randomUUID()
+      const now = new Date().toISOString()
+      await db.insert(haexPasswordsItemDetails).values({
+        ...source,
+        id: newId,
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      const keyValues = await db
+        .select()
+        .from(haexPasswordsItemKeyValues)
+        .where(eq(haexPasswordsItemKeyValues.itemId, itemId))
+      if (keyValues.length) {
+        await db.insert(haexPasswordsItemKeyValues).values(
+          keyValues.map((kv) => ({
+            id: crypto.randomUUID(),
+            itemId: newId,
+            key: kv.key,
+            value: kv.value,
+            updatedAt: now,
+          })),
+        )
+      }
+
+      const tagLinks = await db
+        .select()
+        .from(haexPasswordsItemTags)
+        .where(eq(haexPasswordsItemTags.itemId, itemId))
+      if (tagLinks.length) {
+        await db.insert(haexPasswordsItemTags).values(
+          tagLinks.map((link) => ({
+            id: crypto.randomUUID(),
+            itemId: newId,
+            tagId: link.tagId,
+          })),
+        )
+      }
+
+      await db.insert(haexPasswordsGroupItems).values({
+        itemId: newId,
+        groupId: targetGroupId,
+      })
+      return newId
+    }
+
+    // Recursively clone a group, its child groups, and the items inside each.
+    const cloneGroupRecursiveAsync = async (
+      groupId: string,
+      targetParentId: string | null,
+    ): Promise<void> => {
+      const source = groups.value.find((group) => group.id === groupId)
+      if (!source) return
+
+      const newGroupId = await addGroupAsync({
+        name: source.name ?? '',
+        description: source.description ?? null,
+        icon: source.icon ?? null,
+        color: source.color ?? null,
+        parentId: targetParentId,
+      })
+
+      const childGroupsSnapshot = (childrenByParent.value.get(groupId) ?? []).slice()
+      for (const child of childGroupsSnapshot) {
+        await cloneGroupRecursiveAsync(child.id, newGroupId)
+      }
+
+      const itemIdsInGroup: string[] = []
+      for (const [itemId, gid] of itemGroupMap.value.entries()) {
+        if (gid === groupId) itemIdsInGroup.push(itemId)
+      }
+      for (const itemId of itemIdsInGroup) {
+        await cloneItemAsync(itemId, newGroupId)
+      }
+    }
+
+    const bulkCloneAsync = async (
+      entries: SelectionEntry[],
+      targetGroupId: string | null,
+    ): Promise<void> => {
+      for (const entry of entries) {
+        if (entry.type === 'item') {
+          await cloneItemAsync(entry.id, targetGroupId)
+        } else {
+          await cloneGroupRecursiveAsync(entry.id, targetGroupId)
+        }
+      }
+      await loadGroupsAsync()
+    }
+
     return {
       groups,
       itemGroupMap,
@@ -202,6 +361,9 @@ export const usePasswordsGroupsStore = defineStore(
       moveGroupAsync,
       setItemGroupAsync,
       selectGroup,
+      bulkDeleteAsync,
+      bulkMoveAsync,
+      bulkCloneAsync,
     }
   },
 )

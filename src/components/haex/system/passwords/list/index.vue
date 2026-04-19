@@ -79,6 +79,14 @@ const isEmpty = computed(
   () => visibleFolders.value.length === 0 && visibleItems.value.length === 0,
 )
 
+// Folders render first, so range-selection across a mixed list matches the
+// visual order. Children use inject() to drive Shift-click range logic.
+const visibleOrderedIds = computed<string[]>(() => [
+  ...visibleFolders.value.map((f) => f.id),
+  ...visibleItems.value.map((i) => i.id),
+])
+provide('passwordsList:orderedIds', visibleOrderedIds)
+
 const editorOpen = ref(false)
 const editingGroup = ref<SelectHaexPasswordsGroups | null>(null)
 const deleteOpen = ref(false)

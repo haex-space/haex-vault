@@ -5,11 +5,12 @@
         'flex items-center gap-2 pe-2 rounded-md cursor-pointer transition-colors min-h-12',
         isActive ? 'bg-elevated font-medium' : 'hover:bg-elevated/70',
         isDragging && 'opacity-40',
-        isDropTarget && 'ring-2 ring-primary ring-offset-1 ring-offset-transparent',
+        isCut && 'opacity-50 grayscale',
+        (isDropTarget || isMultiSelected) && 'ring-2 ring-primary ring-offset-1 ring-offset-transparent',
       ]"
       :style="{ paddingInlineStart: `${level * 20 + 4}px` }"
       draggable="true"
-      @click="onSelect"
+      @click="onRowClick"
       @dragstart="onDragStart"
       @dragend="onDragEnd"
       @dragover.prevent="onDragOver"
@@ -130,7 +131,25 @@ const folderGlyphStyle = computed(() => {
   return { color: luminance > 0.6 ? '#111827' : '#ffffff' }
 })
 
-const onSelect = () => {
+const selection = usePasswordsSelectionStore()
+const { isSelectionMode } = storeToRefs(selection)
+
+const isMultiSelected = computed(() => selection.isSelected(props.group.id))
+const isCut = computed(() => selection.isCut(props.group.id))
+
+const onRowClick = (event: MouseEvent) => {
+  if (event.ctrlKey || event.metaKey) {
+    event.preventDefault()
+    event.stopPropagation()
+    selection.toggle(props.group.id)
+    return
+  }
+  if (isSelectionMode.value) {
+    // While in selection mode, plain clicks in the tree also toggle so the
+    // user can tick off multiple sibling groups without reaching for Ctrl.
+    selection.toggle(props.group.id)
+    return
+  }
   selectGroup(props.group.id)
 }
 

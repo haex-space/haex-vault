@@ -132,6 +132,52 @@ export const usePasswordsTagsStore = defineStore('passwordsTagsStore', () => {
     tags.value = tags.value.filter((t) => t.id !== id)
   }
 
+  // Insert item-tag links, skipping items that already have the tag.
+  const bulkAddTagAsync = async (
+    itemIds: string[],
+    tagId: string,
+  ): Promise<number> => {
+    const db = requireDb()
+    const existing = await db
+      .select({ itemId: haexPasswordsItemTags.itemId })
+      .from(haexPasswordsItemTags)
+      .where(eq(haexPasswordsItemTags.tagId, tagId))
+    const alreadyTagged = new Set(existing.map((row) => row.itemId))
+
+    let added = 0
+    for (const itemId of itemIds) {
+      if (alreadyTagged.has(itemId)) continue
+      await db.insert(haexPasswordsItemTags).values({
+        id: crypto.randomUUID(),
+        itemId,
+        tagId,
+      })
+      added++
+    }
+    return added
+  }
+
+  const bulkRemoveTagAsync = async (
+    itemIds: string[],
+    tagId: string,
+  ): Promise<number> => {
+    const db = requireDb()
+    const links = await db
+      .select()
+      .from(haexPasswordsItemTags)
+      .where(eq(haexPasswordsItemTags.tagId, tagId))
+    const idSet = new Set(itemIds)
+    let removed = 0
+    for (const link of links) {
+      if (!idSet.has(link.itemId)) continue
+      await db
+        .delete(haexPasswordsItemTags)
+        .where(eq(haexPasswordsItemTags.id, link.id))
+      removed++
+    }
+    return removed
+  }
+
   return {
     tags,
     loadTagsAsync,
@@ -142,5 +188,7 @@ export const usePasswordsTagsStore = defineStore('passwordsTagsStore', () => {
     renameAsync,
     updateColorAsync,
     deleteAsync,
+    bulkAddTagAsync,
+    bulkRemoveTagAsync,
   }
 })
