@@ -410,6 +410,7 @@ const toast = useToast()
 
 const passwordsStore = usePasswordsStore()
 const tagsStore = usePasswordsTagsStore()
+const nav = usePasswordsNavigation()
 const { selectedItem, selectedItemTags, isEditing } =
   storeToRefs(passwordsStore)
 
@@ -569,7 +570,7 @@ onMounted(async () => {
 })
 
 const startEdit = () => {
-  passwordsStore.startEdit()
+  nav.startEdit()
 }
 
 const addKeyValue = () => {
@@ -587,16 +588,12 @@ const revertForm = () => {
 }
 
 const onBack = () => {
+  // Existing-item edit → revert unsaved changes; create-cancel is a hard
+  // drop to list, handled by the popped navigation state.
   if (isEditing.value && !isCreating.value) {
     revertForm()
-    passwordsStore.cancelEdit()
-    return
   }
-  if (isEditing.value && isCreating.value) {
-    passwordsStore.cancelEdit()
-    return
-  }
-  passwordsStore.backToList()
+  nav.goBack()
 }
 
 const onDelete = async () => {

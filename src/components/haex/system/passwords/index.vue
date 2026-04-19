@@ -34,10 +34,14 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+const props = defineProps<{
   tabId?: string
   isDragging?: boolean
 }>()
+
+// Provide the tab ID so per-tab back/forward stacks stay isolated
+// (same pattern the settings view uses).
+provide('haex-tab-id', props.tabId ?? '')
 
 const passwordsStore = usePasswordsStore()
 const { viewMode, selectedItemId } = storeToRefs(passwordsStore)

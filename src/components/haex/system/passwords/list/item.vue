@@ -4,7 +4,7 @@
     class="cursor-pointer"
     @click="emit('click')"
   >
-    <div class="flex items-start gap-3">
+    <div class="flex items-center gap-3 min-h-14">
       <!-- Icon -->
       <div
         class="shrink-0 size-10 rounded-md flex items-center justify-center bg-elevated overflow-hidden"

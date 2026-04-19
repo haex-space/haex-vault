@@ -50,7 +50,7 @@
 import type { DropdownMenuItem } from '@nuxt/ui'
 
 const { searchInput } = storeToRefs(usePasswordsSearchStore())
-const passwordsStore = usePasswordsStore()
+const nav = usePasswordsNavigation()
 const { t } = useI18n()
 
 const addMenuItems = computed<DropdownMenuItem[][]>(() => [
@@ -58,7 +58,7 @@ const addMenuItems = computed<DropdownMenuItem[][]>(() => [
     {
       label: t('addMenu.item'),
       icon: 'i-lucide-key',
-      onSelect: () => passwordsStore.startCreate(),
+      onSelect: () => nav.startCreate(),
     },
     {
       label: t('addMenu.folder'),

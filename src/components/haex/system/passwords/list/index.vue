@@ -33,7 +33,7 @@ const { t } = useI18n()
 
 const passwordsStore = usePasswordsStore()
 const { items, tagsByItemId, selectedItemId } = storeToRefs(passwordsStore)
-const { openItem } = passwordsStore
+const { openItem } = usePasswordsNavigation()
 
 const { search, searchResults } = storeToRefs(usePasswordsSearchStore())
 

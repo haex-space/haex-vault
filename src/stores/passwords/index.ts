@@ -80,6 +80,24 @@ export const usePasswordsStore = defineStore('passwordsStore', () => {
       .where(eq(haexPasswordsItemTags.itemId, itemId))
   }
 
+  type NavSnapshot = {
+    selectedItemId: string | null
+    viewMode: PasswordsViewMode
+    isEditing: boolean
+  }
+
+  const snapshotNavState = (): NavSnapshot => ({
+    selectedItemId: selectedItemId.value,
+    viewMode: viewMode.value,
+    isEditing: isEditing.value,
+  })
+
+  const restoreNavState = (s: NavSnapshot) => {
+    selectedItemId.value = s.selectedItemId
+    viewMode.value = s.viewMode
+    isEditing.value = s.isEditing
+  }
+
   const openItem = (itemId: string) => {
     selectedItemId.value = itemId
     viewMode.value = 'item'
@@ -137,5 +155,7 @@ export const usePasswordsStore = defineStore('passwordsStore', () => {
     startEdit,
     cancelEdit,
     deleteItemAsync,
+    snapshotNavState,
+    restoreNavState,
   }
 })
