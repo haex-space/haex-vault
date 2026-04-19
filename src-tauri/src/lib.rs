@@ -317,6 +317,7 @@ pub fn run() {
             passwords::commands::extension_password_read,
             passwords::commands::extension_password_store,
             passwords::commands::extension_password_update,
+            passwords::commands::extension_password_delete,
             extension::spaces::commands::extension_space_unassign,
             extension::spaces::commands::extension_space_get_assignments,
             extension::spaces::commands::extension_space_list,

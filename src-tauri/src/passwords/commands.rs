@@ -778,3 +778,49 @@ fn serialize_aliases(v: &Option<HashMap<String, Vec<String>>>) -> JsonValue {
         None => JsonValue::Null,
     }
 }
+
+// =============================================================================
+// delete
+// =============================================================================
+
+/// Delete a password item by id.
+///
+/// The item must be in the extension's tag scope, otherwise the call fails
+/// with "not found" — same indistinguishable-existence semantics as read.
+/// Child rows (tags links, key-values, binaries, snapshots, passkeys) are
+/// removed by the foreign-key cascades declared in the schema.
+#[tauri::command]
+pub async fn extension_password_delete(
+    app_handle: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    item_id: String,
+    public_key: Option<String>,
+    name: Option<String>,
+) -> Result<(), ExtensionError> {
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+
+    let perm_result = PermissionManager::check_passwords_permission(
+        &state,
+        &extension_id,
+        PasswordsAction::ReadWrite,
+    )
+    .await;
+    if let Err(ref e) = perm_result {
+        emit_permission_prompt_if_needed(&app_handle, e);
+    }
+    let scope = perm_result?;
+
+    ensure_item_in_scope(&state, &item_id, &scope)?;
+
+    let hlc = lock_hlc(&state)?;
+    execute_with_crdt(
+        "DELETE FROM haex_passwords_item_details WHERE id = ?1".to_string(),
+        vec![JsonValue::String(item_id)],
+        &state.db,
+        &hlc,
+    )
+    .map_err(|e| ExtensionError::Database { source: e })?;
+
+    Ok(())
+}
