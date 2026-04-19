@@ -314,6 +314,7 @@ pub fn run() {
             extension::database::commands::apply_synced_extension_migrations,
             extension::spaces::commands::extension_space_assign,
             passwords::commands::extension_password_list,
+            passwords::commands::extension_password_read,
             extension::spaces::commands::extension_space_unassign,
             extension::spaces::commands::extension_space_get_assignments,
             extension::spaces::commands::extension_space_list,
