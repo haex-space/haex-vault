@@ -126,12 +126,25 @@
           </div>
 
           <div v-if="isEditing || form.password">
-            <UiInputPassword
-              v-model="form.password"
-              :label="t('fields.password')"
-              :read-only="!isEditing"
-              with-copy-button
-            />
+            <div class="flex items-start gap-2">
+              <UiInputPassword
+                v-model="form.password"
+                :label="t('fields.password')"
+                :read-only="!isEditing"
+                with-copy-button
+                class="flex-1"
+              />
+              <UiButton
+                v-if="isEditing"
+                :tooltip="t('fields.generate')"
+                icon="i-lucide-wand-sparkles"
+                color="neutral"
+                variant="outline"
+                type="button"
+                class="shrink-0"
+                @click="generatorOpen = true"
+              />
+            </div>
           </div>
 
           <div v-if="isEditing || form.url">
@@ -139,7 +152,6 @@
               v-model="form.url"
               :label="t('fields.url')"
               leading-icon="i-lucide-globe"
-              type="url"
               placeholder="https://…"
               :read-only="!isEditing"
               with-copy-button
@@ -183,34 +195,39 @@
             />
           </div>
 
-          <div
-            v-if="isEditing || form.expiresAt || form.icon"
-            class="grid grid-cols-2 gap-3"
-          >
+          <div v-if="isEditing || form.expiresAt">
             <UiInput
-              v-if="isEditing || form.expiresAt"
               v-model="form.expiresAt"
               :label="t('fields.expiresAt')"
               type="date"
               leading-icon="i-lucide-calendar"
               :read-only="!isEditing"
             />
-            <UiInput
-              v-if="isEditing || form.icon"
-              v-model="form.icon"
-              :label="t('fields.icon')"
-              placeholder="i-lucide-key"
-              :read-only="!isEditing"
-            />
           </div>
 
-          <div v-if="isEditing || form.color">
-            <UiInput
-              v-model="form.color"
-              :label="t('fields.color')"
-              type="color"
-              :read-only="!isEditing"
-            />
+          <div
+            v-if="isEditing"
+            class="flex items-end gap-3"
+          >
+            <div class="flex-1 min-w-0">
+              <label class="text-xs font-medium text-highlighted mb-1 block">
+                {{ t('fields.icon') }}
+              </label>
+              <HaexSystemPasswordsEditorIconPicker
+                v-model="form.icon"
+                :color="form.color || undefined"
+              />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs font-medium text-highlighted">
+                {{ t('fields.color') }}
+              </label>
+              <input
+                v-model="form.color"
+                type="color"
+                class="size-10 rounded-md border border-default cursor-pointer p-0 bg-transparent"
+              >
+            </div>
           </div>
 
           <!-- OTP -->
@@ -389,6 +406,16 @@
       :item-title="form.title"
       @confirm="onDelete"
     />
+
+    <HaexSystemPasswordsDialogDiscardChanges
+      v-model:open="showDiscardDialog"
+      @confirm="onDiscardConfirmed"
+    />
+
+    <HaexSystemPasswordsDrawerGenerator
+      v-model:open="generatorOpen"
+      v-model:value="form.password"
+    />
   </form>
 </template>
 
@@ -439,7 +466,8 @@ const form = reactive({
 })
 
 // Snapshot of the pristine form for cancel-from-edit on existing items.
-const formSnapshot = JSON.parse(JSON.stringify(form)) as typeof form
+// Reactive so isDirty recomputes when snapshot changes (save, load, revert).
+const formSnapshot = reactive(JSON.parse(JSON.stringify(form)) as typeof form)
 
 const errors = reactive({
   title: [] as string[],
@@ -449,10 +477,33 @@ const errors = reactive({
 const saving = ref(false)
 const activeTab = ref('details')
 const showDeleteDialog = ref(false)
+const showDiscardDialog = ref(false)
+const generatorOpen = ref(false)
 
-// Register tab switches on the navigation back stack so browser-back
-// walks through tabs before leaving the item view.
-nav.trackHistory(activeTab)
+const isDirty = computed(
+  () => JSON.stringify(form) !== JSON.stringify(formSnapshot),
+)
+
+// ESC acts like the back button — triggers discard guard when dirty.
+// Skip when a child modal is open; those handle ESC themselves.
+const onKeydown = (event: KeyboardEvent) => {
+  if (event.key !== 'Escape') return
+  if (
+    showDeleteDialog.value ||
+    showDiscardDialog.value ||
+    generatorOpen.value
+  ) {
+    return
+  }
+  event.preventDefault()
+  onBack()
+}
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+})
 
 const tabItems = computed(() => [
   { label: t('tabs.details'), value: 'details', slot: 'details' as const },
@@ -592,8 +643,20 @@ const revertForm = () => {
 }
 
 const onBack = () => {
+  if (isDirty.value) {
+    showDiscardDialog.value = true
+    return
+  }
   // Existing-item edit → revert unsaved changes; create-cancel is a hard
   // drop to list, handled by the popped navigation state.
+  if (isEditing.value && !isCreating.value) {
+    revertForm()
+  }
+  nav.goBack()
+}
+
+const onDiscardConfirmed = () => {
+  showDiscardDialog.value = false
   if (isEditing.value && !isCreating.value) {
     revertForm()
   }
@@ -620,6 +683,8 @@ const onDelete = async () => {
 }
 
 const onSave = async () => {
+  if (saving.value) return
+
   errors.title = []
   errors.tags = []
 
@@ -669,19 +734,22 @@ const onSave = async () => {
       resolvedTags.map((tag) => tag.id),
     )
 
-    // Key-values: delete the full set, then re-insert non-empty rows.
-    await db
-      .delete(haexPasswordsItemKeyValues)
-      .where(eq(haexPasswordsItemKeyValues.itemId, itemId))
-    for (const kv of form.keyValues) {
-      if (!kv.key.trim()) continue
-      await db.insert(haexPasswordsItemKeyValues).values({
-        id: kv.id,
+    // Delete + re-insert key-values. Schema's $defaultFn assigns fresh IDs,
+    // avoiding id-carryover across saves. The Rust CRDT layer wraps each
+    // statement in its own transaction, so db.transaction() is unusable here.
+    const keyValueRows = form.keyValues
+      .filter((kv) => kv.key.trim())
+      .map((kv) => ({
         itemId,
         key: kv.key.trim(),
         value: kv.value,
         updatedAt: now,
-      })
+      }))
+    await db
+      .delete(haexPasswordsItemKeyValues)
+      .where(eq(haexPasswordsItemKeyValues.itemId, itemId))
+    if (keyValueRows.length > 0) {
+      await db.insert(haexPasswordsItemKeyValues).values(keyValueRows)
     }
 
     await passwordsStore.loadItemsAsync()
@@ -729,6 +797,7 @@ de:
     tags: Tags
     username: Nutzername
     password: Passwort
+    generate: Generieren
     url: URL
     note: Notiz
     expiresAt: Ablaufdatum
@@ -775,6 +844,7 @@ en:
     tags: Tags
     username: Nutzername
     password: Password
+    generate: Generate
     url: URL
     note: Note
     expiresAt: Expires at
@@ -802,3 +872,18 @@ en:
     saveError: Saving failed
     deleteError: Deletion failed
 </i18n>
+
+<style scoped>
+/* Strip browser chrome so the color input renders as a flat swatch. */
+input[type='color']::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+input[type='color']::-webkit-color-swatch {
+  border: none;
+  border-radius: 5px;
+}
+input[type='color']::-moz-color-swatch {
+  border: none;
+  border-radius: 5px;
+}
+</style>
