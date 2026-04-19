@@ -19,7 +19,7 @@
           @dblclick="sidebarWidth = DEFAULT_SIDEBAR_WIDTH"
         />
         <main class="flex-1 min-w-0 overflow-hidden">
-          <HaexSystemPasswordsList />
+          <component :is="currentView" />
         </main>
       </div>
     </div>
@@ -33,8 +33,15 @@ defineProps<{
 }>()
 
 const passwordsStore = usePasswordsStore()
+const { viewMode } = storeToRefs(passwordsStore)
 const toast = useToast()
 const { t } = useI18n()
+
+const currentView = computed(() =>
+  viewMode.value === 'itemDetail'
+    ? 'HaexSystemPasswordsDetails'
+    : 'HaexSystemPasswordsList',
+)
 
 onMounted(async () => {
   try {

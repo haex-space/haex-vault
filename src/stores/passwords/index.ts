@@ -12,10 +12,13 @@ import { requireDb } from '~/stores/vault'
 
 type ItemTagRow = SelectHaexPasswordsTags & { itemId: string }
 
+export type PasswordsViewMode = 'list' | 'itemDetail'
+
 export const usePasswordsStore = defineStore('passwordsStore', () => {
   const items = ref<SelectHaexPasswordsItemDetails[]>([])
   const itemTagRows = ref<ItemTagRow[]>([])
   const selectedItemId = ref<string | null>(null)
+  const viewMode = ref<PasswordsViewMode>('list')
 
   const loadItemsAsync = async () => {
     const db = requireDb()
@@ -48,6 +51,16 @@ export const usePasswordsStore = defineStore('passwordsStore', () => {
     },
   )
 
+  const selectedItem = computed(() => {
+    if (!selectedItemId.value) return null
+    return items.value.find((item) => item.id === selectedItemId.value) ?? null
+  })
+
+  const selectedItemTags = computed(() => {
+    if (!selectedItemId.value) return []
+    return tagsByItemId.value[selectedItemId.value] ?? []
+  })
+
   const getTagsForItemAsync = async (
     itemId: string,
   ): Promise<SelectHaexPasswordsTags[]> => {
@@ -67,16 +80,25 @@ export const usePasswordsStore = defineStore('passwordsStore', () => {
       .where(eq(haexPasswordsItemTags.itemId, itemId))
   }
 
-  const selectItem = (itemId: string | null) => {
+  const openItem = (itemId: string) => {
     selectedItemId.value = itemId
+    viewMode.value = 'itemDetail'
+  }
+
+  const backToList = () => {
+    viewMode.value = 'list'
   }
 
   return {
     items,
     selectedItemId,
+    viewMode,
     tagsByItemId,
+    selectedItem,
+    selectedItemTags,
     loadItemsAsync,
     getTagsForItemAsync,
-    selectItem,
+    openItem,
+    backToList,
   }
 })

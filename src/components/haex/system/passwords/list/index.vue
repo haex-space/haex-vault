@@ -7,7 +7,7 @@
         :item="item"
         :tags="tagsByItemId[item.id] ?? []"
         :selected="item.id === selectedItemId"
-        @click="selectItem(item.id)"
+        @click="openItem(item.id)"
       />
     </UiListContainer>
   </div>
@@ -16,7 +16,7 @@
 <script setup lang="ts">
 const passwordsStore = usePasswordsStore()
 const { items, tagsByItemId, selectedItemId } = storeToRefs(passwordsStore)
-const { selectItem } = passwordsStore
+const { openItem } = passwordsStore
 
 const { searchResults } = storeToRefs(usePasswordsSearchStore())
 
