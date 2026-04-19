@@ -450,6 +450,10 @@ const saving = ref(false)
 const activeTab = ref('details')
 const showDeleteDialog = ref(false)
 
+// Register tab switches on the navigation back stack so browser-back
+// walks through tabs before leaving the item view.
+nav.trackHistory(activeTab)
+
 const tabItems = computed(() => [
   { label: t('tabs.details'), value: 'details', slot: 'details' as const },
   { label: t('tabs.extra'), value: 'extra', slot: 'extra' as const },

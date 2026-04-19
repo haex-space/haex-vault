@@ -48,7 +48,13 @@ const { viewMode, selectedItemId } = storeToRefs(passwordsStore)
 const toast = useToast()
 const { t } = useI18n()
 
+const { armWindowCloseBoundary } = usePasswordsNavigation(props.tabId ?? '')
+
 onMounted(async () => {
+  // Self-rearming sentinel — a back press from the list view is absorbed
+  // instead of reaching the global close-window action.
+  armWindowCloseBoundary()
+
   try {
     await passwordsStore.loadItemsAsync()
   } catch (error) {
