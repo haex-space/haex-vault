@@ -12,7 +12,7 @@ import { requireDb } from '~/stores/vault'
 
 type ItemTagRow = SelectHaexPasswordsTags & { itemId: string }
 
-export type PasswordsViewMode = 'list' | 'itemDetail'
+export type PasswordsViewMode = 'list' | 'itemDetail' | 'itemEditor'
 
 export const usePasswordsStore = defineStore('passwordsStore', () => {
   const items = ref<SelectHaexPasswordsItemDetails[]>([])
@@ -89,6 +89,28 @@ export const usePasswordsStore = defineStore('passwordsStore', () => {
     viewMode.value = 'list'
   }
 
+  const startCreate = () => {
+    selectedItemId.value = null
+    viewMode.value = 'itemEditor'
+  }
+
+  const startEdit = (itemId: string) => {
+    selectedItemId.value = itemId
+    viewMode.value = 'itemEditor'
+  }
+
+  const deleteItemAsync = async (itemId: string) => {
+    const db = requireDb()
+    // FK cascades clean up haex_passwords_item_tags + key_values + snapshots.
+    await db
+      .delete(haexPasswordsItemDetails)
+      .where(eq(haexPasswordsItemDetails.id, itemId))
+    if (selectedItemId.value === itemId) {
+      selectedItemId.value = null
+    }
+    await loadItemsAsync()
+  }
+
   return {
     items,
     selectedItemId,
@@ -100,5 +122,8 @@ export const usePasswordsStore = defineStore('passwordsStore', () => {
     getTagsForItemAsync,
     openItem,
     backToList,
+    startCreate,
+    startEdit,
+    deleteItemAsync,
   }
 })

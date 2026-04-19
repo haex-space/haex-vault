@@ -10,14 +10,13 @@
         @keydown="onSearchKeydown"
       />
 
-      <!-- Create (Stage 2): folder / item -->
       <UiButton
         :tooltip="t('add')"
         icon="i-lucide-plus"
         color="primary"
         variant="solid"
         class="shrink-0"
-        disabled
+        @click="onCreate"
       />
 
       <!-- Sort (Stage 3): name / created / modified -->
@@ -45,7 +44,10 @@
 
 <script setup lang="ts">
 const { searchInput } = storeToRefs(usePasswordsSearchStore())
+const passwordsStore = usePasswordsStore()
 const { t } = useI18n()
+
+const onCreate = () => passwordsStore.startCreate()
 
 // Keep Ctrl+A scoped to the input — the layout-level shortcut will select all items in Stage 3.
 const onSearchKeydown = (event: KeyboardEvent) => {

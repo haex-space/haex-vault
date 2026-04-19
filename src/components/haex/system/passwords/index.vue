@@ -37,11 +37,17 @@ const { viewMode } = storeToRefs(passwordsStore)
 const toast = useToast()
 const { t } = useI18n()
 
-const currentView = computed(() =>
-  viewMode.value === 'itemDetail'
-    ? 'HaexSystemPasswordsDetails'
-    : 'HaexSystemPasswordsList',
-)
+const currentView = computed(() => {
+  switch (viewMode.value) {
+    case 'itemEditor':
+      return 'HaexSystemPasswordsEditor'
+    case 'itemDetail':
+      return 'HaexSystemPasswordsDetails'
+    case 'list':
+    default:
+      return 'HaexSystemPasswordsList'
+  }
+})
 
 onMounted(async () => {
   try {
