@@ -204,11 +204,8 @@
         </div>
       </template>
 
-      <!-- History (edit-only) -->
-      <template
-        v-if="!isCreating"
-        #history
-      >
+      <!-- History -->
+      <template #history>
         <div class="p-6 flex flex-col items-center justify-center gap-3 text-muted h-full">
           <UIcon
             name="i-lucide-history"
@@ -270,20 +267,11 @@ const errors = reactive({
 const saving = ref(false)
 const activeTab = ref('details')
 
-const tabItems = computed(() => {
-  const base = [
-    { label: t('tabs.details'), value: 'details', slot: 'details' as const },
-    { label: t('tabs.extra'), value: 'extra', slot: 'extra' as const },
-  ]
-  if (!isCreating.value) {
-    base.push({
-      label: t('tabs.history'),
-      value: 'history',
-      slot: 'history' as const,
-    })
-  }
-  return base
-})
+const tabItems = computed(() => [
+  { label: t('tabs.details'), value: 'details', slot: 'details' as const },
+  { label: t('tabs.extra'), value: 'extra', slot: 'extra' as const },
+  { label: t('tabs.history'), value: 'history', slot: 'history' as const },
+])
 
 const loadKeyValuesAsync = async () => {
   if (!selectedItem.value?.id) return
