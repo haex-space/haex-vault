@@ -7,6 +7,7 @@
           ...buttonProps,
           ...$attrs,
         }"
+        @click="(event: Event) => $emit('click', event)"
       >
         <template
           v-for="(_, slotName) in $slots"

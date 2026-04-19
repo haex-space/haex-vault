@@ -10,14 +10,18 @@
         @keydown="onSearchKeydown"
       />
 
-      <UiButton
-        :tooltip="t('add')"
-        icon="i-lucide-plus"
-        color="primary"
-        variant="solid"
-        class="shrink-0"
-        @click="onCreate"
-      />
+      <UDropdownMenu
+        :items="addMenuItems"
+        :content="{ align: 'end' }"
+      >
+        <UButton
+          :aria-label="t('add')"
+          icon="i-lucide-plus"
+          color="primary"
+          variant="solid"
+          class="shrink-0"
+        />
+      </UDropdownMenu>
 
       <!-- Sort (Stage 3): name / created / modified -->
       <UiButton
@@ -43,11 +47,28 @@
 </template>
 
 <script setup lang="ts">
+import type { DropdownMenuItem } from '@nuxt/ui'
+
 const { searchInput } = storeToRefs(usePasswordsSearchStore())
 const passwordsStore = usePasswordsStore()
 const { t } = useI18n()
 
-const onCreate = () => passwordsStore.startCreate()
+const addMenuItems = computed<DropdownMenuItem[][]>(() => [
+  [
+    {
+      label: t('addMenu.item'),
+      icon: 'i-lucide-key',
+      onSelect: () => passwordsStore.startCreate(),
+    },
+    {
+      label: t('addMenu.folder'),
+      icon: 'i-lucide-folder',
+      // Groups/folders arrive in Stage 3 — surface the entry so the menu
+      // structure matches the final UX, but keep it inactive for now.
+      disabled: true,
+    },
+  ],
+])
 
 // Keep Ctrl+A scoped to the input — the layout-level shortcut will select all items in Stage 3.
 const onSearchKeydown = (event: KeyboardEvent) => {
@@ -63,9 +84,15 @@ de:
   add: Hinzufügen
   sort: Sortieren
   more: Mehr
+  addMenu:
+    item: Passwort anlegen
+    folder: Ordner anlegen
 en:
   search: Search…
   add: Add
   sort: Sort
   more: More
+  addMenu:
+    item: New password
+    folder: New folder
 </i18n>
