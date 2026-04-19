@@ -19,8 +19,10 @@
           @dblclick="sidebarWidth = DEFAULT_SIDEBAR_WIDTH"
         />
         <main class="flex-1 min-w-0 overflow-hidden">
-          <HaexSystemPasswordsEditor v-if="viewMode === 'itemEditor'" />
-          <HaexSystemPasswordsDetails v-else-if="viewMode === 'itemDetail'" />
+          <HaexSystemPasswordsEditor
+            v-if="viewMode === 'item'"
+            :key="selectedItemId ?? 'new'"
+          />
           <HaexSystemPasswordsList v-else />
         </main>
       </div>
@@ -35,7 +37,7 @@ defineProps<{
 }>()
 
 const passwordsStore = usePasswordsStore()
-const { viewMode } = storeToRefs(passwordsStore)
+const { viewMode, selectedItemId } = storeToRefs(passwordsStore)
 const toast = useToast()
 const { t } = useI18n()
 

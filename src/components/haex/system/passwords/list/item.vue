@@ -71,7 +71,6 @@
             :label="tag.name"
             color="neutral"
             variant="soft"
-            size="xs"
           />
         </div>
       </div>

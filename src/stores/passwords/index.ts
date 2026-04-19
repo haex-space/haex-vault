@@ -12,13 +12,14 @@ import { requireDb } from '~/stores/vault'
 
 type ItemTagRow = SelectHaexPasswordsTags & { itemId: string }
 
-export type PasswordsViewMode = 'list' | 'itemDetail' | 'itemEditor'
+export type PasswordsViewMode = 'list' | 'item'
 
 export const usePasswordsStore = defineStore('passwordsStore', () => {
   const items = ref<SelectHaexPasswordsItemDetails[]>([])
   const itemTagRows = ref<ItemTagRow[]>([])
   const selectedItemId = ref<string | null>(null)
   const viewMode = ref<PasswordsViewMode>('list')
+  const isEditing = ref(false)
 
   const loadItemsAsync = async () => {
     const db = requireDb()
@@ -38,7 +39,6 @@ export const usePasswordsStore = defineStore('passwordsStore', () => {
       )
   }
 
-  // Grouped view of the flat itemTagRows, indexed by item id.
   const tagsByItemId = computed<Record<string, SelectHaexPasswordsTags[]>>(
     () => {
       const map: Record<string, SelectHaexPasswordsTags[]> = {}
@@ -82,26 +82,36 @@ export const usePasswordsStore = defineStore('passwordsStore', () => {
 
   const openItem = (itemId: string) => {
     selectedItemId.value = itemId
-    viewMode.value = 'itemDetail'
+    viewMode.value = 'item'
+    isEditing.value = false
   }
 
   const backToList = () => {
     viewMode.value = 'list'
+    isEditing.value = false
   }
 
   const startCreate = () => {
     selectedItemId.value = null
-    viewMode.value = 'itemEditor'
+    viewMode.value = 'item'
+    isEditing.value = true
   }
 
-  const startEdit = (itemId: string) => {
-    selectedItemId.value = itemId
-    viewMode.value = 'itemEditor'
+  const startEdit = () => {
+    isEditing.value = true
+  }
+
+  const cancelEdit = () => {
+    // Creating → go back to list; existing → drop back to read view.
+    if (selectedItemId.value === null) {
+      backToList()
+      return
+    }
+    isEditing.value = false
   }
 
   const deleteItemAsync = async (itemId: string) => {
     const db = requireDb()
-    // FK cascades clean up haex_passwords_item_tags + key_values + snapshots.
     await db
       .delete(haexPasswordsItemDetails)
       .where(eq(haexPasswordsItemDetails.id, itemId))
@@ -115,6 +125,7 @@ export const usePasswordsStore = defineStore('passwordsStore', () => {
     items,
     selectedItemId,
     viewMode,
+    isEditing,
     tagsByItemId,
     selectedItem,
     selectedItemTags,
@@ -124,6 +135,7 @@ export const usePasswordsStore = defineStore('passwordsStore', () => {
     backToList,
     startCreate,
     startEdit,
+    cancelEdit,
     deleteItemAsync,
   }
 })
