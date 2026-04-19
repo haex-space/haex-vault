@@ -4,7 +4,10 @@
     disable-content-scroll
   >
     <div class="h-full flex flex-col overflow-hidden">
-      <HaexSystemPasswordsHeader class="flex-none" />
+      <HaexSystemPasswordsHeader
+        v-if="viewMode === 'list'"
+        class="flex-none"
+      />
       <div class="flex-1 min-h-0 flex">
         <aside
           class="hidden @3xl:flex @3xl:flex-col shrink-0 overflow-y-auto border-e border-default"
