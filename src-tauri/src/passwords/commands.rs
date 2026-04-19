@@ -1,0 +1,170 @@
+//! Tauri bridge commands for the Core Passwords API.
+//!
+//! Extensions access the password vault only through these commands — direct
+//! access to the `haex_passwords_*` system tables is forbidden by policy.
+//!
+//! Permission model:
+//!   - Declared via ExtensionPermission { resource: passwords, action, target }
+//!   - `action`: Read | ReadWrite
+//!   - `target`: Tag filter. "*" = all tags; otherwise an exact tag name.
+//!     Multiple permissions are OR-ed (union of tags).
+//!
+//! Write-side tag enforcement: on create/update commands (to be added in a
+//! follow-up commit) the submitted item MUST carry at least one tag within
+//! the extension's scope, otherwise the write is rejected.
+
+use crate::database::core::select_with_crdt;
+use crate::database::error::DatabaseError;
+use crate::database::row::get_string;
+use crate::extension::error::ExtensionError;
+use crate::extension::permissions::manager::PermissionManager;
+use crate::extension::permissions::types::{PasswordsAction, PasswordsScope};
+use crate::extension::utils::{emit_permission_prompt_if_needed, resolve_extension_id};
+use crate::AppState;
+
+use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
+use tauri::{AppHandle, State, WebviewWindow};
+use ts_rs::TS;
+
+/// Lean view of a password item for lists.
+///
+/// Does NOT include secret fields (password, otpSecret, private_key, ...).
+/// Full details require a separate `extension_password_read` call (added in
+/// a follow-up commit), which allows the core to audit per-record reads.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PasswordItemSummary {
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    pub tags: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+}
+
+/// List password items visible to the calling extension.
+///
+/// Returned items are already filtered by the permission's tag scope — an
+/// extension granted `read target=calendar` sees only items with tag
+/// "calendar", and never learns about the existence of others.
+#[tauri::command]
+pub async fn extension_password_list(
+    app_handle: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    public_key: Option<String>,
+    name: Option<String>,
+) -> Result<Vec<PasswordItemSummary>, ExtensionError> {
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+
+    let perm_result =
+        PermissionManager::check_passwords_permission(&state, &extension_id, PasswordsAction::Read)
+            .await;
+    if let Err(ref e) = perm_result {
+        emit_permission_prompt_if_needed(&app_handle, e);
+    }
+    let scope = perm_result?;
+
+    let (sql, params) = build_list_query(&scope);
+
+    let rows = select_with_crdt(sql, params, &state.db).map_err(|e| ExtensionError::Database {
+        source: DatabaseError::DatabaseError {
+            reason: e.to_string(),
+        },
+    })?;
+
+    let summaries: Vec<PasswordItemSummary> = rows
+        .iter()
+        .map(|row| {
+            let tags_str = get_string(row, 8);
+            let tags = if tags_str.is_empty() {
+                vec![]
+            } else {
+                tags_str.split(',').map(|s| s.to_string()).collect()
+            };
+            PasswordItemSummary {
+                id: get_string(row, 0),
+                title: non_empty(get_string(row, 1)),
+                username: non_empty(get_string(row, 2)),
+                url: non_empty(get_string(row, 3)),
+                icon: non_empty(get_string(row, 4)),
+                color: non_empty(get_string(row, 5)),
+                created_at: non_empty(get_string(row, 6)),
+                updated_at: non_empty(get_string(row, 7)),
+                tags,
+            }
+        })
+        .collect();
+
+    Ok(summaries)
+}
+
+fn non_empty(s: String) -> Option<String> {
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
+    }
+}
+
+/// Builds the list-query SQL and parameters for a given tag scope.
+///
+/// Strategy: a subquery identifies items with at least one in-scope tag;
+/// the outer query then LEFT-JOINs the FULL tag list per item, so the UI
+/// receives complete tag context (not just the matching tags).
+fn build_list_query(scope: &PasswordsScope) -> (String, Vec<JsonValue>) {
+    const COLS: &str = "i.id, i.title, i.username, i.url, i.icon, i.color, \
+                        i.created_at, i.updated_at, \
+                        GROUP_CONCAT(DISTINCT t.name) as tag_names";
+
+    match scope {
+        PasswordsScope::All => {
+            let sql = format!(
+                "SELECT {cols} \
+                 FROM haex_passwords_item_details i \
+                 LEFT JOIN haex_passwords_item_tags it ON it.item_id = i.id \
+                 LEFT JOIN haex_passwords_tags t ON t.id = it.tag_id \
+                 GROUP BY i.id",
+                cols = COLS
+            );
+            (sql, vec![])
+        }
+        PasswordsScope::Tags(allowed_tags) => {
+            let placeholders: Vec<String> =
+                (1..=allowed_tags.len()).map(|i| format!("?{}", i)).collect();
+            let sql = format!(
+                "SELECT {cols} \
+                 FROM haex_passwords_item_details i \
+                 LEFT JOIN haex_passwords_item_tags it ON it.item_id = i.id \
+                 LEFT JOIN haex_passwords_tags t ON t.id = it.tag_id \
+                 WHERE i.id IN ( \
+                     SELECT DISTINCT scope_it.item_id \
+                     FROM haex_passwords_item_tags scope_it \
+                     INNER JOIN haex_passwords_tags scope_t \
+                         ON scope_t.id = scope_it.tag_id \
+                     WHERE scope_t.name IN ({placeholders}) \
+                 ) \
+                 GROUP BY i.id",
+                cols = COLS,
+                placeholders = placeholders.join(",")
+            );
+            let params = allowed_tags
+                .iter()
+                .map(|t| JsonValue::String(t.clone()))
+                .collect();
+            (sql, params)
+        }
+    }
+}

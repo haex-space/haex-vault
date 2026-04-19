@@ -342,6 +342,20 @@ impl FromStr for PasswordsAction {
     }
 }
 
+/// Ergebnis einer Passwords-Permission-Prüfung.
+///
+/// Beschreibt welche Tag-Scopes eine Extension für die angefragte Aktion lesen
+/// bzw. schreiben darf. Wird von den Bridge-Commands verwendet um SQL-Queries
+/// auf die erlaubten Tags zu begrenzen.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PasswordsScope {
+    /// Wildcard — Extension darf auf Einträge mit beliebigen Tags zugreifen.
+    All,
+    /// Extension darf nur auf Einträge zugreifen die mindestens eines dieser
+    /// Tags haben.
+    Tags(Vec<String>),
+}
+
 // --- Haupt-Typen für Berechtigungen ---
 
 /// Ein typsicherer Container, der die spezifische Aktion für einen Ressourcentyp enthält.
