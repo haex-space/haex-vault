@@ -28,14 +28,14 @@ export interface SpaceLinkedItem {
 }
 
 export function useSpaceLinkedItems(spaceId: MaybeRefOrGetter<string>) {
-  const { currentVault } = storeToRefs(useVaultStore())
+  const { getDb } = useVaultDb()
   const extensionsStore = useExtensionsStore()
 
   const isLoading = ref(false)
   const spaceAssignments = ref<SelectHaexSharedSpaceSync[]>([])
 
   const loadAsync = async () => {
-    const db = currentVault.value?.drizzle
+    const db = getDb()
     if (!db) return
 
     isLoading.value = true
@@ -59,7 +59,7 @@ export function useSpaceLinkedItems(spaceId: MaybeRefOrGetter<string>) {
 
   /** Remove all assignments sharing the same groupId+spaceId, or a single assignment by id */
   const removeAssignmentAsync = async (assignment: SelectHaexSharedSpaceSync) => {
-    const db = currentVault.value?.drizzle
+    const db = getDb()
     if (!db) return
 
     if (assignment.groupId) {
