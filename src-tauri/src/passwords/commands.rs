@@ -13,7 +13,7 @@
 //! follow-up commit) the submitted item MUST carry at least one tag within
 //! the extension's scope, otherwise the write is rejected.
 
-use crate::database::core::select_with_crdt;
+use crate::database::core::{execute_with_crdt, select_with_crdt};
 use crate::database::error::DatabaseError;
 use crate::database::row::get_string;
 use crate::extension::error::ExtensionError;
@@ -380,5 +380,401 @@ fn build_list_query(scope: &PasswordsScope) -> (String, Vec<JsonValue>) {
                 .collect();
             (sql, params)
         }
+    }
+}
+
+// =============================================================================
+// Write side: store / update
+// =============================================================================
+
+/// Input for create & update operations.
+///
+/// `tags` is required and must contain at least one tag within the
+/// extension's permission scope (variant B enforcement). Items outside the
+/// extension's own scope cannot be created — the write is rejected.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PasswordStoreInput {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub otp_secret: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub otp_digits: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub otp_period: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub otp_algorithm: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub autofill_aliases: Option<HashMap<String, Vec<String>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<String>,
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub key_values: Vec<PasswordKeyValueInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PasswordKeyValueInput {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+}
+
+/// Create a new password item. Returns the generated item id.
+#[tauri::command]
+pub async fn extension_password_store(
+    app_handle: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    input: PasswordStoreInput,
+    public_key: Option<String>,
+    name: Option<String>,
+) -> Result<String, ExtensionError> {
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+
+    let perm_result = PermissionManager::check_passwords_permission(
+        &state,
+        &extension_id,
+        PasswordsAction::ReadWrite,
+    )
+    .await;
+    if let Err(ref e) = perm_result {
+        emit_permission_prompt_if_needed(&app_handle, e);
+    }
+    let scope = perm_result?;
+
+    validate_tags_in_scope(&input.tags, &scope)?;
+
+    let item_id = uuid::Uuid::new_v4().to_string();
+    let hlc = lock_hlc(&state)?;
+
+    insert_item_row(&state, &hlc, &item_id, &input)?;
+    upsert_and_link_tags(&state, &hlc, &item_id, &input.tags)?;
+    insert_key_values(&state, &hlc, &item_id, &input.key_values)?;
+
+    Ok(item_id)
+}
+
+/// Update an existing password item. Scope enforcement applies to both the
+/// existing item (must be in scope) AND the new tag set (must keep ≥1 tag
+/// in scope — extensions cannot "orphan" an item out of their own reach).
+#[tauri::command]
+pub async fn extension_password_update(
+    app_handle: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    item_id: String,
+    input: PasswordStoreInput,
+    public_key: Option<String>,
+    name: Option<String>,
+) -> Result<(), ExtensionError> {
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+
+    let perm_result = PermissionManager::check_passwords_permission(
+        &state,
+        &extension_id,
+        PasswordsAction::ReadWrite,
+    )
+    .await;
+    if let Err(ref e) = perm_result {
+        emit_permission_prompt_if_needed(&app_handle, e);
+    }
+    let scope = perm_result?;
+
+    ensure_item_in_scope(&state, &item_id, &scope)?;
+    validate_tags_in_scope(&input.tags, &scope)?;
+
+    let hlc = lock_hlc(&state)?;
+
+    update_item_row(&state, &hlc, &item_id, &input)?;
+
+    // Replace tag links and key-values wholesale. A CRDT-aware diff would be
+    // more efficient but correctness comes first; optimize once profiling
+    // shows it matters.
+    delete_item_tag_links(&state, &hlc, &item_id)?;
+    upsert_and_link_tags(&state, &hlc, &item_id, &input.tags)?;
+    delete_key_values(&state, &hlc, &item_id)?;
+    insert_key_values(&state, &hlc, &item_id, &input.key_values)?;
+
+    Ok(())
+}
+
+// --- Internal helpers -------------------------------------------------------
+
+fn validate_tags_in_scope(tags: &[String], scope: &PasswordsScope) -> Result<(), ExtensionError> {
+    if tags.is_empty() {
+        return Err(ExtensionError::ValidationError {
+            reason: "At least one tag is required for a password entry".to_string(),
+        });
+    }
+    match scope {
+        PasswordsScope::All => Ok(()),
+        PasswordsScope::Tags(allowed) => {
+            if tags.iter().any(|t| allowed.contains(t)) {
+                Ok(())
+            } else {
+                Err(ExtensionError::SecurityViolation {
+                    reason: format!(
+                        "At least one submitted tag must be within the extension's scope \
+                         (allowed tags: {:?})",
+                        allowed
+                    ),
+                })
+            }
+        }
+    }
+}
+
+fn ensure_item_in_scope(
+    state: &State<'_, AppState>,
+    item_id: &str,
+    scope: &PasswordsScope,
+) -> Result<(), ExtensionError> {
+    let (sql, params) = build_read_item_query(scope, item_id);
+    // We only care about existence, not the row contents — reuse the read
+    // query (which already combines id lookup + scope check in one WHERE).
+    let rows = select_with_crdt(sql, params, &state.db).map_err(|e| ExtensionError::Database {
+        source: DatabaseError::DatabaseError {
+            reason: e.to_string(),
+        },
+    })?;
+    if rows.is_empty() {
+        return Err(ExtensionError::ValidationError {
+            reason: format!("Password item {} not found", item_id),
+        });
+    }
+    Ok(())
+}
+
+fn lock_hlc<'a>(
+    state: &'a State<'_, AppState>,
+) -> Result<std::sync::MutexGuard<'a, crate::crdt::hlc::HlcService>, ExtensionError> {
+    state.hlc.lock().map_err(|_| ExtensionError::Database {
+        source: DatabaseError::MutexPoisoned {
+            reason: "HLC lock poisoned".to_string(),
+        },
+    })
+}
+
+fn insert_item_row(
+    state: &State<'_, AppState>,
+    hlc: &std::sync::MutexGuard<crate::crdt::hlc::HlcService>,
+    item_id: &str,
+    input: &PasswordStoreInput,
+) -> Result<(), ExtensionError> {
+    let sql = "INSERT INTO haex_passwords_item_details \
+               (id, title, username, password, note, icon, color, url, \
+                otp_secret, otp_digits, otp_period, otp_algorithm, \
+                autofill_aliases, expires_at) \
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)"
+        .to_string();
+    let params = vec![
+        JsonValue::String(item_id.to_string()),
+        opt_str_param(&input.title),
+        opt_str_param(&input.username),
+        opt_str_param(&input.password),
+        opt_str_param(&input.note),
+        opt_str_param(&input.icon),
+        opt_str_param(&input.color),
+        opt_str_param(&input.url),
+        opt_str_param(&input.otp_secret),
+        opt_i64_param(input.otp_digits),
+        opt_i64_param(input.otp_period),
+        opt_str_param(&input.otp_algorithm),
+        serialize_aliases(&input.autofill_aliases),
+        opt_str_param(&input.expires_at),
+    ];
+    execute_with_crdt(sql, params, &state.db, hlc).map_err(|e| ExtensionError::Database {
+        source: e,
+    })?;
+    Ok(())
+}
+
+fn update_item_row(
+    state: &State<'_, AppState>,
+    hlc: &std::sync::MutexGuard<crate::crdt::hlc::HlcService>,
+    item_id: &str,
+    input: &PasswordStoreInput,
+) -> Result<(), ExtensionError> {
+    let sql = "UPDATE haex_passwords_item_details SET \
+               title = ?2, username = ?3, password = ?4, note = ?5, icon = ?6, \
+               color = ?7, url = ?8, otp_secret = ?9, otp_digits = ?10, \
+               otp_period = ?11, otp_algorithm = ?12, autofill_aliases = ?13, \
+               expires_at = ?14, updated_at = CURRENT_TIMESTAMP \
+               WHERE id = ?1"
+        .to_string();
+    let params = vec![
+        JsonValue::String(item_id.to_string()),
+        opt_str_param(&input.title),
+        opt_str_param(&input.username),
+        opt_str_param(&input.password),
+        opt_str_param(&input.note),
+        opt_str_param(&input.icon),
+        opt_str_param(&input.color),
+        opt_str_param(&input.url),
+        opt_str_param(&input.otp_secret),
+        opt_i64_param(input.otp_digits),
+        opt_i64_param(input.otp_period),
+        opt_str_param(&input.otp_algorithm),
+        serialize_aliases(&input.autofill_aliases),
+        opt_str_param(&input.expires_at),
+    ];
+    execute_with_crdt(sql, params, &state.db, hlc).map_err(|e| ExtensionError::Database {
+        source: e,
+    })?;
+    Ok(())
+}
+
+/// For each tag name: look up its id, inserting a new tag row if missing.
+/// Then link it to the item via `haex_passwords_item_tags`.
+fn upsert_and_link_tags(
+    state: &State<'_, AppState>,
+    hlc: &std::sync::MutexGuard<crate::crdt::hlc::HlcService>,
+    item_id: &str,
+    tag_names: &[String],
+) -> Result<(), ExtensionError> {
+    for name in tag_names {
+        let tag_id = upsert_tag(state, hlc, name)?;
+        let link_id = uuid::Uuid::new_v4().to_string();
+        let sql = "INSERT OR IGNORE INTO haex_passwords_item_tags (id, item_id, tag_id) \
+                   VALUES (?1, ?2, ?3)"
+            .to_string();
+        let params = vec![
+            JsonValue::String(link_id),
+            JsonValue::String(item_id.to_string()),
+            JsonValue::String(tag_id),
+        ];
+        execute_with_crdt(sql, params, &state.db, hlc).map_err(|e| {
+            ExtensionError::Database { source: e }
+        })?;
+    }
+    Ok(())
+}
+
+fn upsert_tag(
+    state: &State<'_, AppState>,
+    hlc: &std::sync::MutexGuard<crate::crdt::hlc::HlcService>,
+    name: &str,
+) -> Result<String, ExtensionError> {
+    let rows = select_with_crdt(
+        "SELECT id FROM haex_passwords_tags WHERE name = ?1".to_string(),
+        vec![JsonValue::String(name.to_string())],
+        &state.db,
+    )
+    .map_err(|e| ExtensionError::Database {
+        source: DatabaseError::DatabaseError {
+            reason: e.to_string(),
+        },
+    })?;
+    if let Some(r) = rows.first() {
+        return Ok(get_string(r, 0));
+    }
+    let new_id = uuid::Uuid::new_v4().to_string();
+    execute_with_crdt(
+        "INSERT INTO haex_passwords_tags (id, name) VALUES (?1, ?2)".to_string(),
+        vec![
+            JsonValue::String(new_id.clone()),
+            JsonValue::String(name.to_string()),
+        ],
+        &state.db,
+        hlc,
+    )
+    .map_err(|e| ExtensionError::Database { source: e })?;
+    Ok(new_id)
+}
+
+fn delete_item_tag_links(
+    state: &State<'_, AppState>,
+    hlc: &std::sync::MutexGuard<crate::crdt::hlc::HlcService>,
+    item_id: &str,
+) -> Result<(), ExtensionError> {
+    execute_with_crdt(
+        "DELETE FROM haex_passwords_item_tags WHERE item_id = ?1".to_string(),
+        vec![JsonValue::String(item_id.to_string())],
+        &state.db,
+        hlc,
+    )
+    .map_err(|e| ExtensionError::Database { source: e })?;
+    Ok(())
+}
+
+fn insert_key_values(
+    state: &State<'_, AppState>,
+    hlc: &std::sync::MutexGuard<crate::crdt::hlc::HlcService>,
+    item_id: &str,
+    key_values: &[PasswordKeyValueInput],
+) -> Result<(), ExtensionError> {
+    for kv in key_values {
+        let kv_id = uuid::Uuid::new_v4().to_string();
+        execute_with_crdt(
+            "INSERT INTO haex_passwords_item_key_values (id, item_id, key, value) \
+             VALUES (?1, ?2, ?3, ?4)"
+                .to_string(),
+            vec![
+                JsonValue::String(kv_id),
+                JsonValue::String(item_id.to_string()),
+                opt_str_param(&kv.key),
+                opt_str_param(&kv.value),
+            ],
+            &state.db,
+            hlc,
+        )
+        .map_err(|e| ExtensionError::Database { source: e })?;
+    }
+    Ok(())
+}
+
+fn delete_key_values(
+    state: &State<'_, AppState>,
+    hlc: &std::sync::MutexGuard<crate::crdt::hlc::HlcService>,
+    item_id: &str,
+) -> Result<(), ExtensionError> {
+    execute_with_crdt(
+        "DELETE FROM haex_passwords_item_key_values WHERE item_id = ?1".to_string(),
+        vec![JsonValue::String(item_id.to_string())],
+        &state.db,
+        hlc,
+    )
+    .map_err(|e| ExtensionError::Database { source: e })?;
+    Ok(())
+}
+
+fn opt_str_param(v: &Option<String>) -> JsonValue {
+    match v {
+        Some(s) => JsonValue::String(s.clone()),
+        None => JsonValue::Null,
+    }
+}
+
+fn opt_i64_param(v: Option<i64>) -> JsonValue {
+    match v {
+        Some(n) => JsonValue::Number(n.into()),
+        None => JsonValue::Null,
+    }
+}
+
+fn serialize_aliases(v: &Option<HashMap<String, Vec<String>>>) -> JsonValue {
+    match v {
+        Some(map) => {
+            JsonValue::String(serde_json::to_string(map).unwrap_or_else(|_| "{}".to_string()))
+        }
+        None => JsonValue::Null,
     }
 }
