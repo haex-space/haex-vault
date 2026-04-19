@@ -19,7 +19,7 @@
           'absolute pointer-events-none px-1.5 transition-all',
           shouldFloat
             ? 'text-highlighted text-xs font-medium -top-2.5 left-0'
-            : 'text-dimmed text-sm top-1.5 left-7',
+            : 'text-dimmed text-sm top-1/2 -translate-y-1/2 left-7',
         ]"
       >
         <span class="inline-flex bg-default px-1">
