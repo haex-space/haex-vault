@@ -15,8 +15,7 @@ function nextRetryDelay(retryCount: number): number {
 }
 
 export function useInviteOutbox() {
-  const { currentVault } = storeToRefs(useVaultStore())
-  const getDb = () => currentVault.value?.drizzle
+  const { getDb } = useVaultDb()
 
   /** Create a new outbox entry for a PushInvite delivery. */
   const createOutboxEntryAsync = async (entry: {
