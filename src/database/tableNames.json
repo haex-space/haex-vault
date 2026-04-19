@@ -503,6 +503,154 @@
         "deleted": "deleted"
       }
     },
+    "passwords_item_details": {
+      "name": "haex_passwords_item_details",
+      "columns": {
+        "id": "id",
+        "title": "title",
+        "username": "username",
+        "password": "password",
+        "note": "note",
+        "icon": "icon",
+        "color": "color",
+        "url": "url",
+        "otpSecret": "otp_secret",
+        "otpDigits": "otp_digits",
+        "otpPeriod": "otp_period",
+        "otpAlgorithm": "otp_algorithm",
+        "expiresAt": "expires_at",
+        "autofillAliases": "autofill_aliases",
+        "createdAt": "created_at",
+        "updatedAt": "updated_at"
+      }
+    },
+    "passwords_item_key_values": {
+      "name": "haex_passwords_item_key_values",
+      "columns": {
+        "id": "id",
+        "itemId": "item_id",
+        "key": "key",
+        "value": "value",
+        "updatedAt": "updated_at"
+      }
+    },
+    "passwords_groups": {
+      "name": "haex_passwords_groups",
+      "columns": {
+        "id": "id",
+        "name": "name",
+        "description": "description",
+        "icon": "icon",
+        "sortOrder": "sort_order",
+        "color": "color",
+        "parentId": "parent_id",
+        "createdAt": "created_at",
+        "updatedAt": "updated_at"
+      }
+    },
+    "passwords_group_items": {
+      "name": "haex_passwords_group_items",
+      "columns": {
+        "itemId": "item_id",
+        "groupId": "group_id"
+      }
+    },
+    "passwords_binaries": {
+      "name": "haex_passwords_binaries",
+      "columns": {
+        "hash": "hash",
+        "data": "data",
+        "size": "size",
+        "type": "type",
+        "createdAt": "created_at"
+      }
+    },
+    "passwords_item_binaries": {
+      "name": "haex_passwords_item_binaries",
+      "columns": {
+        "id": "id",
+        "itemId": "item_id",
+        "binaryHash": "binary_hash",
+        "fileName": "file_name"
+      }
+    },
+    "passwords_item_snapshots": {
+      "name": "haex_passwords_item_snapshots",
+      "columns": {
+        "id": "id",
+        "itemId": "item_id",
+        "snapshotData": "snapshot_data",
+        "createdAt": "created_at",
+        "modifiedAt": "modified_at"
+      }
+    },
+    "passwords_snapshot_binaries": {
+      "name": "haex_passwords_snapshot_binaries",
+      "columns": {
+        "id": "id",
+        "snapshotId": "snapshot_id",
+        "binaryHash": "binary_hash",
+        "fileName": "file_name"
+      }
+    },
+    "passwords_generator_presets": {
+      "name": "haex_passwords_generator_presets",
+      "columns": {
+        "id": "id",
+        "name": "name",
+        "length": "length",
+        "uppercase": "uppercase",
+        "lowercase": "lowercase",
+        "numbers": "numbers",
+        "symbols": "symbols",
+        "excludeChars": "exclude_chars",
+        "usePattern": "use_pattern",
+        "pattern": "pattern",
+        "isDefault": "is_default",
+        "createdAt": "created_at",
+        "updatedAt": "updated_at"
+      }
+    },
+    "passwords_tags": {
+      "name": "haex_passwords_tags",
+      "columns": {
+        "id": "id",
+        "name": "name",
+        "color": "color",
+        "createdAt": "created_at"
+      }
+    },
+    "passwords_item_tags": {
+      "name": "haex_passwords_item_tags",
+      "columns": {
+        "id": "id",
+        "itemId": "item_id",
+        "tagId": "tag_id"
+      }
+    },
+    "passwords_passkeys": {
+      "name": "haex_passwords_passkeys",
+      "columns": {
+        "id": "id",
+        "itemId": "item_id",
+        "credentialId": "credential_id",
+        "relyingPartyId": "relying_party_id",
+        "relyingPartyName": "relying_party_name",
+        "userHandle": "user_handle",
+        "userName": "user_name",
+        "userDisplayName": "user_display_name",
+        "privateKey": "private_key",
+        "publicKey": "public_key",
+        "algorithm": "algorithm",
+        "signCount": "sign_count",
+        "isDiscoverable": "is_discoverable",
+        "icon": "icon",
+        "color": "color",
+        "nickname": "nickname",
+        "createdAt": "created_at",
+        "lastUsedAt": "last_used_at"
+      }
+    },
 
     "crdt": {
       "changes": {
