@@ -16,8 +16,7 @@ const log = createLogger('DEVICE_ENROLLMENT')
  * 3. processEnrollments: this device processes Welcomes written by other devices
  */
 export function useDeviceEnrollment() {
-  const { currentVault } = storeToRefs(useVaultStore())
-  const getDb = () => currentVault.value?.drizzle
+  const { getDb } = useVaultDb()
 
   /**
    * Check all shared spaces and request MLS enrollment for ones this device isn't part of.
