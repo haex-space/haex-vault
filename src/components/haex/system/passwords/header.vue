@@ -48,6 +48,13 @@
     </div>
 
     <HaexSystemPasswordsDialogTagManager v-model:open="tagManagerOpen" />
+
+    <HaexSystemPasswordsDialogGroupEditor
+      v-model:open="groupEditorOpen"
+      mode="create"
+      :group="null"
+      :create-parent-id="createParentId"
+    />
   </div>
 </template>
 
@@ -55,8 +62,19 @@
 import type { DropdownMenuItem } from '@nuxt/ui'
 
 const { searchInput } = storeToRefs(usePasswordsSearchStore())
+const { selectedGroupId } = storeToRefs(usePasswordsGroupsStore())
 const nav = usePasswordsNavigation()
 const { t } = useI18n()
+
+const groupEditorOpen = ref(false)
+const createParentId = ref<string | null>(null)
+
+const openCreateGroupDialog = () => {
+  // New folder inherits the currently-viewed group as parent (root when in
+  // "All Passwords"). Consistent with what users expect from a file manager.
+  createParentId.value = selectedGroupId.value
+  groupEditorOpen.value = true
+}
 
 const addMenuItems = computed<DropdownMenuItem[][]>(() => [
   [
@@ -68,9 +86,7 @@ const addMenuItems = computed<DropdownMenuItem[][]>(() => [
     {
       label: t('addMenu.folder'),
       icon: 'i-lucide-folder',
-      // Groups/folders arrive in Stage 3 — surface the entry so the menu
-      // structure matches the final UX, but keep it inactive for now.
-      disabled: true,
+      onSelect: openCreateGroupDialog,
     },
   ],
 ])

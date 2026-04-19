@@ -437,6 +437,7 @@ const toast = useToast()
 
 const passwordsStore = usePasswordsStore()
 const tagsStore = usePasswordsTagsStore()
+const groupsStore = usePasswordsGroupsStore()
 const nav = usePasswordsNavigation()
 const { selectedItem, selectedItemTags, isEditing } =
   storeToRefs(passwordsStore)
@@ -721,6 +722,7 @@ const onSave = async () => {
       await db
         .insert(haexPasswordsItemDetails)
         .values({ ...payload, createdAt: now })
+      await groupsStore.setItemGroupAsync(itemId, groupsStore.selectedGroupId)
     } else {
       await db
         .update(haexPasswordsItemDetails)

@@ -21,12 +21,15 @@
           @mousedown="startResize"
           @dblclick="sidebarWidth = DEFAULT_SIDEBAR_WIDTH"
         />
-        <main class="flex-1 min-w-0 overflow-hidden">
+        <main class="flex-1 min-w-0 overflow-hidden flex flex-col">
           <HaexSystemPasswordsEditor
             v-if="viewMode === 'item'"
             :key="selectedItemId ?? 'new'"
           />
-          <HaexSystemPasswordsList v-else />
+          <template v-else>
+            <HaexSystemPasswordsBreadcrumb class="@3xl:hidden shrink-0" />
+            <HaexSystemPasswordsList class="flex-1 min-h-0" />
+          </template>
         </main>
       </div>
     </div>
@@ -44,6 +47,7 @@ const props = defineProps<{
 provide('haex-tab-id', props.tabId ?? '')
 
 const passwordsStore = usePasswordsStore()
+const groupsStore = usePasswordsGroupsStore()
 const { viewMode, selectedItemId } = storeToRefs(passwordsStore)
 const toast = useToast()
 const { t } = useI18n()
@@ -56,9 +60,12 @@ onMounted(async () => {
   armWindowCloseBoundary()
 
   try {
-    await passwordsStore.loadItemsAsync()
+    await Promise.all([
+      passwordsStore.loadItemsAsync(),
+      groupsStore.loadGroupsAsync(),
+    ])
   } catch (error) {
-    console.error('[Passwords] Failed to load items:', error)
+    console.error('[Passwords] Failed to load items/groups:', error)
     toast.add({
       title: t('loadError'),
       color: 'error',

@@ -1,10 +1,16 @@
 <template>
-  <UiListItem
-    :highlight="selected"
-    class="cursor-pointer"
-    @click="emit('click')"
+  <div
+    :class="['group', isDragging && 'opacity-40']"
+    draggable="true"
+    @dragstart="onDragStart"
+    @dragend="onDragEnd"
   >
-    <div class="flex items-center gap-3 min-h-14">
+    <UiListItem
+      :highlight="selected"
+      class="cursor-pointer"
+      @click="emit('click')"
+    >
+      <div class="flex items-center gap-3 min-h-14">
       <!-- Icon -->
       <div
         class="shrink-0 size-10 rounded-md flex items-center justify-center bg-elevated overflow-hidden"
@@ -76,20 +82,21 @@
       </div>
     </div>
 
-    <template #actions>
-      <div class="flex items-center gap-1 text-muted">
-        <UIcon
-          v-if="isExpired"
-          name="i-lucide-alert-triangle"
-          class="size-4 text-warning"
-        />
-        <UIcon
-          name="i-lucide-chevron-right"
-          class="size-4"
-        />
-      </div>
-    </template>
-  </UiListItem>
+      <template #actions>
+        <div class="flex items-center gap-1 text-muted">
+          <UIcon
+            v-if="isExpired"
+            name="i-lucide-alert-triangle"
+            class="size-4 text-warning"
+          />
+          <UIcon
+            name="i-lucide-chevron-right"
+            class="size-4"
+          />
+        </div>
+      </template>
+    </UiListItem>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -148,6 +155,19 @@ const isExpired = computed(() => {
   if (Number.isNaN(ts)) return false
   return ts < Date.now()
 })
+
+const isDragging = ref(false)
+
+const onDragStart = (event: DragEvent) => {
+  if (!event.dataTransfer) return
+  event.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer.setData('application/x-haex-item', props.item.id)
+  isDragging.value = true
+}
+
+const onDragEnd = () => {
+  isDragging.value = false
+}
 </script>
 
 <i18n lang="yaml">

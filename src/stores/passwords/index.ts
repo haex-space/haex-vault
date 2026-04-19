@@ -61,6 +61,16 @@ export const usePasswordsStore = defineStore('passwordsStore', () => {
     return tagsByItemId.value[selectedItemId.value] ?? []
   })
 
+  const itemsInSelectedGroup = computed<SelectHaexPasswordsItemDetails[]>(() => {
+    const groupsStore = usePasswordsGroupsStore()
+    const activeGroupId = groupsStore.selectedGroupId
+    if (activeGroupId === null) return items.value
+    const itemGroupMap = groupsStore.itemGroupMap
+    return items.value.filter(
+      (item) => itemGroupMap.get(item.id) === activeGroupId,
+    )
+  })
+
   const getTagsForItemAsync = async (
     itemId: string,
   ): Promise<SelectHaexPasswordsTags[]> => {
@@ -147,6 +157,7 @@ export const usePasswordsStore = defineStore('passwordsStore', () => {
     tagsByItemId,
     selectedItem,
     selectedItemTags,
+    itemsInSelectedGroup,
     loadItemsAsync,
     getTagsForItemAsync,
     openItem,
