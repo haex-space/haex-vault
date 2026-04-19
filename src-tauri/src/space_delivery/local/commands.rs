@@ -456,6 +456,41 @@ pub(crate) fn persist_claimed_ucan(
     Ok(())
 }
 
+/// Resolve the inviter's DID from a pending-invite row identified by
+/// `(space_id, token_id)`. The pending-invite row is inserted by the UI the
+/// moment an invite arrives and `inviter_did` is `NOT NULL` in the schema —
+/// so this lookup is the single source of truth for who sent the invite.
+/// Callers must not pass `inviter_did` in from the UI; that historically
+/// caused the parameter to be forgotten in the invoke wire-up.
+pub(crate) fn resolve_inviter_did_for_invite(
+    space_id: &str,
+    token_id: &str,
+    db: &DbConnection,
+) -> Result<String, String> {
+    let rows = crate::database::core::select_with_crdt(
+        "SELECT inviter_did FROM haex_pending_invites WHERE space_id = ?1 AND token_id = ?2 LIMIT 1"
+            .to_string(),
+        vec![
+            serde_json::Value::String(space_id.to_string()),
+            serde_json::Value::String(token_id.to_string()),
+        ],
+        db,
+    )
+    .map_err(|e| format!("Failed to look up pending invite: {e}"))?;
+
+    rows.first()
+        .and_then(|r| r.first())
+        .and_then(|v| v.as_str())
+        .map(str::to_owned)
+        .ok_or_else(|| {
+            format!(
+                "Pending invite not found for space={} token={}",
+                &space_id[..8.min(space_id.len())],
+                &token_id[..8.min(token_id.len())]
+            )
+        })
+}
+
 /// Resolve the local `haex_identities.id` for the inviter's DID.
 ///
 /// The claimant's UI must ensure a row for `inviter_did` exists before calling
@@ -495,13 +530,17 @@ pub async fn local_delivery_claim_invite(
     space_name: String,
     token_id: String,
     identity_did: String,
-    inviter_did: String,
     label: Option<String>,
     identity_public_key: Option<String>,
 ) -> Result<ClaimInviteResult, String> {
     let log = |level: &str, msg: &str| {
         let _ = crate::logging::insert_log(&state, level, "ClaimInvite", None, msg, None, "rust");
     };
+
+    // Fail fast if the pending invite is missing — avoids an expensive QUIC
+    // round-trip and surfaces the error before we generate MLS KeyPackages.
+    let lookup_db = DbConnection(state.db.0.clone());
+    let inviter_did = resolve_inviter_did_for_invite(&space_id, &token_id, &lookup_db)?;
 
     log("info", &format!("ENTER local_delivery_claim_invite space={} token={} inviter_did={}", &space_id[..8.min(space_id.len())], &token_id[..8.min(token_id.len())], &inviter_did[..20.min(inviter_did.len())]));
     log("info", &format!("Starting claim: leader={} space={} token={}", &leader_endpoint_id[..16.min(leader_endpoint_id.len())], &space_id[..8.min(space_id.len())], &token_id[..8.min(token_id.len())]));
@@ -553,7 +592,7 @@ pub async fn local_delivery_claim_invite(
     // across attempts, including the (expensively-generated) KeyPackages.
     let req = Request::ClaimInvite {
         space_id: space_id.clone(),
-        token: token_id,
+        token: token_id.clone(),
         did: identity_did.clone(),
         endpoint_id: our_endpoint_id,
         key_packages: key_packages_b64,
@@ -670,7 +709,24 @@ pub async fn local_delivery_claim_invite(
             token: &ucan_token,
         },
     )?;
-    eprintln!("[ClaimInvite] [trace] AFTER persist_claimed_ucan — returning Ok");
+    eprintln!("[ClaimInvite] [trace] AFTER persist_claimed_ucan");
+
+    // 8. Mark the pending-invite row as accepted. Doing this here keeps the
+    // accept flow atomic inside the Tauri command — the UI previously did it
+    // after further async steps (persistSpace, loadSpaces, addSelfAsMember),
+    // which left the invite stuck on "pending" whenever any of those hung or
+    // threw.
+    crate::database::core::execute_with_crdt(
+        "UPDATE haex_pending_invites SET status = 'accepted', responded_at = datetime('now') WHERE space_id = ?1 AND token_id = ?2".to_string(),
+        vec![
+            serde_json::Value::String(space_id.clone()),
+            serde_json::Value::String(token_id),
+        ],
+        &db,
+        &hlc_guard,
+    )
+    .map_err(|e| format!("Failed to mark invite as accepted: {e}"))?;
+    eprintln!("[ClaimInvite] [trace] AFTER mark accepted — returning Ok");
 
     Ok(ClaimInviteResult {
         space_id,
