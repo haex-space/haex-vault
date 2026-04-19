@@ -6,9 +6,7 @@ type InvitePolicy = 'all' | 'contacts_only' | 'nobody'
 const POLICY_ROW_ID = 'default'
 
 export function useInvitePolicy() {
-  const { currentVault } = storeToRefs(useVaultStore())
-
-  const getDb = () => currentVault.value?.drizzle
+  const { getDb, requireDb } = useVaultDb()
 
   /**
    * Check if an invite from a given DID should be shown to the user.
@@ -49,8 +47,7 @@ export function useInvitePolicy() {
   }
 
   async function blockDid(did: string, label?: string): Promise<void> {
-    const db = getDb()
-    if (!db) throw new Error('No vault open')
+    const db = requireDb()
 
     await db.insert(haexBlockedDids).values({
       id: crypto.randomUUID(),
@@ -61,15 +58,13 @@ export function useInvitePolicy() {
   }
 
   async function unblockDid(did: string): Promise<void> {
-    const db = getDb()
-    if (!db) throw new Error('No vault open')
+    const db = requireDb()
 
     await db.delete(haexBlockedDids).where(eq(haexBlockedDids.did, did))
   }
 
   async function setPolicy(policy: InvitePolicy): Promise<void> {
-    const db = getDb()
-    if (!db) throw new Error('No vault open')
+    const db = requireDb()
 
     const existing = await db
       .select()
