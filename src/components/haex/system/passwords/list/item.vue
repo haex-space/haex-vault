@@ -1,5 +1,6 @@
 <template>
   <div
+    ref="rowRef"
     :class="[
       'group',
       isDragging && 'opacity-40',
@@ -151,7 +152,17 @@ const orderedIds = inject<Ref<string[]>>(
   ref<string[]>([]),
 )
 
+const rowRef = useTemplateRef<HTMLElement>('rowRef')
+const { shouldSuppressClick } = useLongPressSelection(rowRef, () => {
+  if (!isSelectionMode.value) {
+    selection.enterSelectionWith(props.item.id)
+  } else {
+    selection.toggle(props.item.id)
+  }
+})
+
 const onRowClick = (event: MouseEvent) => {
+  if (shouldSuppressClick()) return
   if (event.shiftKey) {
     event.preventDefault()
     selection.selectRange(props.item.id, orderedIds.value)

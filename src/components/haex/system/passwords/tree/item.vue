@@ -1,6 +1,7 @@
 <template>
   <div>
     <div
+      ref="rowRef"
       :class="[
         'flex items-center gap-2 pe-2 rounded-md cursor-pointer transition-colors min-h-12',
         isActive ? 'bg-elevated font-medium' : 'hover:bg-elevated/70',
@@ -137,7 +138,17 @@ const { isSelectionMode } = storeToRefs(selection)
 const isMultiSelected = computed(() => selection.isSelected(props.group.id))
 const isCut = computed(() => selection.isCut(props.group.id))
 
+const rowRef = useTemplateRef<HTMLElement>('rowRef')
+const { shouldSuppressClick } = useLongPressSelection(rowRef, () => {
+  if (!isSelectionMode.value) {
+    selection.enterSelectionWith(props.group.id)
+  } else {
+    selection.toggle(props.group.id)
+  }
+})
+
 const onRowClick = (event: MouseEvent) => {
+  if (shouldSuppressClick()) return
   if (event.ctrlKey || event.metaKey) {
     event.preventDefault()
     event.stopPropagation()
