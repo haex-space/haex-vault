@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import {
   haexPasswordsItemTags,
   haexPasswordsTags,
@@ -85,11 +85,62 @@ export const usePasswordsTagsStore = defineStore('passwordsTagsStore', () => {
     return resolved
   }
 
+  // Per-tag item counts. Returns a map: tagId -> number of items using it.
+  const getItemCountsAsync = async (): Promise<Map<string, number>> => {
+    const db = requireDb()
+    const rows = await db
+      .select({
+        tagId: haexPasswordsItemTags.tagId,
+        count: sql<number>`count(*)`,
+      })
+      .from(haexPasswordsItemTags)
+      .groupBy(haexPasswordsItemTags.tagId)
+    return new Map(rows.map((row) => [row.tagId, Number(row.count)]))
+  }
+
+  const renameAsync = async (id: string, name: string): Promise<void> => {
+    const trimmed = name.trim()
+    if (!trimmed) throw new Error('Tag name cannot be empty')
+    const db = requireDb()
+    await db
+      .update(haexPasswordsTags)
+      .set({ name: trimmed })
+      .where(eq(haexPasswordsTags.id, id))
+    const local = tags.value.find((t) => t.id === id)
+    if (local) local.name = trimmed
+  }
+
+  const updateColorAsync = async (
+    id: string,
+    color: string | null,
+  ): Promise<void> => {
+    const db = requireDb()
+    await db
+      .update(haexPasswordsTags)
+      .set({ color })
+      .where(eq(haexPasswordsTags.id, id))
+    const local = tags.value.find((t) => t.id === id)
+    if (local) local.color = color
+  }
+
+  // Cascade on tagId drops item-tag rows automatically.
+  const deleteAsync = async (id: string): Promise<void> => {
+    const db = requireDb()
+    await db
+      .delete(haexPasswordsTags)
+      .where(eq(haexPasswordsTags.id, id))
+    tags.value = tags.value.filter((t) => t.id !== id)
+  }
+
   return {
     tags,
     loadTagsAsync,
     getOrCreateTagAsync,
     resolveTagNamesAsync,
     setItemTagsAsync,
+    getItemCountsAsync,
+    renameAsync,
+    updateColorAsync,
+    deleteAsync,
   }
 })

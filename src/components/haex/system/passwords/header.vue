@@ -33,16 +33,21 @@
         disabled
       />
 
-      <!-- More (Stage 3): import submenu -->
-      <UiButton
-        :tooltip="t('more')"
-        icon="i-lucide-more-vertical"
-        color="neutral"
-        variant="outline"
-        class="shrink-0"
-        disabled
-      />
+      <UDropdownMenu
+        :items="moreMenuItems"
+        :content="{ align: 'end' }"
+      >
+        <UButton
+          :aria-label="t('more')"
+          icon="i-lucide-more-vertical"
+          color="neutral"
+          variant="outline"
+          class="shrink-0"
+        />
+      </UDropdownMenu>
     </div>
+
+    <HaexSystemPasswordsDialogTagManager v-model:open="tagManagerOpen" />
   </div>
 </template>
 
@@ -70,6 +75,20 @@ const addMenuItems = computed<DropdownMenuItem[][]>(() => [
   ],
 ])
 
+const tagManagerOpen = ref(false)
+
+const moreMenuItems = computed<DropdownMenuItem[][]>(() => [
+  [
+    {
+      label: t('moreMenu.tags'),
+      icon: 'i-lucide-tag',
+      onSelect: () => {
+        tagManagerOpen.value = true
+      },
+    },
+  ],
+])
+
 // Keep Ctrl+A scoped to the input — the layout-level shortcut will select all items in Stage 3.
 const onSearchKeydown = (event: KeyboardEvent) => {
   if (event.key === 'a' && (event.ctrlKey || event.metaKey)) {
@@ -87,6 +106,8 @@ de:
   addMenu:
     item: Passwort anlegen
     folder: Ordner anlegen
+  moreMenu:
+    tags: Tags verwalten
 en:
   search: Search…
   add: Add
@@ -95,4 +116,6 @@ en:
   addMenu:
     item: New password
     folder: New folder
+  moreMenu:
+    tags: Manage tags
 </i18n>
