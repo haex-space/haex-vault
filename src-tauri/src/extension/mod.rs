@@ -666,6 +666,7 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
     let mut filesync = Vec::new();
     let mut spaces = Vec::new();
     let mut identities = Vec::new();
+    let mut passwords = Vec::new();
 
     for perm in permissions {
         let entry = PermissionEntry {
@@ -685,6 +686,7 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
             ResourceType::Filesync => filesync.push(entry),
             ResourceType::Spaces => spaces.push(entry),
             ResourceType::Identities => identities.push(entry),
+            ResourceType::Passwords => passwords.push(entry),
         }
     }
 
@@ -715,6 +717,11 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
             None
         } else {
             Some(identities)
+        },
+        passwords: if passwords.is_empty() {
+            None
+        } else {
+            Some(passwords)
         },
     }
 }
