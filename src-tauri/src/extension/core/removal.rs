@@ -8,7 +8,7 @@ use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::utils::drop_extension_tables;
-use crate::table_names::TABLE_EXTENSIONS;
+use super::queries::{SQL_DELETE_EXTENSION, SQL_UPDATE_EXTENSION_ENABLED};
 use crate::AppState;
 use tauri::{AppHandle, State};
 
@@ -85,25 +85,20 @@ impl ExtensionManager {
 
                 // First disable the extension before deleting (tombstoning)
                 // This ensures the extension won't be loaded even if tombstone filter fails
-                let disable_sql = format!("UPDATE {TABLE_EXTENSIONS} SET enabled = 0 WHERE id = ?");
-                eprintln!(
-                    "DEBUG: Disabling extension before delete: {} with id = {}",
-                    disable_sql, extension.id
-                );
+                eprintln!("DEBUG: Disabling extension before delete: id = {}", extension.id);
                 SqlExecutor::execute_internal_typed(
                     &tx,
                     &hlc_service,
-                    &disable_sql,
-                    rusqlite::params![&extension.id],
+                    &SQL_UPDATE_EXTENSION_ENABLED,
+                    rusqlite::params![false, &extension.id],
                 )?;
 
                 // Delete extension entry (will be transformed to tombstone)
-                let sql = format!("DELETE FROM {TABLE_EXTENSIONS} WHERE id = ?");
-                eprintln!("DEBUG: Executing SQL: {} with id = {}", sql, extension.id);
+                eprintln!("DEBUG: Executing DELETE for extension id = {}", extension.id);
                 SqlExecutor::execute_internal_typed(
                     &tx,
                     &hlc_service,
-                    &sql,
+                    &SQL_DELETE_EXTENSION,
                     rusqlite::params![&extension.id],
                 )?;
 

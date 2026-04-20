@@ -5,6 +5,13 @@ use rusqlite::Connection;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
+use super::queries::{
+    SQL_DELETE_EPOCH_KEY_PAIR, SQL_DELETE_LIST, SQL_DELETE_LIST_ITEM, SQL_DELETE_VALUE,
+    SQL_INSERT_EPOCH_KEY_PAIR, SQL_INSERT_LIST, SQL_NEXT_LIST_INDEX, SQL_SELECT_EPOCH_KEY_PAIR,
+    SQL_SELECT_LIST, SQL_SELECT_OWN_DID, SQL_SELECT_OWN_IDENTITY_KEY, SQL_SELECT_VALUE,
+    SQL_UPSERT_OWN_DID, SQL_UPSERT_OWN_IDENTITY_KEY, SQL_UPSERT_VALUE,
+};
+
 #[derive(Debug, Clone)]
 pub struct SqlCipherMlsStorage {
     pub conn: Arc<Mutex<Option<Connection>>>,
@@ -44,7 +51,7 @@ impl SqlCipherMlsStorage {
         let value_blob = Self::serialize_entity(value)?;
         self.with_conn(|conn| {
             conn.execute(
-                "INSERT OR REPLACE INTO haex_mls_values_no_sync (store_type, key_bytes, value_blob) VALUES (?1, ?2, ?3)",
+                &SQL_UPSERT_VALUE,
                 rusqlite::params![store_type, key_bytes, value_blob],
             ).map_err(|e| MlsStorageError::Database(e.to_string()))?;
             Ok(())
@@ -54,9 +61,8 @@ impl SqlCipherMlsStorage {
     fn read_value<T: DeserializeOwned>(&self, store_type: &str, key: &impl Serialize) -> Result<Option<T>, MlsStorageError> {
         let key_bytes = Self::serialize_key(key)?;
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare(
-                "SELECT value_blob FROM haex_mls_values_no_sync WHERE store_type = ?1 AND key_bytes = ?2"
-            ).map_err(|e| MlsStorageError::Database(e.to_string()))?;
+            let mut stmt = conn.prepare(&SQL_SELECT_VALUE)
+                .map_err(|e| MlsStorageError::Database(e.to_string()))?;
             let mut rows = stmt.query(rusqlite::params![store_type, key_bytes])
                 .map_err(|e| MlsStorageError::Database(e.to_string()))?;
             match rows.next().map_err(|e| MlsStorageError::Database(e.to_string()))? {
@@ -73,7 +79,7 @@ impl SqlCipherMlsStorage {
         let key_bytes = Self::serialize_key(key)?;
         self.with_conn(|conn| {
             conn.execute(
-                "DELETE FROM haex_mls_values_no_sync WHERE store_type = ?1 AND key_bytes = ?2",
+                &SQL_DELETE_VALUE,
                 rusqlite::params![store_type, key_bytes],
             ).map_err(|e| MlsStorageError::Database(e.to_string()))?;
             Ok(())
@@ -85,12 +91,12 @@ impl SqlCipherMlsStorage {
         let value_blob = Self::serialize_entity(value)?;
         self.with_conn(|conn| {
             let next_idx: i64 = conn.query_row(
-                "SELECT COALESCE(MAX(index_num), -1) + 1 FROM haex_mls_list_no_sync WHERE store_type = ?1 AND key_bytes = ?2",
+                &SQL_NEXT_LIST_INDEX,
                 rusqlite::params![store_type, key_bytes],
                 |row| row.get(0),
             ).map_err(|e| MlsStorageError::Database(e.to_string()))?;
             conn.execute(
-                "INSERT INTO haex_mls_list_no_sync (store_type, key_bytes, index_num, value_blob) VALUES (?1, ?2, ?3, ?4)",
+                &SQL_INSERT_LIST,
                 rusqlite::params![store_type, key_bytes, next_idx, value_blob],
             ).map_err(|e| MlsStorageError::Database(e.to_string()))?;
             Ok(())
@@ -100,9 +106,8 @@ impl SqlCipherMlsStorage {
     fn read_list<T: DeserializeOwned>(&self, store_type: &str, key: &impl Serialize) -> Result<Vec<T>, MlsStorageError> {
         let key_bytes = Self::serialize_key(key)?;
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare(
-                "SELECT value_blob FROM haex_mls_list_no_sync WHERE store_type = ?1 AND key_bytes = ?2 ORDER BY index_num"
-            ).map_err(|e| MlsStorageError::Database(e.to_string()))?;
+            let mut stmt = conn.prepare(&SQL_SELECT_LIST)
+                .map_err(|e| MlsStorageError::Database(e.to_string()))?;
             let rows = stmt.query_map(rusqlite::params![store_type, key_bytes], |row| {
                 let blob: Vec<u8> = row.get(0)?;
                 Ok(blob)
@@ -120,7 +125,7 @@ impl SqlCipherMlsStorage {
         let key_bytes = Self::serialize_key(key)?;
         self.with_conn(|conn| {
             conn.execute(
-                "DELETE FROM haex_mls_list_no_sync WHERE store_type = ?1 AND key_bytes = ?2",
+                &SQL_DELETE_LIST,
                 rusqlite::params![store_type, key_bytes],
             ).map_err(|e| MlsStorageError::Database(e.to_string()))?;
             Ok(())
@@ -132,7 +137,7 @@ impl SqlCipherMlsStorage {
         let item_blob = Self::serialize_entity(item)?;
         self.with_conn(|conn| {
             conn.execute(
-                "DELETE FROM haex_mls_list_no_sync WHERE store_type = ?1 AND key_bytes = ?2 AND value_blob = ?3",
+                &SQL_DELETE_LIST_ITEM,
                 rusqlite::params![store_type, key_bytes, item_blob],
             ).map_err(|e| MlsStorageError::Database(e.to_string()))?;
             Ok(())
@@ -148,7 +153,7 @@ impl SqlCipherMlsStorage {
     pub fn store_own_identity_key(&self, public_key: &[u8]) -> Result<(), MlsStorageError> {
         self.with_conn(|conn| {
             conn.execute(
-                "INSERT OR REPLACE INTO haex_mls_values_no_sync (store_type, key_bytes, value_blob) VALUES ('_identity', X'00', ?1)",
+                &SQL_UPSERT_OWN_IDENTITY_KEY,
                 rusqlite::params![public_key],
             ).map_err(|e| MlsStorageError::Database(e.to_string()))?;
             Ok(())
@@ -157,9 +162,8 @@ impl SqlCipherMlsStorage {
 
     pub fn load_own_identity_key(&self) -> Result<Option<Vec<u8>>, MlsStorageError> {
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare(
-                "SELECT value_blob FROM haex_mls_values_no_sync WHERE store_type = '_identity' AND key_bytes = X'00'"
-            ).map_err(|e| MlsStorageError::Database(e.to_string()))?;
+            let mut stmt = conn.prepare(&SQL_SELECT_OWN_IDENTITY_KEY)
+                .map_err(|e| MlsStorageError::Database(e.to_string()))?;
             let mut rows = stmt.query([])
                 .map_err(|e| MlsStorageError::Database(e.to_string()))?;
             match rows.next().map_err(|e| MlsStorageError::Database(e.to_string()))? {
@@ -175,7 +179,7 @@ impl SqlCipherMlsStorage {
     pub fn store_own_did(&self, did: &str) -> Result<(), MlsStorageError> {
         self.with_conn(|conn| {
             conn.execute(
-                "INSERT OR REPLACE INTO haex_mls_values_no_sync (store_type, key_bytes, value_blob) VALUES ('_own_did', X'00', ?1)",
+                &SQL_UPSERT_OWN_DID,
                 rusqlite::params![did.as_bytes()],
             ).map_err(|e| MlsStorageError::Database(e.to_string()))?;
             Ok(())
@@ -184,9 +188,8 @@ impl SqlCipherMlsStorage {
 
     pub fn load_own_did(&self) -> Result<Option<String>, MlsStorageError> {
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare(
-                "SELECT value_blob FROM haex_mls_values_no_sync WHERE store_type = '_own_did' AND key_bytes = X'00'"
-            ).map_err(|e| MlsStorageError::Database(e.to_string()))?;
+            let mut stmt = conn.prepare(&SQL_SELECT_OWN_DID)
+                .map_err(|e| MlsStorageError::Database(e.to_string()))?;
             let mut rows = stmt.query([])
                 .map_err(|e| MlsStorageError::Database(e.to_string()))?;
             match rows.next().map_err(|e| MlsStorageError::Database(e.to_string()))? {
@@ -335,13 +338,13 @@ impl StorageProvider<CURRENT_VERSION> for SqlCipherMlsStorage {
         self.with_conn(|conn| {
             // Delete existing pairs for this combination
             conn.execute(
-                "DELETE FROM haex_mls_epoch_key_pairs_no_sync WHERE group_id = ?1 AND epoch_bytes = ?2 AND leaf_index = ?3",
+                &SQL_DELETE_EPOCH_KEY_PAIR,
                 rusqlite::params![group_id_bytes, epoch_bytes, leaf_index],
             ).map_err(|e| MlsStorageError::Database(e.to_string()))?;
             // Insert new pairs serialized together
             let value_blob = Self::serialize_entity(&key_pairs)?;
             conn.execute(
-                "INSERT INTO haex_mls_epoch_key_pairs_no_sync (group_id, epoch_bytes, leaf_index, value_blob) VALUES (?1, ?2, ?3, ?4)",
+                &SQL_INSERT_EPOCH_KEY_PAIR,
                 rusqlite::params![group_id_bytes, epoch_bytes, leaf_index, value_blob],
             ).map_err(|e| MlsStorageError::Database(e.to_string()))?;
             Ok(())
@@ -486,9 +489,8 @@ impl StorageProvider<CURRENT_VERSION> for SqlCipherMlsStorage {
         let group_id_bytes = Self::serialize_key(group_id)?;
         let epoch_bytes = Self::serialize_key(epoch)?;
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare(
-                "SELECT value_blob FROM haex_mls_epoch_key_pairs_no_sync WHERE group_id = ?1 AND epoch_bytes = ?2 AND leaf_index = ?3"
-            ).map_err(|e| MlsStorageError::Database(e.to_string()))?;
+            let mut stmt = conn.prepare(&SQL_SELECT_EPOCH_KEY_PAIR)
+                .map_err(|e| MlsStorageError::Database(e.to_string()))?;
             let mut rows = stmt.query(rusqlite::params![group_id_bytes, epoch_bytes, leaf_index])
                 .map_err(|e| MlsStorageError::Database(e.to_string()))?;
             match rows.next().map_err(|e| MlsStorageError::Database(e.to_string()))? {
@@ -625,7 +627,7 @@ impl StorageProvider<CURRENT_VERSION> for SqlCipherMlsStorage {
         let epoch_bytes = Self::serialize_key(epoch)?;
         self.with_conn(|conn| {
             conn.execute(
-                "DELETE FROM haex_mls_epoch_key_pairs_no_sync WHERE group_id = ?1 AND epoch_bytes = ?2 AND leaf_index = ?3",
+                &SQL_DELETE_EPOCH_KEY_PAIR,
                 rusqlite::params![group_id_bytes, epoch_bytes, leaf_index],
             ).map_err(|e| MlsStorageError::Database(e.to_string()))?;
             Ok(())

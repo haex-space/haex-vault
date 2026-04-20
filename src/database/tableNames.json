@@ -39,6 +39,10 @@
         "signature": "signature",
         "url": "url",
         "version": "version",
+        "singleInstance": "single_instance",
+        "displayMode": "display_mode",
+        "i18n": "i18n",
+        "devPath": "dev_path",
         "createdAt": "created_at",
         "updatedAt": "updated_at"
       }
@@ -367,6 +371,32 @@
         "keyPackage": "key_package",
         "welcome": "welcome",
         "status": "status"
+      }
+    },
+    "mls_values_no_sync": {
+      "name": "haex_mls_values_no_sync",
+      "columns": {
+        "storeType": "store_type",
+        "keyBytes": "key_bytes",
+        "valueBlob": "value_blob"
+      }
+    },
+    "mls_list_no_sync": {
+      "name": "haex_mls_list_no_sync",
+      "columns": {
+        "storeType": "store_type",
+        "keyBytes": "key_bytes",
+        "indexNum": "index_num",
+        "valueBlob": "value_blob"
+      }
+    },
+    "mls_epoch_key_pairs_no_sync": {
+      "name": "haex_mls_epoch_key_pairs_no_sync",
+      "columns": {
+        "groupId": "group_id",
+        "epochBytes": "epoch_bytes",
+        "leafIndex": "leaf_index",
+        "valueBlob": "value_blob"
       }
     },
     "local_delivery_messages": {
