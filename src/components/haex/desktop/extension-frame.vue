@@ -59,18 +59,14 @@
 </template>
 
 <script setup lang="ts">
-import {
-  EXTENSION_PROTOCOL_PREFIX,
-  EXTENSION_PROTOCOL_NAME,
-} from '~/config/constants'
+import { getExtensionUrl } from '~/utils/extension'
 
 const props = defineProps<{
   extensionId: string
-  windowId: string 
+  windowId: string
 }>()
 
 const extensionsStore = useExtensionsStore()
-const { platform } = useDeviceStore()
 
 const iframeRef = useTemplateRef('iframeRef')
 const hasError = ref(false)
@@ -100,40 +96,11 @@ const sandboxAttributes = computed(() => {
     : sandboxDefault.join(' ')
 })
 
-// Generate extension URL
 const extensionUrl = computed(() => {
-  if (!extension.value) {
-    return ''
-  }
-
+  if (!extension.value) return ''
   const { publicKey, name, version, devServerUrl } = extension.value
-  const assetPath = 'index.html'
-
-  if (!publicKey || !name || !version) {
-    return ''
-  }
-
-  // If dev server URL is provided, load directly from dev server
-  if (devServerUrl) {
-    const cleanUrl = devServerUrl.replace(/\/$/, '')
-    const cleanPath = assetPath.replace(/^\//, '')
-    return cleanPath ? `${cleanUrl}/${cleanPath}` : cleanUrl
-  }
-
-  const extensionInfo = {
-    name,
-    publicKey,
-    version,
-  }
-  const encodedInfo = btoa(JSON.stringify(extensionInfo))
-
-  if (platform === 'android' || platform === 'windows') {
-    // Android: Tauri uses http://{scheme}.localhost format
-    return `http://${EXTENSION_PROTOCOL_NAME}.localhost/${encodedInfo}/${assetPath}`
-  } else {
-    // Desktop: Use custom protocol with base64 as host
-    return `${EXTENSION_PROTOCOL_PREFIX}${encodedInfo}/${assetPath}`
-  }
+  if (!publicKey || !name || !version) return ''
+  return getExtensionUrl(publicKey, name, version, 'index.html', devServerUrl ?? undefined)
 })
 
 const retryLoad = () => {
