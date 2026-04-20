@@ -1,21 +1,25 @@
-import { platform } from '@tauri-apps/plugin-os'
+import { getPlatform } from '~/utils/platform'
 
-export const readableFileSize = (sizeInByte: number | string = 0) => {
-  if (!sizeInByte) {
-    return '0 KB'
-  }
+const SIZE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB'] as const
+
+export const readableFileSize = (
+  sizeInByte: number | string | bigint = 0,
+): string => {
   const size =
-    typeof sizeInByte === 'string' ? parseInt(sizeInByte) : sizeInByte
-  const sizeInKb = size / 1024
-  const sizeInMb = sizeInKb / 1024
-  const sizeInGb = sizeInMb / 1024
-  const sizeInTb = sizeInGb / 1024
+    typeof sizeInByte === 'bigint'
+      ? Number(sizeInByte)
+      : typeof sizeInByte === 'string'
+        ? parseInt(sizeInByte)
+        : sizeInByte
 
-  if (sizeInTb > 1) return `${sizeInTb.toFixed(2)} TB`
-  if (sizeInGb > 1) return `${sizeInGb.toFixed(2)} GB`
-  if (sizeInMb > 1) return `${sizeInMb.toFixed(2)} MB`
+  if (!size) return '0 B'
 
-  return `${sizeInKb.toFixed(2)} KB`
+  const unitIndex = Math.min(
+    Math.floor(Math.log(size) / Math.log(1024)),
+    SIZE_UNITS.length - 1,
+  )
+  const value = size / Math.pow(1024, unitIndex)
+  return `${value.toFixed(unitIndex > 0 ? 1 : 0)} ${SIZE_UNITS[unitIndex]}`
 }
 
 export const getSingleRouteParam = (
@@ -73,7 +77,7 @@ export const getContrastingTextColor = (
 }
 
 export const getFileName = (fullPath: string) => {
-  const seperator = platform() === 'windows' ? '\\' : '/'
+  const seperator = getPlatform() === 'windows' ? '\\' : '/'
   return fullPath.split(seperator).pop()
 }
 
@@ -81,7 +85,7 @@ export const getFileName = (fullPath: string) => {
  * Get the directory path from a full file path
  */
 export const getDirectoryPath = (fullPath: string) => {
-  const separator = platform() === 'windows' ? '\\' : '/'
+  const separator = getPlatform() === 'windows' ? '\\' : '/'
   const parts = fullPath.split(separator)
   parts.pop() // Remove filename
   return parts.join(separator)
@@ -98,7 +102,7 @@ export const getDirectoryPath = (fullPath: string) => {
 export const shortenPath = (fullPath: string, maxLength: number = 40): string => {
   if (!fullPath) return ''
 
-  const isWindows = platform() === 'windows'
+  const isWindows = getPlatform() === 'windows'
   const separator = isWindows ? '\\' : '/'
 
   let path = fullPath

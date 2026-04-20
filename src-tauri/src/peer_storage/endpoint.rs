@@ -278,13 +278,26 @@ impl PeerEndpoint {
             .and_then(|cache| cache.get(&remote_id).cloned());
 
         if let Some(conn) = cached {
-            match conn.open_bi().await {
-                Ok(streams) => return Ok(streams),
-                Err(_) => {
-                    // Connection is stale — evict it
-                    if let Ok(mut cache) = self.connections.lock() {
-                        cache.remove(&remote_id);
-                    }
+            // A cached connection can be half-closed after the remote revokes
+            // authorization: open_bi() may optimistically succeed, then the
+            // subsequent read hangs until QUIC's idle timeout (~41s). Detect
+            // stale connections via close_reason(), and bound open_bi() so a
+            // connection that has silently died cannot stall the caller.
+            if conn.close_reason().is_none() {
+                if let Ok(Ok(streams)) = tokio::time::timeout(
+                    std::time::Duration::from_secs(3),
+                    conn.open_bi(),
+                )
+                .await
+                {
+                    return Ok(streams);
+                }
+            }
+            // Stale or corrupted — evict. Explicit close tells the peer now
+            // instead of waiting for QUIC idle timeout.
+            if let Ok(mut cache) = self.connections.lock() {
+                if let Some(evicted) = cache.remove(&remote_id) {
+                    evicted.close(0u32.into(), b"stale-cache-evicted");
                 }
             }
         }

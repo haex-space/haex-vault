@@ -10,10 +10,6 @@ on:
     tags-ignore:
       - '**'
   pull_request:
-    branches:
-      - main
-      - develop
-      - release
   workflow_dispatch:
   # Expose as reusable workflow so release.yml can verify a prep branch
   # directly, sidestepping the anti-recursion rule that blocks build.yml
@@ -154,6 +150,11 @@ jobs:
     uses: haex-space/haex-e2e-tests/.github/workflows/e2e-tests.yml@main
     with:
       build_type: build
+      # Clone the same ref we just built from so the Nuxt/TS bundle matches
+      # the Rust binary. Without this the frontend falls back to 'main' and
+      # ships a different contract than the backend, e.g. missing fields
+      # that the Rust command layer now requires.
+      haex_vault_version: ${{ github.head_ref || github.ref_name }}
       haex_vault_artifact: haex-vault-linux-e2e
       haex_vault_artifact_run_id: ${{ github.run_id }}
       haextension_version: main

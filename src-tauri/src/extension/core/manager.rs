@@ -14,7 +14,7 @@ use crate::extension::core::types::Extension;
 use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::types::ExtensionPermission;
-use crate::table_names::TABLE_EXTENSIONS;
+use super::queries::{SQL_UPDATE_EXTENSION_DISPLAY_MODE, SQL_UPDATE_EXTENSION_ENABLED};
 use crate::AppState;
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
@@ -194,10 +194,6 @@ impl ExtensionManager {
 
             // Update in-memory state
             extension.manifest.display_mode = Some(display_mode);
-            let sql = format!(
-                "UPDATE {} SET display_mode = ? WHERE id = ?",
-                TABLE_EXTENSIONS
-            );
             let params = vec![
                 JsonValue::String(display_mode_str),
                 JsonValue::String(extension_id.to_string()),
@@ -206,7 +202,12 @@ impl ExtensionManager {
             let hlc_guard = state.hlc.lock().map_err(|e| ExtensionError::MutexPoisoned {
                 reason: format!("Failed to lock HLC: {}", e),
             })?;
-            execute_with_crdt(sql, params, &state.db, &hlc_guard)?;
+            execute_with_crdt(
+                SQL_UPDATE_EXTENSION_DISPLAY_MODE.clone(),
+                params,
+                &state.db,
+                &hlc_guard,
+            )?;
 
             return Ok(());
         }
@@ -231,11 +232,10 @@ impl ExtensionManager {
                 reason: "Failed to lock HLC service".to_string(),
             })?;
 
-            let sql = format!("UPDATE {TABLE_EXTENSIONS} SET enabled = ? WHERE id = ?");
             SqlExecutor::execute_internal_typed(
                 &tx,
                 &hlc_service,
-                &sql,
+                &SQL_UPDATE_EXTENSION_ENABLED,
                 rusqlite::params![enabled, extension_id],
             )?;
 

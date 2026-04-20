@@ -22,7 +22,7 @@ export type InvitePolicyValue = 'all' | 'contacts_only' | 'nobody'
  * on failure and exposes state refs the component can bind to.
  */
 export function useSpaceInvites() {
-  const { currentVault } = storeToRefs(useVaultStore())
+  const { getDb } = useVaultDb()
   const spacesStore = useSpacesStore()
   const identityStore = useIdentityStore()
   const syncBackendsStore = useSyncBackendsStore()
@@ -32,8 +32,6 @@ export function useSpaceInvites() {
 
   const pendingInvites = ref<SelectHaexPendingInvites[]>([])
   const currentPolicy = ref<InvitePolicyValue>('contacts_only')
-
-  const getDb = () => currentVault.value?.drizzle
 
   const loadInvitesAsync = async () => {
     const db = getDb()

@@ -2,6 +2,7 @@ import Fuse from 'fuse.js'
 import { invoke, convertFileSrc } from '@tauri-apps/api/core'
 import type { FileEntry as BaseFileEntry } from '~/../src-tauri/bindings/FileEntry'
 import { getMediaType } from '~/composables/useFilePreview'
+import { readableFileSize } from '~/utils/helper'
 
 // Extended FileEntry with optional path (used on Android for Content URIs)
 export type FileEntry = BaseFileEntry & { path?: string }
@@ -41,20 +42,11 @@ export type GlobalSearchFile = SearchableFile & {
   shareLocalPath: string
 }
 
-const SIZE_UNITS = ['B', 'KB', 'MB', 'GB']
-
 const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
 
 function getFileIcon(name: string): string {
   const ext = name.split('.').pop()?.toLowerCase() || ''
   return FILE_ICONS[ext] || 'i-lucide-file'
-}
-
-function formatSize(bytes: number | bigint): string {
-  const size = typeof bytes === 'bigint' ? Number(bytes) : bytes
-  if (size === 0) return '0 B'
-  const unitIndex = Math.floor(Math.log(size) / Math.log(1024))
-  return `${(size / Math.pow(1024, unitIndex)).toFixed(unitIndex > 0 ? 1 : 0)} ${SIZE_UNITS[unitIndex]}`
 }
 
 function formatDate(timestamp: bigint | number | null): string {
@@ -705,7 +697,7 @@ export function useFileBrowser(tabId: string) {
 
     // Formatters
     getFileIcon,
-    formatSize,
+    formatSize: readableFileSize,
     formatDate,
 
     // Clipboard

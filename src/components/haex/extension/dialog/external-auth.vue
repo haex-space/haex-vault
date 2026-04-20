@@ -7,17 +7,10 @@
     }"
   >
     <template #header>
-      <div class="flex items-center justify-between w-full">
-        <h3 class="text-lg font-semibold">
-          {{ t('title') }}
-        </h3>
-        <UiButton
-          icon="i-heroicons-x-mark"
-          color="neutral"
-          variant="ghost"
-          @click="onDeny"
-        />
-      </div>
+      <UiDialogHeader
+        :title="t('title')"
+        @close="onDeny"
+      />
     </template>
 
     <template #body>

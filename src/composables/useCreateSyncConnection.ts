@@ -4,7 +4,7 @@ import {
   didKeyToPublicKeyAsync,
 } from '@haex-space/vault-sdk'
 import { didAuthenticateAsync } from '~/stores/sync/engine/tokenManager'
-import { getErrorMessage } from '~/utils/errors'
+import { throwIfNotOk, safeJson } from '~/utils/fetch'
 
 export interface ServerRequirements {
   serverName: string
@@ -77,8 +77,9 @@ export const useCreateSyncConnection = () => {
   const { currentVaultId, currentVaultName, currentVaultPassword } =
     storeToRefs(vaultStore)
 
-  const isLoading = ref(false)
-  const error = ref<string | null>(null)
+  const { isLoading, error, execute } = useAsyncOperation({
+    onError: (err) => console.error('[SYNC]', err),
+  })
   const serverClockOffsetMs = ref(0)
 
   const getBackendNameFromUrl = (url: string): string => {
@@ -96,10 +97,7 @@ export const useCreateSyncConnection = () => {
   const fetchRequirementsAsync = async (originUrl: string): Promise<ServerRequirements> => {
     const requestedAt = Date.now()
     const res = await fetch(`${originUrl}/identity-auth/requirements`)
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({ error: 'Unknown error' }))
-      throw new Error(`Failed to fetch requirements: ${data.error || res.statusText}`)
-    }
+    await throwIfNotOk(res, 'fetch requirements')
     const data: ServerRequirements = await res.json()
 
     if (data.serverTime) {
@@ -129,23 +127,19 @@ export const useCreateSyncConnection = () => {
    * Registers with the server. If the identity is already verified,
    * completes the full connection. Otherwise returns verification_pending.
    */
-  const createConnectionAsync = async (params: {
+  const createConnectionAsync = (params: {
     originUrl: string
     identityId: string
     approvedClaims: Record<string, string>
-  }): Promise<CreateConnectionResult | null> => {
-    isLoading.value = true
-    error.value = null
-
-    try {
+  }): Promise<CreateConnectionResult | null> =>
+    execute(async (): Promise<CreateConnectionResult | null> => {
       const { backends } = storeToRefs(syncBackendsStore)
 
       const existingBackend = backends.value.find(
         (b) => b.homeServerUrl === params.originUrl,
       )
       if (existingBackend) {
-        error.value = `A connection to ${params.originUrl} already exists`
-        return null
+        throw new Error(`A connection to ${params.originUrl} already exists`)
       }
 
       const identity = await identityStore.getIdentityByIdAsync(params.identityId)
@@ -186,7 +180,7 @@ export const useCreateSyncConnection = () => {
         body: JSON.stringify(registrationBody),
       })
 
-      const registerData = await registerRes.json().catch(() => ({ error: 'Unknown error' }))
+      const registerData = await safeJson<{ status?: string; did?: string; error?: string }>(registerRes)
 
       if (!registerRes.ok) {
         if (registerRes.status !== 409 || registerData.error?.includes('another identity')) {
@@ -194,7 +188,6 @@ export const useCreateSyncConnection = () => {
         }
         // 409 with 'DID already registered' = already registered and verified — proceed to login
       } else if (registerData.status === 'verification_pending') {
-        // New registration or re-registration (not yet verified)
         return {
           status: 'verification_pending' as const,
           did: registerData.did ?? identity.did,
@@ -204,95 +197,50 @@ export const useCreateSyncConnection = () => {
         }
       }
 
-      // Already registered and verified — complete the connection
       const backendId = await setupBackendAsync(params.originUrl, params.identityId)
       if (!backendId) return null
 
       return { status: 'connected' as const, backendId }
-    } catch (err) {
-      console.error('[SYNC] Failed to create connection:', err)
-      error.value = getErrorMessage(err)
-      return null
-    } finally {
-      isLoading.value = false
-    }
-  }
+    }).catch(() => null)
 
   /**
    * Verifies the email OTP code with the server.
    */
-  const verifyEmailAsync = async (originUrl: string, did: string, code: string): Promise<boolean> => {
-    isLoading.value = true
-    error.value = null
-
-    try {
+  const verifyEmailAsync = (originUrl: string, did: string, code: string): Promise<boolean> =>
+    execute(async () => {
       const res = await fetch(`${originUrl}/identity-auth/verify-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ did, code }),
       })
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: 'Unknown error' }))
-        throw new Error(errorData.error || 'Verification failed')
-      }
-
+      await throwIfNotOk(res, 'verify email')
       return true
-    } catch (err) {
-      console.error('[SYNC] Email verification failed:', err)
-      error.value = getErrorMessage(err)
-      return false
-    } finally {
-      isLoading.value = false
-    }
-  }
+    }).catch(() => false)
 
   /**
    * Resends the verification code.
    */
-  const resendVerificationAsync = async (originUrl: string, did: string): Promise<boolean> => {
-    try {
+  const resendVerificationAsync = (originUrl: string, did: string): Promise<boolean> =>
+    execute(async () => {
       const res = await fetch(`${originUrl}/identity-auth/resend-verification`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ did }),
       })
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: 'Unknown error' }))
-        throw new Error(errorData.error || 'Failed to resend code')
-      }
-
+      await throwIfNotOk(res, 'resend verification code')
       return true
-    } catch (err) {
-      console.error('[SYNC] Resend verification failed:', err)
-      error.value = getErrorMessage(err)
-      return false
-    }
-  }
+    }).catch(() => false)
 
   /**
    * Completes the connection after email verification:
    * login via challenge-response, create backend, ensure sync key, start sync.
    */
-  const completeConnectionAsync = async (params: {
+  const completeConnectionAsync = (params: {
     originUrl: string
     identityId: string
-  }): Promise<string | null> => {
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const backendId = await setupBackendAsync(params.originUrl, params.identityId)
-      return backendId
-    } catch (err) {
-      console.error('[SYNC] Failed to complete connection:', err)
-      error.value = getErrorMessage(err)
-      return null
-    } finally {
-      isLoading.value = false
-    }
-  }
+  }): Promise<string | null> =>
+    execute(() => setupBackendAsync(params.originUrl, params.identityId))
+      .catch(() => null)
 
   /**
    * Internal: creates backend entry, logs in, sets up sync key, starts sync.
@@ -368,8 +316,8 @@ export const useCreateSyncConnection = () => {
   }
 
   return {
-    isLoading: readonly(isLoading),
-    error: readonly(error),
+    isLoading,
+    error,
     createConnectionAsync,
     verifyEmailAsync,
     resendVerificationAsync,

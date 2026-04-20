@@ -1,5 +1,12 @@
 pub mod commands;
+mod queries;
 
+use queries::{
+    SQL_DELETE_CONSOLE_LOGS_BEFORE, SQL_DELETE_EXTENSION_LOGS_BEFORE,
+    SQL_DELETE_LOGS_EXCEPT_CONSOLE_BEFORE, SQL_GET_LOG_LEVEL_BY_EXTENSION,
+    SQL_GET_LOG_LEVEL_GLOBAL, SQL_GET_RETENTION_DAYS_BY_EXTENSION, SQL_GET_RETENTION_DAYS_GLOBAL,
+    SQL_INSERT_LOG_FULL, SQL_INSERT_LOG_MINIMAL, SQL_LIST_CUSTOM_RETENTION_EXTENSIONS,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -67,10 +74,7 @@ pub fn get_effective_log_level(
 ) -> LogLevel {
     if let Some(ext_id) = extension_id {
         if let Ok(level) = conn.query_row(
-            &format!(
-                "SELECT value FROM {} WHERE key = 'log_level' AND extension_id = ?1",
-                crate::table_names::TABLE_VAULT_SETTINGS
-            ),
+            &SQL_GET_LOG_LEVEL_BY_EXTENSION,
             [ext_id],
             |row| row.get::<_, String>(0),
         ) {
@@ -81,10 +85,7 @@ pub fn get_effective_log_level(
     }
 
     if let Ok(level) = conn.query_row(
-        &format!(
-            "SELECT value FROM {} WHERE key = 'log_level' AND extension_id IS NULL",
-            crate::table_names::TABLE_VAULT_SETTINGS
-        ),
+        &SQL_GET_LOG_LEVEL_GLOBAL,
         [],
         |row| row.get::<_, String>(0),
     ) {
@@ -118,11 +119,6 @@ pub fn log_to_db(
     let now = time::OffsetDateTime::now_utc();
     let timestamp = now.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
 
-    let sql = format!(
-        "INSERT INTO {} (id, timestamp, level, source, extension_id, message, metadata, device_id) VALUES (?1, ?2, ?3, ?4, NULL, ?5, NULL, 'rust')",
-        crate::table_names::TABLE_LOGS
-    );
-
     let params: Vec<serde_json::Value> = vec![
         serde_json::Value::String(id),
         serde_json::Value::String(timestamp),
@@ -131,7 +127,12 @@ pub fn log_to_db(
         serde_json::Value::String(message.to_string()),
     ];
 
-    let _ = crate::database::core::execute_with_crdt(sql, params, db, &hlc_guard);
+    let _ = crate::database::core::execute_with_crdt(
+        SQL_INSERT_LOG_MINIMAL.clone(),
+        params,
+        db,
+        &hlc_guard,
+    );
 }
 
 /// Insert a log entry via CRDT-aware execution (synced across devices).
@@ -150,11 +151,6 @@ pub fn insert_log(
     let now = time::OffsetDateTime::now_utc();
     let timestamp = now.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
     let metadata_str = metadata.map(|m| m.to_string());
-
-    let sql = format!(
-        "INSERT INTO {} (id, timestamp, level, source, extension_id, message, metadata, device_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        crate::table_names::TABLE_LOGS
-    );
 
     let params: Vec<serde_json::Value> = vec![
         serde_json::Value::String(id),
@@ -177,7 +173,7 @@ pub fn insert_log(
         reason: "Failed to lock HLC service".to_string(),
     })?;
 
-    crate::database::core::execute_with_crdt(sql, params, &state.db, &hlc)?;
+    crate::database::core::execute_with_crdt(SQL_INSERT_LOG_FULL.clone(), params, &state.db, &hlc)?;
     Ok(())
 }
 
@@ -286,10 +282,7 @@ const DEFAULT_RETENTION_DAYS: i64 = 14;
 fn get_retention_days(conn: &rusqlite::Connection, extension_id: Option<&str>) -> i64 {
     if let Some(ext_id) = extension_id {
         if let Ok(days) = conn.query_row(
-            &format!(
-                "SELECT value FROM {} WHERE key = 'log_retention_days' AND extension_id = ?1",
-                crate::table_names::TABLE_VAULT_SETTINGS
-            ),
+            &SQL_GET_RETENTION_DAYS_BY_EXTENSION,
             [ext_id],
             |row| row.get::<_, String>(0),
         ) {
@@ -300,10 +293,7 @@ fn get_retention_days(conn: &rusqlite::Connection, extension_id: Option<&str>) -
     }
 
     if let Ok(days) = conn.query_row(
-        &format!(
-            "SELECT value FROM {} WHERE key = 'log_retention_days' AND extension_id IS NULL",
-            crate::table_names::TABLE_VAULT_SETTINGS
-        ),
+        &SQL_GET_RETENTION_DAYS_GLOBAL,
         [],
         |row| row.get::<_, String>(0),
     ) {
@@ -336,10 +326,7 @@ pub fn cleanup_logs(state: &crate::AppState) -> Result<usize, crate::database::e
         let console_cutoff_str = console_cutoff.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
 
         let mut custom_extensions: Vec<(String, i64)> = Vec::new();
-        if let Ok(mut stmt) = conn.prepare(&format!(
-            "SELECT extension_id, value FROM {} WHERE key = 'log_retention_days' AND extension_id IS NOT NULL",
-            crate::table_names::TABLE_VAULT_SETTINGS
-        )) {
+        if let Ok(mut stmt) = conn.prepare(&SQL_LIST_CUSTOM_RETENTION_EXTENSIONS) {
             if let Ok(rows) = stmt.query_map([], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
             }) {
@@ -357,12 +344,11 @@ pub fn cleanup_logs(state: &crate::AppState) -> Result<usize, crate::database::e
     let mut total_deleted = 0;
 
     // Console interceptor logs: 1 day retention (via CRDT soft-delete)
-    let sql = format!(
-        "DELETE FROM {} WHERE source = 'console' AND extension_id IS NULL AND timestamp < ?1",
-        crate::table_names::TABLE_LOGS
-    );
     crate::database::core::execute_with_crdt(
-        sql, vec![JsonValue::String(console_cutoff_str)], &state.db, &hlc,
+        SQL_DELETE_CONSOLE_LOGS_BEFORE.clone(),
+        vec![JsonValue::String(console_cutoff_str)],
+        &state.db,
+        &hlc,
     )?;
     total_deleted += 1; // execute_with_crdt doesn't return affected count
 
@@ -370,12 +356,11 @@ pub fn cleanup_logs(state: &crate::AppState) -> Result<usize, crate::database::e
     for (ext_id, days) in &custom_extensions {
         let cutoff = time::OffsetDateTime::now_utc() - time::Duration::days(*days);
         let cutoff_str = cutoff.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
-        let sql = format!(
-            "DELETE FROM {} WHERE extension_id = ?1 AND timestamp < ?2",
-            crate::table_names::TABLE_LOGS
-        );
         crate::database::core::execute_with_crdt(
-            sql, vec![JsonValue::String(ext_id.clone()), JsonValue::String(cutoff_str)], &state.db, &hlc,
+            SQL_DELETE_EXTENSION_LOGS_BEFORE.clone(),
+            vec![JsonValue::String(ext_id.clone()), JsonValue::String(cutoff_str)],
+            &state.db,
+            &hlc,
         )?;
         total_deleted += 1;
     }
@@ -383,12 +368,11 @@ pub fn cleanup_logs(state: &crate::AppState) -> Result<usize, crate::database::e
     // Everything else: global retention (excluding already-handled console + custom extensions)
     let custom_ids: Vec<&str> = custom_extensions.iter().map(|(id, _)| id.as_str()).collect();
     if custom_ids.is_empty() {
-        let sql = format!(
-            "DELETE FROM {} WHERE source != 'console' AND timestamp < ?1",
-            crate::table_names::TABLE_LOGS
-        );
         crate::database::core::execute_with_crdt(
-            sql, vec![JsonValue::String(global_cutoff_str)], &state.db, &hlc,
+            SQL_DELETE_LOGS_EXCEPT_CONSOLE_BEFORE.clone(),
+            vec![JsonValue::String(global_cutoff_str)],
+            &state.db,
+            &hlc,
         )?;
     } else {
         let mut params: Vec<JsonValue> = vec![JsonValue::String(global_cutoff_str)];

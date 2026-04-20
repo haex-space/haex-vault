@@ -346,12 +346,14 @@ export async function acceptLocalInvite(
   if (!identity) throw new Error('No identity available')
   if (!invite.inviterDid) throw new Error('Missing inviter DID for local invite')
 
+  log.info(`acceptLocalInvite: BEFORE ensureIdentityForDidAsync inviterDid=${invite.inviterDid.slice(0, 20)}`)
   const ownerIdentity = await identityStore.ensureIdentityForDidAsync(invite.inviterDid, {
     name: invite.inviterLabel,
     avatar: invite.inviterAvatar,
     avatarOptions: invite.inviterAvatarOptions,
     source: 'space',
   })
+  log.info(`acceptLocalInvite: AFTER ensureIdentityForDidAsync ownerIdentity.id=${ownerIdentity.id}`)
   const identityPublicKey = await didKeyToPublicKeyAsync(identity.did)
 
   const endpoints: string[] = JSON.parse(invite.spaceEndpoints)
@@ -364,6 +366,7 @@ export async function acceptLocalInvite(
   for (const endpointId of endpoints) {
     try {
       log.info(`ClaimInvite: connecting to ${endpointId.slice(0, 16)}...`)
+      log.info(`ClaimInvite: BEFORE invoke local_delivery_claim_invite`)
       await invoke('local_delivery_claim_invite', {
         leaderEndpointId: endpointId,
         leaderRelayUrl: null,
@@ -374,6 +377,7 @@ export async function acceptLocalInvite(
         label: identity.name || null,
         identityPublicKey,
       })
+      log.info(`ClaimInvite: AFTER invoke local_delivery_claim_invite — returned OK`)
       log.info(`ClaimInvite: success to ${endpointId.slice(0, 16)}`)
       lastError = null
       acceptedEndpoint = endpointId
