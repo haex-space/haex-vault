@@ -3,12 +3,19 @@
  */
 
 import { convertFileSrc } from '@tauri-apps/api/core'
-import { platform } from '@tauri-apps/plugin-os'
 import {
   EXTENSION_PROTOCOL_PREFIX,
   EXTENSION_PROTOCOL_NAME,
 } from '~/config/constants'
-import { isMobile, isAndroid } from '~/utils/platform'
+import { isMobile, isAndroid, getPlatform } from '~/utils/platform'
+
+export function encodeExtensionInfo(
+  name: string,
+  publicKey: string,
+  version: string,
+): string {
+  return btoa(JSON.stringify({ name, publicKey, version }))
+}
 
 /**
  * Generates a URL for loading an extension icon (synchronous version)
@@ -51,12 +58,7 @@ export function getExtensionIconUrl(
       relativeIconPath = iconPath.split('/').pop() || iconPath.split('\\').pop() || iconPath
     }
 
-    const extensionInfo = {
-      name,
-      publicKey,
-      version,
-    }
-    const encodedInfo = btoa(JSON.stringify(extensionInfo))
+    const encodedInfo = encodeExtensionInfo(name, publicKey, version)
 
     if (isAndroid()) {
       return `http://${EXTENSION_PROTOCOL_NAME}.localhost/${encodedInfo}/${relativeIconPath}`
@@ -79,13 +81,13 @@ export function getExtensionIconUrl(
  * @param devServerUrl - Optional dev server URL for development extensions
  * @returns The complete extension URL
  */
-export async function getExtensionUrl(
+export function getExtensionUrl(
   publicKey: string,
   name: string,
   version: string,
   assetPath: string = 'index.html',
   devServerUrl?: string,
-): Promise<string> {
+): string {
   if (!publicKey || !name || !version) {
     console.error('Missing required extension fields')
     return ''
@@ -100,20 +102,14 @@ export async function getExtensionUrl(
 
   // Production extension: Use custom protocol
   // Encode extension info as base64 for unique origin per extension
-  const extensionInfo = {
-    name,
-    publicKey,
-    version,
-  }
-  const encodedInfo = btoa(JSON.stringify(extensionInfo))
+  const encodedInfo = encodeExtensionInfo(name, publicKey, version)
 
-  const os = await platform()
-
-  if (os === 'android') {
-    // Android: Tauri uses http://{scheme}.localhost format
+  // Android WebView and Windows WebView2 cannot load custom schemes directly;
+  // Tauri maps them to http://{scheme}.localhost. Linux/macOS load the scheme natively.
+  const platform = getPlatform()
+  if (platform === 'android' || platform === 'windows') {
     return `http://${EXTENSION_PROTOCOL_NAME}.localhost/${encodedInfo}/${assetPath}`
   } else {
-    // All other platforms: Use custom protocol
     return `${EXTENSION_PROTOCOL_PREFIX}${encodedInfo}/${assetPath}`
   }
 }
