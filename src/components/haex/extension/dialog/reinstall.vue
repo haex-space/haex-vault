@@ -7,21 +7,12 @@
     }"
   >
     <template #header>
-      <div class="flex items-center justify-between w-full">
-        <h3 class="text-lg font-semibold">
-          {{
-            mode === 'update'
-              ? t('update.title', { extensionName: preview?.manifest.name })
-              : t('reinstall.title', { extensionName: preview?.manifest.name })
-          }}
-        </h3>
-        <UiButton
-          icon="i-heroicons-x-mark"
-          color="neutral"
-          variant="ghost"
-          @click="onDeny"
-        />
-      </div>
+      <UiDialogHeader
+        :title="mode === 'update'
+          ? t('update.title', { extensionName: preview?.manifest.name })
+          : t('reinstall.title', { extensionName: preview?.manifest.name })"
+        @close="onDeny"
+      />
     </template>
 
     <template #body>
@@ -82,29 +73,14 @@
     </template>
 
     <template #footer>
-      <div class="flex flex-col sm:flex-row gap-4 justify-end w-full">
-        <UiButton
-          icon="i-heroicons-x-mark"
-          :label="t('abort')"
-          color="neutral"
-          variant="outline"
-          class="w-full sm:w-auto"
-          @click="onDeny"
-        />
-        <UiButton
-          :icon="
-            mode === 'update'
-              ? 'i-heroicons-arrow-path'
-              : 'i-heroicons-arrow-down-tray'
-          "
-          :label="
-            mode === 'update' ? t('update.confirm') : t('reinstall.confirm')
-          "
-          :color="mode === 'update' ? 'primary' : 'error'"
-          class="w-full sm:w-auto"
-          @click="onConfirm"
-        />
-      </div>
+      <UiDialogFooter
+        :cancel-label="t('abort')"
+        :confirm-label="mode === 'update' ? t('update.confirm') : t('reinstall.confirm')"
+        :confirm-icon="mode === 'update' ? 'i-heroicons-arrow-path' : 'i-heroicons-arrow-down-tray'"
+        :confirm-color="mode === 'update' ? 'primary' : 'error'"
+        @cancel="onDeny"
+        @confirm="onConfirm"
+      />
     </template>
   </UiDrawerModal>
 </template>

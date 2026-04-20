@@ -7,17 +7,10 @@
     }"
   >
     <template #header>
-      <div class="flex items-center justify-between w-full">
-        <h3 class="text-lg font-semibold">
-          {{ t('title') }}
-        </h3>
-        <UiButton
-          icon="i-heroicons-x-mark"
-          color="neutral"
-          variant="ghost"
-          @click="onAbort"
-        />
-      </div>
+      <UiDialogHeader
+        :title="t('title')"
+        @close="onAbort"
+      />
     </template>
 
     <template #body>
@@ -90,23 +83,14 @@
     </template>
 
     <template #footer>
-      <div class="flex flex-col sm:flex-row gap-4 justify-end w-full">
-        <UiButton
-          icon="i-heroicons-x-mark"
-          :label="t('abort')"
-          color="neutral"
-          variant="outline"
-          class="w-full sm:w-auto"
-          @click="onAbort"
-        />
-        <UiButton
-          icon="i-heroicons-trash"
-          :label="t('confirm')"
-          color="error"
-          class="w-full sm:w-auto"
-          @click="onConfirm"
-        />
-      </div>
+      <UiDialogFooter
+        :cancel-label="t('abort')"
+        :confirm-label="t('confirm')"
+        confirm-icon="i-heroicons-trash"
+        confirm-color="error"
+        @cancel="onAbort"
+        @confirm="onConfirm"
+      />
     </template>
   </UiDrawerModal>
 </template>

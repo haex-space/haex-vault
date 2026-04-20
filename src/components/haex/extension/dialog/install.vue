@@ -8,17 +8,10 @@
     }"
   >
     <template #header>
-      <div class="flex items-center justify-between w-full">
-        <h3 class="text-lg font-semibold">
-          {{ isUpdate ? t('titleUpdate') : t('title') }}
-        </h3>
-        <UiButton
-          icon="i-heroicons-x-mark"
-          color="neutral"
-          variant="ghost"
-          @click="onDeny"
-        />
-      </div>
+      <UiDialogHeader
+        :title="isUpdate ? t('titleUpdate') : t('title')"
+        @close="onDeny"
+      />
     </template>
 
     <template #body>
@@ -200,24 +193,16 @@
     </template>
 
     <template #footer>
-      <div class="flex flex-col sm:flex-row gap-4 justify-end w-full">
-        <UiButton
-          icon="i-heroicons-x-mark"
-          :label="t('abort')"
-          color="error"
-          variant="outline"
-          class="w-full sm:w-auto"
-          @click="onDeny"
-        />
-        <UiButton
-          data-testid="extension-install-confirm"
-          :icon="isUpdate ? 'i-heroicons-arrow-path' : 'i-heroicons-check'"
-          :label="isUpdate ? t('confirmUpdate') : t('confirm')"
-          :color="isUpdate ? 'warning' : 'primary'"
-          class="w-full sm:w-auto"
-          @click="onConfirm"
-        />
-      </div>
+      <UiDialogFooter
+        :cancel-label="t('abort')"
+        cancel-color="error"
+        :confirm-label="isUpdate ? t('confirmUpdate') : t('confirm')"
+        :confirm-icon="isUpdate ? 'i-heroicons-arrow-path' : 'i-heroicons-check'"
+        :confirm-color="isUpdate ? 'warning' : 'primary'"
+        confirm-test-id="extension-install-confirm"
+        @cancel="onDeny"
+        @confirm="onConfirm"
+      />
     </template>
   </UiDrawerModal>
 </template>
