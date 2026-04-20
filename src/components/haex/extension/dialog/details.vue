@@ -179,7 +179,7 @@
                 v-if="detail.latestVersion.bundleSize"
                 class="text-sm text-gray-500"
               >
-                {{ formatSize(detail.latestVersion.bundleSize) }}
+                {{ readableFileSize(detail.latestVersion.bundleSize) }}
               </p>
             </div>
             <p
@@ -235,6 +235,7 @@ import 'md-editor-v3/lib/preview.css'
 import type { MarketplaceExtensionViewModel } from '~/types/haexspace'
 import type { ExtensionDetail } from '@haex-space/marketplace-sdk'
 import { useMarketplace } from '@haex-space/marketplace-sdk/vue'
+import { readableFileSize } from '~/utils/helper'
 
 const props = defineProps<{
   extension: MarketplaceExtensionViewModel | null
@@ -312,12 +313,6 @@ const formatNumber = (num: number) => {
 
 const formatRating = (rating: number) => {
   return (rating / 100).toFixed(1)
-}
-
-const formatSize = (bytes: number) => {
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${bytes} B`
 }
 
 const formatDate = (dateString: string) => {
