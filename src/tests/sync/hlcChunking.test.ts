@@ -8,8 +8,6 @@ const makeChange = (hlc: string, columnName = 'col'): ColumnChange => ({
   columnName,
   hlcTimestamp: hlc,
   deviceId: 'd1',
-  encryptedValue: null,
-  nonce: null,
 })
 
 describe('chunkChangesByHlc', () => {
