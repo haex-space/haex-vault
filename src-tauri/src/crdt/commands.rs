@@ -2,7 +2,7 @@ use crate::crdt::hlc::{hlc_is_newer, hlc_max, HlcService};
 use crate::crdt::trigger;
 use crate::crdt::trigger::{
     get_table_schema as get_table_schema_internal, is_safe_identifier, ColumnInfo,
-    COLUMN_HLCS_COLUMN, HLC_TIMESTAMP_COLUMN,
+    COLUMN_HLCS_COLUMN, DELETED_ROWS_TABLE, HLC_TIMESTAMP_COLUMN,
 };
 use crate::database::core::{with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
@@ -12,7 +12,7 @@ use rusqlite::params;
 use rusqlite::types::Value as SqlValue;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::State;
 use ts_rs::TS;
@@ -367,6 +367,107 @@ pub fn apply_remote_changes_in_transaction(
 /// received remote timestamp after applying all changes. This ensures future local
 /// operations generate timestamps strictly greater than any received remote timestamp,
 /// preventing incomplete rows on the server during push.
+/// Applies pending delete-log entries to their target tables.
+///
+/// For each row id in `delete_log_ids`, reads `(table_name, row_pks)` from
+/// `haex_deleted_rows` and issues a `DELETE` on the target table. Assumes the
+/// caller has already disabled CRDT triggers (`triggers_enabled = 0`), so the
+/// DELETE does not re-append to the delete-log.
+fn propagate_deleted_rows_to_target_tables(
+    tx: &rusqlite::Transaction,
+    delete_log_ids: &HashSet<String>,
+) -> Result<(), DatabaseError> {
+    for id in delete_log_ids {
+        let result = tx.query_row(
+            &format!(
+                "SELECT table_name, row_pks FROM \"{}\" WHERE id = ?1",
+                DELETED_ROWS_TABLE
+            ),
+            params![id],
+            |row| {
+                let table_name: String = row.get(0)?;
+                let row_pks: String = row.get(1)?;
+                Ok((table_name, row_pks))
+            },
+        );
+
+        let (target_table, row_pks_json) = match result {
+            Ok(r) => r,
+            Err(rusqlite::Error::QueryReturnedNoRows) => continue,
+            Err(e) => return Err(DatabaseError::from(e)),
+        };
+
+        if !is_safe_identifier(&target_table) {
+            eprintln!(
+                "[SYNC RUST] Skipping propagation for unsafe target table: {}",
+                target_table
+            );
+            continue;
+        }
+
+        let row_pks: serde_json::Map<String, JsonValue> = match serde_json::from_str(&row_pks_json) {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!(
+                    "[SYNC RUST] Invalid row_pks JSON for delete-log {}: {}",
+                    id, e
+                );
+                continue;
+            }
+        };
+
+        if row_pks.is_empty() {
+            continue;
+        }
+
+        let mut where_parts: Vec<String> = Vec::new();
+        let mut values: Vec<JsonValue> = Vec::new();
+        for (col_name, value) in &row_pks {
+            if !is_safe_identifier(col_name) {
+                eprintln!("[SYNC RUST] Skipping unsafe PK column: {}", col_name);
+                continue;
+            }
+            match value {
+                JsonValue::Null => {
+                    where_parts.push(format!("\"{}\" IS NULL", col_name));
+                }
+                _ => {
+                    where_parts.push(format!("\"{}\" = ?", col_name));
+                    values.push(value.clone());
+                }
+            }
+        }
+
+        let delete_sql = format!(
+            "DELETE FROM \"{}\" WHERE {}",
+            target_table,
+            where_parts.join(" AND ")
+        );
+        let sql_params = json_values_to_sql_params(&values)?;
+        let param_refs: Vec<&dyn rusqlite::ToSql> =
+            sql_params.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
+
+        match tx.execute(&delete_sql, param_refs.as_slice()) {
+            Ok(n) => {
+                if n > 0 {
+                    eprintln!(
+                        "[SYNC RUST] Delete-log propagation: removed {} row(s) from '{}'",
+                        n, target_table
+                    );
+                }
+            }
+            Err(e) => {
+                eprintln!(
+                    "[SYNC RUST] Delete-log propagation failed for '{}': {}",
+                    target_table, e
+                );
+                // Fall through — do not abort the whole sync on a single failure
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn apply_remote_changes_to_db(
     db: &crate::database::DbConnection,
     changes: Vec<RemoteColumnChange>,
@@ -434,8 +535,21 @@ pub fn apply_remote_changes_to_db(
         // Also collect all HLC timestamps for advancing the local clock after applying.
         let mut row_changes: HashMap<(String, String), Vec<RemoteColumnChange>> = HashMap::new();
         let mut all_hlc_timestamps: Vec<String> = Vec::new();
+        // Collect IDs of haex_deleted_rows entries that arrive in this batch so we
+        // can apply the corresponding DELETE on the target table after the apply
+        // loop (triggers are still disabled at that point).
+        let mut inbound_delete_log_ids: HashSet<String> = HashSet::new();
         for change in changes {
             all_hlc_timestamps.push(change.hlc_timestamp.clone());
+            if change.table_name == DELETED_ROWS_TABLE {
+                if let Ok(map) =
+                    serde_json::from_str::<serde_json::Map<String, JsonValue>>(&change.row_pks)
+                {
+                    if let Some(JsonValue::String(id)) = map.get("id") {
+                        inbound_delete_log_ids.insert(id.clone());
+                    }
+                }
+            }
             let key = (change.table_name.clone(), change.row_pks.clone());
             row_changes.entry(key).or_insert_with(Vec::new).push(change);
         }
@@ -761,6 +875,16 @@ pub fn apply_remote_changes_to_db(
                     }
                 }
             }
+        }
+
+        // Propagate delete-log entries received in this batch to their target tables.
+        // Triggers are still disabled, so the DELETEs won't re-log into haex_deleted_rows.
+        if !inbound_delete_log_ids.is_empty() {
+            eprintln!(
+                "[SYNC RUST] Propagating {} delete-log entries to target tables",
+                inbound_delete_log_ids.len()
+            );
+            propagate_deleted_rows_to_target_tables(&tx, &inbound_delete_log_ids)?;
         }
 
         // Update lastPushHlcTimestamp for this backend to prevent re-pushing the data we just pulled
