@@ -7,7 +7,7 @@ use crate::extension::core::manifest::{DisplayMode, ExtensionManifest, Extension
 use crate::extension::core::path_utils::validate_path_in_directory;
 use crate::extension::core::types::{Extension, ExtensionSource};
 use crate::extension::error::ExtensionError;
-use crate::table_names::TABLE_EXTENSIONS;
+use super::queries::SQL_LIST_EXTENSIONS;
 use crate::AppState;
 use serde_json;
 use std::path::PathBuf;
@@ -108,12 +108,12 @@ impl ExtensionManager {
         // Load all data from database
         // Use select_with_crdt to automatically filter out tombstoned (soft-deleted) entries
         // Load all extensions - dev_path determines if it's a dev extension
-        let sql = format!(
-            "SELECT id, name, version, author, entry, icon, public_key, signature, homepage, description, enabled, single_instance, display_mode, dev_path, i18n FROM {TABLE_EXTENSIONS}"
+        eprintln!(
+            "DEBUG: SQL Query (will be transformed by select_with_crdt): {}",
+            *SQL_LIST_EXTENSIONS
         );
-        eprintln!("DEBUG: SQL Query (will be transformed by select_with_crdt): {sql}");
 
-        let results = select_with_crdt(sql, vec![], &state.db)?;
+        let results = select_with_crdt(SQL_LIST_EXTENSIONS.clone(), vec![], &state.db)?;
         eprintln!("DEBUG: Query returned {} results", results.len());
 
         let mut extensions = Vec::new();

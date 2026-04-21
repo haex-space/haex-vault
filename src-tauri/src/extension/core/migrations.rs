@@ -9,7 +9,7 @@ use crate::extension::core::path_utils::validate_path_in_directory;
 use crate::extension::database::executor::SqlExecutor;
 use crate::extension::database::{execute_migration_statements, ExtensionSqlContext};
 use crate::extension::error::ExtensionError;
-use crate::table_names::TABLE_EXTENSION_MIGRATIONS;
+use super::queries::SQL_INSERT_EXTENSION_MIGRATION;
 use crate::AppState;
 use serde_json::Value as JsonValue;
 use std::fs;
@@ -139,11 +139,6 @@ pub async fn register_bundle_migrations(
                 reason: "Failed to lock HLC service".to_string(),
             })?;
 
-            let insert_sql = format!(
-                "INSERT OR IGNORE INTO {TABLE_EXTENSION_MIGRATIONS}
-                 (id, extension_id, extension_version, migration_name, sql_statement)
-                 VALUES (?, ?, ?, ?, ?)"
-            );
             let params: Vec<JsonValue> = vec![
                 JsonValue::String(migration_id),
                 JsonValue::String(extension_id.to_string()),
@@ -151,7 +146,7 @@ pub async fn register_bundle_migrations(
                 JsonValue::String(entry.tag.clone()),
                 JsonValue::String(sql_content.clone()),
             ];
-            SqlExecutor::execute_internal(&tx, &hlc_service, &insert_sql, &params)?;
+            SqlExecutor::execute_internal(&tx, &hlc_service, &SQL_INSERT_EXTENSION_MIGRATION, &params)?;
 
             tx.commit().map_err(DatabaseError::from)?;
             Ok::<(), DatabaseError>(())
