@@ -291,7 +291,7 @@ impl HlcService {
     }
 
     /// Persistiert einen Zeitstempel in der Datenbank innerhalb einer Transaktion.
-    fn persist_timestamp(tx: &Transaction, timestamp: &Timestamp) -> Result<(), HlcError> {
+    pub fn persist_timestamp(tx: &Transaction, timestamp: &Timestamp) -> Result<(), HlcError> {
         let timestamp_str = timestamp.to_string();
         tx.execute(
             &format!(

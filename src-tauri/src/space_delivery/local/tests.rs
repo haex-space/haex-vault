@@ -12,7 +12,8 @@ mod tests {
 
     use crate::crdt::hlc::HlcService;
     use crate::crdt::trigger::ensure_crdt_columns;
-    use crate::database::core;
+    use crate::database::connection_context::ConnectionContext;
+    use crate::database::core::{self, install_tx_hlc_hooks, register_current_hlc_udf};
     use crate::database::DbConnection;
     use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
 
@@ -20,6 +21,12 @@ mod tests {
     /// CRDT columns and triggers fully initialized — matching production schema.
     fn setup_test_db() -> (DbConnection, HlcService) {
         let conn = Connection::open_in_memory().expect("in-memory DB");
+
+        // Register current_hlc() UDF + tx-HLC hooks so execute_with_crdt works.
+        let hlc = HlcService::new_for_testing("test-device-001");
+        let ctx = ConnectionContext::new();
+        register_current_hlc_udf(&conn, hlc.clone(), ctx.clone()).unwrap();
+        install_tx_hlc_hooks(&conn, ctx).unwrap();
 
         // Config table for HLC persistence
         conn.execute_batch(&format!(
@@ -73,7 +80,6 @@ mod tests {
             tx.commit().unwrap();
         }
 
-        let hlc = HlcService::new_for_testing("test-device-001");
         let db = DbConnection(Arc::new(Mutex::new(Some(conn))));
 
         (db, hlc)
