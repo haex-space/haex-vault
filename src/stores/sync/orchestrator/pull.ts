@@ -634,9 +634,6 @@ export const applyRemoteChangesInTransactionAsync = async (
       rowPks: change.rowPks,
       columnName: change.columnName,
       hlcTimestamp: change.hlcTimestamp,
-      batchId: change.batchId || crypto.randomUUID(), // Use existing or generate dummy
-      batchSeq: change.batchSeq || 1, // Default to 1
-      batchTotal: change.batchTotal || 1, // Default to 1
       decryptedValue,
     }
 

@@ -793,15 +793,10 @@ pub(super) async fn handle_delivery_request(
                 return Response::Ok;
             }
 
-            // 2. Convert to RemoteColumnChange
-            let batch_id = uuid::Uuid::new_v4().to_string();
-            let total = local_changes.len();
+            // 2. Convert to RemoteColumnChange (HLC is the grouping key)
             let remote_changes: Vec<RemoteColumnChange> = local_changes
                 .iter()
-                .enumerate()
-                .map(|(i, local)| {
-                    super::sync_loop::local_to_remote_change(local, &batch_id, i + 1, total)
-                })
+                .map(super::sync_loop::local_to_remote_change)
                 .collect();
 
             // Collect affected table names and max HLC before applying

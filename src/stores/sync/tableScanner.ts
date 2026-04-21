@@ -21,9 +21,6 @@ export interface ColumnChange {
   rowPks: string // JSON string of primary key values
   columnName: string
   hlcTimestamp: string
-  batchId?: string // UUID identifying which changes belong together (optional for pull)
-  batchSeq?: number // Sequence number within batch (optional for pull, 1-based)
-  batchTotal?: number // Total number of changes in this batch (optional for pull)
   encryptedValue?: string
   nonce?: string
   deviceId: string // Device that created this change
@@ -117,10 +114,9 @@ async function processRowsToChangesAsync(
   lastPushHlcTimestamp: string | null,
   tableName: string,
   vaultKey: Uint8Array,
-  batchId: string,
   deviceId: string,
   epoch?: number,
-): Promise<Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[]> {
+): Promise<ColumnChange[]> {
   // Convert result to rows - we know the column order from allColumns
   const rows: Array<Record<string, unknown>> = []
 
@@ -142,7 +138,7 @@ async function processRowsToChangesAsync(
     log.debug(`  First row PKs:`, extractPrimaryKeys(rows[0]!, pkColumns))
   }
 
-  const changes: Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[] = []
+  const changes: ColumnChange[] = []
 
   for (const row of rows) {
     // Parse column HLCs from JSON
@@ -191,7 +187,6 @@ async function processRowsToChangesAsync(
           rowPks: pkJson,
           columnName: col.name,
           hlcTimestamp: hlcToUse,
-          batchId,
           deviceId,
           encryptedValue: encryptedData,
           nonce,
@@ -207,16 +202,14 @@ async function processRowsToChangesAsync(
 /**
  * Scans a table for rows that are newer than lastPushHlcTimestamp
  * Returns column-level changes for all modified columns
- * Note: batchSeq and batchTotal will be 0 and need to be set by the caller
  */
 export async function scanTableForChangesAsync(
   tableName: string,
   lastPushHlcTimestamp: string | null,
   vaultKey: Uint8Array,
-  batchId: string,
   deviceId: string,
   epoch?: number,
-): Promise<Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[]> {
+): Promise<ColumnChange[]> {
   log.info(`Scanning table: ${tableName}`)
   log.debug(`  lastPushHlcTimestamp: ${lastPushHlcTimestamp || '(none - full scan)'}`)
 
@@ -247,7 +240,7 @@ export async function scanTableForChangesAsync(
 
   const changes = await processRowsToChangesAsync(
     result, allColumns, pkColumns, dataColumns,
-    lastPushHlcTimestamp, tableName, vaultKey, batchId, deviceId, epoch,
+    lastPushHlcTimestamp, tableName, vaultKey, deviceId, epoch,
   )
 
   log.info(`  Generated ${changes.length} column changes from ${result.length} rows`)
@@ -265,10 +258,9 @@ export async function scanTableForSpaceChangesAsync(
   spaceId: string,
   lastPushHlcTimestamp: string | null,
   vaultKey: Uint8Array,
-  batchId: string,
   deviceId: string,
   epoch?: number,
-): Promise<Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[]> {
+): Promise<ColumnChange[]> {
   log.info(`Scanning table for space: ${tableName} (spaceId: ${spaceId})`)
   log.debug(`  lastPushHlcTimestamp: ${lastPushHlcTimestamp || '(none - full scan)'}`)
 
@@ -324,7 +316,7 @@ export async function scanTableForSpaceChangesAsync(
 
   const changes = await processRowsToChangesAsync(
     result, allColumns, pkColumns, dataColumns,
-    lastPushHlcTimestamp, tableName, vaultKey, batchId, deviceId, epoch,
+    lastPushHlcTimestamp, tableName, vaultKey, deviceId, epoch,
   )
 
   log.info(`  Generated ${changes.length} column changes from ${result.length} rows`)

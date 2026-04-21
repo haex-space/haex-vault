@@ -180,9 +180,6 @@ pub struct RemoteColumnChange {
     pub row_pks: String, // JSON string
     pub column_name: String,
     pub hlc_timestamp: String,
-    pub batch_id: String,
-    pub batch_seq: usize,
-    pub batch_total: usize,
     pub decrypted_value: JsonValue, // Already decrypted in frontend
 }
 
@@ -285,62 +282,27 @@ fn create_conflict_entry(
     Ok(())
 }
 
-/// Validates that all parts of each batch are present
-fn validate_batch_completeness(changes: &[RemoteColumnChange]) -> Result<(), DatabaseError> {
-    use std::collections::{HashMap, HashSet};
-
-    // Group changes by batch_id
-    let mut batches: HashMap<String, HashSet<usize>> = HashMap::new();
-    let mut batch_totals: HashMap<String, usize> = HashMap::new();
-
+/// Groups a flat list of column changes into transaction-HLC groups and
+/// returns them sorted ascending by HLC. All writes issued inside the same
+/// sender-side transaction share a timestamp, so `hlc_timestamp` is the
+/// semantic grouping key — there is no separate batch id anymore.
+fn group_by_transaction_hlc(
+    changes: Vec<RemoteColumnChange>,
+) -> Vec<(String, Vec<RemoteColumnChange>)> {
+    let mut groups: HashMap<String, Vec<RemoteColumnChange>> = HashMap::new();
     for change in changes {
-        batches
-            .entry(change.batch_id.clone())
-            .or_insert_with(HashSet::new)
-            .insert(change.batch_seq);
-
-        // Store batch_total (should be same for all changes in a batch)
-        batch_totals.insert(change.batch_id.clone(), change.batch_total);
+        groups
+            .entry(change.hlc_timestamp.clone())
+            .or_default()
+            .push(change);
     }
 
-    // Validate each batch
-    for (batch_id, seq_numbers) in batches {
-        let expected_total = batch_totals.get(&batch_id).copied().unwrap_or(0);
-
-        // Check if we have all sequence numbers from 1 to batch_total
-        if seq_numbers.len() != expected_total {
-            return Err(DatabaseError::ExecutionError {
-                sql: "batch validation".to_string(),
-                reason: format!(
-                    "Incomplete batch {}: expected {} changes, got {}",
-                    batch_id,
-                    expected_total,
-                    seq_numbers.len()
-                ),
-                table: None,
-            });
-        }
-
-        // Check if sequence numbers are 1..=batch_total
-        for seq in 1..=expected_total {
-            if !seq_numbers.contains(&seq) {
-                return Err(DatabaseError::ExecutionError {
-                    sql: "batch validation".to_string(),
-                    reason: format!(
-                        "Missing sequence number {} in batch {} (total: {})",
-                        seq, batch_id, expected_total
-                    ),
-                    table: None,
-                });
-            }
-        }
-    }
-
-    Ok(())
+    let mut ordered: Vec<(String, Vec<RemoteColumnChange>)> = groups.into_iter().collect();
+    ordered.sort_by(|a, b| crate::crdt::hlc::compare_hlc_strings(&a.0, &b.0));
+    ordered
 }
 
-/// Applies remote changes in a single transaction
-/// Validates batch completeness before applying changes
+/// Applies remote changes in a single transaction, with HLC-ordered grouping.
 /// Note: lastPullServerTimestamp is now updated by the TypeScript layer after successful apply
 #[tauri::command]
 pub fn apply_remote_changes_in_transaction(
@@ -481,10 +443,13 @@ pub fn apply_remote_changes_to_db(
         backend_info.map(|(id, _)| id).unwrap_or("local-delivery"),
     );
 
-    // Validate batch completeness
-    eprintln!("[SYNC RUST] Validating batch completeness...");
-    validate_batch_completeness(&changes)?;
-    eprintln!("[SYNC RUST] Batch validation passed");
+    // Group changes by transaction-HLC and apply groups in ascending HLC order
+    // so cross-table transactions (e.g. parent + child insert) land together.
+    let grouped = group_by_transaction_hlc(changes);
+    let changes: Vec<RemoteColumnChange> = grouped
+        .into_iter()
+        .flat_map(|(_hlc, group)| group.into_iter())
+        .collect();
 
     // Validate all table and column names from remote changes to prevent SQL injection
     for change in &changes {

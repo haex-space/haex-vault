@@ -105,12 +105,9 @@ export const pushToBackendAsync = async (
     }, '')
     log.debug(`[PUSH-SCAN] Max dirty timestamp at scan start: ${maxDirtyTimestamp}`)
 
-    // Generate a batch ID for this push - all changes in this push belong together
-    const batchId = crypto.randomUUID()
-    log.debug('Generated batch ID:', batchId)
-
-    // Scan each dirty table for column-level changes (without batch seq numbers yet)
-    const partialChanges: Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[] = []
+    // Scan each dirty table for column-level changes. HLC is the grouping
+    // key — no separate batch id anymore.
+    const allChanges: ColumnChange[] = []
     let maxHlc = lastPushHlc || ''
 
     for (const { tableName } of dirtyTables) {
@@ -118,9 +115,9 @@ export const pushToBackendAsync = async (
         log.info(`[PUSH-SCAN] Scanning table: ${tableName}`)
         log.debug(`[PUSH-SCAN]   lastPushHlc: ${lastPushHlc || '(none)'}`)
 
-        const tableChanges = await scanTableForChangesAsync(tableName, lastPushHlc, encryptionKey, batchId, deviceId, epoch)
+        const tableChanges = await scanTableForChangesAsync(tableName, lastPushHlc, encryptionKey, deviceId, epoch)
 
-        partialChanges.push(...tableChanges)
+        allChanges.push(...tableChanges)
 
         // Track max HLC timestamp
         for (const change of tableChanges) {
@@ -154,14 +151,6 @@ export const pushToBackendAsync = async (
       }
     }
 
-    // Add batch sequence numbers now that we know the total
-    const batchTotal = partialChanges.length
-    const allChanges: ColumnChange[] = partialChanges.map((change, index) => ({
-      ...change,
-      batchSeq: index + 1, // 1-based sequence
-      batchTotal,
-    }))
-
     if (allChanges.length === 0) {
       log.info('PUSH COMPLETE: No changes after scanning (tables may already be synced)')
       // Clear dirty tables even if no changes (they might have been synced already)
@@ -172,7 +161,6 @@ export const pushToBackendAsync = async (
     }
 
     log.info(`Pushing ${allChanges.length} column changes to server...`)
-    log.debug('Batch info:', { batchId, batchTotal })
 
     // Push changes to server using new format
     const serverTimestamp = await pushChangesToServerAsync(
@@ -272,9 +260,6 @@ export const pushChangesToServerAsync = async (
       rowPks: change.rowPks,
       columnName: change.columnName,
       hlcTimestamp: change.hlcTimestamp,
-      batchId: change.batchId,
-      batchSeq: change.batchSeq,
-      batchTotal: change.batchTotal,
       deviceId,
       encryptedValue: change.encryptedValue,
       nonce: change.nonce,
@@ -390,21 +375,17 @@ export const pushAllDataToBackendAsync = async (
 
     log.info(`Found ${allTables.length} CRDT tables:`, allTables)
 
-    // Generate a batch ID for this push
-    const batchId = crypto.randomUUID()
-    log.debug('Generated batch ID:', batchId)
-
     // Scan each table for ALL data (null = no lastPushHlc filter)
-    const partialChanges: Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[] = []
+    const allChanges: ColumnChange[] = []
     let maxHlc = ''
 
     for (const tableName of allTables) {
       try {
         log.info(`Scanning table: ${tableName} (full scan)`)
 
-        const tableChanges = await scanTableForChangesAsync(tableName, null, encryptionKey, batchId, deviceId)
+        const tableChanges = await scanTableForChangesAsync(tableName, null, encryptionKey, deviceId)
 
-        partialChanges.push(...tableChanges)
+        allChanges.push(...tableChanges)
 
         // Track max HLC timestamp
         for (const change of tableChanges) {
@@ -420,21 +401,12 @@ export const pushAllDataToBackendAsync = async (
       }
     }
 
-    // Add batch sequence numbers
-    const batchTotal = partialChanges.length
-    const allChanges: ColumnChange[] = partialChanges.map((change, index) => ({
-      ...change,
-      batchSeq: index + 1,
-      batchTotal,
-    }))
-
     if (allChanges.length === 0) {
       log.info('FULL PUSH COMPLETE: No data to push')
       return
     }
 
     log.info(`Pushing ${allChanges.length} column changes to server...`)
-    log.debug('Batch info:', { batchId, batchTotal })
 
     // Push changes to server
     const serverTimestamp = await pushChangesToServerAsync(

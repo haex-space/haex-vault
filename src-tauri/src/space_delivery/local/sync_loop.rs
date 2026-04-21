@@ -98,20 +98,12 @@ pub async fn start_peer_sync_loop(
 }
 
 /// Convert a `LocalColumnChange` to a `RemoteColumnChange` for the apply function.
-pub fn local_to_remote_change(
-    local: &LocalColumnChange,
-    batch_id: &str,
-    seq: usize,
-    total: usize,
-) -> RemoteColumnChange {
+pub fn local_to_remote_change(local: &LocalColumnChange) -> RemoteColumnChange {
     RemoteColumnChange {
         table_name: local.table_name.clone(),
         row_pks: local.row_pks.clone(),
         column_name: local.column_name.clone(),
         hlc_timestamp: local.hlc_timestamp.clone(),
-        batch_id: batch_id.to_string(),
-        batch_seq: seq,
-        batch_total: total,
         decrypted_value: local.value.clone(),
     }
 }
@@ -321,15 +313,10 @@ async fn run_sync_cycle(
                 })?;
 
             if !remote_locals.is_empty() {
-                // Generate a batch ID for this pull
-                let batch_id = uuid::Uuid::new_v4().to_string();
-                let total = remote_locals.len();
-
-                // Convert LocalColumnChange -> RemoteColumnChange
+                // Convert LocalColumnChange -> RemoteColumnChange (HLC is the grouping key)
                 let remote_changes: Vec<RemoteColumnChange> = remote_locals
                     .iter()
-                    .enumerate()
-                    .map(|(i, local)| local_to_remote_change(local, &batch_id, i + 1, total))
+                    .map(local_to_remote_change)
                     .collect();
 
                 // Find the max HLC from pulled changes
