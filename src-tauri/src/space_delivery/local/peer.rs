@@ -4,12 +4,22 @@ use super::error::DeliveryError;
 use super::protocol::{self, Request, Response};
 
 /// A connected peer session with the leader.
+///
+/// The UCAN token passed on `connect` is stored and attached to every
+/// space-scoped request (Announce, SyncPush, SyncPull). The leader verifies
+/// the token against the target space on each call — so even a hijacked
+/// connection cannot pull or push data without a valid delegation.
 pub struct PeerSession {
     conn: iroh::endpoint::Connection,
+    ucan_token: String,
 }
 
 impl PeerSession {
     /// Connect to a leader and announce our identity.
+    ///
+    /// `ucan_token` must be a valid UCAN delegating at least `space/read` for
+    /// `space_id` to us. Without it the Announce — and every subsequent sync
+    /// request — is rejected.
     pub async fn connect(
         iroh_endpoint: &iroh::Endpoint,
         leader_endpoint_id: &str,
@@ -18,6 +28,7 @@ impl PeerSession {
         our_did: &str,
         our_endpoint_id: &str,
         label: Option<&str>,
+        ucan_token: String,
     ) -> Result<Self, DeliveryError> {
         let remote_id: iroh::EndpointId =
             leader_endpoint_id
@@ -41,7 +52,7 @@ impl PeerSession {
                 reason: e.to_string(),
             })?;
 
-        let session = Self { conn };
+        let session = Self { conn, ucan_token };
 
         // Send Announce request
         let req = Request::Announce {
@@ -50,6 +61,7 @@ impl PeerSession {
             space_id: space_id.to_string(),
             label: label.map(|s| s.to_string()),
             claims: None,
+            ucan_token: session.ucan_token.clone(),
         };
 
         let resp = session.request(req).await?;
@@ -104,6 +116,7 @@ impl PeerSession {
         let req = Request::SyncPush {
             space_id: space_id.to_string(),
             changes,
+            ucan_token: self.ucan_token.clone(),
         };
         match self.request(req).await? {
             Response::Ok => Ok(()),
@@ -123,6 +136,7 @@ impl PeerSession {
         let req = Request::SyncPull {
             space_id: space_id.to_string(),
             after_timestamp: after_timestamp.map(|s| s.to_string()),
+            ucan_token: self.ucan_token.clone(),
         };
         match self.request(req).await? {
             Response::SyncChanges { changes } => Ok(changes),

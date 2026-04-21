@@ -132,6 +132,11 @@ pub async fn local_delivery_status(state: State<'_, AppState>) -> Result<Deliver
 }
 
 /// Connect to a local space leader and start autonomous sync.
+///
+/// `ucan_token` must be a valid UCAN granting at least `space/read` for
+/// `space_id` to the peer's DID. Without a valid token the leader rejects
+/// every request — the connect call succeeds, but the first sync cycle
+/// fails and the loop enters reconnect backoff.
 #[tauri::command]
 pub async fn local_delivery_connect(
     app: tauri::AppHandle,
@@ -140,6 +145,7 @@ pub async fn local_delivery_connect(
     leader_endpoint_id: String,
     leader_relay_url: Option<String>,
     identity_did: String,
+    ucan_token: String,
 ) -> Result<(), String> {
     // 1. Check if already connected
     let mut loops = state.local_sync_loops.lock().await;
@@ -173,6 +179,7 @@ pub async fn local_delivery_connect(
         identity_did,
         our_endpoint_id,
         device_id,
+        ucan_token,
         app,
     )
     .await

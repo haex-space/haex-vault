@@ -14,6 +14,7 @@ import type {
 } from '~/database/schemas'
 import type { ElectionResultInfo } from '@bindings/ElectionResultInfo'
 import { createLogger } from '@/stores/logging'
+import { getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
 import { requireDb } from '~/stores/vault'
 import { SpaceType, SpaceStatus } from '~/database/constants'
 import type {
@@ -223,6 +224,69 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   }
 
   /**
+   * Start a peer sync loop for a single local space after running leader
+   * election. If a `hintLeaderEndpointId` is provided and election does not
+   * find a leader, falls back to the hint — useful right after an invite
+   * Accept, where we know which endpoint served the ClaimInvite but election
+   * may not yet have the fresh space devices registered.
+   */
+  const startPeerSyncForLocalSpaceAsync = async (
+    spaceId: string,
+    identityDid: string,
+    hintLeaderEndpointId?: string,
+    hintLeaderRelayUrl?: string | null,
+  ): Promise<void> => {
+    const ucanToken = getUcanForSpaceAsync(spaceId)
+    if (!ucanToken) {
+      log.warn(`Peer sync skipped for space ${spaceId}: no UCAN token available`)
+      return
+    }
+
+    let leaderEndpointId: string | undefined
+    let leaderRelayUrl: string | null | undefined
+    try {
+      const election = await invoke<ElectionResultInfo>(
+        'local_delivery_elect',
+        { spaceId },
+      )
+      if (election.role === 'leader') {
+        log.debug(`Space ${spaceId}: self is leader, no peer sync needed`)
+        return
+      }
+      if (election.role === 'peer' && election.leaderEndpointId) {
+        leaderEndpointId = election.leaderEndpointId
+        leaderRelayUrl = election.leaderRelayUrl
+      } else {
+        log.debug(`Space ${spaceId}: no leader found via election (role=${election.role})`)
+      }
+    } catch (error) {
+      log.warn(`Election for space ${spaceId} failed: ${error}`)
+    }
+
+    if (!leaderEndpointId && hintLeaderEndpointId) {
+      leaderEndpointId = hintLeaderEndpointId
+      leaderRelayUrl = hintLeaderRelayUrl ?? null
+      log.info(`Space ${spaceId}: using hint endpoint as leader (${hintLeaderEndpointId.slice(0, 16)})`)
+    }
+
+    if (!leaderEndpointId) return
+
+    try {
+      await invoke('local_delivery_connect', {
+        spaceId,
+        leaderEndpointId,
+        leaderRelayUrl: leaderRelayUrl ?? null,
+        identityDid,
+        ucanToken,
+      })
+      log.info(`Started peer sync for space ${spaceId} → leader ${leaderEndpointId.slice(0, 16)}`)
+    } catch (error) {
+      // Already connected, or temporarily unreachable — non-fatal.
+      log.debug(`Peer sync connect for ${spaceId}: ${error}`)
+    }
+  }
+
+  /**
    * For every joined local space, run leader election and — if another
    * device is the elected leader — start a peer sync loop against them.
    *
@@ -248,37 +312,12 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       ) {
         continue
       }
-
-      const spaceId = space.haex_spaces.id
-      try {
-        const election = await invoke<ElectionResultInfo>(
-          'local_delivery_elect',
-          { spaceId },
-        )
-
-        if (election.role === 'peer' && election.leaderEndpointId) {
-          try {
-            await invoke('local_delivery_connect', {
-              spaceId,
-              leaderEndpointId: election.leaderEndpointId,
-              leaderRelayUrl: election.leaderRelayUrl,
-              identityDid: myIdentity.did,
-            })
-            log.info(
-              `Started peer sync for space ${spaceId} → leader ${election.leaderEndpointId.slice(0, 16)}`,
-            )
-          } catch (error) {
-            // Already connected, or temporarily unreachable — non-fatal.
-            log.debug(`Peer sync connect for ${spaceId}: ${error}`)
-          }
-        } else if (election.role === 'leader') {
-          log.debug(`Space ${spaceId}: self is leader, no peer sync needed`)
-        } else {
-          log.debug(`Space ${spaceId}: no leader found (role=${election.role})`)
-        }
-      } catch (error) {
-        log.warn(`Election for space ${spaceId} failed: ${error}`)
-      }
+      await startPeerSyncForLocalSpaceAsync(
+        space.haex_spaces.id,
+        myIdentity.did,
+      ).catch((error) => {
+        log.warn(`Peer sync for space ${space.haex_spaces.id} failed: ${error}`)
+      })
     }
   }
 
@@ -529,6 +568,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       async () => {
         await loadSpacesFromDbAsync()
       },
+      startPeerSyncForLocalSpaceAsync,
     )
 
   const queueQuicInviteAsync = (
@@ -673,6 +713,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     persistSpaceAsync,
     startLocalSpaceLeadersAsync,
     startLocalSpacePeerSyncAsync,
+    startPeerSyncForLocalSpaceAsync,
     retryPendingWelcomesAsync,
     removeSpaceFromDbAsync,
     clearCache,

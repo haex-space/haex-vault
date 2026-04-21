@@ -112,6 +112,7 @@ pub async fn start_peer_sync_loop(
     our_did: String,
     our_endpoint_id: String,
     device_id: String,
+    ucan_token: String,
     app_handle: tauri::AppHandle,
 ) -> Result<SyncLoopHandle, DeliveryError> {
     // Establish initial connection
@@ -123,6 +124,7 @@ pub async fn start_peer_sync_loop(
         &our_did,
         &our_endpoint_id,
         Some("sync-loop"),
+        ucan_token.clone(),
     )
     .await?;
 
@@ -138,6 +140,7 @@ pub async fn start_peer_sync_loop(
         our_did,
         our_endpoint_id,
         device_id,
+        ucan_token,
         app_handle,
         stop_rx,
     ));
@@ -170,6 +173,7 @@ async fn run_sync_loop(
     our_did: String,
     our_endpoint_id: String,
     device_id: String,
+    ucan_token: String,
     app_handle: tauri::AppHandle,
     mut stop_rx: watch::Receiver<bool>,
 ) {
@@ -256,6 +260,7 @@ async fn run_sync_loop(
                         &our_did,
                         &our_endpoint_id,
                         Some("sync-loop"),
+                        ucan_token.clone(),
                     )
                     .await
                     {

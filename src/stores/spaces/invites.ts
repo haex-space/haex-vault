@@ -335,6 +335,12 @@ export async function acceptLocalInvite(
   },
   persistSpaceAsync: (space: SpaceWithType) => Promise<void>,
   loadSpacesFromDbAsync: () => Promise<void>,
+  startPeerSyncForLocalSpaceAsync: (
+    spaceId: string,
+    identityDid: string,
+    hintLeaderEndpointId?: string,
+    hintLeaderRelayUrl?: string | null,
+  ) => Promise<void>,
 ) {
   if (!invite.spaceEndpoints || !invite.tokenId) {
     throw new Error('Missing invite data for local claim')
@@ -346,14 +352,12 @@ export async function acceptLocalInvite(
   if (!identity) throw new Error('No identity available')
   if (!invite.inviterDid) throw new Error('Missing inviter DID for local invite')
 
-  log.info(`acceptLocalInvite: BEFORE ensureIdentityForDidAsync inviterDid=${invite.inviterDid.slice(0, 20)}`)
   const ownerIdentity = await identityStore.ensureIdentityForDidAsync(invite.inviterDid, {
     name: invite.inviterLabel,
     avatar: invite.inviterAvatar,
     avatarOptions: invite.inviterAvatarOptions,
     source: 'space',
   })
-  log.info(`acceptLocalInvite: AFTER ensureIdentityForDidAsync ownerIdentity.id=${ownerIdentity.id}`)
   const identityPublicKey = await didKeyToPublicKeyAsync(identity.did)
 
   const endpoints: string[] = JSON.parse(invite.spaceEndpoints)
@@ -365,8 +369,6 @@ export async function acceptLocalInvite(
   let acceptedEndpoint: string | null = null
   for (const endpointId of endpoints) {
     try {
-      log.info(`ClaimInvite: connecting to ${endpointId.slice(0, 16)}...`)
-      log.info(`ClaimInvite: BEFORE invoke local_delivery_claim_invite`)
       await invoke('local_delivery_claim_invite', {
         leaderEndpointId: endpointId,
         leaderRelayUrl: null,
@@ -377,7 +379,6 @@ export async function acceptLocalInvite(
         label: identity.name || null,
         identityPublicKey,
       })
-      log.info(`ClaimInvite: AFTER invoke local_delivery_claim_invite — returned OK`)
       log.info(`ClaimInvite: success to ${endpointId.slice(0, 16)}`)
       lastError = null
       acceptedEndpoint = endpointId
@@ -389,25 +390,8 @@ export async function acceptLocalInvite(
   }
   if (lastError) throw lastError
 
-  // Start the peer-side CRDT sync loop so we pull the space's historical
-  // state (other members, shares, devices) from the leader. Without this,
-  // the invitee sees only locally-inserted rows (their own membership).
-  // Non-fatal on failure — Layer 2 (app-startup election) will retry.
-  if (acceptedEndpoint) {
-    try {
-      await invoke('local_delivery_connect', {
-        spaceId: invite.spaceId,
-        leaderEndpointId: acceptedEndpoint,
-        leaderRelayUrl: null,
-        identityDid: identity.did,
-      })
-      log.info(`ClaimInvite: started sync loop to ${acceptedEndpoint.slice(0, 16)}`)
-    } catch (error) {
-      log.warn(`ClaimInvite: failed to start sync loop: ${error}`)
-    }
-  }
-
-  // Create or activate the space entry
+  // Persist space + member BEFORE starting sync so leader election sees us
+  // as a registered device of the space and returns a meaningful role.
   const existing = await db.select().from(haexSpaces).where(eq(haexSpaces.id, invite.spaceId)).limit(1)
   if (existing.length > 0) {
     await db.update(haexSpaces).set({ status: SpaceStatus.ACTIVE }).where(eq(haexSpaces.id, invite.spaceId))
@@ -428,6 +412,24 @@ export async function acceptLocalInvite(
 
   // Add self as space member (non-fatal)
   await addSelfAsSpaceMember(db, invite.spaceId, identity, 'read')
+
+  // Start the peer-side CRDT sync loop so we pull the space's historical
+  // state (other members, shares, devices) from the leader. The endpoint
+  // that served the ClaimInvite is passed as a fallback hint — leader
+  // election is authoritative, but right after Accept the leader may not
+  // yet know about our device, so the hint keeps initial sync moving.
+  if (acceptedEndpoint) {
+    try {
+      await startPeerSyncForLocalSpaceAsync(
+        invite.spaceId,
+        identity.did,
+        acceptedEndpoint,
+        null,
+      )
+    } catch (error) {
+      log.warn(`ClaimInvite: failed to start sync loop: ${error}`)
+    }
+  }
 
   log.info(`Accepted local invite for space ${invite.spaceId}`)
 }

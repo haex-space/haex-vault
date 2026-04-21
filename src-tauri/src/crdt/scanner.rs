@@ -23,6 +23,26 @@ const EXCLUDED_SYNC_COLUMNS: &[&str] = &[
     "created_at",
 ];
 
+/// Whitelist of CRDT tables that may be synchronised between peers of a
+/// shared space. Everything else (identities, sync backends, vault settings,
+/// pending invites, UCAN chains, extension tables …) is considered vault-
+/// private and must **never** be shipped across a space-delivery stream.
+///
+/// The UCAN delegation chain itself travels inside each delegated token
+/// (`proofs` field), so `haex_ucan_tokens` does not need to be synced either.
+pub const SPACE_SCOPED_CRDT_TABLES: &[&str] = &[
+    "haex_space_devices",
+    "haex_space_members",
+    "haex_peer_shares",
+    "haex_mls_sync_keys",
+    "haex_device_mls_enrollments",
+];
+
+/// Returns true if `table_name` may be synchronised as part of a shared space.
+pub fn is_space_scoped_table(table_name: &str) -> bool {
+    SPACE_SCOPED_CRDT_TABLES.contains(&table_name)
+}
+
 /// A column-level change ready for local transmission (no encryption).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -68,6 +88,20 @@ pub fn scan_table_for_local_changes(
     after_hlc: Option<&str>,
     device_id: &str,
 ) -> Result<Vec<LocalColumnChange>, DatabaseError> {
+    scan_table_for_local_changes_scoped(conn, table_name, after_hlc, device_id, None)
+}
+
+/// Like `scan_table_for_local_changes` but with an additional `space_id`
+/// predicate. The caller passes the target space id; the scanner limits the
+/// result to rows where `space_id = ?`. Used by the space-scoped sync path
+/// to prevent leaking rows from other spaces.
+pub fn scan_table_for_local_changes_scoped(
+    conn: &Connection,
+    table_name: &str,
+    after_hlc: Option<&str>,
+    device_id: &str,
+    space_id_filter: Option<&str>,
+) -> Result<Vec<LocalColumnChange>, DatabaseError> {
     let schema = get_table_schema(conn, table_name).map_err(DatabaseError::from)?;
 
     if schema.is_empty() {
@@ -82,6 +116,14 @@ pub fn scan_table_for_local_changes(
             reason: format!("Table '{}' has no primary key", table_name),
             table: Some(table_name.to_string()),
         });
+    }
+
+    // If the caller asked to filter by space_id but the table has no
+    // `space_id` column, treat that as "no matching rows" rather than
+    // silently returning the whole table.
+    let has_space_id_column = schema.iter().any(|c| c.name == "space_id");
+    if space_id_filter.is_some() && !has_space_id_column {
+        return Ok(Vec::new());
     }
 
     // Build column list: PKs + data columns + CRDT metadata
@@ -101,18 +143,30 @@ pub fn scan_table_for_local_changes(
         .collect::<Vec<_>>()
         .join(", ");
 
-    let (query, params) = if let Some(hlc) = after_hlc {
-        (
-            format!(
-                "SELECT {} FROM \"{}\" WHERE \"{}\" > ?1",
-                column_list, table_name, HLC_TIMESTAMP_COLUMN
-            ),
-            vec![hlc.to_string()],
-        )
+    let mut where_clauses: Vec<String> = Vec::new();
+    let mut params: Vec<String> = Vec::new();
+
+    if let Some(hlc) = after_hlc {
+        where_clauses.push(format!(
+            "\"{}\" > ?{}",
+            HLC_TIMESTAMP_COLUMN,
+            where_clauses.len() + 1
+        ));
+        params.push(hlc.to_string());
+    }
+    if let Some(space_id) = space_id_filter {
+        where_clauses.push(format!("\"space_id\" = ?{}", where_clauses.len() + 1));
+        params.push(space_id.to_string());
+    }
+
+    let query = if where_clauses.is_empty() {
+        format!("SELECT {} FROM \"{}\"", column_list, table_name)
     } else {
-        (
-            format!("SELECT {} FROM \"{}\"", column_list, table_name),
-            vec![],
+        format!(
+            "SELECT {} FROM \"{}\" WHERE {}",
+            column_list,
+            table_name,
+            where_clauses.join(" AND ")
         )
     };
 
@@ -233,21 +287,28 @@ pub fn scan_all_dirty_tables_for_local_changes(
     })
 }
 
-/// Scans ALL CRDT-enabled tables for changes (not just dirty ones).
+/// Scans the whitelist of space-scoped CRDT tables for rows belonging to
+/// `space_id`. This is the authoritative scanner for peer-to-peer SyncPull:
+/// the caller guarantees that only these tables and only these rows cross
+/// the wire, so peers cannot pull data from spaces they are not members of.
 ///
-/// Used by the P2P leader for SyncPull — must return all changes including
-/// those applied from other peers (which don't trigger dirty markers).
-pub fn scan_all_crdt_tables_for_local_changes(
+/// Tables outside [`SPACE_SCOPED_CRDT_TABLES`] are never scanned.
+pub fn scan_space_scoped_tables_for_local_changes(
     db: &DbConnection,
+    space_id: &str,
     after_hlc: Option<&str>,
     device_id: &str,
 ) -> Result<Vec<LocalColumnChange>, DatabaseError> {
     with_connection(db, |conn| {
-        let table_names = crate::database::init::discover_crdt_tables(conn)?;
-
         let mut all_changes: Vec<LocalColumnChange> = Vec::new();
-        for table_name in &table_names {
-            let changes = scan_table_for_local_changes(conn, table_name, after_hlc, device_id)?;
+        for table_name in SPACE_SCOPED_CRDT_TABLES {
+            let changes = scan_table_for_local_changes_scoped(
+                conn,
+                table_name,
+                after_hlc,
+                device_id,
+                Some(space_id),
+            )?;
             all_changes.extend(changes);
         }
 
@@ -260,6 +321,12 @@ pub fn scan_all_crdt_tables_for_local_changes(
         Ok(all_changes)
     })
 }
+
+// `scan_all_crdt_tables_for_local_changes` used to scan every CRDT table
+// without a space filter. That function powered the old peer SyncPull and
+// was the root of a cross-space data leak — a peer asking for space X
+// would receive rows from every space the leader was in. It has been
+// removed. Use `scan_space_scoped_tables_for_local_changes` for peer sync.
 
 #[cfg(test)]
 mod tests {
