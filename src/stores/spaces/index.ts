@@ -14,7 +14,6 @@ import type {
 } from '~/database/schemas'
 import type { ElectionResultInfo } from '@bindings/ElectionResultInfo'
 import { createLogger } from '@/stores/logging'
-import { getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
 import { requireDb } from '~/stores/vault'
 import { SpaceType, SpaceStatus } from '~/database/constants'
 import type {
@@ -236,12 +235,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     hintLeaderEndpointId?: string,
     hintLeaderRelayUrl?: string | null,
   ): Promise<void> => {
-    const ucanToken = getUcanForSpaceAsync(spaceId)
-    if (!ucanToken) {
-      log.warn(`Peer sync skipped for space ${spaceId}: no UCAN token available`)
-      return
-    }
-
     let leaderEndpointId: string | undefined
     let leaderRelayUrl: string | null | undefined
     try {
@@ -271,13 +264,14 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
     if (!leaderEndpointId) return
 
+    // UCAN is resolved inside Rust from haex_ucan_tokens at connect/reconnect
+    // time — no token to pass from the frontend.
     try {
       await invoke('local_delivery_connect', {
         spaceId,
         leaderEndpointId,
         leaderRelayUrl: leaderRelayUrl ?? null,
         identityDid,
-        ucanToken,
       })
       log.info(`Started peer sync for space ${spaceId} → leader ${leaderEndpointId.slice(0, 16)}`)
     } catch (error) {

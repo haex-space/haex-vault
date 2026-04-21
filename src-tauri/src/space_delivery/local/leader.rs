@@ -88,21 +88,48 @@ fn require_valid_ucan(ucan_token: &str, op: &str) -> Result<ValidatedUcan, Respo
     })
 }
 
-/// Check that a validated UCAN grants the required capability for `space_id`.
-/// Wraps the canonical `require_capability` check with a consistent error
-/// response format for all space-delivery handlers.
+/// Check that a validated UCAN grants the required capability for `space_id`
+/// **and** that the UCAN audience is still an active member of the space.
+///
+/// Membership is the revocation kill-switch: when the admin removes a
+/// member (tombstones the `haex_space_members` row + MLS commit) the UCAN
+/// remains cryptographically valid but this check rejects every request.
+/// A removed member cannot even see metadata like the member list or
+/// peer-share titles after the tombstone has propagated.
+///
+/// Returns an Error response on either failure path.
 fn require_ucan_capability(
     validated: &ValidatedUcan,
     space_id: &str,
     required: CapabilityLevel,
     op: &str,
+    db: &crate::database::DbConnection,
 ) -> Result<(), Response> {
     require_capability(validated, space_id, required).map_err(|e| {
         eprintln!("[SpaceDelivery] {op}: capability check failed: {e}");
         Response::Error {
             message: format!("Access denied: {e}"),
         }
-    })
+    })?;
+
+    match super::ucan::is_active_space_member(db, space_id, &validated.audience) {
+        Ok(true) => Ok(()),
+        Ok(false) => {
+            eprintln!(
+                "[SpaceDelivery] {op}: audience {} is not an active member of space {}",
+                validated.audience, space_id
+            );
+            Err(Response::Error {
+                message: "Access denied: not an active member of this space".to_string(),
+            })
+        }
+        Err(e) => {
+            eprintln!("[SpaceDelivery] {op}: membership check failed: {e}");
+            Err(Response::Error {
+                message: format!("Membership check failed: {e}"),
+            })
+        }
+    }
 }
 
 // `check_space_membership` and `check_write_capability` have been removed.
@@ -241,7 +268,7 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
                 &space_id,
                 &capability,
                 Some(&admin.root_ucan),
-                86400 * 365,
+                super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS,
             ) {
                 Ok(t) => t,
                 Err(e) => {
@@ -544,7 +571,9 @@ fn persist_admin_ucan(
         JsonValue::String(capability.to_string()),
         JsonValue::String(ucan_token.to_string()),
         JsonValue::Number(serde_json::Number::from(now_secs)),
-        JsonValue::Number(serde_json::Number::from(now_secs + 86400 * 365)),
+        JsonValue::Number(serde_json::Number::from(
+            now_secs + super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS as i64,
+        )),
     ];
     if let Err(e) =
         crate::database::core::execute_with_crdt(sql, params, &state.db, &hlc_guard)
@@ -595,6 +624,7 @@ pub(super) async fn handle_delivery_request(
                 &space_id,
                 CapabilityLevel::Read,
                 "Announce",
+                &state.db,
             ) {
                 return r;
             }
@@ -806,6 +836,7 @@ pub(super) async fn handle_delivery_request(
                 &space_id,
                 CapabilityLevel::Write,
                 "SyncPush",
+                &state.db,
             ) {
                 return r;
             }
@@ -892,6 +923,7 @@ pub(super) async fn handle_delivery_request(
                 &space_id,
                 CapabilityLevel::Read,
                 "SyncPull",
+                &state.db,
             ) {
                 return r;
             }
@@ -997,6 +1029,7 @@ pub(super) async fn handle_delivery_request(
                 &space_id,
                 CapabilityLevel::Read,
                 "RequestRejoin",
+                &state.db,
             ) {
                 return r;
             }
@@ -1031,6 +1064,7 @@ pub(super) async fn handle_delivery_request(
                 &space_id,
                 CapabilityLevel::Read,
                 "SubmitExternalCommit",
+                &state.db,
             ) {
                 return r;
             }

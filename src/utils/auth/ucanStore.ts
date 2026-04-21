@@ -10,7 +10,15 @@ import { eq, gt } from 'drizzle-orm'
 import { haexUcanTokens } from '~/database/schemas'
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
 
-const DEFAULT_EXPIRY_SECONDS = 30 * 24 * 60 * 60 // 30 days
+// UCAN tokens are effectively permanent — revocation is driven by the
+// active-membership check on the server side (see is_active_space_member in
+// Rust). A member removed from `haex_space_members` (which is what happens
+// when an admin kicks them out + MLS commit) loses sync access immediately
+// regardless of `exp`. The `exp` field stays present for UCAN-standard
+// conformance and as a failsafe if the membership check is ever bypassed;
+// we pick the year 9999 sentinel (2^63-1 seconds would overflow some JS
+// consumers) which is indistinguishable from "never" in practice.
+const NEVER_EXPIRES_UNIX_SECONDS = 253_402_300_799 // 9999-12-31T23:59:59Z
 
 // In-memory cache: spaceId -> encoded UCAN token
 const ucanCache = new Map<string, string>()
@@ -22,18 +30,17 @@ export async function createRootUcanAsync(
   did: string,
   privateKeyBase64: string,
   spaceId: string,
-  expiresInSeconds: number = DEFAULT_EXPIRY_SECONDS,
+  expiresAtUnixSeconds: number = NEVER_EXPIRES_UNIX_SECONDS,
 ): Promise<string> {
   const privateKey = await importUserPrivateKeyAsync(privateKeyBase64)
   const sign = createWebCryptoSigner(privateKey)
 
-  const now = Math.floor(Date.now() / 1000)
   const token = await createUcan(
     {
       issuer: did,
       audience: did,
       capabilities: { [spaceResource(spaceId)]: 'space/admin' },
-      expiration: now + expiresInSeconds,
+      expiration: expiresAtUnixSeconds,
     },
     sign,
   )
@@ -53,19 +60,18 @@ export async function delegateUcanAsync(
   spaceId: string,
   capability: Capability,
   parentUcan: string,
-  expiresInSeconds: number = DEFAULT_EXPIRY_SECONDS,
+  expiresAtUnixSeconds: number = NEVER_EXPIRES_UNIX_SECONDS,
 ): Promise<string> {
   const privateKey = await importUserPrivateKeyAsync(privateKeyBase64)
   const sign = createWebCryptoSigner(privateKey)
 
-  const now = Math.floor(Date.now() / 1000)
   const token = await createUcan(
     {
       issuer: issuerDid,
       audience: audienceDid,
       capabilities: { [spaceResource(spaceId)]: capability },
       proofs: [parentUcan],
-      expiration: now + expiresInSeconds,
+      expiration: expiresAtUnixSeconds,
     },
     sign,
   )
@@ -83,19 +89,18 @@ export async function createServerRelayUcanAsync(
   serverDid: string,
   spaceId: string,
   parentUcan: string,
-  expiresInSeconds: number = DEFAULT_EXPIRY_SECONDS,
+  expiresAtUnixSeconds: number = NEVER_EXPIRES_UNIX_SECONDS,
 ): Promise<string> {
   const privateKey = await importUserPrivateKeyAsync(privateKeyBase64)
   const sign = createWebCryptoSigner(privateKey)
 
-  const now = Math.floor(Date.now() / 1000)
   const token = await createUcan(
     {
       issuer: issuerDid,
       audience: serverDid,
       capabilities: { [spaceResource(spaceId)]: 'server/relay' },
       proofs: [parentUcan],
-      expiration: now + expiresInSeconds,
+      expiration: expiresAtUnixSeconds,
     },
     sign,
   )

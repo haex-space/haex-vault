@@ -133,10 +133,10 @@ pub async fn local_delivery_status(state: State<'_, AppState>) -> Result<Deliver
 
 /// Connect to a local space leader and start autonomous sync.
 ///
-/// `ucan_token` must be a valid UCAN granting at least `space/read` for
-/// `space_id` to the peer's DID. Without a valid token the leader rejects
-/// every request — the connect call succeeds, but the first sync cycle
-/// fails and the loop enters reconnect backoff.
+/// The UCAN token is resolved from the local DB (`haex_ucan_tokens` filtered
+/// by `(space_id, identity_did)` and non-expired) at connect and again on
+/// every reconnect. A freshly delegated token after a previous expiry takes
+/// effect without any explicit refresh call from the frontend.
 #[tauri::command]
 pub async fn local_delivery_connect(
     app: tauri::AppHandle,
@@ -145,7 +145,6 @@ pub async fn local_delivery_connect(
     leader_endpoint_id: String,
     leader_relay_url: Option<String>,
     identity_did: String,
-    ucan_token: String,
 ) -> Result<(), String> {
     // 1. Check if already connected
     let mut loops = state.local_sync_loops.lock().await;
@@ -179,7 +178,6 @@ pub async fn local_delivery_connect(
         identity_did,
         our_endpoint_id,
         device_id,
-        ucan_token,
         app,
     )
     .await
@@ -336,7 +334,7 @@ pub async fn local_delivery_create_invite(
                 &leader_state.space_id,
                 &capability,
                 Some(&admin.root_ucan),
-                86400 * 365,
+                super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS,
             )
             .map_err(|e| e.to_string())?;
 
@@ -454,7 +452,9 @@ pub(crate) fn persist_claimed_ucan(
             serde_json::Value::String(p.capability.to_string()),
             serde_json::Value::String(p.token.to_string()),
             serde_json::Value::Number(serde_json::Number::from(now_secs)),
-            serde_json::Value::Number(serde_json::Number::from(now_secs + 86400 * 365)),
+            serde_json::Value::Number(serde_json::Number::from(
+                now_secs + super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS as i64,
+            )),
         ],
         db,
         hlc_guard,

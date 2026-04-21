@@ -1,7 +1,10 @@
 //! Peer-side logic: connecting to leader, sending/receiving sync data.
 
+use crate::database::DbConnection;
+
 use super::error::DeliveryError;
 use super::protocol::{self, Request, Response};
+use super::ucan::load_active_ucan_for_audience;
 
 /// A connected peer session with the leader.
 ///
@@ -17,9 +20,9 @@ pub struct PeerSession {
 impl PeerSession {
     /// Connect to a leader and announce our identity.
     ///
-    /// `ucan_token` must be a valid UCAN delegating at least `space/read` for
-    /// `space_id` to us. Without it the Announce — and every subsequent sync
-    /// request — is rejected.
+    /// The UCAN token is resolved from `db` at the moment of connect. This
+    /// means a reconnect after UCAN expiry picks up the freshly delegated
+    /// token automatically, without any process restart or cache warming.
     pub async fn connect(
         iroh_endpoint: &iroh::Endpoint,
         leader_endpoint_id: &str,
@@ -28,8 +31,15 @@ impl PeerSession {
         our_did: &str,
         our_endpoint_id: &str,
         label: Option<&str>,
-        ucan_token: String,
+        db: &DbConnection,
     ) -> Result<Self, DeliveryError> {
+        let ucan_token = load_active_ucan_for_audience(db, space_id, our_did)?
+            .ok_or_else(|| DeliveryError::AccessDenied {
+                reason: format!(
+                    "No active UCAN token for space {} audience {} — cannot connect",
+                    space_id, our_did
+                ),
+            })?;
         let remote_id: iroh::EndpointId =
             leader_endpoint_id
                 .parse()
