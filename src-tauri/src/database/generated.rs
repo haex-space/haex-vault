@@ -11,10 +11,10 @@ use serde::{Deserialize, Serialize};
 pub struct HaexVaultSettings {
     pub id: String,
     pub key: String,
-    #[serde(rename = "type")]
-    pub r#type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_id: Option<String>,
 }
 
 impl HaexVaultSettings {
@@ -22,8 +22,8 @@ impl HaexVaultSettings {
         Ok(Self {
             id: row.get(0)?,
             key: row.get(1)?,
-            r#type: row.get(2)?,
-            value: row.get(3)?,
+            value: row.get(2)?,
+            device_id: row.get(3)?,
         })
     }
 }
@@ -53,6 +53,8 @@ pub struct HaexExtensions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_mode: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub i18n: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub dev_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
@@ -76,9 +78,10 @@ impl HaexExtensions {
             signature: row.get(10)?,
             single_instance: row.get(11)?,
             display_mode: row.get(12)?,
-            dev_path: row.get(13)?,
-            created_at: row.get(14)?,
-            updated_at: row.get(15)?,
+            i18n: row.get(13)?,
+            dev_path: row.get(14)?,
+            created_at: row.get(15)?,
+            updated_at: row.get(16)?,
         })
     }
 }
@@ -140,7 +143,7 @@ impl HaexCrdtConfigsNoSync {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct HaexDesktopItems {
+pub struct HaexDesktopItemsNoSync {
     pub id: String,
     pub workspace_id: String,
     pub item_type: String,
@@ -152,7 +155,7 @@ pub struct HaexDesktopItems {
     pub position_y: i64,
 }
 
-impl HaexDesktopItems {
+impl HaexDesktopItemsNoSync {
     pub fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
         Ok(Self {
             id: row.get(0)?,
@@ -168,7 +171,7 @@ impl HaexDesktopItems {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct HaexWorkspaces {
+pub struct HaexWorkspacesNoSync {
     pub id: String,
     pub device_id: String,
     pub name: String,
@@ -177,7 +180,7 @@ pub struct HaexWorkspaces {
     pub background: Option<String>,
 }
 
-impl HaexWorkspaces {
+impl HaexWorkspacesNoSync {
     pub fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
         Ok(Self {
             id: row.get(0)?,

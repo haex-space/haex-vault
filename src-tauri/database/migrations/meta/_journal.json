@@ -8,6 +8,13 @@
       "when": 1776802286341,
       "tag": "0000_delete_log_refactor",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1776811201915,
+      "tag": "0001_tired_madelyne_pryor",
+      "breakpoints": true
     }
   ]
 }

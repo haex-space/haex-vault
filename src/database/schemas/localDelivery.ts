@@ -13,7 +13,7 @@ export const haexLocalDeliveryMessages = sqliteTable(
     id: integer(tableNames.haex.local_delivery_messages.columns.id).primaryKey({ autoIncrement: true }),
     spaceId: text(tableNames.haex.local_delivery_messages.columns.spaceId)
       .notNull()
-      .references(() => haexSpaces.id),
+      .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     senderDid: text(tableNames.haex.local_delivery_messages.columns.senderDid).notNull(),
     messageType: text(tableNames.haex.local_delivery_messages.columns.messageType).notNull(),
     messageBlob: blob(tableNames.haex.local_delivery_messages.columns.messageBlob, { mode: 'buffer' }).notNull(),
@@ -34,7 +34,7 @@ export const haexLocalDeliveryKeyPackages = sqliteTable(
       .primaryKey(),
     spaceId: text(tableNames.haex.local_delivery_key_packages.columns.spaceId)
       .notNull()
-      .references(() => haexSpaces.id),
+      .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     targetDid: text(tableNames.haex.local_delivery_key_packages.columns.targetDid).notNull(),
     packageBlob: blob(tableNames.haex.local_delivery_key_packages.columns.packageBlob, { mode: 'buffer' }).notNull(),
     createdAt: text(tableNames.haex.local_delivery_key_packages.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
@@ -54,7 +54,7 @@ export const haexLocalDeliveryWelcomes = sqliteTable(
       .primaryKey(),
     spaceId: text(tableNames.haex.local_delivery_welcomes.columns.spaceId)
       .notNull()
-      .references(() => haexSpaces.id),
+      .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     recipientDid: text(tableNames.haex.local_delivery_welcomes.columns.recipientDid).notNull(),
     welcomeBlob: blob(tableNames.haex.local_delivery_welcomes.columns.welcomeBlob, { mode: 'buffer' }).notNull(),
     consumed: integer(tableNames.haex.local_delivery_welcomes.columns.consumed).default(0),
@@ -75,7 +75,7 @@ export const haexLocalDeliveryPendingCommits = sqliteTable(
       .primaryKey(),
     spaceId: text(tableNames.haex.local_delivery_pending_commits.columns.spaceId)
       .notNull()
-      .references(() => haexSpaces.id),
+      .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     messageId: integer(tableNames.haex.local_delivery_pending_commits.columns.messageId).notNull(),
     expectedDids: text(tableNames.haex.local_delivery_pending_commits.columns.expectedDids).notNull().default('[]'),
     ackedDids: text(tableNames.haex.local_delivery_pending_commits.columns.ackedDids).notNull().default('[]'),
