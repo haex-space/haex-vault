@@ -3,7 +3,9 @@
 /// Statement breakpoint marker used by Drizzle migrations
 pub const DRIZZLE_STATEMENT_BREAKPOINT: &str = "--> statement-breakpoint";
 
-use crate::crdt::trigger::UUID_FUNCTION_NAME;
+use crate::crdt::hlc::HlcService;
+use crate::crdt::trigger::{HLC_FUNCTION_NAME, UUID_FUNCTION_NAME};
+use crate::database::connection_context::ConnectionContext;
 use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
 use crate::extension::database::executor::SqlExecutor;
@@ -219,8 +221,18 @@ fn strip_main_from_expr(expr: &mut Expr) {
     }
 }
 
-/// Öffnet und initialisiert eine Datenbank mit Verschlüsselung
-pub fn open_and_init_db(path: &str, key: &str, create: bool) -> Result<Connection, DatabaseError> {
+/// Öffnet und initialisiert eine Datenbank mit Verschlüsselung.
+///
+/// Registers the `gen_uuid` and `current_hlc` UDFs and wires commit/rollback
+/// hooks so the transaction-scoped HLC slot is cleared at the end of every
+/// transaction.
+pub fn open_and_init_db(
+    path: &str,
+    key: &str,
+    create: bool,
+    hlc_service: HlcService,
+    context: ConnectionContext,
+) -> Result<Connection, DatabaseError> {
     let flags = if create {
         OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE
     } else {
@@ -272,6 +284,11 @@ pub fn open_and_init_db(path: &str, key: &str, create: bool) -> Result<Connectio
         reason: format!("Failed to register {UUID_FUNCTION_NAME} function: {e}"),
     })?;
 
+    // Register transaction-scoped HLC UDF. All calls within a single SQLite
+    // transaction (explicit or auto-commit) return the same timestamp.
+    register_current_hlc_udf(&conn, hlc_service, context.clone())?;
+    install_tx_hlc_hooks(&conn, context)?;
+
     let journal_mode: String = conn
         .query_row("PRAGMA journal_mode=WAL;", [], |row| row.get(0))
         .map_err(|e| DatabaseError::PragmaError {
@@ -286,6 +303,51 @@ pub fn open_and_init_db(path: &str, key: &str, create: bool) -> Result<Connectio
     }
 
     Ok(conn)
+}
+
+/// Registers the `current_hlc()` UDF on a connection. Extracted so tests that
+/// create bare in-memory connections can use the same registration logic.
+pub fn register_current_hlc_udf(
+    conn: &Connection,
+    hlc_service: HlcService,
+    context: ConnectionContext,
+) -> Result<(), DatabaseError> {
+    conn.create_scalar_function(
+        HLC_FUNCTION_NAME,
+        0,
+        FunctionFlags::SQLITE_UTF8,
+        move |_ctx| {
+            context
+                .current_or_new_tx_hlc(&hlc_service)
+                .map(|ts| ts.to_string())
+                .map_err(|e| rusqlite::Error::UserFunctionError(Box::new(e)))
+        },
+    )
+    .map_err(|e| DatabaseError::DatabaseError {
+        reason: format!("Failed to register {HLC_FUNCTION_NAME} function: {e}"),
+    })
+}
+
+/// Wires commit_hook and rollback_hook so the per-transaction HLC slot is
+/// cleared on every COMMIT or ROLLBACK.
+pub fn install_tx_hlc_hooks(conn: &Connection, context: ConnectionContext) -> Result<(), DatabaseError> {
+    let ctx_commit = context.clone();
+    conn.commit_hook(Some(move || {
+        ctx_commit.reset_tx_slot();
+        false
+    }))
+    .map_err(|e| DatabaseError::DatabaseError {
+        reason: format!("Failed to install commit_hook: {e}"),
+    })?;
+
+    let ctx_rollback = context;
+    conn.rollback_hook(Some(move || {
+        ctx_rollback.reset_tx_slot();
+    }))
+    .map_err(|e| DatabaseError::DatabaseError {
+        reason: format!("Failed to install rollback_hook: {e}"),
+    })?;
+    Ok(())
 }
 
 /// Utility für SQL-Parsing - parst ein einzelnes SQL-Statement
@@ -1004,5 +1066,74 @@ mod tests {
             result.contains("%main.table%"),
             "Should NOT strip main. inside string literal"
         );
+    }
+
+    // ---- current_hlc() UDF + transaction-scope HLC ---------------------
+
+    fn setup_hlc_test_connection(device_id: &str) -> Connection {
+        let conn = Connection::open_in_memory().expect("in-memory connection");
+        let hlc = HlcService::new_for_testing(device_id);
+        let ctx = ConnectionContext::new();
+        register_current_hlc_udf(&conn, hlc, ctx.clone()).expect("register current_hlc");
+        install_tx_hlc_hooks(&conn, ctx).expect("install tx-hlc hooks");
+        conn
+    }
+
+    #[test]
+    fn test_current_hlc_same_within_statement() {
+        let conn = setup_hlc_test_connection("hlc-same-stmt");
+        let (a, b): (String, String) = conn
+            .query_row(
+                "SELECT current_hlc() AS a, current_hlc() AS b",
+                [],
+                |row| Ok((row.get(0).unwrap(), row.get(1).unwrap())),
+            )
+            .expect("query current_hlc");
+        assert_eq!(a, b, "two current_hlc() calls in the same statement must match");
+    }
+
+    #[test]
+    fn test_current_hlc_differs_across_autocommit_statements() {
+        let conn = setup_hlc_test_connection("hlc-across-stmts");
+        let first: String = conn
+            .query_row("SELECT current_hlc()", [], |row| row.get(0))
+            .unwrap();
+        // Any non-query statement forces the auto-commit transaction to close.
+        conn.execute_batch("CREATE TABLE _tick (id INTEGER);").unwrap();
+        let second: String = conn
+            .query_row("SELECT current_hlc()", [], |row| row.get(0))
+            .unwrap();
+        assert_ne!(
+            first, second,
+            "current_hlc() must differ across separate auto-commit transactions"
+        );
+    }
+
+    #[test]
+    fn test_current_hlc_same_within_explicit_tx() {
+        let mut conn = setup_hlc_test_connection("hlc-explicit-tx");
+        let tx = conn.transaction().expect("begin tx");
+        let a: String = tx
+            .query_row("SELECT current_hlc()", [], |row| row.get(0))
+            .unwrap();
+        let b: String = tx
+            .query_row("SELECT current_hlc()", [], |row| row.get(0))
+            .unwrap();
+        tx.commit().unwrap();
+        assert_eq!(a, b, "current_hlc() must stay constant inside an explicit transaction");
+    }
+
+    #[test]
+    fn test_current_hlc_reset_on_rollback() {
+        let mut conn = setup_hlc_test_connection("hlc-rollback");
+        let tx = conn.transaction().expect("begin tx");
+        let a: String = tx
+            .query_row("SELECT current_hlc()", [], |row| row.get(0))
+            .unwrap();
+        tx.rollback().unwrap();
+        let b: String = conn
+            .query_row("SELECT current_hlc()", [], |row| row.get(0))
+            .unwrap();
+        assert_ne!(a, b, "current_hlc() must be fresh after a rollback");
     }
 }

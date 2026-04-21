@@ -1,5 +1,6 @@
 // src-tauri/src/database/mod.rs
 
+pub mod connection_context;
 pub mod constants;
 pub mod core;
 pub mod error;
@@ -590,7 +591,17 @@ pub fn create_encrypted_database(
     // We need the connection available for migrations, but can't initialize HLC yet
     // because haex_crdt_configs table doesn't exist until migrations run
     println!("[CREATE_DB] Step 2: Opening database connection for migrations...");
-    let conn = core::open_and_init_db(&vault_path, &key, false)?;
+    let hlc_for_conn = state
+        .hlc
+        .lock()
+        .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?
+        .clone();
+    let ctx_for_conn = state
+        .connection_context
+        .lock()
+        .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?
+        .clone();
+    let conn = core::open_and_init_db(&vault_path, &key, false, hlc_for_conn, ctx_for_conn)?;
     println!("[CREATE_DB] Database connection opened successfully");
 
     // Store connection in AppState
@@ -730,6 +741,17 @@ pub fn close_database(state: State<'_, AppState>) -> Result<(), DatabaseError> {
         println!("[CLOSE_DB] HLC service reset");
     }
 
+    // 3. Reset the per-session connection context so any leftover tx-HLC slot
+    //    from the previous vault cannot leak into the next one.
+    {
+        let mut ctx_guard = state
+            .connection_context
+            .lock()
+            .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?;
+        *ctx_guard = connection_context::ConnectionContext::new();
+        println!("[CLOSE_DB] ConnectionContext reset");
+    }
+
     // 3. Clear extension manager caches
     {
         if let Ok(mut available_exts) = state.extension_manager.available_extensions.lock() {
@@ -809,20 +831,20 @@ fn initialize_session_post_migration(
         // 1. Ensure CRDT triggers are initialized
         let triggers_were_already_initialized = init::ensure_triggers_initialized(conn)?;
 
-        // 2. Initialize the HLC service
-        let hlc_service = HlcService::try_initialize(conn, app_handle).map_err(|e| {
-            DatabaseError::ExecutionError {
+        // 2. Initialize the HLC service *in place*. The connection already holds
+        //    a clone of this HlcService inside the `current_hlc()` UDF closure,
+        //    so we must mutate the existing instance rather than swapping it out
+        //    — otherwise the UDF would keep looking at an uninitialized service.
+        let hlc_guard = state.hlc.lock().map_err(|e| DatabaseError::LockError {
+            reason: e.to_string(),
+        })?;
+        hlc_guard
+            .initialize_in_place(conn, app_handle)
+            .map_err(|e| DatabaseError::ExecutionError {
                 sql: "HLC Initialization".to_string(),
                 reason: e.to_string(),
                 table: Some(TABLE_CRDT_CONFIGS.to_string()),
-            }
-        })?;
-
-        // 3. Store HLC service in AppState
-        let mut hlc_guard = state.hlc.lock().map_err(|e| DatabaseError::LockError {
-            reason: e.to_string(),
-        })?;
-        *hlc_guard = hlc_service;
+            })?;
         drop(hlc_guard);
 
         // 4. Set triggers_initialized flag if needed (in haex_crdt_configs, local-only, not synced)
@@ -852,50 +874,45 @@ fn initialize_session(
     key: &str,
     state: &State<'_, AppState>,
 ) -> Result<(), DatabaseError> {
-    // 1. Establish the raw database connection
-    let mut conn = core::open_and_init_db(path, key, false)?;
+    // 1. Establish the raw database connection. We pass clones of the AppState
+    //    HlcService and ConnectionContext so the `current_hlc()` UDF and the
+    //    commit/rollback hooks stay in sync with the rest of the session.
+    let hlc_for_conn = state
+        .hlc
+        .lock()
+        .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?
+        .clone();
+    let ctx_for_conn = state
+        .connection_context
+        .lock()
+        .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?
+        .clone();
+    let mut conn = core::open_and_init_db(path, key, false, hlc_for_conn, ctx_for_conn)?;
 
     // 2. Ensure CRDT triggers are initialized
     let _triggers_were_already_initialized = init::ensure_triggers_initialized(&mut conn)?;
 
-    // 3. Initialize the HLC service
-    let hlc_service = HlcService::try_initialize(&conn, app_handle).map_err(|e| {
-        // We convert the HlcError into a DatabaseError
-        DatabaseError::ExecutionError {
-            sql: "HLC Initialization".to_string(),
+    // 3. Initialize the HLC service *in place* on the AppState instance — the
+    //    connection already holds a clone inside the `current_hlc()` UDF.
+    {
+        let hlc_guard = state.hlc.lock().map_err(|e| DatabaseError::LockError {
             reason: e.to_string(),
-            table: Some(TABLE_CRDT_CONFIGS.to_string()),
-        }
-    })?;
+        })?;
+        hlc_guard
+            .initialize_in_place(&conn, app_handle)
+            .map_err(|e| DatabaseError::ExecutionError {
+                sql: "HLC Initialization".to_string(),
+                reason: e.to_string(),
+                table: Some(TABLE_CRDT_CONFIGS.to_string()),
+            })?;
+    }
 
-    // 4. Store everything in the global AppState
+    // 4. Store the connection in the global AppState.
     let mut db_guard = state.db.0.lock().map_err(|e| DatabaseError::LockError {
         reason: e.to_string(),
     })?;
-    // Wichtig: Wir brauchen den db_guard gleich nicht mehr,
-    // da 'execute_with_crdt' 'with_connection' aufruft, was
-    // 'state.db' selbst locken muss.
-    // Wir müssen den Guard freigeben, *bevor* wir 'execute_with_crdt' rufen,
-    // um einen Deadlock zu verhindern.
-    // Aber wir müssen die 'conn' erst hineinbewegen.
     *db_guard = Some(conn);
     drop(db_guard);
-
-    let mut hlc_guard = state.hlc.lock().map_err(|e| DatabaseError::LockError {
-        reason: e.to_string(),
-    })?;
-    *hlc_guard = hlc_service;
-
-    // WICHTIG: hlc_guard *nicht* freigeben, da 'execute_with_crdt'
-    // eine Referenz auf die Guard erwartet.
-
-    // 5. NEUER SCHRITT: Setze das Flag via CRDT, falls nötig
-    // Note: We skip this step entirely because ensure_triggers_initialized already handles
-    // the triggers_initialized flag via direct SQL (without CRDT).
-    // The direct INSERT in ensure_triggers_initialized is correct because this flag
-    // should NOT be synced between devices - each device tracks its own trigger state.
-    // Previously this code would fail with UNIQUE constraint if triggers_initialized
-    // already existed from a previous open attempt.
 
     Ok(())
 }

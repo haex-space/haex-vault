@@ -28,6 +28,10 @@ const CREATED_AT_COLUMN: &str = "created_at";
 /// Name der custom UUID-Generierungs-Funktion (registriert in database::core::open_and_init_db)
 pub const UUID_FUNCTION_NAME: &str = "gen_uuid";
 
+/// Name der transaction-scoped HLC UDF (registriert in database::core::open_and_init_db).
+/// Gibt denselben Timestamp für alle Aufrufe innerhalb einer Transaktion zurück.
+pub const HLC_FUNCTION_NAME: &str = "current_hlc";
+
 #[derive(Debug)]
 pub enum CrdtSetupError {
     /// Kapselt einen Fehler, der von der rusqlite-Bibliothek kommt.

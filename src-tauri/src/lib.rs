@@ -21,7 +21,9 @@ mod window;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use crate::external_bridge::ExternalBridge;
 use crate::{
-    crdt::hlc::HlcService, database::DbConnection, extension::core::ExtensionManager,
+    crdt::hlc::HlcService,
+    database::{connection_context::ConnectionContext, DbConnection},
+    extension::core::ExtensionManager,
     file_sync::commands::SyncManager,
 };
 
@@ -44,6 +46,10 @@ pub mod event_names {
 pub struct AppState {
     pub db: DbConnection,
     pub hlc: Mutex<HlcService>,
+    /// Per-session CRDT connection state. Holds the transaction-scoped HLC slot
+    /// that is shared between the `current_hlc()` UDF, BEFORE-DELETE triggers,
+    /// and literal-injection in the SqlExecutor.
+    pub connection_context: Mutex<ConnectionContext>,
     pub extension_manager: ExtensionManager,
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     pub extension_webview_manager: ExtensionWebviewManager,
@@ -147,6 +153,7 @@ pub fn run() {
         .manage(AppState {
             db: DbConnection(Arc::new(Mutex::new(None))),
             hlc: Mutex::new(HlcService::new()),
+            connection_context: Mutex::new(ConnectionContext::new()),
             extension_manager: ExtensionManager::new(),
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             extension_webview_manager: ExtensionWebviewManager::new(),
