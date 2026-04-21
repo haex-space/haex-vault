@@ -120,10 +120,7 @@ interface ColumnChange {
   tableName: string
   rowPks: string  // JSON: '{"id":"123"}'
   columnName: string  // z.B. "password" oder "haex_deleted"
-  hlcTimestamp: string
-  batchId: string
-  batchSeq: number
-  batchTotal: number
+  hlcTimestamp: string  // transaction-scope HLC; all changes from one local tx share this value
   encryptedValue: string  // Auch für haex_deleted (0 oder 1 verschlüsselt)
   nonce: string
 }

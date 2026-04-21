@@ -223,6 +223,12 @@ pub fn scan_all_dirty_tables_for_local_changes(
             all_changes.extend(changes);
         }
 
+        // Global sort by transaction-HLC ascending so downstream chunking can
+        // respect HLC-group boundaries without further grouping logic.
+        all_changes.sort_by(|a, b| {
+            crate::crdt::hlc::compare_hlc_strings(&a.hlc_timestamp, &b.hlc_timestamp)
+        });
+
         Ok(all_changes)
     })
 }
@@ -244,6 +250,12 @@ pub fn scan_all_crdt_tables_for_local_changes(
             let changes = scan_table_for_local_changes(conn, table_name, after_hlc, device_id)?;
             all_changes.extend(changes);
         }
+
+        // Global sort by transaction-HLC ascending — see rationale in
+        // `scan_all_dirty_tables_for_local_changes`.
+        all_changes.sort_by(|a, b| {
+            crate::crdt::hlc::compare_hlc_strings(&a.hlc_timestamp, &b.hlc_timestamp)
+        });
 
         Ok(all_changes)
     })
