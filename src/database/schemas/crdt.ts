@@ -11,11 +11,39 @@ import tableNames from '@/database/tableNames.json'
 import { haexExtensions } from './core'
 
 export const crdtTableNames = tableNames.haex.crdt
+export const deletedRowsTableName = tableNames.haex.deleted_rows
 
 // Most CRDT metadata tables removed:
 // - haexCrdtChanges: Sync now works by scanning actual tables directly
 // - haexCrdtSnapshots: Not used
 // - haexCrdtSyncStatus: Replaced by timestamps in haexSyncBackends table
+
+/**
+ * CRDT Delete Log (CRDT-synced). Tombstone events for every hard DELETE on a
+ * syncable table. The Rust BEFORE-DELETE trigger appends a row here with the
+ * target table name, the row's PK values (as JSON), and the transaction HLC.
+ *
+ * Main tables no longer carry a `haex_tombstone` column — delete information
+ * lives exclusively in this table, so UNIQUE indexes on main tables stay FK-
+ * parent-eligible.
+ *
+ * CRDT columns (haex_hlc, haex_column_hlcs) are appended automatically by the
+ * Rust CrdtTransformer, just like any other syncable table.
+ */
+export const haexDeletedRows = sqliteTable(
+  deletedRowsTableName.name,
+  {
+    id: text(deletedRowsTableName.columns.id).primaryKey(),
+    tableName: text(deletedRowsTableName.columns.tableName).notNull(),
+    // JSON object: {"pk1": "value1", "pk2": "value2"}
+    rowPks: text(deletedRowsTableName.columns.rowPks, { mode: 'json' }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('haex_deleted_rows_table_row_pks_unique').on(table.tableName, table.rowPks),
+  ],
+)
+export type InsertHaexDeletedRows = typeof haexDeletedRows.$inferInsert
+export type SelectHaexDeletedRows = typeof haexDeletedRows.$inferSelect
 
 /**
  * CRDT Configuration (WITHOUT CRDT - local-only metadata)

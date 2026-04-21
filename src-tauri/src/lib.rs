@@ -262,7 +262,7 @@ pub fn run() {
             database::sql_with_crdt,
             database::vault_exists,
             database::import_vault,
-            database::crdt_cleanup_tombstones,
+            database::crdt_cleanup_deleted_rows,
             database::crdt_get_stats,
             database::database_vacuum,
             database::change_vault_password,

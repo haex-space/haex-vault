@@ -133,7 +133,7 @@ export const haexSharedSpaceSync = sqliteTable(
       .notNull()
       .references(() => haexSpaces.id),
     extensionId: text(tableNames.haex.shared_space_sync.columns.extensionId)
-      .references((): AnySQLiteColumn => haexExtensions.id),
+      .references((): AnySQLiteColumn => haexExtensions.id, { onDelete: 'cascade' }),
     groupId: text(tableNames.haex.shared_space_sync.columns.groupId),
     type: text(tableNames.haex.shared_space_sync.columns.type),
     label: text(tableNames.haex.shared_space_sync.columns.label),

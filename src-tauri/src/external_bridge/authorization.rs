@@ -78,7 +78,6 @@ pub struct PendingAuthorization {
 
 // ============================================================================
 // SQL queries for authorized clients
-// No manual haex_tombstone filter — select_with_crdt handles this automatically
 // ============================================================================
 
 lazy_static::lazy_static! {
@@ -129,8 +128,8 @@ lazy_static::lazy_static! {
          WHERE {COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_ID} = ?1"
     );
 
-    // Note: For CRDT, deletion is done via UPDATE to set haex_tombstone = 1
-    // This is handled by sql_execute_with_crdt when using DELETE syntax
+    // DELETE goes through sql_execute_with_crdt; the BEFORE-DELETE trigger logs
+    // the row into haex_deleted_rows so remotes learn about it.
     pub static ref SQL_DELETE_CLIENT: String = format!(
         "DELETE FROM {TABLE_EXTERNAL_AUTHORIZED_CLIENTS}
          WHERE {COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_ID} = ?1"

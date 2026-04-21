@@ -41,10 +41,8 @@ pub struct LocalColumnChange {
 ///
 /// Data columns exclude:
 /// - PK columns
-/// - CRDT metadata: `haex_timestamp`, `haex_column_hlcs`
+/// - CRDT metadata: `haex_hlc`, `haex_column_hlcs`
 /// - Sync metadata: `last_push_hlc_timestamp`, `last_pull_server_timestamp`, `updated_at`, `created_at`
-///
-/// `haex_tombstone` is intentionally kept as a syncable data column.
 fn partition_columns(schema: &[ColumnInfo]) -> (Vec<&ColumnInfo>, Vec<&ColumnInfo>) {
     let pk_columns: Vec<&ColumnInfo> = schema.iter().filter(|c| c.is_pk).collect();
     let data_columns: Vec<&ColumnInfo> = schema
@@ -61,7 +59,7 @@ fn partition_columns(schema: &[ColumnInfo]) -> (Vec<&ColumnInfo>, Vec<&ColumnInf
 
 /// Scans a single table for column-level local changes newer than `after_hlc`.
 ///
-/// For each row with `haex_timestamp > after_hlc` (or all rows if `after_hlc` is `None`),
+/// For each row with `haex_hlc > after_hlc` (or all rows if `after_hlc` is `None`),
 /// every data column whose individual HLC exceeds `after_hlc` is emitted as a
 /// [`LocalColumnChange`].
 pub fn scan_table_for_local_changes(
@@ -264,9 +262,8 @@ mod tests {
                 id TEXT PRIMARY KEY,
                 name TEXT,
                 value INTEGER,
-                haex_timestamp TEXT,
-                haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
-                haex_tombstone INTEGER NOT NULL DEFAULT 0
+                haex_hlc TEXT,
+                haex_column_hlcs TEXT NOT NULL DEFAULT '{}'
             );",
         )
         .unwrap();
@@ -274,11 +271,9 @@ mod tests {
     }
 
     fn insert_row(conn: &Connection, id: &str, name: &str, value: i64, hlc: &str) {
-        let hlcs = format!(
-            "{{\"name\":\"{hlc}\",\"value\":\"{hlc}\",\"haex_tombstone\":\"{hlc}\"}}"
-        );
+        let hlcs = format!("{{\"name\":\"{hlc}\",\"value\":\"{hlc}\"}}");
         conn.execute(
-            "INSERT INTO test_items (id, name, value, haex_timestamp, haex_column_hlcs)
+            "INSERT INTO test_items (id, name, value, haex_hlc, haex_column_hlcs)
              VALUES (?1, ?2, ?3, ?4, ?5)",
             rusqlite::params![id, name, value, hlc, hlcs],
         )
@@ -301,13 +296,12 @@ mod tests {
         let changes =
             scan_table_for_local_changes(&conn, "test_items", None, "device-1").unwrap();
 
-        // 3 data columns: name, value, haex_tombstone
-        assert_eq!(changes.len(), 3);
+        // 2 data columns: name, value
+        assert_eq!(changes.len(), 2);
 
         let names: Vec<&str> = changes.iter().map(|c| c.column_name.as_str()).collect();
         assert!(names.contains(&"name"));
         assert!(names.contains(&"value"));
-        assert!(names.contains(&"haex_tombstone"));
 
         // Verify PK JSON
         for change in &changes {
@@ -333,8 +327,8 @@ mod tests {
         )
         .unwrap();
 
-        // Only the "new" row should be present (3 data columns)
-        assert_eq!(changes.len(), 3);
+        // Only the "new" row should be present (2 data columns: name, value)
+        assert_eq!(changes.len(), 2);
         for change in &changes {
             let pks: serde_json::Map<String, JsonValue> =
                 serde_json::from_str(&change.row_pks).unwrap();
@@ -353,17 +347,16 @@ mod tests {
                 last_pull_server_timestamp TEXT,
                 updated_at TEXT,
                 created_at TEXT,
-                haex_timestamp TEXT,
-                haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
-                haex_tombstone INTEGER NOT NULL DEFAULT 0
+                haex_hlc TEXT,
+                haex_column_hlcs TEXT NOT NULL DEFAULT '{}'
             );",
         )
         .unwrap();
 
         conn.execute(
-            "INSERT INTO with_meta (id, data, haex_timestamp, haex_column_hlcs)
+            "INSERT INTO with_meta (id, data, haex_hlc, haex_column_hlcs)
              VALUES ('r1', 'test', '2025-01-01T00:00:00.000Z-0001-d1',
-                     '{\"data\":\"2025-01-01T00:00:00.000Z-0001-d1\",\"haex_tombstone\":\"2025-01-01T00:00:00.000Z-0001-d1\"}')",
+                     '{\"data\":\"2025-01-01T00:00:00.000Z-0001-d1\"}')",
             [],
         )
         .unwrap();
@@ -372,14 +365,13 @@ mod tests {
             scan_table_for_local_changes(&conn, "with_meta", None, "device-1").unwrap();
 
         let col_names: Vec<&str> = changes.iter().map(|c| c.column_name.as_str()).collect();
-        // Only data + haex_tombstone should appear
+        // Only "data" should remain; all metadata/CRDT columns filtered out
         assert!(col_names.contains(&"data"));
-        assert!(col_names.contains(&"haex_tombstone"));
         assert!(!col_names.contains(&"last_push_hlc_timestamp"));
         assert!(!col_names.contains(&"last_pull_server_timestamp"));
         assert!(!col_names.contains(&"updated_at"));
         assert!(!col_names.contains(&"created_at"));
-        assert!(!col_names.contains(&"haex_timestamp"));
+        assert!(!col_names.contains(&"haex_hlc"));
         assert!(!col_names.contains(&"haex_column_hlcs"));
     }
 
@@ -388,7 +380,7 @@ mod tests {
         let conn = setup_test_db();
         // Insert a row where haex_column_hlcs is empty — row-level HLC should be used
         conn.execute(
-            "INSERT INTO test_items (id, name, value, haex_timestamp, haex_column_hlcs)
+            "INSERT INTO test_items (id, name, value, haex_hlc, haex_column_hlcs)
              VALUES ('r1', 'test', 10, '2025-01-01T00:00:00.000Z-0001-d1', '{}')",
             [],
         )
@@ -397,8 +389,8 @@ mod tests {
         let changes =
             scan_table_for_local_changes(&conn, "test_items", None, "device-1").unwrap();
 
-        // All 3 data columns should still be emitted using the row-level HLC
-        assert_eq!(changes.len(), 3);
+        // Both data columns should be emitted using the row-level HLC
+        assert_eq!(changes.len(), 2);
         for change in &changes {
             assert_eq!(
                 change.hlc_timestamp,
@@ -411,9 +403,9 @@ mod tests {
     fn test_column_level_hlc_filtering() {
         let conn = setup_test_db();
         // Insert a row where 'name' has a newer HLC but 'value' has an older one
-        let hlcs = r#"{"name":"3000000000000000000/aabbccdd","value":"1000000000000000000/aabbccdd","haex_tombstone":"1000000000000000000/aabbccdd"}"#;
+        let hlcs = r#"{"name":"3000000000000000000/aabbccdd","value":"1000000000000000000/aabbccdd"}"#;
         conn.execute(
-            "INSERT INTO test_items (id, name, value, haex_timestamp, haex_column_hlcs)
+            "INSERT INTO test_items (id, name, value, haex_hlc, haex_column_hlcs)
              VALUES ('r1', 'updated', 10, '3000000000000000000/aabbccdd', ?1)",
             [hlcs],
         )
@@ -440,17 +432,16 @@ mod tests {
                 group_id TEXT NOT NULL,
                 item_id TEXT NOT NULL,
                 data TEXT,
-                haex_timestamp TEXT,
+                haex_hlc TEXT,
                 haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
-                haex_tombstone INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (group_id, item_id)
             );",
         )
         .unwrap();
 
-        let hlcs = r#"{"data":"2025-01-01T00:00:00.000Z-0001-d1","haex_tombstone":"2025-01-01T00:00:00.000Z-0001-d1"}"#;
+        let hlcs = r#"{"data":"2025-01-01T00:00:00.000Z-0001-d1"}"#;
         conn.execute(
-            "INSERT INTO composite_pk (group_id, item_id, data, haex_timestamp, haex_column_hlcs)
+            "INSERT INTO composite_pk (group_id, item_id, data, haex_hlc, haex_column_hlcs)
              VALUES ('g1', 'i1', 'hello', '2025-01-01T00:00:00.000Z-0001-d1', ?1)",
             [hlcs],
         )
@@ -459,7 +450,7 @@ mod tests {
         let changes =
             scan_table_for_local_changes(&conn, "composite_pk", None, "device-1").unwrap();
 
-        assert_eq!(changes.len(), 2); // data + haex_tombstone
+        assert_eq!(changes.len(), 1); // data only
 
         let pks: serde_json::Map<String, JsonValue> =
             serde_json::from_str(&changes[0].row_pks).unwrap();
@@ -470,9 +461,9 @@ mod tests {
     #[test]
     fn test_scan_null_value() {
         let conn = setup_test_db();
-        let hlcs = r#"{"name":"2025-01-01T00:00:00.000Z-0001-d1","value":"2025-01-01T00:00:00.000Z-0001-d1","haex_tombstone":"2025-01-01T00:00:00.000Z-0001-d1"}"#;
+        let hlcs = r#"{"name":"2025-01-01T00:00:00.000Z-0001-d1","value":"2025-01-01T00:00:00.000Z-0001-d1"}"#;
         conn.execute(
-            "INSERT INTO test_items (id, name, value, haex_timestamp, haex_column_hlcs)
+            "INSERT INTO test_items (id, name, value, haex_hlc, haex_column_hlcs)
              VALUES ('r1', NULL, NULL, '2025-01-01T00:00:00.000Z-0001-d1', ?1)",
             [hlcs],
         )
@@ -481,8 +472,8 @@ mod tests {
         let changes =
             scan_table_for_local_changes(&conn, "test_items", None, "device-1").unwrap();
 
-        // NULL values should still produce changes
-        assert_eq!(changes.len(), 3);
+        // NULL values should still produce changes for both data columns
+        assert_eq!(changes.len(), 2);
         let name_change = changes.iter().find(|c| c.column_name == "name").unwrap();
         assert_eq!(name_change.value, JsonValue::Null);
     }

@@ -1,9 +1,8 @@
 {
   "crdt": {
     "columns": {
-      "haexTimestamp": "haex_timestamp",
-      "haexColumnHlcs": "haex_column_hlcs",
-      "haexTombstone": "haex_tombstone"
+      "haexHlc": "haex_hlc",
+      "haexColumnHlcs": "haex_column_hlcs"
     }
   },
   "sync_metadata": {
@@ -584,6 +583,14 @@
           "tableName": "table_name",
           "columnName": "column_name"
         }
+      }
+    },
+    "deleted_rows": {
+      "name": "haex_deleted_rows",
+      "columns": {
+        "id": "id",
+        "tableName": "table_name",
+        "rowPks": "row_pks"
       }
     }
   }

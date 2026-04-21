@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "4ecb0b7e-e8cf-4c87-94ce-3b526132b7db",
+  "id": "f6cf1924-1011-48ae-a804-81ff4585e7f6",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "haex_desktop_items_no_sync": {
@@ -1179,6 +1179,46 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "haex_deleted_rows": {
+      "name": "haex_deleted_rows",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "table_name": {
+          "name": "table_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "row_pks": {
+          "name": "row_pks",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "haex_deleted_rows_table_row_pks_unique": {
+          "name": "haex_deleted_rows_table_row_pks_unique",
+          "columns": [
+            "table_name",
+            "row_pks"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "haex_devices": {
       "name": "haex_devices",
       "columns": {
@@ -1243,13 +1283,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "public_key": {
-          "name": "public_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "did": {
           "name": "did",
           "type": "text",
@@ -1257,12 +1290,20 @@
           "notNull": true,
           "autoincrement": false
         },
-        "label": {
-          "name": "label",
+        "name": {
+          "name": "name",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'contact'"
         },
         "private_key": {
           "name": "private_key",
@@ -1302,13 +1343,6 @@
         }
       },
       "indexes": {
-        "haex_identities_public_key_unique": {
-          "name": "haex_identities_public_key_unique",
-          "columns": [
-            "public_key"
-          ],
-          "isUnique": true
-        },
         "haex_identities_did_unique": {
           "name": "haex_identities_did_unique",
           "columns": [
@@ -1520,6 +1554,13 @@
           "notNull": false,
           "autoincrement": false,
           "default": "(CURRENT_TIMESTAMP)"
+        },
+        "last_error": {
+          "name": "last_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {},
@@ -1693,6 +1734,20 @@
         },
         "inviter_label": {
           "name": "inviter_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "inviter_avatar": {
+          "name": "inviter_avatar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "inviter_avatar_options": {
+          "name": "inviter_avatar_options",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -2529,7 +2584,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -2672,39 +2727,11 @@
           "notNull": true,
           "autoincrement": false
         },
-        "member_did": {
-          "name": "member_did",
+        "identity_id": {
+          "name": "identity_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "member_public_key": {
-          "name": "member_public_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "label": {
-          "name": "label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "avatar": {
-          "name": "avatar",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "avatar_options": {
-          "name": "avatar_options",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "role": {
@@ -2725,11 +2752,11 @@
         }
       },
       "indexes": {
-        "haex_space_members_space_did_unique": {
-          "name": "haex_space_members_space_did_unique",
+        "haex_space_members_space_identity_unique": {
+          "name": "haex_space_members_space_identity_unique",
           "columns": [
             "space_id",
-            "member_did"
+            "identity_id"
           ],
           "isUnique": true
         }
@@ -2741,6 +2768,19 @@
           "tableTo": "haex_spaces",
           "columnsFrom": [
             "space_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "haex_space_members_identity_id_haex_identities_id_fk": {
+          "name": "haex_space_members_identity_id_haex_identities_id_fk",
+          "tableFrom": "haex_space_members",
+          "tableTo": "haex_identities",
+          "columnsFrom": [
+            "identity_id"
           ],
           "columnsTo": [
             "id"
@@ -2786,6 +2826,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "owner_identity_id": {
+          "name": "owner_identity_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "origin_url": {
           "name": "origin_url",
           "type": "text",
@@ -2811,7 +2858,21 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "haex_spaces_owner_identity_id_haex_identities_id_fk": {
+          "name": "haex_spaces_owner_identity_id_haex_identities_id_fk",
+          "tableFrom": "haex_spaces",
+          "tableTo": "haex_identities",
+          "columnsFrom": [
+            "owner_identity_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}

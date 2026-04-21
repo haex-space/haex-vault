@@ -511,15 +511,11 @@ pub fn apply_synced_extension_migrations(
     // Debug: Log counts in both tables before joining
     with_connection(&state.db, |conn| {
         let ext_count: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM haex_extensions WHERE haex_tombstone = 0 OR haex_tombstone IS NULL",
-                [],
-                |row| row.get(0),
-            )
+            .query_row("SELECT COUNT(*) FROM haex_extensions", [], |row| row.get(0))
             .unwrap_or(-1);
         let mig_count: i64 = conn
             .query_row(
-                &format!("SELECT COUNT(*) FROM {} WHERE haex_tombstone = 0 OR haex_tombstone IS NULL", crate::table_names::TABLE_EXTENSION_MIGRATIONS),
+                &format!("SELECT COUNT(*) FROM {}", crate::table_names::TABLE_EXTENSION_MIGRATIONS),
                 [],
                 |row| row.get(0),
             )

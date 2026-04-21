@@ -917,17 +917,15 @@ fn initialize_session(
     Ok(())
 }
 
-/// Cleans up old tombstones by hard-deleting rows with haex_tombstone = 1
-/// that are older than the specified retention period.
-///
-/// This prevents unbounded table growth from soft-deleted entries.
+/// Cleans up the delete-log by hard-deleting entries older than the retention
+/// period. `retention_days == 0` clears the full delete-log.
 #[tauri::command]
-pub fn crdt_cleanup_tombstones(
+pub fn crdt_cleanup_deleted_rows(
     retention_days: u32,
     state: State<'_, AppState>,
 ) -> Result<crate::crdt::cleanup::CleanupResult, DatabaseError> {
     core::with_connection(&state.db, |conn| {
-        crate::crdt::cleanup::cleanup_tombstones(conn, retention_days).map_err(|e| {
+        crate::crdt::cleanup::cleanup_deleted_rows(conn, retention_days).map_err(|e| {
             DatabaseError::ExecutionError {
                 sql: "CRDT cleanup".to_string(),
                 reason: e.to_string(),

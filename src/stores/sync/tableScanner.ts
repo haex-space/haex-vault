@@ -81,7 +81,7 @@ async function getTableColumnsAsync(tableName: string) {
   const dataColumns = schema.filter(
     (col) =>
       !col.isPk &&
-      col.name !== CRDT_COLUMNS.haexTimestamp &&
+      col.name !== CRDT_COLUMNS.haexHlc &&
       col.name !== CRDT_COLUMNS.haexColumnHlcs &&
       col.name !== SYNC_METADATA_COLUMNS.lastPushHlcTimestamp &&
       col.name !== SYNC_METADATA_COLUMNS.lastPullServerTimestamp &&
@@ -98,7 +98,7 @@ async function getTableColumnsAsync(tableName: string) {
   const allColumns = [
     ...pkColumns.map((c) => c.name),
     ...dataColumns.map((c) => c.name),
-    CRDT_COLUMNS.haexTimestamp,
+    CRDT_COLUMNS.haexHlc,
     CRDT_COLUMNS.haexColumnHlcs,
   ]
 
@@ -157,7 +157,7 @@ async function processRowsToChangesAsync(
     const pkJson = JSON.stringify(pks)
 
     // Get row-level HLC to use as fallback for columns without individual HLC
-    const rowHlc = row[CRDT_COLUMNS.haexTimestamp] as string
+    const rowHlc = row[CRDT_COLUMNS.haexHlc] as string
 
     // For each data column, create a change entry if it has a newer HLC
     for (const col of dataColumns) {
@@ -168,8 +168,8 @@ async function processRowsToChangesAsync(
       const hlcToUse = columnHlc || rowHlc
 
       if (!hlcToUse) {
-        // This should never happen as every row must have haex_timestamp
-        log.warn(`Column ${col.name} has no HLC and row has no haex_timestamp, skipping`)
+        // This should never happen as every row must have haex_hlc
+        log.warn(`Column ${col.name} has no HLC and row has no haex_hlc, skipping`)
         continue
       }
 
@@ -229,7 +229,7 @@ export async function scanTableForChangesAsync(
 
   // Note: We scan ALL rows (including tombstoned ones) that are newer than lastPushHlcTimestamp
   const whereClause = lastPushHlcTimestamp
-    ? `WHERE "${CRDT_COLUMNS.haexTimestamp}" > ?`
+    ? `WHERE "${CRDT_COLUMNS.haexHlc}" > ?`
     : ''
   const query = `SELECT ${columnList} FROM "${tableName}" ${whereClause}`
   const params = lastPushHlcTimestamp ? [lastPushHlcTimestamp] : []
@@ -299,7 +299,7 @@ export async function scanTableForSpaceChangesAsync(
 
   // Build WHERE clause for HLC filtering
   const hlcFilter = lastPushHlcTimestamp
-    ? `AND t."${CRDT_COLUMNS.haexTimestamp}" > ?`
+    ? `AND t."${CRDT_COLUMNS.haexHlc}" > ?`
     : ''
 
   const query = `SELECT ${columnList} FROM "${tableName}" t `

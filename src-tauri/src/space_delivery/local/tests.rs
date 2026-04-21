@@ -269,7 +269,7 @@ mod tests {
         .unwrap();
 
         let rows = core::select_with_crdt(
-            "SELECT id, haex_timestamp FROM haex_spaces WHERE id = ?1".to_string(),
+            "SELECT id, haex_hlc FROM haex_spaces WHERE id = ?1".to_string(),
             vec![serde_json::Value::String("space-hlc".to_string())],
             &db,
         )
@@ -278,7 +278,7 @@ mod tests {
         assert_eq!(rows.len(), 1, "Should find the inserted space");
         assert!(
             !rows[0][1].is_null(),
-            "haex_timestamp should be set by execute_with_crdt, got: {:?}",
+            "haex_hlc should be set by execute_with_crdt, got: {:?}",
             rows[0][1]
         );
     }

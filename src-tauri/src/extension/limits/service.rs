@@ -54,7 +54,7 @@ impl LimitsService {
             "SELECT id, extension_id, query_timeout_ms, max_result_rows, \
              max_concurrent_queries, max_query_size_bytes, created_at, updated_at \
              FROM haex_extension_limits \
-             WHERE extension_id = ? AND IFNULL(haex_tombstone, 0) = 0",
+             WHERE extension_id = ?",
             [extension_id],
             |row| HaexExtensionLimits::from_row(row),
         );

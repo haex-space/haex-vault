@@ -86,7 +86,7 @@ pub fn log_clear_all(
     })?;
 
     let ids: Vec<String> = with_connection(&state.db, |conn| {
-        let sql = format!("SELECT id FROM {} WHERE IFNULL(haex_tombstone, 0) != 1", crate::table_names::TABLE_LOGS);
+        let sql = format!("SELECT id FROM {}", crate::table_names::TABLE_LOGS);
         let mut stmt = conn.prepare(&sql).map_err(|e| DatabaseError::QueryError { reason: e.to_string() })?;
         let rows = stmt.query_map([], |row| row.get::<_, String>(0))
             .map_err(|e| DatabaseError::QueryError { reason: e.to_string() })?;

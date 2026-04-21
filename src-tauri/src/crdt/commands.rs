@@ -2,7 +2,7 @@ use crate::crdt::hlc::{hlc_is_newer, hlc_max, HlcService};
 use crate::crdt::trigger;
 use crate::crdt::trigger::{
     get_table_schema as get_table_schema_internal, is_safe_identifier, ColumnInfo,
-    COLUMN_HLCS_COLUMN, HLC_TIMESTAMP_COLUMN, TOMBSTONE_COLUMN,
+    COLUMN_HLCS_COLUMN, HLC_TIMESTAMP_COLUMN,
 };
 use crate::database::core::{with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
@@ -154,7 +154,7 @@ pub fn clear_all_dirty_tables(state: State<'_, AppState>) -> Result<(), Database
     })
 }
 
-/// Gets all CRDT-enabled tables (tables with haex_tombstone column)
+/// Gets all CRDT-enabled tables (tables with a `haex_hlc` column).
 #[tauri::command]
 pub fn get_all_crdt_tables(state: State<'_, AppState>) -> Result<Vec<String>, DatabaseError> {
     use crate::database::init::discover_crdt_tables;
@@ -458,7 +458,7 @@ pub fn apply_remote_changes_to_db(
                 continue;
             }
 
-            // Ensure table has CRDT columns (haex_timestamp, haex_column_hlcs, haex_tombstone)
+            // Ensure table has CRDT columns (haex_hlc, haex_column_hlcs)
             // This handles tables created in dev mode that don't have CRDT columns yet.
             // When sync data arrives, we know it's from a production extension, so we need CRDT.
             let has_hlcs_column = schema.iter().any(|col| col.name == "haex_column_hlcs");
@@ -585,24 +585,6 @@ pub fn apply_remote_changes_to_db(
 
             // Only apply if there are columns to update
             if !columns_to_update.is_empty() {
-                // Skip tombstone-only changes for rows that don't exist locally.
-                // This can happen when a row was created and deleted on another device
-                // before this device pulled the original insert — only the tombstone
-                // arrives because the data columns have an older server timestamp.
-                // Inserting a tombstone for a non-existent row is semantically a no-op.
-                if !row_exists {
-                    let is_tombstone_only = columns_to_update.len() == 1
-                        && columns_to_update[0].0 == TOMBSTONE_COLUMN
-                        && columns_to_update[0].1 == JsonValue::from(1);
-                    if is_tombstone_only {
-                        eprintln!(
-                            "[SYNC RUST] Skipping tombstone-only insert for non-existent row in '{}' — row was never seen locally",
-                            first_change.table_name
-                        );
-                        continue;
-                    }
-                }
-
                 let new_hlcs_json = serde_json::to_string(&column_hlcs).map_err(|e| {
                     DatabaseError::SerializationError {
                         reason: format!("Failed to serialize column HLCs: {}", e),
@@ -617,7 +599,7 @@ pub fn apply_remote_changes_to_db(
                         .collect();
 
                     let update_sql = format!(
-                        "UPDATE \"{}\" SET {}, haex_column_hlcs = ?, haex_timestamp = ? WHERE {}",
+                        "UPDATE \"{}\" SET {}, haex_column_hlcs = ?, haex_hlc = ? WHERE {}",
                         first_change.table_name,
                         set_clauses.join(", "),
                         pk_where_clause
