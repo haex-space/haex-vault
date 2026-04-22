@@ -25,6 +25,10 @@ const ucanCache = new Map<string, string>()
 
 /**
  * Create a self-signed root UCAN where issuer === audience (admin of own space).
+ *
+ * @param expiresAtUnixSeconds Absolute Unix timestamp in seconds (NOT a duration).
+ *   Defaults to `NEVER_EXPIRES_UNIX_SECONDS` — see top-of-file note on why UCAN
+ *   expiry is effectively disabled in favour of membership-driven revocation.
  */
 export async function createRootUcanAsync(
   did: string,
@@ -52,6 +56,9 @@ export async function createRootUcanAsync(
 /**
  * Create a delegated UCAN with the parent as proof.
  * Used when inviting members to a space.
+ *
+ * @param expiresAtUnixSeconds Absolute Unix timestamp in seconds (NOT a duration).
+ *   Defaults to `NEVER_EXPIRES_UNIX_SECONDS`.
  */
 export async function delegateUcanAsync(
   issuerDid: string,
@@ -82,6 +89,9 @@ export async function delegateUcanAsync(
 /**
  * Create a server/relay UCAN delegating relay capability for a specific space to a server.
  * Resource is space:<spaceId> so relay access is scoped per space, not per server.
+ *
+ * @param expiresAtUnixSeconds Absolute Unix timestamp in seconds (NOT a duration).
+ *   Defaults to `NEVER_EXPIRES_UNIX_SECONDS`.
  */
 export async function createServerRelayUcanAsync(
   issuerDid: string,

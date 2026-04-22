@@ -84,13 +84,6 @@ impl PeerSession {
         }
     }
 
-    /// The UCAN token resolved from the DB at `connect()` time. Callers that
-    /// need to send follow-up requests inside the same session (rejoin,
-    /// external commits) can reuse this token without re-querying the DB.
-    pub fn ucan_token(&self) -> &str {
-        &self.ucan_token
-    }
-
     /// Send a request and read the response.
     async fn request(&self, req: Request) -> Result<Response, DeliveryError> {
         let (mut send, mut recv) = self
@@ -263,11 +256,10 @@ impl PeerSession {
     pub async fn request_rejoin(
         &self,
         space_id: &str,
-        ucan_token: &str,
     ) -> Result<String, DeliveryError> {
         let req = Request::RequestRejoin {
             space_id: space_id.to_string(),
-            ucan_token: ucan_token.to_string(),
+            ucan_token: self.ucan_token.clone(),
         };
         match self.request(req).await? {
             Response::GroupInfo { group_info } => Ok(group_info),
@@ -283,12 +275,11 @@ impl PeerSession {
         &self,
         space_id: &str,
         commit_b64: &str,
-        ucan_token: &str,
     ) -> Result<(), DeliveryError> {
         let req = Request::SubmitExternalCommit {
             space_id: space_id.to_string(),
             commit: commit_b64.to_string(),
-            ucan_token: ucan_token.to_string(),
+            ucan_token: self.ucan_token.clone(),
         };
         match self.request(req).await? {
             Response::Ok => Ok(()),

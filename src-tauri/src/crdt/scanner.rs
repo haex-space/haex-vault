@@ -564,4 +564,103 @@ mod tests {
             scan_table_for_local_changes(&conn, "nonexistent", None, "device-1").unwrap();
         assert!(changes.is_empty());
     }
+
+    #[test]
+    fn test_is_space_scoped_table_whitelist() {
+        for t in SPACE_SCOPED_CRDT_TABLES {
+            assert!(
+                is_space_scoped_table(t),
+                "whitelist member not recognised: {t}"
+            );
+        }
+        // Private per-vault tables must NOT be space-scoped.
+        assert!(!is_space_scoped_table("haex_identities"));
+        assert!(!is_space_scoped_table("haex_ucan_tokens"));
+        assert!(!is_space_scoped_table("haex_vault_settings"));
+        assert!(!is_space_scoped_table("haex_sync_backends"));
+        // Extension / unknown tables default to private.
+        assert!(!is_space_scoped_table("some_extension_table"));
+    }
+
+    /// Creates a CRDT table that carries a `space_id` discriminator, used to
+    /// exercise the scoped-filter path.
+    fn setup_scoped_test_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE scoped_items (
+                id TEXT PRIMARY KEY,
+                space_id TEXT NOT NULL,
+                data TEXT,
+                haex_hlc TEXT,
+                haex_column_hlcs TEXT NOT NULL DEFAULT '{}'
+            );",
+        )
+        .unwrap();
+        conn
+    }
+
+    fn insert_scoped_row(
+        conn: &Connection,
+        id: &str,
+        space_id: &str,
+        data: &str,
+        hlc: &str,
+    ) {
+        let hlcs = format!("{{\"space_id\":\"{hlc}\",\"data\":\"{hlc}\"}}");
+        conn.execute(
+            "INSERT INTO scoped_items (id, space_id, data, haex_hlc, haex_column_hlcs)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![id, space_id, data, hlc, hlcs],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn test_scoped_filter_returns_only_matching_space() {
+        let conn = setup_scoped_test_db();
+        insert_scoped_row(&conn, "r1", "space-A", "hello", "2025-01-01T00:00:00.000Z-0001-d1");
+        insert_scoped_row(&conn, "r2", "space-A", "world", "2025-01-01T00:00:00.000Z-0002-d1");
+        insert_scoped_row(&conn, "r3", "space-B", "leak", "2025-01-01T00:00:00.000Z-0003-d1");
+
+        let changes = scan_table_for_local_changes_scoped(
+            &conn,
+            "scoped_items",
+            None,
+            "device-1",
+            Some("space-A"),
+        )
+        .unwrap();
+
+        // 2 matching rows × 2 data columns (space_id, data) = 4 changes.
+        assert_eq!(changes.len(), 4);
+
+        // No row from space-B may appear — this is the leak gate.
+        for change in &changes {
+            let pks: serde_json::Map<String, JsonValue> =
+                serde_json::from_str(&change.row_pks).unwrap();
+            let id = pks.get("id").and_then(|v| v.as_str()).unwrap();
+            assert!(id == "r1" || id == "r2", "leaked row from other space: {id}");
+        }
+    }
+
+    #[test]
+    fn test_scoped_filter_on_table_without_space_id_returns_empty() {
+        // `test_items` (from setup_test_db) has no space_id column. A scoped
+        // filter on such a table must return zero rows rather than the whole
+        // table, otherwise vault-private CRDT tables would leak through any
+        // peer SyncPull that misconfigures its filter.
+        let conn = setup_test_db();
+        insert_row(&conn, "r1", "hello", 42, "2025-01-01T00:00:00.000Z-0001-d1");
+
+        let changes = scan_table_for_local_changes_scoped(
+            &conn,
+            "test_items",
+            None,
+            "device-1",
+            Some("any-space"),
+        )
+        .unwrap();
+
+        assert!(changes.is_empty());
+    }
 }
