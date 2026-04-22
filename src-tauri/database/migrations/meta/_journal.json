@@ -22,6 +22,13 @@
       "when": 1776847898162,
       "tag": "0002_confused_nicolaos",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1776868622544,
+      "tag": "0003_freezing_falcon",
+      "breakpoints": true
     }
   ]
 }
