@@ -84,6 +84,13 @@ impl PeerSession {
         }
     }
 
+    /// The UCAN token resolved from the DB at `connect()` time. Callers that
+    /// need to send follow-up requests inside the same session (rejoin,
+    /// external commits) can reuse this token without re-querying the DB.
+    pub fn ucan_token(&self) -> &str {
+        &self.ucan_token
+    }
+
     /// Send a request and read the response.
     async fn request(&self, req: Request) -> Result<Response, DeliveryError> {
         let (mut send, mut recv) = self

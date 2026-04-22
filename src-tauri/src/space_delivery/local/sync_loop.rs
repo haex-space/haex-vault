@@ -540,12 +540,14 @@ async fn attempt_rejoin(
     space_id: &str,
     app_handle: &tauri::AppHandle,
 ) -> Result<(), DeliveryError> {
-    // TODO: Pass a real UCAN token here. For now, the leader validates the peer's
-    // identity via the Announce DID. A proper UCAN should be fetched from the local DB.
-    let ucan_token = String::new();
+    // Reuse the UCAN token that `PeerSession::connect` resolved from the DB —
+    // the leader's `require_valid_ucan` check now applies to every request
+    // (including RequestRejoin and SubmitExternalCommit), so an empty token
+    // would be rejected.
+    let ucan_token = session.ucan_token();
 
     // 1. Request GroupInfo from leader
-    let group_info_b64 = session.request_rejoin(space_id, &ucan_token).await?;
+    let group_info_b64 = session.request_rejoin(space_id, ucan_token).await?;
 
     let group_info_bytes = BASE64.decode(&group_info_b64).map_err(|e| {
         DeliveryError::ProtocolError {
@@ -568,7 +570,7 @@ async fn attempt_rejoin(
 
     // 3. Submit the External Commit to the leader for distribution
     session
-        .submit_external_commit(space_id, &commit_b64, &ucan_token)
+        .submit_external_commit(space_id, &commit_b64, ucan_token)
         .await?;
 
     // 4. Emit event so frontend can update the epoch key
