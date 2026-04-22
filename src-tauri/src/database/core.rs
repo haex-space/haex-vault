@@ -9,6 +9,7 @@ use crate::database::connection_context::ConnectionContext;
 use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
 use crate::extension::database::executor::SqlExecutor;
+use crate::table_names::TABLE_CRDT_CONFIGS;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use regex::Regex;
 use rusqlite::functions::FunctionFlags;
@@ -494,13 +495,22 @@ pub fn execute_with_crdt(
     })
 }
 
-/// Execute SQL OHNE CRDT-Transformation (für spezielle Fälle)
+/// Execute SQL OHNE CRDT-Transformation.
+///
+/// Semantik: "no CRDT logic". Das heißt:
+/// - Keine HLC-Population für INSERT/UPDATE (der CRDT-Transformer läuft nicht)
+/// - Keine delete-log-Einträge für DELETE (BEFORE-DELETE-Trigger wird durch
+///   `triggers_enabled='0'` umgangen)
+/// - Kein dirty-table-Tracking
+///
+/// Der Trigger-Bypass wird transaktional durchgeführt: Flag setzen → Statement
+/// ausführen → Flag zurücksetzen → commit. So sehen parallel laufende Sync-
+/// Connections den Flag nie auf `'0'`.
 pub fn execute(
     sql: String,
     params: Vec<JsonValue>,
     connection: &DbConnection,
 ) -> Result<Vec<Vec<JsonValue>>, DatabaseError> {
-    // Konvertiere Parameter
     let params_converted: Vec<RusqliteValue> = params
         .iter()
         .map(ValueConverter::json_to_rusqlite_value)
@@ -513,24 +523,34 @@ pub fn execute(
     };
 
     with_connection(connection, |conn| {
-        if has_returning {
-            let mut stmt = conn.prepare(&sql)?;
-            let num_columns = stmt.column_count();
-            let mut rows = stmt.query(&params_sql[..])?;
-            let mut result_vec: Vec<Vec<JsonValue>> = Vec::new();
+        let tx = conn.transaction().map_err(DatabaseError::from)?;
 
-            while let Some(row) = rows.next()? {
-                let mut row_values: Vec<JsonValue> = Vec::with_capacity(num_columns);
-                for i in 0..num_columns {
-                    let value_ref = row.get_ref(i)?;
-                    let json_val = convert_value_ref_to_json(value_ref)?;
-                    row_values.push(json_val);
+        let disable_sql = format!(
+            "INSERT INTO {TABLE_CRDT_CONFIGS} (key, type, value) VALUES ('triggers_enabled', 'system', '0')
+             ON CONFLICT(key) DO UPDATE SET value = '0'"
+        );
+        tx.execute(&disable_sql, []).map_err(DatabaseError::from)?;
+
+        let result = if has_returning {
+            let mut result_vec: Vec<Vec<JsonValue>> = Vec::new();
+            {
+                let mut stmt = tx.prepare(&sql)?;
+                let num_columns = stmt.column_count();
+                let mut rows = stmt.query(&params_sql[..])?;
+
+                while let Some(row) = rows.next()? {
+                    let mut row_values: Vec<JsonValue> = Vec::with_capacity(num_columns);
+                    for i in 0..num_columns {
+                        let value_ref = row.get_ref(i)?;
+                        let json_val = convert_value_ref_to_json(value_ref)?;
+                        row_values.push(json_val);
+                    }
+                    result_vec.push(row_values);
                 }
-                result_vec.push(row_values);
             }
-            Ok(result_vec)
+            result_vec
         } else {
-            conn.execute(&sql, &params_sql[..]).map_err(|e| {
+            tx.execute(&sql, &params_sql[..]).map_err(|e| {
                 let table_name = extract_primary_table_name_from_sql(&sql).unwrap_or(None);
                 DatabaseError::ExecutionError {
                     sql: sql.clone(),
@@ -538,8 +558,17 @@ pub fn execute(
                     table: table_name,
                 }
             })?;
-            Ok(vec![])
-        }
+            vec![]
+        };
+
+        let enable_sql = format!(
+            "INSERT INTO {TABLE_CRDT_CONFIGS} (key, type, value) VALUES ('triggers_enabled', 'system', '1')
+             ON CONFLICT(key) DO UPDATE SET value = '1'"
+        );
+        tx.execute(&enable_sql, []).map_err(DatabaseError::from)?;
+
+        tx.commit().map_err(DatabaseError::from)?;
+        Ok(result)
     })
 }
 
