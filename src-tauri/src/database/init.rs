@@ -16,7 +16,8 @@ use rusqlite::{params, Connection};
 /// - 2: Fix sync loop: UPDATE trigger only marks table dirty if tracked columns changed
 /// - 3: Track haex_tombstone column to enable proper sync of soft-deletes
 /// - 4: Delete-log architecture — DELETE trigger logs to haex_deleted_rows, no tombstone column
-const TRIGGER_VERSION: i32 = 4;
+/// - 5: haex_deleted_rows is exempt from the BEFORE-DELETE trigger (cleanup must not recurse)
+const TRIGGER_VERSION: i32 = 5;
 
 /// Scans the database for all sync-relevant tables (those that have a `haex_hlc` column).
 /// Tables ending in `_no_sync` are excluded by the naming convention.

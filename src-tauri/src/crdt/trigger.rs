@@ -162,7 +162,6 @@ pub fn setup_triggers_for_table(
 
     let insert_trigger_sql = generate_insert_trigger_sql(table_name, &cols_to_track, &pks);
     let update_trigger_sql = generate_update_trigger_sql(table_name, &cols_to_track, &pks);
-    let delete_trigger_sql = generate_delete_trigger_sql(table_name, &pks);
 
     if recreate {
         drop_triggers_for_table(tx, table_name)?;
@@ -170,7 +169,15 @@ pub fn setup_triggers_for_table(
 
     tx.execute_batch(&insert_trigger_sql)?;
     tx.execute_batch(&update_trigger_sql)?;
-    tx.execute_batch(&delete_trigger_sql)?;
+
+    // Der BEFORE-DELETE-Trigger loggt gelöschte Rows nach haex_deleted_rows.
+    // Auf der Log-Tabelle selbst würde das Cleanup-DELETEs rekursiv ins Log
+    // zurückschreiben — also legen wir für sie keinen DELETE-Trigger an.
+    // Sie ist die einzige Tabelle mit dieser Ausnahme.
+    if table_name != DELETED_ROWS_TABLE {
+        let delete_trigger_sql = generate_delete_trigger_sql(table_name, &pks);
+        tx.execute_batch(&delete_trigger_sql)?;
+    }
 
     Ok(TriggerSetupResult::Success)
 }
