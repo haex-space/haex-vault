@@ -15,6 +15,13 @@
       "when": 1776811201915,
       "tag": "0001_tired_madelyne_pryor",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1776847898162,
+      "tag": "0002_confused_nicolaos",
+      "breakpoints": true
     }
   ]
 }

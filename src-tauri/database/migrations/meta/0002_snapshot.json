@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "dab6149a-f05f-43cc-a969-d3551688b636",
-  "prevId": "f6cf1924-1011-48ae-a804-81ff4585e7f6",
+  "id": "429a73b3-6dba-4cc6-addf-a53d7b547441",
+  "prevId": "dab6149a-f05f-43cc-a969-d3551688b636",
   "tables": {
     "haex_desktop_items_no_sync": {
       "name": "haex_desktop_items_no_sync",
@@ -1205,13 +1205,13 @@
         }
       },
       "indexes": {
-        "haex_deleted_rows_table_row_pks_unique": {
-          "name": "haex_deleted_rows_table_row_pks_unique",
+        "haex_deleted_rows_table_row_pks_idx": {
+          "name": "haex_deleted_rows_table_row_pks_idx",
           "columns": [
             "table_name",
             "row_pks"
           ],
-          "isUnique": true
+          "isUnique": false
         }
       },
       "foreignKeys": {},

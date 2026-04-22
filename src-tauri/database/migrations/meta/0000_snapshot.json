@@ -1205,13 +1205,13 @@
         }
       },
       "indexes": {
-        "haex_deleted_rows_table_row_pks_idx": {
-          "name": "haex_deleted_rows_table_row_pks_idx",
+        "haex_deleted_rows_table_row_pks_unique": {
+          "name": "haex_deleted_rows_table_row_pks_unique",
           "columns": [
             "table_name",
             "row_pks"
           ],
-          "isUnique": false
+          "isUnique": true
         }
       },
       "foreignKeys": {},
