@@ -51,10 +51,12 @@ export function useSpaceLinkedItems(spaceId: MaybeRefOrGetter<string>) {
     }
   }
 
-  /** Resolve an extensionId to its installed extension */
-  const findExtension = (extensionId: string | null) => {
-    if (!extensionId) return null
-    return extensionsStore.availableExtensions.find((ext) => ext.id === extensionId) ?? null
+  /** Resolve a portable (publicKey, name) pair to its installed extension */
+  const findExtension = (publicKey: string | null, name: string | null) => {
+    if (!publicKey || !name) return null
+    return extensionsStore.availableExtensions.find(
+      (ext) => ext.publicKey === publicKey && ext.name === name,
+    ) ?? null
   }
 
   /** Remove all assignments sharing the same groupId+spaceId, or a single assignment by id */
@@ -81,7 +83,7 @@ export function useSpaceLinkedItems(spaceId: MaybeRefOrGetter<string>) {
   const groups = computed<SpaceLinkedItemGroup[]>(() => {
     const result: SpaceLinkedItemGroup[] = []
 
-    // Extension data — group by (extensionId, groupId) for logical units
+    // Extension data — group by (extensionPublicKey, extensionName, groupId) for logical units
     const byExtension = new Map<string, {
       ext: ReturnType<typeof findExtension>
       /** Logical groups within this extension (by groupId) */
@@ -89,10 +91,12 @@ export function useSpaceLinkedItems(spaceId: MaybeRefOrGetter<string>) {
     }>()
 
     for (const assignment of spaceAssignments.value) {
-      const extKey = assignment.extensionId ?? assignment.tableName
+      const extKey = assignment.extensionPublicKey && assignment.extensionName
+        ? `${assignment.extensionPublicKey}__${assignment.extensionName}`
+        : assignment.tableName
       if (!byExtension.has(extKey)) {
         byExtension.set(extKey, {
-          ext: findExtension(assignment.extensionId),
+          ext: findExtension(assignment.extensionPublicKey, assignment.extensionName),
           logicalGroups: new Map(),
         })
       }
