@@ -19,9 +19,14 @@ fn map_db(e: crate::database::error::DatabaseError) -> DeliveryError {
 
 /// Get all member DIDs for a space from the CRDT-synced haex_space_members table.
 /// Used to determine expected ACKers for pending commits (all members, not just connected peers).
+/// Members reference their identity via `identity_id`, so we join `haex_identities`
+/// to resolve the DID back out.
 pub fn get_space_member_dids(db: &DbConnection, space_id: &str) -> Result<Vec<String>, DeliveryError> {
     let rows = select_with_crdt(
-        "SELECT member_did FROM haex_space_members WHERE space_id = ?1".to_string(),
+        "SELECT i.did FROM haex_space_members m \
+         JOIN haex_identities i ON i.id = m.identity_id \
+         WHERE m.space_id = ?1"
+            .to_string(),
         vec![serde_json::Value::String(space_id.to_string())],
         db,
     )

@@ -232,7 +232,7 @@ Extension tables are namespaced and support opt-out from CRDT sync:
 | `{key}__myapp__settings` | Yes | Synced between devices |
 | `{key}__myapp__cache_no_sync` | No | Local-only, `_no_sync` suffix opts out |
 
-The CRDT engine automatically adds sync columns (`haex_timestamp`, `haex_column_hlcs`, `haex_tombstone`) to all tables without the `_no_sync` suffix.
+The CRDT engine automatically adds sync columns (`haex_hlc`, `haex_column_hlcs`) to all tables without the `_no_sync` suffix. Deletes are tracked separately in `haex_deleted_rows`, so main tables never carry a tombstone column.
 
 ---
 

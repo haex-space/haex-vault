@@ -389,33 +389,59 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
         },
     );
 
-    // 12. Persist new member to haex_space_members (CRDT-synced to all devices)
-    if let Some(ref pk) = public_key {
+    // 12. Persist new member to haex_space_members (CRDT-synced to all devices).
+    //     Members reference an identity row by `identity_id`; the DID + public
+    //     key live on `haex_identities`. We upsert the identity first (no-op if
+    //     UI already imported the contact) and then join by DID to pick up the
+    //     actual id — a fresh UUID is only used when the INSERT OR IGNORE
+    //     actually created the row.
+    //
+    // Scope-locked so the HlcService MutexGuard is dropped before the
+    // subsequent `.await` on step 13 — otherwise this future would fail the
+    // `Send` bound required by `tokio::spawn` further up the call chain.
+    let _ = public_key.as_ref();
+    {
         let hlc = state.hlc.lock().map_err(|e| format!("HLC lock error: {e}")).ok();
         if let Some(ref hlc_guard) = hlc {
-            let member_id = uuid::Uuid::new_v4().to_string();
             let now = OffsetDateTime::now_utc()
                 .format(&time::format_description::well_known::Rfc3339)
                 .unwrap_or_default();
             let resolved_label = member_label
                 .unwrap_or_else(|| did.chars().take(16).collect());
 
-            let sql = "INSERT OR IGNORE INTO haex_space_members \
-                (id, space_id, member_did, member_public_key, label, role, joined_at) \
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)".to_string();
-
-            let params = vec![
-                JsonValue::String(member_id),
-                JsonValue::String(space_id.clone()),
+            let ensure_identity_sql = "INSERT OR IGNORE INTO haex_identities \
+                (id, did, name, source) VALUES (?1, ?2, ?3, 'contact')"
+                .to_string();
+            let ensure_identity_params = vec![
+                JsonValue::String(uuid::Uuid::new_v4().to_string()),
                 JsonValue::String(did.clone()),
-                JsonValue::String(pk.clone()),
                 JsonValue::String(resolved_label),
+            ];
+            if let Err(e) = crate::database::core::execute_with_crdt(
+                ensure_identity_sql,
+                ensure_identity_params,
+                &state.db,
+                hlc_guard,
+            ) {
+                eprintln!("[SpaceDelivery] Failed to upsert identity row for new member: {e}");
+            }
+
+            let insert_member_sql = "INSERT OR IGNORE INTO haex_space_members \
+                (id, space_id, identity_id, role, joined_at) \
+                SELECT ?1, ?2, id, ?3, ?4 FROM haex_identities WHERE did = ?5"
+                .to_string();
+            let member_params = vec![
+                JsonValue::String(uuid::Uuid::new_v4().to_string()),
+                JsonValue::String(space_id.clone()),
                 JsonValue::String(capability.clone()),
                 JsonValue::String(now),
+                JsonValue::String(did.clone()),
             ];
-
             if let Err(e) = crate::database::core::execute_with_crdt(
-                sql, params, &state.db, hlc_guard,
+                insert_member_sql,
+                member_params,
+                &state.db,
+                hlc_guard,
             ) {
                 eprintln!("[SpaceDelivery] Failed to persist space member: {e}");
             }

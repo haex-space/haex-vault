@@ -86,7 +86,7 @@
               :class="[
                 'border-b border-default last:border-0 hover:bg-muted/20 transition-colors cursor-pointer',
                 selectedRows.has(i) && 'bg-primary/10',
-                isTombstone(row) ? 'bg-red-500/5 text-red-400' : isModified(row) && 'bg-info/5',
+                isModified(row) && 'bg-info/5',
               ]"
               @click="toggleRowSelection(i)"
             >
@@ -244,14 +244,7 @@ const hasActiveFilters = computed(() =>
   Object.values(columnFilters.value).some(v => v !== ''),
 )
 
-const tombstoneColIndex = computed(() => columns.value.indexOf('haex_tombstone'))
 const hlcColIndex = computed(() => columns.value.indexOf('haex_column_hlcs'))
-
-const isTombstone = (row: unknown[]) => {
-  const idx = tombstoneColIndex.value
-  if (idx === -1) return false
-  return row[idx] === 1 || row[idx] === '1'
-}
 
 const isModified = (row: unknown[]) => {
   const idx = hlcColIndex.value

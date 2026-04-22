@@ -46,7 +46,7 @@ export async function getDirtyTablesAsync(): Promise<DirtyTable[]> {
 }
 
 /**
- * Gets all CRDT-enabled tables (tables with haex_tombstone column)
+ * Gets all CRDT-enabled tables (tables with the `haex_hlc` tracking column).
  */
 export async function getAllCrdtTablesAsync(): Promise<string[]> {
   return await invoke('get_all_crdt_tables')
@@ -214,13 +214,13 @@ export async function scanTableForChangesAsync(
   log.debug(`  lastPushHlcTimestamp: ${lastPushHlcTimestamp || '(none - full scan)'}`)
 
   const { schema, pkColumns, dataColumns, allColumns } = await getTableColumnsAsync(tableName)
-  // Note: haex_tombstone is included in dataColumns and will be synced like any other column
 
   log.debug(`  Schema: ${schema.length} columns, ${pkColumns.length} PKs, ${dataColumns.length} data columns`)
 
   const columnList = allColumns.map((c) => `"${c}"`).join(', ')
 
-  // Note: We scan ALL rows (including tombstoned ones) that are newer than lastPushHlcTimestamp
+  // Note: delete events live on `haex_deleted_rows` (scanned separately) so
+  // main-table scans only ever emit inserts/updates for currently active rows.
   const whereClause = lastPushHlcTimestamp
     ? `WHERE "${CRDT_COLUMNS.haexHlc}" > ?`
     : ''
