@@ -21,9 +21,6 @@ export interface ColumnChange {
   rowPks: string // JSON string of primary key values
   columnName: string
   hlcTimestamp: string
-  batchId?: string // UUID identifying which changes belong together (optional for pull)
-  batchSeq?: number // Sequence number within batch (optional for pull, 1-based)
-  batchTotal?: number // Total number of changes in this batch (optional for pull)
   encryptedValue?: string
   nonce?: string
   deviceId: string // Device that created this change
@@ -49,7 +46,7 @@ export async function getDirtyTablesAsync(): Promise<DirtyTable[]> {
 }
 
 /**
- * Gets all CRDT-enabled tables (tables with haex_tombstone column)
+ * Gets all CRDT-enabled tables (tables with the `haex_hlc` tracking column).
  */
 export async function getAllCrdtTablesAsync(): Promise<string[]> {
   return await invoke('get_all_crdt_tables')
@@ -81,7 +78,7 @@ async function getTableColumnsAsync(tableName: string) {
   const dataColumns = schema.filter(
     (col) =>
       !col.isPk &&
-      col.name !== CRDT_COLUMNS.haexTimestamp &&
+      col.name !== CRDT_COLUMNS.haexHlc &&
       col.name !== CRDT_COLUMNS.haexColumnHlcs &&
       col.name !== SYNC_METADATA_COLUMNS.lastPushHlcTimestamp &&
       col.name !== SYNC_METADATA_COLUMNS.lastPullServerTimestamp &&
@@ -98,7 +95,7 @@ async function getTableColumnsAsync(tableName: string) {
   const allColumns = [
     ...pkColumns.map((c) => c.name),
     ...dataColumns.map((c) => c.name),
-    CRDT_COLUMNS.haexTimestamp,
+    CRDT_COLUMNS.haexHlc,
     CRDT_COLUMNS.haexColumnHlcs,
   ]
 
@@ -117,10 +114,9 @@ async function processRowsToChangesAsync(
   lastPushHlcTimestamp: string | null,
   tableName: string,
   vaultKey: Uint8Array,
-  batchId: string,
   deviceId: string,
   epoch?: number,
-): Promise<Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[]> {
+): Promise<ColumnChange[]> {
   // Convert result to rows - we know the column order from allColumns
   const rows: Array<Record<string, unknown>> = []
 
@@ -142,7 +138,7 @@ async function processRowsToChangesAsync(
     log.debug(`  First row PKs:`, extractPrimaryKeys(rows[0]!, pkColumns))
   }
 
-  const changes: Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[] = []
+  const changes: ColumnChange[] = []
 
   for (const row of rows) {
     // Parse column HLCs from JSON
@@ -157,7 +153,7 @@ async function processRowsToChangesAsync(
     const pkJson = JSON.stringify(pks)
 
     // Get row-level HLC to use as fallback for columns without individual HLC
-    const rowHlc = row[CRDT_COLUMNS.haexTimestamp] as string
+    const rowHlc = row[CRDT_COLUMNS.haexHlc] as string
 
     // For each data column, create a change entry if it has a newer HLC
     for (const col of dataColumns) {
@@ -168,8 +164,8 @@ async function processRowsToChangesAsync(
       const hlcToUse = columnHlc || rowHlc
 
       if (!hlcToUse) {
-        // This should never happen as every row must have haex_timestamp
-        log.warn(`Column ${col.name} has no HLC and row has no haex_timestamp, skipping`)
+        // This should never happen as every row must have haex_hlc
+        log.warn(`Column ${col.name} has no HLC and row has no haex_hlc, skipping`)
         continue
       }
 
@@ -191,7 +187,6 @@ async function processRowsToChangesAsync(
           rowPks: pkJson,
           columnName: col.name,
           hlcTimestamp: hlcToUse,
-          batchId,
           deviceId,
           encryptedValue: encryptedData,
           nonce,
@@ -207,29 +202,27 @@ async function processRowsToChangesAsync(
 /**
  * Scans a table for rows that are newer than lastPushHlcTimestamp
  * Returns column-level changes for all modified columns
- * Note: batchSeq and batchTotal will be 0 and need to be set by the caller
  */
 export async function scanTableForChangesAsync(
   tableName: string,
   lastPushHlcTimestamp: string | null,
   vaultKey: Uint8Array,
-  batchId: string,
   deviceId: string,
   epoch?: number,
-): Promise<Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[]> {
+): Promise<ColumnChange[]> {
   log.info(`Scanning table: ${tableName}`)
   log.debug(`  lastPushHlcTimestamp: ${lastPushHlcTimestamp || '(none - full scan)'}`)
 
   const { schema, pkColumns, dataColumns, allColumns } = await getTableColumnsAsync(tableName)
-  // Note: haex_tombstone is included in dataColumns and will be synced like any other column
 
   log.debug(`  Schema: ${schema.length} columns, ${pkColumns.length} PKs, ${dataColumns.length} data columns`)
 
   const columnList = allColumns.map((c) => `"${c}"`).join(', ')
 
-  // Note: We scan ALL rows (including tombstoned ones) that are newer than lastPushHlcTimestamp
+  // Note: delete events live on `haex_deleted_rows` (scanned separately) so
+  // main-table scans only ever emit inserts/updates for currently active rows.
   const whereClause = lastPushHlcTimestamp
-    ? `WHERE "${CRDT_COLUMNS.haexTimestamp}" > ?`
+    ? `WHERE "${CRDT_COLUMNS.haexHlc}" > ?`
     : ''
   const query = `SELECT ${columnList} FROM "${tableName}" ${whereClause}`
   const params = lastPushHlcTimestamp ? [lastPushHlcTimestamp] : []
@@ -247,7 +240,7 @@ export async function scanTableForChangesAsync(
 
   const changes = await processRowsToChangesAsync(
     result, allColumns, pkColumns, dataColumns,
-    lastPushHlcTimestamp, tableName, vaultKey, batchId, deviceId, epoch,
+    lastPushHlcTimestamp, tableName, vaultKey, deviceId, epoch,
   )
 
   log.info(`  Generated ${changes.length} column changes from ${result.length} rows`)
@@ -265,10 +258,9 @@ export async function scanTableForSpaceChangesAsync(
   spaceId: string,
   lastPushHlcTimestamp: string | null,
   vaultKey: Uint8Array,
-  batchId: string,
   deviceId: string,
   epoch?: number,
-): Promise<Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[]> {
+): Promise<ColumnChange[]> {
   log.info(`Scanning table for space: ${tableName} (spaceId: ${spaceId})`)
   log.debug(`  lastPushHlcTimestamp: ${lastPushHlcTimestamp || '(none - full scan)'}`)
 
@@ -299,7 +291,7 @@ export async function scanTableForSpaceChangesAsync(
 
   // Build WHERE clause for HLC filtering
   const hlcFilter = lastPushHlcTimestamp
-    ? `AND t."${CRDT_COLUMNS.haexTimestamp}" > ?`
+    ? `AND t."${CRDT_COLUMNS.haexHlc}" > ?`
     : ''
 
   const query = `SELECT ${columnList} FROM "${tableName}" t `
@@ -324,7 +316,7 @@ export async function scanTableForSpaceChangesAsync(
 
   const changes = await processRowsToChangesAsync(
     result, allColumns, pkColumns, dataColumns,
-    lastPushHlcTimestamp, tableName, vaultKey, batchId, deviceId, epoch,
+    lastPushHlcTimestamp, tableName, vaultKey, deviceId, epoch,
   )
 
   log.info(`  Generated ${changes.length} column changes from ${result.length} rows`)

@@ -15,17 +15,19 @@ use rusqlite::{params, Connection};
 /// - 1: Initial trigger implementation
 /// - 2: Fix sync loop: UPDATE trigger only marks table dirty if tracked columns changed
 /// - 3: Track haex_tombstone column to enable proper sync of soft-deletes
-const TRIGGER_VERSION: i32 = 3;
+/// - 4: Delete-log architecture — DELETE trigger logs to haex_deleted_rows, no tombstone column
+/// - 5: haex_deleted_rows is exempt from the BEFORE-DELETE trigger (cleanup must not recurse)
+const TRIGGER_VERSION: i32 = 5;
 
-/// Scans the database for all tables that have a 'haex_tombstone' column
-/// These are the tables that need CRDT triggers
+/// Scans the database for all sync-relevant tables (those that have a `haex_hlc` column).
+/// Tables ending in `_no_sync` are excluded by the naming convention.
 pub fn discover_crdt_tables(conn: &Connection) -> Result<Vec<String>, DatabaseError> {
     let mut stmt = conn.prepare(
         "SELECT m.name as table_name
          FROM sqlite_master m
          JOIN pragma_table_info(m.name) p
          WHERE m.type = 'table'
-           AND p.name = 'haex_tombstone'
+           AND p.name = 'haex_hlc'
          GROUP BY m.name
          ORDER BY m.name",
     )?;
@@ -89,7 +91,7 @@ pub fn ensure_triggers_initialized(conn: &mut Connection) -> Result<bool, Databa
         }
     };
 
-    // Discover all tables with haex_tombstone column
+    // Discover all sync-relevant tables (those with haex_hlc)
     let crdt_tables = discover_crdt_tables(&tx)?;
     eprintln!("INFO: Discovered {} CRDT tables", crdt_tables.len());
 
@@ -133,7 +135,7 @@ pub fn ensure_triggers_initialized(conn: &mut Connection) -> Result<bool, Databa
 pub fn ensure_triggers_for_all_tables(conn: &mut Connection) -> Result<usize, DatabaseError> {
     let tx = conn.transaction()?;
 
-    // Discover all tables with haex_tombstone column
+    // Discover all sync-relevant tables (those with haex_hlc)
     let crdt_tables = discover_crdt_tables(&tx)?;
     let mut triggers_created = 0;
 

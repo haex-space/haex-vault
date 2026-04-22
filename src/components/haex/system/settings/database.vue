@@ -345,8 +345,8 @@ const onForceDeleteAsync = async () => {
   lastCleanupResult.value = null
 
   try {
-    // Force delete ALL tombstones (retention = 0)
-    const result = await invoke<CleanupResult>('crdt_cleanup_tombstones', {
+    // Force delete ALL delete-log entries (retention = 0)
+    const result = await invoke<CleanupResult>('crdt_cleanup_deleted_rows', {
       retentionDays: 0,
     })
     lastCleanupResult.value = result

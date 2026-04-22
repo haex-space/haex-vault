@@ -19,6 +19,63 @@ import { orchestratorLog as log, type BackendSyncState, syncMutex } from './type
 import type { MlsEpochKey } from '@bindings/MlsEpochKey'
 
 /**
+ * Soft cap for changes per push request. Keeps single requests comfortably
+ * below the sync-server's internal 5000-change-per-insert chunk (PG 65534
+ * parameter limit) and below typical HTTP body-size ceilings. A single
+ * transaction-HLC group that exceeds this limit is still sent in one piece
+ * — we never split an HLC group across requests.
+ */
+const PUSH_CHUNK_SOFT_LIMIT = 2000
+
+/**
+ * Splits an HLC-sorted change stream into HLC-aligned request chunks.
+ *
+ * Contract:
+ * - Input must be sorted by hlcTimestamp ascending (the Rust scanner does
+ *   this globally across tables).
+ * - Every returned chunk contains whole HLC groups. An HLC group is never
+ *   split between two chunks.
+ * - A group larger than `softLimit` is emitted as its own (oversized) chunk
+ *   rather than split.
+ */
+export const chunkChangesByHlc = (
+  changes: ColumnChange[],
+  softLimit: number,
+): ColumnChange[][] => {
+  if (changes.length === 0) return []
+
+  const chunks: ColumnChange[][] = []
+  let currentChunk: ColumnChange[] = []
+  let groupStart = 0
+
+  const flushGroup = (groupEnd: number): void => {
+    const groupSize = groupEnd - groupStart
+    if (groupSize === 0) return
+
+    // Would appending this group exceed the soft limit? If so, emit the
+    // current chunk first so the new group starts a fresh chunk. If the
+    // group alone exceeds the limit, it still lands in a single (oversized)
+    // chunk — preserving HLC atomicity over chunk size.
+    if (currentChunk.length > 0 && currentChunk.length + groupSize > softLimit) {
+      chunks.push(currentChunk)
+      currentChunk = []
+    }
+    for (let i = groupStart; i < groupEnd; i++) currentChunk.push(changes[i]!)
+  }
+
+  for (let i = 1; i < changes.length; i++) {
+    if (changes[i]!.hlcTimestamp !== changes[i - 1]!.hlcTimestamp) {
+      flushGroup(i)
+      groupStart = i
+    }
+  }
+  flushGroup(changes.length)
+
+  if (currentChunk.length > 0) chunks.push(currentChunk)
+  return chunks
+}
+
+/**
  * Pushes local changes to a specific backend using table-scanning approach
  */
 export const pushToBackendAsync = async (
@@ -105,12 +162,9 @@ export const pushToBackendAsync = async (
     }, '')
     log.debug(`[PUSH-SCAN] Max dirty timestamp at scan start: ${maxDirtyTimestamp}`)
 
-    // Generate a batch ID for this push - all changes in this push belong together
-    const batchId = crypto.randomUUID()
-    log.debug('Generated batch ID:', batchId)
-
-    // Scan each dirty table for column-level changes (without batch seq numbers yet)
-    const partialChanges: Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[] = []
+    // Scan each dirty table for column-level changes. HLC is the grouping
+    // key — no separate batch id anymore.
+    const allChanges: ColumnChange[] = []
     let maxHlc = lastPushHlc || ''
 
     for (const { tableName } of dirtyTables) {
@@ -118,9 +172,9 @@ export const pushToBackendAsync = async (
         log.info(`[PUSH-SCAN] Scanning table: ${tableName}`)
         log.debug(`[PUSH-SCAN]   lastPushHlc: ${lastPushHlc || '(none)'}`)
 
-        const tableChanges = await scanTableForChangesAsync(tableName, lastPushHlc, encryptionKey, batchId, deviceId, epoch)
+        const tableChanges = await scanTableForChangesAsync(tableName, lastPushHlc, encryptionKey, deviceId, epoch)
 
-        partialChanges.push(...tableChanges)
+        allChanges.push(...tableChanges)
 
         // Track max HLC timestamp
         for (const change of tableChanges) {
@@ -154,14 +208,6 @@ export const pushToBackendAsync = async (
       }
     }
 
-    // Add batch sequence numbers now that we know the total
-    const batchTotal = partialChanges.length
-    const allChanges: ColumnChange[] = partialChanges.map((change, index) => ({
-      ...change,
-      batchSeq: index + 1, // 1-based sequence
-      batchTotal,
-    }))
-
     if (allChanges.length === 0) {
       log.info('PUSH COMPLETE: No changes after scanning (tables may already be synced)')
       // Clear dirty tables even if no changes (they might have been synced already)
@@ -171,30 +217,54 @@ export const pushToBackendAsync = async (
       return
     }
 
-    log.info(`Pushing ${allChanges.length} column changes to server...`)
-    log.debug('Batch info:', { batchId, batchTotal })
+    // Chunk at HLC boundaries so a transaction-HLC group is never split across
+    // requests. Each push (HTTP) is atomic server-side; chunking per HLC gives
+    // us HLC-group atomicity across multiple pushes too. A single HLC group
+    // larger than the soft limit is kept intact — oversized chunks beat split
+    // groups (see crdt-refactor plan, Commit 6).
+    const chunks = chunkChangesByHlc(allChanges, PUSH_CHUNK_SOFT_LIMIT)
+    log.info(`Pushing ${allChanges.length} column changes in ${chunks.length} HLC-aligned chunk(s)…`)
 
-    // Push changes to server using new format
-    const serverTimestamp = await pushChangesToServerAsync(
-      backendId,
-      backend.spaceId,
-      allChanges,
-      syncBackendsStore,
-      syncEngineStore,
-    )
+    let firstServerTimestamp: string | null = null
+    let lastSuccessfulMaxHlc = lastPushHlc || ''
 
-    // Update backend's lastPushHlcTimestamp (HLC for tracking what we've pushed)
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i]!
+      const chunkMaxHlc = chunk.reduce(
+        (max, c) => (hlcIsNewer(c.hlcTimestamp, max) ? c.hlcTimestamp : max),
+        chunk[0]!.hlcTimestamp,
+      )
+      log.info(`[PUSH-CHUNK ${i + 1}/${chunks.length}] ${chunk.length} changes, maxHlc=${chunkMaxHlc}`)
+
+      const serverTimestamp = await pushChangesToServerAsync(
+        backendId,
+        backend.spaceId,
+        chunk,
+        syncBackendsStore,
+        syncEngineStore,
+      )
+      if (firstServerTimestamp === null && serverTimestamp) firstServerTimestamp = serverTimestamp
+      lastSuccessfulMaxHlc = chunkMaxHlc
+
+      // Checkpoint after each chunk so a later failure does not re-push the
+      // groups we already delivered. The dirty-table cleanup happens only
+      // after all chunks succeed — any mid-loop throw leaves the remaining
+      // groups in the scanner's next sweep.
+      await syncBackendsStore.updateBackendAsync(backendId, { lastPushHlcTimestamp: chunkMaxHlc })
+    }
+
+    // Final bookkeeping: lastPullServerTimestamp init + dirty-table cleanup
     const updateData: { lastPushHlcTimestamp: string; lastPullServerTimestamp?: string } = {
-      lastPushHlcTimestamp: maxHlc,
+      lastPushHlcTimestamp: lastSuccessfulMaxHlc,
     }
 
     // Only set lastPullServerTimestamp on the FIRST push (when it's not yet set)
     // This prevents re-downloading our own initial data.
     // For subsequent pushes, we must NOT update it - otherwise we'd skip changes
     // from other devices that happened between our last pull and this push.
-    if (serverTimestamp && !backend.lastPullServerTimestamp) {
-      log.info('First push: Setting initial lastPullServerTimestamp:', serverTimestamp)
-      updateData.lastPullServerTimestamp = serverTimestamp
+    if (firstServerTimestamp && !backend.lastPullServerTimestamp) {
+      log.info('First push: Setting initial lastPullServerTimestamp:', firstServerTimestamp)
+      updateData.lastPullServerTimestamp = firstServerTimestamp
     }
 
     log.debug('Updating backend timestamps:', updateData)
@@ -272,9 +342,6 @@ export const pushChangesToServerAsync = async (
       rowPks: change.rowPks,
       columnName: change.columnName,
       hlcTimestamp: change.hlcTimestamp,
-      batchId: change.batchId,
-      batchSeq: change.batchSeq,
-      batchTotal: change.batchTotal,
       deviceId,
       encryptedValue: change.encryptedValue,
       nonce: change.nonce,
@@ -390,21 +457,17 @@ export const pushAllDataToBackendAsync = async (
 
     log.info(`Found ${allTables.length} CRDT tables:`, allTables)
 
-    // Generate a batch ID for this push
-    const batchId = crypto.randomUUID()
-    log.debug('Generated batch ID:', batchId)
-
     // Scan each table for ALL data (null = no lastPushHlc filter)
-    const partialChanges: Omit<ColumnChange, 'batchSeq' | 'batchTotal'>[] = []
+    const allChanges: ColumnChange[] = []
     let maxHlc = ''
 
     for (const tableName of allTables) {
       try {
         log.info(`Scanning table: ${tableName} (full scan)`)
 
-        const tableChanges = await scanTableForChangesAsync(tableName, null, encryptionKey, batchId, deviceId)
+        const tableChanges = await scanTableForChangesAsync(tableName, null, encryptionKey, deviceId)
 
-        partialChanges.push(...tableChanges)
+        allChanges.push(...tableChanges)
 
         // Track max HLC timestamp
         for (const change of tableChanges) {
@@ -420,21 +483,12 @@ export const pushAllDataToBackendAsync = async (
       }
     }
 
-    // Add batch sequence numbers
-    const batchTotal = partialChanges.length
-    const allChanges: ColumnChange[] = partialChanges.map((change, index) => ({
-      ...change,
-      batchSeq: index + 1,
-      batchTotal,
-    }))
-
     if (allChanges.length === 0) {
       log.info('FULL PUSH COMPLETE: No data to push')
       return
     }
 
     log.info(`Pushing ${allChanges.length} column changes to server...`)
-    log.debug('Batch info:', { batchId, batchTotal })
 
     // Push changes to server
     const serverTimestamp = await pushChangesToServerAsync(

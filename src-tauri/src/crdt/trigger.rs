@@ -15,9 +15,13 @@ const INSERT_TRIGGER_TPL: &str = "z_dirty_{TABLE_NAME}_insert";
 const UPDATE_TRIGGER_TPL: &str = "z_dirty_{TABLE_NAME}_update";
 const DELETE_TRIGGER_TPL: &str = "z_dirty_{TABLE_NAME}_delete";
 
-pub const HLC_TIMESTAMP_COLUMN: &str = "haex_timestamp";
+pub const HLC_TIMESTAMP_COLUMN: &str = "haex_hlc";
 pub const COLUMN_HLCS_COLUMN: &str = "haex_column_hlcs";
-pub const TOMBSTONE_COLUMN: &str = "haex_tombstone";
+
+/// Name der Delete-Log-Tabelle (Sync-Tabelle, daher ohne `_no_sync`-Suffix).
+/// Deletes werden hier als Event-Zeilen festgehalten; die Haupttabellen enthalten
+/// keine Tombstone-Spalten mehr.
+pub const DELETED_ROWS_TABLE: &str = "haex_deleted_rows";
 
 // Sync metadata columns that should NOT be tracked (to prevent trigger loops)
 const LAST_PUSH_HLC_COLUMN: &str = "last_push_hlc_timestamp";
@@ -27,6 +31,10 @@ const CREATED_AT_COLUMN: &str = "created_at";
 
 /// Name der custom UUID-Generierungs-Funktion (registriert in database::core::open_and_init_db)
 pub const UUID_FUNCTION_NAME: &str = "gen_uuid";
+
+/// Name der transaction-scoped HLC UDF (registriert in database::core::open_and_init_db).
+/// Gibt denselben Timestamp für alle Aufrufe innerhalb einer Transaktion zurück.
+pub const HLC_FUNCTION_NAME: &str = "current_hlc";
 
 #[derive(Debug)]
 pub enum CrdtSetupError {
@@ -136,9 +144,8 @@ pub fn setup_triggers_for_table(
 
     // Calculate columns to track: all columns EXCEPT:
     // - PKs
-    // - CRDT columns (haex_timestamp, haex_column_hlcs)
+    // - CRDT columns (haex_hlc, haex_column_hlcs)
     // - Sync metadata columns (to prevent trigger loops)
-    // NOTE: haex_tombstone IS tracked to enable sync of soft-deletes
     let cols_to_track: Vec<String> = columns
         .iter()
         .filter(|c| {
@@ -155,7 +162,6 @@ pub fn setup_triggers_for_table(
 
     let insert_trigger_sql = generate_insert_trigger_sql(table_name, &cols_to_track, &pks);
     let update_trigger_sql = generate_update_trigger_sql(table_name, &cols_to_track, &pks);
-    let delete_trigger_sql = generate_delete_trigger_sql(table_name);
 
     if recreate {
         drop_triggers_for_table(tx, table_name)?;
@@ -163,7 +169,15 @@ pub fn setup_triggers_for_table(
 
     tx.execute_batch(&insert_trigger_sql)?;
     tx.execute_batch(&update_trigger_sql)?;
-    tx.execute_batch(&delete_trigger_sql)?;
+
+    // Der BEFORE-DELETE-Trigger loggt gelöschte Rows nach haex_deleted_rows.
+    // Auf der Log-Tabelle selbst würde das Cleanup-DELETEs rekursiv ins Log
+    // zurückschreiben — also legen wir für sie keinen DELETE-Trigger an.
+    // Sie ist die einzige Tabelle mit dieser Ausnahme.
+    if table_name != DELETED_ROWS_TABLE {
+        let delete_trigger_sql = generate_delete_trigger_sql(table_name, &pks);
+        tx.execute_batch(&delete_trigger_sql)?;
+    }
 
     Ok(TriggerSetupResult::Success)
 }
@@ -381,9 +395,26 @@ fn generate_update_trigger_sql(
     )
 }
 
-/// Generates SQL for DELETE trigger - marks table as dirty for sync
-fn generate_delete_trigger_sql(table_name: &str) -> String {
+/// Generates SQL for BEFORE-DELETE trigger.
+///
+/// Two things happen in one trigger:
+/// 1. A row is appended to `haex_deleted_rows` — with a fresh uuid as id, the
+///    table name, the deleted row's PKs as a JSON object, and the current
+///    transaction HLC. This is the sync-visible "delete event".
+/// 2. The table is marked dirty so the scanner picks up the haex_deleted_rows
+///    change on the next sync cycle.
+///
+/// Both are gated by `triggers_enabled` so the sync-receive path can bulk-delete
+/// without re-logging.
+fn generate_delete_trigger_sql(table_name: &str, pks: &[String]) -> String {
     let trigger_name = DELETE_TRIGGER_TPL.replace("{TABLE_NAME}", table_name);
+
+    // Build JSON object for row_pks: json_object('pk1', OLD."pk1", ...)
+    let row_pks_json = pks
+        .iter()
+        .map(|name| format!("'{name}', OLD.\"{name}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
 
     format!(
         "CREATE TRIGGER IF NOT EXISTS \"{trigger_name}\"
@@ -391,8 +422,10 @@ fn generate_delete_trigger_sql(table_name: &str) -> String {
             FOR EACH ROW
             WHEN (SELECT COALESCE(value, '1') FROM {TABLE_CRDT_CONFIGS} WHERE key = 'triggers_enabled') = '1'
             BEGIN
+            INSERT INTO {DELETED_ROWS_TABLE} (id, table_name, row_pks, {HLC_TIMESTAMP_COLUMN}, {COLUMN_HLCS_COLUMN})
+            VALUES ({UUID_FUNCTION_NAME}(), '{table_name}', json_object({row_pks_json}), {HLC_FUNCTION_NAME}(), '{{}}');
             INSERT OR REPLACE INTO {TABLE_CRDT_DIRTY_TABLES} (table_name, last_modified)
-            VALUES ('{table_name}', datetime('now'));
+            VALUES ('{DELETED_ROWS_TABLE}', datetime('now'));
             END;"
     )
 }
@@ -413,11 +446,9 @@ pub fn ensure_crdt_columns(
 
     let has_hlc = columns.iter().any(|c| c.name == HLC_TIMESTAMP_COLUMN);
     let has_column_hlcs = columns.iter().any(|c| c.name == COLUMN_HLCS_COLUMN);
-    let has_tombstone = columns.iter().any(|c| c.name == TOMBSTONE_COLUMN);
 
     let mut added_any = false;
 
-    // Add missing CRDT columns
     if !has_hlc {
         let sql = format!(
             "ALTER TABLE \"{}\" ADD COLUMN \"{}\" TEXT",
@@ -446,26 +477,12 @@ pub fn ensure_crdt_columns(
         added_any = true;
     }
 
-    if !has_tombstone {
-        let sql = format!(
-            "ALTER TABLE \"{}\" ADD COLUMN \"{}\" INTEGER NOT NULL DEFAULT 0",
-            table_name, TOMBSTONE_COLUMN
-        );
-        tx.execute(&sql, [])
-            .map_err(CrdtSetupError::DatabaseError)?;
-        println!(
-            "[CRDT] Added missing column '{}' to table '{}'",
-            TOMBSTONE_COLUMN, table_name
-        );
-        added_any = true;
-    }
-
     Ok(added_any)
 }
 
 /// Ensures that a table has all required CRDT columns AND triggers.
 /// This is a combined operation that:
-/// 1. Adds missing CRDT columns (haex_timestamp, haex_column_hlcs, haex_tombstone)
+/// 1. Adds missing CRDT columns (haex_hlc, haex_column_hlcs)
 /// 2. Sets up dirty-table triggers if missing
 ///
 /// Returns (columns_added, triggers_created) tuple.
@@ -522,19 +539,8 @@ mod tests {
     /// This ensures consistency between the two approaches.
     #[test]
     fn test_ensure_crdt_columns_consistency_with_transformer() {
-        // The CRDT columns that should be added are defined by these constants:
-        // - HLC_TIMESTAMP_COLUMN ("haex_timestamp")
-        // - COLUMN_HLCS_COLUMN ("haex_column_hlcs")
-        // - TOMBSTONE_COLUMN ("haex_tombstone")
-        //
-        // Both ensure_crdt_columns (in trigger.rs) and CrdtColumns::add_to_table_definition
-        // (in transformer.rs) must use these same constants.
-        //
-        // This test verifies that ensure_crdt_columns adds all required columns.
-
         let conn = Connection::open_in_memory().unwrap();
 
-        // Create a table WITHOUT CRDT columns
         conn.execute(
             "CREATE TABLE test_table (id TEXT PRIMARY KEY, name TEXT)",
             [],
@@ -543,13 +549,11 @@ mod tests {
 
         let tx = conn.unchecked_transaction().unwrap();
 
-        // Ensure CRDT columns are added
         let result = ensure_crdt_columns(&tx, "test_table").unwrap();
         assert!(result, "Should have added columns");
 
         tx.commit().unwrap();
 
-        // Verify all three CRDT columns exist
         let columns = get_table_schema(&conn, "test_table").unwrap();
         let column_names: Vec<&str> = columns.iter().map(|c| c.name.as_str()).collect();
 
@@ -565,29 +569,21 @@ mod tests {
             COLUMN_HLCS_COLUMN,
             column_names
         );
-        assert!(
-            column_names.contains(&TOMBSTONE_COLUMN),
-            "Missing {} column. Found: {:?}",
-            TOMBSTONE_COLUMN,
-            column_names
-        );
     }
 
     #[test]
     fn test_ensure_crdt_columns_idempotent() {
         let conn = Connection::open_in_memory().unwrap();
 
-        // Create a table that already has CRDT columns
         conn.execute(
             &format!(
                 "CREATE TABLE test_table (
                     id TEXT PRIMARY KEY,
                     name TEXT,
                     {} TEXT,
-                    {} TEXT NOT NULL DEFAULT '{{}}',
-                    {} INTEGER NOT NULL DEFAULT 0
+                    {} TEXT NOT NULL DEFAULT '{{}}'
                 )",
-                HLC_TIMESTAMP_COLUMN, COLUMN_HLCS_COLUMN, TOMBSTONE_COLUMN
+                HLC_TIMESTAMP_COLUMN, COLUMN_HLCS_COLUMN
             ),
             [],
         )
@@ -595,7 +591,6 @@ mod tests {
 
         let tx = conn.unchecked_transaction().unwrap();
 
-        // ensure_crdt_columns should return false (no columns added)
         let result = ensure_crdt_columns(&tx, "test_table").unwrap();
         assert!(!result, "Should not have added any columns");
 
@@ -606,7 +601,6 @@ mod tests {
     fn test_ensure_crdt_columns_partial() {
         let conn = Connection::open_in_memory().unwrap();
 
-        // Create a table with only haex_timestamp (missing other CRDT columns)
         conn.execute(
             &format!(
                 "CREATE TABLE test_table (
@@ -622,19 +616,16 @@ mod tests {
 
         let tx = conn.unchecked_transaction().unwrap();
 
-        // ensure_crdt_columns should add the missing columns
         let result = ensure_crdt_columns(&tx, "test_table").unwrap();
         assert!(result, "Should have added missing columns");
 
         tx.commit().unwrap();
 
-        // Verify all columns exist now
         let columns = get_table_schema(&conn, "test_table").unwrap();
         let column_names: Vec<&str> = columns.iter().map(|c| c.name.as_str()).collect();
 
         assert!(column_names.contains(&HLC_TIMESTAMP_COLUMN));
         assert!(column_names.contains(&COLUMN_HLCS_COLUMN));
-        assert!(column_names.contains(&TOMBSTONE_COLUMN));
     }
 
     #[test]

@@ -18,11 +18,9 @@ use crate::extension::database::executor::SqlExecutor;
 use error::DeviceError;
 
 /// Read a vault setting by key, or return None if not found.
-/// Uses IFNULL(haex_tombstone, 0) != 1 to match the CRDT tombstone convention
-/// (tombstone can be NULL, 0, or 1).
 fn read_setting(conn: &rusqlite::Connection, key: &str) -> Result<Option<String>, DeviceError> {
     match conn.query_row(
-        "SELECT value FROM haex_vault_settings WHERE key = ?1 AND IFNULL(haex_tombstone, 0) != 1",
+        "SELECT value FROM haex_vault_settings WHERE key = ?1",
         [key],
         |row| row.get(0),
     ) {

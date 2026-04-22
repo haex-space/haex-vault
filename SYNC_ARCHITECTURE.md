@@ -1,272 +1,101 @@
-# Sync Architecture - DELETE Handling
+# Sync Architecture — CRDT Delete-Log Model
 
-## Problem
+This document describes how CRDT sync handles INSERT / UPDATE / DELETE across
+devices. It is the current, authoritative overview after the transaction-scope
+HLC + delete-log refactor.
 
-Bei der Table-Scanning-Architektur für CRDT-Sync gibt es ein fundamentales Problem:
+> **Note:** Earlier revisions of this document described a *soft-delete* model
+> (inline `haex_tombstone` column, partial unique indexes, `WHERE
+> haex_deleted = 0` filters). That model is **no longer in use**. Deletes are
+> now recorded in a separate `haex_deleted_rows` table and propagated as
+> ordinary CRDT changes, which removes the need for tombstone columns and
+> partial indexes on every syncable table.
 
-1. **INSERT vs UPDATE**: Durch Table-Scanning können wir nicht unterscheiden, ob eine Row neu eingefügt oder nur aktualisiert wurde
-2. **DELETE**: Gelöschte Rows existieren nicht mehr in der Tabelle und können nicht gescannt werden
+---
 
-## Lösung: Soft-Delete mit Single PK ✅ (GEWÄHLT)
+## Table-scan approach
 
-### Architektur-Entscheidung
+Each CRDT-enabled table carries two runtime-added columns:
 
-Nach Abwägung haben wir uns für **Soft-Delete** entschieden:
+| Column             | Meaning                                                          |
+|--------------------|------------------------------------------------------------------|
+| `haex_hlc`         | HLC timestamp of the most recent write to any column in this row |
+| `haex_column_hlcs` | JSON object `{columnName: hlc}` for per-column LWW decisions     |
 
-1. Alle CRDT-Tabellen bekommen ein `haex_deleted INTEGER NOT NULL DEFAULT 0` Flag
-2. **Regel**: Jede Tabelle MUSS genau einen Primary Key (UUID) haben - **KEINE Composite Keys**
-3. Uniqueness-Constraints werden über `UNIQUE(...) WHERE haex_deleted = 0` abgebildet
-4. Einheitliches "Dirty Table" Pattern für INSERT/UPDATE/DELETE
+Sync pushes work by scanning each dirty table for rows whose `haex_hlc` has
+advanced past `lastPushHlcTimestamp` and emitting one `ColumnChange` per
+changed column. The CRDT engine automatically adds `haex_hlc` /
+`haex_column_hlcs` to any non-`_no_sync` table at `CREATE TABLE` time — app
+code never has to think about them.
 
-### Warum Soft-Delete statt DELETE Log?
+## Transaction-scope HLC
 
-**Vorteile von Soft-Delete:**
-- ✅ Einheitliches Pattern: Nur Dirty Tables, keine separate Log-Tabelle
-- ✅ Einfachere Architektur: Ein Mechanismus für alles
-- ✅ Wiederherstellbarkeit: Gelöschte Daten können bei Sync-Konflikten wiederhergestellt werden
-- ✅ Konsistenz: Alle Tabellen haben gleiche Struktur
+All writes performed inside a single SQLite transaction (explicit `BEGIN…
+COMMIT` or a single auto-commit statement) share one HLC value. The HLC is
+drawn from the per-connection `ConnectionContext` slot, guarded by an
+`update_hook`-driven `write_pending` flag so that a stray read-only
+`SELECT current_hlc()` cannot poison the next write. On receive, changes
+with the same HLC form a **group** and are applied atomically; incomplete
+groups are discarded and re-pulled on the next sync tick.
 
-**Akzeptierter Trade-off:**
-- ⚠️ Entwickler müssen Regel "nur Single PK" einhalten
-- ⚠️ UNIQUE Constraints benötigen `WHERE haex_deleted = 0` (Partial Indexes)
-- ⚠️ Alle User-facing Queries brauchen `WHERE haex_deleted = 0`
+## DELETE handling — the delete-log table
 
-### Warum kein vollständiger Change Log?
-
-Vollständiger Change Log (alle INSERT/UPDATE/DELETE) wurde verworfen wegen:
-- **Storage Overhead**: Alle Änderungen würden dupliziert gespeichert
-- **Komplexität**: Trigger für INSERT/UPDATE/DELETE auf jeder Tabelle
-- **Redundanz**: Dirty Tables existieren bereits für INSERT/UPDATE
-
-## Implementierungsplan
-
-### 1. Datenbank-Richtlinien für Entwickler
-
-```markdown
-# HaexVault Database Guidelines
-
-## Primary Keys (WICHTIG!)
-- **Regel**: Jede Tabelle MUSS genau einen Primary Key haben
-- **Format**: UUID als TEXT (generiert mit `lower(hex(randomblob(16)))`)
-- **Spaltenname**: Immer `id`
-- **KEINE Composite Keys erlaubt!**
-
-## Uniqueness Constraints
-- Verwende **UNIQUE Constraints mit Partial Index** statt Composite Keys
-- Bei CRDT-Tabellen: `UNIQUE(...) WHERE haex_deleted = 0`
-- Beispiel:
-  ```sql
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
-  email TEXT NOT NULL,
-  haex_deleted INTEGER NOT NULL DEFAULT 0,
-  UNIQUE(user_id, email) WHERE haex_deleted = 0
-  ```
-
-## Soft-Delete Flag
-- Alle CRDT-Tabellen haben `haex_deleted INTEGER NOT NULL DEFAULT 0`
-- 0 = aktiv, 1 = gelöscht
-- User-facing Queries MÜSSEN `WHERE haex_deleted = 0` enthalten
-```
-
-### 2. Migration: haex_deleted Spalte hinzufügen
+There is no tombstone column on main tables. Instead, a `BEFORE DELETE`
+trigger on every CRDT table writes an event to `haex_deleted_rows`:
 
 ```sql
--- Für alle existierenden CRDT-Tabellen
-ALTER TABLE haex_passwords ADD COLUMN haex_deleted INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE haex_vaults ADD COLUMN haex_deleted INTEGER NOT NULL DEFAULT 0;
--- ... weitere Tabellen
-
--- Index für effiziente Queries
-CREATE INDEX idx_passwords_deleted ON haex_passwords(haex_deleted);
-CREATE INDEX idx_vaults_deleted ON haex_vaults(haex_deleted);
--- ... weitere Indexes
+INSERT INTO haex_deleted_rows
+    (id, table_name, row_pks, haex_hlc, haex_column_hlcs)
+VALUES
+    (gen_uuid(), '<target>', json_object('id', OLD.id, …),
+     current_hlc(), '{}');
 ```
 
-### 3. UNIQUE Constraints aktualisieren
+`haex_deleted_rows` itself is a CRDT-synced table, so:
 
-Alle existierenden UNIQUE Constraints müssen zu Partial Indexes werden:
+1. The scanner picks the new delete-log row up like any other change and
+   pushes it to the server.
+2. On receive, the apply-path sees a change for `haex_deleted_rows`, performs
+   the actual `DELETE FROM <target> WHERE …` locally, and the
+   `triggers_enabled='0'` config keeps the local trigger from re-logging.
+3. Because the delete lives in its own table, *main-table* UNIQUE indexes can
+   stay full (no `WHERE haex_deleted = 0` partial-index hack), so they remain
+   eligible as foreign-key parents.
 
-```sql
--- Beispiel: Wenn haex_passwords einen UNIQUE Constraint auf (user_id, title) hatte
-DROP INDEX IF EXISTS unique_passwords_user_title;
-CREATE UNIQUE INDEX unique_passwords_user_title
-  ON haex_passwords(user_id, title)
-  WHERE haex_deleted = 0;
-```
+Re-inserts of a previously deleted PK are a plain INSERT on the main table;
+the stale delete-log entry is cleaned up by the periodic
+`cleanup_deleted_rows` job based on `haex_hlc` age, not by the insert path.
 
-### 4. Push-Logik: Soft-Deleted Rows scannen
-
-Der Table Scanner muss angepasst werden um AUCH soft-deleted Rows zu finden:
-
-```typescript
-// VORHER: Nur aktive Rows
-SELECT * FROM haex_passwords WHERE haex_timestamp > ?
-
-// NACHHER: Aktive UND gelöschte Rows
-SELECT * FROM haex_passwords WHERE haex_timestamp > ?
--- kein WHERE haex_deleted = 0 Filter beim Scannen!
-```
-
-Soft-deleted Rows werden ganz normal als Column-Changes übertragen:
-- Alle Spalten werden gesendet, inklusive `haex_deleted = 1`
-- Backend erkennt DELETE am `haex_deleted` Flag
-- Keine spezielle DELETE-Behandlung nötig
-
-### 5. Datenformat für Server (unverändert)
+## ColumnChange wire format
 
 ```typescript
 interface ColumnChange {
-  tableName: string
-  rowPks: string  // JSON: '{"id":"123"}'
-  columnName: string  // z.B. "password" oder "haex_deleted"
-  hlcTimestamp: string
-  batchId: string
-  batchSeq: number
-  batchTotal: number
-  encryptedValue: string  // Auch für haex_deleted (0 oder 1 verschlüsselt)
-  nonce: string
+  tableName: string          // target table on the receiver
+  rowPks: string             // JSON-encoded PK map, e.g. '{"id":"123"}'
+  columnName: string         // one change row per (row, column)
+  hlcTimestamp: string       // transaction-scope HLC shared by every
+                             // change from one local transaction
+  encryptedValue: string     // ciphertext (base64)
+  nonce: string              // XChaCha20-Poly1305 nonce (base64)
 }
 ```
 
-**Wichtig**: `haex_deleted` wird wie jede andere Spalte behandelt - als Column-Change!
+Delete events travel as `ColumnChange`s with `tableName: "haex_deleted_rows"`
+and columns `table_name` / `row_pks` / `haex_hlc`. The receiver's apply-path
+recognises this and issues the real delete on the target table.
 
-### 6. Pull-Logik: haex_deleted anwenden
+## Cleanup
 
-Bei eingehenden Changes prüft das Backend:
+`cleanup_deleted_rows` removes rows from `haex_deleted_rows` whose `haex_hlc`
+is older than the configured retention window (default 30 days). A
+`retention_days == 0` fully empties the table. Main-table rows that were
+already deleted stay deleted — we only prune the log, not the effect.
 
-```typescript
-if (change.columnName === 'haex_deleted' && decryptedValue === 1) {
-  // Row wurde auf anderem Gerät gelöscht
-  // Setze haex_deleted = 1 lokal (Soft-Delete)
-}
-```
+## Source pointers
 
-### 7. User-facing Queries anpassen
-
-Alle Queries, die User-Daten liefern, MÜSSEN `WHERE haex_deleted = 0` haben:
-
-```typescript
-// ALLE SELECT Queries für User-facing Daten
-const passwords = await db
-  .select()
-  .from(haexPasswords)
-  .where(eq(haexPasswords.haexDeleted, 0))  // WICHTIG!
-```
-
-### 8. Cleanup-Strategie
-
-Periodisches Cleanup (z.B. alle 7 Tage) löscht alte soft-deleted Rows:
-
-```sql
--- Lösche soft-deleted Rows, die:
--- 1. Älter als 90 Tage sind
--- 2. Mit allen Backends synchronisiert wurden
-DELETE FROM haex_passwords
-WHERE haex_deleted = 1
-  AND datetime(haex_timestamp) < datetime('now', '-90 days')
-  AND haex_timestamp <= (
-    SELECT MIN(last_pull_server_timestamp)
-    FROM haex_sync_backends
-    WHERE enabled = 1
-  );
-```
-
-Alternative: Cleanup manuell durch User anstoßen (z.B. "Papierkorb leeren")
-
-## DELETE Statements transformieren
-
-**Wichtig**: Alle DELETE Statements müssen zu UPDATE Statements werden:
-
-```typescript
-// VORHER: DELETE
-await db.delete(haexPasswords).where(eq(haexPasswords.id, passwordId))
-
-// NACHHER: Soft-Delete (UPDATE)
-await db
-  .update(haexPasswords)
-  .set({ haexDeleted: 1 })
-  .where(eq(haexPasswords.id, passwordId))
-```
-
-**Keine DELETE Trigger nötig!** Das normale CRDT-UPDATE-System handled alles.
-
-## Vorteile dieser Lösung
-
-1. ✅ **Einheitliches Pattern**: Ein Mechanismus für INSERT/UPDATE/DELETE
-2. ✅ **Wiederherstellbarkeit**: Gelöschte Daten können bei Sync-Konflikten wiederhergestellt werden
-3. ✅ **Einfache Architektur**: Keine separate Log-Tabelle, keine Trigger
-4. ✅ **Konsistenz**: Alle Tabellen haben gleiche Struktur
-5. ✅ **Batch-Konsistenz**: Alle Changes (inkl. DELETE) im gleichen Batch
-6. ✅ **CRDT-kompatibel**: DELETE ist einfach ein Column-Update wie jedes andere
-
-## Extension Schema Migration System
-
-Extensions können dynamisch Tabellen erstellen, die ebenfalls synchronisiert werden müssen.
-
-### Architektur
-
-**Dynamische Tabellenerkennung:**
-- `discover_crdt_tables()` in `src-tauri/src/database/init.rs` scannt alle Tabellen mit `haex_tombstone` Spalte
-- Keine hardcodierte Tabellenliste mehr nötig
-- CRDT-Trigger werden automatisch für alle erkannten Tabellen erstellt
-
-**Extension Migrations Tabelle:**
-```sql
-CREATE TABLE haex_extension_migrations (
-  id TEXT PRIMARY KEY,
-  extension_id TEXT NOT NULL,          -- Foreign Key zu haex_extensions
-  extension_version TEXT NOT NULL,     -- z.B. "0.1.15"
-  migration_name TEXT NOT NULL,        -- z.B. "0000_illegal_wallflower"
-  sql_statement TEXT NOT NULL,         -- Komplette .sql Datei
-  applied_at TEXT DEFAULT (CURRENT_TIMESTAMP),
-
-  -- CRDT Spalten (automatisch synchronisiert)
-  haex_timestamp TEXT,
-  haex_column_hlcs TEXT DEFAULT '{}',
-  haex_tombstone INTEGER DEFAULT 0,
-
-  FOREIGN KEY (extension_id) REFERENCES haex_extensions(id) ON DELETE CASCADE,
-  UNIQUE (extension_id, migration_name) WHERE haex_tombstone = 0
-)
-```
-
-**Migration Flow:**
-1. Extension führt Migration lokal aus via SDK `runMigrationsAsync()`
-2. SDK speichert Migration in `haex_extension_migrations`
-3. Migration wird via CRDT zu anderen Devices synchronisiert
-4. Device B beim Pull:
-   - Prüft ob Extension in entsprechender Version vorhanden
-   - Führt Migration aus wenn Extension verfügbar
-   - Wartet wenn Extension noch nicht heruntergeladen
-5. Backend erstellt automatisch CRDT-Trigger für neue Extension-Tabellen
-
-**Tabellenpräfix:**
-Extension-Tabellen nutzen Format: `{public_key_hash}__{extension_name}__{table_name}`
-
-Beispiel: `b4401f13f65e576b8a30ff9fd83df82a8bb707e1994d40c99996fe88603cefca__haex-pass__haex_passwords_item_details`
-
-## Status
-
-**Basis-Sync-System:**
-- [ ] Migration: haex_deleted Spalte zu allen CRDT-Tabellen hinzufügen
-- [ ] Migration: UNIQUE Constraints mit `WHERE haex_deleted = 0` aktualisieren
-- [ ] CREATE TABLE Statements mit partial UNIQUE Constraints anpassen
-- [ ] TypeScript Schemas mit haex_deleted erweitern
-- [ ] Table Scanner: Filter entfernen (soft-deleted Rows mitscannen)
-- [ ] Alle DELETE Statements durch UPDATE mit haex_deleted = 1 ersetzen
-- [ ] Alle user-facing SELECT Queries mit `WHERE haex_deleted = 0` erweitern
-- [ ] Cleanup-Job für alte soft-deleted Rows implementieren
-- [ ] Tests schreiben
-
-**Extension Migration System:**
-- [x] `haex_extension_migrations` Tabelle Schema erstellt
-- [x] Dynamische Tabellenerkennung implementiert (`discover_crdt_tables()`)
-- [x] Extension Download Folder existiert bereits (`app_local_data_dir()/extensions`)
-- [x] SDK erweitert: `registerMigrationsAsync()` Methode hinzugefügt
-- [x] Frontend Handler: `handleDatabaseMethodAsync` erweitert
-- [x] Rust Command: `register_extension_migrations` implementiert
-- [x] SQL-Validierung: Nur Extension-eigene Tabellen erlaubt
-- [ ] Pull-Prozess: Extension Migrations vor CRDT-Changes anwenden
-- [ ] Migration Execution: SQL-Statements ausführen wenn Extension verfügbar
-- [ ] Validierung: Extension-Version muss mit Migration-Version übereinstimmen
+- Triggers + column layout: [src-tauri/src/crdt/trigger.rs](src-tauri/src/crdt/trigger.rs)
+- HLC service + transaction slot: [src-tauri/src/database/connection_context.rs](src-tauri/src/database/connection_context.rs)
+- `current_hlc()` UDF: [src-tauri/src/database/core.rs](src-tauri/src/database/core.rs)
+- Scanner: [src/stores/sync/tableScanner.ts](src/stores/sync/tableScanner.ts)
+- Delete-log cleanup: [src-tauri/src/crdt/cleanup.rs](src-tauri/src/crdt/cleanup.rs)
+- Drizzle schema for `haex_deleted_rows`: [src/database/schemas/crdt.ts](src/database/schemas/crdt.ts)

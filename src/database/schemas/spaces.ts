@@ -49,7 +49,7 @@ export const haexSpaceDevices = sqliteTable(
       .primaryKey(),
     spaceId: text(tableNames.haex.space_devices.columns.spaceId)
       .notNull()
-      .references(() => haexSpaces.id),
+      .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     identityId: text(tableNames.haex.space_devices.columns.identityId)
       .references(() => haexIdentities.id),
     deviceEndpointId: text(tableNames.haex.space_devices.columns.deviceEndpointId).notNull(),
@@ -107,7 +107,7 @@ export const haexPeerShares = sqliteTable(
       .primaryKey(),
     spaceId: text(tableNames.haex.peer_shares.columns.spaceId)
       .notNull()
-      .references(() => haexSpaces.id),
+      .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     deviceEndpointId: text(tableNames.haex.peer_shares.columns.deviceEndpointId).notNull(),
     name: text(tableNames.haex.peer_shares.columns.name).notNull(),
     localPath: text(tableNames.haex.peer_shares.columns.localPath).notNull(),
@@ -131,9 +131,9 @@ export const haexSharedSpaceSync = sqliteTable(
     rowPks: text(tableNames.haex.shared_space_sync.columns.rowPks, { mode: 'json' }).notNull(),
     spaceId: text(tableNames.haex.shared_space_sync.columns.spaceId)
       .notNull()
-      .references(() => haexSpaces.id),
+      .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     extensionId: text(tableNames.haex.shared_space_sync.columns.extensionId)
-      .references((): AnySQLiteColumn => haexExtensions.id),
+      .references((): AnySQLiteColumn => haexExtensions.id, { onDelete: 'cascade' }),
     groupId: text(tableNames.haex.shared_space_sync.columns.groupId),
     type: text(tableNames.haex.shared_space_sync.columns.type),
     label: text(tableNames.haex.shared_space_sync.columns.label),
@@ -226,7 +226,7 @@ export const haexSyncBackends = sqliteTable(
     name: text(tableNames.haex.sync_backends.columns.name).notNull(),
     homeServerUrl: text(tableNames.haex.sync_backends.columns.homeServerUrl).notNull(),
     spaceId: text(tableNames.haex.sync_backends.columns.spaceId)
-      .references(() => haexSpaces.id),
+      .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     syncKey: text(tableNames.haex.sync_backends.columns.syncKey),
     vaultKeySalt: text(tableNames.haex.sync_backends.columns.vaultKeySalt),
     identityId: text(tableNames.haex.sync_backends.columns.identityId).notNull(), // FK → haex_identities.id (UUID, for auth)
@@ -274,7 +274,7 @@ export const haexSyncRules = sqliteTable(
       .primaryKey(),
     spaceId: text(tableNames.haex.sync_rules.columns.spaceId)
       .notNull()
-      .references(() => haexSpaces.id),
+      .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     deviceId: text(tableNames.haex.sync_rules.columns.deviceId)
       .notNull()
       .references(() => haexDevices.id),

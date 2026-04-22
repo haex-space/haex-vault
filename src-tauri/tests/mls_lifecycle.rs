@@ -17,6 +17,17 @@ use rusqlite::Connection;
 fn setup_test_db() -> Arc<Mutex<Option<Connection>>> {
     let conn = Connection::open_in_memory().unwrap();
 
+    // CRDT config table (needed by core::execute for the transient
+    // trigger-bypass flag, even on _no_sync tables).
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS haex_crdt_configs_no_sync (
+            key TEXT PRIMARY KEY NOT NULL,
+            type TEXT NOT NULL,
+            value TEXT NOT NULL
+        );",
+    )
+    .unwrap();
+
     // MLS storage tables (key-value stores used by OpenMLS provider)
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS haex_mls_values_no_sync (
@@ -106,18 +117,23 @@ fn setup_test_db() -> Arc<Mutex<Option<Connection>>> {
     )
     .unwrap();
 
-    // Space members table (for ACK tracking)
+    // Space members table (for ACK tracking). Members reference an identity
+    // row by `identity_id`; the DID lives on haex_identities.
     conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS haex_space_members (
+        "CREATE TABLE IF NOT EXISTS haex_identities (
+            id TEXT PRIMARY KEY NOT NULL,
+            did TEXT NOT NULL,
+            name TEXT NOT NULL,
+            source TEXT DEFAULT 'contact' NOT NULL,
+            private_key TEXT,
+            created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+        );
+        CREATE TABLE IF NOT EXISTS haex_space_members (
             id TEXT PRIMARY KEY NOT NULL,
             space_id TEXT NOT NULL,
-            member_did TEXT NOT NULL,
-            display_name TEXT,
-            public_key TEXT,
-            role TEXT DEFAULT 'member',
-            is_self INTEGER DEFAULT 0,
-            joined_at TEXT DEFAULT (CURRENT_TIMESTAMP),
-            created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+            identity_id TEXT NOT NULL,
+            role TEXT DEFAULT 'read' NOT NULL,
+            joined_at TEXT DEFAULT (CURRENT_TIMESTAMP)
         );",
     )
     .unwrap();

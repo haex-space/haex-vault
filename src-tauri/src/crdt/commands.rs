@@ -2,7 +2,7 @@ use crate::crdt::hlc::{hlc_is_newer, hlc_max, HlcService};
 use crate::crdt::trigger;
 use crate::crdt::trigger::{
     get_table_schema as get_table_schema_internal, is_safe_identifier, ColumnInfo,
-    COLUMN_HLCS_COLUMN, HLC_TIMESTAMP_COLUMN, TOMBSTONE_COLUMN,
+    COLUMN_HLCS_COLUMN, DELETED_ROWS_TABLE, HLC_TIMESTAMP_COLUMN,
 };
 use crate::database::core::{with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
@@ -12,7 +12,7 @@ use rusqlite::params;
 use rusqlite::types::Value as SqlValue;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::State;
 use ts_rs::TS;
@@ -154,7 +154,7 @@ pub fn clear_all_dirty_tables(state: State<'_, AppState>) -> Result<(), Database
     })
 }
 
-/// Gets all CRDT-enabled tables (tables with haex_tombstone column)
+/// Gets all CRDT-enabled tables (tables with a `haex_hlc` column).
 #[tauri::command]
 pub fn get_all_crdt_tables(state: State<'_, AppState>) -> Result<Vec<String>, DatabaseError> {
     use crate::database::init::discover_crdt_tables;
@@ -180,9 +180,6 @@ pub struct RemoteColumnChange {
     pub row_pks: String, // JSON string
     pub column_name: String,
     pub hlc_timestamp: String,
-    pub batch_id: String,
-    pub batch_seq: usize,
-    pub batch_total: usize,
     pub decrypted_value: JsonValue, // Already decrypted in frontend
 }
 
@@ -285,62 +282,27 @@ fn create_conflict_entry(
     Ok(())
 }
 
-/// Validates that all parts of each batch are present
-fn validate_batch_completeness(changes: &[RemoteColumnChange]) -> Result<(), DatabaseError> {
-    use std::collections::{HashMap, HashSet};
-
-    // Group changes by batch_id
-    let mut batches: HashMap<String, HashSet<usize>> = HashMap::new();
-    let mut batch_totals: HashMap<String, usize> = HashMap::new();
-
+/// Groups a flat list of column changes into transaction-HLC groups and
+/// returns them sorted ascending by HLC. All writes issued inside the same
+/// sender-side transaction share a timestamp, so `hlc_timestamp` is the
+/// semantic grouping key — there is no separate batch id anymore.
+fn group_by_transaction_hlc(
+    changes: Vec<RemoteColumnChange>,
+) -> Vec<(String, Vec<RemoteColumnChange>)> {
+    let mut groups: HashMap<String, Vec<RemoteColumnChange>> = HashMap::new();
     for change in changes {
-        batches
-            .entry(change.batch_id.clone())
-            .or_insert_with(HashSet::new)
-            .insert(change.batch_seq);
-
-        // Store batch_total (should be same for all changes in a batch)
-        batch_totals.insert(change.batch_id.clone(), change.batch_total);
+        groups
+            .entry(change.hlc_timestamp.clone())
+            .or_default()
+            .push(change);
     }
 
-    // Validate each batch
-    for (batch_id, seq_numbers) in batches {
-        let expected_total = batch_totals.get(&batch_id).copied().unwrap_or(0);
-
-        // Check if we have all sequence numbers from 1 to batch_total
-        if seq_numbers.len() != expected_total {
-            return Err(DatabaseError::ExecutionError {
-                sql: "batch validation".to_string(),
-                reason: format!(
-                    "Incomplete batch {}: expected {} changes, got {}",
-                    batch_id,
-                    expected_total,
-                    seq_numbers.len()
-                ),
-                table: None,
-            });
-        }
-
-        // Check if sequence numbers are 1..=batch_total
-        for seq in 1..=expected_total {
-            if !seq_numbers.contains(&seq) {
-                return Err(DatabaseError::ExecutionError {
-                    sql: "batch validation".to_string(),
-                    reason: format!(
-                        "Missing sequence number {} in batch {} (total: {})",
-                        seq, batch_id, expected_total
-                    ),
-                    table: None,
-                });
-            }
-        }
-    }
-
-    Ok(())
+    let mut ordered: Vec<(String, Vec<RemoteColumnChange>)> = groups.into_iter().collect();
+    ordered.sort_by(|a, b| crate::crdt::hlc::compare_hlc_strings(&a.0, &b.0));
+    ordered
 }
 
-/// Applies remote changes in a single transaction
-/// Validates batch completeness before applying changes
+/// Applies remote changes in a single transaction, with HLC-ordered grouping.
 /// Note: lastPullServerTimestamp is now updated by the TypeScript layer after successful apply
 #[tauri::command]
 pub fn apply_remote_changes_in_transaction(
@@ -367,6 +329,107 @@ pub fn apply_remote_changes_in_transaction(
 /// received remote timestamp after applying all changes. This ensures future local
 /// operations generate timestamps strictly greater than any received remote timestamp,
 /// preventing incomplete rows on the server during push.
+/// Applies pending delete-log entries to their target tables.
+///
+/// For each row id in `delete_log_ids`, reads `(table_name, row_pks)` from
+/// `haex_deleted_rows` and issues a `DELETE` on the target table. Assumes the
+/// caller has already disabled CRDT triggers (`triggers_enabled = 0`), so the
+/// DELETE does not re-append to the delete-log.
+fn propagate_deleted_rows_to_target_tables(
+    tx: &rusqlite::Transaction,
+    delete_log_ids: &HashSet<String>,
+) -> Result<(), DatabaseError> {
+    for id in delete_log_ids {
+        let result = tx.query_row(
+            &format!(
+                "SELECT table_name, row_pks FROM \"{}\" WHERE id = ?1",
+                DELETED_ROWS_TABLE
+            ),
+            params![id],
+            |row| {
+                let table_name: String = row.get(0)?;
+                let row_pks: String = row.get(1)?;
+                Ok((table_name, row_pks))
+            },
+        );
+
+        let (target_table, row_pks_json) = match result {
+            Ok(r) => r,
+            Err(rusqlite::Error::QueryReturnedNoRows) => continue,
+            Err(e) => return Err(DatabaseError::from(e)),
+        };
+
+        if !is_safe_identifier(&target_table) {
+            eprintln!(
+                "[SYNC RUST] Skipping propagation for unsafe target table: {}",
+                target_table
+            );
+            continue;
+        }
+
+        let row_pks: serde_json::Map<String, JsonValue> = match serde_json::from_str(&row_pks_json) {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!(
+                    "[SYNC RUST] Invalid row_pks JSON for delete-log {}: {}",
+                    id, e
+                );
+                continue;
+            }
+        };
+
+        if row_pks.is_empty() {
+            continue;
+        }
+
+        let mut where_parts: Vec<String> = Vec::new();
+        let mut values: Vec<JsonValue> = Vec::new();
+        for (col_name, value) in &row_pks {
+            if !is_safe_identifier(col_name) {
+                eprintln!("[SYNC RUST] Skipping unsafe PK column: {}", col_name);
+                continue;
+            }
+            match value {
+                JsonValue::Null => {
+                    where_parts.push(format!("\"{}\" IS NULL", col_name));
+                }
+                _ => {
+                    where_parts.push(format!("\"{}\" = ?", col_name));
+                    values.push(value.clone());
+                }
+            }
+        }
+
+        let delete_sql = format!(
+            "DELETE FROM \"{}\" WHERE {}",
+            target_table,
+            where_parts.join(" AND ")
+        );
+        let sql_params = json_values_to_sql_params(&values)?;
+        let param_refs: Vec<&dyn rusqlite::ToSql> =
+            sql_params.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
+
+        match tx.execute(&delete_sql, param_refs.as_slice()) {
+            Ok(n) => {
+                if n > 0 {
+                    eprintln!(
+                        "[SYNC RUST] Delete-log propagation: removed {} row(s) from '{}'",
+                        n, target_table
+                    );
+                }
+            }
+            Err(e) => {
+                eprintln!(
+                    "[SYNC RUST] Delete-log propagation failed for '{}': {}",
+                    target_table, e
+                );
+                // Fall through — do not abort the whole sync on a single failure
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn apply_remote_changes_to_db(
     db: &crate::database::DbConnection,
     changes: Vec<RemoteColumnChange>,
@@ -380,10 +443,13 @@ pub fn apply_remote_changes_to_db(
         backend_info.map(|(id, _)| id).unwrap_or("local-delivery"),
     );
 
-    // Validate batch completeness
-    eprintln!("[SYNC RUST] Validating batch completeness...");
-    validate_batch_completeness(&changes)?;
-    eprintln!("[SYNC RUST] Batch validation passed");
+    // Group changes by transaction-HLC and apply groups in ascending HLC order
+    // so cross-table transactions (e.g. parent + child insert) land together.
+    let grouped = group_by_transaction_hlc(changes);
+    let changes: Vec<RemoteColumnChange> = grouped
+        .into_iter()
+        .flat_map(|(_hlc, group)| group.into_iter())
+        .collect();
 
     // Validate all table and column names from remote changes to prevent SQL injection
     for change in &changes {
@@ -434,8 +500,21 @@ pub fn apply_remote_changes_to_db(
         // Also collect all HLC timestamps for advancing the local clock after applying.
         let mut row_changes: HashMap<(String, String), Vec<RemoteColumnChange>> = HashMap::new();
         let mut all_hlc_timestamps: Vec<String> = Vec::new();
+        // Collect IDs of haex_deleted_rows entries that arrive in this batch so we
+        // can apply the corresponding DELETE on the target table after the apply
+        // loop (triggers are still disabled at that point).
+        let mut inbound_delete_log_ids: HashSet<String> = HashSet::new();
         for change in changes {
             all_hlc_timestamps.push(change.hlc_timestamp.clone());
+            if change.table_name == DELETED_ROWS_TABLE {
+                if let Ok(map) =
+                    serde_json::from_str::<serde_json::Map<String, JsonValue>>(&change.row_pks)
+                {
+                    if let Some(JsonValue::String(id)) = map.get("id") {
+                        inbound_delete_log_ids.insert(id.clone());
+                    }
+                }
+            }
             let key = (change.table_name.clone(), change.row_pks.clone());
             row_changes.entry(key).or_insert_with(Vec::new).push(change);
         }
@@ -458,7 +537,7 @@ pub fn apply_remote_changes_to_db(
                 continue;
             }
 
-            // Ensure table has CRDT columns (haex_timestamp, haex_column_hlcs, haex_tombstone)
+            // Ensure table has CRDT columns (haex_hlc, haex_column_hlcs)
             // This handles tables created in dev mode that don't have CRDT columns yet.
             // When sync data arrives, we know it's from a production extension, so we need CRDT.
             let has_hlcs_column = schema.iter().any(|col| col.name == "haex_column_hlcs");
@@ -585,24 +664,6 @@ pub fn apply_remote_changes_to_db(
 
             // Only apply if there are columns to update
             if !columns_to_update.is_empty() {
-                // Skip tombstone-only changes for rows that don't exist locally.
-                // This can happen when a row was created and deleted on another device
-                // before this device pulled the original insert — only the tombstone
-                // arrives because the data columns have an older server timestamp.
-                // Inserting a tombstone for a non-existent row is semantically a no-op.
-                if !row_exists {
-                    let is_tombstone_only = columns_to_update.len() == 1
-                        && columns_to_update[0].0 == TOMBSTONE_COLUMN
-                        && columns_to_update[0].1 == JsonValue::from(1);
-                    if is_tombstone_only {
-                        eprintln!(
-                            "[SYNC RUST] Skipping tombstone-only insert for non-existent row in '{}' — row was never seen locally",
-                            first_change.table_name
-                        );
-                        continue;
-                    }
-                }
-
                 let new_hlcs_json = serde_json::to_string(&column_hlcs).map_err(|e| {
                     DatabaseError::SerializationError {
                         reason: format!("Failed to serialize column HLCs: {}", e),
@@ -617,7 +678,7 @@ pub fn apply_remote_changes_to_db(
                         .collect();
 
                     let update_sql = format!(
-                        "UPDATE \"{}\" SET {}, haex_column_hlcs = ?, haex_timestamp = ? WHERE {}",
+                        "UPDATE \"{}\" SET {}, haex_column_hlcs = ?, haex_hlc = ? WHERE {}",
                         first_change.table_name,
                         set_clauses.join(", "),
                         pk_where_clause
@@ -779,6 +840,16 @@ pub fn apply_remote_changes_to_db(
                     }
                 }
             }
+        }
+
+        // Propagate delete-log entries received in this batch to their target tables.
+        // Triggers are still disabled, so the DELETEs won't re-log into haex_deleted_rows.
+        if !inbound_delete_log_ids.is_empty() {
+            eprintln!(
+                "[SYNC RUST] Propagating {} delete-log entries to target tables",
+                inbound_delete_log_ids.len()
+            );
+            propagate_deleted_rows_to_target_tables(&tx, &inbound_delete_log_ids)?;
         }
 
         // Update lastPushHlcTimestamp for this backend to prevent re-pushing the data we just pulled

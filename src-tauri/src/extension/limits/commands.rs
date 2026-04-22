@@ -78,7 +78,7 @@ pub fn get_extension_limits(
         // Check if custom limits exist
         let custom_exists: bool = conn
             .query_row(
-                "SELECT 1 FROM haex_extension_limits WHERE extension_id = ? AND IFNULL(haex_tombstone, 0) = 0",
+                "SELECT 1 FROM haex_extension_limits WHERE extension_id = ?",
                 [&extension_id],
                 |_| Ok(true),
             )
@@ -161,7 +161,7 @@ pub fn update_extension_limits(
         // Check if record exists
         let exists: bool = tx
             .query_row(
-                "SELECT 1 FROM haex_extension_limits WHERE extension_id = ? AND IFNULL(haex_tombstone, 0) = 0",
+                "SELECT 1 FROM haex_extension_limits WHERE extension_id = ?",
                 [&request.extension_id],
                 |_| Ok(true),
             )
@@ -242,7 +242,7 @@ pub fn reset_extension_limits(
             reason: "Failed to lock HLC service".to_string(),
         })?;
 
-        // Soft delete existing record (DELETE is transformed to UPDATE haex_tombstone = 1)
+        // Hard-delete the existing record. The BEFORE-DELETE trigger logs it to haex_deleted_rows.
         let sql = "DELETE FROM haex_extension_limits WHERE extension_id = ?";
         let params: Vec<serde_json::Value> = vec![serde_json::json!(extension_id)];
 

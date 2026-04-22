@@ -347,7 +347,7 @@ pub fn execute_sql_with_context(
             reason: "Failed to lock HLC service".to_string(),
         })?;
 
-        // Note: CRDT transformation (adding haex_timestamp) is handled by
+        // Note: CRDT transformation (adding haex_hlc) is handled by
         // SqlExecutor::execute_internal_typed / query_internal_typed.
         // Do NOT transform here to avoid double transformation!
 

@@ -24,6 +24,57 @@ const POLL_INTERVAL: Duration = Duration::from_secs(5);
 /// Maximum backoff duration for reconnection attempts.
 const MAX_RECONNECT_BACKOFF: Duration = Duration::from_secs(60);
 
+/// Soft cap for changes per QUIC push request. Mirrors the HTTP path's
+/// `PUSH_CHUNK_SOFT_LIMIT` — see `src/stores/sync/orchestrator/push.ts`.
+/// A single transaction-HLC group larger than this is still sent in one
+/// request rather than split.
+const PUSH_CHUNK_SOFT_LIMIT: usize = 2000;
+
+/// Splits an HLC-sorted slice of local changes into HLC-aligned chunks.
+///
+/// Contract matches the TypeScript `chunkChangesByHlc`:
+/// - Input must be sorted by hlc_timestamp ascending.
+/// - An HLC group is never split between chunks.
+/// - A group larger than `soft_limit` becomes its own oversized chunk.
+fn chunk_changes_by_hlc(
+    changes: &[LocalColumnChange],
+    soft_limit: usize,
+) -> Vec<&[LocalColumnChange]> {
+    if changes.is_empty() {
+        return Vec::new();
+    }
+
+    let mut chunks: Vec<&[LocalColumnChange]> = Vec::new();
+    let mut chunk_start = 0usize;
+    let mut group_start = 0usize;
+    let mut chunk_len = 0usize;
+
+    for i in 1..=changes.len() {
+        let boundary = i == changes.len()
+            || changes[i].hlc_timestamp != changes[i - 1].hlc_timestamp;
+        if !boundary {
+            continue;
+        }
+
+        let group_size = i - group_start;
+        // Would appending the completed group exceed the limit? If so, emit
+        // the current chunk first. A group bigger than `soft_limit` still
+        // goes into one chunk — HLC atomicity trumps chunk size.
+        if chunk_len > 0 && chunk_len + group_size > soft_limit {
+            chunks.push(&changes[chunk_start..group_start]);
+            chunk_start = group_start;
+            chunk_len = 0;
+        }
+        chunk_len += group_size;
+        group_start = i;
+    }
+
+    if chunk_len > 0 {
+        chunks.push(&changes[chunk_start..]);
+    }
+    chunks
+}
+
 /// Handle to a running sync loop. Call `stop()` to terminate.
 pub struct SyncLoopHandle {
     stop_sender: watch::Sender<bool>,
@@ -98,20 +149,12 @@ pub async fn start_peer_sync_loop(
 }
 
 /// Convert a `LocalColumnChange` to a `RemoteColumnChange` for the apply function.
-pub fn local_to_remote_change(
-    local: &LocalColumnChange,
-    batch_id: &str,
-    seq: usize,
-    total: usize,
-) -> RemoteColumnChange {
+pub fn local_to_remote_change(local: &LocalColumnChange) -> RemoteColumnChange {
     RemoteColumnChange {
         table_name: local.table_name.clone(),
         row_pks: local.row_pks.clone(),
         column_name: local.column_name.clone(),
         hlc_timestamp: local.hlc_timestamp.clone(),
-        batch_id: batch_id.to_string(),
-        batch_seq: seq,
-        batch_total: total,
         decrypted_value: local.value.clone(),
     }
 }
@@ -258,37 +301,49 @@ async fn run_sync_cycle(
     })?;
 
     if !changes.is_empty() {
+        // Chunk at HLC boundaries so a transaction-HLC group is never split
+        // across QUIC requests. The scanner already returns changes sorted
+        // by hlc_timestamp globally, so a single linear pass is enough.
+        let chunks = chunk_changes_by_hlc(&changes, PUSH_CHUNK_SOFT_LIMIT);
+
         eprintln!(
-            "[SyncLoop] Pushing {} changes for space {}",
+            "[SyncLoop] Pushing {} changes in {} HLC-aligned chunk(s) for space {}",
             changes.len(),
+            chunks.len(),
             space_id
         );
 
-        // Collect affected table names and the max HLC before push
+        // Collect affected table names and the max HLC across all chunks —
+        // used for dirty-table cleanup after every chunk succeeded.
         let pushed_table_names: HashSet<String> = changes
             .iter()
             .map(|c| c.table_name.clone())
             .collect();
 
-        let max_hlc = hlc_max(changes.iter().map(|c| c.hlc_timestamp.as_str()))
-            .unwrap_or("")
-            .to_string();
-
-        // Record the current timestamp for clearing dirty tables
+        // Record the timestamp for clearing dirty tables.
         let push_timestamp = sqlite_datetime_now();
 
-        let changes_json = serde_json::to_value(&changes).map_err(|e| {
-            DeliveryError::ProtocolError {
-                reason: format!("Failed to serialize changes: {}", e),
-            }
-        })?;
+        for (idx, chunk) in chunks.iter().enumerate() {
+            let chunk_max_hlc = hlc_max(chunk.iter().map(|c| c.hlc_timestamp.as_str()))
+                .unwrap_or("")
+                .to_string();
 
-        session.push_changes(space_id, changes_json).await?;
+            let chunk_json = serde_json::to_value(chunk).map_err(|e| {
+                DeliveryError::ProtocolError {
+                    reason: format!("Failed to serialize chunk {}: {}", idx, e),
+                }
+            })?;
 
-        // Update last_push_hlc to the max HLC from pushed changes
-        *last_push_hlc = Some(max_hlc);
+            session.push_changes(space_id, chunk_json).await?;
 
-        // Clear dirty tables for the tables we just pushed
+            // Checkpoint after each successful chunk so a later failure does
+            // not re-push completed groups. The scanner will pick up whatever
+            // remains on the next cycle.
+            *last_push_hlc = Some(chunk_max_hlc);
+        }
+
+        // Clear dirty tables only after the whole batch succeeded. Any mid-
+        // loop failure leaves them dirty so the scanner re-emits the groups.
         for table_name in &pushed_table_names {
             if let Err(e) = clear_dirty_table_inner(db, table_name, Some(&push_timestamp)) {
                 eprintln!(
@@ -321,15 +376,10 @@ async fn run_sync_cycle(
                 })?;
 
             if !remote_locals.is_empty() {
-                // Generate a batch ID for this pull
-                let batch_id = uuid::Uuid::new_v4().to_string();
-                let total = remote_locals.len();
-
-                // Convert LocalColumnChange -> RemoteColumnChange
+                // Convert LocalColumnChange -> RemoteColumnChange (HLC is the grouping key)
                 let remote_changes: Vec<RemoteColumnChange> = remote_locals
                     .iter()
-                    .enumerate()
-                    .map(|(i, local)| local_to_remote_change(local, &batch_id, i + 1, total))
+                    .map(local_to_remote_change)
                     .collect();
 
                 // Find the max HLC from pulled changes
