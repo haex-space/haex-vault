@@ -1,15 +1,28 @@
 //! Peer-side logic: connecting to leader, sending/receiving sync data.
 
+use crate::database::DbConnection;
+
 use super::error::DeliveryError;
 use super::protocol::{self, Request, Response};
+use super::ucan::load_active_ucan_for_audience;
 
 /// A connected peer session with the leader.
+///
+/// The UCAN token passed on `connect` is stored and attached to every
+/// space-scoped request (Announce, SyncPush, SyncPull). The leader verifies
+/// the token against the target space on each call — so even a hijacked
+/// connection cannot pull or push data without a valid delegation.
 pub struct PeerSession {
     conn: iroh::endpoint::Connection,
+    ucan_token: String,
 }
 
 impl PeerSession {
     /// Connect to a leader and announce our identity.
+    ///
+    /// The UCAN token is resolved from `db` at the moment of connect. This
+    /// means a reconnect after UCAN expiry picks up the freshly delegated
+    /// token automatically, without any process restart or cache warming.
     pub async fn connect(
         iroh_endpoint: &iroh::Endpoint,
         leader_endpoint_id: &str,
@@ -18,7 +31,15 @@ impl PeerSession {
         our_did: &str,
         our_endpoint_id: &str,
         label: Option<&str>,
+        db: &DbConnection,
     ) -> Result<Self, DeliveryError> {
+        let ucan_token = load_active_ucan_for_audience(db, space_id, our_did)?
+            .ok_or_else(|| DeliveryError::AccessDenied {
+                reason: format!(
+                    "No active UCAN token for space {} audience {} — cannot connect",
+                    space_id, our_did
+                ),
+            })?;
         let remote_id: iroh::EndpointId =
             leader_endpoint_id
                 .parse()
@@ -41,7 +62,7 @@ impl PeerSession {
                 reason: e.to_string(),
             })?;
 
-        let session = Self { conn };
+        let session = Self { conn, ucan_token };
 
         // Send Announce request
         let req = Request::Announce {
@@ -50,6 +71,7 @@ impl PeerSession {
             space_id: space_id.to_string(),
             label: label.map(|s| s.to_string()),
             claims: None,
+            ucan_token: session.ucan_token.clone(),
         };
 
         let resp = session.request(req).await?;
@@ -104,6 +126,7 @@ impl PeerSession {
         let req = Request::SyncPush {
             space_id: space_id.to_string(),
             changes,
+            ucan_token: self.ucan_token.clone(),
         };
         match self.request(req).await? {
             Response::Ok => Ok(()),
@@ -123,6 +146,7 @@ impl PeerSession {
         let req = Request::SyncPull {
             space_id: space_id.to_string(),
             after_timestamp: after_timestamp.map(|s| s.to_string()),
+            ucan_token: self.ucan_token.clone(),
         };
         match self.request(req).await? {
             Response::SyncChanges { changes } => Ok(changes),
@@ -232,11 +256,10 @@ impl PeerSession {
     pub async fn request_rejoin(
         &self,
         space_id: &str,
-        ucan_token: &str,
     ) -> Result<String, DeliveryError> {
         let req = Request::RequestRejoin {
             space_id: space_id.to_string(),
-            ucan_token: ucan_token.to_string(),
+            ucan_token: self.ucan_token.clone(),
         };
         match self.request(req).await? {
             Response::GroupInfo { group_info } => Ok(group_info),
@@ -252,12 +275,11 @@ impl PeerSession {
         &self,
         space_id: &str,
         commit_b64: &str,
-        ucan_token: &str,
     ) -> Result<(), DeliveryError> {
         let req = Request::SubmitExternalCommit {
             space_id: space_id.to_string(),
             commit: commit_b64.to_string(),
-            ucan_token: ucan_token.to_string(),
+            ucan_token: self.ucan_token.clone(),
         };
         match self.request(req).await? {
             Response::Ok => Ok(()),

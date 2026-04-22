@@ -1,13 +1,50 @@
 // src-tauri/src/extension/database/executor.rs
 
 use super::planner::SqlExecutionPlanner;
-use crate::crdt::hlc::HlcService;
+use crate::crdt::hlc::{HlcError, HlcService};
 use crate::crdt::transformer::CrdtTransformer;
+use crate::crdt::trigger::HLC_FUNCTION_NAME;
 use crate::database::core::{convert_value_ref_to_json, strip_main_schema_prefix};
 use crate::database::error::DatabaseError;
 use rusqlite::{params_from_iter, ToSql, Transaction};
 use serde_json::Value as JsonValue;
 use std::collections::HashSet;
+use std::str::FromStr;
+use uhlc::Timestamp;
+
+/// Returns the transaction-scoped HLC for this statement. All statements that
+/// run inside the same `Transaction` get the same timestamp because the
+/// `current_hlc()` UDF caches it in the per-connection slot until commit or
+/// rollback clears it.
+///
+/// The returned timestamp is also fed back into the HLC service (so the clock
+/// keeps advancing across transactions) and persisted to `haex_crdt_configs`.
+fn tx_scoped_hlc(
+    tx: &Transaction,
+    hlc_service: &HlcService,
+) -> Result<Timestamp, DatabaseError> {
+    let hlc_str: String = tx
+        .query_row(&format!("SELECT {HLC_FUNCTION_NAME}()"), [], |row| row.get(0))
+        .map_err(|e| DatabaseError::HlcError {
+            reason: format!("Failed to read {HLC_FUNCTION_NAME}(): {e}"),
+        })?;
+
+    let timestamp = Timestamp::from_str(&hlc_str).map_err(|e| DatabaseError::HlcError {
+        reason: format!("Invalid HLC from UDF: {e:?}"),
+    })?;
+
+    // Align the HlcService instance with the tx-slot value so later code paths
+    // that draw from hlc_service keep monotonic with what we just handed out.
+    hlc_service
+        .update_with_timestamp(&timestamp)
+        .map_err(|e: HlcError| DatabaseError::HlcError { reason: e.to_string() })?;
+
+    HlcService::persist_timestamp(tx, &timestamp).map_err(|e| DatabaseError::HlcError {
+        reason: e.to_string(),
+    })?;
+
+    Ok(timestamp)
+}
 
 /// SQL-Executor OHNE Berechtigungsprüfung - für interne Nutzung
 pub struct SqlExecutor;
@@ -28,12 +65,7 @@ impl SqlExecutor {
         let mut statement = SqlExecutionPlanner::parse_single_statement(sql)?;
 
         let transformer = CrdtTransformer::new();
-        let hlc_timestamp =
-            hlc_service
-                .new_timestamp_and_persist(tx)
-                .map_err(|e| DatabaseError::HlcError {
-                    reason: e.to_string(),
-                })?;
+        let hlc_timestamp = tx_scoped_hlc(tx, hlc_service)?;
 
         let mut modified_schema_tables = HashSet::new();
         if let Some(table_name) =
@@ -68,12 +100,7 @@ impl SqlExecutor {
         let mut statement = SqlExecutionPlanner::parse_single_statement(sql)?;
 
         let transformer = CrdtTransformer::new();
-        let hlc_timestamp =
-            hlc_service
-                .new_timestamp_and_persist(tx)
-                .map_err(|e| DatabaseError::HlcError {
-                    reason: e.to_string(),
-                })?;
+        let hlc_timestamp = tx_scoped_hlc(tx, hlc_service)?;
 
         let mut modified_schema_tables = HashSet::new();
         if let Some(table_name) =

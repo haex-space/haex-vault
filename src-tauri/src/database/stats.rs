@@ -1,6 +1,6 @@
 // src-tauri/src/database/stats.rs
 
-use crate::crdt::trigger::TOMBSTONE_COLUMN;
+use crate::crdt::trigger::DELETED_ROWS_TABLE;
 use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
 use crate::table_names::TABLE_CRDT_DIRTY_TABLES;
@@ -152,7 +152,7 @@ fn get_database_size(conn: &Connection) -> Result<u64, DatabaseError> {
 /// Get all installed extensions from haex_extensions table
 fn get_installed_extensions(conn: &Connection) -> Result<Vec<InstalledExtension>, DatabaseError> {
     let mut stmt = conn
-        .prepare("SELECT id, public_key, name FROM haex_extensions WHERE haex_tombstone = 0 OR haex_tombstone IS NULL")
+        .prepare("SELECT id, public_key, name FROM haex_extensions")
         .map_err(|e| DatabaseError::ExecutionError {
             sql: "SELECT extensions".to_string(),
             reason: e.to_string(),
@@ -217,28 +217,23 @@ fn get_table_statistics(conn: &Connection) -> Result<Vec<TableStats>, DatabaseEr
         .filter_map(Result::ok)
         .collect();
 
-    for table_name in table_names {
-        // Check if this table has a haex_tombstone column (CRDT-enabled)
-        let has_tombstone: bool = conn
-            .prepare(&format!("PRAGMA table_info(\"{}\")", table_name))
-            .map_err(|e| DatabaseError::ExecutionError {
-                sql: format!("PRAGMA table_info({})", table_name),
-                reason: e.to_string(),
-                table: Some(table_name.clone()),
-            })?
-            .query_map([], |row| {
-                let col_name: String = row.get(1)?;
-                Ok(col_name == TOMBSTONE_COLUMN)
-            })
-            .map_err(|e| DatabaseError::ExecutionError {
-                sql: "query columns".to_string(),
-                reason: e.to_string(),
-                table: Some(table_name.clone()),
-            })?
-            .filter_map(Result::ok)
-            .any(|x| x);
+    // Count delete-log entries per target table; tombstones are not in the main
+    // tables anymore.
+    let mut tombstone_counts: HashMap<String, i64> = HashMap::new();
+    if let Ok(mut stmt) = conn.prepare(&format!(
+        "SELECT table_name, COUNT(*) FROM \"{}\" GROUP BY table_name",
+        DELETED_ROWS_TABLE
+    )) {
+        if let Ok(rows) = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        }) {
+            for row in rows.filter_map(Result::ok) {
+                tombstone_counts.insert(row.0, row.1);
+            }
+        }
+    }
 
-        // Count rows
+    for table_name in table_names {
         let total_rows: i64 = conn
             .query_row(
                 &format!("SELECT COUNT(*) FROM \"{}\"", table_name),
@@ -247,44 +242,13 @@ fn get_table_statistics(conn: &Connection) -> Result<Vec<TableStats>, DatabaseEr
             )
             .unwrap_or(0);
 
-        if has_tombstone {
-            let active_rows: i64 = conn
-                .query_row(
-                    &format!(
-                        "SELECT COUNT(*) FROM \"{}\" WHERE {} = 0 OR {} IS NULL",
-                        table_name, TOMBSTONE_COLUMN, TOMBSTONE_COLUMN
-                    ),
-                    [],
-                    |row| row.get(0),
-                )
-                .unwrap_or(0);
-
-            let tombstone_rows: i64 = conn
-                .query_row(
-                    &format!(
-                        "SELECT COUNT(*) FROM \"{}\" WHERE {} = 1",
-                        table_name, TOMBSTONE_COLUMN
-                    ),
-                    [],
-                    |row| row.get(0),
-                )
-                .unwrap_or(0);
-
-            stats.push(TableStats {
-                name: table_name,
-                total_rows,
-                active_rows,
-                tombstone_rows,
-            });
-        } else {
-            // Non-CRDT tables (e.g. _no_sync): all rows are active, no tombstones
-            stats.push(TableStats {
-                name: table_name,
-                total_rows,
-                active_rows: total_rows,
-                tombstone_rows: 0,
-            });
-        }
+        let tombstone_rows = *tombstone_counts.get(&table_name).unwrap_or(&0);
+        stats.push(TableStats {
+            name: table_name,
+            total_rows,
+            active_rows: total_rows,
+            tombstone_rows,
+        });
     }
 
     Ok(stats)
@@ -315,14 +279,10 @@ fn get_pending_sync(conn: &Connection) -> Result<Vec<PendingSyncInfo>, DatabaseE
     for row in rows.filter_map(Result::ok) {
         let (table_name, last_modified) = row;
 
-        // Estimate pending rows (rows modified since last sync)
-        // This is an approximation - we count all non-tombstoned rows for simplicity
+        // Estimate pending rows as the total row count in the dirty table.
         let pending_rows: i64 = conn
             .query_row(
-                &format!(
-                    "SELECT COUNT(*) FROM \"{}\" WHERE {} = 0",
-                    table_name, TOMBSTONE_COLUMN
-                ),
+                &format!("SELECT COUNT(*) FROM \"{}\"", table_name),
                 [],
                 |row| row.get(0),
             )
@@ -338,98 +298,37 @@ fn get_pending_sync(conn: &Connection) -> Result<Vec<PendingSyncInfo>, DatabaseE
     Ok(pending)
 }
 
-/// Get tombstone entries (limited)
+/// Get the most recent delete-log entries.
 fn get_tombstone_entries(
     conn: &Connection,
-    table_stats: &[TableStats],
+    _table_stats: &[TableStats],
     limit: usize,
 ) -> Result<Vec<TombstoneEntry>, DatabaseError> {
-    let mut tombstones = Vec::new();
+    let query = format!(
+        "SELECT table_name, row_pks, haex_hlc FROM \"{}\" ORDER BY haex_hlc DESC LIMIT ?",
+        DELETED_ROWS_TABLE
+    );
 
-    for table in table_stats {
-        if table.tombstone_rows == 0 {
-            continue;
-        }
+    let mut stmt = match conn.prepare(&query) {
+        Ok(s) => s,
+        Err(_) => return Ok(Vec::new()),
+    };
 
-        // Get primary key columns for this table
-        let pk_columns: Vec<String> = conn
-            .prepare(&format!("PRAGMA table_info(\"{}\")", table.name))
-            .map_err(|e| DatabaseError::ExecutionError {
-                sql: format!("PRAGMA table_info({})", table.name),
-                reason: e.to_string(),
-                table: Some(table.name.clone()),
-            })?
-            .query_map([], |row| {
-                let name: String = row.get(1)?;
-                let is_pk: i32 = row.get(5)?;
-                Ok((name, is_pk > 0))
+    let rows = stmt
+        .query_map([limit as i64], |row| {
+            Ok(TombstoneEntry {
+                table_name: row.get(0)?,
+                primary_key: row.get(1)?,
+                deleted_at: row.get(2)?,
             })
-            .map_err(|e| DatabaseError::ExecutionError {
-                sql: "query pk columns".to_string(),
-                reason: e.to_string(),
-                table: Some(table.name.clone()),
-            })?
-            .filter_map(Result::ok)
-            .filter(|(_, is_pk)| *is_pk)
-            .map(|(name, _)| name)
-            .collect();
+        })
+        .map_err(|e| DatabaseError::ExecutionError {
+            sql: query.clone(),
+            reason: e.to_string(),
+            table: Some(DELETED_ROWS_TABLE.to_string()),
+        })?;
 
-        if pk_columns.is_empty() {
-            continue;
-        }
-
-        // Get tombstoned entries
-        let pk_select = pk_columns.join(", ");
-        let query = format!(
-            "SELECT {}, haex_timestamp FROM \"{}\" WHERE {} = 1 ORDER BY haex_timestamp DESC LIMIT ?",
-            pk_select, table.name, TOMBSTONE_COLUMN
-        );
-
-        let remaining = limit.saturating_sub(tombstones.len());
-        if remaining == 0 {
-            break;
-        }
-
-        let mut stmt = conn
-            .prepare(&query)
-            .map_err(|e| DatabaseError::ExecutionError {
-                sql: query.clone(),
-                reason: e.to_string(),
-                table: Some(table.name.clone()),
-            })?;
-
-        let rows = stmt
-            .query_map([remaining as i64], |row| {
-                // Build PK JSON
-                let mut pk_values = serde_json::Map::new();
-                for (i, col) in pk_columns.iter().enumerate() {
-                    if let Ok(val) = row.get::<_, String>(i) {
-                        pk_values.insert(col.clone(), serde_json::Value::String(val));
-                    }
-                }
-                let timestamp: String = row.get(pk_columns.len())?;
-                Ok((
-                    serde_json::to_string(&pk_values).unwrap_or_default(),
-                    timestamp,
-                ))
-            })
-            .map_err(|e| DatabaseError::ExecutionError {
-                sql: "query tombstones".to_string(),
-                reason: e.to_string(),
-                table: Some(table.name.clone()),
-            })?;
-
-        for row in rows.filter_map(Result::ok) {
-            let (primary_key, deleted_at) = row;
-            tombstones.push(TombstoneEntry {
-                table_name: table.name.clone(),
-                primary_key,
-                deleted_at,
-            });
-        }
-    }
-
-    Ok(tombstones)
+    Ok(rows.filter_map(Result::ok).collect())
 }
 
 /// Gets comprehensive database information

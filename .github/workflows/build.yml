@@ -3,10 +3,7 @@ name: Build
 on:
   push:
     branches:
-      - main
-      - develop
-      - release
-      - 'feature/**'
+      - '**'
     tags-ignore:
       - '**'
   pull_request:
@@ -63,7 +60,7 @@ jobs:
       - name: Fetch Dependabot metadata
         if: github.actor == 'dependabot[bot]' && github.event_name == 'pull_request'
         id: dep-meta
-        uses: dependabot/fetch-metadata@v2
+        uses: dependabot/fetch-metadata@v3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 

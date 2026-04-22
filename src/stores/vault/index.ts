@@ -206,14 +206,13 @@ export const useVaultStore = defineStore('vaultStore', () => {
   }
 
   /**
-   * Performs automatic cleanup of old tombstones and applied CRDT entries.
-   * Default retention: 30 days for tombstones.
+   * Cleans up the CRDT delete-log. Default retention: 30 days.
    */
   const performAutomaticCleanupAsync = async (
     retentionDays: number = 30,
   ): Promise<CleanupResult | null> => {
     try {
-      const result = await invoke<CleanupResult>('crdt_cleanup_tombstones', {
+      const result = await invoke<CleanupResult>('crdt_cleanup_deleted_rows', {
         retentionDays,
       })
 

@@ -132,6 +132,11 @@ pub async fn local_delivery_status(state: State<'_, AppState>) -> Result<Deliver
 }
 
 /// Connect to a local space leader and start autonomous sync.
+///
+/// The UCAN token is resolved from the local DB (`haex_ucan_tokens` filtered
+/// by `(space_id, identity_did)` and non-expired) at connect and again on
+/// every reconnect. A freshly delegated token after a previous expiry takes
+/// effect without any explicit refresh call from the frontend.
 #[tauri::command]
 pub async fn local_delivery_connect(
     app: tauri::AppHandle,
@@ -329,7 +334,7 @@ pub async fn local_delivery_create_invite(
                 &leader_state.space_id,
                 &capability,
                 Some(&admin.root_ucan),
-                86400 * 365,
+                super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS,
             )
             .map_err(|e| e.to_string())?;
 
@@ -447,7 +452,9 @@ pub(crate) fn persist_claimed_ucan(
             serde_json::Value::String(p.capability.to_string()),
             serde_json::Value::String(p.token.to_string()),
             serde_json::Value::Number(serde_json::Number::from(now_secs)),
-            serde_json::Value::Number(serde_json::Number::from(now_secs + 86400 * 365)),
+            serde_json::Value::Number(serde_json::Number::from(
+                now_secs + super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS as i64,
+            )),
         ],
         db,
         hlc_guard,

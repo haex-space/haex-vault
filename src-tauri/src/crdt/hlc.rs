@@ -84,6 +84,46 @@ impl HlcService {
         }
     }
 
+    /// Initializes this instance in-place from the given DB connection.
+    ///
+    /// Unlike [`try_initialize`] this mutates the existing `Arc<Mutex<Option<HLC>>>`,
+    /// so clones held by previously registered closures (e.g. the `current_hlc`
+    /// UDF) immediately see the initialized state.
+    pub fn initialize_in_place(
+        &self,
+        conn: &Connection,
+        app_handle: &AppHandle,
+    ) -> Result<(), HlcError> {
+        let node_id_str = Self::get_or_create_device_id(app_handle)?;
+
+        let uuid = Uuid::parse_str(&node_id_str).map_err(|e| {
+            HlcError::ParseNodeId(format!(
+                "Stored device ID is not a valid UUID: {node_id_str}. Error: {e}"
+            ))
+        })?;
+
+        let node_id = ID::try_from(*uuid.as_bytes()).map_err(|e| {
+            HlcError::ParseNodeId(format!("Invalid node ID format from device store: {e:?}"))
+        })?;
+
+        let hlc = HLCBuilder::new()
+            .with_id(node_id)
+            .with_max_delta(Duration::from_secs(1))
+            .build();
+
+        if let Some(last_timestamp) = Self::load_last_timestamp(conn)? {
+            hlc.update_with_timestamp(&last_timestamp).map_err(|e| {
+                HlcError::Parse(format!(
+                    "Failed to update HLC with persisted timestamp: {e:?}"
+                ))
+            })?;
+        }
+
+        let mut slot = self.hlc.lock().map_err(|_| HlcError::MutexPoisoned)?;
+        *slot = Some(hlc);
+        Ok(())
+    }
+
     /// Factory-Funktion: Erstellt und initialisiert einen neuen HLC-Service aus einer bestehenden DB-Verbindung.
     /// Dies ist die bevorzugte Methode zur Instanziierung.
     pub fn try_initialize(conn: &Connection, app_handle: &AppHandle) -> Result<Self, HlcError> {
@@ -251,7 +291,7 @@ impl HlcService {
     }
 
     /// Persistiert einen Zeitstempel in der Datenbank innerhalb einer Transaktion.
-    fn persist_timestamp(tx: &Transaction, timestamp: &Timestamp) -> Result<(), HlcError> {
+    pub fn persist_timestamp(tx: &Transaction, timestamp: &Timestamp) -> Result<(), HlcError> {
         let timestamp_str = timestamp.to_string();
         tx.execute(
             &format!(

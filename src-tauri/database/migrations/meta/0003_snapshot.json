@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "939f24e3-9a5e-49e8-9c29-a8b687b93197",
-  "prevId": "172dbb18-1d42-4b73-b83d-35f687834b63",
+  "id": "038ae861-83f7-4e31-87f8-a68e85ab9127",
+  "prevId": "429a73b3-6dba-4cc6-addf-a53d7b547441",
   "tables": {
     "haex_desktop_items_no_sync": {
       "name": "haex_desktop_items_no_sync",
@@ -1179,6 +1179,46 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "haex_deleted_rows": {
+      "name": "haex_deleted_rows",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "table_name": {
+          "name": "table_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "row_pks": {
+          "name": "row_pks",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "haex_deleted_rows_table_row_pks_idx": {
+          "name": "haex_deleted_rows_table_row_pks_idx",
+          "columns": [
+            "table_name",
+            "row_pks"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "haex_devices": {
       "name": "haex_devices",
       "columns": {
@@ -1833,7 +1873,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -1908,7 +1948,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -1985,7 +2025,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -2062,7 +2102,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -2433,7 +2473,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -2472,8 +2512,15 @@
           "notNull": true,
           "autoincrement": false
         },
-        "extension_id": {
-          "name": "extension_id",
+        "extension_public_key": {
+          "name": "extension_public_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "extension_name": {
+          "name": "extension_name",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -2531,18 +2578,20 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "haex_shared_space_sync_extension_id_haex_extensions_id_fk": {
-          "name": "haex_shared_space_sync_extension_id_haex_extensions_id_fk",
+        "haex_shared_space_sync_extension_fk": {
+          "name": "haex_shared_space_sync_extension_fk",
           "tableFrom": "haex_shared_space_sync",
           "tableTo": "haex_extensions",
           "columnsFrom": [
-            "extension_id"
+            "extension_public_key",
+            "extension_name"
           ],
           "columnsTo": [
-            "id"
+            "public_key",
+            "name"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
@@ -2550,7 +2599,12 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "haex_shared_space_sync_extension_pair": {
+          "name": "haex_shared_space_sync_extension_pair",
+          "value": "(extension_public_key IS NULL) = (extension_name IS NULL)"
+        }
+      }
     },
     "haex_space_devices": {
       "name": "haex_space_devices",
@@ -2649,7 +2703,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         },
         "haex_space_devices_identity_id_haex_identities_id_fk": {
@@ -2985,7 +3039,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -3105,7 +3159,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         },
         "haex_sync_rules_device_id_haex_devices_id_fk": {

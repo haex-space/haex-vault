@@ -4,6 +4,10 @@
 //! - Assign/unassign their table rows to shared spaces for selective sync
 //! - List shared spaces from the local database
 
+use super::queries::{
+    SQL_DELETE_SHARED_SPACE_SYNC, SQL_INSERT_SHARED_SPACE_SYNC,
+    SQL_SHARED_SPACE_SYNC_SELECT_COLS,
+};
 use crate::database::core;
 use crate::database::error::DatabaseError;
 use crate::database::row::get_string;
@@ -13,7 +17,6 @@ use crate::extension::permissions::types::SpaceAction;
 use crate::extension::utils::{
     emit_permission_prompt_if_needed, get_extension_table_prefix, resolve_extension_id,
 };
-use crate::table_names::TABLE_SHARED_SPACE_SYNC;
 use crate::AppState;
 
 use serde::{Deserialize, Serialize};
@@ -43,7 +46,8 @@ pub struct SpaceAssignmentRow {
     pub table_name: String,
     pub row_pks: String,
     pub space_id: String,
-    pub extension_id: Option<String>,
+    pub extension_public_key: Option<String>,
+    pub extension_name: Option<String>,
     pub group_id: Option<String>,
     #[serde(rename = "type")]
     pub type_name: Option<String>,
@@ -129,21 +133,25 @@ pub async fn extension_space_assign(
         source: DatabaseError::MutexPoisoned { reason: "HLC lock poisoned".to_string() },
     })?;
 
+    // Use the authenticated extension identity (resolved above via
+    // `get_extension`), NOT the caller-provided `public_key` / `name`
+    // parameters — otherwise a compromised webview could spoof another
+    // extension's identity in the shared-space-sync routing table.
+    let ext_public_key = extension.manifest.public_key.clone();
+    let ext_name = extension.manifest.name.clone();
+
     let mut total_inserted: u64 = 0;
     for assignment in &assignments {
         let id = uuid::Uuid::new_v4().to_string();
-        let sql = format!(
-            "INSERT OR IGNORE INTO {} (id, table_name, row_pks, space_id, extension_id, group_id, type, label) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            TABLE_SHARED_SPACE_SYNC
-        );
         core::execute_with_crdt(
-            sql,
+            SQL_INSERT_SHARED_SPACE_SYNC.clone(),
             vec![
                 serde_json::Value::String(id),
                 serde_json::Value::String(assignment.table_name.clone()),
                 serde_json::Value::String(assignment.row_pks.clone()),
                 serde_json::Value::String(assignment.space_id.clone()),
-                serde_json::Value::String(extension_id.clone()),
+                serde_json::Value::String(ext_public_key.clone()),
+                serde_json::Value::String(ext_name.clone()),
                 assignment.group_id.as_ref().map_or(serde_json::Value::Null, |v| serde_json::Value::String(v.clone())),
                 assignment.type_name.as_ref().map_or(serde_json::Value::Null, |v| serde_json::Value::String(v.clone())),
                 assignment.label.as_ref().map_or(serde_json::Value::Null, |v| serde_json::Value::String(v.clone())),
@@ -204,12 +212,8 @@ pub async fn extension_space_unassign(
 
     let mut total_deleted: u64 = 0;
     for assignment in &assignments {
-        let sql = format!(
-            "DELETE FROM {} WHERE table_name = ?1 AND row_pks = ?2 AND space_id = ?3",
-            TABLE_SHARED_SPACE_SYNC
-        );
         core::execute_with_crdt(
-            sql,
+            SQL_DELETE_SHARED_SPACE_SYNC.clone(),
             vec![
                 serde_json::Value::String(assignment.table_name.clone()),
                 serde_json::Value::String(assignment.row_pks.clone()),
@@ -262,18 +266,13 @@ pub async fn extension_space_get_assignments(
 
     validate_single_table_prefix(&table_name, &prefix)?;
 
-    let select_cols = format!(
-        "SELECT id, table_name, row_pks, space_id, extension_id, group_id, type, label, created_at FROM {}",
-        TABLE_SHARED_SPACE_SYNC
-    );
-
     let (sql, params) = match &row_pks {
         Some(pks) if !pks.is_empty() => {
             let placeholders: Vec<String> =
                 (2..=pks.len() + 1).map(|i| format!("?{}", i)).collect();
             let sql = format!(
                 "{} WHERE table_name = ?1 AND row_pks IN ({})",
-                select_cols,
+                *SQL_SHARED_SPACE_SYNC_SELECT_COLS,
                 placeholders.join(", ")
             );
             let mut params = vec![serde_json::Value::String(table_name.clone())];
@@ -283,7 +282,7 @@ pub async fn extension_space_get_assignments(
             (sql, params)
         }
         _ => {
-            let sql = format!("{} WHERE table_name = ?1", select_cols);
+            let sql = format!("{} WHERE table_name = ?1", *SQL_SHARED_SPACE_SYNC_SELECT_COLS);
             (sql, vec![serde_json::Value::String(table_name.clone())])
         }
     };
@@ -298,11 +297,12 @@ pub async fn extension_space_get_assignments(
             table_name: get_string(row, 1),
             row_pks: get_string(row, 2),
             space_id: get_string(row, 3),
-            extension_id: Some(get_string(row, 4)).filter(|s| !s.is_empty()),
-            group_id: Some(get_string(row, 5)).filter(|s| !s.is_empty()),
-            type_name: Some(get_string(row, 6)).filter(|s| !s.is_empty()),
-            label: Some(get_string(row, 7)).filter(|s| !s.is_empty()),
-            created_at: Some(get_string(row, 8)).filter(|s| !s.is_empty()),
+            extension_public_key: Some(get_string(row, 4)).filter(|s| !s.is_empty()),
+            extension_name: Some(get_string(row, 5)).filter(|s| !s.is_empty()),
+            group_id: Some(get_string(row, 6)).filter(|s| !s.is_empty()),
+            type_name: Some(get_string(row, 7)).filter(|s| !s.is_empty()),
+            label: Some(get_string(row, 8)).filter(|s| !s.is_empty()),
+            created_at: Some(get_string(row, 9)).filter(|s| !s.is_empty()),
         })
         .collect();
 

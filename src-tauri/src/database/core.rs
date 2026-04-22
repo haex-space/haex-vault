@@ -3,10 +3,13 @@
 /// Statement breakpoint marker used by Drizzle migrations
 pub const DRIZZLE_STATEMENT_BREAKPOINT: &str = "--> statement-breakpoint";
 
-use crate::crdt::trigger::UUID_FUNCTION_NAME;
+use crate::crdt::hlc::HlcService;
+use crate::crdt::trigger::{HLC_FUNCTION_NAME, UUID_FUNCTION_NAME};
+use crate::database::connection_context::ConnectionContext;
 use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
 use crate::extension::database::executor::SqlExecutor;
+use crate::table_names::TABLE_CRDT_CONFIGS;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use regex::Regex;
 use rusqlite::functions::FunctionFlags;
@@ -219,8 +222,18 @@ fn strip_main_from_expr(expr: &mut Expr) {
     }
 }
 
-/// Öffnet und initialisiert eine Datenbank mit Verschlüsselung
-pub fn open_and_init_db(path: &str, key: &str, create: bool) -> Result<Connection, DatabaseError> {
+/// Öffnet und initialisiert eine Datenbank mit Verschlüsselung.
+///
+/// Registers the `gen_uuid` and `current_hlc` UDFs and wires commit/rollback
+/// hooks so the transaction-scoped HLC slot is cleared at the end of every
+/// transaction.
+pub fn open_and_init_db(
+    path: &str,
+    key: &str,
+    create: bool,
+    hlc_service: HlcService,
+    context: ConnectionContext,
+) -> Result<Connection, DatabaseError> {
     let flags = if create {
         OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE
     } else {
@@ -272,6 +285,11 @@ pub fn open_and_init_db(path: &str, key: &str, create: bool) -> Result<Connectio
         reason: format!("Failed to register {UUID_FUNCTION_NAME} function: {e}"),
     })?;
 
+    // Register transaction-scoped HLC UDF. All calls within a single SQLite
+    // transaction (explicit or auto-commit) return the same timestamp.
+    register_current_hlc_udf(&conn, hlc_service, context.clone())?;
+    install_tx_hlc_hooks(&conn, context)?;
+
     let journal_mode: String = conn
         .query_row("PRAGMA journal_mode=WAL;", [], |row| row.get(0))
         .map_err(|e| DatabaseError::PragmaError {
@@ -286,6 +304,75 @@ pub fn open_and_init_db(path: &str, key: &str, create: bool) -> Result<Connectio
     }
 
     Ok(conn)
+}
+
+/// Registers the `current_hlc()` UDF on a connection. Extracted so tests that
+/// create bare in-memory connections can use the same registration logic.
+pub fn register_current_hlc_udf(
+    conn: &Connection,
+    hlc_service: HlcService,
+    context: ConnectionContext,
+) -> Result<(), DatabaseError> {
+    // Flags explained:
+    // - UTF8: default string encoding for TEXT args/return.
+    // - INNOCUOUS: safe to call from trigger/view context when
+    //   `trusted_schema=OFF` (no side effects, no access to attacker-
+    //   controlled state).
+    // - DETERMINISTIC: zero-arg deterministic functions are constant-folded
+    //   by the query planner, so two `current_hlc()` calls inside the same
+    //   statement evaluate to the same value even without our slot cache.
+    //   The cache covers the cross-statement case inside a write tx.
+    conn.create_scalar_function(
+        HLC_FUNCTION_NAME,
+        0,
+        FunctionFlags::SQLITE_UTF8
+            | FunctionFlags::SQLITE_INNOCUOUS
+            | FunctionFlags::SQLITE_DETERMINISTIC,
+        move |_ctx| {
+            context
+                .current_or_new_tx_hlc(&hlc_service)
+                .map(|ts| ts.to_string())
+                .map_err(|e| rusqlite::Error::UserFunctionError(Box::new(e)))
+        },
+    )
+    .map_err(|e| DatabaseError::DatabaseError {
+        reason: format!("Failed to register {HLC_FUNCTION_NAME} function: {e}"),
+    })
+}
+
+/// Wires commit_hook, rollback_hook and update_hook so the per-transaction
+/// HLC slot behaves correctly:
+/// - commit_hook / rollback_hook: clear the slot and the write-pending flag at
+///   the end of every transaction.
+/// - update_hook: flip the write-pending flag on the first row-level
+///   INSERT/UPDATE/DELETE in a transaction, so that a stray read-only
+///   `SELECT current_hlc()` cannot poison the HLC of a later write.
+pub fn install_tx_hlc_hooks(conn: &Connection, context: ConnectionContext) -> Result<(), DatabaseError> {
+    let ctx_commit = context.clone();
+    conn.commit_hook(Some(move || {
+        ctx_commit.reset_tx_slot();
+        false
+    }))
+    .map_err(|e| DatabaseError::DatabaseError {
+        reason: format!("Failed to install commit_hook: {e}"),
+    })?;
+
+    let ctx_rollback = context.clone();
+    conn.rollback_hook(Some(move || {
+        ctx_rollback.reset_tx_slot();
+    }))
+    .map_err(|e| DatabaseError::DatabaseError {
+        reason: format!("Failed to install rollback_hook: {e}"),
+    })?;
+
+    let ctx_update = context;
+    conn.update_hook(Some(move |_action, _db: &str, _table: &str, _row_id: i64| {
+        ctx_update.mark_write_pending();
+    }))
+    .map_err(|e| DatabaseError::DatabaseError {
+        reason: format!("Failed to install update_hook: {e}"),
+    })?;
+    Ok(())
 }
 
 /// Utility für SQL-Parsing - parst ein einzelnes SQL-Statement
@@ -408,13 +495,22 @@ pub fn execute_with_crdt(
     })
 }
 
-/// Execute SQL OHNE CRDT-Transformation (für spezielle Fälle)
+/// Execute SQL OHNE CRDT-Transformation.
+///
+/// Semantik: "no CRDT logic". Das heißt:
+/// - Keine HLC-Population für INSERT/UPDATE (der CRDT-Transformer läuft nicht)
+/// - Keine delete-log-Einträge für DELETE (BEFORE-DELETE-Trigger wird durch
+///   `triggers_enabled='0'` umgangen)
+/// - Kein dirty-table-Tracking
+///
+/// Der Trigger-Bypass wird transaktional durchgeführt: Flag setzen → Statement
+/// ausführen → Flag zurücksetzen → commit. So sehen parallel laufende Sync-
+/// Connections den Flag nie auf `'0'`.
 pub fn execute(
     sql: String,
     params: Vec<JsonValue>,
     connection: &DbConnection,
 ) -> Result<Vec<Vec<JsonValue>>, DatabaseError> {
-    // Konvertiere Parameter
     let params_converted: Vec<RusqliteValue> = params
         .iter()
         .map(ValueConverter::json_to_rusqlite_value)
@@ -427,24 +523,34 @@ pub fn execute(
     };
 
     with_connection(connection, |conn| {
-        if has_returning {
-            let mut stmt = conn.prepare(&sql)?;
-            let num_columns = stmt.column_count();
-            let mut rows = stmt.query(&params_sql[..])?;
-            let mut result_vec: Vec<Vec<JsonValue>> = Vec::new();
+        let tx = conn.transaction().map_err(DatabaseError::from)?;
 
-            while let Some(row) = rows.next()? {
-                let mut row_values: Vec<JsonValue> = Vec::with_capacity(num_columns);
-                for i in 0..num_columns {
-                    let value_ref = row.get_ref(i)?;
-                    let json_val = convert_value_ref_to_json(value_ref)?;
-                    row_values.push(json_val);
+        let disable_sql = format!(
+            "INSERT INTO {TABLE_CRDT_CONFIGS} (key, type, value) VALUES ('triggers_enabled', 'system', '0')
+             ON CONFLICT(key) DO UPDATE SET value = '0'"
+        );
+        tx.execute(&disable_sql, []).map_err(DatabaseError::from)?;
+
+        let result = if has_returning {
+            let mut result_vec: Vec<Vec<JsonValue>> = Vec::new();
+            {
+                let mut stmt = tx.prepare(&sql)?;
+                let num_columns = stmt.column_count();
+                let mut rows = stmt.query(&params_sql[..])?;
+
+                while let Some(row) = rows.next()? {
+                    let mut row_values: Vec<JsonValue> = Vec::with_capacity(num_columns);
+                    for i in 0..num_columns {
+                        let value_ref = row.get_ref(i)?;
+                        let json_val = convert_value_ref_to_json(value_ref)?;
+                        row_values.push(json_val);
+                    }
+                    result_vec.push(row_values);
                 }
-                result_vec.push(row_values);
             }
-            Ok(result_vec)
+            result_vec
         } else {
-            conn.execute(&sql, &params_sql[..]).map_err(|e| {
+            tx.execute(&sql, &params_sql[..]).map_err(|e| {
                 let table_name = extract_primary_table_name_from_sql(&sql).unwrap_or(None);
                 DatabaseError::ExecutionError {
                     sql: sql.clone(),
@@ -452,8 +558,17 @@ pub fn execute(
                     table: table_name,
                 }
             })?;
-            Ok(vec![])
-        }
+            vec![]
+        };
+
+        let enable_sql = format!(
+            "INSERT INTO {TABLE_CRDT_CONFIGS} (key, type, value) VALUES ('triggers_enabled', 'system', '1')
+             ON CONFLICT(key) DO UPDATE SET value = '1'"
+        );
+        tx.execute(&enable_sql, []).map_err(DatabaseError::from)?;
+
+        tx.commit().map_err(DatabaseError::from)?;
+        Ok(result)
     })
 }
 
@@ -1004,5 +1119,97 @@ mod tests {
             result.contains("%main.table%"),
             "Should NOT strip main. inside string literal"
         );
+    }
+
+    // ---- current_hlc() UDF + transaction-scope HLC ---------------------
+
+    fn setup_hlc_test_connection(device_id: &str) -> Connection {
+        let conn = Connection::open_in_memory().expect("in-memory connection");
+        let hlc = HlcService::new_for_testing(device_id);
+        let ctx = ConnectionContext::new();
+        register_current_hlc_udf(&conn, hlc, ctx.clone()).expect("register current_hlc");
+        install_tx_hlc_hooks(&conn, ctx).expect("install tx-hlc hooks");
+        conn
+    }
+
+    #[test]
+    fn test_current_hlc_differs_across_autocommit_statements() {
+        let conn = setup_hlc_test_connection("hlc-across-stmts");
+        let first: String = conn
+            .query_row("SELECT current_hlc()", [], |row| row.get(0))
+            .unwrap();
+        // Any non-query statement forces the auto-commit transaction to close.
+        conn.execute_batch("CREATE TABLE _tick (id INTEGER);").unwrap();
+        let second: String = conn
+            .query_row("SELECT current_hlc()", [], |row| row.get(0))
+            .unwrap();
+        assert_ne!(
+            first, second,
+            "current_hlc() must differ across separate auto-commit transactions"
+        );
+    }
+
+    #[test]
+    fn test_current_hlc_same_across_writes_in_one_tx() {
+        // The transaction-scope invariant only applies to *writes*: multiple
+        // INSERT/UPDATE/DELETE statements inside one tx must share one HLC.
+        // Bare read-only `SELECT current_hlc()` calls intentionally draw fresh
+        // timestamps so a stray probe cannot poison the HLC of a later write.
+        let mut conn = setup_hlc_test_connection("hlc-explicit-tx-writes");
+        conn.execute_batch("CREATE TABLE t (id INTEGER PRIMARY KEY, hlc TEXT);")
+            .unwrap();
+        let tx = conn.transaction().expect("begin tx");
+        tx.execute("INSERT INTO t (id, hlc) VALUES (1, current_hlc())", [])
+            .unwrap();
+        tx.execute("INSERT INTO t (id, hlc) VALUES (2, current_hlc())", [])
+            .unwrap();
+        tx.commit().unwrap();
+        let (a, b): (String, String) = conn
+            .query_row(
+                "SELECT (SELECT hlc FROM t WHERE id=1), (SELECT hlc FROM t WHERE id=2)",
+                [],
+                |row| Ok((row.get(0).unwrap(), row.get(1).unwrap())),
+            )
+            .unwrap();
+        assert_eq!(
+            a, b,
+            "two writes within one explicit transaction must share one HLC"
+        );
+    }
+
+    #[test]
+    fn test_readonly_probe_does_not_poison_next_write_tx() {
+        // Regression test for the CodeRabbit-identified poisoning scenario:
+        // a bare `SELECT current_hlc()` outside any write must not dictate
+        // the HLC that a later write transaction receives.
+        let conn = setup_hlc_test_connection("hlc-no-poison");
+        conn.execute_batch("CREATE TABLE t (id INTEGER PRIMARY KEY, hlc TEXT);")
+            .unwrap();
+        let probed: String = conn
+            .query_row("SELECT current_hlc()", [], |row| row.get(0))
+            .unwrap();
+        conn.execute("INSERT INTO t (id, hlc) VALUES (1, current_hlc())", [])
+            .unwrap();
+        let persisted: String = conn
+            .query_row("SELECT hlc FROM t WHERE id=1", [], |row| row.get(0))
+            .unwrap();
+        assert_ne!(
+            probed, persisted,
+            "the probed value must not be reused by the subsequent write"
+        );
+    }
+
+    #[test]
+    fn test_current_hlc_reset_on_rollback() {
+        let mut conn = setup_hlc_test_connection("hlc-rollback");
+        let tx = conn.transaction().expect("begin tx");
+        let a: String = tx
+            .query_row("SELECT current_hlc()", [], |row| row.get(0))
+            .unwrap();
+        tx.rollback().unwrap();
+        let b: String = conn
+            .query_row("SELECT current_hlc()", [], |row| row.get(0))
+            .unwrap();
+        assert_ne!(a, b, "current_hlc() must be fresh after a rollback");
     }
 }

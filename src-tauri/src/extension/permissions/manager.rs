@@ -187,7 +187,7 @@ impl PermissionManager {
         extension_id: &str,
     ) -> Result<Vec<ExtensionPermission>, ExtensionError> {
         let sql = format!(
-            "SELECT id, extension_id, resource_type, action, target, constraints, status, haex_timestamp FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ?"
+            "SELECT id, extension_id, resource_type, action, target, constraints, status, haex_hlc FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ?"
         );
         let params = vec![JsonValue::String(extension_id.to_string())];
 
@@ -340,7 +340,7 @@ impl PermissionManager {
 
         // Load permissions from database (same for dev and production extensions)
         let sql = format!(
-            "SELECT id, extension_id, resource_type, action, target, constraints, status, haex_timestamp FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ? AND resource_type = 'web'"
+            "SELECT id, extension_id, resource_type, action, target, constraints, status, haex_hlc FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ? AND resource_type = 'web'"
         );
         let params = vec![JsonValue::String(extension_id.to_string())];
 

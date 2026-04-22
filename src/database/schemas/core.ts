@@ -9,9 +9,9 @@ import {
 } from 'drizzle-orm/sqlite-core'
 import tableNames from '@/database/tableNames.json'
 
-// Note: CRDT columns (haex_timestamp, haex_column_hlcs, haex_tombstone) are added
-// automatically by the Rust CrdtTransformer when CREATE TABLE is executed.
-// The WHERE haex_tombstone = 0 condition for UNIQUE indices is also added automatically.
+// Note: CRDT columns (haex_hlc, haex_column_hlcs) are added automatically by the
+// Rust CrdtTransformer when CREATE TABLE is executed. DELETE on these tables is
+// logged to `haex_deleted_rows` via a BEFORE-DELETE trigger (no tombstone column).
 
 export const haexVaultSettings = sqliteTable(
   tableNames.haex.vault_settings.name,

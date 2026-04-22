@@ -54,6 +54,7 @@ rusqlite = { version = "0.39", features = [
   "load_extension",
   "bundled-sqlcipher-vendored-openssl",
   "functions",
+  "hooks",
 ] }
 regex = "1.12"
 tokio-tungstenite = "0.29.0"

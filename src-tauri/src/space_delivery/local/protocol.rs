@@ -86,26 +86,36 @@ pub enum Request {
     },
 
     // -- CRDT Sync --
-    /// Push CRDT changes to the leader
+    /// Push CRDT changes to the leader.
+    /// Requires UCAN with `space/write` capability for the target space.
     SyncPush {
         space_id: String,
         /// JSON-serialized CRDT changes (same format as server push)
         changes: serde_json::Value,
+        /// UCAN token proving write capability for `space_id`
+        ucan_token: String,
     },
-    /// Pull CRDT changes from the leader
+    /// Pull CRDT changes from the leader.
+    /// Requires UCAN with `space/read` capability (or higher) for the target space.
     SyncPull {
         space_id: String,
         after_timestamp: Option<String>,
+        /// UCAN token proving read capability for `space_id`
+        ucan_token: String,
     },
 
     // -- Identity --
-    /// Announce identity to the leader (sent on connect)
+    /// Announce identity to the leader (sent on connect).
+    /// Requires UCAN with `space/read` capability (or higher) for the target space —
+    /// the announce populates `haex_space_devices` which is space-scoped sync state.
     Announce {
         did: String,
         endpoint_id: String,
         space_id: String,
         label: Option<String>,
         claims: Option<Vec<IdentityClaim>>,
+        /// UCAN token proving membership in `space_id`
+        ucan_token: String,
     },
 
     // -- Invites --

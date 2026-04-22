@@ -171,7 +171,7 @@ pub fn handle_push_invite(
 
 /// Check invite policy against blocked DIDs and policy setting.
 fn check_invite_policy(db: &DbConnection, inviter_did: &str) -> bool {
-    // Check blocked DIDs (select_with_crdt adds WHERE haex_tombstone = 0)
+    // Check blocked DIDs
     let blocked = core::select_with_crdt(
         "SELECT COUNT(*) FROM haex_blocked_dids WHERE did = ?1".to_string(),
         vec![serde_json::Value::String(inviter_did.to_string())],
@@ -185,7 +185,7 @@ fn check_invite_policy(db: &DbConnection, inviter_did: &str) -> bool {
         return false;
     }
 
-    // Check policy (select_with_crdt adds WHERE haex_tombstone = 0)
+    // Check policy
     let policy = core::select_with_crdt(
         "SELECT policy FROM haex_invite_policy WHERE id = 'default'".to_string(),
         vec![],

@@ -1,12 +1,11 @@
 // src-tauri/src/crdt/transformer.rs
 
 use crate::crdt::insert_transformer::InsertTransformer;
-use crate::crdt::trigger::{COLUMN_HLCS_COLUMN, HLC_TIMESTAMP_COLUMN, TOMBSTONE_COLUMN};
+use crate::crdt::trigger::{COLUMN_HLCS_COLUMN, HLC_TIMESTAMP_COLUMN};
 use crate::database::error::DatabaseError;
 use sqlparser::ast::{
-    helpers::attached_token::AttachedToken, AlterTable, Assignment, AssignmentTarget,
-    BinaryOperator, ColumnDef, DataType, Expr, FromTable, Ident, ObjectName, ObjectNamePart,
-    Query, Select, SetExpr, Statement, TableFactor, TableObject, Update, Value,
+    AlterTable, Assignment, AssignmentTarget, ColumnDef, DataType, Expr, Ident, ObjectName,
+    ObjectNamePart, Query, Select, SetExpr, Statement, TableFactor, TableObject, Value,
 };
 use std::borrow::Cow;
 use uhlc::Timestamp;
@@ -16,17 +15,15 @@ use uhlc::Timestamp;
 struct CrdtColumns {
     hlc_timestamp: &'static str,
     column_hlcs: &'static str,
-    tombstone: &'static str,
 }
 
 impl CrdtColumns {
     const DEFAULT: Self = Self {
         hlc_timestamp: HLC_TIMESTAMP_COLUMN,
         column_hlcs: COLUMN_HLCS_COLUMN,
-        tombstone: TOMBSTONE_COLUMN,
     };
 
-    /// Erstellt eine HLC-Zuweisung für UPDATE/DELETE
+    /// Erstellt eine HLC-Zuweisung für UPDATE
     fn create_hlc_assignment(&self, timestamp: &Timestamp) -> Assignment {
         Assignment {
             target: AssignmentTarget::ColumnName(ObjectName(vec![ObjectNamePart::Identifier(
@@ -36,135 +33,12 @@ impl CrdtColumns {
         }
     }
 
-    /// Erstellt eine WHERE-Bedingung für IFNULL(haex_tombstone, 0) != 1
-    /// Dies behandelt sowohl haex_tombstone = 0 als auch haex_tombstone IS NULL
-    fn create_tombstone_filter(&self, table_qualifier: Option<&str>) -> Expr {
-        // Baue den Spaltenbezeichner (ggf. mit Tabellen-Qualifikator)
-        // Use double quotes for identifiers that may contain special characters (like hyphens)
-        let column_expr = match table_qualifier {
-            Some(qualifier) => Expr::CompoundIdentifier(vec![
-                Ident::with_quote('"', qualifier),
-                Ident::new(self.tombstone),
-            ]),
-            None => Expr::Identifier(Ident::new(self.tombstone)),
-        };
-
-        // IFNULL(haex_tombstone, 0)
-        let ifnull_expr = Expr::Function(sqlparser::ast::Function {
-            name: ObjectName(vec![ObjectNamePart::Identifier(Ident::new("IFNULL"))]),
-            args: sqlparser::ast::FunctionArguments::List(sqlparser::ast::FunctionArgumentList {
-                duplicate_treatment: None,
-                args: vec![
-                    sqlparser::ast::FunctionArg::Unnamed(sqlparser::ast::FunctionArgExpr::Expr(
-                        column_expr,
-                    )),
-                    sqlparser::ast::FunctionArg::Unnamed(sqlparser::ast::FunctionArgExpr::Expr(
-                        Expr::Value(Value::Number("0".to_string(), false).into()),
-                    )),
-                ],
-                clauses: vec![],
-            }),
-            filter: None,
-            null_treatment: None,
-            over: None,
-            within_group: vec![],
-            parameters: sqlparser::ast::FunctionArguments::None,
-            uses_odbc_syntax: false,
-        });
-
-        // IFNULL(haex_tombstone, 0) != 1
-        Expr::BinaryOp {
-            left: Box::new(ifnull_expr),
-            op: BinaryOperator::NotEq,
-            right: Box::new(Expr::Value(Value::Number("1".to_string(), false).into())),
-        }
-    }
-
-    /// Prüft ob ein Ausdruck bereits eine haex_tombstone Bedingung enthält
-    fn has_tombstone_condition(&self, expr: &Expr) -> bool {
-        match expr {
-            Expr::BinaryOp { left, op, right } => {
-                // Direkte Bedingung: haex_tombstone = X oder haex_tombstone != X
-                if matches!(op, BinaryOperator::Eq | BinaryOperator::NotEq) {
-                    if let Expr::Identifier(ident) = left.as_ref() {
-                        if ident.value == self.tombstone {
-                            return true;
-                        }
-                    }
-                    if let Expr::Identifier(ident) = right.as_ref() {
-                        if ident.value == self.tombstone {
-                            return true;
-                        }
-                    }
-                }
-                // Rekursiv in verschachtelten BinaryOps suchen (AND, OR)
-                if matches!(op, BinaryOperator::And | BinaryOperator::Or) {
-                    return self.has_tombstone_condition(left)
-                        || self.has_tombstone_condition(right);
-                }
-                false
-            }
-            // Function calls like IFNULL(haex_tombstone, 0)
-            Expr::Function(func) => {
-                if let sqlparser::ast::FunctionArguments::List(ref list) = func.args {
-                    list.args.iter().any(|arg| {
-                        if let sqlparser::ast::FunctionArg::Unnamed(
-                            sqlparser::ast::FunctionArgExpr::Expr(inner),
-                        ) = arg
-                        {
-                            if let Expr::Identifier(ident) = inner {
-                                return ident.value == self.tombstone;
-                            }
-                        }
-                        false
-                    })
-                } else {
-                    false
-                }
-            }
-            // Compound identifier: table.haex_tombstone
-            Expr::CompoundIdentifier(parts) => {
-                parts.last().map_or(false, |p| p.value == self.tombstone)
-            }
-            _ => false,
-        }
-    }
-
-    /// Fügt IFNULL(haex_tombstone, 0) != 1 zu einer WHERE-Klausel hinzu
-    /// Nur wenn noch keine haex_tombstone Bedingung vorhanden ist
-    fn add_tombstone_filter_to_where(
-        &self,
-        existing_where: Option<Expr>,
-        table_qualifier: Option<&str>,
-    ) -> Option<Expr> {
-        // Prüfe ob bereits eine haex_tombstone Bedingung existiert
-        if let Some(ref where_expr) = existing_where {
-            if self.has_tombstone_condition(where_expr) {
-                // Bedingung bereits vorhanden - nicht hinzufügen
-                return existing_where;
-            }
-        }
-
-        let tombstone_filter = self.create_tombstone_filter(table_qualifier);
-
-        match existing_where {
-            Some(existing) => Some(Expr::BinaryOp {
-                left: Box::new(existing),
-                op: BinaryOperator::And,
-                right: Box::new(tombstone_filter),
-            }),
-            None => Some(tombstone_filter),
-        }
-    }
-
     /// Fügt CRDT-Spalten zu einer Tabellendefinition hinzu
     /// Überschreibt vorhandene Spalten mit den gleichen Namen, um korrekte Datentypen zu garantieren
     fn add_to_table_definition(&self, columns: &mut Vec<ColumnDef>) {
         // Remove existing CRDT columns if present
         columns.retain(|c| {
-            c.name.value != self.hlc_timestamp
-                && c.name.value != self.column_hlcs
-                && c.name.value != self.tombstone
+            c.name.value != self.hlc_timestamp && c.name.value != self.column_hlcs
         });
 
         // Add all CRDT columns with correct types
@@ -177,12 +51,6 @@ impl CrdtColumns {
         columns.push(ColumnDef {
             name: Ident::new(self.column_hlcs),
             data_type: DataType::String(None),
-            options: vec![],
-        });
-
-        columns.push(ColumnDef {
-            name: Ident::new(self.tombstone),
-            data_type: DataType::Int(None),
             options: vec![],
         });
     }
@@ -240,73 +108,16 @@ impl CrdtTransformer {
         Cow::Owned(name_str.trim_matches('`').trim_matches('"').to_string())
     }
 
-    /// Prüft ob ein TableFactor eine CRDT-Tabelle referenziert
-    fn is_crdt_table_factor(&self, relation: &TableFactor) -> bool {
-        if let TableFactor::Table { name, .. } = relation {
-            self.is_crdt_sync_table(name)
-        } else {
-            false
-        }
-    }
-
-    /// Extrahiert den Tabellennamen oder Alias aus einem TableFactor
-    fn get_table_factor_qualifier(&self, relation: &TableFactor) -> Option<String> {
-        if let TableFactor::Table { name, alias, .. } = relation {
-            // Bevorzuge Alias, falls vorhanden
-            if let Some(table_alias) = alias {
-                return Some(table_alias.name.value.clone());
-            }
-            // Sonst den Tabellennamen (letzter Teil des ObjectName)
-            if let Some(last_part) = name.0.last() {
-                match last_part {
-                    ObjectNamePart::Identifier(ident) => return Some(ident.value.clone()),
-                    ObjectNamePart::Function(func) => return Some(func.name.to_string()),
-                }
-            }
-        }
-        None
-    }
-
-    /// Transformiert ein SELECT Statement (fügt WHERE IFNULL(haex_tombstone, 0) != 1 hinzu)
+    /// Transformiert ein SELECT Statement rekursiv (FROM- und JOIN-Subqueries).
+    /// Seit dem Delete-Log-Refactor enthalten Haupt-Tabellen keine Tombstone-Zeilen
+    /// mehr, daher gibt es hier nichts mehr zu filtern — die Funktion bleibt aber
+    /// als Rekursionseinstieg für verschachtelte Queries.
     fn transform_select(&self, select: &mut Select) {
-        // Zuerst: Rekursiv Subqueries in FROM-Klausel transformieren
         for table_with_joins in &mut select.from {
             self.transform_table_factor(&mut table_with_joins.relation);
-            // Auch JOINs können Subqueries enthalten
             for join in &mut table_with_joins.joins {
                 self.transform_table_factor(&mut join.relation);
             }
-        }
-
-        // Sammle alle CRDT-Tabellen-Qualifier (FROM-Tabellen und JOINs)
-        let has_joins = select.from.iter().any(|t| !t.joins.is_empty());
-        let mut crdt_qualifiers: Vec<Option<String>> = Vec::new();
-
-        for table_with_joins in &select.from {
-            // Prüfe die Haupttabelle (FROM-Klausel)
-            if self.is_crdt_table_factor(&table_with_joins.relation) {
-                if has_joins {
-                    crdt_qualifiers
-                        .push(self.get_table_factor_qualifier(&table_with_joins.relation));
-                } else {
-                    // Einfache Queries ohne JOINs: kein Qualifier nötig
-                    crdt_qualifiers.push(None);
-                }
-            }
-
-            // Prüfe alle JOINed Tabellen
-            for join in &table_with_joins.joins {
-                if self.is_crdt_table_factor(&join.relation) {
-                    crdt_qualifiers.push(self.get_table_factor_qualifier(&join.relation));
-                }
-            }
-        }
-
-        // Füge für jede CRDT-Tabelle einen Tombstone-Filter hinzu
-        for qualifier in &crdt_qualifiers {
-            select.selection = self
-                .columns
-                .add_tombstone_filter_to_where(select.selection.take(), qualifier.as_deref());
         }
     }
 
@@ -372,7 +183,8 @@ impl CrdtTransformer {
     ) -> Result<Option<String>, DatabaseError> {
         match stmt {
             Statement::Query(query) => {
-                // Transform SELECT queries to add WHERE haex_tombstone = 0
+                // Recurse into subqueries (no tombstone filter anymore — tombstones
+                // don't live in the main tables in the delete-log model).
                 self.transform_query(query);
                 Ok(None)
             }
@@ -400,56 +212,20 @@ impl CrdtTransformer {
             Statement::Update(update) => {
                 if let TableFactor::Table { name, .. } = &update.table.relation {
                     if self.is_crdt_sync_table(name) {
-                        // Add HLC timestamp assignment
-                        update.assignments.push(self.columns.create_hlc_assignment(hlc_timestamp));
-
-                        // Add WHERE IFNULL(haex_tombstone, 0) != 1 to only update non-deleted rows
-                        // (unless WHERE haex_tombstone = 1 is already present)
-                        // UPDATE statements don't have JOINs in our use case, so no qualifier needed
-                        update.selection =
-                            self.columns
-                                .add_tombstone_filter_to_where(update.selection.take(), None);
+                        // Add HLC timestamp assignment. With the delete-log model
+                        // tombstoned rows no longer live in the target table, so
+                        // there is nothing to filter out.
+                        update
+                            .assignments
+                            .push(self.columns.create_hlc_assignment(hlc_timestamp));
                     }
                 }
                 Ok(None)
             }
-            Statement::Delete(del_stmt) => {
-                // Soft Delete: Transform DELETE into UPDATE with haex_tombstone = 1
-                // Extract the table from FromTable enum
-                let from_tables = match &del_stmt.from {
-                    FromTable::WithFromKeyword(tables) => tables,
-                    FromTable::WithoutKeyword(tables) => tables,
-                };
-
-                if let Some(from_table) = from_tables.first() {
-                    if let TableFactor::Table { name, .. } = &from_table.relation {
-                        if self.is_crdt_sync_table(name) {
-                            // Create tombstone assignment
-                            let tombstone_assignment = Assignment {
-                                target: AssignmentTarget::ColumnName(ObjectName(vec![
-                                    ObjectNamePart::Identifier(Ident::new(self.columns.tombstone)),
-                                ])),
-                                value: Expr::Value(Value::Number("1".to_string(), false).into()),
-                            };
-
-                            // Create HLC assignment
-                            let hlc_assignment = self.columns.create_hlc_assignment(hlc_timestamp);
-
-                            // Transform DELETE into UPDATE
-                            *stmt = Statement::Update(Update {
-                                update_token: AttachedToken::empty(),
-                                table: from_table.clone(),
-                                assignments: vec![tombstone_assignment, hlc_assignment],
-                                from: None,
-                                selection: del_stmt.selection.clone(),
-                                returning: None,
-                                or: None,
-                                limit: None,
-                                optimizer_hint: None,
-                            });
-                        }
-                    }
-                }
+            Statement::Delete(_) => {
+                // DELETE stays DELETE. The BEFORE-DELETE trigger writes a row
+                // into haex_deleted_rows, and the CRDT apply-path propagates
+                // that to the target table on remotes.
                 Ok(None)
             }
             Statement::AlterTable(AlterTable { name, .. }) => {
@@ -459,30 +235,18 @@ impl CrdtTransformer {
                     Ok(None)
                 }
             }
-            Statement::CreateIndex(create_index) => {
-                // For UNIQUE indices on CRDT tables, add WHERE haex_tombstone = 0
-                // to ensure tombstoned rows don't block new inserts
-                if create_index.unique && self.is_crdt_sync_table(&create_index.table_name) {
-                    // Only add if no haex_tombstone condition already exists
-                    let already_has_tombstone_condition = create_index
-                        .predicate
-                        .as_ref()
-                        .is_some_and(|p| self.columns.has_tombstone_condition(p));
-
-                    if !already_has_tombstone_condition {
-                        create_index.predicate = self
-                            .columns
-                            .add_tombstone_filter_to_where(create_index.predicate.take(), None);
-                    }
-                }
+            Statement::CreateIndex(_) => {
+                // No partial-index rewrite anymore — UNIQUE indexes stay full so
+                // they remain FK-parent-eligible.
                 Ok(None)
             }
             _ => Ok(None),
         }
     }
 
-    /// Transforms a DDL statement (CREATE TABLE, CREATE INDEX) to add CRDT columns.
-    /// Used by migrations to ensure all syncable tables have CRDT columns.
+    /// Transforms a DDL statement (CREATE TABLE) to add CRDT columns. Used by
+    /// migrations to ensure all syncable tables get `haex_hlc` and
+    /// `haex_column_hlcs` columns.
     ///
     /// Returns the transformed SQL string, or the original if no transformation was needed.
     pub fn transform_ddl_statement(&self, sql: &str) -> Result<String, DatabaseError> {
@@ -501,38 +265,16 @@ impl CrdtTransformer {
             return Ok(sql.to_string());
         }
 
-        // We only transform the first statement (migrations should have one statement per breakpoint)
         let stmt = &mut statements[0];
 
-        match stmt {
-            Statement::CreateTable(create_table) => {
-                if self.is_crdt_sync_table(&create_table.name) {
-                    self.columns
-                        .add_to_table_definition(&mut create_table.columns);
-                    // Return the modified SQL
-                    return Ok(stmt.to_string());
-                }
+        if let Statement::CreateTable(create_table) = stmt {
+            if self.is_crdt_sync_table(&create_table.name) {
+                self.columns
+                    .add_to_table_definition(&mut create_table.columns);
+                return Ok(stmt.to_string());
             }
-            Statement::CreateIndex(create_index) => {
-                // For UNIQUE indices on CRDT tables, add WHERE haex_tombstone = 0
-                if create_index.unique && self.is_crdt_sync_table(&create_index.table_name) {
-                    let already_has_tombstone_condition = create_index
-                        .predicate
-                        .as_ref()
-                        .is_some_and(|p| self.columns.has_tombstone_condition(p));
-
-                    if !already_has_tombstone_condition {
-                        create_index.predicate = self
-                            .columns
-                            .add_tombstone_filter_to_where(create_index.predicate.take(), None);
-                        return Ok(stmt.to_string());
-                    }
-                }
-            }
-            _ => {}
         }
 
-        // No transformation needed
         Ok(sql.to_string())
     }
 }
