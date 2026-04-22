@@ -82,7 +82,8 @@ pub fn cleanup_deleted_rows(
         })?;
 
         let current_hlc_num = current_timestamp.get_time().as_u64();
-        let retention_ns = retention_days as u64 * 24 * 60 * 60 * 1_000_000_000;
+        let ns_per_day: u64 = 24 * 60 * 60 * 1_000_000_000;
+        let retention_ns = u64::from(retention_days).saturating_mul(ns_per_day);
         let cutoff_hlc_num = current_hlc_num.saturating_sub(retention_ns) as i64;
 
         let delete_sql = format!(

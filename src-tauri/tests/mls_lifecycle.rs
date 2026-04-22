@@ -17,6 +17,17 @@ use rusqlite::Connection;
 fn setup_test_db() -> Arc<Mutex<Option<Connection>>> {
     let conn = Connection::open_in_memory().unwrap();
 
+    // CRDT config table (needed by core::execute for the transient
+    // trigger-bypass flag, even on _no_sync tables).
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS haex_crdt_configs_no_sync (
+            key TEXT PRIMARY KEY NOT NULL,
+            type TEXT NOT NULL,
+            value TEXT NOT NULL
+        );",
+    )
+    .unwrap();
+
     // MLS storage tables (key-value stores used by OpenMLS provider)
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS haex_mls_values_no_sync (

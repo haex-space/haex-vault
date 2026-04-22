@@ -401,50 +401,59 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
     // `Send` bound required by `tokio::spawn` further up the call chain.
     let _ = public_key.as_ref();
     {
-        let hlc = state.hlc.lock().map_err(|e| format!("HLC lock error: {e}")).ok();
-        if let Some(ref hlc_guard) = hlc {
-            let now = OffsetDateTime::now_utc()
-                .format(&time::format_description::well_known::Rfc3339)
-                .unwrap_or_default();
-            let resolved_label = member_label
-                .unwrap_or_else(|| did.chars().take(16).collect());
-
-            let ensure_identity_sql = "INSERT OR IGNORE INTO haex_identities \
-                (id, did, name, source) VALUES (?1, ?2, ?3, 'contact')"
-                .to_string();
-            let ensure_identity_params = vec![
-                JsonValue::String(uuid::Uuid::new_v4().to_string()),
-                JsonValue::String(did.clone()),
-                JsonValue::String(resolved_label),
-            ];
-            if let Err(e) = crate::database::core::execute_with_crdt(
-                ensure_identity_sql,
-                ensure_identity_params,
-                &state.db,
-                hlc_guard,
-            ) {
-                eprintln!("[SpaceDelivery] Failed to upsert identity row for new member: {e}");
+        let hlc_guard = match state.hlc.lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                return Response::Error {
+                    message: format!("Failed to persist new member: HLC lock error: {e}"),
+                };
             }
+        };
+        let now = OffsetDateTime::now_utc()
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap_or_default();
+        let resolved_label = member_label
+            .unwrap_or_else(|| did.chars().take(16).collect());
 
-            let insert_member_sql = "INSERT OR IGNORE INTO haex_space_members \
-                (id, space_id, identity_id, role, joined_at) \
-                SELECT ?1, ?2, id, ?3, ?4 FROM haex_identities WHERE did = ?5"
-                .to_string();
-            let member_params = vec![
-                JsonValue::String(uuid::Uuid::new_v4().to_string()),
-                JsonValue::String(space_id.clone()),
-                JsonValue::String(capability.clone()),
-                JsonValue::String(now),
-                JsonValue::String(did.clone()),
-            ];
-            if let Err(e) = crate::database::core::execute_with_crdt(
-                insert_member_sql,
-                member_params,
-                &state.db,
-                hlc_guard,
-            ) {
-                eprintln!("[SpaceDelivery] Failed to persist space member: {e}");
-            }
+        let ensure_identity_sql = "INSERT OR IGNORE INTO haex_identities \
+            (id, did, name, source) VALUES (?1, ?2, ?3, 'contact')"
+            .to_string();
+        let ensure_identity_params = vec![
+            JsonValue::String(uuid::Uuid::new_v4().to_string()),
+            JsonValue::String(did.clone()),
+            JsonValue::String(resolved_label),
+        ];
+        if let Err(e) = crate::database::core::execute_with_crdt(
+            ensure_identity_sql,
+            ensure_identity_params,
+            &state.db,
+            &hlc_guard,
+        ) {
+            return Response::Error {
+                message: format!("Failed to persist member identity: {e}"),
+            };
+        }
+
+        let insert_member_sql = "INSERT OR IGNORE INTO haex_space_members \
+            (id, space_id, identity_id, role, joined_at) \
+            SELECT ?1, ?2, id, ?3, ?4 FROM haex_identities WHERE did = ?5"
+            .to_string();
+        let member_params = vec![
+            JsonValue::String(uuid::Uuid::new_v4().to_string()),
+            JsonValue::String(space_id.clone()),
+            JsonValue::String(capability.clone()),
+            JsonValue::String(now),
+            JsonValue::String(did.clone()),
+        ];
+        if let Err(e) = crate::database::core::execute_with_crdt(
+            insert_member_sql,
+            member_params,
+            &state.db,
+            &hlc_guard,
+        ) {
+            return Response::Error {
+                message: format!("Failed to persist space member: {e}"),
+            };
         }
     }
 
