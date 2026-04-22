@@ -10,7 +10,6 @@
 //! - SELECT passes through, including recursion into subqueries
 
 use crate::crdt::transformer::CrdtTransformer;
-use sqlparser::ast::Statement;
 use sqlparser::dialect::SQLiteDialect;
 use sqlparser::parser::Parser;
 use uhlc::HLC;

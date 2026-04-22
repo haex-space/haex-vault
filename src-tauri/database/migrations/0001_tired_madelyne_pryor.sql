@@ -11,7 +11,6 @@ CREATE TABLE `__new_haex_local_delivery_key_packages_no_sync` (
 INSERT INTO `__new_haex_local_delivery_key_packages_no_sync`("id", "space_id", "target_did", "package_blob", "created_at") SELECT "id", "space_id", "target_did", "package_blob", "created_at" FROM `haex_local_delivery_key_packages_no_sync`;--> statement-breakpoint
 DROP TABLE `haex_local_delivery_key_packages_no_sync`;--> statement-breakpoint
 ALTER TABLE `__new_haex_local_delivery_key_packages_no_sync` RENAME TO `haex_local_delivery_key_packages_no_sync`;--> statement-breakpoint
-PRAGMA foreign_keys=ON;--> statement-breakpoint
 CREATE INDEX `haex_local_delivery_key_packages_space_did_idx` ON `haex_local_delivery_key_packages_no_sync` (`space_id`,`target_did`);--> statement-breakpoint
 CREATE TABLE `__new_haex_local_delivery_messages_no_sync` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -150,4 +149,5 @@ CREATE TABLE `__new_haex_sync_rules` (
 --> statement-breakpoint
 INSERT INTO `__new_haex_sync_rules`("id", "space_id", "device_id", "source_type", "source_config", "target_type", "target_config", "direction", "enabled", "sync_interval_seconds", "delete_mode", "last_synced_at", "created_at") SELECT "id", "space_id", "device_id", "source_type", "source_config", "target_type", "target_config", "direction", "enabled", "sync_interval_seconds", "delete_mode", "last_synced_at", "created_at" FROM `haex_sync_rules`;--> statement-breakpoint
 DROP TABLE `haex_sync_rules`;--> statement-breakpoint
-ALTER TABLE `__new_haex_sync_rules` RENAME TO `haex_sync_rules`;
+ALTER TABLE `__new_haex_sync_rules` RENAME TO `haex_sync_rules`;--> statement-breakpoint
+PRAGMA foreign_keys=ON;

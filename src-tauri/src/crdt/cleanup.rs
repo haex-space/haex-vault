@@ -130,12 +130,21 @@ pub fn get_crdt_stats(conn: &Connection) -> Result<CrdtStats, rusqlite::Error> {
     let mut total_entries: i64 = 0;
     let mut crdt_table_count: i64 = 0;
 
+    // CRDT tables are identified by having the `haex_hlc` column (added by the
+    // CrdtTransformer at CREATE TABLE time). This excludes local-only tables
+    // (`*_no_sync`), system tables (`sqlite_*`), and the delete-log table itself,
+    // since that is counted separately below.
     let mut stmt = conn.prepare(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '%_no_sync'",
+        "SELECT m.name FROM sqlite_master m \
+         WHERE m.type = 'table' \
+         AND m.name NOT LIKE 'sqlite_%' \
+         AND m.name NOT LIKE '%_no_sync' \
+         AND m.name != ?1 \
+         AND EXISTS (SELECT 1 FROM pragma_table_info(m.name) WHERE name = 'haex_hlc')",
     )?;
 
     let table_names: Vec<String> = stmt
-        .query_map([], |row| row.get(0))?
+        .query_map([DELETED_ROWS_TABLE], |row| row.get(0))?
         .collect::<Result<Vec<String>, _>>()?;
 
     for table_name in table_names {
@@ -157,7 +166,9 @@ pub fn get_crdt_stats(conn: &Connection) -> Result<CrdtStats, rusqlite::Error> {
         )
         .unwrap_or(0);
 
-    let applied = total_entries.saturating_sub(delete_count);
+    // In the delete-log model, deleted rows no longer sit in the main tables —
+    // every row counted in `total_entries` is already "applied" / active.
+    let applied = total_entries;
 
     Ok(CrdtStats {
         total_entries,

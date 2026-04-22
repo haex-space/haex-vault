@@ -184,7 +184,7 @@ CREATE TABLE `haex_deleted_rows` (
 	`row_pks` text NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `haex_deleted_rows_table_row_pks_unique` ON `haex_deleted_rows` (`table_name`,`row_pks`);--> statement-breakpoint
+CREATE INDEX `haex_deleted_rows_table_row_pks_idx` ON `haex_deleted_rows` (`table_name`,`row_pks`);--> statement-breakpoint
 CREATE TABLE `haex_devices` (
 	`id` text PRIMARY KEY NOT NULL,
 	`endpoint_id` text NOT NULL,

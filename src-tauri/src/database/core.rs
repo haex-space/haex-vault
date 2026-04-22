@@ -312,10 +312,21 @@ pub fn register_current_hlc_udf(
     hlc_service: HlcService,
     context: ConnectionContext,
 ) -> Result<(), DatabaseError> {
+    // Flags explained:
+    // - UTF8: default string encoding for TEXT args/return.
+    // - INNOCUOUS: safe to call from trigger/view context when
+    //   `trusted_schema=OFF` (no side effects, no access to attacker-
+    //   controlled state).
+    // - DETERMINISTIC: zero-arg deterministic functions are constant-folded
+    //   by the query planner, so two `current_hlc()` calls inside the same
+    //   statement evaluate to the same value even without our slot cache.
+    //   The cache covers the cross-statement case inside a write tx.
     conn.create_scalar_function(
         HLC_FUNCTION_NAME,
         0,
-        FunctionFlags::SQLITE_UTF8,
+        FunctionFlags::SQLITE_UTF8
+            | FunctionFlags::SQLITE_INNOCUOUS
+            | FunctionFlags::SQLITE_DETERMINISTIC,
         move |_ctx| {
             context
                 .current_or_new_tx_hlc(&hlc_service)
@@ -328,8 +339,13 @@ pub fn register_current_hlc_udf(
     })
 }
 
-/// Wires commit_hook and rollback_hook so the per-transaction HLC slot is
-/// cleared on every COMMIT or ROLLBACK.
+/// Wires commit_hook, rollback_hook and update_hook so the per-transaction
+/// HLC slot behaves correctly:
+/// - commit_hook / rollback_hook: clear the slot and the write-pending flag at
+///   the end of every transaction.
+/// - update_hook: flip the write-pending flag on the first row-level
+///   INSERT/UPDATE/DELETE in a transaction, so that a stray read-only
+///   `SELECT current_hlc()` cannot poison the HLC of a later write.
 pub fn install_tx_hlc_hooks(conn: &Connection, context: ConnectionContext) -> Result<(), DatabaseError> {
     let ctx_commit = context.clone();
     conn.commit_hook(Some(move || {
@@ -340,12 +356,20 @@ pub fn install_tx_hlc_hooks(conn: &Connection, context: ConnectionContext) -> Re
         reason: format!("Failed to install commit_hook: {e}"),
     })?;
 
-    let ctx_rollback = context;
+    let ctx_rollback = context.clone();
     conn.rollback_hook(Some(move || {
         ctx_rollback.reset_tx_slot();
     }))
     .map_err(|e| DatabaseError::DatabaseError {
         reason: format!("Failed to install rollback_hook: {e}"),
+    })?;
+
+    let ctx_update = context;
+    conn.update_hook(Some(move |_action, _db: &str, _table: &str, _row_id: i64| {
+        ctx_update.mark_write_pending();
+    }))
+    .map_err(|e| DatabaseError::DatabaseError {
+        reason: format!("Failed to install update_hook: {e}"),
     })?;
     Ok(())
 }
@@ -1080,19 +1104,6 @@ mod tests {
     }
 
     #[test]
-    fn test_current_hlc_same_within_statement() {
-        let conn = setup_hlc_test_connection("hlc-same-stmt");
-        let (a, b): (String, String) = conn
-            .query_row(
-                "SELECT current_hlc() AS a, current_hlc() AS b",
-                [],
-                |row| Ok((row.get(0).unwrap(), row.get(1).unwrap())),
-            )
-            .expect("query current_hlc");
-        assert_eq!(a, b, "two current_hlc() calls in the same statement must match");
-    }
-
-    #[test]
     fn test_current_hlc_differs_across_autocommit_statements() {
         let conn = setup_hlc_test_connection("hlc-across-stmts");
         let first: String = conn
@@ -1110,17 +1121,53 @@ mod tests {
     }
 
     #[test]
-    fn test_current_hlc_same_within_explicit_tx() {
-        let mut conn = setup_hlc_test_connection("hlc-explicit-tx");
-        let tx = conn.transaction().expect("begin tx");
-        let a: String = tx
-            .query_row("SELECT current_hlc()", [], |row| row.get(0))
+    fn test_current_hlc_same_across_writes_in_one_tx() {
+        // The transaction-scope invariant only applies to *writes*: multiple
+        // INSERT/UPDATE/DELETE statements inside one tx must share one HLC.
+        // Bare read-only `SELECT current_hlc()` calls intentionally draw fresh
+        // timestamps so a stray probe cannot poison the HLC of a later write.
+        let mut conn = setup_hlc_test_connection("hlc-explicit-tx-writes");
+        conn.execute_batch("CREATE TABLE t (id INTEGER PRIMARY KEY, hlc TEXT);")
             .unwrap();
-        let b: String = tx
-            .query_row("SELECT current_hlc()", [], |row| row.get(0))
+        let tx = conn.transaction().expect("begin tx");
+        tx.execute("INSERT INTO t (id, hlc) VALUES (1, current_hlc())", [])
+            .unwrap();
+        tx.execute("INSERT INTO t (id, hlc) VALUES (2, current_hlc())", [])
             .unwrap();
         tx.commit().unwrap();
-        assert_eq!(a, b, "current_hlc() must stay constant inside an explicit transaction");
+        let (a, b): (String, String) = conn
+            .query_row(
+                "SELECT (SELECT hlc FROM t WHERE id=1), (SELECT hlc FROM t WHERE id=2)",
+                [],
+                |row| Ok((row.get(0).unwrap(), row.get(1).unwrap())),
+            )
+            .unwrap();
+        assert_eq!(
+            a, b,
+            "two writes within one explicit transaction must share one HLC"
+        );
+    }
+
+    #[test]
+    fn test_readonly_probe_does_not_poison_next_write_tx() {
+        // Regression test for the CodeRabbit-identified poisoning scenario:
+        // a bare `SELECT current_hlc()` outside any write must not dictate
+        // the HLC that a later write transaction receives.
+        let conn = setup_hlc_test_connection("hlc-no-poison");
+        conn.execute_batch("CREATE TABLE t (id INTEGER PRIMARY KEY, hlc TEXT);")
+            .unwrap();
+        let probed: String = conn
+            .query_row("SELECT current_hlc()", [], |row| row.get(0))
+            .unwrap();
+        conn.execute("INSERT INTO t (id, hlc) VALUES (1, current_hlc())", [])
+            .unwrap();
+        let persisted: String = conn
+            .query_row("SELECT hlc FROM t WHERE id=1", [], |row| row.get(0))
+            .unwrap();
+        assert_ne!(
+            probed, persisted,
+            "the probed value must not be reused by the subsequent write"
+        );
     }
 
     #[test]

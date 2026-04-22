@@ -4,19 +4,14 @@ import {
   primaryKey,
   sqliteTable,
   text,
-  uniqueIndex,
   type AnySQLiteColumn,
+  uniqueIndex,
 } from 'drizzle-orm/sqlite-core'
 import tableNames from '@/database/tableNames.json'
 import { haexExtensions } from './core'
 
 export const crdtTableNames = tableNames.haex.crdt
 export const deletedRowsTableName = tableNames.haex.deleted_rows
-
-// Most CRDT metadata tables removed:
-// - haexCrdtChanges: Sync now works by scanning actual tables directly
-// - haexCrdtSnapshots: Not used
-// - haexCrdtSyncStatus: Replaced by timestamps in haexSyncBackends table
 
 /**
  * CRDT Delete Log (CRDT-synced). Tombstone events for every hard DELETE on a
@@ -36,10 +31,18 @@ export const haexDeletedRows = sqliteTable(
     id: text(deletedRowsTableName.columns.id).primaryKey(),
     tableName: text(deletedRowsTableName.columns.tableName).notNull(),
     // JSON object: {"pk1": "value1", "pk2": "value2"}
-    rowPks: text(deletedRowsTableName.columns.rowPks, { mode: 'json' }).notNull(),
+    rowPks: text(deletedRowsTableName.columns.rowPks, {
+      mode: 'json',
+    }).notNull(),
   },
   (table) => [
-    uniqueIndex('haex_deleted_rows_table_row_pks_unique').on(table.tableName, table.rowPks),
+    // Non-unique lookup index: the BEFORE-DELETE trigger does a plain INSERT
+    // into this table, so repeated deletes of a re-inserted PK must be able
+    // to stack up (the Rust cleanup job drops old entries based on haex_hlc).
+    index('haex_deleted_rows_table_row_pks_idx').on(
+      table.tableName,
+      table.rowPks,
+    ),
   ],
 )
 export type InsertHaexDeletedRows = typeof haexDeletedRows.$inferInsert
@@ -93,14 +96,22 @@ export const haexCrdtConflicts = sqliteTable(
     localRowId: text(crdtTableNames.conflicts.columns.localRowId).notNull(),
     remoteRowId: text(crdtTableNames.conflicts.columns.remoteRowId).notNull(),
     localRowData: text(crdtTableNames.conflicts.columns.localRowData).notNull(),
-    remoteRowData: text(crdtTableNames.conflicts.columns.remoteRowData).notNull(),
-    localTimestamp: text(crdtTableNames.conflicts.columns.localTimestamp).notNull(),
-    remoteTimestamp: text(crdtTableNames.conflicts.columns.remoteTimestamp).notNull(),
+    remoteRowData: text(
+      crdtTableNames.conflicts.columns.remoteRowData,
+    ).notNull(),
+    localTimestamp: text(
+      crdtTableNames.conflicts.columns.localTimestamp,
+    ).notNull(),
+    remoteTimestamp: text(
+      crdtTableNames.conflicts.columns.remoteTimestamp,
+    ).notNull(),
     conflictKey: text(crdtTableNames.conflicts.columns.conflictKey).notNull(),
     detectedAt: text(crdtTableNames.conflicts.columns.detectedAt)
       .notNull()
       .$defaultFn(() => new Date().toISOString()),
-    resolved: integer(crdtTableNames.conflicts.columns.resolved, { mode: 'boolean' })
+    resolved: integer(crdtTableNames.conflicts.columns.resolved, {
+      mode: 'boolean',
+    })
       .notNull()
       .default(false),
     resolution: text(crdtTableNames.conflicts.columns.resolution),
@@ -135,8 +146,12 @@ export const haexCrdtMigrations = sqliteTable(
       (): AnySQLiteColumn => haexExtensions.id,
       { onDelete: 'cascade' },
     ),
-    migrationName: text(crdtTableNames.migrations.columns.migrationName).notNull(),
-    migrationContent: text(crdtTableNames.migrations.columns.migrationContent).notNull(),
+    migrationName: text(
+      crdtTableNames.migrations.columns.migrationName,
+    ).notNull(),
+    migrationContent: text(
+      crdtTableNames.migrations.columns.migrationContent,
+    ).notNull(),
     appliedAt: text(crdtTableNames.migrations.columns.appliedAt).notNull(),
   },
   (table) => [
@@ -165,12 +180,16 @@ export const haexCrdtPendingColumns = sqliteTable(
   crdtTableNames.pending_columns.name,
   {
     tableName: text(crdtTableNames.pending_columns.columns.tableName).notNull(),
-    columnName: text(crdtTableNames.pending_columns.columns.columnName).notNull(),
+    columnName: text(
+      crdtTableNames.pending_columns.columns.columnName,
+    ).notNull(),
   },
   (table) => [
     // Composite primary key on (table_name, column_name)
     primaryKey({ columns: [table.tableName, table.columnName] }),
   ],
 )
-export type InsertHaexCrdtPendingColumns = typeof haexCrdtPendingColumns.$inferInsert
-export type SelectHaexCrdtPendingColumns = typeof haexCrdtPendingColumns.$inferSelect
+export type InsertHaexCrdtPendingColumns =
+  typeof haexCrdtPendingColumns.$inferInsert
+export type SelectHaexCrdtPendingColumns =
+  typeof haexCrdtPendingColumns.$inferSelect
