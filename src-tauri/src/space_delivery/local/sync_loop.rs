@@ -114,7 +114,9 @@ pub async fn start_peer_sync_loop(
     device_id: String,
     app_handle: tauri::AppHandle,
 ) -> Result<SyncLoopHandle, DeliveryError> {
-    // Establish initial connection
+    // Establish initial connection. UCAN is loaded from the DB inside
+    // `PeerSession::connect`, so reconnect-after-expiry gets a fresh token
+    // without any state plumbing up here.
     let session = PeerSession::connect(
         &iroh_endpoint,
         &leader_endpoint_id,
@@ -123,6 +125,7 @@ pub async fn start_peer_sync_loop(
         &our_did,
         &our_endpoint_id,
         Some("sync-loop"),
+        &db,
     )
     .await?;
 
@@ -247,7 +250,8 @@ async fn run_sync_loop(
                         },
                     }
 
-                    // Try to reconnect
+                    // Try to reconnect — pulls the current UCAN from the DB,
+                    // so a token renewed during the outage takes effect here.
                     match PeerSession::connect(
                         &iroh_endpoint,
                         &leader_endpoint_id,
@@ -256,6 +260,7 @@ async fn run_sync_loop(
                         &our_did,
                         &our_endpoint_id,
                         Some("sync-loop"),
+                        &db,
                     )
                     .await
                     {
@@ -535,12 +540,8 @@ async fn attempt_rejoin(
     space_id: &str,
     app_handle: &tauri::AppHandle,
 ) -> Result<(), DeliveryError> {
-    // TODO: Pass a real UCAN token here. For now, the leader validates the peer's
-    // identity via the Announce DID. A proper UCAN should be fetched from the local DB.
-    let ucan_token = String::new();
-
     // 1. Request GroupInfo from leader
-    let group_info_b64 = session.request_rejoin(space_id, &ucan_token).await?;
+    let group_info_b64 = session.request_rejoin(space_id).await?;
 
     let group_info_bytes = BASE64.decode(&group_info_b64).map_err(|e| {
         DeliveryError::ProtocolError {
@@ -563,7 +564,7 @@ async fn attempt_rejoin(
 
     // 3. Submit the External Commit to the leader for distribution
     session
-        .submit_external_commit(space_id, &commit_b64, &ucan_token)
+        .submit_external_commit(space_id, &commit_b64)
         .await?;
 
     // 4. Emit event so frontend can update the epoch key

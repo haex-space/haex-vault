@@ -12,7 +12,10 @@ use tauri::AppHandle;
 
 use crate::crdt::commands::{apply_remote_changes_to_db, RemoteColumnChange};
 use crate::crdt::hlc::HlcService;
-use crate::crdt::scanner::{scan_all_crdt_tables_for_local_changes, LocalColumnChange};
+use crate::crdt::scanner::{
+    is_space_scoped_table, scan_space_scoped_tables_for_local_changes, LocalColumnChange,
+};
+use crate::ucan::{require_capability, validate_token, CapabilityLevel, ValidatedUcan};
 use crate::database::DbConnection;
 use super::buffer;
 use super::error::DeliveryError;
@@ -73,73 +76,68 @@ async fn require_peer_did(state: &LeaderState, endpoint_id: &str) -> Result<Stri
         })
 }
 
-/// Check if a peer has any UCAN capability for the given space.
-/// Returns Ok(()) if the peer has any valid UCAN (read, write, invite, or admin).
-fn check_space_membership(
-    db: &crate::database::DbConnection,
-    peer_did: &str,
-    space_id: &str,
-) -> Result<(), DeliveryError> {
-    let rows = crate::database::core::select_with_crdt(
-        "SELECT COUNT(*) FROM haex_ucan_tokens WHERE space_id = ?1 AND audience_did = ?2"
-            .to_string(),
-        vec![
-            serde_json::Value::String(space_id.to_string()),
-            serde_json::Value::String(peer_did.to_string()),
-        ],
-        db,
-    )
-    .unwrap_or_default();
-
-    let count = rows
-        .first()
-        .and_then(|row| row.first())
-        .and_then(|v| v.as_i64())
-        .unwrap_or(0);
-
-    if count > 0 {
-        Ok(())
-    } else {
-        Err(DeliveryError::AccessDenied {
-            reason: format!(
-                "Peer {peer_did} has no UCAN for space {space_id}"
-            ),
-        })
-    }
-}
-
-/// Check if a peer has write capability for the given space.
-/// Returns Ok(()) if the peer has space/write or space/admin, Err otherwise.
-fn check_write_capability(
-    db: &crate::database::DbConnection,
-    peer_did: &str,
-    space_id: &str,
-) -> Result<(), DeliveryError> {
-    let rows = crate::database::core::select_with_crdt(
-        "SELECT capability FROM haex_ucan_tokens WHERE space_id = ?1 AND audience_did = ?2"
-            .to_string(),
-        vec![
-            serde_json::Value::String(space_id.to_string()),
-            serde_json::Value::String(peer_did.to_string()),
-        ],
-        db,
-    )
-    .unwrap_or_default();
-
-    for row in &rows {
-        if let Some(cap) = row.first().and_then(|v| v.as_str()) {
-            if cap == "space/write" || cap == "space/admin" {
-                return Ok(());
-            }
+/// Validate a UCAN token carried in a space-delivery request and return a
+/// structured Error response on any failure. This is the first gate for
+/// sync-level operations — signature, expiry, structure all checked here.
+fn require_valid_ucan(ucan_token: &str, op: &str) -> Result<ValidatedUcan, Response> {
+    validate_token(ucan_token).map_err(|e| {
+        eprintln!("[SpaceDelivery] {op}: UCAN validation failed: {e}");
+        Response::Error {
+            message: format!("UCAN validation failed: {e}"),
         }
-    }
-
-    Err(DeliveryError::AccessDenied {
-        reason: format!(
-            "Peer {peer_did} does not have space/write capability for space {space_id}"
-        ),
     })
 }
+
+/// Check that a validated UCAN grants the required capability for `space_id`
+/// **and** that the UCAN audience is still an active member of the space.
+///
+/// Membership is the revocation kill-switch: when the admin removes a
+/// member (tombstones the `haex_space_members` row + MLS commit) the UCAN
+/// remains cryptographically valid but this check rejects every request.
+/// A removed member cannot even see metadata like the member list or
+/// peer-share titles after the tombstone has propagated.
+///
+/// Returns an Error response on either failure path.
+fn require_ucan_capability(
+    validated: &ValidatedUcan,
+    space_id: &str,
+    required: CapabilityLevel,
+    op: &str,
+    db: &crate::database::DbConnection,
+) -> Result<(), Response> {
+    require_capability(validated, space_id, required).map_err(|e| {
+        eprintln!("[SpaceDelivery] {op}: capability check failed: {e}");
+        Response::Error {
+            message: format!("Access denied: {e}"),
+        }
+    })?;
+
+    match super::ucan::is_active_space_member(db, space_id, &validated.audience) {
+        Ok(true) => Ok(()),
+        Ok(false) => {
+            eprintln!(
+                "[SpaceDelivery] {op}: audience {} is not an active member of space {}",
+                validated.audience, space_id
+            );
+            Err(Response::Error {
+                message: "Access denied: not an active member of this space".to_string(),
+            })
+        }
+        Err(e) => {
+            eprintln!("[SpaceDelivery] {op}: membership check failed: {e}");
+            Err(Response::Error {
+                message: format!("Membership check failed: {e}"),
+            })
+        }
+    }
+}
+
+// `check_space_membership` and `check_write_capability` have been removed.
+// They authorised peers by the DID they announced and a lookup against
+// `haex_ucan_tokens` — trusting an unauthenticated self-declaration. The
+// capability enforcement now happens via `require_valid_ucan` +
+// `require_ucan_capability` above, which verify the UCAN signature on
+// every request.
 
 /// Broadcast an MLS notification to all connected peers.
 async fn notify_all_mls(state: &LeaderState, space_id: &str, message_type: &str) {
@@ -270,7 +268,7 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
                 &space_id,
                 &capability,
                 Some(&admin.root_ucan),
-                86400 * 365,
+                super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS,
             ) {
                 Ok(t) => t,
                 Err(e) => {
@@ -573,7 +571,9 @@ fn persist_admin_ucan(
         JsonValue::String(capability.to_string()),
         JsonValue::String(ucan_token.to_string()),
         JsonValue::Number(serde_json::Number::from(now_secs)),
-        JsonValue::Number(serde_json::Number::from(now_secs + 86400 * 365)),
+        JsonValue::Number(serde_json::Number::from(
+            now_secs + super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS as i64,
+        )),
     ];
     if let Err(e) =
         crate::database::core::execute_with_crdt(sql, params, &state.db, &hlc_guard)
@@ -597,10 +597,38 @@ pub(super) async fn handle_delivery_request(
         Request::Announce {
             did,
             endpoint_id,
-            space_id: _,
+            space_id,
             label,
             claims,
+            ucan_token,
         } => {
+            // Announce is the first authenticated boundary of a peer session.
+            // Anyone can open a QUIC stream with the ALPN and claim a DID, so
+            // we must verify the UCAN before trusting `did` and before
+            // populating `connected_peers` (which later handlers rely on).
+            let validated = match require_valid_ucan(&ucan_token, "Announce") {
+                Ok(v) => v,
+                Err(r) => return r,
+            };
+            if validated.audience != did {
+                eprintln!(
+                    "[SpaceDelivery] Announce REJECTED: UCAN audience {} does not match announced DID {}",
+                    validated.audience, did
+                );
+                return Response::Error {
+                    message: "UCAN audience does not match announced DID".to_string(),
+                };
+            }
+            if let Err(r) = require_ucan_capability(
+                &validated,
+                &space_id,
+                CapabilityLevel::Read,
+                "Announce",
+                &state.db,
+            ) {
+                return r;
+            }
+
             let did_clone = did.clone();
             let peer = ConnectedPeer {
                 endpoint_id: endpoint_id.clone(),
@@ -792,25 +820,25 @@ pub(super) async fn handle_delivery_request(
         }
 
         // -- CRDT Sync --
-        Request::SyncPush { space_id, changes } => {
-            // Capability enforcement: only peers with space/write or space/admin
-            // may push CRDT changes. Read-only peers are rejected.
-            match require_peer_did(state, peer_endpoint_id).await {
-                Ok(did) => {
-                    if let Err(e) = check_write_capability(&state.db, &did, &space_id) {
-                        eprintln!("[SpaceDelivery] SyncPush REJECTED: {e}");
-                        return Response::Error {
-                            message: format!("Access denied: {e}"),
-                        };
-                    }
-                }
-                Err(_) => {
-                    eprintln!("[SpaceDelivery] SyncPush: peer not announced");
-                    return Response::Error {
-                        message: "Peer has not announced — cannot verify write capability"
-                            .to_string(),
-                    };
-                }
+        Request::SyncPush {
+            space_id,
+            changes,
+            ucan_token,
+        } => {
+            // Authenticate and authorise before touching any DB state. Read-
+            // only peers must not be able to push — check Write capability.
+            let validated = match require_valid_ucan(&ucan_token, "SyncPush") {
+                Ok(v) => v,
+                Err(r) => return r,
+            };
+            if let Err(r) = require_ucan_capability(
+                &validated,
+                &space_id,
+                CapabilityLevel::Write,
+                "SyncPush",
+                &state.db,
+            ) {
+                return r;
             }
 
             // 1. Parse changes JSON into Vec<LocalColumnChange>
@@ -826,6 +854,24 @@ pub(super) async fn handle_delivery_request(
 
             if local_changes.is_empty() {
                 return Response::Ok;
+            }
+
+            // Defense-in-depth: reject any change outside the whitelist of
+            // space-scoped CRDT tables. Even a write-capable peer cannot
+            // inject rows into `haex_identities`, `haex_sync_backends`, etc.
+            for change in &local_changes {
+                if !is_space_scoped_table(&change.table_name) {
+                    eprintln!(
+                        "[SpaceDelivery] SyncPush REJECTED: table {} is not space-scoped",
+                        change.table_name
+                    );
+                    return Response::Error {
+                        message: format!(
+                            "Table {} is not allowed in space-scoped sync",
+                            change.table_name
+                        ),
+                    };
+                }
             }
 
             // 2. Convert to RemoteColumnChange (HLC is the grouping key)
@@ -862,12 +908,30 @@ pub(super) async fn handle_delivery_request(
         }
 
         Request::SyncPull {
-            space_id: _,
+            space_id,
             after_timestamp,
+            ucan_token,
         } => {
-            let device_id = "leader";
-            match scan_all_crdt_tables_for_local_changes(
+            // Read capability is the minimum bar — any member (read / write /
+            // invite / admin) may pull. Non-members get no data at all.
+            let validated = match require_valid_ucan(&ucan_token, "SyncPull") {
+                Ok(v) => v,
+                Err(r) => return r,
+            };
+            if let Err(r) = require_ucan_capability(
+                &validated,
+                &space_id,
+                CapabilityLevel::Read,
+                "SyncPull",
                 &state.db,
+            ) {
+                return r;
+            }
+
+            let device_id = "leader";
+            match scan_space_scoped_tables_for_local_changes(
+                &state.db,
+                &space_id,
                 after_timestamp.as_deref(),
                 device_id,
             ) {
@@ -954,17 +1018,20 @@ pub(super) async fn handle_delivery_request(
 
         Request::RequestRejoin {
             space_id,
-            ucan_token: _,
+            ucan_token,
         } => {
-            // Validate the peer is a legitimate member of this space
-            let did = match require_peer_did(state, peer_endpoint_id).await {
-                Ok(did) => did,
-                Err(resp) => return resp,
+            let validated = match require_valid_ucan(&ucan_token, "RequestRejoin") {
+                Ok(v) => v,
+                Err(r) => return r,
             };
-            if let Err(e) = check_space_membership(&state.db, &did, &space_id) {
-                return Response::Error {
-                    message: format!("Rejoin denied: {e}"),
-                };
+            if let Err(r) = require_ucan_capability(
+                &validated,
+                &space_id,
+                CapabilityLevel::Read,
+                "RequestRejoin",
+                &state.db,
+            ) {
+                return r;
             }
 
             // Export current GroupInfo with ratchet tree for External Commit
@@ -986,18 +1053,22 @@ pub(super) async fn handle_delivery_request(
         Request::SubmitExternalCommit {
             space_id,
             commit,
-            ucan_token: _,
+            ucan_token,
         } => {
-            // Validate the peer is a legitimate member of this space
-            let peer_did = match require_peer_did(state, peer_endpoint_id).await {
-                Ok(did) => did,
-                Err(resp) => return resp,
+            let validated = match require_valid_ucan(&ucan_token, "SubmitExternalCommit") {
+                Ok(v) => v,
+                Err(r) => return r,
             };
-            if let Err(e) = check_space_membership(&state.db, &peer_did, &space_id) {
-                return Response::Error {
-                    message: format!("External commit denied: {e}"),
-                };
+            if let Err(r) = require_ucan_capability(
+                &validated,
+                &space_id,
+                CapabilityLevel::Read,
+                "SubmitExternalCommit",
+                &state.db,
+            ) {
+                return r;
             }
+            let peer_did = validated.audience.clone();
 
             let commit_blob = match base64_decode(&commit) {
                 Ok(b) => b,
