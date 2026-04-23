@@ -903,6 +903,44 @@ pub(super) async fn handle_delivery_request(
                 }
             }
 
+            // Origin attribution: the leader decrees `authored_by_did` from
+            // the validated UCAN audience. The client's claim about the
+            // author is ignored — a member cannot pretend to have written
+            // something as someone else, because we don't read that field
+            // from the payload at all. Drop any client-supplied value and
+            // inject exactly one authored_by_did column-change per unique
+            // (table, row) in the batch, carrying the max HLC seen in that
+            // row-group so the CRDT merge treats it as the most recent
+            // authoritative write for the column.
+            let origin_did = validated.audience.clone();
+            let mut local_changes: Vec<LocalColumnChange> = local_changes
+                .into_iter()
+                .filter(|c| c.column_name != "authored_by_did")
+                .collect();
+
+            let mut per_row: HashMap<(String, String), (String, String)> = HashMap::new();
+            for change in &local_changes {
+                let key = (change.table_name.clone(), change.row_pks.clone());
+                per_row
+                    .entry(key)
+                    .and_modify(|(hlc, _)| {
+                        if crate::crdt::hlc::hlc_is_newer(&change.hlc_timestamp, hlc) {
+                            *hlc = change.hlc_timestamp.clone();
+                        }
+                    })
+                    .or_insert((change.hlc_timestamp.clone(), change.device_id.clone()));
+            }
+            for ((table_name, row_pks), (hlc, device_id)) in per_row {
+                local_changes.push(LocalColumnChange {
+                    table_name,
+                    row_pks,
+                    column_name: "authored_by_did".to_string(),
+                    hlc_timestamp: hlc,
+                    value: JsonValue::String(origin_did.clone()),
+                    device_id,
+                });
+            }
+
             // 2. Convert to RemoteColumnChange (HLC is the grouping key)
             let remote_changes: Vec<RemoteColumnChange> = local_changes
                 .iter()

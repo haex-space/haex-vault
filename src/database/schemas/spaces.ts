@@ -59,6 +59,7 @@ export const haexSpaceDevices = sqliteTable(
     avatarOptions: text(tableNames.haex.space_devices.columns.avatarOptions), // JSON DiceBear options
     relayUrl: text(tableNames.haex.space_devices.columns.relayUrl),
     leaderPriority: integer(tableNames.haex.space_devices.columns.leaderPriority).default(10),
+    authoredByDid: text(tableNames.haex.space_devices.columns.authoredByDid),
     createdAt: text(tableNames.haex.space_devices.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
   },
   (table) => [
@@ -85,6 +86,7 @@ export const haexSpaceMembers = sqliteTable(
       .notNull()
       .references(() => haexIdentities.id, { onDelete: 'cascade' }),
     role: text(tableNames.haex.space_members.columns.role).notNull().default('read'),
+    authoredByDid: text(tableNames.haex.space_members.columns.authoredByDid),
     joinedAt: text(tableNames.haex.space_members.columns.joinedAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),
@@ -112,6 +114,7 @@ export const haexPeerShares = sqliteTable(
     deviceEndpointId: text(tableNames.haex.peer_shares.columns.deviceEndpointId).notNull(),
     name: text(tableNames.haex.peer_shares.columns.name).notNull(),
     localPath: text(tableNames.haex.peer_shares.columns.localPath).notNull(),
+    authoredByDid: text(tableNames.haex.peer_shares.columns.authoredByDid),
     createdAt: text(tableNames.haex.peer_shares.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
   },
 )
@@ -184,6 +187,7 @@ export const haexMlsSyncKeys = sqliteTable(
       .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     epoch: integer(tableNames.haex.mls_sync_keys.columns.epoch).notNull(),
     keyData: text(tableNames.haex.mls_sync_keys.columns.keyData).notNull(), // Base64-encoded 32-byte key
+    authoredByDid: text(tableNames.haex.mls_sync_keys.columns.authoredByDid),
   },
 )
 export type InsertHaexMlsSyncKeys = typeof haexMlsSyncKeys.$inferInsert
@@ -206,6 +210,7 @@ export const haexDeviceMlsEnrollments = sqliteTable(
     keyPackage: text(tableNames.haex.device_mls_enrollments.columns.keyPackage).notNull(), // Base64
     welcome: text(tableNames.haex.device_mls_enrollments.columns.welcome), // Base64, set by enrolling device
     status: text(tableNames.haex.device_mls_enrollments.columns.status).notNull().default('pending'), // 'pending' | 'enrolled'
+    authoredByDid: text(tableNames.haex.device_mls_enrollments.columns.authoredByDid),
   },
 )
 export type InsertHaexDeviceMlsEnrollments = typeof haexDeviceMlsEnrollments.$inferInsert

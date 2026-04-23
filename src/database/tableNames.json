@@ -241,6 +241,7 @@
         "avatarOptions": "avatar_options",
         "relayUrl": "relay_url",
         "leaderPriority": "leader_priority",
+        "authoredByDid": "authored_by_did",
         "createdAt": "created_at"
       }
     },
@@ -251,6 +252,7 @@
         "spaceId": "space_id",
         "identityId": "identity_id",
         "role": "role",
+        "authoredByDid": "authored_by_did",
         "joinedAt": "joined_at"
       }
     },
@@ -262,6 +264,7 @@
         "deviceEndpointId": "device_endpoint_id",
         "name": "name",
         "localPath": "local_path",
+        "authoredByDid": "authored_by_did",
         "createdAt": "created_at"
       }
     },
@@ -359,7 +362,8 @@
         "id": "id",
         "spaceId": "space_id",
         "epoch": "epoch",
-        "keyData": "key_data"
+        "keyData": "key_data",
+        "authoredByDid": "authored_by_did"
       }
     },
     "device_mls_enrollments": {
@@ -370,7 +374,8 @@
         "deviceId": "device_id",
         "keyPackage": "key_package",
         "welcome": "welcome",
-        "status": "status"
+        "status": "status",
+        "authoredByDid": "authored_by_did"
       }
     },
     "mls_values_no_sync": {
