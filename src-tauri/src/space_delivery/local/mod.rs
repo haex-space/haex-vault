@@ -3,6 +3,7 @@ pub mod commands;
 pub mod discovery;
 pub mod election;
 pub mod error;
+pub mod inbound_sync;
 pub mod invite_tokens;
 pub mod leader;
 pub mod multi_leader;
