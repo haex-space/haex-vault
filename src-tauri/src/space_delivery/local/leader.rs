@@ -868,6 +868,13 @@ pub(super) async fn handle_delivery_request(
                 }
             };
 
+            // Post-validation no-op: payload contained only client-supplied
+            // authored_by_did claims which the validator strips. Nothing to
+            // apply, nothing to notify.
+            if local_changes.is_empty() {
+                return Response::Ok;
+            }
+
             // 2. Convert to RemoteColumnChange (HLC is the grouping key)
             let remote_changes: Vec<RemoteColumnChange> = local_changes
                 .iter()

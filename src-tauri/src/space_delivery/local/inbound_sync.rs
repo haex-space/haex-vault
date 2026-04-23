@@ -89,9 +89,10 @@ pub fn validate_and_attribute(
         let key = (change.table_name.clone(), change.row_pks.clone());
         per_row
             .entry(key)
-            .and_modify(|(hlc, _): &mut (String, String)| {
+            .and_modify(|(hlc, device_id): &mut (String, String)| {
                 if hlc_is_newer(&change.hlc_timestamp, hlc) {
                     *hlc = change.hlc_timestamp.clone();
+                    *device_id = change.device_id.clone();
                 }
             })
             .or_insert((change.hlc_timestamp.clone(), change.device_id.clone()));
