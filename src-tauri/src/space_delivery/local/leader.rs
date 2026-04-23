@@ -12,9 +12,7 @@ use tauri::AppHandle;
 
 use crate::crdt::commands::{apply_remote_changes_to_db, RemoteColumnChange};
 use crate::crdt::hlc::HlcService;
-use crate::crdt::scanner::{
-    is_space_scoped_table, scan_space_scoped_tables_for_local_changes, LocalColumnChange,
-};
+use crate::crdt::scanner::{scan_space_scoped_tables_for_local_changes, LocalColumnChange};
 use crate::ucan::{require_capability, validate_token, CapabilityLevel, ValidatedUcan};
 use crate::database::DbConnection;
 use super::buffer;
@@ -856,90 +854,19 @@ pub(super) async fn handle_delivery_request(
                 return Response::Ok;
             }
 
-            // Defense-in-depth, two independent checks:
-            //
-            //   (a) Table whitelist — reject anything outside the space-scoped
-            //       tables. Even a write-capable peer cannot inject rows into
-            //       `haex_identities`, `haex_sync_backends`, etc.
-            //
-            //   (b) space_id column scope — any change that writes the
-            //       `space_id` column must set it to this request's space_id.
-            //       This is the primary defence against "new row with foreign
-            //       space_id" injection: an attacker in space A cannot create
-            //       rows carrying `space_id=B` under their space-A UCAN.
-            //
-            // NOTE: Updates that do not touch the `space_id` column are not
-            //       checked against a DB row lookup here. Exploiting that
-            //       would require the attacker to already know the target
-            //       row's PK, which they cannot obtain without prior access
-            //       to the target space. A DB-backed row-ownership check
-            //       is tracked as a follow-up hardening step.
-            for change in &local_changes {
-                if !is_space_scoped_table(&change.table_name) {
-                    eprintln!(
-                        "[SpaceDelivery] SyncPush REJECTED: table {} is not space-scoped",
-                        change.table_name
-                    );
-                    return Response::Error {
-                        message: format!(
-                            "Table {} is not allowed in space-scoped sync",
-                            change.table_name
-                        ),
-                    };
+            // Payload validation + origin attribution. Pure transform —
+            // see `inbound_sync` for the full contract and unit tests.
+            let local_changes = match super::inbound_sync::validate_and_attribute(
+                &space_id,
+                &validated.audience,
+                local_changes,
+            ) {
+                super::inbound_sync::InboundSyncPushOutcome::Accepted { changes } => changes,
+                super::inbound_sync::InboundSyncPushOutcome::Rejected { reason } => {
+                    eprintln!("[SpaceDelivery] SyncPush REJECTED: {reason}");
+                    return Response::Error { message: reason };
                 }
-
-                if change.column_name == "space_id" {
-                    let inbound = change.value.as_str();
-                    if inbound != Some(space_id.as_str()) {
-                        eprintln!(
-                            "[SpaceDelivery] SyncPush REJECTED: row in {} sets space_id={:?} but request is for {}",
-                            change.table_name, change.value, space_id
-                        );
-                        return Response::Error {
-                            message: "space_id column value must match request space_id"
-                                .to_string(),
-                        };
-                    }
-                }
-            }
-
-            // Origin attribution: the leader decrees `authored_by_did` from
-            // the validated UCAN audience. The client's claim about the
-            // author is ignored — a member cannot pretend to have written
-            // something as someone else, because we don't read that field
-            // from the payload at all. Drop any client-supplied value and
-            // inject exactly one authored_by_did column-change per unique
-            // (table, row) in the batch, carrying the max HLC seen in that
-            // row-group so the CRDT merge treats it as the most recent
-            // authoritative write for the column.
-            let origin_did = validated.audience.clone();
-            let mut local_changes: Vec<LocalColumnChange> = local_changes
-                .into_iter()
-                .filter(|c| c.column_name != "authored_by_did")
-                .collect();
-
-            let mut per_row: HashMap<(String, String), (String, String)> = HashMap::new();
-            for change in &local_changes {
-                let key = (change.table_name.clone(), change.row_pks.clone());
-                per_row
-                    .entry(key)
-                    .and_modify(|(hlc, _)| {
-                        if crate::crdt::hlc::hlc_is_newer(&change.hlc_timestamp, hlc) {
-                            *hlc = change.hlc_timestamp.clone();
-                        }
-                    })
-                    .or_insert((change.hlc_timestamp.clone(), change.device_id.clone()));
-            }
-            for ((table_name, row_pks), (hlc, device_id)) in per_row {
-                local_changes.push(LocalColumnChange {
-                    table_name,
-                    row_pks,
-                    column_name: "authored_by_did".to_string(),
-                    hlc_timestamp: hlc,
-                    value: JsonValue::String(origin_did.clone()),
-                    device_id,
-                });
-            }
+            };
 
             // 2. Convert to RemoteColumnChange (HLC is the grouping key)
             let remote_changes: Vec<RemoteColumnChange> = local_changes
