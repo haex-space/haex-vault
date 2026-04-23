@@ -327,7 +327,6 @@ async fn run_push_phase(
         .iter()
         .map(|c| c.table_name.clone())
         .collect();
-    let push_timestamp = sqlite_datetime_now();
 
     for (idx, chunk) in chunks.iter().enumerate() {
         let chunk_max_hlc = hlc_max(chunk.iter().map(|c| c.hlc_timestamp.as_str()))
@@ -351,6 +350,17 @@ async fn run_push_phase(
     // Clear dirty-table markers only after the whole batch succeeded. A
     // mid-loop failure leaves them dirty so the next cycle re-emits the
     // remaining groups.
+    //
+    // The threshold is captured *after* the push loop. Capturing before
+    // and then `<=`-comparing in clear_dirty_table_inner created a
+    // same-second race: a local write between scan start and capture
+    // (same second, post-scan) produced a marker equal to the threshold
+    // and got wrongly cleared even though its row was never pushed.
+    // Capturing here bounds the window to concurrent writes that race
+    // with `sqlite_datetime_now()` itself; any surviving inconsistency
+    // is a dirty-tracker hint only, not a data-loss risk — the scanner
+    // finds unsynced rows via HLC, not via dirty markers.
+    let push_timestamp = sqlite_datetime_now();
     for table_name in &pushed_table_names {
         if let Err(e) = clear_dirty_table_inner(db, table_name, Some(&push_timestamp)) {
             eprintln!(
