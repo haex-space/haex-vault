@@ -856,9 +856,24 @@ pub(super) async fn handle_delivery_request(
                 return Response::Ok;
             }
 
-            // Defense-in-depth: reject any change outside the whitelist of
-            // space-scoped CRDT tables. Even a write-capable peer cannot
-            // inject rows into `haex_identities`, `haex_sync_backends`, etc.
+            // Defense-in-depth, two independent checks:
+            //
+            //   (a) Table whitelist — reject anything outside the space-scoped
+            //       tables. Even a write-capable peer cannot inject rows into
+            //       `haex_identities`, `haex_sync_backends`, etc.
+            //
+            //   (b) space_id column scope — any change that writes the
+            //       `space_id` column must set it to this request's space_id.
+            //       This is the primary defence against "new row with foreign
+            //       space_id" injection: an attacker in space A cannot create
+            //       rows carrying `space_id=B` under their space-A UCAN.
+            //
+            // NOTE: Updates that do not touch the `space_id` column are not
+            //       checked against a DB row lookup here. Exploiting that
+            //       would require the attacker to already know the target
+            //       row's PK, which they cannot obtain without prior access
+            //       to the target space. A DB-backed row-ownership check
+            //       is tracked as a follow-up hardening step.
             for change in &local_changes {
                 if !is_space_scoped_table(&change.table_name) {
                     eprintln!(
@@ -871,6 +886,20 @@ pub(super) async fn handle_delivery_request(
                             change.table_name
                         ),
                     };
+                }
+
+                if change.column_name == "space_id" {
+                    let inbound = change.value.as_str();
+                    if inbound != Some(space_id.as_str()) {
+                        eprintln!(
+                            "[SpaceDelivery] SyncPush REJECTED: row in {} sets space_id={:?} but request is for {}",
+                            change.table_name, change.value, space_id
+                        );
+                        return Response::Error {
+                            message: "space_id column value must match request space_id"
+                                .to_string(),
+                        };
+                    }
                 }
             }
 
