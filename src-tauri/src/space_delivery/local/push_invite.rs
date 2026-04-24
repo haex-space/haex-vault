@@ -87,7 +87,8 @@ pub fn handle_push_invite(
     let hlc_guard = match hlc.lock() {
         Ok(guard) => guard,
         Err(_) => {
-            eprintln!("[{LOG_SOURCE}] ERROR: HLC lock poisoned");
+            // Can't use log_to_db (it would also try to lock HLC). Stderr only.
+            eprintln!("[{LOG_SOURCE}] [error] ABORT: HLC lock poisoned while processing invite for space {space_id} from {inviter_did}");
             return Response::PushInviteAck { accepted: false };
         }
     };
@@ -118,9 +119,11 @@ pub fn handle_push_invite(
     let endpoints_json =
         serde_json::to_string(space_endpoints).unwrap_or_else(|_| "[]".to_string());
 
+    // eprintln only — can't log_to_db while holding hlc_guard (would deadlock).
+    // The DB log for this step happens post-drop with the outcome.
     eprintln!("[{LOG_SOURCE}] [info] Inserting pending invite {invite_id} for space {space_id}");
 
-    match core::execute_with_crdt(
+    let insert_result = core::execute_with_crdt(
         "INSERT OR IGNORE INTO haex_pending_invites \
          (id, space_id, space_name, space_type, origin_url, inviter_did, inviter_label, inviter_avatar, inviter_avatar_options, \
           capabilities, include_history, token_id, space_endpoints, status, created_at) \
@@ -152,19 +155,46 @@ pub fn handle_push_invite(
         ],
         db,
         &hlc_guard,
-    ) {
-        Ok(_) => eprintln!("[{LOG_SOURCE}] [info] SUCCESS: pending invite {invite_id} created"),
-        Err(e) => eprintln!("[{LOG_SOURCE}] [error] FAILED to insert pending invite: {e}"),
-    }
+    );
 
     // Drop HLC lock before logging to DB (log_to_db locks internally)
     drop(hlc_guard);
+
+    // Persist the INSERT outcome to haex_logs so production (where stderr is /dev/null)
+    // can tell whether a given invite reached the row-creation stage or not.
+    // Note: `execute_with_crdt` returns the RETURNING rows, not rows_affected —
+    // for plain INSERT OR IGNORE this is an empty Vec on both real-insert and
+    // ignored-conflict. UUID collisions being astronomically unlikely, Ok is
+    // treated as success here.
+    match &insert_result {
+        Ok(_) => {
+            logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
+                "INSERT OK: pending invite {invite_id} (space={space_id}, token={token_id})"
+            ));
+        }
+        Err(e) => {
+            logging::log_to_db(db, hlc, "error", LOG_SOURCE, &format!(
+                "INSERT FAILED: pending invite {invite_id} (space={space_id}, token={token_id}): {e}"
+            ));
+        }
+    }
 
     logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
         "Invite processing complete for {invite_id} in space {space_id}"
     ));
 
-    let _ = app_handle.emit("push-invite-received", ());
+    // Emitting is what triggers the frontend toast + invite list reload.
+    // If this fails (AppHandle dead / event channel closed) the invite is
+    // persisted but the user sees no notification — we MUST log the outcome
+    // so this regression is traceable without shell access.
+    match app_handle.emit("push-invite-received", ()) {
+        Ok(()) => logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
+            "Emitted push-invite-received for invite {invite_id} (space={space_id})"
+        )),
+        Err(e) => logging::log_to_db(db, hlc, "error", LOG_SOURCE, &format!(
+            "FAILED to emit push-invite-received for invite {invite_id}: {e}"
+        )),
+    }
 
     Response::PushInviteAck { accepted: true }
 }

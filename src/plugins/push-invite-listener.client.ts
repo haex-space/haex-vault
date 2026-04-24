@@ -28,14 +28,18 @@ export default defineNuxtPlugin({
 
     try {
       unlisten = await listen('push-invite-received', async () => {
-        log.info('Received push-invite-received event')
+        log.info('Received push-invite-received event — reloading spaces + adding toast')
+
+        let reloadOk = false
         try {
           const spacesStore = useSpacesStore()
           await spacesStore.loadSpacesFromDbAsync()
+          reloadOk = true
         } catch (error) {
           log.warn(`Failed to reload spaces after push invite: ${error}`)
         }
 
+        let toastOk = false
         try {
           const { add } = useToast()
           const i18n = nuxtApp.$i18n as { locale?: { value?: string } } | undefined
@@ -47,11 +51,18 @@ export default defineNuxtPlugin({
               : 'You received a new space invitation.',
             color: 'info',
           })
-        } catch {
-          // Toast composable not ready (e.g. very early startup) — skip
-          // silently; the reload above is the important part.
+          toastOk = true
+        } catch (error) {
+          // Previously swallowed silently — which is exactly how a missing
+          // toast turns into "the user has no idea an invite arrived".
+          // Logging here makes the listener-vs-toast split diagnosable from
+          // production DB logs alone.
+          log.warn(`Failed to surface invite toast: ${error}`)
         }
+
+        log.info(`push-invite handler completed — spacesReload=${reloadOk} toast=${toastOk}`)
       })
+      log.info('Registered global push-invite-received listener')
     } catch (error) {
       log.warn(`Failed to register push-invite listener: ${error}`)
     }
