@@ -31,7 +31,6 @@ use crate::{
 use crate::extension::webview::ExtensionWebviewManager;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-#[cfg(desktop)]
 use tauri::Manager;
 
 pub mod table_names {
