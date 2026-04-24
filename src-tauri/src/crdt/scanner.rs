@@ -9,7 +9,6 @@ use crate::crdt::trigger::{get_table_schema, ColumnInfo, COLUMN_HLCS_COLUMN, HLC
 use crate::database::core::{convert_value_ref_to_json, with_connection};
 use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
-use crate::table_names::TABLE_CRDT_DIRTY_TABLES;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -77,11 +76,11 @@ fn partition_columns(schema: &[ColumnInfo]) -> (Vec<&ColumnInfo>, Vec<&ColumnInf
     (pk_columns, data_columns)
 }
 
-/// Scans a single table for column-level local changes newer than `after_hlc`.
-///
-/// For each row with `haex_hlc > after_hlc` (or all rows if `after_hlc` is `None`),
-/// every data column whose individual HLC exceeds `after_hlc` is emitted as a
-/// [`LocalColumnChange`].
+/// Test-only helper: unscoped single-table scan. Production code must use
+/// `scan_table_for_local_changes_scoped` (or the space-scoped whitelist
+/// entry point `scan_space_scoped_tables_for_local_changes`) — an unscoped
+/// scan over a table shared by multiple spaces leaks cross-space rows.
+#[cfg(test)]
 pub fn scan_table_for_local_changes(
     conn: &Connection,
     table_name: &str,
@@ -248,45 +247,6 @@ pub fn scan_table_for_local_changes_scoped(
     Ok(changes)
 }
 
-/// Scans only the dirty tables for column-level local changes.
-///
-/// Queries `haex_crdt_dirty_tables_no_sync` for table names, then delegates
-/// to [`scan_table_for_local_changes`] for each.
-pub fn scan_all_dirty_tables_for_local_changes(
-    db: &DbConnection,
-    after_hlc: Option<&str>,
-    device_id: &str,
-) -> Result<Vec<LocalColumnChange>, DatabaseError> {
-    with_connection(db, |conn| {
-        let mut stmt = conn
-            .prepare(&format!(
-                "SELECT table_name FROM {}",
-                TABLE_CRDT_DIRTY_TABLES
-            ))
-            .map_err(DatabaseError::from)?;
-
-        let table_names: Vec<String> = stmt
-            .query_map([], |row| row.get(0))
-            .map_err(DatabaseError::from)?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(DatabaseError::from)?;
-
-        let mut all_changes: Vec<LocalColumnChange> = Vec::new();
-        for table_name in &table_names {
-            let changes = scan_table_for_local_changes(conn, table_name, after_hlc, device_id)?;
-            all_changes.extend(changes);
-        }
-
-        // Global sort by transaction-HLC ascending so downstream chunking can
-        // respect HLC-group boundaries without further grouping logic.
-        all_changes.sort_by(|a, b| {
-            crate::crdt::hlc::compare_hlc_strings(&a.hlc_timestamp, &b.hlc_timestamp)
-        });
-
-        Ok(all_changes)
-    })
-}
-
 /// Scans the whitelist of space-scoped CRDT tables for rows belonging to
 /// `space_id`. This is the authoritative scanner for peer-to-peer SyncPull:
 /// the caller guarantees that only these tables and only these rows cross
@@ -312,8 +272,8 @@ pub fn scan_space_scoped_tables_for_local_changes(
             all_changes.extend(changes);
         }
 
-        // Global sort by transaction-HLC ascending — see rationale in
-        // `scan_all_dirty_tables_for_local_changes`.
+        // Global sort by transaction-HLC ascending so downstream chunking can
+        // respect HLC-group boundaries without further grouping logic.
         all_changes.sort_by(|a, b| {
             crate::crdt::hlc::compare_hlc_strings(&a.hlc_timestamp, &b.hlc_timestamp)
         });

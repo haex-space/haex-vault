@@ -12,9 +12,7 @@ use tauri::AppHandle;
 
 use crate::crdt::commands::{apply_remote_changes_to_db, RemoteColumnChange};
 use crate::crdt::hlc::HlcService;
-use crate::crdt::scanner::{
-    is_space_scoped_table, scan_space_scoped_tables_for_local_changes, LocalColumnChange,
-};
+use crate::crdt::scanner::{scan_space_scoped_tables_for_local_changes, LocalColumnChange};
 use crate::ucan::{require_capability, validate_token, CapabilityLevel, ValidatedUcan};
 use crate::database::DbConnection;
 use super::buffer;
@@ -856,22 +854,25 @@ pub(super) async fn handle_delivery_request(
                 return Response::Ok;
             }
 
-            // Defense-in-depth: reject any change outside the whitelist of
-            // space-scoped CRDT tables. Even a write-capable peer cannot
-            // inject rows into `haex_identities`, `haex_sync_backends`, etc.
-            for change in &local_changes {
-                if !is_space_scoped_table(&change.table_name) {
-                    eprintln!(
-                        "[SpaceDelivery] SyncPush REJECTED: table {} is not space-scoped",
-                        change.table_name
-                    );
-                    return Response::Error {
-                        message: format!(
-                            "Table {} is not allowed in space-scoped sync",
-                            change.table_name
-                        ),
-                    };
+            // Payload validation + origin attribution. Pure transform —
+            // see `inbound_sync` for the full contract and unit tests.
+            let local_changes = match super::inbound_sync::validate_and_attribute(
+                &space_id,
+                &validated.audience,
+                local_changes,
+            ) {
+                super::inbound_sync::InboundSyncPushOutcome::Accepted { changes } => changes,
+                super::inbound_sync::InboundSyncPushOutcome::Rejected { reason } => {
+                    eprintln!("[SpaceDelivery] SyncPush REJECTED: {reason}");
+                    return Response::Error { message: reason };
                 }
+            };
+
+            // Post-validation no-op: payload contained only client-supplied
+            // authored_by_did claims which the validator strips. Nothing to
+            // apply, nothing to notify.
+            if local_changes.is_empty() {
+                return Response::Ok;
             }
 
             // 2. Convert to RemoteColumnChange (HLC is the grouping key)

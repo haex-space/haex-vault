@@ -12,7 +12,7 @@ use tokio::sync::watch;
 
 use crate::crdt::commands::{apply_remote_changes_to_db, clear_dirty_table_inner, RemoteColumnChange};
 use crate::crdt::hlc::hlc_max;
-use crate::crdt::scanner::{scan_all_dirty_tables_for_local_changes, LocalColumnChange};
+use crate::crdt::scanner::{scan_space_scoped_tables_for_local_changes, LocalColumnChange};
 use crate::database::DbConnection;
 use super::error::DeliveryError;
 use super::peer::PeerSession;
@@ -283,7 +283,102 @@ async fn run_sync_loop(
     eprintln!("[SyncLoop] Stopped for space {}", space_id);
 }
 
+/// Push local space-scoped changes to the leader.
+///
+/// Scans only rows belonging to `space_id` (via the space-scoped whitelist
+/// scanner), chunks them at HLC-group boundaries, and pushes chunk-by-chunk.
+/// On a per-chunk failure the remaining chunks are skipped and the partial
+/// progress is checkpointed in `last_push_hlc` so the next cycle resumes
+/// without re-sending what the leader already accepted.
+async fn run_push_phase(
+    db: &DbConnection,
+    session: &PeerSession,
+    space_id: &str,
+    device_id: &str,
+    last_push_hlc: &mut Option<String>,
+) -> Result<(), DeliveryError> {
+    let changes = scan_space_scoped_tables_for_local_changes(
+        db,
+        space_id,
+        last_push_hlc.as_deref(),
+        device_id,
+    )
+    .map_err(|e| DeliveryError::Database {
+        reason: format!("Failed to scan space-scoped tables: {}", e),
+    })?;
+
+    if changes.is_empty() {
+        return Ok(());
+    }
+
+    // Chunk at HLC boundaries so a transaction-HLC group is never split
+    // across QUIC requests. The scanner already returns changes sorted by
+    // hlc_timestamp globally, so a single linear pass is enough.
+    let chunks = chunk_changes_by_hlc(&changes, PUSH_CHUNK_SOFT_LIMIT);
+
+    eprintln!(
+        "[SyncLoop] Pushing {} changes in {} HLC-aligned chunk(s) for space {}",
+        changes.len(),
+        chunks.len(),
+        space_id
+    );
+
+    let pushed_table_names: HashSet<String> = changes
+        .iter()
+        .map(|c| c.table_name.clone())
+        .collect();
+
+    for (idx, chunk) in chunks.iter().enumerate() {
+        let chunk_max_hlc = hlc_max(chunk.iter().map(|c| c.hlc_timestamp.as_str()))
+            .unwrap_or("")
+            .to_string();
+
+        let chunk_json = serde_json::to_value(chunk).map_err(|e| {
+            DeliveryError::ProtocolError {
+                reason: format!("Failed to serialize chunk {}: {}", idx, e),
+            }
+        })?;
+
+        session.push_changes(space_id, chunk_json).await?;
+
+        // Checkpoint after each successful chunk so a later failure does
+        // not re-push completed groups. The scanner will pick up whatever
+        // remains on the next cycle.
+        *last_push_hlc = Some(chunk_max_hlc);
+    }
+
+    // Clear dirty-table markers only after the whole batch succeeded. A
+    // mid-loop failure leaves them dirty so the next cycle re-emits the
+    // remaining groups.
+    //
+    // The threshold is captured *after* the push loop. Capturing before
+    // and then `<=`-comparing in clear_dirty_table_inner created a
+    // same-second race: a local write between scan start and capture
+    // (same second, post-scan) produced a marker equal to the threshold
+    // and got wrongly cleared even though its row was never pushed.
+    // Capturing here bounds the window to concurrent writes that race
+    // with `sqlite_datetime_now()` itself; any surviving inconsistency
+    // is a dirty-tracker hint only, not a data-loss risk — the scanner
+    // finds unsynced rows via HLC, not via dirty markers.
+    let push_timestamp = sqlite_datetime_now();
+    for table_name in &pushed_table_names {
+        if let Err(e) = clear_dirty_table_inner(db, table_name, Some(&push_timestamp)) {
+            eprintln!(
+                "[SyncLoop] Warning: failed to clear dirty table '{}': {}",
+                table_name, e
+            );
+        }
+    }
+
+    Ok(())
+}
+
 /// Execute a single push+pull sync cycle.
+///
+/// Push and pull are independent phases: a failing push (e.g. insufficient
+/// UCAN capability, transient protocol error) is logged but does not abort
+/// the pull. Only pull failures propagate as `Err` and trigger reconnect,
+/// because those are the signal that the session is actually broken.
 async fn run_sync_cycle(
     db: &DbConnection,
     session: &PeerSession,
@@ -295,68 +390,9 @@ async fn run_sync_cycle(
     last_mls_message_id: &mut Option<i64>,
     key_packages_refilled: &mut bool,
 ) -> Result<(), DeliveryError> {
-    // 1. PUSH: Scan dirty tables for local changes
-    let changes = scan_all_dirty_tables_for_local_changes(
-        db,
-        last_push_hlc.as_deref(),
-        device_id,
-    )
-    .map_err(|e| DeliveryError::Database {
-        reason: format!("Failed to scan dirty tables: {}", e),
-    })?;
-
-    if !changes.is_empty() {
-        // Chunk at HLC boundaries so a transaction-HLC group is never split
-        // across QUIC requests. The scanner already returns changes sorted
-        // by hlc_timestamp globally, so a single linear pass is enough.
-        let chunks = chunk_changes_by_hlc(&changes, PUSH_CHUNK_SOFT_LIMIT);
-
-        eprintln!(
-            "[SyncLoop] Pushing {} changes in {} HLC-aligned chunk(s) for space {}",
-            changes.len(),
-            chunks.len(),
-            space_id
-        );
-
-        // Collect affected table names and the max HLC across all chunks —
-        // used for dirty-table cleanup after every chunk succeeded.
-        let pushed_table_names: HashSet<String> = changes
-            .iter()
-            .map(|c| c.table_name.clone())
-            .collect();
-
-        // Record the timestamp for clearing dirty tables.
-        let push_timestamp = sqlite_datetime_now();
-
-        for (idx, chunk) in chunks.iter().enumerate() {
-            let chunk_max_hlc = hlc_max(chunk.iter().map(|c| c.hlc_timestamp.as_str()))
-                .unwrap_or("")
-                .to_string();
-
-            let chunk_json = serde_json::to_value(chunk).map_err(|e| {
-                DeliveryError::ProtocolError {
-                    reason: format!("Failed to serialize chunk {}: {}", idx, e),
-                }
-            })?;
-
-            session.push_changes(space_id, chunk_json).await?;
-
-            // Checkpoint after each successful chunk so a later failure does
-            // not re-push completed groups. The scanner will pick up whatever
-            // remains on the next cycle.
-            *last_push_hlc = Some(chunk_max_hlc);
-        }
-
-        // Clear dirty tables only after the whole batch succeeded. Any mid-
-        // loop failure leaves them dirty so the scanner re-emits the groups.
-        for table_name in &pushed_table_names {
-            if let Err(e) = clear_dirty_table_inner(db, table_name, Some(&push_timestamp)) {
-                eprintln!(
-                    "[SyncLoop] Warning: failed to clear dirty table '{}': {}",
-                    table_name, e
-                );
-            }
-        }
+    // 1. PUSH (best-effort) — never blocks the pull below.
+    if let Err(e) = run_push_phase(db, session, space_id, device_id, last_push_hlc).await {
+        eprintln!("[SyncLoop] Push phase failed (pull continues): {}", e);
     }
 
     // 2. PULL: Get changes from leader

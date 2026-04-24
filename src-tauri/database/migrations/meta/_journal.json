@@ -29,6 +29,13 @@
       "when": 1776868622544,
       "tag": "0003_freezing_falcon",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1776928025604,
+      "tag": "0004_flashy_star_brand",
+      "breakpoints": true
     }
   ]
 }

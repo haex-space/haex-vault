@@ -20,13 +20,18 @@ on:
         default: ''
 
 concurrency:
-  # On release: shared group per branch → new push cancels previous (serial).
-  # Elsewhere: unique group per RUN → every invocation gets its own bucket,
-  # so a workflow_call from release.yml never queues behind the push-Build
-  # that was triggered for the same commit. (Previous expression used
-  # github.sha which collided in exactly that case.)
-  group: build-${{ github.ref == 'refs/heads/release' && 'release' || github.run_id }}
-  cancel-in-progress: ${{ github.ref == 'refs/heads/release' }}
+  # One run per logical work unit. Three cases:
+  #   - workflow_call (from release.yml): unique per run_id so a release
+  #     verify never queues behind a push-Build for the same commit. Keeps
+  #     the original escape that an earlier SHA-based key broke.
+  #   - release branch: shared 'build-release' so a new push cancels the
+  #     previous release build (serial).
+  #   - everywhere else: keyed by commit SHA so the `push` event and the
+  #     `pull_request` event fired for the same commit share a slot. The
+  #     later event cancels the earlier run, eliminating the duplicate
+  #     CI we were seeing on every new PR.
+  group: ${{ github.event_name == 'workflow_call' && format('build-call-{0}', github.run_id) || (github.ref == 'refs/heads/release' && 'build-release') || format('build-{0}', github.event.pull_request.head.sha || github.sha) }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
 
 jobs:
   # Skip build only for version bump commits (they trigger the Release workflow via tag).
@@ -376,7 +381,7 @@ jobs:
     needs: [test, check-skip]
     if: needs.check-skip.outputs.should_skip != 'true'
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - name: Free disk space
         run: |
