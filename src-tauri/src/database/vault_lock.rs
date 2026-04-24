@@ -63,25 +63,29 @@ impl VaultLock {
                 source,
             })?;
 
-        handle.try_lock_exclusive().map_err(|source| {
-            // `WouldBlock` means another holder has the exclusive lock —
-            // that's the expected contention case. Anything else (permission
-            // denied, unsupported filesystem) is a real I/O failure and
-            // shouldn't masquerade as "vault already open".
-            if source.kind() == io::ErrorKind::WouldBlock {
-                VaultLockError::AlreadyHeld {
-                    path: lock_path.display().to_string(),
-                    source,
-                }
-            } else {
-                VaultLockError::Io {
-                    path: lock_path.display().to_string(),
-                    source,
-                }
-            }
-        })?;
+        handle
+            .try_lock_exclusive()
+            .map_err(|source| classify_try_lock_error(&lock_path, source))?;
 
         Ok(Self { handle, lock_path })
+    }
+}
+
+/// Classify an error returned by `try_lock_exclusive`. Only genuine
+/// contention (`WouldBlock`) becomes `AlreadyHeld`; everything else
+/// (permission denied, unsupported filesystem, etc.) is a real I/O
+/// failure and must not be surfaced to the UI as "vault already open".
+fn classify_try_lock_error(lock_path: &Path, source: io::Error) -> VaultLockError {
+    if source.kind() == io::ErrorKind::WouldBlock {
+        VaultLockError::AlreadyHeld {
+            path: lock_path.display().to_string(),
+            source,
+        }
+    } else {
+        VaultLockError::Io {
+            path: lock_path.display().to_string(),
+            source,
+        }
     }
 }
 
@@ -153,5 +157,42 @@ mod tests {
     fn lock_path_for_appends_suffix() {
         let p = lock_path_for(Path::new("/vaults/my.db"));
         assert_eq!(p, Path::new("/vaults/my.db.lock"));
+    }
+
+    #[test]
+    fn classify_wouldblock_as_already_held() {
+        // Genuine contention: another process already holds the lock.
+        let source = io::Error::new(io::ErrorKind::WouldBlock, "EWOULDBLOCK");
+        let mapped = classify_try_lock_error(Path::new("/vaults/x.db.lock"), source);
+        assert!(
+            matches!(mapped, VaultLockError::AlreadyHeld { .. }),
+            "WouldBlock must classify as AlreadyHeld, got {mapped:?}",
+        );
+    }
+
+    #[test]
+    fn classify_permission_denied_as_io() {
+        // Regression: previously any try_lock error became AlreadyHeld,
+        // so a permission-restricted FS produced a misleading
+        // "vault already open" message the user could not resolve.
+        let source = io::Error::new(io::ErrorKind::PermissionDenied, "EACCES");
+        let mapped = classify_try_lock_error(Path::new("/vaults/x.db.lock"), source);
+        assert!(
+            matches!(mapped, VaultLockError::Io { .. }),
+            "PermissionDenied must classify as Io, got {mapped:?}",
+        );
+    }
+
+    #[test]
+    fn classify_unsupported_as_io() {
+        // Some network filesystems return Unsupported (or a raw os error
+        // not mapped to WouldBlock). These are environmental failures,
+        // not contention.
+        let source = io::Error::new(io::ErrorKind::Unsupported, "ENOTSUP");
+        let mapped = classify_try_lock_error(Path::new("/vaults/x.db.lock"), source);
+        assert!(
+            matches!(mapped, VaultLockError::Io { .. }),
+            "Unsupported must classify as Io, got {mapped:?}",
+        );
     }
 }

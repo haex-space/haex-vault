@@ -210,6 +210,62 @@ fn token_fingerprint(token_id: &str) -> String {
     format!("sha256:{}", hex::encode(&digest[..6]))
 }
 
+#[cfg(test)]
+mod tests {
+    use super::token_fingerprint;
+
+    const SECRET_TOKEN: &str = "bearer-secret-abc123-xyz789-do-not-log";
+
+    #[test]
+    fn fingerprint_is_deterministic() {
+        // Same token must always produce the same fingerprint so logs from
+        // different hosts can be correlated without storing the raw token.
+        assert_eq!(
+            token_fingerprint(SECRET_TOKEN),
+            token_fingerprint(SECRET_TOKEN),
+        );
+    }
+
+    #[test]
+    fn fingerprint_has_fixed_shape() {
+        // "sha256:" prefix (7 chars) + 6 bytes hex-encoded (12 chars) = 19.
+        let fp = token_fingerprint(SECRET_TOKEN);
+        assert!(fp.starts_with("sha256:"), "got {fp:?}");
+        assert_eq!(fp.len(), 19, "unexpected length: {fp:?}");
+        // Hex-only payload after the prefix.
+        assert!(
+            fp["sha256:".len()..].chars().all(|c| c.is_ascii_hexdigit()),
+            "payload not hex: {fp:?}",
+        );
+    }
+
+    #[test]
+    fn fingerprint_differs_per_input() {
+        // Collision resistance for distinct inputs — ensures per-invite
+        // fingerprints are actually distinguishing, not always the same.
+        assert_ne!(
+            token_fingerprint("token-a"),
+            token_fingerprint("token-b"),
+        );
+    }
+
+    #[test]
+    fn fingerprint_does_not_leak_token_plaintext() {
+        // Regression guard for the review finding: raw token_id must not
+        // be recoverable from persisted diagnostics. A plain SHA-256 prefix
+        // is non-reversible — this test asserts no substring of the token
+        // leaks into the output.
+        let fp = token_fingerprint(SECRET_TOKEN);
+        assert!(!fp.contains(SECRET_TOKEN));
+        for fragment in ["bearer", "secret", "abc123", "xyz789"] {
+            assert!(
+                !fp.contains(fragment),
+                "fingerprint {fp:?} leaked token fragment {fragment:?}",
+            );
+        }
+    }
+}
+
 /// Check invite policy against blocked DIDs and policy setting.
 fn check_invite_policy(db: &DbConnection, inviter_did: &str) -> bool {
     // Check blocked DIDs
