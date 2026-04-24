@@ -30,9 +30,19 @@ pub struct VaultLock {
     /// of the open vault — closing this handle releases the advisory lock.
     handle: File,
     lock_path: PathBuf,
+    /// The vault DB path this lock is guarding. Retained so callers can
+    /// verify which vault is currently mounted (used by
+    /// `open_encrypted_database` to distinguish the idempotent
+    /// create→open flow from an accidental cross-vault open attempt).
+    vault_path: PathBuf,
 }
 
 impl VaultLock {
+    /// Vault DB path that this lock is guarding.
+    pub fn vault_path(&self) -> &Path {
+        &self.vault_path
+    }
+
     /// Try to acquire an exclusive advisory lock on `<vault_path>.lock`.
     ///
     /// Returns `Ok(VaultLock)` if we got the lock, or an error if another
@@ -67,16 +77,32 @@ impl VaultLock {
             .try_lock_exclusive()
             .map_err(|source| classify_try_lock_error(&lock_path, source))?;
 
-        Ok(Self { handle, lock_path })
+        Ok(Self {
+            handle,
+            lock_path,
+            vault_path: vault_path.to_path_buf(),
+        })
     }
 }
 
 /// Classify an error returned by `try_lock_exclusive`. Only genuine
-/// contention (`WouldBlock`) becomes `AlreadyHeld`; everything else
-/// (permission denied, unsupported filesystem, etc.) is a real I/O
-/// failure and must not be surfaced to the UI as "vault already open".
+/// lock contention becomes `AlreadyHeld`; everything else (permission
+/// denied, unsupported filesystem, etc.) is a real I/O failure and must
+/// not be surfaced to the UI as "vault already open".
+///
+/// Uses `fs2::lock_contended_error()` as the canonical sentinel rather
+/// than hard-coding `ErrorKind::WouldBlock` — the raw OS errno differs
+/// across platforms (EWOULDBLOCK on Unix vs ERROR_LOCK_VIOLATION on
+/// Windows), and Rust's `ErrorKind` mapping for the Windows case has
+/// shifted between releases. Matching against fs2's own sentinel is
+/// the only way to stay correct on every target.
 fn classify_try_lock_error(lock_path: &Path, source: io::Error) -> VaultLockError {
-    if source.kind() == io::ErrorKind::WouldBlock {
+    let contended = fs2::lock_contended_error();
+    let is_contended = match (source.raw_os_error(), contended.raw_os_error()) {
+        (Some(actual), Some(expected)) => actual == expected,
+        _ => source.kind() == contended.kind(),
+    };
+    if is_contended {
         VaultLockError::AlreadyHeld {
             path: lock_path.display().to_string(),
             source,
@@ -160,13 +186,14 @@ mod tests {
     }
 
     #[test]
-    fn classify_wouldblock_as_already_held() {
-        // Genuine contention: another process already holds the lock.
-        let source = io::Error::new(io::ErrorKind::WouldBlock, "EWOULDBLOCK");
+    fn classify_fs2_contended_as_already_held() {
+        // Use fs2's own sentinel so the test mirrors what `try_lock_exclusive`
+        // actually returns on contention on this platform.
+        let source = fs2::lock_contended_error();
         let mapped = classify_try_lock_error(Path::new("/vaults/x.db.lock"), source);
         assert!(
             matches!(mapped, VaultLockError::AlreadyHeld { .. }),
-            "WouldBlock must classify as AlreadyHeld, got {mapped:?}",
+            "fs2::lock_contended_error must classify as AlreadyHeld, got {mapped:?}",
         );
     }
 

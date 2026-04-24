@@ -24,7 +24,7 @@ use ed25519_dalek::SigningKey;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
 use std::{fs, sync::Arc};
@@ -891,20 +891,31 @@ pub fn open_encrypted_database(
 ) -> Result<String, DatabaseError> {
     println!("[OPEN_DB] open_encrypted_database called for: {vault_path}");
 
-    // Check if a database connection already exists in AppState
-    // This happens when create_encrypted_database was called before
-    let already_open = {
-        let db_guard = state.db.0.lock().map_err(|e| DatabaseError::LockError {
+    // Check whether a vault is already mounted in this process, and whether
+    // it's the one the caller is asking for. The create → open chain leaves
+    // the connection live on purpose (idempotent success); but if a
+    // *different* vault is mounted, returning "already open" here would
+    // silently hand the caller the wrong vault's data.
+    let mounted_path: Option<PathBuf> = {
+        let lock_guard = state.vault_lock.lock().map_err(|e| DatabaseError::LockError {
             reason: e.to_string(),
         })?;
-        db_guard.is_some()
+        lock_guard.as_ref().map(|lock| lock.vault_path().to_path_buf())
     };
 
-    if already_open {
-        println!(
-            "[OPEN_DB] Database connection already exists in AppState, skipping re-initialization"
-        );
-        return Ok(format!("Vault '{vault_path}' already open"));
+    if let Some(existing) = mounted_path {
+        if existing == Path::new(&vault_path) {
+            println!(
+                "[OPEN_DB] Vault '{vault_path}' already mounted (create→open flow); returning idempotent success"
+            );
+            return Ok(format!("Vault '{vault_path}' already open"));
+        }
+        return Err(DatabaseError::DatabaseError {
+            reason: format!(
+                "Cannot open '{vault_path}': a different vault ('{}') is already mounted in this process. Close it before opening another.",
+                existing.display()
+            ),
+        });
     }
 
     println!("[OPEN_DB] No existing connection, initializing new session...");

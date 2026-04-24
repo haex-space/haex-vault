@@ -129,7 +129,8 @@ pub fn handle_push_invite(
         "INSERT OR IGNORE INTO haex_pending_invites \
          (id, space_id, space_name, space_type, origin_url, inviter_did, inviter_label, inviter_avatar, inviter_avatar_options, \
           capabilities, include_history, token_id, space_endpoints, status, created_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 'pending', ?14)"
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 'pending', ?14) \
+         RETURNING id"
             .to_string(),
         vec![
             serde_json::Value::String(invite_id.clone()),
@@ -164,17 +165,31 @@ pub fn handle_push_invite(
 
     // Persist the INSERT outcome to haex_logs so production (where stderr is /dev/null)
     // can tell whether a given invite reached the row-creation stage or not.
-    // Note: `execute_with_crdt` returns the RETURNING rows, not rows_affected —
-    // for plain INSERT OR IGNORE this is an empty Vec on both real-insert and
-    // ignored-conflict. UUID collisions being astronomically unlikely, Ok is
-    // treated as success here.
-    if let Err(e) = &insert_result {
-        logging::log_to_db(db, hlc, "error", LOG_SOURCE, &format!(
-            "INSERT FAILED: pending invite {invite_id} (space={space_id}, token={token_fp}): {e}"
+    // With `RETURNING id`, `execute_with_crdt` yields one row on a real insert
+    // and an empty Vec when `INSERT OR IGNORE` skipped a duplicate id — so
+    // we can distinguish "wrote the row" from "ignored a UUID collision"
+    // and avoid ACKing success when no row exists.
+    let inserted_rows = match &insert_result {
+        Ok(rows) => rows,
+        Err(e) => {
+            logging::log_to_db(db, hlc, "error", LOG_SOURCE, &format!(
+                "INSERT FAILED: pending invite {invite_id} (space={space_id}, token={token_fp}): {e}"
+            ));
+            // Fail fast: don't emit push-invite-received or ACK success when
+            // the row isn't persisted, or the UI fires a toast for an invite
+            // that doesn't exist in the DB.
+            return Response::PushInviteAck { accepted: false };
+        }
+    };
+
+    if inserted_rows.is_empty() {
+        // INSERT OR IGNORE skipped the row (duplicate id). UUID collisions
+        // are astronomically unlikely, but reporting accepted=true when no
+        // row was actually written would surface a phantom invite to the
+        // user — so bail out explicitly.
+        logging::log_to_db(db, hlc, "warn", LOG_SOURCE, &format!(
+            "INSERT IGNORED (duplicate id): pending invite {invite_id} (space={space_id}, token={token_fp})"
         ));
-        // Fail fast: don't emit push-invite-received or ACK success when
-        // the row isn't persisted, or the UI fires a toast for an invite
-        // that doesn't exist in the DB.
         return Response::PushInviteAck { accepted: false };
     }
 
