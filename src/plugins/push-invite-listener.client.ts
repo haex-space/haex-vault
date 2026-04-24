@@ -6,19 +6,20 @@ const log = createLogger('PUSH-INVITE')
 /**
  * Global listener for the `push-invite-received` Tauri event.
  *
- * Previously this listener was registered only when the Spaces settings
- * page was mounted, which meant invites that arrived while the user was
- * elsewhere silently landed in the DB without updating any reactive state.
- * Reloading the invites list requires a drizzle query, so the user saw no
- * badge, toast, or UI change until they manually navigated back to the
- * settings page — at which point a freshly created invite would
- * mysteriously "reveal" the older one.
+ * Surfaces a toast app-wide so the user notices an invite even when the
+ * Spaces settings page is not mounted. The invite list itself is
+ * refreshed by `useSpaceInvites` (scoped to the settings page):
+ * - While the settings page IS mounted, the composable's own
+ *   `listenForPushInvitesAsync` listener reloads the list.
+ * - While the settings page is NOT mounted, there is no reactive invite
+ *   view to update — the next `onMounted` on the settings page calls
+ *   `loadInvitesAsync` and picks up the new row.
  *
- * This plugin owns the listener app-wide so:
- * - The spaces store's `pendingInvites` stays in sync regardless of
- *   which window the user has focused.
- * - A toast surfaces the invite immediately.
- * - Unlisten runs on Nuxt app `close` so HMR doesn't leak handlers.
+ * The handler intentionally does NOT call `loadSpacesFromDbAsync`: the
+ * push-invite backend writes to `haex_pending_invites` only, so reloading
+ * `haex_spaces` would be a no-op.
+ *
+ * Unlisten runs on Nuxt app HMR dispose so reloads don't leak handlers.
  */
 export default defineNuxtPlugin({
   name: 'push-invite-listener',
@@ -28,16 +29,7 @@ export default defineNuxtPlugin({
 
     try {
       unlisten = await listen('push-invite-received', async () => {
-        log.info('Received push-invite-received event — reloading spaces + adding toast')
-
-        let reloadOk = false
-        try {
-          const spacesStore = useSpacesStore()
-          await spacesStore.loadSpacesFromDbAsync()
-          reloadOk = true
-        } catch (error) {
-          log.warn(`Failed to reload spaces after push invite: ${error}`)
-        }
+        log.info('Received push-invite-received event — surfacing toast')
 
         let toastOk = false
         try {
@@ -55,12 +47,11 @@ export default defineNuxtPlugin({
         } catch (error) {
           // Previously swallowed silently — which is exactly how a missing
           // toast turns into "the user has no idea an invite arrived".
-          // Logging here makes the listener-vs-toast split diagnosable from
-          // production DB logs alone.
+          // Logging here makes the failure diagnosable from DB logs alone.
           log.warn(`Failed to surface invite toast: ${error}`)
         }
 
-        log.info(`push-invite handler completed — spacesReload=${reloadOk} toast=${toastOk}`)
+        log.info(`push-invite handler completed — toast=${toastOk}`)
       })
       log.info('Registered global push-invite-received listener')
     } catch (error) {
