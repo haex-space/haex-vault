@@ -103,6 +103,14 @@ pub enum DatabaseError {
     #[error("Vault '{vault_name}' already exists")]
     VaultAlreadyExists { vault_name: String },
 
+    /// Another process already has this vault open — holding a `.lock` file
+    /// on the vault DB path. Surface this as a distinct variant (rather than
+    /// a generic IoError) so the UI can display a user-facing
+    /// "vault already open in another window" message instead of a raw
+    /// filesystem error.
+    #[error("Vault at '{path}' is already open in another instance")]
+    VaultAlreadyOpenElsewhere { path: String, reason: String },
+
     #[error("Validation error: {reason}")]
     ValidationError { reason: String },
 

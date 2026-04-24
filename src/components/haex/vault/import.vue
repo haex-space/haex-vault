@@ -311,6 +311,12 @@ const onImportAsync = async () => {
           vaultName: errorDetails.details?.vaultName || '',
         }),
       })
+    } else if (errorDetails?.type === 'VaultAlreadyOpenElsewhere') {
+      add({
+        color: 'error',
+        title: t('error.alreadyOpen.title'),
+        description: t('error.alreadyOpen.description'),
+      })
     } else if (errorDetails?.details?.reason === 'file is not a database') {
       add({
         color: 'error',
@@ -382,6 +388,9 @@ de:
     alreadyExists:
       title: Vault existiert bereits
       description: Eine Vault mit dem Namen "{vaultName}" existiert bereits. Bitte lösche sie zuerst oder benenne die zu importierende Datei um.
+    alreadyOpen:
+      title: Vault bereits geöffnet
+      description: Diese Vault ist bereits in einem anderen Fenster oder Prozess offen. Bitte schließe die andere Instanz, bevor du sie hier öffnest.
     password:
       title: Vault konnte nicht geöffnet werden
       description: Bitte überprüfe das Passwort
@@ -412,6 +421,9 @@ en:
     alreadyExists:
       title: Vault already exists
       description: A vault named "{vaultName}" already exists. Please delete it first or rename the file to import.
+    alreadyOpen:
+      title: Vault already open
+      description: This vault is already open in another window or process. Close the other instance before opening it here.
     password:
       title: Vault could not be opened
       description: Please check your password

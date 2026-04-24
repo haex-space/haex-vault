@@ -9,6 +9,7 @@ pub mod init;
 pub mod migrations;
 pub mod row;
 pub mod stats;
+pub mod vault_lock;
 
 use crate::crdt::hlc::HlcService;
 use crate::database::core::with_connection;
@@ -527,6 +528,37 @@ pub fn create_encrypted_database(
         });
     }
 
+    // Acquire the per-vault lock up front. A freshly-created vault can't
+    // collide with another instance by definition, but grabbing the lock
+    // here keeps the create-then-open-then-close lifecycle symmetric with
+    // `open_encrypted_database` — and any surprising race (e.g. two
+    // parallel `create` calls for the exact same filename) is cleanly
+    // rejected here instead of corrupting the half-written DB.
+    acquire_vault_lock_or_error(&vault_path, &state)?;
+
+    // Wrap the remaining steps in a closure so any `?`-propagated error
+    // releases the lock on the way out. Without this a mid-flight failure
+    // (SQLCipher init, migrations, identity seeding) would leave the lock
+    // stranded and block subsequent retries.
+    let outcome: Result<String, DatabaseError> = (|| {
+        create_encrypted_database_inner(&app_handle, &vault_path, &key, space_id, &state)
+    })();
+
+    if outcome.is_err() {
+        release_vault_lock(&state);
+    }
+
+    outcome
+}
+
+fn create_encrypted_database_inner(
+    app_handle: &AppHandle,
+    vault_path: &str,
+    key: &str,
+    space_id: Option<String>,
+    state: &State<'_, AppState>,
+) -> Result<String, DatabaseError> {
+    let vault_path = vault_path.to_string();
     println!("Creating new empty encrypted database at: {}", &vault_path);
 
     // Step 1: Create empty encrypted database
@@ -626,7 +658,7 @@ pub fn create_encrypted_database(
 
     // Step 4: Now initialize HLC and triggers (tables exist after migrations)
     println!("[CREATE_DB] Step 4: Initializing HLC and CRDT triggers...");
-    initialize_session_post_migration(&app_handle, &state)?;
+    initialize_session_post_migration(app_handle, state)?;
     println!("[CREATE_DB] ✅ HLC and triggers initialized");
 
     // Step 5: Set space_id
@@ -702,7 +734,7 @@ pub fn create_encrypted_database(
     // Step 7: Seed the default own identity so the vault is immediately usable
     // (haex_spaces.owner_identity_id is NOT NULL; UCAN signing needs this key).
     println!("[CREATE_DB] Step 7: Seeding default identity...");
-    ensure_default_identity(&state)?;
+    ensure_default_identity(state)?;
     println!("[CREATE_DB] ✅ default identity ensured");
 
     println!("[CREATE_DB] ========== create_encrypted_database COMPLETE ==========");
@@ -768,8 +800,55 @@ pub fn close_database(state: State<'_, AppState>) -> Result<(), DatabaseError> {
         }
     }
 
+    // 4. Release the per-vault advisory lock so another instance (or a
+    //    subsequent `open_encrypted_database` in this process) can mount
+    //    the same vault again. Dropping the `VaultLock` releases flock.
+    release_vault_lock(&state);
+    println!("[CLOSE_DB] Vault file lock released");
+
     println!("[CLOSE_DB] ✅ Database closed and state reset");
     Ok(())
+}
+
+/// Try to grab the exclusive per-vault advisory lock and stash it in
+/// AppState. Returns `VaultAlreadyOpenElsewhere` when another instance has
+/// this exact path locked.
+fn acquire_vault_lock_or_error(
+    vault_path: &str,
+    state: &State<'_, AppState>,
+) -> Result<(), DatabaseError> {
+    let lock = vault_lock::VaultLock::try_acquire(Path::new(vault_path)).map_err(|e| match e {
+        vault_lock::VaultLockError::AlreadyHeld { path, source } => {
+            DatabaseError::VaultAlreadyOpenElsewhere {
+                path,
+                reason: source.to_string(),
+            }
+        }
+        vault_lock::VaultLockError::Io { path, source } => DatabaseError::IoError {
+            path,
+            reason: format!("vault lock file: {source}"),
+        },
+    })?;
+
+    let mut guard = state.vault_lock.lock().map_err(|e| DatabaseError::LockError {
+        reason: e.to_string(),
+    })?;
+    *guard = Some(lock);
+    Ok(())
+}
+
+/// Drop any currently-held vault lock, releasing the OS advisory lock.
+/// Best-effort: a poisoned mutex here would only block future opens, which
+/// is preferable to panicking in shutdown / error-recovery paths.
+fn release_vault_lock(state: &State<'_, AppState>) {
+    match state.vault_lock.lock() {
+        Ok(mut guard) => {
+            *guard = None;
+        }
+        Err(e) => {
+            eprintln!("[CLOSE_DB] Warning: vault_lock mutex poisoned, skipping release: {e}");
+        }
+    }
 }
 
 #[tauri::command]
@@ -806,7 +885,21 @@ pub fn open_encrypted_database(
         });
     }
 
-    initialize_session(&app_handle, &vault_path, &key, &state)?;
+    // Acquire the per-vault exclusive lock BEFORE touching SQLite. If another
+    // instance holds it, bail out with a dedicated error variant the frontend
+    // recognises — opening the DB anyway would race the other instance's WAL
+    // and HLC state.
+    acquire_vault_lock_or_error(&vault_path, &state)?;
+
+    // If initialization fails downstream, we must release the lock again — a
+    // stuck lock would block the user from ever reopening the vault. Close
+    // the connection/reset state path also clears the lock, but only runs
+    // when initialize_session succeeded enough to return Ok. So on Err here
+    // we drop the lock explicitly.
+    if let Err(err) = initialize_session(&app_handle, &vault_path, &key, &state) {
+        release_vault_lock(&state);
+        return Err(err);
+    }
 
     // Apply any pending migrations to bring existing vaults up to date
     println!("[OPEN_DB] Checking for pending migrations...");

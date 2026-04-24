@@ -32,7 +32,6 @@ use crate::extension::webview::ExtensionWebviewManager;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 #[cfg(desktop)]
-use tauri::Emitter;
 use tauri::Manager;
 
 pub mod table_names {
@@ -46,6 +45,12 @@ pub mod event_names {
 pub struct AppState {
     pub db: DbConnection,
     pub hlc: Mutex<HlcService>,
+    /// Exclusive advisory lock on the currently-open vault's DB file.
+    /// Populated by `open_encrypted_database` / `create_encrypted_database`
+    /// and cleared by `close_database`. Prevents the same vault from being
+    /// mounted by two instances at once (which would corrupt CRDT HLC + WAL).
+    /// `None` means no vault is currently open.
+    pub vault_lock: Mutex<Option<crate::database::vault_lock::VaultLock>>,
     /// Per-session CRDT connection state. Holds the transaction-scoped HLC slot
     /// that is shared between the `current_hlc()` UDF, BEFORE-DELETE triggers,
     /// and literal-injection in the SqlExecutor.
@@ -88,6 +93,10 @@ pub struct AppState {
 pub fn run() {
     use extension::core::EXTENSION_PROTOCOL_NAME;
 
+    // Reassigned under #[cfg(mobile)] / #[cfg(target_os = "android")] below;
+    // on desktop-linux the compiler doesn't see those paths and warns about
+    // the `mut` — allow it.
+    #[allow(unused_mut)]
     let mut builder = tauri::Builder::default();
 
     // Biometry plugin (mobile only) - provides biometric auth + secure storage
@@ -102,22 +111,14 @@ pub fn run() {
         builder = builder.plugin(tauri_plugin_android_fs::init());
     }
 
-    // Single-instance plugin must be registered first (desktop only)
-    // This handles deep-link URLs passed as CLI arguments when a new instance is launched
-    #[cfg(desktop)]
-    {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            // Deep-link URLs come as CLI arguments
-            // Emit event to frontend for handling
-            if let Some(url) = argv.iter().find(|arg| arg.starts_with("haexvault://")) {
-                let _ = app.emit("deep-link-received", url.clone());
-            }
-            // Focus the main window
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_focus();
-            }
-        }));
-    }
+    // Note: previously `tauri_plugin_single_instance` was registered here to
+    // lock the app to one running instance per user, with a secondary purpose
+    // of forwarding `haexvault://` deep-link CLI args from a 2nd launch to
+    // the already-running window. That coupling is gone: we now allow
+    // multiple simultaneous instances (e.g. for side-by-side testing of two
+    // vaults on the same machine). The deep-link forwarding fallback is
+    // dropped with it — if a URL arrives as a CLI arg to a fresh instance
+    // it will be handled by that instance's own startup flow.
 
     builder
         .register_uri_scheme_protocol(EXTENSION_PROTOCOL_NAME, move |context, request| {
@@ -153,6 +154,7 @@ pub fn run() {
         .manage(AppState {
             db: DbConnection(Arc::new(Mutex::new(None))),
             hlc: Mutex::new(HlcService::new()),
+            vault_lock: Mutex::new(None),
             connection_context: Mutex::new(ConnectionContext::new()),
             extension_manager: ExtensionManager::new(),
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
