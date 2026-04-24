@@ -209,8 +209,6 @@ import { createAvatar } from '@dicebear/core'
 import * as toonHead from '@dicebear/toon-head'
 import type { ToonHeadOptions } from '~/utils/identityAvatar'
 
-export type { ToonHeadOptions } from '~/utils/identityAvatar'
-
 const options = defineModel<ToonHeadOptions>('options', { required: true })
 
 const { t } = useI18n()

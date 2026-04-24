@@ -79,7 +79,9 @@ import {
   randomBotttsOptions,
 } from '~/utils/identityAvatar'
 
-export type { AvatarOptions } from '~/utils/identityAvatar'
+// (AvatarOptions is available globally via Nuxt auto-imports from
+// ~/utils/identityAvatar — no re-export needed and removing it prevents
+// the auto-import duplicate-symbol warning.)
 
 const props = defineProps<{
   avatarStyle: 'toon-head' | 'bottts'
