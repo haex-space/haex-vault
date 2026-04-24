@@ -6,6 +6,7 @@
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Emitter};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -41,8 +42,9 @@ pub fn handle_push_invite(
     space_endpoints: &[String],
     origin_url: Option<&str>,
 ) -> Response {
+    let token_fp = token_fingerprint(token_id);
     logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
-        "Received invite for space {space_id} ({space_name}) from {inviter_did}, token={token_id}"
+        "Received invite for space {space_id} ({space_name}) from {inviter_did}, token={token_fp}"
     ));
 
     // 1. Validate capabilities — reject if empty or containing unknown values
@@ -166,18 +168,19 @@ pub fn handle_push_invite(
     // for plain INSERT OR IGNORE this is an empty Vec on both real-insert and
     // ignored-conflict. UUID collisions being astronomically unlikely, Ok is
     // treated as success here.
-    match &insert_result {
-        Ok(_) => {
-            logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
-                "INSERT OK: pending invite {invite_id} (space={space_id}, token={token_id})"
-            ));
-        }
-        Err(e) => {
-            logging::log_to_db(db, hlc, "error", LOG_SOURCE, &format!(
-                "INSERT FAILED: pending invite {invite_id} (space={space_id}, token={token_id}): {e}"
-            ));
-        }
+    if let Err(e) = &insert_result {
+        logging::log_to_db(db, hlc, "error", LOG_SOURCE, &format!(
+            "INSERT FAILED: pending invite {invite_id} (space={space_id}, token={token_fp}): {e}"
+        ));
+        // Fail fast: don't emit push-invite-received or ACK success when
+        // the row isn't persisted, or the UI fires a toast for an invite
+        // that doesn't exist in the DB.
+        return Response::PushInviteAck { accepted: false };
     }
+
+    logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
+        "INSERT OK: pending invite {invite_id} (space={space_id}, token={token_fp})"
+    ));
 
     logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
         "Invite processing complete for {invite_id} in space {space_id}"
@@ -197,6 +200,14 @@ pub fn handle_push_invite(
     }
 
     Response::PushInviteAck { accepted: true }
+}
+
+/// Short, non-reversible fingerprint of a token for log diagnostics.
+/// Full `token_id` is a bearer credential; persisting it in `haex_logs`
+/// would make those rows as sensitive as the invite itself.
+fn token_fingerprint(token_id: &str) -> String {
+    let digest = Sha256::digest(token_id.as_bytes());
+    format!("sha256:{}", hex::encode(&digest[..6]))
 }
 
 /// Check invite policy against blocked DIDs and policy setting.

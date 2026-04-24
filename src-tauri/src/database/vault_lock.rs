@@ -63,12 +63,23 @@ impl VaultLock {
                 source,
             })?;
 
-        handle
-            .try_lock_exclusive()
-            .map_err(|source| VaultLockError::AlreadyHeld {
-                path: lock_path.display().to_string(),
-                source,
-            })?;
+        handle.try_lock_exclusive().map_err(|source| {
+            // `WouldBlock` means another holder has the exclusive lock —
+            // that's the expected contention case. Anything else (permission
+            // denied, unsupported filesystem) is a real I/O failure and
+            // shouldn't masquerade as "vault already open".
+            if source.kind() == io::ErrorKind::WouldBlock {
+                VaultLockError::AlreadyHeld {
+                    path: lock_path.display().to_string(),
+                    source,
+                }
+            } else {
+                VaultLockError::Io {
+                    path: lock_path.display().to_string(),
+                    source,
+                }
+            }
+        })?;
 
         Ok(Self { handle, lock_path })
     }

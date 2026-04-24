@@ -528,6 +528,13 @@ pub fn create_encrypted_database(
         });
     }
 
+    // Refuse to mount a new vault while another is still live in this
+    // process. Writing to `state.vault_lock` blindly would drop the prior
+    // `VaultLock` (releasing its flock) while its SQLite connection is
+    // still open in `state.db` — the first vault would then be exposed to
+    // concurrent writers from other instances.
+    reject_if_vault_already_mounted(&state)?;
+
     // Acquire the per-vault lock up front. A freshly-created vault can't
     // collide with another instance by definition, but grabbing the lock
     // here keeps the create-then-open-then-close lifecycle symmetric with
@@ -537,15 +544,15 @@ pub fn create_encrypted_database(
     acquire_vault_lock_or_error(&vault_path, &state)?;
 
     // Wrap the remaining steps in a closure so any `?`-propagated error
-    // releases the lock on the way out. Without this a mid-flight failure
-    // (SQLCipher init, migrations, identity seeding) would leave the lock
-    // stranded and block subsequent retries.
+    // runs a full teardown on the way out. Releasing only the lock would
+    // leave a half-initialized session (connection, HLC, ctx) in AppState
+    // which breaks subsequent `open_encrypted_database` retries.
     let outcome: Result<String, DatabaseError> = (|| {
         create_encrypted_database_inner(&app_handle, &vault_path, &key, space_id, &state)
     })();
 
     if outcome.is_err() {
-        release_vault_lock(&state);
+        let _ = close_database(state.clone());
     }
 
     outcome
@@ -837,6 +844,30 @@ fn acquire_vault_lock_or_error(
     Ok(())
 }
 
+/// Reject mount attempts when this process already has a vault open.
+/// Prevents dropping the live `VaultLock` (and releasing its flock) while
+/// the corresponding SQLite connection is still stored in `state.db`.
+fn reject_if_vault_already_mounted(state: &State<'_, AppState>) -> Result<(), DatabaseError> {
+    let has_connection = state
+        .db
+        .0
+        .lock()
+        .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?
+        .is_some();
+    let has_lock = state
+        .vault_lock
+        .lock()
+        .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?
+        .is_some();
+    if has_connection || has_lock {
+        return Err(DatabaseError::DatabaseError {
+            reason: "Another vault is still mounted in this process; close it first."
+                .to_string(),
+        });
+    }
+    Ok(())
+}
+
 /// Drop any currently-held vault lock, releasing the OS advisory lock.
 /// Best-effort: a poisoned mutex here would only block future opens, which
 /// is preferable to panicking in shutdown / error-recovery paths.
@@ -891,23 +922,25 @@ pub fn open_encrypted_database(
     // and HLC state.
     acquire_vault_lock_or_error(&vault_path, &state)?;
 
-    // If initialization fails downstream, we must release the lock again — a
-    // stuck lock would block the user from ever reopening the vault. Close
-    // the connection/reset state path also clears the lock, but only runs
-    // when initialize_session succeeded enough to return Ok. So on Err here
-    // we drop the lock explicitly.
-    if let Err(err) = initialize_session(&app_handle, &vault_path, &key, &state) {
-        release_vault_lock(&state);
+    // Wrap the post-lock steps so any failure (session init, migrations,
+    // identity seeding) unwinds through one teardown path. A stuck lock OR a
+    // half-initialized session (connection mounted but migrations failed)
+    // would both break subsequent reopens — `close_database` handles both.
+    let outcome: Result<(), DatabaseError> = (|| {
+        initialize_session(&app_handle, &vault_path, &key, &state)?;
+        println!("[OPEN_DB] Checking for pending migrations...");
+        crate::database::migrations::apply_core_migrations(app_handle.clone(), state.clone())?;
+        // Backfill a default own identity for vaults that predate the
+        // seeding step in create_encrypted_database (idempotent — no-op
+        // when one already exists).
+        ensure_default_identity(&state)?;
+        Ok(())
+    })();
+
+    if let Err(err) = outcome {
+        let _ = close_database(state.clone());
         return Err(err);
     }
-
-    // Apply any pending migrations to bring existing vaults up to date
-    println!("[OPEN_DB] Checking for pending migrations...");
-    crate::database::migrations::apply_core_migrations(app_handle, state.clone())?;
-
-    // Backfill a default own identity for vaults that predate the seeding step
-    // in create_encrypted_database (idempotent — no-op when one already exists).
-    ensure_default_identity(&state)?;
 
     println!("[OPEN_DB] ✅ Vault opened successfully");
     Ok(format!("Vault '{vault_path}' opened successfully"))
