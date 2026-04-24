@@ -1,5 +1,7 @@
 <template>
   <div
+    :data-testid="`space-card-${space.id}`"
+    :data-space-status="pending ? 'pending' : 'active'"
     class="flex flex-col gap-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 transition-colors"
     :class="[
       pending ? 'border border-dashed border-primary/30' : 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50',
