@@ -47,8 +47,15 @@ impl PeerSession {
                     reason: format!("invalid endpoint id: {e}"),
                 })?;
 
+        // Relay-URL fallback parallel zu `local_delivery_claim_invite`:
+        // explizit übergebener Wert → live Relay des eigenen Endpoints.
+        // Ohne den Fallback schlagen Sync-Loop-Connects in Setups mit zwei
+        // getrennten Netzwerken (z.B. Docker-Container der E2E-Suite)
+        // sofort mit "connection lost" fehl, weil die TS-Seite beim
+        // accept-via-hint-Pfad keine Relay-URL durchreicht.
         let relay = leader_relay_url
-            .and_then(|s| s.parse::<iroh::RelayUrl>().ok());
+            .and_then(|s| s.parse::<iroh::RelayUrl>().ok())
+            .or_else(|| iroh_endpoint.addr().relay_urls().next().cloned());
 
         let addr = match relay {
             Some(url) => iroh::EndpointAddr::new(remote_id).with_relay_url(url),
