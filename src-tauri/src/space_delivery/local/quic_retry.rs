@@ -19,10 +19,76 @@ use std::time::Duration;
 
 use iroh::endpoint::{ConnectError, ConnectionError, Endpoint, WriteError};
 use iroh::EndpointAddr;
+use iroh::RelayUrl;
 
 use crate::peer_storage::protocol::PeerProtocolError;
 
 use super::protocol::{self, Response, ALPN};
+
+/// Build an `iroh::EndpointAddr` for `remote_endpoint_id` with a
+/// best-effort relay URL.
+///
+/// Three call sites in `space_delivery/local` previously inlined this same
+/// dance with subtly different fallback chains — `PeerSession::connect`
+/// even shipped without the live-relay fallback for months and silently
+/// failed in the docker-split-network rig (see
+/// `project_share_visibility_after_accept`). Centralising avoids the next
+/// drift.
+///
+/// Fallback order:
+///   1. `explicit_relay` — explicit URL from the request payload.
+///   2. `configured_relay` — `peer_storage`'s startup-time relay setting.
+///   3. live relay from `endpoint.addr()` — what the local endpoint is
+///      currently registered with.
+///
+/// All three sources may be missing. The resulting `EndpointAddr` is
+/// still valid for direct/mDNS-only attempts, which the caller may treat
+/// as a degraded-but-acceptable mode (see `local_delivery_push_invite`'s
+/// "Connecting without relay" warning).
+pub fn build_endpoint_addr(
+    endpoint: &Endpoint,
+    remote_endpoint_id: &str,
+    explicit_relay: Option<&str>,
+    configured_relay: Option<&RelayUrl>,
+) -> Result<EndpointAddr, String> {
+    let remote_id: iroh::EndpointId = remote_endpoint_id
+        .parse()
+        .map_err(|e| format!("invalid endpoint id: {e}"))?;
+
+    let relay = explicit_relay
+        .and_then(|s| s.parse::<RelayUrl>().ok())
+        .or_else(|| configured_relay.cloned())
+        .or_else(|| endpoint.addr().relay_urls().next().cloned());
+
+    Ok(match relay {
+        Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
+        None => EndpointAddr::new(remote_id),
+    })
+}
+
+/// Variant of [`build_endpoint_addr`] that also returns the resolved
+/// relay URL (if any), so callers can log it without re-parsing.
+pub fn build_endpoint_addr_with_relay(
+    endpoint: &Endpoint,
+    remote_endpoint_id: &str,
+    explicit_relay: Option<&str>,
+    configured_relay: Option<&RelayUrl>,
+) -> Result<(EndpointAddr, Option<RelayUrl>), String> {
+    let remote_id: iroh::EndpointId = remote_endpoint_id
+        .parse()
+        .map_err(|e| format!("invalid endpoint id: {e}"))?;
+
+    let relay = explicit_relay
+        .and_then(|s| s.parse::<RelayUrl>().ok())
+        .or_else(|| configured_relay.cloned())
+        .or_else(|| endpoint.addr().relay_urls().next().cloned());
+
+    let addr = match relay.clone() {
+        Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
+        None => EndpointAddr::new(remote_id),
+    };
+    Ok((addr, relay))
+}
 
 /// Total attempts (initial + retries). Tuned to CI observations: networks
 /// typically recover within 1–2 seconds, so 3 attempts covers >99% of

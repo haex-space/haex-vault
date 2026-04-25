@@ -599,23 +599,15 @@ pub async fn local_delivery_claim_invite(
     log("info", &format!("Generated {} MLS KeyPackages", key_packages_b64.len()));
 
     // 3. Connect to leader via QUIC and send ClaimInvite
-    let remote_id: iroh::EndpointId = leader_endpoint_id
-        .parse()
-        .map_err(|e| format!("Invalid leader endpoint ID: {e}"))?;
-
-    // Use explicit relay URL if provided, fall back to configured relay, then live relay
-    let relay = leader_relay_url
-        .as_deref()
-        .and_then(|s| s.parse::<iroh::RelayUrl>().ok())
-        .or(configured_relay)
-        .or_else(|| iroh_endpoint.addr().relay_urls().next().cloned());
+    let (addr, relay) = super::quic_retry::build_endpoint_addr_with_relay(
+        &iroh_endpoint,
+        &leader_endpoint_id,
+        leader_relay_url.as_deref(),
+        configured_relay.as_ref(),
+    )
+    .map_err(|e| format!("Invalid leader endpoint ID: {e}"))?;
 
     log("info", &format!("Connecting to {} via relay {:?}", &leader_endpoint_id[..16.min(leader_endpoint_id.len())], relay.as_ref().map(|u| u.to_string())));
-
-    let addr = match relay {
-        Some(url) => iroh::EndpointAddr::new(remote_id).with_relay_url(url),
-        None => iroh::EndpointAddr::new(remote_id),
-    };
 
     // Encode once outside the retry loop — the request bytes are identical
     // across attempts, including the (expensively-generated) KeyPackages.
@@ -801,27 +793,20 @@ pub async fn local_delivery_push_invite(
     let configured_relay = endpoint.configured_relay_url().cloned();
     drop(endpoint);
 
-    let remote_id: iroh::EndpointId = target_endpoint_id
-        .parse()
-        .map_err(|e| format!("Invalid endpoint ID: {e}"))?;
-
-    // Use the configured relay URL (from DB settings / env / default).
-    // Falls back to the live relay from endpoint.addr() if available.
-    let relay = configured_relay
-        .or_else(|| iroh_endpoint.addr().relay_urls().next().cloned());
-    let has_relay = relay.is_some();
-    let addr = match relay {
-        Some(url) => {
-            log("info", &format!("Connecting via relay: {url}"));
-            iroh::EndpointAddr::new(remote_id).with_relay_url(url)
-        }
-        None => {
-            log("warn", "Connecting without relay (mDNS only)");
-            iroh::EndpointAddr::new(remote_id)
-        }
-    };
-
-    log("info", &format!("Connecting to {remote_id} (relay={has_relay})"));
+    // PushInvite has no per-request relay payload — fall back through
+    // configured → live relay only.
+    let (addr, relay) = super::quic_retry::build_endpoint_addr_with_relay(
+        &iroh_endpoint,
+        &target_endpoint_id,
+        None,
+        configured_relay.as_ref(),
+    )
+    .map_err(|e| format!("Invalid endpoint ID: {e}"))?;
+    match &relay {
+        Some(url) => log("info", &format!("Connecting via relay: {url}")),
+        None => log("warn", "Connecting without relay (mDNS only)"),
+    }
+    log("info", &format!("Connecting to {target_endpoint_id} (relay={})", relay.is_some()));
 
     let request = super::protocol::Request::PushInvite {
         space_id,
