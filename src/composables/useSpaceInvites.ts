@@ -85,8 +85,16 @@ export function useSpaceInvites() {
 
       if (endpoints.length > 0) {
         // QUIC invite — accept via ClaimInvite to one of the space endpoints
-        // (acceptLocalInviteAsync creates the real space entry on success)
+        // (acceptLocalInviteAsync creates the real space entry on success).
+        // It internally refreshes the spaces store, but we also call it here
+        // explicitly to mirror the online-accept branch below — this guards
+        // against any future change inside acceptLocalInvite that would skip
+        // the store reload, and matches the e2e contract that activeSpaces is
+        // up-to-date by the time this composable resolves. See
+        // haex-e2e-tests/tests/spaces/invitations/quic-invite-flow.spec.ts:1426
+        // (cardCount: 0 with active row in DB ⇒ frontend-only race).
         await spacesStore.acceptLocalInviteAsync(invite)
+        await spacesStore.loadSpacesFromDbAsync()
       } else if (originUrl && invite.tokenId) {
         // Online space without QUIC endpoints — accept via server
         const identity = await ensureCurrentIdentityAsync()
