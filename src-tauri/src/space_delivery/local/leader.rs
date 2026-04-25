@@ -604,14 +604,35 @@ pub(super) async fn handle_delivery_request(
             // Anyone can open a QUIC stream with the ALPN and claim a DID, so
             // we must verify the UCAN before trusting `did` and before
             // populating `connected_peers` (which later handlers rely on).
+            crate::logging::log_to_db(
+                &state.db, &state.hlc, "info", "Announce",
+                &format!("received: space={} did={} peer={}",
+                    &space_id[..8.min(space_id.len())],
+                    &did[..24.min(did.len())],
+                    peer_endpoint_id,
+                ),
+            );
             let validated = match require_valid_ucan(&ucan_token, "Announce") {
                 Ok(v) => v,
-                Err(r) => return r,
+                Err(r) => {
+                    crate::logging::log_to_db(
+                        &state.db, &state.hlc, "warn", "Announce",
+                        &format!("UCAN validation failed: space={} did={}",
+                            &space_id[..8.min(space_id.len())], &did[..24.min(did.len())]),
+                    );
+                    return r;
+                }
             };
             if validated.audience != did {
                 eprintln!(
                     "[SpaceDelivery] Announce REJECTED: UCAN audience {} does not match announced DID {}",
                     validated.audience, did
+                );
+                crate::logging::log_to_db(
+                    &state.db, &state.hlc, "warn", "Announce",
+                    &format!("audience mismatch: ucan_aud={} announced_did={}",
+                        &validated.audience[..24.min(validated.audience.len())],
+                        &did[..24.min(did.len())]),
                 );
                 return Response::Error {
                     message: "UCAN audience does not match announced DID".to_string(),
@@ -624,8 +645,20 @@ pub(super) async fn handle_delivery_request(
                 "Announce",
                 &state.db,
             ) {
+                crate::logging::log_to_db(
+                    &state.db, &state.hlc, "warn", "Announce",
+                    &format!("capability/membership rejected: space={} audience={}",
+                        &space_id[..8.min(space_id.len())],
+                        &validated.audience[..24.min(validated.audience.len())]),
+                );
                 return r;
             }
+            crate::logging::log_to_db(
+                &state.db, &state.hlc, "info", "Announce",
+                &format!("accepted: space={} audience={}",
+                    &space_id[..8.min(space_id.len())],
+                    &validated.audience[..24.min(validated.audience.len())]),
+            );
 
             let did_clone = did.clone();
             let peer = ConnectedPeer {
@@ -917,7 +950,14 @@ pub(super) async fn handle_delivery_request(
             // invite / admin) may pull. Non-members get no data at all.
             let validated = match require_valid_ucan(&ucan_token, "SyncPull") {
                 Ok(v) => v,
-                Err(r) => return r,
+                Err(r) => {
+                    crate::logging::log_to_db(
+                        &state.db, &state.hlc, "warn", "SyncPull",
+                        &format!("UCAN validation failed: space={} peer={}",
+                            &space_id[..8.min(space_id.len())], peer_endpoint_id),
+                    );
+                    return r;
+                }
             };
             if let Err(r) = require_ucan_capability(
                 &validated,
@@ -926,6 +966,14 @@ pub(super) async fn handle_delivery_request(
                 "SyncPull",
                 &state.db,
             ) {
+                crate::logging::log_to_db(
+                    &state.db, &state.hlc, "warn", "SyncPull",
+                    &format!("capability/membership rejected: space={} audience={} peer={}",
+                        &space_id[..8.min(space_id.len())],
+                        &validated.audience[..24.min(validated.audience.len())],
+                        peer_endpoint_id,
+                    ),
+                );
                 return r;
             }
 
@@ -936,17 +984,39 @@ pub(super) async fn handle_delivery_request(
                 after_timestamp.as_deref(),
                 device_id,
             ) {
-                Ok(changes) => match serde_json::to_value(&changes) {
-                    Ok(json) => Response::SyncChanges { changes: json },
-                    Err(e) => {
-                        eprintln!("[SpaceDelivery] SyncPull: failed to serialize changes: {e}");
-                        Response::Error {
-                            message: format!("Failed to serialize changes: {e}"),
+                Ok(changes) => {
+                    let by_table: std::collections::BTreeMap<&str, usize> =
+                        changes.iter().fold(std::collections::BTreeMap::new(), |mut acc, c| {
+                            *acc.entry(c.table_name.as_str()).or_insert(0) += 1;
+                            acc
+                        });
+                    crate::logging::log_to_db(
+                        &state.db, &state.hlc, "info", "SyncPull",
+                        &format!("served: space={} audience={} count={} after={:?} tables={:?}",
+                            &space_id[..8.min(space_id.len())],
+                            &validated.audience[..24.min(validated.audience.len())],
+                            changes.len(),
+                            after_timestamp.as_deref(),
+                            by_table,
+                        ),
+                    );
+                    match serde_json::to_value(&changes) {
+                        Ok(json) => Response::SyncChanges { changes: json },
+                        Err(e) => {
+                            eprintln!("[SpaceDelivery] SyncPull: failed to serialize changes: {e}");
+                            Response::Error {
+                                message: format!("Failed to serialize changes: {e}"),
+                            }
                         }
                     }
-                },
+                }
                 Err(e) => {
                     eprintln!("[SpaceDelivery] SyncPull: failed to scan changes: {e}");
+                    crate::logging::log_to_db(
+                        &state.db, &state.hlc, "error", "SyncPull",
+                        &format!("scan failed: space={} err={}",
+                            &space_id[..8.min(space_id.len())], e),
+                    );
                     Response::Error {
                         message: format!("Failed to scan changes: {e}"),
                     }
