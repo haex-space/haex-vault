@@ -41,14 +41,37 @@ impl MultiSpaceLeaderHandler {
         let remote = conn.remote_id();
         let remote_str = remote.to_string();
 
+        // Mirror the eprintln in endpoint.rs into haex_logs so production builds
+        // (where stderr is /dev/null) can correlate accept→stream→handler events.
+        crate::logging::log_to_db(
+            &self.db,
+            &self.hlc,
+            "info",
+            "MultiLeader",
+            &format!("Connection accepted from {remote_str}"),
+        );
+
+        let mut stream_count: u32 = 0;
+        let connection_start = std::time::Instant::now();
         loop {
-            match conn.accept_bi().await {
-                Ok((send, mut recv)) => {
+            // Heartbeat every 10s while waiting for a stream — surfaces the
+            // "QUIC TLS handshake done, but no bi-stream ever opens" failure
+            // mode where the sender silently drops after its 10s send-timeout.
+            let accept = tokio::time::timeout(
+                std::time::Duration::from_secs(10),
+                conn.accept_bi(),
+            )
+            .await;
+
+            match accept {
+                Ok(Ok((send, mut recv))) => {
+                    stream_count += 1;
                     let leaders = self.leaders.clone();
                     let db = DbConnection(self.db.0.clone());
                     let hlc = self.hlc.clone();
                     let app_handle = self.app_handle.clone();
                     let peer_endpoint_id = remote_str.clone();
+                    let stream_index = stream_count;
                     tokio::spawn(async move {
                         if let Err(e) = handle_stream(
                             send,
@@ -61,13 +84,33 @@ impl MultiSpaceLeaderHandler {
                         )
                         .await
                         {
-                            eprintln!("[MultiLeader] Stream error from {peer_endpoint_id}: {e}");
+                            let msg = format!(
+                                "Stream {stream_index} error from {peer_endpoint_id}: {e}"
+                            );
+                            eprintln!("[MultiLeader] {msg}");
+                            crate::logging::log_to_db(&db, &hlc, "error", "MultiLeader", &msg);
                         }
                     });
                 }
-                Err(_) => {
-                    eprintln!("[MultiLeader] Connection from {remote_str} closed");
+                Ok(Err(e)) => {
+                    let msg = format!(
+                        "Connection from {remote_str} closed after {streams} stream(s), {secs}s: {e}",
+                        streams = stream_count,
+                        secs = connection_start.elapsed().as_secs()
+                    );
+                    eprintln!("[MultiLeader] {msg}");
+                    crate::logging::log_to_db(&self.db, &self.hlc, "info", "MultiLeader", &msg);
                     break;
+                }
+                Err(_) => {
+                    // Heartbeat: connection still open but no stream opened yet.
+                    let msg = format!(
+                        "Waiting for stream from {remote_str} ({}s elapsed, {} streams handled)",
+                        connection_start.elapsed().as_secs(),
+                        stream_count
+                    );
+                    eprintln!("[MultiLeader] {msg}");
+                    crate::logging::log_to_db(&self.db, &self.hlc, "warn", "MultiLeader", &msg);
                 }
             }
         }
