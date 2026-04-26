@@ -7,6 +7,7 @@ import {
 import type { SpaceWithType } from '@/stores/spaces'
 import { SpaceType, SpaceStatus } from '~/database/constants'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
+import { loadUcansFromDbAsync } from '@/utils/auth/ucanStore'
 import { useInvitePolicy } from '@/composables/useInvitePolicy'
 import { useMlsDelivery } from '@/composables/useMlsDelivery'
 import { useCurrentIdentity } from '@/composables/useCurrentIdentity'
@@ -95,6 +96,11 @@ export function useSpaceInvites() {
         // haex-e2e-tests/tests/spaces/invitations/quic-invite-flow.spec.ts.
         await spacesStore.acceptLocalInviteAsync(invite)
         await spacesStore.loadSpacesFromDbAsync()
+        // Rust ClaimInvite persists the claimed UCAN directly into haex_ucan_tokens
+        // (bypassing the TS persistUcanAsync path), so the in-memory ucanCache
+        // stays empty until next vault open. Re-prime it now or subsequent peer
+        // storage requests will fail with "No valid UCAN token for this peer's space".
+        if (db) await loadUcansFromDbAsync(db)
       } else if (originUrl && invite.tokenId) {
         // Online space without QUIC endpoints — accept via server
         const identity = await ensureCurrentIdentityAsync()
