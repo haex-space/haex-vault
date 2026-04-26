@@ -67,11 +67,17 @@ export function useSpaceInviteCreation() {
     for (const contact of payload.contacts) {
       const inviteeDid = contact.did
       const claims = await identityStore.getClaimsAsync(contact.id)
-      const endpointIds = claims
-        .filter(
-          (c) => c.type === 'endpointId' || c.type.startsWith('device:'),
-        )
-        .map((c) => c.value)
+      // Dedupe: a contact's `endpointId` claim and a `device:<host>` claim
+      // can both carry the same nodeId — without dedup we'd queue one
+      // outbox row per claim and send the same PushInvite N times to the
+      // same target.
+      const endpointIds = Array.from(new Set(
+        claims
+          .filter(
+            (c) => c.type === 'endpointId' || c.type.startsWith('device:'),
+          )
+          .map((c) => c.value),
+      ))
 
       log.info(
         `Processing contact "${contact.name}" (did: ${inviteeDid.slice(0, 24)}..., ${endpointIds.length} endpoint(s))`,

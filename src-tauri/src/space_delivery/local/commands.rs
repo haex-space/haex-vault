@@ -741,13 +741,41 @@ pub async fn local_delivery_claim_invite(
         "UPDATE haex_pending_invites SET status = 'accepted', responded_at = datetime('now') WHERE space_id = ?1 AND token_id = ?2".to_string(),
         vec![
             serde_json::Value::String(space_id.clone()),
-            serde_json::Value::String(token_id),
+            serde_json::Value::String(token_id.clone()),
         ],
         &db,
         &hlc_guard,
     )
     .map_err(|e| format!("Failed to mark invite as accepted: {e}"))?;
     eprintln!("[ClaimInvite] [trace] AFTER mark accepted — returning Ok");
+
+    // 8b. Clean up other pending invites for the same space — once we've
+    //     joined, leftover invites (from the same inviter via duplicate
+    //     retries that slipped past idempotency, or from other inviters
+    //     who also offered access to this space) are no longer actionable
+    //     and would otherwise sit in the UI until the 7-day cleanup tick.
+    //     CRDT delete is safe — pending-invite rows have unique UUIDs that
+    //     don't collide with any row on the sender's device.
+    //
+    //     Best-effort: a cleanup failure must not unwind the successful
+    //     accept, but silently swallowing it would make stale rows in the
+    //     UI undiagnosable. eprintln! only — log_to_db would deadlock on
+    //     the still-held HLC guard.
+    if let Err(e) = crate::database::core::execute_with_crdt(
+        "DELETE FROM haex_pending_invites WHERE space_id = ?1 AND token_id != ?2 AND status = 'pending'".to_string(),
+        vec![
+            serde_json::Value::String(space_id.clone()),
+            serde_json::Value::String(token_id.clone()),
+        ],
+        &db,
+        &hlc_guard,
+    ) {
+        eprintln!(
+            "[ClaimInvite] [warn] sibling pending-invite cleanup failed for space={} token={}: {e}",
+            &space_id[..8.min(space_id.len())],
+            &token_id[..8.min(token_id.len())],
+        );
+    }
 
     Ok(ClaimInviteResult {
         space_id,
