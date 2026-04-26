@@ -1,11 +1,24 @@
 name: Dependabot Auto-Merge
 
-# Enables GitHub's auto-merge for Dependabot PRs. The actual merge gate is
-# enforced by branch protection on main (required check: "CI Success"), so
-# this workflow just flips the auto-merge flag — GitHub waits for CI itself.
+# Two responsibilities:
+#  1. On PR open/update: enable GitHub auto-merge so the PR squashes itself
+#     once required checks pass.
+#  2. On Build completion: if the PR is BLOCKED while the latest Build was
+#     a success, look for stale required-check duplicates (a known GitHub
+#     quirk where the cancelled run of `CI Success` keeps blocking even
+#     after a later run succeeded) and post `@dependabot rebase` so the
+#     branch is force-pushed and stale checks are replaced cleanly.
+#
+# All workflow inputs come from controlled fields (SHA, repo, PR number).
+# We do not interpolate any user-supplied strings (issue titles, comments,
+# branch refs etc.) into shell scripts; everything passes through `env:`
+# and is double-quoted at use sites.
 
 on:
   pull_request:
+  workflow_run:
+    workflows: ["Build"]
+    types: [completed]
 
 permissions:
   contents: write
@@ -13,7 +26,7 @@ permissions:
 
 jobs:
   automerge:
-    if: github.actor == 'dependabot[bot]'
+    if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Enable auto-merge
@@ -22,3 +35,110 @@ jobs:
           REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh pr merge "$PR_NUMBER" --squash --auto --repo "$REPO"
+
+  rebase-on-stale-block:
+    # Build sometimes registers two `CI Success` check entries (one cancelled,
+    # one successful) when push and pull_request events fire for the same SHA
+    # and concurrency cancels one. Branch protection then refuses the merge
+    # because a *required* check still has a CANCELLED conclusion in its
+    # history, even though the latest run succeeded.
+    #
+    # Trigger condition: a Dependabot PR's Build run finished successfully.
+    # We then check the PR — if it's still BLOCKED while MERGEABLE and we see
+    # duplicated required-check names in the rollup, we post @dependabot
+    # rebase. Force-push then clears the stale check entries.
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.actor.login == 'dependabot[bot]' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Locate PR for the completed Build run
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          pr_number=$(
+            gh pr list --repo "$REPO" --search "$HEAD_SHA" --state open \
+              --json number,headRefOid \
+              -q ".[] | select(.headRefOid == \"$HEAD_SHA\") | .number" \
+            | head -n1
+          )
+          if [ -z "$pr_number" ]; then
+            echo "No open PR matches head SHA $HEAD_SHA — skipping"
+            exit 0
+          fi
+          echo "number=$pr_number" >> "$GITHUB_OUTPUT"
+
+      - name: Detect stale required-failure pattern
+        id: detect
+        if: steps.pr.outputs.number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ steps.pr.outputs.number }}
+        run: |
+          set -euo pipefail
+          owner="${REPO%/*}"
+          name="${REPO#*/}"
+
+          payload=$(
+            gh api graphql -F owner="$owner" -F name="$name" -F pr="$PR" -f query='
+              query($owner:String!, $name:String!, $pr:Int!) {
+                repository(owner:$owner, name:$name) {
+                  pullRequest(number:$pr) {
+                    mergeStateStatus
+                    mergeable
+                    commits(last:1) { nodes { commit {
+                      statusCheckRollup { contexts(first:100) { nodes {
+                        ... on CheckRun     { name    conclusion isRequired(pullRequestNumber:$pr) }
+                        ... on StatusContext { context state      isRequired(pullRequestNumber:$pr) }
+                      }}}
+                    }}}
+                  }
+                }
+              }'
+          )
+
+          state=$(jq -r '.data.repository.pullRequest.mergeStateStatus' <<<"$payload")
+          mergeable=$(jq -r '.data.repository.pullRequest.mergeable' <<<"$payload")
+          echo "PR #$PR: mergeStateStatus=$state mergeable=$mergeable"
+
+          if [ "$state" != "BLOCKED" ] || [ "$mergeable" != "MERGEABLE" ]; then
+            echo "Not in stale-block state — nothing to do."
+            exit 0
+          fi
+
+          # Count required check names that appear more than once. The stale
+          # pattern manifests as: same name has both SUCCESS and CANCELLED.
+          duplicates=$(
+            jq -r '
+              [
+                .data.repository.pullRequest.commits.nodes[0].commit.statusCheckRollup.contexts.nodes[]
+                | select(.isRequired == true)
+                | (.name // .context)
+              ]
+              | group_by(.)
+              | map(select(length > 1))
+              | length
+            ' <<<"$payload"
+          )
+
+          if [ "${duplicates:-0}" -gt 0 ]; then
+            echo "should_rebase=true" >> "$GITHUB_OUTPUT"
+            echo "Found $duplicates duplicated required check name(s) — rebase to clear"
+          else
+            echo "BLOCKED for some other reason (no duplicated required checks) — leaving alone"
+          fi
+
+      - name: Trigger @dependabot rebase
+        if: steps.detect.outputs.should_rebase == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ steps.pr.outputs.number }}
+        run: gh pr comment "$PR" --repo "$REPO" --body "@dependabot rebase"
