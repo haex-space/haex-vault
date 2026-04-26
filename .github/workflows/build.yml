@@ -14,6 +14,11 @@ on:
     branches:
       - main
       - release
+      # Bot-pushed sync branches (release.yml uses RELEASE_PAT for the push
+      # so this event fires; the matching pull_request event is suppressed by
+      # GitHub's anti-recursion rule because the PR is opened with
+      # GITHUB_TOKEN, so this is the only chance Build has to run there).
+      - 'sync-main/**'
     tags-ignore:
       - '**'
   pull_request:
