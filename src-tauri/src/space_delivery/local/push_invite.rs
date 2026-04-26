@@ -79,6 +79,27 @@ pub fn handle_push_invite(
         return Response::PushInviteAck { accepted: true };
     }
 
+    // 2b. Idempotency: ack without re-inserting / re-emitting if we already
+    //     have a row for this token_id. Sender-side QUIC retry on transient
+    //     response-read errors (see space_delivery/local/quic_retry.rs)
+    //     re-delivers the same request after the receiver already processed
+    //     it once — without this guard the user sees a toast per retry.
+    let existing_for_token = core::select_with_crdt(
+        "SELECT COUNT(*) FROM haex_pending_invites WHERE token_id = ?1".to_string(),
+        vec![serde_json::Value::String(token_id.to_string())],
+        db,
+    )
+    .ok()
+    .and_then(|rows| rows.first()?.first()?.as_i64())
+    .unwrap_or(0);
+
+    if existing_for_token > 0 {
+        logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
+            "SKIPPED (duplicate token): space={space_id} token={token_fp} — already received"
+        ));
+        return Response::PushInviteAck { accepted: true };
+    }
+
     // 3. Check invite policy
     if !check_invite_policy(db, inviter_did) {
         logging::log_to_db(db, hlc, "warn", LOG_SOURCE, &format!("REJECTED: invite policy blocked inviter {inviter_did}"));
