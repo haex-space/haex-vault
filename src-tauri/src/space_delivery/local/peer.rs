@@ -40,20 +40,22 @@ impl PeerSession {
                     space_id, our_did
                 ),
             })?;
-        let remote_id: iroh::EndpointId =
-            leader_endpoint_id
-                .parse()
-                .map_err(|e| DeliveryError::ConnectionFailed {
-                    reason: format!("invalid endpoint id: {e}"),
-                })?;
 
-        let relay = leader_relay_url
-            .and_then(|s| s.parse::<iroh::RelayUrl>().ok());
-
-        let addr = match relay {
-            Some(url) => iroh::EndpointAddr::new(remote_id).with_relay_url(url),
-            None => iroh::EndpointAddr::new(remote_id),
-        };
+        // Relay-URL fallback shared with the other QUIC entry points
+        // (claim-invite, push-invite). Without the live-relay fallback
+        // sync-loop connects fail in docker-split-network setups —
+        // see `project_share_visibility_after_accept`.
+        // PeerSession has no `peer_storage` handle so it can't reach
+        // `configured_relay_url`; the live one from `endpoint.addr()`
+        // is enough in practice (peer_storage must be running for the
+        // sync loop to even reach this code).
+        let addr = super::quic_retry::build_endpoint_addr(
+            iroh_endpoint,
+            leader_endpoint_id,
+            leader_relay_url,
+            None,
+        )
+        .map_err(|reason| DeliveryError::ConnectionFailed { reason })?;
 
         let conn = iroh_endpoint
             .connect(addr, protocol::ALPN)

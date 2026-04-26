@@ -17,6 +17,16 @@ use crate::database::DbConnection;
 use super::error::DeliveryError;
 use super::peer::PeerSession;
 
+/// Sync-loop DB logging helper — writes to `haex_logs` so the e2e harness
+/// can extract the trace via `sql_select_with_crdt`. The Tauri stderr is
+/// muted in the Docker test rig (tauri-driver child process redirects to
+/// `/dev/null`), so eprintln-only logs are invisible to CI.
+fn log_sync(app_handle: &tauri::AppHandle, level: &str, message: &str) {
+    eprintln!("[SyncLoop] [{level}] {message}");
+    let state: tauri::State<'_, crate::AppState> = app_handle.state();
+    let _ = crate::logging::insert_log(&state, level, "SyncLoop", None, message, None, "rust");
+}
+
 /// Default poll interval between sync cycles.
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -114,10 +124,17 @@ pub async fn start_peer_sync_loop(
     device_id: String,
     app_handle: tauri::AppHandle,
 ) -> Result<SyncLoopHandle, DeliveryError> {
+    log_sync(&app_handle, "info", &format!(
+        "connecting: space={} leader={} our_did={}",
+        &space_id[..8.min(space_id.len())],
+        &leader_endpoint_id[..16.min(leader_endpoint_id.len())],
+        &our_did[..24.min(our_did.len())],
+    ));
+
     // Establish initial connection. UCAN is loaded from the DB inside
     // `PeerSession::connect`, so reconnect-after-expiry gets a fresh token
     // without any state plumbing up here.
-    let session = PeerSession::connect(
+    let session = match PeerSession::connect(
         &iroh_endpoint,
         &leader_endpoint_id,
         leader_relay_url.as_deref(),
@@ -127,7 +144,26 @@ pub async fn start_peer_sync_loop(
         Some("sync-loop"),
         &db,
     )
-    .await?;
+    .await
+    {
+        Ok(s) => {
+            log_sync(&app_handle, "info", &format!(
+                "connected: space={} leader={}",
+                &space_id[..8.min(space_id.len())],
+                &leader_endpoint_id[..16.min(leader_endpoint_id.len())],
+            ));
+            s
+        }
+        Err(e) => {
+            log_sync(&app_handle, "error", &format!(
+                "connect failed: space={} leader={} err={}",
+                &space_id[..8.min(space_id.len())],
+                &leader_endpoint_id[..16.min(leader_endpoint_id.len())],
+                e,
+            ));
+            return Err(e);
+        }
+    };
 
     let (stop_tx, stop_rx) = watch::channel(false);
 
@@ -181,12 +217,21 @@ async fn run_sync_loop(
     let mut last_mls_message_id: Option<i64> = None;
     let mut key_packages_refilled = false;
 
-    eprintln!("[SyncLoop] Started for space {}", space_id);
+    log_sync(
+        &app_handle,
+        "info",
+        &format!(
+            "started: space={} leader={} our_did={}",
+            &space_id[..8.min(space_id.len())],
+            &leader_endpoint_id[..16.min(leader_endpoint_id.len())],
+            &our_did[..24.min(our_did.len())],
+        ),
+    );
 
     loop {
         // Check if stop was requested
         if *stop_rx.borrow() {
-            eprintln!("[SyncLoop] Stop signal received, exiting");
+            log_sync(&app_handle, "info", &format!("stop signal received: space={}", &space_id[..8.min(space_id.len())]));
             break;
         }
 
@@ -208,13 +253,16 @@ async fn run_sync_loop(
                 tokio::select! {
                     _ = tokio::time::sleep(POLL_INTERVAL) => {},
                     _ = stop_rx.changed() => {
-                        eprintln!("[SyncLoop] Stop signal received during sleep, exiting");
+                        log_sync(&app_handle, "info", &format!("stop during sleep: space={}", &space_id[..8.min(space_id.len())]));
                         break;
                     },
                 }
             }
             Err(e) => {
-                eprintln!("[SyncLoop] Sync cycle failed: {}", e);
+                log_sync(&app_handle, "error", &format!(
+                    "cycle failed: space={} err={}",
+                    &space_id[..8.min(space_id.len())], e,
+                ));
 
                 // Attempt reconnection with exponential backoff
                 let mut backoff = Duration::from_secs(5);
@@ -401,6 +449,23 @@ async fn run_sync_cycle(
         .await?;
 
     if let Some(changes_array) = remote_changes_json.as_array() {
+        // Log every cycle's pull result so the e2e harness can tell
+        // "leader returned 0 changes" (membership/scope problem) apart
+        // from "pull never happened" (loop never started / connect failed).
+        let table_summary: std::collections::BTreeMap<String, usize> = changes_array
+            .iter()
+            .filter_map(|c| c.get("tableName").and_then(|v| v.as_str()).map(String::from))
+            .fold(std::collections::BTreeMap::new(), |mut acc, t| {
+                *acc.entry(t).or_insert(0) += 1;
+                acc
+            });
+        log_sync(app_handle, "info", &format!(
+            "pull: space={} count={} tables={:?} after={:?}",
+            &space_id[..8.min(space_id.len())],
+            changes_array.len(),
+            table_summary,
+            last_pull_timestamp.as_deref(),
+        ));
         if !changes_array.is_empty() {
             eprintln!(
                 "[SyncLoop] Pulled {} changes for space {}",
