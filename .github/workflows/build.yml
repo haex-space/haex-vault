@@ -1,9 +1,19 @@
 name: Build
 
 on:
+  # Build runs on direct pushes to long-lived branches (main, release) and
+  # on every pull_request event. Feature/PR branches are NOT in the push
+  # filter on purpose: when a developer pushes to a PR branch, only the
+  # pull_request event runs CI. The earlier "push: ['**']" trigger fired
+  # both push and pull_request for the same SHA, so concurrency had to
+  # cancel one — and the cancelled run left a "CI Success" required-check
+  # entry behind that branch protection counted as a failure even after
+  # the surviving run succeeded. Dropping the push-on-feature-branches
+  # trigger eliminates the duplicate at the source.
   push:
     branches:
-      - '**'
+      - main
+      - release
     tags-ignore:
       - '**'
   pull_request:
@@ -26,10 +36,11 @@ concurrency:
   #     the original escape that an earlier SHA-based key broke.
   #   - release branch: shared 'build-release' so a new push cancels the
   #     previous release build (serial).
-  #   - everywhere else: keyed by commit SHA so the `push` event and the
-  #     `pull_request` event fired for the same commit share a slot. The
-  #     later event cancels the earlier run, eliminating the duplicate
-  #     CI we were seeing on every new PR.
+  #   - everywhere else: keyed by commit SHA. Now that push and
+  #     pull_request can no longer both fire for the same SHA (push only
+  #     runs on main/release), this grouping mostly matters for force-push
+  #     to a PR branch — the new pull_request run cancels the previous
+  #     one cleanly without leaving stale required-check entries.
   group: ${{ github.event_name == 'workflow_call' && format('build-call-{0}', github.run_id) || (github.ref == 'refs/heads/release' && 'build-release') || format('build-{0}', github.event.pull_request.head.sha || github.sha) }}
   cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
 

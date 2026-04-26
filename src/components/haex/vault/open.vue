@@ -288,12 +288,25 @@ const onOpenDatabase = async (options?: { fromBiometry?: boolean }) => {
     })
   } catch (error) {
     open.value = false
+    const errorType =
+      error && typeof error === 'object' && 'type' in error
+        ? (error as { type?: string }).type
+        : undefined
     const errorDetails =
       error && typeof error === 'object' && 'details' in error
         ? (error as { details?: { reason?: string } }).details
         : undefined
 
-    if (errorDetails?.reason === 'file is not a database') {
+    if (errorType === 'VaultAlreadyOpenElsewhere') {
+      // Per-vault advisory lock rejected the open — another haex-vault
+      // process already has this DB mounted. Tell the user in plain
+      // language so they don't blame a wrong password / corrupt file.
+      add({
+        color: 'error',
+        title: t('error.alreadyOpen.title'),
+        description: t('error.alreadyOpen.description'),
+      })
+    } else if (errorDetails?.reason === 'file is not a database') {
       // Wrong password - remove biometry data if it came from biometry
       if (fromBiometry) {
         await removeBiometryData()
@@ -332,6 +345,9 @@ de:
     password:
       title: Vault konnte nicht geöffnet werden
       description: Bitte überprüfe das Passwort
+    alreadyOpen:
+      title: Vault bereits geöffnet
+      description: Diese Vault ist bereits in einem anderen Fenster oder Prozess offen. Bitte schließe die andere Instanz, bevor du sie hier öffnest.
 
 en:
   button:
@@ -353,4 +369,7 @@ en:
     password:
       title: Vault couldn't be opened
       description: Please check your password
+    alreadyOpen:
+      title: Vault already open
+      description: This vault is already open in another window or process. Close the other instance before opening it here.
 </i18n>

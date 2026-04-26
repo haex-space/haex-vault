@@ -414,6 +414,14 @@ const loadSpacesAsync = async () => {
     await identityStore.loadIdentitiesAsync()
     await spacesStore.ensureDefaultSpaceAsync()
 
+    // Unconditional reload: ensureDefaultSpaceAsync only refreshes the store
+    // when its own probe (the first local space) is missing, so a row that
+    // was inserted while the settings window was closed (e.g. a QUIC invite
+    // accepted from a different view, then user re-opens settings) would
+    // never reach activeSpaces. Always reload here so the on-mount contract
+    // is "the store reflects the current DB state."
+    await spacesStore.loadSpacesFromDbAsync()
+
     for (const backend of syncBackends.value) {
       if (backend.homeServerUrl) {
         await spacesStore.listSpacesAsync(

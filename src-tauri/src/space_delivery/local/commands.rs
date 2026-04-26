@@ -146,15 +146,27 @@ pub async fn local_delivery_connect(
     leader_relay_url: Option<String>,
     identity_did: String,
 ) -> Result<(), String> {
+    let log = |level: &str, msg: &str| {
+        let _ = crate::logging::insert_log(&state, level, "LocalDeliveryConnect", None, msg, None, "rust");
+    };
+    log("info", &format!(
+        "ENTER: space={} leader={} did={}",
+        &space_id[..8.min(space_id.len())],
+        &leader_endpoint_id[..16.min(leader_endpoint_id.len())],
+        &identity_did[..24.min(identity_did.len())],
+    ));
+
     // 1. Check if already connected
     let mut loops = state.local_sync_loops.lock().await;
     if loops.contains_key(&space_id) {
+        log("warn", &format!("already connected: space={}", &space_id[..8.min(space_id.len())]));
         return Err(format!("Already connected to space {space_id}"));
     }
 
     // 2. Get our endpoint info
     let endpoint = state.peer_storage.lock().await;
     if !endpoint.is_running() {
+        log("error", "peer endpoint not running");
         return Err("Peer storage endpoint not running".to_string());
     }
     let our_endpoint_id = endpoint.endpoint_id().to_string();
@@ -169,10 +181,10 @@ pub async fn local_delivery_connect(
 
     // 4. Start sync loop
     let db = DbConnection(state.db.0.clone());
-    let handle = super::sync_loop::start_peer_sync_loop(
+    let handle = match super::sync_loop::start_peer_sync_loop(
         db,
         iroh_endpoint,
-        leader_endpoint_id,
+        leader_endpoint_id.clone(),
         leader_relay_url,
         space_id.clone(),
         identity_did,
@@ -181,9 +193,19 @@ pub async fn local_delivery_connect(
         app,
     )
     .await
-    .map_err(|e| e.to_string())?;
+    {
+        Ok(h) => h,
+        Err(e) => {
+            log("error", &format!(
+                "start_peer_sync_loop failed: space={} err={}",
+                &space_id[..8.min(space_id.len())], e,
+            ));
+            return Err(e.to_string());
+        }
+    };
 
     loops.insert(space_id.clone(), handle);
+    log("info", &format!("loop started: space={}", &space_id[..8.min(space_id.len())]));
     eprintln!("[SpaceDelivery] Started sync loop for space {space_id}");
     Ok(())
 }
@@ -577,23 +599,15 @@ pub async fn local_delivery_claim_invite(
     log("info", &format!("Generated {} MLS KeyPackages", key_packages_b64.len()));
 
     // 3. Connect to leader via QUIC and send ClaimInvite
-    let remote_id: iroh::EndpointId = leader_endpoint_id
-        .parse()
-        .map_err(|e| format!("Invalid leader endpoint ID: {e}"))?;
-
-    // Use explicit relay URL if provided, fall back to configured relay, then live relay
-    let relay = leader_relay_url
-        .as_deref()
-        .and_then(|s| s.parse::<iroh::RelayUrl>().ok())
-        .or(configured_relay)
-        .or_else(|| iroh_endpoint.addr().relay_urls().next().cloned());
+    let (addr, relay) = super::quic_retry::build_endpoint_addr_with_relay(
+        &iroh_endpoint,
+        &leader_endpoint_id,
+        leader_relay_url.as_deref(),
+        configured_relay.as_ref(),
+    )
+    .map_err(|e| format!("Invalid leader endpoint ID: {e}"))?;
 
     log("info", &format!("Connecting to {} via relay {:?}", &leader_endpoint_id[..16.min(leader_endpoint_id.len())], relay.as_ref().map(|u| u.to_string())));
-
-    let addr = match relay {
-        Some(url) => iroh::EndpointAddr::new(remote_id).with_relay_url(url),
-        None => iroh::EndpointAddr::new(remote_id),
-    };
 
     // Encode once outside the retry loop — the request bytes are identical
     // across attempts, including the (expensively-generated) KeyPackages.
@@ -779,27 +793,20 @@ pub async fn local_delivery_push_invite(
     let configured_relay = endpoint.configured_relay_url().cloned();
     drop(endpoint);
 
-    let remote_id: iroh::EndpointId = target_endpoint_id
-        .parse()
-        .map_err(|e| format!("Invalid endpoint ID: {e}"))?;
-
-    // Use the configured relay URL (from DB settings / env / default).
-    // Falls back to the live relay from endpoint.addr() if available.
-    let relay = configured_relay
-        .or_else(|| iroh_endpoint.addr().relay_urls().next().cloned());
-    let has_relay = relay.is_some();
-    let addr = match relay {
-        Some(url) => {
-            log("info", &format!("Connecting via relay: {url}"));
-            iroh::EndpointAddr::new(remote_id).with_relay_url(url)
-        }
-        None => {
-            log("warn", "Connecting without relay (mDNS only)");
-            iroh::EndpointAddr::new(remote_id)
-        }
-    };
-
-    log("info", &format!("Connecting to {remote_id} (relay={has_relay})"));
+    // PushInvite has no per-request relay payload — fall back through
+    // configured → live relay only.
+    let (addr, relay) = super::quic_retry::build_endpoint_addr_with_relay(
+        &iroh_endpoint,
+        &target_endpoint_id,
+        None,
+        configured_relay.as_ref(),
+    )
+    .map_err(|e| format!("Invalid endpoint ID: {e}"))?;
+    match &relay {
+        Some(url) => log("info", &format!("Connecting via relay: {url}")),
+        None => log("warn", "Connecting without relay (mDNS only)"),
+    }
+    log("info", &format!("Connecting to {target_endpoint_id} (relay={})", relay.is_some()));
 
     let request = super::protocol::Request::PushInvite {
         space_id,

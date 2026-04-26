@@ -177,8 +177,6 @@ import { createAvatar } from '@dicebear/core'
 import * as bottts from '@dicebear/bottts'
 import type { BotttsOptions } from '~/utils/identityAvatar'
 
-export type { BotttsOptions } from '~/utils/identityAvatar'
-
 const options = defineModel<BotttsOptions>('options', { required: true })
 
 const { t } = useI18n()
