@@ -398,6 +398,8 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   // (replicated via CRDT) carries the authoritative spaceId. For root paths
   // ("/" or "") any space the peer is in is fine — the server skips the
   // capability check there and only the JWT signature matters.
+  // If a share name is given but no matching share exists, fail closed
+  // rather than guessing a space from an arbitrary device row.
   const resolveRequestContext = (remoteNodeId: string, path: string) => {
     const trimmed = path.replace(/^\/+/, '')
     const shareName = trimmed.split('/')[0]
@@ -406,6 +408,9 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
           s => s.deviceEndpointId === remoteNodeId && s.name === shareName,
         )
       : undefined
+    if (shareName && !matchingShare) {
+      return { ucanToken: null, relayUrl: null }
+    }
     const device = spaceDevices.value.find(
       d => d.deviceEndpointId === remoteNodeId
         && (matchingShare ? d.spaceId === matchingShare.spaceId : true),
