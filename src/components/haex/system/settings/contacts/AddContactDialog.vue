@@ -241,7 +241,10 @@
               v-if="scanBlockingIdentity"
               class="text-sm text-amber-500"
             >
-              {{ t('scan.alreadyExists', { name: scanBlockingIdentity.name }) }}
+              {{ t(
+                scanBlockingIdentity.source === 'own' ? 'scan.alreadyExistsOwn' : 'scan.alreadyExists',
+                { name: scanBlockingIdentity.name },
+              ) }}
             </p>
           </div>
         </template>
@@ -812,6 +815,7 @@ de:
     reviewLabel: Name
     noClaims: Keine Claims vorhanden. Du kannst eigene hinzufügen.
     alreadyExists: 'Ein Kontakt mit diesem Public Key existiert bereits: {name}'
+    alreadyExistsOwn: 'Das ist deine eigene Identität ({name}) und kann nicht als Kontakt hinzugefügt werden'
   fields:
     label: Name
     publicKey: Public Key
@@ -859,6 +863,7 @@ en:
     reviewLabel: Name
     noClaims: No claims yet. You can add your own.
     alreadyExists: 'A contact with this public key already exists: {name}'
+    alreadyExistsOwn: 'This is your own identity ({name}) and cannot be added as a contact'
   fields:
     label: Name
     publicKey: Public Key
