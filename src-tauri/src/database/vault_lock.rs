@@ -38,9 +38,25 @@ pub struct VaultLock {
 }
 
 impl VaultLock {
-    /// Vault DB path that this lock is guarding.
+    /// Vault DB path that this lock is guarding (canonicalized).
     pub fn vault_path(&self) -> &Path {
         &self.vault_path
+    }
+
+    /// True if this lock is guarding the same underlying DB file as `path`.
+    ///
+    /// Both sides are normalized so different spellings of the same vault
+    /// (`./vault.db` vs `/abs/vault.db`, or a symlink alias) resolve to the
+    /// same identity. Without this, callers comparing `vault_path()` against
+    /// a raw caller path would falsely conclude two distinct vaults are
+    /// mounted.
+    pub fn matches(&self, path: &Path) -> bool {
+        match normalize_vault_path(path) {
+            Ok(normalized) => self.vault_path == normalized,
+            // If the candidate path can't be normalized (e.g. parent dir gone)
+            // it can't match a successfully-acquired lock — treat as different.
+            Err(_) => false,
+        }
     }
 
     /// Try to acquire an exclusive advisory lock on `<vault_path>.lock`.
@@ -48,11 +64,17 @@ impl VaultLock {
     /// Returns `Ok(VaultLock)` if we got the lock, or an error if another
     /// process already holds it (or we cannot create the lock file at all).
     ///
+    /// `vault_path` is canonicalized so two callers using different spellings
+    /// of the same DB (relative vs absolute, or via a symlink alias) acquire
+    /// the same lock file. Without normalization a symlink could bypass the
+    /// exclusivity this module is meant to enforce.
+    ///
     /// The lock file is created on first acquire and kept around — this is
     /// fine because advisory locks are scoped to open file handles, not the
     /// file's content.
     pub fn try_acquire(vault_path: &Path) -> Result<Self, VaultLockError> {
-        let lock_path = lock_path_for(vault_path);
+        let normalized = normalize_vault_path(vault_path)?;
+        let lock_path = lock_path_for(&normalized);
 
         // Create the parent dir if missing (mirrors create_encrypted_database).
         if let Some(parent) = lock_path.parent() {
@@ -80,9 +102,50 @@ impl VaultLock {
         Ok(Self {
             handle,
             lock_path,
-            vault_path: vault_path.to_path_buf(),
+            vault_path: normalized,
         })
     }
+}
+
+/// Resolve `vault_path` to an absolute, symlink-resolved form so two callers
+/// using different spellings (relative paths, symlinks, `..` segments) all
+/// derive the same lock file identity.
+///
+/// Falls back to canonicalizing the parent dir + joining the filename when
+/// the vault file itself doesn't exist yet — that's the expected state for
+/// `create_encrypted_database`, which acquires the lock _before_ writing
+/// the SQLite file.
+fn normalize_vault_path(vault_path: &Path) -> Result<PathBuf, VaultLockError> {
+    if let Ok(canonical) = std::fs::canonicalize(vault_path) {
+        return Ok(canonical);
+    }
+
+    // File doesn't exist yet — normalize the parent dir instead. This still
+    // catches the symlinked-dir case while permitting create-then-open.
+    let parent = vault_path.parent().ok_or_else(|| VaultLockError::Io {
+        path: vault_path.display().to_string(),
+        source: io::Error::new(io::ErrorKind::InvalidInput, "vault path has no parent directory"),
+    })?;
+    let file_name = vault_path.file_name().ok_or_else(|| VaultLockError::Io {
+        path: vault_path.display().to_string(),
+        source: io::Error::new(io::ErrorKind::InvalidInput, "vault path has no file name"),
+    })?;
+
+    // Empty parent (".") canonicalizes via the current working dir, which is
+    // exactly the behaviour we want for relative inputs like `vault.db`.
+    let parent_for_canon: &Path = if parent.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        parent
+    };
+
+    let parent_canonical =
+        std::fs::canonicalize(parent_for_canon).map_err(|source| VaultLockError::Io {
+            path: parent_for_canon.display().to_string(),
+            source,
+        })?;
+
+    Ok(parent_canonical.join(file_name))
 }
 
 /// Classify an error returned by `try_lock_exclusive`. Only genuine
@@ -221,5 +284,47 @@ mod tests {
             matches!(mapped, VaultLockError::Io { .. }),
             "Unsupported must classify as Io, got {mapped:?}",
         );
+    }
+
+    #[test]
+    fn matches_resolves_distinct_spellings_of_same_path() {
+        // Regression: previously the lock keyed on the caller's raw spelling,
+        // so opening the same DB via `./vault.db` and `<absdir>/vault.db`
+        // produced two locks targeting one file.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let vault = dir.path().join("vault.db");
+        std::fs::write(&vault, b"").expect("touch vault");
+
+        let lock = VaultLock::try_acquire(&vault).expect("acquire");
+
+        // Spelling 1: parent dir with a `./.` redirection
+        let with_dot = dir.path().join(".").join("vault.db");
+        assert!(lock.matches(&with_dot), "dot-redirected path must match");
+
+        // Spelling 2: absolute path normalized via canonicalize
+        let canonical = std::fs::canonicalize(&vault).expect("canonicalize");
+        assert!(lock.matches(&canonical), "canonical path must match");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_alias_acquires_same_lock() {
+        // Without canonicalization, opening `alias.db -> real.db` would
+        // produce a separate `alias.db.lock` while both SQLite handles point
+        // at the same file — defeating the advisory lock.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let real = dir.path().join("real.db");
+        let alias = dir.path().join("alias.db");
+        std::fs::write(&real, b"").expect("touch real");
+        std::os::unix::fs::symlink(&real, &alias).expect("symlink");
+
+        let first = VaultLock::try_acquire(&real).expect("acquire real");
+        let second = VaultLock::try_acquire(&alias);
+        assert!(
+            matches!(second, Err(VaultLockError::AlreadyHeld { .. })),
+            "symlink alias must contend on the canonical lock, got {second:?}",
+        );
+
+        drop(first);
     }
 }

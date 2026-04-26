@@ -24,7 +24,7 @@ use ed25519_dalek::SigningKey;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
 use std::{fs, sync::Arc};
@@ -896,15 +896,22 @@ pub fn open_encrypted_database(
     // the connection live on purpose (idempotent success); but if a
     // *different* vault is mounted, returning "already open" here would
     // silently hand the caller the wrong vault's data.
-    let mounted_path: Option<PathBuf> = {
+    //
+    // Use `VaultLock::matches` so different spellings (relative path,
+    // symlink alias, `./` prefix) of the same DB resolve to the same
+    // identity — without that normalization the create→open flow could
+    // misclassify itself as a cross-vault collision.
+    let already_mounted = {
         let lock_guard = state.vault_lock.lock().map_err(|e| DatabaseError::LockError {
             reason: e.to_string(),
         })?;
-        lock_guard.as_ref().map(|lock| lock.vault_path().to_path_buf())
+        lock_guard
+            .as_ref()
+            .map(|lock| (lock.matches(Path::new(&vault_path)), lock.vault_path().to_path_buf()))
     };
 
-    if let Some(existing) = mounted_path {
-        if existing == Path::new(&vault_path) {
+    if let Some((matches, existing)) = already_mounted {
+        if matches {
             println!(
                 "[OPEN_DB] Vault '{vault_path}' already mounted (create→open flow); returning idempotent success"
             );
