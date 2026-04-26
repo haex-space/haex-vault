@@ -393,15 +393,36 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     await invoke('peer_storage_transfer_resume', { transferId })
   }
 
+  // Resolve which space a remote request belongs to, so the matching UCAN
+  // can be picked. The first path segment is the share name; the share row
+  // (replicated via CRDT) carries the authoritative spaceId. For root paths
+  // ("/" or "") any space the peer is in is fine — the server skips the
+  // capability check there and only the JWT signature matters.
+  const resolveRequestContext = (remoteNodeId: string, path: string) => {
+    const trimmed = path.replace(/^\/+/, '')
+    const shareName = trimmed.split('/')[0]
+    const matchingShare = shareName
+      ? shares.value.find(
+          s => s.deviceEndpointId === remoteNodeId && s.name === shareName,
+        )
+      : undefined
+    const device = spaceDevices.value.find(
+      d => d.deviceEndpointId === remoteNodeId
+        && (matchingShare ? d.spaceId === matchingShare.spaceId : true),
+    )
+    const spaceId = matchingShare?.spaceId ?? device?.spaceId
+    const ucanToken = spaceId ? getUcanForSpaceAsync(spaceId) : null
+    return { ucanToken, relayUrl: device?.relayUrl ?? null }
+  }
+
   const remoteListAsync = async (remoteNodeId: string, path: string) => {
-    const device = spaceDevices.value.find(d => d.deviceEndpointId === remoteNodeId)
-    const ucanToken = device?.spaceId ? getUcanForSpaceAsync(device.spaceId) : null
+    const { ucanToken, relayUrl: deviceRelayUrl } = resolveRequestContext(remoteNodeId, path)
     if (!ucanToken) throw new Error('No valid UCAN token for this peer\'s space')
     activeTransfers.value++
     try {
       return await invoke<FileEntry[]>('peer_storage_remote_list', {
         nodeId: remoteNodeId,
-        relayUrl: device?.relayUrl ?? null,
+        relayUrl: deviceRelayUrl,
         path,
         ucanToken,
       })
@@ -412,8 +433,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
 
   /** Download a remote file to disk. Returns the local file path once the download completes. */
   const remoteReadAsync = async (remoteNodeId: string, path: string, saveTo?: string) => {
-    const device = spaceDevices.value.find(d => d.deviceEndpointId === remoteNodeId)
-    const ucanToken = device?.spaceId ? getUcanForSpaceAsync(device.spaceId) : null
+    const { ucanToken, relayUrl: deviceRelayUrl } = resolveRequestContext(remoteNodeId, path)
     if (!ucanToken) throw new Error('No valid UCAN token for this peer\'s space')
     const transferId = crypto.randomUUID()
     const { channel, promise } = createTransferChannel(transferId, path)
@@ -422,7 +442,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     try {
       await invoke<string>('peer_storage_remote_read', {
         nodeId: remoteNodeId,
-        relayUrl: device?.relayUrl ?? null,
+        relayUrl: deviceRelayUrl,
         path,
         transferId,
         saveTo: saveTo ?? null,
@@ -439,12 +459,11 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   /** Check if a remote peer is reachable (lightweight root listing) */
   const checkPeerOnlineAsync = async (remoteNodeId: string): Promise<boolean> => {
     try {
-      const device = spaceDevices.value.find(d => d.deviceEndpointId === remoteNodeId)
-      const ucanToken = device?.spaceId ? getUcanForSpaceAsync(device.spaceId) : null
+      const { ucanToken, relayUrl: deviceRelayUrl } = resolveRequestContext(remoteNodeId, '/')
       if (!ucanToken) return false
       await invoke<FileEntry[]>('peer_storage_remote_list', {
         nodeId: remoteNodeId,
-        relayUrl: device?.relayUrl ?? null,
+        relayUrl: deviceRelayUrl,
         path: '/',
         ucanToken,
       })
