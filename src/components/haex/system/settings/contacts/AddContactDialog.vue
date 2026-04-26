@@ -600,12 +600,12 @@ const onSaveScanContactAsync = async () => {
     }
 
     log.info(`Saving scanned contact: "${scannedContact.value.name}", ${selectedClaims.length} claims`)
-    await identityStore.addContactWithClaimsAsync(
-      scannedContact.value.name.trim(),
-      await didKeyToPublicKeyAsync(scannedContact.value.did),
-      selectedClaims,
-      scanContactNotes.value.trim() || undefined,
-    )
+    await identityStore.addContactWithClaimsAsync({
+      name: scannedContact.value.name.trim(),
+      publicKey: await didKeyToPublicKeyAsync(scannedContact.value.did),
+      claims: selectedClaims,
+      notes: scanContactNotes.value.trim() || undefined,
+    })
 
     log.info('Scanned contact saved successfully')
     addToast({ title: t('success.added'), color: 'success' })
@@ -642,11 +642,11 @@ const onAddManualContactAsync = async () => {
   log.info(`Adding contact manually: "${manualForm.label}"`)
   isAdding.value = true
   try {
-    await identityStore.addContactAsync(
-      manualForm.label.trim(),
-      manualForm.publicKey.trim(),
-      manualForm.notes.trim() || undefined,
-    )
+    await identityStore.addContactAsync({
+      name: manualForm.label.trim(),
+      publicKey: manualForm.publicKey.trim(),
+      notes: manualForm.notes.trim() || undefined,
+    })
     log.info('Manual contact added successfully')
     addToast({ title: t('success.added'), color: 'success' })
     open.value = false
@@ -747,14 +747,12 @@ const onImportContactAsync = async () => {
     const displayName = data.name || `Imported ${data.did.slice(0, 16)}...`
 
     log.info(`Importing contact: "${displayName}", ${selectedClaims.length}/${data.claims.length} claims, avatar: ${!!avatar}`)
-    const contact = await identityStore.addContactWithClaimsAsync(
-      displayName,
+    const contact = await identityStore.addContactWithClaimsAsync({
+      name: displayName,
       publicKey,
-      selectedClaims,
-    )
-    if (avatar) {
-      await identityStore.updateContactAsync(contact.id, { avatar })
-    }
+      claims: selectedClaims,
+      avatar,
+    })
 
     log.info(`Contact imported successfully (id: ${contact.id})`)
     addToast({ title: t('success.added'), color: 'success' })

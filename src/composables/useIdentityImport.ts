@@ -100,14 +100,12 @@ export function useIdentityImport() {
       return { kind: 'identity' }
     }
 
-    const contact = await identityStore.addContactWithClaimsAsync(
-      data.name || `Imported ${data.did.slice(0, 16)}...`,
-      await didKeyToPublicKeyAsync(data.did),
-      selectedClaims,
-    )
-    if (avatar) {
-      await identityStore.updateContactAsync(contact.id, { avatar })
-    }
+    await identityStore.addContactWithClaimsAsync({
+      name: data.name || `Imported ${data.did.slice(0, 16)}...`,
+      publicKey: await didKeyToPublicKeyAsync(data.did),
+      claims: selectedClaims,
+      avatar,
+    })
     return { kind: 'contact' }
   }
 

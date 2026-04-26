@@ -173,21 +173,65 @@ export const useIdentityStore = defineStore('identityStore', () => {
 
   // ─── Contact methods (merged from contacts store) ─────────────────────
 
-  const addContactAsync = async (name: string, publicKey: string, notes?: string): Promise<SelectHaexIdentities> => {
+  interface AddContactInput {
+    name: string
+    publicKey: string
+    notes?: string
+    avatar?: string | null
+  }
+
+  const addContactAsync = async (input: AddContactInput): Promise<SelectHaexIdentities> => {
     const db = requireDb()
+    const { name, publicKey, notes } = input
+    const userAvatar = input.avatar || null
     const did = await publicKeyToDidKeyAsync(publicKey)
     const existing = await db.select()
       .from(haexIdentities)
       .where(eq(haexIdentities.did, did))
       .limit(1)
+
     if (existing.length > 0) {
-      throw new Error('An identity with this public key already exists')
+      const row = existing[0]!
+      if (row.source === 'contact') {
+        throw new Error('A contact with this public key already exists')
+      }
+      if (row.source === 'own') {
+        throw new Error('This is your own identity and cannot be added as a contact')
+      }
+
+      // Promote a non-contact identity (e.g. discovered via space membership)
+      // to a real contact. User input always wins: name/notes/avatar from the
+      // call override existing values when provided. If no avatar is provided
+      // and the row has none, seed one so the list view stays consistent.
+      const avatarUpdate: { avatar?: string; avatarOptions?: string | null } = {}
+      if (userAvatar) {
+        avatarUpdate.avatar = userAvatar
+        avatarUpdate.avatarOptions = null
+      } else if (!row.avatar) {
+        const seeded = buildDefaultAvatarSet('toon-head')
+        avatarUpdate.avatar = seeded.avatar
+        avatarUpdate.avatarOptions = seeded.avatarOptions
+      }
+
+      await db.update(haexIdentities)
+        .set({
+          source: 'contact',
+          name,
+          notes: notes ?? row.notes,
+          ...avatarUpdate,
+        })
+        .where(eq(haexIdentities.id, row.id))
+
+      log.info(`Promoted ${row.source} identity to contact "${name}" (${did.slice(0, 24)}...)`)
+      await loadIdentitiesAsync()
+      const promoted = identities.value.find(i => i.id === row.id)
+      if (!promoted) throw new Error(`Failed to find promoted contact ${row.id}`)
+      return promoted
     }
 
-    // Seed a random avatar so the list view and any future edit flow
-    // start from a consistent, editable state.
-    const avatarSet = buildDefaultAvatarSet('toon-head')
-
+    // Use the caller-supplied avatar when present; otherwise seed a random
+    // one so the list view and the customizer have a consistent starting state.
+    const seeded = userAvatar ? null : buildDefaultAvatarSet('toon-head')
     const id = crypto.randomUUID()
     await db.insert(haexIdentities).values({
       id,
@@ -195,8 +239,8 @@ export const useIdentityStore = defineStore('identityStore', () => {
       did,
       source: 'contact',
       notes,
-      avatar: avatarSet.avatar,
-      avatarOptions: avatarSet.avatarOptions,
+      avatar: userAvatar ?? seeded!.avatar,
+      avatarOptions: userAvatar ? null : seeded!.avatarOptions,
     })
 
     log.info(`Added contact "${name}" (${did.slice(0, 24)}...)`)
@@ -206,19 +250,21 @@ export const useIdentityStore = defineStore('identityStore', () => {
     return result
   }
 
+  interface AddContactWithClaimsInput extends AddContactInput {
+    claims: { type: string; value: string }[]
+  }
+
   const addContactWithClaimsAsync = async (
-    name: string,
-    publicKey: string,
-    claims: { type: string; value: string }[],
-    notes?: string,
+    input: AddContactWithClaimsInput,
   ): Promise<SelectHaexIdentities> => {
-    const contact = await addContactAsync(name, publicKey, notes)
+    const { claims, ...contactInput } = input
+    const contact = await addContactAsync(contactInput)
 
     for (const claim of claims) {
       await addClaimAsync(contact.id, claim.type, claim.value)
     }
 
-    log.info(`Added contact "${name}" with ${claims.length} claims`)
+    log.info(`Added contact "${input.name}" with ${claims.length} claims`)
     return contact
   }
 
