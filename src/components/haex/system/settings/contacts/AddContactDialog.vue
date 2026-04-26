@@ -238,10 +238,10 @@
             />
 
             <p
-              v-if="scanExistingContact"
+              v-if="scanBlockingIdentity"
               class="text-sm text-amber-500"
             >
-              {{ t('scan.alreadyExists', { name: scanExistingContact.name }) }}
+              {{ t('scan.alreadyExists', { name: scanBlockingIdentity.name }) }}
             </p>
           </div>
         </template>
@@ -305,7 +305,7 @@
           v-else-if="addMode === 'scan' && scanStep === 'review'"
           icon="i-lucide-user-plus"
           :loading="scanIsSaving"
-          :disabled="!scannedContact?.name.trim() || !!scanExistingContact"
+          :disabled="!scannedContact?.name.trim() || !!scanBlockingIdentity"
           @click="onSaveScanContactAsync"
         >
           {{ t('actions.add') }}
@@ -381,6 +381,15 @@ const scannedContact = ref<ScannedContact | null>(null)
 const scanContactNotes = ref('')
 const scanIsSaving = ref(false)
 const scanExistingContact = ref<SelectHaexIdentities | null>(null)
+// Only block the save when the existing identity is one we genuinely cannot
+// re-add: a real contact (duplicate) or our own identity. Identities known
+// only via space/server membership are promotable and must reach the
+// addContactWithClaimsAsync path.
+const scanBlockingIdentity = computed(() => {
+  const existing = scanExistingContact.value
+  if (!existing) return null
+  return existing.source === 'contact' || existing.source === 'own' ? existing : null
+})
 const scanShowAddClaimInline = ref(false)
 const scanNewClaimType = ref('')
 const scanNewClaimValue = ref('')
