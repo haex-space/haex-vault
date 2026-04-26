@@ -24,6 +24,7 @@ export default defineNuxtConfig({
 
   experimental: {},
 
+
   modules: [
     'nuxt-zod-i18n',
     '@nuxtjs/i18n',

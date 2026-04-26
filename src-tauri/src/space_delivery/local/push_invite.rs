@@ -6,6 +6,7 @@
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Emitter};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -41,8 +42,9 @@ pub fn handle_push_invite(
     space_endpoints: &[String],
     origin_url: Option<&str>,
 ) -> Response {
+    let token_fp = token_fingerprint(token_id);
     logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
-        "Received invite for space {space_id} ({space_name}) from {inviter_did}, token={token_id}"
+        "Received invite for space {space_id} ({space_name}) from {inviter_did}, token={token_fp}"
     ));
 
     // 1. Validate capabilities — reject if empty or containing unknown values
@@ -87,7 +89,8 @@ pub fn handle_push_invite(
     let hlc_guard = match hlc.lock() {
         Ok(guard) => guard,
         Err(_) => {
-            eprintln!("[{LOG_SOURCE}] ERROR: HLC lock poisoned");
+            // Can't use log_to_db (it would also try to lock HLC). Stderr only.
+            eprintln!("[{LOG_SOURCE}] [error] ABORT: HLC lock poisoned while processing invite for space {space_id} from {inviter_did}");
             return Response::PushInviteAck { accepted: false };
         }
     };
@@ -118,13 +121,16 @@ pub fn handle_push_invite(
     let endpoints_json =
         serde_json::to_string(space_endpoints).unwrap_or_else(|_| "[]".to_string());
 
+    // eprintln only — can't log_to_db while holding hlc_guard (would deadlock).
+    // The DB log for this step happens post-drop with the outcome.
     eprintln!("[{LOG_SOURCE}] [info] Inserting pending invite {invite_id} for space {space_id}");
 
-    match core::execute_with_crdt(
+    let insert_result = core::execute_with_crdt(
         "INSERT OR IGNORE INTO haex_pending_invites \
          (id, space_id, space_name, space_type, origin_url, inviter_did, inviter_label, inviter_avatar, inviter_avatar_options, \
           capabilities, include_history, token_id, space_endpoints, status, created_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 'pending', ?14)"
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 'pending', ?14) \
+         RETURNING id"
             .to_string(),
         vec![
             serde_json::Value::String(invite_id.clone()),
@@ -152,21 +158,127 @@ pub fn handle_push_invite(
         ],
         db,
         &hlc_guard,
-    ) {
-        Ok(_) => eprintln!("[{LOG_SOURCE}] [info] SUCCESS: pending invite {invite_id} created"),
-        Err(e) => eprintln!("[{LOG_SOURCE}] [error] FAILED to insert pending invite: {e}"),
-    }
+    );
 
     // Drop HLC lock before logging to DB (log_to_db locks internally)
     drop(hlc_guard);
+
+    // Persist the INSERT outcome to haex_logs so production (where stderr is /dev/null)
+    // can tell whether a given invite reached the row-creation stage or not.
+    // With `RETURNING id`, `execute_with_crdt` yields one row on a real insert
+    // and an empty Vec when `INSERT OR IGNORE` skipped a duplicate id — so
+    // we can distinguish "wrote the row" from "ignored a UUID collision"
+    // and avoid ACKing success when no row exists.
+    let inserted_rows = match &insert_result {
+        Ok(rows) => rows,
+        Err(e) => {
+            logging::log_to_db(db, hlc, "error", LOG_SOURCE, &format!(
+                "INSERT FAILED: pending invite {invite_id} (space={space_id}, token={token_fp}): {e}"
+            ));
+            // Fail fast: don't emit push-invite-received or ACK success when
+            // the row isn't persisted, or the UI fires a toast for an invite
+            // that doesn't exist in the DB.
+            return Response::PushInviteAck { accepted: false };
+        }
+    };
+
+    if inserted_rows.is_empty() {
+        // INSERT OR IGNORE skipped the row (duplicate id). UUID collisions
+        // are astronomically unlikely, but reporting accepted=true when no
+        // row was actually written would surface a phantom invite to the
+        // user — so bail out explicitly.
+        logging::log_to_db(db, hlc, "warn", LOG_SOURCE, &format!(
+            "INSERT IGNORED (duplicate id): pending invite {invite_id} (space={space_id}, token={token_fp})"
+        ));
+        return Response::PushInviteAck { accepted: false };
+    }
+
+    logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
+        "INSERT OK: pending invite {invite_id} (space={space_id}, token={token_fp})"
+    ));
 
     logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
         "Invite processing complete for {invite_id} in space {space_id}"
     ));
 
-    let _ = app_handle.emit("push-invite-received", ());
+    // Emitting is what triggers the frontend toast + invite list reload.
+    // If this fails (AppHandle dead / event channel closed) the invite is
+    // persisted but the user sees no notification — we MUST log the outcome
+    // so this regression is traceable without shell access.
+    match app_handle.emit("push-invite-received", ()) {
+        Ok(()) => logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
+            "Emitted push-invite-received for invite {invite_id} (space={space_id})"
+        )),
+        Err(e) => logging::log_to_db(db, hlc, "error", LOG_SOURCE, &format!(
+            "FAILED to emit push-invite-received for invite {invite_id}: {e}"
+        )),
+    }
 
     Response::PushInviteAck { accepted: true }
+}
+
+/// Short, non-reversible fingerprint of a token for log diagnostics.
+/// Full `token_id` is a bearer credential; persisting it in `haex_logs`
+/// would make those rows as sensitive as the invite itself.
+fn token_fingerprint(token_id: &str) -> String {
+    let digest = Sha256::digest(token_id.as_bytes());
+    format!("sha256:{}", hex::encode(&digest[..6]))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::token_fingerprint;
+
+    const SECRET_TOKEN: &str = "bearer-secret-abc123-xyz789-do-not-log";
+
+    #[test]
+    fn fingerprint_is_deterministic() {
+        // Same token must always produce the same fingerprint so logs from
+        // different hosts can be correlated without storing the raw token.
+        assert_eq!(
+            token_fingerprint(SECRET_TOKEN),
+            token_fingerprint(SECRET_TOKEN),
+        );
+    }
+
+    #[test]
+    fn fingerprint_has_fixed_shape() {
+        // "sha256:" prefix (7 chars) + 6 bytes hex-encoded (12 chars) = 19.
+        let fp = token_fingerprint(SECRET_TOKEN);
+        assert!(fp.starts_with("sha256:"), "got {fp:?}");
+        assert_eq!(fp.len(), 19, "unexpected length: {fp:?}");
+        // Hex-only payload after the prefix.
+        assert!(
+            fp["sha256:".len()..].chars().all(|c| c.is_ascii_hexdigit()),
+            "payload not hex: {fp:?}",
+        );
+    }
+
+    #[test]
+    fn fingerprint_differs_per_input() {
+        // Collision resistance for distinct inputs — ensures per-invite
+        // fingerprints are actually distinguishing, not always the same.
+        assert_ne!(
+            token_fingerprint("token-a"),
+            token_fingerprint("token-b"),
+        );
+    }
+
+    #[test]
+    fn fingerprint_does_not_leak_token_plaintext() {
+        // Regression guard for the review finding: raw token_id must not
+        // be recoverable from persisted diagnostics. A plain SHA-256 prefix
+        // is non-reversible — this test asserts no substring of the token
+        // leaks into the output.
+        let fp = token_fingerprint(SECRET_TOKEN);
+        assert!(!fp.contains(SECRET_TOKEN));
+        for fragment in ["bearer", "secret", "abc123", "xyz789"] {
+            assert!(
+                !fp.contains(fragment),
+                "fingerprint {fp:?} leaked token fragment {fragment:?}",
+            );
+        }
+    }
 }
 
 /// Check invite policy against blocked DIDs and policy setting.
