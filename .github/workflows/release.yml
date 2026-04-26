@@ -484,6 +484,11 @@ jobs:
         with:
           ref: release
           fetch-depth: 0
+          # PAT (not GITHUB_TOKEN) so the subsequent push triggers Build.
+          # GitHub's anti-recursion rule suppresses workflow runs for events
+          # produced by GITHUB_TOKEN, which would leave the sync PR stuck
+          # waiting on the required "CI Success" check forever.
+          token: ${{ secrets.RELEASE_PAT }}
 
       - name: Open sync PR to main
         env:
