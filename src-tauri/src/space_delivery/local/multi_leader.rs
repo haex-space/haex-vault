@@ -87,7 +87,6 @@ impl MultiSpaceLeaderHandler {
                             let msg = format!(
                                 "Stream {stream_index} error from {peer_endpoint_id}: {e}"
                             );
-                            eprintln!("[MultiLeader] {msg}");
                             crate::logging::log_to_db(&db, &hlc, "error", "MultiLeader", &msg);
                         }
                     });
@@ -98,7 +97,6 @@ impl MultiSpaceLeaderHandler {
                         streams = stream_count,
                         secs = connection_start.elapsed().as_secs()
                     );
-                    eprintln!("[MultiLeader] {msg}");
                     crate::logging::log_to_db(&self.db, &self.hlc, "info", "MultiLeader", &msg);
                     break;
                 }
@@ -109,7 +107,6 @@ impl MultiSpaceLeaderHandler {
                         connection_start.elapsed().as_secs(),
                         stream_count
                     );
-                    eprintln!("[MultiLeader] {msg}");
                     crate::logging::log_to_db(&self.db, &self.hlc, "warn", "MultiLeader", &msg);
                 }
             }
