@@ -756,15 +756,26 @@ pub async fn local_delivery_claim_invite(
     //     and would otherwise sit in the UI until the 7-day cleanup tick.
     //     CRDT delete is safe — pending-invite rows have unique UUIDs that
     //     don't collide with any row on the sender's device.
-    let _ = crate::database::core::execute_with_crdt(
+    //
+    //     Best-effort: a cleanup failure must not unwind the successful
+    //     accept, but silently swallowing it would make stale rows in the
+    //     UI undiagnosable. eprintln! only — log_to_db would deadlock on
+    //     the still-held HLC guard.
+    if let Err(e) = crate::database::core::execute_with_crdt(
         "DELETE FROM haex_pending_invites WHERE space_id = ?1 AND token_id != ?2 AND status = 'pending'".to_string(),
         vec![
             serde_json::Value::String(space_id.clone()),
-            serde_json::Value::String(token_id),
+            serde_json::Value::String(token_id.clone()),
         ],
         &db,
         &hlc_guard,
-    );
+    ) {
+        eprintln!(
+            "[ClaimInvite] [warn] sibling pending-invite cleanup failed for space={} token={}: {e}",
+            &space_id[..8.min(space_id.len())],
+            &token_id[..8.min(token_id.len())],
+        );
+    }
 
     Ok(ClaimInviteResult {
         space_id,
