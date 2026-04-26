@@ -55,8 +55,7 @@ pub fn build_endpoint_addr(
         .parse()
         .map_err(|e| format!("invalid endpoint id: {e}"))?;
 
-    let relay = explicit_relay
-        .and_then(|s| s.parse::<RelayUrl>().ok())
+    let relay = parse_explicit_relay(explicit_relay)
         .or_else(|| configured_relay.cloned())
         .or_else(|| endpoint.addr().relay_urls().next().cloned());
 
@@ -78,8 +77,7 @@ pub fn build_endpoint_addr_with_relay(
         .parse()
         .map_err(|e| format!("invalid endpoint id: {e}"))?;
 
-    let relay = explicit_relay
-        .and_then(|s| s.parse::<RelayUrl>().ok())
+    let relay = parse_explicit_relay(explicit_relay)
         .or_else(|| configured_relay.cloned())
         .or_else(|| endpoint.addr().relay_urls().next().cloned());
 
@@ -88,6 +86,23 @@ pub fn build_endpoint_addr_with_relay(
         None => EndpointAddr::new(remote_id),
     };
     Ok((addr, relay))
+}
+
+/// Parse an explicit relay URL string, logging a warning on parse failure
+/// instead of silently treating it the same as `None`. Malformed URLs from
+/// peer protocol payloads (or stale config) should be visible in logs so
+/// they can be diagnosed, even though we still fall back gracefully.
+fn parse_explicit_relay(explicit_relay: Option<&str>) -> Option<RelayUrl> {
+    let raw = explicit_relay?;
+    match raw.parse::<RelayUrl>() {
+        Ok(url) => Some(url),
+        Err(e) => {
+            eprintln!(
+                "[quic_retry] explicit relay url '{raw}' failed to parse: {e} — falling back"
+            );
+            None
+        }
+    }
 }
 
 /// Total attempts (initial + retries). Tuned to CI observations: networks

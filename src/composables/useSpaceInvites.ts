@@ -90,9 +90,9 @@ export function useSpaceInvites() {
         // explicitly to mirror the online-accept branch below — this guards
         // against any future change inside acceptLocalInvite that would skip
         // the store reload, and matches the e2e contract that activeSpaces is
-        // up-to-date by the time this composable resolves. See
-        // haex-e2e-tests/tests/spaces/invitations/quic-invite-flow.spec.ts:1426
-        // (cardCount: 0 with active row in DB ⇒ frontend-only race).
+        // up-to-date by the time this composable resolves. Frontend-only race
+        // surfaced as cardCount: 0 with active row in DB; see
+        // haex-e2e-tests/tests/spaces/invitations/quic-invite-flow.spec.ts.
         await spacesStore.acceptLocalInviteAsync(invite)
         await spacesStore.loadSpacesFromDbAsync()
       } else if (originUrl && invite.tokenId) {
