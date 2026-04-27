@@ -481,6 +481,10 @@ export const useSyncOrchestratorStore = defineStore(
         async () => {
           const spacesStore = useSpacesStore()
           await spacesStore.loadSpacesFromDbAsync()
+          // After every membership-table sync, the leader of each local
+          // space must rekey MLS for any disappeared member (forward
+          // secrecy). Non-leaders skip internally.
+          await spacesStore.reconcileMlsForLocalSpacesAsync()
         },
       )
 
