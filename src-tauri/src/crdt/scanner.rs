@@ -117,19 +117,24 @@ pub fn scan_table_for_local_changes(
     after_hlc: Option<&str>,
     device_id: &str,
 ) -> Result<Vec<LocalColumnChange>, DatabaseError> {
-    scan_table_for_local_changes_scoped(conn, table_name, after_hlc, device_id, None)
+    scan_table_for_local_changes_scoped(conn, table_name, after_hlc, device_id, None, None)
 }
 
-/// Like `scan_table_for_local_changes` but with an additional `space_id`
-/// predicate. The caller passes the target space id; the scanner limits the
-/// result to rows where `space_id = ?`. Used by the space-scoped sync path
-/// to prevent leaking rows from other spaces.
+/// Like `scan_table_for_local_changes` but with two additional predicates:
+///
+/// * `space_id_filter` — restricts the scan to rows where `space_id = ?`. Used
+///   by the space-scoped sync path to prevent leaking rows from other spaces.
+/// * `origin_node_filter` — when `Some`, the scanner emits a column change only
+///   if its HLC's node-id matches the given `u128`. This stops "ping-pong"
+///   re-pushes: rows freshly pulled from a peer carry that peer's HLC node-id
+///   and would otherwise be re-scanned and pushed back on the next cycle.
 pub fn scan_table_for_local_changes_scoped(
     conn: &Connection,
     table_name: &str,
     after_hlc: Option<&str>,
     device_id: &str,
     space_id_filter: Option<&str>,
+    origin_node_filter: Option<u128>,
 ) -> Result<Vec<LocalColumnChange>, DatabaseError> {
     let schema = get_table_schema(conn, table_name).map_err(DatabaseError::from)?;
 
@@ -251,12 +256,20 @@ pub fn scan_table_for_local_changes_scoped(
             };
 
             // Check if this column's HLC is newer than after_hlc
-            let should_include = match after_hlc {
+            let passes_hlc = match after_hlc {
                 Some(threshold) => hlc_is_newer(hlc_to_use, threshold),
                 None => true,
             };
 
-            if should_include {
+            // If the caller asked for origin filtering, only emit columns we
+            // wrote ourselves. Rows applied from inbound sync carry the
+            // remote peer's node-id and must not be pushed back.
+            let passes_origin = match origin_node_filter {
+                Some(our_node) => crate::crdt::hlc::hlc_is_from_node(hlc_to_use, our_node),
+                None => true,
+            };
+
+            if passes_hlc && passes_origin {
                 let value = row_map
                     .get(col.name.as_str())
                     .cloned()
@@ -282,12 +295,17 @@ pub fn scan_table_for_local_changes_scoped(
 /// the caller guarantees that only these tables and only these rows cross
 /// the wire, so peers cannot pull data from spaces they are not members of.
 ///
+/// `origin_node` (when `Some`) restricts the result to rows whose HLC was
+/// originally written by this node — see the doc on
+/// [`scan_table_for_local_changes_scoped`] for the rationale.
+///
 /// Tables outside [`SPACE_SCOPED_CRDT_TABLES`] are never scanned.
 pub fn scan_space_scoped_tables_for_local_changes(
     db: &DbConnection,
     space_id: &str,
     after_hlc: Option<&str>,
     device_id: &str,
+    origin_node: Option<u128>,
 ) -> Result<Vec<LocalColumnChange>, DatabaseError> {
     with_connection(db, |conn| {
         let mut all_changes: Vec<LocalColumnChange> = Vec::new();
@@ -298,6 +316,7 @@ pub fn scan_space_scoped_tables_for_local_changes(
                 after_hlc,
                 device_id,
                 Some(space_id),
+                origin_node,
             )?;
             all_changes.extend(changes);
         }
@@ -639,6 +658,7 @@ mod tests {
             None,
             "device-1",
             Some("space-A"),
+            None,
         )
         .unwrap();
 
@@ -669,6 +689,7 @@ mod tests {
             None,
             "device-1",
             Some("any-space"),
+            None,
         )
         .unwrap();
 

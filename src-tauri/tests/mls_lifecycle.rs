@@ -426,6 +426,45 @@ mod mls_manager_tests {
             assert!(pkg.len() > 50);
         }
     }
+
+    /// Reproduces the production bug: a stale Welcome that referenced a
+    /// now-consumed KeyPackage causes `NoMatchingKeyPackage` on the invitee.
+    /// The fix is leader-side: regenerate the Welcome with a fresh KP and
+    /// rely on `add_member`'s duplicate-leaf handling to reconcile state.
+    #[test]
+    fn welcome_can_be_regenerated_after_kp_consumed() {
+        let admin = setup_mls("did:key:admin");
+        admin.create_group("space-retry").unwrap();
+
+        let member = setup_mls("did:key:member");
+        let kps = member.generate_key_packages(2).unwrap();
+
+        // First attempt: admin adds member with KP_1, sends welcome.
+        let bundle1 = admin.add_member("space-retry", &kps[0]).unwrap();
+        let welcome1 = bundle1.welcome.unwrap();
+
+        // Member processes the first welcome — succeeds, but consumes KP_1
+        // from MLS storage in the process.
+        member.process_welcome("space-retry", &welcome1).unwrap();
+
+        // Simulate the production failure scenario: another retry comes in
+        // (network glitch, whatever) and the leader regenerates with KP_2.
+        // add_member must handle the duplicate signature key by removing
+        // the existing leaf before re-adding.
+        let bundle2 = admin.add_member("space-retry", &kps[1]).unwrap();
+        let welcome2 = bundle2.welcome.unwrap();
+
+        // The fresh welcome must reference KP_2 (still present in member's
+        // storage) and process cleanly. Before the fix, retries served the
+        // stale `welcome1` which referenced the already-consumed KP_1.
+        member.process_welcome("space-retry", &welcome2).unwrap();
+        assert!(member.has_group("space-retry"));
+
+        // Re-applying the *stale* welcome must fail — KP_1 is gone — proving
+        // the failure mode is real and the regenerate path is the only fix.
+        let stale_result = member.process_welcome("space-retry", &welcome1);
+        assert!(stale_result.is_err(), "stale welcome should not succeed twice");
+    }
 }
 
 // ============================================================================

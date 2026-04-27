@@ -1,6 +1,12 @@
-import { eq } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
-import { haexSpaceDevices, haexSpaces } from '~/database/schemas'
+import {
+  haexDeletedRows,
+  haexSpaceDevices,
+  haexSpaceMembers,
+  haexSpaces,
+  haexUcanTokens,
+} from '~/database/schemas'
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
 import type { schema } from '~/database'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
@@ -285,6 +291,80 @@ export async function leaveSpace(
 
   await removeSpaceFromDbAsync(spaceId)
   log.info(`Left space ${spaceId}`)
+}
+
+/**
+ * How long after marking a space LEAVING we still keep the haex_spaces row
+ * around so the per-space sync loop can flush its delete-log entries to
+ * the leader. After this window we give up regardless of delivery status.
+ */
+export const LEAVE_GIVE_UP_AFTER_MS = 30 * 24 * 60 * 60 * 1000
+
+/**
+ * Remove `haex_spaces` rows for spaces in LEAVING state where we are
+ * confident the delete-log entries (member row + UCAN tokens) have made
+ * it to the leader.
+ *
+ * "Confident" is a *heuristic* — distributed systems give us no native ACK
+ * for CRDT propagation. The decision below is the policy knob.
+ *
+ * @returns the number of spaces actually removed.
+ */
+export async function cleanupCompletedLeavesAsync(
+  db: DB,
+  removeSpaceFromDbAsync: (spaceId: string) => Promise<void>,
+): Promise<number> {
+  // 1. Find all LEAVING candidates. We carry their `modifiedAt` (bumped to
+  //    "now" at the moment of leave) so the heuristic below can reason about
+  //    age.
+  const candidates = await db
+    .select({
+      id: haexSpaces.id,
+      modifiedAt: haexSpaces.modifiedAt,
+    })
+    .from(haexSpaces)
+    .where(eq(haexSpaces.status, SpaceStatus.LEAVING))
+
+  if (candidates.length === 0) return 0
+
+  // 2. For each candidate, decide if it's safe to fully remove.
+  //
+  // Time-based give-up: 30 days after the leave transition we drop the row
+  // unconditionally. This is *not* a delivery confirmation — it is a
+  // resource-bound. Either the push reached the leader during that window
+  // (typical case) or the leader has been unreachable for a month, in
+  // which case the membership relationship is effectively dead anyway.
+  //
+  // The window is intentionally generous because the cost of waiting is a
+  // single hidden DB row per departed space; the cost of cleaning too
+  // early is the leader never seeing our leave at all.
+  const isLeaveSafeToFinalize = (candidate: {
+    id: string
+    modifiedAt: string | null
+  }): boolean => {
+    if (!candidate.modifiedAt) return false
+    const ageMs = Date.now() - new Date(candidate.modifiedAt).getTime()
+    if (Number.isNaN(ageMs)) return false
+    // Clock-skew defense: a future modifiedAt yields negative age. Without
+    // this guard the row would never finalize because of a one-time
+    // device-clock mismatch — finalize anyway since waiting can't recover
+    // a corrupt timestamp.
+    if (ageMs < 0) return true
+    return ageMs > LEAVE_GIVE_UP_AFTER_MS
+  }
+
+  let removed = 0
+  for (const c of candidates) {
+    if (!isLeaveSafeToFinalize(c)) continue
+    try {
+      await removeSpaceFromDbAsync(c.id)
+      log.info(`Finalized LEAVING space ${c.id} (delete-log assumed propagated)`)
+      removed += 1
+    } catch (error) {
+      log.warn(`Failed to finalize LEAVING space ${c.id}: ${error}`)
+    }
+  }
+  return removed
 }
 
 export async function deleteSpace(

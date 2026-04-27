@@ -638,10 +638,45 @@ const onConfirmDeleteAsync = async () => {
 const onConfirmLeaveAsync = async () => {
   if (!targetSpace.value) return
   try {
-    const identityId = getIdentityForSpace(targetSpace.value.originUrl)
-    if (!identityId) {
-      add({ title: t('errors.noIdentity'), color: 'error' })
-      return
+    const isLocalOnly = targetSpace.value.type === SpaceType.LOCAL
+    let identityId: string | null = null
+    if (!isLocalOnly) {
+      // Non-local spaces must carry their origin URL — without it we can't
+      // route the DELETE to the home server and would silently degrade to a
+      // local-only delete, leaving orphan rows on the leader.
+      if (!targetSpace.value.originUrl) {
+        console.error('Leave space aborted: non-local space missing originUrl', {
+          spaceId: targetSpace.value.id,
+          spaceType: targetSpace.value.type,
+        })
+        add({
+          title: t('errors.deleteFailed'),
+          description: t('errors.spaceMissingOrigin', {
+            id: targetSpace.value.id,
+          }),
+          color: 'error',
+        })
+        return
+      }
+      identityId = getIdentityForSpace(targetSpace.value.originUrl) ?? null
+      if (!identityId) {
+        console.error('Leave space aborted: no identity for origin', {
+          spaceId: targetSpace.value.id,
+          originUrl: targetSpace.value.originUrl,
+          availableBackends: syncBackends.value.map((b) => ({
+            homeServerUrl: b.homeServerUrl,
+            identityId: b.identityId,
+          })),
+        })
+        add({
+          title: t('errors.noIdentity'),
+          description: t('errors.noIdentityForOrigin', {
+            origin: targetSpace.value.originUrl,
+          }),
+          color: 'error',
+        })
+        return
+      }
     }
     await spacesStore.leaveSpaceAsync(
       targetSpace.value.originUrl,
@@ -699,6 +734,7 @@ de:
     leaveFailed: Verlassen fehlgeschlagen
     invalidInviteLink: Ungültiger Einladungslink
     noIdentity: Keine Identität verfügbar
+    noIdentityForOrigin: 'Für Server {origin} ist keine Identität konfiguriert. Prüfe deine Sync-Backends.'
     noServer: Kein Server ausgewählt
     acceptFailed: Einladung konnte nicht angenommen werden
     declineFailed: Einladung konnte nicht abgelehnt werden
@@ -743,6 +779,7 @@ en:
     leaveFailed: Failed to leave space
     invalidInviteLink: Invalid invite link
     noIdentity: No identity available
+    noIdentityForOrigin: 'No identity is configured for server {origin}. Check your sync backends.'
     noServer: No server selected
     acceptFailed: Failed to accept invitation
     declineFailed: Failed to decline invitation

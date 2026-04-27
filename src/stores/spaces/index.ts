@@ -6,6 +6,7 @@ import { haexSpaces } from '~/database/schemas'
 import type { SelectHaexSpaces } from '~/database/schemas'
 import type { ElectionResultInfo } from '@bindings/ElectionResultInfo'
 import { createLogger } from '@/stores/logging'
+import { NoCurrentIdentityError } from '@/composables/useCurrentIdentity'
 import { requireDb } from '~/stores/vault'
 import { SpaceType, SpaceStatus } from '~/database/constants'
 import type {
@@ -22,11 +23,16 @@ import {
   getSpaceMembers,
   updateOwnSpaceProfile,
   getMemberPublicKeysForSpace,
+  removeSelfFromSpace,
   removeSpaceMember,
   migrateExistingMembers,
 } from './members'
 import { getCapabilitiesForSpace, hasCapability } from './capabilities'
 import { setupFederationForSpace } from './federation'
+import {
+  reconcileMlsAfterMemberSyncAsync,
+  resetMemberSnapshots,
+} from './reconcileMls'
 import {
   inviteMember,
   createInviteToken,
@@ -46,6 +52,7 @@ import {
   listSpaces,
   leaveSpace,
   deleteSpace,
+  cleanupCompletedLeavesAsync,
   removeIdentityFromSpace,
 } from './crud'
 
@@ -279,12 +286,16 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     }
 
     for (const space of spaces.value) {
-      if (
-        space.type !== SpaceType.LOCAL ||
-        space.status !== SpaceStatus.ACTIVE
-      ) {
-        continue
-      }
+      // ACTIVE spaces sync normally. LEAVING spaces also need peer-sync
+      // running so their pending delete-log entries can be pushed to the
+      // leader the next time it is reachable; without this the offline-leave
+      // resilience would never have a transport to flush over.
+      const wantsPeerSync =
+        space.type === SpaceType.LOCAL &&
+        (space.status === SpaceStatus.ACTIVE
+          || space.status === SpaceStatus.LEAVING)
+      if (!wantsPeerSync) continue
+
       await startPeerSyncForLocalSpaceAsync(
         space.id,
         myIdentity.did,
@@ -432,9 +443,56 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   const leaveSpaceAsync = async (
     originUrl: string,
     spaceId: string,
-    identityId: string,
+    identityId: string | null,
   ) => {
-    const identity = await resolveIdentityAsync(identityId)
+    const space = activeSpaces.value.find((s) => s.id === spaceId)
+    const isLocalLeave = space?.type === SpaceType.LOCAL || !originUrl
+
+    // Validate the remote-leave precondition first, BEFORE any destructive
+    // local mutations. If we threw NoCurrentIdentityError after deleting
+    // membership/UCAN rows the local DB would be half-mutated with no way
+    // to retry the remote DELETE.
+    if (!isLocalLeave && !identityId) {
+      throw new NoCurrentIdentityError()
+    }
+
+    const identityStore = useIdentityStore()
+    await identityStore.loadIdentitiesAsync()
+    const ownIdentityIds = identityStore.ownIdentities.map((i) => i.id)
+
+    if (isLocalLeave) {
+      // Local-only leave order matters:
+      //  1. Mark space LEAVING + bump modifiedAt — peer-sync loop must keep
+      //     running so the upcoming membership delete can be pushed. The
+      //     loop only processes ACTIVE | LEAVING rows.
+      //  2. Delete membership row (BEFORE-DELETE trigger → haex_deleted_rows).
+      //     UCAN tokens are kept here so the sync loop can still authenticate
+      //     against the leader. They are removed later by
+      //     `cleanupCompletedLeavesAsync` once propagation is confirmed.
+      //  3. cleanup pass eventually removes haex_spaces row + UCANs.
+      const d = requireDb()
+      await d
+        .update(haexSpaces)
+        .set({
+          status: SpaceStatus.LEAVING,
+          modifiedAt: new Date().toISOString(),
+        })
+        .where(eq(haexSpaces.id, spaceId))
+      await removeSelfFromSpace(requireDb(), spaceId, ownIdentityIds)
+      // Reload reactive state so UI immediately stops showing the space.
+      await loadSpacesFromDbAsync()
+      log.info(`Marked local space ${spaceId} as LEAVING (push pending)`)
+      return
+    }
+
+    // Remote leave: home server is online by definition of the call.
+    // We can delete UCAN tokens immediately since the HTTP DELETE acks
+    // synchronously and there's no offline-resilience window to keep
+    // them alive for.
+    await removeSelfFromSpace(requireDb(), spaceId, ownIdentityIds, {
+      deleteUcans: true,
+    })
+    const identity = await resolveIdentityAsync(identityId!)
     return leaveSpace(identity, originUrl, spaceId, removeSpaceFromDbAsync)
   }
 
@@ -647,6 +705,29 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
   const clearCache = () => {
     spaces.value = []
+    // Drop per-space MLS-reconcile snapshots so a re-opened vault doesn't
+    // diff against a previous vault's member set.
+    resetMemberSnapshots()
+  }
+
+  const reconcileMlsForLocalSpacesAsync = async () => {
+    const d = db.value
+    if (!d) return
+    await reconcileMlsAfterMemberSyncAsync(d, activeSpaces.value)
+  }
+
+  /**
+   * Drops `haex_spaces` rows for departed-but-not-yet-cleaned LEAVING
+   * spaces. Called on vault startup; safe to call repeatedly thanks to
+   * the per-space age check inside.
+   */
+  const cleanupCompletedLeavesAsyncMethod = async () => {
+    const d = db.value
+    if (!d) return
+    const removed = await cleanupCompletedLeavesAsync(d, removeSpaceFromDbAsync)
+    if (removed > 0) {
+      await loadSpacesFromDbAsync()
+    }
   }
 
   return {
@@ -689,6 +770,8 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     startPeerSyncForLocalSpaceAsync,
     retryPendingWelcomesAsync,
     removeSpaceFromDbAsync,
+    reconcileMlsForLocalSpacesAsync,
+    cleanupCompletedLeavesAsync: cleanupCompletedLeavesAsyncMethod,
     clearCache,
   }
 })

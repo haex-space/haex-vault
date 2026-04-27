@@ -446,3 +446,49 @@ pub fn clear_buffers(db: &DbConnection, space_id: &str) -> Result<(), DeliveryEr
     }
     Ok(())
 }
+
+/// Delete every buffered key package for `(space_id, target_did)`.
+///
+/// Called by `handle_claim_invite` before storing a fresh batch. Without
+/// this, accumulated stale KPs from prior attempts (e.g. a retry after
+/// failed welcome processing) can be picked by the FIFO `consume_key_package`
+/// and end up referenced in a Welcome whose hash no longer maps to a KP in
+/// the invitee's MLS storage — surfacing as "No matching key package".
+pub fn clear_key_packages_for_did(
+    db: &DbConnection,
+    space_id: &str,
+    target_did: &str,
+) -> Result<(), DeliveryError> {
+    core::execute(
+        "DELETE FROM haex_local_delivery_key_packages_no_sync \
+         WHERE space_id = ?1 AND target_did = ?2".to_string(),
+        vec![
+            serde_json::Value::String(space_id.to_string()),
+            serde_json::Value::String(target_did.to_string()),
+        ],
+        db,
+    ).map_err(map_db)?;
+    Ok(())
+}
+
+/// Delete every buffered welcome for `(space_id, recipient_did)`.
+///
+/// Called when a stale buffered welcome must be replaced with a freshly
+/// regenerated one — e.g. on retry after the invitee's `process_welcome`
+/// consumed the referenced KeyPackage but failed downstream.
+pub fn clear_welcomes_for_did(
+    db: &DbConnection,
+    space_id: &str,
+    recipient_did: &str,
+) -> Result<(), DeliveryError> {
+    core::execute(
+        "DELETE FROM haex_local_delivery_welcomes_no_sync \
+         WHERE space_id = ?1 AND recipient_did = ?2".to_string(),
+        vec![
+            serde_json::Value::String(space_id.to_string()),
+            serde_json::Value::String(recipient_did.to_string()),
+        ],
+        db,
+    ).map_err(map_db)?;
+    Ok(())
+}

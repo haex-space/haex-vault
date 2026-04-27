@@ -23,6 +23,14 @@ pub mod vault_settings_key {
     /// Generated once at vault creation, shared across devices via CRDT sync.
     pub const DEVICE_KEY_SECRET: &str = "device_key_secret";
     pub const PEER_STORAGE_RELAY_URL: &str = "peer_storage_relay_url";
+
+    /// Prefix for the per-space, per-device CRDT push cursor used by local
+    /// space delivery (`space_delivery::local::sync_loop`). The full key is
+    /// `local_sync_push_hlc:<space_id>` and the row is scoped to the local
+    /// `device_id` via the `(key, device_id)` unique index. The value is the
+    /// max HLC string of the last successfully pushed chunk; the next sync
+    /// loop session resumes from there instead of re-scanning from t=0.
+    pub const LOCAL_SYNC_PUSH_HLC_PREFIX: &str = "local_sync_push_hlc:";
 }
 
 #[cfg(test)]

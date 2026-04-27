@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
 import { didKeyToPublicKeyAsync } from '@haex-space/vault-sdk'
 import {
@@ -21,6 +21,26 @@ const log = createLogger('SPACES:MEMBERS')
 export interface SpaceMemberWithIdentity {
   membership: SelectHaexSpaceMembers
   identity: SelectHaexIdentities
+}
+
+/**
+ * Revoke UCAN tokens for the given DIDs in `spaceId`. Going through the
+ * CRDT BEFORE-DELETE trigger, the deletes land in `haex_deleted_rows` and
+ * propagate to peers on the next sync cycle. Single-purpose helper so all
+ * "revoke member auth" call sites use the same predicate and propagation
+ * path.
+ */
+export async function deleteUcansForMembersAsync(
+  db: DB,
+  spaceId: string,
+  audienceDids: string[],
+) {
+  if (audienceDids.length === 0) return
+  await db.delete(haexUcanTokens)
+    .where(and(
+      eq(haexUcanTokens.spaceId, spaceId),
+      inArray(haexUcanTokens.audienceDid, audienceDids),
+    ))
 }
 
 /**
@@ -122,6 +142,69 @@ export async function getMemberPublicKeysForSpace(db: DB, spaceId: string): Prom
   return new Map(pairs)
 }
 
+/**
+ * Self-leave: hard-delete our own membership row(s) for `spaceId`.
+ *
+ * Membership DELETEs go through the CRDT BEFORE-DELETE trigger so the events
+ * land in `haex_deleted_rows` and propagate to peers (incl. the leader) on
+ * the next sync cycle. We do NOT touch the MLS group state — re-keying is
+ * the leader's responsibility when they receive the propagated member-row
+ * delete.
+ *
+ * UCAN tokens are kept by default and cleaned up by the FK-cascade when
+ * the LEAVING space row is finally deleted (see
+ * `cleanupCompletedLeavesAsync`). Without the UCAN, `PeerSession::connect`
+ * cannot authenticate the LEAVING-state sync loop and the propagation
+ * push would never run. Pass `deleteUcans: true` for the
+ * online/synchronous leave path (remote DELETE acks the membership in
+ * the same call, so the UCAN is no longer needed).
+ *
+ * Returns the membership count + the DIDs whose UCANs are pending deletion
+ * (so callers — typically the cleanup pass — can finish what was started).
+ */
+export async function removeSelfFromSpace(
+  db: DB,
+  spaceId: string,
+  ownIdentityIds: string[],
+  options: { deleteUcans?: boolean } = {},
+): Promise<{ removedMemberships: number; removedUcanDids: string[] }> {
+  if (ownIdentityIds.length === 0) {
+    log.warn(`removeSelfFromSpace: no own identities for space ${spaceId}`)
+    return { removedMemberships: 0, removedUcanDids: [] }
+  }
+
+  const ownMemberships = await db.select({
+    membershipId: haexSpaceMembers.id,
+    did: haexIdentities.did,
+  })
+    .from(haexSpaceMembers)
+    .innerJoin(haexIdentities, eq(haexSpaceMembers.identityId, haexIdentities.id))
+    .where(and(
+      eq(haexSpaceMembers.spaceId, spaceId),
+      inArray(haexSpaceMembers.identityId, ownIdentityIds),
+    ))
+
+  if (ownMemberships.length === 0) {
+    log.warn(`removeSelfFromSpace: no own membership found in space ${spaceId}`)
+    return { removedMemberships: 0, removedUcanDids: [] }
+  }
+
+  const membershipIds = ownMemberships.map(m => m.membershipId)
+  const ownDids = ownMemberships.map(m => m.did)
+
+  if (options.deleteUcans) {
+    await deleteUcansForMembersAsync(db, spaceId, ownDids)
+  }
+
+  await db.delete(haexSpaceMembers)
+    .where(inArray(haexSpaceMembers.id, membershipIds))
+
+  log.info(
+    `Self-removed from space ${spaceId} (${membershipIds.length} memberships, ucans_revoked=${options.deleteUcans ?? false}, dids=${ownDids.length})`,
+  )
+  return { removedMemberships: membershipIds.length, removedUcanDids: ownDids }
+}
+
 export async function removeSpaceMember(db: DB, spaceId: string, memberDid: string) {
   const membership = await db.select({
     identityId: haexSpaceMembers.identityId,
@@ -135,8 +218,7 @@ export async function removeSpaceMember(db: DB, spaceId: string, memberDid: stri
   const memberIndex = await invoke<number | null>('mls_find_member_index', { spaceId, memberDid })
   if (memberIndex === null) {
     log.warn(`Member ${memberDid.slice(0, 20)}... not found in MLS group, removing from DB only`)
-    await db.delete(haexUcanTokens)
-      .where(and(eq(haexUcanTokens.spaceId, spaceId), eq(haexUcanTokens.audienceDid, memberDid)))
+    await deleteUcansForMembersAsync(db, spaceId, [memberDid])
     if (membership[0]) {
       await db.delete(haexSpaceMembers)
         .where(and(eq(haexSpaceMembers.spaceId, spaceId), eq(haexSpaceMembers.identityId, membership[0].identityId)))
@@ -161,8 +243,7 @@ export async function removeSpaceMember(db: DB, spaceId: string, memberDid: stri
   }
 
   // 4. Revoke UCAN tokens for the removed member (prevents further writes)
-  await db.delete(haexUcanTokens)
-    .where(and(eq(haexUcanTokens.spaceId, spaceId), eq(haexUcanTokens.audienceDid, memberDid)))
+  await deleteUcansForMembersAsync(db, spaceId, [memberDid])
 
   // 5. Delete member from local DB (CRDT-synced to all devices)
   if (membership[0]) {
