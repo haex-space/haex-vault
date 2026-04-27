@@ -259,13 +259,15 @@ async fn run_sync_loop(
                 }
             }
             Err(e) => {
+                let endpoint_dead_at_failure = iroh_endpoint.is_closed();
                 log_sync(&app_handle, "error", &format!(
-                    "cycle failed: space={} err={}",
-                    &space_id[..8.min(space_id.len())], e,
+                    "cycle failed: space={} err={} endpoint_closed={}",
+                    &space_id[..8.min(space_id.len())], e, endpoint_dead_at_failure,
                 ));
 
                 // Attempt reconnection with exponential backoff
                 let mut backoff = Duration::from_secs(5);
+                let mut reconnect_attempt: u32 = 0;
                 loop {
                     if *stop_rx.borrow() {
                         eprintln!("[SyncLoop] Stop signal received during reconnect, exiting");
@@ -273,9 +275,13 @@ async fn run_sync_loop(
                         return;
                     }
 
+                    reconnect_attempt += 1;
+                    let endpoint_closed_now = iroh_endpoint.is_closed();
                     eprintln!(
-                        "[SyncLoop] Reconnecting in {}s...",
-                        backoff.as_secs()
+                        "[SyncLoop] Reconnecting in {}s (attempt {}, endpoint_closed={})...",
+                        backoff.as_secs(),
+                        reconnect_attempt,
+                        endpoint_closed_now,
                     );
 
                     // Emit error event for frontend
@@ -285,6 +291,8 @@ async fn run_sync_loop(
                             "spaceId": space_id,
                             "error": e.to_string(),
                             "reconnecting": true,
+                            "endpointClosed": endpoint_closed_now,
+                            "attempt": reconnect_attempt,
                         }),
                     );
 
@@ -313,12 +321,22 @@ async fn run_sync_loop(
                     .await
                     {
                         Ok(new_session) => {
-                            eprintln!("[SyncLoop] Reconnected successfully");
+                            log_sync(&app_handle, "info", &format!(
+                                "reconnected: space={} after {} attempt(s)",
+                                &space_id[..8.min(space_id.len())], reconnect_attempt,
+                            ));
                             session = new_session;
                             break;
                         }
                         Err(reconnect_err) => {
-                            eprintln!("[SyncLoop] Reconnection failed: {}", reconnect_err);
+                            let endpoint_closed_post = iroh_endpoint.is_closed();
+                            log_sync(&app_handle, "warn", &format!(
+                                "reconnect failed: space={} attempt={} err={} endpoint_closed={}",
+                                &space_id[..8.min(space_id.len())],
+                                reconnect_attempt,
+                                reconnect_err,
+                                endpoint_closed_post,
+                            ));
                             backoff = (backoff * 2).min(MAX_RECONNECT_BACKOFF);
                         }
                     }
