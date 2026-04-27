@@ -259,13 +259,15 @@ async fn run_sync_loop(
                 }
             }
             Err(e) => {
+                let endpoint_dead_at_failure = iroh_endpoint.is_closed();
                 log_sync(&app_handle, "error", &format!(
-                    "cycle failed: space={} err={}",
-                    &space_id[..8.min(space_id.len())], e,
+                    "cycle failed: space={} err={} endpoint_closed={}",
+                    &space_id[..8.min(space_id.len())], e, endpoint_dead_at_failure,
                 ));
 
                 // Attempt reconnection with exponential backoff
                 let mut backoff = Duration::from_secs(5);
+                let mut reconnect_attempt: u32 = 0;
                 loop {
                     if *stop_rx.borrow() {
                         eprintln!("[SyncLoop] Stop signal received during reconnect, exiting");
@@ -273,9 +275,13 @@ async fn run_sync_loop(
                         return;
                     }
 
+                    reconnect_attempt += 1;
+                    let endpoint_closed_now = iroh_endpoint.is_closed();
                     eprintln!(
-                        "[SyncLoop] Reconnecting in {}s...",
-                        backoff.as_secs()
+                        "[SyncLoop] Reconnecting in {}s (attempt {}, endpoint_closed={})...",
+                        backoff.as_secs(),
+                        reconnect_attempt,
+                        endpoint_closed_now,
                     );
 
                     // Emit error event for frontend
@@ -285,6 +291,8 @@ async fn run_sync_loop(
                             "spaceId": space_id,
                             "error": e.to_string(),
                             "reconnecting": true,
+                            "endpointClosed": endpoint_closed_now,
+                            "attempt": reconnect_attempt,
                         }),
                     );
 
@@ -313,12 +321,22 @@ async fn run_sync_loop(
                     .await
                     {
                         Ok(new_session) => {
-                            eprintln!("[SyncLoop] Reconnected successfully");
+                            log_sync(&app_handle, "info", &format!(
+                                "reconnected: space={} after {} attempt(s)",
+                                &space_id[..8.min(space_id.len())], reconnect_attempt,
+                            ));
                             session = new_session;
                             break;
                         }
                         Err(reconnect_err) => {
-                            eprintln!("[SyncLoop] Reconnection failed: {}", reconnect_err);
+                            let endpoint_closed_post = iroh_endpoint.is_closed();
+                            log_sync(&app_handle, "warn", &format!(
+                                "reconnect failed: space={} attempt={} err={} endpoint_closed={}",
+                                &space_id[..8.min(space_id.len())],
+                                reconnect_attempt,
+                                reconnect_err,
+                                endpoint_closed_post,
+                            ));
                             backoff = (backoff * 2).min(MAX_RECONNECT_BACKOFF);
                         }
                     }
@@ -601,9 +619,29 @@ async fn fetch_and_process_mls_messages(
                     eprintln!("[SyncLoop] Possible epoch gap detected, attempting rejoin for space {space_id}");
                     match attempt_rejoin(db, session, space_id, app_handle).await {
                         Ok(()) => {
-                            eprintln!("[SyncLoop] Rejoin successful, will retry messages next cycle");
-                            // Reset cursor so next cycle re-fetches from leader
-                            *last_mls_message_id = None;
+                            // After External Commit our local epoch jumped to
+                            // the leader's current epoch. Every remaining
+                            // message in the batch with an older epoch is a
+                            // historical commit that brought the group up to
+                            // (or close to) the current epoch — we can't
+                            // re-apply them now. Skip the entire batch tail
+                            // in one shot rather than one cycle per stale
+                            // commit; if there were any genuinely-new
+                            // messages (epoch >= current) in this batch they
+                            // will be re-fetched on the next cycle since the
+                            // leader keeps the queue intact and the cursor
+                            // we set here is at most the last id we saw.
+                            // Take the max id across the batch so the cursor
+                            // never regresses if the underlying fetch order
+                            // changes — `messages.last()` would only be
+                            // correct under a strictly ascending sort.
+                            let skip_to = messages.iter().map(|m| m.id).max().unwrap_or(msg.id);
+                            eprintln!(
+                                "[SyncLoop] Rejoin successful, advancing cursor past msg {} (skipping {} stale message(s)) for space {space_id}",
+                                skip_to,
+                                messages.len() - acked_ids.len(),
+                            );
+                            *last_mls_message_id = Some(skip_to);
                         }
                         Err(rejoin_err) => {
                             eprintln!("[SyncLoop] Rejoin failed: {rejoin_err}");

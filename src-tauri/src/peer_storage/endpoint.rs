@@ -233,6 +233,43 @@ impl PeerEndpoint {
             accept_loop(ep, state).await;
         });
 
+        // Endpoint death watcher (diag/multi-leader-quic-logging branch).
+        // The iroh endpoint can become "closed" without us calling stop()
+        // — typically when an internal task (relay actor, socket
+        // transport) gives up after unrecoverable errors. The sync loop
+        // then spins forever in exponential-backoff reconnect with
+        // "Endpoint is closed", and we currently have zero visibility
+        // into the why or the when.
+        //
+        // This watcher resolves when iroh signals the endpoint as
+        // closed, and writes one entry to haex_logs with the elapsed
+        // uptime. Correlate the timestamp with the stderr stream
+        // around it (sync_loop, multi_leader, relay) to spot the
+        // trigger event.
+        let watch_endpoint = endpoint.clone();
+        let watch_state = self.state.clone();
+        let started_at = std::time::Instant::now();
+        let endpoint_id_short = id.fmt_short();
+        tokio::spawn(async move {
+            watch_endpoint.closed().await;
+            let uptime = started_at.elapsed();
+            let msg = format!(
+                "iroh endpoint reported closed after {}s {}ms uptime (id={})",
+                uptime.as_secs(),
+                uptime.subsec_millis(),
+                endpoint_id_short,
+            );
+            eprintln!("[Endpoint] {msg}");
+            let app_handle = watch_state.read().await.app_handle.clone();
+            if let Some(app) = app_handle {
+                if let Some(state) = <tauri::AppHandle as tauri::Manager<tauri::Wry>>::try_state::<crate::AppState>(&app) {
+                    let _ = crate::logging::insert_log(
+                        &state, "error", "Endpoint", None, &msg, None, "rust",
+                    );
+                }
+            }
+        });
+
         self.endpoint = Some(endpoint);
         self.accept_task = Some(accept_task);
 

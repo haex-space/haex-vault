@@ -98,6 +98,14 @@ openmls_basic_credential = "0.5.0"
 # Time utilities
 time = "0.3"
 
+# Tracing capture for iroh's internal events (relay actor, socket
+# transport, connection lifecycle). Without a subscriber installed
+# iroh's tracing-crate emissions go to /dev/null, leaving us blind
+# to the root cause of "Endpoint is closed" failures we cannot
+# trigger from our own code.
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
 # PTY support for shell/terminal (desktop + android via cfg)
 portable-pty = "0.9"
 tokio-util = "0.7.18"
