@@ -9,6 +9,7 @@ pub mod leader;
 pub mod multi_leader;
 pub mod peer;
 pub mod protocol;
+pub mod push_cursor;
 pub mod push_invite;
 pub mod quic_retry;
 pub mod sync_loop;

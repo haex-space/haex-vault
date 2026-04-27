@@ -970,11 +970,15 @@ pub(super) async fn handle_delivery_request(
             }
 
             let device_id = "leader";
+            // Origin filter is push-only (sync_loop). When *serving* a pull
+            // the leader is the source of truth and must hand out every row
+            // it has for this space, regardless of who originally wrote it.
             match scan_space_scoped_tables_for_local_changes(
                 &state.db,
                 &space_id,
                 after_timestamp.as_deref(),
                 device_id,
+                None,
             ) {
                 Ok(changes) => {
                     let by_table: std::collections::BTreeMap<&str, usize> =

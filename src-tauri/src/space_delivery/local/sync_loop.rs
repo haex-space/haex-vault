@@ -16,6 +16,7 @@ use crate::crdt::scanner::{scan_space_scoped_tables_for_local_changes, LocalColu
 use crate::database::DbConnection;
 use super::error::DeliveryError;
 use super::peer::PeerSession;
+use super::push_cursor::{load_last_push_hlc, save_last_push_hlc};
 
 /// Sync-loop DB logging helper — writes to `haex_logs` so the e2e harness
 /// can extract the trace via `sql_select_with_crdt`. The Tauri stderr is
@@ -212,19 +213,33 @@ async fn run_sync_loop(
     app_handle: tauri::AppHandle,
     mut stop_rx: watch::Receiver<bool>,
 ) {
-    let mut last_push_hlc: Option<String> = None;
+    let mut last_push_hlc: Option<String> = load_last_push_hlc(&db, &space_id, &device_id);
     let mut last_pull_timestamp: Option<String> = None;
     let mut last_mls_message_id: Option<i64> = None;
     let mut key_packages_refilled = false;
+
+    // Translate our device UUID into the uhlc node-id form once per session
+    // so the push scanner can fast-filter ping-pong rows. A non-UUID device_id
+    // (only the in-process leader path uses one — see leader.rs) yields None
+    // and disables the filter, which is the correct fallback: that path does
+    // not push back to itself anyway.
+    let our_node: Option<u128> = crate::crdt::hlc::device_uuid_to_hlc_node(&device_id);
+    if our_node.is_none() {
+        log_sync(&app_handle, "warn", &format!(
+            "device_id is not a UUID, scanner origin filter disabled: device={}",
+            &device_id[..16.min(device_id.len())],
+        ));
+    }
 
     log_sync(
         &app_handle,
         "info",
         &format!(
-            "started: space={} leader={} our_did={}",
+            "started: space={} leader={} our_did={} cursor={:?}",
             &space_id[..8.min(space_id.len())],
             &leader_endpoint_id[..16.min(leader_endpoint_id.len())],
             &our_did[..24.min(our_did.len())],
+            last_push_hlc.as_deref(),
         ),
     );
 
@@ -240,6 +255,7 @@ async fn run_sync_loop(
             &session,
             &space_id,
             &device_id,
+            our_node,
             &app_handle,
             &mut last_push_hlc,
             &mut last_pull_timestamp,
@@ -361,6 +377,7 @@ async fn run_push_phase(
     session: &PeerSession,
     space_id: &str,
     device_id: &str,
+    our_node: Option<u128>,
     last_push_hlc: &mut Option<String>,
 ) -> Result<(), DeliveryError> {
     let changes = scan_space_scoped_tables_for_local_changes(
@@ -368,6 +385,7 @@ async fn run_push_phase(
         space_id,
         last_push_hlc.as_deref(),
         device_id,
+        our_node,
     )
     .map_err(|e| DeliveryError::Database {
         reason: format!("Failed to scan space-scoped tables: {}", e),
@@ -409,7 +427,11 @@ async fn run_push_phase(
 
         // Checkpoint after each successful chunk so a later failure does
         // not re-push completed groups. The scanner will pick up whatever
-        // remains on the next cycle.
+        // remains on the next cycle. The cursor is also persisted to the
+        // DB so a process restart or reconnect resumes from here instead
+        // of re-scanning from t=0 (which would re-push every previously
+        // pulled row and trip the leader's capability check).
+        save_last_push_hlc(db, space_id, device_id, &chunk_max_hlc);
         *last_push_hlc = Some(chunk_max_hlc);
     }
 
@@ -450,6 +472,7 @@ async fn run_sync_cycle(
     session: &PeerSession,
     space_id: &str,
     device_id: &str,
+    our_node: Option<u128>,
     app_handle: &tauri::AppHandle,
     last_push_hlc: &mut Option<String>,
     last_pull_timestamp: &mut Option<String>,
@@ -457,7 +480,7 @@ async fn run_sync_cycle(
     key_packages_refilled: &mut bool,
 ) -> Result<(), DeliveryError> {
     // 1. PUSH (best-effort) — never blocks the pull below.
-    if let Err(e) = run_push_phase(db, session, space_id, device_id, last_push_hlc).await {
+    if let Err(e) = run_push_phase(db, session, space_id, device_id, our_node, last_push_hlc).await {
         eprintln!("[SyncLoop] Push phase failed (pull continues): {}", e);
     }
 
