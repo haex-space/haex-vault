@@ -124,17 +124,12 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
       }
     }
 
-    // Best-effort detection: if the iframe is already loaded (readyState
-    // complete), send immediately; otherwise wait for the load event.
-    const alreadyLoaded
-      = iframe.contentDocument?.readyState === 'complete'
-      || iframe.contentDocument?.readyState === 'interactive'
-    if (alreadyLoaded) {
-      sendPort()
-    }
-    else {
-      iframe.addEventListener('load', sendPort, { once: true })
-    }
+    // Wait for the iframe's load event before sending the port. We can't peek
+    // at iframe.contentDocument here: production extensions run with
+    // sandbox="allow-scripts" (no allow-same-origin), so any cross-origin DOM
+    // access throws SecurityError. The watcher in useExtensionMessageHandler
+    // fires synchronously on mount — load can't have fired yet, so this is safe.
+    iframe.addEventListener('load', sendPort, { once: true })
 
     log.info(`Registered iframe for ${extension.name} (windowId: ${windowId})`)
   }
