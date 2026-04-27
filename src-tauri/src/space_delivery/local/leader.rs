@@ -856,23 +856,14 @@ pub(super) async fn handle_delivery_request(
             changes,
             ucan_token,
         } => {
-            // Authenticate and authorise before touching any DB state. Read-
-            // only peers must not be able to push — check Write capability.
+            // Authenticate first; everything that follows depends on the
+            // UCAN audience being trustworthy.
             let validated = match require_valid_ucan(&ucan_token, "SyncPush") {
                 Ok(v) => v,
                 Err(r) => return r,
             };
-            if let Err(r) = require_ucan_capability(
-                &validated,
-                &space_id,
-                CapabilityLevel::Write,
-                "SyncPush",
-                &state.db,
-            ) {
-                return r;
-            }
 
-            // 1. Parse changes JSON into Vec<LocalColumnChange>
+            // Parse changes JSON into Vec<LocalColumnChange>
             let local_changes: Vec<LocalColumnChange> = match serde_json::from_value(changes) {
                 Ok(c) => c,
                 Err(e) => {
@@ -883,15 +874,16 @@ pub(super) async fn handle_delivery_request(
                 }
             };
 
-            if local_changes.is_empty() {
-                return Response::Ok;
-            }
-
-            // Payload validation + origin attribution. Pure transform —
-            // see `inbound_sync` for the full contract and unit tests.
-            let local_changes = match super::inbound_sync::validate_and_attribute(
+            // Single authorisation entry point — handles capability,
+            // membership, payload validation, origin attribution and
+            // per-row ownership in one place. See
+            // `super::inbound_sync::authorize_inbound_sync_push` for the
+            // full pipeline.
+            let local_changes = match super::inbound_sync::authorize_inbound_sync_push(
+                &state.db,
                 &space_id,
-                &validated.audience,
+                peer_endpoint_id,
+                &validated,
                 local_changes,
             ) {
                 super::inbound_sync::InboundSyncPushOutcome::Accepted { changes } => changes,
@@ -901,9 +893,9 @@ pub(super) async fn handle_delivery_request(
                 }
             };
 
-            // Post-validation no-op: payload contained only client-supplied
-            // authored_by_did claims which the validator strips. Nothing to
-            // apply, nothing to notify.
+            // Post-validation no-op: payload was empty (or contained only
+            // client-supplied authored_by_did claims that the validator
+            // strips). Nothing to apply, nothing to notify.
             if local_changes.is_empty() {
                 return Response::Ok;
             }
