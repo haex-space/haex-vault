@@ -92,6 +92,26 @@ pub struct AppState {
 pub fn run() {
     use extension::core::EXTENSION_PROTOCOL_NAME;
 
+    // Install a tracing subscriber so iroh's internal events (relay
+    // actor lifecycle, socket transport errors, connection state
+    // changes) become visible in stderr alongside our own eprintln!
+    // logs. Without this, iroh emits via the `tracing` crate and the
+    // events are silently dropped — exactly the "endpoint is closed
+    // but we don't know why" blind spot we're chasing on the
+    // diag/multi-leader-quic-logging branch.
+    //
+    // Filter via the `HAEX_LOG` env var (e.g. `HAEX_LOG=iroh=debug`).
+    // The default keeps the volume sane: `info` for iroh, `warn` for
+    // everything else, so a user without env vars still gets relay /
+    // close-reason events but not full debug noise.
+    let filter = tracing_subscriber::EnvFilter::try_from_env("HAEX_LOG")
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("warn,iroh=info"));
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_target(true)
+        .with_writer(std::io::stderr)
+        .try_init();
+
     // Reassigned under #[cfg(mobile)] / #[cfg(target_os = "android")] below;
     // on desktop-linux the compiler doesn't see those paths and warns about
     // the `mut` — allow it.

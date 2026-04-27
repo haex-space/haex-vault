@@ -336,8 +336,8 @@ const inviteIdentityId = ref('')
 // Edit dialog state
 const editingSpace = ref<SpaceWithType | null>(null)
 const editingSpaceIsLocal = computed(() => {
-  const space = spaces.value.find((s) => s.haex_spaces.id === editingSpace.value?.id)
-  return space?.haex_spaces.type === SpaceType.LOCAL
+  const space = spaces.value.find((s) => s.id === editingSpace.value?.id)
+  return space?.type === SpaceType.LOCAL
 })
 
 const editServerOptions = computed(() => {
@@ -372,7 +372,7 @@ const ownerIdentityOptions = computed(() =>
 )
 
 const defaultOwnerIdentityId = computed(() =>
-  spaces.value.find((s) => s.haex_spaces.type === SpaceType.VAULT)?.haex_spaces.ownerIdentityId
+  spaces.value.find((s) => s.type === SpaceType.VAULT)?.ownerIdentityId
     || identityStore.ownIdentities[0]?.id
     || '',
 )

@@ -37,9 +37,39 @@ pub const SPACE_SCOPED_CRDT_TABLES: &[&str] = &[
     "haex_device_mls_enrollments",
 ];
 
+/// Subset of [`SPACE_SCOPED_CRDT_TABLES`] that every member — including
+/// read-only ones — must be able to push, because the rows describe the
+/// member's own existence in the group:
+///
+/// - `haex_space_members`     — own membership row
+/// - `haex_space_devices`     — own device registration
+/// - `haex_mls_sync_keys`     — own MLS KeyPackages (so others can encrypt to us)
+/// - `haex_device_mls_enrollments` — own MLS enrollment artifact
+///
+/// `haex_peer_shares` is intentionally **not** here: that table holds rows
+/// like "I host folder X under endpoint Y" which is genuine user content.
+/// A read-only member must not be able to publish shares.
+///
+/// The leader still re-injects `authored_by_did` from the UCAN audience in
+/// `inbound_sync::validate_and_attribute`, so a read-only member cannot
+/// forge a row claiming to belong to someone else.
+pub const MEMBERSHIP_SYSTEM_TABLES: &[&str] = &[
+    "haex_space_devices",
+    "haex_space_members",
+    "haex_mls_sync_keys",
+    "haex_device_mls_enrollments",
+];
+
 /// Returns true if `table_name` may be synchronised as part of a shared space.
 pub fn is_space_scoped_table(table_name: &str) -> bool {
     SPACE_SCOPED_CRDT_TABLES.contains(&table_name)
+}
+
+/// Returns true if a push targeting `table_name` only requires the caller to
+/// hold any valid space capability (Read is enough). See the doc on
+/// [`MEMBERSHIP_SYSTEM_TABLES`] for the rationale.
+pub fn is_membership_system_table(table_name: &str) -> bool {
+    MEMBERSHIP_SYSTEM_TABLES.contains(&table_name)
 }
 
 /// A column-level change ready for local transmission (no encryption).
@@ -540,6 +570,27 @@ mod tests {
         assert!(!is_space_scoped_table("haex_sync_backends"));
         // Extension / unknown tables default to private.
         assert!(!is_space_scoped_table("some_extension_table"));
+    }
+
+    #[test]
+    fn test_membership_system_tables_are_subset_of_space_scoped() {
+        for t in MEMBERSHIP_SYSTEM_TABLES {
+            assert!(
+                is_space_scoped_table(t),
+                "membership-system table not in sync whitelist: {t}"
+            );
+            assert!(
+                is_membership_system_table(t),
+                "membership-system table not recognised by helper: {t}"
+            );
+        }
+        // peer_shares must NOT be in the membership-system set: it is
+        // user-authored content (a device declaring it hosts a folder),
+        // and a read-only member must not be able to push entries here.
+        assert!(!is_membership_system_table("haex_peer_shares"));
+        // Off-whitelist tables are obviously not membership-system either.
+        assert!(!is_membership_system_table("haex_identities"));
+        assert!(!is_membership_system_table("some_extension_table"));
     }
 
     /// Creates a CRDT table that carries a `space_id` discriminator, used to

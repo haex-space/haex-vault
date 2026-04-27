@@ -16,4 +16,6 @@ pub mod types;
 pub mod ucan;
 
 #[cfg(test)]
+mod inbound_sync_tests;
+#[cfg(test)]
 mod tests;
