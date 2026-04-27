@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
 import { didKeyToPublicKeyAsync } from '@haex-space/vault-sdk'
 import {
@@ -120,6 +120,62 @@ export async function getMemberPublicKeysForSpace(db: DB, spaceId: string): Prom
     members.map(async (member) => [await didKeyToPublicKeyAsync(member.did), member.did] as const),
   )
   return new Map(pairs)
+}
+
+/**
+ * Self-leave: hard-delete our own membership row + our UCAN tokens for `spaceId`.
+ *
+ * Both DELETEs go through the CRDT BEFORE-DELETE trigger so the events land in
+ * `haex_deleted_rows` and propagate to peers (incl. the leader) on the next
+ * sync cycle. We do NOT touch the MLS group state — re-keying is the leader's
+ * responsibility when they receive the propagated member-row delete.
+ *
+ * Returns the number of membership rows deleted (0 if we're not actually a
+ * member, e.g. stale UI). Callers can use this to decide whether to skip the
+ * remote `DELETE /members/...` round-trip.
+ */
+export async function removeSelfFromSpace(
+  db: DB,
+  spaceId: string,
+  ownIdentityIds: string[],
+): Promise<{ removedMemberships: number; removedUcanDids: string[] }> {
+  if (ownIdentityIds.length === 0) {
+    log.warn(`removeSelfFromSpace: no own identities for space ${spaceId}`)
+    return { removedMemberships: 0, removedUcanDids: [] }
+  }
+
+  const ownMemberships = await db.select({
+    membershipId: haexSpaceMembers.id,
+    did: haexIdentities.did,
+  })
+    .from(haexSpaceMembers)
+    .innerJoin(haexIdentities, eq(haexSpaceMembers.identityId, haexIdentities.id))
+    .where(and(
+      eq(haexSpaceMembers.spaceId, spaceId),
+      inArray(haexSpaceMembers.identityId, ownIdentityIds),
+    ))
+
+  if (ownMemberships.length === 0) {
+    log.warn(`removeSelfFromSpace: no own membership found in space ${spaceId}`)
+    return { removedMemberships: 0, removedUcanDids: [] }
+  }
+
+  const membershipIds = ownMemberships.map(m => m.membershipId)
+  const ownDids = ownMemberships.map(m => m.did)
+
+  await db.delete(haexUcanTokens)
+    .where(and(
+      eq(haexUcanTokens.spaceId, spaceId),
+      inArray(haexUcanTokens.audienceDid, ownDids),
+    ))
+
+  await db.delete(haexSpaceMembers)
+    .where(inArray(haexSpaceMembers.id, membershipIds))
+
+  log.info(
+    `Self-removed from space ${spaceId} (${membershipIds.length} memberships, ${ownDids.length} DIDs UCAN-revoked)`,
+  )
+  return { removedMemberships: membershipIds.length, removedUcanDids: ownDids }
 }
 
 export async function removeSpaceMember(db: DB, spaceId: string, memberDid: string) {

@@ -17,6 +17,14 @@ export type SpaceType = (typeof SpaceType)[keyof typeof SpaceType]
 export const SpaceStatus = {
   ACTIVE: 'active',
   PENDING: 'pending',
+  /**
+   * Self-leave is in flight. The membership row + UCAN tokens have been
+   * locally deleted (their delete-log entries are in haex_deleted_rows),
+   * but we keep the haex_spaces row alive so the per-space sync loop can
+   * push those entries to the leader on the next online window. Once
+   * delivery is confirmed (or after a give-up window), the row is removed.
+   */
+  LEAVING: 'leaving',
 } as const
 
 export type SpaceStatus = (typeof SpaceStatus)[keyof typeof SpaceStatus]
