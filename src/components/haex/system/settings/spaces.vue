@@ -638,11 +638,26 @@ const onConfirmDeleteAsync = async () => {
 const onConfirmLeaveAsync = async () => {
   if (!targetSpace.value) return
   try {
-    const isLocalOnly =
-      targetSpace.value.type === SpaceType.LOCAL ||
-      !targetSpace.value.originUrl
+    const isLocalOnly = targetSpace.value.type === SpaceType.LOCAL
     let identityId: string | null = null
     if (!isLocalOnly) {
+      // Non-local spaces must carry their origin URL — without it we can't
+      // route the DELETE to the home server and would silently degrade to a
+      // local-only delete, leaving orphan rows on the leader.
+      if (!targetSpace.value.originUrl) {
+        console.error('Leave space aborted: non-local space missing originUrl', {
+          spaceId: targetSpace.value.id,
+          spaceType: targetSpace.value.type,
+        })
+        add({
+          title: t('errors.deleteFailed'),
+          description: t('errors.spaceMissingOrigin', {
+            id: targetSpace.value.id,
+          }),
+          color: 'error',
+        })
+        return
+      }
       identityId = getIdentityForSpace(targetSpace.value.originUrl) ?? null
       if (!identityId) {
         console.error('Leave space aborted: no identity for origin', {

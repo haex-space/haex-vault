@@ -146,12 +146,27 @@ describe('removeSelfFromSpace', () => {
     expect(deletes).toHaveLength(0)
   })
 
-  it('deletes UCAN tokens BEFORE membership rows (order matters for trigger semantics)', async () => {
+  it('keeps UCAN rows alive by default so the LEAVING peer-sync can still authenticate', async () => {
+    // Local-leave path: only the membership row is deleted. UCANs stay
+    // alive so PeerSession::connect can still authenticate during the
+    // LEAVING propagation window. The FK-cascade on haex_spaces removes
+    // them when cleanupCompletedLeavesAsync finally drops the space row.
     const { db, deletes } = makeMockDb([
       { membershipId: 'm-1', did: 'did:key:z1' },
     ])
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await removeSelfFromSpace(db as any, 'space-1', ['id-A'])
+
+    expect(deletes).toHaveLength(1)
+    expect(deletes[0]?.table).toBe(haexSpaceMembers)
+  })
+
+  it('deletes UCAN tokens before membership when deleteUcans option is set (remote-leave path)', async () => {
+    const { db, deletes } = makeMockDb([
+      { membershipId: 'm-1', did: 'did:key:z1' },
+    ])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await removeSelfFromSpace(db as any, 'space-1', ['id-A'], { deleteUcans: true })
 
     expect(deletes).toHaveLength(2)
     expect(deletes[0]?.table).toBe(haexUcanTokens)

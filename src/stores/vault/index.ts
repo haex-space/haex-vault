@@ -448,6 +448,16 @@ export const useVaultStore = defineStore('vaultStore', () => {
       log.warn('Cleanup of completed LEAVING spaces failed:', error)
     })
 
+    // Prime the per-space MLS member-snapshot baseline BEFORE any remote
+    // sync starts pulling in changes. The first pass of
+    // `reconcileMlsAfterMemberSyncAsync` skips removals (it only diffs
+    // against an existing snapshot), so without this priming step the
+    // very first sync after startup would silently drop a leaver
+    // signal — the leader would never rekey.
+    spacesStore.reconcileMlsForLocalSpacesAsync().catch((error) => {
+      log.warn('Initial MLS reconcile (snapshot prime) failed:', error)
+    })
+
     // Retry any Welcomes that weren't fully processed in a previous session
     await spacesStore.retryPendingWelcomesAsync()
 

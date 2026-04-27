@@ -39,8 +39,19 @@ const log = createLogger('SPACES:MLS-RECONCILE')
  */
 const memberSnapshots: Map<string, Set<string>> = new Map()
 
+/**
+ * Per-space serialisation chain. Two reconcile passes for the same space
+ * id (e.g. fired by overlapping sync cycles) would otherwise race on
+ * `memberSnapshots` reads/writes and double-trigger MLS rekeys. By
+ * chaining each call onto the previous promise per space we guarantee
+ * sequential execution while still allowing different spaces to
+ * reconcile in parallel.
+ */
+const reconcileLocks: Map<string, Promise<void>> = new Map()
+
 export function resetMemberSnapshots(): void {
   memberSnapshots.clear()
+  reconcileLocks.clear()
 }
 
 async function fetchMemberDidsAsync(db: DB, spaceId: string): Promise<Set<string>> {
@@ -110,57 +121,94 @@ async function rekeyMlsForRemovedMemberAsync(
 }
 
 /**
+ * Reconcile a single local space — read current member DIDs, diff against
+ * the last snapshot, and (if leader) rekey MLS for each disappeared DID.
+ * Per-DID failures keep that DID in the snapshot so the next reconcile
+ * pass retries it; only successfully-rekeyed DIDs (and the no-op cases —
+ * first pass, non-leader, no removals) advance the snapshot.
+ */
+async function reconcileSpaceAsync(
+  db: DB,
+  spaceId: string,
+): Promise<void> {
+  const isFirstPass = !memberSnapshots.has(spaceId)
+  const current = await fetchMemberDidsAsync(db, spaceId)
+  const previous = memberSnapshots.get(spaceId) ?? new Set<string>()
+
+  // First pass for this space → just prime the snapshot, no diff. Without
+  // this, a freshly-loaded space would diff against an empty Set and we'd
+  // never detect *real* future removals correctly on subsequent passes.
+  if (isFirstPass) {
+    memberSnapshots.set(spaceId, current)
+    return
+  }
+
+  const removed: string[] = []
+  for (const did of previous) {
+    if (!current.has(did)) removed.push(did)
+  }
+  if (removed.length === 0) {
+    memberSnapshots.set(spaceId, current)
+    return
+  }
+
+  if (!(await isLeaderForSpaceAsync(spaceId))) {
+    log.debug(
+      `Detected ${removed.length} member removal(s) in ${spaceId} but I am not leader — skipping rekey`,
+    )
+    // Don't advance the snapshot here: leadership might transition to us
+    // before the next pass and we'd otherwise have lost the removed-DID
+    // signal that triggers the rekey.
+    return
+  }
+
+  log.info(
+    `Leader-side MLS reconcile: ${removed.length} removed member(s) in space ${spaceId}`,
+  )
+
+  // Advance the snapshot DID-by-DID: failed rekeys keep their DID in the
+  // snapshot so they retry on the next pass; successful ones drop out.
+  const nextSnapshot = new Set(current)
+  for (const did of removed) {
+    try {
+      await rekeyMlsForRemovedMemberAsync(spaceId, did)
+    } catch (error) {
+      log.warn(
+        `MLS rekey for ${did.slice(0, 16)}… in ${spaceId} failed: ${error}`,
+      )
+      nextSnapshot.add(did)
+    }
+  }
+  memberSnapshots.set(spaceId, nextSnapshot)
+}
+
+/**
  * Inspect every local active space we are leader of, diff member DIDs
  * against the last snapshot, and trigger MLS rekey for each disappeared
- * DID. Safe to call concurrently with itself thanks to the per-space async
- * sequencing inside; double-trigger is idempotent because
+ * DID. Concurrent calls for the same space are serialised via
+ * [`reconcileLocks`]; different spaces still reconcile in parallel.
+ * Double-trigger inside one space is idempotent because
  * `mls_find_member_index` returns null after the first rotation.
  */
 export async function reconcileMlsAfterMemberSyncAsync(
   db: DB,
   spaces: ReadonlyArray<SpaceWithType>,
 ): Promise<void> {
-  for (const space of spaces) {
-    if (space.type !== SpaceType.LOCAL) continue
-    if (space.status !== SpaceStatus.ACTIVE) continue
-
-    const isFirstPass = !memberSnapshots.has(space.id)
-    const current = await fetchMemberDidsAsync(db, space.id)
-    const previous = memberSnapshots.get(space.id) ?? new Set<string>()
-
-    // Update snapshot first — even if rekey fails, we don't want to retry
-    // the same disappeared DIDs forever; MLS handles its own idempotency.
-    memberSnapshots.set(space.id, current)
-
-    // First pass for this space → just prime the snapshot, no diff. Without
-    // this, a freshly-loaded space would diff against an empty Set and we'd
-    // never detect *real* future removals correctly on subsequent passes.
-    if (isFirstPass) continue
-
-    const removed: string[] = []
-    for (const did of previous) {
-      if (!current.has(did)) removed.push(did)
-    }
-    if (removed.length === 0) continue
-
-    if (!(await isLeaderForSpaceAsync(space.id))) {
-      log.debug(
-        `Detected ${removed.length} member removal(s) in ${space.id} but I am not leader — skipping rekey`,
-      )
-      continue
-    }
-
-    log.info(
-      `Leader-side MLS reconcile: ${removed.length} removed member(s) in space ${space.id}`,
-    )
-    for (const did of removed) {
-      try {
-        await rekeyMlsForRemovedMemberAsync(space.id, did)
-      } catch (error) {
-        log.warn(
-          `MLS rekey for ${did.slice(0, 16)}… in ${space.id} failed: ${error}`,
-        )
-      }
-    }
-  }
+  await Promise.all(
+    spaces
+      .filter((s) => s.type === SpaceType.LOCAL && s.status === SpaceStatus.ACTIVE)
+      .map((space) => {
+        // Chain onto whatever pass is in flight for this space. The chain
+        // entry is replaced with our promise so the next caller waits on
+        // *us*. We swallow errors at the boundary so one space's failure
+        // doesn't poison the lock for every later caller.
+        const previous = reconcileLocks.get(space.id) ?? Promise.resolve()
+        const next = previous.then(() => reconcileSpaceAsync(db, space.id))
+          .catch((error) => {
+            log.warn(`Reconcile pass for space ${space.id} failed: ${error}`)
+          })
+        reconcileLocks.set(space.id, next)
+        return next
+      }),
+  )
 }

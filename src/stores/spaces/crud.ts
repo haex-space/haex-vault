@@ -345,6 +345,11 @@ export async function cleanupCompletedLeavesAsync(
     if (!candidate.modifiedAt) return false
     const ageMs = Date.now() - new Date(candidate.modifiedAt).getTime()
     if (Number.isNaN(ageMs)) return false
+    // Clock-skew defense: a future modifiedAt yields negative age. Without
+    // this guard the row would never finalize because of a one-time
+    // device-clock mismatch — finalize anyway since waiting can't recover
+    // a corrupt timestamp.
+    if (ageMs < 0) return true
     return ageMs > LEAVE_GIVE_UP_AFTER_MS
   }
 

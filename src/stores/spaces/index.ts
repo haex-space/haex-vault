@@ -448,27 +448,28 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const space = activeSpaces.value.find((s) => s.id === spaceId)
     const isLocalLeave = space?.type === SpaceType.LOCAL || !originUrl
 
-    // Phase 1: explicit DELETEs of our own membership row + our UCAN tokens.
-    // These hit the BEFORE-DELETE CRDT trigger and land in haex_deleted_rows
-    // so the leader (and other peers) learn we left on the next sync cycle.
-    // Cascade alone is not reliable enough — recursive_triggers semantics
-    // vary, and explicit DELETEs make the propagation contract obvious.
+    // Validate the remote-leave precondition first, BEFORE any destructive
+    // local mutations. If we threw NoCurrentIdentityError after deleting
+    // membership/UCAN rows the local DB would be half-mutated with no way
+    // to retry the remote DELETE.
+    if (!isLocalLeave && !identityId) {
+      throw new NoCurrentIdentityError()
+    }
+
     const identityStore = useIdentityStore()
     await identityStore.loadIdentitiesAsync()
     const ownIdentityIds = identityStore.ownIdentities.map((i) => i.id)
-    await removeSelfFromSpace(requireDb(), spaceId, ownIdentityIds)
 
-    // Phase 2 — Local-only: don't delete the haex_spaces row immediately.
-    // Mark it LEAVING so the per-space peer-sync loop keeps running and
-    // can push the delete-log entries once the leader is reachable. The
-    // cleanup pass (cleanupCompletedLeavesAsync) eventually removes the
-    // space row when the leave has propagated.
-    //
-    // We explicitly bump `modifiedAt` so the cleanup heuristic anchors on
-    // "when did the leave start" — relying on SQLite's CURRENT_TIMESTAMP
-    // default would still work because UPDATE doesn't auto-bump, but
-    // being explicit keeps the cleanup contract obvious.
     if (isLocalLeave) {
+      // Local-only leave order matters:
+      //  1. Mark space LEAVING + bump modifiedAt — peer-sync loop must keep
+      //     running so the upcoming membership delete can be pushed. The
+      //     loop only processes ACTIVE | LEAVING rows.
+      //  2. Delete membership row (BEFORE-DELETE trigger → haex_deleted_rows).
+      //     UCAN tokens are kept here so the sync loop can still authenticate
+      //     against the leader. They are removed later by
+      //     `cleanupCompletedLeavesAsync` once propagation is confirmed.
+      //  3. cleanup pass eventually removes haex_spaces row + UCANs.
       const d = requireDb()
       await d
         .update(haexSpaces)
@@ -477,18 +478,21 @@ export const useSpacesStore = defineStore('spacesStore', () => {
           modifiedAt: new Date().toISOString(),
         })
         .where(eq(haexSpaces.id, spaceId))
+      await removeSelfFromSpace(requireDb(), spaceId, ownIdentityIds)
       // Reload reactive state so UI immediately stops showing the space.
       await loadSpacesFromDbAsync()
       log.info(`Marked local space ${spaceId} as LEAVING (push pending)`)
       return
     }
 
-    // Phase 2 — Remote: home server is online by definition of the call.
-    // The HTTP DELETE acks synchronously; we drop the row right after.
-    if (!identityId) {
-      throw new NoCurrentIdentityError()
-    }
-    const identity = await resolveIdentityAsync(identityId)
+    // Remote leave: home server is online by definition of the call.
+    // We can delete UCAN tokens immediately since the HTTP DELETE acks
+    // synchronously and there's no offline-resilience window to keep
+    // them alive for.
+    await removeSelfFromSpace(requireDb(), spaceId, ownIdentityIds, {
+      deleteUcans: true,
+    })
+    const identity = await resolveIdentityAsync(identityId!)
     return leaveSpace(identity, originUrl, spaceId, removeSpaceFromDbAsync)
   }
 
