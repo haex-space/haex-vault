@@ -95,6 +95,33 @@ pub fn handle_push_invite(
         }
     };
 
+    // 4b. Idempotency: ack without re-inserting / re-emitting if a row for
+    //     this token_id already exists. Sender-side QUIC retry on transient
+    //     response-read errors (see space_delivery/local/quic_retry.rs) re-
+    //     delivers the same request after the receiver already processed
+    //     it once — without this guard the user sees a toast per retry.
+    //
+    //     Must run *inside* the HLC lock: a check-before-write performed
+    //     unlocked is racy when two duplicate deliveries arrive concurrently
+    //     (both would observe count=0 and both would proceed to INSERT).
+    let existing_for_token = core::select_with_crdt(
+        "SELECT COUNT(*) FROM haex_pending_invites WHERE token_id = ?1".to_string(),
+        vec![serde_json::Value::String(token_id.to_string())],
+        db,
+    )
+    .ok()
+    .and_then(|rows| rows.first()?.first()?.as_i64())
+    .unwrap_or(0);
+
+    if existing_for_token > 0 {
+        // Drop the guard before log_to_db (which acquires the HLC internally).
+        drop(hlc_guard);
+        logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
+            "SKIPPED (duplicate token): space={space_id} token={token_fp} — already received"
+        ));
+        return Response::PushInviteAck { accepted: true };
+    }
+
     // 5. Remove older pending invites from the same inviter for this space
     let _ = core::execute_with_crdt(
         "DELETE FROM haex_pending_invites \

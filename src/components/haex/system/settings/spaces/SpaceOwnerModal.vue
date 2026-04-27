@@ -283,10 +283,10 @@ const onAddContactAsync = async () => {
   isAddingContact.value = true
   try {
     const publicKey = await didKeyToPublicKeyAsync(ownerIdentity.value.did)
-    await identityStore.addContactAsync(
-      ownerIdentity.value.name,
+    await identityStore.addContactAsync({
+      name: ownerIdentity.value.name,
       publicKey,
-    )
+    })
     addToast({ title: t('success.contactAdded'), color: 'success' })
     // Reload to reflect the new contact status
     await loadAsync()
