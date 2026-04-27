@@ -335,6 +335,40 @@ pub fn hlc_max<'a>(iter: impl Iterator<Item = &'a str>) -> Option<&'a str> {
     iter.max_by(|a, b| compare_hlc_strings(a, b))
 }
 
+/// Returns the node-id suffix of an HLC timestamp string.
+/// Format: `<u64_ntp_nanoseconds>/<node_id_hex>`.
+pub fn hlc_node_id_suffix(hlc: &str) -> Option<&str> {
+    hlc.split_once('/').map(|(_, node)| node)
+}
+
+/// Parse the hex node-id suffix of an HLC into a `u128`. uhlc strips leading
+/// zeros when serialising the 16-byte ID (`format!("{:x}", _)`), so a numeric
+/// comparison is required for robust equality — string equality would treat
+/// `"01"` and `"1"` as different node-ids.
+pub fn parse_hlc_node_hex(node_hex: &str) -> Option<u128> {
+    u128::from_str_radix(node_hex, 16).ok()
+}
+
+/// Convert a device UUID (the same form passed to `HlcService`) to the `u128`
+/// representation used by uhlc node-ids. uhlc serialises the 16-byte ID
+/// **little-endian** — the least significant byte of the resulting u128 is
+/// `uuid.as_bytes()[0]`, not `[15]`. The round-trip test in
+/// `crdt::hlc_node_tests` pins this against the real uhlc library so a future
+/// uhlc upgrade that flips the byte order fails loudly.
+pub fn device_uuid_to_hlc_node(uuid_str: &str) -> Option<u128> {
+    let uuid = Uuid::parse_str(uuid_str).ok()?;
+    Some(u128::from_le_bytes(*uuid.as_bytes()))
+}
+
+/// Returns true iff the HLC timestamp's node-id matches `expected_node`.
+/// Returns `false` for malformed HLCs (no `/`, non-hex suffix).
+pub fn hlc_is_from_node(hlc: &str, expected_node: u128) -> bool {
+    hlc_node_id_suffix(hlc)
+        .and_then(parse_hlc_node_hex)
+        .map(|n| n == expected_node)
+        .unwrap_or(false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

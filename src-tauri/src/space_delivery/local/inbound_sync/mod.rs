@@ -120,6 +120,25 @@ pub fn authorize_inbound_sync_push(
     // (1) Capability gate
     let required = required_capability_for(&raw_changes);
     if let Err(e) = require_capability(validated_ucan, space_id, required) {
+        // Surface the table(s) that triggered the higher-than-Read capability
+        // requirement so operators can see *why* a push was rejected. Without
+        // this, the only signal is "need Write, have Read" — which leaves
+        // unanswered whether the pusher meant to push user content (legit
+        // Write attempt) or whether a ping-pong re-push smuggled
+        // `haex_peer_shares` into a Read member's batch (the actual bug).
+        let mut offending: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+        for change in &raw_changes {
+            if !is_membership_system_table(&change.table_name) {
+                offending.insert(change.table_name.as_str());
+            }
+        }
+        eprintln!(
+            "[InboundSync] Capability reject: space={space_id} \
+             audience={} required={required:?} offending_tables={:?} batch_size={}",
+            &validated_ucan.audience[..24.min(validated_ucan.audience.len())],
+            offending,
+            raw_changes.len(),
+        );
         return InboundSyncPushOutcome::Rejected {
             reason: format!("Access denied: {e}"),
         };
