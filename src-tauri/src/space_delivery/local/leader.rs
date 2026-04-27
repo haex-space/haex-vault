@@ -200,38 +200,37 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
 
     debug_assert_eq!(space_id, state.space_id, "ClaimInvite routed to wrong leader");
 
-    // 1. Idempotency check — has this DID already been fully claimed once?
-    //    If the MLS add_member already ran in a prior attempt (e.g. the
-    //    invitee never received the response due to a dropped QUIC stream),
-    //    the UCAN is persisted in haex_ucan_tokens and the Welcome is in
-    //    the buffer. Re-serve that state without re-consuming the token.
-    if let Some((existing_cap, existing_ucan)) =
-        load_existing_claim(&state.db, &space_id, &did)
-    {
-        if let Some(welcome_b64) = fetch_buffered_welcome(&state.db, &space_id, &did) {
-            eprintln!(
-                "[SpaceDelivery] ClaimInvite: idempotent retry for {} in space {} — re-serving buffered welcome",
-                &did[..20.min(did.len())],
-                &space_id[..12.min(space_id.len())],
-            );
-            return Response::InviteClaimed {
-                welcome: welcome_b64,
-                ucan: existing_ucan,
-                capability: existing_cap,
-            };
-        }
-        // UCAN exists but no buffered welcome means the original welcome was
-        // already consumed by the invitee in a previous successful attempt.
-        // Fall through to error — the invitee cannot re-join the MLS group
-        // via the same invite once the welcome is consumed.
-        return Response::Error {
-            message: "This invite has already been fully claimed".to_string(),
-        };
+    // 1. Detect retry: a prior attempt may have already added the member to
+    //    the MLS group and consumed the invite token. We do NOT short-circuit
+    //    by re-serving the buffered Welcome — OpenMLS deletes the matched
+    //    KeyPackage from the invitee's storage on welcome lookup (single-use
+    //    semantics, see openmls creation.rs::keys_for_welcome). If the prior
+    //    welcome processing failed downstream, that KP is gone and re-serving
+    //    the same welcome loops forever on `NoMatchingKeyPackage`.
+    //
+    //    Instead we always regenerate the welcome from a *fresh* KP. The
+    //    duplicate-leaf handling in `MlsManager::add_member` quietly removes
+    //    the stale leaf from the prior attempt before re-adding, so the
+    //    group ends up consistent at the cost of two extra epoch advances.
+    let existing = load_existing_claim(&state.db, &space_id, &did);
+    let is_retry = existing.is_some();
+    if is_retry {
+        eprintln!(
+            "[SpaceDelivery] ClaimInvite: retry for {} in space {} — regenerating welcome with fresh KeyPackage",
+            &did[..20.min(did.len())],
+            &space_id[..12.min(space_id.len())],
+        );
     }
 
-    // 2. Read-only validate — does not consume the token yet.
-    let (capability, pre_ucan) =
-        match invite_tokens::validate_invite(
+    // 2. Resolve capability + UCAN.
+    //    - Retry: reuse the previously-issued UCAN (token already consumed
+    //      in the first attempt, no re-validation needed).
+    //    - First attempt: read-only validate the token; consume happens at
+    //      step 13 only after the rest of the flow succeeds.
+    let (capability, ucan_token) = if let Some((existing_cap, existing_ucan)) = existing {
+        (existing_cap, existing_ucan)
+    } else {
+        let (capability, pre_ucan) = match invite_tokens::validate_invite(
             &state.db,
             &state.invite_tokens,
             &token,
@@ -247,38 +246,44 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
             }
         };
 
-    // 3. Determine UCAN: use pre-created (contact) or create now (conference)
-    let ucan_token = match pre_ucan {
-        Some(ucan) => ucan,
-        None => {
-            let admin = match super::ucan::load_admin_identity(&state.db, &space_id) {
-                Ok(a) => a,
-                Err(e) => {
-                    return Response::Error {
-                        message: format!("Failed to load admin identity: {e}"),
+        // 3. Determine UCAN: use pre-created (contact) or create now (conference)
+        let ucan_token = match pre_ucan {
+            Some(ucan) => ucan,
+            None => {
+                let admin = match super::ucan::load_admin_identity(&state.db, &space_id) {
+                    Ok(a) => a,
+                    Err(e) => {
+                        return Response::Error {
+                            message: format!("Failed to load admin identity: {e}"),
+                        }
                     }
-                }
-            };
-            match super::ucan::create_delegated_ucan(
-                &admin.did,
-                &admin.private_key_base64,
-                &did,
-                &space_id,
-                &capability,
-                Some(&admin.root_ucan),
-                super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS,
-            ) {
-                Ok(t) => t,
-                Err(e) => {
-                    return Response::Error {
-                        message: format!("Failed to create UCAN: {e}"),
+                };
+                match super::ucan::create_delegated_ucan(
+                    &admin.did,
+                    &admin.private_key_base64,
+                    &did,
+                    &space_id,
+                    &capability,
+                    Some(&admin.root_ucan),
+                    super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS,
+                ) {
+                    Ok(t) => t,
+                    Err(e) => {
+                        return Response::Error {
+                            message: format!("Failed to create UCAN: {e}"),
+                        }
                     }
                 }
             }
-        }
+        };
+        (capability, ucan_token)
     };
 
-    // 4. Store key packages from invitee
+    // 4. Replace stale KeyPackages from prior attempts with the fresh batch.
+    //    Without the clear, `consume_key_package` (FIFO) could pick a stale
+    //    KP whose hash the invitee no longer has in their MLS storage — the
+    //    same `NoMatchingKeyPackage` failure mode but at first-attempt time.
+    let _ = buffer::clear_key_packages_for_did(&state.db, &space_id, &did);
     for pkg_b64 in &key_packages {
         if let Ok(blob) = base64_decode(pkg_b64) {
             let _ = buffer::store_key_package(&state.db, &space_id, &did, &blob);
@@ -357,10 +362,11 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
         }
     };
 
-    // 9. Buffer welcome for retry idempotency. If the invitee never receives
-    //    the response due to a dropped stream, the next ClaimInvite attempt
-    //    hits the idempotency fast path above and re-serves this buffered
-    //    welcome instead of re-running MLS add_member.
+    // 9. Buffer the freshly-generated welcome. Drop any stale buffered welcome
+    //    from a prior attempt first — keeping it around would make a future
+    //    `MlsFetchWelcomes` poll return an obsolete welcome whose KeyPackage
+    //    hash the invitee no longer has, surfacing as `NoMatchingKeyPackage`.
+    let _ = buffer::clear_welcomes_for_did(&state.db, &space_id, &did);
     if let Err(e) = buffer::store_welcome(&state.db, &space_id, &did, &welcome_blob) {
         eprintln!("[SpaceDelivery] Failed to buffer welcome: {e}");
     }
@@ -456,18 +462,25 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
     // 13. Consume the token — **only now**, after the claim has fully
     //     succeeded. If anything above failed, the token is still unspent
     //     and the invitee can retry without a manually re-issued invite.
-    if let Err(e) = invite_tokens::consume_invite(
-        &state.db,
-        &state.hlc,
-        &state.invite_tokens,
-        &token,
-    )
-    .await
-    {
-        // Log but don't fail the response — the claim succeeded, only the
-        // usage-count persistence failed. At worst the token is usable once
-        // more, which is a recoverable soft failure.
-        eprintln!("[SpaceDelivery] Failed to consume invite token: {e}");
+    //
+    //     Skip on retry: the token was already consumed by the first
+    //     attempt and incrementing again would (a) overshoot `max_uses` for
+    //     single-use contact invites and (b) double-count for multi-use
+    //     conference invites.
+    if !is_retry {
+        if let Err(e) = invite_tokens::consume_invite(
+            &state.db,
+            &state.hlc,
+            &state.invite_tokens,
+            &token,
+        )
+        .await
+        {
+            // Log but don't fail the response — the claim succeeded, only the
+            // usage-count persistence failed. At worst the token is usable once
+            // more, which is a recoverable soft failure.
+            eprintln!("[SpaceDelivery] Failed to consume invite token: {e}");
+        }
     }
 
     // 14. Return welcome + UCAN
@@ -505,22 +518,12 @@ fn load_existing_claim(
     Some((capability, ucan))
 }
 
-/// Fetch an unconsumed buffered welcome for this recipient in this space,
-/// base64-encoded for transport. Returns `None` if none is buffered.
-fn fetch_buffered_welcome(
-    db: &crate::database::DbConnection,
-    space_id: &str,
-    recipient_did: &str,
-) -> Option<String> {
-    let entries = buffer::fetch_welcomes(db, space_id, recipient_did).ok()?;
-    let (_id, blob) = entries.into_iter().next()?;
-    Some(base64_encode(&blob))
-}
-
-/// Persist the granted UCAN on the admin's side so subsequent idempotent
-/// retries can recognize an already-claimed invite. Errors are logged and
-/// swallowed: the UCAN was successfully delivered to the invitee regardless,
-/// and losing this row only means the next retry will not take the fast path.
+/// Persist the granted UCAN on the admin's side so subsequent claim retries
+/// for the same DID can be detected and routed through the regenerate path.
+/// Errors are logged and swallowed: the UCAN was successfully delivered to
+/// the invitee regardless, and losing this row only means the next retry
+/// will be treated as a first attempt (still safe — the duplicate-leaf
+/// handling in `add_member` covers it).
 ///
 /// Skips insertion if a row for this `(space_id, audience_did)` already
 /// exists — avoids duplicate entries when CRDT sync later propagates the
