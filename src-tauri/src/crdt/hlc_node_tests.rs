@@ -30,7 +30,7 @@ fn round_trips_via_real_uhlc() {
     let our_node = device_uuid_to_hlc_node(uuid_str).expect("UUID parses");
     assert!(
         hlc_is_from_node(&ts, our_node),
-        "round-trip should match: {ts} vs {our_node:032x}"
+        "round-trip should match HLC against derived node id"
     );
 }
 
