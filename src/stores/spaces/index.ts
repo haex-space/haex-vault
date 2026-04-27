@@ -2,16 +2,8 @@ import type { DecryptedSpace } from '@haex-space/vault-sdk'
 import { didKeyToPublicKeyAsync } from '@haex-space/vault-sdk'
 import { eq } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
-import {
-  haexIdentities,
-  haexSpaceDevices,
-  haexSpaces,
-} from '~/database/schemas'
-import type {
-  SelectHaexIdentities,
-  SelectHaexSpaceDevices,
-  SelectHaexSpaces,
-} from '~/database/schemas'
+import { haexSpaces } from '~/database/schemas'
+import type { SelectHaexSpaces } from '~/database/schemas'
 import type { ElectionResultInfo } from '@bindings/ElectionResultInfo'
 import { createLogger } from '@/stores/logging'
 import { requireDb } from '~/stores/vault'
@@ -64,12 +56,6 @@ export interface SpaceWithType extends DecryptedSpace {
   ownerIdentityId: string
 }
 
-export interface SpaceWithDevice {
-  haex_spaces: SelectHaexSpaces
-  haex_space_devices: SelectHaexSpaceDevices | null
-  haex_identities: SelectHaexIdentities | null
-}
-
 export interface ResolvedIdentity {
   id: string
   publicKey: string
@@ -91,21 +77,21 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   // State
   // =========================================================================
 
-  const spaces = ref<SpaceWithDevice[]>([])
+  const spaces = ref<SelectHaexSpaces[]>([])
   const db = computed(() => currentVault.value?.drizzle)
-  const rowToSpace = (row: SpaceWithDevice): SpaceWithType => ({
-    id: row.haex_spaces.id,
-    name: row.haex_spaces.name,
-    type: (row.haex_spaces.type as SpaceTypeValue) ?? SpaceType.ONLINE,
-    status: (row.haex_spaces.status as SpaceStatusValue) ?? SpaceStatus.ACTIVE,
-    ownerIdentityId: row.haex_spaces.ownerIdentityId,
-    originUrl: row.haex_spaces.originUrl ?? '',
-    createdAt: row.haex_spaces.createdAt ?? '',
+  const rowToSpace = (row: SelectHaexSpaces): SpaceWithType => ({
+    id: row.id,
+    name: row.name,
+    type: (row.type as SpaceTypeValue) ?? SpaceType.ONLINE,
+    status: (row.status as SpaceStatusValue) ?? SpaceStatus.ACTIVE,
+    ownerIdentityId: row.ownerIdentityId,
+    originUrl: row.originUrl ?? '',
+    createdAt: row.createdAt ?? '',
     capabilities: [],
   })
   const visibleSpaces = computed(() =>
     spaces.value
-      .filter((s) => s.haex_spaces.type !== SpaceType.VAULT)
+      .filter((s) => s.type !== SpaceType.VAULT)
       .map(rowToSpace),
   )
   const activeSpaces = computed(() =>
@@ -179,21 +165,14 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     if (d) {
       await d.delete(haexSpaces).where(eq(haexSpaces.id, spaceId))
     }
-    spaces.value = spaces.value.filter((s) => s.haex_spaces.id !== spaceId)
+    spaces.value = spaces.value.filter((s) => s.id !== spaceId)
   }
 
   const loadSpacesFromDbAsync = async () => {
     const d = db.value
     if (!d) return
 
-    spaces.value = (await d
-      .select()
-      .from(haexSpaces)
-      .leftJoin(haexSpaceDevices, eq(haexSpaces.id, haexSpaceDevices.spaceId))
-      .leftJoin(
-        haexIdentities,
-        eq(haexSpaces.ownerIdentityId, haexIdentities.id),
-      )) as unknown as SpaceWithDevice[]
+    spaces.value = await d.select().from(haexSpaces)
 
     return spaces.value
   }
@@ -205,15 +184,15 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   const startLocalSpaceLeadersAsync = async () => {
     for (const space of spaces.value) {
       if (
-        space.haex_spaces.type === SpaceType.LOCAL &&
-        space.haex_spaces.status === SpaceStatus.ACTIVE
+        space.type === SpaceType.LOCAL &&
+        space.status === SpaceStatus.ACTIVE
       ) {
         try {
           await invoke('local_delivery_start', {
-            spaceId: space.haex_spaces.id,
+            spaceId: space.id,
           })
           log.info(
-            `Started leader mode for local space ${space.haex_spaces.id}`,
+            `Started leader mode for local space ${space.id}`,
           )
         } catch {
           // Already running — ignore
@@ -301,16 +280,16 @@ export const useSpacesStore = defineStore('spacesStore', () => {
 
     for (const space of spaces.value) {
       if (
-        space.haex_spaces.type !== SpaceType.LOCAL ||
-        space.haex_spaces.status !== SpaceStatus.ACTIVE
+        space.type !== SpaceType.LOCAL ||
+        space.status !== SpaceStatus.ACTIVE
       ) {
         continue
       }
       await startPeerSyncForLocalSpaceAsync(
-        space.haex_spaces.id,
+        space.id,
         myIdentity.did,
       ).catch((error) => {
-        log.warn(`Peer sync for space ${space.haex_spaces.id} failed: ${error}`)
+        log.warn(`Peer sync for space ${space.id} failed: ${error}`)
       })
     }
   }
@@ -368,7 +347,7 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       .limit(1)
 
     if (localSpaces.length > 0) {
-      if (!spaces.value.find((s) => s.haex_spaces.id === localSpaces[0]!.id)) {
+      if (!spaces.value.find((s) => s.id === localSpaces[0]!.id)) {
         await loadSpacesFromDbAsync()
       }
       return
@@ -378,8 +357,8 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const identityStore = useIdentityStore()
     await identityStore.loadIdentitiesAsync()
     const vaultOwnerId = spaces.value.find(
-      (s) => s.haex_spaces.type === SpaceType.VAULT,
-    )?.haex_spaces.ownerIdentityId
+      (s) => s.type === SpaceType.VAULT,
+    )?.ownerIdentityId
     const defaultOwnerId = vaultOwnerId || identityStore.ownIdentities[0]?.id
     if (!defaultOwnerId) {
       throw new Error('No identity available for default space')
