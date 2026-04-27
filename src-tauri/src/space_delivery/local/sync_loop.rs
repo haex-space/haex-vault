@@ -601,9 +601,19 @@ async fn fetch_and_process_mls_messages(
                     eprintln!("[SyncLoop] Possible epoch gap detected, attempting rejoin for space {space_id}");
                     match attempt_rejoin(db, session, space_id, app_handle).await {
                         Ok(()) => {
-                            eprintln!("[SyncLoop] Rejoin successful, will retry messages next cycle");
-                            // Reset cursor so next cycle re-fetches from leader
-                            *last_mls_message_id = None;
+                            // After External Commit our local epoch jumped to
+                            // the leader's current epoch. The message that
+                            // failed (and any earlier ones in this batch we
+                            // already processed) carries an older epoch and
+                            // is no longer applicable. Advance the cursor
+                            // past it so the next cycle resumes after the
+                            // gap rather than replaying the same stale
+                            // commit and triggering rejoin forever.
+                            eprintln!(
+                                "[SyncLoop] Rejoin successful, advancing cursor past msg {} for space {space_id}",
+                                msg.id
+                            );
+                            *last_mls_message_id = Some(msg.id);
                         }
                         Err(rejoin_err) => {
                             eprintln!("[SyncLoop] Rejoin failed: {rejoin_err}");
