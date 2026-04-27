@@ -620,18 +620,24 @@ async fn fetch_and_process_mls_messages(
                     match attempt_rejoin(db, session, space_id, app_handle).await {
                         Ok(()) => {
                             // After External Commit our local epoch jumped to
-                            // the leader's current epoch. The message that
-                            // failed (and any earlier ones in this batch we
-                            // already processed) carries an older epoch and
-                            // is no longer applicable. Advance the cursor
-                            // past it so the next cycle resumes after the
-                            // gap rather than replaying the same stale
-                            // commit and triggering rejoin forever.
+                            // the leader's current epoch. Every remaining
+                            // message in the batch with an older epoch is a
+                            // historical commit that brought the group up to
+                            // (or close to) the current epoch — we can't
+                            // re-apply them now. Skip the entire batch tail
+                            // in one shot rather than one cycle per stale
+                            // commit; if there were any genuinely-new
+                            // messages (epoch >= current) in this batch they
+                            // will be re-fetched on the next cycle since the
+                            // leader keeps the queue intact and the cursor
+                            // we set here is at most the last id we saw.
+                            let skip_to = messages.last().map(|m| m.id).unwrap_or(msg.id);
                             eprintln!(
-                                "[SyncLoop] Rejoin successful, advancing cursor past msg {} for space {space_id}",
-                                msg.id
+                                "[SyncLoop] Rejoin successful, advancing cursor past msg {} (skipping {} stale message(s)) for space {space_id}",
+                                skip_to,
+                                messages.len() - acked_ids.len(),
                             );
-                            *last_mls_message_id = Some(msg.id);
+                            *last_mls_message_id = Some(skip_to);
                         }
                         Err(rejoin_err) => {
                             eprintln!("[SyncLoop] Rejoin failed: {rejoin_err}");
