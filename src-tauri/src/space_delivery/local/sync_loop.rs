@@ -631,7 +631,11 @@ async fn fetch_and_process_mls_messages(
                             // will be re-fetched on the next cycle since the
                             // leader keeps the queue intact and the cursor
                             // we set here is at most the last id we saw.
-                            let skip_to = messages.last().map(|m| m.id).unwrap_or(msg.id);
+                            // Take the max id across the batch so the cursor
+                            // never regresses if the underlying fetch order
+                            // changes — `messages.last()` would only be
+                            // correct under a strictly ascending sort.
+                            let skip_to = messages.iter().map(|m| m.id).max().unwrap_or(msg.id);
                             eprintln!(
                                 "[SyncLoop] Rejoin successful, advancing cursor past msg {} (skipping {} stale message(s)) for space {space_id}",
                                 skip_to,
