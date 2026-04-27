@@ -20,7 +20,7 @@ tauri-build = { version = "2.5.5", features = [] }
 serde = { version = "1.0", features = ["derive"] }
 
 [dependencies]
-tokio = { version = "1.51", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.52", features = ["macros", "rt-multi-thread"] }
 base64 = "0.22"
 bs58 = "0.5"
 ed25519-dalek = "2.2"
