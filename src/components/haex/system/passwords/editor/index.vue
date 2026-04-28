@@ -385,6 +385,18 @@
         </div>
       </template>
 
+      <!-- Attachments -->
+      <template #attachments>
+        <div class="p-4 max-w-2xl mx-auto">
+          <HaexSystemPasswordsEditorAttachments
+            v-model="attachments"
+            v-model:attachments-to-add="attachmentsToAdd"
+            v-model:attachments-to-delete="attachmentsToDelete"
+            :read-only="!isEditing"
+          />
+        </div>
+      </template>
+
       <!-- History -->
       <template #history>
         <div
@@ -426,9 +438,12 @@ import { eq } from 'drizzle-orm'
 import {
   haexPasswordsItemDetails,
   haexPasswordsItemKeyValues,
+  haexPasswordsItemBinaries,
 } from '~/database/schemas'
 import type { InsertHaexPasswordsItemDetails } from '~/database/schemas'
 import { requireDb } from '~/stores/vault'
+import { addBinaryAsync } from '~/utils/passwords/binaries'
+import type { AttachmentWithSize } from '~/types/passwords/attachment'
 
 type EditableKeyValue = { id: string; key: string; value: string }
 
@@ -446,7 +461,7 @@ const { getIconDescriptor } = useIconComponents()
 const iconCacheStore = usePasswordsIconCacheStore()
 
 const isCreating = computed(() => !selectedItem.value)
-const otpAlgorithms = ['SHA1', 'SHA256', 'SHA512'] as const
+const otpAlgorithms = ['SHA1', 'SHA256', 'SHA512']
 
 const form = reactive({
   title: selectedItem.value?.title ?? '',
@@ -481,8 +496,15 @@ const showDeleteDialog = ref(false)
 const showDiscardDialog = ref(false)
 const generatorOpen = ref(false)
 
+const attachments = ref<AttachmentWithSize[]>([])
+const attachmentsToAdd = ref<AttachmentWithSize[]>([])
+const attachmentsToDelete = ref<AttachmentWithSize[]>([])
+
 const isDirty = computed(
-  () => JSON.stringify(form) !== JSON.stringify(formSnapshot),
+  () =>
+    JSON.stringify(form) !== JSON.stringify(formSnapshot) ||
+    attachmentsToAdd.value.length > 0 ||
+    attachmentsToDelete.value.length > 0,
 )
 
 // ESC acts like the back button — triggers discard guard when dirty.
@@ -509,6 +531,7 @@ onBeforeUnmount(() => {
 const tabItems = computed(() => [
   { label: t('tabs.details'), value: 'details', slot: 'details' as const },
   { label: t('tabs.extra'), value: 'extra', slot: 'extra' as const },
+  { label: t('tabs.attachments'), value: 'attachments', slot: 'attachments' as const },
   { label: t('tabs.history'), value: 'history', slot: 'history' as const },
 ])
 
@@ -612,6 +635,15 @@ const loadKeyValuesAsync = async () => {
   formSnapshot.keyValues = JSON.parse(JSON.stringify(form.keyValues))
 }
 
+const loadAttachmentsAsync = async () => {
+  if (!selectedItem.value?.id) return
+  const db = requireDb()
+  attachments.value = await db
+    .select()
+    .from(haexPasswordsItemBinaries)
+    .where(eq(haexPasswordsItemBinaries.itemId, selectedItem.value.id))
+}
+
 onMounted(async () => {
   try {
     await tagsStore.loadTagsAsync()
@@ -622,6 +654,11 @@ onMounted(async () => {
     await loadKeyValuesAsync()
   } catch (error) {
     console.error('[Editor] Failed to load key-values:', error)
+  }
+  try {
+    await loadAttachmentsAsync()
+  } catch (error) {
+    console.error('[Editor] Failed to load attachments:', error)
   }
 })
 
@@ -754,6 +791,29 @@ const onSave = async () => {
       await db.insert(haexPasswordsItemKeyValues).values(keyValueRows)
     }
 
+    // Process attachment deletions (junction row only — binary stays for dedup)
+    for (const att of attachmentsToDelete.value) {
+      await db
+        .delete(haexPasswordsItemBinaries)
+        .where(eq(haexPasswordsItemBinaries.id, att.id))
+    }
+
+    // Persist new attachments: upsert binary + insert junction row
+    for (const att of attachmentsToAdd.value) {
+      if (!att.data) continue
+      const base64 = att.data.split(',')[1] ?? att.data
+      const hash = await addBinaryAsync(base64, att.size ?? 0)
+      await db.insert(haexPasswordsItemBinaries).values({
+        itemId,
+        binaryHash: hash,
+        fileName: att.fileName,
+      })
+    }
+
+    attachmentsToAdd.value = []
+    attachmentsToDelete.value = []
+    await loadAttachmentsAsync()
+
     await passwordsStore.loadItemsAsync()
     passwordsStore.openItem(itemId)
 
@@ -792,6 +852,7 @@ de:
   tabs:
     details: Details
     extra: Extra
+    attachments: Anhänge
     history: Verlauf
   fields:
     title: Titel
@@ -839,6 +900,7 @@ en:
   tabs:
     details: Details
     extra: Extra
+    attachments: Attachments
     history: History
   fields:
     title: Title
