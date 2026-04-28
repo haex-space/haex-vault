@@ -5,7 +5,7 @@
 
 import { useTimeoutPoll } from '@vueuse/core'
 import { invoke } from '@tauri-apps/api/core'
-import { emit } from '@tauri-apps/api/event'
+import { emit, listen } from '@tauri-apps/api/event'
 import { RustEventGroup, RUST_EVENTS, type LocalSyncCompletedEvent } from '@/lib/rust-events'
 import { orchestratorLog as log, type BackendSyncState } from './types'
 import { enterBulkMode, exitBulkMode } from '@/stores/logging'
