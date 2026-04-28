@@ -454,6 +454,14 @@ export const useSyncOrchestratorStore = defineStore(
           const peerStore = usePeerStorageStore()
           await peerStore.loadSpaceDevicesAsync()
           await peerStore.loadSharesAsync()
+          // Reload Rust-side allowed_peers: the daemon keeps its own in-memory
+          // access control list and won't pick up new haex_space_devices rows
+          // from CRDT until explicitly told to reload.
+          try {
+            await invoke('peer_storage_reload_shares')
+          } catch (err) {
+            log.warn(`peer_storage_reload_shares failed: ${err}`)
+          }
         },
       )
       registerStoreForTables(

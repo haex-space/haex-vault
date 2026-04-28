@@ -12,7 +12,10 @@ use tokio::sync::watch;
 
 use crate::crdt::commands::{apply_remote_changes_to_db, clear_dirty_table_inner, RemoteColumnChange};
 use crate::crdt::hlc::hlc_max;
-use crate::crdt::scanner::{scan_space_scoped_tables_for_local_changes, LocalColumnChange};
+use crate::crdt::scanner::{
+    scan_membership_tables_for_local_changes, scan_space_scoped_tables_for_local_changes,
+    LocalColumnChange,
+};
 use crate::database::DbConnection;
 use super::error::DeliveryError;
 use super::peer::PeerSession;
@@ -231,6 +234,33 @@ async fn run_sync_loop(
         ));
     }
 
+    // Resolve our identity UUID once for the membership-row ownership filter.
+    // The leader writes haex_space_members rows for other members (during
+    // ClaimInvite) using the leader's HLC node, so the origin filter alone is
+    // insufficient — we also need to drop rows whose identity_id ≠ ours.
+    let our_identity_id: Option<String> = crate::database::core::select_with_crdt(
+        "SELECT id FROM haex_identities WHERE did = ?1 LIMIT 1".to_string(),
+        vec![serde_json::Value::String(our_did.clone())],
+        &db,
+    )
+    .ok()
+    .and_then(|rows| rows.into_iter().next())
+    .and_then(|row| row.into_iter().next())
+    .and_then(|v| match v { serde_json::Value::String(s) => Some(s), _ => None });
+
+    // Determine once whether this member may push user-content tables
+    // (haex_peer_shares). Read-only members must not: the leader rejects any
+    // batch containing non-membership-system rows without Write capability,
+    // which would leave the push cursor stuck and block MLS KeyPackage uploads.
+    let can_push_user_content =
+        super::ucan::has_write_capability(&db, &space_id, &our_did);
+    if !can_push_user_content {
+        log_sync(&app_handle, "info", &format!(
+            "read-only member: push restricted to membership-system tables for space={}",
+            &space_id[..8.min(space_id.len())],
+        ));
+    }
+
     log_sync(
         &app_handle,
         "info",
@@ -256,6 +286,9 @@ async fn run_sync_loop(
             &space_id,
             &device_id,
             our_node,
+            can_push_user_content,
+            our_identity_id.as_deref(),
+            &our_endpoint_id,
             &app_handle,
             &mut last_push_hlc,
             &mut last_pull_timestamp,
@@ -378,83 +411,124 @@ async fn run_push_phase(
     space_id: &str,
     device_id: &str,
     our_node: Option<u128>,
+    can_push_user_content: bool,
+    our_identity_id: Option<&str>,
+    our_endpoint_id: &str,
     last_push_hlc: &mut Option<String>,
 ) -> Result<(), DeliveryError> {
-    let changes = scan_space_scoped_tables_for_local_changes(
-        db,
-        space_id,
-        last_push_hlc.as_deref(),
-        device_id,
-        our_node,
-    )
+    // Read-only members must not include haex_peer_shares in the push batch.
+    // The leader rejects any batch that touches a non-membership-system table
+    // without Write capability, which would leave the cursor stuck at t=0 and
+    // block membership-data (e.g. MLS KeyPackages) from ever reaching the leader.
+    let all_changes = if can_push_user_content {
+        scan_space_scoped_tables_for_local_changes(
+            db,
+            space_id,
+            last_push_hlc.as_deref(),
+            device_id,
+            our_node,
+        )
+    } else {
+        scan_membership_tables_for_local_changes(
+            db,
+            space_id,
+            last_push_hlc.as_deref(),
+            device_id,
+            our_node,
+        )
+    }
     .map_err(|e| DeliveryError::Database {
         reason: format!("Failed to scan space-scoped tables: {}", e),
     })?;
 
-    if changes.is_empty() {
+    if all_changes.is_empty() {
         return Ok(());
     }
 
-    // Chunk at HLC boundaries so a transaction-HLC group is never split
-    // across QUIC requests. The scanner already returns changes sorted by
-    // hlc_timestamp globally, so a single linear pass is enough.
-    let chunks = chunk_changes_by_hlc(&changes, PUSH_CHUNK_SOFT_LIMIT);
+    // Drop haex_space_members rows owned by other identities and
+    // haex_space_devices rows registered for other endpoints. The leader
+    // writes these rows on behalf of new members (ClaimInvite / Announce),
+    // stamping the leader's HLC node so they pass the origin filter but fail
+    // the server's per-row ownership check. Filtering here prevents the push
+    // cursor from stalling on an unresolvable ownership violation.
+    let (changes, foreign_max_hlc) =
+        filter_foreign_membership_rows(db, space_id, all_changes, our_identity_id, our_endpoint_id);
 
-    eprintln!(
-        "[SyncLoop] Pushing {} changes in {} HLC-aligned chunk(s) for space {}",
-        changes.len(),
-        chunks.len(),
-        space_id
-    );
+    if !changes.is_empty() {
+        // Chunk at HLC boundaries so a transaction-HLC group is never split
+        // across QUIC requests. The scanner already returns changes sorted by
+        // hlc_timestamp globally, so a single linear pass is enough.
+        let chunks = chunk_changes_by_hlc(&changes, PUSH_CHUNK_SOFT_LIMIT);
 
-    let pushed_table_names: HashSet<String> = changes
-        .iter()
-        .map(|c| c.table_name.clone())
-        .collect();
+        eprintln!(
+            "[SyncLoop] Pushing {} changes in {} HLC-aligned chunk(s) for space {}",
+            changes.len(),
+            chunks.len(),
+            space_id
+        );
 
-    for (idx, chunk) in chunks.iter().enumerate() {
-        let chunk_max_hlc = hlc_max(chunk.iter().map(|c| c.hlc_timestamp.as_str()))
-            .unwrap_or("")
-            .to_string();
+        let pushed_table_names: HashSet<String> = changes
+            .iter()
+            .map(|c| c.table_name.clone())
+            .collect();
 
-        let chunk_json = serde_json::to_value(chunk).map_err(|e| {
-            DeliveryError::ProtocolError {
-                reason: format!("Failed to serialize chunk {}: {}", idx, e),
+        for (idx, chunk) in chunks.iter().enumerate() {
+            let chunk_max_hlc = hlc_max(chunk.iter().map(|c| c.hlc_timestamp.as_str()))
+                .unwrap_or("")
+                .to_string();
+
+            let chunk_json = serde_json::to_value(chunk).map_err(|e| {
+                DeliveryError::ProtocolError {
+                    reason: format!("Failed to serialize chunk {}: {}", idx, e),
+                }
+            })?;
+
+            session.push_changes(space_id, chunk_json).await?;
+
+            // Checkpoint after each successful chunk so a later failure does
+            // not re-push completed groups. The scanner will pick up whatever
+            // remains on the next cycle. The cursor is also persisted to the
+            // DB so a process restart or reconnect resumes from here instead
+            // of re-scanning from t=0 (which would re-push every previously
+            // pulled row and trip the leader's capability check).
+            save_last_push_hlc(db, space_id, device_id, &chunk_max_hlc);
+            *last_push_hlc = Some(chunk_max_hlc);
+        }
+
+        // Clear dirty-table markers only after the whole batch succeeded. A
+        // mid-loop failure leaves them dirty so the next cycle re-emits the
+        // remaining groups.
+        //
+        // The threshold is captured *after* the push loop. Capturing before
+        // and then `<=`-comparing in clear_dirty_table_inner created a
+        // same-second race: a local write between scan start and capture
+        // (same second, post-scan) produced a marker equal to the threshold
+        // and got wrongly cleared even though its row was never pushed.
+        // Capturing here bounds the window to concurrent writes that race
+        // with `sqlite_datetime_now()` itself; any surviving inconsistency
+        // is a dirty-tracker hint only, not a data-loss risk — the scanner
+        // finds unsynced rows via HLC, not via dirty markers.
+        let push_timestamp = sqlite_datetime_now();
+        for table_name in &pushed_table_names {
+            if let Err(e) = clear_dirty_table_inner(db, table_name, Some(&push_timestamp)) {
+                eprintln!(
+                    "[SyncLoop] Warning: failed to clear dirty table '{}': {}",
+                    table_name, e
+                );
             }
-        })?;
-
-        session.push_changes(space_id, chunk_json).await?;
-
-        // Checkpoint after each successful chunk so a later failure does
-        // not re-push completed groups. The scanner will pick up whatever
-        // remains on the next cycle. The cursor is also persisted to the
-        // DB so a process restart or reconnect resumes from here instead
-        // of re-scanning from t=0 (which would re-push every previously
-        // pulled row and trip the leader's capability check).
-        save_last_push_hlc(db, space_id, device_id, &chunk_max_hlc);
-        *last_push_hlc = Some(chunk_max_hlc);
+        }
     }
 
-    // Clear dirty-table markers only after the whole batch succeeded. A
-    // mid-loop failure leaves them dirty so the next cycle re-emits the
-    // remaining groups.
-    //
-    // The threshold is captured *after* the push loop. Capturing before
-    // and then `<=`-comparing in clear_dirty_table_inner created a
-    // same-second race: a local write between scan start and capture
-    // (same second, post-scan) produced a marker equal to the threshold
-    // and got wrongly cleared even though its row was never pushed.
-    // Capturing here bounds the window to concurrent writes that race
-    // with `sqlite_datetime_now()` itself; any surviving inconsistency
-    // is a dirty-tracker hint only, not a data-loss risk — the scanner
-    // finds unsynced rows via HLC, not via dirty markers.
-    let push_timestamp = sqlite_datetime_now();
-    for table_name in &pushed_table_names {
-        if let Err(e) = clear_dirty_table_inner(db, table_name, Some(&push_timestamp)) {
-            eprintln!(
-                "[SyncLoop] Warning: failed to clear dirty table '{}': {}",
-                table_name, e
-            );
+    // Advance the cursor past any rows we skipped due to foreign ownership.
+    // Without this, a skipped row with a higher HLC than all pushable rows
+    // keeps the cursor below it, causing a silent no-op re-scan every cycle.
+    if let Some(skip_hlc) = foreign_max_hlc {
+        if last_push_hlc
+            .as_deref()
+            .map_or(true, |cur| crate::crdt::hlc::hlc_is_newer(&skip_hlc, cur))
+        {
+            save_last_push_hlc(db, space_id, device_id, &skip_hlc);
+            *last_push_hlc = Some(skip_hlc);
         }
     }
 
@@ -473,6 +547,9 @@ async fn run_sync_cycle(
     space_id: &str,
     device_id: &str,
     our_node: Option<u128>,
+    can_push_user_content: bool,
+    our_identity_id: Option<&str>,
+    our_endpoint_id: &str,
     app_handle: &tauri::AppHandle,
     last_push_hlc: &mut Option<String>,
     last_pull_timestamp: &mut Option<String>,
@@ -480,7 +557,7 @@ async fn run_sync_cycle(
     key_packages_refilled: &mut bool,
 ) -> Result<(), DeliveryError> {
     // 1. PUSH (best-effort) — never blocks the pull below.
-    if let Err(e) = run_push_phase(db, session, space_id, device_id, our_node, last_push_hlc).await {
+    if let Err(e) = run_push_phase(db, session, space_id, device_id, our_node, can_push_user_content, our_identity_id, our_endpoint_id, last_push_hlc).await {
         eprintln!("[SyncLoop] Push phase failed (pull continues): {}", e);
     }
 
@@ -780,6 +857,126 @@ async fn refill_key_packages_if_needed(
     );
 
     Ok(())
+}
+
+/// Separate `changes` into rows this device may push and rows it must skip.
+///
+/// Returns `(pushable, foreign_max_hlc)`:
+/// - `pushable` contains all changes except membership-table rows owned by
+///   another identity or endpoint.
+/// - `foreign_max_hlc` is the max HLC of any skipped row, so the push cursor
+///   can be advanced past rows that will never be pushable.
+///
+/// Background: when this device acts as leader it writes `haex_space_members`
+/// rows for newly joined members (ClaimInvite) and `haex_space_devices` rows
+/// for announcing peers. Those rows get the leader's HLC node, so they pass
+/// the push-scanner origin filter but fail the server's per-row ownership
+/// check. This function drops them pre-flight.
+fn filter_foreign_membership_rows(
+    db: &DbConnection,
+    space_id: &str,
+    changes: Vec<LocalColumnChange>,
+    our_identity_id: Option<&str>,
+    our_endpoint_id: &str,
+) -> (Vec<LocalColumnChange>, Option<String>) {
+    // Collect the row IDs we actually own for the two checked tables.
+    let owned_member_ids: HashSet<String> = match our_identity_id {
+        Some(identity_id) => query_owned_row_ids(
+            db,
+            "SELECT id FROM haex_space_members WHERE space_id = ?1 AND identity_id = ?2",
+            space_id,
+            identity_id,
+        ),
+        // Unknown identity → can't filter → treat all as owned (safe fallback).
+        None => HashSet::new(),
+    };
+
+    let owned_device_ids: HashSet<String> = query_owned_row_ids(
+        db,
+        "SELECT id FROM haex_space_devices WHERE space_id = ?1 AND device_endpoint_id = ?2",
+        space_id,
+        our_endpoint_id,
+    );
+
+    // Single pass: check ownership per column change against the pre-fetched
+    // owned-id sets. Log each foreign row once (deduplicated by row identity).
+    let mut pushable: Vec<LocalColumnChange> = Vec::new();
+    let mut foreign_max_hlc: Option<String> = None;
+    let mut logged_foreign: HashSet<(String, String)> = HashSet::new();
+
+    for change in changes {
+        let owned = match change.table_name.as_str() {
+            "haex_space_members" => {
+                if our_identity_id.is_none() {
+                    true // identity unknown → can't filter → pass through
+                } else {
+                    extract_pk_id(&change.row_pks)
+                        .map(|id| owned_member_ids.contains(&id))
+                        .unwrap_or(true) // parse failure → don't silently drop
+                }
+            }
+            "haex_space_devices" => extract_pk_id(&change.row_pks)
+                .map(|id| owned_device_ids.contains(&id))
+                .unwrap_or(true),
+            _ => true,
+        };
+
+        if owned {
+            pushable.push(change);
+        } else {
+            let row_key = (change.table_name.clone(), change.row_pks.clone());
+            if logged_foreign.insert(row_key) {
+                eprintln!(
+                    "[SyncLoop] Skipping foreign-owned row {}/{} (not owned by this device)",
+                    change.table_name, change.row_pks,
+                );
+            }
+            if foreign_max_hlc
+                .as_deref()
+                .map_or(true, |cur| crate::crdt::hlc::hlc_is_newer(&change.hlc_timestamp, cur))
+            {
+                foreign_max_hlc = Some(change.hlc_timestamp);
+            }
+        }
+    }
+
+    (pushable, foreign_max_hlc)
+}
+
+/// Run a SQL query of the form `SELECT id FROM <table> WHERE space_id = ?1 AND <owner_col> = ?2`
+/// and return the matching id values as a `HashSet`.
+fn query_owned_row_ids(
+    db: &DbConnection,
+    sql: &str,
+    space_id: &str,
+    owner_value: &str,
+) -> HashSet<String> {
+    crate::database::core::select_with_crdt(
+        sql.to_string(),
+        vec![
+            serde_json::Value::String(space_id.to_string()),
+            serde_json::Value::String(owner_value.to_string()),
+        ],
+        db,
+    )
+    .ok()
+    .map(|rows| {
+        rows.into_iter()
+            .filter_map(|row| row.into_iter().next())
+            .filter_map(|v| match v {
+                serde_json::Value::String(s) => Some(s),
+                _ => None,
+            })
+            .collect()
+    })
+    .unwrap_or_default()
+}
+
+/// Extract the `id` value from a `row_pks` JSON string like `{"id":"<uuid>"}`.
+fn extract_pk_id(row_pks: &str) -> Option<String> {
+    serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(row_pks)
+        .ok()
+        .and_then(|m| m.get("id")?.as_str().map(str::to_string))
 }
 
 /// Returns the current UTC time in SQLite `datetime('now')` format: `YYYY-MM-DD HH:MM:SS`.
