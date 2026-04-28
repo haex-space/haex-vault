@@ -325,63 +325,101 @@
 
       <!-- Extra -->
       <template #extra>
-        <div class="p-4 space-y-3 max-w-2xl mx-auto">
-          <p class="text-xs font-medium text-muted">
-            {{ t('extra.description') }}
-          </p>
-
+        <div class="p-4 max-w-2xl mx-auto">
+          <!-- Master-detail: key list left, value textarea right -->
           <div
-            v-if="visibleKeyValues.length === 0"
-            class="flex flex-col items-center justify-center gap-2 py-8 text-muted"
+            v-if="visibleKeyValues.length > 0"
+            class="flex flex-col @2xl:flex-row gap-4"
+          >
+            <!-- Key list -->
+            <div class="flex-1 flex flex-col gap-3">
+              <div class="border border-default rounded-lg divide-y divide-default">
+                <div
+                  v-for="(kv, index) in visibleKeyValues"
+                  :key="kv.id"
+                  :class="[
+                    'flex items-center gap-1 px-2 transition-colors cursor-pointer',
+                    currentSelectedKv === kv ? 'bg-elevated' : 'hover:bg-elevated/50',
+                    index === 0 ? 'rounded-t-lg' : '',
+                    index === visibleKeyValues.length - 1 ? 'rounded-b-lg' : '',
+                  ]"
+                  @click="currentSelectedKv = kv"
+                >
+                  <UInput
+                    :ref="(el) => { if (index === visibleKeyValues.length - 1) lastKvKeyInputEl = el as { $el?: HTMLElement } }"
+                    v-model="kv.key"
+                    :readonly="!isEditing"
+                    :placeholder="t('extra.keyPlaceholder')"
+                    variant="none"
+                    class="flex-1 text-sm"
+                    @click.stop="currentSelectedKv = kv"
+                  >
+                    <template #trailing>
+                      <UiButton
+                        :icon="kvCopiedItem === kv ? 'i-lucide-check' : 'i-lucide-copy'"
+                        :color="kvCopiedItem === kv ? 'success' : 'neutral'"
+                        variant="ghost"
+                        type="button"
+                        @click.stop="copyKvValue(kv)"
+                      />
+                      <UiButton
+                        v-if="isEditing"
+                        icon="i-lucide-trash-2"
+                        color="error"
+                        variant="ghost"
+                        type="button"
+                        @click.stop="removeKeyValue(index)"
+                      />
+                    </template>
+                  </UInput>
+                </div>
+              </div>
+
+              <UiButton
+                v-if="isEditing"
+                :label="t('extra.add')"
+                icon="i-lucide-plus"
+                color="neutral"
+                variant="outline"
+                type="button"
+                @click="addKeyValue"
+              />
+            </div>
+
+            <!-- Value textarea -->
+            <div class="flex-1 @2xl:min-w-52">
+              <UiTextarea
+                v-model="currentKvValue"
+                :read-only="!isEditing || !currentSelectedKv"
+                :placeholder="t('extra.valuePlaceholder')"
+                :with-copy-button="!!currentSelectedKv"
+                :rows="8"
+              />
+            </div>
+          </div>
+
+          <!-- Empty state -->
+          <div
+            v-else
+            class="flex flex-col items-center justify-center gap-3 py-10 text-muted"
           >
             <UIcon
               name="i-lucide-list-plus"
-              class="size-8 opacity-40"
+              class="size-10 opacity-40"
             />
             <p class="text-sm">
               {{ t('extra.empty') }}
             </p>
-          </div>
-
-          <div
-            v-for="(kv, index) in visibleKeyValues"
-            :key="kv.id"
-            class="flex items-start gap-2"
-          >
-            <UiInput
-              v-model="kv.key"
-              :placeholder="t('extra.keyPlaceholder')"
-              :read-only="!isEditing"
-              class="flex-1"
-            />
-            <UiInput
-              v-model="kv.value"
-              :placeholder="t('extra.valuePlaceholder')"
-              :read-only="!isEditing"
-              :with-copy-button="!isEditing"
-              class="flex-2"
-            />
             <UiButton
               v-if="isEditing"
-              :tooltip="t('extra.remove')"
-              icon="i-lucide-trash-2"
-              color="error"
-              variant="ghost"
+              :label="t('extra.add')"
+              icon="i-lucide-plus"
+              color="neutral"
+              variant="outline"
               type="button"
-              class="shrink-0 mt-0.5"
-              @click="removeKeyValue(index)"
+              @click="addKeyValue"
             />
           </div>
-
-          <UiButton
-            v-if="isEditing"
-            :label="t('extra.add')"
-            icon="i-lucide-plus"
-            color="neutral"
-            variant="outline"
-            type="button"
-            @click="addKeyValue"
-          />
         </div>
       </template>
 
@@ -541,6 +579,27 @@ const visibleKeyValues = computed(() =>
     : form.keyValues.filter((kv) => kv.key.trim() || kv.value.trim()),
 )
 
+// Master-detail state for key-value extra tab
+const currentSelectedKv = ref<EditableKeyValue | null>(null)
+const lastKvKeyInputEl = ref<{ $el?: HTMLElement } | null>(null)
+
+const currentKvValue = computed({
+  get: () => currentSelectedKv.value?.value ?? '',
+  set(newValue: string) {
+    if (currentSelectedKv.value) currentSelectedKv.value.value = newValue
+  },
+})
+
+const { copy: copyKv, copied: kvCopied } = useClipboard({ copiedDuring: 2000 })
+const kvCopiedItem = ref<EditableKeyValue | null>(null)
+
+const copyKvValue = async (kv: EditableKeyValue) => {
+  if (!kv.value) return
+  await copyKv(kv.value)
+  kvCopiedItem.value = kv
+  setTimeout(() => { kvCopiedItem.value = null }, 2000)
+}
+
 const iconDescriptor = computed(() => getIconDescriptor(form.icon || null))
 
 const binaryIconSrc = computed(() => {
@@ -633,6 +692,7 @@ const loadKeyValuesAsync = async () => {
     value: row.value ?? '',
   }))
   formSnapshot.keyValues = JSON.parse(JSON.stringify(form.keyValues))
+  currentSelectedKv.value = form.keyValues[0] ?? null
 }
 
 const loadAttachmentsAsync = async () => {
@@ -666,18 +726,27 @@ const startEdit = () => {
   nav.startEdit()
 }
 
-const addKeyValue = () => {
-  form.keyValues.push({ id: crypto.randomUUID(), key: '', value: '' })
+const addKeyValue = async () => {
+  const newKv = { id: crypto.randomUUID(), key: '', value: '' }
+  form.keyValues.push(newKv)
+  currentSelectedKv.value = newKv
+  await nextTick()
+  lastKvKeyInputEl.value?.$el?.querySelector('input')?.focus()
 }
 
 const removeKeyValue = (index: number) => {
+  const removed = form.keyValues[index]
   form.keyValues.splice(index, 1)
+  if (currentSelectedKv.value?.id === removed?.id) {
+    currentSelectedKv.value = form.keyValues[0] ?? null
+  }
 }
 
 const revertForm = () => {
   Object.assign(form, JSON.parse(JSON.stringify(formSnapshot)))
   errors.title = []
   errors.tags = []
+  currentSelectedKv.value = form.keyValues[0] ?? null
 }
 
 const onBack = () => {
