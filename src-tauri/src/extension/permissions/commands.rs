@@ -222,7 +222,9 @@ pub async fn resolve_permission_prompt(
             let passwords_action = match action.to_lowercase().as_str() {
                 "read" => PasswordsAction::Read,
                 "readwrite" | "read_write" => PasswordsAction::ReadWrite,
-                _ => PasswordsAction::Read,
+                _ => return Err(ExtensionError::ValidationError {
+                    reason: format!("Invalid passwords action: {action}"),
+                }),
             };
             Action::Passwords(passwords_action)
         }

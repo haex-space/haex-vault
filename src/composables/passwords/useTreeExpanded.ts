@@ -20,8 +20,10 @@ export const useTreeExpanded = () => {
     parentLookup: (id: string) => string | null | undefined,
   ): void => {
     const next = new Set(expandedGroupIds.value)
+    const visited = new Set<string>()
     let cursor = parentLookup(groupId)
-    while (cursor) {
+    while (cursor && !visited.has(cursor)) {
+      visited.add(cursor)
       next.add(cursor)
       cursor = parentLookup(cursor)
     }

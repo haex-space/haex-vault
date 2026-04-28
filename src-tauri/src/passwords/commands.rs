@@ -674,6 +674,17 @@ fn upsert_tag(
     hlc: &std::sync::MutexGuard<crate::crdt::hlc::HlcService>,
     name: &str,
 ) -> Result<String, ExtensionError> {
+    let new_id = uuid::Uuid::new_v4().to_string();
+    execute_with_crdt(
+        "INSERT OR IGNORE INTO haex_passwords_tags (id, name) VALUES (?1, ?2)".to_string(),
+        vec![
+            JsonValue::String(new_id),
+            JsonValue::String(name.to_string()),
+        ],
+        &state.db,
+        hlc,
+    )
+    .map_err(|e| ExtensionError::Database { source: e })?;
     let rows = select_with_crdt(
         "SELECT id FROM haex_passwords_tags WHERE name = ?1".to_string(),
         vec![JsonValue::String(name.to_string())],
@@ -684,21 +695,13 @@ fn upsert_tag(
             reason: e.to_string(),
         },
     })?;
-    if let Some(r) = rows.first() {
-        return Ok(get_string(r, 0));
-    }
-    let new_id = uuid::Uuid::new_v4().to_string();
-    execute_with_crdt(
-        "INSERT INTO haex_passwords_tags (id, name) VALUES (?1, ?2)".to_string(),
-        vec![
-            JsonValue::String(new_id.clone()),
-            JsonValue::String(name.to_string()),
-        ],
-        &state.db,
-        hlc,
-    )
-    .map_err(|e| ExtensionError::Database { source: e })?;
-    Ok(new_id)
+    rows.first()
+        .map(|r| get_string(r, 0))
+        .ok_or_else(|| ExtensionError::Database {
+            source: DatabaseError::DatabaseError {
+                reason: format!("tag '{name}' not found after upsert"),
+            },
+        })
 }
 
 fn delete_item_tag_links(

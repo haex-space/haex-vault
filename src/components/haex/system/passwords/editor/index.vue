@@ -598,6 +598,7 @@ const showDiscardDialog = ref(false)
 const generatorOpen = ref(false)
 
 const attachments = ref<AttachmentWithSize[]>([])
+const attachmentsSnapshot = ref<AttachmentWithSize[]>([])
 const attachmentsToAdd = ref<AttachmentWithSize[]>([])
 const attachmentsToDelete = ref<AttachmentWithSize[]>([])
 
@@ -606,6 +607,8 @@ const passkeysRef = ref<{ persistDeletionsAsync: () => Promise<void> } | null>(n
 const isDirty = computed(
   () =>
     JSON.stringify(form) !== JSON.stringify(formSnapshot) ||
+    JSON.stringify(attachments.value.map(({ id, fileName }) => ({ id, fileName }))) !==
+      JSON.stringify(attachmentsSnapshot.value.map(({ id, fileName }) => ({ id, fileName }))) ||
     attachmentsToAdd.value.length > 0 ||
     attachmentsToDelete.value.length > 0,
 )
@@ -766,6 +769,7 @@ const loadAttachmentsAsync = async () => {
     .select()
     .from(haexPasswordsItemBinaries)
     .where(eq(haexPasswordsItemBinaries.itemId, selectedItem.value.id))
+  attachmentsSnapshot.value = JSON.parse(JSON.stringify(attachments.value))
 }
 
 onMounted(async () => {
@@ -812,6 +816,9 @@ const removeKeyValue = (index: number) => {
 
 const revertForm = () => {
   Object.assign(form, JSON.parse(JSON.stringify(formSnapshot)))
+  attachments.value = JSON.parse(JSON.stringify(attachmentsSnapshot.value))
+  attachmentsToAdd.value = []
+  attachmentsToDelete.value = []
   errors.title = []
   errors.tags = []
   currentSelectedKv.value = form.keyValues[0] ?? null
@@ -929,6 +936,17 @@ const onSave = async () => {
       .where(eq(haexPasswordsItemKeyValues.itemId, itemId))
     if (keyValueRows.length > 0) {
       await db.insert(haexPasswordsItemKeyValues).values(keyValueRows)
+    }
+
+    // Persist renamed attachments
+    for (const att of attachments.value) {
+      const original = attachmentsSnapshot.value.find((entry) => entry.id === att.id)
+      if (original && original.fileName !== att.fileName) {
+        await db
+          .update(haexPasswordsItemBinaries)
+          .set({ fileName: att.fileName })
+          .where(eq(haexPasswordsItemBinaries.id, att.id))
+      }
     }
 
     // Process attachment deletions (junction row only — binary stays for dedup)
@@ -1077,7 +1095,7 @@ en:
     title: Title
     titlePlaceholder: e.g. GitHub
     tags: Tags
-    username: Nutzername
+    username: Username
     password: Password
     generate: Generate
     url: URL
