@@ -459,8 +459,8 @@ export const useSyncOrchestratorStore = defineStore(
           // from CRDT until explicitly told to reload.
           try {
             await invoke('peer_storage_reload_shares')
-          } catch {
-            // Peer storage endpoint may not be running yet
+          } catch (err) {
+            log('warn', `peer_storage_reload_shares failed: ${err}`)
           }
         },
       )

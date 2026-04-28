@@ -203,6 +203,6 @@ pub fn has_write_capability(
         .and_then(|rows| rows.into_iter().next())
         .and_then(|row| row.into_iter().next())
         .and_then(|v| v.as_str().map(|s| s.to_string()))
-        .map(|cap| cap != "space/read")
+        .map(|cap| matches!(cap.as_str(), "space/write" | "space/admin"))
         .unwrap_or(false)
 }
