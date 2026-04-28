@@ -477,17 +477,10 @@
 
       <!-- History -->
       <template #history>
-        <div
-          class="p-6 flex flex-col items-center justify-center gap-3 text-muted h-full"
-        >
-          <UIcon
-            name="i-lucide-history"
-            class="size-12 opacity-40"
-          />
-          <p class="text-sm text-center">
-            {{ t('history.comingSoon') }}
-          </p>
-        </div>
+        <HaexSystemPasswordsEditorHistory
+          :item-id="selectedItem?.id"
+          class="h-full"
+        />
       </template>
     </UTabs>
 
@@ -521,6 +514,10 @@ import {
 import type { InsertHaexPasswordsItemDetails } from '~/database/schemas'
 import { requireDb } from '~/stores/vault'
 import { addBinaryAsync } from '~/utils/passwords/binaries'
+import {
+  createSnapshotAsync,
+  loadCurrentAttachmentsAsSnapshotRefs,
+} from '~/utils/passwords/snapshots'
 import type { AttachmentWithSize } from '~/types/passwords/attachment'
 
 type EditableKeyValue = { id: string; key: string; value: string }
@@ -929,6 +926,27 @@ const onSave = async () => {
     await loadAttachmentsAsync()
     await passkeysRef.value?.persistDeletionsAsync()
 
+    // Snapshot captures the state just written — builds history timeline.
+    const attachmentRefs = await loadCurrentAttachmentsAsSnapshotRefs(itemId)
+    await createSnapshotAsync(
+      itemId,
+      {
+        title: form.title.trim(),
+        username: form.username.trim() || null,
+        password: form.password || null,
+        url: form.url.trim() || null,
+        note: form.note || null,
+        icon: form.icon.trim() || null,
+        color: form.color || null,
+        expiresAt: form.expiresAt || null,
+        otpSecret: form.otpSecret.trim() || null,
+        tagNames: form.tagNames,
+        keyValues: form.keyValues.filter((kv) => kv.key.trim()),
+        attachments: attachmentRefs,
+      },
+      now,
+    )
+
     await passwordsStore.loadItemsAsync()
     passwordsStore.openItem(itemId)
 
@@ -999,7 +1017,7 @@ de:
   attachments:
     title: Dateianhänge
   history:
-    comingSoon: Verlauf-Ansicht kommt mit den Snapshots in Etappe 3.
+    label: Verlauf
   validation:
     titleRequired: Titel ist Pflicht
   toast:
@@ -1053,7 +1071,7 @@ en:
   attachments:
     title: Attachments
   history:
-    comingSoon: History view ships with snapshots in stage 3.
+    label: History
   validation:
     titleRequired: Title is required
   toast:
