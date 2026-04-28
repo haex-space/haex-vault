@@ -344,24 +344,13 @@ pub fn scan_membership_tables_for_local_changes(
     device_id: &str,
     origin_node: Option<u128>,
 ) -> Result<Vec<LocalColumnChange>, DatabaseError> {
-    with_connection(db, |conn| {
-        let mut all_changes: Vec<LocalColumnChange> = Vec::new();
-        for table_name in MEMBERSHIP_SYSTEM_TABLES {
-            let changes = scan_table_for_local_changes_scoped(
-                conn,
-                table_name,
-                after_hlc,
-                device_id,
-                Some(space_id),
-                origin_node,
-            )?;
-            all_changes.extend(changes);
-        }
-        all_changes.sort_by(|a, b| {
-            crate::crdt::hlc::compare_hlc_strings(&a.hlc_timestamp, &b.hlc_timestamp)
-        });
-        Ok(all_changes)
-    })
+    scan_space_scoped_tables_for_local_changes(db, space_id, after_hlc, device_id, origin_node)
+        .map(|changes| {
+            changes
+                .into_iter()
+                .filter(|c| MEMBERSHIP_SYSTEM_TABLES.contains(&c.table_name.as_str()))
+                .collect()
+        })
 }
 
 // `scan_all_crdt_tables_for_local_changes` used to scan every CRDT table
