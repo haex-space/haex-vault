@@ -331,6 +331,28 @@ pub fn scan_space_scoped_tables_for_local_changes(
     })
 }
 
+/// Like [`scan_space_scoped_tables_for_local_changes`] but restricted to
+/// [`MEMBERSHIP_SYSTEM_TABLES`] only. Use this for the push phase when the
+/// member holds a `space/read` UCAN: those tables may be pushed with Read
+/// capability, whereas `haex_peer_shares` (the only other space-scoped table)
+/// requires Write. Including peer_shares in a Read-only push batch causes the
+/// leader to reject the entire batch, leaving the push cursor stuck at t=0.
+pub fn scan_membership_tables_for_local_changes(
+    db: &DbConnection,
+    space_id: &str,
+    after_hlc: Option<&str>,
+    device_id: &str,
+    origin_node: Option<u128>,
+) -> Result<Vec<LocalColumnChange>, DatabaseError> {
+    scan_space_scoped_tables_for_local_changes(db, space_id, after_hlc, device_id, origin_node)
+        .map(|changes| {
+            changes
+                .into_iter()
+                .filter(|c| MEMBERSHIP_SYSTEM_TABLES.contains(&c.table_name.as_str()))
+                .collect()
+        })
+}
+
 // `scan_all_crdt_tables_for_local_changes` used to scan every CRDT table
 // without a space filter. That function powered the old peer SyncPull and
 // was the root of a cross-space data leak — a peer asking for space X
