@@ -325,113 +325,153 @@
 
       <!-- Extra -->
       <template #extra>
-        <div class="p-4 max-w-2xl mx-auto">
-          <!-- Master-detail: key list left, value textarea right -->
-          <div
-            v-if="visibleKeyValues.length > 0"
-            class="flex flex-col @2xl:flex-row gap-4"
-          >
-            <!-- Key list -->
-            <div class="flex-1 flex flex-col gap-3">
-              <div class="border border-default rounded-lg divide-y divide-default">
-                <div
-                  v-for="(kv, index) in visibleKeyValues"
-                  :key="kv.id"
-                  :class="[
-                    'flex items-center gap-1 px-2 transition-colors cursor-pointer',
-                    currentSelectedKv === kv ? 'bg-elevated' : 'hover:bg-elevated/50',
-                    index === 0 ? 'rounded-t-lg' : '',
-                    index === visibleKeyValues.length - 1 ? 'rounded-b-lg' : '',
-                  ]"
-                  @click="currentSelectedKv = kv"
-                >
-                  <UInput
-                    :ref="(el) => { if (index === visibleKeyValues.length - 1) lastKvKeyInputEl = el as { $el?: HTMLElement } }"
-                    v-model="kv.key"
-                    :readonly="!isEditing"
-                    :placeholder="t('extra.keyPlaceholder')"
-                    variant="none"
-                    class="flex-1 text-sm"
-                    @click.stop="currentSelectedKv = kv"
-                  >
-                    <template #trailing>
-                      <UiButton
-                        :icon="kvCopiedItem === kv ? 'i-lucide-check' : 'i-lucide-copy'"
-                        :color="kvCopiedItem === kv ? 'success' : 'neutral'"
-                        variant="ghost"
-                        type="button"
-                        @click.stop="copyKvValue(kv)"
-                      />
-                      <UiButton
-                        v-if="isEditing"
-                        icon="i-lucide-trash-2"
-                        color="error"
-                        variant="ghost"
-                        type="button"
-                        @click.stop="removeKeyValue(index)"
-                      />
-                    </template>
-                  </UInput>
+        <div class="p-4 max-w-2xl mx-auto space-y-4">
+          <!-- Card: Custom fields -->
+          <div class="border border-default rounded-lg overflow-hidden">
+            <div class="px-4 py-3 border-b border-default bg-elevated/30">
+              <p class="text-sm font-medium">
+                {{ t('extra.customFields') }}
+              </p>
+            </div>
+            <div class="p-4">
+              <!-- Master-detail: key list left, value textarea right -->
+              <div
+                v-if="visibleKeyValues.length > 0"
+                class="flex flex-col @2xl:flex-row gap-4"
+              >
+                <!-- Key list -->
+                <div class="flex-1 flex flex-col gap-3">
+                  <div class="border border-default rounded-lg divide-y divide-default">
+                    <div
+                      v-for="(kv, index) in visibleKeyValues"
+                      :key="kv.id"
+                      :class="[
+                        'flex items-center gap-1 px-2 transition-colors cursor-pointer',
+                        currentSelectedKv === kv ? 'bg-elevated' : 'hover:bg-elevated/50',
+                        index === 0 ? 'rounded-t-lg' : '',
+                        index === visibleKeyValues.length - 1 ? 'rounded-b-lg' : '',
+                      ]"
+                      @click="currentSelectedKv = kv"
+                    >
+                      <UInput
+                        :ref="(el) => { if (index === visibleKeyValues.length - 1) lastKvKeyInputEl = el as { $el?: HTMLElement } }"
+                        v-model="kv.key"
+                        :readonly="!isEditing"
+                        :placeholder="t('extra.keyPlaceholder')"
+                        variant="none"
+                        class="flex-1 text-sm"
+                        @click.stop="currentSelectedKv = kv"
+                      >
+                        <template #trailing>
+                          <UiButton
+                            :icon="kvCopiedItem === kv ? 'i-lucide-check' : 'i-lucide-copy'"
+                            :color="kvCopiedItem === kv ? 'success' : 'neutral'"
+                            variant="ghost"
+                            type="button"
+                            @click.stop="copyKvValue(kv)"
+                          />
+                          <UiButton
+                            v-if="isEditing"
+                            icon="i-lucide-trash-2"
+                            color="error"
+                            variant="ghost"
+                            type="button"
+                            @click.stop="removeKeyValue(index)"
+                          />
+                        </template>
+                      </UInput>
+                    </div>
+                  </div>
+
+                  <UiButton
+                    v-if="isEditing"
+                    :label="t('extra.add')"
+                    icon="i-lucide-plus"
+                    color="neutral"
+                    variant="outline"
+                    type="button"
+                    @click="addKeyValue"
+                  />
+                </div>
+
+                <!-- Value textarea -->
+                <div class="flex-1 @2xl:min-w-52">
+                  <UiTextarea
+                    v-model="currentKvValue"
+                    :read-only="!isEditing || !currentSelectedKv"
+                    :placeholder="t('extra.valuePlaceholder')"
+                    :with-copy-button="!!currentSelectedKv"
+                    :rows="8"
+                  />
                 </div>
               </div>
 
-              <UiButton
-                v-if="isEditing"
-                :label="t('extra.add')"
-                icon="i-lucide-plus"
-                color="neutral"
-                variant="outline"
-                type="button"
-                @click="addKeyValue"
-              />
+              <!-- Empty state -->
+              <div
+                v-else
+                class="flex flex-col items-center justify-center gap-3 py-6 text-muted"
+              >
+                <UIcon
+                  name="i-lucide-list-plus"
+                  class="size-8 opacity-40"
+                />
+                <p class="text-sm">
+                  {{ t('extra.empty') }}
+                </p>
+                <UiButton
+                  v-if="isEditing"
+                  :label="t('extra.add')"
+                  icon="i-lucide-plus"
+                  color="neutral"
+                  variant="outline"
+                  type="button"
+                  @click="addKeyValue"
+                />
+              </div>
             </div>
+          </div>
 
-            <!-- Value textarea -->
-            <div class="flex-1 @2xl:min-w-52">
-              <UiTextarea
-                v-model="currentKvValue"
-                :read-only="!isEditing || !currentSelectedKv"
-                :placeholder="t('extra.valuePlaceholder')"
-                :with-copy-button="!!currentSelectedKv"
-                :rows="8"
+          <!-- Card: Passkeys -->
+          <div class="border border-default rounded-lg overflow-hidden">
+            <div class="px-4 py-3 border-b border-default bg-elevated/30">
+              <div class="flex items-center gap-2">
+                <UIcon
+                  name="i-lucide-key-round"
+                  class="size-4 text-primary"
+                />
+                <p class="text-sm font-medium">
+                  {{ t('passkeys.title') }}
+                </p>
+              </div>
+              <p class="text-xs text-muted mt-0.5">
+                {{ t('passkeys.description') }}
+              </p>
+            </div>
+            <div class="p-4">
+              <HaexSystemPasswordsEditorPasskeys
+                ref="passkeysRef"
+                :item-id="selectedItem?.id"
+                :read-only="!isEditing"
               />
             </div>
           </div>
 
-          <!-- Empty state -->
-          <div
-            v-else
-            class="flex flex-col items-center justify-center gap-3 py-10 text-muted"
-          >
-            <UIcon
-              name="i-lucide-list-plus"
-              class="size-10 opacity-40"
-            />
-            <p class="text-sm">
-              {{ t('extra.empty') }}
-            </p>
-            <UiButton
-              v-if="isEditing"
-              :label="t('extra.add')"
-              icon="i-lucide-plus"
-              color="neutral"
-              variant="outline"
-              type="button"
-              @click="addKeyValue"
-            />
+          <!-- Card: Attachments -->
+          <div class="border border-default rounded-lg overflow-hidden">
+            <div class="px-4 py-3 border-b border-default bg-elevated/30">
+              <p class="text-sm font-medium">
+                {{ t('attachments.title') }}
+              </p>
+            </div>
+            <div class="p-4">
+              <HaexSystemPasswordsEditorAttachments
+                v-model="attachments"
+                v-model:attachments-to-add="attachmentsToAdd"
+                v-model:attachments-to-delete="attachmentsToDelete"
+                :read-only="!isEditing"
+              />
+            </div>
           </div>
-        </div>
-      </template>
-
-      <!-- Attachments -->
-      <template #attachments>
-        <div class="p-4 max-w-2xl mx-auto">
-          <HaexSystemPasswordsEditorAttachments
-            v-model="attachments"
-            v-model:attachments-to-add="attachmentsToAdd"
-            v-model:attachments-to-delete="attachmentsToDelete"
-            :read-only="!isEditing"
-          />
         </div>
       </template>
 
@@ -538,6 +578,8 @@ const attachments = ref<AttachmentWithSize[]>([])
 const attachmentsToAdd = ref<AttachmentWithSize[]>([])
 const attachmentsToDelete = ref<AttachmentWithSize[]>([])
 
+const passkeysRef = ref<{ persistDeletionsAsync: () => Promise<void> } | null>(null)
+
 const isDirty = computed(
   () =>
     JSON.stringify(form) !== JSON.stringify(formSnapshot) ||
@@ -569,7 +611,6 @@ onBeforeUnmount(() => {
 const tabItems = computed(() => [
   { label: t('tabs.details'), value: 'details', slot: 'details' as const },
   { label: t('tabs.extra'), value: 'extra', slot: 'extra' as const },
-  { label: t('tabs.attachments'), value: 'attachments', slot: 'attachments' as const },
   { label: t('tabs.history'), value: 'history', slot: 'history' as const },
 ])
 
@@ -726,12 +767,16 @@ const startEdit = () => {
   nav.startEdit()
 }
 
+let _kvAdding = false
 const addKeyValue = async () => {
+  if (_kvAdding) return
+  _kvAdding = true
   const newKv = { id: crypto.randomUUID(), key: '', value: '' }
   form.keyValues.push(newKv)
   currentSelectedKv.value = newKv
   await nextTick()
   lastKvKeyInputEl.value?.$el?.querySelector('input')?.focus()
+  _kvAdding = false
 }
 
 const removeKeyValue = (index: number) => {
@@ -882,6 +927,7 @@ const onSave = async () => {
     attachmentsToAdd.value = []
     attachmentsToDelete.value = []
     await loadAttachmentsAsync()
+    await passkeysRef.value?.persistDeletionsAsync()
 
     await passwordsStore.loadItemsAsync()
     passwordsStore.openItem(itemId)
@@ -940,12 +986,18 @@ de:
     otpDigits: Stellen
     otpPeriod: Periode (s)
   extra:
+    customFields: Benutzerdefinierte Felder
     description: Eigene Felder (z.B. Recovery-Code, PIN, Sicherheitsfragen).
     empty: Noch keine eigenen Felder.
     add: Feld hinzufügen
     remove: Feld entfernen
     keyPlaceholder: Schlüssel
     valuePlaceholder: Wert
+  passkeys:
+    title: Passkeys
+    description: Passkeys werden automatisch über die Browser-Erweiterung erstellt.
+  attachments:
+    title: Dateianhänge
   history:
     comingSoon: Verlauf-Ansicht kommt mit den Snapshots in Etappe 3.
   validation:
@@ -988,12 +1040,18 @@ en:
     otpDigits: Digits
     otpPeriod: Period (s)
   extra:
+    customFields: Custom Fields
     description: Custom fields (e.g. recovery code, PIN, security questions).
     empty: No custom fields yet.
     add: Add field
     remove: Remove field
     keyPlaceholder: Key
     valuePlaceholder: Value
+  passkeys:
+    title: Passkeys
+    description: Passkeys are created automatically via the browser extension.
+  attachments:
+    title: Attachments
   history:
     comingSoon: History view ships with snapshots in stage 3.
   validation:
