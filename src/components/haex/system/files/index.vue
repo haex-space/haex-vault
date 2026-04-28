@@ -577,6 +577,7 @@
                     <p class="text-sm font-medium truncate">{{ peer.name }}</p>
                     <p class="text-xs text-muted truncate">{{ peer.detail }}</p>
                   </div>
+                  <HaexPeerStatusDot :status="ping.getStatus(peer.endpointId)" />
                   <UIcon
                     name="i-lucide-chevron-right"
                     class="w-4 h-4 text-muted shrink-0"
@@ -609,6 +610,7 @@
 <script setup lang="ts">
 import { SettingsCategory } from '~/config/settingsCategories'
 import type { RemotePeer } from '~/composables/useFileBrowser'
+import { usePeerPing } from '~/composables/usePeerPing'
 
 const props = defineProps<{
   tabId: string
@@ -708,6 +710,9 @@ const remotePeers = computed(() => {
 
   return peers
 })
+
+const remotePeerIds = computed(() => remotePeers.value.map((p) => p.endpointId))
+const ping = usePeerPing(remotePeerIds)
 
 const getSpaceName = (spaceId: string) => {
   return (
