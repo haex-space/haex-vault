@@ -29,6 +29,10 @@ export function usePeerPing(endpointIds: Ref<string[]>) {
 
   const getStatus = (id: string): PeerPingStatus => status.value.get(id) ?? 'checking'
 
+  // Re-ping immediately when the peer store starts or stops so the dot reflects
+  // the new state without waiting up to 30 s for the next poll interval.
+  watch(() => peerStore.running, () => { pingAllAsync() })
+
   // Mark newly discovered peers as 'checking' and re-ping when the list changes.
   // No immediate:true — avoids firing during setup() before all const declarations
   // in the parent scope are initialized (TDZ).
