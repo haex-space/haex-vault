@@ -8,7 +8,7 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use time::OffsetDateTime;
 use tokio::sync::RwLock;
 
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 
 use crate::crdt::commands::{apply_remote_changes_to_db, RemoteColumnChange};
 use crate::crdt::hlc::HlcService;
@@ -932,6 +932,17 @@ pub(super) async fn handle_delivery_request(
             }
 
             notify_others_sync(state, &space_id, &affected_tables, peer_endpoint_id).await;
+
+            // Notify the leader's own frontend so stores tied to the changed
+            // tables (e.g. peer_storage for haex_space_devices) reload without
+            // waiting for the next periodic pull.
+            let _ = state.app_handle.emit(
+                "local-sync-completed",
+                serde_json::json!({
+                    "spaceId": &space_id,
+                    "tables": &affected_tables,
+                }),
+            );
 
             Response::Ok
         }

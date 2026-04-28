@@ -9,7 +9,7 @@
 //! back to the change-set declaration only for fresh inserts; declared
 //! owner values for existing rows must match exactly (no rewrites).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde_json::Value as JsonValue;
 
@@ -76,24 +76,27 @@ fn resolve_identity_id_for_did(
         .map(str::to_string))
 }
 
-/// For every membership-system row in `changes`, verify that the row
-/// already belongs to the caller — or, for inserts, that the change-set
-/// itself declares the caller as owner. Rejects the whole batch on the
-/// first violation.
+/// For every membership-system row in `changes`, drop rows whose ownership
+/// cannot be verified as belonging to the caller. Returns the accepted changes
+/// and a list of reasons for any dropped rows (for logging).
+///
+/// Unlike a hard-reject of the whole batch, this lets valid rows through while
+/// silently discarding rows the caller does not own — e.g. ping-pong re-pushes
+/// of rows originally written by the leader on behalf of another member. The
+/// security invariant is preserved: foreign-owned rows are never applied.
 ///
 /// `changes` is expected to be the output of
-/// [`validate_and_attribute`](super::validate::validate_and_attribute)
-/// (i.e. table-whitelisted and `authored_by_did` already attributed).
-pub fn enforce_row_ownership(
+/// [`validate_and_attribute`](super::validate::validate_and_attribute).
+pub fn filter_ownership_violations(
     db: &DbConnection,
     peer_endpoint_id: &str,
     audience_did: &str,
-    changes: &[LocalColumnChange],
-) -> Result<(), String> {
-    // Group changes by (table, row_pks) and remember any owner-column
-    // value the change set itself declares for the row.
+    changes: Vec<LocalColumnChange>,
+) -> (Vec<LocalColumnChange>, Vec<String>) {
+    // Group changes by (table, row_pks) and remember the declared owner-column
+    // value, if any.
     let mut per_row: HashMap<(String, String), Option<JsonValue>> = HashMap::new();
-    for change in changes {
+    for change in &changes {
         if !is_membership_system_table(&change.table_name) {
             continue;
         }
@@ -108,6 +111,14 @@ pub fn enforce_row_ownership(
         }
     }
 
+    let mut skip_rows: HashSet<(String, String)> = HashSet::new();
+    let mut violations: Vec<String> = Vec::new();
+
+    // Resolve the caller's identity UUID once — reused for all IdentityId checks.
+    let caller_identity_id: Option<String> = resolve_identity_id_for_did(db, audience_did)
+        .ok()
+        .flatten();
+
     for ((table, row_pks), declared) in per_row {
         let kind = match owner_kind_for(&table) {
             Some(k) => k,
@@ -115,73 +126,96 @@ pub fn enforce_row_ownership(
         };
         let owner_col = owner_column_for(&table).expect("owner_kind_for ⇒ owner_column_for");
 
-        // Always look up the *existing* owner first. If a row exists, its
-        // owner column is the authoritative answer — peers cannot rewrite
-        // it via push, otherwise a "set owner_col = me" change would let
-        // anyone hijack any row. The change-set declaration only matters
-        // for fresh inserts (no existing row).
-        let existing = read_existing_column(db, &table, &row_pks, owner_col)
-            .map_err(|e| format!("ownership lookup failed for {table} row {row_pks}: {e}"))?;
+        // Always look up the *existing* owner first — peers cannot rewrite it.
+        let existing = match read_existing_column(db, &table, &row_pks, owner_col) {
+            Ok(v) => v,
+            Err(e) => {
+                violations.push(format!("ownership lookup failed for {table} row {row_pks}: {e}"));
+                skip_rows.insert((table, row_pks));
+                continue;
+            }
+        };
 
         let existing_owner: Option<String> = match existing {
             Some(JsonValue::String(s)) => Some(s),
             Some(JsonValue::Null) | None => None,
             Some(other) => {
-                return Err(format!(
+                violations.push(format!(
                     "row {table}/{row_pks}: existing owner column {owner_col} has non-string value {other}",
                 ));
+                skip_rows.insert((table, row_pks));
+                continue;
             }
         };
 
         let owner_value = match (&existing_owner, &declared) {
-            // Existing row — declaration in push must either be absent or
-            // identical. Any divergence is an ownership-rewrite attempt.
+            // Existing row — declaration in push must be absent or identical.
             (Some(existing), Some(JsonValue::String(decl))) => {
                 if existing != decl {
-                    return Err(format!(
+                    violations.push(format!(
                         "row {table}/{row_pks}: push attempts to change owner from {existing:?} to {decl:?}",
                     ));
+                    skip_rows.insert((table, row_pks));
+                    continue;
                 }
                 existing.clone()
             }
             (Some(existing), None) => existing.clone(),
             (Some(_), Some(other)) => {
-                return Err(format!(
+                violations.push(format!(
                     "row {table}/{row_pks}: declared owner has non-string value {other}",
                 ));
+                skip_rows.insert((table, row_pks));
+                continue;
             }
             // Fresh insert — must declare a string owner.
             (None, Some(JsonValue::String(decl))) => decl.clone(),
             (None, None | Some(JsonValue::Null)) => {
-                return Err(format!(
+                violations.push(format!(
                     "row {table}/{row_pks}: owner column {owner_col} missing on insert",
                 ));
+                skip_rows.insert((table, row_pks));
+                continue;
             }
             (None, Some(other)) => {
-                return Err(format!(
+                violations.push(format!(
                     "row {table}/{row_pks}: declared owner has non-string value {other}",
                 ));
+                skip_rows.insert((table, row_pks));
+                continue;
             }
         };
 
         let ok = match kind {
             OwnerKind::EndpointId => owner_value == peer_endpoint_id,
-            OwnerKind::IdentityId => match resolve_identity_id_for_did(db, audience_did) {
-                Ok(Some(my_identity)) => owner_value == my_identity,
-                Ok(None) => {
-                    return Err(format!(
+            OwnerKind::IdentityId => match &caller_identity_id {
+                Some(my_identity) => owner_value == *my_identity,
+                None => {
+                    violations.push(format!(
                         "caller DID {audience_did} has no identity row — cannot verify ownership of {table}",
                     ));
+                    skip_rows.insert((table, row_pks));
+                    continue;
                 }
-                Err(e) => return Err(format!("identity lookup failed: {e}")),
             },
         };
+
         if !ok {
-            return Err(format!(
+            violations.push(format!(
                 "row {table}/{row_pks}: owner {owner_value:?} does not match caller (endpoint={peer_endpoint_id}, did={audience_did})",
             ));
+            skip_rows.insert((table, row_pks));
         }
     }
 
-    Ok(())
+    let accepted = if skip_rows.is_empty() {
+        changes
+    } else {
+        changes
+            .into_iter()
+            .filter(|c| !skip_rows.contains(&(c.table_name.clone(), c.row_pks.clone())))
+            .collect()
+    };
+
+    (accepted, violations)
 }
