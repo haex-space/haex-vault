@@ -176,3 +176,33 @@ pub fn is_active_space_member(
 
     Ok(count > 0)
 }
+
+/// Returns `true` if the local UCAN for this `(space_id, audience_did)` grants
+/// write-level capability (`space/write` or `space/admin`). Returns `false` for
+/// `space/read` members, or if no token is found.
+///
+/// Used by the push phase to decide whether to include `haex_peer_shares` in
+/// the outgoing batch. Read-only members must never attempt to push that table:
+/// the leader rejects the entire batch when it sees any non-membership-system
+/// row, which leaves the push cursor at t=0 and blocks membership-data uploads.
+pub fn has_write_capability(
+    db: &DbConnection,
+    space_id: &str,
+    audience_did: &str,
+) -> bool {
+    let sql = "SELECT capability FROM haex_ucan_tokens \
+               WHERE space_id = ?1 AND audience_did = ?2 \
+               ORDER BY issued_at DESC LIMIT 1"
+        .to_string();
+    let params = vec![
+        serde_json::Value::String(space_id.to_string()),
+        serde_json::Value::String(audience_did.to_string()),
+    ];
+    crate::database::core::select_with_crdt(sql, params, db)
+        .ok()
+        .and_then(|rows| rows.into_iter().next())
+        .and_then(|row| row.into_iter().next())
+        .and_then(|v| v.as_str().map(|s| s.to_string()))
+        .map(|cap| cap != "space/read")
+        .unwrap_or(false)
+}

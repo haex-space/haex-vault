@@ -12,7 +12,10 @@ use tokio::sync::watch;
 
 use crate::crdt::commands::{apply_remote_changes_to_db, clear_dirty_table_inner, RemoteColumnChange};
 use crate::crdt::hlc::hlc_max;
-use crate::crdt::scanner::{scan_space_scoped_tables_for_local_changes, LocalColumnChange};
+use crate::crdt::scanner::{
+    scan_membership_tables_for_local_changes, scan_space_scoped_tables_for_local_changes,
+    LocalColumnChange,
+};
 use crate::database::DbConnection;
 use super::error::DeliveryError;
 use super::peer::PeerSession;
@@ -231,6 +234,19 @@ async fn run_sync_loop(
         ));
     }
 
+    // Determine once whether this member may push user-content tables
+    // (haex_peer_shares). Read-only members must not: the leader rejects any
+    // batch containing non-membership-system rows without Write capability,
+    // which would leave the push cursor stuck and block MLS KeyPackage uploads.
+    let can_push_user_content =
+        super::ucan::has_write_capability(&db, &space_id, &our_did);
+    if !can_push_user_content {
+        log_sync(&app_handle, "info", &format!(
+            "read-only member: push restricted to membership-system tables for space={}",
+            &space_id[..8.min(space_id.len())],
+        ));
+    }
+
     log_sync(
         &app_handle,
         "info",
@@ -256,6 +272,7 @@ async fn run_sync_loop(
             &space_id,
             &device_id,
             our_node,
+            can_push_user_content,
             &app_handle,
             &mut last_push_hlc,
             &mut last_pull_timestamp,
@@ -378,15 +395,30 @@ async fn run_push_phase(
     space_id: &str,
     device_id: &str,
     our_node: Option<u128>,
+    can_push_user_content: bool,
     last_push_hlc: &mut Option<String>,
 ) -> Result<(), DeliveryError> {
-    let changes = scan_space_scoped_tables_for_local_changes(
-        db,
-        space_id,
-        last_push_hlc.as_deref(),
-        device_id,
-        our_node,
-    )
+    // Read-only members must not include haex_peer_shares in the push batch.
+    // The leader rejects any batch that touches a non-membership-system table
+    // without Write capability, which would leave the cursor stuck at t=0 and
+    // block membership-data (e.g. MLS KeyPackages) from ever reaching the leader.
+    let changes = if can_push_user_content {
+        scan_space_scoped_tables_for_local_changes(
+            db,
+            space_id,
+            last_push_hlc.as_deref(),
+            device_id,
+            our_node,
+        )
+    } else {
+        scan_membership_tables_for_local_changes(
+            db,
+            space_id,
+            last_push_hlc.as_deref(),
+            device_id,
+            our_node,
+        )
+    }
     .map_err(|e| DeliveryError::Database {
         reason: format!("Failed to scan space-scoped tables: {}", e),
     })?;
@@ -473,6 +505,7 @@ async fn run_sync_cycle(
     space_id: &str,
     device_id: &str,
     our_node: Option<u128>,
+    can_push_user_content: bool,
     app_handle: &tauri::AppHandle,
     last_push_hlc: &mut Option<String>,
     last_pull_timestamp: &mut Option<String>,
@@ -480,7 +513,7 @@ async fn run_sync_cycle(
     key_packages_refilled: &mut bool,
 ) -> Result<(), DeliveryError> {
     // 1. PUSH (best-effort) — never blocks the pull below.
-    if let Err(e) = run_push_phase(db, session, space_id, device_id, our_node, last_push_hlc).await {
+    if let Err(e) = run_push_phase(db, session, space_id, device_id, our_node, can_push_user_content, last_push_hlc).await {
         eprintln!("[SyncLoop] Push phase failed (pull continues): {}", e);
     }
 

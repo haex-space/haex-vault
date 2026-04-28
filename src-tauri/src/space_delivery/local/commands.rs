@@ -176,8 +176,13 @@ pub async fn local_delivery_connect(
         .clone();
     drop(endpoint); // Release lock before starting async work
 
-    // 3. Use our endpoint ID as device_id
-    let device_id = our_endpoint_id.clone();
+    // 3. Resolve the HLC device UUID. This is the same UUID embedded in
+    // every row's HLC timestamp (via HlcService::get_or_create_device_id),
+    // so the push-scanner origin filter can correctly distinguish locally-
+    // authored rows from pulled rows. The iroh endpoint ID is a 256-bit hex
+    // key (not a UUID) and cannot serve this role.
+    let device_id = crate::crdt::hlc::HlcService::get_or_create_device_id(&app)
+        .map_err(|e| format!("Failed to read device UUID: {e}"))?;
 
     // 4. Start sync loop
     let db = DbConnection(state.db.0.clone());
