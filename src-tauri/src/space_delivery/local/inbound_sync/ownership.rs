@@ -115,9 +115,13 @@ pub fn filter_ownership_violations(
     let mut violations: Vec<String> = Vec::new();
 
     // Resolve the caller's identity UUID once — reused for all IdentityId checks.
-    let caller_identity_id: Option<String> = resolve_identity_id_for_did(db, audience_did)
-        .ok()
-        .flatten();
+    let caller_identity_id: Option<String> = match resolve_identity_id_for_did(db, audience_did) {
+        Ok(id) => id,
+        Err(e) => {
+            eprintln!("[InboundSync] Failed to resolve caller identity for {audience_did}: {e}");
+            None
+        }
+    };
 
     for ((table, row_pks), declared) in per_row {
         let kind = match owner_kind_for(&table) {

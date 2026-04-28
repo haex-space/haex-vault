@@ -499,13 +499,19 @@ export const useSyncOrchestratorStore = defineStore(
 
       // Listen for local sync completions from Rust sync loop
       if (!localEvents) {
-        localEvents = new RustEventGroup()
-        await localEvents.on<LocalSyncCompletedEvent>(RUST_EVENTS.localSyncCompleted, async ({ spaceId, tables }) => {
-          log.info(`[LOCAL-SYNC] Received local-sync-completed for space ${spaceId}, tables: ${tables.join(', ')}`)
-          if (tables && tables.length > 0) {
-            await emit(SYNC_TABLES_INTERNAL_EVENT, { tables })
-          }
-        })
+        const events = new RustEventGroup()
+        try {
+          await events.on<LocalSyncCompletedEvent>(RUST_EVENTS.localSyncCompleted, async ({ spaceId, tables }) => {
+            log.info(`[LOCAL-SYNC] Received local-sync-completed for space ${spaceId}, tables: ${tables.join(', ')}`)
+            if (tables && tables.length > 0) {
+              await emit(SYNC_TABLES_INTERNAL_EVENT, { tables })
+            }
+          })
+          localEvents = events
+        } catch (err) {
+          events.dispose()
+          throw err
+        }
         log.info('[START-SYNC] Local sync listener registered')
       }
 
