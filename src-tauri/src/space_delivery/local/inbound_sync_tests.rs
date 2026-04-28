@@ -685,7 +685,8 @@ fn authz_member_for_other_space_rejected() {
 #[test]
 fn authz_read_only_cannot_overwrite_admin_membership_row() {
     // Classic privilege escalation: Mallory tries to set Bob's membership
-    // identity_id to herself.
+    // identity_id to herself. The batch is accepted but Bob's row is dropped —
+    // the security invariant holds: the foreign row is never applied.
     let db = setup_authz_db();
     insert_identity(&db, "id-mallory", "did:key:zMallory");
     insert_identity(&db, "id-bob", "did:key:zBob");
@@ -701,7 +702,7 @@ fn authz_read_only_cannot_overwrite_admin_membership_row() {
         json!("id-mallory"),
     )];
 
-    let reason = expect_rejected(authorize_inbound_sync_push(
+    let accepted = expect_accepted(authorize_inbound_sync_push(
         &db,
         "space-A",
         "endpoint-mallory",
@@ -709,15 +710,15 @@ fn authz_read_only_cannot_overwrite_admin_membership_row() {
         changes,
     ));
     assert!(
-        reason.contains("ownership") || reason.contains("does not match caller"),
-        "Mallory must not be able to overwrite Bob's row, got: {reason}",
+        accepted.is_empty(),
+        "Bob's row must be filtered out (not applied), but accepted contained: {accepted:?}",
     );
 }
 
 #[test]
 fn authz_read_only_cannot_modify_foreign_member_role() {
-    // role=admin on Bob's row without changing identity_id — ownership
-    // check must pull identity_id from the existing DB row.
+    // role=admin on Bob's row without changing identity_id — ownership is
+    // pulled from the existing DB row. Row is filtered out, not applied.
     let db = setup_authz_db();
     insert_identity(&db, "id-mallory", "did:key:zMallory");
     insert_identity(&db, "id-bob", "did:key:zBob");
@@ -733,7 +734,7 @@ fn authz_read_only_cannot_modify_foreign_member_role() {
         json!("admin"),
     )];
 
-    let reason = expect_rejected(authorize_inbound_sync_push(
+    let accepted = expect_accepted(authorize_inbound_sync_push(
         &db,
         "space-A",
         "endpoint-mallory",
@@ -741,8 +742,8 @@ fn authz_read_only_cannot_modify_foreign_member_role() {
         changes,
     ));
     assert!(
-        reason.contains("ownership") || reason.contains("does not match caller"),
-        "Mallory must not silently modify Bob's row, got: {reason}",
+        accepted.is_empty(),
+        "Bob's row must be filtered out, but accepted contained: {accepted:?}",
     );
 }
 
@@ -786,6 +787,8 @@ fn authz_member_can_insert_own_new_membership_row() {
 
 #[test]
 fn authz_member_cannot_insert_membership_with_others_identity() {
+    // Mallory tries to forge a membership row for Bob's identity. The row is
+    // filtered out so it is never applied — batch returns Accepted with 0 changes.
     let db = setup_authz_db();
     insert_identity(&db, "id-mallory", "did:key:zMallory");
     insert_identity(&db, "id-bob", "did:key:zBob");
@@ -816,7 +819,7 @@ fn authz_member_cannot_insert_membership_with_others_identity() {
         ),
     ];
 
-    let reason = expect_rejected(authorize_inbound_sync_push(
+    let accepted = expect_accepted(authorize_inbound_sync_push(
         &db,
         "space-A",
         "endpoint-mallory",
@@ -824,8 +827,8 @@ fn authz_member_cannot_insert_membership_with_others_identity() {
         changes,
     ));
     assert!(
-        reason.contains("ownership") || reason.contains("does not match caller"),
-        "must not allow forging row for foreign identity, got: {reason}",
+        accepted.is_empty(),
+        "forged row for foreign identity must be filtered out, but accepted contained: {accepted:?}",
     );
 }
 
@@ -869,6 +872,8 @@ fn authz_member_can_register_own_device() {
 
 #[test]
 fn authz_member_cannot_hijack_foreign_device_endpoint() {
+    // Mallory registers a device row with Bob's endpoint_id. The row is
+    // filtered out so it is never applied — batch returns Accepted with 0 changes.
     let db = setup_authz_db();
     insert_identity(&db, "id-mallory", "did:key:zMallory");
     insert_identity(&db, "id-bob", "did:key:zBob");
@@ -899,7 +904,7 @@ fn authz_member_cannot_hijack_foreign_device_endpoint() {
         ),
     ];
 
-    let reason = expect_rejected(authorize_inbound_sync_push(
+    let accepted = expect_accepted(authorize_inbound_sync_push(
         &db,
         "space-A",
         "endpoint-mallory",
@@ -907,15 +912,16 @@ fn authz_member_cannot_hijack_foreign_device_endpoint() {
         changes,
     ));
     assert!(
-        reason.contains("ownership") || reason.contains("does not match caller"),
-        "device endpoint hijack must be rejected, got: {reason}",
+        accepted.is_empty(),
+        "hijacked device row must be filtered out, but accepted contained: {accepted:?}",
     );
 }
 
 #[test]
 fn authz_member_cannot_modify_foreign_device_row() {
-    // Existing device row belongs to Bob; Mallory tries to update its
-    // name without changing endpoint_id (so ownership comes from DB).
+    // Existing device row belongs to Bob; Mallory tries to update its name
+    // without changing endpoint_id (ownership comes from DB). Row is filtered
+    // out so the modification is never applied.
     let db = setup_authz_db();
     insert_identity(&db, "id-mallory", "did:key:zMallory");
     insert_identity(&db, "id-bob", "did:key:zBob");
@@ -938,7 +944,7 @@ fn authz_member_cannot_modify_foreign_device_row() {
         json!("Hacked"),
     )];
 
-    let reason = expect_rejected(authorize_inbound_sync_push(
+    let accepted = expect_accepted(authorize_inbound_sync_push(
         &db,
         "space-A",
         "endpoint-mallory",
@@ -946,14 +952,16 @@ fn authz_member_cannot_modify_foreign_device_row() {
         changes,
     ));
     assert!(
-        reason.contains("ownership") || reason.contains("does not match caller"),
-        "Mallory must not be able to alter Bob's device row, got: {reason}",
+        accepted.is_empty(),
+        "Bob's device row must be filtered out, but accepted contained: {accepted:?}",
     );
 }
 
 #[test]
-fn authz_mixed_batch_one_foreign_row_rejects_whole_push() {
-    // Whole-batch atomicity: a single bad row taints the whole push.
+fn authz_mixed_batch_foreign_row_filtered_own_row_accepted() {
+    // Mixed batch: Mallory's own row + Bob's row. Bob's row is filtered out;
+    // Mallory's row is accepted. This is the ping-pong re-push scenario —
+    // the invitee received Bob's row via SyncPull and tries to push it back.
     let db = setup_authz_db();
     insert_identity(&db, "id-mallory", "did:key:zMallory");
     insert_identity(&db, "id-bob", "did:key:zBob");
@@ -978,7 +986,7 @@ fn authz_mixed_batch_one_foreign_row_rejects_whole_push() {
         ),
     ];
 
-    let reason = expect_rejected(authorize_inbound_sync_push(
+    let accepted = expect_accepted(authorize_inbound_sync_push(
         &db,
         "space-A",
         "endpoint-mallory",
@@ -986,8 +994,12 @@ fn authz_mixed_batch_one_foreign_row_rejects_whole_push() {
         changes,
     ));
     assert!(
-        reason.contains("ownership") || reason.contains("does not match caller"),
-        "the whole batch must be rejected even if one row is legit, got: {reason}",
+        accepted.iter().all(|c| c.row_pks.contains("mem-mallory")),
+        "only Mallory's own row must be accepted, got: {accepted:?}",
+    );
+    assert!(
+        !accepted.iter().any(|c| c.row_pks.contains("mem-bob")),
+        "Bob's row must not be in accepted changes, got: {accepted:?}",
     );
 }
 
