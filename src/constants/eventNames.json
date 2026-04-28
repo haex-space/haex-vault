@@ -6,5 +6,12 @@
   },
   "crdt": {
     "dirtyTablesChanged": "crdt:dirty-tables-changed"
+  },
+  "peer": {
+    "storageStateChanged": "peer-storage:state-changed"
+  },
+  "localSync": {
+    "completed": "local-sync-completed",
+    "error": "local-sync-error"
   }
 }

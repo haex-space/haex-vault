@@ -18,6 +18,8 @@ use iroh::{Endpoint, EndpointAddr, EndpointId, RelayMode, RelayUrl, SecretKey};
 
 const DEFAULT_RELAY_URL: &str = "https://relay.sync.haex.space";
 
+use tauri::Emitter;
+
 use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::protocol::{self, Request, Response, ALPN};
 
@@ -267,6 +269,14 @@ impl PeerEndpoint {
                         &state, "error", "Endpoint", None, &msg, None, "rust",
                     );
                 }
+                let _ = app.emit(
+                    crate::event_names::EVENT_PEER_STORAGE_STATE_CHANGED,
+                    serde_json::json!({
+                        "running": false,
+                        "reason": "endpoint-closed",
+                        "uptimeSecs": uptime.as_secs(),
+                    }),
+                );
             }
         });
 

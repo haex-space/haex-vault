@@ -1,17 +1,9 @@
 // src-tauri/generator/event_names.rs
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::{BufReader, Write};
 use std::path::Path;
-
-#[derive(Debug, Deserialize)]
-struct EventNames {
-    extension: HashMap<String, String>,
-    #[serde(default)]
-    crdt: HashMap<String, String>,
-}
 
 pub fn generate_event_names() {
     let out_dir = env::var("OUT_DIR").expect("OUT_DIR ist nicht gesetzt.");
@@ -21,7 +13,7 @@ pub fn generate_event_names() {
 
     let file = File::open(events_path).expect("Konnte eventNames.json nicht öffnen");
     let reader = BufReader::new(file);
-    let events: EventNames =
+    let categories: HashMap<String, HashMap<String, String>> =
         serde_json::from_reader(reader).expect("Konnte eventNames.json nicht parsen");
 
     let mut code = String::from(
@@ -34,31 +26,28 @@ pub fn generate_event_names() {
 "#,
     );
 
-    // Extension Events
-    code.push_str("// --- Extension Events ---\n");
-    for (key, value) in &events.extension {
-        let const_name = format!("EVENT_EXTENSION_{}", to_screaming_snake_case(key));
-        code.push_str(&format!(
-            "pub const {}: &str = \"{}\";\n",
-            const_name, value
-        ));
-    }
-    code.push('\n');
+    // Sort categories for stable output
+    let mut sorted_categories: Vec<_> = categories.iter().collect();
+    sorted_categories.sort_by_key(|(k, _)| k.as_str());
 
-    // CRDT Events
-    if !events.crdt.is_empty() {
-        code.push_str("// --- CRDT Events ---\n");
-        for (key, value) in &events.crdt {
-            let const_name = format!("EVENT_CRDT_{}", to_screaming_snake_case(key));
-            code.push_str(&format!(
-                "pub const {}: &str = \"{}\";\n",
-                const_name, value
-            ));
+    for (category, events) in sorted_categories {
+        let category_prefix = to_screaming_snake_case(category);
+        code.push_str(&format!("// --- {category} Events ---\n"));
+
+        let mut sorted_events: Vec<_> = events.iter().collect();
+        sorted_events.sort_by_key(|(k, _)| k.as_str());
+
+        for (key, value) in sorted_events {
+            let const_name = format!(
+                "EVENT_{}_{}",
+                category_prefix,
+                to_screaming_snake_case(key)
+            );
+            code.push_str(&format!("pub const {const_name}: &str = \"{value}\";\n"));
         }
         code.push('\n');
     }
 
-    // --- Datei schreiben ---
     let mut f = File::create(&dest_path).expect("Konnte Zieldatei nicht erstellen");
     f.write_all(code.as_bytes())
         .expect("Konnte nicht in Zieldatei schreiben");
@@ -66,7 +55,7 @@ pub fn generate_event_names() {
     println!("cargo:rerun-if-changed=../src/constants/eventNames.json");
 }
 
-/// Konvertiert einen String zu SCREAMING_SNAKE_CASE
+/// Konvertiert einen camelCase oder PascalCase String zu SCREAMING_SNAKE_CASE
 fn to_screaming_snake_case(s: &str) -> String {
     let mut result = String::new();
     let mut prev_is_lower = false;
