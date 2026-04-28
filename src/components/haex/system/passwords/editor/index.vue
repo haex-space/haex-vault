@@ -472,6 +472,31 @@
               />
             </div>
           </div>
+
+          <!-- Card: Autofill aliases -->
+          <div class="border border-default rounded-lg overflow-hidden">
+            <div class="px-4 py-3 border-b border-default bg-elevated/30">
+              <div class="flex items-center gap-2">
+                <UIcon
+                  name="i-lucide-globe"
+                  class="size-4 text-primary"
+                />
+                <p class="text-sm font-medium">
+                  {{ t('autofill.title') }}
+                </p>
+              </div>
+              <p class="text-xs text-muted mt-0.5">
+                {{ t('autofill.description') }}
+              </p>
+            </div>
+            <div class="p-4">
+              <HaexSystemPasswordsEditorAutofillAliases
+                v-model="form.autofillAliases"
+                :key-values="form.keyValues"
+                :read-only="!isEditing"
+              />
+            </div>
+          </div>
         </div>
       </template>
 
@@ -554,6 +579,7 @@ const form = reactive({
     'SHA1') as (typeof otpAlgorithms)[number],
   tagNames: selectedItemTags.value.map((t) => t.name),
   keyValues: [] as EditableKeyValue[],
+  autofillAliases: (selectedItem.value?.autofillAliases ?? {}) as Record<string, string[]>,
 })
 
 // Snapshot of the pristine form for cancel-from-edit on existing items.
@@ -863,6 +889,9 @@ const onSave = async () => {
       otpDigits: form.otpDigits || 6,
       otpPeriod: form.otpPeriod || 30,
       otpAlgorithm: form.otpAlgorithm,
+      autofillAliases: Object.keys(form.autofillAliases).length
+        ? form.autofillAliases
+        : null,
       updatedAt: now,
     }
 
@@ -1016,6 +1045,9 @@ de:
     description: Passkeys werden automatisch über die Browser-Erweiterung erstellt.
   attachments:
     title: Dateianhänge
+  autofill:
+    title: Autofill-Zuordnung
+    description: Konfiguriere alternative Feldnamen für das Browser-Autofill.
   history:
     label: Verlauf
   validation:
@@ -1070,6 +1102,9 @@ en:
     description: Passkeys are created automatically via the browser extension.
   attachments:
     title: Attachments
+  autofill:
+    title: Autofill Mapping
+    description: Configure alternative field names for browser autofill.
   history:
     label: History
   validation:
