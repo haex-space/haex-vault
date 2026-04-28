@@ -46,6 +46,7 @@ export const useSyncOrchestratorStore = defineStore(
     const periodicPullPolls: Map<string, ReturnType<typeof useTimeoutPoll>> = new Map()
     let eventUnlisten: (() => void) | null = null
     let localSyncUnlisten: (() => void) | null = null
+    let p2pResumeHandler: (() => void) | null = null
 
     // Adaptive debouncing for bulk operations
     // Tracks event frequency to detect bulk imports and increase debounce accordingly
@@ -549,6 +550,23 @@ export const useSyncOrchestratorStore = defineStore(
       log.info('[START-SYNC] Setting up visibility listener for mobile reconnection...')
       setupVisibilityListener()
 
+      // Setup P2P endpoint restart on app resume (Android: iroh QUIC endpoint dies in background)
+      let backgroundedAt: number | null = null
+      p2pResumeHandler = () => {
+        if (document.visibilityState === 'visible') {
+          const backgroundDuration = backgroundedAt !== null ? Date.now() - backgroundedAt : Infinity
+          backgroundedAt = null
+          if (backgroundDuration > 30_000) {
+            usePeerStorageStore().restartAfterResumeAsync().catch(err =>
+              log.error('[P2P-RESUME] Restart failed:', err),
+            )
+          }
+        } else {
+          backgroundedAt = Date.now()
+        }
+      }
+      document.addEventListener('visibilitychange', p2pResumeHandler)
+
       log.info('[START-SYNC] Initializing backends...')
       for (const backend of enabledBackends) {
         try {
@@ -601,6 +619,12 @@ export const useSyncOrchestratorStore = defineStore(
 
       // Remove visibility listener for mobile reconnection
       removeVisibilityListener()
+
+      // Remove P2P resume handler
+      if (p2pResumeHandler) {
+        document.removeEventListener('visibilitychange', p2pResumeHandler)
+        p2pResumeHandler = null
+      }
 
       // Stop sync events listener (also clears all registered store reload functions)
       stopSyncEvents()
