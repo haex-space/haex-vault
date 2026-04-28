@@ -460,7 +460,7 @@ export const useSyncOrchestratorStore = defineStore(
           try {
             await invoke('peer_storage_reload_shares')
           } catch (err) {
-            log('warn', `peer_storage_reload_shares failed: ${err}`)
+            log.warn(`peer_storage_reload_shares failed: ${err}`)
           }
         },
       )
