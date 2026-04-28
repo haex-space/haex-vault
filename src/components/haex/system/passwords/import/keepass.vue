@@ -192,76 +192,78 @@ const importAsync = async () => {
 // Maps KeePass standard icon IDs (0–68) to Iconify names.
 // KeePass stores these as integers in entry.icon / group.icon;
 // they are NOT embedded in the KDBX file — this mapping is the iconset.
+// Primary: i-lucide-* (already used throughout the app, all verified to exist).
+// MDI fallback only for brand icons (Firefox, Chrome, Windows, etc.) with no Lucide equivalent.
 const KEEPASS_ICONS: string[] = [
-  'mdi:key',                         // 0  Key
-  'mdi:earth',                       // 1  World / Network
-  'mdi:alert-circle',                // 2  Warning
-  'mdi:server',                      // 3  Network Server
-  'mdi:folder-account',              // 4  Marked Directory
-  'mdi:account-voice',               // 5  User Communication
-  'mdi:puzzle',                      // 6  Parts
-  'mdi:note-text',                   // 7  Notepad
-  'mdi:web',                         // 8  World Socket
-  'mdi:card-account-details',        // 9  Identity
-  'mdi:file-document',               // 10 Paper Ready
-  'mdi:camera',                      // 11 Digicam
-  'mdi:message-flash',               // 12 IR Communication
-  'mdi:key-chain',                   // 13 Multi Keys
-  'mdi:lightning-bolt',              // 14 Energy
-  'mdi:scanner',                     // 15 Scanner
-  'mdi:earth-plus',                  // 16 World Star
-  'mdi:email',                       // 17 Envelope Box
-  'mdi:disc',                        // 18 Disk
-  'mdi:monitor',                     // 19 Monitor
-  'mdi:email-outline',               // 20 EMail
-  'mdi:cog',                         // 21 Configuration
-  'mdi:clipboard',                   // 22 Clipboard Ready
-  'mdi:file-plus',                   // 23 Paper New
-  'mdi:television-play',             // 24 Screen / Terminal
-  'mdi:power-plug',                  // 25 Energy Careful
-  'mdi:wallet',                      // 26 E-Wallet
-  'mdi:key-variant',                 // 27 Keys
-  'mdi:notebook',                    // 28 Notepad 2
-  'mdi:badge-account',               // 29 ID Card
-  'mdi:credit-card-chip',            // 30 Smart Card
-  'mdi:calculator',                  // 31 Calculator
-  'mdi:clipboard-text',              // 32 Notepad 3
-  'mdi:package-variant',             // 33 Card Package
-  'mdi:folder',                      // 34 Folder
-  'mdi:folder-open',                 // 35 Folder Open
-  'mdi:folder-zip',                  // 36 Folder Package
-  'mdi:lock-open',                   // 37 Lock Open
-  'mdi:file-lock',                   // 38 Paper Locked
-  'mdi:check-circle',                // 39 Checked
-  'mdi:pen',                         // 40 Pen
-  'mdi:image',                       // 41 Thumbnail
-  'mdi:book-open',                   // 42 Book
-  'mdi:format-list-bulleted',        // 43 List
-  'mdi:account-key',                 // 44 User Key
-  'mdi:wrench',                      // 45 Tool
-  'mdi:home',                        // 46 Home
-  'mdi:star',                        // 47 Star
-  'mdi:linux',                       // 48 Tux / Linux
-  'mdi:feather',                     // 49 Feather
-  'mdi:apple',                       // 50 Apple
-  'mdi:wikipedia',                   // 51 Wikipedia
-  'mdi:currency-usd',                // 52 Money
-  'mdi:certificate',                 // 53 Certificate
-  'mdi:cellphone',                   // 54 Phone / BlackBerry
-  'mdi:coffee',                      // 55 Palm / PDA
-  'mdi:file-multiple',               // 56 Files
-  'mdi:clipboard-check',             // 57 Clipboard Check
-  'mdi:zip-box',                     // 58 Zip Archive
-  'mdi:debian',                      // 59 Linux / Debian
-  'mdi:firefox',                     // 60 Firefox
-  'mdi:google-chrome',               // 61 Chrome
-  'mdi:internet-explorer',           // 62 Internet Explorer
-  'mdi:microsoft-windows',           // 63 Windows
-  'mdi:remote-desktop',              // 64 Remote Desktop
-  'mdi:timer',                       // 65 Stopwatch
-  'mdi:printer',                     // 66 Printer
-  'mdi:shield-account',              // 67 Emblem / Badge
-  'mdi:camera-outline',              // 68 Camera
+  'i-lucide-key',            // 0  Key
+  'i-lucide-globe',          // 1  World / Network
+  'i-lucide-triangle-alert', // 2  Warning
+  'i-lucide-server',         // 3  Network Server
+  'i-lucide-folder-check',   // 4  Marked Directory
+  'i-lucide-message-circle', // 5  User Communication
+  'i-lucide-puzzle',         // 6  Parts
+  'i-lucide-notebook',       // 7  Notepad
+  'i-lucide-network',        // 8  World Socket / Network
+  'i-lucide-contact',        // 9  Identity
+  'i-lucide-file-check',     // 10 Paper Ready
+  'i-lucide-camera',         // 11 Digicam
+  'i-lucide-bluetooth',      // 12 IR Communication
+  'i-lucide-key-round',      // 13 Multi Keys
+  'i-lucide-zap',            // 14 Energy
+  'i-lucide-scan',           // 15 Scanner
+  'i-lucide-wifi',           // 16 World Star / Broadcast
+  'i-lucide-mailbox',        // 17 Envelope Box
+  'i-lucide-hard-drive',     // 18 Disk
+  'i-lucide-monitor',        // 19 Monitor
+  'i-lucide-mail',           // 20 EMail
+  'i-lucide-settings',       // 21 Configuration
+  'i-lucide-clipboard',      // 22 Clipboard Ready
+  'i-lucide-file-plus',      // 23 Paper New
+  'i-lucide-terminal',       // 24 Screen / Terminal
+  'i-lucide-plug',           // 25 Energy Careful / Power
+  'i-lucide-wallet',         // 26 E-Wallet
+  'i-lucide-key-square',     // 27 Keys (variant)
+  'i-lucide-notebook-text',  // 28 Notepad 2
+  'i-lucide-id-card',        // 29 ID Card
+  'i-lucide-nfc',            // 30 Smart Card
+  'i-lucide-calculator',     // 31 Calculator
+  'i-lucide-file-pen',       // 32 Notepad 3 / Edit
+  'i-lucide-package',        // 33 Card Package
+  'i-lucide-folder',         // 34 Folder
+  'i-lucide-folder-open',    // 35 Folder Open
+  'i-lucide-folder-archive', // 36 Folder Package
+  'i-lucide-lock-open',      // 37 Lock Open
+  'i-lucide-file-lock',      // 38 Paper Locked
+  'i-lucide-circle-check',   // 39 Checked
+  'i-lucide-pen',            // 40 Pen
+  'i-lucide-image',          // 41 Thumbnail
+  'i-lucide-book-open',      // 42 Book
+  'i-lucide-list',           // 43 List
+  'i-lucide-user-key',       // 44 User Key
+  'i-lucide-wrench',         // 45 Tool
+  'i-lucide-house',          // 46 Home
+  'i-lucide-star',           // 47 Star
+  'mdi:linux',               // 48 Tux / Linux  (no Lucide equivalent)
+  'i-lucide-feather',        // 49 Feather
+  'mdi:apple',               // 50 Apple         (no Lucide equivalent)
+  'mdi:wikipedia',           // 51 Wikipedia      (no Lucide equivalent)
+  'i-lucide-banknote',       // 52 Money
+  'i-lucide-award',          // 53 Certificate
+  'i-lucide-smartphone',     // 54 Phone / BlackBerry
+  'i-lucide-tablet',         // 55 Palm / PDA
+  'i-lucide-files',          // 56 Files
+  'i-lucide-clipboard-check',// 57 Clipboard Check
+  'i-lucide-file-archive',   // 58 Zip Archive
+  'mdi:debian',              // 59 Debian / Linux (no Lucide equivalent)
+  'mdi:firefox',             // 60 Firefox        (no Lucide equivalent)
+  'mdi:google-chrome',       // 61 Chrome         (no Lucide equivalent)
+  'mdi:internet-explorer',   // 62 Internet Explorer (no Lucide equivalent)
+  'mdi:microsoft-windows',   // 63 Windows        (no Lucide equivalent)
+  'i-lucide-screen-share',   // 64 Remote Desktop
+  'i-lucide-timer',          // 65 Stopwatch
+  'i-lucide-printer',        // 66 Printer
+  'i-lucide-shield',         // 67 Emblem / Badge
+  'i-lucide-camera',         // 68 Camera
 ]
 
 function keepassStandardIcon(iconId: number | undefined): string | null {
