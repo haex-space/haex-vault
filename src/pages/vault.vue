@@ -46,6 +46,10 @@ const { currentVault } = storeToRefs(vaultStore)
 // Initialize navigation store (registers popstate listener + boundary)
 useNavigationStore()
 
+onUnmounted(async () => {
+  await vaultStore.closeAsync()
+})
+
 onMounted(async () => {
   try {
     // Initialize vault (device, spaces, cleanup) — must run after navigation
