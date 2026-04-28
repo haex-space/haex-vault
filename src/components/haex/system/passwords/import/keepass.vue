@@ -189,6 +189,86 @@ const importAsync = async () => {
   }
 }
 
+// Maps KeePass standard icon IDs (0–68) to Iconify names.
+// KeePass stores these as integers in entry.icon / group.icon;
+// they are NOT embedded in the KDBX file — this mapping is the iconset.
+const KEEPASS_ICONS: string[] = [
+  'mdi:key',                         // 0  Key
+  'mdi:earth',                       // 1  World / Network
+  'mdi:alert-circle',                // 2  Warning
+  'mdi:server',                      // 3  Network Server
+  'mdi:folder-account',              // 4  Marked Directory
+  'mdi:account-voice',               // 5  User Communication
+  'mdi:puzzle',                      // 6  Parts
+  'mdi:note-text',                   // 7  Notepad
+  'mdi:web',                         // 8  World Socket
+  'mdi:card-account-details',        // 9  Identity
+  'mdi:file-document',               // 10 Paper Ready
+  'mdi:camera',                      // 11 Digicam
+  'mdi:message-flash',               // 12 IR Communication
+  'mdi:key-chain',                   // 13 Multi Keys
+  'mdi:lightning-bolt',              // 14 Energy
+  'mdi:scanner',                     // 15 Scanner
+  'mdi:earth-plus',                  // 16 World Star
+  'mdi:email',                       // 17 Envelope Box
+  'mdi:disc',                        // 18 Disk
+  'mdi:monitor',                     // 19 Monitor
+  'mdi:email-outline',               // 20 EMail
+  'mdi:cog',                         // 21 Configuration
+  'mdi:clipboard',                   // 22 Clipboard Ready
+  'mdi:file-plus',                   // 23 Paper New
+  'mdi:television-play',             // 24 Screen / Terminal
+  'mdi:power-plug',                  // 25 Energy Careful
+  'mdi:wallet',                      // 26 E-Wallet
+  'mdi:key-variant',                 // 27 Keys
+  'mdi:notebook',                    // 28 Notepad 2
+  'mdi:badge-account',               // 29 ID Card
+  'mdi:credit-card-chip',            // 30 Smart Card
+  'mdi:calculator',                  // 31 Calculator
+  'mdi:clipboard-text',              // 32 Notepad 3
+  'mdi:package-variant',             // 33 Card Package
+  'mdi:folder',                      // 34 Folder
+  'mdi:folder-open',                 // 35 Folder Open
+  'mdi:folder-zip',                  // 36 Folder Package
+  'mdi:lock-open',                   // 37 Lock Open
+  'mdi:file-lock',                   // 38 Paper Locked
+  'mdi:check-circle',                // 39 Checked
+  'mdi:pen',                         // 40 Pen
+  'mdi:image',                       // 41 Thumbnail
+  'mdi:book-open',                   // 42 Book
+  'mdi:format-list-bulleted',        // 43 List
+  'mdi:account-key',                 // 44 User Key
+  'mdi:wrench',                      // 45 Tool
+  'mdi:home',                        // 46 Home
+  'mdi:star',                        // 47 Star
+  'mdi:linux',                       // 48 Tux / Linux
+  'mdi:feather',                     // 49 Feather
+  'mdi:apple',                       // 50 Apple
+  'mdi:wikipedia',                   // 51 Wikipedia
+  'mdi:currency-usd',                // 52 Money
+  'mdi:certificate',                 // 53 Certificate
+  'mdi:cellphone',                   // 54 Phone / BlackBerry
+  'mdi:coffee',                      // 55 Palm / PDA
+  'mdi:file-multiple',               // 56 Files
+  'mdi:clipboard-check',             // 57 Clipboard Check
+  'mdi:zip-box',                     // 58 Zip Archive
+  'mdi:debian',                      // 59 Linux / Debian
+  'mdi:firefox',                     // 60 Firefox
+  'mdi:google-chrome',               // 61 Chrome
+  'mdi:internet-explorer',           // 62 Internet Explorer
+  'mdi:microsoft-windows',           // 63 Windows
+  'mdi:remote-desktop',              // 64 Remote Desktop
+  'mdi:timer',                       // 65 Stopwatch
+  'mdi:printer',                     // 66 Printer
+  'mdi:shield-account',              // 67 Emblem / Badge
+  'mdi:camera-outline',              // 68 Camera
+]
+
+function keepassStandardIcon(iconId: number | undefined): string | null {
+  if (iconId === undefined) return null
+  return KEEPASS_ICONS[iconId] ?? null
+}
+
 function getFieldValue(field: kdbxweb.KdbxEntryField | undefined): string {
   if (!field) return ''
   if (typeof field === 'string') return field
@@ -305,6 +385,7 @@ async function importKdbxAsync(buffer: ArrayBuffer, pwd: string): Promise<{ grou
         icon = `binary:${hash}`
       }
     }
+    if (!icon) icon = keepassStandardIcon(group.icon)
 
     const id = await groupsStore.addGroupAsync({
       id: groupUuid, name: group.name ?? '', icon, parentId: parentId ?? undefined,
@@ -333,6 +414,7 @@ async function importKdbxAsync(buffer: ArrayBuffer, pwd: string): Promise<{ grou
         icon = `binary:${hash}`
       }
     }
+    if (!icon) icon = keepassStandardIcon(entry.icon)
 
     const newId = kdbxUuidToStandard(entry.uuid)
     const createdAt = entry.times.creationTime ? new Date(entry.times.creationTime).toISOString() : new Date().toISOString()
