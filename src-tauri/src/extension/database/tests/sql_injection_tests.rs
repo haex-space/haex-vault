@@ -374,6 +374,7 @@ fn test_permission_checker_cross_extension() {
                 filesync: None,
                 spaces: None,
                 identities: None,
+                passwords: None,
             },
             homepage: None,
             description: None,

@@ -41,6 +41,7 @@ fn create_test_extension(public_key: &str, name: &str) -> Extension {
                 filesync: None,
                 spaces: None,
                 identities: None,
+                passwords: None,
             },
             homepage: None,
             description: Some("Test extension".to_string()),
