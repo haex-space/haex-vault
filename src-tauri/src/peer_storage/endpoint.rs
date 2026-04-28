@@ -109,6 +109,10 @@ pub struct PeerEndpoint {
     pub(crate) state: Arc<RwLock<PeerState>>,
     /// Handle to the accept loop task
     accept_task: Option<tokio::task::JoinHandle<()>>,
+    /// Handle to the endpoint-closed watcher task; aborted on user-initiated stop
+    /// so it does not emit a spurious "endpoint-closed" event that would trigger
+    /// the TS auto-restart handler.
+    watcher_task: Option<tokio::task::JoinHandle<()>>,
     /// Configured relay URL (set at start, available even before relay connection is established)
     configured_relay_url: Option<RelayUrl>,
     /// Cached connections to remote peers. Reusing a single QUIC connection for
@@ -125,6 +129,7 @@ impl PeerEndpoint {
             secret_key,
             state: Arc::new(RwLock::new(PeerState::default())),
             accept_task: None,
+            watcher_task: None,
             configured_relay_url: None,
             connections: Mutex::new(HashMap::new()),
         }
@@ -252,7 +257,7 @@ impl PeerEndpoint {
         let watch_state = self.state.clone();
         let started_at = std::time::Instant::now();
         let endpoint_id_short = id.fmt_short();
-        tokio::spawn(async move {
+        let watcher_task = tokio::spawn(async move {
             watch_endpoint.closed().await;
             let uptime = started_at.elapsed();
             let msg = format!(
@@ -282,6 +287,7 @@ impl PeerEndpoint {
 
         self.endpoint = Some(endpoint);
         self.accept_task = Some(accept_task);
+        self.watcher_task = Some(watcher_task);
 
         Ok(id)
     }
@@ -290,6 +296,12 @@ impl PeerEndpoint {
     pub async fn stop(&mut self) -> Result<(), PeerStorageError> {
         if let Ok(mut cache) = self.connections.lock() {
             cache.clear();
+        }
+
+        // Abort the watcher before closing so it cannot emit a spurious
+        // "endpoint-closed" event that would trigger the TS auto-restart handler.
+        if let Some(task) = self.watcher_task.take() {
+            task.abort();
         }
 
         if let Some(task) = self.accept_task.take() {
