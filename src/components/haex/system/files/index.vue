@@ -677,6 +677,13 @@ const localShares = computed(() => {
   return peerStore.shares
 })
 
+const getSpaceName = (spaceId: string) => {
+  return (
+    spacesStore.visibleSpaces.find((s) => s.id === spaceId)?.name ||
+    spaceId.slice(0, 8)
+  )
+}
+
 const remotePeers = computed(() => {
   const peers: RemotePeer[] = []
   const seen = new Set<string>()
@@ -713,13 +720,6 @@ const remotePeers = computed(() => {
 
 const remotePeerIds = computed(() => remotePeers.value.map((p) => p.endpointId))
 const ping = usePeerPing(remotePeerIds)
-
-const getSpaceName = (spaceId: string) => {
-  return (
-    spacesStore.visibleSpaces.find((s) => s.id === spaceId)?.name ||
-    spaceId.slice(0, 8)
-  )
-}
 
 const applyDeepLink = async (params?: Record<string, unknown>) => {
   if (!params?.endpointId) return
