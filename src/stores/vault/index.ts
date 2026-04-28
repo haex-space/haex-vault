@@ -250,39 +250,35 @@ export const useVaultStore = defineStore('vaultStore', () => {
   }
 
   const closeAsync = async () => {
-    const hasOpenVaults = Object.keys(openVaults.value).length > 0
+    if (!currentVaultId.value) return
 
-    if (hasOpenVaults) {
-      // Stop P2P endpoint first
-      const peerStorageStore = usePeerStorageStore()
-      await peerStorageStore.stopAsync()
+    // Stop P2P endpoint first
+    const peerStorageStore = usePeerStorageStore()
+    await peerStorageStore.stopAsync()
 
-      // Stop sync to clear all sync-related state
-      const syncOrchestratorStore = useSyncOrchestratorStore()
-      await syncOrchestratorStore.stopSyncAsync()
+    // Stop sync to clear all sync-related state
+    const syncOrchestratorStore = useSyncOrchestratorStore()
+    await syncOrchestratorStore.stopSyncAsync()
 
-      // Reset backends store (separate from stopSync so disabling a backend doesn't clear the list)
-      const syncBackendsStore = useSyncBackendsStore()
-      syncBackendsStore.reset()
+    // Reset backends store (separate from stopSync so disabling a backend doesn't clear the list)
+    const syncBackendsStore = useSyncBackendsStore()
+    syncBackendsStore.reset()
 
-      // Sync engine cleanup (token manager reset)
-      const syncEngineStore = useSyncEngineStore()
-      await syncEngineStore.reset()
-    }
+    // Sync engine cleanup (token manager reset)
+    const syncEngineStore = useSyncEngineStore()
+    await syncEngineStore.reset()
 
-    // Close the Rust DB connection (idempotent — safe when no vault is open)
+    // Close the database connection on the Rust side
+    // This clears the DB connection, HLC service, and extension manager caches
     try {
       await invoke('close_database')
     } catch (error) {
       log.error('Failed to close database:', error)
     }
 
-    // Clearing openVaults triggers the currentVault watcher when currentVaultId
-    // is still set (e.g. launcher logout), which calls resetAllVaultStores() and
-    // closeAllWindowsAsync(). When called from onUnmounted (route already changed),
-    // currentVault is already undefined so the watcher does not fire again — that
-    // is intentional, stores were already reset by the route-change watcher tick.
-    openVaults.value = {}
+    // Removing vault from openVaults triggers the currentVault watcher,
+    // which calls resetAllVaultStores() and closeAllWindowsAsync() as safety net
+    delete openVaults.value?.[currentVaultId.value]
   }
 
   const existsVault = () => {

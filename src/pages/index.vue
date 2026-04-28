@@ -187,15 +187,8 @@ const onConfirmRemoveAsync = async () => {
   }
 }
 
-const vaultStore = useVaultStore()
-
 onMounted(async () => {
   try {
-    // Ensure any previously mounted vault is fully closed before showing
-    // the vault list. This is the safety net for edge cases where vault.vue's
-    // onUnmounted did not run (e.g. direct URL navigation, hard reload).
-    await vaultStore.closeAsync()
-
     appVersion.value = await getVersion()
     await syncLastVaultsAsync()
   } catch (error) {
