@@ -55,6 +55,10 @@
       :group="null"
       :create-parent-id="createParentId"
     />
+
+    <HaexSystemPasswordsImportBitwarden v-model:open="importBitwardenOpen" />
+    <HaexSystemPasswordsImportLastpass v-model:open="importLastpassOpen" />
+    <HaexSystemPasswordsImportKeepass v-model:open="importKeepassOpen" />
   </div>
 </template>
 
@@ -92,15 +96,33 @@ const addMenuItems = computed<DropdownMenuItem[][]>(() => [
 ])
 
 const tagManagerOpen = ref(false)
+const importBitwardenOpen = ref(false)
+const importLastpassOpen = ref(false)
+const importKeepassOpen = ref(false)
 
 const moreMenuItems = computed<DropdownMenuItem[][]>(() => [
   [
     {
       label: t('moreMenu.tags'),
       icon: 'i-lucide-tag',
-      onSelect: () => {
-        tagManagerOpen.value = true
-      },
+      onSelect: () => { tagManagerOpen.value = true },
+    },
+  ],
+  [
+    {
+      label: t('moreMenu.importBitwarden'),
+      icon: 'i-lucide-shield',
+      onSelect: () => { importBitwardenOpen.value = true },
+    },
+    {
+      label: t('moreMenu.importLastpass'),
+      icon: 'i-lucide-star',
+      onSelect: () => { importLastpassOpen.value = true },
+    },
+    {
+      label: t('moreMenu.importKeepass'),
+      icon: 'i-lucide-key',
+      onSelect: () => { importKeepassOpen.value = true },
     },
   ],
 ])
@@ -124,6 +146,9 @@ de:
     folder: Ordner anlegen
   moreMenu:
     tags: Tags verwalten
+    importBitwarden: Import von Bitwarden
+    importLastpass: Import von LastPass
+    importKeepass: Import von KeePass
 en:
   search: Search…
   add: Add
@@ -134,4 +159,7 @@ en:
     folder: New folder
   moreMenu:
     tags: Manage tags
+    importBitwarden: Import from Bitwarden
+    importLastpass: Import from LastPass
+    importKeepass: Import from KeePass
 </i18n>

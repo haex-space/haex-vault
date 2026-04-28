@@ -60,7 +60,9 @@
     "driver.js": "^1.4.0",
     "drizzle-orm": "^0.45.2",
     "fuse.js": "^7.3.0",
+    "hash-wasm": "^4.12.0",
     "html5-qrcode": "^2.3.8",
+    "kdbxweb": "^2.1.1",
     "md-editor-v3": "^6.4.1",
     "nuxt-zod-i18n": "^1.12.1",
     "otpauth": "^9.5.0",
@@ -119,8 +121,7 @@
       "node-forge": ">=1.4.0",
       "lodash": ">=4.18.0",
       "axios": ">=1.15.0",
-      "happy-dom": ">=20.8.9",
-      "vue-router": "^5.0.6"
+      "happy-dom": ">=20.8.9"
     },
     "onlyBuiltDependencies": []
   },
