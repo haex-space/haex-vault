@@ -4,7 +4,7 @@
     :class="[$attrs.class, highlight && 'bg-primary/10 px-3 rounded-lg -mx-3 border border-primary/20']"
     v-bind="listeners"
   >
-    <div class="flex items-start justify-between gap-3">
+    <div class="flex items-center justify-between gap-3">
       <div class="flex-1 min-w-0">
         <slot />
       </div>

@@ -11,6 +11,7 @@ mod logging;
 pub mod mls;
 #[cfg(desktop)]
 mod shortcuts;
+mod passwords;
 pub mod peer_storage;
 mod remote_storage;
 pub mod space_delivery;
@@ -312,6 +313,11 @@ pub fn run() {
             extension::database::commands::extension_database_register_migrations,
             extension::database::commands::apply_synced_extension_migrations,
             extension::spaces::commands::extension_space_assign,
+            passwords::commands::extension_password_list,
+            passwords::commands::extension_password_read,
+            passwords::commands::extension_password_create,
+            passwords::commands::extension_password_update,
+            passwords::commands::extension_password_delete,
             extension::spaces::commands::extension_space_unassign,
             extension::spaces::commands::extension_space_get_assignments,
             extension::spaces::commands::extension_space_list,

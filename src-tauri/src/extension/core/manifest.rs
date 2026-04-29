@@ -1,7 +1,8 @@
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::types::{
     Action, DbAction, ExtensionPermission, FileSyncAction, FsAction, IdentityAction,
-    PermissionConstraints, PermissionStatus, ResourceType, ShellAction, SpaceAction, WebAction,
+    PasswordsAction, PermissionConstraints, PermissionStatus, ResourceType, ShellAction,
+    SpaceAction, WebAction,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -89,6 +90,8 @@ pub struct ExtensionPermissions {
     pub spaces: Option<Vec<PermissionEntry>>,
     #[serde(default)]
     pub identities: Option<Vec<PermissionEntry>>,
+    #[serde(default)]
+    pub passwords: Option<Vec<PermissionEntry>>,
 }
 
 /// Typ-Alias für bessere Lesbarkeit, wenn die Struktur als UI-Modell verwendet wird.
@@ -181,6 +184,7 @@ impl ExtensionManifest {
         set_status_for_list(editable.filesync.as_mut());
         set_status_for_list(editable.spaces.as_mut());
         set_status_for_list(editable.identities.as_mut());
+        set_status_for_list(editable.passwords.as_mut());
 
         editable
     }
@@ -240,6 +244,13 @@ impl ExtensionPermissions {
                 }
             }
         }
+        if let Some(entries) = &self.passwords {
+            for p in entries {
+                if let Some(perm) = Self::create_internal(extension_id, ResourceType::Passwords, p) {
+                    permissions.push(perm);
+                }
+            }
+        }
 
         permissions
     }
@@ -274,6 +285,9 @@ impl ExtensionPermissions {
             }
             ResourceType::Identities => {
                 IdentityAction::from_str(operation_str).ok().map(Action::Identities)
+            }
+            ResourceType::Passwords => {
+                PasswordsAction::from_str(operation_str).ok().map(Action::Passwords)
             }
         };
 

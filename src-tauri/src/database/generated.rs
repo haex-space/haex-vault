@@ -245,3 +245,370 @@ impl HaexExtensionLimits {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HaexPasswordsItemDetails {
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub otp_secret: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub otp_digits: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub otp_period: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub otp_algorithm: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub autofill_aliases: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+}
+
+impl HaexPasswordsItemDetails {
+    pub fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            id: row.get(0)?,
+            title: row.get(1)?,
+            username: row.get(2)?,
+            password: row.get(3)?,
+            note: row.get(4)?,
+            icon: row.get(5)?,
+            color: row.get(6)?,
+            url: row.get(7)?,
+            otp_secret: row.get(8)?,
+            otp_digits: row.get(9)?,
+            otp_period: row.get(10)?,
+            otp_algorithm: row.get(11)?,
+            expires_at: row.get(12)?,
+            autofill_aliases: row.get(13)?,
+            created_at: row.get(14)?,
+            updated_at: row.get(15)?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HaexPasswordsItemKeyValues {
+    pub id: String,
+    pub item_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+}
+
+impl HaexPasswordsItemKeyValues {
+    pub fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            id: row.get(0)?,
+            item_id: row.get(1)?,
+            key: row.get(2)?,
+            value: row.get(3)?,
+            updated_at: row.get(4)?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HaexPasswordsGroups {
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sort_order: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+}
+
+impl HaexPasswordsGroups {
+    pub fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            description: row.get(2)?,
+            icon: row.get(3)?,
+            sort_order: row.get(4)?,
+            color: row.get(5)?,
+            parent_id: row.get(6)?,
+            created_at: row.get(7)?,
+            updated_at: row.get(8)?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HaexPasswordsGroupItems {
+    pub item_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group_id: Option<String>,
+}
+
+impl HaexPasswordsGroupItems {
+    pub fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            item_id: row.get(0)?,
+            group_id: row.get(1)?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HaexPasswordsBinaries {
+    pub hash: String,
+    pub data: String,
+    pub size: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "type")]
+    pub r#type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+}
+
+impl HaexPasswordsBinaries {
+    pub fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            hash: row.get(0)?,
+            data: row.get(1)?,
+            size: row.get(2)?,
+            r#type: row.get(3)?,
+            created_at: row.get(4)?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HaexPasswordsItemBinaries {
+    pub id: String,
+    pub item_id: String,
+    pub binary_hash: String,
+    pub file_name: String,
+}
+
+impl HaexPasswordsItemBinaries {
+    pub fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            id: row.get(0)?,
+            item_id: row.get(1)?,
+            binary_hash: row.get(2)?,
+            file_name: row.get(3)?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HaexPasswordsItemSnapshots {
+    pub id: String,
+    pub item_id: String,
+    pub snapshot_data: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub modified_at: Option<String>,
+}
+
+impl HaexPasswordsItemSnapshots {
+    pub fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            id: row.get(0)?,
+            item_id: row.get(1)?,
+            snapshot_data: row.get(2)?,
+            created_at: row.get(3)?,
+            modified_at: row.get(4)?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HaexPasswordsSnapshotBinaries {
+    pub id: String,
+    pub snapshot_id: String,
+    pub binary_hash: String,
+    pub file_name: String,
+}
+
+impl HaexPasswordsSnapshotBinaries {
+    pub fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            id: row.get(0)?,
+            snapshot_id: row.get(1)?,
+            binary_hash: row.get(2)?,
+            file_name: row.get(3)?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HaexPasswordsGeneratorPresets {
+    pub id: String,
+    pub name: String,
+    pub length: i64,
+    pub uppercase: bool,
+    pub lowercase: bool,
+    pub numbers: bool,
+    pub symbols: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exclude_chars: Option<String>,
+    pub use_pattern: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<String>,
+    pub is_default: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+}
+
+impl HaexPasswordsGeneratorPresets {
+    pub fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            length: row.get(2)?,
+            uppercase: row.get(3)?,
+            lowercase: row.get(4)?,
+            numbers: row.get(5)?,
+            symbols: row.get(6)?,
+            exclude_chars: row.get(7)?,
+            use_pattern: row.get(8)?,
+            pattern: row.get(9)?,
+            is_default: row.get(10)?,
+            created_at: row.get(11)?,
+            updated_at: row.get(12)?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HaexPasswordsTags {
+    pub id: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+}
+
+impl HaexPasswordsTags {
+    pub fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            color: row.get(2)?,
+            created_at: row.get(3)?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HaexPasswordsItemTags {
+    pub id: String,
+    pub item_id: String,
+    pub tag_id: String,
+}
+
+impl HaexPasswordsItemTags {
+    pub fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            id: row.get(0)?,
+            item_id: row.get(1)?,
+            tag_id: row.get(2)?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HaexPasswordsPasskeys {
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub item_id: Option<String>,
+    pub credential_id: String,
+    pub relying_party_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relying_party_name: Option<String>,
+    pub user_handle: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_display_name: Option<String>,
+    pub private_key: String,
+    pub public_key: String,
+    pub algorithm: i64,
+    pub sign_count: i64,
+    pub is_discoverable: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nickname: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_used_at: Option<String>,
+}
+
+impl HaexPasswordsPasskeys {
+    pub fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            id: row.get(0)?,
+            item_id: row.get(1)?,
+            credential_id: row.get(2)?,
+            relying_party_id: row.get(3)?,
+            relying_party_name: row.get(4)?,
+            user_handle: row.get(5)?,
+            user_name: row.get(6)?,
+            user_display_name: row.get(7)?,
+            private_key: row.get(8)?,
+            public_key: row.get(9)?,
+            algorithm: row.get(10)?,
+            sign_count: row.get(11)?,
+            is_discoverable: row.get(12)?,
+            icon: row.get(13)?,
+            color: row.get(14)?,
+            nickname: row.get(15)?,
+            created_at: row.get(16)?,
+            last_used_at: row.get(17)?,
+        })
+    }
+}
+

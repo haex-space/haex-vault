@@ -74,7 +74,6 @@ function toSnakeCase(str: string): string {
 }
 
 function toPascalCase(str: string): string {
-  console.log('toPascalCase:', str)
   return str
     .split('_')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
@@ -183,12 +182,58 @@ use serde::{Deserialize, Serialize};
       name: tablesNames.haex.extension_limits.name,
       table: schema.haexExtensionLimits,
     },
+    {
+      name: tablesNames.haex.passwords_item_details.name,
+      table: schema.haexPasswordsItemDetails,
+    },
+    {
+      name: tablesNames.haex.passwords_item_key_values.name,
+      table: schema.haexPasswordsItemKeyValues,
+    },
+    {
+      name: tablesNames.haex.passwords_groups.name,
+      table: schema.haexPasswordsGroups,
+    },
+    {
+      name: tablesNames.haex.passwords_group_items.name,
+      table: schema.haexPasswordsGroupItems,
+    },
+    {
+      name: tablesNames.haex.passwords_binaries.name,
+      table: schema.haexPasswordsBinaries,
+    },
+    {
+      name: tablesNames.haex.passwords_item_binaries.name,
+      table: schema.haexPasswordsItemBinaries,
+    },
+    {
+      name: tablesNames.haex.passwords_item_snapshots.name,
+      table: schema.haexPasswordsItemSnapshots,
+    },
+    {
+      name: tablesNames.haex.passwords_snapshot_binaries.name,
+      table: schema.haexPasswordsSnapshotBinaries,
+    },
+    {
+      name: tablesNames.haex.passwords_generator_presets.name,
+      table: schema.haexPasswordsGeneratorPresets,
+    },
+    {
+      name: tablesNames.haex.passwords_tags.name,
+      table: schema.haexPasswordsTags,
+    },
+    {
+      name: tablesNames.haex.passwords_item_tags.name,
+      table: schema.haexPasswordsItemTags,
+    },
+    {
+      name: tablesNames.haex.passwords_passkeys.name,
+      table: schema.haexPasswordsPasskeys,
+    },
   ]
 
   for (const { name, table } of schemas) {
-    console.log(`\n=== Processing table: ${name} ===`)
     const columns = extractColumns(table)
-    console.log(`Found ${columns.length} columns`)
 
     if (columns.length > 0) {
       output += generateStruct(name, columns)

@@ -140,6 +140,18 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
       resizable: true,
       singleton: false,
     },
+    passwords: {
+      id: 'passwords',
+      name: 'Passwords',
+      icon: 'i-mdi-key-variant',
+      component: defineAsyncComponent(
+        () => import('@/components/haex/system/passwords/index.vue'),
+      ),
+      defaultWidth: 1000,
+      defaultHeight: 700,
+      resizable: true,
+      singleton: true,
+    },
   }
 
   const getSystemWindow = (id: string): SystemWindowDefinition | undefined => {

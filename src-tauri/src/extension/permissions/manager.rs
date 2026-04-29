@@ -5,7 +5,7 @@ use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::checker::PermissionChecker;
 use crate::extension::permissions::types::{
-    Action, ExtensionPermission, FileSyncAction, FileSyncTarget,
+    Action, ExtensionPermission, FileSyncAction, FileSyncTarget, PasswordsAction, PasswordsScope,
     PermissionConstraints, PermissionStatus, ResourceType, SpaceAction,
 };
 use crate::table_names::TABLE_EXTENSION_PERMISSIONS;
@@ -898,6 +898,102 @@ impl PermissionManager {
                 ))
             }
         }
+    }
+
+    /// Prüft Passwörter-Berechtigungen und liefert den erlaubten Tag-Scope zurück.
+    ///
+    /// Der Scope wird über `ExtensionPermission.target` gesteuert:
+    ///   - target = "*"        → Zugriff auf alle Einträge (PasswordsScope::All)
+    ///   - target = "calendar" → nur Einträge mit Tag "calendar"
+    ///   - mehrere Grants      → Union der Tags (sofern kein "*" dabei)
+    ///
+    /// Es zählen nur `Granted`-Permissions. Ist keine passende `Granted`
+    /// vorhanden, wird abhängig vom Zustand bestehender Einträge entweder
+    /// `Denied` oder `PromptRequired` zurückgegeben — analog zu den anderen
+    /// `check_*_permission`-Funktionen.
+    pub async fn check_passwords_permission(
+        app_state: &State<'_, AppState>,
+        extension_id: &str,
+        action: PasswordsAction,
+    ) -> Result<PasswordsScope, ExtensionError> {
+        let extension = app_state
+            .extension_manager
+            .get_extension(extension_id)
+            .ok_or_else(|| ExtensionError::ValidationError {
+                reason: format!("Extension not found: {}", extension_id),
+            })?
+            .clone();
+
+        let permissions = Self::get_permissions(app_state, extension_id).await?;
+
+        let action_allows = |perm_action: &Action, required: &PasswordsAction| -> bool {
+            match perm_action {
+                Action::Passwords(passwords_action) => match (passwords_action, required) {
+                    (a, b) if a == b => true,
+                    (PasswordsAction::ReadWrite, PasswordsAction::Read) => true,
+                    _ => false,
+                },
+                _ => false,
+            }
+        };
+
+        let matching: Vec<&ExtensionPermission> = permissions
+            .iter()
+            .filter(|p| {
+                p.resource_type == ResourceType::Passwords && action_allows(&p.action, &action)
+            })
+            .collect();
+
+        let action_str = match action {
+            PasswordsAction::Read => "read",
+            PasswordsAction::ReadWrite => "readWrite",
+        };
+
+        if matching.is_empty() {
+            return Err(ExtensionError::permission_prompt_required(
+                extension_id,
+                &extension.manifest.name,
+                "passwords",
+                action_str,
+                "*",
+            ));
+        }
+
+        // Prüfe auf ein Denied — ein einziges Denied blockiert alles.
+        if matching
+            .iter()
+            .any(|p| matches!(p.status, PermissionStatus::Denied))
+        {
+            return Err(ExtensionError::permission_denied(
+                extension_id,
+                action_str,
+                "passwords:*",
+            ));
+        }
+
+        let granted: Vec<&&ExtensionPermission> = matching
+            .iter()
+            .filter(|p| matches!(p.status, PermissionStatus::Granted))
+            .collect();
+
+        if granted.is_empty() {
+            // Alle matchings sind Ask → Prompt.
+            return Err(ExtensionError::permission_prompt_required(
+                extension_id,
+                &extension.manifest.name,
+                "passwords",
+                action_str,
+                "*",
+            ));
+        }
+
+        // Wildcard "*" schlägt alle Tags — Vollzugriff.
+        if granted.iter().any(|p| p.target == "*") {
+            return Ok(PasswordsScope::All);
+        }
+
+        let tags: Vec<String> = granted.iter().map(|p| p.target.clone()).collect();
+        Ok(PasswordsScope::Tags(tags))
     }
 
     // Helper-Methoden - müssen DatabaseError statt ExtensionError zurückgeben

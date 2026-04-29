@@ -59,7 +59,7 @@ use crate::ucan::{require_capability, CapabilityLevel, ValidatedUcan};
 
 use super::ucan::is_active_space_member;
 
-pub use ownership::enforce_row_ownership;
+pub use ownership::filter_ownership_violations;
 pub use space_scope::enforce_row_space_scope;
 pub use validate::validate_and_attribute;
 
@@ -100,8 +100,8 @@ fn required_capability_for(changes: &[LocalColumnChange]) -> CapabilityLevel {
 /// 3. Payload validation + origin attribution
 ///    ([`validate_and_attribute`])
 /// 4. Per-row space scope ([`enforce_row_space_scope`])
-/// 5. Per-row ownership for membership-system tables
-///    ([`enforce_row_ownership`])
+/// 5. Per-row ownership filter for membership-system tables
+///    ([`filter_ownership_violations`])
 ///
 /// On success, the returned `Accepted` value carries the *sanitised*
 /// change set: the client-supplied `authored_by_did` claims have been
@@ -175,13 +175,14 @@ pub fn authorize_inbound_sync_push(
         };
     }
 
-    // (5) Per-row ownership for membership-system tables
-    if let Err(reason) =
-        enforce_row_ownership(db, peer_endpoint_id, &validated_ucan.audience, &attributed)
-    {
-        return InboundSyncPushOutcome::Rejected {
-            reason: format!("Row ownership violation: {reason}"),
-        };
+    // (5) Per-row ownership filter for membership-system tables.
+    // Foreign-owned rows (e.g. ping-pong re-pushes of rows the leader wrote
+    // on behalf of another member) are silently dropped so the rest of the
+    // batch — including the pusher's own rows — can still be applied.
+    let (attributed, violations) =
+        filter_ownership_violations(db, peer_endpoint_id, &validated_ucan.audience, attributed);
+    for reason in &violations {
+        eprintln!("[InboundSync] Skipping foreign-owned row: {reason}");
     }
 
     InboundSyncPushOutcome::Accepted { changes: attributed }

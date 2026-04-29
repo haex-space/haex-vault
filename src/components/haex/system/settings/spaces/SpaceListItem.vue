@@ -115,7 +115,7 @@
             v-if="canWrite"
             :items="addShareMenuItems"
           >
-            <UiButton
+            <UButton
               color="primary"
               variant="ghost"
               icon="i-lucide-plus"
@@ -135,7 +135,7 @@
             v-if="isAdmin || canInvite"
             :items="inviteMenuItems"
           >
-            <UiButton
+            <UButton
               color="primary"
               variant="ghost"
               icon="i-lucide-user-plus"
