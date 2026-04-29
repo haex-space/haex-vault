@@ -74,7 +74,6 @@ function toSnakeCase(str: string): string {
 }
 
 function toPascalCase(str: string): string {
-  console.log('toPascalCase:', str)
   return str
     .split('_')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
@@ -234,9 +233,7 @@ use serde::{Deserialize, Serialize};
   ]
 
   for (const { name, table } of schemas) {
-    console.log(`\n=== Processing table: ${name} ===`)
     const columns = extractColumns(table)
-    console.log(`Found ${columns.length} columns`)
 
     if (columns.length > 0) {
       output += generateStruct(name, columns)
