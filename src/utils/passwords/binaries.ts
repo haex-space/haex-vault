@@ -40,9 +40,10 @@ export async function calculateBinaryHashAsync(
 
 export async function addBinaryAsync(
   data: string,
-  size: number,
+  size: number | bigint,
   type: 'icon' | 'attachment' = 'attachment',
 ): Promise<string> {
+  const sizeNumber = Number(size)
   const db = requireDb()
   const hash = await calculateBinaryHashAsync(data)
 
@@ -55,7 +56,7 @@ export async function addBinaryAsync(
   if (existing.length === 0) {
     await db
       .insert(haexPasswordsBinaries)
-      .values({ hash, data, size, type })
+      .values({ hash, data, size: sizeNumber, type })
   }
 
   return hash
