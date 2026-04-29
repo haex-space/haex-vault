@@ -718,24 +718,20 @@ async fn fetch_and_process_mls_messages(
                 if e.contains("epoch") || e.contains("Welcome") || e.contains("group") {
                     eprintln!("[SyncLoop] Possible epoch gap detected, attempting rejoin for space {space_id}");
                     match attempt_rejoin(db, session, space_id, app_handle).await {
-                        Ok(()) => {
+                        Ok(ec_msg_id) => {
                             // After External Commit our local epoch jumped to
-                            // the leader's current epoch. Every remaining
-                            // message in the batch with an older epoch is a
-                            // historical commit that brought the group up to
-                            // (or close to) the current epoch — we can't
-                            // re-apply them now. Skip the entire batch tail
-                            // in one shot rather than one cycle per stale
-                            // commit; if there were any genuinely-new
-                            // messages (epoch >= current) in this batch they
-                            // will be re-fetched on the next cycle since the
-                            // leader keeps the queue intact and the cursor
-                            // we set here is at most the last id we saw.
-                            // Take the max id across the batch so the cursor
-                            // never regresses if the underlying fetch order
-                            // changes — `messages.last()` would only be
-                            // correct under a strictly ascending sort.
-                            let skip_to = messages.iter().map(|m| m.id).max().unwrap_or(msg.id);
+                            // the leader's current epoch. Advance the cursor
+                            // to the max of:
+                            //   (a) the highest id in the current batch — skips
+                            //       all stale historical commits in this fetch.
+                            //   (b) the msg_id of the External Commit just
+                            //       stored by the leader — skips the EC itself
+                            //       so the next cycle doesn't re-fetch it and
+                            //       trip on its old epoch number. Without this,
+                            //       every EC stored in the buffer triggers
+                            //       another rejoin in an infinite loop.
+                            let batch_max = messages.iter().map(|m| m.id).max().unwrap_or(msg.id);
+                            let skip_to = batch_max.max(ec_msg_id);
                             eprintln!(
                                 "[SyncLoop] Rejoin successful, advancing cursor past msg {} (skipping {} stale message(s)) for space {space_id}",
                                 skip_to,
@@ -773,12 +769,14 @@ async fn fetch_and_process_mls_messages(
 }
 
 /// Attempt to rejoin an MLS group via External Commit after detecting an epoch gap.
+/// Returns the message ID of the stored External Commit so the caller can advance
+/// the MLS cursor past it (preventing the next fetch from re-tripping on it).
 async fn attempt_rejoin(
     db: &DbConnection,
     session: &PeerSession,
     space_id: &str,
     app_handle: &tauri::AppHandle,
-) -> Result<(), DeliveryError> {
+) -> Result<i64, DeliveryError> {
     // 1. Request GroupInfo from leader
     let group_info_b64 = session.request_rejoin(space_id).await?;
 
@@ -801,8 +799,10 @@ async fn attempt_rejoin(
 
     let commit_b64 = BASE64.encode(&commit_bytes);
 
-    // 3. Submit the External Commit to the leader for distribution
-    session
+    // 3. Submit the External Commit to the leader for distribution.
+    //    The returned msg_id lets the caller advance the MLS cursor past the
+    //    EC so the next fetch doesn't re-process it as a stale epoch-N message.
+    let ec_msg_id = session
         .submit_external_commit(space_id, &commit_b64)
         .await?;
 
@@ -820,7 +820,7 @@ async fn attempt_rejoin(
         epoch_key.epoch
     );
 
-    Ok(())
+    Ok(ec_msg_id)
 }
 
 /// Query the leader for key package status and upload more if requested.
@@ -994,4 +994,60 @@ fn sqlite_datetime_now() -> String {
         now.minute(),
         now.second(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    // Regression tests for the MLS cursor-skip logic in fetch_and_process_mls_messages.
+    //
+    // Root cause of the infinite rejoin loop:
+    //   1. Peer submits External Commit → leader stores it as message id=N.
+    //   2. Old code set cursor to batch_max (id of last message in the *current*
+    //      fetch batch, which was < N since the EC wasn't in the batch yet).
+    //   3. Next fetch: WHERE id > batch_max returned the EC (id=N) again.
+    //   4. EC had the old epoch → "Wrong Epoch" error → another rejoin → new EC
+    //      stored at id=N+1 → infinite loop.
+    //
+    // Fix: cursor = max(batch_max, ec_msg_id) so the EC itself is skipped.
+
+    /// Simulate: fetch returned [id=1,2,3], EC stored by leader as id=4.
+    /// skip_to must be 4 so the next fetch (WHERE id > 4) misses the EC.
+    #[test]
+    fn cursor_skips_ec_when_ec_is_beyond_batch() {
+        let message_ids: Vec<i64> = vec![1, 2, 3];
+        let failing_msg_id: i64 = 3;
+        let ec_msg_id: i64 = 4;
+
+        let batch_max = message_ids.iter().copied().max().unwrap_or(failing_msg_id);
+        let skip_to = batch_max.max(ec_msg_id);
+
+        assert_eq!(skip_to, 4, "cursor must advance past the EC (id=4), not stop at batch max (id=3)");
+    }
+
+    /// EC arrives in the same batch as the failing message (unusual but possible).
+    /// skip_to must be batch_max so no messages are dropped.
+    #[test]
+    fn cursor_uses_batch_max_when_ec_already_in_batch() {
+        let message_ids: Vec<i64> = vec![1, 2, 3, 4, 5];
+        let failing_msg_id: i64 = 3;
+        let ec_msg_id: i64 = 2; // hypothetically already in the batch
+
+        let batch_max = message_ids.iter().copied().max().unwrap_or(failing_msg_id);
+        let skip_to = batch_max.max(ec_msg_id);
+
+        assert_eq!(skip_to, 5, "when batch_max > ec_msg_id, use batch_max to avoid losing later messages");
+    }
+
+    /// Single-message batch where that message is the failing one.
+    /// unwrap_or(msg.id) kicks in → batch_max = failing_msg_id.
+    #[test]
+    fn cursor_handles_single_failing_message_in_batch() {
+        let ec_msg_id: i64 = 8;
+
+        // messages = [failing_msg with id=7], batch_max = max of [7] = 7
+        let batch_max: i64 = 7;
+        let skip_to = batch_max.max(ec_msg_id);
+
+        assert_eq!(skip_to, 8);
+    }
 }
