@@ -273,18 +273,22 @@ impl PeerSession {
     }
 
     /// Submit an External Commit to rejoin a group.
+    /// Returns the message ID assigned by the leader so the caller can advance
+    /// its MLS cursor past the External Commit itself.
     pub async fn submit_external_commit(
         &self,
         space_id: &str,
         commit_b64: &str,
-    ) -> Result<(), DeliveryError> {
+    ) -> Result<i64, DeliveryError> {
         let req = Request::SubmitExternalCommit {
             space_id: space_id.to_string(),
             commit: commit_b64.to_string(),
             ucan_token: self.ucan_token.clone(),
         };
         match self.request(req).await? {
-            Response::Ok => Ok(()),
+            Response::MessageStored { message_id } => Ok(message_id),
+            // Tolerate older leaders that still respond with Ok (no msg_id).
+            Response::Ok => Ok(0),
             Response::Error { message } => Err(DeliveryError::ProtocolError { reason: message }),
             _ => Err(DeliveryError::ProtocolError {
                 reason: "unexpected response to SubmitExternalCommit".to_string(),

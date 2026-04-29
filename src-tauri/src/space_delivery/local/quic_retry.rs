@@ -117,6 +117,15 @@ const RETRY_DELAYS_MS: [u64; 2] = [500, 2_000];
 /// Connection timeout for a single connect attempt.
 const CONNECT_TIMEOUT_SECS: u64 = 10;
 
+/// Read timeout for the response after the request has been sent.
+/// Without this, a connection where the QUIC path degrades after the
+/// handshake (e.g. relay established but direct-path migration to IPv6 fails
+/// leaving the connection with no usable path) blocks both sides indefinitely
+/// until the QUIC idle timeout fires (~150s). With this timeout, the call
+/// fails fast as a transient error and the retry loop re-establishes a clean
+/// connection on the next attempt.
+const READ_TIMEOUT_SECS: u64 = 30;
+
 /// Errors from [`send_request_once`], preserving the original iroh/quinn error
 /// types so the retry policy can match on variants instead of strings.
 #[derive(Debug, thiserror::Error)]
@@ -217,7 +226,14 @@ pub async fn send_request_once(
     send.finish()
         .map_err(|e| QuicSendError::Finish(e.to_string()))?;
 
-    let response = protocol::read_response(&mut recv).await?;
+    let response = tokio::time::timeout(
+        Duration::from_secs(READ_TIMEOUT_SECS),
+        protocol::read_response(&mut recv),
+    )
+    .await
+    .map_err(|_| QuicSendError::Read(crate::peer_storage::protocol::PeerProtocolError::Read(
+        format!("read timeout after {READ_TIMEOUT_SECS}s"),
+    )))??;
 
     // Best-effort close; ignore errors since we already have the response.
     conn.close(0u32.into(), b"done");

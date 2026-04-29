@@ -1160,6 +1160,26 @@ pub(super) async fn handle_delivery_request(
                 }
             };
 
+            // Apply the External Commit to the leader's own MLS group so the
+            // leader advances to the new epoch. Without this the leader stays
+            // at the old epoch permanently and every subsequent RequestRejoin
+            // hands out a GroupInfo for the stale epoch, causing the peer to
+            // loop: rejoin → new epoch-N message stored → can't process → rejoin…
+            if let Err(e) = crate::mls::blocking::process_message(
+                state.db.0.clone(),
+                space_id.clone(),
+                commit_blob.clone(),
+            )
+            .await
+            {
+                eprintln!(
+                    "[SpaceDelivery] External commit: leader MLS process failed for space {space_id}: {e}"
+                );
+                // Non-fatal: still store and distribute; the leader's local MLS
+                // state may already be ahead (duplicate submit) or the commit may
+                // be for a newer epoch the leader hasn't reached yet.
+            }
+
             // Store the external commit as a regular MLS message
             match buffer::store_message(&state.db, &space_id, &peer_did, "commit", &commit_blob) {
                 Ok(msg_id) => {
@@ -1180,7 +1200,10 @@ pub(super) async fn handle_delivery_request(
                     eprintln!(
                         "[SpaceDelivery] External commit accepted for space {space_id} (msg_id={msg_id})"
                     );
-                    Response::Ok
+                    // Return the stored message ID so the peer can advance its
+                    // MLS cursor past the External Commit itself, preventing the
+                    // next cycle from fetching and failing to process it.
+                    Response::MessageStored { message_id: msg_id }
                 }
                 Err(e) => Response::Error {
                     message: format!("Failed to store external commit: {e}"),

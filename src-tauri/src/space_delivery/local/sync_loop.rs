@@ -718,24 +718,20 @@ async fn fetch_and_process_mls_messages(
                 if e.contains("epoch") || e.contains("Welcome") || e.contains("group") {
                     eprintln!("[SyncLoop] Possible epoch gap detected, attempting rejoin for space {space_id}");
                     match attempt_rejoin(db, session, space_id, app_handle).await {
-                        Ok(()) => {
+                        Ok(ec_msg_id) => {
                             // After External Commit our local epoch jumped to
-                            // the leader's current epoch. Every remaining
-                            // message in the batch with an older epoch is a
-                            // historical commit that brought the group up to
-                            // (or close to) the current epoch — we can't
-                            // re-apply them now. Skip the entire batch tail
-                            // in one shot rather than one cycle per stale
-                            // commit; if there were any genuinely-new
-                            // messages (epoch >= current) in this batch they
-                            // will be re-fetched on the next cycle since the
-                            // leader keeps the queue intact and the cursor
-                            // we set here is at most the last id we saw.
-                            // Take the max id across the batch so the cursor
-                            // never regresses if the underlying fetch order
-                            // changes — `messages.last()` would only be
-                            // correct under a strictly ascending sort.
-                            let skip_to = messages.iter().map(|m| m.id).max().unwrap_or(msg.id);
+                            // the leader's current epoch. Advance the cursor
+                            // to the max of:
+                            //   (a) the highest id in the current batch — skips
+                            //       all stale historical commits in this fetch.
+                            //   (b) the msg_id of the External Commit just
+                            //       stored by the leader — skips the EC itself
+                            //       so the next cycle doesn't re-fetch it and
+                            //       trip on its old epoch number. Without this,
+                            //       every EC stored in the buffer triggers
+                            //       another rejoin in an infinite loop.
+                            let batch_max = messages.iter().map(|m| m.id).max().unwrap_or(msg.id);
+                            let skip_to = batch_max.max(ec_msg_id);
                             eprintln!(
                                 "[SyncLoop] Rejoin successful, advancing cursor past msg {} (skipping {} stale message(s)) for space {space_id}",
                                 skip_to,
@@ -773,12 +769,14 @@ async fn fetch_and_process_mls_messages(
 }
 
 /// Attempt to rejoin an MLS group via External Commit after detecting an epoch gap.
+/// Returns the message ID of the stored External Commit so the caller can advance
+/// the MLS cursor past it (preventing the next fetch from re-tripping on it).
 async fn attempt_rejoin(
     db: &DbConnection,
     session: &PeerSession,
     space_id: &str,
     app_handle: &tauri::AppHandle,
-) -> Result<(), DeliveryError> {
+) -> Result<i64, DeliveryError> {
     // 1. Request GroupInfo from leader
     let group_info_b64 = session.request_rejoin(space_id).await?;
 
@@ -801,8 +799,10 @@ async fn attempt_rejoin(
 
     let commit_b64 = BASE64.encode(&commit_bytes);
 
-    // 3. Submit the External Commit to the leader for distribution
-    session
+    // 3. Submit the External Commit to the leader for distribution.
+    //    The returned msg_id lets the caller advance the MLS cursor past the
+    //    EC so the next fetch doesn't re-process it as a stale epoch-N message.
+    let ec_msg_id = session
         .submit_external_commit(space_id, &commit_b64)
         .await?;
 
@@ -820,7 +820,7 @@ async fn attempt_rejoin(
         epoch_key.epoch
     );
 
-    Ok(())
+    Ok(ec_msg_id)
 }
 
 /// Query the leader for key package status and upload more if requested.
