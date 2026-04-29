@@ -13,6 +13,8 @@ import type {
 import { requireDb } from '~/stores/vault'
 import type { SelectionEntry } from '~/stores/passwords/selection'
 
+export const TRASH_GROUP_ID = 'trash'
+
 export type PasswordGroupDraft = Partial<InsertHaexPasswordsGroups> & {
   name: string
 }
@@ -60,6 +62,37 @@ export const usePasswordsGroupsStore = defineStore(
     const groupById = computed<Map<string, SelectHaexPasswordsGroups>>(
       () => new Map(groups.value.map((group) => [group.id, group])),
     )
+
+    const trashGroup = computed<SelectHaexPasswordsGroups | null>(
+      () => groups.value.find((g) => g.id === TRASH_GROUP_ID) ?? null,
+    )
+
+    // Returns true for the trash group itself and all descendants
+    const isGroupInTrash = (groupId: string): boolean => {
+      if (groupId === TRASH_GROUP_ID) return true
+      let cursor: string | null | undefined = groupById.value.get(groupId)?.parentId
+      while (cursor) {
+        if (cursor === TRASH_GROUP_ID) return true
+        cursor = groupById.value.get(cursor)?.parentId
+      }
+      return false
+    }
+
+    const ensureTrashAsync = async (): Promise<void> => {
+      if (trashGroup.value) return
+      const db = requireDb()
+      try {
+        await db.insert(haexPasswordsGroups).values({
+          id: TRASH_GROUP_ID,
+          name: 'Papierkorb',
+          icon: 'i-lucide-trash-2',
+          parentId: null,
+        })
+      } catch {
+        // Row may already exist in DB but not yet in reactive cache — reload covers it
+      }
+      await loadGroupsAsync()
+    }
 
     const itemCountByGroupId = computed<Map<string, number>>(() => {
       const counts = new Map<string, number>()
@@ -111,7 +144,7 @@ export const usePasswordsGroupsStore = defineStore(
         color: draft.color ?? null,
         sortOrder: draft.sortOrder ?? null,
         parentId: draft.parentId ?? null,
-      })
+      }).onConflictDoNothing()
       await loadGroupsAsync()
       return id
     }
@@ -135,11 +168,20 @@ export const usePasswordsGroupsStore = defineStore(
     }
 
     const deleteGroupAsync = async (groupId: string): Promise<void> => {
+      if (groupId === TRASH_GROUP_ID) return
       const db = requireDb()
-      await db.delete(haexPasswordsGroups).where(eq(haexPasswordsGroups.id, groupId))
+      if (isGroupInTrash(groupId)) {
+        // Already in trash → permanent delete (cascade removes descendants + items)
+        await db.delete(haexPasswordsGroups).where(eq(haexPasswordsGroups.id, groupId))
+      } else {
+        // Move group into trash (preserves folder structure inside trash)
+        await ensureTrashAsync()
+        await db
+          .update(haexPasswordsGroups)
+          .set({ parentId: TRASH_GROUP_ID })
+          .where(eq(haexPasswordsGroups.id, groupId))
+      }
       await loadGroupsAsync()
-      // FK-cascade may have tombstoned descendants too; reset selection if the
-      // current choice no longer exists.
       if (
         selectedGroupId.value &&
         !groups.value.some((group) => group.id === selectedGroupId.value)
@@ -193,10 +235,17 @@ export const usePasswordsGroupsStore = defineStore(
 
     const deleteItemAsync = async (itemId: string): Promise<void> => {
       const db = requireDb()
-      // FK cascade handles key_values, snapshots, binaries, group_items, tags.
-      await db
-        .delete(haexPasswordsItemDetails)
-        .where(eq(haexPasswordsItemDetails.id, itemId))
+      const currentGroupId = itemGroupMap.value.get(itemId) ?? null
+      if (currentGroupId !== null && isGroupInTrash(currentGroupId)) {
+        // Already in trash → permanent delete (FK cascade handles related rows)
+        await db
+          .delete(haexPasswordsItemDetails)
+          .where(eq(haexPasswordsItemDetails.id, itemId))
+      } else {
+        // Move to trash
+        await ensureTrashAsync()
+        await setItemGroupAsync(itemId, TRASH_GROUP_ID)
+      }
     }
 
     const bulkDeleteAsync = async (entries: SelectionEntry[]): Promise<void> => {
@@ -204,12 +253,22 @@ export const usePasswordsGroupsStore = defineStore(
         if (entry.type === 'item') {
           await deleteItemAsync(entry.id)
         } else {
-          const db = requireDb()
-          await db
-            .delete(haexPasswordsGroups)
-            .where(eq(haexPasswordsGroups.id, entry.id))
+          await deleteGroupAsync(entry.id)
         }
       }
+      await loadGroupsAsync()
+    }
+
+    const restoreItemAsync = async (itemId: string): Promise<void> => {
+      await setItemGroupAsync(itemId, null)
+    }
+
+    const restoreGroupAsync = async (groupId: string): Promise<void> => {
+      const db = requireDb()
+      await db
+        .update(haexPasswordsGroups)
+        .set({ parentId: null })
+        .where(eq(haexPasswordsGroups.id, groupId))
       await loadGroupsAsync()
     }
 
@@ -354,6 +413,9 @@ export const usePasswordsGroupsStore = defineStore(
       descendantIdSet,
       itemCountByGroupId,
       breadcrumbGroups,
+      trashGroup,
+      isGroupInTrash,
+      ensureTrashAsync,
       loadGroupsAsync,
       addGroupAsync,
       updateGroupAsync,
@@ -361,9 +423,12 @@ export const usePasswordsGroupsStore = defineStore(
       moveGroupAsync,
       setItemGroupAsync,
       selectGroup,
+      deleteItemAsync,
       bulkDeleteAsync,
       bulkMoveAsync,
       bulkCloneAsync,
+      restoreItemAsync,
+      restoreGroupAsync,
     }
   },
 )

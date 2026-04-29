@@ -28,30 +28,13 @@
           </UButton>
         </div>
 
-        <div
+        <UiInputPassword
           v-if="fileData"
-          class="space-y-2"
-        >
-          <p class="text-sm font-medium">
-            {{ t('password') }}
-          </p>
-          <div class="flex gap-1">
-            <UInput
-              v-model="password"
-              :type="showPassword ? 'text' : 'password'"
-              :placeholder="t('passwordPlaceholder')"
-              class="flex-1"
-              @keyup.enter="canImport && importAsync()"
-            />
-            <UiButton
-              :icon="showPassword ? 'i-lucide-eye-off' : 'i-lucide-eye'"
-              color="neutral"
-              variant="outline"
-              type="button"
-              @click="showPassword = !showPassword"
-            />
-          </div>
-        </div>
+          v-model="password"
+          :label="t('password')"
+          :placeholder="t('passwordPlaceholder')"
+          @keyup.enter="canImport && importAsync()"
+        />
 
         <div
           v-if="importing"
@@ -108,6 +91,7 @@ import {
 import { requireDb } from '~/stores/vault'
 import { addBinaryAsync } from '~/utils/passwords/binaries'
 import type { SnapshotData } from '~/utils/passwords/snapshots'
+import { TRASH_GROUP_ID } from '~/stores/passwords/groups'
 
 // Plug in hash-wasm Argon2 for KeePass 4 databases.
 // Type: 0 = Argon2d, 1 = Argon2i, 2 = Argon2id
@@ -144,7 +128,6 @@ const fileInput = useTemplateRef<HTMLInputElement>('fileInput')
 const fileData = ref<ArrayBuffer | null>(null)
 const selectedFileName = ref<string | null>(null)
 const password = ref('')
-const showPassword = ref(false)
 const importing = ref(false)
 const progress = ref(0)
 const error = ref<string | null>(null)
@@ -363,6 +346,14 @@ async function importKdbxAsync(buffer: ArrayBuffer, pwd: string): Promise<{ grou
   const groupMap = new Map<string, string>()
   const standardFields = new Set(['Title', 'UserName', 'Password', 'URL', 'Notes'])
 
+  // Pre-map the KeePass recycle bin group to the haex trash group so imported
+  // entries that were in the KeePass Recycle Bin land in the haex Papierkorb.
+  if (kdbx.meta.recycleBinEnabled && kdbx.meta.recycleBinUuid) {
+    const kdbxRecycleBinUuid = kdbxUuidToStandard(kdbx.meta.recycleBinUuid)
+    await groupsStore.ensureTrashAsync()
+    groupMap.set(kdbxRecycleBinUuid, TRASH_GROUP_ID)
+  }
+
   const allGroups: Array<{ group: kdbxweb.KdbxGroup; parentUuid: string | null }> = []
   function collectGroups(group: kdbxweb.KdbxGroup, parentUuid: string | null = null) {
     if (group.name !== 'Root') allGroups.push({ group, parentUuid })
@@ -376,6 +367,11 @@ async function importKdbxAsync(buffer: ArrayBuffer, pwd: string): Promise<{ grou
 
   for (const { group, parentUuid } of allGroups) {
     const groupUuid = kdbxUuidToStandard(group.uuid)
+    // Skip groups already mapped (e.g. the KeePass Recycle Bin pre-mapped above)
+    if (groupMap.has(groupUuid)) {
+      progress.value = Math.round((++step / total) * 100)
+      continue
+    }
     const parentId = parentUuid ? (groupMap.get(parentUuid) ?? null) : null
 
     let icon: string | null = null
@@ -431,9 +427,9 @@ async function importKdbxAsync(buffer: ArrayBuffer, pwd: string): Promise<{ grou
       otpSecret: otp?.secret ?? null, otpDigits: otp?.digits ?? null,
       otpPeriod: otp?.period ?? null, otpAlgorithm: otp?.algorithm ?? null,
       expiresAt, createdAt, updatedAt,
-    })
+    }).onConflictDoNothing()
 
-    await db.insert(haexPasswordsGroupItems).values({ itemId: newId, groupId })
+    await db.insert(haexPasswordsGroupItems).values({ itemId: newId, groupId }).onConflictDoNothing()
 
     // Custom fields
     const kvEntries: Array<{ key: string; value: string }> = []
@@ -528,7 +524,7 @@ async function importKdbxAsync(buffer: ArrayBuffer, pwd: string): Promise<{ grou
 watch(open, (v) => {
   if (!v) {
     fileData.value = null; selectedFileName.value = null; password.value = ''
-    error.value = null; importing.value = false; progress.value = 0; showPassword.value = false
+    error.value = null; importing.value = false; progress.value = 0
   }
 })
 </script>
