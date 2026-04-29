@@ -13,14 +13,12 @@
     :check="check"
   >
     <template #trailing>
-      <UiButton
-        aria-controls="password"
+      <UButton
         color="neutral"
         variant="link"
         :aria-label="show ? t('hide') : t('show')"
         :aria-pressed="show"
         :icon="show ? 'i-lucide-eye-off' : 'i-lucide-eye'"
-        :tooltip="show ? t('hide') : t('show')"
         @click="show = !show"
       />
     </template>

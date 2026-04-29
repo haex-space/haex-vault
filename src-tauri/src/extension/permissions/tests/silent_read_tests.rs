@@ -47,6 +47,7 @@ fn make_extension() -> Extension {
                 filesync: None,
                 spaces: None,
                 identities: None,
+                passwords: None,
             },
             homepage: None,
             description: None,

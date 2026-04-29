@@ -303,6 +303,59 @@ impl FromStr for IdentityAction {
     }
 }
 
+/// Aktionen auf dem Core-Passworttresor.
+///
+/// Scope wird über `ExtensionPermission.target` als Tag-Filter gesteuert
+/// (z.B. target="calendar" => nur Items mit Tag "calendar", target="*" => alle).
+/// Writes müssen mindestens ein Tag innerhalb des erlaubten Scopes setzen –
+/// Enforcement geschieht in den Bridge-Commands.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum PasswordsAction {
+    Read,
+    ReadWrite,
+}
+
+impl PasswordsAction {
+    pub fn allows_read(&self) -> bool {
+        matches!(self, PasswordsAction::Read | PasswordsAction::ReadWrite)
+    }
+
+    pub fn allows_write(&self) -> bool {
+        matches!(self, PasswordsAction::ReadWrite)
+    }
+}
+
+impl FromStr for PasswordsAction {
+    type Err = ExtensionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "read" => Ok(PasswordsAction::Read),
+            "readwrite" | "read_write" => Ok(PasswordsAction::ReadWrite),
+            _ => Err(ExtensionError::InvalidActionString {
+                input: s.to_string(),
+                resource_type: "passwords".to_string(),
+            }),
+        }
+    }
+}
+
+/// Ergebnis einer Passwords-Permission-Prüfung.
+///
+/// Beschreibt welche Tag-Scopes eine Extension für die angefragte Aktion lesen
+/// bzw. schreiben darf. Wird von den Bridge-Commands verwendet um SQL-Queries
+/// auf die erlaubten Tags zu begrenzen.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PasswordsScope {
+    /// Wildcard — Extension darf auf Einträge mit beliebigen Tags zugreifen.
+    All,
+    /// Extension darf nur auf Einträge zugreifen die mindestens eines dieser
+    /// Tags haben.
+    Tags(Vec<String>),
+}
+
 // --- Haupt-Typen für Berechtigungen ---
 
 /// Ein typsicherer Container, der die spezifische Aktion für einen Ressourcentyp enthält.
@@ -316,6 +369,7 @@ pub enum Action {
     FileSync(FileSyncAction),
     Spaces(SpaceAction),
     Identities(IdentityAction),
+    Passwords(PasswordsAction),
 }
 
 /// Die interne Repräsentation einer einzelnen, gewährten Berechtigung.
@@ -344,6 +398,7 @@ pub enum ResourceType {
     Filesync,
     Spaces,
     Identities,
+    Passwords,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, TS)]
@@ -428,6 +483,7 @@ impl ResourceType {
             ResourceType::Filesync => "filesync",
             ResourceType::Spaces => "spaces",
             ResourceType::Identities => "identities",
+            ResourceType::Passwords => "passwords",
         }
     }
 
@@ -440,6 +496,7 @@ impl ResourceType {
             "filesync" => Ok(ResourceType::Filesync),
             "spaces" => Ok(ResourceType::Spaces),
             "identities" => Ok(ResourceType::Identities),
+            "passwords" => Ok(ResourceType::Passwords),
             _ => Err(ExtensionError::ValidationError {
                 reason: format!("Unknown resource type: {s}"),
             }),
@@ -478,6 +535,10 @@ impl Action {
                 .unwrap_or_default()
                 .trim_matches('"')
                 .to_string(),
+            Action::Passwords(action) => serde_json::to_string(action)
+                .unwrap_or_default()
+                .trim_matches('"')
+                .to_string(),
         }
     }
 
@@ -499,6 +560,7 @@ impl Action {
             ResourceType::Filesync => Ok(Action::FileSync(FileSyncAction::from_str(s)?)),
             ResourceType::Spaces => Ok(Action::Spaces(SpaceAction::from_str(s)?)),
             ResourceType::Identities => Ok(Action::Identities(IdentityAction::from_str(s)?)),
+            ResourceType::Passwords => Ok(Action::Passwords(PasswordsAction::from_str(s)?)),
         }
     }
 }

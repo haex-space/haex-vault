@@ -29,7 +29,6 @@ interface IButtonProps extends ButtonProps {
   tooltip?: string
 }
 const buttonProps = defineProps<IButtonProps>()
-defineEmits<{ click: [Event] }>()
 
 defineOptions({ inheritAttrs: false })
 </script>

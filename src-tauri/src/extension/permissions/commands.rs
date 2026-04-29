@@ -10,7 +10,8 @@
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{
-    Action, DbAction, ExtensionPermission, FsAction, PermissionStatus, ResourceType, WebAction,
+    Action, DbAction, ExtensionPermission, FsAction, PasswordsAction, PermissionStatus,
+    ResourceType, WebAction,
 };
 use crate::extension::utils::resolve_extension_id;
 use crate::AppState;
@@ -167,6 +168,7 @@ pub async fn resolve_permission_prompt(
         "filesync" => ResourceType::Filesync,
         "spaces" => ResourceType::Spaces,
         "identities" => ResourceType::Identities,
+        "passwords" => ResourceType::Passwords,
         _ => {
             return Err(ExtensionError::ValidationError {
                 reason: format!("Invalid resource type: {}", resource_type),
@@ -215,6 +217,16 @@ pub async fn resolve_permission_prompt(
         }
         ResourceType::Identities => {
             Action::Identities(crate::extension::permissions::types::IdentityAction::Read)
+        }
+        ResourceType::Passwords => {
+            let passwords_action = match action.to_lowercase().as_str() {
+                "read" => PasswordsAction::Read,
+                "readwrite" | "read_write" => PasswordsAction::ReadWrite,
+                _ => return Err(ExtensionError::ValidationError {
+                    reason: format!("Invalid passwords action: {action}"),
+                }),
+            };
+            Action::Passwords(passwords_action)
         }
     };
 
