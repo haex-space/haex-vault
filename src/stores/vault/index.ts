@@ -219,6 +219,10 @@ export const useVaultStore = defineStore('vaultStore', () => {
       // Also clean up old log entries
       await invoke<number>('log_cleanup')
 
+      // Prune password binaries no longer referenced by any item or snapshot
+      const { pruneOrphanedBinariesAsync } = await import('~/utils/passwords/binaries')
+      await pruneOrphanedBinariesAsync()
+
       return result
     } catch (error) {
       log.error('Automatic cleanup error:', error)
