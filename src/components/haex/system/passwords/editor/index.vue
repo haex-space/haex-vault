@@ -335,12 +335,21 @@
 
       <!-- Extra -->
       <template #extra>
-        <div class="p-4 max-w-2xl mx-auto space-y-4">
+        <div class="p-4 space-y-4">
           <!-- Card: Custom fields -->
           <div class="border border-default rounded-lg overflow-hidden">
             <div class="px-4 py-3 border-b border-default bg-elevated/30">
-              <p class="text-sm font-medium">
-                {{ t('extra.customFields') }}
+              <div class="flex items-center gap-2">
+                <UIcon
+                  name="i-lucide-sliders-horizontal"
+                  class="size-4 text-primary"
+                />
+                <p class="text-sm font-medium">
+                  {{ t('extra.customFields') }}
+                </p>
+              </div>
+              <p class="text-xs text-muted mt-0.5">
+                {{ t('extra.description') }}
               </p>
             </div>
             <div class="p-4">
@@ -441,6 +450,32 @@
             </div>
           </div>
 
+          <!-- Card: Attachments -->
+          <div class="border border-default rounded-lg overflow-hidden">
+            <div class="px-4 py-3 border-b border-default bg-elevated/30">
+              <div class="flex items-center gap-2">
+                <UIcon
+                  name="i-lucide-paperclip"
+                  class="size-4 text-primary"
+                />
+                <p class="text-sm font-medium">
+                  {{ t('attachments.title') }}
+                </p>
+              </div>
+              <p class="text-xs text-muted mt-0.5">
+                {{ t('attachments.description') }}
+              </p>
+            </div>
+            <div class="p-4">
+              <HaexSystemPasswordsEditorAttachments
+                v-model="attachments"
+                v-model:attachments-to-add="attachmentsToAdd"
+                v-model:attachments-to-delete="attachmentsToDelete"
+                :read-only="!isEditing"
+              />
+            </div>
+          </div>
+
           <!-- Card: Passkeys -->
           <div class="border border-default rounded-lg overflow-hidden">
             <div class="px-4 py-3 border-b border-default bg-elevated/30">
@@ -461,23 +496,6 @@
               <HaexSystemPasswordsEditorPasskeys
                 ref="passkeysRef"
                 :item-id="selectedItem?.id"
-                :read-only="!isEditing"
-              />
-            </div>
-          </div>
-
-          <!-- Card: Attachments -->
-          <div class="border border-default rounded-lg overflow-hidden">
-            <div class="px-4 py-3 border-b border-default bg-elevated/30">
-              <p class="text-sm font-medium">
-                {{ t('attachments.title') }}
-              </p>
-            </div>
-            <div class="p-4">
-              <HaexSystemPasswordsEditorAttachments
-                v-model="attachments"
-                v-model:attachments-to-add="attachmentsToAdd"
-                v-model:attachments-to-delete="attachmentsToDelete"
                 :read-only="!isEditing"
               />
             </div>
@@ -1101,6 +1119,7 @@ de:
     description: Passkeys werden automatisch über die Browser-Erweiterung erstellt.
   attachments:
     title: Dateianhänge
+    description: Dateien, Bilder und Dokumente die zu diesem Eintrag gehören.
   autofill:
     title: Autofill-Zuordnung
     description: Konfiguriere alternative Feldnamen für das Browser-Autofill.
@@ -1163,6 +1182,7 @@ en:
     description: Passkeys are created automatically via the browser extension.
   attachments:
     title: Attachments
+    description: Files, images and documents associated with this entry.
   autofill:
     title: Autofill Mapping
     description: Configure alternative field names for browser autofill.

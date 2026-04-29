@@ -111,6 +111,10 @@ export default defineNuxtConfig({
         'hugeicons:developer',
         // Download indicator (statusIndicator.vue, dynamic)
         'lucide:download',
+        // Password manager import icons
+        'simple-icons:bitwarden',
+        'simple-icons:lastpass',
+        'simple-icons:keepassxc',
       ],
     },
     serverBundle: {
