@@ -217,9 +217,9 @@ const allAttachments = computed(() => [
 const imageDataUrls = reactive<Record<string, string>>({})
 
 watch(
-  allAttachments,
-  (list) => {
-    for (const att of list) {
+  () => allAttachments.value.map(a => `${a.id}:${a.fileName}`),
+  () => {
+    for (const att of allAttachments.value) {
       if (!isImage(att.fileName) || imageDataUrls[att.id]) continue
       loadDataUrl(att).then((url) => {
         if (url) imageDataUrls[att.id] = url
