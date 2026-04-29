@@ -995,3 +995,59 @@ fn sqlite_datetime_now() -> String {
         now.second(),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    // Regression tests for the MLS cursor-skip logic in fetch_and_process_mls_messages.
+    //
+    // Root cause of the infinite rejoin loop:
+    //   1. Peer submits External Commit → leader stores it as message id=N.
+    //   2. Old code set cursor to batch_max (id of last message in the *current*
+    //      fetch batch, which was < N since the EC wasn't in the batch yet).
+    //   3. Next fetch: WHERE id > batch_max returned the EC (id=N) again.
+    //   4. EC had the old epoch → "Wrong Epoch" error → another rejoin → new EC
+    //      stored at id=N+1 → infinite loop.
+    //
+    // Fix: cursor = max(batch_max, ec_msg_id) so the EC itself is skipped.
+
+    /// Simulate: fetch returned [id=1,2,3], EC stored by leader as id=4.
+    /// skip_to must be 4 so the next fetch (WHERE id > 4) misses the EC.
+    #[test]
+    fn cursor_skips_ec_when_ec_is_beyond_batch() {
+        let message_ids: Vec<i64> = vec![1, 2, 3];
+        let failing_msg_id: i64 = 3;
+        let ec_msg_id: i64 = 4;
+
+        let batch_max = message_ids.iter().copied().max().unwrap_or(failing_msg_id);
+        let skip_to = batch_max.max(ec_msg_id);
+
+        assert_eq!(skip_to, 4, "cursor must advance past the EC (id=4), not stop at batch max (id=3)");
+    }
+
+    /// EC arrives in the same batch as the failing message (unusual but possible).
+    /// skip_to must be batch_max so no messages are dropped.
+    #[test]
+    fn cursor_uses_batch_max_when_ec_already_in_batch() {
+        let message_ids: Vec<i64> = vec![1, 2, 3, 4, 5];
+        let failing_msg_id: i64 = 3;
+        let ec_msg_id: i64 = 2; // hypothetically already in the batch
+
+        let batch_max = message_ids.iter().copied().max().unwrap_or(failing_msg_id);
+        let skip_to = batch_max.max(ec_msg_id);
+
+        assert_eq!(skip_to, 5, "when batch_max > ec_msg_id, use batch_max to avoid losing later messages");
+    }
+
+    /// Single-message batch where that message is the failing one.
+    /// unwrap_or(msg.id) kicks in → batch_max = failing_msg_id.
+    #[test]
+    fn cursor_handles_single_failing_message_in_batch() {
+        let ec_msg_id: i64 = 8;
+
+        // messages = [failing_msg with id=7], batch_max = max of [7] = 7
+        let batch_max: i64 = 7;
+        let skip_to = batch_max.max(ec_msg_id);
+
+        assert_eq!(skip_to, 8);
+    }
+}

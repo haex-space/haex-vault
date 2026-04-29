@@ -405,4 +405,52 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
+
+    // Regression: the read timeout we inject in send_request_once wraps the
+    // timeout as PeerProtocolError::Read — must be classified as transient so
+    // the retry loop re-establishes a clean connection instead of giving up.
+    #[test]
+    fn read_timeout_error_is_transient() {
+        let err = QuicSendError::Read(PeerProtocolError::Read(
+            format!("read timeout after {READ_TIMEOUT_SECS}s"),
+        ));
+        assert!(err.is_transient(), "read timeout must be retried, got: {err}");
+    }
+
+    // Regression: after MAX_ATTEMPTS persistently transient errors the loop
+    // must give up rather than running forever.
+    #[tokio::test]
+    async fn exhausts_all_attempts_when_always_transient() {
+        let calls = Arc::new(AtomicU32::new(0));
+        let calls_clone = calls.clone();
+        let result: Result<i32, String> = retry_transient(
+            "test",
+            move || {
+                let c = calls_clone.clone();
+                async move {
+                    c.fetch_add(1, Ordering::SeqCst);
+                    Err("transient".to_string())
+                }
+            },
+            |_| true,
+        )
+        .await;
+        assert!(result.is_err());
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            MAX_ATTEMPTS,
+            "must attempt exactly MAX_ATTEMPTS times before giving up",
+        );
+    }
+
+    // Verify RETRY_DELAYS_MS has one entry per retry (MAX_ATTEMPTS - 1).
+    // A mismatch would panic at runtime with an index-out-of-bounds.
+    #[test]
+    fn retry_delays_array_matches_attempt_count() {
+        assert_eq!(
+            RETRY_DELAYS_MS.len(),
+            (MAX_ATTEMPTS - 1) as usize,
+            "RETRY_DELAYS_MS must have MAX_ATTEMPTS-1 entries",
+        );
+    }
 }
