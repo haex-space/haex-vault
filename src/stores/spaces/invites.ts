@@ -426,8 +426,11 @@ export async function acceptLocalInvite(
     const deviceName = deviceStore.deviceName || deviceStore.hostname || 'Unknown'
     try {
       await peerStorageStore.registerDeviceInSpaceAsync(invite.spaceId, deviceName)
-    } catch {
-      // Duplicate (spaceId, deviceEndpointId) — already registered, safe to ignore
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (!message.toLowerCase().includes('unique') && !message.toLowerCase().includes('duplicate')) {
+        log.error('Failed to register device in space during invite accept', { spaceId: invite.spaceId, error })
+      }
     }
   }
 
