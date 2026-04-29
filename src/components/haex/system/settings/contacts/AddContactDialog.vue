@@ -607,8 +607,9 @@ const onSaveScanContactAsync = async () => {
       .filter(c => c.selected)
       .map(c => ({ type: c.type, value: c.value }))
 
-    if (scannedContact.value.endpointId) {
-      selectedClaims.push({ type: 'endpointId', value: scannedContact.value.endpointId })
+    const endpointValue = scannedContact.value.endpointId
+    if (endpointValue && !selectedClaims.some(c => c.value === endpointValue)) {
+      selectedClaims.push({ type: 'endpointId', value: endpointValue })
     }
 
     log.info(`Saving scanned contact: "${scannedContact.value.name}", ${selectedClaims.length} claims`)
