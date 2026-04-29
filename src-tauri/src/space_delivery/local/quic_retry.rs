@@ -117,6 +117,15 @@ const RETRY_DELAYS_MS: [u64; 2] = [500, 2_000];
 /// Connection timeout for a single connect attempt.
 const CONNECT_TIMEOUT_SECS: u64 = 10;
 
+/// Read timeout for the response after the request has been sent.
+/// Without this, a connection where the QUIC path degrades after the
+/// handshake (e.g. relay established but direct-path migration to IPv6 fails
+/// leaving the connection with no usable path) blocks both sides indefinitely
+/// until the QUIC idle timeout fires (~150s). With this timeout, the call
+/// fails fast as a transient error and the retry loop re-establishes a clean
+/// connection on the next attempt.
+const READ_TIMEOUT_SECS: u64 = 30;
+
 /// Errors from [`send_request_once`], preserving the original iroh/quinn error
 /// types so the retry policy can match on variants instead of strings.
 #[derive(Debug, thiserror::Error)]
@@ -217,7 +226,14 @@ pub async fn send_request_once(
     send.finish()
         .map_err(|e| QuicSendError::Finish(e.to_string()))?;
 
-    let response = protocol::read_response(&mut recv).await?;
+    let response = tokio::time::timeout(
+        Duration::from_secs(READ_TIMEOUT_SECS),
+        protocol::read_response(&mut recv),
+    )
+    .await
+    .map_err(|_| QuicSendError::Read(crate::peer_storage::protocol::PeerProtocolError::Read(
+        format!("read timeout after {READ_TIMEOUT_SECS}s"),
+    )))??;
 
     // Best-effort close; ignore errors since we already have the response.
     conn.close(0u32.into(), b"done");
@@ -388,5 +404,53 @@ mod tests {
         .await;
         assert!(result.is_err());
         assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    // Regression: the read timeout we inject in send_request_once wraps the
+    // timeout as PeerProtocolError::Read — must be classified as transient so
+    // the retry loop re-establishes a clean connection instead of giving up.
+    #[test]
+    fn read_timeout_error_is_transient() {
+        let err = QuicSendError::Read(PeerProtocolError::Read(
+            format!("read timeout after {READ_TIMEOUT_SECS}s"),
+        ));
+        assert!(err.is_transient(), "read timeout must be retried, got: {err}");
+    }
+
+    // Regression: after MAX_ATTEMPTS persistently transient errors the loop
+    // must give up rather than running forever.
+    #[tokio::test]
+    async fn exhausts_all_attempts_when_always_transient() {
+        let calls = Arc::new(AtomicU32::new(0));
+        let calls_clone = calls.clone();
+        let result: Result<i32, String> = retry_transient(
+            "test",
+            move || {
+                let c = calls_clone.clone();
+                async move {
+                    c.fetch_add(1, Ordering::SeqCst);
+                    Err("transient".to_string())
+                }
+            },
+            |_| true,
+        )
+        .await;
+        assert!(result.is_err());
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            MAX_ATTEMPTS,
+            "must attempt exactly MAX_ATTEMPTS times before giving up",
+        );
+    }
+
+    // Verify RETRY_DELAYS_MS has one entry per retry (MAX_ATTEMPTS - 1).
+    // A mismatch would panic at runtime with an index-out-of-bounds.
+    #[test]
+    fn retry_delays_array_matches_attempt_count() {
+        assert_eq!(
+            RETRY_DELAYS_MS.len(),
+            (MAX_ATTEMPTS - 1) as usize,
+            "RETRY_DELAYS_MS must have MAX_ATTEMPTS-1 entries",
+        );
     }
 }
