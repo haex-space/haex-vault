@@ -38,9 +38,11 @@ export const usePasswordsTagsStore = defineStore('passwordsTagsStore', () => {
       color,
       createdAt: new Date().toISOString(),
     }
-    await db.insert(haexPasswordsTags).values(newTag)
-    tags.value.push(newTag)
-    return newTag
+    await db.insert(haexPasswordsTags).values(newTag).onConflictDoNothing()
+    const rows = await db.select().from(haexPasswordsTags).where(eq(haexPasswordsTags.name, trimmed)).limit(1)
+    const tag = rows[0] ?? newTag
+    if (!tags.value.find((t) => t.id === tag.id)) tags.value.push(tag)
+    return tag
   }
 
   // Diff-based item-tag sync — CRDT-friendly: only touches rows that actually change.
