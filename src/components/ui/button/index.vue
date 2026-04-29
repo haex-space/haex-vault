@@ -7,7 +7,6 @@
           ...buttonProps,
           ...$attrs,
         }"
-        @click="(event: Event) => $emit('click', event)"
       >
         <template
           v-for="(_, slotName) in $slots"
@@ -30,7 +29,6 @@ interface IButtonProps extends ButtonProps {
   tooltip?: string
 }
 const buttonProps = defineProps<IButtonProps>()
-defineEmits<{ click: [Event] }>()
 
 defineOptions({ inheritAttrs: false })
 </script>
