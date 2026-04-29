@@ -1,5 +1,9 @@
-import { eq } from 'drizzle-orm'
-import { haexPasswordsBinaries } from '~/database/schemas'
+import { eq, notInArray } from 'drizzle-orm'
+import {
+  haexPasswordsBinaries,
+  haexPasswordsItemBinaries,
+  haexPasswordsSnapshotBinaries,
+} from '~/database/schemas'
 import { requireDb } from '~/stores/vault'
 
 export function arrayBufferToBase64(arrayBuffer: ArrayBuffer): string {
@@ -36,9 +40,10 @@ export async function calculateBinaryHashAsync(
 
 export async function addBinaryAsync(
   data: string,
-  size: number,
+  size: number | bigint,
   type: 'icon' | 'attachment' = 'attachment',
 ): Promise<string> {
+  const sizeNumber = Number(size)
   const db = requireDb()
   const hash = await calculateBinaryHashAsync(data)
 
@@ -51,8 +56,27 @@ export async function addBinaryAsync(
   if (existing.length === 0) {
     await db
       .insert(haexPasswordsBinaries)
-      .values({ hash, data, size, type })
+      .values({ hash, data, size: sizeNumber, type })
   }
 
   return hash
+}
+
+export async function pruneOrphanedBinariesAsync(): Promise<void> {
+  const db = requireDb()
+
+  const [itemRefs, snapshotRefs] = await Promise.all([
+    db.selectDistinct({ hash: haexPasswordsItemBinaries.binaryHash }).from(haexPasswordsItemBinaries),
+    db.selectDistinct({ hash: haexPasswordsSnapshotBinaries.binaryHash }).from(haexPasswordsSnapshotBinaries),
+  ])
+
+  const referenced = [
+    ...new Set([...itemRefs.map((r) => r.hash), ...snapshotRefs.map((r) => r.hash)]),
+  ]
+
+  if (referenced.length === 0) {
+    await db.delete(haexPasswordsBinaries)
+  } else {
+    await db.delete(haexPasswordsBinaries).where(notInArray(haexPasswordsBinaries.hash, referenced))
+  }
 }

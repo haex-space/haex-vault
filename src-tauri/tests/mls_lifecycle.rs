@@ -313,6 +313,91 @@ mod buffer_tests {
 }
 
 // ============================================================================
+// Buffer: MLS message cursor tests
+// ============================================================================
+
+mod buffer_message_cursor_tests {
+    use super::*;
+    use haex_vault_lib::database::DbConnection;
+    use haex_vault_lib::space_delivery::local::buffer;
+
+    fn store_messages(db: &DbConnection, space_id: &str, count: usize) -> Vec<i64> {
+        (0..count)
+            .map(|i| {
+                buffer::store_message(
+                    db,
+                    space_id,
+                    "did:key:sender",
+                    "commit",
+                    format!("blob-{i}").as_bytes(),
+                )
+                .unwrap()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn fetch_messages_returns_all_when_no_cursor() {
+        let db = DbConnection(setup_test_db());
+        store_messages(&db, "test-space-1", 3);
+
+        let msgs = buffer::fetch_messages(&db, "test-space-1", None).unwrap();
+        assert_eq!(msgs.len(), 3);
+    }
+
+    #[test]
+    fn fetch_messages_excludes_cursor_id_and_below() {
+        let db = DbConnection(setup_test_db());
+        let ids = store_messages(&db, "test-space-1", 5);
+
+        // Cursor at ids[2] (the 3rd message) — only ids[3] and ids[4] must come back.
+        let msgs = buffer::fetch_messages(&db, "test-space-1", Some(ids[2])).unwrap();
+        assert_eq!(msgs.len(), 2);
+        assert_eq!(msgs[0].0, ids[3]);
+        assert_eq!(msgs[1].0, ids[4]);
+    }
+
+    // Regression: if the cursor is set to ec_msg_id (the ID the leader assigned
+    // to the External Commit), the EC itself must NOT be returned on the next
+    // fetch — otherwise the peer would hit an epoch mismatch again and loop.
+    #[test]
+    fn fetch_messages_returns_empty_when_cursor_at_last_stored_id() {
+        let db = DbConnection(setup_test_db());
+        let ids = store_messages(&db, "test-space-1", 4);
+        let last_id = *ids.last().unwrap();
+
+        // Cursor advanced to the EC's own ID — nothing newer exists.
+        let msgs = buffer::fetch_messages(&db, "test-space-1", Some(last_id)).unwrap();
+        assert!(
+            msgs.is_empty(),
+            "cursor at last stored ID must return empty, prevents epoch-loop re-fetch",
+        );
+    }
+
+    #[test]
+    fn fetch_messages_returns_empty_when_cursor_past_all() {
+        let db = DbConnection(setup_test_db());
+        store_messages(&db, "test-space-1", 3);
+
+        let msgs = buffer::fetch_messages(&db, "test-space-1", Some(9999)).unwrap();
+        assert!(msgs.is_empty());
+    }
+
+    #[test]
+    fn fetch_messages_is_isolated_by_space_id() {
+        let db = DbConnection(setup_test_db());
+        let ids_space1 = store_messages(&db, "test-space-1", 3);
+        store_messages(&db, "test-space-2", 2);
+
+        let msgs = buffer::fetch_messages(&db, "test-space-1", None).unwrap();
+        assert_eq!(msgs.len(), 3);
+        for (msg_id, _, _, _, _) in &msgs {
+            assert!(ids_space1.contains(msg_id));
+        }
+    }
+}
+
+// ============================================================================
 // MLS Manager tests: GroupInfo + External Commit roundtrip
 // ============================================================================
 
@@ -565,5 +650,45 @@ mod protocol_tests {
             }
             _ => panic!("Expected KeyPackageCount response"),
         }
+    }
+
+    // Regression: SubmitExternalCommit previously responded with Response::Ok
+    // (carrying no message ID), causing the peer to be unable to advance its
+    // MLS cursor past the stored External Commit. The fix returns
+    // Response::MessageStored so the peer can skip the EC on the next fetch.
+    #[test]
+    fn response_message_stored_carries_message_id() {
+        let resp = Response::MessageStored { message_id: 42 };
+
+        let bytes = serde_json::to_vec(&resp).unwrap();
+        let deserialized: Response = serde_json::from_slice(&bytes).unwrap();
+
+        match deserialized {
+            Response::MessageStored { message_id } => {
+                assert_eq!(message_id, 42);
+            }
+            _ => panic!("Expected MessageStored response, got: {deserialized:?}"),
+        }
+    }
+
+    // Verify peer.rs backward-compat path: older leaders that still return Ok
+    // (no msg_id) must not break the rejoin flow — the peer falls back to 0.
+    #[test]
+    fn response_ok_is_distinct_from_message_stored() {
+        let ok_resp = Response::Ok;
+        let ok_bytes = serde_json::to_vec(&ok_resp).unwrap();
+        let ok_deserialized: Response = serde_json::from_slice(&ok_bytes).unwrap();
+        assert!(matches!(ok_deserialized, Response::Ok));
+
+        let stored_resp = Response::MessageStored { message_id: 1 };
+        let stored_bytes = serde_json::to_vec(&stored_resp).unwrap();
+        let stored_deserialized: Response = serde_json::from_slice(&stored_bytes).unwrap();
+        assert!(matches!(stored_deserialized, Response::MessageStored { .. }));
+
+        // The two variants must not round-trip into each other
+        assert!(!matches!(
+            serde_json::from_slice::<Response>(&ok_bytes).unwrap(),
+            Response::MessageStored { .. }
+        ));
     }
 }
