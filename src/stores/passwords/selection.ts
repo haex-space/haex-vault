@@ -13,6 +13,10 @@ export const usePasswordsSelectionStore = defineStore(
     const isSelectionMode = ref(false)
     const lastAnchorId = ref<string | null>(null)
 
+    // Desktop-only: single-click highlights an item without entering selection
+    // mode (no toolbar). Cleared whenever real selection mode activates.
+    const desktopFocusId = ref<string | null>(null)
+
     const clipboardEntries = ref<SelectionEntry[]>([])
     const clipboardMode = ref<ClipboardMode>(null)
 
@@ -51,13 +55,19 @@ export const usePasswordsSelectionStore = defineStore(
       if (!active) {
         selectedIds.value = new Set()
         lastAnchorId.value = null
+        desktopFocusId.value = null
       }
+    }
+
+    const setDesktopFocus = (id: string) => {
+      desktopFocusId.value = id
     }
 
     const enterSelectionWith = (id: string) => {
       selectedIds.value = new Set([id])
       lastAnchorId.value = id
       isSelectionMode.value = true
+      desktopFocusId.value = null
     }
 
     const toggle = (id: string) => {
@@ -67,6 +77,7 @@ export const usePasswordsSelectionStore = defineStore(
       selectedIds.value = next
       lastAnchorId.value = id
       isSelectionMode.value = next.size > 0
+      if (isSelectionMode.value) desktopFocusId.value = null
     }
 
     // Range-select between anchor and id. Caller must supply the ordered list
@@ -89,12 +100,14 @@ export const usePasswordsSelectionStore = defineStore(
       }
       selectedIds.value = next
       isSelectionMode.value = next.size > 0
+      if (isSelectionMode.value) desktopFocusId.value = null
     }
 
     const selectAll = (ids: string[]) => {
       selectedIds.value = new Set(ids)
       isSelectionMode.value = ids.length > 0
       lastAnchorId.value = ids[0] ?? null
+      if (isSelectionMode.value) desktopFocusId.value = null
     }
 
     const clear = () => setMode(false)
@@ -129,6 +142,7 @@ export const usePasswordsSelectionStore = defineStore(
       selectedCount,
       isSelectionMode,
       lastAnchorId,
+      desktopFocusId,
       selectedEntries,
       hasFoldersInSelection,
       hasItemsInSelection,
@@ -137,6 +151,7 @@ export const usePasswordsSelectionStore = defineStore(
       clipboardMode,
       hasClipboard,
       isSelected,
+      setDesktopFocus,
       enterSelectionWith,
       toggle,
       selectRange,

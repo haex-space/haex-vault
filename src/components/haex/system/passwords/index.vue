@@ -3,7 +3,10 @@
     :is-dragging="isDragging"
     disable-content-scroll
   >
-    <div class="h-full flex flex-col overflow-hidden">
+    <div
+      ref="containerRef"
+      class="h-full flex flex-col overflow-hidden"
+    >
       <HaexSystemPasswordsHeader
         v-if="viewMode === 'list'"
         class="flex-none"
@@ -27,33 +30,17 @@
             :key="selectedItemId ?? 'new'"
           />
           <template v-else>
-            <!--
-              Single slot for either breadcrumb or selection toolbar. They share
-              the same 3rem height so the list below doesn't jump when selection
-              mode kicks in. On desktop (@3xl+) the breadcrumb is hidden — the
-              slot collapses unless the toolbar is active.
-            -->
-            <div
-              v-if="showAccessorySlot"
-              class="shrink-0 relative h-12"
-              :class="{
-                '@3xl:h-0': !isSelectionMode && !hasClipboard,
-              }"
-            >
-              <Transition name="toolbar-swap">
+            <!-- Toolbar fades over breadcrumbs in the same row — no layout jump. -->
+            <div class="relative shrink-0">
+              <HaexSystemPasswordsBreadcrumb />
+              <Transition name="toolbar-fade">
                 <HaexSystemPasswordsSelectionToolbar
                   v-if="isSelectionMode || hasClipboard"
-                  key="toolbar"
-                  class="absolute inset-x-0 top-0"
+                  :class="selectedGroupId !== null ? 'absolute inset-0' : undefined"
                   @tag="bulkTagOpen = true"
                   @delete="bulkDeleteOpen = true"
                   @paste="onPaste"
                   @edit-group="onEditGroupFromToolbar"
-                />
-                <HaexSystemPasswordsBreadcrumb
-                  v-else-if="selectedGroupId !== null"
-                  key="breadcrumb"
-                  class="@3xl:hidden absolute inset-x-0 top-0"
                 />
               </Transition>
             </div>
@@ -66,6 +53,7 @@
     <HaexSystemPasswordsDialogBulkDelete
       v-model:open="bulkDeleteOpen"
       :entries="selectedEntries"
+      :final="isBulkDeleteFinal"
     />
     <HaexSystemPasswordsDialogBulkTag
       v-model:open="bulkTagOpen"
@@ -80,6 +68,8 @@
 </template>
 
 <script setup lang="ts">
+import { useResizeObserver } from '@vueuse/core'
+
 const props = defineProps<{
   tabId?: string
   isDragging?: boolean
@@ -92,25 +82,48 @@ provide('haex-tab-id', props.tabId ?? '')
 const passwordsStore = usePasswordsStore()
 const groupsStore = usePasswordsGroupsStore()
 const selection = usePasswordsSelectionStore()
-const { viewMode, selectedItemId } = storeToRefs(passwordsStore)
+const { viewMode, selectedItemId, items } = storeToRefs(passwordsStore)
 const { selectedGroupId } = storeToRefs(groupsStore)
 const {
   selectedEntries,
+  selectedCount,
   clipboardEntries,
   clipboardMode,
   isSelectionMode,
   hasClipboard,
+  desktopFocusId,
 } = storeToRefs(selection)
 
-const showAccessorySlot = computed(
-  () => isSelectionMode.value || hasClipboard.value || selectedGroupId.value !== null,
-)
+// ── Wide-layout detection ────────────────────────────────────────────────────
+// The sidebar becomes visible at @3xl = 48rem (768px) on the @container root.
+// On wide layout, single-click selects instead of opening — same mental model
+// as a desktop file manager.
+const containerRef = useTemplateRef<HTMLElement>('containerRef')
+const isWideLayout = ref(false)
+useResizeObserver(containerRef, (entries) => {
+  const entry = entries[0]
+  if (entry) isWideLayout.value = entry.contentRect.width >= 768
+})
+provide('passwords:isWideLayout', isWideLayout)
+
+// ── Visible list ─────────────────────────────────────────────────────────────
+// Computed here so both the list component and the selection toolbar share the
+// same ordered IDs without double-computing them.
+const { visibleOrderedIds } = usePasswordsVisibleList()
+provide('passwords:visibleOrderedIds', visibleOrderedIds)
+
 const toast = useToast()
 const { t } = useI18n()
 
 const selectedItemIds = computed(() =>
   selectedEntries.value.filter((e) => e.type === 'item').map((e) => e.id),
 )
+
+const isBulkDeleteFinal = computed(() => {
+  const groupId = selectedGroupId.value
+  if (!groupId) return false
+  return groupsStore.isGroupInTrash(groupId)
+})
 
 const bulkDeleteOpen = ref(false)
 const bulkTagOpen = ref(false)
@@ -162,6 +175,66 @@ const onPaste = async () => {
 watch(selectedGroupId, () => selection.clear())
 watch(viewMode, (mode) => {
   if (mode === 'item') selection.clear()
+})
+
+// ── Keyboard shortcuts ───────────────────────────────────────────────────────
+
+const isInputFocused = () => {
+  const el = document.activeElement
+  if (!el) return false
+  const tag = el.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || (el as HTMLElement).isContentEditable
+}
+
+const onKeydown = (event: KeyboardEvent) => {
+  if (viewMode.value !== 'list') return
+  const ctrl = event.ctrlKey || event.metaKey
+
+  // Ctrl+A — select all visible entries in the current folder/search result.
+  if (ctrl && event.key === 'a' && !isInputFocused()) {
+    event.preventDefault()
+    selection.selectAll(visibleOrderedIds.value)
+    return
+  }
+
+  // Ctrl+B / Ctrl+C — copy username / password for the desktop-focused item
+  // or the single selected item. Only active on wide layout.
+  if (ctrl && isWideLayout.value) {
+    const targetId = desktopFocusId.value
+      ?? (selectedCount.value === 1 ? selectedEntries.value[0]?.id : null)
+    if (!targetId) return
+    const focusedEntry = selectedEntries.value.find((e) => e.id === targetId)
+    if (focusedEntry && focusedEntry.type !== 'item') return
+    const item = items.value.find((i) => i.id === targetId)
+    if (!item) return
+
+    if (event.key === 'b') {
+      event.preventDefault()
+      if (item.username) {
+        navigator.clipboard.writeText(item.username).then(() => {
+          toast.add({ title: t('toast.usernameCopied'), color: 'success', duration: 1500 })
+        })
+      }
+      return
+    }
+
+    if (event.key === 'c' && !window.getSelection()?.toString()) {
+      event.preventDefault()
+      if (item.password) {
+        navigator.clipboard.writeText(item.password).then(() => {
+          toast.add({ title: t('toast.passwordCopied'), color: 'success', duration: 1500 })
+        })
+      }
+    }
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
 })
 
 const { armWindowCloseBoundary } = usePasswordsNavigation(props.tabId ?? '')
@@ -226,6 +299,8 @@ de:
     cloned: "{count} Einträge dupliziert"
     pasteError: Einfügen fehlgeschlagen
     cycleError: Ziel-Ordner ist in der Auswahl enthalten
+    passwordCopied: Passwort kopiert
+    usernameCopied: Benutzername kopiert
 en:
   loadError: Failed to load passwords
   toast:
@@ -233,24 +308,19 @@ en:
     cloned: "{count} entries duplicated"
     pasteError: Paste failed
     cycleError: Target folder is inside the selection
+    passwordCopied: Password copied
+    usernameCopied: Username copied
 </i18n>
 
 <style scoped>
-/* Cross-fade + subtle slide so the toolbar swap with the breadcrumb reads as
-   a transition rather than a pop. Both children are absolute-positioned in
-   the same slot, so they overlap during the animation instead of reflowing. */
-.toolbar-swap-enter-active,
-.toolbar-swap-leave-active {
-  transition:
-    opacity 160ms ease,
-    transform 160ms ease;
+/* Toolbar fades over the breadcrumb row (same absolute slot), so there is no
+   layout shift and no slide — pure opacity crossfade is enough. */
+.toolbar-fade-enter-active,
+.toolbar-fade-leave-active {
+  transition: opacity 160ms ease;
 }
-.toolbar-swap-enter-from {
+.toolbar-fade-enter-from,
+.toolbar-fade-leave-to {
   opacity: 0;
-  transform: translateY(-4px);
-}
-.toolbar-swap-leave-to {
-  opacity: 0;
-  transform: translateY(4px);
 }
 </style>

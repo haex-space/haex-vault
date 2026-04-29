@@ -79,6 +79,7 @@
 <script setup lang="ts">
 import type { DropdownMenuItem } from '@nuxt/ui'
 import type { SelectHaexPasswordsGroups } from '~/database/schemas'
+import { TRASH_GROUP_ID } from '~/stores/passwords/groups'
 
 const props = defineProps<{
   group: SelectHaexPasswordsGroups
@@ -92,6 +93,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const toast = useToast()
 
 const groupsStore = usePasswordsGroupsStore()
 const {
@@ -100,6 +102,8 @@ const {
 } = storeToRefs(groupsStore)
 const { selectGroup, setItemGroupAsync, moveGroupAsync, descendantIdSet } =
   groupsStore
+
+const isInTrash = computed(() => groupsStore.isGroupInTrash(props.group.id))
 
 const { isExpanded, toggleExpanded, setExpanded, expandAncestors } =
   useTreeExpanded()
@@ -164,31 +168,59 @@ const onRowClick = (event: MouseEvent) => {
   selectGroup(props.group.id)
 }
 
-const menuItems = computed<DropdownMenuItem[][]>(() => [
-  [
-    {
-      label: t('edit'),
-      icon: 'i-lucide-pencil',
-      onSelect: () => emit('edit', props.group),
-    },
-    {
-      label: t('newSubfolder'),
-      icon: 'i-lucide-folder-plus',
-      onSelect: () => {
-        setExpanded(props.group.id, true)
-        emit('createChild', props.group.id)
+const menuItems = computed<DropdownMenuItem[][]>(() => {
+  if (isInTrash.value) {
+    return [
+      [
+        {
+          label: t('restore'),
+          icon: 'i-lucide-undo-2',
+          onSelect: async () => {
+            try {
+              await groupsStore.restoreGroupAsync(props.group.id)
+              toast.add({ title: t('toast.restored'), color: 'success' })
+            } catch (error) {
+              console.error('[TreeItem] Restore failed:', error)
+            }
+          },
+        },
+      ],
+      [
+        {
+          label: t('deletePermanently'),
+          icon: 'i-lucide-trash-2',
+          color: 'error' as const,
+          onSelect: () => emit('delete', props.group),
+        },
+      ],
+    ]
+  }
+  return [
+    [
+      {
+        label: t('edit'),
+        icon: 'i-lucide-pencil',
+        onSelect: () => emit('edit', props.group),
       },
-    },
-  ],
-  [
-    {
-      label: t('delete'),
-      icon: 'i-lucide-trash-2',
-      color: 'error' as const,
-      onSelect: () => emit('delete', props.group),
-    },
-  ],
-])
+      {
+        label: t('newSubfolder'),
+        icon: 'i-lucide-folder-plus',
+        onSelect: () => {
+          setExpanded(props.group.id, true)
+          emit('createChild', props.group.id)
+        },
+      },
+    ],
+    [
+      {
+        label: t('delete'),
+        icon: 'i-lucide-trash',
+        color: 'error' as const,
+        onSelect: () => emit('delete', props.group),
+      },
+    ],
+  ]
+})
 
 const onContextMenu = () => {
   emit('edit', props.group)
@@ -258,10 +290,18 @@ de:
   untitled: (ohne Namen)
   edit: Bearbeiten
   newSubfolder: Unterordner anlegen
-  delete: Löschen
+  delete: In Papierkorb
+  restore: Wiederherstellen
+  deletePermanently: Endgültig löschen
+  toast:
+    restored: Wiederhergestellt
 en:
   untitled: (unnamed)
   edit: Edit
   newSubfolder: New subfolder
-  delete: Delete
+  delete: Move to trash
+  restore: Restore
+  deletePermanently: Delete permanently
+  toast:
+    restored: Restored
 </i18n>

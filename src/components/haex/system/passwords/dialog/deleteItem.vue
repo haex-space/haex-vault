@@ -1,8 +1,8 @@
 <template>
   <UModal
     v-model:open="open"
-    :title="t('title')"
-    :description="t('description', { title: itemTitle || t('untitled') })"
+    :title="final ? t('final.title') : t('title')"
+    :description="final ? t('final.description', { title: itemTitle || t('untitled') }) : t('description', { title: itemTitle || t('untitled') })"
   >
     <template #footer>
       <div class="flex flex-col sm:flex-row gap-2 justify-end w-full">
@@ -14,8 +14,8 @@
           @click="open = false"
         />
         <UiButton
-          icon="i-lucide-trash-2"
-          :label="t('confirm')"
+          :icon="final ? 'i-lucide-trash-2' : 'i-lucide-trash'"
+          :label="final ? t('final.confirm') : t('confirm')"
           color="error"
           variant="solid"
           @click="$emit('confirm')"
@@ -28,6 +28,7 @@
 <script setup lang="ts">
 defineProps<{
   itemTitle?: string
+  final?: boolean
 }>()
 
 const open = defineModel<boolean>('open', { default: false })
@@ -37,15 +38,23 @@ defineEmits<{ confirm: [] }>()
 
 <i18n lang="yaml">
 de:
-  title: Eintrag löschen?
-  description: "\"{title}\" wird unwiderruflich gelöscht."
+  title: In Papierkorb verschieben?
+  description: "\"{title}\" wird in den Papierkorb verschoben."
   untitled: (ohne Titel)
   cancel: Abbrechen
-  confirm: Löschen
+  confirm: In Papierkorb
+  final:
+    title: Endgültig löschen?
+    description: "\"{title}\" wird unwiderruflich gelöscht."
+    confirm: Endgültig löschen
 en:
-  title: Delete entry?
-  description: "\"{title}\" will be permanently deleted."
+  title: Move to trash?
+  description: "\"{title}\" will be moved to trash."
   untitled: (untitled)
   cancel: Cancel
-  confirm: Delete
+  confirm: Move to trash
+  final:
+    title: Delete permanently?
+    description: "\"{title}\" will be permanently deleted."
+    confirm: Delete permanently
 </i18n>

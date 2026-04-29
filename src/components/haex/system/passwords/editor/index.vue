@@ -61,6 +61,16 @@
         </template>
         <template v-else>
           <UiButton
+            v-if="isCurrentItemInTrash"
+            :tooltip="t('restore')"
+            icon="i-lucide-undo-2"
+            color="neutral"
+            variant="ghost"
+            type="button"
+            @click="onRestore"
+          />
+          <UiButton
+            v-if="!isCurrentItemInTrash"
             :tooltip="t('edit')"
             icon="i-lucide-pencil"
             color="neutral"
@@ -69,8 +79,8 @@
             @click="startEdit"
           />
           <UiButton
-            :tooltip="t('delete')"
-            icon="i-lucide-trash-2"
+            :tooltip="isCurrentItemInTrash ? t('deletePermanently') : t('delete')"
+            :icon="isCurrentItemInTrash ? 'i-lucide-trash-2' : 'i-lucide-trash'"
             color="error"
             variant="ghost"
             type="button"
@@ -512,6 +522,7 @@
     <HaexSystemPasswordsDialogDeleteItem
       v-model:open="showDeleteDialog"
       :item-title="form.title"
+      :final="isCurrentItemInTrash"
       @confirm="onDelete"
     />
 
@@ -595,6 +606,14 @@ const saving = ref(false)
 const activeTab = ref('details')
 const showDeleteDialog = ref(false)
 const showDiscardDialog = ref(false)
+
+const isCurrentItemInTrash = computed(() => {
+  const itemId = selectedItem.value?.id
+  if (!itemId) return false
+  const groupId = groupsStore.itemGroupMap.get(itemId) ?? null
+  if (!groupId) return false
+  return groupsStore.isGroupInTrash(groupId)
+})
 const generatorOpen = ref(false)
 
 const attachments = ref<AttachmentWithSize[]>([])
@@ -852,11 +871,28 @@ const onDelete = async () => {
     await passwordsStore.deleteItemAsync(id)
     showDeleteDialog.value = false
     passwordsStore.backToList()
-    toast.add({ title: t('toast.deleted'), color: 'success' })
+    toast.add({ title: isCurrentItemInTrash.value ? t('toast.deleted') : t('toast.movedToTrash'), color: 'success' })
   } catch (error) {
     console.error('[Editor] Delete failed:', error)
     toast.add({
       title: t('toast.deleteError'),
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+      icon: 'i-lucide-alert-triangle',
+    })
+  }
+}
+
+const onRestore = async () => {
+  if (!selectedItem.value) return
+  try {
+    await groupsStore.restoreItemAsync(selectedItem.value.id)
+    await passwordsStore.loadItemsAsync()
+    toast.add({ title: t('toast.restored'), color: 'success' })
+  } catch (error) {
+    console.error('[Editor] Restore failed:', error)
+    toast.add({
+      title: t('toast.restoreError'),
       description: error instanceof Error ? error.message : String(error),
       color: 'error',
       icon: 'i-lucide-alert-triangle',
@@ -1024,7 +1060,9 @@ de:
   untitled: (ohne Titel)
   back: Zurück
   edit: Bearbeiten
-  delete: Löschen
+  delete: In Papierkorb
+  deletePermanently: Endgültig löschen
+  restore: Wiederherstellen
   save: Speichern
   copy: Kopieren
   copied: Kopiert
@@ -1074,14 +1112,19 @@ de:
     created: Eintrag erstellt
     updated: Eintrag aktualisiert
     deleted: Eintrag gelöscht
+    movedToTrash: In Papierkorb verschoben
+    restored: Wiederhergestellt
     saveError: Speichern fehlgeschlagen
     deleteError: Löschen fehlgeschlagen
+    restoreError: Wiederherstellen fehlgeschlagen
 en:
   titleCreate: New entry
   untitled: (untitled)
   back: Back
   edit: Edit
-  delete: Delete
+  delete: Move to trash
+  deletePermanently: Delete permanently
+  restore: Restore
   save: Save
   copy: Copy
   copied: Copied
@@ -1131,8 +1174,11 @@ en:
     created: Entry created
     updated: Entry updated
     deleted: Entry deleted
+    movedToTrash: Moved to trash
+    restored: Restored
     saveError: Saving failed
     deleteError: Deletion failed
+    restoreError: Restore failed
 </i18n>
 
 <style scoped>

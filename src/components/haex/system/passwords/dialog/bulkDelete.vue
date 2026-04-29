@@ -1,7 +1,7 @@
 <template>
   <UModal
     v-model:open="open"
-    :title="t('title')"
+    :title="final ? t('final.title') : t('title')"
     :description="description"
   >
     <template #footer>
@@ -14,8 +14,8 @@
           @click="open = false"
         />
         <UiButton
-          icon="i-lucide-trash-2"
-          :label="t('confirm')"
+          :icon="final ? 'i-lucide-trash-2' : 'i-lucide-trash'"
+          :label="final ? t('final.confirm') : t('confirm')"
           color="error"
           variant="solid"
           :loading="deleting"
@@ -31,6 +31,7 @@ import type { SelectionEntry } from '~/stores/passwords/selection'
 
 const props = defineProps<{
   entries: SelectionEntry[]
+  final?: boolean
 }>()
 
 const open = defineModel<boolean>('open', { default: false })
@@ -57,6 +58,11 @@ const counts = computed(() => {
 
 const description = computed(() => {
   const { items, folders } = counts.value
+  if (props.final) {
+    if (folders === 0) return t('final.descriptionItemsOnly', { count: items })
+    if (items === 0) return t('final.descriptionFoldersOnly', { count: folders })
+    return t('final.descriptionMixed', { items, folders })
+  }
   if (folders === 0) return t('descriptionItemsOnly', { count: items })
   if (items === 0) return t('descriptionFoldersOnly', { count: folders })
   return t('descriptionMixed', { items, folders })
@@ -69,7 +75,7 @@ const onConfirm = async () => {
     await groupsStore.bulkDeleteAsync(props.entries)
     await passwordsStore.loadItemsAsync()
     selection.clear()
-    toast.add({ title: t('toast.deleted'), color: 'success' })
+    toast.add({ title: props.final ? t('toast.deleted') : t('toast.movedToTrash'), color: 'success' })
     open.value = false
     emit('confirmed')
   } catch (error) {
@@ -88,23 +94,37 @@ const onConfirm = async () => {
 
 <i18n lang="yaml">
 de:
-  title: Auswahl löschen?
-  descriptionItemsOnly: "{count} Einträge werden gelöscht."
-  descriptionFoldersOnly: "{count} Ordner werden gelöscht. Enthaltene Einträge bleiben erhalten, werden aber nicht mehr einem Ordner zugeordnet."
-  descriptionMixed: "{items} Einträge und {folders} Ordner werden gelöscht. Enthaltene Einträge in den Ordnern bleiben erhalten (ungrouped)."
+  title: Auswahl in Papierkorb?
+  descriptionItemsOnly: "{count} Einträge werden in den Papierkorb verschoben."
+  descriptionFoldersOnly: "{count} Ordner werden inklusive ihrer Inhalte in den Papierkorb verschoben."
+  descriptionMixed: "{items} Einträge und {folders} Ordner werden in den Papierkorb verschoben."
   cancel: Abbrechen
-  confirm: Löschen
+  confirm: In Papierkorb
   toast:
+    movedToTrash: In Papierkorb verschoben
     deleted: Auswahl gelöscht
     deleteError: Löschen fehlgeschlagen
+  final:
+    title: Auswahl endgültig löschen?
+    descriptionItemsOnly: "{count} Einträge werden unwiderruflich gelöscht."
+    descriptionFoldersOnly: "{count} Ordner werden inklusive aller Inhalte unwiderruflich gelöscht."
+    descriptionMixed: "{items} Einträge und {folders} Ordner werden unwiderruflich gelöscht."
+    confirm: Endgültig löschen
 en:
-  title: Delete selection?
-  descriptionItemsOnly: "{count} entries will be deleted."
-  descriptionFoldersOnly: "{count} folders will be deleted. Contained entries stay but become ungrouped."
-  descriptionMixed: "{items} entries and {folders} folders will be deleted. Contained entries in folders stay (ungrouped)."
+  title: Move selection to trash?
+  descriptionItemsOnly: "{count} entries will be moved to trash."
+  descriptionFoldersOnly: "{count} folders including their contents will be moved to trash."
+  descriptionMixed: "{items} entries and {folders} folders will be moved to trash."
   cancel: Cancel
-  confirm: Delete
+  confirm: Move to trash
   toast:
+    movedToTrash: Moved to trash
     deleted: Selection deleted
     deleteError: Delete failed
+  final:
+    title: Delete selection permanently?
+    descriptionItemsOnly: "{count} entries will be permanently deleted."
+    descriptionFoldersOnly: "{count} folders including all contents will be permanently deleted."
+    descriptionMixed: "{items} entries and {folders} folders will be permanently deleted."
+    confirm: Delete permanently
 </i18n>

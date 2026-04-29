@@ -97,8 +97,10 @@ const emit = defineEmits<{
   delete: [group: SelectHaexPasswordsGroups]
 }>()
 
+const toast = useToast()
 const { t } = useI18n()
 const groupsStore = usePasswordsGroupsStore()
+const isInTrash = computed(() => groupsStore.isGroupInTrash(props.group.id))
 const {
   childrenByParent,
   itemCountByGroupId,
@@ -189,23 +191,51 @@ const onCheckboxClick = (event: MouseEvent) => {
   selection.toggle(props.group.id)
 }
 
-const menuItems = computed<DropdownMenuItem[][]>(() => [
-  [
-    {
-      label: t('menu.edit'),
-      icon: 'i-lucide-pencil',
-      onSelect: () => emit('edit', props.group),
-    },
-  ],
-  [
-    {
-      label: t('menu.delete'),
-      icon: 'i-lucide-trash-2',
-      color: 'error' as const,
-      onSelect: () => emit('delete', props.group),
-    },
-  ],
-])
+const menuItems = computed<DropdownMenuItem[][]>(() => {
+  if (isInTrash.value) {
+    return [
+      [
+        {
+          label: t('menu.restore'),
+          icon: 'i-lucide-undo-2',
+          onSelect: async () => {
+            try {
+              await groupsStore.restoreGroupAsync(props.group.id)
+              toast.add({ title: t('toast.restored'), color: 'success' })
+            } catch (error) {
+              console.error('[ListFolder] Restore failed:', error)
+            }
+          },
+        },
+      ],
+      [
+        {
+          label: t('menu.deletePermanently'),
+          icon: 'i-lucide-trash-2',
+          color: 'error' as const,
+          onSelect: () => emit('delete', props.group),
+        },
+      ],
+    ]
+  }
+  return [
+    [
+      {
+        label: t('menu.edit'),
+        icon: 'i-lucide-pencil',
+        onSelect: () => emit('edit', props.group),
+      },
+    ],
+    [
+      {
+        label: t('menu.delete'),
+        icon: 'i-lucide-trash',
+        color: 'error' as const,
+        onSelect: () => emit('delete', props.group),
+      },
+    ],
+  ]
+})
 
 const isDragging = ref(false)
 const isDropTarget = ref(false)
@@ -264,7 +294,11 @@ de:
   deselect: Abwählen
   menu:
     edit: Bearbeiten
-    delete: Löschen
+    delete: In Papierkorb
+    restore: Wiederherstellen
+    deletePermanently: Endgültig löschen
+  toast:
+    restored: Wiederhergestellt
 en:
   untitled: (unnamed)
   subfolders: "{count} folder | {count} folders"
@@ -273,5 +307,9 @@ en:
   deselect: Deselect
   menu:
     edit: Edit
-    delete: Delete
+    delete: Move to trash
+    restore: Restore
+    deletePermanently: Delete permanently
+  toast:
+    restored: Restored
 </i18n>

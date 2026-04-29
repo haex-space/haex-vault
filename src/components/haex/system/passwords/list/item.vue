@@ -15,6 +15,7 @@
       :highlight="selected"
       class="cursor-pointer"
       @click="onRowClick"
+      @dblclick="onRowDblClick"
     >
       <div class="flex items-center gap-3 min-h-14">
       <button
@@ -147,6 +148,8 @@ const { isSelectionMode } = storeToRefs(selection)
 const isMultiSelected = computed(() => selection.isSelected(props.item.id))
 const isCut = computed(() => selection.isCut(props.item.id))
 
+const isWideLayout = inject<Ref<boolean>>('passwords:isWideLayout', ref(false))
+
 const orderedIds = inject<Ref<string[]>>(
   'passwordsList:orderedIds',
   ref<string[]>([]),
@@ -179,6 +182,20 @@ const onRowClick = (event: MouseEvent) => {
     selection.toggle(props.item.id)
     return
   }
+  // On wide layout (sidebar visible), single-click selects the item instead
+  // of opening it. This enables keyboard shortcuts (Ctrl+C/B) to copy
+  // credentials without touching the mouse again.
+  if (isWideLayout.value) {
+    selection.setDesktopFocus(props.item.id)
+    return
+  }
+  emit('click')
+}
+
+const onRowDblClick = () => {
+  if (!isWideLayout.value) return
+  if (shouldSuppressClick()) return
+  if (isSelectionMode.value) return
   emit('click')
 }
 

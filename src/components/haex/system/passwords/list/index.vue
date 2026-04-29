@@ -28,7 +28,7 @@
         :key="item.id"
         :item="item"
         :tags="tagsByItemId[item.id] ?? []"
-        :selected="item.id === selectedItemId"
+        :selected="item.id === selectedItemId || item.id === desktopFocusId"
         @click="openItem(item.id)"
       />
     </UiListContainer>
@@ -41,6 +41,7 @@
     <HaexSystemPasswordsDialogDeleteGroup
       v-model:open="deleteOpen"
       :group="deletingGroup"
+      :final="deletingGroup ? groupsStore.isGroupInTrash(deletingGroup.id) : false"
     />
   </div>
 </template>
@@ -51,40 +52,21 @@ import type { SelectHaexPasswordsGroups } from '~/database/schemas'
 const { t } = useI18n()
 
 const passwordsStore = usePasswordsStore()
-const { itemsInSelectedGroup, tagsByItemId, selectedItemId } =
-  storeToRefs(passwordsStore)
+const { tagsByItemId, selectedItemId } = storeToRefs(passwordsStore)
 const { openItem } = usePasswordsNavigation()
 
+const selection = usePasswordsSelectionStore()
+const { desktopFocusId } = storeToRefs(selection)
+
 const groupsStore = usePasswordsGroupsStore()
-const { selectedGroupId, childrenByParent } = storeToRefs(groupsStore)
 
-const { search, searchResults } = storeToRefs(usePasswordsSearchStore())
+const { visibleFolders, visibleItems, isEmpty, isSearching } = usePasswordsVisibleList()
+const { search } = storeToRefs(usePasswordsSearchStore())
 
-const isSearching = computed(() => searchResults.value !== null)
-
-// Subfolders are only shown inside a group — not in "All Passwords" (that
-// would duplicate what the sidebar tree already surfaces) and not while
-// searching (search results are flat across the whole vault).
-const visibleFolders = computed<SelectHaexPasswordsGroups[]>(() => {
-  if (isSearching.value) return []
-  if (selectedGroupId.value === null) return []
-  return childrenByParent.value.get(selectedGroupId.value) ?? []
-})
-
-const visibleItems = computed(() =>
-  isSearching.value ? searchResults.value ?? [] : itemsInSelectedGroup.value,
-)
-
-const isEmpty = computed(
-  () => visibleFolders.value.length === 0 && visibleItems.value.length === 0,
-)
-
-// Folders render first, so range-selection across a mixed list matches the
-// visual order. Children use inject() to drive Shift-click range logic.
-const visibleOrderedIds = computed<string[]>(() => [
-  ...visibleFolders.value.map((f) => f.id),
-  ...visibleItems.value.map((i) => i.id),
-])
+// Children inject this to drive Shift-click range logic. The IDs are also
+// provided from passwords/index.vue under 'passwords:visibleOrderedIds' for
+// the selection toolbar — both keys are kept in sync via the shared composable.
+const visibleOrderedIds = inject<Ref<string[]>>('passwords:visibleOrderedIds', ref([]))
 provide('passwordsList:orderedIds', visibleOrderedIds)
 
 const editorOpen = ref(false)

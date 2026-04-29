@@ -64,8 +64,14 @@ export const usePasswordsStore = defineStore('passwordsStore', () => {
   const itemsInSelectedGroup = computed<SelectHaexPasswordsItemDetails[]>(() => {
     const groupsStore = usePasswordsGroupsStore()
     const activeGroupId = groupsStore.selectedGroupId
-    if (activeGroupId === null) return items.value
     const itemGroupMap = groupsStore.itemGroupMap
+    if (activeGroupId === null) {
+      // "Alle Passwörter" — exclude items that live inside the trash hierarchy.
+      return items.value.filter((item) => {
+        const groupId = itemGroupMap.get(item.id)
+        return !groupId || !groupsStore.isGroupInTrash(groupId)
+      })
+    }
     return items.value.filter(
       (item) => itemGroupMap.get(item.id) === activeGroupId,
     )
@@ -139,10 +145,8 @@ export const usePasswordsStore = defineStore('passwordsStore', () => {
   }
 
   const deleteItemAsync = async (itemId: string) => {
-    const db = requireDb()
-    await db
-      .delete(haexPasswordsItemDetails)
-      .where(eq(haexPasswordsItemDetails.id, itemId))
+    const groupsStore = usePasswordsGroupsStore()
+    await groupsStore.deleteItemAsync(itemId)
     if (selectedItemId.value === itemId) {
       selectedItemId.value = null
     }
