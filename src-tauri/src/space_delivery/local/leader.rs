@@ -8,7 +8,7 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use time::OffsetDateTime;
 use tokio::sync::RwLock;
 
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::crdt::commands::{apply_remote_changes_to_db, RemoteColumnChange};
 use crate::crdt::hlc::HlcService;
@@ -933,9 +933,27 @@ pub(super) async fn handle_delivery_request(
 
             notify_others_sync(state, &space_id, &affected_tables, peer_endpoint_id).await;
 
-            // Notify the leader's own frontend so stores tied to the changed
-            // tables (e.g. peer_storage for haex_space_devices) reload without
-            // waiting for the next periodic pull.
+            // If the push touched haex_space_devices, reload allowed_peers now —
+            // synchronously, before returning Ok. This ensures the new peer is
+            // authorized before it can issue any peer-storage requests. The async
+            // TS event chain (local-sync-completed → peer_storage_reload_shares)
+            // runs in parallel but this Rust-side reload is the authoritative gate.
+            if affected_tables.iter().any(|t| t == "haex_space_devices") {
+                let app_state: tauri::State<'_, crate::AppState> = state.app_handle.state();
+                let endpoint = app_state.peer_storage.lock().await;
+                if let Err(e) = crate::peer_storage::commands::reload_allowed_peers(
+                    &app_state,
+                    &endpoint,
+                ).await {
+                    eprintln!("[SpaceDelivery] Failed to reload allowed_peers after space_devices push: {e}");
+                    return Response::Error {
+                        message: format!("Failed to reload allowed_peers: {e}"),
+                    };
+                }
+            }
+
+            // Notify the leader's own frontend so UI stores (file browser peer
+            // list, space devices) reload without waiting for the next cloud pull.
             let _ = state.app_handle.emit(
                 "local-sync-completed",
                 serde_json::json!({
