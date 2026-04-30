@@ -946,6 +946,9 @@ pub(super) async fn handle_delivery_request(
                     &endpoint,
                 ).await {
                     eprintln!("[SpaceDelivery] Failed to reload allowed_peers after space_devices push: {e}");
+                    return Response::Error {
+                        message: format!("Failed to reload allowed_peers: {e}"),
+                    };
                 }
             }
 
