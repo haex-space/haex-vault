@@ -337,12 +337,6 @@ export async function acceptLocalInvite(
   },
   persistSpaceAsync: (space: SpaceWithType) => Promise<void>,
   loadSpacesFromDbAsync: () => Promise<void>,
-  startPeerSyncForLocalSpaceAsync: (
-    spaceId: string,
-    identityDid: string,
-    hintLeaderEndpointId?: string,
-    hintLeaderRelayUrl?: string | null,
-  ) => Promise<void>,
 ) {
   if (!invite.spaceEndpoints || !invite.tokenId) {
     throw new Error('Missing invite data for local claim')
@@ -434,19 +428,19 @@ export async function acceptLocalInvite(
     }
   }
 
-  // Start the peer-side CRDT sync loop so we pull the space's historical
-  // state (other members, shares, devices) from the leader. The endpoint
-  // that served the ClaimInvite is passed as a fallback hint — leader
-  // election is authoritative, but right after Accept the leader may not
-  // yet know about our device, so the hint keeps initial sync moving.
+  // Connect directly to the endpoint that served the ClaimInvite — it is
+  // the leader by definition. Skipping election here is intentional: right
+  // after Accept, haex_space_devices only contains our own freshly-inserted
+  // row, so election would return SelfIsLeader and never start the sync loop.
   if (acceptedEndpoint) {
     try {
-      await startPeerSyncForLocalSpaceAsync(
-        invite.spaceId,
-        identity.did,
-        acceptedEndpoint,
-        null,
-      )
+      await invoke('local_delivery_connect', {
+        spaceId: invite.spaceId,
+        leaderEndpointId: acceptedEndpoint,
+        leaderRelayUrl: null,
+        identityDid: identity.did,
+      })
+      log.info(`Started peer sync after invite accept: space=${invite.spaceId} leader=${acceptedEndpoint.slice(0, 16)}`)
     } catch (error) {
       log.warn(`ClaimInvite: failed to start sync loop: ${error}`)
     }
