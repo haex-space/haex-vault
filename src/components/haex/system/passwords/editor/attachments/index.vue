@@ -18,18 +18,28 @@
           ]"
           @click="editingId !== attachment.id ? onItemClick(attachment) : null"
         >
-          <!-- Thumbnail for images (pending only — existing loaded lazily) -->
+          <!-- Thumbnail for images -->
           <div
-            v-if="isImage(attachment.fileName) && attachment.data"
-            class="size-12 rounded overflow-hidden shrink-0"
+            v-if="isImage(attachment.fileName) && imageDataUrls[attachment.id]"
+            class="size-16 rounded overflow-hidden shrink-0"
           >
             <img
-              :src="createDataUrl(attachment.data, attachment.fileName)"
+              :src="imageDataUrls[attachment.id]"
               :alt="attachment.fileName"
               class="size-full object-cover"
             />
           </div>
-          <!-- Icon for non-images or existing images -->
+          <!-- Placeholder while image loads -->
+          <div
+            v-else-if="isImage(attachment.fileName)"
+            class="size-16 rounded bg-elevated shrink-0 flex items-center justify-center"
+          >
+            <UIcon
+              name="i-lucide-image"
+              class="size-5 text-muted"
+            />
+          </div>
+          <!-- Icon for non-images -->
           <UIcon
             v-else-if="getFileType(attachment.fileName) === 'pdf'"
             name="i-lucide-file-text"
@@ -39,11 +49,6 @@
             v-else-if="getFileType(attachment.fileName) === 'text'"
             name="i-lucide-file-code"
             class="size-5 text-primary shrink-0"
-          />
-          <UIcon
-            v-else-if="isImage(attachment.fileName)"
-            name="i-lucide-image"
-            class="size-5 text-success shrink-0"
           />
           <UIcon
             v-else
@@ -207,6 +212,22 @@ const allAttachments = computed(() => [
   ...attachments.value,
   ...attachmentsToAdd.value,
 ])
+
+// Image thumbnail cache (id → data URL) — loads lazily for saved attachments
+const imageDataUrls = reactive<Record<string, string>>({})
+
+watch(
+  () => allAttachments.value.map(a => `${a.id}:${a.fileName}`),
+  () => {
+    for (const att of allAttachments.value) {
+      if (!isImage(att.fileName) || imageDataUrls[att.id]) continue
+      loadDataUrl(att).then((url) => {
+        if (url) imageDataUrls[att.id] = url
+      })
+    }
+  },
+  { immediate: true },
+)
 
 function isPending(attachment: AttachmentWithSize): boolean {
   return attachmentsToAdd.value.some((a) => a.id === attachment.id)

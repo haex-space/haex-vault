@@ -14,6 +14,8 @@ import { createLogger } from '@/stores/logging'
 import { detectCrossServerInvite, setupFederationForSpace } from './federation'
 import { addSelfAsSpaceMember } from './members'
 import type { SpaceWithType, ResolvedIdentity } from './index'
+import { usePeerStorageStore } from '@/stores/peer-storage'
+import { useDeviceStore } from '@/stores/vault/device'
 
 type DB = SqliteRemoteDatabase<typeof schema>
 
@@ -335,12 +337,6 @@ export async function acceptLocalInvite(
   },
   persistSpaceAsync: (space: SpaceWithType) => Promise<void>,
   loadSpacesFromDbAsync: () => Promise<void>,
-  startPeerSyncForLocalSpaceAsync: (
-    spaceId: string,
-    identityDid: string,
-    hintLeaderEndpointId?: string,
-    hintLeaderRelayUrl?: string | null,
-  ) => Promise<void>,
 ) {
   if (!invite.spaceEndpoints || !invite.tokenId) {
     throw new Error('Missing invite data for local claim')
@@ -413,19 +409,38 @@ export async function acceptLocalInvite(
   // Add self as space member (non-fatal)
   await addSelfAsSpaceMember(db, invite.spaceId, identity, 'read')
 
-  // Start the peer-side CRDT sync loop so we pull the space's historical
-  // state (other members, shares, devices) from the leader. The endpoint
-  // that served the ClaimInvite is passed as a fallback hint — leader
-  // election is authoritative, but right after Accept the leader may not
-  // yet know about our device, so the hint keeps initial sync moving.
+  // Register this device in haex_space_devices for the new space. The CRDT
+  // sync loop will push this row to the space leader, which then reloads
+  // allowed_peers and permits this device to browse shared files (sub-folder
+  // listing is gated on allowed_peers; without this row the leader silently
+  // filters out shares from this space).
+  const peerStorageStore = usePeerStorageStore()
+  if (peerStorageStore.running && peerStorageStore.nodeId) {
+    const deviceStore = useDeviceStore()
+    const deviceName = deviceStore.deviceName || deviceStore.hostname || 'Unknown'
+    try {
+      await peerStorageStore.registerDeviceInSpaceAsync(invite.spaceId, deviceName)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (!message.toLowerCase().includes('unique') && !message.toLowerCase().includes('duplicate')) {
+        log.error('Failed to register device in space during invite accept', { spaceId: invite.spaceId, error })
+      }
+    }
+  }
+
+  // Connect directly to the endpoint that served the ClaimInvite — it is
+  // the leader by definition. Skipping election here is intentional: right
+  // after Accept, haex_space_devices only contains our own freshly-inserted
+  // row, so election would return SelfIsLeader and never start the sync loop.
   if (acceptedEndpoint) {
     try {
-      await startPeerSyncForLocalSpaceAsync(
-        invite.spaceId,
-        identity.did,
-        acceptedEndpoint,
-        null,
-      )
+      await invoke('local_delivery_connect', {
+        spaceId: invite.spaceId,
+        leaderEndpointId: acceptedEndpoint,
+        leaderRelayUrl: null,
+        identityDid: identity.did,
+      })
+      log.info(`Started peer sync after invite accept: space=${invite.spaceId} leader=${acceptedEndpoint.slice(0, 16)}`)
     } catch (error) {
       log.warn(`ClaimInvite: failed to start sync loop: ${error}`)
     }

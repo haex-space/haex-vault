@@ -599,7 +599,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
       async () => {
         await loadSpacesFromDbAsync()
       },
-      startPeerSyncForLocalSpaceAsync,
     )
 
   const queueQuicInviteAsync = (
