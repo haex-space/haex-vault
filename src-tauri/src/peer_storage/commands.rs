@@ -85,6 +85,23 @@ fn load_allowed_peers_from_db(
     Ok(allowed)
 }
 
+/// Reload only the allowed-peers map from haex_space_devices into the running endpoint.
+///
+/// Cheaper than reload_state_from_db (skips share path validation). Called from the
+/// space-delivery leader after it receives a SyncPush that touches haex_space_devices,
+/// so the new peer is authorized before Response::Ok is returned.
+pub(crate) async fn reload_allowed_peers(
+    state: &AppState,
+    endpoint: &crate::peer_storage::endpoint::PeerEndpoint,
+) -> Result<(), PeerStorageError> {
+    let endpoint_id = endpoint.endpoint_id().to_string();
+    let allowed_peers = load_allowed_peers_from_db(state, &endpoint_id)?;
+    let peer_count: usize = allowed_peers.values().map(|s| s.len()).sum();
+    endpoint.set_allowed_peers(allowed_peers).await;
+    eprintln!("[PeerStorage] Updated allowed peers: {peer_count} peers across spaces");
+    Ok(())
+}
+
 /// Reload shares and allowed peers into the endpoint from DB.
 async fn reload_state_from_db(
     state: &AppState,
