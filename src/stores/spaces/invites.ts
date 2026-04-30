@@ -14,6 +14,8 @@ import { createLogger } from '@/stores/logging'
 import { detectCrossServerInvite, setupFederationForSpace } from './federation'
 import { addSelfAsSpaceMember } from './members'
 import type { SpaceWithType, ResolvedIdentity } from './index'
+import { usePeerStorageStore } from '@/stores/peer-storage'
+import { useDeviceStore } from '@/stores/vault/device'
 
 type DB = SqliteRemoteDatabase<typeof schema>
 
@@ -412,6 +414,25 @@ export async function acceptLocalInvite(
 
   // Add self as space member (non-fatal)
   await addSelfAsSpaceMember(db, invite.spaceId, identity, 'read')
+
+  // Register this device in haex_space_devices for the new space. The CRDT
+  // sync loop will push this row to the space leader, which then reloads
+  // allowed_peers and permits this device to browse shared files (sub-folder
+  // listing is gated on allowed_peers; without this row the leader silently
+  // filters out shares from this space).
+  const peerStorageStore = usePeerStorageStore()
+  if (peerStorageStore.running && peerStorageStore.nodeId) {
+    const deviceStore = useDeviceStore()
+    const deviceName = deviceStore.deviceName || deviceStore.hostname || 'Unknown'
+    try {
+      await peerStorageStore.registerDeviceInSpaceAsync(invite.spaceId, deviceName)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (!message.toLowerCase().includes('unique') && !message.toLowerCase().includes('duplicate')) {
+        log.error('Failed to register device in space during invite accept', { spaceId: invite.spaceId, error })
+      }
+    }
+  }
 
   // Start the peer-side CRDT sync loop so we pull the space's historical
   // state (other members, shares, devices) from the leader. The endpoint
