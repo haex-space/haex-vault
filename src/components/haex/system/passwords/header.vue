@@ -111,17 +111,17 @@ const moreMenuItems = computed<DropdownMenuItem[][]>(() => [
   [
     {
       label: t('moreMenu.importBitwarden'),
-      icon: 'i-lucide-shield',
+      icon: 'i-simple-icons-bitwarden',
       onSelect: () => { importBitwardenOpen.value = true },
     },
     {
       label: t('moreMenu.importLastpass'),
-      icon: 'i-lucide-star',
+      icon: 'i-simple-icons-lastpass',
       onSelect: () => { importLastpassOpen.value = true },
     },
     {
       label: t('moreMenu.importKeepass'),
-      icon: 'i-lucide-key',
+      icon: 'i-simple-icons-keepassxc',
       onSelect: () => { importKeepassOpen.value = true },
     },
   ],
