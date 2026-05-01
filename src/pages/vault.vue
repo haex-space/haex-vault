@@ -108,20 +108,23 @@ onMounted(async () => {
           ),
         })
       : null
-    if (peerAutostart?.value !== 'false') {
-      usePeerStorageStore().startAsync().catch((error) => {
-        console.warn('[P2P] Autostart failed:', error)
-      })
+    // Start file sync after P2P endpoint is up (peer rules need the endpoint).
+    // If P2P is disabled, start file sync immediately (local/cloud rules still work).
+    const startFileSyncAsync = () => {
+      const fileSyncStore = useFileSyncStore()
+      fileSyncStore.loadRulesAsync()
+        .then(() => fileSyncStore.setupEventListeners())
+        .then(() => fileSyncStore.startEnabledRulesAsync())
+        .catch(e => console.warn('[FileSync] Autostart failed:', e))
     }
 
-    // Auto-start file sync rules (independent of P2P endpoint state)
-    const fileSyncStore = useFileSyncStore()
-    fileSyncStore.loadRulesAsync()
-      .then(() => fileSyncStore.setupEventListeners())
-      .then(() => fileSyncStore.startEnabledRulesAsync())
-      .catch((error) => {
-        console.warn('[FileSync] Autostart failed:', error)
-      })
+    if (peerAutostart?.value !== 'false') {
+      usePeerStorageStore().startAsync()
+        .catch(e => console.warn('[P2P] Autostart failed:', e))
+        .finally(startFileSyncAsync)
+    } else {
+      startFileSyncAsync()
+    }
   } catch (error) {
     console.error('vault mount error:', error)
   }
