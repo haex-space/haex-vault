@@ -307,8 +307,34 @@ async fn handle_manifest(
     }
 
     if let Some(_uri_info) = check_content_uri(&state, allowed_spaces, path) {
+        #[cfg(target_os = "android")]
+        {
+            let app_handle = match _uri_info.app_handle {
+                Some(h) => h,
+                None => {
+                    return Response::Error {
+                        message: "AppHandle not available".to_string(),
+                    }
+                }
+            };
+            let root_uri = _uri_info.root_uri;
+            let sub_path = _uri_info.sub_path;
+            drop(state);
+            return match tokio::task::spawn_blocking(move || {
+                super::android::scan_content_uri_recursive(&app_handle, &root_uri, &sub_path)
+            })
+            .await
+            {
+                Ok(Ok(entries)) => Response::Manifest { entries },
+                Ok(Err(e)) => Response::Error { message: e },
+                Err(e) => Response::Error {
+                    message: format!("Task failed: {e}"),
+                },
+            };
+        }
+        #[cfg(not(target_os = "android"))]
         return Response::Error {
-            message: "Manifest not supported for Content URI shares".to_string(),
+            message: "Content URIs are only supported on Android".to_string(),
         };
     }
 
