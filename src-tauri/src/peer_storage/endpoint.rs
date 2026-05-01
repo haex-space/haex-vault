@@ -319,7 +319,7 @@ impl PeerEndpoint {
     /// Get a cached QUIC connection or establish a new one, then open a
     /// bidirectional stream. If a cached connection is stale, it is evicted
     /// and a fresh one is created automatically.
-    pub(super) async fn open_stream(
+    pub(crate) async fn open_stream(
         &self,
         remote_id: EndpointId,
         relay_url: Option<RelayUrl>,
@@ -387,7 +387,7 @@ impl PeerEndpoint {
     }
 
     /// Encode a request, send it on the stream, signal end-of-send, and read the response.
-    pub(super) async fn send_request(
+    pub(crate) async fn send_request(
         send: &mut iroh::endpoint::SendStream,
         recv: &mut iroh::endpoint::RecvStream,
         req: &Request,
@@ -414,7 +414,7 @@ impl PeerEndpoint {
     }
 
     /// Send a request header without finishing the send side (caller will stream more data).
-    pub(super) async fn send_request_header(
+    pub(crate) async fn send_request_header(
         send: &mut iroh::endpoint::SendStream,
         req: &Request,
     ) -> Result<(), PeerStorageError> {
