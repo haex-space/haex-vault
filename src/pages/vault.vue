@@ -114,15 +114,20 @@ onMounted(async () => {
       })
     }
 
-    // Setup file sync event listeners and start rules for non-P2P rules.
-    // P2P rules are also started inside startAsync() after the endpoint is up;
-    // this call handles local/cloud rules and sets up the Tauri event listeners.
+    // Set up file sync event listeners so progress/complete events are handled.
+    // When P2P is enabled, startAsync() calls loadRulesAsync() + startEnabledRulesAsync()
+    // after the endpoint is up — starting rules here too would cause a double-start race.
+    // When P2P is disabled, start rules here since startAsync() will not run.
     const fileSyncStore = useFileSyncStore()
     fileSyncStore.loadRulesAsync()
       .then(() => fileSyncStore.setupEventListeners())
-      .then(() => fileSyncStore.startEnabledRulesAsync())
+      .then(() => {
+        if (peerAutostart?.value === 'false') {
+          return fileSyncStore.startEnabledRulesAsync()
+        }
+      })
       .catch((error) => {
-        console.warn('[FileSync] Autostart failed:', error)
+        console.warn('[FileSync] Setup failed:', error)
       })
   } catch (error) {
     console.error('vault mount error:', error)

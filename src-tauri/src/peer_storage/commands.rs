@@ -181,8 +181,13 @@ pub async fn peer_storage_start(
         }
     }
 
+    // Clone the iroh endpoint handle before dropping the write lock so the
+    // relay wait below does not block concurrent read operations (e.g. local_delivery_connect).
+    let iroh_ep = endpoint.endpoint_ref().cloned();
+    drop(endpoint);
+
     // Wait briefly for relay connection so we can advertise our relay URL to peers
-    let relay_url = if let Some(ep) = endpoint.endpoint_ref() {
+    let relay_url = if let Some(ep) = iroh_ep {
         match tokio::time::timeout(std::time::Duration::from_secs(5), ep.online()).await {
             Ok(()) => ep.addr().relay_urls().next().cloned().map(|u| u.to_string()),
             Err(_) => None,
