@@ -68,6 +68,70 @@ pub(super) fn resolve_content_uri_subpath(
     unreachable!()
 }
 
+/// Recursively scan a Content URI directory tree and collect FileState entries for the manifest.
+#[cfg(target_os = "android")]
+pub(super) fn scan_content_uri_recursive(
+    app_handle: &tauri::AppHandle,
+    root_uri_json: &str,
+    sub_path: &str,
+) -> Result<Vec<crate::file_sync::types::FileState>, String> {
+    let (target_uri, is_dir) = resolve_content_uri_subpath(app_handle, root_uri_json, sub_path)?;
+    if !is_dir {
+        return Err("Not a directory".to_string());
+    }
+    let mut entries = Vec::new();
+    collect_content_uri_entries(app_handle, &target_uri, "", &mut entries)?;
+    Ok(entries)
+}
+
+#[cfg(target_os = "android")]
+fn collect_content_uri_entries(
+    app_handle: &tauri::AppHandle,
+    dir_uri: &tauri_plugin_android_fs::FileUri,
+    prefix: &str,
+    entries: &mut Vec<crate::file_sync::types::FileState>,
+) -> Result<(), String> {
+    use tauri_plugin_android_fs::AndroidFsExt;
+
+    let api = app_handle.android_fs();
+    let dir_entries = api
+        .read_dir(dir_uri)
+        .map_err(|e| format!("Failed to read dir: {e:?}"))?;
+
+    for entry in dir_entries {
+        let name = entry.name();
+        let relative_path = if prefix.is_empty() {
+            name.to_string()
+        } else {
+            format!("{}/{}", prefix, name)
+        };
+
+        let modified_at = entry
+            .last_modified()
+            .duration_since(std::time::UNIX_EPOCH)
+            .ok()
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+
+        let is_directory = entry.is_dir();
+        let size = if is_directory { 0 } else { entry.file_len().unwrap_or(0) };
+        let uri = entry.uri().clone();
+
+        entries.push(crate::file_sync::types::FileState {
+            relative_path: relative_path.clone(),
+            size,
+            modified_at,
+            is_directory,
+        });
+
+        if is_directory {
+            collect_content_uri_entries(app_handle, &uri, &relative_path, entries)?;
+        }
+    }
+
+    Ok(())
+}
+
 /// List directory contents via Content URI.
 #[cfg(target_os = "android")]
 pub(super) fn list_content_uri(
