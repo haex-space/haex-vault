@@ -20,12 +20,20 @@ interface SyncResult {
   errors: string[]
 }
 
+interface FileProgress {
+  path: string
+  bytesDone: number
+  bytesTotal: number
+}
+
 interface SyncProgress {
   currentFile: string
   filesDone: number
   filesTotal: number
   bytesDone: number
   bytesTotal: number
+  activeFiles: FileProgress[]
+  bytesPerSecond: number
 }
 
 const log = createLogger('FILE_SYNC')
@@ -115,6 +123,16 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
   const triggerSyncNowAsync = async (ruleId: string) => {
     const rule = syncRules.value.find(r => r.id === ruleId)
     if (!rule) throw new Error('Rule not found')
+
+    // If the sync loop is already running, poke its trigger channel and return
+    // immediately — the loop emits progress/complete events as usual.
+    // Avoids blocking the UI thread for the full transfer duration.
+    if (isRuleRunning(ruleId)) {
+      await invoke('file_sync_trigger_by_watcher', { ruleId })
+      return null
+    }
+
+    // Rule not running: one-shot blocking sync
     const result = await invoke<SyncResult>('file_sync_trigger_now', {
       ruleId: rule.id,
       sourceType: rule.sourceType,
@@ -125,7 +143,7 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
       deleteMode: rule.deleteMode,
     })
     lastResults.value.set(ruleId, result)
-    lastResults.value = new Map(lastResults.value) // trigger reactivity
+    lastResults.value = new Map(lastResults.value)
     return result
   }
 
@@ -155,6 +173,8 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
   let unlistenError: (() => void) | null = null
 
   const setupEventListeners = async () => {
+    if (unlistenProgress || unlistenComplete || unlistenError) return
+
     unlistenProgress = await listen<{ ruleId: string } & SyncProgress>('file-sync:progress', (event) => {
       currentProgress.value.set(event.payload.ruleId, event.payload)
       currentProgress.value = new Map(currentProgress.value)

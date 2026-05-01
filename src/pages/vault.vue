@@ -113,6 +113,15 @@ onMounted(async () => {
         console.warn('[P2P] Autostart failed:', error)
       })
     }
+
+    // Auto-start file sync rules (independent of P2P endpoint state)
+    const fileSyncStore = useFileSyncStore()
+    fileSyncStore.loadRulesAsync()
+      .then(() => fileSyncStore.setupEventListeners())
+      .then(() => fileSyncStore.startEnabledRulesAsync())
+      .catch((error) => {
+        console.warn('[FileSync] Autostart failed:', error)
+      })
   } catch (error) {
     console.error('vault mount error:', error)
   }

@@ -352,12 +352,11 @@ impl PeerEndpoint {
                     return Ok(streams);
                 }
             }
-            // Stale or corrupted — evict. Explicit close tells the peer now
-            // instead of waiting for QUIC idle timeout.
+            // Stale or corrupted — evict from cache. Do NOT call .close() here:
+            // parallel tasks may still hold streams on this connection, and an
+            // explicit close would tear them down mid-transfer.
             if let Ok(mut cache) = self.connections.lock() {
-                if let Some(evicted) = cache.remove(&remote_id) {
-                    evicted.close(0u32.into(), b"stale-cache-evicted");
-                }
+                cache.remove(&remote_id);
             }
         }
 

@@ -81,4 +81,8 @@ pub struct SyncProgress {
     pub files_total: u32,
     pub bytes_done: u64,
     pub bytes_total: u64,
+    /// Files currently being transferred in parallel
+    pub active_files: Vec<String>,
+    /// Current transfer rate in bytes/second
+    pub bytes_per_second: u64,
 }

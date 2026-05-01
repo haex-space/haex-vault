@@ -11,6 +11,8 @@ use tokio_util::sync::CancellationToken;
 
 use crate::AppState;
 
+use std::sync::Arc;
+
 use super::cloud_provider::CloudProvider;
 use super::engine::{execute_sync, run_sync_loop, SyncEngineError};
 use super::local_provider::LocalProvider;
@@ -124,7 +126,7 @@ async fn create_provider(
     provider_type: &str,
     config: &serde_json::Value,
     state: &AppState,
-) -> Result<Box<dyn SyncProvider>, FileSyncCommandError> {
+) -> Result<Arc<dyn SyncProvider>, FileSyncCommandError> {
     match provider_type {
         "local" => {
             let path = config
@@ -137,7 +139,7 @@ async fn create_provider(
                 })?;
             let provider = LocalProvider::new(std::path::PathBuf::from(path))
                 .map_err(|e| FileSyncCommandError::ProviderError(e.to_string()))?;
-            Ok(Box::new(provider))
+            Ok(Arc::new(provider))
         }
         "peer" => {
             let endpoint_id_str = config
@@ -151,10 +153,26 @@ async fn create_provider(
             let endpoint_id: iroh::EndpointId = endpoint_id_str.parse().map_err(|e| {
                 FileSyncCommandError::InvalidConfig(format!("Invalid endpointId: {e}"))
             })?;
-            let relay_url = config
-                .get("relayUrl")
-                .and_then(|v| v.as_str())
-                .and_then(|s| s.parse::<iroh::RelayUrl>().ok());
+            // Look up the live relay URL from the CRDT — the value stored in
+            // the sync rule config may be stale if the peer restarted.
+            let relay_url = {
+                let sql = "SELECT relay_url FROM haex_space_devices \
+                           WHERE device_endpoint_id = ?1 LIMIT 1"
+                    .to_string();
+                let params = vec![serde_json::Value::String(endpoint_id_str.to_string())];
+                crate::database::core::select_with_crdt(sql, params, &state.db)
+                    .ok()
+                    .and_then(|rows| rows.into_iter().next())
+                    .and_then(|row| row.get(0).and_then(|v| v.as_str()).map(|s| s.to_string()))
+                    .and_then(|s| s.parse::<iroh::RelayUrl>().ok())
+                    .or_else(|| {
+                        // Fallback to config value
+                        config
+                            .get("relayUrl")
+                            .and_then(|v| v.as_str())
+                            .and_then(|s| s.parse::<iroh::RelayUrl>().ok())
+                    })
+            };
             let base_path = config
                 .get("path")
                 .and_then(|v| v.as_str())
@@ -172,7 +190,7 @@ async fn create_provider(
 
             let endpoint = state.peer_storage.clone();
             let provider = PeerProvider::new(endpoint, endpoint_id, relay_url, base_path, ucan_token);
-            Ok(Box::new(provider))
+            Ok(Arc::new(provider))
         }
         "cloud" => {
             let backend_id = config
@@ -194,7 +212,7 @@ async fn create_provider(
                     .await
                     .map_err(|e| FileSyncCommandError::ProviderError(e.to_string()))?;
             let provider = CloudProvider::new(backend, prefix);
-            Ok(Box::new(provider))
+            Ok(Arc::new(provider))
         }
         _ => Err(FileSyncCommandError::InvalidConfig(format!(
             "Unknown provider type: {provider_type}"
@@ -346,13 +364,13 @@ pub async fn file_sync_trigger_now(
     let target = create_provider(&target_type, &target_config, &state).await?;
 
     let result = execute_sync(
-        &*source,
-        &*target,
+        source,
+        target,
         dir,
         del,
         &rule_id,
         &state.db,
-        Some(&app),
+        Some(app),
     )
     .await?;
 

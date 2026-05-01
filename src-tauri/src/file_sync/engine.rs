@@ -2,9 +2,15 @@
 //!
 //! Ties together providers, diff computation, and database state tracking.
 
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::collections::{HashMap, VecDeque};
+use std::sync::{
+    atomic::{AtomicU32, AtomicU64, Ordering},
+    Arc, Mutex,
+};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde_json::Value as JsonValue;
+use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
 use crate::database::DbConnection;
@@ -183,203 +189,483 @@ pub fn clear_sync_state(db: &DbConnection, rule_id: &str) -> Result<(), SyncEngi
 }
 
 // ---------------------------------------------------------------------------
+// Speed tracker — sliding window bytes/second
+// ---------------------------------------------------------------------------
+
+struct SpeedTracker {
+    samples: VecDeque<(Instant, u64)>,
+}
+
+impl SpeedTracker {
+    fn new() -> Self {
+        Self { samples: VecDeque::new() }
+    }
+
+    fn add(&mut self, bytes: u64) {
+        self.samples.push_back((Instant::now(), bytes));
+        let cutoff = Instant::now() - Duration::from_secs(5);
+        while self.samples.front().map(|(t, _)| *t < cutoff).unwrap_or(false) {
+            self.samples.pop_front();
+        }
+    }
+
+    fn bytes_per_second(&self) -> u64 {
+        if self.samples.len() < 2 {
+            return 0;
+        }
+        let oldest = self.samples.front().unwrap().0;
+        let newest = self.samples.back().unwrap().0;
+        let elapsed = newest.duration_since(oldest).as_secs_f64();
+        let total: u64 = self.samples.iter().map(|(_, b)| b).sum();
+        if elapsed < 0.05 {
+            return 0;
+        }
+        (total as f64 / elapsed) as u64
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Execute sync
 // ---------------------------------------------------------------------------
 
-/// Execute a one-shot sync: get manifests, compute diff, transfer files, update state.
+/// How many files to transfer in parallel. Higher values help on fast LAN
+/// connections with many small files; lower values reduce memory pressure for
+/// large files. 4 is a safe default for both LAN and WAN.
+const TRANSFER_CONCURRENCY: usize = 4;
+
+/// Execute a one-shot sync: get manifests, compute diff, transfer files in
+/// parallel, update state.
 pub async fn execute_sync(
-    source: &dyn SyncProvider,
-    target: &dyn SyncProvider,
+    source: Arc<dyn SyncProvider>,
+    target: Arc<dyn SyncProvider>,
     direction: SyncDirection,
     delete_mode: DeleteMode,
     rule_id: &str,
     db: &DbConnection,
-    app_handle: Option<&tauri::AppHandle>,
+    app_handle: Option<tauri::AppHandle>,
 ) -> Result<SyncResult, SyncEngineError> {
-    // 1. Get manifests
+    // 1. Get manifests (sequential — each is a single network roundtrip)
     let source_manifest = source.manifest().await?;
     let target_manifest = target.manifest().await?;
 
     // 2. Compute diff
     let actions = compute_sync_actions(&source_manifest, &target_manifest, direction, delete_mode);
 
-    let total_files = actions.to_download.len()
+    let total_files = (actions.to_download.len()
         + actions.to_upload.len()
         + actions.to_delete.len()
         + actions.to_create_directories.len()
-        + actions.conflicts.len();
+        + actions.conflicts.len()) as u32;
     let total_bytes: u64 = actions.to_download.iter().map(|f| f.size).sum::<u64>()
         + actions.to_upload.iter().map(|f| f.size).sum::<u64>();
 
-    let mut result = SyncResult {
-        files_downloaded: 0,
-        files_deleted: 0,
-        directories_created: 0,
-        bytes_transferred: 0,
-        conflicts_resolved: 0,
-        errors: Vec::new(),
+    // 3. Shared progress counters (atomics for concurrent access from tasks)
+    let files_done = Arc::new(AtomicU32::new(0));
+    let bytes_done = Arc::new(AtomicU64::new(0));
+    let active_files: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+    // Per-file progress: path → (bytes_done, bytes_total)
+    let file_progress: Arc<Mutex<HashMap<String, (u64, u64)>>> =
+        Arc::new(Mutex::new(HashMap::new()));
+    let speed_tracker: Arc<Mutex<SpeedTracker>> = Arc::new(Mutex::new(SpeedTracker::new()));
+
+    // Result accumulators
+    let files_downloaded = Arc::new(AtomicU32::new(0));
+    let files_deleted = Arc::new(AtomicU32::new(0));
+    let directories_created = Arc::new(AtomicU32::new(0));
+    let bytes_transferred = Arc::new(AtomicU64::new(0));
+    let conflicts_resolved = Arc::new(AtomicU32::new(0));
+    let errors: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+
+    // Semaphore caps the number of in-flight file transfers
+    let semaphore = Arc::new(tokio::sync::Semaphore::new(TRANSFER_CONCURRENCY));
+
+    // Progress emitter — clones all shared state and emits a JSON event
+    let rule_id_str = rule_id.to_string();
+    let emit_progress: Arc<dyn Fn() + Send + Sync> = {
+        let files_done = files_done.clone();
+        let bytes_done = bytes_done.clone();
+        let active_files = active_files.clone();
+        let file_progress = file_progress.clone();
+        let speed_tracker = speed_tracker.clone();
+        let app = app_handle.clone();
+        let rule_id_str = rule_id_str.clone();
+
+        Arc::new(move || {
+            let Some(ref app) = app else { return };
+            use tauri::Emitter;
+            let done = files_done.load(Ordering::Relaxed);
+            let committed = bytes_done.load(Ordering::Relaxed);
+            let mut active_paths: Vec<String> = active_files
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone();
+            // Sort for stable display order — parallel tasks finish in random order
+            // which would otherwise cause the list to jump around in the UI.
+            active_paths.sort_unstable();
+            let fp = file_progress.lock().unwrap_or_else(|e| e.into_inner());
+            // Include in-progress bytes so the bar fills as chunks arrive,
+            // not only when entire files complete.
+            let in_progress: u64 = fp.values().map(|(done, _)| *done).sum();
+            let bytes = committed + in_progress;
+            let active: Vec<serde_json::Value> = active_paths
+                .iter()
+                .map(|path| {
+                    let (fd, ft) = fp.get(path).copied().unwrap_or((0, 0));
+                    serde_json::json!({
+                        "path": path,
+                        "bytesDone": fd,
+                        "bytesTotal": ft,
+                    })
+                })
+                .collect();
+            drop(fp);
+            let speed = speed_tracker
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .bytes_per_second();
+            let current = active_paths.first().cloned().unwrap_or_default();
+            let _ = app.emit(
+                "file-sync:progress",
+                serde_json::json!({
+                    "ruleId": rule_id_str,
+                    "currentFile": current,
+                    "filesDone": done,
+                    "filesTotal": total_files,
+                    "bytesDone": bytes,
+                    "bytesTotal": total_bytes,
+                    "activeFiles": active,
+                    "bytesPerSecond": speed,
+                }),
+            );
+        })
     };
 
-    let mut files_done: u32 = 0;
-    let mut bytes_done: u64 = 0;
-
-    // Helper to emit progress
-    let emit_progress =
-        |app: Option<&tauri::AppHandle>, current: &str, done: u32, bytes: u64| {
-            if let Some(app) = app {
-                use tauri::Emitter;
-                let _ = app.emit(
-                    "file-sync:progress",
-                    SyncProgress {
-                        current_file: current.to_string(),
-                        files_done: done,
-                        files_total: total_files as u32,
-                        bytes_done: bytes,
-                        bytes_total: total_bytes,
-                    },
-                );
-            }
-        };
-
-    // 3a. Create directories on target
+    // -------------------------------------------------------------------------
+    // 3a. Create directories (sequential — cheap, order matters)
+    // -------------------------------------------------------------------------
     for dir_path in &actions.to_create_directories {
-        emit_progress(app_handle, dir_path, files_done, bytes_done);
+        active_files
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(dir_path.clone());
+        emit_progress();
         match target.create_directory(dir_path).await {
-            Ok(()) => result.directories_created += 1,
-            Err(e) => result.errors.push(format!("mkdir {dir_path}: {e}")),
+            Ok(()) => { directories_created.fetch_add(1, Ordering::Relaxed); }
+            Err(e) => {
+                errors
+                    .lock()
+                    .unwrap_or_else(|e2| e2.into_inner())
+                    .push(format!("mkdir {dir_path}: {e}"));
+            }
         }
-        files_done += 1;
+        active_files
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .retain(|p| p != dir_path);
+        files_done.fetch_add(1, Ordering::Relaxed);
+        emit_progress();
     }
 
-    // 3b. Download files (source → target)
-    for file_state in &actions.to_download {
-        emit_progress(
-            app_handle,
-            &file_state.relative_path,
-            files_done,
-            bytes_done,
-        );
-        match source.read_file(&file_state.relative_path).await {
-            Ok(data) => {
-                match target
-                    .write_file(&file_state.relative_path, &data)
-                    .await
-                {
-                    Ok(()) => {
-                        bytes_done += data.len() as u64;
-                        result.files_downloaded += 1;
-                        result.bytes_transferred += data.len() as u64;
+    // -------------------------------------------------------------------------
+    // 3b. Download files (source → target) — parallel
+    // -------------------------------------------------------------------------
+    {
+        let mut join_set: JoinSet<()> = JoinSet::new();
+
+        for file in actions.to_download {
+            let source = source.clone();
+            let target = target.clone();
+            let sem = semaphore.clone();
+            let files_done = files_done.clone();
+            let bytes_done = bytes_done.clone();
+            let bytes_transferred = bytes_transferred.clone();
+            let files_downloaded = files_downloaded.clone();
+            let active_files = active_files.clone();
+            let file_progress = file_progress.clone();
+            let speed_tracker = speed_tracker.clone();
+            let errors = errors.clone();
+            let db_clone = DbConnection(db.0.clone());
+            let rule_id_clone = rule_id_str.clone();
+            let emit = emit_progress.clone();
+
+            join_set.spawn(async move {
+                let _permit = sem.acquire().await.unwrap();
+
+                // Register per-file progress entry
+                file_progress
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .insert(file.relative_path.clone(), (0, file.size));
+
+                active_files
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .push(file.relative_path.clone());
+                emit();
+
+                // Build progress callback that updates the per-file map
+                let fp_cb = file_progress.clone();
+                let path_cb = file.relative_path.clone();
+                let emit_cb = emit.clone();
+                let progress_cb: Arc<dyn Fn(u64, u64) + Send + Sync> =
+                    Arc::new(move |done, total| {
+                        fp_cb
+                            .lock()
+                            .unwrap_or_else(|e| e.into_inner())
+                            .insert(path_cb.clone(), (done, total));
+                        emit_cb();
+                    });
+
+                // Transfer with one retry on failure
+                let read_result = source
+                    .read_file_with_progress(&file.relative_path, progress_cb.clone())
+                    .await;
+                let read_result = if read_result.is_err() {
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                    // Reset per-file counter before retry
+                    file_progress
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .insert(file.relative_path.clone(), (0, file.size));
+                    source
+                        .read_file_with_progress(&file.relative_path, progress_cb)
+                        .await
+                } else {
+                    read_result
+                };
+
+                let res = match read_result {
+                    Ok(data) => target
+                        .write_file(&file.relative_path, &data)
+                        .await
+                        .map(|_| data),
+                    Err(e) => Err(e),
+                };
+
+                active_files
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .retain(|p| p != &file.relative_path);
+                file_progress
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .remove(&file.relative_path);
+
+                match res {
+                    Ok(data) => {
+                        let n = data.len() as u64;
+                        bytes_done.fetch_add(n, Ordering::Relaxed);
+                        bytes_transferred.fetch_add(n, Ordering::Relaxed);
+                        files_downloaded.fetch_add(1, Ordering::Relaxed);
+                        speed_tracker
+                            .lock()
+                            .unwrap_or_else(|e| e.into_inner())
+                            .add(n);
                         if let Err(e) = upsert_sync_state(
-                            db,
-                            rule_id,
-                            &file_state.relative_path,
-                            file_state.size,
-                            file_state.modified_at,
+                            &db_clone,
+                            &rule_id_clone,
+                            &file.relative_path,
+                            file.size,
+                            file.modified_at,
                         ) {
-                            result.errors.push(format!(
-                                "db upsert {}: {e}",
-                                file_state.relative_path
-                            ));
+                            errors
+                                .lock()
+                                .unwrap_or_else(|e2| e2.into_inner())
+                                .push(format!("db upsert {}: {e}", file.relative_path));
                         }
                     }
-                    Err(e) => result.errors.push(format!(
-                        "write {}: {e}",
-                        file_state.relative_path
-                    )),
+                    Err(e) => {
+                        errors
+                            .lock()
+                            .unwrap_or_else(|e2| e2.into_inner())
+                            .push(format!("transfer {}: {e}", file.relative_path));
+                    }
                 }
-            }
-            Err(e) => result
-                .errors
-                .push(format!("read {}: {e}", file_state.relative_path)),
+
+                files_done.fetch_add(1, Ordering::Relaxed);
+                emit();
+            });
         }
-        files_done += 1;
+
+        while join_set.join_next().await.is_some() {}
     }
 
-    // 3c. Upload files (target → source, two-way only)
-    for file_state in &actions.to_upload {
-        emit_progress(
-            app_handle,
-            &file_state.relative_path,
-            files_done,
-            bytes_done,
-        );
-        match target.read_file(&file_state.relative_path).await {
-            Ok(data) => {
-                match source
-                    .write_file(&file_state.relative_path, &data)
-                    .await
-                {
-                    Ok(()) => {
-                        bytes_done += data.len() as u64;
-                        result.bytes_transferred += data.len() as u64;
+    // -------------------------------------------------------------------------
+    // 3c. Upload files (target → source) — parallel (two-way only)
+    // -------------------------------------------------------------------------
+    {
+        let mut join_set: JoinSet<()> = JoinSet::new();
+
+        for file in actions.to_upload {
+            let source = source.clone();
+            let target = target.clone();
+            let sem = semaphore.clone();
+            let files_done = files_done.clone();
+            let bytes_done = bytes_done.clone();
+            let bytes_transferred = bytes_transferred.clone();
+            let active_files = active_files.clone();
+            let file_progress = file_progress.clone();
+            let speed_tracker = speed_tracker.clone();
+            let errors = errors.clone();
+            let db_clone = DbConnection(db.0.clone());
+            let rule_id_clone = rule_id_str.clone();
+            let emit = emit_progress.clone();
+
+            join_set.spawn(async move {
+                let _permit = sem.acquire().await.unwrap();
+
+                file_progress
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .insert(file.relative_path.clone(), (0, file.size));
+
+                active_files
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .push(file.relative_path.clone());
+                emit();
+
+                let fp_cb = file_progress.clone();
+                let path_cb = file.relative_path.clone();
+                let emit_cb = emit.clone();
+                let progress_cb: Arc<dyn Fn(u64, u64) + Send + Sync> =
+                    Arc::new(move |done, total| {
+                        fp_cb
+                            .lock()
+                            .unwrap_or_else(|e| e.into_inner())
+                            .insert(path_cb.clone(), (done, total));
+                        emit_cb();
+                    });
+
+                let read_result = target
+                    .read_file_with_progress(&file.relative_path, progress_cb.clone())
+                    .await;
+                let read_result = if read_result.is_err() {
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                    file_progress
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .insert(file.relative_path.clone(), (0, file.size));
+                    target
+                        .read_file_with_progress(&file.relative_path, progress_cb)
+                        .await
+                } else {
+                    read_result
+                };
+
+                let res = match read_result {
+                    Ok(data) => source
+                        .write_file(&file.relative_path, &data)
+                        .await
+                        .map(|_| data),
+                    Err(e) => Err(e),
+                };
+
+                active_files
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .retain(|p| p != &file.relative_path);
+                file_progress
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .remove(&file.relative_path);
+
+                match res {
+                    Ok(data) => {
+                        let n = data.len() as u64;
+                        bytes_done.fetch_add(n, Ordering::Relaxed);
+                        bytes_transferred.fetch_add(n, Ordering::Relaxed);
+                        speed_tracker
+                            .lock()
+                            .unwrap_or_else(|e| e.into_inner())
+                            .add(n);
                         if let Err(e) = upsert_sync_state(
-                            db,
-                            rule_id,
-                            &file_state.relative_path,
-                            file_state.size,
-                            file_state.modified_at,
+                            &db_clone,
+                            &rule_id_clone,
+                            &file.relative_path,
+                            file.size,
+                            file.modified_at,
                         ) {
-                            result.errors.push(format!(
-                                "db upsert {}: {e}",
-                                file_state.relative_path
-                            ));
+                            errors
+                                .lock()
+                                .unwrap_or_else(|e2| e2.into_inner())
+                                .push(format!("db upsert {}: {e}", file.relative_path));
                         }
                     }
-                    Err(e) => result.errors.push(format!(
-                        "write {}: {e}",
-                        file_state.relative_path
-                    )),
+                    Err(e) => {
+                        errors
+                            .lock()
+                            .unwrap_or_else(|e2| e2.into_inner())
+                            .push(format!("upload {}: {e}", file.relative_path));
+                    }
                 }
-            }
-            Err(e) => result
-                .errors
-                .push(format!("read {}: {e}", file_state.relative_path)),
+
+                files_done.fetch_add(1, Ordering::Relaxed);
+                emit();
+            });
         }
-        files_done += 1;
+
+        while join_set.join_next().await.is_some() {}
     }
 
-    // 3d. Delete files
+    // -------------------------------------------------------------------------
+    // 3d. Delete files (sequential — order can matter for directories)
+    // -------------------------------------------------------------------------
     let to_trash = matches!(delete_mode, DeleteMode::Trash);
     for path in &actions.to_delete {
-        emit_progress(app_handle, path, files_done, bytes_done);
+        active_files
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(path.clone());
+        emit_progress();
         match target.delete_file(path, to_trash).await {
             Ok(()) => {
-                result.files_deleted += 1;
+                files_deleted.fetch_add(1, Ordering::Relaxed);
                 if let Err(e) = mark_deleted(db, rule_id, path) {
-                    result
-                        .errors
+                    errors
+                        .lock()
+                        .unwrap_or_else(|e2| e2.into_inner())
                         .push(format!("db mark_deleted {path}: {e}"));
                 }
             }
-            Err(e) => result.errors.push(format!("delete {path}: {e}")),
+            Err(e) => {
+                errors
+                    .lock()
+                    .unwrap_or_else(|e2| e2.into_inner())
+                    .push(format!("delete {path}: {e}"));
+            }
         }
-        files_done += 1;
+        active_files
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .retain(|p| p != path);
+        files_done.fetch_add(1, Ordering::Relaxed);
+        emit_progress();
     }
 
-    // 3e. Handle conflicts — source wins, loser is renamed with .conflict.{timestamp}
+    // -------------------------------------------------------------------------
+    // 3e. Conflicts — source wins, target version renamed with .conflict.{ts}
+    //     (sequential: each conflict is a multi-step read/write sequence)
+    // -------------------------------------------------------------------------
     for conflict in &actions.conflicts {
-        emit_progress(
-            app_handle,
-            &conflict.relative_path,
-            files_done,
-            bytes_done,
-        );
+        active_files
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(conflict.relative_path.clone());
+        emit_progress();
 
-        // Rename the target's version to a conflict file
         let timestamp = unix_now() as i64;
         let conflict_path = make_conflict_path(&conflict.relative_path, timestamp);
-
         let mut resolved = false;
+
         match target.read_file(&conflict.relative_path).await {
             Ok(target_data) => {
-                // Write the target version as the conflict file
                 if let Err(e) = target.write_file(&conflict_path, &target_data).await {
-                    result.errors.push(format!(
-                        "conflict rename {}: {e}",
-                        conflict.relative_path
-                    ));
+                    errors
+                        .lock()
+                        .unwrap_or_else(|e2| e2.into_inner())
+                        .push(format!("conflict rename {}: {e}", conflict.relative_path));
                 } else {
-                    // Now overwrite target with source version
                     match source.read_file(&conflict.relative_path).await {
                         Ok(source_data) => {
                             match target
@@ -387,9 +673,14 @@ pub async fn execute_sync(
                                 .await
                             {
                                 Ok(()) => {
-                                    bytes_done += source_data.len() as u64;
-                                    result.bytes_transferred += source_data.len() as u64;
-                                    result.conflicts_resolved += 1;
+                                    let n = source_data.len() as u64;
+                                    bytes_done.fetch_add(n, Ordering::Relaxed);
+                                    bytes_transferred.fetch_add(n, Ordering::Relaxed);
+                                    speed_tracker
+                                        .lock()
+                                        .unwrap_or_else(|e| e.into_inner())
+                                        .add(n);
+                                    conflicts_resolved.fetch_add(1, Ordering::Relaxed);
                                     resolved = true;
                                     let _ = upsert_sync_state(
                                         db,
@@ -399,36 +690,61 @@ pub async fn execute_sync(
                                         conflict.source_state.modified_at,
                                     );
                                 }
-                                Err(e) => result.errors.push(format!(
-                                    "conflict write {}: {e}",
-                                    conflict.relative_path
-                                )),
+                                Err(e) => {
+                                    errors
+                                        .lock()
+                                        .unwrap_or_else(|e2| e2.into_inner())
+                                        .push(format!(
+                                            "conflict write {}: {e}",
+                                            conflict.relative_path
+                                        ));
+                                }
                             }
                         }
-                        Err(e) => result.errors.push(format!(
-                            "conflict read source {}: {e}",
-                            conflict.relative_path
-                        )),
+                        Err(e) => {
+                            errors
+                                .lock()
+                                .unwrap_or_else(|e2| e2.into_inner())
+                                .push(format!(
+                                    "conflict read source {}: {e}",
+                                    conflict.relative_path
+                                ));
+                        }
                     }
                 }
             }
-            Err(e) => result.errors.push(format!(
-                "conflict read target {}: {e}",
-                conflict.relative_path
-            )),
+            Err(e) => {
+                errors
+                    .lock()
+                    .unwrap_or_else(|e2| e2.into_inner())
+                    .push(format!("conflict read target {}: {e}", conflict.relative_path));
+            }
         }
 
         if !resolved {
-            result.errors.push(format!(
-                "conflict unresolved: {}",
-                conflict.relative_path
-            ));
+            errors
+                .lock()
+                .unwrap_or_else(|e2| e2.into_inner())
+                .push(format!("conflict unresolved: {}", conflict.relative_path));
         }
 
-        files_done += 1;
+        active_files
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .retain(|p| p != &conflict.relative_path);
+        files_done.fetch_add(1, Ordering::Relaxed);
+        emit_progress();
     }
 
-    Ok(result)
+    let errors_vec = errors.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    Ok(SyncResult {
+        files_downloaded: files_downloaded.load(Ordering::Relaxed),
+        files_deleted: files_deleted.load(Ordering::Relaxed),
+        directories_created: directories_created.load(Ordering::Relaxed),
+        bytes_transferred: bytes_transferred.load(Ordering::Relaxed),
+        conflicts_resolved: conflicts_resolved.load(Ordering::Relaxed),
+        errors: errors_vec,
+    })
 }
 
 /// Build a conflict file path: `name.conflict.{timestamp}.ext`
@@ -509,13 +825,18 @@ fn emit_sync_result(
 // Periodic sync loop
 // ---------------------------------------------------------------------------
 
+/// How long to wait before retrying after a failed sync cycle.
+const RETRY_INTERVAL: Duration = Duration::from_secs(30);
+
 /// Run periodic sync for a rule. Cancellable via `CancellationToken`.
 ///
 /// The optional `trigger_receiver` allows external events (e.g. file watcher)
 /// to interrupt the sleep timer and trigger an immediate sync cycle.
+/// On failure the next attempt is scheduled after `RETRY_INTERVAL` (30 s)
+/// instead of the full `interval`, so peer unavailability self-heals quickly.
 pub async fn run_sync_loop(
-    source: Box<dyn SyncProvider>,
-    target: Box<dyn SyncProvider>,
+    source: Arc<dyn SyncProvider>,
+    target: Arc<dyn SyncProvider>,
     direction: SyncDirection,
     delete_mode: DeleteMode,
     rule_id: String,
@@ -528,16 +849,19 @@ pub async fn run_sync_loop(
     // Run initial sync immediately
     eprintln!("[FileSyncEngine] Rule {} initial sync starting", rule_id);
     let result = execute_sync(
-        &*source,
-        &*target,
+        source.clone(),
+        target.clone(),
         direction,
         delete_mode,
         &rule_id,
         &db,
-        Some(&app_handle),
+        Some(app_handle.clone()),
     )
     .await;
     eprintln!("[FileSyncEngine] Rule {} initial sync done: {:?}", rule_id, result.as_ref().map(|r| r.files_downloaded));
+
+    // Retry sooner if the initial sync failed
+    let mut next_wait = if result.is_err() { RETRY_INTERVAL } else { interval };
     emit_sync_result(&app_handle, &rule_id, &result);
 
     // Manual mode (interval = 0): only sync on trigger, no periodic timer
@@ -549,32 +873,35 @@ pub async fn run_sync_loop(
                 eprintln!("[FileSyncEngine] Rule {} cancelled", rule_id);
                 break;
             }
-            _ = tokio::time::sleep(interval), if use_timer => {
+            _ = tokio::time::sleep(next_wait), if use_timer => {
                 let result = execute_sync(
-                    &*source,
-                    &*target,
+                    source.clone(),
+                    target.clone(),
                     direction,
                     delete_mode,
                     &rule_id,
                     &db,
-                    Some(&app_handle),
+                    Some(app_handle.clone()),
                 )
                 .await;
+                next_wait = if result.is_err() { RETRY_INTERVAL } else { interval };
                 emit_sync_result(&app_handle, &rule_id, &result);
             }
             _ = trigger_receiver.recv() => {
                 // Drain any additional pending triggers to avoid redundant syncs
                 while trigger_receiver.try_recv().is_ok() {}
                 let result = execute_sync(
-                    &*source,
-                    &*target,
+                    source.clone(),
+                    target.clone(),
                     direction,
                     delete_mode,
                     &rule_id,
                     &db,
-                    Some(&app_handle),
+                    Some(app_handle.clone()),
                 )
                 .await;
+                // Manual triggers reset to normal interval even after a previous failure
+                next_wait = if result.is_err() { RETRY_INTERVAL } else { interval };
                 emit_sync_result(&app_handle, &rule_id, &result);
             }
         }

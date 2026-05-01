@@ -1,5 +1,7 @@
 //! SyncProvider trait — abstraction for any file storage backend
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 
 use super::types::FileState;
@@ -46,6 +48,17 @@ pub trait SyncProvider: Send + Sync {
 
     /// Read a file's content by relative path.
     async fn read_file(&self, relative_path: &str) -> Result<Vec<u8>, SyncProviderError>;
+
+    /// Read a file with a per-chunk progress callback `(bytes_done, bytes_total)`.
+    /// Default implementation ignores the callback; override for streaming providers.
+    async fn read_file_with_progress(
+        &self,
+        relative_path: &str,
+        on_progress: Arc<dyn Fn(u64, u64) + Send + Sync>,
+    ) -> Result<Vec<u8>, SyncProviderError> {
+        let _ = on_progress;
+        self.read_file(relative_path).await
+    }
 
     /// Write a file by relative path. Creates parent directories as needed.
     async fn write_file(&self, relative_path: &str, data: &[u8]) -> Result<(), SyncProviderError>;

@@ -171,6 +171,20 @@ impl PeerEndpoint {
         path: &str,
         ucan_token: &str,
     ) -> Result<Vec<u8>, PeerStorageError> {
+        self.remote_read_bytes_with_progress(remote_id, relay_url, path, ucan_token, |_, _| {})
+            .await
+    }
+
+    /// Like `remote_read_bytes` but calls `on_progress(bytes_done, bytes_total)` after each
+    /// 64 KiB chunk so callers can report per-file transfer progress.
+    pub async fn remote_read_bytes_with_progress(
+        &self,
+        remote_id: EndpointId,
+        relay_url: Option<RelayUrl>,
+        path: &str,
+        ucan_token: &str,
+        on_progress: impl Fn(u64, u64) + Send,
+    ) -> Result<Vec<u8>, PeerStorageError> {
         let (mut send, mut recv) = self.open_stream(remote_id, relay_url).await?;
         let req = Request::Read {
             path: path.to_string(),
@@ -183,6 +197,7 @@ impl PeerEndpoint {
             Response::ReadHeader { size } => {
                 let mut data = Vec::with_capacity(size as usize);
                 let mut buf = [0u8; 64 * 1024];
+                let mut bytes_received: u64 = 0;
 
                 loop {
                     let chunk = recv.read(&mut buf).await.map_err(|e| {
@@ -191,7 +206,11 @@ impl PeerEndpoint {
                         }
                     })?;
                     match chunk {
-                        Some(n) => data.extend_from_slice(&buf[..n]),
+                        Some(n) => {
+                            data.extend_from_slice(&buf[..n]);
+                            bytes_received += n as u64;
+                            on_progress(bytes_received, size);
+                        }
                         None => break,
                     }
                 }
