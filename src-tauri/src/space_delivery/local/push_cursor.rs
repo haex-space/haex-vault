@@ -107,7 +107,15 @@ pub fn load_last_mls_cursor(
     })
     .ok()
     .flatten()
-    .and_then(|s| s.parse::<i64>().ok())
+    .and_then(|s| {
+        s.parse::<i64>().map_err(|e| {
+            eprintln!(
+                "[SyncLoop] Failed to parse MLS cursor value '{s}' for \
+                 space={space_id} device={device_id}: {e}"
+            );
+        })
+        .ok()
+    })
 }
 
 /// Persist the MLS message cursor for `(space_id, device_id)`.
