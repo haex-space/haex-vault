@@ -75,7 +75,10 @@ pub(super) fn scan_content_uri_recursive(
     root_uri_json: &str,
     sub_path: &str,
 ) -> Result<Vec<crate::file_sync::types::FileState>, String> {
-    let (target_uri, _) = resolve_content_uri_subpath(app_handle, root_uri_json, sub_path)?;
+    let (target_uri, is_dir) = resolve_content_uri_subpath(app_handle, root_uri_json, sub_path)?;
+    if !is_dir {
+        return Err("Not a directory".to_string());
+    }
     let mut entries = Vec::new();
     collect_content_uri_entries(app_handle, &target_uri, "", &mut entries)?;
     Ok(entries)
