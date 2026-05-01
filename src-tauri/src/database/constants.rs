@@ -31,6 +31,13 @@ pub mod vault_settings_key {
     /// max HLC string of the last successfully pushed chunk; the next sync
     /// loop session resumes from there instead of re-scanning from t=0.
     pub const LOCAL_SYNC_PUSH_HLC_PREFIX: &str = "local_sync_push_hlc:";
+
+    /// Prefix for the per-space, per-device MLS message cursor used by local
+    /// space delivery. Full key is `local_sync_mls_cursor:<space_id>`, scoped
+    /// to `device_id`. Value is the last processed MLS message id (integer as
+    /// decimal string); the next sync-loop session fetches only newer messages
+    /// and avoids triggering a spurious External Commit rejoin on every restart.
+    pub const LOCAL_SYNC_MLS_CURSOR_PREFIX: &str = "local_sync_mls_cursor:";
 }
 
 #[cfg(test)]
