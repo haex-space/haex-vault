@@ -18,6 +18,7 @@ use tokio::sync::RwLock;
 use iroh::{Endpoint, EndpointAddr, EndpointId, RelayMode, RelayUrl, SecretKey};
 
 const DEFAULT_RELAY_URL: &str = "https://relay.sync.haex.space";
+const CONTENT_URI_ANDROID_ONLY: &str = "Content URIs are only supported on Android";
 
 use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::protocol::{self, FileEntry, Request, Response, ALPN};
@@ -260,6 +261,30 @@ impl PeerEndpoint {
         self.state.write().await.allowed_peers = allowed;
     }
 
+    /// Open a bidirectional QUIC stream to a remote peer.
+    /// Centralises the endpoint check, address build, connect, and open_bi calls.
+    async fn open_peer_stream(
+        &self,
+        remote_id: EndpointId,
+        relay_url: Option<RelayUrl>,
+    ) -> Result<(iroh::endpoint::SendStream, iroh::endpoint::RecvStream), PeerStorageError> {
+        let endpoint = self
+            .endpoint
+            .as_ref()
+            .ok_or(PeerStorageError::EndpointNotRunning)?;
+        let addr = match relay_url {
+            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
+            None => EndpointAddr::new(remote_id),
+        };
+        let conn = endpoint
+            .connect(addr, ALPN)
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+        conn.open_bi()
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })
+    }
+
     /// Connect to a remote peer and list a directory
     pub async fn remote_list(
         &self,
@@ -268,46 +293,9 @@ impl PeerEndpoint {
         path: &str,
         ucan_token: &str,
     ) -> Result<Vec<FileEntry>, PeerStorageError> {
-        let endpoint = self
-            .endpoint
-            .as_ref()
-            .ok_or(PeerStorageError::EndpointNotRunning)?;
-
-        let addr = match relay_url {
-            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
-            None => EndpointAddr::new(remote_id),
-        };
-
-        let conn = endpoint
-            .connect(addr, ALPN)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
-
-        let (mut send, mut recv) = conn
-            .open_bi()
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
-
-        // Send LIST request
+        let (mut send, mut recv) = self.open_peer_stream(remote_id, relay_url).await?;
         let req = Request::List { path: path.to_string(), ucan_token: ucan_token.to_string() };
-        let req_bytes = protocol::encode_request(&req)
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
-        send.write_all(&req_bytes)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-        send.finish()
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        // Read response
-        let response: Response = protocol::read_response(&mut recv)
-            .await
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
-
-        match response {
+        match send_and_receive(&mut send, &mut recv, &req).await? {
             Response::List { entries } => Ok(entries),
             Response::Error { message } => Err(PeerStorageError::ProtocolError { reason: message }),
             _ => Err(PeerStorageError::ProtocolError {
@@ -332,50 +320,9 @@ impl PeerEndpoint {
         pause_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
         ucan_token: &str,
     ) -> Result<u64, PeerStorageError> {
-        let endpoint = self
-            .endpoint
-            .as_ref()
-            .ok_or(PeerStorageError::EndpointNotRunning)?;
-
-        let addr = match relay_url {
-            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
-            None => EndpointAddr::new(remote_id),
-        };
-
-        let conn = endpoint
-            .connect(addr, ALPN)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
-
-        let (mut send, mut recv) = conn
-            .open_bi()
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
-
-        // Send READ request
-        let req = Request::Read {
-            path: path.to_string(),
-            range,
-            ucan_token: ucan_token.to_string(),
-        };
-        let req_bytes = protocol::encode_request(&req)
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
-        send.write_all(&req_bytes)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-        send.finish()
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        // Read response header
-        let response: Response = protocol::read_response(&mut recv)
-            .await
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
-
-        match response {
+        let (mut send, mut recv) = self.open_peer_stream(remote_id, relay_url).await?;
+        let req = Request::Read { path: path.to_string(), range, ucan_token: ucan_token.to_string() };
+        match send_and_receive(&mut send, &mut recv, &req).await? {
             Response::ReadHeader { size } => {
                 // Stream chunks directly to file — no full-file RAM buffering
                 use tokio::io::AsyncWriteExt;
@@ -457,44 +404,9 @@ impl PeerEndpoint {
         path: &str,
         ucan_token: &str,
     ) -> Result<Vec<crate::file_sync::types::FileState>, PeerStorageError> {
-        let endpoint = self
-            .endpoint
-            .as_ref()
-            .ok_or(PeerStorageError::EndpointNotRunning)?;
-
-        let addr = match relay_url {
-            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
-            None => EndpointAddr::new(remote_id),
-        };
-
-        let conn = endpoint
-            .connect(addr, ALPN)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
-
-        let (mut send, mut recv) = conn
-            .open_bi()
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
-
+        let (mut send, mut recv) = self.open_peer_stream(remote_id, relay_url).await?;
         let req = Request::Manifest { path: path.to_string(), ucan_token: ucan_token.to_string() };
-        let req_bytes = protocol::encode_request(&req)
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
-        send.write_all(&req_bytes)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-        send.finish()
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        let response: Response = protocol::read_response(&mut recv)
-            .await
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
-
-        match response {
+        match send_and_receive(&mut send, &mut recv, &req).await? {
             Response::Manifest { entries } => Ok(entries),
             Response::Error { message } => Err(PeerStorageError::ProtocolError { reason: message }),
             _ => Err(PeerStorageError::ProtocolError {
@@ -512,52 +424,12 @@ impl PeerEndpoint {
         path: &str,
         ucan_token: &str,
     ) -> Result<Vec<u8>, PeerStorageError> {
-        let endpoint = self
-            .endpoint
-            .as_ref()
-            .ok_or(PeerStorageError::EndpointNotRunning)?;
-
-        let addr = match relay_url {
-            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
-            None => EndpointAddr::new(remote_id),
-        };
-
-        let conn = endpoint
-            .connect(addr, ALPN)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
-
-        let (mut send, mut recv) = conn
-            .open_bi()
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
-
-        let req = Request::Read {
-            path: path.to_string(),
-            range: None,
-            ucan_token: ucan_token.to_string(),
-        };
-        let req_bytes = protocol::encode_request(&req)
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
-        send.write_all(&req_bytes)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-        send.finish()
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        let response: Response = protocol::read_response(&mut recv)
-            .await
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
-
-        match response {
+        let (mut send, mut recv) = self.open_peer_stream(remote_id, relay_url).await?;
+        let req = Request::Read { path: path.to_string(), range: None, ucan_token: ucan_token.to_string() };
+        match send_and_receive(&mut send, &mut recv, &req).await? {
             Response::ReadHeader { size } => {
                 let mut data = Vec::with_capacity(size as usize);
                 let mut buf = [0u8; 64 * 1024];
-
                 loop {
                     let chunk = recv.read(&mut buf).await
                         .map_err(|e| PeerStorageError::ConnectionFailed {
@@ -568,12 +440,9 @@ impl PeerEndpoint {
                         None => break,
                     }
                 }
-
                 Ok(data)
             }
-            Response::Error { message } => {
-                Err(PeerStorageError::ProtocolError { reason: message })
-            }
+            Response::Error { message } => Err(PeerStorageError::ProtocolError { reason: message }),
             _ => Err(PeerStorageError::ProtocolError {
                 reason: "Unexpected response type".to_string(),
             }),
@@ -590,50 +459,26 @@ impl PeerEndpoint {
         data: &[u8],
         ucan_token: &str,
     ) -> Result<(), PeerStorageError> {
-        let endpoint = self
-            .endpoint
-            .as_ref()
-            .ok_or(PeerStorageError::EndpointNotRunning)?;
+        let (mut send, mut recv) = self.open_peer_stream(remote_id, relay_url).await?;
 
-        let addr = match relay_url {
-            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
-            None => EndpointAddr::new(remote_id),
-        };
-
-        let conn = endpoint
-            .connect(addr, ALPN)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        let (mut send, mut recv) = conn
-            .open_bi()
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        // Send Write request header (do NOT finish — data follows)
-        let req = Request::Write {
-            path: path.to_string(),
-            size: data.len() as u64,
-            ucan_token: ucan_token.to_string(),
-        };
+        // Send request header without finishing — data follows
+        let req = Request::Write { path: path.to_string(), size: data.len() as u64, ucan_token: ucan_token.to_string() };
         let req_bytes = protocol::encode_request(&req)
             .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
         send.write_all(&req_bytes)
             .await
             .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
 
-        // Stream file data
+        // Stream file data then close send side
         send.write_all(data)
             .await
             .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
         send.finish()
             .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
 
-        // Read response
         let response: Response = protocol::read_response(&mut recv)
             .await
             .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
-
         match response {
             Response::WriteOk => Ok(()),
             Response::Error { message } => Err(PeerStorageError::ProtocolError { reason: message }),
@@ -652,44 +497,9 @@ impl PeerEndpoint {
         to_trash: bool,
         ucan_token: &str,
     ) -> Result<(), PeerStorageError> {
-        let endpoint = self
-            .endpoint
-            .as_ref()
-            .ok_or(PeerStorageError::EndpointNotRunning)?;
-
-        let addr = match relay_url {
-            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
-            None => EndpointAddr::new(remote_id),
-        };
-
-        let conn = endpoint
-            .connect(addr, ALPN)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        let (mut send, mut recv) = conn
-            .open_bi()
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        let req = Request::Delete {
-            path: path.to_string(),
-            to_trash,
-            ucan_token: ucan_token.to_string(),
-        };
-        let req_bytes = protocol::encode_request(&req)
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
-        send.write_all(&req_bytes)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-        send.finish()
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        let response: Response = protocol::read_response(&mut recv)
-            .await
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
-
-        match response {
+        let (mut send, mut recv) = self.open_peer_stream(remote_id, relay_url).await?;
+        let req = Request::Delete { path: path.to_string(), to_trash, ucan_token: ucan_token.to_string() };
+        match send_and_receive(&mut send, &mut recv, &req).await? {
             Response::DeleteOk => Ok(()),
             Response::Error { message } => Err(PeerStorageError::ProtocolError { reason: message }),
             _ => Err(PeerStorageError::ProtocolError {
@@ -706,43 +516,9 @@ impl PeerEndpoint {
         path: &str,
         ucan_token: &str,
     ) -> Result<(), PeerStorageError> {
-        let endpoint = self
-            .endpoint
-            .as_ref()
-            .ok_or(PeerStorageError::EndpointNotRunning)?;
-
-        let addr = match relay_url {
-            Some(url) => EndpointAddr::new(remote_id).with_relay_url(url),
-            None => EndpointAddr::new(remote_id),
-        };
-
-        let conn = endpoint
-            .connect(addr, ALPN)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        let (mut send, mut recv) = conn
-            .open_bi()
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        let req = Request::CreateDirectory {
-            path: path.to_string(),
-            ucan_token: ucan_token.to_string(),
-        };
-        let req_bytes = protocol::encode_request(&req)
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
-        send.write_all(&req_bytes)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-        send.finish()
-            .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
-
-        let response: Response = protocol::read_response(&mut recv)
-            .await
-            .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
-
-        match response {
+        let (mut send, mut recv) = self.open_peer_stream(remote_id, relay_url).await?;
+        let req = Request::CreateDirectory { path: path.to_string(), ucan_token: ucan_token.to_string() };
+        match send_and_receive(&mut send, &mut recv, &req).await? {
             Response::CreateDirectoryOk => Ok(()),
             Response::Error { message } => Err(PeerStorageError::ProtocolError { reason: message }),
             _ => Err(PeerStorageError::ProtocolError {
@@ -750,6 +526,29 @@ impl PeerEndpoint {
             }),
         }
     }
+}
+
+// ============================================================================
+// Protocol helpers
+// ============================================================================
+
+/// Encode and send a request, finish the stream, then read the response.
+/// Use this for all request–response calls where no data follows the request.
+async fn send_and_receive(
+    send: &mut iroh::endpoint::SendStream,
+    recv: &mut iroh::endpoint::RecvStream,
+    req: &Request,
+) -> Result<Response, PeerStorageError> {
+    let bytes = protocol::encode_request(req)
+        .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
+    send.write_all(&bytes)
+        .await
+        .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+    send.finish()
+        .map_err(|e| PeerStorageError::ConnectionFailed { reason: e.to_string() })?;
+    protocol::read_response(recv)
+        .await
+        .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })
 }
 
 // ============================================================================
@@ -1065,7 +864,7 @@ async fn handle_list(
                 };
             }
             #[cfg(not(target_os = "android"))]
-            return Response::Error { message: "Content URIs are only supported on Android".to_string() };
+            return Response::Error { message: CONTENT_URI_ANDROID_ONLY.to_string() };
         }
     }
 
@@ -1103,12 +902,28 @@ async fn handle_manifest(
         };
     }
 
-    // Content URIs not supported for manifest (Android-only)
+    // Content URIs require recursive scan via android_fs
     if let Ok((share, _sub)) = find_share_and_subpath(&state.shares, allowed_spaces, path) {
         if is_content_uri(&share.local_path) {
-            return Response::Error {
-                message: "Manifest not supported for Content URI shares".to_string(),
-            };
+            #[cfg(target_os = "android")]
+            {
+                let app_handle = match &state.app_handle {
+                    Some(h) => h.clone(),
+                    None => return Response::Error { message: "AppHandle not available".to_string() },
+                };
+                let root_uri = share.local_path.clone();
+                let sub_path = _sub;
+                drop(state);
+                return match tokio::task::spawn_blocking(move || {
+                    manifest_content_uri(&app_handle, &root_uri, &sub_path)
+                }).await {
+                    Ok(Ok(entries)) => Response::Manifest { entries },
+                    Ok(Err(e)) => Response::Error { message: e },
+                    Err(e) => Response::Error { message: format!("Task failed: {e}") },
+                };
+            }
+            #[cfg(not(target_os = "android"))]
+            return Response::Error { message: CONTENT_URI_ANDROID_ONLY.to_string() };
         }
     }
 
@@ -1210,7 +1025,7 @@ async fn handle_stat(
                 };
             }
             #[cfg(not(target_os = "android"))]
-            return Response::Error { message: "Content URIs are only supported on Android".to_string() };
+            return Response::Error { message: CONTENT_URI_ANDROID_ONLY.to_string() };
         }
     }
 
@@ -1263,7 +1078,7 @@ async fn handle_read(
         #[cfg(not(target_os = "android"))]
         {
             let _ = (root_uri, sub_path, app_handle_opt);
-            let resp = Response::Error { message: "Content URIs are only supported on Android".to_string() };
+            let resp = Response::Error { message: CONTENT_URI_ANDROID_ONLY.to_string() };
             let resp_bytes = protocol::encode_response(&resp)
                 .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
             send.write_all(&resp_bytes).await.ok();
@@ -1759,6 +1574,71 @@ fn delete_content_uri(
     .map_err(|e| format!("Failed to delete: {e:?}"))
 }
 
+/// Recursively scan a Content URI directory and return FileState entries.
+#[cfg(target_os = "android")]
+fn manifest_content_uri(
+    app_handle: &tauri::AppHandle,
+    root_uri_json: &str,
+    sub_path: &str,
+) -> Result<Vec<crate::file_sync::types::FileState>, String> {
+    let (target_uri, is_dir) = resolve_content_uri_subpath(app_handle, root_uri_json, sub_path)?;
+
+    if !is_dir {
+        return Err("Not a directory".to_string());
+    }
+
+    let mut entries = Vec::new();
+    collect_manifest_recursive(app_handle, &target_uri, "", &mut entries)?;
+    Ok(entries)
+}
+
+#[cfg(target_os = "android")]
+fn collect_manifest_recursive(
+    app_handle: &tauri::AppHandle,
+    dir_uri: &tauri_plugin_android_fs::FileUri,
+    prefix: &str,
+    entries: &mut Vec<crate::file_sync::types::FileState>,
+) -> Result<(), String> {
+    use tauri_plugin_android_fs::AndroidFsExt;
+
+    let api = app_handle.android_fs();
+    let dir_entries = api.read_dir(dir_uri)
+        .map_err(|e| format!("Failed to read dir: {e:?}"))?;
+
+    for entry in dir_entries {
+        let name = entry.name().to_string();
+        let relative_path = if prefix.is_empty() {
+            name.clone()
+        } else {
+            format!("{}/{}", prefix, name)
+        };
+
+        let modified_at = entry
+            .last_modified()
+            .duration_since(std::time::UNIX_EPOCH)
+            .ok()
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+
+        let is_directory = entry.is_dir();
+        let size = if is_directory { 0 } else { entry.file_len().unwrap_or(0) };
+
+        entries.push(crate::file_sync::types::FileState {
+            relative_path: relative_path.clone(),
+            size,
+            modified_at,
+            is_directory,
+        });
+
+        if is_directory {
+            let child_uri = entry.uri().clone();
+            collect_manifest_recursive(app_handle, &child_uri, &relative_path, entries)?;
+        }
+    }
+
+    Ok(())
+}
+
 /// Create a directory via Content URI.
 #[cfg(target_os = "android")]
 fn create_directory_content_uri(
@@ -1897,7 +1777,7 @@ async fn handle_write(
         }
         #[cfg(not(target_os = "android"))]
         {
-            let resp = Response::Error { message: "Content URIs are only supported on Android".to_string() };
+            let resp = Response::Error { message: CONTENT_URI_ANDROID_ONLY.to_string() };
             let resp_bytes = protocol::encode_response(&resp)
                 .map_err(|e| PeerStorageError::ProtocolError { reason: e.to_string() })?;
             send.write_all(&resp_bytes).await.ok();
@@ -1998,7 +1878,7 @@ async fn handle_delete(
                 };
             }
             #[cfg(not(target_os = "android"))]
-            return Response::Error { message: "Content URIs are only supported on Android".to_string() };
+            return Response::Error { message: CONTENT_URI_ANDROID_ONLY.to_string() };
         }
     }
 
@@ -2079,7 +1959,7 @@ async fn handle_create_directory(
                 };
             }
             #[cfg(not(target_os = "android"))]
-            return Response::Error { message: "Content URIs are only supported on Android".to_string() };
+            return Response::Error { message: CONTENT_URI_ANDROID_ONLY.to_string() };
         }
     }
 
