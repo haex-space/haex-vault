@@ -940,7 +940,7 @@ pub(super) async fn handle_delivery_request(
             // runs in parallel but this Rust-side reload is the authoritative gate.
             if affected_tables.iter().any(|t| t == "haex_space_devices") {
                 let app_state: tauri::State<'_, crate::AppState> = state.app_handle.state();
-                let endpoint = app_state.peer_storage.lock().await;
+                let endpoint = app_state.peer_storage.read().await;
                 if let Err(e) = crate::peer_storage::commands::reload_allowed_peers(
                     &app_state,
                     &endpoint,

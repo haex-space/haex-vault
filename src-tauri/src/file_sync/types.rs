@@ -64,6 +64,7 @@ pub struct SyncConflict {
 #[ts(export)]
 pub struct SyncResult {
     pub files_downloaded: u32,
+    pub files_uploaded: u32,
     pub files_deleted: u32,
     pub directories_created: u32,
     pub bytes_transferred: u64,

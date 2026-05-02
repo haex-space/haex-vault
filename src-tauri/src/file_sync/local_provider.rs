@@ -5,6 +5,7 @@
 //! Desktop supports moving files to OS trash via the `trash` crate.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 
@@ -177,6 +178,39 @@ impl SyncProvider for LocalProvider {
     async fn create_directory(&self, relative_path: &str) -> Result<(), SyncProviderError> {
         let full = self.resolve_path(relative_path)?;
         std::fs::create_dir_all(&full).map_err(SyncProviderError::Io)
+    }
+
+    async fn read_file_to_path(
+        &self,
+        relative_path: &str,
+        output_path: &std::path::Path,
+        on_progress: Arc<dyn Fn(u64, u64) + Send + Sync>,
+    ) -> Result<u64, SyncProviderError> {
+        let src = self.resolve_path(relative_path)?;
+        if !src.exists() {
+            return Err(SyncProviderError::NotFound { path: relative_path.to_string() });
+        }
+        let size = tokio::fs::metadata(&src).await.map_err(SyncProviderError::Io)?.len();
+        tokio::fs::copy(&src, output_path).await.map_err(SyncProviderError::Io)?;
+        on_progress(size, size);
+        Ok(size)
+    }
+
+    async fn write_file_from_path(
+        &self,
+        relative_path: &str,
+        source_path: &std::path::Path,
+    ) -> Result<(), SyncProviderError> {
+        let dst = self.resolve_path(relative_path)?;
+        if let Some(parent) = dst.parent() {
+            tokio::fs::create_dir_all(parent).await.map_err(SyncProviderError::Io)?;
+        }
+        tokio::fs::copy(source_path, &dst).await.map_err(SyncProviderError::Io)?;
+        Ok(())
+    }
+
+    fn supports_streaming(&self) -> bool {
+        true
     }
 
     fn supports_trash(&self) -> bool {

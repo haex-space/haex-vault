@@ -1,5 +1,7 @@
 //! SyncProvider trait — abstraction for any file storage backend
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 
 use super::types::FileState;
@@ -59,6 +61,48 @@ pub trait SyncProvider: Send + Sync {
 
     /// Create a directory by relative path (including parents).
     async fn create_directory(&self, relative_path: &str) -> Result<(), SyncProviderError>;
+
+    /// Read a file and write it directly to `output_path`.
+    /// Returns total bytes written.
+    ///
+    /// The default buffers via `read_file`. Override for zero-copy (e.g. streaming QUIC, fs copy).
+    async fn read_file_to_path(
+        &self,
+        relative_path: &str,
+        output_path: &std::path::Path,
+        on_progress: Arc<dyn Fn(u64, u64) + Send + Sync>,
+    ) -> Result<u64, SyncProviderError> {
+        let data = self.read_file(relative_path).await?;
+        let n = data.len() as u64;
+        tokio::fs::write(output_path, &data)
+            .await
+            .map_err(SyncProviderError::Io)?;
+        on_progress(n, n);
+        Ok(n)
+    }
+
+    /// Write a file from a local path into this provider.
+    ///
+    /// The default buffers via `write_file`. Override for zero-copy.
+    async fn write_file_from_path(
+        &self,
+        relative_path: &str,
+        source_path: &std::path::Path,
+    ) -> Result<(), SyncProviderError> {
+        let data = tokio::fs::read(source_path)
+            .await
+            .map_err(SyncProviderError::Io)?;
+        self.write_file(relative_path, &data).await
+    }
+
+    /// Whether this provider streams transfers without buffering the full file in RAM.
+    ///
+    /// Returns `false` by default (safe for CloudProvider and similar buffering backends).
+    /// Override to return `true` for LocalProvider (fs copy) and PeerProvider (QUIC chunks).
+    /// The engine uses this to decide the transfer concurrency level.
+    fn supports_streaming(&self) -> bool {
+        false
+    }
 
     /// Whether this provider supports moving files to trash.
     fn supports_trash(&self) -> bool {

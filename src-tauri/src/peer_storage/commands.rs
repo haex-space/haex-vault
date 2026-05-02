@@ -151,7 +151,7 @@ pub async fn peer_storage_start(
     state: State<'_, AppState>,
     relay_url: Option<String>,
 ) -> Result<PeerStorageStartInfo, PeerStorageError> {
-    let endpoint = state.peer_storage.lock().await;
+    let endpoint = state.peer_storage.read().await;
 
     // Store AppHandle so the accept loop can use android_fs for Content URI shares
     endpoint.set_app_handle(app.clone()).await;
@@ -161,7 +161,7 @@ pub async fn peer_storage_start(
 
     drop(endpoint);
 
-    let mut endpoint = state.peer_storage.lock().await;
+    let mut endpoint = state.peer_storage.write().await;
     let node_id = endpoint.start(relay_url).await?;
 
     // Register the unified multi-space handler so this device can accept
@@ -205,7 +205,7 @@ pub async fn peer_storage_start(
 pub async fn peer_storage_stop(
     state: State<'_, AppState>,
 ) -> Result<(), PeerStorageError> {
-    let mut endpoint = state.peer_storage.lock().await;
+    let mut endpoint = state.peer_storage.write().await;
     endpoint.stop().await
 }
 
@@ -214,7 +214,7 @@ pub async fn peer_storage_stop(
 pub async fn peer_storage_status(
     state: State<'_, AppState>,
 ) -> Result<PeerStorageStatus, PeerStorageError> {
-    let endpoint = state.peer_storage.lock().await;
+    let endpoint = state.peer_storage.read().await;
     Ok(PeerStorageStatus {
         running: endpoint.is_running(),
         node_id: endpoint.endpoint_id().to_string(),
@@ -227,7 +227,7 @@ pub async fn peer_storage_status(
 pub async fn peer_storage_reload_shares(
     state: State<'_, AppState>,
 ) -> Result<usize, PeerStorageError> {
-    let endpoint = state.peer_storage.lock().await;
+    let endpoint = state.peer_storage.read().await;
     reload_state_from_db(&state, &endpoint).await
 }
 
@@ -252,7 +252,7 @@ pub async fn peer_storage_remote_list(
 
     let parsed_relay = relay_url.and_then(|s| s.parse::<iroh::RelayUrl>().ok());
 
-    let endpoint = state.peer_storage.lock().await;
+    let endpoint = state.peer_storage.read().await;
     endpoint.remote_list(remote_id, parsed_relay, &path, &ucan_token).await
 }
 
@@ -340,7 +340,7 @@ pub async fn peer_storage_remote_read(
             }) as Box<dyn Fn(u64, u64) + Send>
         });
 
-        let endpoint = state.peer_storage.lock().await;
+        let endpoint = state.peer_storage.read().await;
         let result = endpoint.remote_read_to_file(
             remote_id, parsed_relay, &path, &output_path,
             None, progress_cb, cancel_token, pause_flag, &ucan_token,
