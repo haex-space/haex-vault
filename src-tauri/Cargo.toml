@@ -109,6 +109,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # PTY support for shell/terminal (desktop + android via cfg)
 portable-pty = "0.9"
 tokio-util = "0.7.18"
+tempfile = "3.27"
 
 
 
@@ -129,4 +130,3 @@ tauri-plugin-android-fs = "28"
 
 [dev-dependencies]
 futures = "0.3"
-tempfile = "3.27"
