@@ -52,13 +52,32 @@ impl PeerEndpoint {
         ucan_token: &str,
     ) -> Result<u64, PeerStorageError> {
         let (mut send, mut recv) = self.open_stream(remote_id, relay_url).await?;
+        Self::read_open_streams_to_file(
+            &mut send, &mut recv, path, output_path,
+            range, on_progress, cancel_token, pause_flag, ucan_token,
+        ).await
+    }
 
+    /// Transfer a file from already-opened QUIC streams to disk.
+    /// Callers that hold a lock on `PeerEndpoint` should open the stream under
+    /// the lock, drop it, then call this function so the lock is not held during I/O.
+    pub(crate) async fn read_open_streams_to_file(
+        send: &mut iroh::endpoint::SendStream,
+        recv: &mut iroh::endpoint::RecvStream,
+        path: &str,
+        output_path: &std::path::Path,
+        range: Option<[u64; 2]>,
+        on_progress: Option<Box<dyn Fn(u64, u64) + Send>>,
+        cancel_token: Option<tokio_util::sync::CancellationToken>,
+        pause_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
+        ucan_token: &str,
+    ) -> Result<u64, PeerStorageError> {
         let req = Request::Read {
             path: path.to_string(),
             range,
             ucan_token: ucan_token.to_string(),
         };
-        let response = Self::send_request(&mut send, &mut recv, &req).await?;
+        let response = Self::send_request(send, recv, &req).await?;
 
         match response {
             Response::ReadHeader { size } => {
@@ -171,6 +190,20 @@ impl PeerEndpoint {
         path: &str,
         ucan_token: &str,
     ) -> Result<Vec<u8>, PeerStorageError> {
+        self.remote_read_bytes_with_progress(remote_id, relay_url, path, ucan_token, |_, _| {})
+            .await
+    }
+
+    /// Like `remote_read_bytes` but calls `on_progress(bytes_done, bytes_total)` after each
+    /// 64 KiB chunk so callers can report per-file transfer progress.
+    pub async fn remote_read_bytes_with_progress(
+        &self,
+        remote_id: EndpointId,
+        relay_url: Option<RelayUrl>,
+        path: &str,
+        ucan_token: &str,
+        on_progress: impl Fn(u64, u64) + Send,
+    ) -> Result<Vec<u8>, PeerStorageError> {
         let (mut send, mut recv) = self.open_stream(remote_id, relay_url).await?;
         let req = Request::Read {
             path: path.to_string(),
@@ -183,6 +216,7 @@ impl PeerEndpoint {
             Response::ReadHeader { size } => {
                 let mut data = Vec::with_capacity(size as usize);
                 let mut buf = [0u8; 64 * 1024];
+                let mut bytes_received: u64 = 0;
 
                 loop {
                     let chunk = recv.read(&mut buf).await.map_err(|e| {
@@ -191,7 +225,11 @@ impl PeerEndpoint {
                         }
                     })?;
                     match chunk {
-                        Some(n) => data.extend_from_slice(&buf[..n]),
+                        Some(n) => {
+                            data.extend_from_slice(&buf[..n]);
+                            bytes_received += n as u64;
+                            on_progress(bytes_received, size);
+                        }
                         None => break,
                     }
                 }

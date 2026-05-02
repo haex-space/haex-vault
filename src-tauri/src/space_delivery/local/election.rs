@@ -8,7 +8,6 @@
 //! 5. If someone else is leader → caller connects as peer
 
 use crate::database::DbConnection;
-use crate::peer_storage::endpoint::PeerEndpoint;
 use super::discovery;
 use super::error::DeliveryError;
 
@@ -33,7 +32,7 @@ pub enum ElectionResult {
 /// and determines who should be leader based on priority.
 pub async fn elect_leader(
     db: &DbConnection,
-    endpoint: &PeerEndpoint,
+    iroh_endpoint: Option<iroh::Endpoint>,
     space_id: &str,
     own_endpoint_id: &str,
 ) -> Result<ElectionResult, DeliveryError> {
@@ -44,8 +43,8 @@ pub async fn elect_leader(
         return Ok(ElectionResult::NoLeaderFound);
     }
 
-    // 2. Probe all in parallel
-    let reachable = discovery::probe_reachable_candidates(endpoint, &candidates, own_endpoint_id).await;
+    // 2. Probe all in parallel — iroh_endpoint is cloned out of the lock before call
+    let reachable = discovery::probe_reachable_candidates(iroh_endpoint, &candidates, own_endpoint_id).await;
 
     if reachable.is_empty() {
         return Ok(ElectionResult::NoLeaderFound);

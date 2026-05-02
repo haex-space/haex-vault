@@ -113,6 +113,22 @@ onMounted(async () => {
         console.warn('[P2P] Autostart failed:', error)
       })
     }
+
+    // Set up file sync event listeners so progress/complete events are handled.
+    // When P2P is enabled, startAsync() calls loadRulesAsync() + startEnabledRulesAsync()
+    // after the endpoint is up — starting rules here too would cause a double-start race.
+    // When P2P is disabled, start rules here since startAsync() will not run.
+    const fileSyncStore = useFileSyncStore()
+    fileSyncStore.loadRulesAsync()
+      .then(() => fileSyncStore.setupEventListeners())
+      .then(() => {
+        if (peerAutostart?.value === 'false') {
+          return fileSyncStore.startEnabledRulesAsync()
+        }
+      })
+      .catch((error) => {
+        console.warn('[FileSync] Setup failed:', error)
+      })
   } catch (error) {
     console.error('vault mount error:', error)
   }

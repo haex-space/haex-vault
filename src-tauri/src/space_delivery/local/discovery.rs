@@ -1,7 +1,6 @@
 //! Peer discovery: query CRDT for space devices, probe reachability in parallel.
 
 use crate::database::DbConnection;
-use crate::peer_storage::endpoint::PeerEndpoint;
 use super::error::DeliveryError;
 use super::protocol::ALPN;
 
@@ -48,15 +47,15 @@ pub fn get_space_device_candidates(
 /// Uses a 5-second timeout per probe.
 /// Our own endpoint_id is always included as reachable (no self-probe needed).
 pub async fn probe_reachable_candidates(
-    endpoint: &PeerEndpoint,
+    iroh_endpoint: Option<iroh::Endpoint>,
     candidates: &[DeviceCandidate],
     own_endpoint_id: &str,
 ) -> Vec<DeviceCandidate> {
     use std::time::Duration;
     use tokio::time::timeout;
 
-    let iroh_endpoint = match endpoint.endpoint_ref() {
-        Some(ep) => ep.clone(),
+    let iroh_endpoint = match iroh_endpoint {
+        Some(ep) => ep,
         None => {
             // Endpoint not running — only include self if present
             return candidates
