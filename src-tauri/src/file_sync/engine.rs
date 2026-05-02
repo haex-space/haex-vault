@@ -218,6 +218,7 @@ pub async fn execute_sync(
 
     let mut result = SyncResult {
         files_downloaded: 0,
+        files_uploaded: 0,
         files_deleted: 0,
         directories_created: 0,
         bytes_transferred: 0,
@@ -248,6 +249,14 @@ pub async fn execute_sync(
 
     // No-op byte-level progress for transfer functions — file-level progress is emitted below.
     let noop: Arc<dyn Fn(u64, u64) + Send + Sync> = Arc::new(|_, _| ());
+
+    // Fall back to sequential transfers when either provider buffers files in RAM,
+    // to avoid multiplying memory pressure by TRANSFER_CONCURRENCY.
+    let concurrency = if source.supports_streaming() && target.supports_streaming() {
+        TRANSFER_CONCURRENCY
+    } else {
+        1
+    };
 
     // 3a. Create directories on target
     for dir_path in &actions.to_create_directories {
@@ -283,7 +292,7 @@ pub async fn execute_sync(
                     ))
                 }
             })
-            .buffer_unordered(TRANSFER_CONCURRENCY);
+            .buffer_unordered(concurrency);
 
         while let Some(res) = stream.next().await {
             match res {
@@ -328,12 +337,13 @@ pub async fn execute_sync(
                     ))
                 }
             })
-            .buffer_unordered(TRANSFER_CONCURRENCY);
+            .buffer_unordered(concurrency);
 
         while let Some(res) = stream.next().await {
             match res {
                 Ok((path, size, modified_at)) => {
                     bytes_done += size;
+                    result.files_uploaded += 1;
                     result.bytes_transferred += size;
                     emit_progress(app_handle, &path, files_done, bytes_done);
                     files_done += 1;

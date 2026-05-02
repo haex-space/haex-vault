@@ -163,6 +163,10 @@ impl SyncProvider for PeerProvider {
             .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })
     }
 
+    fn supports_streaming(&self) -> bool {
+        true
+    }
+
     fn supports_trash(&self) -> bool {
         false
     }

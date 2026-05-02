@@ -209,6 +209,10 @@ impl SyncProvider for LocalProvider {
         Ok(())
     }
 
+    fn supports_streaming(&self) -> bool {
+        true
+    }
+
     fn supports_trash(&self) -> bool {
         Self::static_supports_trash()
     }

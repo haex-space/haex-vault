@@ -385,6 +385,15 @@ impl PeerEndpoint {
                     reason: format!("Failed to flush file: {e}"),
                 })?;
 
+                if bytes_written != size {
+                    let _ = tokio::fs::remove_file(output_path).await;
+                    return Err(PeerStorageError::ProtocolError {
+                        reason: format!(
+                            "Truncated transfer: expected {size} bytes, received {bytes_written}"
+                        ),
+                    });
+                }
+
                 Ok(size)
             }
             Response::Error { message } => {
@@ -439,6 +448,14 @@ impl PeerEndpoint {
                         Some(n) => data.extend_from_slice(&buf[..n]),
                         None => break,
                     }
+                }
+                if data.len() as u64 != size {
+                    return Err(PeerStorageError::ProtocolError {
+                        reason: format!(
+                            "Truncated transfer: expected {size} bytes, received {}",
+                            data.len()
+                        ),
+                    });
                 }
                 Ok(data)
             }

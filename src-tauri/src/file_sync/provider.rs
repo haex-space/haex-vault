@@ -95,6 +95,15 @@ pub trait SyncProvider: Send + Sync {
         self.write_file(relative_path, &data).await
     }
 
+    /// Whether this provider streams transfers without buffering the full file in RAM.
+    ///
+    /// Returns `false` by default (safe for CloudProvider and similar buffering backends).
+    /// Override to return `true` for LocalProvider (fs copy) and PeerProvider (QUIC chunks).
+    /// The engine uses this to decide the transfer concurrency level.
+    fn supports_streaming(&self) -> bool {
+        false
+    }
+
     /// Whether this provider supports moving files to trash.
     fn supports_trash(&self) -> bool {
         false
