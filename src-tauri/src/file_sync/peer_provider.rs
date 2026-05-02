@@ -243,6 +243,35 @@ impl SyncProvider for PeerProvider {
         }
     }
 
+    async fn read_file_to_path(
+        &self,
+        relative_path: &str,
+        output_path: &std::path::Path,
+        on_progress: Arc<dyn Fn(u64, u64) + Send + Sync>,
+    ) -> Result<u64, SyncProviderError> {
+        let full_path = self.full_remote_path(relative_path);
+        let (mut send, mut recv) = self.open_stream().await.map_err(|e| {
+            SyncProviderError::ConnectionFailed { reason: e.to_string() }
+        })?;
+        crate::peer_storage::endpoint::PeerEndpoint::read_open_streams_to_file(
+            &mut send,
+            &mut recv,
+            &full_path,
+            output_path,
+            None,
+            Some(Box::new(move |done, total| on_progress(done, total))),
+            None,
+            None,
+            &self.ucan_token,
+        )
+        .await
+        .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })
+    }
+
+    fn supports_streaming(&self) -> bool {
+        true
+    }
+
     fn supports_trash(&self) -> bool {
         false
     }
