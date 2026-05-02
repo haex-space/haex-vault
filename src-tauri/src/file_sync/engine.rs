@@ -257,7 +257,8 @@ pub async fn execute_sync(
         + actions.to_create_directories.len()
         + actions.conflicts.len()) as u32;
     let total_bytes: u64 = actions.to_download.iter().map(|f| f.size).sum::<u64>()
-        + actions.to_upload.iter().map(|f| f.size).sum::<u64>();
+        + actions.to_upload.iter().map(|f| f.size).sum::<u64>()
+        + actions.conflicts.iter().map(|c| c.source_state.size).sum::<u64>();
 
     // 3. Shared progress counters (atomics for concurrent access from tasks)
     let files_done = Arc::new(AtomicU32::new(0));
@@ -403,16 +404,24 @@ pub async fn execute_sync(
                     .push(file.relative_path.clone());
                 emit();
 
-                // Build progress callback that updates the per-file map
+                // Build progress callback: updates per-file map and speed tracker per chunk.
                 let fp_cb = file_progress.clone();
                 let path_cb = file.relative_path.clone();
                 let emit_cb = emit.clone();
+                let speed_cb = speed_tracker.clone();
+                let last_chunk = Arc::new(std::sync::atomic::AtomicU64::new(0));
+                let last_chunk_cb = last_chunk.clone();
                 let progress_cb: Arc<dyn Fn(u64, u64) + Send + Sync> =
                     Arc::new(move |done, total| {
                         fp_cb
                             .lock()
                             .unwrap_or_else(|e| e.into_inner())
                             .insert(path_cb.clone(), (done, total));
+                        let prev = last_chunk_cb.swap(done, std::sync::atomic::Ordering::Relaxed);
+                        let delta = done.saturating_sub(prev);
+                        if delta > 0 {
+                            speed_cb.lock().unwrap_or_else(|e| e.into_inner()).add(delta);
+                        }
                         emit_cb();
                     });
 
@@ -422,11 +431,12 @@ pub async fn execute_sync(
                     .await;
                 let read_result = if read_result.is_err() {
                     tokio::time::sleep(Duration::from_secs(2)).await;
-                    // Reset per-file counter before retry
+                    // Reset per-file counter and chunk baseline before retry
                     file_progress
                         .lock()
                         .unwrap_or_else(|e| e.into_inner())
                         .insert(file.relative_path.clone(), (0, file.size));
+                    last_chunk.store(0, std::sync::atomic::Ordering::Relaxed);
                     source
                         .read_file_with_progress(&file.relative_path, progress_cb)
                         .await
@@ -457,10 +467,7 @@ pub async fn execute_sync(
                         bytes_done.fetch_add(n, Ordering::Relaxed);
                         bytes_transferred.fetch_add(n, Ordering::Relaxed);
                         files_downloaded.fetch_add(1, Ordering::Relaxed);
-                        speed_tracker
-                            .lock()
-                            .unwrap_or_else(|e| e.into_inner())
-                            .add(n);
+                        // Speed tracker already fed per-chunk in progress_cb; no add here.
                         if let Err(e) = upsert_sync_state(
                             &db_clone,
                             &rule_id_clone,

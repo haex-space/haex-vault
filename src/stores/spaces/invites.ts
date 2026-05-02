@@ -449,7 +449,9 @@ export async function acceptLocalInvite(
       })
       log.info(`Started peer sync after invite accept: space=${invite.spaceId} leader=${acceptedEndpoint.slice(0, 16)}`)
     } catch (error) {
-      log.warn(`ClaimInvite: failed to start sync loop: ${error}`)
+      // Log as error: the old loop was already stopped, so the space is now
+      // without active peer sync until startLocalSpacePeerSyncAsync retries.
+      log.error(`ClaimInvite: failed to start sync loop after disconnect: ${error}`)
     }
   }
 

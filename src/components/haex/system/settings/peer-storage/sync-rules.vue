@@ -218,7 +218,7 @@
                     {{ formatBytes(syncStore.getLastResult(rule.id)!.bytesTransferred) }}
                   </span>
                   <span
-                    v-if="syncStore.getLastResult(rule.id)!.filesDownloaded === 0 && syncStore.getLastResult(rule.id)!.filesDeleted === 0"
+                    v-if="syncStore.getLastResult(rule.id)!.filesDownloaded === 0 && syncStore.getLastResult(rule.id)!.filesDeleted === 0 && syncStore.getLastResult(rule.id)!.bytesTransferred === 0 && syncStore.getLastResult(rule.id)!.directoriesCreated === 0 && syncStore.getLastResult(rule.id)!.conflictsResolved === 0"
                     class="text-muted"
                   >
                     {{ t('lastSync.upToDate') }}

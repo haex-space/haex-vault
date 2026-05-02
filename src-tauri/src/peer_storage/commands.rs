@@ -353,6 +353,9 @@ pub async fn peer_storage_remote_read(
             Ok(s) => s,
             Err(e) => {
                 let _ = on_event.send(TransferEvent::Error { error: e.to_string() });
+                if let Some(tid) = &transfer_id {
+                    state.transfer_tokens.lock().await.remove(tid);
+                }
                 return;
             }
         };
