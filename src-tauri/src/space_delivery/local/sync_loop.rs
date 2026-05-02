@@ -19,7 +19,9 @@ use crate::crdt::scanner::{
 use crate::database::DbConnection;
 use super::error::DeliveryError;
 use super::peer::PeerSession;
-use super::push_cursor::{load_last_push_hlc, save_last_push_hlc};
+use super::push_cursor::{
+    load_last_mls_cursor, load_last_push_hlc, save_last_mls_cursor, save_last_push_hlc,
+};
 
 /// Sync-loop DB logging helper — writes to `haex_logs` so the e2e harness
 /// can extract the trace via `sql_select_with_crdt`. The Tauri stderr is
@@ -218,7 +220,7 @@ async fn run_sync_loop(
 ) {
     let mut last_push_hlc: Option<String> = load_last_push_hlc(&db, &space_id, &device_id);
     let mut last_pull_timestamp: Option<String> = None;
-    let mut last_mls_message_id: Option<i64> = None;
+    let mut last_mls_message_id: Option<i64> = load_last_mls_cursor(&db, &space_id, &device_id);
     let mut key_packages_refilled = false;
 
     // Translate our device UUID into the uhlc node-id form once per session
@@ -650,7 +652,7 @@ async fn run_sync_cycle(
     }
 
     // 3. MLS: Fetch commits from leader, process, and ACK
-    if let Err(e) = fetch_and_process_mls_messages(db, session, space_id, last_mls_message_id, app_handle).await {
+    if let Err(e) = fetch_and_process_mls_messages(db, session, space_id, device_id, last_mls_message_id, app_handle).await {
         eprintln!("[SyncLoop] MLS message processing failed: {e}");
         // Non-fatal: CRDT sync still worked, MLS will retry next cycle
     }
@@ -671,6 +673,7 @@ async fn fetch_and_process_mls_messages(
     db: &DbConnection,
     session: &PeerSession,
     space_id: &str,
+    device_id: &str,
     last_mls_message_id: &mut Option<i64>,
     app_handle: &tauri::AppHandle,
 ) -> Result<(), DeliveryError> {
@@ -703,6 +706,7 @@ async fn fetch_and_process_mls_messages(
             Ok(_) => {
                 acked_ids.push(msg.id);
                 *last_mls_message_id = Some(msg.id);
+                save_last_mls_cursor(db, space_id, device_id, msg.id);
                 eprintln!(
                     "[SyncLoop] Processed MLS {} message (id={})",
                     msg.message_type, msg.id
@@ -738,6 +742,7 @@ async fn fetch_and_process_mls_messages(
                                 messages.len() - acked_ids.len(),
                             );
                             *last_mls_message_id = Some(skip_to);
+                            save_last_mls_cursor(db, space_id, device_id, skip_to);
                         }
                         Err(rejoin_err) => {
                             eprintln!("[SyncLoop] Rejoin failed: {rejoin_err}");
