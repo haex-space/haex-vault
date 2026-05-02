@@ -60,6 +60,36 @@ pub trait SyncProvider: Send + Sync {
         self.read_file(relative_path).await
     }
 
+    /// Stream a file directly to `output_path`, reporting progress via callback.
+    /// Default: reads into memory and writes to path (no zero-copy benefit).
+    /// Override for providers that can stream without full-file buffering.
+    async fn read_file_to_path(
+        &self,
+        relative_path: &str,
+        output_path: &std::path::Path,
+        on_progress: Arc<dyn Fn(u64, u64) + Send + Sync>,
+    ) -> Result<u64, SyncProviderError> {
+        let data = self.read_file(relative_path).await?;
+        let n = data.len() as u64;
+        tokio::fs::write(output_path, &data)
+            .await
+            .map_err(SyncProviderError::Io)?;
+        on_progress(n, n);
+        Ok(n)
+    }
+
+    /// Write a file from a local path. Default: reads into memory then calls write_file.
+    async fn write_file_from_path(
+        &self,
+        relative_path: &str,
+        source_path: &std::path::Path,
+    ) -> Result<(), SyncProviderError> {
+        let data = tokio::fs::read(source_path)
+            .await
+            .map_err(SyncProviderError::Io)?;
+        self.write_file(relative_path, &data).await
+    }
+
     /// Write a file by relative path. Creates parent directories as needed.
     async fn write_file(&self, relative_path: &str, data: &[u8]) -> Result<(), SyncProviderError>;
 
@@ -72,6 +102,11 @@ pub trait SyncProvider: Send + Sync {
 
     /// Create a directory by relative path (including parents).
     async fn create_directory(&self, relative_path: &str) -> Result<(), SyncProviderError>;
+
+    /// Whether this provider supports zero-copy streaming (read_file_to_path without RAM buffer).
+    fn supports_streaming(&self) -> bool {
+        false
+    }
 
     /// Whether this provider supports moving files to trash.
     fn supports_trash(&self) -> bool {

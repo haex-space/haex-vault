@@ -425,9 +425,32 @@ pub async fn execute_sync(
                         emit_cb();
                     });
 
+                // Temp file as staging area — provider streams directly to disk,
+                // so no full-file buffer in RAM even for multi-GB files.
+                let tmp: tempfile::NamedTempFile = match tempfile::NamedTempFile::new() {
+                    Ok(f) => f,
+                    Err(e) => {
+                        active_files
+                            .lock()
+                            .unwrap_or_else(|e2| e2.into_inner())
+                            .retain(|p| p != &file.relative_path);
+                        file_progress
+                            .lock()
+                            .unwrap_or_else(|e2| e2.into_inner())
+                            .remove(&file.relative_path);
+                        errors
+                            .lock()
+                            .unwrap_or_else(|e2| e2.into_inner())
+                            .push(format!("tmpfile {}: {e}", file.relative_path));
+                        files_done.fetch_add(1, Ordering::Relaxed);
+                        emit();
+                        return;
+                    }
+                };
+
                 // Transfer with one retry on failure
                 let read_result = source
-                    .read_file_with_progress(&file.relative_path, progress_cb.clone())
+                    .read_file_to_path(&file.relative_path, tmp.path(), progress_cb.clone())
                     .await;
                 let read_result = if read_result.is_err() {
                     tokio::time::sleep(Duration::from_secs(2)).await;
@@ -438,17 +461,17 @@ pub async fn execute_sync(
                         .insert(file.relative_path.clone(), (0, file.size));
                     last_chunk.store(0, std::sync::atomic::Ordering::Relaxed);
                     source
-                        .read_file_with_progress(&file.relative_path, progress_cb)
+                        .read_file_to_path(&file.relative_path, tmp.path(), progress_cb)
                         .await
                 } else {
                     read_result
                 };
 
-                let res = match read_result {
-                    Ok(data) => target
-                        .write_file(&file.relative_path, &data)
+                let res: Result<u64, SyncProviderError> = match read_result {
+                    Ok(n) => target
+                        .write_file_from_path(&file.relative_path, tmp.path())
                         .await
-                        .map(|_| data),
+                        .map(|_| n),
                     Err(e) => Err(e),
                 };
 
@@ -462,8 +485,7 @@ pub async fn execute_sync(
                     .remove(&file.relative_path);
 
                 match res {
-                    Ok(data) => {
-                        let n = data.len() as u64;
+                    Ok(n) => {
                         bytes_done.fetch_add(n, Ordering::Relaxed);
                         bytes_transferred.fetch_add(n, Ordering::Relaxed);
                         files_downloaded.fetch_add(1, Ordering::Relaxed);
@@ -535,17 +557,46 @@ pub async fn execute_sync(
                 let fp_cb = file_progress.clone();
                 let path_cb = file.relative_path.clone();
                 let emit_cb = emit.clone();
+                let speed_cb = speed_tracker.clone();
+                let last_chunk = Arc::new(std::sync::atomic::AtomicU64::new(0));
+                let last_chunk_cb = last_chunk.clone();
                 let progress_cb: Arc<dyn Fn(u64, u64) + Send + Sync> =
                     Arc::new(move |done, total| {
                         fp_cb
                             .lock()
                             .unwrap_or_else(|e| e.into_inner())
                             .insert(path_cb.clone(), (done, total));
+                        let prev = last_chunk_cb.swap(done, std::sync::atomic::Ordering::Relaxed);
+                        let delta = done.saturating_sub(prev);
+                        if delta > 0 {
+                            speed_cb.lock().unwrap_or_else(|e| e.into_inner()).add(delta);
+                        }
                         emit_cb();
                     });
 
+                let tmp: tempfile::NamedTempFile = match tempfile::NamedTempFile::new() {
+                    Ok(f) => f,
+                    Err(e) => {
+                        active_files
+                            .lock()
+                            .unwrap_or_else(|e2| e2.into_inner())
+                            .retain(|p| p != &file.relative_path);
+                        file_progress
+                            .lock()
+                            .unwrap_or_else(|e2| e2.into_inner())
+                            .remove(&file.relative_path);
+                        errors
+                            .lock()
+                            .unwrap_or_else(|e2| e2.into_inner())
+                            .push(format!("tmpfile {}: {e}", file.relative_path));
+                        files_done.fetch_add(1, Ordering::Relaxed);
+                        emit();
+                        return;
+                    }
+                };
+
                 let read_result = target
-                    .read_file_with_progress(&file.relative_path, progress_cb.clone())
+                    .read_file_to_path(&file.relative_path, tmp.path(), progress_cb.clone())
                     .await;
                 let read_result = if read_result.is_err() {
                     tokio::time::sleep(Duration::from_secs(2)).await;
@@ -553,18 +604,19 @@ pub async fn execute_sync(
                         .lock()
                         .unwrap_or_else(|e| e.into_inner())
                         .insert(file.relative_path.clone(), (0, file.size));
+                    last_chunk.store(0, std::sync::atomic::Ordering::Relaxed);
                     target
-                        .read_file_with_progress(&file.relative_path, progress_cb)
+                        .read_file_to_path(&file.relative_path, tmp.path(), progress_cb)
                         .await
                 } else {
                     read_result
                 };
 
-                let res = match read_result {
-                    Ok(data) => source
-                        .write_file(&file.relative_path, &data)
+                let res: Result<u64, SyncProviderError> = match read_result {
+                    Ok(n) => source
+                        .write_file_from_path(&file.relative_path, tmp.path())
                         .await
-                        .map(|_| data),
+                        .map(|_| n),
                     Err(e) => Err(e),
                 };
 
@@ -578,14 +630,10 @@ pub async fn execute_sync(
                     .remove(&file.relative_path);
 
                 match res {
-                    Ok(data) => {
-                        let n = data.len() as u64;
+                    Ok(n) => {
                         bytes_done.fetch_add(n, Ordering::Relaxed);
                         bytes_transferred.fetch_add(n, Ordering::Relaxed);
-                        speed_tracker
-                            .lock()
-                            .unwrap_or_else(|e| e.into_inner())
-                            .add(n);
+                        // Speed tracker already fed per-chunk in progress_cb; no add here.
                         if let Err(e) = upsert_sync_state(
                             &db_clone,
                             &rule_id_clone,
