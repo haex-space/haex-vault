@@ -342,12 +342,24 @@ pub async fn peer_storage_remote_read(
             }) as Box<dyn Fn(u64, u64) + Send>
         });
 
-        let endpoint = state.peer_storage.read().await;
-        let result = endpoint.remote_read_to_file(
-            remote_id, parsed_relay, &path, &output_path,
+        // Hold the lock only for stream open (bounded by connection timeout ~3s).
+        // The actual file I/O runs without any lock so peer_storage_start/stop are
+        // not blocked for the duration of the download.
+        let streams = {
+            let endpoint = state.peer_storage.read().await;
+            endpoint.open_stream(remote_id, parsed_relay).await
+        };
+        let (mut send, mut recv) = match streams {
+            Ok(s) => s,
+            Err(e) => {
+                let _ = on_event.send(TransferEvent::Error { error: e.to_string() });
+                return;
+            }
+        };
+        let result = crate::peer_storage::endpoint::PeerEndpoint::read_open_streams_to_file(
+            &mut send, &mut recv, &path, &output_path,
             None, progress_cb, cancel_token, pause_flag, &ucan_token,
         ).await;
-        drop(endpoint);
 
         // Clean up cancel token
         if let Some(tid) = &transfer_id {

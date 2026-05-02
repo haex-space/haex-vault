@@ -17,7 +17,7 @@ use crate::database::DbConnection;
 
 use super::diff::compute_sync_actions;
 use super::provider::{SyncProvider, SyncProviderError};
-use super::types::{DeleteMode, SyncDirection, SyncProgress, SyncResult};
+use super::types::{DeleteMode, SyncDirection, SyncResult};
 
 /// Get the current Unix timestamp in seconds.
 fn unix_now() -> u64 {
@@ -887,7 +887,11 @@ pub async fn run_sync_loop(
                 next_wait = if result.is_err() { RETRY_INTERVAL } else { interval };
                 emit_sync_result(&app_handle, &rule_id, &result);
             }
-            _ = trigger_receiver.recv() => {
+            msg = trigger_receiver.recv() => {
+                if msg.is_none() {
+                    // All senders dropped — stop the loop cleanly
+                    break;
+                }
                 // Drain any additional pending triggers to avoid redundant syncs
                 while trigger_receiver.try_recv().is_ok() {}
                 let result = execute_sync(

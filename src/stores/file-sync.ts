@@ -124,6 +124,10 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
     const rule = syncRules.value.find(r => r.id === ruleId)
     if (!rule) throw new Error('Rule not found')
 
+    // Refresh before checking — the in-memory cache may be stale if the loop
+    // started/stopped since the last status poll.
+    await refreshStatusAsync()
+
     // If the sync loop is already running, poke its trigger channel and return
     // immediately — the loop emits progress/complete events as usual.
     // Avoids blocking the UI thread for the full transfer duration.
@@ -218,6 +222,9 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
     unlistenProgress?.()
     unlistenComplete?.()
     unlistenError?.()
+    unlistenProgress = null
+    unlistenComplete = null
+    unlistenError = null
     unsubscribeFromSyncUpdates('file-sync')
   }
 

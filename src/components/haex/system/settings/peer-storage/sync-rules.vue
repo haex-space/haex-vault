@@ -179,7 +179,7 @@
                   >
                     <div class="flex items-center gap-1.5 text-xs text-muted">
                       <UIcon name="i-lucide-arrow-down" class="w-3 h-3 text-primary shrink-0" />
-                      <span class="truncate flex-1">{{ fp.path.split('/').pop() }}</span>
+                      <span class="truncate flex-1">{{ fp.path.split(/[/\\]/).pop() }}</span>
                       <span class="shrink-0 tabular-nums">
                         {{ fp.bytesTotal > 0 ? formatBytes(fp.bytesDone) + ' / ' + formatBytes(fp.bytesTotal) : '' }}
                       </span>

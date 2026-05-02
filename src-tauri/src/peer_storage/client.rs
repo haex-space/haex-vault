@@ -52,13 +52,32 @@ impl PeerEndpoint {
         ucan_token: &str,
     ) -> Result<u64, PeerStorageError> {
         let (mut send, mut recv) = self.open_stream(remote_id, relay_url).await?;
+        Self::read_open_streams_to_file(
+            &mut send, &mut recv, path, output_path,
+            range, on_progress, cancel_token, pause_flag, ucan_token,
+        ).await
+    }
 
+    /// Transfer a file from already-opened QUIC streams to disk.
+    /// Callers that hold a lock on `PeerEndpoint` should open the stream under
+    /// the lock, drop it, then call this function so the lock is not held during I/O.
+    pub(crate) async fn read_open_streams_to_file(
+        send: &mut iroh::endpoint::SendStream,
+        recv: &mut iroh::endpoint::RecvStream,
+        path: &str,
+        output_path: &std::path::Path,
+        range: Option<[u64; 2]>,
+        on_progress: Option<Box<dyn Fn(u64, u64) + Send>>,
+        cancel_token: Option<tokio_util::sync::CancellationToken>,
+        pause_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
+        ucan_token: &str,
+    ) -> Result<u64, PeerStorageError> {
         let req = Request::Read {
             path: path.to_string(),
             range,
             ucan_token: ucan_token.to_string(),
         };
-        let response = Self::send_request(&mut send, &mut recv, &req).await?;
+        let response = Self::send_request(send, recv, &req).await?;
 
         match response {
             Response::ReadHeader { size } => {

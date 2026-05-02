@@ -114,6 +114,11 @@ impl SyncProvider for PeerProvider {
                         None => break,
                     }
                 }
+                if data.len() != size as usize {
+                    return Err(SyncProviderError::ConnectionFailed {
+                        reason: format!("short read: expected {} bytes, got {}", size, data.len()),
+                    });
+                }
                 Ok(data)
             }
             Response::Error { message } => Err(SyncProviderError::ConnectionFailed { reason: message }),
@@ -156,6 +161,11 @@ impl SyncProvider for PeerProvider {
                         None => break,
                     }
                 }
+                if data.len() != size as usize {
+                    return Err(SyncProviderError::ConnectionFailed {
+                        reason: format!("short read: expected {} bytes, got {}", size, data.len()),
+                    });
+                }
                 Ok(data)
             }
             Response::Error { message } => Err(SyncProviderError::ConnectionFailed { reason: message }),
@@ -177,7 +187,6 @@ impl SyncProvider for PeerProvider {
             .await
             .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
 
-        use tokio::io::AsyncWriteExt;
         send.write_all(data).await.map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
         send.finish().map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
 
