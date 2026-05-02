@@ -61,7 +61,7 @@ pub struct AppState {
     /// Extension resource limits service (database, filesystem, web)
     pub limits: extension::limits::LimitsService,
     /// Peer storage endpoint for P2P file sharing via iroh/QUIC
-    pub peer_storage: Arc<tokio::sync::Mutex<peer_storage::endpoint::PeerEndpoint>>,
+    pub peer_storage: Arc<tokio::sync::RwLock<peer_storage::endpoint::PeerEndpoint>>,
     /// Active P2P transfer control (transfer_id → (cancel_token, pause_flag))
     pub transfer_tokens: tokio::sync::Mutex<HashMap<String, (tokio_util::sync::CancellationToken, Arc<std::sync::atomic::AtomicBool>)>>,
     /// Active file sync loops (rule_id → cancellation token)
@@ -161,7 +161,7 @@ pub fn run() {
             file_watcher: extension::filesystem::watcher::FileWatcherManager::new(),
             session_permissions: extension::permissions::session::SessionPermissionStore::new(),
             limits: extension::limits::LimitsService::new(),
-            peer_storage: Arc::new(tokio::sync::Mutex::new(peer_storage::endpoint::PeerEndpoint::new_ephemeral())),
+            peer_storage: Arc::new(tokio::sync::RwLock::new(peer_storage::endpoint::PeerEndpoint::new_ephemeral())),
             transfer_tokens: tokio::sync::Mutex::new(HashMap::new()),
             sync_manager: tokio::sync::Mutex::new(SyncManager::new()),
             auth_token: Arc::new(Mutex::new(None)),

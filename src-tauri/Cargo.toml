@@ -60,7 +60,9 @@ tokio-tungstenite = "0.29.0"
 futures-util = { version = "0.3", default-features = false, features = [
   "sink",
   "std",
+  "async-await",
 ] }
+tempfile = "3.27"
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
 aes-gcm = "0.10"
 hkdf = "0.12"

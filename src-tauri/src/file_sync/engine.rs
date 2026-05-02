@@ -2,8 +2,10 @@
 //!
 //! Ties together providers, diff computation, and database state tracking.
 
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use futures_util::StreamExt;
 use serde_json::Value as JsonValue;
 use tokio_util::sync::CancellationToken;
 
@@ -12,6 +14,9 @@ use crate::database::DbConnection;
 use super::diff::compute_sync_actions;
 use super::provider::{SyncProvider, SyncProviderError};
 use super::types::{DeleteMode, SyncDirection, SyncProgress, SyncResult};
+
+/// Maximum number of file transfers running concurrently within one sync pass.
+const TRANSFER_CONCURRENCY: usize = 4;
 
 /// Get the current Unix timestamp in seconds.
 fn unix_now() -> u64 {
@@ -188,8 +193,8 @@ pub fn clear_sync_state(db: &DbConnection, rule_id: &str) -> Result<(), SyncEngi
 
 /// Execute a one-shot sync: get manifests, compute diff, transfer files, update state.
 pub async fn execute_sync(
-    source: &dyn SyncProvider,
-    target: &dyn SyncProvider,
+    source: Arc<dyn SyncProvider>,
+    target: Arc<dyn SyncProvider>,
     direction: SyncDirection,
     delete_mode: DeleteMode,
     rule_id: &str,
@@ -241,6 +246,9 @@ pub async fn execute_sync(
             }
         };
 
+    // No-op byte-level progress for transfer functions — file-level progress is emitted below.
+    let noop: Arc<dyn Fn(u64, u64) + Send + Sync> = Arc::new(|_, _| ());
+
     // 3a. Create directories on target
     for dir_path in &actions.to_create_directories {
         emit_progress(app_handle, dir_path, files_done, bytes_done);
@@ -251,91 +259,94 @@ pub async fn execute_sync(
         files_done += 1;
     }
 
-    // 3b. Download files (source → target)
-    for file_state in &actions.to_download {
-        emit_progress(
-            app_handle,
-            &file_state.relative_path,
-            files_done,
-            bytes_done,
-        );
-        match source.read_file(&file_state.relative_path).await {
-            Ok(data) => {
-                match target
-                    .write_file(&file_state.relative_path, &data)
-                    .await
-                {
-                    Ok(()) => {
-                        bytes_done += data.len() as u64;
-                        result.files_downloaded += 1;
-                        result.bytes_transferred += data.len() as u64;
-                        if let Err(e) = upsert_sync_state(
-                            db,
-                            rule_id,
-                            &file_state.relative_path,
-                            file_state.size,
-                            file_state.modified_at,
-                        ) {
-                            result.errors.push(format!(
-                                "db upsert {}: {e}",
-                                file_state.relative_path
-                            ));
-                        }
+    // 3b. Download files (source → target) — up to TRANSFER_CONCURRENCY in parallel.
+    //     Each transfer goes via a temp file so no full-file RAM buffer is needed.
+    {
+        let mut stream = futures_util::stream::iter(actions.to_download.into_iter())
+            .map(|file| {
+                let src = Arc::clone(&source);
+                let tgt = Arc::clone(&target);
+                let progress = Arc::clone(&noop);
+                async move {
+                    let tmp = tempfile::NamedTempFile::new()
+                        .map_err(|e| format!("tmp: {e}"))?;
+                    src.read_file_to_path(&file.relative_path, tmp.path(), progress)
+                        .await
+                        .map_err(|e| format!("read {}: {e}", file.relative_path))?;
+                    tgt.write_file_from_path(&file.relative_path, tmp.path())
+                        .await
+                        .map_err(|e| format!("write {}: {e}", file.relative_path))?;
+                    Ok::<(String, u64, u64), String>((
+                        file.relative_path,
+                        file.size,
+                        file.modified_at,
+                    ))
+                }
+            })
+            .buffer_unordered(TRANSFER_CONCURRENCY);
+
+        while let Some(res) = stream.next().await {
+            match res {
+                Ok((path, size, modified_at)) => {
+                    bytes_done += size;
+                    result.files_downloaded += 1;
+                    result.bytes_transferred += size;
+                    emit_progress(app_handle, &path, files_done, bytes_done);
+                    files_done += 1;
+                    if let Err(e) = upsert_sync_state(db, rule_id, &path, size, modified_at) {
+                        result.errors.push(format!("db upsert {path}: {e}"));
                     }
-                    Err(e) => result.errors.push(format!(
-                        "write {}: {e}",
-                        file_state.relative_path
-                    )),
+                }
+                Err(e) => {
+                    result.errors.push(e);
+                    files_done += 1;
                 }
             }
-            Err(e) => result
-                .errors
-                .push(format!("read {}: {e}", file_state.relative_path)),
         }
-        files_done += 1;
     }
 
-    // 3c. Upload files (target → source, two-way only)
-    for file_state in &actions.to_upload {
-        emit_progress(
-            app_handle,
-            &file_state.relative_path,
-            files_done,
-            bytes_done,
-        );
-        match target.read_file(&file_state.relative_path).await {
-            Ok(data) => {
-                match source
-                    .write_file(&file_state.relative_path, &data)
-                    .await
-                {
-                    Ok(()) => {
-                        bytes_done += data.len() as u64;
-                        result.bytes_transferred += data.len() as u64;
-                        if let Err(e) = upsert_sync_state(
-                            db,
-                            rule_id,
-                            &file_state.relative_path,
-                            file_state.size,
-                            file_state.modified_at,
-                        ) {
-                            result.errors.push(format!(
-                                "db upsert {}: {e}",
-                                file_state.relative_path
-                            ));
-                        }
+    // 3c. Upload files (target → source, two-way only) — same parallel pattern.
+    {
+        let mut stream = futures_util::stream::iter(actions.to_upload.into_iter())
+            .map(|file| {
+                let src = Arc::clone(&source);
+                let tgt = Arc::clone(&target);
+                let progress = Arc::clone(&noop);
+                async move {
+                    let tmp = tempfile::NamedTempFile::new()
+                        .map_err(|e| format!("tmp: {e}"))?;
+                    tgt.read_file_to_path(&file.relative_path, tmp.path(), progress)
+                        .await
+                        .map_err(|e| format!("read {}: {e}", file.relative_path))?;
+                    src.write_file_from_path(&file.relative_path, tmp.path())
+                        .await
+                        .map_err(|e| format!("write {}: {e}", file.relative_path))?;
+                    Ok::<(String, u64, u64), String>((
+                        file.relative_path,
+                        file.size,
+                        file.modified_at,
+                    ))
+                }
+            })
+            .buffer_unordered(TRANSFER_CONCURRENCY);
+
+        while let Some(res) = stream.next().await {
+            match res {
+                Ok((path, size, modified_at)) => {
+                    bytes_done += size;
+                    result.bytes_transferred += size;
+                    emit_progress(app_handle, &path, files_done, bytes_done);
+                    files_done += 1;
+                    if let Err(e) = upsert_sync_state(db, rule_id, &path, size, modified_at) {
+                        result.errors.push(format!("db upsert {path}: {e}"));
                     }
-                    Err(e) => result.errors.push(format!(
-                        "write {}: {e}",
-                        file_state.relative_path
-                    )),
+                }
+                Err(e) => {
+                    result.errors.push(e);
+                    files_done += 1;
                 }
             }
-            Err(e) => result
-                .errors
-                .push(format!("read {}: {e}", file_state.relative_path)),
         }
-        files_done += 1;
     }
 
     // 3d. Delete files
@@ -514,8 +525,8 @@ fn emit_sync_result(
 /// The optional `trigger_receiver` allows external events (e.g. file watcher)
 /// to interrupt the sleep timer and trigger an immediate sync cycle.
 pub async fn run_sync_loop(
-    source: Box<dyn SyncProvider>,
-    target: Box<dyn SyncProvider>,
+    source: Arc<dyn SyncProvider>,
+    target: Arc<dyn SyncProvider>,
     direction: SyncDirection,
     delete_mode: DeleteMode,
     rule_id: String,
@@ -528,8 +539,8 @@ pub async fn run_sync_loop(
     // Run initial sync immediately
     eprintln!("[FileSyncEngine] Rule {} initial sync starting", rule_id);
     let result = execute_sync(
-        &*source,
-        &*target,
+        Arc::clone(&source),
+        Arc::clone(&target),
         direction,
         delete_mode,
         &rule_id,
@@ -551,8 +562,8 @@ pub async fn run_sync_loop(
             }
             _ = tokio::time::sleep(interval), if use_timer => {
                 let result = execute_sync(
-                    &*source,
-                    &*target,
+                    Arc::clone(&source),
+                    Arc::clone(&target),
                     direction,
                     delete_mode,
                     &rule_id,
@@ -566,8 +577,8 @@ pub async fn run_sync_loop(
                 // Drain any additional pending triggers to avoid redundant syncs
                 while trigger_receiver.try_recv().is_ok() {}
                 let result = execute_sync(
-                    &*source,
-                    &*target,
+                    Arc::clone(&source),
+                    Arc::clone(&target),
                     direction,
                     delete_mode,
                     &rule_id,

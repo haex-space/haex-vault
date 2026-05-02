@@ -9,6 +9,8 @@ use std::time::Duration;
 use tauri::State;
 use tokio_util::sync::CancellationToken;
 
+use std::sync::Arc;
+
 use crate::AppState;
 
 use super::cloud_provider::CloudProvider;
@@ -124,7 +126,7 @@ async fn create_provider(
     provider_type: &str,
     config: &serde_json::Value,
     state: &AppState,
-) -> Result<Box<dyn SyncProvider>, FileSyncCommandError> {
+) -> Result<Arc<dyn SyncProvider>, FileSyncCommandError> {
     match provider_type {
         "local" => {
             let path = config
@@ -137,7 +139,7 @@ async fn create_provider(
                 })?;
             let provider = LocalProvider::new(std::path::PathBuf::from(path))
                 .map_err(|e| FileSyncCommandError::ProviderError(e.to_string()))?;
-            Ok(Box::new(provider))
+            Ok(Arc::new(provider))
         }
         "peer" => {
             let endpoint_id_str = config
@@ -172,7 +174,7 @@ async fn create_provider(
 
             let endpoint = state.peer_storage.clone();
             let provider = PeerProvider::new(endpoint, endpoint_id, relay_url, base_path, ucan_token);
-            Ok(Box::new(provider))
+            Ok(Arc::new(provider))
         }
         "cloud" => {
             let backend_id = config
@@ -194,7 +196,7 @@ async fn create_provider(
                     .await
                     .map_err(|e| FileSyncCommandError::ProviderError(e.to_string()))?;
             let provider = CloudProvider::new(backend, prefix);
-            Ok(Box::new(provider))
+            Ok(Arc::new(provider))
         }
         _ => Err(FileSyncCommandError::InvalidConfig(format!(
             "Unknown provider type: {provider_type}"
@@ -290,8 +292,8 @@ pub async fn file_sync_start_rule(
     let app_clone = app.clone();
     tauri::async_runtime::spawn(async move {
         run_sync_loop(
-            source,
-            target,
+            Arc::from(source),
+            Arc::from(target),
             dir,
             del,
             rule_id_clone,
@@ -346,8 +348,8 @@ pub async fn file_sync_trigger_now(
     let target = create_provider(&target_type, &target_config, &state).await?;
 
     let result = execute_sync(
-        &*source,
-        &*target,
+        source,
+        target,
         dir,
         del,
         &rule_id,

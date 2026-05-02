@@ -47,7 +47,7 @@ pub async fn local_delivery_start(
         state: leader_state,
     });
 
-    let endpoint = state.peer_storage.lock().await;
+    let endpoint = state.peer_storage.read().await;
     endpoint.set_delivery_handler(handler).await;
 
     eprintln!("[SpaceDelivery] Started leader mode for space {space_id}");
@@ -69,7 +69,7 @@ pub async fn local_delivery_stop(
     *state.leader_state.lock().await = None;
 
     // Restore the lightweight invite receiver handler
-    let endpoint = state.peer_storage.lock().await;
+    let endpoint = state.peer_storage.read().await;
     let db_conn = DbConnection(state.db.0.clone());
     let hlc_clone = state.hlc.lock().map_err(|_| "HLC lock poisoned".to_string())?.clone();
     let receiver_state = Arc::new(super::invite_receiver::InviteReceiverState {
@@ -90,7 +90,7 @@ pub async fn local_delivery_stop(
 /// Get the current delivery status.
 #[tauri::command]
 pub async fn local_delivery_status(state: State<'_, AppState>) -> Result<DeliveryStatus, String> {
-    let endpoint = state.peer_storage.lock().await;
+    let endpoint = state.peer_storage.read().await;
     let peer_state = endpoint.state.read().await;
     let is_leader = peer_state.delivery_handler.is_some();
     drop(peer_state);
@@ -126,7 +126,7 @@ pub async fn local_delivery_connect(
     }
 
     // 2. Get our endpoint info
-    let endpoint = state.peer_storage.lock().await;
+    let endpoint = state.peer_storage.read().await;
     if !endpoint.is_running() {
         return Err("Peer storage endpoint not running".to_string());
     }
@@ -186,7 +186,7 @@ pub async fn local_delivery_get_leader(
     space_id: String,
 ) -> Result<Option<LeaderInfo>, String> {
     let db = DbConnection(state.db.0.clone());
-    let endpoint = state.peer_storage.lock().await;
+    let endpoint = state.peer_storage.read().await;
 
     if !endpoint.is_running() {
         // Endpoint not running — fall back to DB-only (first by priority)
@@ -228,7 +228,7 @@ pub async fn local_delivery_elect(
     space_id: String,
 ) -> Result<ElectionResultInfo, String> {
     let db = DbConnection(state.db.0.clone());
-    let endpoint = state.peer_storage.lock().await;
+    let endpoint = state.peer_storage.read().await;
     let own_endpoint_id = endpoint.endpoint_id().to_string();
 
     let result = super::election::elect_leader(&db, &endpoint, &space_id, &own_endpoint_id)
@@ -414,7 +414,7 @@ pub async fn local_delivery_claim_invite(
     identity_public_key: Option<String>,
 ) -> Result<ClaimInviteResult, String> {
     // 1. Get iroh endpoint
-    let endpoint = state.peer_storage.lock().await;
+    let endpoint = state.peer_storage.read().await;
     if !endpoint.is_running() {
         return Err("Peer storage endpoint not running".to_string());
     }
@@ -580,7 +580,7 @@ pub async fn local_delivery_push_invite(
     origin_url: Option<String>,
     expires_at: String,
 ) -> Result<bool, String> {
-    let endpoint = state.peer_storage.lock().await;
+    let endpoint = state.peer_storage.read().await;
     if !endpoint.is_running() {
         return Err("Peer endpoint not running".to_string());
     }
