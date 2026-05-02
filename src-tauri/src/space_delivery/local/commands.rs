@@ -156,12 +156,11 @@ pub async fn local_delivery_connect(
         &identity_did[..24.min(identity_did.len())],
     ));
 
-    // 1. Stop any existing loop for this space so we reconnect to the fresh leader.
-    // This handles re-invites and state-leak scenarios where a prior loop is stale.
+    // 1. Check if already connected
     let mut loops = state.local_sync_loops.lock().await;
-    if let Some(old_handle) = loops.remove(&space_id) {
-        log("info", &format!("restarting existing loop: space={}", &space_id[..8.min(space_id.len())]));
-        old_handle.stop();
+    if loops.contains_key(&space_id) {
+        log("warn", &format!("already connected: space={}", &space_id[..8.min(space_id.len())]));
+        return Err(format!("Already connected to space {space_id}"));
     }
 
     // 2. Get our endpoint info

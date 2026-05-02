@@ -432,7 +432,14 @@ export async function acceptLocalInvite(
   // the leader by definition. Skipping election here is intentional: right
   // after Accept, haex_space_devices only contains our own freshly-inserted
   // row, so election would return SelfIsLeader and never start the sync loop.
+  // Disconnect first so re-invites and test-suite state-leaks don't leave a
+  // stale loop connected to an old leader endpoint.
   if (acceptedEndpoint) {
+    try {
+      await invoke('local_delivery_disconnect', { spaceId: invite.spaceId })
+    } catch {
+      // No existing loop — that's fine.
+    }
     try {
       await invoke('local_delivery_connect', {
         spaceId: invite.spaceId,
