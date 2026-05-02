@@ -9,12 +9,16 @@ use async_trait::async_trait;
 use iroh::{EndpointId, RelayUrl};
 
 use crate::peer_storage::endpoint::PeerEndpoint;
+use crate::peer_storage::error::PeerStorageError;
+use crate::peer_storage::protocol::{self, Request, Response};
 
 use super::provider::{SyncProvider, SyncProviderError};
 use super::types::FileState;
 
+
+
 pub struct PeerProvider {
-    endpoint: Arc<tokio::sync::Mutex<PeerEndpoint>>,
+    endpoint: Arc<tokio::sync::RwLock<PeerEndpoint>>,
     remote_id: EndpointId,
     relay_url: Option<RelayUrl>,
     remote_base_path: String,
@@ -23,7 +27,7 @@ pub struct PeerProvider {
 
 impl PeerProvider {
     pub fn new(
-        endpoint: Arc<tokio::sync::Mutex<PeerEndpoint>>,
+        endpoint: Arc<tokio::sync::RwLock<PeerEndpoint>>,
         remote_id: EndpointId,
         relay_url: Option<RelayUrl>,
         remote_base_path: String,
@@ -45,6 +49,19 @@ impl PeerProvider {
             format!("{}/{}", self.remote_base_path, relative_path)
         }
     }
+
+    /// Open a QUIC stream while briefly holding the read lock, then drop the lock.
+    /// All subsequent I/O happens without holding `peer_storage` read lock,
+    /// so vault re-initialization (which needs the write lock) is never blocked.
+    async fn open_stream(
+        &self,
+    ) -> Result<(iroh::endpoint::SendStream, iroh::endpoint::RecvStream), PeerStorageError> {
+        self.endpoint
+            .read()
+            .await
+            .open_stream(self.remote_id, self.relay_url.clone())
+            .await
+    }
 }
 
 #[async_trait]
@@ -54,51 +71,133 @@ impl SyncProvider for PeerProvider {
     }
 
     async fn manifest(&self) -> Result<Vec<FileState>, SyncProviderError> {
-        let endpoint = self.endpoint.lock().await;
-        endpoint
-            .remote_manifest(
-                self.remote_id,
-                self.relay_url.clone(),
-                &self.remote_base_path,
-                &self.ucan_token,
-            )
+        let (mut send, mut recv) = self.open_stream().await.map_err(|e| {
+            SyncProviderError::ConnectionFailed { reason: e.to_string() }
+        })?;
+        let req = Request::Manifest {
+            path: self.remote_base_path.clone(),
+            ucan_token: self.ucan_token.clone(),
+        };
+        let response = PeerEndpoint::send_request(&mut send, &mut recv, &req)
             .await
-            .map_err(|e| SyncProviderError::ConnectionFailed {
-                reason: e.to_string(),
-            })
+            .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
+        match response {
+            Response::Manifest { entries } => Ok(entries),
+            Response::Error { message } => Err(SyncProviderError::ConnectionFailed { reason: message }),
+            _ => Err(SyncProviderError::ConnectionFailed { reason: "Unexpected response".to_string() }),
+        }
     }
 
     async fn read_file(&self, relative_path: &str) -> Result<Vec<u8>, SyncProviderError> {
         let full_path = self.full_remote_path(relative_path);
-        let endpoint = self.endpoint.lock().await;
-        endpoint
-            .remote_read_bytes(
-                self.remote_id,
-                self.relay_url.clone(),
-                &full_path,
-                &self.ucan_token,
-            )
+        let (mut send, mut recv) = self.open_stream().await.map_err(|e| {
+            SyncProviderError::ConnectionFailed { reason: e.to_string() }
+        })?;
+        let req = Request::Read {
+            path: full_path,
+            range: None,
+            ucan_token: self.ucan_token.clone(),
+        };
+        let response = PeerEndpoint::send_request(&mut send, &mut recv, &req)
             .await
-            .map_err(|e| SyncProviderError::ConnectionFailed {
-                reason: e.to_string(),
-            })
+            .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
+        match response {
+            Response::ReadHeader { size } => {
+                let mut data = Vec::with_capacity(size as usize);
+                let mut buf = [0u8; 64 * 1024];
+                loop {
+                    let chunk = recv.read(&mut buf).await.map_err(|e| {
+                        SyncProviderError::ConnectionFailed { reason: e.to_string() }
+                    })?;
+                    match chunk {
+                        Some(n) => data.extend_from_slice(&buf[..n]),
+                        None => break,
+                    }
+                }
+                if data.len() != size as usize {
+                    return Err(SyncProviderError::ConnectionFailed {
+                        reason: format!("short read: expected {} bytes, got {}", size, data.len()),
+                    });
+                }
+                Ok(data)
+            }
+            Response::Error { message } => Err(SyncProviderError::ConnectionFailed { reason: message }),
+            _ => Err(SyncProviderError::ConnectionFailed { reason: "Unexpected response".to_string() }),
+        }
+    }
+
+    async fn read_file_with_progress(
+        &self,
+        relative_path: &str,
+        on_progress: Arc<dyn Fn(u64, u64) + Send + Sync>,
+    ) -> Result<Vec<u8>, SyncProviderError> {
+        let full_path = self.full_remote_path(relative_path);
+        let (mut send, mut recv) = self.open_stream().await.map_err(|e| {
+            SyncProviderError::ConnectionFailed { reason: e.to_string() }
+        })?;
+        let req = Request::Read {
+            path: full_path,
+            range: None,
+            ucan_token: self.ucan_token.clone(),
+        };
+        let response = PeerEndpoint::send_request(&mut send, &mut recv, &req)
+            .await
+            .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
+        match response {
+            Response::ReadHeader { size } => {
+                let mut data = Vec::with_capacity(size as usize);
+                let mut buf = [0u8; 64 * 1024];
+                let mut bytes_received: u64 = 0;
+                loop {
+                    let chunk = recv.read(&mut buf).await.map_err(|e| {
+                        SyncProviderError::ConnectionFailed { reason: e.to_string() }
+                    })?;
+                    match chunk {
+                        Some(n) => {
+                            data.extend_from_slice(&buf[..n]);
+                            bytes_received += n as u64;
+                            on_progress(bytes_received, size);
+                        }
+                        None => break,
+                    }
+                }
+                if data.len() != size as usize {
+                    return Err(SyncProviderError::ConnectionFailed {
+                        reason: format!("short read: expected {} bytes, got {}", size, data.len()),
+                    });
+                }
+                Ok(data)
+            }
+            Response::Error { message } => Err(SyncProviderError::ConnectionFailed { reason: message }),
+            _ => Err(SyncProviderError::ConnectionFailed { reason: "Unexpected response".to_string() }),
+        }
     }
 
     async fn write_file(&self, relative_path: &str, data: &[u8]) -> Result<(), SyncProviderError> {
         let full_path = self.full_remote_path(relative_path);
-        let endpoint = self.endpoint.lock().await;
-        endpoint
-            .remote_write_file(
-                self.remote_id,
-                self.relay_url.clone(),
-                &full_path,
-                data,
-                &self.ucan_token,
-            )
+        let (mut send, mut recv) = self.open_stream().await.map_err(|e| {
+            SyncProviderError::ConnectionFailed { reason: e.to_string() }
+        })?;
+        let req = Request::Write {
+            path: full_path,
+            size: data.len() as u64,
+            ucan_token: self.ucan_token.clone(),
+        };
+        PeerEndpoint::send_request_header(&mut send, &req)
             .await
-            .map_err(|e| SyncProviderError::ConnectionFailed {
-                reason: e.to_string(),
-            })
+            .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
+
+        send.write_all(data).await.map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
+        send.finish().map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
+
+        let response: Response = protocol::read_response(&mut recv)
+            .await
+            .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
+        match response {
+            Response::WriteOk => Ok(()),
+            Response::Error { message } => Err(SyncProviderError::ConnectionFailed { reason: message }),
+            _ => Err(SyncProviderError::ConnectionFailed { reason: "Unexpected response".to_string() }),
+        }
     }
 
     async fn delete_file(
@@ -107,35 +206,41 @@ impl SyncProvider for PeerProvider {
         to_trash: bool,
     ) -> Result<(), SyncProviderError> {
         let full_path = self.full_remote_path(relative_path);
-        let endpoint = self.endpoint.lock().await;
-        endpoint
-            .remote_delete_file(
-                self.remote_id,
-                self.relay_url.clone(),
-                &full_path,
-                to_trash,
-                &self.ucan_token,
-            )
+        let (mut send, mut recv) = self.open_stream().await.map_err(|e| {
+            SyncProviderError::ConnectionFailed { reason: e.to_string() }
+        })?;
+        let req = Request::Delete {
+            path: full_path,
+            to_trash,
+            ucan_token: self.ucan_token.clone(),
+        };
+        let response = PeerEndpoint::send_request(&mut send, &mut recv, &req)
             .await
-            .map_err(|e| SyncProviderError::ConnectionFailed {
-                reason: e.to_string(),
-            })
+            .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
+        match response {
+            Response::DeleteOk => Ok(()),
+            Response::Error { message } => Err(SyncProviderError::ConnectionFailed { reason: message }),
+            _ => Err(SyncProviderError::ConnectionFailed { reason: "Unexpected response".to_string() }),
+        }
     }
 
     async fn create_directory(&self, relative_path: &str) -> Result<(), SyncProviderError> {
         let full_path = self.full_remote_path(relative_path);
-        let endpoint = self.endpoint.lock().await;
-        endpoint
-            .remote_create_directory(
-                self.remote_id,
-                self.relay_url.clone(),
-                &full_path,
-                &self.ucan_token,
-            )
+        let (mut send, mut recv) = self.open_stream().await.map_err(|e| {
+            SyncProviderError::ConnectionFailed { reason: e.to_string() }
+        })?;
+        let req = Request::CreateDirectory {
+            path: full_path,
+            ucan_token: self.ucan_token.clone(),
+        };
+        let response = PeerEndpoint::send_request(&mut send, &mut recv, &req)
             .await
-            .map_err(|e| SyncProviderError::ConnectionFailed {
-                reason: e.to_string(),
-            })
+            .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
+        match response {
+            Response::CreateDirectoryOk => Ok(()),
+            Response::Error { message } => Err(SyncProviderError::ConnectionFailed { reason: message }),
+            _ => Err(SyncProviderError::ConnectionFailed { reason: "Unexpected response".to_string() }),
+        }
     }
 
     fn supports_trash(&self) -> bool {

@@ -55,7 +55,7 @@ pub async fn local_delivery_start(
             hlc: Arc::new(std::sync::Mutex::new(hlc_clone)),
             app_handle: app,
         });
-        let endpoint = state.peer_storage.lock().await;
+        let endpoint = state.peer_storage.read().await;
         endpoint.set_delivery_handler(handler).await;
     }
 
@@ -164,7 +164,7 @@ pub async fn local_delivery_connect(
     }
 
     // 2. Get our endpoint info
-    let endpoint = state.peer_storage.lock().await;
+    let endpoint = state.peer_storage.read().await;
     if !endpoint.is_running() {
         log("error", "peer endpoint not running");
         return Err("Peer storage endpoint not running".to_string());
@@ -240,22 +240,24 @@ pub async fn local_delivery_get_leader(
     space_id: String,
 ) -> Result<Option<LeaderInfo>, String> {
     let db = DbConnection(state.db.0.clone());
-    let endpoint = state.peer_storage.lock().await;
+    // Extract the iroh endpoint handle under a brief read lock so the
+    // parallel peer probing inside elect_leader runs without holding it.
+    let (own_endpoint_id, iroh_endpoint) = {
+        let endpoint = state.peer_storage.read().await;
+        if !endpoint.is_running() {
+            // Endpoint not running — fall back to DB-only (first by priority)
+            let candidates = super::discovery::get_space_device_candidates(&db, &space_id)
+                .map_err(|e| e.to_string())?;
+            return Ok(candidates.first().map(|c| LeaderInfo {
+                endpoint_id: c.endpoint_id.clone(),
+                priority: c.priority,
+                space_id,
+            }));
+        }
+        (endpoint.endpoint_id().to_string(), endpoint.endpoint_ref().cloned())
+    };
 
-    if !endpoint.is_running() {
-        // Endpoint not running — fall back to DB-only (first by priority)
-        let candidates = super::discovery::get_space_device_candidates(&db, &space_id)
-            .map_err(|e| e.to_string())?;
-        return Ok(candidates.first().map(|c| LeaderInfo {
-            endpoint_id: c.endpoint_id.clone(),
-            priority: c.priority,
-            space_id,
-        }));
-    }
-
-    // Endpoint running — full election with parallel probing
-    let own_endpoint_id = endpoint.endpoint_id().to_string();
-    let result = super::election::elect_leader(&db, &endpoint, &space_id, &own_endpoint_id)
+    let result = super::election::elect_leader(&db, iroh_endpoint, &space_id, &own_endpoint_id)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -282,10 +284,12 @@ pub async fn local_delivery_elect(
     space_id: String,
 ) -> Result<ElectionResultInfo, String> {
     let db = DbConnection(state.db.0.clone());
-    let endpoint = state.peer_storage.lock().await;
-    let own_endpoint_id = endpoint.endpoint_id().to_string();
+    let (own_endpoint_id, iroh_endpoint) = {
+        let endpoint = state.peer_storage.read().await;
+        (endpoint.endpoint_id().to_string(), endpoint.endpoint_ref().cloned())
+    };
 
-    let result = super::election::elect_leader(&db, &endpoint, &space_id, &own_endpoint_id)
+    let result = super::election::elect_leader(&db, iroh_endpoint, &space_id, &own_endpoint_id)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -580,7 +584,7 @@ pub async fn local_delivery_claim_invite(
     log("info", &format!("Starting claim: leader={} space={} token={}", &leader_endpoint_id[..16.min(leader_endpoint_id.len())], &space_id[..8.min(space_id.len())], &token_id[..8.min(token_id.len())]));
 
     // 1. Get iroh endpoint
-    let endpoint = state.peer_storage.lock().await;
+    let endpoint = state.peer_storage.read().await;
     if !endpoint.is_running() {
         log("error", "ABORT: peer endpoint not running");
         return Err("Peer storage endpoint not running".to_string());
@@ -814,7 +818,7 @@ pub async fn local_delivery_push_invite(
 
     log("info", &format!("Sending → target={} space={} token={}", &target_endpoint_id[..16.min(target_endpoint_id.len())], &space_id[..8.min(space_id.len())], &token_id[..8.min(token_id.len())]));
 
-    let endpoint = state.peer_storage.lock().await;
+    let endpoint = state.peer_storage.read().await;
     if !endpoint.is_running() {
         log("error", "ABORT: peer endpoint not running");
         return Err("Peer endpoint not running".to_string());
