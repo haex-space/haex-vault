@@ -3,4 +3,12 @@
 /**
  * Progress update during sync execution
  */
-export type SyncProgress = { currentFile: string, filesDone: number, filesTotal: number, bytesDone: bigint, bytesTotal: bigint, };
+export type SyncProgress = { currentFile: string, filesDone: number, filesTotal: number, bytesDone: bigint, bytesTotal: bigint, 
+/**
+ * Files currently being transferred in parallel
+ */
+activeFiles: Array<string>, 
+/**
+ * Current transfer rate in bytes/second
+ */
+bytesPerSecond: bigint, };

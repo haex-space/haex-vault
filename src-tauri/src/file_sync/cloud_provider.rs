@@ -1,5 +1,7 @@
 //! CloudProvider — wraps a StorageBackend (S3/cloud) as a SyncProvider
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 
 use crate::remote_storage::backend::StorageBackend;
@@ -81,6 +83,11 @@ impl SyncProvider for CloudProvider {
                     size: obj.size,
                     modified_at,
                     is_directory,
+                    // Cloud objects: ETag is usually a content hash but
+                    // varies by backend (S3 multipart uploads use a different
+                    // scheme). Leave empty until we wire up an ETag-based
+                    // path; the diff falls back to size+mtime.
+                    hash: None,
                 })
             })
             .collect();
@@ -94,10 +101,41 @@ impl SyncProvider for CloudProvider {
         Ok(self.backend.download(&key).await?)
     }
 
+    async fn read_file_to_path(
+        &self,
+        relative_path: &str,
+        output_path: &std::path::Path,
+        on_progress: Arc<dyn Fn(u64, u64) + Send + Sync>,
+    ) -> Result<u64, SyncProviderError> {
+        validate_relative_path(relative_path)?;
+        let key = self.full_key(relative_path);
+        Ok(self
+            .backend
+            .download_to_path(&key, output_path, Some(on_progress))
+            .await?)
+    }
+
     async fn write_file(&self, relative_path: &str, data: &[u8]) -> Result<(), SyncProviderError> {
         validate_relative_path(relative_path)?;
         let key = self.full_key(relative_path);
         Ok(self.backend.upload(&key, data).await?)
+    }
+
+    async fn write_file_from_path(
+        &self,
+        relative_path: &str,
+        source_path: &std::path::Path,
+    ) -> Result<(), SyncProviderError> {
+        validate_relative_path(relative_path)?;
+        let key = self.full_key(relative_path);
+        self.backend
+            .upload_from_path(&key, source_path, None)
+            .await?;
+        Ok(())
+    }
+
+    fn supports_streaming(&self) -> bool {
+        true
     }
 
     async fn delete_file(

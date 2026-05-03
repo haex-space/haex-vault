@@ -427,7 +427,7 @@ async fn handle_read(
     stream_file_to_send(send, &local_path, range).await
 }
 
-/// Stream a local file to the QUIC send stream in 64KB chunks.
+/// Stream a local file to the QUIC send stream in 256KB chunks.
 async fn stream_file_to_send(
     send: &mut iroh::endpoint::SendStream,
     local_path: &Path,
@@ -469,9 +469,11 @@ async fn stream_file_to_send(
             .map_err(PeerStorageError::Io)?;
     }
 
-    // Stream file data in chunks (64 KB)
+    // Stream file data in chunks (256 KB).
+    // Larger chunks reduce per-chunk syscall + QUIC frame overhead, which
+    // matters on fast LAN links where 64 KB throughput-caps were observed.
     let mut remaining = read_size;
-    let mut buf = vec![0u8; 64 * 1024];
+    let mut buf = vec![0u8; 256 * 1024];
 
     while remaining > 0 {
         let to_read = (remaining as usize).min(buf.len());
@@ -557,35 +559,75 @@ async fn handle_write(
             .map_err(PeerStorageError::Io)?;
     }
 
-    // Read file data from the stream and write to disk
+    // Stage to a sibling `.part` file and rename atomically once the
+    // advertised byte count has fully arrived. This prevents truncated
+    // streams (dropped connections, early EOF) from clobbering an existing
+    // file at `local_path` with partial data.
     use tokio::io::AsyncWriteExt;
-    let mut file = tokio::fs::File::create(&local_path)
+    let temp_path = {
+        let mut name = local_path
+            .file_name()
+            .map(|n| n.to_os_string())
+            .unwrap_or_default();
+        name.push(".part");
+        local_path.with_file_name(name)
+    };
+    let mut file = tokio::fs::File::create(&temp_path)
         .await
         .map_err(PeerStorageError::Io)?;
 
     let mut remaining = size;
-    let mut buf = [0u8; 64 * 1024];
+    let mut buf = vec![0u8; 256 * 1024];
 
-    while remaining > 0 {
-        let to_read = (remaining as usize).min(buf.len());
-        let chunk = recv
-            .read(&mut buf[..to_read])
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
-                reason: format!("Failed to read file data: {e}"),
-            })?;
-        match chunk {
-            Some(n) => {
-                file.write_all(&buf[..n])
-                    .await
-                    .map_err(PeerStorageError::Io)?;
-                remaining -= n as u64;
+    let write_result: Result<(), PeerStorageError> = async {
+        while remaining > 0 {
+            let to_read = (remaining as usize).min(buf.len());
+            let chunk = recv
+                .read(&mut buf[..to_read])
+                .await
+                .map_err(|e| PeerStorageError::ConnectionFailed {
+                    reason: format!("Failed to read file data: {e}"),
+                })?;
+            match chunk {
+                Some(n) => {
+                    file.write_all(&buf[..n])
+                        .await
+                        .map_err(PeerStorageError::Io)?;
+                    remaining -= n as u64;
+                }
+                None => {
+                    return Err(PeerStorageError::ConnectionFailed {
+                        reason: format!(
+                            "stream ended early during write: {remaining} bytes still expected"
+                        ),
+                    });
+                }
             }
-            None => break,
         }
+        file.flush().await.map_err(PeerStorageError::Io)?;
+        Ok(())
+    }
+    .await;
+
+    if let Err(e) = write_result {
+        drop(file);
+        let _ = tokio::fs::remove_file(&temp_path).await;
+        let resp = Response::Error {
+            message: e.to_string(),
+        };
+        send_response_and_finish(send, &resp).await.ok();
+        return Err(e);
     }
 
-    file.flush().await.map_err(PeerStorageError::Io)?;
+    drop(file);
+    if let Err(e) = tokio::fs::rename(&temp_path, &local_path).await {
+        let _ = tokio::fs::remove_file(&temp_path).await;
+        let resp = Response::Error {
+            message: format!("Failed to finalize file: {e}"),
+        };
+        send_response_and_finish(send, &resp).await.ok();
+        return Err(PeerStorageError::Io(e));
+    }
 
     send_response_and_finish(send, &Response::WriteOk).await
 }

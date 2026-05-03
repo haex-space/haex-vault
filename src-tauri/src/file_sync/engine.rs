@@ -233,6 +233,18 @@ impl SpeedTracker {
 /// large files. 4 is a safe default for both LAN and WAN.
 const TRANSFER_CONCURRENCY: usize = 4;
 
+/// Minimum interval between two `file-sync:progress` Tauri events. Per-chunk
+/// callbacks would otherwise fire dozens of times per second per active
+/// transfer; the IPC + JSON cost competes with the streaming I/O loop.
+const PROGRESS_EMIT_INTERVAL_MS: u64 = 100;
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
 /// Execute a one-shot sync: get manifests, compute diff, transfer files in
 /// parallel, update state.
 pub async fn execute_sync(
@@ -260,14 +272,65 @@ pub async fn execute_sync(
         + actions.to_upload.iter().map(|f| f.size).sum::<u64>()
         + actions.conflicts.iter().map(|c| c.source_state.size).sum::<u64>();
 
+    // Diff diagnostics — without these it is not obvious whether a "sync
+    // every cycle" symptom is caused by hashing falling through to
+    // size+mtime, by genuine source/target divergence, or by a path
+    // normalization mismatch between the two providers.
+    let source_hashed = source_manifest.iter().filter(|f| !f.is_directory && f.hash.is_some()).count();
+    let source_files = source_manifest.iter().filter(|f| !f.is_directory).count();
+    let target_hashed = target_manifest.iter().filter(|f| !f.is_directory && f.hash.is_some()).count();
+    let target_files = target_manifest.iter().filter(|f| !f.is_directory).count();
+    eprintln!(
+        "[FileSyncEngine] Rule {} diff: source={}f ({}h), target={}f ({}h). \
+         Plan: dl={}, up={}, del={}, mkdir={}, conflicts={}. Bytes={} ({:.1} MB)",
+        rule_id,
+        source_files, source_hashed,
+        target_files, target_hashed,
+        actions.to_download.len(),
+        actions.to_upload.len(),
+        actions.to_delete.len(),
+        actions.to_create_directories.len(),
+        actions.conflicts.len(),
+        total_bytes,
+        total_bytes as f64 / (1024.0 * 1024.0),
+    );
+    if !actions.to_download.is_empty() {
+        let sample: Vec<&str> = actions
+            .to_download
+            .iter()
+            .take(3)
+            .map(|f| f.relative_path.as_str())
+            .collect();
+        eprintln!("[FileSyncEngine] First downloads: {:?}", sample);
+    }
+    if !actions.to_upload.is_empty() {
+        let sample: Vec<&str> = actions
+            .to_upload
+            .iter()
+            .take(3)
+            .map(|f| f.relative_path.as_str())
+            .collect();
+        eprintln!("[FileSyncEngine] First uploads: {:?}", sample);
+    }
+
     // 3. Shared progress counters (atomics for concurrent access from tasks)
     let files_done = Arc::new(AtomicU32::new(0));
     let bytes_done = Arc::new(AtomicU64::new(0));
-    let active_files: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+    // Active files tracked with a monotonic insertion sequence so display order
+    // stays stable: each path keeps its slot from start to finish, instead of
+    // re-sorting alphabetically every emit (which makes the list jump around
+    // when files start/complete in parallel).
+    let active_seq = Arc::new(AtomicU64::new(0));
+    let active_files: Arc<Mutex<Vec<(u64, String)>>> = Arc::new(Mutex::new(Vec::new()));
     // Per-file progress: path → (bytes_done, bytes_total)
     let file_progress: Arc<Mutex<HashMap<String, (u64, u64)>>> =
         Arc::new(Mutex::new(HashMap::new()));
     let speed_tracker: Arc<Mutex<SpeedTracker>> = Arc::new(Mutex::new(SpeedTracker::new()));
+    // Throttle: per-chunk progress callbacks fire many times per second per
+    // active transfer. Emitting a Tauri event for each one (with JSON
+    // serialization + IPC) starves the streaming I/O loop. Coalesce to at
+    // most one emit every PROGRESS_EMIT_INTERVAL_MS.
+    let last_emit_ms: Arc<AtomicU64> = Arc::new(AtomicU64::new(0));
 
     // Result accumulators
     let files_downloaded = Arc::new(AtomicU32::new(0));
@@ -280,37 +343,58 @@ pub async fn execute_sync(
     // Semaphore caps the number of in-flight file transfers
     let semaphore = Arc::new(tokio::sync::Semaphore::new(TRANSFER_CONCURRENCY));
 
-    // Progress emitter — clones all shared state and emits a JSON event
+    // Progress emitter — clones all shared state and emits a JSON event.
+    // `force=false` (default) throttles to PROGRESS_EMIT_INTERVAL_MS; lifecycle
+    // events (file start/end, dir create, etc.) pass `force=true` so important
+    // transitions are never dropped.
     let rule_id_str = rule_id.to_string();
-    let emit_progress: Arc<dyn Fn() + Send + Sync> = {
+    let emit_progress: Arc<dyn Fn(bool) + Send + Sync> = {
         let files_done = files_done.clone();
         let bytes_done = bytes_done.clone();
         let active_files = active_files.clone();
         let file_progress = file_progress.clone();
         let speed_tracker = speed_tracker.clone();
+        let last_emit_ms = last_emit_ms.clone();
         let app = app_handle.clone();
         let rule_id_str = rule_id_str.clone();
 
-        Arc::new(move || {
+        Arc::new(move |force: bool| {
             let Some(ref app) = app else { return };
             use tauri::Emitter;
+            if !force {
+                let now = now_ms();
+                let prev = last_emit_ms.load(Ordering::Relaxed);
+                if now.saturating_sub(prev) < PROGRESS_EMIT_INTERVAL_MS {
+                    return;
+                }
+                if last_emit_ms
+                    .compare_exchange(prev, now, Ordering::Relaxed, Ordering::Relaxed)
+                    .is_err()
+                {
+                    return;
+                }
+            } else {
+                last_emit_ms.store(now_ms(), Ordering::Relaxed);
+            }
+
             let done = files_done.load(Ordering::Relaxed);
             let committed = bytes_done.load(Ordering::Relaxed);
-            let mut active_paths: Vec<String> = active_files
+            // Snapshot active files in insertion order (sequence number sort
+            // is monotonic and stable, so each entry keeps its slot until it
+            // completes — the list does not reshuffle as new files start).
+            let mut active_pairs: Vec<(u64, String)> = active_files
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
                 .clone();
-            // Sort for stable display order — parallel tasks finish in random order
-            // which would otherwise cause the list to jump around in the UI.
-            active_paths.sort_unstable();
+            active_pairs.sort_by_key(|(seq, _)| *seq);
             let fp = file_progress.lock().unwrap_or_else(|e| e.into_inner());
             // Include in-progress bytes so the bar fills as chunks arrive,
             // not only when entire files complete.
             let in_progress: u64 = fp.values().map(|(done, _)| *done).sum();
             let bytes = committed + in_progress;
-            let active: Vec<serde_json::Value> = active_paths
+            let active: Vec<serde_json::Value> = active_pairs
                 .iter()
-                .map(|path| {
+                .map(|(_, path)| {
                     let (fd, ft) = fp.get(path).copied().unwrap_or((0, 0));
                     serde_json::json!({
                         "path": path,
@@ -324,7 +408,10 @@ pub async fn execute_sync(
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
                 .bytes_per_second();
-            let current = active_paths.first().cloned().unwrap_or_default();
+            let current = active_pairs
+                .first()
+                .map(|(_, p)| p.clone())
+                .unwrap_or_default();
             let _ = app.emit(
                 "file-sync:progress",
                 serde_json::json!({
@@ -345,11 +432,12 @@ pub async fn execute_sync(
     // 3a. Create directories (sequential — cheap, order matters)
     // -------------------------------------------------------------------------
     for dir_path in &actions.to_create_directories {
+        let seq = active_seq.fetch_add(1, Ordering::Relaxed);
         active_files
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .push(dir_path.clone());
-        emit_progress();
+            .push((seq, dir_path.clone()));
+        emit_progress(true);
         match target.create_directory(dir_path).await {
             Ok(()) => { directories_created.fetch_add(1, Ordering::Relaxed); }
             Err(e) => {
@@ -362,9 +450,9 @@ pub async fn execute_sync(
         active_files
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .retain(|p| p != dir_path);
+            .retain(|(_, p)| p != dir_path);
         files_done.fetch_add(1, Ordering::Relaxed);
-        emit_progress();
+        emit_progress(true);
     }
 
     // -------------------------------------------------------------------------
@@ -382,6 +470,7 @@ pub async fn execute_sync(
             let bytes_transferred = bytes_transferred.clone();
             let files_downloaded = files_downloaded.clone();
             let active_files = active_files.clone();
+            let active_seq = active_seq.clone();
             let file_progress = file_progress.clone();
             let speed_tracker = speed_tracker.clone();
             let errors = errors.clone();
@@ -398,11 +487,12 @@ pub async fn execute_sync(
                     .unwrap_or_else(|e| e.into_inner())
                     .insert(file.relative_path.clone(), (0, file.size));
 
+                let seq = active_seq.fetch_add(1, Ordering::Relaxed);
                 active_files
                     .lock()
                     .unwrap_or_else(|e| e.into_inner())
-                    .push(file.relative_path.clone());
-                emit();
+                    .push((seq, file.relative_path.clone()));
+                emit(true);
 
                 // Build progress callback: updates per-file map and speed tracker per chunk.
                 let fp_cb = file_progress.clone();
@@ -422,7 +512,7 @@ pub async fn execute_sync(
                         if delta > 0 {
                             speed_cb.lock().unwrap_or_else(|e| e.into_inner()).add(delta);
                         }
-                        emit_cb();
+                        emit_cb(false);
                     });
 
                 // Temp file as staging area — provider streams directly to disk,
@@ -433,7 +523,7 @@ pub async fn execute_sync(
                         active_files
                             .lock()
                             .unwrap_or_else(|e2| e2.into_inner())
-                            .retain(|p| p != &file.relative_path);
+                            .retain(|(_, p)| p != &file.relative_path);
                         file_progress
                             .lock()
                             .unwrap_or_else(|e2| e2.into_inner())
@@ -443,7 +533,7 @@ pub async fn execute_sync(
                             .unwrap_or_else(|e2| e2.into_inner())
                             .push(format!("tmpfile {}: {e}", file.relative_path));
                         files_done.fetch_add(1, Ordering::Relaxed);
-                        emit();
+                        emit(true);
                         return;
                     }
                 };
@@ -478,7 +568,7 @@ pub async fn execute_sync(
                 active_files
                     .lock()
                     .unwrap_or_else(|e| e.into_inner())
-                    .retain(|p| p != &file.relative_path);
+                    .retain(|(_, p)| p != &file.relative_path);
                 file_progress
                     .lock()
                     .unwrap_or_else(|e| e.into_inner())
@@ -512,7 +602,7 @@ pub async fn execute_sync(
                 }
 
                 files_done.fetch_add(1, Ordering::Relaxed);
-                emit();
+                emit(true);
             });
         }
 
@@ -533,6 +623,7 @@ pub async fn execute_sync(
             let bytes_done = bytes_done.clone();
             let bytes_transferred = bytes_transferred.clone();
             let active_files = active_files.clone();
+            let active_seq = active_seq.clone();
             let file_progress = file_progress.clone();
             let speed_tracker = speed_tracker.clone();
             let errors = errors.clone();
@@ -548,11 +639,12 @@ pub async fn execute_sync(
                     .unwrap_or_else(|e| e.into_inner())
                     .insert(file.relative_path.clone(), (0, file.size));
 
+                let seq = active_seq.fetch_add(1, Ordering::Relaxed);
                 active_files
                     .lock()
                     .unwrap_or_else(|e| e.into_inner())
-                    .push(file.relative_path.clone());
-                emit();
+                    .push((seq, file.relative_path.clone()));
+                emit(true);
 
                 let fp_cb = file_progress.clone();
                 let path_cb = file.relative_path.clone();
@@ -571,7 +663,7 @@ pub async fn execute_sync(
                         if delta > 0 {
                             speed_cb.lock().unwrap_or_else(|e| e.into_inner()).add(delta);
                         }
-                        emit_cb();
+                        emit_cb(false);
                     });
 
                 let tmp: tempfile::NamedTempFile = match tempfile::NamedTempFile::new() {
@@ -580,7 +672,7 @@ pub async fn execute_sync(
                         active_files
                             .lock()
                             .unwrap_or_else(|e2| e2.into_inner())
-                            .retain(|p| p != &file.relative_path);
+                            .retain(|(_, p)| p != &file.relative_path);
                         file_progress
                             .lock()
                             .unwrap_or_else(|e2| e2.into_inner())
@@ -590,7 +682,7 @@ pub async fn execute_sync(
                             .unwrap_or_else(|e2| e2.into_inner())
                             .push(format!("tmpfile {}: {e}", file.relative_path));
                         files_done.fetch_add(1, Ordering::Relaxed);
-                        emit();
+                        emit(true);
                         return;
                     }
                 };
@@ -623,7 +715,7 @@ pub async fn execute_sync(
                 active_files
                     .lock()
                     .unwrap_or_else(|e| e.into_inner())
-                    .retain(|p| p != &file.relative_path);
+                    .retain(|(_, p)| p != &file.relative_path);
                 file_progress
                     .lock()
                     .unwrap_or_else(|e| e.into_inner())
@@ -656,7 +748,7 @@ pub async fn execute_sync(
                 }
 
                 files_done.fetch_add(1, Ordering::Relaxed);
-                emit();
+                emit(true);
             });
         }
 
@@ -668,11 +760,12 @@ pub async fn execute_sync(
     // -------------------------------------------------------------------------
     let to_trash = matches!(delete_mode, DeleteMode::Trash);
     for path in &actions.to_delete {
+        let seq = active_seq.fetch_add(1, Ordering::Relaxed);
         active_files
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .push(path.clone());
-        emit_progress();
+            .push((seq, path.clone()));
+        emit_progress(true);
         match target.delete_file(path, to_trash).await {
             Ok(()) => {
                 files_deleted.fetch_add(1, Ordering::Relaxed);
@@ -693,86 +786,136 @@ pub async fn execute_sync(
         active_files
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .retain(|p| p != path);
+            .retain(|(_, p)| p != path);
         files_done.fetch_add(1, Ordering::Relaxed);
-        emit_progress();
+        emit_progress(true);
     }
 
     // -------------------------------------------------------------------------
     // 3e. Conflicts — source wins, target version renamed with .conflict.{ts}
     //     (sequential: each conflict is a multi-step read/write sequence)
+    //
+    // Stages each side through a temp file via the streaming `*_to_path` /
+    // `*_from_path` provider APIs so a multi-GB conflict does not buffer the
+    // entire payload in RAM.
     // -------------------------------------------------------------------------
+    let noop_progress: Arc<dyn Fn(u64, u64) + Send + Sync> = Arc::new(|_, _| {});
     for conflict in &actions.conflicts {
+        let seq = active_seq.fetch_add(1, Ordering::Relaxed);
         active_files
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .push(conflict.relative_path.clone());
-        emit_progress();
+            .push((seq, conflict.relative_path.clone()));
+        emit_progress(true);
 
         let timestamp = unix_now() as i64;
         let conflict_path = make_conflict_path(&conflict.relative_path, timestamp);
         let mut resolved = false;
 
-        match target.read_file(&conflict.relative_path).await {
-            Ok(target_data) => {
-                if let Err(e) = target.write_file(&conflict_path, &target_data).await {
-                    errors
-                        .lock()
-                        .unwrap_or_else(|e2| e2.into_inner())
-                        .push(format!("conflict rename {}: {e}", conflict.relative_path));
-                } else {
-                    match source.read_file(&conflict.relative_path).await {
-                        Ok(source_data) => {
-                            match target
-                                .write_file(&conflict.relative_path, &source_data)
+        // Step 1: stage target's current file into a temp, then write it
+        //         out at `conflict_path` (so we don't lose it).
+        let target_tmp = match tempfile::NamedTempFile::new() {
+            Ok(f) => Some(f),
+            Err(e) => {
+                errors
+                    .lock()
+                    .unwrap_or_else(|e2| e2.into_inner())
+                    .push(format!("conflict tmpfile {}: {e}", conflict.relative_path));
+                None
+            }
+        };
+
+        if let Some(tmp) = target_tmp {
+            match target
+                .read_file_to_path(&conflict.relative_path, tmp.path(), noop_progress.clone())
+                .await
+            {
+                Ok(_) => {
+                    if let Err(e) = target.write_file_from_path(&conflict_path, tmp.path()).await {
+                        errors
+                            .lock()
+                            .unwrap_or_else(|e2| e2.into_inner())
+                            .push(format!("conflict rename {}: {e}", conflict.relative_path));
+                    } else {
+                        // Step 2: stage source into a fresh temp, then write it
+                        //         to `target` at the original path.
+                        let source_tmp = match tempfile::NamedTempFile::new() {
+                            Ok(f) => Some(f),
+                            Err(e) => {
+                                errors
+                                    .lock()
+                                    .unwrap_or_else(|e2| e2.into_inner())
+                                    .push(format!(
+                                        "conflict tmpfile source {}: {e}",
+                                        conflict.relative_path
+                                    ));
+                                None
+                            }
+                        };
+
+                        if let Some(src_tmp) = source_tmp {
+                            match source
+                                .read_file_to_path(
+                                    &conflict.relative_path,
+                                    src_tmp.path(),
+                                    noop_progress.clone(),
+                                )
                                 .await
                             {
-                                Ok(()) => {
-                                    let n = source_data.len() as u64;
-                                    bytes_done.fetch_add(n, Ordering::Relaxed);
-                                    bytes_transferred.fetch_add(n, Ordering::Relaxed);
-                                    speed_tracker
-                                        .lock()
-                                        .unwrap_or_else(|e| e.into_inner())
-                                        .add(n);
-                                    conflicts_resolved.fetch_add(1, Ordering::Relaxed);
-                                    resolved = true;
-                                    let _ = upsert_sync_state(
-                                        db,
-                                        rule_id,
-                                        &conflict.relative_path,
-                                        conflict.source_state.size,
-                                        conflict.source_state.modified_at,
-                                    );
-                                }
+                                Ok(staged_size) => match target
+                                    .write_file_from_path(&conflict.relative_path, src_tmp.path())
+                                    .await
+                                {
+                                    Ok(()) => {
+                                        bytes_done.fetch_add(staged_size, Ordering::Relaxed);
+                                        bytes_transferred
+                                            .fetch_add(staged_size, Ordering::Relaxed);
+                                        speed_tracker
+                                            .lock()
+                                            .unwrap_or_else(|e| e.into_inner())
+                                            .add(staged_size);
+                                        conflicts_resolved.fetch_add(1, Ordering::Relaxed);
+                                        resolved = true;
+                                        let _ = upsert_sync_state(
+                                            db,
+                                            rule_id,
+                                            &conflict.relative_path,
+                                            conflict.source_state.size,
+                                            conflict.source_state.modified_at,
+                                        );
+                                    }
+                                    Err(e) => {
+                                        errors
+                                            .lock()
+                                            .unwrap_or_else(|e2| e2.into_inner())
+                                            .push(format!(
+                                                "conflict write {}: {e}",
+                                                conflict.relative_path
+                                            ));
+                                    }
+                                },
                                 Err(e) => {
                                     errors
                                         .lock()
                                         .unwrap_or_else(|e2| e2.into_inner())
                                         .push(format!(
-                                            "conflict write {}: {e}",
+                                            "conflict read source {}: {e}",
                                             conflict.relative_path
                                         ));
                                 }
                             }
                         }
-                        Err(e) => {
-                            errors
-                                .lock()
-                                .unwrap_or_else(|e2| e2.into_inner())
-                                .push(format!(
-                                    "conflict read source {}: {e}",
-                                    conflict.relative_path
-                                ));
-                        }
                     }
                 }
-            }
-            Err(e) => {
-                errors
-                    .lock()
-                    .unwrap_or_else(|e2| e2.into_inner())
-                    .push(format!("conflict read target {}: {e}", conflict.relative_path));
+                Err(e) => {
+                    errors
+                        .lock()
+                        .unwrap_or_else(|e2| e2.into_inner())
+                        .push(format!(
+                            "conflict read target {}: {e}",
+                            conflict.relative_path
+                        ));
+                }
             }
         }
 
@@ -786,9 +929,9 @@ pub async fn execute_sync(
         active_files
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .retain(|p| p != &conflict.relative_path);
+            .retain(|(_, p)| p != &conflict.relative_path);
         files_done.fetch_add(1, Ordering::Relaxed);
-        emit_progress();
+        emit_progress(true);
     }
 
     let errors_vec = errors.lock().unwrap_or_else(|e| e.into_inner()).clone();

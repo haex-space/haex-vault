@@ -14,6 +14,13 @@ pub struct FileState {
     /// Unix timestamp in seconds
     pub modified_at: u64,
     pub is_directory: bool,
+    /// SHA-256 of file content as lowercase hex. `None` for directories or
+    /// when the provider has not (yet) computed it. The diff engine uses this
+    /// for authoritative equality — timestamps alone are unreliable because
+    /// `write` resets mtime on the receiver.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub hash: Option<String>,
 }
 
 /// Sync direction
