@@ -9,6 +9,7 @@
 pub mod backend;
 pub mod commands;
 pub mod error;
+pub mod progress;
 pub mod queries;
 pub mod types;
 

@@ -3,7 +3,10 @@
 //! Storage Backend Trait and S3 Implementation
 //!
 
+use std::path::Path;
+
 use super::error::StorageError;
+use super::progress::{ProgressCallback, ProgressReader, ProgressWriter};
 use super::types::{S3Config, StorageObjectInfo};
 use async_trait::async_trait;
 use s3::creds::Credentials;
@@ -45,6 +48,55 @@ pub trait StorageBackend: Send + Sync {
 
     /// List objects with optional prefix
     async fn list(&self, prefix: Option<&str>) -> Result<Vec<StorageObjectInfo>, StorageError>;
+
+    /// Upload a local file to the backend, streaming if supported.
+    ///
+    /// Default impl reads the whole file into memory and calls `upload`. Override
+    /// in backends that can stream (e.g. S3 multipart) to avoid full-file
+    /// buffering for large files.
+    async fn upload_from_path(
+        &self,
+        key: &str,
+        source_path: &Path,
+        on_progress: Option<ProgressCallback>,
+    ) -> Result<u64, StorageError> {
+        let data = tokio::fs::read(source_path)
+            .await
+            .map_err(|e| StorageError::UploadFailed {
+                reason: format!("read source: {}", e),
+            })?;
+        let n = data.len() as u64;
+        self.upload(key, &data).await?;
+        if let Some(cb) = on_progress {
+            cb(n, n);
+        }
+        Ok(n)
+    }
+
+    /// Download an object from the backend into a local file, streaming if
+    /// supported.
+    ///
+    /// Default impl downloads into memory and writes to disk. Override in
+    /// backends that can stream (e.g. S3 chunked GET) to avoid full-file
+    /// buffering for large files.
+    async fn download_to_path(
+        &self,
+        key: &str,
+        output_path: &Path,
+        on_progress: Option<ProgressCallback>,
+    ) -> Result<u64, StorageError> {
+        let data = self.download(key).await?;
+        let n = data.len() as u64;
+        tokio::fs::write(output_path, &data)
+            .await
+            .map_err(|e| StorageError::DownloadFailed {
+                reason: format!("write dest: {}", e),
+            })?;
+        if let Some(cb) = on_progress {
+            cb(n, n);
+        }
+        Ok(n)
+    }
 }
 
 /// S3-compatible storage backend
@@ -195,6 +247,77 @@ impl StorageBackend for S3Backend {
             .collect();
 
         Ok(objects)
+    }
+
+    async fn upload_from_path(
+        &self,
+        key: &str,
+        source_path: &Path,
+        on_progress: Option<ProgressCallback>,
+    ) -> Result<u64, StorageError> {
+        let total = tokio::fs::metadata(source_path)
+            .await
+            .map_err(|e| StorageError::UploadFailed {
+                reason: format!("stat source: {}", e),
+            })?
+            .len();
+
+        let file = tokio::fs::File::open(source_path)
+            .await
+            .map_err(|e| StorageError::UploadFailed {
+                reason: format!("open source: {}", e),
+            })?;
+        let mut reader = ProgressReader::new(file, total, on_progress);
+
+        self.bucket
+            .put_object_stream(&mut reader, key)
+            .await
+            .map_err(|e| StorageError::UploadFailed {
+                reason: format!("S3 upload failed: {}", e),
+            })?;
+
+        Ok(reader.bytes_read())
+    }
+
+    async fn download_to_path(
+        &self,
+        key: &str,
+        output_path: &Path,
+        on_progress: Option<ProgressCallback>,
+    ) -> Result<u64, StorageError> {
+        // Try HEAD for total size so we can show a real %-progress.
+        // If HEAD fails (e.g. some S3-compatible backends don't allow it for
+        // the credentials), fall back to total = 0 — the callback then reports
+        // bytes_done with `total = bytes_done` (monotone, always 100%).
+        let total = match self.bucket.head_object(key).await {
+            Ok((head, _)) => head.content_length.and_then(|l| u64::try_from(l).ok()).unwrap_or(0),
+            Err(_) => 0,
+        };
+
+        let file = tokio::fs::File::create(output_path)
+            .await
+            .map_err(|e| StorageError::DownloadFailed {
+                reason: format!("create dest: {}", e),
+            })?;
+        let mut writer = ProgressWriter::new(file, total, on_progress);
+
+        self.bucket
+            .get_object_to_writer(key, &mut writer)
+            .await
+            .map_err(|e| StorageError::DownloadFailed {
+                reason: format!("S3 download failed: {}", e),
+            })?;
+
+        // Make sure data hits disk before returning.
+        use tokio::io::AsyncWriteExt;
+        writer
+            .shutdown()
+            .await
+            .map_err(|e| StorageError::DownloadFailed {
+                reason: format!("flush dest: {}", e),
+            })?;
+
+        Ok(writer.bytes_written())
     }
 }
 
