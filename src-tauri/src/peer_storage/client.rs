@@ -93,10 +93,11 @@ impl PeerEndpoint {
                 let mut bytes_written: u64 = 0;
                 let mut buf = vec![0u8; 256 * 1024]; // 256 KB chunks
 
-                loop {
+                while bytes_written < size {
                     // Check cancellation before each chunk
                     if let Some(ref token) = cancel_token {
                         if token.is_cancelled() {
+                            drop(file);
                             let _ = tokio::fs::remove_file(output_path).await;
                             return Err(PeerStorageError::ProtocolError {
                                 reason: "Transfer cancelled".to_string(),
@@ -110,6 +111,7 @@ impl PeerEndpoint {
                             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                             if let Some(ref token) = cancel_token {
                                 if token.is_cancelled() {
+                                    drop(file);
                                     let _ = tokio::fs::remove_file(output_path).await;
                                     return Err(PeerStorageError::ProtocolError {
                                         reason: "Transfer cancelled".to_string(),
@@ -136,13 +138,35 @@ impl PeerEndpoint {
                                 cb(bytes_written, size);
                             }
                         }
-                        None => break,
+                        None => {
+                            // Early EOF: the sender stopped before delivering
+                            // the advertised byte count. Treat as a truncated
+                            // transfer and remove the partial output instead
+                            // of letting the caller see a half-written file.
+                            drop(file);
+                            let _ = tokio::fs::remove_file(output_path).await;
+                            return Err(PeerStorageError::ConnectionFailed {
+                                reason: format!(
+                                    "Stream ended early: expected {size} bytes, received {bytes_written}"
+                                ),
+                            });
+                        }
                     }
                 }
 
                 file.flush().await.map_err(|e| PeerStorageError::ProtocolError {
                     reason: format!("Failed to flush file: {e}"),
                 })?;
+
+                if bytes_written != size {
+                    drop(file);
+                    let _ = tokio::fs::remove_file(output_path).await;
+                    return Err(PeerStorageError::ConnectionFailed {
+                        reason: format!(
+                            "Incomplete download: expected {size} bytes, received {bytes_written}"
+                        ),
+                    });
+                }
 
                 Ok(size)
             }

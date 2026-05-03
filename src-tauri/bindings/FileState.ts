@@ -8,4 +8,11 @@ export type FileState = { relativePath: string, size: bigint,
 /**
  * Unix timestamp in seconds
  */
-modifiedAt: bigint, isDirectory: boolean, };
+modifiedAt: bigint, isDirectory: boolean, 
+/**
+ * SHA-256 of file content as lowercase hex. `None` for directories or
+ * when the provider has not (yet) computed it. The diff engine uses this
+ * for authoritative equality — timestamps alone are unreliable because
+ * `write` resets mtime on the receiver.
+ */
+hash?: string, };

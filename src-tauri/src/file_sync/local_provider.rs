@@ -112,23 +112,25 @@ fn scan_directory(dir: &Path, base: &Path) -> Result<Vec<FileState>, SyncProvide
             .to_string()
             .replace('\\', "/");
 
-        let modified_at = metadata
+        let modified_duration = metadata
             .modified()
             .ok()
-            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok());
+        let modified_at = modified_duration.map(|d| d.as_secs()).unwrap_or(0);
+        // Sub-second precision for the hash cache key — protects against
+        // same-size rewrites within the same wall-clock second.
+        let modified_nanos = modified_duration.map(|d| d.as_nanos()).unwrap_or(0);
 
         let size = if metadata.is_dir() { 0 } else { metadata.len() };
         let hash = if metadata.is_dir() {
             None
         } else {
-            // Cached SHA-256 — reused when (path, size, mtime) is unchanged.
+            // Cached SHA-256 — reused when (path, size, mtime_nanos) is unchanged.
             // On the first scan we eat the hashing cost once; subsequent
             // scans are effectively free for unchanged files. Failures
             // (e.g. file vanished mid-scan) leave hash=None; the diff falls
             // back to size+mtime for that entry.
-            match super::hashing::cached_hash(&entry.path(), size, modified_at) {
+            match super::hashing::cached_hash(&entry.path(), size, modified_nanos) {
                 Ok(h) => Some(h),
                 Err(e) => {
                     eprintln!(
@@ -197,10 +199,11 @@ impl SyncProvider for LocalProvider {
         if !src.exists() {
             return Err(SyncProviderError::NotFound { path: relative_path.to_string() });
         }
-        let size = tokio::fs::metadata(&src).await.map_err(SyncProviderError::Io)?.len();
-        tokio::fs::copy(&src, output_path).await.map_err(SyncProviderError::Io)?;
-        on_progress(size, size);
-        Ok(size)
+        // Use the actual bytes copied — `tokio::fs::copy` is the source of
+        // truth, so we do not race a separate metadata() against it.
+        let copied = tokio::fs::copy(&src, output_path).await.map_err(SyncProviderError::Io)?;
+        on_progress(copied, copied);
+        Ok(copied)
     }
 
     async fn write_file_from_path(

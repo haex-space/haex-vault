@@ -228,18 +228,18 @@ pub(super) fn scan_directory_recursive(
             .to_string()
             .replace('\\', "/");
 
-        let modified_at = metadata
+        let modified_duration = metadata
             .modified()
             .ok()
-            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok());
+        let modified_at = modified_duration.map(|d| d.as_secs()).unwrap_or(0);
+        let modified_nanos = modified_duration.map(|d| d.as_nanos()).unwrap_or(0);
 
         let size = if metadata.is_dir() { 0 } else { metadata.len() };
         let hash = if metadata.is_dir() {
             None
         } else {
-            match crate::file_sync::hashing::cached_hash(&entry.path(), size, modified_at) {
+            match crate::file_sync::hashing::cached_hash(&entry.path(), size, modified_nanos) {
                 Ok(h) => Some(h),
                 Err(e) => {
                     eprintln!(

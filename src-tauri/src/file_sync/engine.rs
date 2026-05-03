@@ -794,7 +794,12 @@ pub async fn execute_sync(
     // -------------------------------------------------------------------------
     // 3e. Conflicts — source wins, target version renamed with .conflict.{ts}
     //     (sequential: each conflict is a multi-step read/write sequence)
+    //
+    // Stages each side through a temp file via the streaming `*_to_path` /
+    // `*_from_path` provider APIs so a multi-GB conflict does not buffer the
+    // entire payload in RAM.
     // -------------------------------------------------------------------------
+    let noop_progress: Arc<dyn Fn(u64, u64) + Send + Sync> = Arc::new(|_, _| {});
     for conflict in &actions.conflicts {
         let seq = active_seq.fetch_add(1, Ordering::Relaxed);
         active_files
@@ -807,66 +812,110 @@ pub async fn execute_sync(
         let conflict_path = make_conflict_path(&conflict.relative_path, timestamp);
         let mut resolved = false;
 
-        match target.read_file(&conflict.relative_path).await {
-            Ok(target_data) => {
-                if let Err(e) = target.write_file(&conflict_path, &target_data).await {
-                    errors
-                        .lock()
-                        .unwrap_or_else(|e2| e2.into_inner())
-                        .push(format!("conflict rename {}: {e}", conflict.relative_path));
-                } else {
-                    match source.read_file(&conflict.relative_path).await {
-                        Ok(source_data) => {
-                            match target
-                                .write_file(&conflict.relative_path, &source_data)
+        // Step 1: stage target's current file into a temp, then write it
+        //         out at `conflict_path` (so we don't lose it).
+        let target_tmp = match tempfile::NamedTempFile::new() {
+            Ok(f) => Some(f),
+            Err(e) => {
+                errors
+                    .lock()
+                    .unwrap_or_else(|e2| e2.into_inner())
+                    .push(format!("conflict tmpfile {}: {e}", conflict.relative_path));
+                None
+            }
+        };
+
+        if let Some(tmp) = target_tmp {
+            match target
+                .read_file_to_path(&conflict.relative_path, tmp.path(), noop_progress.clone())
+                .await
+            {
+                Ok(_) => {
+                    if let Err(e) = target.write_file_from_path(&conflict_path, tmp.path()).await {
+                        errors
+                            .lock()
+                            .unwrap_or_else(|e2| e2.into_inner())
+                            .push(format!("conflict rename {}: {e}", conflict.relative_path));
+                    } else {
+                        // Step 2: stage source into a fresh temp, then write it
+                        //         to `target` at the original path.
+                        let source_tmp = match tempfile::NamedTempFile::new() {
+                            Ok(f) => Some(f),
+                            Err(e) => {
+                                errors
+                                    .lock()
+                                    .unwrap_or_else(|e2| e2.into_inner())
+                                    .push(format!(
+                                        "conflict tmpfile source {}: {e}",
+                                        conflict.relative_path
+                                    ));
+                                None
+                            }
+                        };
+
+                        if let Some(src_tmp) = source_tmp {
+                            match source
+                                .read_file_to_path(
+                                    &conflict.relative_path,
+                                    src_tmp.path(),
+                                    noop_progress.clone(),
+                                )
                                 .await
                             {
-                                Ok(()) => {
-                                    let n = source_data.len() as u64;
-                                    bytes_done.fetch_add(n, Ordering::Relaxed);
-                                    bytes_transferred.fetch_add(n, Ordering::Relaxed);
-                                    speed_tracker
-                                        .lock()
-                                        .unwrap_or_else(|e| e.into_inner())
-                                        .add(n);
-                                    conflicts_resolved.fetch_add(1, Ordering::Relaxed);
-                                    resolved = true;
-                                    let _ = upsert_sync_state(
-                                        db,
-                                        rule_id,
-                                        &conflict.relative_path,
-                                        conflict.source_state.size,
-                                        conflict.source_state.modified_at,
-                                    );
-                                }
+                                Ok(staged_size) => match target
+                                    .write_file_from_path(&conflict.relative_path, src_tmp.path())
+                                    .await
+                                {
+                                    Ok(()) => {
+                                        bytes_done.fetch_add(staged_size, Ordering::Relaxed);
+                                        bytes_transferred
+                                            .fetch_add(staged_size, Ordering::Relaxed);
+                                        speed_tracker
+                                            .lock()
+                                            .unwrap_or_else(|e| e.into_inner())
+                                            .add(staged_size);
+                                        conflicts_resolved.fetch_add(1, Ordering::Relaxed);
+                                        resolved = true;
+                                        let _ = upsert_sync_state(
+                                            db,
+                                            rule_id,
+                                            &conflict.relative_path,
+                                            conflict.source_state.size,
+                                            conflict.source_state.modified_at,
+                                        );
+                                    }
+                                    Err(e) => {
+                                        errors
+                                            .lock()
+                                            .unwrap_or_else(|e2| e2.into_inner())
+                                            .push(format!(
+                                                "conflict write {}: {e}",
+                                                conflict.relative_path
+                                            ));
+                                    }
+                                },
                                 Err(e) => {
                                     errors
                                         .lock()
                                         .unwrap_or_else(|e2| e2.into_inner())
                                         .push(format!(
-                                            "conflict write {}: {e}",
+                                            "conflict read source {}: {e}",
                                             conflict.relative_path
                                         ));
                                 }
                             }
                         }
-                        Err(e) => {
-                            errors
-                                .lock()
-                                .unwrap_or_else(|e2| e2.into_inner())
-                                .push(format!(
-                                    "conflict read source {}: {e}",
-                                    conflict.relative_path
-                                ));
-                        }
                     }
                 }
-            }
-            Err(e) => {
-                errors
-                    .lock()
-                    .unwrap_or_else(|e2| e2.into_inner())
-                    .push(format!("conflict read target {}: {e}", conflict.relative_path));
+                Err(e) => {
+                    errors
+                        .lock()
+                        .unwrap_or_else(|e2| e2.into_inner())
+                        .push(format!(
+                            "conflict read target {}: {e}",
+                            conflict.relative_path
+                        ));
+                }
             }
         }
 

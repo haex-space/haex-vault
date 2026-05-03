@@ -89,6 +89,7 @@ impl SyncProvider for PeerProvider {
     }
 
     async fn read_file(&self, relative_path: &str) -> Result<Vec<u8>, SyncProviderError> {
+        validate_relative_path(relative_path)?;
         let full_path = self.full_remote_path(relative_path);
         let (mut send, mut recv) = self.open_stream().await.map_err(|e| {
             SyncProviderError::ConnectionFailed { reason: e.to_string() }
@@ -131,6 +132,7 @@ impl SyncProvider for PeerProvider {
         relative_path: &str,
         on_progress: Arc<dyn Fn(u64, u64) + Send + Sync>,
     ) -> Result<Vec<u8>, SyncProviderError> {
+        validate_relative_path(relative_path)?;
         let full_path = self.full_remote_path(relative_path);
         let (mut send, mut recv) = self.open_stream().await.map_err(|e| {
             SyncProviderError::ConnectionFailed { reason: e.to_string() }
@@ -174,6 +176,7 @@ impl SyncProvider for PeerProvider {
     }
 
     async fn write_file(&self, relative_path: &str, data: &[u8]) -> Result<(), SyncProviderError> {
+        validate_relative_path(relative_path)?;
         let full_path = self.full_remote_path(relative_path);
         let (mut send, mut recv) = self.open_stream().await.map_err(|e| {
             SyncProviderError::ConnectionFailed { reason: e.to_string() }
@@ -205,6 +208,7 @@ impl SyncProvider for PeerProvider {
         relative_path: &str,
         to_trash: bool,
     ) -> Result<(), SyncProviderError> {
+        validate_relative_path(relative_path)?;
         let full_path = self.full_remote_path(relative_path);
         let (mut send, mut recv) = self.open_stream().await.map_err(|e| {
             SyncProviderError::ConnectionFailed { reason: e.to_string() }
@@ -225,6 +229,7 @@ impl SyncProvider for PeerProvider {
     }
 
     async fn create_directory(&self, relative_path: &str) -> Result<(), SyncProviderError> {
+        validate_relative_path(relative_path)?;
         let full_path = self.full_remote_path(relative_path);
         let (mut send, mut recv) = self.open_stream().await.map_err(|e| {
             SyncProviderError::ConnectionFailed { reason: e.to_string() }
