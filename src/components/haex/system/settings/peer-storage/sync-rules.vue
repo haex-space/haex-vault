@@ -152,17 +152,21 @@
                     {{ formatSpeed(syncStore.getRuleProgress(rule.id)!.bytesPerSecond) }}
                   </span>
                 </div>
-                <!-- Bytes-based progress bar (fills as data is received, not just on file completion) -->
-                <UProgress
-                  :value="syncStore.getRuleProgress(rule.id)!.bytesTotal > 0
-                    ? syncStore.getRuleProgress(rule.id)!.bytesDone
-                    : syncStore.getRuleProgress(rule.id)!.filesDone"
-                  :max="syncStore.getRuleProgress(rule.id)!.bytesTotal > 0
-                    ? syncStore.getRuleProgress(rule.id)!.bytesTotal
-                    : Math.max(syncStore.getRuleProgress(rule.id)!.filesTotal, 1)"
-                  color="primary"
-                  size="sm"
-                />
+                <!-- Determinate progress bar (explicit DIVs — UProgress had
+                     an animated indeterminate look that read like a spinner). -->
+                <div class="h-2 w-full rounded-full bg-elevated overflow-hidden">
+                  <div
+                    class="h-full bg-primary transition-[width] duration-150 ease-linear"
+                    :style="{ width: percentValue(
+                      syncStore.getRuleProgress(rule.id)!.bytesTotal > 0
+                        ? syncStore.getRuleProgress(rule.id)!.bytesDone
+                        : syncStore.getRuleProgress(rule.id)!.filesDone,
+                      syncStore.getRuleProgress(rule.id)!.bytesTotal > 0
+                        ? syncStore.getRuleProgress(rule.id)!.bytesTotal
+                        : syncStore.getRuleProgress(rule.id)!.filesTotal
+                    ) + '%' }"
+                  />
+                </div>
                 <!-- Bytes transferred + percentage -->
                 <div class="flex items-center justify-between text-xs tabular-nums">
                   <span v-if="syncStore.getRuleProgress(rule.id)!.bytesTotal > 0" class="text-muted">
@@ -182,10 +186,15 @@
                     ) }}
                   </span>
                 </div>
-                <!-- Active files list with per-file progress -->
-                <div
+                <!-- Active files list with per-file progress.
+                     TransitionGroup smooths enter/leave when files cycle in
+                     parallel (without it, batches of 4 completing at once
+                     looked like the list was jumping). -->
+                <TransitionGroup
                   v-if="syncStore.getRuleProgress(rule.id)!.activeFiles?.length"
-                  class="mt-1 space-y-1.5"
+                  tag="div"
+                  name="active-file"
+                  class="mt-1 space-y-1.5 relative"
                 >
                   <div
                     v-for="fp in syncStore.getRuleProgress(rule.id)!.activeFiles.slice(0, 4)"
@@ -193,30 +202,38 @@
                     class="space-y-0.5"
                   >
                     <div class="flex items-center gap-1.5 text-xs text-muted">
-                      <UIcon name="i-lucide-arrow-down" class="w-3 h-3 text-primary shrink-0" />
+                      <UIcon
+                        :name="fp.bytesTotal > 0 && fp.bytesDone >= fp.bytesTotal
+                          ? 'i-lucide-check'
+                          : 'i-lucide-arrow-down'"
+                        class="w-3 h-3 text-primary shrink-0"
+                      />
                       <span class="truncate flex-1">{{ fp.path.split(/[/\\]/).pop() }}</span>
                       <span v-if="fp.bytesTotal > 0" class="shrink-0 tabular-nums">
                         {{ formatBytes(fp.bytesDone) }} / {{ formatBytes(fp.bytesTotal) }}
                       </span>
                       <span v-if="fp.bytesTotal > 0" class="shrink-0 tabular-nums text-primary font-medium">
-                        {{ formatPercent(fp.bytesDone, fp.bytesTotal) }}
+                        {{ fp.bytesDone >= fp.bytesTotal ? t('progress.finalizing') : formatPercent(fp.bytesDone, fp.bytesTotal) }}
                       </span>
                     </div>
-                    <UProgress
+                    <div
                       v-if="fp.bytesTotal > 0"
-                      :value="fp.bytesDone"
-                      :max="fp.bytesTotal"
-                      color="primary"
-                      size="xs"
-                    />
+                      class="h-1 w-full rounded-full bg-elevated overflow-hidden"
+                    >
+                      <div
+                        class="h-full bg-primary transition-[width] duration-150 ease-linear"
+                        :style="{ width: percentValue(fp.bytesDone, fp.bytesTotal) + '%' }"
+                      />
+                    </div>
                   </div>
                   <div
                     v-if="(syncStore.getRuleProgress(rule.id)!.activeFiles?.length ?? 0) > 4"
+                    key="more-files-indicator"
                     class="text-xs text-muted"
                   >
                     +{{ syncStore.getRuleProgress(rule.id)!.activeFiles!.length - 4 }} {{ t('progress.moreFiles') }}
                   </div>
-                </div>
+                </TransitionGroup>
               </div>
 
               <!-- Last sync result -->
@@ -308,6 +325,11 @@ const formatPercent = (value: number, max: number): string => {
   if (max <= 0) return '0%'
   const pct = Math.min(100, Math.max(0, (value / max) * 100))
   return `${pct.toFixed(pct >= 10 ? 0 : 1)}%`
+}
+
+const percentValue = (value: number, max: number): number => {
+  if (max <= 0) return 0
+  return Math.min(100, Math.max(0, (value / max) * 100))
 }
 
 const providerIcon = (type: string): string => {
@@ -460,6 +482,7 @@ de:
     noData: Noch kein Sync durchgeführt
     moreFiles: weitere
     calculating: Berechne...
+    finalizing: Abschließen…
   lastSync:
     title: Letzter Sync
     downloaded: heruntergeladen
@@ -500,6 +523,7 @@ en:
     noData: No sync has run yet
     moreFiles: more
     calculating: Calculating...
+    finalizing: Finalizing…
   lastSync:
     title: Last sync
     downloaded: downloaded
@@ -512,3 +536,24 @@ en:
     syncFailed: Sync failed
     deleted: Rule deleted
 </i18n>
+
+<style scoped>
+/* Smooth enter/leave for the active-files list. Without this, parallel
+   transfers completing in batches make the list look like it jumps —
+   four rows replaced at once. With easing, leaving rows fade out and
+   incoming ones fade in over 200ms, and the remaining rows shift smoothly. */
+.active-file-enter-active,
+.active-file-leave-active {
+  transition: all 0.2s ease;
+}
+.active-file-enter-from,
+.active-file-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+.active-file-leave-active {
+  position: absolute;
+  width: 100%;
+}
+</style>
+
