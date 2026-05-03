@@ -91,7 +91,7 @@ impl PeerEndpoint {
                     })?;
 
                 let mut bytes_written: u64 = 0;
-                let mut buf = [0u8; 64 * 1024]; // 64KB chunks
+                let mut buf = vec![0u8; 256 * 1024]; // 256 KB chunks
 
                 loop {
                     // Check cancellation before each chunk

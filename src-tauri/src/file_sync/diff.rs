@@ -4,6 +4,20 @@ use std::collections::HashMap;
 
 use super::types::{DeleteMode, FileState, SyncActions, SyncConflict, SyncDirection};
 
+/// Authoritative content equality.
+///
+/// Hashes are the source of truth — if both sides report a hash and they
+/// match, the files are equal regardless of mtime (the receiver's mtime is
+/// always the write time, so mtime-based equality would re-fire every sync).
+/// When either side is missing a hash (older peer, hashing disabled, etc.)
+/// we fall back to the legacy `size + mtime` heuristic.
+fn files_equal(a: &FileState, b: &FileState) -> bool {
+    if let (Some(ha), Some(hb)) = (a.hash.as_deref(), b.hash.as_deref()) {
+        return a.size == b.size && ha == hb;
+    }
+    a.size == b.size && a.modified_at == b.modified_at
+}
+
 /// Compute the actions needed to synchronize two file manifests.
 ///
 /// # One-way sync (source → target)
@@ -97,8 +111,9 @@ fn compute_one_way(
                 actions.to_download.push(source.clone());
             }
             Some(target) => {
-                // File in both — download if source has different size or newer timestamp
-                if source.size != target.size || source.modified_at > target.modified_at {
+                // File in both — equal by hash (or size+mtime fallback) → skip;
+                // otherwise source is authoritative in one-way mode → download.
+                if !files_equal(source, target) {
                     actions.to_download.push(source.clone());
                 }
             }
@@ -138,10 +153,11 @@ fn compute_two_way(
                 actions.to_download.push(source.clone());
             }
             Some(target) => {
-                if source.modified_at == target.modified_at && source.size == target.size {
-                    // Unchanged — skip
+                if files_equal(source, target) {
+                    // Authoritatively unchanged (hash-matched, or size+mtime
+                    // fallback agreed) — skip.
                 } else if source.modified_at == target.modified_at && source.size != target.size {
-                    // Same timestamp, different size → conflict
+                    // Same timestamp, different content → conflict.
                     actions.conflicts.push(SyncConflict {
                         relative_path: path.to_string(),
                         source_state: source.clone(),
@@ -150,9 +166,16 @@ fn compute_two_way(
                 } else if source.modified_at > target.modified_at {
                     // Source newer → download
                     actions.to_download.push(source.clone());
-                } else {
+                } else if target.modified_at > source.modified_at {
                     // Target newer → upload
                     actions.to_upload.push((*target).clone());
+                } else {
+                    // Same mtime, same size, but hashes differ — true conflict.
+                    actions.conflicts.push(SyncConflict {
+                        relative_path: path.to_string(),
+                        source_state: source.clone(),
+                        target_state: (*target).clone(),
+                    });
                 }
             }
         }
@@ -183,6 +206,17 @@ mod tests {
             size,
             modified_at,
             is_directory: false,
+            hash: None,
+        }
+    }
+
+    fn file_h(relative_path: &str, size: u64, modified_at: u64, hash: &str) -> FileState {
+        FileState {
+            relative_path: relative_path.to_string(),
+            size,
+            modified_at,
+            is_directory: false,
+            hash: Some(hash.to_string()),
         }
     }
 
@@ -192,6 +226,7 @@ mod tests {
             size: 0,
             modified_at: 0,
             is_directory: true,
+            hash: None,
         }
     }
 
@@ -389,6 +424,50 @@ mod tests {
         assert_eq!(actions.to_download.len(), 1, "source is newer → download");
         assert!(actions.to_upload.is_empty());
         assert!(actions.conflicts.is_empty(), "no conflict when timestamps differ");
+    }
+
+    #[test]
+    fn matching_hash_skipped_even_when_mtime_differs() {
+        // Receiver-side mtime always equals the write time, so size+mtime
+        // alone would re-fire every sync. Hash equality must override.
+        let source = vec![file_h("a.bin", 1000, 100, "abc123")];
+        let target = vec![file_h("a.bin", 1000, 999, "abc123")];
+
+        let actions =
+            compute_sync_actions(&source, &target, SyncDirection::OneWay, DeleteMode::Trash);
+
+        assert!(actions.to_download.is_empty(), "matching hash → no transfer");
+    }
+
+    #[test]
+    fn mismatching_hash_transferred_even_when_size_mtime_match() {
+        // Pathological: size and mtime equal, content differs. Without
+        // hashing this would silently sync nothing. With hashing it surfaces
+        // as a conflict (two-way) or a transfer (one-way authoritative).
+        let source = vec![file_h("a.bin", 1000, 100, "aaa")];
+        let target = vec![file_h("a.bin", 1000, 100, "bbb")];
+
+        let one_way =
+            compute_sync_actions(&source, &target, SyncDirection::OneWay, DeleteMode::Trash);
+        assert_eq!(one_way.to_download.len(), 1, "one-way: source overwrites");
+
+        let two_way =
+            compute_sync_actions(&source, &target, SyncDirection::TwoWay, DeleteMode::Trash);
+        assert_eq!(two_way.conflicts.len(), 1, "two-way: same mtime + diff hash → conflict");
+    }
+
+    #[test]
+    fn two_way_matching_hash_skipped_regardless_of_mtime() {
+        // Two-way analogue of the one-way test above.
+        let source = vec![file_h("a.bin", 500, 100, "deadbeef")];
+        let target = vec![file_h("a.bin", 500, 200, "deadbeef")];
+
+        let actions =
+            compute_sync_actions(&source, &target, SyncDirection::TwoWay, DeleteMode::Trash);
+
+        assert!(actions.to_download.is_empty());
+        assert!(actions.to_upload.is_empty());
+        assert!(actions.conflicts.is_empty());
     }
 
     #[test]

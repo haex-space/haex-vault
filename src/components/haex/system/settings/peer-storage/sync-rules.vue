@@ -163,9 +163,24 @@
                   color="primary"
                   size="sm"
                 />
-                <!-- Bytes transferred -->
-                <div v-if="syncStore.getRuleProgress(rule.id)!.bytesTotal > 0" class="text-xs text-muted tabular-nums">
-                  {{ formatBytes(syncStore.getRuleProgress(rule.id)!.bytesDone) }} / {{ formatBytes(syncStore.getRuleProgress(rule.id)!.bytesTotal) }}
+                <!-- Bytes transferred + percentage -->
+                <div class="flex items-center justify-between text-xs tabular-nums">
+                  <span v-if="syncStore.getRuleProgress(rule.id)!.bytesTotal > 0" class="text-muted">
+                    {{ formatBytes(syncStore.getRuleProgress(rule.id)!.bytesDone) }} / {{ formatBytes(syncStore.getRuleProgress(rule.id)!.bytesTotal) }}
+                  </span>
+                  <span v-else class="text-muted">
+                    {{ syncStore.getRuleProgress(rule.id)!.filesDone }} / {{ syncStore.getRuleProgress(rule.id)!.filesTotal }}
+                  </span>
+                  <span class="text-primary font-medium">
+                    {{ formatPercent(
+                      syncStore.getRuleProgress(rule.id)!.bytesTotal > 0
+                        ? syncStore.getRuleProgress(rule.id)!.bytesDone
+                        : syncStore.getRuleProgress(rule.id)!.filesDone,
+                      syncStore.getRuleProgress(rule.id)!.bytesTotal > 0
+                        ? syncStore.getRuleProgress(rule.id)!.bytesTotal
+                        : syncStore.getRuleProgress(rule.id)!.filesTotal
+                    ) }}
+                  </span>
                 </div>
                 <!-- Active files list with per-file progress -->
                 <div
@@ -180,8 +195,11 @@
                     <div class="flex items-center gap-1.5 text-xs text-muted">
                       <UIcon name="i-lucide-arrow-down" class="w-3 h-3 text-primary shrink-0" />
                       <span class="truncate flex-1">{{ fp.path.split(/[/\\]/).pop() }}</span>
-                      <span class="shrink-0 tabular-nums">
-                        {{ fp.bytesTotal > 0 ? formatBytes(fp.bytesDone) + ' / ' + formatBytes(fp.bytesTotal) : '' }}
+                      <span v-if="fp.bytesTotal > 0" class="shrink-0 tabular-nums">
+                        {{ formatBytes(fp.bytesDone) }} / {{ formatBytes(fp.bytesTotal) }}
+                      </span>
+                      <span v-if="fp.bytesTotal > 0" class="shrink-0 tabular-nums text-primary font-medium">
+                        {{ formatPercent(fp.bytesDone, fp.bytesTotal) }}
                       </span>
                     </div>
                     <UProgress
@@ -284,6 +302,12 @@ const formatBytes = (bytes: number): string => {
 const formatSpeed = (bytesPerSecond: number): string => {
   if (bytesPerSecond === 0) return t('progress.calculating')
   return `${formatBytes(bytesPerSecond)}/s`
+}
+
+const formatPercent = (value: number, max: number): string => {
+  if (max <= 0) return '0%'
+  const pct = Math.min(100, Math.max(0, (value / max) * 100))
+  return `${pct.toFixed(pct >= 10 ? 0 : 1)}%`
 }
 
 const providerIcon = (type: string): string => {

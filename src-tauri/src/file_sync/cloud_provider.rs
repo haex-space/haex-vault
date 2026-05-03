@@ -81,6 +81,11 @@ impl SyncProvider for CloudProvider {
                     size: obj.size,
                     modified_at,
                     is_directory,
+                    // Cloud objects: ETag is usually a content hash but
+                    // varies by backend (S3 multipart uploads use a different
+                    // scheme). Leave empty until we wire up an ETag-based
+                    // path; the diff falls back to size+mtime.
+                    hash: None,
                 })
             })
             .collect();

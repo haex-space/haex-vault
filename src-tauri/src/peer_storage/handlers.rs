@@ -427,7 +427,7 @@ async fn handle_read(
     stream_file_to_send(send, &local_path, range).await
 }
 
-/// Stream a local file to the QUIC send stream in 64KB chunks.
+/// Stream a local file to the QUIC send stream in 256KB chunks.
 async fn stream_file_to_send(
     send: &mut iroh::endpoint::SendStream,
     local_path: &Path,
@@ -469,9 +469,11 @@ async fn stream_file_to_send(
             .map_err(PeerStorageError::Io)?;
     }
 
-    // Stream file data in chunks (64 KB)
+    // Stream file data in chunks (256 KB).
+    // Larger chunks reduce per-chunk syscall + QUIC frame overhead, which
+    // matters on fast LAN links where 64 KB throughput-caps were observed.
     let mut remaining = read_size;
-    let mut buf = vec![0u8; 64 * 1024];
+    let mut buf = vec![0u8; 256 * 1024];
 
     while remaining > 0 {
         let to_read = (remaining as usize).min(buf.len());
@@ -564,7 +566,7 @@ async fn handle_write(
         .map_err(PeerStorageError::Io)?;
 
     let mut remaining = size;
-    let mut buf = [0u8; 64 * 1024];
+    let mut buf = vec![0u8; 256 * 1024];
 
     while remaining > 0 {
         let to_read = (remaining as usize).min(buf.len());

@@ -99,11 +99,22 @@ fn scan_directory(dir: &Path, base: &Path) -> Result<Vec<FileState>, SyncProvide
             .map(|d| d.as_secs())
             .unwrap_or(0);
 
+        let size = if metadata.is_dir() { 0 } else { metadata.len() };
+        let hash = if metadata.is_dir() {
+            None
+        } else {
+            // Cached SHA-256 — reused when (path, size, mtime) is unchanged.
+            // On the first scan we eat the hashing cost once; subsequent
+            // scans are effectively free for unchanged files.
+            super::hashing::cached_hash(&entry.path(), size, modified_at).ok()
+        };
+
         entries.push(FileState {
             relative_path: relative,
-            size: if metadata.is_dir() { 0 } else { metadata.len() },
+            size,
             modified_at,
             is_directory: metadata.is_dir(),
+            hash,
         });
 
         if metadata.is_dir() {
