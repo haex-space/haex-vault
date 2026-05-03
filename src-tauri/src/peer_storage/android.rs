@@ -122,6 +122,10 @@ fn collect_content_uri_entries(
             size,
             modified_at,
             is_directory,
+            // Android Content URI scans: hashing requires reading the URI
+            // through ContentResolver, which is expensive in a recursive
+            // walk. Leave None for now — diff falls back to size+mtime.
+            hash: None,
         });
 
         if is_directory {

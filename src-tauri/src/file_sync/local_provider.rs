@@ -75,13 +75,33 @@ impl LocalProvider {
 }
 
 /// Recursively scan a directory and collect FileState entries.
+///
+/// Per-entry failures (broken symlinks, permission issues, files deleted
+/// mid-scan) are logged and skipped instead of aborting the whole scan —
+/// otherwise a single bad entry would error the entire sync and trigger
+/// the 30s retry loop indefinitely.
 fn scan_directory(dir: &Path, base: &Path) -> Result<Vec<FileState>, SyncProviderError> {
     let mut entries = Vec::new();
     let read_dir = std::fs::read_dir(dir).map_err(SyncProviderError::Io)?;
 
     for entry in read_dir {
-        let entry = entry.map_err(SyncProviderError::Io)?;
-        let metadata = entry.metadata().map_err(SyncProviderError::Io)?;
+        let entry = match entry {
+            Ok(e) => e,
+            Err(e) => {
+                eprintln!("[LocalProvider] Skipping unreadable entry in {}: {e}", dir.display());
+                continue;
+            }
+        };
+        let metadata = match entry.metadata() {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!(
+                    "[LocalProvider] Skipping {}: metadata error: {e}",
+                    entry.path().display()
+                );
+                continue;
+            }
+        };
 
         // Normalize path separators to forward slash
         let relative = entry
@@ -92,22 +112,52 @@ fn scan_directory(dir: &Path, base: &Path) -> Result<Vec<FileState>, SyncProvide
             .to_string()
             .replace('\\', "/");
 
-        let modified_at = metadata
+        let modified_duration = metadata
             .modified()
             .ok()
-            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok());
+        let modified_at = modified_duration.map(|d| d.as_secs()).unwrap_or(0);
+        // Sub-second precision for the hash cache key — protects against
+        // same-size rewrites within the same wall-clock second.
+        let modified_nanos = modified_duration.map(|d| d.as_nanos()).unwrap_or(0);
+
+        let size = if metadata.is_dir() { 0 } else { metadata.len() };
+        let hash = if metadata.is_dir() {
+            None
+        } else {
+            // Cached SHA-256 — reused when (path, size, mtime_nanos) is unchanged.
+            // On the first scan we eat the hashing cost once; subsequent
+            // scans are effectively free for unchanged files. Failures
+            // (e.g. file vanished mid-scan) leave hash=None; the diff falls
+            // back to size+mtime for that entry.
+            match super::hashing::cached_hash(&entry.path(), size, modified_nanos) {
+                Ok(h) => Some(h),
+                Err(e) => {
+                    eprintln!(
+                        "[LocalProvider] Hash failed for {}: {e}",
+                        entry.path().display()
+                    );
+                    None
+                }
+            }
+        };
 
         entries.push(FileState {
             relative_path: relative,
-            size: if metadata.is_dir() { 0 } else { metadata.len() },
+            size,
             modified_at,
             is_directory: metadata.is_dir(),
+            hash,
         });
 
         if metadata.is_dir() {
-            entries.extend(scan_directory(&entry.path(), base)?);
+            match scan_directory(&entry.path(), base) {
+                Ok(sub) => entries.extend(sub),
+                Err(e) => eprintln!(
+                    "[LocalProvider] Skipping subdir {}: {e}",
+                    entry.path().display()
+                ),
+            }
         }
     }
 
@@ -149,10 +199,11 @@ impl SyncProvider for LocalProvider {
         if !src.exists() {
             return Err(SyncProviderError::NotFound { path: relative_path.to_string() });
         }
-        let size = tokio::fs::metadata(&src).await.map_err(SyncProviderError::Io)?.len();
-        tokio::fs::copy(&src, output_path).await.map_err(SyncProviderError::Io)?;
-        on_progress(size, size);
-        Ok(size)
+        // Use the actual bytes copied — `tokio::fs::copy` is the source of
+        // truth, so we do not race a separate metadata() against it.
+        let copied = tokio::fs::copy(&src, output_path).await.map_err(SyncProviderError::Io)?;
+        on_progress(copied, copied);
+        Ok(copied)
     }
 
     async fn write_file_from_path(
