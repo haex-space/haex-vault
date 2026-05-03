@@ -701,6 +701,23 @@ const toggleEndpointAsync = async () => {
   }
 }
 
+/**
+ * Identifies whether a given endpoint id belongs to this device. Returns
+ * true when `peerStore.nodeId` is empty so we never expose an own
+ * `haex_space_devices` row as a remote peer during the brief window
+ * before `refreshStatusAsync` resolves (or after `stopAsync`, which
+ * resets `nodeId` to '' even though the row in DB is still ours).
+ *
+ * Biases toward "treat unknown endpoints as own" because the alternative
+ * — surfacing the local device as a peer — is the more confusing failure
+ * mode. Once `nodeId` is populated this collapses to the strict equality
+ * check.
+ */
+const isOwnEndpoint = (endpointId: string): boolean => {
+  if (!peerStore.nodeId) return true
+  return endpointId === peerStore.nodeId
+}
+
 // Aggregate remote peers from spaces + contacts
 const contactClaims = ref<Record<string, { type: string; value: string }[]>>({})
 const loadContactClaimsAsync = async () => {
@@ -746,7 +763,7 @@ const remotePeers = computed(() => {
   const seen = new Set<string>()
 
   for (const device of peerStore.spaceDevices) {
-    if (device.deviceEndpointId === peerStore.nodeId) continue
+    if (isOwnEndpoint(device.deviceEndpointId)) continue
     if (seen.has(device.deviceEndpointId)) continue
     seen.add(device.deviceEndpointId)
     peers.push({
@@ -954,7 +971,7 @@ function buildSpaceGroups(): OverviewGroup[] {
   }
 
   for (const device of peerStore.spaceDevices) {
-    if (device.deviceEndpointId === peerStore.nodeId) continue
+    if (isOwnEndpoint(device.deviceEndpointId)) continue
     if (!isDeviceLegitInSpace(device.spaceId, device.identityId)) continue
     let seen = seenDevicesPerSpace.get(device.spaceId)
     if (!seen) {
@@ -1059,8 +1076,9 @@ function buildContactGroups(): OverviewGroup[] {
   for (const share of localShares.value) {
     myEntries.push(localShareEntry(share))
   }
-  const seenForMe = new Set<string>([peerStore.nodeId])
+  const seenForMe = new Set<string>()
   for (const device of peerStore.spaceDevices) {
+    if (isOwnEndpoint(device.deviceEndpointId)) continue
     if (seenForMe.has(device.deviceEndpointId)) continue
     if (!device.identityId || !ownIdentityIds.has(device.identityId)) continue
     if (!isDeviceLegitInSpace(device.spaceId, device.identityId)) continue
@@ -1093,7 +1111,7 @@ function buildContactGroups(): OverviewGroup[] {
     const seen = new Set<string>()
 
     for (const device of peerStore.spaceDevices) {
-      if (device.deviceEndpointId === peerStore.nodeId) continue
+      if (isOwnEndpoint(device.deviceEndpointId)) continue
       if (device.identityId !== contact.id) continue
       if (!isDeviceLegitInSpace(device.spaceId, device.identityId)) continue
       if (seen.has(device.deviceEndpointId)) continue
@@ -1139,13 +1157,14 @@ function buildContactGroups(): OverviewGroup[] {
   }
 
   // Devices we know about but cannot attribute to any identity
-  const attributedEndpoints = new Set<string>([peerStore.nodeId])
+  const attributedEndpoints = new Set<string>()
   for (const g of groups) {
     for (const e of g.entries) attributedEndpoints.add(e.peer.endpointId)
   }
   const unattributed: OverviewEntry[] = []
   const seenUnattr = new Set<string>()
   for (const device of peerStore.spaceDevices) {
+    if (isOwnEndpoint(device.deviceEndpointId)) continue
     if (attributedEndpoints.has(device.deviceEndpointId)) continue
     if (!isDeviceLegitInSpace(device.spaceId, device.identityId)) continue
     if (seenUnattr.has(device.deviceEndpointId)) continue
