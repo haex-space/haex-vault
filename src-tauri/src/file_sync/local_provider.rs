@@ -75,13 +75,33 @@ impl LocalProvider {
 }
 
 /// Recursively scan a directory and collect FileState entries.
+///
+/// Per-entry failures (broken symlinks, permission issues, files deleted
+/// mid-scan) are logged and skipped instead of aborting the whole scan —
+/// otherwise a single bad entry would error the entire sync and trigger
+/// the 30s retry loop indefinitely.
 fn scan_directory(dir: &Path, base: &Path) -> Result<Vec<FileState>, SyncProviderError> {
     let mut entries = Vec::new();
     let read_dir = std::fs::read_dir(dir).map_err(SyncProviderError::Io)?;
 
     for entry in read_dir {
-        let entry = entry.map_err(SyncProviderError::Io)?;
-        let metadata = entry.metadata().map_err(SyncProviderError::Io)?;
+        let entry = match entry {
+            Ok(e) => e,
+            Err(e) => {
+                eprintln!("[LocalProvider] Skipping unreadable entry in {}: {e}", dir.display());
+                continue;
+            }
+        };
+        let metadata = match entry.metadata() {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!(
+                    "[LocalProvider] Skipping {}: metadata error: {e}",
+                    entry.path().display()
+                );
+                continue;
+            }
+        };
 
         // Normalize path separators to forward slash
         let relative = entry
@@ -105,8 +125,19 @@ fn scan_directory(dir: &Path, base: &Path) -> Result<Vec<FileState>, SyncProvide
         } else {
             // Cached SHA-256 — reused when (path, size, mtime) is unchanged.
             // On the first scan we eat the hashing cost once; subsequent
-            // scans are effectively free for unchanged files.
-            super::hashing::cached_hash(&entry.path(), size, modified_at).ok()
+            // scans are effectively free for unchanged files. Failures
+            // (e.g. file vanished mid-scan) leave hash=None; the diff falls
+            // back to size+mtime for that entry.
+            match super::hashing::cached_hash(&entry.path(), size, modified_at) {
+                Ok(h) => Some(h),
+                Err(e) => {
+                    eprintln!(
+                        "[LocalProvider] Hash failed for {}: {e}",
+                        entry.path().display()
+                    );
+                    None
+                }
+            }
         };
 
         entries.push(FileState {
@@ -118,7 +149,13 @@ fn scan_directory(dir: &Path, base: &Path) -> Result<Vec<FileState>, SyncProvide
         });
 
         if metadata.is_dir() {
-            entries.extend(scan_directory(&entry.path(), base)?);
+            match scan_directory(&entry.path(), base) {
+                Ok(sub) => entries.extend(sub),
+                Err(e) => eprintln!(
+                    "[LocalProvider] Skipping subdir {}: {e}",
+                    entry.path().display()
+                ),
+            }
         }
     }
 

@@ -186,6 +186,11 @@ pub(super) fn file_entry_from_path(path: &Path) -> Result<FileEntry, std::io::Er
 }
 
 /// Recursively scan a directory and collect FileState entries for the manifest.
+/// Recursively scan a directory for the manifest.
+///
+/// Per-entry failures (broken symlinks, permission errors, races with
+/// deletion) are logged and skipped — bubbling them up would error the
+/// entire manifest and trap the engine in a 30 s retry loop forever.
 pub(super) fn scan_directory_recursive(
     dir: &Path,
     base: &Path,
@@ -194,8 +199,26 @@ pub(super) fn scan_directory_recursive(
     let read_dir = std::fs::read_dir(dir)?;
 
     for entry in read_dir {
-        let entry = entry?;
-        let metadata = entry.metadata()?;
+        let entry = match entry {
+            Ok(e) => e,
+            Err(e) => {
+                eprintln!(
+                    "[PeerStorage] Skipping unreadable entry in {}: {e}",
+                    dir.display()
+                );
+                continue;
+            }
+        };
+        let metadata = match entry.metadata() {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!(
+                    "[PeerStorage] Skipping {}: metadata error: {e}",
+                    entry.path().display()
+                );
+                continue;
+            }
+        };
 
         let relative = entry
             .path()
@@ -216,10 +239,16 @@ pub(super) fn scan_directory_recursive(
         let hash = if metadata.is_dir() {
             None
         } else {
-            // Cached SHA-256 — same scheme as the sender side. The diff
-            // engine treats files with matching hashes as equal regardless
-            // of mtime, so transfers do not re-fire after every sync.
-            crate::file_sync::hashing::cached_hash(&entry.path(), size, modified_at).ok()
+            match crate::file_sync::hashing::cached_hash(&entry.path(), size, modified_at) {
+                Ok(h) => Some(h),
+                Err(e) => {
+                    eprintln!(
+                        "[PeerStorage] Hash failed for {}: {e}",
+                        entry.path().display()
+                    );
+                    None
+                }
+            }
         };
 
         entries.push(crate::file_sync::types::FileState {
@@ -231,7 +260,13 @@ pub(super) fn scan_directory_recursive(
         });
 
         if metadata.is_dir() {
-            entries.extend(scan_directory_recursive(&entry.path(), base)?);
+            match scan_directory_recursive(&entry.path(), base) {
+                Ok(sub) => entries.extend(sub),
+                Err(e) => eprintln!(
+                    "[PeerStorage] Skipping subdir {}: {e}",
+                    entry.path().display()
+                ),
+            }
         }
     }
 
