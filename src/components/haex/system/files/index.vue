@@ -907,9 +907,7 @@ const overviewGroups = computed<OverviewGroup[]>(() => {
   return buildContactGroups()
 })
 
-const hasAnyEntries = computed(
-  () => localShares.value.length > 0 || remotePeers.value.length > 0,
-)
+const hasAnyEntries = computed(() => overviewGroups.value.length > 0)
 
 // Membership cross-check: a `haex_space_devices` row should only render
 // when the device's identity is actually a member of that space — otherwise
@@ -1028,9 +1026,14 @@ function buildSpaceGroups(): OverviewGroup[] {
     groups.push(groupForSpace(spaceId, getSpaceName(spaceId)))
   }
 
-  // Direct contact devices (claim-only, not in any space)
+  // Direct contact devices (claim-only, not in any space).
+  // Only count endpoints from devices that pass the membership cross-check —
+  // otherwise a phantom space row could shadow a legitimate direct contact
+  // claim that happens to share the same endpoint.
   const knownEndpointIds = new Set(
-    peerStore.spaceDevices.map((d) => d.deviceEndpointId),
+    peerStore.spaceDevices
+      .filter((d) => isDeviceLegitInSpace(d.spaceId, d.identityId))
+      .map((d) => d.deviceEndpointId),
   )
   const directEntries: OverviewEntry[] = []
   const seen = new Set<string>()
