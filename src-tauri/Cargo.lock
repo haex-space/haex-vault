@@ -2420,7 +2420,7 @@ dependencies = [
 
 [[package]]
 name = "haex-vault"
-version = "1.16.0"
+version = "1.17.0"
 dependencies = [
  "aes-gcm",
  "async-trait",
@@ -3225,7 +3225,7 @@ dependencies = [
  "pkcs8 0.11.0-rc.10",
  "portable-atomic",
  "rand 0.10.0",
- "reqwest 0.13.2",
+ "reqwest 0.13.3",
  "rustc-hash",
  "rustls",
  "rustls-pki-types",
@@ -3337,7 +3337,7 @@ dependencies = [
  "pin-project",
  "postcard",
  "rand 0.10.0",
- "reqwest 0.13.2",
+ "reqwest 0.13.3",
  "rustls",
  "rustls-pki-types",
  "serde",
