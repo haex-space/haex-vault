@@ -87,7 +87,7 @@ reqwest = { version = "0.13", default-features = false, features = [
 ] }
 
 # Peer Storage (P2P file sharing via iroh/QUIC)
-iroh = { version = "0.97", default-features = false, features = ["address-lookup-mdns"] }
+iroh = { version = "0.98", default-features = false, features = ["address-lookup-mdns"] }
 
 # MLS (RFC 9420) - Group key management
 openmls = "0.8.1"
