@@ -511,73 +511,98 @@
 
           <!-- Normal overview (no search active) -->
           <template v-else>
-            <!-- Local shares (this device) -->
-            <div v-if="localShares.length > 0">
-              <p
-                class="text-xs font-medium text-muted uppercase tracking-wider mb-2"
-              >
-                {{ t('sections.local') }}
+            <!-- Grouping toggle -->
+            <div
+              v-if="hasAnyEntries"
+              class="flex items-center justify-between"
+            >
+              <p class="text-xs font-medium text-muted uppercase tracking-wider">
+                {{ t('groupBy.label') }}
               </p>
-              <div class="space-y-1">
-                <div
-                  v-for="share in localShares"
-                  :key="share.id"
-                  class="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
-                  @click="
-                    browser.selectPeer({
-                      endpointId: peerStore.nodeId,
-                      name: share.name,
-                      source: 'space',
-                      detail: t('sections.thisDevice'),
-                      localPath: share.localPath,
-                    })
-                  "
+              <div class="flex items-center rounded-lg border border-default">
+                <UiButton
+                  variant="ghost"
+                  icon="i-lucide-layers"
+                  :color="groupBy === 'space' ? 'primary' : 'neutral'"
+                  :title="t('groupBy.space')"
+                  @click="groupBy = 'space'"
                 >
-                  <UIcon
-                    name="i-lucide-folder"
-                    class="w-5 h-5 text-primary shrink-0"
-                  />
-                  <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium truncate">{{ share.name }}</p>
-                    <p class="text-xs text-muted truncate">
-                      {{ t('sections.thisDevice') }}
-                    </p>
-                  </div>
-                  <UIcon
-                    name="i-lucide-chevron-right"
-                    class="w-4 h-4 text-muted shrink-0"
-                  />
-                </div>
+                  {{ t('groupBy.space') }}
+                </UiButton>
+                <UiButton
+                  variant="ghost"
+                  icon="i-lucide-users"
+                  :color="groupBy === 'contact' ? 'primary' : 'neutral'"
+                  :title="t('groupBy.contact')"
+                  @click="groupBy = 'contact'"
+                >
+                  {{ t('groupBy.contact') }}
+                </UiButton>
               </div>
             </div>
 
-            <!-- Remote peers -->
-            <div v-if="remotePeers.length > 0">
-              <p
-                class="text-xs font-medium text-muted uppercase tracking-wider mb-2"
-              >
-                {{ t('sections.peers') }}
-              </p>
+            <!-- Grouped sections -->
+            <div
+              v-for="group in overviewGroups"
+              :key="group.id"
+            >
+              <div class="flex items-center gap-2 mb-2">
+                <UiAvatar
+                  v-if="group.avatar"
+                  :src="group.avatar.src"
+                  :seed="group.avatar.seed"
+                  :avatar-options="group.avatar.options"
+                  :alt="group.avatar.alt"
+                  size="xs"
+                />
+                <UIcon
+                  v-else-if="group.icon"
+                  :name="group.icon"
+                  class="w-3.5 h-3.5 text-muted shrink-0"
+                />
+                <p
+                  class="text-xs font-medium text-muted uppercase tracking-wider truncate"
+                >
+                  {{ group.title }}
+                </p>
+                <p
+                  v-if="group.subtitle"
+                  class="text-[10px] text-muted/70 truncate"
+                >
+                  {{ group.subtitle }}
+                </p>
+              </div>
               <div class="space-y-1">
                 <div
-                  v-for="peer in remotePeers"
-                  :key="peer.endpointId"
+                  v-for="entry in group.entries"
+                  :key="entry.key"
                   class="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
-                  @click="browser.selectPeer(peer)"
+                  @click="browser.selectPeer(entry.peer)"
                 >
+                  <UiAvatar
+                    v-if="entry.avatar"
+                    :src="entry.avatar.src"
+                    :seed="entry.avatar.seed"
+                    :avatar-options="entry.avatar.options"
+                    :alt="entry.avatar.alt"
+                    :badge-src="entry.badge?.src"
+                    :badge-seed="entry.badge?.seed"
+                    :badge-alt="entry.badge?.alt"
+                    size="sm"
+                  />
                   <UIcon
-                    :name="
-                      peer.source === 'contact'
-                        ? 'i-lucide-user'
-                        : 'i-lucide-monitor'
-                    "
+                    v-else-if="entry.icon"
+                    :name="entry.icon"
                     class="w-5 h-5 text-primary shrink-0"
                   />
                   <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium truncate">{{ peer.name }}</p>
-                    <p class="text-xs text-muted truncate">{{ peer.detail }}</p>
+                    <p class="text-sm font-medium truncate">{{ entry.title }}</p>
+                    <p class="text-xs text-muted truncate">{{ entry.subtitle }}</p>
                   </div>
-                  <HaexPeerStatusDot :status="ping.getStatus(peer.endpointId)" />
+                  <HaexPeerStatusDot
+                    v-if="entry.kind === 'remote-peer'"
+                    :status="ping.getStatus(entry.peer.endpointId)"
+                  />
                   <UIcon
                     name="i-lucide-chevron-right"
                     class="w-4 h-4 text-muted shrink-0"
@@ -588,7 +613,7 @@
 
             <!-- Empty state -->
             <div
-              v-if="localShares.length === 0 && remotePeers.length === 0"
+              v-if="!hasAnyEntries"
               class="flex flex-col items-center justify-center py-12 gap-3"
             >
               <UIcon
@@ -611,6 +636,7 @@
 import { SettingsCategory } from '~/config/settingsCategories'
 import type { RemotePeer } from '~/composables/useFileBrowser'
 import { usePeerPing } from '~/composables/usePeerPing'
+import { requireDb } from '~/stores/vault'
 
 const props = defineProps<{
   tabId: string
@@ -623,6 +649,36 @@ const spacesStore = useSpacesStore()
 const identityStore = useIdentityStore()
 
 const browser = useFileBrowser(props.tabId)
+
+type GroupBy = 'space' | 'contact'
+const groupBy = ref<GroupBy>('space')
+
+interface AvatarRef {
+  src?: string | null
+  seed?: string
+  options?: Record<string, unknown> | null
+  alt?: string
+}
+
+interface OverviewEntry {
+  kind: 'local-share' | 'remote-peer'
+  key: string
+  title: string
+  subtitle: string
+  icon?: string
+  avatar?: AvatarRef
+  badge?: AvatarRef
+  peer: RemotePeer
+}
+
+interface OverviewGroup {
+  id: string
+  title: string
+  subtitle?: string
+  icon?: string
+  avatar?: AvatarRef
+  entries: OverviewEntry[]
+}
 
 /** Get transfer progress for a file (0-1, or undefined if not downloading) */
 const getFileTransferProgress = (file: { name: string; path?: string }) => {
@@ -642,6 +698,23 @@ const toggleEndpointAsync = async () => {
   } finally {
     isTogglingEndpoint.value = false
   }
+}
+
+/**
+ * Identifies whether a given endpoint id belongs to this device. Returns
+ * true when `peerStore.nodeId` is empty so we never expose an own
+ * `haex_space_devices` row as a remote peer during the brief window
+ * before `refreshStatusAsync` resolves (or after `stopAsync`, which
+ * resets `nodeId` to '' even though the row in DB is still ours).
+ *
+ * Biases toward "treat unknown endpoints as own" because the alternative
+ * — surfacing the local device as a peer — is the more confusing failure
+ * mode. Once `nodeId` is populated this collapses to the strict equality
+ * check.
+ */
+const isOwnEndpoint = (endpointId: string): boolean => {
+  if (!peerStore.nodeId) return true
+  return endpointId === peerStore.nodeId
 }
 
 // Aggregate remote peers from spaces + contacts
@@ -689,7 +762,7 @@ const remotePeers = computed(() => {
   const seen = new Set<string>()
 
   for (const device of peerStore.spaceDevices) {
-    if (device.deviceEndpointId === peerStore.nodeId) continue
+    if (isOwnEndpoint(device.deviceEndpointId)) continue
     if (seen.has(device.deviceEndpointId)) continue
     seen.add(device.deviceEndpointId)
     peers.push({
@@ -720,6 +793,388 @@ const remotePeers = computed(() => {
 
 const remotePeerIds = computed(() => remotePeers.value.map((p) => p.endpointId))
 const ping = usePeerPing(remotePeerIds)
+
+const parseAvatarOptions = (raw: string | null | undefined) => {
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
+const getIdentity = (identityId: string | null | undefined) => {
+  if (!identityId) return undefined
+  return identityStore.identities.find((i) => i.id === identityId)
+}
+
+const identityAvatarFromIdentity = (
+  identity: ReturnType<typeof getIdentity>,
+): AvatarRef | undefined => {
+  if (!identity) return undefined
+  return {
+    src: identity.avatar,
+    seed: identity.id,
+    options: parseAvatarOptions(identity.avatarOptions),
+    alt: identity.name,
+  }
+}
+
+const localShareEntry = (
+  share: typeof localShares.value[number],
+): OverviewEntry => ({
+  kind: 'local-share',
+  key: `local:${share.id}`,
+  title: share.name,
+  subtitle: t('sections.thisDevice'),
+  icon: 'i-lucide-folder',
+  peer: {
+    endpointId: peerStore.nodeId,
+    name: share.name,
+    source: 'space',
+    detail: t('sections.thisDevice'),
+    localPath: share.localPath,
+  },
+})
+
+interface PeerEntryInput {
+  endpointId: string
+  contextKey: string
+  detail: string
+  source: RemotePeer['source']
+  // Optional rich data (preferred when available)
+  device?: typeof peerStore.spaceDevices[number]
+  identityId?: string | null
+  // Fallback name when neither identity nor device row are available
+  fallbackName?: string
+}
+
+const buildPeerEntry = (input: PeerEntryInput): OverviewEntry => {
+  const identity = getIdentity(input.identityId ?? input.device?.identityId)
+  const contactName = identity?.name?.trim() || undefined
+  const deviceName =
+    input.device?.deviceName?.trim() ||
+    input.fallbackName?.trim() ||
+    `${input.endpointId.slice(0, 16)}…`
+
+  // Title prefers the contact's known identity name. Subtitle keeps the
+  // device name visible when it differs, plus the existing detail line
+  // (typically the space name).
+  const title = contactName || deviceName
+  const showDeviceInSubtitle =
+    !!contactName && contactName.toLowerCase() !== deviceName.toLowerCase()
+  const subtitle = showDeviceInSubtitle
+    ? `${deviceName} · ${input.detail}`
+    : input.detail
+
+  const avatar: AvatarRef | undefined = input.device
+    ? {
+        src: input.device.avatar,
+        seed: input.device.deviceEndpointId,
+        options: parseAvatarOptions(input.device.avatarOptions),
+        alt: deviceName,
+      }
+    : identity
+      ? identityAvatarFromIdentity(identity)
+      : { seed: input.endpointId, alt: deviceName }
+
+  // Badge is the contact's identity avatar — only shown when we actually
+  // have a known identity to badge with AND we already render a separate
+  // device avatar (otherwise the identity avatar is the main avatar).
+  const badge: AvatarRef | undefined =
+    input.device && identity ? identityAvatarFromIdentity(identity) : undefined
+
+  return {
+    kind: 'remote-peer',
+    key: `remote:${input.contextKey}:${input.endpointId}`,
+    title,
+    subtitle,
+    icon: input.source === 'contact' ? 'i-lucide-user' : 'i-lucide-monitor',
+    avatar,
+    badge,
+    peer: {
+      endpointId: input.endpointId,
+      name: title,
+      source: input.source,
+      detail: input.detail,
+    },
+  }
+}
+
+const overviewGroups = computed<OverviewGroup[]>(() => {
+  if (groupBy.value === 'space') return buildSpaceGroups()
+  return buildContactGroups()
+})
+
+const hasAnyEntries = computed(() => overviewGroups.value.length > 0)
+
+// Phantom-row guard: `peerStore.spaceDevices` mirrors every haex_space_devices
+// row in the local DB, including ones that arrived via CRDT sync of a space
+// the user never joined. The spaces store already filters those at the
+// `visibleSpaces` boundary (membership cross-check + owner fallback), so any
+// device whose spaceId is outside that set must not surface in the UI.
+const visibleSpaceIds = computed(
+  () => new Set(spacesStore.visibleSpaces.map((s) => s.id)),
+)
+const isDeviceInVisibleSpace = (spaceId: string): boolean =>
+  visibleSpaceIds.value.has(spaceId)
+
+function buildSpaceGroups(): OverviewGroup[] {
+  // Bucket entries strictly by spaceId. Two spaces with the same name but
+  // different ids stay as two separate groups — they are different spaces
+  // by identity and must not be merged. The shortened spaceId is shown as
+  // subtitle so the user can tell them apart.
+  const buckets = new Map<string, OverviewEntry[]>()
+  const seenDevicesPerSpace = new Map<string, Set<string>>()
+  const seenSharesPerSpace = new Map<string, Set<string>>()
+
+  const pushEntry = (spaceId: string, entry: OverviewEntry) => {
+    const list = buckets.get(spaceId)
+    if (list) list.push(entry)
+    else buckets.set(spaceId, [entry])
+  }
+
+  for (const share of localShares.value) {
+    let seen = seenSharesPerSpace.get(share.spaceId)
+    if (!seen) {
+      seen = new Set()
+      seenSharesPerSpace.set(share.spaceId, seen)
+    }
+    if (seen.has(share.id)) continue
+    seen.add(share.id)
+    pushEntry(share.spaceId, localShareEntry(share))
+  }
+
+  for (const device of peerStore.spaceDevices) {
+    if (isOwnEndpoint(device.deviceEndpointId)) continue
+    if (!isDeviceInVisibleSpace(device.spaceId)) continue
+    let seen = seenDevicesPerSpace.get(device.spaceId)
+    if (!seen) {
+      seen = new Set()
+      seenDevicesPerSpace.set(device.spaceId, seen)
+    }
+    if (seen.has(device.deviceEndpointId)) continue
+    seen.add(device.deviceEndpointId)
+    pushEntry(
+      device.spaceId,
+      buildPeerEntry({
+        endpointId: device.deviceEndpointId,
+        contextKey: `space:${device.spaceId}`,
+        detail: getSpaceName(device.spaceId),
+        source: 'space',
+        device,
+      }),
+    )
+  }
+
+  const groups: OverviewGroup[] = []
+  const consumedSpaceIds = new Set<string>()
+
+  const groupForSpace = (
+    spaceId: string,
+    title: string,
+    ownerIdentityId?: string | null,
+  ): OverviewGroup => {
+    const ownerIdentity = getIdentity(ownerIdentityId)
+    return {
+      id: `space:${spaceId}`,
+      title,
+      subtitle: shortSpaceId(spaceId),
+      icon: 'i-lucide-layers',
+      avatar: identityAvatarFromIdentity(ownerIdentity),
+      entries: buckets.get(spaceId) ?? [],
+    }
+  }
+
+  for (const space of spacesStore.visibleSpaces) {
+    if (consumedSpaceIds.has(space.id)) continue
+    consumedSpaceIds.add(space.id)
+    const entries = buckets.get(space.id)
+    if (!entries || entries.length === 0) continue
+    groups.push(groupForSpace(space.id, space.name, space.ownerIdentityId))
+  }
+
+  // No orphan-spaceId fallback by design: if a bucket's spaceId is not in
+  // `visibleSpaces`, the user is not a member and we must not surface that
+  // space in the UI — the phantom row got dropped at the bucket-fill step.
+
+  // Direct contact devices (claim-only, not in any space).
+  // `peerStore.spaceDevices` is pre-filtered to visible spaces above, so
+  // this Set already excludes phantom rows that could otherwise shadow a
+  // contact claim sharing the same endpoint.
+  const knownEndpointIds = new Set(
+    peerStore.spaceDevices
+      .filter((d) => isDeviceInVisibleSpace(d.spaceId))
+      .map((d) => d.deviceEndpointId),
+  )
+  const directEntries: OverviewEntry[] = []
+  const seen = new Set<string>()
+  for (const contact of identityStore.contacts) {
+    const claims = contactClaims.value[contact.id] || []
+    for (const claim of claims) {
+      if (!claim.type.startsWith('device:') || !claim.value) continue
+      if (knownEndpointIds.has(claim.value)) continue
+      if (seen.has(claim.value)) continue
+      seen.add(claim.value)
+      directEntries.push(
+        buildPeerEntry({
+          endpointId: claim.value,
+          contextKey: 'direct-contacts',
+          detail: contact.name,
+          source: 'contact',
+          identityId: contact.id,
+          fallbackName: claim.type.replace('device:', ''),
+        }),
+      )
+    }
+  }
+  if (directEntries.length > 0) {
+    groups.push({
+      id: 'direct-contacts',
+      title: t('groups.directContacts'),
+      icon: 'i-lucide-user',
+      entries: directEntries,
+    })
+  }
+
+  return groups
+}
+
+function buildContactGroups(): OverviewGroup[] {
+  const groups: OverviewGroup[] = []
+  const ownIdentityIds = new Set(
+    identityStore.ownIdentities.map((i) => i.id),
+  )
+
+  // "My devices" — local shares + space devices linked to own identities
+  const myEntries: OverviewEntry[] = []
+  for (const share of localShares.value) {
+    myEntries.push(localShareEntry(share))
+  }
+  const seenForMe = new Set<string>()
+  for (const device of peerStore.spaceDevices) {
+    if (isOwnEndpoint(device.deviceEndpointId)) continue
+    if (seenForMe.has(device.deviceEndpointId)) continue
+    if (!device.identityId || !ownIdentityIds.has(device.identityId)) continue
+    if (!isDeviceInVisibleSpace(device.spaceId)) continue
+    seenForMe.add(device.deviceEndpointId)
+    myEntries.push(
+      buildPeerEntry({
+        endpointId: device.deviceEndpointId,
+        contextKey: 'me',
+        detail: getSpaceName(device.spaceId),
+        source: 'space',
+        device,
+      }),
+    )
+  }
+  if (myEntries.length > 0) {
+    const ownIdentity = identityStore.ownIdentities[0]
+    groups.push({
+      id: 'me',
+      title: t('groups.myDevices'),
+      subtitle: ownIdentity?.did ? shortDid(ownIdentity.did) : undefined,
+      icon: 'i-lucide-user-check',
+      avatar: identityAvatarFromIdentity(ownIdentity),
+      entries: myEntries,
+    })
+  }
+
+  // One group per contact
+  for (const contact of identityStore.contacts) {
+    const entries: OverviewEntry[] = []
+    const seen = new Set<string>()
+
+    for (const device of peerStore.spaceDevices) {
+      if (isOwnEndpoint(device.deviceEndpointId)) continue
+      if (device.identityId !== contact.id) continue
+      if (!isDeviceInVisibleSpace(device.spaceId)) continue
+      if (seen.has(device.deviceEndpointId)) continue
+      seen.add(device.deviceEndpointId)
+      entries.push(
+        buildPeerEntry({
+          endpointId: device.deviceEndpointId,
+          contextKey: `contact:${contact.id}`,
+          detail: getSpaceName(device.spaceId),
+          source: 'space',
+          device,
+        }),
+      )
+    }
+
+    const claims = contactClaims.value[contact.id] || []
+    for (const claim of claims) {
+      if (!claim.type.startsWith('device:') || !claim.value) continue
+      if (seen.has(claim.value)) continue
+      seen.add(claim.value)
+      entries.push(
+        buildPeerEntry({
+          endpointId: claim.value,
+          contextKey: `contact:${contact.id}`,
+          detail: contact.name,
+          source: 'contact',
+          identityId: contact.id,
+          fallbackName: claim.type.replace('device:', ''),
+        }),
+      )
+    }
+
+    if (entries.length > 0) {
+      groups.push({
+        id: `contact:${contact.id}`,
+        title: contact.name,
+        subtitle: shortDid(contact.did),
+        icon: 'i-lucide-user',
+        avatar: identityAvatarFromIdentity(contact),
+        entries,
+      })
+    }
+  }
+
+  // Devices we know about but cannot attribute to any identity
+  const attributedEndpoints = new Set<string>()
+  for (const g of groups) {
+    for (const e of g.entries) attributedEndpoints.add(e.peer.endpointId)
+  }
+  const unattributed: OverviewEntry[] = []
+  const seenUnattr = new Set<string>()
+  for (const device of peerStore.spaceDevices) {
+    if (isOwnEndpoint(device.deviceEndpointId)) continue
+    if (attributedEndpoints.has(device.deviceEndpointId)) continue
+    if (!isDeviceInVisibleSpace(device.spaceId)) continue
+    if (seenUnattr.has(device.deviceEndpointId)) continue
+    seenUnattr.add(device.deviceEndpointId)
+    unattributed.push(
+      buildPeerEntry({
+        endpointId: device.deviceEndpointId,
+        contextKey: 'unknown',
+        detail: getSpaceName(device.spaceId),
+        source: 'space',
+        device,
+      }),
+    )
+  }
+  if (unattributed.length > 0) {
+    groups.push({
+      id: 'unknown',
+      title: t('groups.unknown'),
+      icon: 'i-lucide-help-circle',
+      entries: unattributed,
+    })
+  }
+
+  return groups
+}
+
+function shortDid(did: string): string {
+  if (did.length <= 24) return did
+  return `${did.slice(0, 16)}…${did.slice(-6)}`
+}
+
+function shortSpaceId(id: string): string {
+  if (id.length <= 12) return id
+  return `${id.slice(0, 8)}…${id.slice(-4)}`
+}
 
 const applyDeepLink = async (params?: Record<string, unknown>) => {
   if (!params?.endpointId) return
@@ -755,11 +1210,17 @@ watch(
 )
 
 onMounted(async () => {
+  // Load identities first so `spacesStore.visibleSpaces` can resolve owner
+  // and membership filters against the user's own identities — without it,
+  // the membership cross-check inside the spaces store would run against an
+  // empty ownIdentities set and hide every legitimate space until the next
+  // reload.
+  await identityStore.loadIdentitiesAsync()
   await Promise.all([
     peerStore.refreshStatusAsync(),
     peerStore.loadSharesAsync(),
     peerStore.loadSpaceDevicesAsync(),
-    identityStore.loadIdentitiesAsync(),
+    spacesStore.loadSpacesFromDbAsync(),
   ])
   await loadContactClaimsAsync()
   await applyDeepLink(props.windowParams)
@@ -800,6 +1261,14 @@ de:
     local: Dieses Gerät
     peers: Andere Geräte
     thisDevice: Lokaler Ordner
+  groupBy:
+    label: Gruppierung
+    space: Nach Space
+    contact: Nach Kontakt
+  groups:
+    myDevices: Meine Geräte
+    directContacts: Direkte Kontakte
+    unknown: Ohne Zuordnung
 en:
   title: Files
   description: Browse and download files from connected devices
@@ -833,4 +1302,12 @@ en:
     local: This device
     peers: Other devices
     thisDevice: Local folder
+  groupBy:
+    label: Group by
+    space: By space
+    contact: By contact
+  groups:
+    myDevices: My devices
+    directContacts: Direct contacts
+    unknown: Unattributed
 </i18n>

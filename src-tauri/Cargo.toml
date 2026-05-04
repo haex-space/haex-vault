@@ -36,13 +36,13 @@ sqlparser = { version = "0.61", features = ["visitor"] }
 tauri = { version = "2.11", features = ["protocol-asset", "devtools", "test"] }
 tauri-plugin-dialog = "2.7"
 tauri-plugin-fs = "2.4.5"
-tauri-plugin-http = "2.5.8"
+tauri-plugin-http = "2.5.9"
 tauri-plugin-notification = "2.3.3"
-tauri-plugin-opener = "2.5.3"
+tauri-plugin-opener = "2.5.4"
 tauri-plugin-os = "2.3"
-tauri-plugin-persisted-scope = "2.3.6"
-tauri-plugin-store = "2.4.2"
-tauri-plugin-deep-link = "2.4.8"
+tauri-plugin-persisted-scope = "2.3.7"
+tauri-plugin-store = "2.4.3"
+tauri-plugin-deep-link = "2.4.9"
 # Per-vault file locking: prevents two instances from opening the same DB
 # concurrently. `tauri-plugin-single-instance` used to enforce single-instance
 # at the app level (blocking even different vaults); we moved to per-DB locks
@@ -87,7 +87,7 @@ reqwest = { version = "0.13", default-features = false, features = [
 ] }
 
 # Peer Storage (P2P file sharing via iroh/QUIC)
-iroh = { version = "0.97", default-features = false, features = ["address-lookup-mdns"] }
+iroh = { version = "0.98", default-features = false, features = ["address-lookup-mdns", "tls-ring"] }
 
 # MLS (RFC 9420) - Group key management
 openmls = "0.8.1"
