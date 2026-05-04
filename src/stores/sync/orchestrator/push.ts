@@ -9,9 +9,15 @@ import {
   getDirtyTablesAsync,
   getAllCrdtTablesAsync,
   scanTableForChangesAsync,
+  scanTableForSpaceColumnChangesAsync,
+  scanTableForSpaceChangesAsync,
   clearDirtyTableAsync,
   type ColumnChange,
 } from '../tableScanner'
+import {
+  SHARED_SPACE_BUILTIN_TABLES,
+  isBuiltinSharedSpaceTable,
+} from '../sharedSpaceScope'
 import { hlcIsNewer } from '@/utils/hlc'
 import { DidAuthAction } from '@haex-space/ucan'
 import { createDidAuthHeader, createFederatedDidAuthHeader } from '@/utils/auth/didAuth'
@@ -162,6 +168,22 @@ export const pushToBackendAsync = async (
     }, '')
     log.debug(`[PUSH-SCAN] Max dirty timestamp at scan start: ${maxDirtyTimestamp}`)
 
+    // Discover extension tables that registered rows for THIS space via
+    // `haex_shared_space_sync`. They follow the registry-based scanner so
+    // an extension cannot leak rows belonging to a foreign space even when
+    // the user happens to be a member of both. Only relevant for shared
+    // backends — vault sync ships the whole DB by design.
+    let extensionTablesForSpace = new Set<string>()
+    if (isSharedSpace) {
+      const rows = await invoke<unknown[][]>('sql_select', {
+        sql: 'SELECT DISTINCT "table_name" FROM "haex_shared_space_sync" WHERE "space_id" = ?',
+        params: [backend.spaceId],
+      })
+      extensionTablesForSpace = new Set(
+        rows.map((r) => String(r[0])).filter((name) => !isBuiltinSharedSpaceTable(name)),
+      )
+    }
+
     // Scan each dirty table for column-level changes. HLC is the grouping
     // key — no separate batch id anymore.
     const allChanges: ColumnChange[] = []
@@ -172,7 +194,46 @@ export const pushToBackendAsync = async (
         log.info(`[PUSH-SCAN] Scanning table: ${tableName}`)
         log.debug(`[PUSH-SCAN]   lastPushHlc: ${lastPushHlc || '(none)'}`)
 
-        const tableChanges = await scanTableForChangesAsync(tableName, lastPushHlc, encryptionKey, deviceId, epoch)
+        let tableChanges: ColumnChange[]
+        if (!isSharedSpace) {
+          // Personal vault sync replicates the entire DB to the user's own
+          // backend — no per-space filter applies.
+          tableChanges = await scanTableForChangesAsync(tableName, lastPushHlc, encryptionKey, deviceId, epoch)
+        }
+        else {
+          const policy = SHARED_SPACE_BUILTIN_TABLES[tableName]
+          if (policy) {
+            const spaceColumn = policy.kind === 'self' ? 'id' : policy.column
+            tableChanges = await scanTableForSpaceColumnChangesAsync(
+              tableName,
+              backend.spaceId,
+              spaceColumn,
+              lastPushHlc,
+              encryptionKey,
+              deviceId,
+              epoch,
+            )
+          }
+          else if (extensionTablesForSpace.has(tableName)) {
+            tableChanges = await scanTableForSpaceChangesAsync(
+              tableName,
+              backend.spaceId,
+              lastPushHlc,
+              encryptionKey,
+              deviceId,
+              epoch,
+            )
+          }
+          else {
+            // Vault-private table (identities, vault settings, sync backends, …)
+            // or extension table without space registration. Either way, it
+            // must NEVER travel over a shared-space backend, even though it
+            // is dirty in the local tracker — sharing here would leak data
+            // outside the space's MLS group.
+            log.info(`[PUSH-SCAN]   Skipping ${tableName} on shared-space backend (not in shared scope)`)
+            continue
+          }
+        }
 
         allChanges.push(...tableChanges)
 
@@ -421,6 +482,16 @@ export const pushAllDataToBackendAsync = async (
     if (!backend?.spaceId) {
       log.error('FULL PUSH FAILED: Backend spaceId not configured')
       throw new Error('Backend spaceId not configured')
+    }
+
+    // Full re-upload uses the vault sync key and is only meaningful for the
+    // personal vault backend. For shared-space backends the encryption key is
+    // an MLS epoch key (not the vault key) and a "push everything" pass would
+    // ship rows from foreign spaces — exactly the leak we are guarding
+    // against. Refuse here rather than silently falling through.
+    if (backend.spaceId !== currentVaultId.value) {
+      log.error('FULL PUSH FAILED: Shared-space backends do not support full re-upload')
+      throw new Error('Full re-upload is only supported for the personal vault backend')
     }
 
     log.debug('Backend config:', {

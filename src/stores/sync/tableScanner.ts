@@ -249,6 +249,56 @@ export async function scanTableForChangesAsync(
 }
 
 /**
+ * Scans a built-in space-scoped table (one whose own schema carries the
+ * spaceId — either as `id` for `haex_spaces` itself, or as a `space_id`
+ * column for the rest of the membership/peer-shares/UCAN family).
+ *
+ * Used by the shared-space cloud-push pipeline: every row that goes over a
+ * shared-space backend MUST belong to that exact space. Without this filter
+ * a peer who is in two spaces would push rows from Space B over the Space A
+ * backend, and every Space A peer would decrypt and ingest them — see
+ * `sharedSpaceScope.ts` for the full rationale.
+ */
+export async function scanTableForSpaceColumnChangesAsync(
+  tableName: string,
+  spaceId: string,
+  spaceColumn: string,
+  lastPushHlcTimestamp: string | null,
+  vaultKey: Uint8Array,
+  deviceId: string,
+  epoch?: number,
+): Promise<ColumnChange[]> {
+  log.info(`Scanning space-scoped table: ${tableName} (spaceId: ${spaceId} via ${spaceColumn})`)
+
+  const { schema, pkColumns, dataColumns, allColumns } = await getTableColumnsAsync(tableName)
+
+  const columnList = allColumns.map((c) => `"${c}"`).join(', ')
+  const hlcFilter = lastPushHlcTimestamp
+    ? `AND "${CRDT_COLUMNS.haexHlc}" > ?`
+    : ''
+  const query = `SELECT ${columnList} FROM "${tableName}" `
+    + `WHERE "${spaceColumn}" = ? ${hlcFilter}`
+  const params: unknown[] = [spaceId]
+  if (lastPushHlcTimestamp) params.push(lastPushHlcTimestamp)
+
+  log.debug(`  SQL: ${query}`)
+  log.debug(`  Params: ${JSON.stringify(params)}`)
+
+  const result = await invoke<unknown[][]>('sql_select', { sql: query, params })
+
+  log.info(`  Query returned ${result.length} rows for space ${spaceId}`)
+
+  const changes = await processRowsToChangesAsync(
+    result, allColumns, pkColumns, dataColumns,
+    lastPushHlcTimestamp, tableName, vaultKey, deviceId, epoch,
+  )
+
+  log.info(`  Generated ${changes.length} column changes from ${result.length} rows`)
+
+  return changes
+}
+
+/**
  * Scans a table for rows assigned to a specific shared space that are newer than lastPushHlcTimestamp.
  * Uses INNER JOIN with haex_shared_space_sync to filter only rows belonging to the space.
  * Returns empty array if no rows are assigned to this space in this table.

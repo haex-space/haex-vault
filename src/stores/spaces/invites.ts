@@ -409,6 +409,11 @@ export async function acceptLocalInvite(
   // Add self as space member (non-fatal)
   await addSelfAsSpaceMember(db, invite.spaceId, identity, 'read')
 
+  // Reload spaces so the freshly inserted membership row reaches
+  // `memberSpaceIds` — without it `visibleSpaces` would hide the just-joined
+  // space until the next CRDT sync round triggers another reload.
+  await loadSpacesFromDbAsync()
+
   // Register this device in haex_space_devices for the new space. The CRDT
   // sync loop will push this row to the space leader, which then reloads
   // allowed_peers and permits this device to browse shared files (sub-folder

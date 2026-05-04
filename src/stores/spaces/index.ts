@@ -1,8 +1,8 @@
 import type { DecryptedSpace } from '@haex-space/vault-sdk'
 import { didKeyToPublicKeyAsync } from '@haex-space/vault-sdk'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
-import { haexSpaces } from '~/database/schemas'
+import { haexSpaces, haexSpaceMembers } from '~/database/schemas'
 import type { SelectHaexSpaces } from '~/database/schemas'
 import type { ElectionResultInfo } from '@bindings/ElectionResultInfo'
 import { createLogger } from '@/stores/logging'
@@ -85,6 +85,14 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   // =========================================================================
 
   const spaces = ref<SelectHaexSpaces[]>([])
+  // Set of spaceIds where any of the user's own identities is a member
+  // (joined `haex_space_members` against `ownIdentities`). Populated by
+  // `loadMemberSpaceIdsAsync` and refreshed alongside `loadSpacesFromDbAsync`.
+  // Used by `visibleSpaces` to drop phantom space rows that arrive via CRDT
+  // sync when a peer's foreign-space row pulls cross-references along with
+  // it — those rows must never reach the UI because the local user has no
+  // membership claim on them.
+  const memberSpaceIds = ref<Set<string>>(new Set())
   const db = computed(() => currentVault.value?.drizzle)
   const rowToSpace = (row: SelectHaexSpaces): SpaceWithType => ({
     id: row.id,
@@ -96,11 +104,25 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     createdAt: row.createdAt ?? '',
     capabilities: [],
   })
-  const visibleSpaces = computed(() =>
-    spaces.value
-      .filter((s) => s.type !== SpaceType.VAULT)
-      .map(rowToSpace),
-  )
+  const visibleSpaces = computed(() => {
+    const identityStore = useIdentityStore()
+    const ownIdentityIds = new Set(identityStore.ownIdentities.map((i) => i.id))
+    return spaces.value
+      .filter((s) => {
+        if (s.type === SpaceType.VAULT) return false
+        // Pending invites: shown so the user can accept them, even though
+        // membership has not been recorded yet.
+        if (s.status === SpaceStatus.PENDING) return true
+        // Owner of the space — guard against `addSelfAsSpaceMember` failing
+        // (it is intentionally non-fatal at creation time) so creators
+        // always see their own space.
+        if (ownIdentityIds.has(s.ownerIdentityId)) return true
+        // Membership cross-check: must have a `haex_space_members` row for
+        // one of our own identities.
+        return memberSpaceIds.value.has(s.id)
+      })
+      .map(rowToSpace)
+  })
   const activeSpaces = computed(() =>
     visibleSpaces.value.filter((s) => s.status === SpaceStatus.ACTIVE),
   )
@@ -175,11 +197,32 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     spaces.value = spaces.value.filter((s) => s.id !== spaceId)
   }
 
+  const loadMemberSpaceIdsAsync = async () => {
+    const d = db.value
+    if (!d) {
+      memberSpaceIds.value = new Set()
+      return
+    }
+    const identityStore = useIdentityStore()
+    const ownIds = identityStore.ownIdentities.map((i) => i.id)
+    if (ownIds.length === 0) {
+      memberSpaceIds.value = new Set()
+      return
+    }
+    const rows = await d
+      .select({ spaceId: haexSpaceMembers.spaceId })
+      .from(haexSpaceMembers)
+      .where(inArray(haexSpaceMembers.identityId, ownIds))
+      .all()
+    memberSpaceIds.value = new Set(rows.map((r) => r.spaceId))
+  }
+
   const loadSpacesFromDbAsync = async () => {
     const d = db.value
     if (!d) return
 
     spaces.value = await d.select().from(haexSpaces)
+    await loadMemberSpaceIdsAsync()
 
     return spaces.value
   }
