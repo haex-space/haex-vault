@@ -636,7 +636,6 @@
 import { SettingsCategory } from '~/config/settingsCategories'
 import type { RemotePeer } from '~/composables/useFileBrowser'
 import { usePeerPing } from '~/composables/usePeerPing'
-import { haexSpaceMembers } from '~/database/schemas'
 import { requireDb } from '~/stores/vault'
 
 const props = defineProps<{
@@ -909,38 +908,16 @@ const overviewGroups = computed<OverviewGroup[]>(() => {
 
 const hasAnyEntries = computed(() => overviewGroups.value.length > 0)
 
-// Membership cross-check: a `haex_space_devices` row should only render
-// when the device's identity is actually a member of that space — otherwise
-// it is a stale/phantom row (often from CRDT sync of a foreign space row
-// pulling cross-references along with it). The Set is keyed by
-// `${spaceId}:${identityId}`.
-const spaceMemberships = ref<Set<string>>(new Set())
-const loadSpaceMembershipsAsync = async () => {
-  const db = requireDb()
-  const rows = await db
-    .select({
-      spaceId: haexSpaceMembers.spaceId,
-      identityId: haexSpaceMembers.identityId,
-    })
-    .from(haexSpaceMembers)
-    .all()
-  const next = new Set<string>()
-  for (const row of rows) {
-    next.add(`${row.spaceId}:${row.identityId}`)
-  }
-  spaceMemberships.value = next
-}
-
-const isDeviceLegitInSpace = (
-  spaceId: string,
-  identityId: string | null,
-): boolean => {
-  // Without an identity we cannot verify membership, so we drop the row.
-  // Local-device rows are filtered earlier by deviceEndpointId === nodeId
-  // and never reach this check.
-  if (!identityId) return false
-  return spaceMemberships.value.has(`${spaceId}:${identityId}`)
-}
+// Phantom-row guard: `peerStore.spaceDevices` mirrors every haex_space_devices
+// row in the local DB, including ones that arrived via CRDT sync of a space
+// the user never joined. The spaces store already filters those at the
+// `visibleSpaces` boundary (membership cross-check + owner fallback), so any
+// device whose spaceId is outside that set must not surface in the UI.
+const visibleSpaceIds = computed(
+  () => new Set(spacesStore.visibleSpaces.map((s) => s.id)),
+)
+const isDeviceInVisibleSpace = (spaceId: string): boolean =>
+  visibleSpaceIds.value.has(spaceId)
 
 function buildSpaceGroups(): OverviewGroup[] {
   // Bucket entries strictly by spaceId. Two spaces with the same name but
@@ -970,7 +947,7 @@ function buildSpaceGroups(): OverviewGroup[] {
 
   for (const device of peerStore.spaceDevices) {
     if (isOwnEndpoint(device.deviceEndpointId)) continue
-    if (!isDeviceLegitInSpace(device.spaceId, device.identityId)) continue
+    if (!isDeviceInVisibleSpace(device.spaceId)) continue
     let seen = seenDevicesPerSpace.get(device.spaceId)
     if (!seen) {
       seen = new Set()
@@ -1017,22 +994,17 @@ function buildSpaceGroups(): OverviewGroup[] {
     groups.push(groupForSpace(space.id, space.name, space.ownerIdentityId))
   }
 
-  // Orphan spaceIds — entries reference a space row that isn't in
-  // visibleSpaces (e.g. not yet synced or filtered by the spaces store).
-  for (const [spaceId, entries] of buckets) {
-    if (consumedSpaceIds.has(spaceId)) continue
-    consumedSpaceIds.add(spaceId)
-    if (entries.length === 0) continue
-    groups.push(groupForSpace(spaceId, getSpaceName(spaceId)))
-  }
+  // No orphan-spaceId fallback by design: if a bucket's spaceId is not in
+  // `visibleSpaces`, the user is not a member and we must not surface that
+  // space in the UI — the phantom row got dropped at the bucket-fill step.
 
   // Direct contact devices (claim-only, not in any space).
-  // Only count endpoints from devices that pass the membership cross-check —
-  // otherwise a phantom space row could shadow a legitimate direct contact
-  // claim that happens to share the same endpoint.
+  // `peerStore.spaceDevices` is pre-filtered to visible spaces above, so
+  // this Set already excludes phantom rows that could otherwise shadow a
+  // contact claim sharing the same endpoint.
   const knownEndpointIds = new Set(
     peerStore.spaceDevices
-      .filter((d) => isDeviceLegitInSpace(d.spaceId, d.identityId))
+      .filter((d) => isDeviceInVisibleSpace(d.spaceId))
       .map((d) => d.deviceEndpointId),
   )
   const directEntries: OverviewEntry[] = []
@@ -1084,7 +1056,7 @@ function buildContactGroups(): OverviewGroup[] {
     if (isOwnEndpoint(device.deviceEndpointId)) continue
     if (seenForMe.has(device.deviceEndpointId)) continue
     if (!device.identityId || !ownIdentityIds.has(device.identityId)) continue
-    if (!isDeviceLegitInSpace(device.spaceId, device.identityId)) continue
+    if (!isDeviceInVisibleSpace(device.spaceId)) continue
     seenForMe.add(device.deviceEndpointId)
     myEntries.push(
       buildPeerEntry({
@@ -1116,7 +1088,7 @@ function buildContactGroups(): OverviewGroup[] {
     for (const device of peerStore.spaceDevices) {
       if (isOwnEndpoint(device.deviceEndpointId)) continue
       if (device.identityId !== contact.id) continue
-      if (!isDeviceLegitInSpace(device.spaceId, device.identityId)) continue
+      if (!isDeviceInVisibleSpace(device.spaceId)) continue
       if (seen.has(device.deviceEndpointId)) continue
       seen.add(device.deviceEndpointId)
       entries.push(
@@ -1169,7 +1141,7 @@ function buildContactGroups(): OverviewGroup[] {
   for (const device of peerStore.spaceDevices) {
     if (isOwnEndpoint(device.deviceEndpointId)) continue
     if (attributedEndpoints.has(device.deviceEndpointId)) continue
-    if (!isDeviceLegitInSpace(device.spaceId, device.identityId)) continue
+    if (!isDeviceInVisibleSpace(device.spaceId)) continue
     if (seenUnattr.has(device.deviceEndpointId)) continue
     seenUnattr.add(device.deviceEndpointId)
     unattributed.push(
@@ -1238,13 +1210,17 @@ watch(
 )
 
 onMounted(async () => {
+  // Load identities first so `spacesStore.visibleSpaces` can resolve owner
+  // and membership filters against the user's own identities — without it,
+  // the membership cross-check inside the spaces store would run against an
+  // empty ownIdentities set and hide every legitimate space until the next
+  // reload.
+  await identityStore.loadIdentitiesAsync()
   await Promise.all([
     peerStore.refreshStatusAsync(),
     peerStore.loadSharesAsync(),
     peerStore.loadSpaceDevicesAsync(),
-    identityStore.loadIdentitiesAsync(),
     spacesStore.loadSpacesFromDbAsync(),
-    loadSpaceMembershipsAsync(),
   ])
   await loadContactClaimsAsync()
   await applyDeepLink(props.windowParams)
