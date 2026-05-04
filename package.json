@@ -66,7 +66,7 @@
     "md-editor-v3": "^6.4.1",
     "nuxt-zod-i18n": "^1.12.1",
     "otpauth": "^9.5.0",
-    "pdfjs-dist": "^5.5.207",
+    "pdfjs-dist": "^5.7.284",
     "photoswipe": "^5.4.4",
     "qrcode": "^1.5.4",
     "swiper": "^12.1.3",
