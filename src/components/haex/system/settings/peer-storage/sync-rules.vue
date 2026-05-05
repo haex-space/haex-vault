@@ -324,15 +324,24 @@ const expandedMap = reactive<Record<string, boolean>>({})
 // immediately (e.g. on app start when sync resumes automatically).
 // Keying on a stable string of sorted rule IDs means the watch only
 // fires when the *set* of syncing rules changes — not on every 100ms
-// progress emit — so a user-initiated collapse during sync is preserved.
+// progress emit. Auto-expanding only IDs that are *newly* in the set
+// (not present in `oldVal`) means a user-initiated collapse during an
+// ongoing sync stays collapsed even when *other* rules start or stop
+// syncing alongside it.
 const activeRuleKey = computed(() =>
   Array.from(syncStore.currentProgress.keys()).sort().join(','),
 )
 watch(
   activeRuleKey,
-  () => {
-    for (const id of syncStore.currentProgress.keys()) {
-      expandedMap[id] = true
+  (newVal, oldVal) => {
+    const previous = new Set(
+      (oldVal ?? '').split(',').filter(Boolean),
+    )
+    const current = newVal.split(',').filter(Boolean)
+    for (const id of current) {
+      if (!previous.has(id)) {
+        expandedMap[id] = true
+      }
     }
   },
   { immediate: true },
