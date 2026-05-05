@@ -37,6 +37,19 @@ impl serde::Serialize for SyncProviderError {
     }
 }
 
+/// Outcome of a streaming read into a local path.
+///
+/// `hash` is the SHA-256 the provider observed *while streaming the bytes
+/// to disk*. Streaming providers (peer/QUIC) compute it for free in the
+/// receive loop; non-streaming providers (in-memory, local copy) leave it
+/// `None` because the bytes never crossed an integrity boundary worth
+/// re-hashing.
+#[derive(Debug, Clone)]
+pub struct ReadFileResult {
+    pub bytes: u64,
+    pub hash: Option<String>,
+}
+
 /// A backend that can list, read, write, and delete files for sync purposes.
 #[async_trait]
 pub trait SyncProvider: Send + Sync {
@@ -63,19 +76,23 @@ pub trait SyncProvider: Send + Sync {
     /// Stream a file directly to `output_path`, reporting progress via callback.
     /// Default: reads into memory and writes to path (no zero-copy benefit).
     /// Override for providers that can stream without full-file buffering.
+    ///
+    /// The returned `ReadFileResult.hash` lets the engine verify integrity
+    /// against the sender-announced manifest hash. Override on providers that
+    /// can hash inline with the receive loop (e.g. peer/QUIC) for free.
     async fn read_file_to_path(
         &self,
         relative_path: &str,
         output_path: &std::path::Path,
         on_progress: Arc<dyn Fn(u64, u64) + Send + Sync>,
-    ) -> Result<u64, SyncProviderError> {
+    ) -> Result<ReadFileResult, SyncProviderError> {
         let data = self.read_file(relative_path).await?;
         let n = data.len() as u64;
         tokio::fs::write(output_path, &data)
             .await
             .map_err(SyncProviderError::Io)?;
         on_progress(n, n);
-        Ok(n)
+        Ok(ReadFileResult { bytes: n, hash: None })
     }
 
     /// Write a file from a local path. Default: reads into memory then calls write_file.
@@ -112,6 +129,13 @@ pub trait SyncProvider: Send + Sync {
     fn supports_trash(&self) -> bool {
         false
     }
+
+    /// Hook fired after a successful `write_file_from_path`. Implementations
+    /// that own a local filesystem (e.g. `LocalProvider`) can use the sender's
+    /// announced SHA-256 to prime their hash cache so the next manifest scan
+    /// does not re-hash the freshly-written file. Default is a no-op for
+    /// providers without local storage (peer, cloud).
+    async fn prime_hash_after_write(&self, _relative_path: &str, _hash: &str) {}
 }
 
 /// Validate a relative path against path traversal attacks.

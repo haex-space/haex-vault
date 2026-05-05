@@ -500,7 +500,8 @@
         "fileSize": "file_size",
         "modifiedAt": "modified_at",
         "syncedAt": "synced_at",
-        "deleted": "deleted"
+        "deleted": "deleted",
+        "hash": "hash"
       }
     },
     "passwords_item_details": {

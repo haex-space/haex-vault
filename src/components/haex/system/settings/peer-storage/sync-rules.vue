@@ -60,6 +60,16 @@
                   <UIcon name="i-lucide-trash-2" class="w-3 h-3" />
                   {{ formatDeleteMode(rule.deleteMode) }}
                 </UBadge>
+                <UBadge
+                  v-if="connectionBadge(rule)"
+                  :color="connectionBadge(rule)!.color"
+                  variant="subtle"
+                  size="sm"
+                  :title="connectionBadge(rule)!.title"
+                >
+                  <UIcon :name="connectionBadge(rule)!.icon" class="w-3 h-3" />
+                  {{ connectionBadge(rule)!.label }}
+                </UBadge>
                 <UIcon
                   name="i-lucide-chevron-down"
                   class="w-4 h-4 text-muted ml-auto shrink-0 transition-transform duration-200"
@@ -306,6 +316,7 @@
 </template>
 
 <script setup lang="ts">
+import { invoke } from '@tauri-apps/api/core'
 import type { SelectHaexSyncRules } from '~/database/schemas'
 
 defineEmits<{ back: [] }>()
@@ -427,6 +438,119 @@ onMounted(async () => {
   await syncStore.refreshStatusAsync()
   await peerStorageStore.loadSpaceDevicesAsync()
 })
+
+// ---------------------------------------------------------------------------
+// Connection-type diagnostics (direct vs relay) for peer rules.
+//
+// The Tauri command returns Some(diagnostics) only when there is a *live*
+// cached connection — so until a sync has actually run, peer rules will
+// show "unknown" rather than direct/relay. We poll periodically; the
+// per-sync emit also triggers a refresh so the badge updates as soon as
+// a transfer establishes a connection.
+// ---------------------------------------------------------------------------
+
+type PathType = 'direct' | 'relay' | 'unknown' | 'closed'
+interface ConnectionDiagnostics {
+  pathType: PathType
+  remoteAddr: string | null
+  rttMs: number | null
+}
+
+const connectionMap = ref<Record<string, ConnectionDiagnostics | null>>({})
+const peerEndpointId = (rule: SelectHaexSyncRules): string | null => {
+  for (const side of ['sourceConfig', 'targetConfig'] as const) {
+    const type = side === 'sourceConfig' ? rule.sourceType : rule.targetType
+    if (type !== 'peer') continue
+    const cfg = rule[side] as Record<string, unknown> | null
+    const id = cfg?.endpointId as string | undefined
+    if (id) return id
+  }
+  return null
+}
+
+const refreshConnectionDiagnostics = async () => {
+  for (const rule of syncStore.syncRules) {
+    const nodeId = peerEndpointId(rule)
+    if (!nodeId) continue
+    try {
+      const diag = await invoke<ConnectionDiagnostics | null>(
+        'peer_storage_diagnose_connection',
+        { nodeId },
+      )
+      connectionMap.value = { ...connectionMap.value, [rule.id]: diag }
+    } catch {
+      // Endpoint not running or peer not yet contacted — silent.
+    }
+  }
+}
+
+let diagInterval: ReturnType<typeof setInterval> | null = null
+onMounted(() => {
+  refreshConnectionDiagnostics()
+  diagInterval = setInterval(refreshConnectionDiagnostics, 10_000)
+})
+onBeforeUnmount(() => {
+  if (diagInterval) clearInterval(diagInterval)
+})
+
+// A sync emit means a fresh connection just opened — refresh once so the
+// badge flips from "unknown" to direct/relay without waiting 10s.
+watch(
+  () => syncStore.currentProgress.size,
+  () => {
+    refreshConnectionDiagnostics()
+  },
+)
+
+const connectionBadge = (rule: SelectHaexSyncRules) => {
+  if (!peerEndpointId(rule)) return null
+  const diag = connectionMap.value[rule.id]
+  if (!diag) {
+    return {
+      color: 'neutral' as const,
+      icon: 'i-lucide-circle-help',
+      label: t('connection.unknown'),
+      title: t('connection.unknownTitle'),
+    }
+  }
+  switch (diag.pathType) {
+    case 'direct':
+      return {
+        color: 'success' as const,
+        icon: 'i-lucide-zap',
+        label: t('connection.direct'),
+        title: rttTitle(t('connection.directTitle'), diag),
+      }
+    case 'relay':
+      return {
+        color: 'warning' as const,
+        icon: 'i-lucide-route',
+        label: t('connection.relay'),
+        title: rttTitle(t('connection.relayTitle'), diag),
+      }
+    case 'closed':
+      return {
+        color: 'neutral' as const,
+        icon: 'i-lucide-circle-slash',
+        label: t('connection.closed'),
+        title: t('connection.closedTitle'),
+      }
+    default:
+      return {
+        color: 'neutral' as const,
+        icon: 'i-lucide-circle-help',
+        label: t('connection.unknown'),
+        title: t('connection.unknownTitle'),
+      }
+  }
+}
+
+const rttTitle = (base: string, diag: ConnectionDiagnostics): string => {
+  const parts = [base]
+  if (diag.rttMs != null) parts.push(`RTT ${diag.rttMs.toFixed(1)} ms`)
+  if (diag.remoteAddr) parts.push(diag.remoteAddr)
+  return parts.join(' · ')
+}
 
 const formatBytes = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`
@@ -608,6 +732,15 @@ de:
     deleted: gelöscht
     upToDate: Alles aktuell
     moreErrors: weitere Fehler
+  connection:
+    direct: Direkt
+    directTitle: Direkte LAN/WAN-Verbindung — voller Durchsatz
+    relay: Relay
+    relayTitle: Verbindung läuft über den Relay-Server — meist ~1 MB/s pro Stream
+    unknown: Verbindung?
+    unknownTitle: Noch keine aktive Verbindung — Diagnose nach erstem Sync verfügbar
+    closed: Getrennt
+    closedTitle: Verbindung wurde geschlossen
   toast:
     syncComplete: Sync abgeschlossen
     filesDownloaded: Dateien synchronisiert
@@ -649,6 +782,15 @@ en:
     deleted: deleted
     upToDate: Everything up to date
     moreErrors: more errors
+  connection:
+    direct: Direct
+    directTitle: Direct LAN/WAN connection — full throughput
+    relay: Relay
+    relayTitle: Connection runs through the relay server — typically caps at ~1 MB/s per stream
+    unknown: Connection?
+    unknownTitle: No active connection yet — diagnostics available after the first sync
+    closed: Closed
+    closedTitle: Connection has been closed
   toast:
     syncComplete: Sync complete
     filesDownloaded: files synced
