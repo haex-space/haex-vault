@@ -34,75 +34,84 @@
         <UCollapsible v-model:open="expandedMap[rule.id]">
           <!-- Always-visible: badges + source/target -->
           <div>
-            <!-- Header: badges + expand toggle -->
+            <!-- Toggle area: clicking header or body opens/closes the
+                 accordion. Action buttons sit outside this area so they
+                 don't trigger expand/collapse. -->
             <div
-              class="flex items-center gap-2 mb-3 cursor-pointer"
+              class="cursor-pointer"
               @click="expandedMap[rule.id] = !expandedMap[rule.id]"
             >
-              <UBadge
-                :color="syncStore.isRuleRunning(rule.id) ? 'success' : 'neutral'"
-                variant="subtle"
-                size="sm"
-              >
-                {{ syncStore.isRuleRunning(rule.id) ? t('status.running') : t('status.stopped') }}
-              </UBadge>
-              <UBadge variant="subtle" color="neutral" size="sm">
-                {{ rule.direction === 'two_way' ? t('direction.twoWay') : t('direction.oneWay') }}
-              </UBadge>
-              <UBadge variant="subtle" color="neutral" size="sm">
-                <UIcon name="i-lucide-clock" class="w-3 h-3" />
-                {{ formatInterval(rule.syncIntervalSeconds) }}
-              </UBadge>
-              <UBadge variant="subtle" color="neutral" size="sm">
-                <UIcon name="i-lucide-trash-2" class="w-3 h-3" />
-                {{ formatDeleteMode(rule.deleteMode) }}
-              </UBadge>
-              <UIcon
-                name="i-lucide-chevron-down"
-                class="w-4 h-4 text-muted ml-auto shrink-0 transition-transform duration-200"
-                :class="{ 'rotate-180': expandedMap[rule.id] }"
-              />
-            </div>
-
-            <!-- Body: source → target -->
-            <div class="flex items-center gap-3">
-              <!-- Source -->
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 mb-1">
-                  <UIcon :name="providerIcon(rule.sourceType)" class="w-4 h-4 text-muted shrink-0" />
-                  <span class="text-xs text-muted">{{ t('label.source') }}</span>
-                </div>
-                <p class="text-sm font-medium truncate">
-                  {{ formatProviderLabel(rule.sourceType, rule.sourceConfig) }}
-                </p>
-                <p v-if="resolveDeviceName(rule.sourceType, rule.sourceConfig)" class="text-xs text-muted truncate">
-                  {{ resolveDeviceName(rule.sourceType, rule.sourceConfig) }}
-                </p>
+              <!-- Header: badges + expand toggle -->
+              <div class="flex items-center gap-2 mb-3">
+                <UBadge
+                  :color="syncStore.isRuleRunning(rule.id) ? 'success' : 'neutral'"
+                  variant="subtle"
+                  size="sm"
+                >
+                  {{ syncStore.isRuleRunning(rule.id) ? t('status.running') : t('status.stopped') }}
+                </UBadge>
+                <UBadge variant="subtle" color="neutral" size="sm">
+                  {{ rule.direction === 'two_way' ? t('direction.twoWay') : t('direction.oneWay') }}
+                </UBadge>
+                <UBadge variant="subtle" color="neutral" size="sm">
+                  <UIcon name="i-lucide-clock" class="w-3 h-3" />
+                  {{ formatInterval(rule.syncIntervalSeconds) }}
+                </UBadge>
+                <UBadge variant="subtle" color="neutral" size="sm">
+                  <UIcon name="i-lucide-trash-2" class="w-3 h-3" />
+                  {{ formatDeleteMode(rule.deleteMode) }}
+                </UBadge>
+                <UIcon
+                  name="i-lucide-chevron-down"
+                  class="w-4 h-4 text-muted ml-auto shrink-0 transition-transform duration-200"
+                  :class="{ 'rotate-180': expandedMap[rule.id] }"
+                />
               </div>
 
-              <!-- Arrow -->
-              <UIcon
-                :name="rule.direction === 'two_way' ? 'i-lucide-arrow-left-right' : 'i-lucide-arrow-right'"
-                class="w-5 h-5 text-primary shrink-0"
-              />
-
-              <!-- Target -->
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 mb-1">
-                  <UIcon :name="providerIcon(rule.targetType)" class="w-4 h-4 text-muted shrink-0" />
-                  <span class="text-xs text-muted">{{ t('label.target') }}</span>
+              <!-- Body: source → target -->
+              <div class="flex items-center gap-3">
+                <!-- Source -->
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 mb-1">
+                    <UIcon :name="providerIcon(rule.sourceType)" class="w-4 h-4 text-muted shrink-0" />
+                    <span class="text-xs text-muted">{{ t('label.source') }}</span>
+                  </div>
+                  <p class="text-sm font-medium truncate">
+                    {{ formatProviderLabel(rule.sourceType, rule.sourceConfig) }}
+                  </p>
+                  <p v-if="resolveDeviceName(rule.sourceType, rule.sourceConfig)" class="text-xs text-muted truncate">
+                    {{ resolveDeviceName(rule.sourceType, rule.sourceConfig) }}
+                  </p>
                 </div>
-                <p class="text-sm font-medium truncate">
-                  {{ formatProviderLabel(rule.targetType, rule.targetConfig) }}
-                </p>
-                <p v-if="resolveDeviceName(rule.targetType, rule.targetConfig)" class="text-xs text-muted truncate">
-                  {{ resolveDeviceName(rule.targetType, rule.targetConfig) }}
-                </p>
+
+                <!-- Arrow -->
+                <UIcon
+                  :name="rule.direction === 'two_way' ? 'i-lucide-arrow-left-right' : 'i-lucide-arrow-right'"
+                  class="w-5 h-5 text-primary shrink-0"
+                />
+
+                <!-- Target -->
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 mb-1">
+                    <UIcon :name="providerIcon(rule.targetType)" class="w-4 h-4 text-muted shrink-0" />
+                    <span class="text-xs text-muted">{{ t('label.target') }}</span>
+                  </div>
+                  <p class="text-sm font-medium truncate">
+                    {{ formatProviderLabel(rule.targetType, rule.targetConfig) }}
+                  </p>
+                  <p v-if="resolveDeviceName(rule.targetType, rule.targetConfig)" class="text-xs text-muted truncate">
+                    {{ resolveDeviceName(rule.targetType, rule.targetConfig) }}
+                  </p>
+                </div>
               </div>
             </div>
 
-            <!-- Footer: actions -->
-            <div class="flex items-center justify-end gap-1 mt-3 pt-3 border-t border-default">
+            <!-- Footer: actions (outside toggle area; clicks here must not
+                 expand/collapse the card) -->
+            <div
+              class="flex items-center justify-end gap-1 mt-3 pt-3 border-t border-default"
+              @click.stop
+            >
               <UiButton
                 icon="i-lucide-refresh-cw"
                 variant="ghost"
