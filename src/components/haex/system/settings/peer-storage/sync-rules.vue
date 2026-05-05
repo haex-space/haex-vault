@@ -34,13 +34,12 @@
         <UCollapsible v-model:open="expandedMap[rule.id]">
           <!-- Always-visible: badges + source/target -->
           <div>
-            <!-- Toggle area: clicking header or body opens/closes the
-                 accordion. Action buttons sit outside this area so they
-                 don't trigger expand/collapse. -->
-            <div
-              class="cursor-pointer"
-              @click="expandedMap[rule.id] = !expandedMap[rule.id]"
-            >
+            <!-- Toggle area: clicks on header or body bubble to the
+                 outer wrapper, which Nuxt UI binds as the CollapsibleTrigger
+                 (default slot is wrapped in `<CollapsibleTrigger as-child>`),
+                 so the accordion toggles automatically. The action footer
+                 below stops propagation so its buttons don't toggle. -->
+            <div class="cursor-pointer">
               <!-- Header: badges + expand toggle -->
               <div class="flex items-center gap-2 mb-3">
                 <UBadge
