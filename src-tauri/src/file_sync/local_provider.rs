@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use super::provider::{validate_relative_path, SyncProvider, SyncProviderError};
+use super::provider::{validate_relative_path, ReadFileResult, SyncProvider, SyncProviderError};
 use super::types::FileState;
 
 #[derive(Debug)]
@@ -194,7 +194,7 @@ impl SyncProvider for LocalProvider {
         relative_path: &str,
         output_path: &std::path::Path,
         on_progress: Arc<dyn Fn(u64, u64) + Send + Sync>,
-    ) -> Result<u64, SyncProviderError> {
+    ) -> Result<ReadFileResult, SyncProviderError> {
         let src = self.resolve_path(relative_path)?;
         if !src.exists() {
             return Err(SyncProviderError::NotFound { path: relative_path.to_string() });
@@ -203,7 +203,8 @@ impl SyncProvider for LocalProvider {
         // truth, so we do not race a separate metadata() against it.
         let copied = tokio::fs::copy(&src, output_path).await.map_err(SyncProviderError::Io)?;
         on_progress(copied, copied);
-        Ok(copied)
+        // Same-machine copy — no integrity boundary worth re-hashing.
+        Ok(ReadFileResult { bytes: copied, hash: None })
     }
 
     async fn write_file_from_path(
@@ -217,6 +218,23 @@ impl SyncProvider for LocalProvider {
         }
         tokio::fs::copy(source_path, &dst).await.map_err(SyncProviderError::Io)?;
         Ok(())
+    }
+
+    async fn prime_hash_after_write(&self, relative_path: &str, hash: &str) {
+        // Stat the freshly-written file and seed the in-memory hash cache so
+        // the next manifest scan returns this hash without re-reading the
+        // file. The sender already proved this is the SHA-256 of the bytes
+        // we just wrote (the bytes came from them), so trusting it is safe.
+        let Ok(dst) = self.resolve_path(relative_path) else { return };
+        let Ok(meta) = tokio::fs::metadata(&dst).await else { return };
+        let Some(size) = (!meta.is_dir()).then_some(meta.len()) else { return };
+        let Some(mtime_nanos) = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_nanos())
+        else { return };
+        super::hashing::prime_cache(&dst, size, mtime_nanos, hash.to_string());
     }
 
     async fn write_file(&self, relative_path: &str, data: &[u8]) -> Result<(), SyncProviderError> {

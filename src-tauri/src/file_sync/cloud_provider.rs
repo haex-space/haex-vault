@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use crate::remote_storage::backend::StorageBackend;
 use crate::remote_storage::error::StorageError;
 
-use super::provider::{validate_relative_path, SyncProvider, SyncProviderError};
+use super::provider::{validate_relative_path, ReadFileResult, SyncProvider, SyncProviderError};
 use super::types::FileState;
 
 /// Parse an ISO 8601 / RFC 3339 timestamp to a Unix timestamp in seconds.
@@ -106,13 +106,16 @@ impl SyncProvider for CloudProvider {
         relative_path: &str,
         output_path: &std::path::Path,
         on_progress: Arc<dyn Fn(u64, u64) + Send + Sync>,
-    ) -> Result<u64, SyncProviderError> {
+    ) -> Result<ReadFileResult, SyncProviderError> {
         validate_relative_path(relative_path)?;
         let key = self.full_key(relative_path);
-        Ok(self
+        let bytes = self
             .backend
             .download_to_path(&key, output_path, Some(on_progress))
-            .await?)
+            .await?;
+        // Cloud backend integrity is the backend's responsibility
+        // (S3 ETag, presigned URL TLS, etc.) — no inline rehash here.
+        Ok(ReadFileResult { bytes, hash: None })
     }
 
     async fn write_file(&self, relative_path: &str, data: &[u8]) -> Result<(), SyncProviderError> {

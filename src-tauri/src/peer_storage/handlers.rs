@@ -427,13 +427,21 @@ async fn handle_read(
     stream_file_to_send(send, &local_path, range).await
 }
 
-/// Stream a local file to the QUIC send stream in 256KB chunks.
+/// Stream a local file to the QUIC send stream.
+///
+/// The disk-read and network-write halves run on separate tokio tasks
+/// connected by a bounded channel. The previous serial loop alternated
+/// `file.read().await` and `send.write_all().await`, which made each chunk
+/// pay both syscalls back-to-back — fine on slow links, but on a fast LAN
+/// it pegged per-stream throughput to roughly `chunk_size / (disk_latency +
+/// net_latency)`. Pipelining lets the disk read the next chunk while QUIC
+/// is still draining the previous one.
 async fn stream_file_to_send(
     send: &mut iroh::endpoint::SendStream,
     local_path: &Path,
     range: Option<[u64; 2]>,
 ) -> Result<(), PeerStorageError> {
-    use tokio::io::AsyncReadExt;
+    use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
     let mut file = tokio::fs::File::open(local_path)
         .await
@@ -463,34 +471,55 @@ async fn stream_file_to_send(
         })?;
 
     if offset > 0 {
-        use tokio::io::AsyncSeekExt;
         file.seek(std::io::SeekFrom::Start(offset))
             .await
             .map_err(PeerStorageError::Io)?;
     }
 
-    // Stream file data in chunks (256 KB).
-    // Larger chunks reduce per-chunk syscall + QUIC frame overhead, which
-    // matters on fast LAN links where 64 KB throughput-caps were observed.
-    let mut remaining = read_size;
-    let mut buf = vec![0u8; 256 * 1024];
+    // Pipeline: disk reader task → bounded channel → network writer.
+    // `CHANNEL_DEPTH` chunks worth of buffering is enough to absorb most
+    // disk/net jitter without ballooning per-stream RAM (CHUNK × DEPTH).
+    const CHUNK: usize = 1024 * 1024;
+    const CHANNEL_DEPTH: usize = 8;
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<Result<Vec<u8>, std::io::Error>>(CHANNEL_DEPTH);
 
-    while remaining > 0 {
-        let to_read = (remaining as usize).min(buf.len());
-        let n = file
-            .read(&mut buf[..to_read])
-            .await
-            .map_err(PeerStorageError::Io)?;
-        if n == 0 {
-            break;
+    let read_task = tokio::spawn(async move {
+        let mut remaining = read_size;
+        while remaining > 0 {
+            let to_read = (remaining as usize).min(CHUNK);
+            let mut buf = vec![0u8; to_read];
+            match file.read(&mut buf).await {
+                Ok(0) => break,
+                Ok(n) => {
+                    buf.truncate(n);
+                    if tx.send(Ok(buf)).await.is_err() {
+                        return;
+                    }
+                    remaining -= n as u64;
+                }
+                Err(e) => {
+                    let _ = tx.send(Err(e)).await;
+                    return;
+                }
+            }
         }
-        send.write_all(&buf[..n])
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
-        remaining -= n as u64;
+    });
+
+    while let Some(item) = rx.recv().await {
+        match item {
+            Ok(chunk) => {
+                send.write_all(&chunk).await.map_err(|e| {
+                    PeerStorageError::ConnectionFailed { reason: e.to_string() }
+                })?;
+            }
+            Err(e) => {
+                // Surface the disk error and tear down the stream.
+                let _ = read_task.await;
+                return Err(PeerStorageError::Io(e));
+            }
+        }
     }
+    let _ = read_task.await;
 
     send.finish()
         .map_err(|e| PeerStorageError::ConnectionFailed {

@@ -334,6 +334,7 @@ export const haexSyncState = sqliteTable(
     modifiedAt: integer(tableNames.haex.sync_state.columns.modifiedAt).notNull(),
     syncedAt: text(tableNames.haex.sync_state.columns.syncedAt).notNull(),
     deleted: integer(tableNames.haex.sync_state.columns.deleted, { mode: 'boolean' }).notNull().default(false),
+    hash: text(tableNames.haex.sync_state.columns.hash),
   },
   (table) => [
     uniqueIndex('haex_sync_state_rule_path_unique').on(table.ruleId, table.relativePath),

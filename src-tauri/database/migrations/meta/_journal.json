@@ -43,6 +43,13 @@
       "when": 1776581322336,
       "tag": "0005_talented_blue_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1777000000000,
+      "tag": "0006_sync_state_hash",
+      "breakpoints": true
     }
   ]
 }
