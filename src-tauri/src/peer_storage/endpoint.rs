@@ -350,8 +350,19 @@ impl PeerEndpoint {
         }
 
         if let Some(endpoint) = self.endpoint.take() {
-            endpoint.close().await;
-            eprintln!("[PeerStorage] Endpoint stopped");
+            // iroh's graceful close waits for peers to ACK QUIC CLOSE frames.
+            // With default RTT estimates this can block up to ~30s when a peer
+            // is unreachable (network switch, peer offline) — long enough for
+            // the user-facing logout/lock to feel hung. Bound it: healthy
+            // peers complete in well under a second, dead ones fall through.
+            let close_timeout = std::time::Duration::from_secs(2);
+            match tokio::time::timeout(close_timeout, endpoint.close()).await {
+                Ok(()) => eprintln!("[PeerStorage] Endpoint stopped"),
+                Err(_) => eprintln!(
+                    "[PeerStorage] Endpoint close exceeded {}s, peer ACKs abandoned",
+                    close_timeout.as_secs()
+                ),
+            }
         }
 
         Ok(())
