@@ -34,75 +34,93 @@
         <UCollapsible v-model:open="expandedMap[rule.id]">
           <!-- Always-visible: badges + source/target -->
           <div>
-            <!-- Header: badges + expand toggle -->
+            <!-- Toggle area: clicks on header or body bubble to the
+                 outer wrapper, which Nuxt UI binds as the CollapsibleTrigger
+                 (default slot is wrapped in `<CollapsibleTrigger as-child>`),
+                 so the accordion toggles automatically. The action footer
+                 below stops propagation so its buttons don't toggle. -->
+            <div class="cursor-pointer">
+              <!-- Header: badges + expand toggle -->
+              <div class="flex items-center gap-2 mb-3">
+                <UBadge
+                  :color="syncStore.isRuleRunning(rule.id) ? 'success' : 'neutral'"
+                  variant="subtle"
+                  size="sm"
+                >
+                  {{ syncStore.isRuleRunning(rule.id) ? t('status.running') : t('status.stopped') }}
+                </UBadge>
+                <UBadge variant="subtle" color="neutral" size="sm">
+                  {{ rule.direction === 'two_way' ? t('direction.twoWay') : t('direction.oneWay') }}
+                </UBadge>
+                <UBadge variant="subtle" color="neutral" size="sm">
+                  <UIcon name="i-lucide-clock" class="w-3 h-3" />
+                  {{ formatInterval(rule.syncIntervalSeconds) }}
+                </UBadge>
+                <UBadge variant="subtle" color="neutral" size="sm">
+                  <UIcon name="i-lucide-trash-2" class="w-3 h-3" />
+                  {{ formatDeleteMode(rule.deleteMode) }}
+                </UBadge>
+                <UBadge
+                  v-if="connectionBadge(rule)"
+                  :color="connectionBadge(rule)!.color"
+                  variant="subtle"
+                  size="sm"
+                  :title="connectionBadge(rule)!.title"
+                >
+                  <UIcon :name="connectionBadge(rule)!.icon" class="w-3 h-3" />
+                  {{ connectionBadge(rule)!.label }}
+                </UBadge>
+                <UIcon
+                  name="i-lucide-chevron-down"
+                  class="w-4 h-4 text-muted ml-auto shrink-0 transition-transform duration-200"
+                  :class="{ 'rotate-180': expandedMap[rule.id] }"
+                />
+              </div>
+
+              <!-- Body: source → target -->
+              <div class="flex items-center gap-3">
+                <!-- Source -->
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 mb-1">
+                    <UIcon :name="providerIcon(rule.sourceType)" class="w-4 h-4 text-muted shrink-0" />
+                    <span class="text-xs text-muted">{{ t('label.source') }}</span>
+                  </div>
+                  <p class="text-sm font-medium truncate">
+                    {{ formatProviderLabel(rule.sourceType, rule.sourceConfig) }}
+                  </p>
+                  <p v-if="resolveDeviceName(rule.sourceType, rule.sourceConfig)" class="text-xs text-muted truncate">
+                    {{ resolveDeviceName(rule.sourceType, rule.sourceConfig) }}
+                  </p>
+                </div>
+
+                <!-- Arrow -->
+                <UIcon
+                  :name="rule.direction === 'two_way' ? 'i-lucide-arrow-left-right' : 'i-lucide-arrow-right'"
+                  class="w-5 h-5 text-primary shrink-0"
+                />
+
+                <!-- Target -->
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 mb-1">
+                    <UIcon :name="providerIcon(rule.targetType)" class="w-4 h-4 text-muted shrink-0" />
+                    <span class="text-xs text-muted">{{ t('label.target') }}</span>
+                  </div>
+                  <p class="text-sm font-medium truncate">
+                    {{ formatProviderLabel(rule.targetType, rule.targetConfig) }}
+                  </p>
+                  <p v-if="resolveDeviceName(rule.targetType, rule.targetConfig)" class="text-xs text-muted truncate">
+                    {{ resolveDeviceName(rule.targetType, rule.targetConfig) }}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Footer: actions (outside toggle area; clicks here must not
+                 expand/collapse the card) -->
             <div
-              class="flex items-center gap-2 mb-3 cursor-pointer"
-              @click="expandedMap[rule.id] = !expandedMap[rule.id]"
+              class="flex items-center justify-end gap-1 mt-3 pt-3 border-t border-default"
+              @click.stop
             >
-              <UBadge
-                :color="syncStore.isRuleRunning(rule.id) ? 'success' : 'neutral'"
-                variant="subtle"
-                size="sm"
-              >
-                {{ syncStore.isRuleRunning(rule.id) ? t('status.running') : t('status.stopped') }}
-              </UBadge>
-              <UBadge variant="subtle" color="neutral" size="sm">
-                {{ rule.direction === 'two_way' ? t('direction.twoWay') : t('direction.oneWay') }}
-              </UBadge>
-              <UBadge variant="subtle" color="neutral" size="sm">
-                <UIcon name="i-lucide-clock" class="w-3 h-3" />
-                {{ formatInterval(rule.syncIntervalSeconds) }}
-              </UBadge>
-              <UBadge variant="subtle" color="neutral" size="sm">
-                <UIcon name="i-lucide-trash-2" class="w-3 h-3" />
-                {{ formatDeleteMode(rule.deleteMode) }}
-              </UBadge>
-              <UIcon
-                name="i-lucide-chevron-down"
-                class="w-4 h-4 text-muted ml-auto shrink-0 transition-transform duration-200"
-                :class="{ 'rotate-180': expandedMap[rule.id] }"
-              />
-            </div>
-
-            <!-- Body: source → target -->
-            <div class="flex items-center gap-3">
-              <!-- Source -->
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 mb-1">
-                  <UIcon :name="providerIcon(rule.sourceType)" class="w-4 h-4 text-muted shrink-0" />
-                  <span class="text-xs text-muted">{{ t('label.source') }}</span>
-                </div>
-                <p class="text-sm font-medium truncate">
-                  {{ formatProviderLabel(rule.sourceType, rule.sourceConfig) }}
-                </p>
-                <p v-if="resolveDeviceName(rule.sourceType, rule.sourceConfig)" class="text-xs text-muted truncate">
-                  {{ resolveDeviceName(rule.sourceType, rule.sourceConfig) }}
-                </p>
-              </div>
-
-              <!-- Arrow -->
-              <UIcon
-                :name="rule.direction === 'two_way' ? 'i-lucide-arrow-left-right' : 'i-lucide-arrow-right'"
-                class="w-5 h-5 text-primary shrink-0"
-              />
-
-              <!-- Target -->
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 mb-1">
-                  <UIcon :name="providerIcon(rule.targetType)" class="w-4 h-4 text-muted shrink-0" />
-                  <span class="text-xs text-muted">{{ t('label.target') }}</span>
-                </div>
-                <p class="text-sm font-medium truncate">
-                  {{ formatProviderLabel(rule.targetType, rule.targetConfig) }}
-                </p>
-                <p v-if="resolveDeviceName(rule.targetType, rule.targetConfig)" class="text-xs text-muted truncate">
-                  {{ resolveDeviceName(rule.targetType, rule.targetConfig) }}
-                </p>
-              </div>
-            </div>
-
-            <!-- Footer: actions -->
-            <div class="flex items-center justify-end gap-1 mt-3 pt-3 border-t border-default">
               <UiButton
                 icon="i-lucide-refresh-cw"
                 variant="ghost"
@@ -132,8 +150,15 @@
           <!-- Collapsible: progress + last result -->
           <template #content>
             <div class="mt-3 pt-3 border-t border-default">
-              <!-- Active sync progress -->
-              <div v-if="syncStore.getRuleProgress(rule.id)" class="space-y-2">
+              <!-- Active sync progress.
+                   :key changes when a cycle restart is detected (filesDone
+                   regresses), forcing remount so the bar doesn't animate
+                   backwards from the old high to the new low. -->
+              <div
+                v-if="syncStore.getRuleProgress(rule.id)"
+                :key="`progress-${rule.id}-${cycleKey[rule.id] ?? 0}`"
+                class="space-y-2"
+              >
                 <!-- Stats row: active + done counts + speed -->
                 <div class="flex items-center justify-between text-xs">
                   <span class="text-muted">
@@ -187,17 +212,20 @@
                   </span>
                 </div>
                 <!-- Active files list with per-file progress.
-                     TransitionGroup smooths enter/leave when files cycle in
-                     parallel (without it, batches of 4 completing at once
-                     looked like the list was jumping). -->
-                <TransitionGroup
-                  v-if="syncStore.getRuleProgress(rule.id)!.activeFiles?.length"
-                  tag="div"
-                  name="active-file"
-                  class="mt-1 space-y-1.5 relative"
+                     Plain list (no TransitionGroup): the previous fade
+                     transition with `position: absolute` on leave caused
+                     leaving rows to overlay entering rows during parallel
+                     batch turnover, which read as flicker. Per-bar width
+                     transitions still smooth byte progress animation.
+                     Files are iterated in stable slot order, so a finishing
+                     file does not push the remaining ones up — the next
+                     new file takes the freed slot in place. -->
+                <div
+                  v-if="stableActiveFiles(rule.id).length"
+                  class="mt-1 space-y-1.5"
                 >
                   <div
-                    v-for="fp in syncStore.getRuleProgress(rule.id)!.activeFiles.slice(0, 4)"
+                    v-for="fp in stableActiveFiles(rule.id)"
                     :key="fp.path"
                     class="space-y-0.5"
                   >
@@ -227,13 +255,12 @@
                     </div>
                   </div>
                   <div
-                    v-if="(syncStore.getRuleProgress(rule.id)!.activeFiles?.length ?? 0) > 4"
-                    key="more-files-indicator"
+                    v-if="(syncStore.getRuleProgress(rule.id)!.activeFiles?.length ?? 0) > stableActiveFiles(rule.id).length"
                     class="text-xs text-muted"
                   >
-                    +{{ syncStore.getRuleProgress(rule.id)!.activeFiles!.length - 4 }} {{ t('progress.moreFiles') }}
+                    +{{ (syncStore.getRuleProgress(rule.id)!.activeFiles?.length ?? 0) - stableActiveFiles(rule.id).length }} {{ t('progress.moreFiles') }}
                   </div>
-                </TransitionGroup>
+                </div>
               </div>
 
               <!-- Last sync result -->
@@ -289,6 +316,7 @@
 </template>
 
 <script setup lang="ts">
+import { invoke } from '@tauri-apps/api/core'
 import type { SelectHaexSyncRules } from '~/database/schemas'
 
 defineEmits<{ back: [] }>()
@@ -303,11 +331,226 @@ const editingRule = ref<SelectHaexSyncRules | null>(null)
 const isSyncing = ref<string | null>(null)
 const expandedMap = reactive<Record<string, boolean>>({})
 
+// Auto-expand any rule that is actively syncing so users see progress
+// immediately (e.g. on app start when sync resumes automatically).
+// Keying on a stable string of sorted rule IDs means the watch only
+// fires when the *set* of syncing rules changes — not on every 100ms
+// progress emit. Auto-expanding only IDs that are *newly* in the set
+// (not present in `oldVal`) means a user-initiated collapse during an
+// ongoing sync stays collapsed even when *other* rules start or stop
+// syncing alongside it.
+const activeRuleKey = computed(() =>
+  Array.from(syncStore.currentProgress.keys()).sort().join(','),
+)
+watch(
+  activeRuleKey,
+  (newVal, oldVal) => {
+    const previous = new Set(
+      (oldVal ?? '').split(',').filter(Boolean),
+    )
+    const current = newVal.split(',').filter(Boolean)
+    for (const id of current) {
+      if (!previous.has(id)) {
+        expandedMap[id] = true
+      }
+    }
+  },
+  { immediate: true },
+)
+
+// Stable slot mapping for active files. The backend re-orders the active
+// list as parallel transfers start/complete (a finished file is removed,
+// remaining files visually shift up). Pinning each path to a slot index
+// keeps each row anchored: a finishing file frees its slot, and the next
+// new file takes the lowest free slot — so other rows do not move.
+//
+// We also detect cycle restarts (filesDone going backwards = backend started
+// a new sync cycle, e.g. after a failure). On restart we clear the slot map
+// and bump cycleKey so the progress block remounts — that prevents the main
+// progress bar from animating backwards from 17% to 4% via CSS transition.
+const MAX_VISIBLE_SLOTS = 4
+const slotMaps = reactive<Record<string, Map<string, number>>>({})
+const lastFilesDone = reactive<Record<string, number>>({})
+const cycleKey = reactive<Record<string, number>>({})
+
+watch(
+  () => syncStore.currentProgress,
+  (progressMap) => {
+    for (const [ruleId, prog] of progressMap) {
+      let map = slotMaps[ruleId]
+      if (!map) {
+        map = new Map()
+        slotMaps[ruleId] = map
+      }
+
+      const prevDone = lastFilesDone[ruleId] ?? 0
+      if (prog.filesDone < prevDone) {
+        // Cycle restart: drop slot bindings, bump remount key
+        map.clear()
+        cycleKey[ruleId] = (cycleKey[ruleId] ?? 0) + 1
+      }
+      lastFilesDone[ruleId] = prog.filesDone
+
+      const currentPaths = new Set((prog.activeFiles ?? []).map(f => f.path))
+      // Free slots for files no longer active
+      for (const path of [...map.keys()]) {
+        if (!currentPaths.has(path)) map.delete(path)
+      }
+      // Assign newly seen files to the lowest free slot
+      const used = new Set(map.values())
+      for (const file of prog.activeFiles ?? []) {
+        if (!map.has(file.path)) {
+          let slot = 0
+          while (used.has(slot)) slot++
+          map.set(file.path, slot)
+          used.add(slot)
+        }
+      }
+    }
+    // Drop maps for rules no longer syncing
+    for (const ruleId of Object.keys(slotMaps)) {
+      if (!progressMap.has(ruleId)) {
+        delete slotMaps[ruleId]
+        delete lastFilesDone[ruleId]
+        delete cycleKey[ruleId]
+      }
+    }
+  },
+  { deep: true, immediate: true },
+)
+
+// Active files in stable slot order, capped at MAX_VISIBLE_SLOTS. Files
+// with a slot index >= the cap are not shown (they fall under the
+// "+N more" indicator, same as before).
+const stableActiveFiles = (ruleId: string) => {
+  const prog = syncStore.getRuleProgress(ruleId)
+  if (!prog?.activeFiles?.length) return []
+  const map = slotMaps[ruleId]
+  if (!map) return []
+  return prog.activeFiles
+    .filter(f => (map.get(f.path) ?? Infinity) < MAX_VISIBLE_SLOTS)
+    .slice()
+    .sort((a, b) => (map.get(a.path) ?? 0) - (map.get(b.path) ?? 0))
+}
+
 onMounted(async () => {
   await syncStore.loadRulesAsync()
   await syncStore.refreshStatusAsync()
   await peerStorageStore.loadSpaceDevicesAsync()
 })
+
+// ---------------------------------------------------------------------------
+// Connection-type diagnostics (direct vs relay) for peer rules.
+//
+// The Tauri command returns Some(diagnostics) only when there is a *live*
+// cached connection — so until a sync has actually run, peer rules will
+// show "unknown" rather than direct/relay. We poll periodically; the
+// per-sync emit also triggers a refresh so the badge updates as soon as
+// a transfer establishes a connection.
+// ---------------------------------------------------------------------------
+
+type PathType = 'direct' | 'relay' | 'unknown' | 'closed'
+interface ConnectionDiagnostics {
+  pathType: PathType
+  remoteAddr: string | null
+  rttMs: number | null
+}
+
+const connectionMap = ref<Record<string, ConnectionDiagnostics | null>>({})
+const peerEndpointId = (rule: SelectHaexSyncRules): string | null => {
+  for (const side of ['sourceConfig', 'targetConfig'] as const) {
+    const type = side === 'sourceConfig' ? rule.sourceType : rule.targetType
+    if (type !== 'peer') continue
+    const cfg = rule[side] as Record<string, unknown> | null
+    const id = cfg?.endpointId as string | undefined
+    if (id) return id
+  }
+  return null
+}
+
+const refreshConnectionDiagnostics = async () => {
+  for (const rule of syncStore.syncRules) {
+    const nodeId = peerEndpointId(rule)
+    if (!nodeId) continue
+    try {
+      const diag = await invoke<ConnectionDiagnostics | null>(
+        'peer_storage_diagnose_connection',
+        { nodeId },
+      )
+      connectionMap.value = { ...connectionMap.value, [rule.id]: diag }
+    } catch {
+      // Endpoint not running or peer not yet contacted — silent.
+    }
+  }
+}
+
+let diagInterval: ReturnType<typeof setInterval> | null = null
+onMounted(() => {
+  refreshConnectionDiagnostics()
+  diagInterval = setInterval(refreshConnectionDiagnostics, 10_000)
+})
+onBeforeUnmount(() => {
+  if (diagInterval) clearInterval(diagInterval)
+})
+
+// A sync emit means a fresh connection just opened — refresh once so the
+// badge flips from "unknown" to direct/relay without waiting 10s.
+watch(
+  () => syncStore.currentProgress.size,
+  () => {
+    refreshConnectionDiagnostics()
+  },
+)
+
+const connectionBadge = (rule: SelectHaexSyncRules) => {
+  if (!peerEndpointId(rule)) return null
+  const diag = connectionMap.value[rule.id]
+  if (!diag) {
+    return {
+      color: 'neutral' as const,
+      icon: 'i-lucide-circle-help',
+      label: t('connection.unknown'),
+      title: t('connection.unknownTitle'),
+    }
+  }
+  switch (diag.pathType) {
+    case 'direct':
+      return {
+        color: 'success' as const,
+        icon: 'i-lucide-zap',
+        label: t('connection.direct'),
+        title: rttTitle(t('connection.directTitle'), diag),
+      }
+    case 'relay':
+      return {
+        color: 'warning' as const,
+        icon: 'i-lucide-route',
+        label: t('connection.relay'),
+        title: rttTitle(t('connection.relayTitle'), diag),
+      }
+    case 'closed':
+      return {
+        color: 'neutral' as const,
+        icon: 'i-lucide-circle-slash',
+        label: t('connection.closed'),
+        title: t('connection.closedTitle'),
+      }
+    default:
+      return {
+        color: 'neutral' as const,
+        icon: 'i-lucide-circle-help',
+        label: t('connection.unknown'),
+        title: t('connection.unknownTitle'),
+      }
+  }
+}
+
+const rttTitle = (base: string, diag: ConnectionDiagnostics): string => {
+  const parts = [base]
+  if (diag.rttMs != null) parts.push(`RTT ${diag.rttMs.toFixed(1)} ms`)
+  if (diag.remoteAddr) parts.push(diag.remoteAddr)
+  return parts.join(' · ')
+}
 
 const formatBytes = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`
@@ -489,6 +732,15 @@ de:
     deleted: gelöscht
     upToDate: Alles aktuell
     moreErrors: weitere Fehler
+  connection:
+    direct: Direkt
+    directTitle: Direkte LAN/WAN-Verbindung — voller Durchsatz
+    relay: Relay
+    relayTitle: Verbindung läuft über den Relay-Server — meist ~1 MB/s pro Stream
+    unknown: Verbindung?
+    unknownTitle: Noch keine aktive Verbindung — Diagnose nach erstem Sync verfügbar
+    closed: Getrennt
+    closedTitle: Verbindung wurde geschlossen
   toast:
     syncComplete: Sync abgeschlossen
     filesDownloaded: Dateien synchronisiert
@@ -530,30 +782,19 @@ en:
     deleted: deleted
     upToDate: Everything up to date
     moreErrors: more errors
+  connection:
+    direct: Direct
+    directTitle: Direct LAN/WAN connection — full throughput
+    relay: Relay
+    relayTitle: Connection runs through the relay server — typically caps at ~1 MB/s per stream
+    unknown: Connection?
+    unknownTitle: No active connection yet — diagnostics available after the first sync
+    closed: Closed
+    closedTitle: Connection has been closed
   toast:
     syncComplete: Sync complete
     filesDownloaded: files synced
     syncFailed: Sync failed
     deleted: Rule deleted
 </i18n>
-
-<style scoped>
-/* Smooth enter/leave for the active-files list. Without this, parallel
-   transfers completing in batches make the list look like it jumps —
-   four rows replaced at once. With easing, leaving rows fade out and
-   incoming ones fade in over 200ms, and the remaining rows shift smoothly. */
-.active-file-enter-active,
-.active-file-leave-active {
-  transition: all 0.2s ease;
-}
-.active-file-enter-from,
-.active-file-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
-.active-file-leave-active {
-  position: absolute;
-  width: 100%;
-}
-</style>
 

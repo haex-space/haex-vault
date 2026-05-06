@@ -495,6 +495,7 @@ pub fn run() {
             peer_storage::peer_storage_stop,
             peer_storage::peer_storage_status,
             peer_storage::peer_storage_reload_shares,
+            peer_storage::peer_storage_diagnose_connection,
             peer_storage::peer_storage_remote_list,
             peer_storage::peer_storage_remote_read,
             peer_storage::peer_storage_transfer_cancel,

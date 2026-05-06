@@ -14,7 +14,10 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use tokio::sync::RwLock;
 
-use iroh::{Endpoint, EndpointAddr, EndpointId, RelayMode, RelayUrl, SecretKey};
+use iroh::{
+    endpoint::{QuicTransportConfig, VarInt},
+    Endpoint, EndpointAddr, EndpointId, RelayMode, RelayUrl, SecretKey,
+};
 
 const DEFAULT_RELAY_URL: &str = "https://relay.sync.haex.space";
 
@@ -53,6 +56,28 @@ pub struct SharedFolder {
 /// Check if a path string is an Android Content URI (JSON-encoded)
 pub fn is_content_uri(path: &str) -> bool {
     path.starts_with('{')
+}
+
+/// What kind of network path a QUIC connection is currently using.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PathType {
+    /// Hole-punched/LAN — packets travel directly between the two endpoints.
+    Direct,
+    /// Relayed via a relay server — every packet round-trips through the relay.
+    Relay,
+    /// Connection exists but the path type is not classifiable.
+    Unknown,
+    /// Connection has already been closed.
+    Closed,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionDiagnostics {
+    pub path_type: PathType,
+    pub remote_addr: Option<String>,
+    pub rtt_ms: Option<f64>,
 }
 
 /// State shared between PeerEndpoint methods and the accept loop
@@ -213,6 +238,21 @@ impl PeerEndpoint {
             }
         };
 
+        // Tune QUIC transport for LAN/WAN bulk transfers. iroh's noq-default
+        // sizes its windows for 100 Mbps × 100 ms = 1.25 MB per stream, which
+        // becomes the bottleneck for large files: the receiver's stream-level
+        // flow control fills up while disk writes are in flight, the sender
+        // stalls waiting for window updates, and per-stream throughput pegs
+        // around 1 MB/s regardless of link capacity. Sizing the window for
+        // ~1 Gbps × 50 ms (worst-case LAN+jitter) gives room for ~6 MB in
+        // flight per stream without ballooning RAM (worst-case usage =
+        // max_concurrent_bidi_streams × stream_receive_window).
+        let transport_config = QuicTransportConfig::builder()
+            .stream_receive_window(VarInt::from_u32(16 * 1024 * 1024))
+            .send_window(64 * 1024 * 1024)
+            .max_concurrent_bidi_streams(VarInt::from_u32(256))
+            .build();
+
         let endpoint = Endpoint::builder(iroh::endpoint::presets::N0)
             .secret_key(self.secret_key.clone())
             .alpns(vec![
@@ -223,6 +263,7 @@ impl PeerEndpoint {
             .address_lookup(
                 iroh::address_lookup::MdnsAddressLookup::builder().service_name("haex-peer"),
             )
+            .transport_config(transport_config)
             .bind()
             .await
             .map_err(|e| PeerStorageError::ConnectionFailed {
@@ -314,6 +355,53 @@ impl PeerEndpoint {
         }
 
         Ok(())
+    }
+
+    /// Inspect the cached connection to a peer and report whether it currently
+    /// runs over a direct LAN/WAN path or via the relay. Returns `None` if
+    /// there is no live connection — call only after the engine has issued at
+    /// least one stream against the peer.
+    ///
+    /// This exists primarily to debug the "iroh fell back to relay" failure
+    /// mode, which presents as a steady ~1 MB/s ceiling per stream and looks
+    /// like a code-tuning problem until you check the path type.
+    pub fn diagnose_connection(&self, remote_id: EndpointId) -> Option<ConnectionDiagnostics> {
+        let conn = self
+            .connections
+            .lock()
+            .ok()
+            .and_then(|cache| cache.get(&remote_id).cloned())?;
+
+        if conn.close_reason().is_some() {
+            return Some(ConnectionDiagnostics {
+                path_type: PathType::Closed,
+                remote_addr: None,
+                rtt_ms: None,
+            });
+        }
+
+        let info = conn.to_info();
+        let (path_type, remote_addr, rtt_ms) = match info.selected_path() {
+            Some(path) => {
+                let path_type = if path.is_relay() {
+                    PathType::Relay
+                } else if path.is_ip() {
+                    PathType::Direct
+                } else {
+                    PathType::Unknown
+                };
+                let rtt_ms = path.rtt().map(|d| d.as_secs_f64() * 1000.0);
+                let remote_addr = Some(format!("{:?}", path.remote_addr()));
+                (path_type, remote_addr, rtt_ms)
+            }
+            None => (PathType::Unknown, None, None),
+        };
+
+        Some(ConnectionDiagnostics {
+            path_type,
+            remote_addr,
+            rtt_ms,
+        })
     }
 
     /// Get a cached QUIC connection or establish a new one, then open a

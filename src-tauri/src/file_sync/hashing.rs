@@ -56,6 +56,26 @@ pub fn hash_file_sync(path: &Path) -> io::Result<String> {
     Ok(hex::encode(hasher.finalize()))
 }
 
+/// Insert a known hash into the cache without recomputing.
+///
+/// Use this on the receiver after a successful transfer: the sender already
+/// announced the SHA-256 of the file content via the manifest, so re-reading
+/// the freshly-written file just to compute the same hash is wasted I/O. By
+/// priming the cache with the announced hash keyed on the on-disk
+/// `(size, mtime_nanos)`, the next manifest scan returns it instantly and
+/// the diff engine sees a hash match instead of falling back to size+mtime.
+pub fn prime_cache(path: &Path, size: u64, mtime_nanos: u128, hash: String) {
+    let key = CacheKey {
+        path: path.to_string_lossy().to_string(),
+        size,
+        mtime_nanos,
+    };
+    HASH_CACHE
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(key, hash);
+}
+
 /// Get the cached hash for a file, or compute and cache it.
 ///
 /// `(absolute_path, size, mtime_nanos)` is the cache key — if any of these
@@ -120,5 +140,18 @@ mod tests {
         std::fs::write(tmp.path(), b"xyz").unwrap();
         let h2 = cached_hash(tmp.path(), 3, 42).unwrap();
         assert_eq!(h1, h2);
+    }
+
+    #[test]
+    fn prime_cache_skips_recomputation() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(tmp.path(), b"real-content").unwrap();
+        // Seed the cache with a hash that does NOT match the file's actual
+        // content. cached_hash() should return our planted value without
+        // ever opening the file — proving prime_cache wires correctly.
+        let planted = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+        prime_cache(tmp.path(), 12, 7777, planted.to_string());
+        let got = cached_hash(tmp.path(), 12, 7777).unwrap();
+        assert_eq!(got, planted);
     }
 }

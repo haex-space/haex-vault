@@ -65,6 +65,12 @@ pub struct SyncStateEntry {
     pub modified_at: u64,
     pub synced_at: String,
     pub deleted: bool,
+    /// SHA-256 of the file content as advertised by the sender at the time
+    /// this row was last upserted. Lets the next manifest comparison reuse
+    /// the sender's hash instead of re-hashing locally — without it, the
+    /// receiver's mtime drift after `tokio::fs::copy` would force the diff
+    /// engine to fall back to the size+mtime heuristic and re-fire transfers.
+    pub hash: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -76,7 +82,7 @@ pub fn load_sync_state(
     db: &DbConnection,
     rule_id: &str,
 ) -> Result<Vec<SyncStateEntry>, SyncEngineError> {
-    let sql = "SELECT id, rule_id, relative_path, file_size, modified_at, synced_at, deleted FROM haex_sync_state_no_sync WHERE rule_id = ?1".to_string();
+    let sql = "SELECT id, rule_id, relative_path, file_size, modified_at, synced_at, deleted, hash FROM haex_sync_state_no_sync WHERE rule_id = ?1".to_string();
     let params = vec![JsonValue::String(rule_id.to_string())];
 
     let rows = crate::database::core::select(sql, params, db)
@@ -118,6 +124,10 @@ pub fn load_sync_state(
                 .and_then(|v| v.as_i64())
                 .map(|v| v != 0)
                 .unwrap_or(false),
+            hash: row
+                .get(7)
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
         })
         .collect();
 
@@ -127,19 +137,22 @@ pub fn load_sync_state(
 /// Insert or update a sync state entry after a file is synced.
 ///
 /// Uses INSERT OR REPLACE on the unique `(rule_id, relative_path)` index.
+/// `hash` is the sender's SHA-256 — pass `None` only when the source did not
+/// provide one (legacy peer or hashing disabled).
 pub fn upsert_sync_state(
     db: &DbConnection,
     rule_id: &str,
     relative_path: &str,
     file_size: u64,
     modified_at: u64,
+    hash: Option<&str>,
 ) -> Result<(), SyncEngineError> {
     let now = unix_now().to_string();
     let id = uuid::Uuid::new_v4().to_string();
 
     // Use INSERT OR REPLACE — the unique index on (rule_id, relative_path) ensures
     // an existing row is replaced rather than duplicated.
-    let sql = "INSERT OR REPLACE INTO haex_sync_state_no_sync (id, rule_id, relative_path, file_size, modified_at, synced_at, deleted) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)".to_string();
+    let sql = "INSERT OR REPLACE INTO haex_sync_state_no_sync (id, rule_id, relative_path, file_size, modified_at, synced_at, deleted, hash) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7)".to_string();
     let params = vec![
         JsonValue::String(id),
         JsonValue::String(rule_id.to_string()),
@@ -147,6 +160,10 @@ pub fn upsert_sync_state(
         JsonValue::Number(serde_json::Number::from(file_size)),
         JsonValue::Number(serde_json::Number::from(modified_at)),
         JsonValue::String(now),
+        match hash {
+            Some(h) => JsonValue::String(h.to_string()),
+            None => JsonValue::Null,
+        },
     ];
 
     crate::database::core::execute(sql, params, db)
@@ -557,12 +574,32 @@ pub async fn execute_sync(
                     read_result
                 };
 
-                let res: Result<u64, SyncProviderError> = match read_result {
-                    Ok(n) => target
+                // Verify the streamed bytes against the manifest hash before
+                // touching the destination. A mismatch means corruption in
+                // flight (or a malicious peer); writing it would taint the
+                // target. We do not retry — QUIC's TLS already covers
+                // accidental wire corruption, so a hash mismatch is structural.
+                let verified = match &read_result {
+                    Ok(info) => match (file.hash.as_deref(), info.hash.as_deref()) {
+                        (Some(claimed), Some(observed)) if claimed != observed => {
+                            Err(SyncProviderError::Other {
+                                reason: format!(
+                                    "hash mismatch: manifest claimed {claimed}, received {observed}"
+                                ),
+                            })
+                        }
+                        _ => Ok(()),
+                    },
+                    Err(_) => Ok(()),
+                };
+
+                let res: Result<u64, SyncProviderError> = match (read_result, verified) {
+                    (Ok(info), Ok(())) => target
                         .write_file_from_path(&file.relative_path, tmp.path())
                         .await
-                        .map(|_| n),
-                    Err(e) => Err(e),
+                        .map(|_| info.bytes),
+                    (_, Err(e)) => Err(e),
+                    (Err(e), _) => Err(e),
                 };
 
                 active_files
@@ -580,12 +617,16 @@ pub async fn execute_sync(
                         bytes_transferred.fetch_add(n, Ordering::Relaxed);
                         files_downloaded.fetch_add(1, Ordering::Relaxed);
                         // Speed tracker already fed per-chunk in progress_cb; no add here.
+                        if let Some(h) = file.hash.as_deref() {
+                            target.prime_hash_after_write(&file.relative_path, h).await;
+                        }
                         if let Err(e) = upsert_sync_state(
                             &db_clone,
                             &rule_id_clone,
                             &file.relative_path,
                             file.size,
                             file.modified_at,
+                            file.hash.as_deref(),
                         ) {
                             errors
                                 .lock()
@@ -704,12 +745,27 @@ pub async fn execute_sync(
                     read_result
                 };
 
-                let res: Result<u64, SyncProviderError> = match read_result {
-                    Ok(n) => source
+                let verified = match &read_result {
+                    Ok(info) => match (file.hash.as_deref(), info.hash.as_deref()) {
+                        (Some(claimed), Some(observed)) if claimed != observed => {
+                            Err(SyncProviderError::Other {
+                                reason: format!(
+                                    "hash mismatch: manifest claimed {claimed}, received {observed}"
+                                ),
+                            })
+                        }
+                        _ => Ok(()),
+                    },
+                    Err(_) => Ok(()),
+                };
+
+                let res: Result<u64, SyncProviderError> = match (read_result, verified) {
+                    (Ok(info), Ok(())) => source
                         .write_file_from_path(&file.relative_path, tmp.path())
                         .await
-                        .map(|_| n),
-                    Err(e) => Err(e),
+                        .map(|_| info.bytes),
+                    (_, Err(e)) => Err(e),
+                    (Err(e), _) => Err(e),
                 };
 
                 active_files
@@ -726,12 +782,16 @@ pub async fn execute_sync(
                         bytes_done.fetch_add(n, Ordering::Relaxed);
                         bytes_transferred.fetch_add(n, Ordering::Relaxed);
                         // Speed tracker already fed per-chunk in progress_cb; no add here.
+                        if let Some(h) = file.hash.as_deref() {
+                            source.prime_hash_after_write(&file.relative_path, h).await;
+                        }
                         if let Err(e) = upsert_sync_state(
                             &db_clone,
                             &rule_id_clone,
                             &file.relative_path,
                             file.size,
                             file.modified_at,
+                            file.hash.as_deref(),
                         ) {
                             errors
                                 .lock()
@@ -862,38 +922,74 @@ pub async fn execute_sync(
                                 )
                                 .await
                             {
-                                Ok(staged_size) => match target
-                                    .write_file_from_path(&conflict.relative_path, src_tmp.path())
-                                    .await
-                                {
-                                    Ok(()) => {
-                                        bytes_done.fetch_add(staged_size, Ordering::Relaxed);
-                                        bytes_transferred
-                                            .fetch_add(staged_size, Ordering::Relaxed);
-                                        speed_tracker
-                                            .lock()
-                                            .unwrap_or_else(|e| e.into_inner())
-                                            .add(staged_size);
-                                        conflicts_resolved.fetch_add(1, Ordering::Relaxed);
-                                        resolved = true;
-                                        let _ = upsert_sync_state(
-                                            db,
-                                            rule_id,
-                                            &conflict.relative_path,
-                                            conflict.source_state.size,
-                                            conflict.source_state.modified_at,
-                                        );
-                                    }
-                                    Err(e) => {
+                                Ok(info) => {
+                                    let claimed = conflict.source_state.hash.as_deref();
+                                    let observed = info.hash.as_deref();
+                                    let mismatch = matches!(
+                                        (claimed, observed),
+                                        (Some(c), Some(o)) if c != o
+                                    );
+                                    if mismatch {
                                         errors
                                             .lock()
                                             .unwrap_or_else(|e2| e2.into_inner())
                                             .push(format!(
-                                                "conflict write {}: {e}",
-                                                conflict.relative_path
+                                                "conflict hash mismatch {}: claimed {} received {}",
+                                                conflict.relative_path,
+                                                claimed.unwrap_or("?"),
+                                                observed.unwrap_or("?"),
                                             ));
+                                    } else {
+                                        match target
+                                            .write_file_from_path(
+                                                &conflict.relative_path,
+                                                src_tmp.path(),
+                                            )
+                                            .await
+                                        {
+                                            Ok(()) => {
+                                                bytes_done
+                                                    .fetch_add(info.bytes, Ordering::Relaxed);
+                                                bytes_transferred
+                                                    .fetch_add(info.bytes, Ordering::Relaxed);
+                                                speed_tracker
+                                                    .lock()
+                                                    .unwrap_or_else(|e| e.into_inner())
+                                                    .add(info.bytes);
+                                                conflicts_resolved
+                                                    .fetch_add(1, Ordering::Relaxed);
+                                                resolved = true;
+                                                if let Some(h) =
+                                                    conflict.source_state.hash.as_deref()
+                                                {
+                                                    target
+                                                        .prime_hash_after_write(
+                                                            &conflict.relative_path,
+                                                            h,
+                                                        )
+                                                        .await;
+                                                }
+                                                let _ = upsert_sync_state(
+                                                    db,
+                                                    rule_id,
+                                                    &conflict.relative_path,
+                                                    conflict.source_state.size,
+                                                    conflict.source_state.modified_at,
+                                                    conflict.source_state.hash.as_deref(),
+                                                );
+                                            }
+                                            Err(e) => {
+                                                errors
+                                                    .lock()
+                                                    .unwrap_or_else(|e2| e2.into_inner())
+                                                    .push(format!(
+                                                        "conflict write {}: {e}",
+                                                        conflict.relative_path
+                                                    ));
+                                            }
+                                        }
                                     }
-                                },
+                                }
                                 Err(e) => {
                                     errors
                                         .lock()

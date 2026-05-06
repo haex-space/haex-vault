@@ -233,6 +233,28 @@ pub async fn peer_storage_reload_shares(
     reload_state_from_db(&state, &*endpoint).await
 }
 
+/// Report whether the active QUIC connection to a peer runs over a direct
+/// LAN/WAN path or via the relay. Used to diagnose throughput problems —
+/// relay-routed connections cap at ~1 MB/s per stream, which looks like a
+/// code-tuning issue but is actually a NAT/hole-punch failure.
+///
+/// Returns `None` if there is no live cached connection. The caller should
+/// first establish one (e.g. via `peer_storage_remote_list`) before asking.
+#[tauri::command(rename_all = "camelCase")]
+pub async fn peer_storage_diagnose_connection(
+    state: State<'_, AppState>,
+    node_id: String,
+) -> Result<Option<crate::peer_storage::endpoint::ConnectionDiagnostics>, PeerStorageError> {
+    let remote_id: iroh::EndpointId = node_id
+        .parse()
+        .map_err(|e| PeerStorageError::ConnectionFailed {
+            reason: format!("Invalid EndpointId: {e}"),
+        })?;
+
+    let endpoint = state.peer_storage.read().await;
+    Ok(endpoint.diagnose_connection(remote_id))
+}
+
 // ============================================================================
 // Remote peer operations
 // ============================================================================
@@ -370,11 +392,11 @@ pub async fn peer_storage_remote_read(
         }
 
         match result {
-            Ok(total_bytes) => {
+            Ok(stream_result) => {
                 let final_path = move_to_public_downloads(&app_handle, &output_path);
                 let _ = on_event.send(TransferEvent::Complete {
                     local_path: final_path,
-                    total_bytes,
+                    total_bytes: stream_result.bytes,
                 });
             }
             Err(e) => {
