@@ -465,19 +465,50 @@ impl PeerEndpoint {
             None => EndpointAddr::new(remote_id),
         };
 
-        let conn = endpoint
-            .connect(addr, ALPN)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
+        // iroh's connect() has no caller-visible timeout; if the peer is
+        // unreachable the QUIC handshake hangs ~30s before failing. That
+        // makes file-sync feel hung when a peer just isn't online. 8s is
+        // generous for LAN (<100ms), hole-punched WAN (~1-3s), and relay
+        // (~1-2s) paths while failing fast on truly dead peers.
+        let conn = match tokio::time::timeout(
+            std::time::Duration::from_secs(8),
+            endpoint.connect(addr, ALPN),
+        )
+        .await
+        {
+            Ok(Ok(conn)) => conn,
+            Ok(Err(e)) => {
+                return Err(PeerStorageError::ConnectionFailed {
+                    reason: e.to_string(),
+                });
+            }
+            Err(_) => {
+                return Err(PeerStorageError::ConnectionFailed {
+                    reason: "connect handshake timed out after 8s".to_string(),
+                });
+            }
+        };
 
-        let streams = conn
-            .open_bi()
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
+        // Same rationale as the cached-path open_bi: never let stream open
+        // outlast the connect bound.
+        let streams = match tokio::time::timeout(
+            std::time::Duration::from_secs(3),
+            conn.open_bi(),
+        )
+        .await
+        {
+            Ok(Ok(streams)) => streams,
+            Ok(Err(e)) => {
+                return Err(PeerStorageError::ConnectionFailed {
+                    reason: e.to_string(),
+                });
+            }
+            Err(_) => {
+                return Err(PeerStorageError::ConnectionFailed {
+                    reason: "open_bi timed out after 3s".to_string(),
+                });
+            }
+        };
 
         if let Ok(mut cache) = self.connections.lock() {
             cache.insert(remote_id, conn);
