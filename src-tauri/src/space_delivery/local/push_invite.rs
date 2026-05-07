@@ -232,7 +232,7 @@ pub fn handle_push_invite(
     // If this fails (AppHandle dead / event channel closed) the invite is
     // persisted but the user sees no notification — we MUST log the outcome
     // so this regression is traceable without shell access.
-    match app_handle.emit("push-invite-received", ()) {
+    match app_handle.emit_to("main", "push-invite-received", ()) {
         Ok(()) => logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
             "Emitted push-invite-received for invite {invite_id} (space={space_id})"
         )),

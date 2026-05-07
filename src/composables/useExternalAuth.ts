@@ -39,10 +39,19 @@ export function useExternalAuth() {
     }
 
     try {
-      // Listen for authorization requests from the Tauri backend
-      await listen<PendingAuthorization>(EXTERNAL_EVENTS.AUTHORIZATION_REQUEST, (event) => {
-        showAuthorizationPrompt(event.payload)
-      })
+      // Listen for authorization requests from the Tauri backend.
+      // Backend emits via emit_to("main", …); Tauri v2 deliver only matches
+      // here when the listener carries an AnyLabel target (passing the
+      // string 'main' is the shorthand). A bare listen() with default
+      // target=Any is dropped on the floor in production builds — that
+      // was the regression behind the haex-pass and auto-start outages.
+      await listen<PendingAuthorization>(
+        EXTERNAL_EVENTS.AUTHORIZATION_REQUEST,
+        (event) => {
+          showAuthorizationPrompt(event.payload)
+        },
+        { target: 'main' },
+      )
 
       initialized.value = true
     } catch (error) {

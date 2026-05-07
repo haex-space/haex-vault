@@ -179,23 +179,38 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
   const setupEventListeners = async () => {
     if (unlistenProgress || unlistenComplete || unlistenError) return
 
-    unlistenProgress = await listen<{ ruleId: string } & SyncProgress>('file-sync:progress', (event) => {
-      currentProgress.value.set(event.payload.ruleId, event.payload)
-      currentProgress.value = new Map(currentProgress.value)
-    })
+    // Backend emits these via emit_to("main", …) — pin the listener
+    // explicitly so Tauri v2 routes them through (default-Any is dropped
+    // in production builds).
+    unlistenProgress = await listen<{ ruleId: string } & SyncProgress>(
+      'file-sync:progress',
+      (event) => {
+        currentProgress.value.set(event.payload.ruleId, event.payload)
+        currentProgress.value = new Map(currentProgress.value)
+      },
+      { target: 'main' },
+    )
 
-    unlistenComplete = await listen<{ ruleId: string; result: SyncResult }>('file-sync:complete', (event) => {
-      lastResults.value.set(event.payload.ruleId, event.payload.result)
-      lastResults.value = new Map(lastResults.value)
-      currentProgress.value.delete(event.payload.ruleId)
-      currentProgress.value = new Map(currentProgress.value)
-    })
+    unlistenComplete = await listen<{ ruleId: string; result: SyncResult }>(
+      'file-sync:complete',
+      (event) => {
+        lastResults.value.set(event.payload.ruleId, event.payload.result)
+        lastResults.value = new Map(lastResults.value)
+        currentProgress.value.delete(event.payload.ruleId)
+        currentProgress.value = new Map(currentProgress.value)
+      },
+      { target: 'main' },
+    )
 
-    unlistenError = await listen<{ ruleId: string; error: string }>('file-sync:error', (event) => {
-      log.error(`Rule ${event.payload.ruleId} error:`, event.payload.error)
-      currentProgress.value.delete(event.payload.ruleId)
-      currentProgress.value = new Map(currentProgress.value)
-    })
+    unlistenError = await listen<{ ruleId: string; error: string }>(
+      'file-sync:error',
+      (event) => {
+        log.error(`Rule ${event.payload.ruleId} error:`, event.payload.error)
+        currentProgress.value.delete(event.payload.ruleId)
+        currentProgress.value = new Map(currentProgress.value)
+      },
+      { target: 'main' },
+    )
 
     // Subscribe to CRDT changes on sync_rules table.
     // When a remote device syncs and updates lastSyncedAt, trigger only affected rules.

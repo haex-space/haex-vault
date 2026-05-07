@@ -358,10 +358,19 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
     eventListenersRegistered = true
 
     try {
+      // All these listen() calls now pin to the main window via
+      // `target: 'main'`. The backend uses emit_to("main", …) for these
+      // events; default listen() (target=Any) silently drops them in
+      // production Tauri builds, which is what was breaking the haex-pass
+      // external-bridge flow and the file-sync UI updates.
       unlistenFns.push(
-        await listen<ExternalRequestPayload>(EXTERNAL_EVENTS.REQUEST, (event) => {
-          forwardExternalRequest(event.payload)
-        }),
+        await listen<ExternalRequestPayload>(
+          EXTERNAL_EVENTS.REQUEST,
+          (event) => {
+            forwardExternalRequest(event.payload)
+          },
+          { target: 'main' },
+        ),
       )
 
       unlistenFns.push(
@@ -370,6 +379,7 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
           (event) => {
             broadcastFileChanged(event.payload)
           },
+          { target: 'main' },
         ),
       )
 
@@ -379,6 +389,7 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
           (event) => {
             broadcastShellEvent(SHELL_EVENTS.OUTPUT, event.payload)
           },
+          { target: 'main' },
         ),
       )
       unlistenFns.push(
@@ -387,6 +398,7 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
           (event) => {
             broadcastShellEvent(SHELL_EVENTS.EXIT, event.payload)
           },
+          { target: 'main' },
         ),
       )
     }

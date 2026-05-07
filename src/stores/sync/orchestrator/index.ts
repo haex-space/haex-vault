@@ -355,11 +355,13 @@ export const useSyncOrchestratorStore = defineStore(
       const config = syncConfigStore.config
       log.info('[WATCHER] Config:', config)
 
-      // Start push watcher: Listen to dirty tables events
+      // Start push watcher: Listen to dirty tables events.
+      // Backend emits via emit_to("main", …); pin to the main window
+      // because Tauri v2 drops bare default-Any listeners in prod.
       log.info('[WATCHER] Registering listener for crdt:dirty-tables-changed...')
       eventUnlisten = await listen('crdt:dirty-tables-changed', async () => {
         await onDirtyTablesChangedAsync()
-      })
+      }, { target: 'main' })
       log.info(`[WATCHER] Push listener REGISTERED (debounce: ${config.continuousDebounceMs}ms)`)
 
       // Start fallback pull: Catch missed realtime updates

@@ -201,9 +201,14 @@ impl ExtensionWebviewManager {
                     windows.remove(&window_id_for_event);
                 }
 
-                // Emit event an Frontend, damit das Tracking aktualisiert wird
-                let _ =
-                    app_handle_for_event.emit(EVENT_EXTENSION_WINDOW_CLOSED, &window_id_for_event);
+                // Emit event an Frontend, damit das Tracking aktualisiert wird.
+                // Nur Main-Window — Extensions müssen nicht erfahren, welche
+                // anderen Extension-Fenster geschlossen werden.
+                let _ = app_handle_for_event.emit_to(
+                    "main",
+                    EVENT_EXTENSION_WINDOW_CLOSED,
+                    &window_id_for_event,
+                );
             }
         });
 
@@ -466,29 +471,39 @@ impl ExtensionWebviewManager {
         );
 
         let mut at_least_one_success = false;
+        let mut last_err: Option<tauri::Error> = None;
 
         for window_id in window_ids {
-            if let Some(window) = app_handle.get_webview_window(&window_id) {
-                match window.emit(event, payload.clone()) {
-                    Ok(_) => {
-                        eprintln!(
-                            "[Manager] Successfully emitted event '{}' to window {}",
-                            event, window_id
-                        );
-                        at_least_one_success = true;
-                    }
-                    Err(e) => {
-                        eprintln!(
-                            "[Manager] Failed to emit event {} to window {}: {}",
-                            event, window_id, e
-                        );
-                    }
+            // emit_to(label, …) targets only this webview by label.
+            // window.emit() in Tauri v2 broadcasts to every webview, which
+            // would defeat the purpose of this helper.
+            match app_handle.emit_to(window_id.as_str(), event, payload.clone()) {
+                Ok(_) => {
+                    eprintln!(
+                        "[Manager] Successfully emitted event '{}' to window {}",
+                        event, window_id
+                    );
+                    at_least_one_success = true;
                 }
-            } else {
-                eprintln!(
-                    "[Manager] Window {} registered but not found in Tauri",
-                    window_id
-                );
+                Err(e) => {
+                    eprintln!(
+                        "[Manager] Failed to emit event {} to window {}: {}",
+                        event, window_id, e
+                    );
+                    last_err = Some(e);
+                }
+            }
+        }
+
+        // Windows existed but every emit failed — surface the failure
+        // instead of conflating it with "no windows registered".
+        if !at_least_one_success {
+            if let Some(e) = last_err {
+                return Err(ExtensionError::ValidationError {
+                    reason: format!(
+                        "all emit_to calls for event '{event}' to extension '{extension_id}' failed: {e}"
+                    ),
+                });
             }
         }
 
@@ -515,28 +530,66 @@ impl ExtensionWebviewManager {
             windows.len()
         );
 
-        // Iterate over all window IDs
+        // Iterate over all window IDs and target each by label.
+        // window.emit() and app_handle.emit() both broadcast in Tauri v2 —
+        // emit_to(label) is the only way to scope per webview.
         for window_id in windows.keys() {
             eprintln!("[Manager] Trying to emit to window: {}", window_id);
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            if let Some(window) = app_handle.get_webview_window(window_id) {
-                // Emit event to this specific webview window
-                match window.emit(event, payload.clone()) {
-                    Ok(_) => eprintln!(
-                        "[Manager] Successfully emitted event '{}' to window {}",
-                        event, window_id
-                    ),
-                    Err(e) => eprintln!(
-                        "[Manager] Failed to emit event {} to window {}: {}",
-                        event, window_id, e
-                    ),
-                }
-            } else {
-                eprintln!("[Manager] Window not found: {}", window_id);
+            match app_handle.emit_to(window_id.as_str(), event, payload.clone()) {
+                Ok(_) => eprintln!(
+                    "[Manager] Successfully emitted event '{}' to window {}",
+                    event, window_id
+                ),
+                Err(e) => eprintln!(
+                    "[Manager] Failed to emit event {} to window {}: {}",
+                    event, window_id, e
+                ),
             }
         }
 
         Ok(())
+    }
+}
+
+impl ExtensionWebviewManager {
+    /// Targets an extension by ID:
+    /// - If it has native WebViewWindows: emits to all of its windows.
+    /// - Otherwise (iframe mode, or extension not yet open): emits to "main"
+    ///   so the frontend can route via postMessage to the iframe whose
+    ///   payload identifies the extension.
+    ///
+    /// Either path uses emit_to(label, …) so the event never broadcasts to
+    /// unrelated webviews.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    pub fn emit_to_extension_or_main<S: serde::Serialize + Clone>(
+        &self,
+        app_handle: &AppHandle,
+        extension_id: &str,
+        event: &str,
+        payload: S,
+    ) -> Result<(), tauri::Error> {
+        match self.emit_to_all_extension_windows(app_handle, extension_id, event, payload.clone()) {
+            // Native window(s) received the event — no main fallback needed.
+            Ok(true) => Ok(()),
+            // No native windows registered → iframe / not-yet-open path.
+            Ok(false) => app_handle.emit_to("main", event, payload),
+            // Native windows existed but emit failed — don't silently
+            // fall back to "main", because the caller's event would then
+            // get re-routed to a different audience than intended.
+            Err(e) => Err(tauri::Error::Io(std::io::Error::other(e.to_string()))),
+        }
+    }
+
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    pub fn emit_to_extension_or_main<S: serde::Serialize + Clone>(
+        &self,
+        app_handle: &AppHandle,
+        _extension_id: &str,
+        event: &str,
+        payload: S,
+    ) -> Result<(), tauri::Error> {
+        // Mobile: extensions always run as iframes inside the main window.
+        app_handle.emit_to("main", event, payload)
     }
 }
 

@@ -9,8 +9,8 @@ use super::types::{DeleteMode, FileState, SyncActions, SyncConflict, SyncDirecti
 /// Hashes are the source of truth — if both sides report a hash and they
 /// match, the files are equal regardless of mtime (the receiver's mtime is
 /// always the write time, so mtime-based equality would re-fire every sync).
-/// When either side is missing a hash (older peer, hashing disabled, etc.)
-/// we fall back to the legacy `size + mtime` heuristic.
+/// When either side is missing a hash (cloud backend without ETag mapping,
+/// older peer) we fall back to the legacy `size + mtime` heuristic.
 fn files_equal(a: &FileState, b: &FileState) -> bool {
     if let (Some(ha), Some(hb)) = (a.hash.as_deref(), b.hash.as_deref()) {
         return a.size == b.size && ha == hb;

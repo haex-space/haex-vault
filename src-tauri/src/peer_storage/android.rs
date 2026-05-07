@@ -106,26 +106,55 @@ fn collect_content_uri_entries(
             format!("{}/{}", prefix, name)
         };
 
-        let modified_at = entry
-            .last_modified()
+        let last_modified = entry.last_modified();
+        let modified_duration = last_modified
             .duration_since(std::time::UNIX_EPOCH)
-            .ok()
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
+            .ok();
+        let modified_at = modified_duration.map(|d| d.as_secs()).unwrap_or(0);
+        let modified_nanos = modified_duration.map(|d| d.as_nanos()).unwrap_or(0);
 
         let is_directory = entry.is_dir();
         let size = if is_directory { 0 } else { entry.file_len().unwrap_or(0) };
         let uri = entry.uri().clone();
+
+        // Compute SHA-256 for files. Without this, every sync between desktop
+        // and an Android Content URI share re-fires every cycle: the desktop
+        // side hashes (cached_hash on real paths), the Android side reported
+        // `hash: None`, and `files_equal` then fell back to size+mtime — which
+        // never matches because the receiver's mtime is the local write time.
+        //
+        // Cost is bounded by the same `(uri, size, mtime_nanos)` cache the
+        // LocalProvider uses, so unchanged files only pay the hash on first
+        // scan. Cache misses cross the JNI boundary once per file (open via
+        // ContentResolver) — acceptable for the symmetry it buys us.
+        let hash = if is_directory {
+            None
+        } else {
+            let cache_key = uri.uri.clone();
+            match crate::file_sync::hashing::cached_hash_with_reader(
+                cache_key,
+                size,
+                modified_nanos,
+                || {
+                    api.open_file_readable(&uri).map_err(|e| {
+                        std::io::Error::new(std::io::ErrorKind::Other, e.to_string())
+                    })
+                },
+            ) {
+                Ok(h) => Some(h),
+                Err(e) => {
+                    eprintln!("[PeerStorage] Hash failed for {}: {e}", uri.uri);
+                    None
+                }
+            }
+        };
 
         entries.push(crate::file_sync::types::FileState {
             relative_path: relative_path.clone(),
             size,
             modified_at,
             is_directory,
-            // Android Content URI scans: hashing requires reading the URI
-            // through ContentResolver, which is expensive in a recursive
-            // walk. Leave None for now — diff falls back to size+mtime.
-            hash: None,
+            hash,
         });
 
         if is_directory {

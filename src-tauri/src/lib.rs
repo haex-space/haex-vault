@@ -8,6 +8,7 @@ mod extension;
 pub mod file_sync;
 mod filesystem;
 mod logging;
+pub mod mail;
 pub mod mls;
 #[cfg(desktop)]
 mod shortcuts;
@@ -371,6 +372,14 @@ pub fn run() {
             extension::spaces::commands::set_auth_token,
             extension::web::commands::extension_web_fetch,
             extension::web::commands::extension_web_open,
+            extension::mail::commands::extension_mail_list_mailboxes,
+            extension::mail::commands::extension_mail_fetch_envelopes,
+            extension::mail::commands::extension_mail_fetch_message,
+            extension::mail::commands::extension_mail_set_flags,
+            extension::mail::commands::extension_mail_move_messages,
+            extension::mail::commands::extension_mail_append_message,
+            extension::mail::commands::extension_mail_send_message,
+            extension::mail::commands::extension_mail_build_rfc822,
             extension::permissions::commands::extension_permissions_check_web,
             extension::permissions::commands::extension_permissions_check_database,
             extension::permissions::commands::extension_permissions_check_filesystem,

@@ -108,8 +108,34 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # PTY support for shell/terminal (desktop + android via cfg)
 portable-pty = "0.9"
-tokio-util = "0.7.18"
+# `compat` enables tokio↔futures-io adapters used by the core mail
+# module to bridge tokio TLS streams into async-imap (which uses
+# futures-io). The crate already had tokio-util as a dep without
+# features — adding it here doesn't break existing usages.
+tokio-util = { version = "0.7.18", features = ["compat"] }
 tempfile = "3.27"
+
+# Mail (IMAP/SMTP) — used by core mail module (src/mail/) and the
+# extension-facing wrapper (src/extension/mail/). native-tls is chosen for
+# consistency with reqwest/rust-s3 above; async-imap is generic over the
+# TLS stream so we wrap a tokio TcpStream with tokio-native-tls.
+async-imap = "0.11"
+# async-imap returns `imap_proto` types from its public API (Envelope,
+# Address) without re-exporting them — declare it directly so we can
+# name those types in our wrapper code.
+imap-proto = "0.16"
+native-tls = "0.2"
+tokio-native-tls = "0.3"
+lettre = { version = "0.11", default-features = false, features = [
+  "tokio1-native-tls",
+  "smtp-transport",
+  "builder",
+  # Without "hostname", lettre's EHLO greets the server as "127.0.0.1",
+  # which many providers reject or rate-limit. The feature pulls in the
+  # `hostname` crate so EHLO uses the local FQDN.
+  "hostname",
+] }
+mail-parser = "0.11"
 
 
 

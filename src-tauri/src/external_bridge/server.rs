@@ -576,8 +576,15 @@ async fn handle_connection(
                             };
                             pending_guard.insert(cid.clone(), pending_auth.clone());
 
-                            // Emit event to frontend to show authorization dialog
-                            let _ = app_handle.emit("external:authorization-request", &pending_auth);
+                            // Emit event to frontend to show authorization dialog.
+                            // Nur Main-Window — der Authorization-Dialog wird dort
+                            // gerendert; Extensions dürfen Authorization-Requests
+                            // anderer Clients nicht beobachten.
+                            let _ = app_handle.emit_to(
+                                "main",
+                                "external:authorization-request",
+                                &pending_auth,
+                            );
 
                             // Store client's public key for encrypted responses later
                             client_public_key_spki = Some(handshake.client.public_key.clone());
@@ -967,7 +974,9 @@ async fn ensure_extension_loaded(
         "extensionId": extension_id,
     });
 
-    if let Err(e) = app_handle.emit(EVENT_EXTENSION_AUTO_START_REQUEST, &payload) {
+    // Nur Main-Window — die Extension läuft noch nicht. Das Frontend startet
+    // sie basierend auf dem display_mode (WebviewWindow oder Iframe).
+    if let Err(e) = app_handle.emit_to("main", EVENT_EXTENSION_AUTO_START_REQUEST, &payload) {
         return Err(format!("Failed to emit auto-start request: {}", e));
     }
 
@@ -1130,10 +1139,13 @@ async fn process_request(
         "extensionName": ext_name
     });
 
-    // Emit the request to the extension via Tauri event
-    // For WebView extensions: emit to ALL webview windows of the extension
-    // For iframe extensions: emit to main window (frontend will forward via postMessage)
-    // Events go to ALL instances - extensions handle deduplication if needed
+    // Emit the request to the extension via Tauri event.
+    // - WebView extension: emit_to_all_extension_windows() targets ONLY that
+    //   extension's webview windows by label.
+    // - Iframe extension (or no native webview): emit_to("main", …) so the
+    //   frontend can forward via postMessage to the iframe of THIS extension.
+    //   .emit() would broadcast to every webview, leaking the request payload
+    //   (incl. publicKey, action, payload) to unrelated extensions.
     let emit_result = {
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         {
@@ -1148,26 +1160,29 @@ async fn process_request(
                 external_request.clone(),
             ) {
                 Ok(true) => {
-                    // Successfully emitted to extension webview(s)
                     eprintln!("[ExternalBridge] Emitted request to extension webview(s): {}", extension_id);
                     true
                 }
                 Ok(false) => {
-                    // No webview found for this extension, fall back to main window (iframe mode)
                     eprintln!("[ExternalBridge] No webview for extension {}, emitting to main window", extension_id);
-                    app_handle.emit("haextension:external:request", &external_request).is_ok()
+                    app_handle
+                        .emit_to("main", "haextension:external:request", &external_request)
+                        .is_ok()
                 }
                 Err(e) => {
-                    // Error emitting to webview, try main window as fallback
                     eprintln!("[ExternalBridge] Error emitting to webview(s): {}, trying main window", e);
-                    app_handle.emit("haextension:external:request", &external_request).is_ok()
+                    app_handle
+                        .emit_to("main", "haextension:external:request", &external_request)
+                        .is_ok()
                 }
             }
         }
         #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             // Mobile: always emit to main window (iframe mode)
-            app_handle.emit("haextension:external:request", &external_request).is_ok()
+            app_handle
+                .emit_to("main", "haextension:external:request", &external_request)
+                .is_ok()
         }
     };
 

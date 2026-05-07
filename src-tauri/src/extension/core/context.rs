@@ -88,8 +88,14 @@ pub fn extension_context_set(
 }
 
 /// Broadcasts an event to ALL extension webview windows.
-/// Only use for events that should go to ALL extensions (e.g., context changes).
-/// For permission-filtered events, use extension_webview_emit instead.
+/// Only use for events that are explicitly part of the public extension API
+/// (e.g., CONTEXT_CHANGED — non-sensitive metadata that every extension
+/// observes by design).
+///
+/// Iframe extensions are notified via postMessage from the frontend, NOT via
+/// this command — see `broadcastContext` in stores/extensions/broadcast.ts.
+/// For permission-filtered or extension-targeted events, use
+/// extension_webview_emit instead.
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tauri::command]
 pub fn extension_webview_broadcast(
@@ -98,28 +104,17 @@ pub fn extension_webview_broadcast(
     event: String,
     payload: serde_json::Value,
 ) -> Result<(), ExtensionError> {
-    use tauri::Emitter;
-
     eprintln!(
-        "[Extension] Broadcasting event '{}' to all webview windows",
+        "[Extension] Broadcasting event '{}' to all extension webview windows",
         event
     );
 
-    // First, emit to all registered extension windows (native WebView windows)
+    // emit_to_all_extensions iterates over registered extension webview labels
+    // and uses emit_to(label, …) — never broadcasts to the main window or to
+    // unregistered webviews.
     state
         .extension_webview_manager
-        .emit_to_all_extensions(&app_handle, &event, payload.clone())?;
-
-    // Also emit globally to catch any extension windows not in the manager
-    // (e.g., embedded webviews within the main window)
-    if let Err(e) = app_handle.emit(&event, payload) {
-        eprintln!(
-            "[Extension] Failed to broadcast event '{}' globally: {}",
-            event, e
-        );
-    } else {
-        eprintln!("[Extension] Event '{}' broadcasted globally", event);
-    }
+        .emit_to_all_extensions(&app_handle, &event, payload)?;
 
     Ok(())
 }

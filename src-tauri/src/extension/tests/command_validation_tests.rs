@@ -42,6 +42,7 @@ fn create_test_extension(public_key: &str, name: &str) -> Extension {
                 spaces: None,
                 identities: None,
                 passwords: None,
+                mail: None,
             },
             homepage: None,
             description: Some("Test extension".to_string()),

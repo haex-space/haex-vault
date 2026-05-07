@@ -1,6 +1,6 @@
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::types::{
-    Action, DbAction, ExtensionPermission, FileSyncAction, FsAction, IdentityAction,
+    Action, DbAction, ExtensionPermission, FileSyncAction, FsAction, IdentityAction, MailAction,
     PasswordsAction, PermissionConstraints, PermissionStatus, ResourceType, ShellAction,
     SpaceAction, WebAction,
 };
@@ -92,6 +92,8 @@ pub struct ExtensionPermissions {
     pub identities: Option<Vec<PermissionEntry>>,
     #[serde(default)]
     pub passwords: Option<Vec<PermissionEntry>>,
+    #[serde(default)]
+    pub mail: Option<Vec<PermissionEntry>>,
 }
 
 /// Typ-Alias für bessere Lesbarkeit, wenn die Struktur als UI-Modell verwendet wird.
@@ -185,6 +187,7 @@ impl ExtensionManifest {
         set_status_for_list(editable.spaces.as_mut());
         set_status_for_list(editable.identities.as_mut());
         set_status_for_list(editable.passwords.as_mut());
+        set_status_for_list(editable.mail.as_mut());
 
         editable
     }
@@ -251,6 +254,13 @@ impl ExtensionPermissions {
                 }
             }
         }
+        if let Some(entries) = &self.mail {
+            for p in entries {
+                if let Some(perm) = Self::create_internal(extension_id, ResourceType::Mail, p) {
+                    permissions.push(perm);
+                }
+            }
+        }
 
         permissions
     }
@@ -288,6 +298,9 @@ impl ExtensionPermissions {
             }
             ResourceType::Passwords => {
                 PasswordsAction::from_str(operation_str).ok().map(Action::Passwords)
+            }
+            ResourceType::Mail => {
+                MailAction::from_str(operation_str).ok().map(Action::Mail)
             }
         };
 

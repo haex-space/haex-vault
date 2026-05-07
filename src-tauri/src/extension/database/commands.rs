@@ -83,7 +83,7 @@ pub async fn extension_database_execute(
     // Emit event to notify frontend that dirty tables may have changed
     // This triggers the sync orchestrator to push changes to the server
     let app_handle = window.app_handle();
-    let _ = app_handle.emit(EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
+    let _ = app_handle.emit_to("main", EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
 
     Ok(DatabaseQueryResult {
         rows_affected: rows.len(),
@@ -180,7 +180,7 @@ pub async fn extension_database_transaction(
 
     // Emit event to notify frontend that dirty tables may have changed
     let app_handle = window.app_handle();
-    let _ = app_handle.emit(EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
+    let _ = app_handle.emit_to("main", EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
 
     Ok(DatabaseQueryResult {
         rows_affected: total_affected,
