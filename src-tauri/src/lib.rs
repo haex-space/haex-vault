@@ -34,6 +34,53 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
+/// Initialize ndk-context from MainActivity.onCreate.
+///
+/// Tao 0.34 used to call `ndk_context::initialize_android_context` itself
+/// during onActivityCreate. Tao 0.35 (Tauri 2.11) dropped that, but hickory-
+/// resolver — pulled in transitively by iroh for DNS — still calls
+/// `ndk_context::android_context()` to read NetworkInfo on Android, and
+/// panics with "android context was not initialized" otherwise. We
+/// reinstate the init from MainActivity.onCreate; it is a one-shot global
+/// that subsequent crates (hickory, anything else mDNS-related) can read.
+///
+/// Safe to call multiple times — `initialize_android_context` overwrites
+/// the static. The activity is wrapped in a global ref so the pointer
+/// stored in ndk-context outlives the local JNI frame.
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub extern "system" fn Java_space_haex_vault_MainActivity_initializeNdkContext(
+    env: jni::JNIEnv,
+    _class: jni::objects::JClass,
+    activity: jni::objects::JObject,
+) {
+    let env_local = env;
+    let vm = match env_local.get_java_vm() {
+        Ok(vm) => vm,
+        Err(e) => {
+            eprintln!("[NdkContext] Failed to get JavaVM: {e}");
+            return;
+        }
+    };
+    let activity_global = match env_local.new_global_ref(activity) {
+        Ok(g) => g,
+        Err(e) => {
+            eprintln!("[NdkContext] Failed to create global ref to activity: {e}");
+            return;
+        }
+    };
+    unsafe {
+        ndk_context::initialize_android_context(
+            vm.get_java_vm_pointer() as *mut std::ffi::c_void,
+            activity_global.as_obj().as_raw() as *mut std::ffi::c_void,
+        );
+    }
+    // Leak the global ref — the raw pointer we just stored must remain
+    // valid for the lifetime of the process.
+    std::mem::forget(activity_global);
+    eprintln!("[NdkContext] Initialized");
+}
+
 pub mod table_names {
     include!(concat!(env!("OUT_DIR"), "/tableNames.rs"));
 }
