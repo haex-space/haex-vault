@@ -65,7 +65,16 @@ export class RustEventGroup {
     name: string,
     handler: (payload: T) => void | Promise<void>,
   ): Promise<void> {
-    const unlisten = await listen<T>(name, event => handler(event.payload))
+    // Pin to the main window. The events delivered through this group are
+    // emitted with `emit_to("main", …)` on the Rust side; in production
+    // builds Tauri v2 silently drops them when the listener is registered
+    // with the default `target: { kind: 'Any' }`, which is what was
+    // breaking the P2P state-change auto-restart and the local-sync UI.
+    const unlisten = await listen<T>(
+      name,
+      event => handler(event.payload),
+      { target: 'main' },
+    )
     this.unlisteners.push(unlisten)
   }
 
