@@ -1051,16 +1051,32 @@ impl PermissionManager {
         // through the store's own lookup. Apply the same `host_matches`
         // (and `action_matches`) logic against the extension's session
         // entries so behavior is consistent with DB-backed permissions.
-        let session_status = app_state
+        // Mirror the DB path's Denied-wins precedence: if any matching entry
+        // is Denied, that overrides any other Granted entry (e.g. a wildcard
+        // grant should not bypass a host-specific deny).
+        let matching_session: Vec<ExtensionPermission> = app_state
             .session_permissions
             .get_permissions_for_extension(extension_id)
             .into_iter()
-            .find(|p| {
+            .filter(|p| {
                 p.resource_type == ResourceType::Mail
                     && action_matches(&p.action)
                     && host_matches(&p.target)
             })
-            .map(|p| p.status);
+            .collect();
+        let session_status = if matching_session
+            .iter()
+            .any(|p| matches!(p.status, PermissionStatus::Denied))
+        {
+            Some(PermissionStatus::Denied)
+        } else if matching_session
+            .iter()
+            .any(|p| matches!(p.status, PermissionStatus::Granted))
+        {
+            Some(PermissionStatus::Granted)
+        } else {
+            matching_session.into_iter().next().map(|p| p.status)
+        };
 
         // Session-scoped grants (one-time prompt decisions) take priority
         // over the absence of a DB-backed permission, otherwise an "allow
