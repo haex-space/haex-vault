@@ -169,6 +169,7 @@ pub async fn resolve_permission_prompt(
         "spaces" => ResourceType::Spaces,
         "identities" => ResourceType::Identities,
         "passwords" => ResourceType::Passwords,
+        "mail" => ResourceType::Mail,
         _ => {
             return Err(ExtensionError::ValidationError {
                 reason: format!("Invalid resource type: {}", resource_type),
@@ -227,6 +228,16 @@ pub async fn resolve_permission_prompt(
                 }),
             };
             Action::Passwords(passwords_action)
+        }
+        ResourceType::Mail => {
+            let mail_action = match action.to_lowercase().as_str() {
+                "fetch" => crate::extension::permissions::types::MailAction::Fetch,
+                "send" => crate::extension::permissions::types::MailAction::Send,
+                _ => return Err(ExtensionError::ValidationError {
+                    reason: format!("Invalid mail action: {action} (expected 'fetch' or 'send')"),
+                }),
+            };
+            Action::Mail(mail_action)
         }
     };
 

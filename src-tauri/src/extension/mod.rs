@@ -36,6 +36,7 @@ pub mod remote_storage;
 pub mod spaces;
 pub mod shell;
 pub mod utils;
+pub mod mail;
 pub mod web;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -667,6 +668,7 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
     let mut spaces = Vec::new();
     let mut identities = Vec::new();
     let mut passwords = Vec::new();
+    let mut mail = Vec::new();
 
     for perm in permissions {
         let entry = PermissionEntry {
@@ -687,6 +689,7 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
             ResourceType::Spaces => spaces.push(entry),
             ResourceType::Identities => identities.push(entry),
             ResourceType::Passwords => passwords.push(entry),
+            ResourceType::Mail => mail.push(entry),
         }
     }
 
@@ -723,6 +726,7 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
         } else {
             Some(passwords)
         },
+        mail: if mail.is_empty() { None } else { Some(mail) },
     }
 }
 

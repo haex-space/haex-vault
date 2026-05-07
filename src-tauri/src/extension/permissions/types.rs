@@ -303,6 +303,49 @@ impl FromStr for IdentityAction {
     }
 }
 
+/// Aktionen auf dem Mail-Modul (IMAP fetch + SMTP send).
+///
+/// Der natürliche Split bei Mail ist Protokoll-basiert (IMAP vs SMTP),
+/// nicht read/write — IMAP-Server und SMTP-Server sind oft unterschiedliche
+/// Hosts. `target` ist der Mailserver-Hostname (z.B. "imap.gmail.com")
+/// oder "*" als Wildcard. Subdomain-Match: target="gmail.com" matched
+/// "imap.gmail.com" und "smtp.gmail.com".
+///
+/// `Fetch` umfasst alle IMAP-Operationen (LIST, FETCH, STORE/Flags, MOVE,
+/// DELETE, APPEND) — extra read/write-Trennung lohnt nicht, weil "lesen"
+/// bei IMAP bereits den vollen Datenzugriff bedeutet.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum MailAction {
+    Fetch,
+    Send,
+}
+
+impl MailAction {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MailAction::Fetch => "fetch",
+            MailAction::Send => "send",
+        }
+    }
+}
+
+impl FromStr for MailAction {
+    type Err = ExtensionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "fetch" => Ok(MailAction::Fetch),
+            "send" => Ok(MailAction::Send),
+            _ => Err(ExtensionError::InvalidActionString {
+                input: s.to_string(),
+                resource_type: "mail".to_string(),
+            }),
+        }
+    }
+}
+
 /// Aktionen auf dem Core-Passworttresor.
 ///
 /// Scope wird über `ExtensionPermission.target` als Tag-Filter gesteuert
@@ -370,6 +413,7 @@ pub enum Action {
     Spaces(SpaceAction),
     Identities(IdentityAction),
     Passwords(PasswordsAction),
+    Mail(MailAction),
 }
 
 /// Die interne Repräsentation einer einzelnen, gewährten Berechtigung.
@@ -399,6 +443,7 @@ pub enum ResourceType {
     Spaces,
     Identities,
     Passwords,
+    Mail,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, TS)]
@@ -484,6 +529,7 @@ impl ResourceType {
             ResourceType::Spaces => "spaces",
             ResourceType::Identities => "identities",
             ResourceType::Passwords => "passwords",
+            ResourceType::Mail => "mail",
         }
     }
 
@@ -497,6 +543,7 @@ impl ResourceType {
             "spaces" => Ok(ResourceType::Spaces),
             "identities" => Ok(ResourceType::Identities),
             "passwords" => Ok(ResourceType::Passwords),
+            "mail" => Ok(ResourceType::Mail),
             _ => Err(ExtensionError::ValidationError {
                 reason: format!("Unknown resource type: {s}"),
             }),
@@ -539,6 +586,7 @@ impl Action {
                 .unwrap_or_default()
                 .trim_matches('"')
                 .to_string(),
+            Action::Mail(action) => action.as_str().to_string(),
         }
     }
 
@@ -561,6 +609,7 @@ impl Action {
             ResourceType::Spaces => Ok(Action::Spaces(SpaceAction::from_str(s)?)),
             ResourceType::Identities => Ok(Action::Identities(IdentityAction::from_str(s)?)),
             ResourceType::Passwords => Ok(Action::Passwords(PasswordsAction::from_str(s)?)),
+            ResourceType::Mail => Ok(Action::Mail(MailAction::from_str(s)?)),
         }
     }
 }

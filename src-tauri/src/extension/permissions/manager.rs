@@ -5,8 +5,8 @@ use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::checker::PermissionChecker;
 use crate::extension::permissions::types::{
-    Action, ExtensionPermission, FileSyncAction, FileSyncTarget, PasswordsAction, PasswordsScope,
-    PermissionConstraints, PermissionStatus, ResourceType, SpaceAction,
+    Action, ExtensionPermission, FileSyncAction, FileSyncTarget, MailAction, PasswordsAction,
+    PasswordsScope, PermissionConstraints, PermissionStatus, ResourceType, SpaceAction,
 };
 use crate::table_names::TABLE_EXTENSION_PERMISSIONS;
 use crate::AppState;
@@ -994,6 +994,92 @@ impl PermissionManager {
 
         let tags: Vec<String> = granted.iter().map(|p| p.target.clone()).collect();
         Ok(PasswordsScope::Tags(tags))
+    }
+
+    /// Prüft Mail-Berechtigungen für IMAP-Fetch oder SMTP-Send.
+    ///
+    /// `host` ist der Mailserver-Hostname (z.B. "imap.gmail.com"). Matching:
+    /// - target="*" → Wildcard, gewährt für jeden Host
+    /// - target="imap.gmail.com" → exakter Hostname-Match
+    /// - target="gmail.com" → matched "imap.gmail.com" und "smtp.gmail.com"
+    ///   (Subdomain-Match)
+    pub async fn check_mail_permission(
+        app_state: &State<'_, AppState>,
+        extension_id: &str,
+        action: MailAction,
+        host: &str,
+    ) -> Result<(), ExtensionError> {
+        let extension = app_state
+            .extension_manager
+            .get_extension(extension_id)
+            .ok_or_else(|| ExtensionError::ValidationError {
+                reason: format!("Extension not found: {}", extension_id),
+            })?
+            .clone();
+
+        let permissions = Self::get_permissions(app_state, extension_id).await?;
+
+        let action_matches = |perm_action: &Action| -> bool {
+            matches!(perm_action, Action::Mail(a) if *a == action)
+        };
+
+        let host_matches = |target: &str| -> bool {
+            if target == "*" {
+                return true;
+            }
+            if target == host {
+                return true;
+            }
+            // Subdomain match: target="gmail.com" matches "imap.gmail.com"
+            host.ends_with(&format!(".{}", target))
+        };
+
+        let matching: Vec<&ExtensionPermission> = permissions
+            .iter()
+            .filter(|p| {
+                p.resource_type == ResourceType::Mail
+                    && action_matches(&p.action)
+                    && host_matches(&p.target)
+            })
+            .collect();
+
+        if matching.is_empty() {
+            return Err(ExtensionError::permission_prompt_required(
+                extension_id,
+                &extension.manifest.name,
+                "mail",
+                action.as_str(),
+                host,
+            ));
+        }
+
+        // Single Denied blocks. (Granted/Ask are evaluated next.)
+        if matching
+            .iter()
+            .any(|p| matches!(p.status, PermissionStatus::Denied))
+        {
+            return Err(ExtensionError::permission_denied(
+                extension_id,
+                action.as_str(),
+                host,
+            ));
+        }
+
+        if matching
+            .iter()
+            .any(|p| matches!(p.status, PermissionStatus::Granted))
+        {
+            return Ok(());
+        }
+
+        // All matchings are Ask → prompt.
+        Err(ExtensionError::permission_prompt_required(
+            extension_id,
+            &extension.manifest.name,
+            "mail",
+            action.as_str(),
+            host,
+        ))
     }
 
     // Helper-Methoden - müssen DatabaseError statt ExtensionError zurückgeben
