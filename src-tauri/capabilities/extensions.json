@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "extensions",
-  "description": "Minimal capability for extension webviews - extensions have NO direct system access",
+  "description": "Minimal capability for extension webviews - extensions have NO direct system access. extension_* commands still go through haex-vault's per-call permission manager (database, filesystem, web, mail, passwords).",
   "local": true,
   "webviews": ["ext_*"],
   "permissions": [
@@ -9,7 +9,8 @@
     "core:webview:default",
     "core:event:default",
     "notification:default",
-    "notification:allow-is-permission-granted"
+    "notification:allow-is-permission-granted",
+    "allow-extension-commands"
   ],
   "remote": {
     "urls": ["http://localhost:*", "haex-extension://*"]
