@@ -26,6 +26,8 @@ import { handleRemoteStorageMethodAsync } from './handlers/remoteStorage'
 import { handleSpacesMethodAsync } from './handlers/spaces'
 import { handleLoggingMethodAsync } from './handlers/logging'
 import { handleShellMethodAsync } from './handlers/shell'
+import { handlePasswordsMethodAsync } from './handlers/passwords'
+import { handleMailMethodAsync } from './handlers/mail'
 import type { ExtensionRequest, ExtensionInstance } from './handlers/types'
 import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
 
@@ -120,6 +122,12 @@ export const handleExtensionRequestAsync = async (
     }
     else if (method.startsWith('extension_shell_')) {
       result = await handleShellMethodAsync(request, instance.extension)
+    }
+    else if (method.startsWith('extension_password_')) {
+      result = await handlePasswordsMethodAsync(request, instance.extension)
+    }
+    else if (method.startsWith('extension_mail_')) {
+      result = await handleMailMethodAsync(request, instance.extension)
     }
     else {
       throw new Error(`Unknown method: ${method}`)

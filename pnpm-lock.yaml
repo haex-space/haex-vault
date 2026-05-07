@@ -40,8 +40,8 @@ importers:
         specifier: ^0.1.9
         version: 0.1.9
       '@haex-space/vault-sdk':
-        specifier: ^3.1.0
-        version: 3.1.0(@libsql/client@0.17.3)(@nuxt/kit@4.4.4(magicast@0.5.2))(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.5.0)(vite@7.3.2(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.2)(tsx@4.21.0)(yaml@2.8.4))(vue@3.5.33(typescript@5.9.3))
+        specifier: ^3.2.0
+        version: 3.2.0(@libsql/client@0.17.3)(@nuxt/kit@4.4.4(magicast@0.5.2))(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.5.0)(vite@7.3.2(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.2)(tsx@4.21.0)(yaml@2.8.4))(vue@3.5.33(typescript@5.9.3))
       '@nuxt/eslint':
         specifier: 1.15.2
         version: 1.15.2(@typescript-eslint/utils@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(@vue/compiler-sfc@3.5.33)(eslint@9.39.4(jiti@2.6.1))(magicast@0.5.2)(typescript@5.9.3)(vite@7.3.2(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.2)(tsx@4.21.0)(yaml@2.8.4))
@@ -1478,8 +1478,8 @@ packages:
   '@haex-space/ucan@0.1.9':
     resolution: {integrity: sha512-HUrV7YOteFMBNtNI9DUv7yNUL+tztkg2xvwxU6EMw8dMCTwH8bYeMmspxjlOY7H03gMtTrJkqf3rOxbaHYQ9Rw==}
 
-  '@haex-space/vault-sdk@3.1.0':
-    resolution: {integrity: sha512-N9feWqWpGmwKAx0d4lxC9YOqkTwRPakYBTwpAXXijPFjF814YoOOdSO43mbp2yfpIVlieYBXnpgk3/xrVAwaPg==}
+  '@haex-space/vault-sdk@3.2.0':
+    resolution: {integrity: sha512-SzF/rjDxU4dIFQ07KwXJUmEuFnxYpxUzEeuu9SXqX57mURWWeyRBi9SbOb4IA2o/QptRJsLRNW6PpgXC3aEGhw==}
     hasBin: true
     peerDependencies:
       '@nuxt/kit': ^3.0.0 || ^4.0.0
@@ -6062,8 +6062,8 @@ packages:
       xml2js:
         optional: true
 
-  node-abi@3.90.0:
-    resolution: {integrity: sha512-pZNQT7UnYlMwMBy5N1lV5X/YLTbZM5ncytN3xL7CHEzhDN8uVe0u55yaPUJICIJjaCW8NrM5BFdqr7HLweStNA==}
+  node-abi@3.92.0:
+    resolution: {integrity: sha512-KdHvFWZjEKDf0cakgFjebl371GPsISX2oZHcuyKqM7DtogIsHrqKeLTo8wBHxaXRAQlY2PsPlZmfo+9ZCxEREQ==}
     engines: {node: '>=10'}
 
   node-addon-api@7.1.1:
@@ -8921,7 +8921,7 @@ snapshots:
 
   '@haex-space/ucan@0.1.9': {}
 
-  '@haex-space/vault-sdk@3.1.0(@libsql/client@0.17.3)(@nuxt/kit@4.4.4(magicast@0.5.2))(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.5.0)(vite@7.3.2(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.2)(tsx@4.21.0)(yaml@2.8.4))(vue@3.5.33(typescript@5.9.3))':
+  '@haex-space/vault-sdk@3.2.0(@libsql/client@0.17.3)(@nuxt/kit@4.4.4(magicast@0.5.2))(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.5.0)(vite@7.3.2(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.2)(tsx@4.21.0)(yaml@2.8.4))(vue@3.5.33(typescript@5.9.3))':
     dependencies:
       archiver: 7.0.1
       commander: 14.0.3
@@ -13875,7 +13875,7 @@ snapshots:
       - supports-color
       - uploadthing
 
-  node-abi@3.90.0:
+  node-abi@3.92.0:
     dependencies:
       semver: 7.7.4
     optional: true
@@ -14565,7 +14565,7 @@ snapshots:
       minimist: 1.2.8
       mkdirp-classic: 0.5.3
       napi-build-utils: 2.0.0
-      node-abi: 3.90.0
+      node-abi: 3.92.0
       pump: 3.0.4
       rc: 1.2.8
       simple-get: 4.0.1
