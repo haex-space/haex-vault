@@ -28,6 +28,8 @@ export default defineNuxtPlugin({
     let unlisten: UnlistenFn | null = null
 
     try {
+      // Pin to the main window — backend emits via emit_to("main", …)
+      // and bare listen() (default target=Any) is dropped in prod builds.
       unlisten = await listen('push-invite-received', async () => {
         log.info('Received push-invite-received event — surfacing toast')
 
@@ -52,7 +54,7 @@ export default defineNuxtPlugin({
         }
 
         log.info(`push-invite handler completed — toast=${toastOk}`)
-      })
+      }, { target: 'main' })
       log.info('Registered global push-invite-received listener')
     } catch (error) {
       log.warn(`Failed to register push-invite listener: ${error}`)

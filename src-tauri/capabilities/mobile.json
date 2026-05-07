@@ -8,6 +8,7 @@
     "main"
   ],
   "permissions": [
-    "biometry:default"
+    "biometry:default",
+    "allow-app-commands"
   ]
 }

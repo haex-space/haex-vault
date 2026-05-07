@@ -19,7 +19,7 @@ use std::sync::{Arc, Mutex};
 #[cfg(desktop)]
 use std::time::Duration;
 #[cfg(desktop)]
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -153,8 +153,15 @@ impl FileWatcherManager {
                         });
 
                         // Compute reader extension_ids asynchronously against permissions
-                        // (both DB and session grants). The emit happens inside the task
-                        // so the enriched event carries the authorised reader list.
+                        // (both DB and session grants). The emit is then SCOPED to those
+                        // readers + the main window — never broadcast.
+                        //
+                        // Why scoped: in Tauri v2 both AppHandle::emit() and
+                        // WebviewWindow::emit() fan out to every webview, including
+                        // extension webviews that have no permission to see the path.
+                        // That would leak file names (e.g. private media libraries)
+                        // to unrelated extensions running in their own WebViewWindow
+                        // on desktop. Use emit_to(label, …) to target a single window.
                         let app_handle_for_emit = app_handle.clone();
                         let rule_for_emit = rule_id_clone.clone();
                         tauri::async_runtime::spawn(async move {
@@ -163,15 +170,51 @@ impl FileWatcherManager {
                                 None => Vec::new(),
                             };
 
-                            let event = FileChangeEvent {
+                            // Main-window event keeps the reader list — the frontend
+                            // broadcast layer uses it to fan out to iframe extensions.
+                            let main_event = FileChangeEvent {
+                                rule_id: rule_for_emit.clone(),
+                                change_type: change_type.clone(),
+                                path: relative_path.clone(),
+                                reader_extension_ids: reader_extension_ids.clone(),
+                            };
+
+                            // Extension-facing event has the reader list stripped:
+                            // extensions must not learn which OTHER extensions can
+                            // also read the path.
+                            let ext_event = FileChangeEvent {
                                 rule_id: rule_for_emit,
                                 change_type,
                                 path: relative_path,
-                                reader_extension_ids,
+                                reader_extension_ids: Vec::new(),
                             };
 
-                            if let Err(e) = app_handle_for_emit.emit(FILE_CHANGE_EVENT, &event) {
-                                eprintln!("[FileWatcher] Failed to emit event: {}", e);
+                            // 1. Send the full event to the main window only.
+                            //    emit_to(label, …) filters by window/webview label —
+                            //    .emit() would broadcast to every extension webview.
+                            if let Err(e) =
+                                app_handle_for_emit.emit_to("main", FILE_CHANGE_EVENT, &main_event)
+                            {
+                                eprintln!(
+                                    "[FileWatcher] Failed to emit to main window: {}",
+                                    e
+                                );
+                            }
+
+                            // 2. Send the sanitized event to the webview windows of
+                            //    each authorized extension.
+                            if !reader_extension_ids.is_empty() {
+                                let state = app_handle_for_emit.state::<crate::AppState>();
+                                for ext_id in &reader_extension_ids {
+                                    let _ = state
+                                        .extension_webview_manager
+                                        .emit_to_all_extension_windows(
+                                            &app_handle_for_emit,
+                                            ext_id,
+                                            FILE_CHANGE_EVENT,
+                                            &ext_event,
+                                        );
+                                }
                             }
                         });
                     }

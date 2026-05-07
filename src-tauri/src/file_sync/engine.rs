@@ -264,6 +264,14 @@ fn now_ms() -> u64 {
 
 /// Execute a one-shot sync: get manifests, compute diff, transfer files in
 /// parallel, update state.
+///
+/// `cancel` is checked before/between each phase (mkdir, downloads, uploads,
+/// deletes, conflicts) and inside per-file loops, so a `cancel.cancel()` from
+/// `file_sync_stop_all` aborts the current run within at most one in-flight
+/// transfer instead of waiting for the whole batch. Without this, a sync that
+/// re-fires every cycle (e.g. a misconfigured rule) blocks the vault close
+/// because the cancellation only used to take effect at the outer
+/// `tokio::select!` between cycles.
 pub async fn execute_sync(
     source: Arc<dyn SyncProvider>,
     target: Arc<dyn SyncProvider>,
@@ -272,10 +280,25 @@ pub async fn execute_sync(
     rule_id: &str,
     db: &DbConnection,
     app_handle: Option<tauri::AppHandle>,
+    cancel: Option<CancellationToken>,
 ) -> Result<SyncResult, SyncEngineError> {
+    macro_rules! check_cancel {
+        () => {
+            if let Some(ref token) = cancel {
+                if token.is_cancelled() {
+                    return Err(SyncEngineError::Cancelled);
+                }
+            }
+        };
+    }
+
+    check_cancel!();
+
     // 1. Get manifests (sequential — each is a single network roundtrip)
     let source_manifest = source.manifest().await?;
+    check_cancel!();
     let target_manifest = target.manifest().await?;
+    check_cancel!();
 
     // 2. Compute diff
     let actions = compute_sync_actions(&source_manifest, &target_manifest, direction, delete_mode);
@@ -429,7 +452,11 @@ pub async fn execute_sync(
                 .first()
                 .map(|(_, p)| p.clone())
                 .unwrap_or_default();
-            let _ = app.emit(
+            // emit_to(label, …) targets only the main window — .emit() would
+            // broadcast file paths to every extension webview (Tauri v2 emit
+            // is a fan-out, not a scoped send).
+            let _ = app.emit_to(
+                "main",
                 "file-sync:progress",
                 serde_json::json!({
                     "ruleId": rule_id_str,
@@ -449,6 +476,7 @@ pub async fn execute_sync(
     // 3a. Create directories (sequential — cheap, order matters)
     // -------------------------------------------------------------------------
     for dir_path in &actions.to_create_directories {
+        check_cancel!();
         let seq = active_seq.fetch_add(1, Ordering::Relaxed);
         active_files
             .lock()
@@ -476,6 +504,7 @@ pub async fn execute_sync(
     // 3b. Download files (source → target) — parallel
     // -------------------------------------------------------------------------
     {
+        check_cancel!();
         let mut join_set: JoinSet<()> = JoinSet::new();
 
         for file in actions.to_download {
@@ -494,9 +523,17 @@ pub async fn execute_sync(
             let db_clone = DbConnection(db.0.clone());
             let rule_id_clone = rule_id_str.clone();
             let emit = emit_progress.clone();
+            let cancel_task = cancel.clone();
 
             join_set.spawn(async move {
                 let _permit = sem.acquire().await.unwrap();
+                // Drop the task without doing any I/O if the rule was
+                // cancelled while this task was queued behind the semaphore.
+                if let Some(ref t) = cancel_task {
+                    if t.is_cancelled() {
+                        return;
+                    }
+                }
 
                 // Register per-file progress entry
                 file_progress
@@ -654,6 +691,7 @@ pub async fn execute_sync(
     // 3c. Upload files (target → source) — parallel (two-way only)
     // -------------------------------------------------------------------------
     {
+        check_cancel!();
         let mut join_set: JoinSet<()> = JoinSet::new();
 
         for file in actions.to_upload {
@@ -671,9 +709,15 @@ pub async fn execute_sync(
             let db_clone = DbConnection(db.0.clone());
             let rule_id_clone = rule_id_str.clone();
             let emit = emit_progress.clone();
+            let cancel_task = cancel.clone();
 
             join_set.spawn(async move {
                 let _permit = sem.acquire().await.unwrap();
+                if let Some(ref t) = cancel_task {
+                    if t.is_cancelled() {
+                        return;
+                    }
+                }
 
                 file_progress
                     .lock()
@@ -818,8 +862,10 @@ pub async fn execute_sync(
     // -------------------------------------------------------------------------
     // 3d. Delete files (sequential — order can matter for directories)
     // -------------------------------------------------------------------------
+    check_cancel!();
     let to_trash = matches!(delete_mode, DeleteMode::Trash);
     for path in &actions.to_delete {
+        check_cancel!();
         let seq = active_seq.fetch_add(1, Ordering::Relaxed);
         active_files
             .lock()
@@ -859,8 +905,10 @@ pub async fn execute_sync(
     // `*_from_path` provider APIs so a multi-GB conflict does not buffer the
     // entire payload in RAM.
     // -------------------------------------------------------------------------
+    check_cancel!();
     let noop_progress: Arc<dyn Fn(u64, u64) + Send + Sync> = Arc::new(|_, _| {});
     for conflict in &actions.conflicts {
+        check_cancel!();
         let seq = active_seq.fetch_add(1, Ordering::Relaxed);
         active_files
             .lock()
@@ -1085,7 +1133,7 @@ fn update_last_synced_at(app: &tauri::AppHandle, rule_id: &str) {
 
     // Notify frontend that CRDT dirty tables changed (triggers sync push)
     use tauri::Emitter;
-    let _ = app.emit(crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
+    let _ = app.emit_to("main", crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
 }
 
 // ---------------------------------------------------------------------------
@@ -1098,16 +1146,19 @@ fn emit_sync_result(
     result: &Result<SyncResult, SyncEngineError>,
 ) {
     use tauri::Emitter;
+    // emit_to(label, …) keeps these UI-only events out of extension webviews.
     match result {
         Ok(r) => {
             update_last_synced_at(app, rule_id);
-            let _ = app.emit(
+            let _ = app.emit_to(
+                "main",
                 "file-sync:complete",
                 serde_json::json!({ "ruleId": rule_id, "result": r }),
             );
         }
         Err(e) => {
-            let _ = app.emit(
+            let _ = app.emit_to(
+                "main",
                 "file-sync:error",
                 serde_json::json!({ "ruleId": rule_id, "error": e.to_string() }),
             );
@@ -1150,6 +1201,7 @@ pub async fn run_sync_loop(
         &rule_id,
         &db,
         Some(app_handle.clone()),
+        Some(cancel.clone()),
     )
     .await;
     eprintln!("[FileSyncEngine] Rule {} initial sync done: {:?}", rule_id, result.as_ref().map(|r| r.files_downloaded));
@@ -1176,6 +1228,7 @@ pub async fn run_sync_loop(
                     &rule_id,
                     &db,
                     Some(app_handle.clone()),
+                    Some(cancel.clone()),
                 )
                 .await;
                 next_wait = if result.is_err() { RETRY_INTERVAL } else { interval };
@@ -1196,6 +1249,7 @@ pub async fn run_sync_loop(
                     &rule_id,
                     &db,
                     Some(app_handle.clone()),
+                    Some(cancel.clone()),
                 )
                 .await;
                 // Manual triggers reset to normal interval even after a previous failure

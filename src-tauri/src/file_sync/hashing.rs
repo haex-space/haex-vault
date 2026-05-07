@@ -83,8 +83,33 @@ pub fn prime_cache(path: &Path, size: u64, mtime_nanos: u128, hash: String) {
 /// re-hashed. Pass the modification time as nanoseconds since UNIX_EPOCH
 /// (e.g. `mtime.duration_since(UNIX_EPOCH)?.as_nanos()`).
 pub fn cached_hash(path: &Path, size: u64, mtime_nanos: u128) -> io::Result<String> {
+    let key = path.to_string_lossy().to_string();
+    cached_hash_with_reader(key, size, mtime_nanos, || File::open(path))
+}
+
+/// Cache-aware streaming SHA-256 over an arbitrary byte source.
+///
+/// Used by the LocalProvider (file paths) and the Android Content URI scan
+/// (FileUri-backed `std::fs::File` from `tauri_plugin_android_fs`). The cache
+/// key is a caller-chosen string (e.g. absolute path, or `content://` URI)
+/// plus `(size, mtime_nanos)` — the same invariants apply: same key + same
+/// size + same nanos ⇒ unchanged file.
+///
+/// `open_reader` is only invoked on cache miss, so a cached scan never pays
+/// the cost of opening the file (important on Android where every URI open
+/// crosses the JNI boundary).
+pub fn cached_hash_with_reader<R, F>(
+    cache_key: String,
+    size: u64,
+    mtime_nanos: u128,
+    open_reader: F,
+) -> io::Result<String>
+where
+    R: Read,
+    F: FnOnce() -> io::Result<R>,
+{
     let key = CacheKey {
-        path: path.to_string_lossy().to_string(),
+        path: cache_key,
         size,
         mtime_nanos,
     };
@@ -98,7 +123,17 @@ pub fn cached_hash(path: &Path, size: u64, mtime_nanos: u128) -> io::Result<Stri
         return Ok(hash);
     }
 
-    let hash = hash_file_sync(path)?;
+    let mut reader = open_reader()?;
+    let mut hasher = Sha256::new();
+    let mut buf = vec![0u8; HASH_BUF];
+    loop {
+        let n = reader.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    let hash = hex::encode(hasher.finalize());
     HASH_CACHE
         .lock()
         .unwrap_or_else(|e| e.into_inner())

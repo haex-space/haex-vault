@@ -169,6 +169,7 @@ pub async fn resolve_permission_prompt(
         "spaces" => ResourceType::Spaces,
         "identities" => ResourceType::Identities,
         "passwords" => ResourceType::Passwords,
+        "mail" => ResourceType::Mail,
         _ => {
             return Err(ExtensionError::ValidationError {
                 reason: format!("Invalid resource type: {}", resource_type),
@@ -228,13 +229,33 @@ pub async fn resolve_permission_prompt(
             };
             Action::Passwords(passwords_action)
         }
+        ResourceType::Mail => {
+            let mail_action = match action.to_lowercase().as_str() {
+                "fetch" => crate::extension::permissions::types::MailAction::Fetch,
+                "send" => crate::extension::permissions::types::MailAction::Send,
+                _ => return Err(ExtensionError::ValidationError {
+                    reason: format!("Invalid mail action: {action} (expected 'fetch' or 'send')"),
+                }),
+            };
+            Action::Mail(mail_action)
+        }
     };
 
-    // Check if permission already exists
+    // Check if permission already exists.
+    //
+    // Mail allows multiple permissions per host (one each for `fetch`
+    // and `send`), so for `Mail` we also match on the action to avoid
+    // a `send` decision overwriting a stored `fetch` decision.
     let existing_permissions = PermissionManager::get_permissions(&state, &extension_id).await?;
 
     let existing_permission = existing_permissions.iter().find(|p| {
-        p.resource_type == resource_type_enum && p.target == target
+        if p.resource_type != resource_type_enum || p.target != target {
+            return false;
+        }
+        if matches!(resource_type_enum, ResourceType::Mail) {
+            return p.action == action_enum;
+        }
+        true
     });
 
     if let Some(existing) = existing_permission {

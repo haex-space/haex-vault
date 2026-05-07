@@ -371,6 +371,7 @@ pub async fn file_sync_trigger_now(
         &rule_id,
         &state.db,
         Some(app),
+        None,
     )
     .await?;
 

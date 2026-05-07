@@ -661,7 +661,10 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     log.debug('EXTENSION_WINDOW_CLOSED event:', EXTENSION_WINDOW_CLOSED)
     log.debug('EXTENSION_AUTO_START_REQUEST event:', EXTENSION_AUTO_START_REQUEST)
 
-    // Listen for native WebviewWindow close events from backend
+    // Listen for native WebviewWindow close events from backend.
+    // Pin to the main window via target='main' — backend emits via
+    // emit_to("main", …) and Tauri v2's default-Any listener loses
+    // these events in production builds.
     await listen<string>(
       EXTENSION_WINDOW_CLOSED,
       (event) => {
@@ -674,11 +677,12 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
           windows.value.splice(index, 1)
         }
       },
+      { target: 'main' },
     )
 
-    // Listen for extension auto-start requests from ExternalBridge
-    // This is triggered when an external client sends a request to an extension
-    // that is not currently loaded
+    // Listen for extension auto-start requests from ExternalBridge.
+    // Triggered when an external client sends a request for an extension
+    // that is not currently loaded. Same target='main' pinning as above.
     await listen<{ extensionId: string }>(
       EXTENSION_AUTO_START_REQUEST,
       async (event) => {
@@ -717,6 +721,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
         }
         log.info('========== AUTO-START REQUEST COMPLETE ==========')
       },
+      { target: 'main' },
     )
 
     log.info('Desktop event listeners setup complete')

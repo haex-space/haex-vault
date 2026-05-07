@@ -71,6 +71,7 @@
     "os:allow-hostname",
     "os:default",
     "store:default",
-    "deep-link:default"
+    "deep-link:default",
+    "allow-app-commands"
   ]
 }

@@ -48,6 +48,7 @@ fn make_extension() -> Extension {
                 spaces: None,
                 identities: None,
                 passwords: None,
+                mail: None,
             },
             homepage: None,
             description: None,

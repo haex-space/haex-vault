@@ -1,0 +1,406 @@
+# Tauri 2.11.1 introduced an ACL check that rejects app-level
+# `#[tauri::command]` calls when the requesting webview was loaded from
+# a remote origin (e.g. http://localhost:4010 — every dev-mode
+# extension). The check sits behind `!is_local` in
+# crates/tauri/src/webview/mod.rs and does NOT exist in 2.11.0.
+#
+# Side effect: as soon as ANY app-level permission is declared, the
+# `has_app_acl_manifest` flag becomes true and EVERY app command needs
+# an ACL grant — even for local-origin calls from the main window.
+# That is why both the `extensions` capability AND the `default`
+# (main window) capability need allow-lists.
+#
+# Whenever a new `#[tauri::command]` is added to lib.rs's
+# `invoke_handler!`, append it to `allow-app-commands` below and (if
+# it should be reachable from extensions) to `allow-extension-commands`
+# as well.
+
+# ------------------------------------------------------------------
+# Extension-facing commands. Granted to webviews matching `ext_*`.
+# Each of these commands still goes through haex-vault's per-call
+# permission manager (database / filesystem / web / mail / passwords
+# scoped by the extension's manifest); this only opens the IPC channel
+# so those checks can run.
+# ------------------------------------------------------------------
+[[permission]]
+identifier = "allow-extension-commands"
+description = """
+Grants extension webviews access to every `extension_*` Tauri command.
+"""
+
+commands.allow = [
+  # Extension info / context
+  "extension_get_info",
+  "extension_context_get",
+  "extension_context_set",
+  "extension_signal_ready",
+
+  # Database
+  "extension_database_query",
+  "extension_database_execute",
+  "extension_database_transaction",
+  "extension_database_register_migrations",
+  "apply_synced_extension_migrations",
+
+  # Filesystem
+  "extension_filesystem_read_file",
+  "extension_filesystem_write_file",
+  "extension_filesystem_read_dir",
+  "extension_filesystem_mkdir",
+  "extension_filesystem_remove",
+  "extension_filesystem_rename",
+  "extension_filesystem_copy",
+  "extension_filesystem_exists",
+  "extension_filesystem_stat",
+  "extension_filesystem_open_file",
+  "extension_filesystem_save_file",
+  "extension_filesystem_select_file",
+  "extension_filesystem_select_folder",
+  "extension_filesystem_known_paths",
+  "extension_filesystem_watch",
+  "extension_filesystem_unwatch",
+  "extension_filesystem_is_watching",
+
+  # Web (HTTP)
+  "extension_web_fetch",
+  "extension_web_open",
+
+  # Mail (IMAP + SMTP)
+  "extension_mail_list_mailboxes",
+  "extension_mail_fetch_envelopes",
+  "extension_mail_fetch_message",
+  "extension_mail_set_flags",
+  "extension_mail_move_messages",
+  "extension_mail_append_message",
+  "extension_mail_send_message",
+  "extension_mail_build_rfc822",
+
+  # Passwords vault
+  "extension_password_list",
+  "extension_password_read",
+  "extension_password_create",
+  "extension_password_update",
+  "extension_password_delete",
+
+  # Permissions / session
+  "extension_permissions_check_web",
+  "extension_permissions_check_database",
+  "extension_permissions_check_filesystem",
+  "resolve_permission_prompt",
+  "grant_session_permission",
+  "get_extension_session_permissions",
+  "remove_extension_session_permission",
+
+  # Logging / limits
+  "extension_logging_write",
+  "extension_logging_read",
+  "get_extension_limits",
+  "update_extension_limits",
+  "reset_extension_limits",
+
+  # Remote storage
+  "extension_remote_storage_list_backends",
+  "extension_remote_storage_add_backend",
+  "extension_remote_storage_remove_backend",
+  "extension_remote_storage_update_backend",
+  "extension_remote_storage_test_backend",
+  "extension_remote_storage_list",
+  "extension_remote_storage_upload",
+  "extension_remote_storage_download",
+  "extension_remote_storage_delete",
+
+  # Spaces
+  "extension_space_assign",
+  "extension_space_unassign",
+  "extension_space_get_assignments",
+  "extension_space_list",
+  "set_auth_token",
+
+  # Shell / PTY
+  "extension_shell_create",
+  "extension_shell_write",
+  "extension_shell_resize",
+  "extension_shell_close",
+  "extension_shell_list_available",
+]
+
+# ------------------------------------------------------------------
+# All app commands — granted to the main window's `default` capability.
+# Includes everything in `allow-extension-commands` plus internal vault
+# management, sync, MLS, bridge, etc. that extensions never call.
+# ------------------------------------------------------------------
+[[permission]]
+identifier = "allow-app-commands"
+description = """
+Grants the main window access to every `#[tauri::command]` registered
+in haex-vault's `invoke_handler!`. Mirrors the lib.rs registration —
+keep them in sync when adding/removing commands.
+"""
+
+commands.allow = [
+  # Vault lifecycle
+  "list_vaults",
+  "vault_exists",
+  "create_encrypted_database",
+  "open_encrypted_database",
+  "close_database",
+  "change_vault_password",
+  "delete_vault",
+  "move_vault_to_trash",
+  "import_vault",
+  "database_vacuum",
+  "get_database_info",
+  "open_file_system",
+
+  # Core migrations
+  "apply_core_migrations",
+  "get_all_core_migrations",
+  "get_applied_core_migrations",
+  "get_unapplied_core_migrations",
+  "ensure_extension_triggers",
+
+  # CRDT
+  "apply_remote_changes_in_transaction",
+  "clear_all_dirty_tables",
+  "clear_dirty_table",
+  "clear_pending_column",
+  "crdt_cleanup_deleted_rows",
+  "crdt_get_stats",
+  "get_all_crdt_tables",
+  "get_dirty_tables",
+  "get_pending_columns",
+  "get_table_schema",
+
+  # SQL helpers
+  "sql_execute",
+  "sql_execute_with_crdt",
+  "sql_query_with_crdt",
+  "sql_select",
+  "sql_select_with_crdt",
+  "sql_with_crdt",
+
+  # Device / identity
+  "device_init_key",
+  "decrypt_for_identity",
+  "encrypt_for_identity",
+
+  # Filesystem (host)
+  "filesystem_read_file",
+  "filesystem_write_file",
+  "filesystem_read_dir",
+  "filesystem_mkdir",
+  "filesystem_remove",
+  "filesystem_rename",
+  "filesystem_copy",
+  "filesystem_copy_dir",
+  "filesystem_exists",
+  "filesystem_stat",
+  "filesystem_select_file",
+  "filesystem_select_folder",
+
+  # File sync
+  "file_sync_start_rule",
+  "file_sync_stop_rule",
+  "file_sync_stop_all",
+  "file_sync_status",
+  "file_sync_trigger_now",
+  "file_sync_trigger_by_watcher",
+
+  # Local space delivery
+  "local_delivery_start",
+  "local_delivery_stop",
+  "local_delivery_status",
+  "local_delivery_connect",
+  "local_delivery_disconnect",
+  "local_delivery_elect",
+  "local_delivery_get_leader",
+  "local_delivery_broadcast_commit",
+  "local_delivery_create_invite",
+  "local_delivery_claim_invite",
+  "local_delivery_push_invite",
+  "local_delivery_revoke_invite",
+  "local_delivery_list_invites",
+
+  # Logging
+  "log_write_system",
+  "log_read",
+  "log_delete",
+  "log_clear_all",
+  "log_cleanup",
+
+  # MLS (group key management)
+  "mls_init_tables",
+  "mls_init_identity",
+  "mls_create_group",
+  "mls_has_group",
+  "mls_get_group_info",
+  "mls_add_member",
+  "mls_remove_member",
+  "mls_find_member_index",
+  "mls_join_by_external_commit",
+  "mls_process_message",
+  "mls_get_key_packages",
+  "mls_export_epoch_key",
+  "mls_get_epoch_key",
+  "mls_encrypt",
+  "mls_decrypt",
+
+  # Peer storage (P2P / iroh)
+  "peer_storage_start",
+  "peer_storage_stop",
+  "peer_storage_status",
+  "peer_storage_diagnose_connection",
+  "peer_storage_reload_shares",
+  "peer_storage_remote_list",
+  "peer_storage_remote_read",
+  "peer_storage_transfer_cancel",
+  "peer_storage_transfer_pause",
+  "peer_storage_transfer_resume",
+
+  # Remote storage (host-level)
+  "remote_storage_list_backends",
+  "remote_storage_add_backend",
+  "remote_storage_remove_backend",
+  "remote_storage_update_backend",
+  "remote_storage_test_backend",
+  "remote_storage_list",
+  "remote_storage_upload",
+  "remote_storage_download",
+  "remote_storage_delete",
+
+  # External bridge (WebSocket for browser extension etc.)
+  "external_bridge_start",
+  "external_bridge_stop",
+  "external_bridge_get_status",
+  "external_bridge_get_port",
+  "external_bridge_get_default_port",
+  "external_bridge_respond",
+  "external_bridge_client_allow",
+  "external_bridge_client_block",
+  "external_bridge_deny_client",
+  "external_bridge_get_authorized_clients",
+  "external_bridge_get_blocked_clients",
+  "external_bridge_get_pending_authorizations",
+  "external_bridge_revoke_client",
+  "external_bridge_unblock_client",
+  "external_bridge_get_session_authorizations",
+  "external_bridge_get_session_blocked_clients",
+  "external_bridge_revoke_session_authorization",
+  "external_bridge_unblock_session_client",
+
+  # Window management
+  "focus_main_window",
+  "focus_window_by_label",
+  "create_desktop_shortcut",
+  "remove_desktop_shortcut",
+
+  # Extension lifecycle / installation (host side)
+  "preview_extension",
+  "register_extension_in_database",
+  "install_extension_files",
+  "install_extension_with_permissions",
+  "remove_extension",
+  "is_extension_installed",
+  "load_dev_extension",
+  "remove_dev_extension",
+  "get_all_extensions",
+  "get_all_dev_extensions",
+  "get_extension_info",
+  "get_extension_permissions",
+  "update_extension_permissions",
+  "update_extension_display_mode",
+
+  # Extension webview windows
+  "open_extension_webview_window",
+  "close_extension_webview_window",
+  "close_all_extension_webview_windows",
+  "focus_extension_webview_window",
+  "update_extension_webview_window_position",
+  "update_extension_webview_window_size",
+
+  # Extension sync events / broadcast
+  "extension_filter_sync_tables",
+  "extension_emit_sync_tables",
+  "extension_webview_broadcast",
+  "extension_webview_emit",
+
+  # Extension info / context (also reachable from main for diagnostics)
+  "extension_get_info",
+  "extension_context_get",
+  "extension_context_set",
+  "extension_signal_ready",
+
+  # Extension database (host-side admin)
+  "extension_database_query",
+  "extension_database_execute",
+  "extension_database_transaction",
+  "extension_database_register_migrations",
+  "apply_synced_extension_migrations",
+
+  # Extension filesystem
+  "extension_filesystem_read_file",
+  "extension_filesystem_write_file",
+  "extension_filesystem_read_dir",
+  "extension_filesystem_mkdir",
+  "extension_filesystem_remove",
+  "extension_filesystem_rename",
+  "extension_filesystem_copy",
+  "extension_filesystem_exists",
+  "extension_filesystem_stat",
+  "extension_filesystem_open_file",
+  "extension_filesystem_save_file",
+  "extension_filesystem_select_file",
+  "extension_filesystem_select_folder",
+  "extension_filesystem_known_paths",
+  "extension_filesystem_watch",
+  "extension_filesystem_unwatch",
+  "extension_filesystem_is_watching",
+
+  # Extension web / mail / passwords / permissions / logging / limits / spaces / shell / remote-storage
+  "extension_web_fetch",
+  "extension_web_open",
+  "extension_mail_list_mailboxes",
+  "extension_mail_fetch_envelopes",
+  "extension_mail_fetch_message",
+  "extension_mail_set_flags",
+  "extension_mail_move_messages",
+  "extension_mail_append_message",
+  "extension_mail_send_message",
+  "extension_mail_build_rfc822",
+  "extension_password_list",
+  "extension_password_read",
+  "extension_password_create",
+  "extension_password_update",
+  "extension_password_delete",
+  "extension_permissions_check_web",
+  "extension_permissions_check_database",
+  "extension_permissions_check_filesystem",
+  "resolve_permission_prompt",
+  "grant_session_permission",
+  "get_extension_session_permissions",
+  "remove_extension_session_permission",
+  "extension_logging_write",
+  "extension_logging_read",
+  "get_extension_limits",
+  "update_extension_limits",
+  "reset_extension_limits",
+  "extension_remote_storage_list_backends",
+  "extension_remote_storage_add_backend",
+  "extension_remote_storage_remove_backend",
+  "extension_remote_storage_update_backend",
+  "extension_remote_storage_test_backend",
+  "extension_remote_storage_list",
+  "extension_remote_storage_upload",
+  "extension_remote_storage_download",
+  "extension_remote_storage_delete",
+  "extension_space_assign",
+  "extension_space_unassign",
+  "extension_space_get_assignments",
+  "extension_space_list",
+  "set_auth_token",
+  "extension_shell_create",
+  "extension_shell_write",
+  "extension_shell_resize",
+  "extension_shell_close",
+  "extension_shell_list_available",
+]

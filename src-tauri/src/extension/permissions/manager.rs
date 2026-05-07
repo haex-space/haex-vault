@@ -5,8 +5,8 @@ use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::checker::PermissionChecker;
 use crate::extension::permissions::types::{
-    Action, ExtensionPermission, FileSyncAction, FileSyncTarget, PasswordsAction, PasswordsScope,
-    PermissionConstraints, PermissionStatus, ResourceType, SpaceAction,
+    Action, ExtensionPermission, FileSyncAction, FileSyncTarget, MailAction, PasswordsAction,
+    PasswordsScope, PermissionConstraints, PermissionStatus, ResourceType, SpaceAction,
 };
 use crate::table_names::TABLE_EXTENSION_PERMISSIONS;
 use crate::AppState;
@@ -994,6 +994,130 @@ impl PermissionManager {
 
         let tags: Vec<String> = granted.iter().map(|p| p.target.clone()).collect();
         Ok(PasswordsScope::Tags(tags))
+    }
+
+    /// Prüft Mail-Berechtigungen für IMAP-Fetch oder SMTP-Send.
+    ///
+    /// `host` ist der Mailserver-Hostname (z.B. "imap.gmail.com"). Matching:
+    /// - target="*" → Wildcard, gewährt für jeden Host
+    /// - target="imap.gmail.com" → exakter Hostname-Match
+    /// - target="gmail.com" → matched "imap.gmail.com" und "smtp.gmail.com"
+    ///   (Subdomain-Match)
+    pub async fn check_mail_permission(
+        app_state: &State<'_, AppState>,
+        extension_id: &str,
+        action: MailAction,
+        host: &str,
+    ) -> Result<(), ExtensionError> {
+        let extension = app_state
+            .extension_manager
+            .get_extension(extension_id)
+            .ok_or_else(|| ExtensionError::ValidationError {
+                reason: format!("Extension not found: {}", extension_id),
+            })?
+            .clone();
+
+        let permissions = Self::get_permissions(app_state, extension_id).await?;
+
+        let action_matches = |perm_action: &Action| -> bool {
+            matches!(perm_action, Action::Mail(a) if *a == action)
+        };
+
+        // Mail hostnames are case-insensitive (DNS), so we compare lowercased.
+        let host_lower = host.to_ascii_lowercase();
+        let host_matches = |target: &str| -> bool {
+            let target_lower = target.to_ascii_lowercase();
+            if target_lower == "*" {
+                return true;
+            }
+            if target_lower == host_lower {
+                return true;
+            }
+            // Subdomain match: target="gmail.com" matches "imap.gmail.com"
+            host_lower.ends_with(&format!(".{}", target_lower))
+        };
+
+        let matching: Vec<&ExtensionPermission> = permissions
+            .iter()
+            .filter(|p| {
+                p.resource_type == ResourceType::Mail
+                    && action_matches(&p.action)
+                    && host_matches(&p.target)
+            })
+            .collect();
+
+        // Session-scoped grants (one-time prompt decisions) take priority
+        // over the absence of a DB-backed permission, otherwise an "allow
+        // once" mail decision would be re-prompted on every call.
+        if matching.is_empty() {
+            if app_state
+                .session_permissions
+                .is_granted(extension_id, ResourceType::Mail, host)
+            {
+                return Ok(());
+            }
+            if app_state
+                .session_permissions
+                .is_denied(extension_id, ResourceType::Mail, host)
+            {
+                return Err(ExtensionError::permission_denied(
+                    extension_id,
+                    action.as_str(),
+                    host,
+                ));
+            }
+            return Err(ExtensionError::permission_prompt_required(
+                extension_id,
+                &extension.manifest.name,
+                "mail",
+                action.as_str(),
+                host,
+            ));
+        }
+
+        // Single Denied blocks. (Granted/Ask are evaluated next.)
+        if matching
+            .iter()
+            .any(|p| matches!(p.status, PermissionStatus::Denied))
+        {
+            return Err(ExtensionError::permission_denied(
+                extension_id,
+                action.as_str(),
+                host,
+            ));
+        }
+
+        if matching
+            .iter()
+            .any(|p| matches!(p.status, PermissionStatus::Granted))
+        {
+            return Ok(());
+        }
+
+        // Stored permissions are all Ask → consult session, then prompt.
+        if app_state
+            .session_permissions
+            .is_granted(extension_id, ResourceType::Mail, host)
+        {
+            return Ok(());
+        }
+        if app_state
+            .session_permissions
+            .is_denied(extension_id, ResourceType::Mail, host)
+        {
+            return Err(ExtensionError::permission_denied(
+                extension_id,
+                action.as_str(),
+                host,
+            ));
+        }
+        Err(ExtensionError::permission_prompt_required(
+            extension_id,
+            &extension.manifest.name,
+            "mail",
+            action.as_str(),
+            host,
+        ))
     }
 
     // Helper-Methoden - müssen DatabaseError statt ExtensionError zurückgeben

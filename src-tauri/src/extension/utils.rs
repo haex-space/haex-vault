@@ -42,7 +42,10 @@ pub fn emit_permission_prompt_if_needed(app_handle: &AppHandle, error: &Extensio
             action: action.clone(),
             target: target.clone(),
         };
-        let _ = app_handle.emit(EVENT_PERMISSION_PROMPT_REQUIRED, &payload);
+        // Main window only: only the main window can grant/deny permissions
+        // via Tauri commands. Extensions must not observe each other's
+        // permission-prompt requests.
+        let _ = app_handle.emit_to("main", EVENT_PERMISSION_PROMPT_REQUIRED, &payload);
     }
 }
 
