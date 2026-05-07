@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "nuxt build",
+    "predev": "node scripts/check-dev-port.js",
     "dev": "nuxt dev",
     "test": "vitest",
     "typecheck": "nuxi typecheck",
