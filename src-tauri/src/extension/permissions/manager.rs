@@ -1046,25 +1046,36 @@ impl PermissionManager {
             })
             .collect();
 
+        // Session permissions are keyed by exact target string, so a session
+        // grant for "gmail.com" would not match a request for "imap.gmail.com"
+        // through the store's own lookup. Apply the same `host_matches`
+        // (and `action_matches`) logic against the extension's session
+        // entries so behavior is consistent with DB-backed permissions.
+        let session_status = app_state
+            .session_permissions
+            .get_permissions_for_extension(extension_id)
+            .into_iter()
+            .find(|p| {
+                p.resource_type == ResourceType::Mail
+                    && action_matches(&p.action)
+                    && host_matches(&p.target)
+            })
+            .map(|p| p.status);
+
         // Session-scoped grants (one-time prompt decisions) take priority
         // over the absence of a DB-backed permission, otherwise an "allow
         // once" mail decision would be re-prompted on every call.
         if matching.is_empty() {
-            if app_state
-                .session_permissions
-                .is_granted(extension_id, ResourceType::Mail, host)
-            {
-                return Ok(());
-            }
-            if app_state
-                .session_permissions
-                .is_denied(extension_id, ResourceType::Mail, host)
-            {
-                return Err(ExtensionError::permission_denied(
-                    extension_id,
-                    action.as_str(),
-                    host,
-                ));
+            match session_status {
+                Some(PermissionStatus::Granted) => return Ok(()),
+                Some(PermissionStatus::Denied) => {
+                    return Err(ExtensionError::permission_denied(
+                        extension_id,
+                        action.as_str(),
+                        host,
+                    ));
+                }
+                _ => {}
             }
             return Err(ExtensionError::permission_prompt_required(
                 extension_id,
@@ -1095,21 +1106,16 @@ impl PermissionManager {
         }
 
         // Stored permissions are all Ask → consult session, then prompt.
-        if app_state
-            .session_permissions
-            .is_granted(extension_id, ResourceType::Mail, host)
-        {
-            return Ok(());
-        }
-        if app_state
-            .session_permissions
-            .is_denied(extension_id, ResourceType::Mail, host)
-        {
-            return Err(ExtensionError::permission_denied(
-                extension_id,
-                action.as_str(),
-                host,
-            ));
+        match session_status {
+            Some(PermissionStatus::Granted) => return Ok(()),
+            Some(PermissionStatus::Denied) => {
+                return Err(ExtensionError::permission_denied(
+                    extension_id,
+                    action.as_str(),
+                    host,
+                ));
+            }
+            _ => {}
         }
         Err(ExtensionError::permission_prompt_required(
             extension_id,

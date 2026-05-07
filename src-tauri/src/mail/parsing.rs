@@ -70,7 +70,12 @@ pub fn parse_message(rfc822: &[u8], fetch: &Fetch) -> Result<Message, MailError>
     }
 
     let envelope = MessageEnvelope {
-        uid: fetch.uid.unwrap_or(0),
+        // RFC 3501: valid UIDs are ≥ 1. A missing UID means the FETCH
+        // response was incomplete; surfacing it as an error prevents
+        // downstream callers from issuing UID-based ops with a bogus 0.
+        uid: fetch.uid.ok_or_else(|| MailError::MessageParse {
+            reason: "FETCH response missing UID".to_string(),
+        })?,
         flags: fetch.flags().map(|f| flag_to_string(&f)).collect(),
         internal_date: fetch.internal_date().map(|d| d.timestamp()),
         subject,
@@ -155,10 +160,16 @@ pub fn flag_to_string(flag: &Flag<'_>) -> String {
 
 fn addresses_from_header(h: &ParsedAddress) -> Vec<Address> {
     h.iter()
-        .map(|a| {
+        .filter_map(|a| {
+            // Skip entries without a usable mailbox — an empty `email`
+            // is useless for threading, display, or reply-to logic, and
+            // would silently propagate downstream.
+            let email = a.address()?.to_string();
+            if email.is_empty() {
+                return None;
+            }
             let name = a.name().map(|s| s.to_string());
-            let email = a.address().unwrap_or("").to_string();
-            Address { name, email }
+            Some(Address { name, email })
         })
         .collect()
 }

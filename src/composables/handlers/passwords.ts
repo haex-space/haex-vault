@@ -19,11 +19,14 @@ export async function handlePasswordsMethodAsync(
   request: ExtensionRequest,
   extension: IHaexSpaceExtension,
 ) {
-  if (!extension || !request) {
+  if (!extension) {
     throw new Error('Extension not found')
   }
+  if (!request) {
+    throw new Error('Request is required')
+  }
 
-  const { method, params } = request
+  const { method, params = {} } = request
   const extInfo = {
     publicKey: extension.publicKey,
     name: extension.name,
