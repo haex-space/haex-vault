@@ -315,7 +315,8 @@ impl PeerEndpoint {
                         &state, "error", "Endpoint", None, &msg, None, "rust",
                     );
                 }
-                let _ = app.emit(
+                let _ = app.emit_to(
+                    "main",
                     crate::event_names::EVENT_PEER_STORAGE_STATE_CHANGED,
                     serde_json::json!({
                         "running": false,

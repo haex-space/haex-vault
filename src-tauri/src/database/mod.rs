@@ -78,7 +78,7 @@ pub fn sql_execute_with_crdt(
     let result = core::execute_with_crdt(sql, params, &state.db, &hlc_service)?;
 
     // Emit event to notify frontend that dirty tables may have changed
-    let _ = app_handle.emit(EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
+    let _ = app_handle.emit_to("main", EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
 
     Ok(result)
 }
@@ -105,7 +105,7 @@ pub fn sql_query_with_crdt(
     })?;
 
     // Emit event to notify frontend that dirty tables may have changed
-    let _ = app_handle.emit(EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
+    let _ = app_handle.emit_to("main", EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
 
     Ok(result)
 }
@@ -144,7 +144,7 @@ pub fn sql_with_crdt(
             let result = core::execute_with_crdt(sql, params, &state.db, &hlc_service)?;
 
             // Emit event to notify frontend that dirty tables may have changed
-            let _ = app_handle.emit(EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
+            let _ = app_handle.emit_to("main", EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
 
             Ok(result)
         }

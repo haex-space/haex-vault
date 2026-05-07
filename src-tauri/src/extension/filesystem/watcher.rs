@@ -156,11 +156,12 @@ impl FileWatcherManager {
                         // (both DB and session grants). The emit is then SCOPED to those
                         // readers + the main window — never broadcast.
                         //
-                        // Why scoped: app_handle.emit() fans out to every webview,
-                        // including extension webviews that have no permission to see
-                        // the path. That would leak file names (e.g. private media
-                        // libraries) to unrelated extensions running in their own
-                        // WebViewWindow on desktop.
+                        // Why scoped: in Tauri v2 both AppHandle::emit() and
+                        // WebviewWindow::emit() fan out to every webview, including
+                        // extension webviews that have no permission to see the path.
+                        // That would leak file names (e.g. private media libraries)
+                        // to unrelated extensions running in their own WebViewWindow
+                        // on desktop. Use emit_to(label, …) to target a single window.
                         let app_handle_for_emit = app_handle.clone();
                         let rule_for_emit = rule_id_clone.clone();
                         tauri::async_runtime::spawn(async move {
@@ -189,13 +190,15 @@ impl FileWatcherManager {
                             };
 
                             // 1. Send the full event to the main window only.
-                            if let Some(main) = app_handle_for_emit.get_webview_window("main") {
-                                if let Err(e) = main.emit(FILE_CHANGE_EVENT, &main_event) {
-                                    eprintln!(
-                                        "[FileWatcher] Failed to emit to main window: {}",
-                                        e
-                                    );
-                                }
+                            //    emit_to(label, …) filters by window/webview label —
+                            //    .emit() would broadcast to every extension webview.
+                            if let Err(e) =
+                                app_handle_for_emit.emit_to("main", FILE_CHANGE_EVENT, &main_event)
+                            {
+                                eprintln!(
+                                    "[FileWatcher] Failed to emit to main window: {}",
+                                    e
+                                );
                             }
 
                             // 2. Send the sanitized event to the webview windows of

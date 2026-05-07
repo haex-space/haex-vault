@@ -335,8 +335,11 @@ async fn run_sync_loop(
                         endpoint_closed_now,
                     );
 
-                    // Emit error event for frontend
-                    let _ = app_handle.emit(
+                    // Emit error event for frontend (main window only).
+                    // Tauri v2 emit() broadcasts to every webview — extensions
+                    // must not learn about p2p sync state for other spaces.
+                    let _ = app_handle.emit_to(
+                        "main",
                         "local-sync-error",
                         serde_json::json!({
                             "spaceId": space_id,
@@ -639,8 +642,9 @@ async fn run_sync_cycle(
                     *last_pull_timestamp = Some(max_pulled_hlc);
                 }
 
-                // Emit Tauri event for frontend UI refresh
-                let _ = app_handle.emit(
+                // Emit Tauri event for frontend UI refresh (main window only).
+                let _ = app_handle.emit_to(
+                    "main",
                     "local-sync-completed",
                     serde_json::json!({
                         "spaceId": space_id,
@@ -760,8 +764,9 @@ async fn fetch_and_process_mls_messages(
         let count = acked_ids.len();
         session.ack_commits(space_id, acked_ids).await?;
 
-        // Emit event for frontend (e.g., epoch key re-derivation)
-        let _ = app_handle.emit(
+        // Emit event for frontend (main window only).
+        let _ = app_handle.emit_to(
+            "main",
             "local-mls-commit-processed",
             serde_json::json!({
                 "spaceId": space_id,
@@ -811,8 +816,9 @@ async fn attempt_rejoin(
         .submit_external_commit(space_id, &commit_b64)
         .await?;
 
-    // 4. Emit event so frontend can update the epoch key
-    let _ = app_handle.emit(
+    // 4. Emit event so frontend can update the epoch key (main window only).
+    let _ = app_handle.emit_to(
+        "main",
         "local-mls-rejoin-completed",
         serde_json::json!({
             "spaceId": space_id,

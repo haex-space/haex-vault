@@ -452,7 +452,11 @@ pub async fn execute_sync(
                 .first()
                 .map(|(_, p)| p.clone())
                 .unwrap_or_default();
-            let _ = app.emit(
+            // emit_to(label, …) targets only the main window — .emit() would
+            // broadcast file paths to every extension webview (Tauri v2 emit
+            // is a fan-out, not a scoped send).
+            let _ = app.emit_to(
+                "main",
                 "file-sync:progress",
                 serde_json::json!({
                     "ruleId": rule_id_str,
@@ -1129,7 +1133,7 @@ fn update_last_synced_at(app: &tauri::AppHandle, rule_id: &str) {
 
     // Notify frontend that CRDT dirty tables changed (triggers sync push)
     use tauri::Emitter;
-    let _ = app.emit(crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
+    let _ = app.emit_to("main", crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
 }
 
 // ---------------------------------------------------------------------------
@@ -1142,16 +1146,19 @@ fn emit_sync_result(
     result: &Result<SyncResult, SyncEngineError>,
 ) {
     use tauri::Emitter;
+    // emit_to(label, …) keeps these UI-only events out of extension webviews.
     match result {
         Ok(r) => {
             update_last_synced_at(app, rule_id);
-            let _ = app.emit(
+            let _ = app.emit_to(
+                "main",
                 "file-sync:complete",
                 serde_json::json!({ "ruleId": rule_id, "result": r }),
             );
         }
         Err(e) => {
-            let _ = app.emit(
+            let _ = app.emit_to(
+                "main",
                 "file-sync:error",
                 serde_json::json!({ "ruleId": rule_id, "error": e.to_string() }),
             );

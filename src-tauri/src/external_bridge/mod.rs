@@ -147,7 +147,7 @@ pub fn external_bridge_revoke_client(
         .map_err(|e| e.to_string())?;
 
     // Emit event to notify frontend
-    let _ = app_handle.emit(EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
+    let _ = app_handle.emit_to("main", EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
 
     Ok(())
 }
@@ -250,7 +250,7 @@ pub async fn external_bridge_client_allow(
         }
 
         // Emit event to notify frontend
-        let _ = app_handle.emit(EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
+        let _ = app_handle.emit_to("main", EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
     } else {
         // Store session-based authorization (for "allow once")
         // This persists for the lifetime of the haex-vault session
@@ -301,7 +301,7 @@ pub async fn external_bridge_client_block(
         }
 
         // Emit event to notify frontend
-        let _ = app_handle.emit(EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
+        let _ = app_handle.emit_to("main", EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
     } else {
         // Add to session blocked list (for "deny once")
         // This persists for the lifetime of the haex-vault session
@@ -351,7 +351,7 @@ pub fn external_bridge_unblock_client(
         .map_err(|e| e.to_string())?;
 
     // Emit event to notify frontend
-    let _ = app_handle.emit(EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
+    let _ = app_handle.emit_to("main", EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
 
     Ok(())
 }

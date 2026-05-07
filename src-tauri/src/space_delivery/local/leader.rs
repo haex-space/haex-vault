@@ -954,7 +954,9 @@ pub(super) async fn handle_delivery_request(
 
             // Notify the leader's own frontend so UI stores (file browser peer
             // list, space devices) reload without waiting for the next cloud pull.
-            let _ = state.app_handle.emit(
+            // emit_to(label, …) keeps the event out of extension webviews.
+            let _ = state.app_handle.emit_to(
+                "main",
                 "local-sync-completed",
                 serde_json::json!({
                     "spaceId": &space_id,

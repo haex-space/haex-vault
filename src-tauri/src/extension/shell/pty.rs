@@ -172,19 +172,45 @@ impl PtyManager {
         let sessions = self.sessions.clone();
 
         tokio::task::spawn_blocking(move || {
-            use tauri::Emitter;
+            // Route PTY output ONLY to the owning extension's webviews — every
+            // shell session belongs to exactly one extension. .emit() in
+            // Tauri v2 broadcasts and would leak shell output (and possibly
+            // sensitive data the user typed) to every other extension.
+            let emit_to_owner = |event_name: &str, payload: serde_json::Value| {
+                #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                {
+                    if let Some(state) =
+                        <tauri::AppHandle as tauri::Manager<tauri::Wry>>::try_state::<
+                            crate::AppState,
+                        >(&app_handle)
+                    {
+                        let _ = state.extension_webview_manager.emit_to_extension_or_main(
+                            &app_handle,
+                            &owner_extension_id,
+                            event_name,
+                            payload,
+                        );
+                    }
+                }
+                #[cfg(any(target_os = "android", target_os = "ios"))]
+                {
+                    use tauri::Emitter;
+                    let _ = app_handle.emit_to("main", event_name, payload);
+                }
+            };
 
             let mut buf = [0u8; 4096];
             loop {
                 match reader.read(&mut buf) {
                     Ok(0) => {
-                        let _ = app_handle.emit(
+                        emit_to_owner(
                             SHELL_EXIT_EVENT,
-                            &ShellExitEvent {
+                            serde_json::to_value(&ShellExitEvent {
                                 session_id: sid.clone(),
                                 extension_id: owner_extension_id.clone(),
                                 exit_code: None,
-                            },
+                            })
+                            .unwrap_or(serde_json::Value::Null),
                         );
                         let sessions = sessions.clone();
                         let sid = sid.clone();
@@ -197,24 +223,26 @@ impl PtyManager {
                     }
                     Ok(n) => {
                         let data = String::from_utf8_lossy(&buf[..n]).to_string();
-                        let _ = app_handle.emit(
+                        emit_to_owner(
                             SHELL_OUTPUT_EVENT,
-                            &ShellOutputEvent {
+                            serde_json::to_value(&ShellOutputEvent {
                                 session_id: sid.clone(),
                                 extension_id: owner_extension_id.clone(),
                                 data,
-                            },
+                            })
+                            .unwrap_or(serde_json::Value::Null),
                         );
                     }
                     Err(e) => {
                         eprintln!("[Shell] PTY read error for session {sid}: {e}");
-                        let _ = app_handle.emit(
+                        emit_to_owner(
                             SHELL_EXIT_EVENT,
-                            &ShellExitEvent {
+                            serde_json::to_value(&ShellExitEvent {
                                 session_id: sid.clone(),
                                 extension_id: owner_extension_id.clone(),
                                 exit_code: None,
-                            },
+                            })
+                            .unwrap_or(serde_json::Value::Null),
                         );
                         let sessions = sessions.clone();
                         let sid = sid.clone();
