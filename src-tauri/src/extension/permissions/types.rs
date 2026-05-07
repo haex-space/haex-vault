@@ -586,7 +586,10 @@ impl Action {
                 .unwrap_or_default()
                 .trim_matches('"')
                 .to_string(),
-            Action::Mail(action) => action.as_str().to_string(),
+            Action::Mail(action) => serde_json::to_string(action)
+                .unwrap_or_default()
+                .trim_matches('"')
+                .to_string(),
         }
     }
 

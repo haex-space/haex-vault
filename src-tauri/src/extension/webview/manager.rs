@@ -471,6 +471,7 @@ impl ExtensionWebviewManager {
         );
 
         let mut at_least_one_success = false;
+        let mut last_err: Option<tauri::Error> = None;
 
         for window_id in window_ids {
             // emit_to(label, …) targets only this webview by label.
@@ -489,7 +490,20 @@ impl ExtensionWebviewManager {
                         "[Manager] Failed to emit event {} to window {}: {}",
                         event, window_id, e
                     );
+                    last_err = Some(e);
                 }
+            }
+        }
+
+        // Windows existed but every emit failed — surface the failure
+        // instead of conflating it with "no windows registered".
+        if !at_least_one_success {
+            if let Some(e) = last_err {
+                return Err(ExtensionError::ValidationError {
+                    reason: format!(
+                        "all emit_to calls for event '{event}' to extension '{extension_id}' failed: {e}"
+                    ),
+                });
             }
         }
 
@@ -555,8 +569,14 @@ impl ExtensionWebviewManager {
         payload: S,
     ) -> Result<(), tauri::Error> {
         match self.emit_to_all_extension_windows(app_handle, extension_id, event, payload.clone()) {
+            // Native window(s) received the event — no main fallback needed.
             Ok(true) => Ok(()),
-            Ok(false) | Err(_) => app_handle.emit_to("main", event, payload),
+            // No native windows registered → iframe / not-yet-open path.
+            Ok(false) => app_handle.emit_to("main", event, payload),
+            // Native windows existed but emit failed — don't silently
+            // fall back to "main", because the caller's event would then
+            // get re-routed to a different audience than intended.
+            Err(e) => Err(tauri::Error::Io(std::io::Error::other(e.to_string()))),
         }
     }
 

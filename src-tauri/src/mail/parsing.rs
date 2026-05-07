@@ -5,7 +5,7 @@
 //! to keep the response small — a follow-up fetch by `part_index`
 //! delivers the data.
 
-use async_imap::types::Fetch;
+use async_imap::types::{Fetch, Flag};
 use mail_parser::{Address as ParsedAddress, MessageParser, MimeHeaders};
 
 use crate::mail::error::MailError;
@@ -71,7 +71,7 @@ pub fn parse_message(rfc822: &[u8], fetch: &Fetch) -> Result<Message, MailError>
 
     let envelope = MessageEnvelope {
         uid: fetch.uid.unwrap_or(0),
-        flags: fetch.flags().map(|f| format!("{:?}", f)).collect(),
+        flags: fetch.flags().map(|f| flag_to_string(&f)).collect(),
         internal_date: fetch.internal_date().map(|d| d.timestamp()),
         subject,
         from,
@@ -93,6 +93,10 @@ pub fn parse_message(rfc822: &[u8], fetch: &Fetch) -> Result<Message, MailError>
 
 /// Read the supplementary `BODY.PEEK[HEADER.FIELDS (REFERENCES ...)]`
 /// section of a FETCH response and split the References header.
+///
+/// RFC 5322 §2.2.3 lets header values be folded across lines — continuation
+/// lines start with WSP. Without unfolding, long thread chains lose all
+/// message-ids past the first wrap, breaking client-side threading.
 pub fn extract_references_header(fetch: &Fetch) -> Vec<String> {
     let header = match fetch.header() {
         Some(bytes) => bytes,
@@ -103,9 +107,20 @@ pub fn extract_references_header(fetch: &Fetch) -> Vec<String> {
         Err(_) => return Vec::new(),
     };
 
-    // Extract the References: line (case-insensitive). Split into
-    // <message-id> tokens — whitespace and angle brackets separate.
+    // Unfold: any line starting with WSP belongs to the previous logical line.
+    let mut logical: Vec<String> = Vec::new();
     for line in text.lines() {
+        if line.starts_with(' ') || line.starts_with('\t') {
+            if let Some(last) = logical.last_mut() {
+                last.push(' ');
+                last.push_str(line.trim_start_matches(|c: char| c == ' ' || c == '\t'));
+                continue;
+            }
+        }
+        logical.push(line.to_string());
+    }
+
+    for line in &logical {
         let lower = line.to_ascii_lowercase();
         if let Some(rest) = lower.strip_prefix("references:") {
             // Use the original line for case preservation.
@@ -119,6 +134,23 @@ pub fn extract_references_header(fetch: &Fetch) -> Vec<String> {
         }
     }
     Vec::new()
+}
+
+/// Convert an async-imap `Flag` to its IMAP wire format
+/// (`\Seen`, `\Answered`, custom keywords as-is). The derived `Debug`
+/// impl on `Flag` produces Rust variant names like `"Seen"` which would
+/// not round-trip through STORE.
+pub fn flag_to_string(flag: &Flag<'_>) -> String {
+    match flag {
+        Flag::Seen => "\\Seen".to_string(),
+        Flag::Answered => "\\Answered".to_string(),
+        Flag::Flagged => "\\Flagged".to_string(),
+        Flag::Deleted => "\\Deleted".to_string(),
+        Flag::Draft => "\\Draft".to_string(),
+        Flag::Recent => "\\Recent".to_string(),
+        Flag::MayCreate => "\\*".to_string(),
+        Flag::Custom(s) => s.to_string(),
+    }
 }
 
 fn addresses_from_header(h: &ParsedAddress) -> Vec<Address> {

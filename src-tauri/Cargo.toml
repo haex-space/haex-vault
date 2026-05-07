@@ -130,6 +130,10 @@ lettre = { version = "0.11", default-features = false, features = [
   "tokio1-native-tls",
   "smtp-transport",
   "builder",
+  # Without "hostname", lettre's EHLO greets the server as "127.0.0.1",
+  # which many providers reject or rate-limit. The feature pulls in the
+  # `hostname` crate so EHLO uses the local FQDN.
+  "hostname",
 ] }
 mail-parser = "0.11"
 

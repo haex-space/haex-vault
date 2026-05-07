@@ -9,7 +9,7 @@
 
 use async_imap::types::Fetch;
 use async_imap::Session;
-use futures_util::StreamExt;
+use futures_util::TryStreamExt;
 use imap_proto::types::Address as ImapAddress;
 use tokio::net::TcpStream;
 use tokio_native_tls::TlsStream;
@@ -117,8 +117,12 @@ async fn list_mailboxes_inner(
         .await
         .map_err(imap_err)?;
 
-    let mut entries: Vec<MailboxInfo> = names
-        .filter_map(|res| async move { res.ok() })
+    let raw: Vec<async_imap::types::Name> =
+        names.try_collect().await.map_err(imap_err)?;
+    // NameAttribute (mailbox-list flags like \HasNoChildren) is a
+    // separate type from Flag, so we keep the Debug rendering here.
+    let mut entries: Vec<MailboxInfo> = raw
+        .iter()
         .map(|name| MailboxInfo {
             name: name.name().to_string(),
             delimiter: name.delimiter().map(|s| s.to_string()),
@@ -132,8 +136,7 @@ async fn list_mailboxes_inner(
             uid_validity: None,
             uid_next: None,
         })
-        .collect()
-        .await;
+        .collect();
 
     if include_status {
         // STATUS is one round-trip per mailbox. Acceptable for typical
@@ -192,10 +195,7 @@ async fn fetch_envelopes_inner(
                  BODY.PEEK[HEADER.FIELDS (MESSAGE-ID IN-REPLY-TO REFERENCES)])";
 
     let stream = session.uid_fetch(&uid_set, query).await.map_err(imap_err)?;
-    let fetches: Vec<Fetch> = stream
-        .filter_map(|r| async move { r.ok() })
-        .collect()
-        .await;
+    let fetches: Vec<Fetch> = stream.try_collect().await.map_err(imap_err)?;
 
     let mut out = Vec::with_capacity(fetches.len());
     for f in &fetches {
@@ -229,10 +229,7 @@ async fn fetch_message_inner(
         .await
         .map_err(imap_err)?;
 
-    let fetches: Vec<Fetch> = stream
-        .filter_map(|r| async move { r.ok() })
-        .collect()
-        .await;
+    let fetches: Vec<Fetch> = stream.try_collect().await.map_err(imap_err)?;
 
     let fetch = fetches.first().ok_or_else(|| MailError::Imap {
         reason: format!("no message with UID {} in mailbox '{}'", uid, mailbox),
@@ -286,8 +283,9 @@ async fn set_flags_inner(
         .uid_store(uid_set, query)
         .await
         .map_err(imap_err)?;
-    // Drain the response stream; we don't need the per-message echoes.
-    let _: Vec<_> = stream.collect().await;
+    // Drain the response stream; the per-message echoes aren't needed,
+    // but we propagate any per-item Err so a partial failure surfaces.
+    let _: Vec<_> = stream.try_collect().await.map_err(imap_err)?;
     Ok(())
 }
 
@@ -334,11 +332,11 @@ async fn move_messages_inner(
                 .uid_store(&uid_set, "+FLAGS (\\Deleted)")
                 .await
                 .map_err(imap_err)?;
-            let _: Vec<_> = stream.collect().await;
-            // expunge() returns a stream of expunged seq numbers; we don't
-            // need them but the stream must be drained to complete the cmd.
-            let expunge_stream = session.expunge().await.map_err(imap_err)?;
-            let _: Vec<_> = expunge_stream.collect().await;
+            let _: Vec<_> = stream.try_collect().await.map_err(imap_err)?;
+            // UID EXPUNGE only removes the UIDs we just marked \Deleted,
+            // so concurrent \Deleted flags from other clients survive.
+            let expunge_stream = session.uid_expunge(&uid_set).await.map_err(imap_err)?;
+            let _: Vec<_> = expunge_stream.try_collect().await.map_err(imap_err)?;
             Ok(())
         }
     }
@@ -408,11 +406,12 @@ async fn build_uid_set(
             let take = (*count).min(exists);
             let start_seq = exists - take + 1;
 
-            // Convert sequence range → UID range via UID SEARCH ALL on
-            // the sequence subset. Cheap: server returns a UID list.
+            // Convert sequence range → UID list via `UID SEARCH <seq-set>`.
+            // `session.search()` would return sequence numbers, which would
+            // then be misinterpreted as UIDs by the caller's `uid_fetch`.
             let seq_set = format!("{}:{}", start_seq, exists);
             let uids = session
-                .search(format!("SEQ {}", seq_set))
+                .uid_search(seq_set)
                 .await
                 .map_err(imap_err)?;
             if uids.is_empty() {
@@ -437,7 +436,7 @@ fn envelope_from_fetch(f: &Fetch) -> MessageEnvelope {
     let uid = f.uid.unwrap_or(0);
     let internal_date = f.internal_date().map(|d| d.timestamp());
     let size = f.size;
-    let flags: Vec<String> = f.flags().map(|fl| format!("{:?}", fl)).collect();
+    let flags: Vec<String> = f.flags().map(|fl| parsing::flag_to_string(&fl)).collect();
 
     let env = f.envelope();
     let subject = env

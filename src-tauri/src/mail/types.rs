@@ -3,6 +3,8 @@
 //! All public types are TS-exported via `ts-rs` so the same shapes are
 //! available to extensions through the SDK without manual duplication.
 
+use std::fmt;
+
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -20,7 +22,7 @@ pub enum ConnectionSecurity {
 }
 
 /// IMAP server configuration + credentials.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ImapConfig {
@@ -31,8 +33,21 @@ pub struct ImapConfig {
     pub password: String,
 }
 
+impl fmt::Debug for ImapConfig {
+    // Manual impl so accidental tracing/dbg!/println! never leaks the password.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ImapConfig")
+            .field("host", &self.host)
+            .field("port", &self.port)
+            .field("security", &self.security)
+            .field("username", &self.username)
+            .field("password", &"<redacted>")
+            .finish()
+    }
+}
+
 /// SMTP server configuration + credentials.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct SmtpConfig {
@@ -41,6 +56,18 @@ pub struct SmtpConfig {
     pub security: ConnectionSecurity,
     pub username: String,
     pub password: String,
+}
+
+impl fmt::Debug for SmtpConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SmtpConfig")
+            .field("host", &self.host)
+            .field("port", &self.port)
+            .field("security", &self.security)
+            .field("username", &self.username)
+            .field("password", &"<redacted>")
+            .finish()
+    }
 }
 
 /// A mail account: IMAP for fetch, SMTP for send.

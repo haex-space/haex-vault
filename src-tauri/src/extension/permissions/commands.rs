@@ -241,11 +241,21 @@ pub async fn resolve_permission_prompt(
         }
     };
 
-    // Check if permission already exists
+    // Check if permission already exists.
+    //
+    // Mail allows multiple permissions per host (one each for `fetch`
+    // and `send`), so for `Mail` we also match on the action to avoid
+    // a `send` decision overwriting a stored `fetch` decision.
     let existing_permissions = PermissionManager::get_permissions(&state, &extension_id).await?;
 
     let existing_permission = existing_permissions.iter().find(|p| {
-        p.resource_type == resource_type_enum && p.target == target
+        if p.resource_type != resource_type_enum || p.target != target {
+            return false;
+        }
+        if matches!(resource_type_enum, ResourceType::Mail) {
+            return p.action == action_enum;
+        }
+        true
     });
 
     if let Some(existing) = existing_permission {

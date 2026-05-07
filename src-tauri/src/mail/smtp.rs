@@ -141,18 +141,13 @@ fn build_body(msg: &OutgoingMessage) -> Result<MultiPart, MailError> {
         (None, None) => None,
     };
 
-    if msg.attachments.is_empty() {
-        return alternative.ok_or_else(|| MailError::MessageBuild {
-            reason: "message has no body and no attachments".to_string(),
-        });
+    // Decode + classify attachments once.
+    struct Decoded<'a> {
+        att: &'a crate::mail::types::OutgoingAttachment,
+        bytes: Vec<u8>,
+        content_type: ContentType,
     }
-
-    // mixed = (alternative body) + (attachments...)
-    let mut mixed = MultiPart::mixed().build();
-    if let Some(alt) = alternative {
-        mixed = mixed.multipart(alt);
-    }
-
+    let mut decoded = Vec::with_capacity(msg.attachments.len());
     for att in &msg.attachments {
         let bytes = STANDARD.decode(&att.data).map_err(|e| MailError::MessageBuild {
             reason: format!("base64-decode attachment '{}': {e}", att.filename),
@@ -162,11 +157,50 @@ fn build_body(msg: &OutgoingMessage) -> Result<MultiPart, MailError> {
                 reason: format!("invalid content-type '{}': {e}", att.content_type),
             }
         })?;
-        let part = match &att.content_id {
-            Some(cid) => LettreAttachment::new_inline(cid.clone()).body(bytes, content_type),
-            None => LettreAttachment::new(att.filename.clone()).body(bytes, content_type),
-        };
-        mixed = mixed.singlepart(part);
+        decoded.push(Decoded { att, bytes, content_type });
+    }
+    let has_inline = decoded.iter().any(|d| d.att.content_id.is_some());
+    let has_regular = decoded.iter().any(|d| d.att.content_id.is_none());
+
+    if decoded.is_empty() {
+        return alternative.ok_or_else(|| MailError::MessageBuild {
+            reason: "message has no body and no attachments".to_string(),
+        });
+    }
+
+    // multipart/related groups the (alternative) body with its inline
+    // resources so MUAs can resolve `cid:` references; non-inline
+    // attachments live as siblings under multipart/mixed.
+    let body_subtree = if has_inline {
+        let mut related = MultiPart::related().build();
+        if let Some(alt) = alternative {
+            related = related.multipart(alt);
+        }
+        for d in decoded.iter().filter(|d| d.att.content_id.is_some()) {
+            let cid = d.att.content_id.as_ref().expect("checked above");
+            related = related.singlepart(
+                LettreAttachment::new_inline(cid.clone()).body(d.bytes.clone(), d.content_type.clone()),
+            );
+        }
+        Some(related)
+    } else {
+        alternative
+    };
+
+    if !has_regular {
+        return body_subtree.ok_or_else(|| MailError::MessageBuild {
+            reason: "message has no body and no attachments".to_string(),
+        });
+    }
+
+    let mut mixed = MultiPart::mixed().build();
+    if let Some(sub) = body_subtree {
+        mixed = mixed.multipart(sub);
+    }
+    for d in decoded.iter().filter(|d| d.att.content_id.is_none()) {
+        mixed = mixed.singlepart(
+            LettreAttachment::new(d.att.filename.clone()).body(d.bytes.clone(), d.content_type.clone()),
+        );
     }
 
     Ok(mixed)
