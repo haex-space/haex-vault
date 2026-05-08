@@ -231,6 +231,31 @@ pub async fn local_delivery_disconnect(
     }
 }
 
+/// Cut the current `POLL_INTERVAL` sleep short for a running sync loop so
+/// the next sync cycle starts immediately. Used by the e2e tests to make
+/// post-accept device-row propagation deterministic instead of waiting up
+/// to 5s for the next poll tick.
+///
+/// No-op (returns Ok) when no loop is running for the space — the caller
+/// has no useful action to take in that case, and the natural retry path
+/// (start a loop, or wait for one to be started elsewhere) is unchanged.
+///
+/// Cannot be abused for DDoS: the cycle itself is serial, so multiple
+/// wake-ups coalesce — worst case the effective poll interval drops to
+/// "as fast as one cycle completes", which is the same load shape as a
+/// shorter `POLL_INTERVAL` constant.
+#[tauri::command]
+pub async fn local_delivery_force_sync(
+    state: State<'_, AppState>,
+    space_id: String,
+) -> Result<(), String> {
+    let loops = state.local_sync_loops.lock().await;
+    if let Some(handle) = loops.get(&space_id) {
+        handle.wakeup();
+    }
+    Ok(())
+}
+
 /// Get the current leader for a local space.
 /// When the endpoint is running, probes all devices in parallel.
 /// When not running, falls back to DB-only query (no reachability check).

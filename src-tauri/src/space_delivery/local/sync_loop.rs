@@ -4,11 +4,12 @@
 //! pulls remote changes, applies them to local DB, and emits Tauri events.
 
 use std::collections::HashSet;
+use std::sync::Arc;
 use std::time::Duration;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use tauri::{Emitter, Manager};
-use tokio::sync::watch;
+use tokio::sync::{watch, Notify};
 
 use crate::crdt::commands::{apply_remote_changes_to_db, clear_dirty_table_inner, RemoteColumnChange};
 use crate::crdt::hlc::hlc_max;
@@ -94,6 +95,7 @@ fn chunk_changes_by_hlc(
 /// Handle to a running sync loop. Call `stop()` to terminate.
 pub struct SyncLoopHandle {
     stop_sender: watch::Sender<bool>,
+    wakeup: Arc<Notify>,
     task: tokio::task::JoinHandle<()>,
 }
 
@@ -101,6 +103,17 @@ impl SyncLoopHandle {
     /// Signal the sync loop to stop.
     pub fn stop(&self) {
         let _ = self.stop_sender.send(true);
+    }
+
+    /// Cut the current `POLL_INTERVAL` sleep short so the next sync cycle
+    /// starts immediately. Multiple calls before the loop wakes up coalesce
+    /// into a single wake (Notify::notify_one semantics) — the cycle itself
+    /// is the rate limit, not this signal.
+    ///
+    /// Calling this while a cycle is already running is a no-op for the
+    /// current cycle and a wake for the next sleep.
+    pub fn wakeup(&self) {
+        self.wakeup.notify_one();
     }
 
     /// Check if the sync loop task has finished.
@@ -172,6 +185,7 @@ pub async fn start_peer_sync_loop(
     };
 
     let (stop_tx, stop_rx) = watch::channel(false);
+    let wakeup = Arc::new(Notify::new());
 
     let task = tokio::spawn(run_sync_loop(
         db,
@@ -185,10 +199,12 @@ pub async fn start_peer_sync_loop(
         device_id,
         app_handle,
         stop_rx,
+        wakeup.clone(),
     ));
 
     Ok(SyncLoopHandle {
         stop_sender: stop_tx,
+        wakeup,
         task,
     })
 }
@@ -217,6 +233,7 @@ async fn run_sync_loop(
     device_id: String,
     app_handle: tauri::AppHandle,
     mut stop_rx: watch::Receiver<bool>,
+    wakeup: Arc<Notify>,
 ) {
     let mut last_push_hlc: Option<String> = load_last_push_hlc(&db, &space_id, &device_id);
     let mut last_pull_timestamp: Option<String> = None;
@@ -300,9 +317,11 @@ async fn run_sync_loop(
         .await
         {
             Ok(()) => {
-                // Cycle completed successfully, wait for next cycle or stop signal
+                // Cycle completed successfully, wait for next cycle, an
+                // external wake-up (force_sync), or a stop signal.
                 tokio::select! {
                     _ = tokio::time::sleep(POLL_INTERVAL) => {},
+                    _ = wakeup.notified() => {},
                     _ = stop_rx.changed() => {
                         log_sync(&app_handle, "info", &format!("stop during sleep: space={}", &space_id[..8.min(space_id.len())]));
                         break;
