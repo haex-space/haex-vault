@@ -567,6 +567,7 @@ pub fn run() {
             space_delivery::local::commands::local_delivery_elect,
             space_delivery::local::commands::local_delivery_connect,
             space_delivery::local::commands::local_delivery_disconnect,
+            space_delivery::local::commands::local_delivery_force_sync,
             space_delivery::local::commands::local_delivery_create_invite,
             space_delivery::local::commands::local_delivery_list_invites,
             space_delivery::local::commands::local_delivery_revoke_invite,
