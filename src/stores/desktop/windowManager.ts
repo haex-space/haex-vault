@@ -281,7 +281,11 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
           }
         }
 
-        // If display_mode is 'iframe' or we're not on desktop, fall through to iframe logic
+        // If display_mode is 'iframe' or we're not on desktop, fall through to iframe logic.
+        // Apply the title/icon fallback so the iframe path also gets defined values
+        // when the caller didn't provide them.
+        title = finalTitle
+        icon = icon || extension?.iconUrl || extension?.icon || ''
       }
 
       // Mobile: Full UI-based window management (original logic)
