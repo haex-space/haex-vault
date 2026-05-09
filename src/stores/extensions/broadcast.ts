@@ -60,6 +60,7 @@ interface ExtensionIframeEntry {
   port: MessagePort
   ready: boolean
   buffer: Array<Record<string, unknown>>
+  destroyed: boolean
 }
 
 /** Public shape — omits the port internals from consumers of the store. */
@@ -91,45 +92,59 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
     extension: IHaexSpaceExtension,
     windowId: string,
   ) => {
-    const channel = new MessageChannel()
     const entry: ExtensionIframeEntry = {
       extension,
       windowId,
-      port: channel.port1,
+      port: null as unknown as MessagePort, // set on first handshake attempt
       ready: false,
       buffer: [],
+      destroyed: false,
     }
     iframeRegistry.set(iframe, entry)
 
-    channel.port1.addEventListener('message', (event) => {
-      handlePortMessageAsync(entry, event).catch((err) => {
-        log.error('Failed to handle port message:', err)
-      })
-    })
-    channel.port1.start()
+    // The SDK's PORT_INIT listener is registered inside sdk.init(), which runs
+    // as an async Nuxt plugin — after the iframe's load event fires. Sending
+    // PORT_INIT only on load races against that async startup, causing the SDK
+    // to miss the message and timeout. We fix this by retrying PORT_INIT every
+    // 200 ms (each attempt creates a fresh MessageChannel) until PORT_READY is
+    // acknowledged, mirroring the same "keep knocking until answered" pattern.
+    iframe.addEventListener('load', () => {
+      let stopped = false
+      // Hard stop after 12 s so we don't retry forever on a broken extension.
+      setTimeout(() => { stopped = true }, 12_000)
 
-    // Transfer port2 to the iframe. We do this once the iframe's document has
-    // loaded so the SDK's handshake listener is guaranteed to be installed.
-    const sendPort = () => {
-      if (!iframe.contentWindow) return
-      try {
-        iframe.contentWindow.postMessage(
-          { type: HAEXSPACE_MESSAGE_TYPES.PORT_INIT },
-          '*',
-          [channel.port2],
-        )
-      }
-      catch (err) {
-        log.error(`Failed to send PORT_INIT to extension ${extension.name}:`, err)
-      }
-    }
+      const attemptHandshake = () => {
+        if (entry.ready || entry.destroyed || stopped || !iframe.contentWindow) return
 
-    // Wait for the iframe's load event before sending the port. We can't peek
-    // at iframe.contentDocument here: production extensions run with
-    // sandbox="allow-scripts" (no allow-same-origin), so any cross-origin DOM
-    // access throws SecurityError. The watcher in useExtensionMessageHandler
-    // fires synchronously on mount — load can't have fired yet, so this is safe.
-    iframe.addEventListener('load', sendPort, { once: true })
+        const ch = new MessageChannel()
+        const prevPort = entry.port
+        entry.port = ch.port1
+
+        ch.port1.addEventListener('message', (event) => {
+          handlePortMessageAsync(entry, event, ch.port1).catch((err) => {
+            log.error('Failed to handle port message:', err)
+          })
+        })
+        ch.port1.start()
+
+        if (prevPort) prevPort.close()
+
+        try {
+          iframe.contentWindow.postMessage(
+            { type: HAEXSPACE_MESSAGE_TYPES.PORT_INIT },
+            '*',
+            [ch.port2],
+          )
+        }
+        catch (err) {
+          log.error(`Failed to send PORT_INIT to extension ${extension.name}:`, err)
+        }
+
+        setTimeout(() => attemptHandshake(), 200)
+      }
+
+      attemptHandshake()
+    }, { once: true })
 
     log.info(`Registered iframe for ${extension.name} (windowId: ${windowId})`)
   }
@@ -141,6 +156,7 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
   const unregisterIframe = (iframe: HTMLIFrameElement) => {
     const entry = iframeRegistry.get(iframe)
     if (!entry) return
+    entry.destroyed = true // stops any in-flight handshake retry loop
     try {
       entry.port.close()
     }
@@ -162,15 +178,20 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
   const handlePortMessageAsync = async (
     entry: ExtensionIframeEntry,
     event: MessageEvent,
+    receivingPort: MessagePort,
   ): Promise<void> => {
     const data = event.data as { type?: string } | null
 
     if (data?.type === HAEXSPACE_MESSAGE_TYPES.PORT_READY) {
       if (entry.ready) return // Ignore duplicate ACKs
       entry.ready = true
+      // Pin entry.port to the channel that won the handshake so that all
+      // subsequent communication (broadcast sends, request responses) uses the
+      // same port the SDK is listening on.
+      entry.port = receivingPort
       log.info(`Port READY for ${entry.extension.name} (flushing ${entry.buffer.length} buffered events)`)
       for (const bufferedMessage of entry.buffer) {
-        entry.port.postMessage(bufferedMessage)
+        receivingPort.postMessage(bufferedMessage)
       }
       entry.buffer.length = 0
       return
@@ -183,7 +204,7 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
       windowId: entry.windowId,
     }
     const response: ExtensionResponse = await handleExtensionRequestAsync(request, instance)
-    entry.port.postMessage(response)
+    receivingPort.postMessage(response)
   }
 
   /**
@@ -413,6 +434,7 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
     eventListenersRegistered = false
 
     for (const entry of iframeRegistry.values()) {
+      entry.destroyed = true
       try {
         entry.port.close()
       }
