@@ -94,7 +94,8 @@
         ],
         "frame-src": [
           "haex-extension:",
-          "http://haex-extension.localhost"
+          "http://haex-extension.localhost",
+          "http://localhost:*"
         ],
         "frame-ancestors": [
           "'none'"
