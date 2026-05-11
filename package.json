@@ -71,7 +71,7 @@
     "photoswipe": "^5.4.4",
     "qrcode": "^1.5.4",
     "swiper": "^12.1.4",
-    "tailwindcss": "^4.2.4",
+    "tailwindcss": "^4.3.0",
     "vue": "^3.5.33",
     "vue-advanced-cropper": "^2.8.9"
   },
