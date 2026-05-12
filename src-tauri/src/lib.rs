@@ -50,36 +50,30 @@ use tauri::Manager;
 /// stored in ndk-context outlives the local JNI frame.
 #[cfg(target_os = "android")]
 #[no_mangle]
-pub extern "system" fn Java_space_haex_vault_MainActivity_initializeNdkContext(
-    env: jni::JNIEnv,
-    _class: jni::objects::JClass,
-    activity: jni::objects::JObject,
+pub extern "system" fn Java_space_haex_vault_MainActivity_initializeNdkContext<'local>(
+    mut unowned_env: jni::EnvUnowned<'local>,
+    _class: jni::objects::JClass<'local>,
+    activity: jni::objects::JObject<'local>,
 ) {
-    let env_local = env;
-    let vm = match env_local.get_java_vm() {
-        Ok(vm) => vm,
-        Err(e) => {
-            eprintln!("[NdkContext] Failed to get JavaVM: {e}");
-            return;
+    let outcome = unowned_env.with_env(|env| -> jni::errors::Result<()> {
+        let vm = env.get_java_vm()?;
+        let activity_global = env.new_global_ref(&activity)?;
+        unsafe {
+            ndk_context::initialize_android_context(
+                vm.get_raw() as *mut std::ffi::c_void,
+                activity_global.as_obj().as_raw() as *mut std::ffi::c_void,
+            );
         }
-    };
-    let activity_global = match env_local.new_global_ref(activity) {
-        Ok(g) => g,
-        Err(e) => {
-            eprintln!("[NdkContext] Failed to create global ref to activity: {e}");
-            return;
-        }
-    };
-    unsafe {
-        ndk_context::initialize_android_context(
-            vm.get_java_vm_pointer() as *mut std::ffi::c_void,
-            activity_global.as_obj().as_raw() as *mut std::ffi::c_void,
-        );
+        // Leak the global ref — the raw pointer we just stored must remain
+        // valid for the lifetime of the process.
+        let _ = activity_global.into_raw();
+        Ok(())
+    });
+    match outcome.into_outcome() {
+        jni::Outcome::Ok(()) => eprintln!("[NdkContext] Initialized"),
+        jni::Outcome::Err(e) => eprintln!("[NdkContext] Failed: {e}"),
+        jni::Outcome::Panic(_) => eprintln!("[NdkContext] Panic during init"),
     }
-    // Leak the global ref — the raw pointer we just stored must remain
-    // valid for the lifetime of the process.
-    std::mem::forget(activity_global);
-    eprintln!("[NdkContext] Initialized");
 }
 
 pub mod table_names {

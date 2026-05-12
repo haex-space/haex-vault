@@ -160,7 +160,7 @@ tauri-plugin-android-fs = "28"
 # a tiny JNI shim called from MainActivity.onCreate (see
 # `Java_space_haex_vault_MainActivity_initializeNdkContext` in lib.rs).
 ndk-context = "0.1"
-jni = "0.21"
+jni = "0.22"
 
 [dev-dependencies]
 futures = "0.3"
