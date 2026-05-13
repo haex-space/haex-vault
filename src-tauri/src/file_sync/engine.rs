@@ -1144,13 +1144,17 @@ fn update_last_synced_at(app: &tauri::AppHandle, rule_id: &str) {
 /// Persist a sync log entry into the CRDT-synced `haex_logs` table.
 ///
 /// `source = "file-sync"`, `extension_id = rule_id` so the frontend can filter
-/// per rule. `message` is encoded as JSON `{ summary, raw? }` to preserve the
-/// existing UI-facing shape (summary + optional raw error) inside the log row.
+/// per rule. `message` is encoded as JSON `{ code, params?, raw? }` — a stable
+/// machine-readable shape so the frontend can localize the rendered string per
+/// device locale. Persisting a pre-rendered locale-specific string here would
+/// freeze that locale into the CRDT row forever (it gets replicated to every
+/// peer regardless of their locale).
 fn write_sync_log_entry(
     app: &tauri::AppHandle,
     rule_id: &str,
     level: &str,
-    summary: &str,
+    code: &str,
+    params: serde_json::Value,
     raw: Option<&str>,
 ) {
     use tauri::Manager;
@@ -1160,10 +1164,10 @@ fn write_sync_log_entry(
         .lock()
         .map(|ctx| ctx.device_id.clone())
         .unwrap_or_default();
-    let message = match raw {
-        Some(r) => serde_json::json!({ "summary": summary, "raw": r }),
-        None => serde_json::json!({ "summary": summary }),
-    };
+    let mut message = serde_json::json!({ "code": code, "params": params });
+    if let Some(r) = raw {
+        message["raw"] = serde_json::Value::String(r.to_string());
+    }
     if let Err(e) = crate::logging::insert_log(
         &state,
         level,
@@ -1193,11 +1197,14 @@ fn emit_sync_result(
             // no trace in the persistent log.
             if !r.errors.is_empty() {
                 let raw = r.errors.join("; ");
-                let summary = format!(
-                    "Sync mit {} Fehler(n) abgeschlossen",
-                    r.errors.len(),
+                write_sync_log_entry(
+                    app,
+                    rule_id,
+                    "error",
+                    "syncCompletedWithErrors",
+                    serde_json::json!({ "errorCount": r.errors.len() }),
+                    Some(&raw),
                 );
-                write_sync_log_entry(app, rule_id, "error", &summary, Some(&raw));
             } else if r.files_downloaded > 0
                 || r.files_deleted > 0
                 || r.directories_created > 0
@@ -1206,11 +1213,17 @@ fn emit_sync_result(
                 // Only log non-trivial cycles so the persistent log doesn't fill up
                 // with empty no-op syncs — mirrors the in-memory append logic in
                 // the frontend store.
-                let summary = format!(
-                    "Sync erfolgreich — {} Datei(en), {} Bytes",
-                    r.files_downloaded, r.bytes_transferred,
+                write_sync_log_entry(
+                    app,
+                    rule_id,
+                    "info",
+                    "syncSuccess",
+                    serde_json::json!({
+                        "filesDownloaded": r.files_downloaded,
+                        "bytesTransferred": r.bytes_transferred,
+                    }),
+                    None,
                 );
-                write_sync_log_entry(app, rule_id, "info", &summary, None);
             }
             let _ = app.emit_to(
                 "main",
@@ -1220,7 +1233,18 @@ fn emit_sync_result(
         }
         Err(e) => {
             let raw = e.to_string();
-            write_sync_log_entry(app, rule_id, "error", &raw, Some(&raw));
+            // Top-level abort (cancellation, manifest fetch failure, …). The
+            // raw error text is intentionally rendered verbatim by the frontend
+            // — it's already English and includes whatever provider-specific
+            // detail the user needs to debug.
+            write_sync_log_entry(
+                app,
+                rule_id,
+                "error",
+                "syncFailed",
+                serde_json::json!({}),
+                Some(&raw),
+            );
             let _ = app.emit_to(
                 "main",
                 "file-sync:error",
@@ -1304,7 +1328,8 @@ async fn auto_disable_rule(
         app,
         rule_id,
         "error",
-        &format!("Auto-pausiert nach {failures} Fehlversuchen"),
+        "autoPaused",
+        serde_json::json!({ "failures": failures }),
         Some(last_error),
     );
 

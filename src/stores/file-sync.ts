@@ -45,9 +45,20 @@ interface SyncLogRow {
   id: string
   timestamp: string
   level: string
-  /** JSON payload `{ summary, raw? }` */
+  /** JSON payload `{ code, params?, raw? }` — see write_sync_log_entry in
+   *  src-tauri/src/file_sync/engine.rs. `code` is a stable identifier that
+   *  the frontend localizes per device locale. */
   message: string
   deviceId: string
+}
+
+interface SyncLogPayload {
+  code?: string
+  params?: Record<string, unknown>
+  raw?: string
+  /** Pre-v1 entries persisted plain text in `summary` — kept for backward
+   *  compat so older rows still render. New entries use `code`. */
+  summary?: string
 }
 
 const MAX_LOG_ENTRIES_PER_RULE = 50
@@ -106,6 +117,46 @@ function errorSignature(raw: string): string {
 export const useFileSyncStore = defineStore('fileSyncStore', () => {
   const { currentVault } = storeToRefs(useVaultStore())
   const { add: addToast } = useToast()
+  const { $i18n } = useNuxtApp()
+
+  // Sync-log keys are rendered on this device using the active locale. They
+  // live alongside the store because the backend persists machine-readable
+  // codes into CRDT-synced rows — rendering happens here so a German row
+  // synced to an English device still surfaces in English.
+  $i18n.mergeLocaleMessage('de', {
+    fileSync: {
+      log: {
+        syncSuccess: 'Sync erfolgreich — {filesDownloaded} Datei(en), {bytesTransferred} Bytes',
+        syncSuccessAfterError: 'Sync erfolgreich (nach vorherigem Fehler) — {filesDownloaded} Datei(en), {bytesTransferred} Bytes',
+        syncCompletedWithErrors: 'Sync mit {errorCount} Fehler(n) abgeschlossen',
+        autoPaused: 'Auto-pausiert nach {failures} Fehlversuchen',
+        autoPausedWithError: 'Auto-pausiert nach {failures} Fehlversuchen: {message}',
+      },
+      toast: {
+        syncErrorTitle: 'Sync-Fehler',
+        syncErrorTitleWithRule: 'Sync-Fehler: {rule}',
+        autoPausedTitle: 'Sync-Regel pausiert',
+        autoPausedBody: 'Nach {failures} fehlgeschlagenen Versuchen wurde die Regel automatisch deaktiviert. Letzter Fehler: {message}',
+      },
+    },
+  })
+  $i18n.mergeLocaleMessage('en', {
+    fileSync: {
+      log: {
+        syncSuccess: 'Sync complete — {filesDownloaded} file(s), {bytesTransferred} bytes',
+        syncSuccessAfterError: 'Sync recovered — {filesDownloaded} file(s), {bytesTransferred} bytes',
+        syncCompletedWithErrors: 'Sync finished with {errorCount} error(s)',
+        autoPaused: 'Auto-paused after {failures} failed attempts',
+        autoPausedWithError: 'Auto-paused after {failures} failed attempts: {message}',
+      },
+      toast: {
+        syncErrorTitle: 'Sync error',
+        syncErrorTitleWithRule: 'Sync error: {rule}',
+        autoPausedTitle: 'Sync rule paused',
+        autoPausedBody: 'After {failures} failed attempts the rule was disabled automatically. Last error: {message}',
+      },
+    },
+  })
 
   const syncRules = ref<SelectHaexSyncRules[]>([])
   const syncStatuses = ref<Map<string, SyncRuleStatus>>(new Map())
@@ -150,26 +201,48 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
   }
 
   /**
-   * Decode a backend log row's JSON `message` into a `SyncLogEntry`. Rows
-   * written by older code (or by other subsystems that share the table) may
-   * not be JSON — fall back to a plain summary so the UI still shows them.
+   * Decode a backend log row's JSON `message` into a `SyncLogEntry`. The
+   * persisted shape is `{ code, params?, raw? }` (see write_sync_log_entry
+   * in the Rust engine). Codes are mapped to `fileSync.log.*` translations
+   * here so a row authored on one device surfaces in the local locale.
+   *
+   * Two fallbacks remain: (1) legacy `{ summary }` payloads from earlier
+   * builds, (2) non-JSON messages from other subsystems that share the
+   * table — both render their raw text so nothing is silently dropped.
    */
   const decodeLogRow = (row: SyncLogRow, includeDeviceId: boolean): SyncLogEntry => {
+    const level: 'error' | 'info' = row.level === 'error' ? 'error' : 'info'
     let summary = row.message
     let raw: string | undefined
+
     try {
-      const parsed = JSON.parse(row.message) as { summary?: string; raw?: string }
-      if (typeof parsed?.summary === 'string') summary = parsed.summary
+      const parsed = JSON.parse(row.message) as SyncLogPayload
       if (typeof parsed?.raw === 'string') raw = parsed.raw
+
+      if (typeof parsed?.code === 'string') {
+        if (parsed.code === 'syncFailed') {
+          // Top-level abort: the only useful summary is the underlying
+          // provider error — pulled through extractUserFacingError below.
+          summary = raw ?? row.message
+        } else {
+          summary = $i18n.t(`fileSync.log.${parsed.code}`, parsed.params ?? {}) as string
+        }
+      } else if (typeof parsed?.summary === 'string') {
+        // Legacy entries from pre-i18n builds.
+        summary = parsed.summary
+      }
     } catch {
-      // Not JSON — keep the raw message as summary.
+      // Not JSON — keep the raw message as summary so non-file-sync rows
+      // sharing this table still render.
     }
-    const level = row.level === 'error' ? 'error' : 'info'
-    // Backend writes the raw error as both summary and raw on failure to keep
-    // the JSON payload self-contained. The user-facing rule (strip wrappers,
-    // pull S3 <Message>, cap length) is enforced here on hydration so it
-    // mirrors the live `unlistenError` formatting.
-    if (level === 'error') summary = extractUserFacingError(summary)
+
+    // The user-facing rule (strip wrappers, pull S3 <Message>, cap length) is
+    // enforced here on hydration so it mirrors the live `unlistenError`
+    // formatting for the `syncFailed` path.
+    if (level === 'error' && (!raw || summary === raw)) {
+      summary = extractUserFacingError(summary)
+    }
+
     return {
       at: new Date(row.timestamp).getTime(),
       level,
@@ -421,7 +494,10 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
           appendLogEntry(ruleId, {
             at: Date.now(),
             level: 'info',
-            summary: `Sync erfolgreich (nach vorherigem Fehler) — ${result.filesDownloaded} Datei(en), ${result.bytesTransferred} Bytes`,
+            summary: $i18n.t('fileSync.log.syncSuccessAfterError', {
+              filesDownloaded: result.filesDownloaded,
+              bytesTransferred: result.bytesTransferred,
+            }) as string,
           })
         } else if (
           result.filesDownloaded > 0 ||
@@ -433,7 +509,10 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
           appendLogEntry(ruleId, {
             at: Date.now(),
             level: 'info',
-            summary: `Sync erfolgreich — ${result.filesDownloaded} Datei(en), ${result.bytesTransferred} Bytes`,
+            summary: $i18n.t('fileSync.log.syncSuccess', {
+              filesDownloaded: result.filesDownloaded,
+              bytesTransferred: result.bytesTransferred,
+            }) as string,
           })
         }
       },
@@ -479,8 +558,11 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
         if (previousSig !== sig) {
           log.error(`Rule ${ruleId} error:`, error)
           const rule = syncRules.value.find(r => r.id === ruleId)
+          const title = rule
+            ? ($i18n.t('fileSync.toast.syncErrorTitleWithRule', { rule: rule.id.slice(0, 8) }) as string)
+            : ($i18n.t('fileSync.toast.syncErrorTitle') as string)
           addToast({
-            title: rule ? `Sync-Fehler: ${rule.id.slice(0, 8)}` : 'Sync-Fehler',
+            title,
             description: summary,
             color: 'error',
             duration: 8000,
@@ -503,12 +585,18 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
         appendLogEntry(ruleId, {
           at: Date.now(),
           level: 'error',
-          summary: `Auto-pausiert nach ${consecutiveFailures} Fehlversuchen: ${summary}`,
+          summary: $i18n.t('fileSync.log.autoPausedWithError', {
+            failures: consecutiveFailures,
+            message: summary,
+          }) as string,
           raw: lastError,
         })
         addToast({
-          title: 'Sync-Regel pausiert',
-          description: `Nach ${consecutiveFailures} fehlgeschlagenen Versuchen wurde die Regel automatisch deaktiviert. Letzter Fehler: ${summary}`,
+          title: $i18n.t('fileSync.toast.autoPausedTitle') as string,
+          description: $i18n.t('fileSync.toast.autoPausedBody', {
+            failures: consecutiveFailures,
+            message: summary,
+          }) as string,
           color: 'warning',
           duration: 0,
         })
