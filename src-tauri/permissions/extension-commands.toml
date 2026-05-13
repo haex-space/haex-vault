@@ -205,6 +205,8 @@ commands.allow = [
   "file_sync_status",
   "file_sync_trigger_now",
   "file_sync_trigger_by_watcher",
+  "file_sync_get_log",
+  "file_sync_clear_log",
 
   # Local space delivery
   "local_delivery_start",

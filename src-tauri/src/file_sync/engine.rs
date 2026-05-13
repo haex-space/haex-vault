@@ -1141,6 +1141,42 @@ fn update_last_synced_at(app: &tauri::AppHandle, rule_id: &str) {
 // Event emission
 // ---------------------------------------------------------------------------
 
+/// Persist a sync log entry into the CRDT-synced `haex_logs` table.
+///
+/// `source = "file-sync"`, `extension_id = rule_id` so the frontend can filter
+/// per rule. `message` is encoded as JSON `{ summary, raw? }` to preserve the
+/// existing UI-facing shape (summary + optional raw error) inside the log row.
+fn write_sync_log_entry(
+    app: &tauri::AppHandle,
+    rule_id: &str,
+    level: &str,
+    summary: &str,
+    raw: Option<&str>,
+) {
+    use tauri::Manager;
+    let state = app.state::<crate::AppState>();
+    let device_id = state
+        .context
+        .lock()
+        .map(|ctx| ctx.device_id.clone())
+        .unwrap_or_default();
+    let message = match raw {
+        Some(r) => serde_json::json!({ "summary": summary, "raw": r }),
+        None => serde_json::json!({ "summary": summary }),
+    };
+    if let Err(e) = crate::logging::insert_log(
+        &state,
+        level,
+        "file-sync",
+        Some(rule_id),
+        &message.to_string(),
+        None,
+        &device_id,
+    ) {
+        eprintln!("[FileSyncEngine] Failed to persist sync log for rule {rule_id}: {e}");
+    }
+}
+
 fn emit_sync_result(
     app: &tauri::AppHandle,
     rule_id: &str,
@@ -1151,6 +1187,20 @@ fn emit_sync_result(
     match result {
         Ok(r) => {
             update_last_synced_at(app, rule_id);
+            // Only log non-trivial cycles so the persistent log doesn't fill up
+            // with empty no-op syncs — mirrors the in-memory append logic in
+            // the frontend store.
+            if r.files_downloaded > 0
+                || r.files_deleted > 0
+                || r.directories_created > 0
+                || r.conflicts_resolved > 0
+            {
+                let summary = format!(
+                    "Sync erfolgreich — {} Datei(en), {} Bytes",
+                    r.files_downloaded, r.bytes_transferred,
+                );
+                write_sync_log_entry(app, rule_id, "info", &summary, None);
+            }
             let _ = app.emit_to(
                 "main",
                 "file-sync:complete",
@@ -1158,10 +1208,12 @@ fn emit_sync_result(
             );
         }
         Err(e) => {
+            let raw = e.to_string();
+            write_sync_log_entry(app, rule_id, "error", &raw, Some(&raw));
             let _ = app.emit_to(
                 "main",
                 "file-sync:error",
-                serde_json::json!({ "ruleId": rule_id, "error": e.to_string() }),
+                serde_json::json!({ "ruleId": rule_id, "error": raw }),
             );
         }
     }
@@ -1236,6 +1288,14 @@ async fn auto_disable_rule(
     }
     let _ = state.file_watcher.unwatch(rule_id);
     let _ = state.file_watcher.unwatch(&format!("{}_source", rule_id));
+
+    write_sync_log_entry(
+        app,
+        rule_id,
+        "error",
+        &format!("Auto-pausiert nach {failures} Fehlversuchen"),
+        Some(last_error),
+    );
 
     let _ = app.emit_to(
         "main",

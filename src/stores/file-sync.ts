@@ -36,6 +36,18 @@ export interface SyncLogEntry {
   raw?: string
   /** How many times this same root-cause has fired in a row */
   repeats?: number
+  /** Originating device id — `null` for entries produced on this device.
+   *  Populated only when "all devices" mode is loaded from the persistent log. */
+  deviceId?: string | null
+}
+
+interface SyncLogRow {
+  id: string
+  timestamp: string
+  level: string
+  /** JSON payload `{ summary, raw? }` */
+  message: string
+  deviceId: string
 }
 
 const MAX_LOG_ENTRIES_PER_RULE = 50
@@ -118,10 +130,76 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
   const getRuleLog = (ruleId: string): SyncLogEntry[] =>
     ruleLogs.value.get(ruleId) ?? []
 
-  const clearRuleLog = (ruleId: string) => {
+  const clearRuleLog = async (ruleId: string) => {
+    // Optimistically clear in-memory; the persisted tombstone propagates in
+    // the background. Reload would otherwise show stale entries until the
+    // CRDT delete commits and a refresh happens.
     if (ruleLogs.value.delete(ruleId)) {
       ruleLogs.value = new Map(ruleLogs.value)
     }
+    try {
+      await invoke('file_sync_clear_log', { ruleId })
+    } catch (e) {
+      log.warn(`Failed to clear persisted log for rule ${ruleId}:`, e)
+    }
+  }
+
+  /**
+   * Decode a backend log row's JSON `message` into a `SyncLogEntry`. Rows
+   * written by older code (or by other subsystems that share the table) may
+   * not be JSON — fall back to a plain summary so the UI still shows them.
+   */
+  const decodeLogRow = (row: SyncLogRow, includeDeviceId: boolean): SyncLogEntry => {
+    let summary = row.message
+    let raw: string | undefined
+    try {
+      const parsed = JSON.parse(row.message) as { summary?: string; raw?: string }
+      if (typeof parsed?.summary === 'string') summary = parsed.summary
+      if (typeof parsed?.raw === 'string') raw = parsed.raw
+    } catch {
+      // Not JSON — keep the raw message as summary.
+    }
+    const level = row.level === 'error' ? 'error' : 'info'
+    // Backend writes the raw error as both summary and raw on failure to keep
+    // the JSON payload self-contained. The user-facing rule (strip wrappers,
+    // pull S3 <Message>, cap length) is enforced here on hydration so it
+    // mirrors the live `unlistenError` formatting.
+    if (level === 'error') summary = extractUserFacingError(summary)
+    return {
+      at: new Date(row.timestamp).getTime(),
+      level,
+      summary,
+      raw,
+      deviceId: includeDeviceId ? row.deviceId : null,
+    }
+  }
+
+  /**
+   * Load persisted sync log entries for one or more rules from the backend
+   * and seed them into `ruleLogs`. Replaces any existing entries for the
+   * affected rules so a remount doesn't double-count.
+   */
+  const loadRuleLogsAsync = async (
+    ruleIds: string[],
+    options: { allDevices?: boolean } = {},
+  ) => {
+    const allDevices = options.allDevices ?? false
+    for (const ruleId of ruleIds) {
+      try {
+        const rows = await invoke<SyncLogRow[]>('file_sync_get_log', {
+          ruleId,
+          limit: MAX_LOG_ENTRIES_PER_RULE,
+          allDevices,
+        })
+        // Backend returns newest first; SyncLogEntry list is also newest-first
+        // (appendLogEntry unshifts). We can drop straight in.
+        const entries = rows.map(r => decodeLogRow(r, allDevices))
+        ruleLogs.value.set(ruleId, entries)
+      } catch (e) {
+        log.warn(`Failed to load persisted log for rule ${ruleId}:`, e)
+      }
+    }
+    ruleLogs.value = new Map(ruleLogs.value)
   }
   // Track lastSyncedAt per rule to detect remote changes
   const knownSyncTimestamps = new Map<string, number | null>()
@@ -139,6 +217,10 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
         knownSyncTimestamps.set(rule.id, rule.lastSyncedAt ?? null)
       }
     }
+    // Hydrate persisted log entries so the UI shows history from prior
+    // sessions immediately on mount. Failures are swallowed inside
+    // loadRuleLogsAsync (logged, not thrown).
+    await loadRuleLogsAsync(syncRules.value.map(r => r.id))
   }
 
   const createRuleAsync = async (rule: typeof haexSyncRules.$inferInsert) => {
@@ -471,6 +553,7 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
     ruleLogs,
     getRuleLog,
     clearRuleLog,
+    loadRuleLogsAsync,
     currentProgress,
     loadRulesAsync,
     createRuleAsync,

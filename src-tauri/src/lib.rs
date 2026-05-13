@@ -593,6 +593,8 @@ pub fn run() {
             file_sync::commands::file_sync_trigger_by_watcher,
             file_sync::commands::file_sync_status,
             file_sync::commands::file_sync_stop_all,
+            file_sync::commands::file_sync_get_log,
+            file_sync::commands::file_sync_clear_log,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
