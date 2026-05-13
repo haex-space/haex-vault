@@ -22,7 +22,11 @@ export default defineNuxtConfig({
     },
   },
 
-  experimental: {},
+  experimental: {
+    // Workaround for Nuxt 4.4.5 + ssr:false regression
+    // "No entry found in rollupOptions.input" — see nuxt/nuxt#35033 (fix in #35037, awaiting release)
+    viteEnvironmentApi: true,
+  },
 
 
   modules: [
