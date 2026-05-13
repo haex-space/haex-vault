@@ -410,6 +410,63 @@ pub async fn peer_storage_remote_read(
     Ok(output_path_str)
 }
 
+/// Upload a local file to a remote peer.
+///
+/// Reads the source file from disk and streams it to the peer over the
+/// existing iroh `Request::Write` protocol. The remote side checks the
+/// caller's UCAN `Write` capability for the target space.
+#[tauri::command(rename_all = "camelCase")]
+pub async fn peer_storage_remote_write(
+    state: State<'_, AppState>,
+    node_id: String,
+    relay_url: Option<String>,
+    path: String,
+    source_path: String,
+    ucan_token: String,
+) -> Result<(), PeerStorageError> {
+    let remote_id: iroh::EndpointId = node_id
+        .parse()
+        .map_err(|e| PeerStorageError::ConnectionFailed {
+            reason: format!("Invalid EndpointId: {e}"),
+        })?;
+    let parsed_relay = relay_url.and_then(|s| s.parse::<iroh::RelayUrl>().ok());
+
+    // Buffered read keeps the implementation simple at the cost of memory.
+    // Streaming with progress can be layered on later, matching the read path.
+    let data = tokio::fs::read(&source_path)
+        .await
+        .map_err(|e| PeerStorageError::ProtocolError {
+            reason: format!("Failed to read source '{source_path}': {e}"),
+        })?;
+
+    let endpoint = state.peer_storage.read().await;
+    endpoint
+        .remote_write_file(remote_id, parsed_relay, &path, &data, &ucan_token)
+        .await
+}
+
+/// Create a directory on a remote peer.
+#[tauri::command(rename_all = "camelCase")]
+pub async fn peer_storage_remote_create_directory(
+    state: State<'_, AppState>,
+    node_id: String,
+    relay_url: Option<String>,
+    path: String,
+    ucan_token: String,
+) -> Result<(), PeerStorageError> {
+    let remote_id: iroh::EndpointId = node_id
+        .parse()
+        .map_err(|e| PeerStorageError::ConnectionFailed {
+            reason: format!("Invalid EndpointId: {e}"),
+        })?;
+    let parsed_relay = relay_url.and_then(|s| s.parse::<iroh::RelayUrl>().ok());
+
+    let endpoint = state.peer_storage.read().await;
+    endpoint
+        .remote_create_directory(remote_id, parsed_relay, &path, &ucan_token)
+        .await
+}
+
 // ============================================================================
 // Transfer control commands
 // ============================================================================

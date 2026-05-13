@@ -129,6 +129,30 @@
             {{ t('paste') }} ({{ browser.clipboard.clipboardCount.value }})
           </UiButton>
 
+          <!-- Upload + New Folder (when peer supports writes, no selection) -->
+          <template
+            v-if="
+              browser.selectionCount.value === 0 &&
+              !browser.canPaste.value &&
+              browser.canWrite.value
+            "
+          >
+            <UiButton
+              variant="ghost"
+              icon="i-lucide-folder-plus"
+              :title="t('newFolder')"
+              :loading="isCreatingFolder"
+              @click="openCreateFolderDialog"
+            />
+            <UiButton
+              variant="ghost"
+              icon="i-lucide-upload"
+              :title="t('uploadFiles')"
+              :loading="isUploading"
+              @click="uploadFilesAsync"
+            />
+          </template>
+
           <!-- P2P endpoint toggle + settings -->
           <template v-if="!browser.selectedPeer.value">
             <UiButton
@@ -629,14 +653,33 @@
         </div>
       </div>
     </Transition>
+
+    <!-- New folder dialog -->
+    <UiDialogConfirm
+      v-model:open="newFolderOpen"
+      :title="t('newFolder')"
+      :confirm-label="t('create')"
+      @confirm="confirmCreateFolderAsync"
+    >
+      <template #body>
+        <UiInput
+          v-model="newFolderName"
+          :placeholder="t('folderNamePlaceholder')"
+          autofocus
+          @keydown.enter="confirmCreateFolderAsync"
+        />
+      </template>
+    </UiDialogConfirm>
   </HaexSystem>
 </template>
 
 <script setup lang="ts">
+import { invoke } from '@tauri-apps/api/core'
 import { SettingsCategory } from '~/config/settingsCategories'
 import type { RemotePeer } from '~/composables/useFileBrowser'
 import { usePeerPing } from '~/composables/usePeerPing'
 import { requireDb } from '~/stores/vault'
+import type { StorageBackendInfo } from '~/../src-tauri/bindings/StorageBackendInfo'
 
 const props = defineProps<{
   tabId: string
@@ -661,7 +704,7 @@ interface AvatarRef {
 }
 
 interface OverviewEntry {
-  kind: 'local-share' | 'remote-peer'
+  kind: 'local-share' | 'remote-peer' | 'cloud-backend'
   key: string
   title: string
   subtitle: string
@@ -697,6 +740,62 @@ const toggleEndpointAsync = async () => {
     else await peerStore.startAsync()
   } finally {
     isTogglingEndpoint.value = false
+  }
+}
+
+// --- Upload + create folder ---
+const toast = useToast()
+const isUploading = ref(false)
+const isCreatingFolder = ref(false)
+const newFolderOpen = ref(false)
+const newFolderName = ref('')
+
+const uploadFilesAsync = async () => {
+  isUploading.value = true
+  try {
+    const count = await browser.uploadFilesAsync()
+    if (count > 0) {
+      toast.add({
+        title: t('uploadSuccess', { count }),
+        color: 'success',
+      })
+    }
+  } catch (error) {
+    toast.add({
+      title: t('uploadFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+    })
+  } finally {
+    isUploading.value = false
+  }
+}
+
+const openCreateFolderDialog = () => {
+  newFolderName.value = ''
+  newFolderOpen.value = true
+}
+
+const confirmCreateFolderAsync = async () => {
+  const name = newFolderName.value
+  if (!name.trim()) return
+  isCreatingFolder.value = true
+  try {
+    const ok = await browser.createFolderAsync(name)
+    if (ok) {
+      newFolderOpen.value = false
+      newFolderName.value = ''
+    } else {
+      toast.add({ title: t('folderNameInvalid'), color: 'error' })
+    }
+  } catch (error) {
+    toast.add({
+      title: t('createFolderFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+    })
+  } finally {
+    isCreatingFolder.value = false
   }
 }
 
@@ -901,9 +1000,56 @@ const buildPeerEntry = (input: PeerEntryInput): OverviewEntry => {
   }
 }
 
+// S3 / remote storage backends. These live outside the space + contact model
+// (they belong to no peer), so they get their own group that is always
+// appended last regardless of the current grouping mode.
+const storageBackends = ref<StorageBackendInfo[]>([])
+const loadStorageBackendsAsync = async () => {
+  try {
+    storageBackends.value = await invoke<StorageBackendInfo[]>(
+      'remote_storage_list_backends',
+    )
+  } catch {
+    // Non-fatal: the file browser must still render the other sections even
+    // if S3 listing fails (e.g. database error). The settings page is the
+    // canonical place to diagnose backend configuration issues.
+    storageBackends.value = []
+  }
+}
+
+const s3PeerForBackend = (backend: StorageBackendInfo): RemotePeer => ({
+  endpointId: `s3:${backend.id}`,
+  name: backend.name,
+  source: 's3',
+  detail: backend.config?.bucket || backend.type,
+  s3BackendId: backend.id,
+})
+
+const cloudStorageGroup = computed<OverviewGroup | null>(() => {
+  const enabled = storageBackends.value.filter((b) => b.enabled)
+  if (enabled.length === 0) return null
+  return {
+    id: 'cloud-storage',
+    title: t('groups.cloudStorage'),
+    icon: 'i-lucide-cloud',
+    entries: enabled.map((backend) => ({
+      kind: 'cloud-backend' as const,
+      key: `s3:${backend.id}`,
+      title: backend.name,
+      subtitle: backend.config?.bucket
+        ? `${backend.type.toUpperCase()} · ${backend.config.bucket}`
+        : backend.type.toUpperCase(),
+      icon: 'i-lucide-cloud',
+      peer: s3PeerForBackend(backend),
+    })),
+  }
+})
+
 const overviewGroups = computed<OverviewGroup[]>(() => {
-  if (groupBy.value === 'space') return buildSpaceGroups()
-  return buildContactGroups()
+  const groups =
+    groupBy.value === 'space' ? buildSpaceGroups() : buildContactGroups()
+  const cloud = cloudStorageGroup.value
+  return cloud ? [...groups, cloud] : groups
 })
 
 const hasAnyEntries = computed(() => overviewGroups.value.length > 0)
@@ -1221,6 +1367,7 @@ onMounted(async () => {
     peerStore.loadSharesAsync(),
     peerStore.loadSpaceDevicesAsync(),
     spacesStore.loadSpacesFromDbAsync(),
+    loadStorageBackendsAsync(),
   ])
   await loadContactClaimsAsync()
   await applyDeepLink(props.windowParams)
@@ -1257,6 +1404,14 @@ de:
   p2pSettings: P2P-Einstellungen
   noStorage: Keine Speicherquellen verfügbar
   noStorageHint: Teile Ordner in den P2P-Einstellungen oder verbinde dich mit anderen Geräten.
+  uploadFiles: Dateien hochladen
+  uploadSuccess: '{count} Datei(en) hinzugefügt'
+  uploadFailed: Upload fehlgeschlagen
+  newFolder: Neuer Ordner
+  folderNamePlaceholder: Ordnername
+  folderNameInvalid: Ungültiger Ordnername
+  createFolderFailed: Ordner konnte nicht erstellt werden
+  create: Erstellen
   sections:
     local: Dieses Gerät
     peers: Andere Geräte
@@ -1269,6 +1424,7 @@ de:
     myDevices: Meine Geräte
     directContacts: Direkte Kontakte
     unknown: Ohne Zuordnung
+    cloudStorage: Cloud-Speicher
 en:
   title: Files
   description: Browse and download files from connected devices
@@ -1298,6 +1454,14 @@ en:
   p2pSettings: P2P Settings
   noStorage: No storage sources available
   noStorageHint: Share folders in P2P settings or connect with other devices.
+  uploadFiles: Upload files
+  uploadSuccess: '{count} file(s) added'
+  uploadFailed: Upload failed
+  newFolder: New folder
+  folderNamePlaceholder: Folder name
+  folderNameInvalid: Invalid folder name
+  createFolderFailed: Could not create folder
+  create: Create
   sections:
     local: This device
     peers: Other devices
@@ -1310,4 +1474,5 @@ en:
     myDevices: My devices
     directContacts: Direct contacts
     unknown: Unattributed
+    cloudStorage: Cloud storage
 </i18n>
