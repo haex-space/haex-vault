@@ -116,6 +116,11 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
   // keep memory bounded. Surfaces in the UI as a "history" — not persisted
   // across app restarts (would need a dedicated table for that).
   const ruleLogs = ref<Map<string, SyncLogEntry[]>>(new Map())
+  // Tracks per-rule "all devices" log scope so that subsequent rule reloads
+  // (e.g. after CRDT change, auto-pause, or backend update) preserve the
+  // user's toggle instead of silently snapping back to device-local.
+  // Kept in-store but not persisted, matching the component-level default.
+  const ruleLogAllDevices = ref<Map<string, boolean>>(new Map())
 
   const appendLogEntry = (ruleId: string, entry: SyncLogEntry) => {
     const list = ruleLogs.value.get(ruleId) ?? []
@@ -183,8 +188,17 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
     ruleIds: string[],
     options: { allDevices?: boolean } = {},
   ) => {
-    const allDevices = options.allDevices ?? false
     for (const ruleId of ruleIds) {
+      // When the caller passes an explicit scope, remember it so later
+      // implicit reloads (loadRulesAsync after CRDT change etc.) keep using
+      // the same scope. Without this the user-selected "all devices" view
+      // gets silently overwritten with device-local logs.
+      const allDevices = options.allDevices
+        ?? ruleLogAllDevices.value.get(ruleId)
+        ?? false
+      if (options.allDevices !== undefined) {
+        ruleLogAllDevices.value.set(ruleId, options.allDevices)
+      }
       try {
         const rows = await invoke<SyncLogRow[]>('file_sync_get_log', {
           ruleId,
@@ -248,6 +262,7 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
     await db.delete(haexSyncState).where(eq(haexSyncState.ruleId, id))
     // Delete rule
     await db.delete(haexSyncRules).where(eq(haexSyncRules.id, id))
+    ruleLogAllDevices.value.delete(id)
     await loadRulesAsync()
   }
 
@@ -577,6 +592,7 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
       lastResults.value = new Map()
       lastErrors.value = new Map()
       ruleLogs.value = new Map()
+      ruleLogAllDevices.value = new Map()
       currentProgress.value = new Map()
       cleanupEventListeners()
     },

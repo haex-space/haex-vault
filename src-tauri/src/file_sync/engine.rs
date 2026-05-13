@@ -1187,14 +1187,25 @@ fn emit_sync_result(
     match result {
         Ok(r) => {
             update_last_synced_at(app, rule_id);
-            // Only log non-trivial cycles so the persistent log doesn't fill up
-            // with empty no-op syncs — mirrors the in-memory append logic in
-            // the frontend store.
-            if r.files_downloaded > 0
+            // Per-file transfer failures are collected into r.errors instead of
+            // surfacing as Err — without this branch a cycle where every
+            // transfer failed (counters all 0, errors populated) would leave
+            // no trace in the persistent log.
+            if !r.errors.is_empty() {
+                let raw = r.errors.join("; ");
+                let summary = format!(
+                    "Sync mit {} Fehler(n) abgeschlossen",
+                    r.errors.len(),
+                );
+                write_sync_log_entry(app, rule_id, "error", &summary, Some(&raw));
+            } else if r.files_downloaded > 0
                 || r.files_deleted > 0
                 || r.directories_created > 0
                 || r.conflicts_resolved > 0
             {
+                // Only log non-trivial cycles so the persistent log doesn't fill up
+                // with empty no-op syncs — mirrors the in-memory append logic in
+                // the frontend store.
                 let summary = format!(
                     "Sync erfolgreich — {} Datei(en), {} Bytes",
                     r.files_downloaded, r.bytes_transferred,

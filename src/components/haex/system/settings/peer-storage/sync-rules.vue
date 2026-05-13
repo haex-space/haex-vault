@@ -446,6 +446,12 @@ const otherDeviceName = (deviceId: string | null | undefined): string | null => 
 const onToggleAllDevicesAsync = async (ruleId: string, value: boolean) => {
   showAllDevicesMap[ruleId] = value
   await syncStore.loadRuleLogsAsync([ruleId], { allDevices: value })
+  // Rapid toggling can race; if the toggle was flipped again while we were
+  // loading, reconcile once with the current value so the displayed log
+  // matches the visible toggle state.
+  if (showAllDevicesMap[ruleId] !== value) {
+    await syncStore.loadRuleLogsAsync([ruleId], { allDevices: !!showAllDevicesMap[ruleId] })
+  }
 }
 
 // Auto-expand any rule that is actively syncing so users see progress
