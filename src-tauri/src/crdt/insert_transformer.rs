@@ -3,7 +3,7 @@
 
 use crate::crdt::trigger::HLC_TIMESTAMP_COLUMN;
 use crate::database::error::DatabaseError;
-use sqlparser::ast::{Expr, Ident, Insert, SelectItem, SetExpr, Value};
+use sqlparser::ast::{Expr, Ident, Insert, ObjectName, SelectItem, SetExpr, Value};
 use uhlc::Timestamp;
 
 /// Helper-Struct für INSERT-Transformationen
@@ -18,13 +18,21 @@ impl InsertTransformer {
         }
     }
 
-    fn find_or_add_column(columns: &mut Vec<Ident>, col_name: &'static str) -> usize {
-        match columns.iter().position(|c| c.value == col_name) {
-            Some(index) => index, // Gefunden! Gib Index zurück.
+    /// sqlparser 0.62 widened `Insert.columns` from `Vec<Ident>` to
+    /// `Vec<ObjectName>` so columns can be schema-qualified (e.g. `t.col`).
+    /// For the timestamp column we only ever care about the trailing name
+    /// part — match against `.as_ident()` of the last part.
+    fn find_or_add_column(columns: &mut Vec<ObjectName>, col_name: &'static str) -> usize {
+        match columns.iter().position(|c| {
+            c.0.last()
+                .and_then(|part| part.as_ident())
+                .map(|i| i.value == col_name)
+                .unwrap_or(false)
+        }) {
+            Some(index) => index,
             None => {
-                // Nicht gefunden! Hinzufügen.
-                columns.push(Ident::new(col_name));
-                columns.len() - 1 // Der Index des gerade hinzugefügten Elements
+                columns.push(ObjectName::from(Ident::new(col_name)));
+                columns.len() - 1
             }
         }
     }
