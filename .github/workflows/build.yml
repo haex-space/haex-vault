@@ -88,12 +88,19 @@ jobs:
       # `actor` is the org account, not `dependabot[bot]`, and the metadata
       # step gets skipped — leaving every Dependabot PR in the strict E2E
       # gate. The PR author field always reflects who opened the PR.
+      # `skip-commit-verification: true` is needed because maintainer rebases
+      # invalidate Dependabot's commit signatures, after which the action
+      # refuses to set `update-type` and fails the step ("PR is not from
+      # Dependabot"). The PR-author guard above is the real safety check —
+      # `pull_request.user.login` is set by GitHub at PR creation and cannot
+      # be spoofed by editing branch contents.
       - name: Fetch Dependabot metadata
         if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event_name == 'pull_request'
         id: dep-meta
         uses: dependabot/fetch-metadata@v3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          skip-commit-verification: true
 
       - name: Compute dependency context
         id: dep-context
