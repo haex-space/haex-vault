@@ -268,15 +268,32 @@ impl StorageBackend for S3Backend {
         let credentials = self.build_credentials()?;
         let region = self.build_region();
 
-        // AWS S3 (and most S3-compatible services like Rabata) reject a
-        // CreateBucketConfiguration payload with `LocationConstraint=us-east-1`
-        // because us-east-1 is the API default and must be omitted. For every
-        // other region the constraint *must* be sent or the bucket lands in
-        // the wrong region. Start from `new()` (location_constraint=None) and
-        // only attach the region when it's actually needed.
-        // us-east-1 must NOT include a LocationConstraint — use private() which
-        // leaves location_constraint=None. Every other region needs it set explicitly.
-        let bucket_config = if self.config.region.eq_ignore_ascii_case("us-east-1") {
+        // The LocationConstraint payload is the trickiest part of bucket
+        // creation across S3 implementations:
+        //
+        // - AWS us-east-1: must NOT include the payload (the API default).
+        // - AWS other regions: must include it with the matching region name.
+        // - S3-compatible services (MinIO, Rabata, R2, B2, …): mostly reject
+        //   AWS region names entirely — each has its own naming.
+        //
+        // rust-s3 0.37 makes this awkward: `Bucket::create` unconditionally
+        // calls `config.set_region(region.clone())` which overwrites our
+        // `location_constraint=None`. Because we use `Region::Custom { region,
+        // endpoint }` for custom endpoints, the resulting payload serializes
+        // as `<LocationConstraint>{Custom.region}</LocationConstraint>` —
+        // which the target service then rejects.
+        //
+        // The crate provides an explicit env-var escape hatch
+        // (`RUST_S3_SKIP_LOCATION_CONSTRAINT`) which skips the `set_region`
+        // override. Use it for any custom-endpoint backend so the payload
+        // stays empty. Process-global side effect: once set in this process
+        // all subsequent `Bucket::create` calls skip the payload — fine while
+        // this app only targets S3-compatible services, but would need
+        // scoped handling if AWS direct support is added later.
+        let bucket_config = if self.config.endpoint.is_some() {
+            std::env::set_var("RUST_S3_SKIP_LOCATION_CONSTRAINT", "true");
+            BucketConfiguration::private()
+        } else if self.config.region.eq_ignore_ascii_case("us-east-1") {
             BucketConfiguration::private()
         } else {
             BucketConfiguration::new(
