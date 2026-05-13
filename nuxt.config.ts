@@ -22,11 +22,30 @@ export default defineNuxtConfig({
     },
   },
 
-  experimental: {
-    // Workaround for Nuxt 4.4.5 + ssr:false regression
-    // "No entry found in rollupOptions.input" — see nuxt/nuxt#35033 (fix in #35037, awaiting release)
-    // TODO: Remove this workaround once Nuxt > 4.4.5 with the upstream fix is released
-    viteEnvironmentApi: true,
+  experimental: {},
+
+  // Workaround for Nuxt 4.4.5 + ssr:false regression
+  // "No entry found in rollupOptions.input" — see nuxt/nuxt#35033 (fix in
+  // #35037, awaiting release). Vite Environment API in 4.4.5 + SPA mode can
+  // drop the required `entry`/`server` keys from rollupOptions.input. We
+  // patch them in via the vite:extendConfig hook with the first string
+  // input as fallback so resolveServerEntry succeeds.
+  // TODO: Remove this hook once Nuxt > 4.4.5 with the upstream fix is released.
+  hooks: {
+    'vite:extendConfig'(config) {
+      const rollupInput = config.build?.rollupOptions?.input
+      if (
+        !rollupInput
+        || typeof rollupInput === 'string'
+        || Array.isArray(rollupInput)
+      ) return
+      const firstInput = Object.values(rollupInput).find(
+        (v): v is string => typeof v === 'string',
+      )
+      if (!firstInput) return
+      if (!rollupInput.entry) rollupInput.entry = firstInput
+      if (!rollupInput.server) rollupInput.server = firstInput
+    },
   },
 
 
