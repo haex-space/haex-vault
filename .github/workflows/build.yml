@@ -82,8 +82,14 @@ jobs:
 
       # Detect Dependabot semver level so we can gate E2E tests:
       # patch/minor → skip E2E (pragmatic), major → run E2E (strict).
+      #
+      # Use `github.event.pull_request.user.login` rather than `github.actor`:
+      # when Dependabot opens a PR via an org-level GitHub App or PAT, the
+      # `actor` is the org account, not `dependabot[bot]`, and the metadata
+      # step gets skipped — leaving every Dependabot PR in the strict E2E
+      # gate. The PR author field always reflects who opened the PR.
       - name: Fetch Dependabot metadata
-        if: github.actor == 'dependabot[bot]' && github.event_name == 'pull_request'
+        if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event_name == 'pull_request'
         id: dep-meta
         uses: dependabot/fetch-metadata@v3
         with:
@@ -92,11 +98,11 @@ jobs:
       - name: Compute dependency context
         id: dep-context
         env:
-          ACTOR: ${{ github.actor }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           EVENT: ${{ github.event_name }}
           UPDATE_TYPE: ${{ steps.dep-meta.outputs.update-type }}
         run: |
-          if [ "$ACTOR" = "dependabot[bot]" ] && [ "$EVENT" = "pull_request" ]; then
+          if [ "$PR_AUTHOR" = "dependabot[bot]" ] && [ "$EVENT" = "pull_request" ]; then
             echo "is_dependabot=true" >> "$GITHUB_OUTPUT"
             # Skip E2E only when we have positive confirmation of patch/minor.
             # Empty/unknown update-type → default to running E2E (strict).
