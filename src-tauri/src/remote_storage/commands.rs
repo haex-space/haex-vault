@@ -10,7 +10,8 @@ use super::queries::{
 };
 use super::types::{
     AddStorageBackendRequest, StorageBackendInfo, StorageDeleteRequest, StorageDownloadRequest,
-    StorageListRequest, StorageObjectInfo, StorageUploadRequest, UpdateStorageBackendRequest,
+    StorageListDirResponse, StorageListRequest, StorageObjectInfo, StorageUploadRequest,
+    UpdateStorageBackendRequest,
 };
 use crate::database::core;
 use crate::database::row::{get_bool, get_string};
@@ -388,6 +389,18 @@ pub async fn remote_storage_list(
 ) -> Result<Vec<StorageObjectInfo>, StorageError> {
     let backend = get_backend_instance(&state, &request.backend_id).await?;
     backend.list(request.prefix.as_deref()).await
+}
+
+/// List a single hierarchy level (folders + objects) in a remote storage
+/// backend. Used by the file browser to navigate buckets without loading the
+/// entire key space.
+#[tauri::command]
+pub async fn remote_storage_list_dir(
+    state: State<'_, AppState>,
+    request: StorageListRequest,
+) -> Result<StorageListDirResponse, StorageError> {
+    let backend = get_backend_instance(&state, &request.backend_id).await?;
+    backend.list_dir(request.prefix.as_deref()).await
 }
 
 // ============================================================================

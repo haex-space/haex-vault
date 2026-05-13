@@ -7,7 +7,7 @@ use std::path::Path;
 
 use super::error::StorageError;
 use super::progress::{ProgressCallback, ProgressReader, ProgressWriter};
-use super::types::{S3Config, StorageObjectInfo};
+use super::types::{S3Config, StorageListDirResponse, StorageObjectInfo};
 use async_trait::async_trait;
 use s3::bucket::Bucket;
 use s3::bucket_ops::{BucketConfiguration, CannedBucketAcl};
@@ -56,6 +56,34 @@ pub trait StorageBackend: Send + Sync {
 
     /// List objects with optional prefix
     async fn list(&self, prefix: Option<&str>) -> Result<Vec<StorageObjectInfo>, StorageError>;
+
+    /// Directory-style listing of a single hierarchy level under the prefix.
+    /// Returns sub-prefixes (folders) and objects whose keys do not contain
+    /// any further `/` after the prefix.
+    ///
+    /// Default impl falls back to a flat `list` and reconstructs the
+    /// hierarchy client-side, which is fine for small backends but should
+    /// be overridden by anything supporting native delimiter-based listing
+    /// (S3) to avoid enumerating an entire bucket per folder open.
+    async fn list_dir(&self, prefix: Option<&str>) -> Result<StorageListDirResponse, StorageError> {
+        let objects = self.list(prefix).await?;
+        let prefix_str = prefix.unwrap_or("");
+        let mut folders: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        let mut files: Vec<StorageObjectInfo> = Vec::new();
+        for obj in objects {
+            let rest = obj.key.strip_prefix(prefix_str).unwrap_or(&obj.key);
+            if let Some(idx) = rest.find('/') {
+                let folder = format!("{}{}", prefix_str, &rest[..=idx]);
+                folders.insert(folder);
+            } else {
+                files.push(obj);
+            }
+        }
+        Ok(StorageListDirResponse {
+            folders: folders.into_iter().collect(),
+            objects: files,
+        })
+    }
 
     /// Upload a local file to the backend, streaming if supported.
     ///
@@ -388,6 +416,42 @@ impl StorageBackend for S3Backend {
             .collect();
 
         Ok(objects)
+    }
+
+    async fn list_dir(&self, prefix: Option<&str>) -> Result<StorageListDirResponse, StorageError> {
+        let prefix_str = prefix.unwrap_or("").to_string();
+
+        let results = self
+            .bucket
+            .list(prefix_str.clone(), Some("/".to_string()))
+            .await
+            .map_err(|e| StorageError::Internal {
+                reason: format!("S3 list failed: {}", e),
+            })?;
+
+        let mut folders: Vec<String> = Vec::new();
+        let mut objects: Vec<StorageObjectInfo> = Vec::new();
+
+        for result in results {
+            for cp in result.common_prefixes.into_iter().flatten() {
+                folders.push(cp.prefix);
+            }
+            for obj in result.contents {
+                // S3 returns the prefix itself as a zero-size object when a
+                // "directory marker" exists — skip it so it doesn't show up
+                // as a duplicate empty file next to the folder entry.
+                if obj.key == prefix_str {
+                    continue;
+                }
+                objects.push(StorageObjectInfo {
+                    key: obj.key,
+                    size: obj.size,
+                    last_modified: Some(obj.last_modified),
+                });
+            }
+        }
+
+        Ok(StorageListDirResponse { folders, objects })
     }
 
     async fn upload_from_path(

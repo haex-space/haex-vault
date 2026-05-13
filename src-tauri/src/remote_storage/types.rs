@@ -149,3 +149,17 @@ pub struct StorageObjectInfo {
     /// Last modified timestamp (ISO 8601)
     pub last_modified: Option<String>,
 }
+
+/// Directory-style listing result: a single hierarchy level under a prefix,
+/// split into sub-prefixes ("folders") and objects ("files"). Built on top of
+/// S3's `delimiter` parameter so very large buckets aren't enumerated to
+/// browse a single folder.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct StorageListDirResponse {
+    /// Sub-prefixes under the requested prefix (always end with "/").
+    pub folders: Vec<String>,
+    /// Objects whose key starts with the prefix and contains no further "/".
+    pub objects: Vec<StorageObjectInfo>,
+}

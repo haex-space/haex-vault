@@ -1,6 +1,7 @@
 import Fuse from 'fuse.js'
 import { invoke, convertFileSrc } from '@tauri-apps/api/core'
 import type { FileEntry as BaseFileEntry } from '~/../src-tauri/bindings/FileEntry'
+import type { StorageListDirResponse } from '~/../src-tauri/bindings/StorageListDirResponse'
 import { getMediaType } from '~/composables/useFilePreview'
 import { readableFileSize } from '~/utils/helper'
 
@@ -10,9 +11,15 @@ export type FileEntry = BaseFileEntry & { path?: string }
 export interface RemotePeer {
   endpointId: string
   name: string
-  source: 'space' | 'contact'
+  source: 'space' | 'contact' | 's3'
   detail: string
   localPath?: string
+  /**
+   * When set, the peer represents a remote S3 backend rather than a P2P
+   * endpoint. `endpointId` is then a synthetic id (e.g. `s3:<backendId>`)
+   * used only for UI bookkeeping — backend calls use `s3BackendId`.
+   */
+  s3BackendId?: string
 }
 
 const CHUNK_SIZE = 50
@@ -82,6 +89,18 @@ export function useFileBrowser(tabId: string) {
   const direction = ref<'forward' | 'back'>('forward')
 
   const isContentUri = (p: string) => p.startsWith('{')
+
+  /**
+   * Convert internal `/`-prefixed currentPath to an S3 prefix string.
+   *   `/`           → `""`           (bucket root)
+   *   `/dir/sub`    → `"dir/sub/"`   (folder)
+   * S3 keys never start with `/` and folder prefixes always end with `/`.
+   */
+  const toS3Prefix = (path: string): string => {
+    if (path === '/' || path === '') return ''
+    const stripped = path.replace(/^\/+/, '').replace(/\/+$/, '')
+    return stripped ? `${stripped}/` : ''
+  }
 
   // Navigation stack for Android Content URI support.
   // Each entry stores the display name and the actual path/URI to navigate to.
@@ -154,6 +173,10 @@ export function useFileBrowser(tabId: string) {
   let searchTimeout: ReturnType<typeof setTimeout> | undefined
 
   const recursiveSearchAsync = async (basePath: string, generation: number) => {
+    // S3 deep search isn't wired up yet — fall back to the shallow filter
+    // against `sortedFiles` (handled in `filteredFiles`).
+    if (selectedPeer.value?.s3BackendId) return
+
     interface QueueEntry { path: string; displayPrefix: string }
     const queue: QueueEntry[] = [{ path: basePath, displayPrefix: '' }]
     const results: SearchableFile[] = []
@@ -290,6 +313,9 @@ export function useFileBrowser(tabId: string) {
 
   const filteredFiles = computed((): (FileEntry & { displayPath?: string; searchPath?: string })[] => {
     if (!searchQuery.value) return sortedFiles.value
+    // S3 falls back to shallow search on the currently loaded folder since
+    // there is no deep-search backend wired up yet.
+    if (selectedPeer.value?.s3BackendId) return fuse.value.search(searchQuery.value).map(r => r.item)
     if (deepSearchFiles.value.length === 0) return []
     return fuse.value.search(searchQuery.value).map(r => r.item)
   })
@@ -435,7 +461,44 @@ export function useFileBrowser(tabId: string) {
     const generation = ++loadGeneration
 
     try {
-      if (selectedPeer.value.localPath) {
+      if (selectedPeer.value.s3BackendId) {
+        // S3: list a single hierarchy level using the bucket's `/` delimiter.
+        const response = await invoke<StorageListDirResponse>(
+          'remote_storage_list_dir',
+          {
+            request: {
+              backendId: selectedPeer.value.s3BackendId,
+              prefix: toS3Prefix(currentPath.value),
+            },
+          },
+        )
+        if (generation !== loadGeneration) return
+
+        const folderEntries: FileEntry[] = response.folders.map((folder) => {
+          // Trim the parent prefix to get the folder's basename.
+          const parent = toS3Prefix(currentPath.value)
+          const name = folder.slice(parent.length).replace(/\/$/, '')
+          return { name, size: 0n, isDir: true, modified: null }
+        })
+        const fileEntries: FileEntry[] = response.objects.map((obj) => {
+          const parent = toS3Prefix(currentPath.value)
+          const name = obj.key.slice(parent.length)
+          // ISO 8601 → unix seconds (matches FileEntry.modified semantics
+          // used by formatDate, which multiplies by 1000).
+          const modifiedSec = obj.lastModified
+            ? BigInt(Math.floor(new Date(obj.lastModified).getTime() / 1000))
+            : null
+          return {
+            name,
+            size: BigInt(obj.size),
+            isDir: false,
+            modified: modifiedSec,
+          }
+        })
+
+        files.value = [...folderEntries, ...fileEntries]
+        totalFiles.value = files.value.length
+      } else if (selectedPeer.value.localPath) {
         // Chunked loading for local directories
         const firstChunk = await peerStore.localListAsync(
           selectedPeer.value.localPath,
@@ -515,7 +578,19 @@ export function useFileBrowser(tabId: string) {
 
     // Files: download (if remote) then open with system app.
     // No inline preview — avoids downloading entire files just to show them in-app.
-    if (selectedPeer.value?.localPath) {
+    if (selectedPeer.value?.s3BackendId) {
+      // S3: pull base64 and save to user downloads. No inline preview /
+      // open-with-system path yet — S3 download command returns base64 and
+      // there's no local cache file to hand to the OS.
+      const key = toS3Prefix(currentPath.value) + file.name
+      const base64 = await invoke<string>('remote_storage_download', {
+        request: {
+          backendId: selectedPeer.value.s3BackendId,
+          key,
+        },
+      })
+      preview.downloadBase64(base64, file.name)
+    } else if (selectedPeer.value?.localPath) {
       // Local share: open directly with system app
       const absPath = resolveLocalAbsolutePath(file)
       if (absPath) await preview.openWithSystem(absPath)
@@ -549,7 +624,16 @@ export function useFileBrowser(tabId: string) {
   const downloadFile = async (file: FileEntry) => {
     if (!selectedPeer.value) return
 
-    if (selectedPeer.value.localPath) {
+    if (selectedPeer.value.s3BackendId) {
+      const key = toS3Prefix(currentPath.value) + file.name
+      const base64 = await invoke<string>('remote_storage_download', {
+        request: {
+          backendId: selectedPeer.value.s3BackendId,
+          key,
+        },
+      })
+      preview.downloadBase64(base64, file.name)
+    } else if (selectedPeer.value.localPath) {
       // Local file: read as base64 and trigger browser download
       const absPath = resolveLocalAbsolutePath(file)
       if (!absPath) return
@@ -582,6 +666,126 @@ export function useFileBrowser(tabId: string) {
     }
     clearSelection()
     await loadFiles()
+  }
+
+  // =========================================================================
+  // Upload / create folder
+  // =========================================================================
+
+  /**
+   * Whether the currently selected peer supports adding files / folders
+   * *from this user*. The server still enforces the same check — this is
+   * only a UI gate so users don't see write buttons for shares they have
+   * read-only access to.
+   *
+   *  - Local share: the share lives on this device, the OS enforces perms.
+   *  - S3 backend: the user configured it; ACL enforcement is on the bucket.
+   *  - P2P peer: requires a cached UCAN with `space/write` or `space/admin`.
+   */
+  const canWrite = computed(() => {
+    const peer = selectedPeer.value
+    if (!peer) return false
+    if (peer.localPath || peer.s3BackendId) return true
+    const cap = peerStore.getCapabilityForPeer(peer.endpointId, currentPath.value)
+    return cap === 'space/write' || cap === 'space/admin'
+  })
+
+  /** Join the current path with a basename, preserving the `/dir/sub` form. */
+  const joinRemotePath = (name: string): string =>
+    currentPath.value === '/' ? `/${name}` : `${currentPath.value}/${name}`
+
+  /**
+   * Open the native file picker and add the chosen file(s) to the current
+   * folder. Supports local shares (zero-copy via `filesystem_copy`), S3
+   * backends (base64 round-trip via `remote_storage_upload`), and remote
+   * P2P peers (streamed via the iroh `Request::Write` protocol).
+   * Returns the number of files added so the caller can show a toast.
+   */
+  const uploadFilesAsync = async (): Promise<number> => {
+    if (!canWrite.value || !selectedPeer.value) return 0
+
+    const selected = await invoke<string[] | null>('filesystem_select_file', {
+      multiple: true,
+    })
+    if (!selected || selected.length === 0) return 0
+
+    const basename = (p: string): string => {
+      const parts = p.split(/[/\\]/)
+      return parts[parts.length - 1] || p
+    }
+
+    if (selectedPeer.value.localPath) {
+      const targetDir = resolveCurrentDir()
+      if (!targetDir) return 0
+      for (const src of selected) {
+        await invoke('filesystem_copy', {
+          from: src,
+          to: `${targetDir}/${basename(src)}`,
+        })
+      }
+    } else if (selectedPeer.value.s3BackendId) {
+      const prefix = toS3Prefix(currentPath.value)
+      for (const src of selected) {
+        const data = await invoke<string>('filesystem_read_file', { path: src })
+        await invoke('remote_storage_upload', {
+          request: {
+            backendId: selectedPeer.value.s3BackendId,
+            key: prefix + basename(src),
+            data,
+          },
+        })
+      }
+    } else {
+      // Remote P2P peer: read on Rust side and stream over iroh.
+      for (const src of selected) {
+        await peerStore.remoteWriteAsync(
+          selectedPeer.value.endpointId,
+          joinRemotePath(basename(src)),
+          src,
+        )
+      }
+    }
+
+    await loadFiles()
+    return selected.length
+  }
+
+  /**
+   * Create a new folder under the current path. For S3 this uploads a
+   * zero-byte object with a trailing `/`, which is the conventional way to
+   * surface an "empty folder" through the delimiter-based listing. For
+   * P2P peers it sends a `Request::CreateDirectory` over iroh.
+   * Returns true on success.
+   */
+  const createFolderAsync = async (rawName: string): Promise<boolean> => {
+    if (!canWrite.value || !selectedPeer.value) return false
+    const name = rawName.trim().replace(/^\/+|\/+$/g, '')
+    // Refuse names with path separators — folder creation is a single-level
+    // operation; nested paths would silently surprise the user.
+    if (!name || name.includes('/') || name.includes('\\')) return false
+
+    if (selectedPeer.value.localPath) {
+      const targetDir = resolveCurrentDir()
+      if (!targetDir) return false
+      await invoke('filesystem_mkdir', { path: `${targetDir}/${name}` })
+    } else if (selectedPeer.value.s3BackendId) {
+      const prefix = toS3Prefix(currentPath.value)
+      await invoke('remote_storage_upload', {
+        request: {
+          backendId: selectedPeer.value.s3BackendId,
+          key: `${prefix}${name}/`,
+          data: '',
+        },
+      })
+    } else {
+      await peerStore.remoteCreateDirectoryAsync(
+        selectedPeer.value.endpointId,
+        joinRemotePath(name),
+      )
+    }
+
+    await loadFiles()
+    return true
   }
 
   // =========================================================================
@@ -714,6 +918,9 @@ export function useFileBrowser(tabId: string) {
     downloadFile,
     downloadSelectedAsync,
     deleteSelectedAsync,
+    uploadFilesAsync,
+    createFolderAsync,
+    canWrite,
 
     // Direct peer setter (for deep-link)
     setInitialPeer: (peer: RemotePeer) => {

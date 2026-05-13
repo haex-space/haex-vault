@@ -492,6 +492,7 @@ pub fn run() {
             remote_storage::remote_storage_download,
             remote_storage::remote_storage_delete,
             remote_storage::remote_storage_list,
+            remote_storage::remote_storage_list_dir,
             // Extension Remote Storage commands (with permission checks)
             extension::remote_storage::commands::extension_remote_storage_list_backends,
             extension::remote_storage::commands::extension_remote_storage_add_backend,
@@ -548,6 +549,8 @@ pub fn run() {
             peer_storage::peer_storage_diagnose_connection,
             peer_storage::peer_storage_remote_list,
             peer_storage::peer_storage_remote_read,
+            peer_storage::peer_storage_remote_write,
+            peer_storage::peer_storage_remote_create_directory,
             peer_storage::peer_storage_transfer_cancel,
             peer_storage::peer_storage_transfer_pause,
             peer_storage::peer_storage_transfer_resume,
