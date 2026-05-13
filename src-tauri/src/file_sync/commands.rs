@@ -122,10 +122,16 @@ pub struct SyncRuleStatus {
 // ---------------------------------------------------------------------------
 
 /// Create a SyncProvider from type string and config JSON.
+///
+/// `is_target` controls whether missing containers (e.g. S3 buckets) get
+/// auto-provisioned: only the sync target should auto-create its container —
+/// a missing *source* bucket is almost always a misconfiguration and should
+/// fail fast instead of being silently created.
 async fn create_provider(
     provider_type: &str,
     config: &serde_json::Value,
     state: &AppState,
+    is_target: bool,
 ) -> Result<Arc<dyn SyncProvider>, FileSyncCommandError> {
     match provider_type {
         "local" => {
@@ -219,12 +225,15 @@ async fn create_provider(
             .await
             .map_err(|e| FileSyncCommandError::ProviderError(e.to_string()))?;
 
-            // Auto-create the bucket if it doesn't exist yet so the user
-            // doesn't have to provision it manually before running a rule.
-            backend
-                .ensure_container()
-                .await
-                .map_err(|e| FileSyncCommandError::ProviderError(e.to_string()))?;
+            // Auto-create the bucket only when this provider is the sync
+            // target — a missing *source* bucket is almost always a typo or
+            // stale config and should surface as an error instead.
+            if is_target {
+                backend
+                    .ensure_container()
+                    .await
+                    .map_err(|e| FileSyncCommandError::ProviderError(e.to_string()))?;
+            }
 
             let provider = CloudProvider::new(backend, prefix);
             Ok(Arc::new(provider))
@@ -287,9 +296,9 @@ pub async fn file_sync_start_rule(
         manager.stop(&rule_id);
     }
 
-    let source = create_provider(&source_type, &source_config, &state).await
+    let source = create_provider(&source_type, &source_config, &state, false).await
         .inspect_err(|e| eprintln!("[FileSync] Failed to create source provider: {e}"))?;
-    let target = create_provider(&target_type, &target_config, &state).await
+    let target = create_provider(&target_type, &target_config, &state, true).await
         .inspect_err(|e| eprintln!("[FileSync] Failed to create target provider: {e}"))?;
 
     let cancel = CancellationToken::new();
@@ -375,8 +384,8 @@ pub async fn file_sync_trigger_now(
     let dir = parse_direction(&direction)?;
     let del = parse_delete_mode(&delete_mode)?;
 
-    let source = create_provider(&source_type, &source_config, &state).await?;
-    let target = create_provider(&target_type, &target_config, &state).await?;
+    let source = create_provider(&source_type, &source_config, &state, false).await?;
+    let target = create_provider(&target_type, &target_config, &state, true).await?;
 
     let result = execute_sync(
         source,

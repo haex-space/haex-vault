@@ -244,9 +244,13 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
   // Restart every enabled rule that references the given storage backend id
   // in its source or target config. Used after editing a cloud backend so
   // running sync loops pick up the new credentials/region/endpoint.
+  // Returns the count of rules that were actually restarted — disabled rules
+  // and rules whose restart threw are excluded so the UI toast reflects
+  // reality.
   const restartRulesUsingBackendAsync = async (backendId: string): Promise<number> => {
     await loadRulesAsync()
     const affected = syncRules.value.filter((rule) => {
+      if (!rule.enabled) return false
       const src = rule.sourceConfig as Record<string, unknown> | null
       const tgt = rule.targetConfig as Record<string, unknown> | null
       return (
@@ -254,14 +258,16 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
         (rule.targetType === 'cloud' && tgt?.backendId === backendId)
       )
     })
+    let restarted = 0
     for (const rule of affected) {
       try {
         await restartRuleAsync(rule)
+        restarted += 1
       } catch (error) {
         log.warn(`Failed to restart rule ${rule.id} after backend update:`, error)
       }
     }
-    return affected.length
+    return restarted
   }
 
   // Auto-start all enabled rules relevant to this device

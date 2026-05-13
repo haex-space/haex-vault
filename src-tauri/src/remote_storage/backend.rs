@@ -112,6 +112,13 @@ pub struct S3Backend {
     bucket: Box<Bucket>,
     /// Original config kept for re-creating the bucket on demand (auto-create).
     config: S3Config,
+    /// Bucket name that actually targets the same object as `self.bucket`.
+    /// When the configured endpoint includes a path prefix, the prefix is
+    /// folded into the bucket name (`"prefix/bucket"`) so existence probes
+    /// and `Bucket::create` operate on the identical name — using the raw
+    /// `config.bucket` here would create a different bucket than the probe
+    /// just listed.
+    effective_bucket: String,
 }
 
 impl S3Backend {
@@ -171,6 +178,7 @@ impl S3Backend {
         Ok(Self {
             bucket,
             config: config.clone(),
+            effective_bucket,
         })
     }
 
@@ -284,7 +292,7 @@ impl StorageBackend for S3Backend {
         };
 
         let response = Bucket::create(
-            &self.config.bucket,
+            &self.effective_bucket,
             region,
             credentials,
             bucket_config,

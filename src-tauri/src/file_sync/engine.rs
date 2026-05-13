@@ -1194,30 +1194,47 @@ fn backoff_duration(consecutive_failures: u32) -> Duration {
     Duration::from_secs(secs.min(MAX_RETRY_INTERVAL.as_secs()))
 }
 
-/// Persist `enabled = false` on a sync rule and notify the frontend.
-fn auto_disable_rule(app: &tauri::AppHandle, rule_id: &str, failures: u32, last_error: &str) {
+/// Persist `enabled = false` on a sync rule, tear down its runtime
+/// state (SyncManager registration + file watchers) and notify the frontend.
+async fn auto_disable_rule(
+    app: &tauri::AppHandle,
+    rule_id: &str,
+    failures: u32,
+    last_error: &str,
+) {
     use tauri::{Emitter, Manager};
     let state = app.state::<crate::AppState>();
-    let hlc = match state.hlc.lock() {
-        Ok(g) => g,
-        Err(_) => {
+    {
+        let hlc = match state.hlc.lock() {
+            Ok(g) => g,
+            Err(_) => {
+                eprintln!(
+                    "[FileSyncEngine] Rule {} auto-pause failed: HLC lock poisoned",
+                    rule_id
+                );
+                return;
+            }
+        };
+
+        let sql = "UPDATE haex_sync_rules SET enabled = 0 WHERE id = ?1".to_string();
+        let params = vec![JsonValue::String(rule_id.to_string())];
+
+        if let Err(e) = crate::database::core::execute_with_crdt(sql, params, &state.db, &hlc) {
             eprintln!(
-                "[FileSyncEngine] Rule {} auto-pause failed: HLC lock poisoned",
-                rule_id
+                "[FileSyncEngine] Failed to persist auto-pause for rule {rule_id}: {e}"
             );
-            return;
         }
-    };
-
-    let sql = "UPDATE haex_sync_rules SET enabled = 0 WHERE id = ?1".to_string();
-    let params = vec![JsonValue::String(rule_id.to_string())];
-
-    if let Err(e) = crate::database::core::execute_with_crdt(sql, params, &state.db, &hlc) {
-        eprintln!(
-            "[FileSyncEngine] Failed to persist auto-pause for rule {rule_id}: {e}"
-        );
     }
-    drop(hlc);
+
+    // Unregister from SyncManager so `is_running` reflects reality, and stop
+    // any file watchers that were started alongside this rule. Without this,
+    // the loop exits but the runtime state stays as a zombie entry.
+    {
+        let mut manager = state.sync_manager.lock().await;
+        manager.stop(rule_id);
+    }
+    let _ = state.file_watcher.unwatch(rule_id);
+    let _ = state.file_watcher.unwatch(&format!("{}_source", rule_id));
 
     let _ = app.emit_to(
         "main",
@@ -1302,7 +1319,7 @@ pub async fn run_sync_loop(
             "[FileSyncEngine] Rule {} auto-paused after {} consecutive failures",
             rule_id, consecutive_failures
         );
-        auto_disable_rule(&app_handle, &rule_id, consecutive_failures, &last_error_text);
+        auto_disable_rule(&app_handle, &rule_id, consecutive_failures, &last_error_text).await;
         return;
     }
 
@@ -1361,7 +1378,8 @@ pub async fn run_sync_loop(
                         &rule_id,
                         consecutive_failures,
                         &last_error_text,
-                    );
+                    )
+                    .await;
                     break;
                 }
             }
@@ -1420,7 +1438,8 @@ pub async fn run_sync_loop(
                         &rule_id,
                         consecutive_failures,
                         &last_error_text,
-                    );
+                    )
+                    .await;
                     break;
                 }
             }
