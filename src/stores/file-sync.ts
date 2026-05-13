@@ -172,6 +172,11 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
   // user's toggle instead of silently snapping back to device-local.
   // Kept in-store but not persisted, matching the component-level default.
   const ruleLogAllDevices = ref<Map<string, boolean>>(new Map())
+  // Per-rule request token for loadRuleLogsAsync. Each invocation captures
+  // the current token before awaiting; only the latest token may write back
+  // into `ruleLogs`. Without this rapid scope toggles can apply stale
+  // responses after the user has already moved on.
+  const ruleLogLoadTokens = new Map<string, number>()
 
   const appendLogEntry = (ruleId: string, entry: SyncLogEntry) => {
     const list = ruleLogs.value.get(ruleId) ?? []
@@ -261,6 +266,7 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
     ruleIds: string[],
     options: { allDevices?: boolean } = {},
   ) => {
+    let anyWritten = false
     for (const ruleId of ruleIds) {
       // When the caller passes an explicit scope, remember it so later
       // implicit reloads (loadRulesAsync after CRDT change etc.) keep using
@@ -272,21 +278,30 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
       if (options.allDevices !== undefined) {
         ruleLogAllDevices.value.set(ruleId, options.allDevices)
       }
+      // Bump and capture the token *before* awaiting. Any concurrent call
+      // (e.g. the user toggling scope twice) will bump it again; when we
+      // resume, we only write if our token is still the latest.
+      const token = (ruleLogLoadTokens.get(ruleId) ?? 0) + 1
+      ruleLogLoadTokens.set(ruleId, token)
       try {
         const rows = await invoke<SyncLogRow[]>('file_sync_get_log', {
           ruleId,
           limit: MAX_LOG_ENTRIES_PER_RULE,
           allDevices,
         })
+        if (ruleLogLoadTokens.get(ruleId) !== token) continue
         // Backend returns newest first; SyncLogEntry list is also newest-first
         // (appendLogEntry unshifts). We can drop straight in.
         const entries = rows.map(r => decodeLogRow(r, allDevices))
         ruleLogs.value.set(ruleId, entries)
+        anyWritten = true
       } catch (e) {
         log.warn(`Failed to load persisted log for rule ${ruleId}:`, e)
       }
     }
-    ruleLogs.value = new Map(ruleLogs.value)
+    if (anyWritten) {
+      ruleLogs.value = new Map(ruleLogs.value)
+    }
   }
   // Track lastSyncedAt per rule to detect remote changes
   const knownSyncTimestamps = new Map<string, number | null>()
@@ -485,34 +500,49 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
         currentProgress.value.delete(ruleId)
         currentProgress.value = new Map(currentProgress.value)
 
-        // Successful sync clears the dedup signature and adds an info entry
-        // to the rolling log so users can see the timeline (incl. recovery).
+        // The live entry mirrors the persisted-path logic in
+        // `emit_sync_result` (engine.rs): per-file failures collected in
+        // `result.errors` are an error-level cycle, not a success — without
+        // this they'd silently render as `syncSuccess` here while the
+        // backend persists them as `syncCompletedWithErrors`.
         const hadError = lastErrors.value.has(ruleId)
-        if (hadError) {
+        const errorCount = result.errors?.length ?? 0
+        const i18nParams = {
+          filesDownloaded: result.filesDownloaded,
+          filesDeleted: result.filesDeleted,
+          directoriesCreated: result.directoriesCreated,
+          conflictsResolved: result.conflictsResolved,
+          bytesTransferred: result.bytesTransferred,
+          errorCount,
+        }
+        if (errorCount > 0) {
+          // Mirrors backend: don't clear lastErrors — the error state is
+          // still meaningful until a clean cycle.
+          appendLogEntry(ruleId, {
+            at: Date.now(),
+            level: 'error',
+            summary: $i18n.t('fileSync.log.syncCompletedWithErrors', i18nParams) as string,
+          })
+        } else if (hadError) {
           lastErrors.value.delete(ruleId)
           lastErrors.value = new Map(lastErrors.value)
           appendLogEntry(ruleId, {
             at: Date.now(),
             level: 'info',
-            summary: $i18n.t('fileSync.log.syncSuccessAfterError', {
-              filesDownloaded: result.filesDownloaded,
-              bytesTransferred: result.bytesTransferred,
-            }) as string,
+            summary: $i18n.t('fileSync.log.syncSuccessAfterError', i18nParams) as string,
           })
         } else if (
           result.filesDownloaded > 0 ||
           result.filesDeleted > 0 ||
-          result.directoriesCreated > 0
+          result.directoriesCreated > 0 ||
+          result.conflictsResolved > 0
         ) {
           // Only log non-trivial successful cycles to avoid spamming the
           // history with empty no-op syncs.
           appendLogEntry(ruleId, {
             at: Date.now(),
             level: 'info',
-            summary: $i18n.t('fileSync.log.syncSuccess', {
-              filesDownloaded: result.filesDownloaded,
-              bytesTransferred: result.bytesTransferred,
-            }) as string,
+            summary: $i18n.t('fileSync.log.syncSuccess', i18nParams) as string,
           })
         }
       },

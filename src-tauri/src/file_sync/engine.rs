@@ -1212,7 +1212,9 @@ fn emit_sync_result(
             {
                 // Only log non-trivial cycles so the persistent log doesn't fill up
                 // with empty no-op syncs — mirrors the in-memory append logic in
-                // the frontend store.
+                // the frontend store. All non-zero counters are persisted so
+                // delete-only / mkdir-only / conflict-only cycles don't render
+                // as "0 files / 0 bytes" in the history.
                 write_sync_log_entry(
                     app,
                     rule_id,
@@ -1220,6 +1222,9 @@ fn emit_sync_result(
                     "syncSuccess",
                     serde_json::json!({
                         "filesDownloaded": r.files_downloaded,
+                        "filesDeleted": r.files_deleted,
+                        "directoriesCreated": r.directories_created,
+                        "conflictsResolved": r.conflicts_resolved,
                         "bytesTransferred": r.bytes_transferred,
                     }),
                     None,
@@ -1232,9 +1237,17 @@ fn emit_sync_result(
             );
         }
         Err(e) => {
+            // Cancellation is a user-initiated control-flow signal, not a
+            // sync failure — persisting it as `syncFailed` would pollute the
+            // CRDT log on every stop/disable. The frontend already removes
+            // the in-flight state when a cancel emits, so skipping here
+            // leaves no orphaned UI artifacts either.
+            if matches!(e, SyncEngineError::Cancelled) {
+                return;
+            }
             let raw = e.to_string();
-            // Top-level abort (cancellation, manifest fetch failure, …). The
-            // raw error text is intentionally rendered verbatim by the frontend
+            // Top-level abort (manifest fetch failure, provider unavailable,
+            // …). The raw error text is rendered verbatim by the frontend
             // — it's already English and includes whatever provider-specific
             // detail the user needs to debug.
             write_sync_log_entry(
