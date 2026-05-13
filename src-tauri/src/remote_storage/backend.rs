@@ -9,9 +9,10 @@ use super::error::StorageError;
 use super::progress::{ProgressCallback, ProgressReader, ProgressWriter};
 use super::types::{S3Config, StorageObjectInfo};
 use async_trait::async_trait;
+use s3::bucket::Bucket;
+use s3::bucket_ops::{BucketConfiguration, CannedBucketAcl};
 use s3::creds::Credentials;
 use s3::region::Region;
-use s3::Bucket;
 
 /// Progress update for uploads/downloads
 #[allow(dead_code)]
@@ -33,6 +34,13 @@ pub trait StorageBackend: Send + Sync {
 
     /// Test the connection to the backend
     async fn test_connection(&self) -> Result<(), StorageError>;
+
+    /// Make sure the backing container (e.g. S3 bucket) exists, creating it
+    /// if missing. Backends without a container concept can leave the default
+    /// implementation untouched.
+    async fn ensure_container(&self) -> Result<(), StorageError> {
+        Ok(())
+    }
 
     /// Upload data to the backend
     async fn upload(&self, key: &str, data: &[u8]) -> Result<(), StorageError>;
@@ -102,6 +110,8 @@ pub trait StorageBackend: Send + Sync {
 /// S3-compatible storage backend
 pub struct S3Backend {
     bucket: Box<Bucket>,
+    /// Original config kept for re-creating the bucket on demand (auto-create).
+    config: S3Config,
 }
 
 impl S3Backend {
@@ -158,7 +168,52 @@ impl S3Backend {
             bucket = bucket.with_path_style();
         }
 
-        Ok(Self { bucket })
+        Ok(Self {
+            bucket,
+            config: config.clone(),
+        })
+    }
+
+    /// Build a fresh `Credentials` value from the stored config.
+    fn build_credentials(&self) -> Result<Credentials, StorageError> {
+        Credentials::new(
+            Some(&self.config.access_key_id),
+            Some(&self.config.secret_access_key),
+            None,
+            None,
+            None,
+        )
+        .map_err(|e| StorageError::ConnectionFailed {
+            reason: format!("Failed to create credentials: {}", e),
+        })
+    }
+
+    /// Build the `Region` value matching the stored config.
+    fn build_region(&self) -> Region {
+        if let Some(endpoint) = &self.config.endpoint {
+            // Strip any path prefix from the endpoint, same as in `new`
+            let base = url::Url::parse(endpoint)
+                .ok()
+                .and_then(|url| {
+                    let path = url.path();
+                    if path == "/" || path.is_empty() {
+                        Some(endpoint.clone())
+                    } else {
+                        Some(format!(
+                            "{}://{}",
+                            url.scheme(),
+                            url.host_str().unwrap_or("")
+                        ))
+                    }
+                })
+                .unwrap_or_else(|| endpoint.clone());
+            Region::Custom {
+                region: self.config.region.clone(),
+                endpoint: base,
+            }
+        } else {
+            self.config.region.parse().unwrap_or(Region::UsEast1)
+        }
     }
 }
 
@@ -175,6 +230,84 @@ impl StorageBackend for S3Backend {
             .map_err(|e| StorageError::ConnectionFailed {
                 reason: format!("S3 connection test failed: {}", e),
             })?;
+        Ok(())
+    }
+
+    async fn ensure_container(&self) -> Result<(), StorageError> {
+        // Cheap existence probe — if the bucket lists, we're done. Any error
+        // is inspected to distinguish "missing" from other failures (auth,
+        // network, etc.) so we only attempt creation when we're sure the
+        // bucket is absent.
+        match self
+            .bucket
+            .list("".to_string(), Some("/".to_string()))
+            .await
+        {
+            Ok(_) => return Ok(()),
+            Err(e) => {
+                let msg = e.to_string();
+                let lower = msg.to_lowercase();
+                let missing = lower.contains("nosuchbucket")
+                    || (lower.contains("404") && lower.contains("bucket"));
+                if !missing {
+                    return Err(StorageError::ConnectionFailed {
+                        reason: format!("Bucket check failed: {}", e),
+                    });
+                }
+            }
+        }
+
+        let credentials = self.build_credentials()?;
+        let region = self.build_region();
+
+        // AWS S3 (and most S3-compatible services like Rabata) reject a
+        // CreateBucketConfiguration payload with `LocationConstraint=us-east-1`
+        // because us-east-1 is the API default and must be omitted. For every
+        // other region the constraint *must* be sent or the bucket lands in
+        // the wrong region. Start from `new()` (location_constraint=None) and
+        // only attach the region when it's actually needed.
+        // us-east-1 must NOT include a LocationConstraint — use private() which
+        // leaves location_constraint=None. Every other region needs it set explicitly.
+        let bucket_config = if self.config.region.eq_ignore_ascii_case("us-east-1") {
+            BucketConfiguration::private()
+        } else {
+            BucketConfiguration::new(
+                Some(CannedBucketAcl::Private),
+                false,
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some(region.clone()),
+            )
+        };
+
+        let response = Bucket::create(
+            &self.config.bucket,
+            region,
+            credentials,
+            bucket_config,
+        )
+        .await
+        .map_err(|e| StorageError::ConnectionFailed {
+            reason: format!("Bucket auto-create failed: {}", e),
+        })?;
+
+        // S3 returns 200/conflict for "already owned by you" — both fine.
+        if !response.success() {
+            let code = response.response_code;
+            // 409 = BucketAlreadyOwnedByYou / BucketAlreadyExists → tolerate.
+            if code != 409 {
+                return Err(StorageError::ConnectionFailed {
+                    reason: format!(
+                        "Bucket auto-create returned HTTP {}: {}",
+                        code, response.response_text
+                    ),
+                });
+            }
+        }
+
         Ok(())
     }
 

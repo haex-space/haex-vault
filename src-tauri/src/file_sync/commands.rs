@@ -206,11 +206,26 @@ async fn create_provider(
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
+            let bucket_override = config
+                .get("bucket")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty());
 
-            let backend =
-                crate::remote_storage::commands::get_backend_instance_from_db(&state.db, backend_id)
-                    .await
-                    .map_err(|e| FileSyncCommandError::ProviderError(e.to_string()))?;
+            let backend = crate::remote_storage::commands::get_backend_instance_from_db_with_overrides(
+                &state.db,
+                backend_id,
+                bucket_override,
+            )
+            .await
+            .map_err(|e| FileSyncCommandError::ProviderError(e.to_string()))?;
+
+            // Auto-create the bucket if it doesn't exist yet so the user
+            // doesn't have to provision it manually before running a rule.
+            backend
+                .ensure_container()
+                .await
+                .map_err(|e| FileSyncCommandError::ProviderError(e.to_string()))?;
+
             let provider = CloudProvider::new(backend, prefix);
             Ok(Arc::new(provider))
         }

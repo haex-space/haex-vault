@@ -1170,15 +1170,79 @@ fn emit_sync_result(
 // Periodic sync loop
 // ---------------------------------------------------------------------------
 
-/// How long to wait before retrying after a failed sync cycle.
-const RETRY_INTERVAL: Duration = Duration::from_secs(30);
+/// Base wait after the first failed sync cycle. Subsequent failures double
+/// this duration (exponential backoff) up to `MAX_RETRY_INTERVAL`.
+const INITIAL_RETRY: Duration = Duration::from_secs(30);
+
+/// Hard cap on the retry interval. Reached after ~6 consecutive failures.
+const MAX_RETRY_INTERVAL: Duration = Duration::from_secs(30 * 60);
+
+/// After this many consecutive failures the rule is auto-disabled so it
+/// stops hammering a broken target. The user has to re-enable it manually
+/// after fixing the underlying issue.
+const MAX_CONSECUTIVE_FAILURES: u32 = 20;
+
+/// 30s * 2^(failures-1), capped at MAX_RETRY_INTERVAL.
+fn backoff_duration(consecutive_failures: u32) -> Duration {
+    if consecutive_failures == 0 {
+        return INITIAL_RETRY;
+    }
+    let shift = (consecutive_failures - 1).min(10);
+    let secs = INITIAL_RETRY
+        .as_secs()
+        .saturating_mul(1u64 << shift);
+    Duration::from_secs(secs.min(MAX_RETRY_INTERVAL.as_secs()))
+}
+
+/// Persist `enabled = false` on a sync rule and notify the frontend.
+fn auto_disable_rule(app: &tauri::AppHandle, rule_id: &str, failures: u32, last_error: &str) {
+    use tauri::{Emitter, Manager};
+    let state = app.state::<crate::AppState>();
+    let hlc = match state.hlc.lock() {
+        Ok(g) => g,
+        Err(_) => {
+            eprintln!(
+                "[FileSyncEngine] Rule {} auto-pause failed: HLC lock poisoned",
+                rule_id
+            );
+            return;
+        }
+    };
+
+    let sql = "UPDATE haex_sync_rules SET enabled = 0 WHERE id = ?1".to_string();
+    let params = vec![JsonValue::String(rule_id.to_string())];
+
+    if let Err(e) = crate::database::core::execute_with_crdt(sql, params, &state.db, &hlc) {
+        eprintln!(
+            "[FileSyncEngine] Failed to persist auto-pause for rule {rule_id}: {e}"
+        );
+    }
+    drop(hlc);
+
+    let _ = app.emit_to(
+        "main",
+        "file-sync:auto-paused",
+        serde_json::json!({
+            "ruleId": rule_id,
+            "consecutiveFailures": failures,
+            "lastError": last_error,
+        }),
+    );
+    let _ = app.emit_to(
+        "main",
+        crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED,
+        (),
+    );
+}
 
 /// Run periodic sync for a rule. Cancellable via `CancellationToken`.
 ///
 /// The optional `trigger_receiver` allows external events (e.g. file watcher)
 /// to interrupt the sleep timer and trigger an immediate sync cycle.
-/// On failure the next attempt is scheduled after `RETRY_INTERVAL` (30 s)
-/// instead of the full `interval`, so peer unavailability self-heals quickly.
+///
+/// On failure, exponential backoff is applied: 30s, 60s, 120s, … up to
+/// `MAX_RETRY_INTERVAL`. The counter resets on the first successful cycle
+/// so transient failures still self-heal quickly.
 pub async fn run_sync_loop(
     source: Arc<dyn SyncProvider>,
     target: Arc<dyn SyncProvider>,
@@ -1206,9 +1270,41 @@ pub async fn run_sync_loop(
     .await;
     eprintln!("[FileSyncEngine] Rule {} initial sync done: {:?}", rule_id, result.as_ref().map(|r| r.files_downloaded));
 
-    // Retry sooner if the initial sync failed
-    let mut next_wait = if result.is_err() { RETRY_INTERVAL } else { interval };
+    // Track consecutive failures for exponential backoff.
+    let mut consecutive_failures: u32 = if result.is_err() { 1 } else { 0 };
+    let mut next_wait = if consecutive_failures > 0 {
+        let w = backoff_duration(consecutive_failures);
+        eprintln!(
+            "[FileSyncEngine] Rule {} failed (attempt {}), next retry in {}s",
+            rule_id,
+            consecutive_failures,
+            w.as_secs()
+        );
+        w
+    } else {
+        interval
+    };
+    // Last error message, used when auto-pausing the rule.
+    let mut last_error_text: String = result
+        .as_ref()
+        .err()
+        .map(|e| e.to_string())
+        .unwrap_or_default();
+    // Marker used by the trigger arm to honour the backoff window: it skips
+    // any trigger that fires before the next allowed attempt.
+    let mut next_attempt_at: std::time::Instant = std::time::Instant::now() + next_wait;
     emit_sync_result(&app_handle, &rule_id, &result);
+
+    // Stop immediately if the very first sync already exhausted the budget
+    // (only realistic with MAX = 1, but keeps the invariant clean).
+    if consecutive_failures >= MAX_CONSECUTIVE_FAILURES {
+        eprintln!(
+            "[FileSyncEngine] Rule {} auto-paused after {} consecutive failures",
+            rule_id, consecutive_failures
+        );
+        auto_disable_rule(&app_handle, &rule_id, consecutive_failures, &last_error_text);
+        return;
+    }
 
     // Manual mode (interval = 0): only sync on trigger, no periodic timer
     let use_timer = !interval.is_zero();
@@ -1231,8 +1327,43 @@ pub async fn run_sync_loop(
                     Some(cancel.clone()),
                 )
                 .await;
-                next_wait = if result.is_err() { RETRY_INTERVAL } else { interval };
+                if let Err(ref e) = result {
+                    consecutive_failures = consecutive_failures.saturating_add(1);
+                    last_error_text = e.to_string();
+                    next_wait = backoff_duration(consecutive_failures);
+                    eprintln!(
+                        "[FileSyncEngine] Rule {} failed (attempt {}), next retry in {}s",
+                        rule_id,
+                        consecutive_failures,
+                        next_wait.as_secs()
+                    );
+                } else {
+                    if consecutive_failures > 0 {
+                        eprintln!(
+                            "[FileSyncEngine] Rule {} recovered after {} failures",
+                            rule_id, consecutive_failures
+                        );
+                    }
+                    consecutive_failures = 0;
+                    last_error_text.clear();
+                    next_wait = interval;
+                }
+                next_attempt_at = std::time::Instant::now() + next_wait;
                 emit_sync_result(&app_handle, &rule_id, &result);
+
+                if consecutive_failures >= MAX_CONSECUTIVE_FAILURES {
+                    eprintln!(
+                        "[FileSyncEngine] Rule {} auto-paused after {} consecutive failures",
+                        rule_id, consecutive_failures
+                    );
+                    auto_disable_rule(
+                        &app_handle,
+                        &rule_id,
+                        consecutive_failures,
+                        &last_error_text,
+                    );
+                    break;
+                }
             }
             msg = trigger_receiver.recv() => {
                 if msg.is_none() {
@@ -1241,6 +1372,21 @@ pub async fn run_sync_loop(
                 }
                 // Drain any additional pending triggers to avoid redundant syncs
                 while trigger_receiver.try_recv().is_ok() {}
+
+                // While the backoff window is open, ignore file-watcher triggers
+                // — otherwise filesystem activity bypasses the retry slowdown
+                // and we hammer the failing target. Triggers reaching us after
+                // the backoff has elapsed proceed normally.
+                if consecutive_failures > 0 && std::time::Instant::now() < next_attempt_at {
+                    let remaining = next_attempt_at - std::time::Instant::now();
+                    eprintln!(
+                        "[FileSyncEngine] Rule {} trigger suppressed during backoff (~{}s left)",
+                        rule_id,
+                        remaining.as_secs()
+                    );
+                    continue;
+                }
+
                 let result = execute_sync(
                     source.clone(),
                     target.clone(),
@@ -1252,9 +1398,31 @@ pub async fn run_sync_loop(
                     Some(cancel.clone()),
                 )
                 .await;
-                // Manual triggers reset to normal interval even after a previous failure
-                next_wait = if result.is_err() { RETRY_INTERVAL } else { interval };
+                if let Err(ref e) = result {
+                    consecutive_failures = consecutive_failures.saturating_add(1);
+                    last_error_text = e.to_string();
+                    next_wait = backoff_duration(consecutive_failures);
+                } else {
+                    consecutive_failures = 0;
+                    last_error_text.clear();
+                    next_wait = interval;
+                }
+                next_attempt_at = std::time::Instant::now() + next_wait;
                 emit_sync_result(&app_handle, &rule_id, &result);
+
+                if consecutive_failures >= MAX_CONSECUTIVE_FAILURES {
+                    eprintln!(
+                        "[FileSyncEngine] Rule {} auto-paused after {} consecutive failures",
+                        rule_id, consecutive_failures
+                    );
+                    auto_disable_rule(
+                        &app_handle,
+                        &rule_id,
+                        consecutive_failures,
+                        &last_error_text,
+                    );
+                    break;
+                }
             }
         }
     }

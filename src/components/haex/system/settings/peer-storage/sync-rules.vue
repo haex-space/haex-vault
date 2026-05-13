@@ -43,11 +43,17 @@
               <!-- Header: badges + expand toggle -->
               <div class="flex items-center gap-2 mb-3">
                 <UBadge
-                  :color="syncStore.isRuleRunning(rule.id) ? 'success' : 'neutral'"
+                  :color="badgeColor(rule)"
                   variant="subtle"
                   size="sm"
+                  :title="badgeTitle(rule)"
                 >
-                  {{ syncStore.isRuleRunning(rule.id) ? t('status.running') : t('status.stopped') }}
+                  <UIcon
+                    v-if="!rule.enabled"
+                    name="i-lucide-pause"
+                    class="w-3 h-3"
+                  />
+                  {{ statusLabel(rule) }}
                 </UBadge>
                 <UBadge variant="subtle" color="neutral" size="sm">
                   {{ rule.direction === 'two_way' ? t('direction.twoWay') : t('direction.oneWay') }}
@@ -128,6 +134,20 @@
                 :loading="isSyncing === rule.id"
                 @click="onSyncNowAsync(rule.id)"
               />
+              <UChip
+                :show="syncStore.getRuleLog(rule.id).length > 0"
+                :text="syncStore.getRuleLog(rule.id).length"
+                :color="hasErrorInLog(rule.id) ? 'error' : 'primary'"
+                size="sm"
+              >
+                <UiButton
+                  icon="i-lucide-scroll-text"
+                  variant="ghost"
+                  :color="hasErrorInLog(rule.id) ? 'error' : 'neutral'"
+                  :title="t('actions.viewLog')"
+                  @click="expandedMap[rule.id] = true"
+                />
+              </UChip>
               <UiButton
                 icon="i-lucide-pencil"
                 variant="ghost"
@@ -299,6 +319,62 @@
               <!-- No data yet -->
               <div v-else class="text-xs text-muted">
                 {{ t('progress.noData') }}
+              </div>
+
+              <!-- Activity log / error history -->
+              <div class="mt-3 pt-3 border-t border-default">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-xs text-muted font-medium">{{ t('log.title') }}</span>
+                  <UiButton
+                    v-if="syncStore.getRuleLog(rule.id).length"
+                    icon="i-lucide-eraser"
+                    variant="ghost"
+                    color="neutral"
+                    size="xs"
+                    @click="syncStore.clearRuleLog(rule.id)"
+                  >
+                    {{ t('log.clear') }}
+                  </UiButton>
+                </div>
+                <div
+                  v-if="syncStore.getRuleLog(rule.id).length"
+                  class="space-y-1 max-h-60 overflow-y-auto"
+                >
+                  <div
+                    v-for="(entry, idx) in syncStore.getRuleLog(rule.id)"
+                    :key="`${rule.id}-${idx}-${entry.at}`"
+                    class="flex items-start gap-2 text-xs"
+                  >
+                    <UIcon
+                      :name="entry.level === 'error' ? 'i-lucide-circle-x' : 'i-lucide-check'"
+                      :class="entry.level === 'error' ? 'text-error' : 'text-success'"
+                      class="w-3 h-3 mt-0.5 shrink-0"
+                    />
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-baseline gap-2 flex-wrap">
+                        <span
+                          class="break-words"
+                          :class="entry.level === 'error' ? 'text-error' : ''"
+                        >
+                          {{ entry.summary }}
+                        </span>
+                        <span
+                          v-if="entry.repeats && entry.repeats > 1"
+                          class="text-muted shrink-0"
+                          :title="t('log.repeats')"
+                        >
+                          ×{{ entry.repeats }}
+                        </span>
+                      </div>
+                      <span class="text-muted text-[10px]">
+                        {{ formatRelative(entry.at) }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <p v-else class="text-xs text-muted italic">
+                  {{ t('log.empty') }}
+                </p>
               </div>
             </div>
           </template>
@@ -628,6 +704,42 @@ const formatInterval = (seconds: number): string => {
   return `${seconds / 3600}h`
 }
 
+const hasErrorInLog = (ruleId: string): boolean =>
+  syncStore.getRuleLog(ruleId).some(entry => entry.level === 'error')
+
+const statusLabel = (rule: SelectHaexSyncRules): string => {
+  if (!rule.enabled) {
+    // If we've seen this rule produce an error in this session, treat the
+    // disabled flag as an auto-pause (vs. a manual user pause).
+    return syncStore.lastErrors.has(rule.id)
+      ? t('status.autoPaused')
+      : t('status.paused')
+  }
+  return syncStore.isRuleRunning(rule.id) ? t('status.running') : t('status.stopped')
+}
+
+const badgeColor = (rule: SelectHaexSyncRules) => {
+  if (!rule.enabled) {
+    return syncStore.lastErrors.has(rule.id) ? 'error' : 'warning'
+  }
+  return syncStore.isRuleRunning(rule.id) ? 'success' : 'neutral'
+}
+
+const badgeTitle = (rule: SelectHaexSyncRules): string => {
+  if (!rule.enabled && syncStore.lastErrors.has(rule.id)) {
+    return t('status.autoPausedTitle')
+  }
+  return ''
+}
+
+const formatRelative = (timestamp: number): string => {
+  const diff = Date.now() - timestamp
+  if (diff < 60_000) return t('log.justNow')
+  if (diff < 3_600_000) return t('log.minutesAgo', { n: Math.floor(diff / 60_000) })
+  if (diff < 86_400_000) return t('log.hoursAgo', { n: Math.floor(diff / 3_600_000) })
+  return new Date(timestamp).toLocaleString()
+}
+
 const formatDeleteMode = (mode: string): string => {
   switch (mode) {
     case 'trash': return t('deleteModes.trash')
@@ -711,6 +823,19 @@ de:
   status:
     running: Aktiv
     stopped: Inaktiv
+    paused: Pausiert
+    autoPaused: Auto-pausiert
+    autoPausedTitle: Wegen wiederholter Fehler automatisch deaktiviert
+  actions:
+    viewLog: Aktivitäts-Log anzeigen
+  log:
+    title: Aktivitäts-Log
+    clear: Löschen
+    repeats: Wiederholungen
+    empty: Noch keine Log-Einträge in dieser Sitzung
+    justNow: gerade eben
+    minutesAgo: vor {n} min
+    hoursAgo: vor {n} h
   intervals:
     manual: Nur manuell
   deleteModes:
@@ -761,6 +886,19 @@ en:
   status:
     running: Active
     stopped: Inactive
+    paused: Paused
+    autoPaused: Auto-paused
+    autoPausedTitle: Disabled automatically after repeated failures
+  actions:
+    viewLog: Show activity log
+  log:
+    title: Activity Log
+    clear: Clear
+    repeats: Repeats
+    empty: No log entries in this session yet
+    justNow: just now
+    minutesAgo: "{n} min ago"
+    hoursAgo: "{n} h ago"
   intervals:
     manual: Manual only
   deleteModes:

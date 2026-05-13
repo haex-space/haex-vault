@@ -88,8 +88,11 @@ pub async fn remote_storage_add_backend(
     state: State<'_, AppState>,
     request: AddStorageBackendRequest,
 ) -> Result<StorageBackendInfo, StorageError> {
-    // Validate the config by trying to create a backend
-    let _backend = create_backend(&request.r#type, &request.config).await?;
+    // Validate the config and verify the backend is actually reachable
+    // before persisting — surfaces credential/region/endpoint problems
+    // immediately instead of failing later inside sync rules.
+    let backend = create_backend(&request.r#type, &request.config).await?;
+    backend.test_connection().await?;
 
     let id = uuid::Uuid::new_v4().to_string();
     let config_json =
@@ -241,9 +244,11 @@ pub async fn remote_storage_update_backend(
         None
     };
 
-    // Validate the merged config by trying to create a backend
+    // Validate the merged config and verify the backend is reachable
+    // before persisting changes.
     if let Some(ref config) = merged_config {
-        let _backend = create_backend(&backend_type, config).await?;
+        let backend = create_backend(&backend_type, config).await?;
+        backend.test_connection().await?;
     }
 
     // Build update query dynamically based on what's provided
@@ -397,6 +402,18 @@ pub async fn get_backend_instance_from_db(
     db: &crate::database::DbConnection,
     backend_id: &str,
 ) -> Result<Box<dyn super::backend::StorageBackend>, StorageError> {
+    get_backend_instance_from_db_with_overrides(db, backend_id, None).await
+}
+
+/// Like `get_backend_instance_from_db`, but allows a per-rule override of the
+/// bucket name without persisting the change to the backend's stored config.
+/// Used by file-sync rules that want to point at a different bucket than the
+/// backend's default while sharing credentials/endpoint/region.
+pub async fn get_backend_instance_from_db_with_overrides(
+    db: &crate::database::DbConnection,
+    backend_id: &str,
+    bucket_override: Option<&str>,
+) -> Result<Box<dyn super::backend::StorageBackend>, StorageError> {
     let rows = core::select_with_crdt(
         SQL_GET_BACKEND_CONFIG.clone(),
         vec![JsonValue::String(backend_id.to_string())],
@@ -427,10 +444,18 @@ pub async fn get_backend_instance_from_db(
         });
     }
 
-    let config: serde_json::Value =
+    let mut config: serde_json::Value =
         serde_json::from_str(&config_str).map_err(|e| StorageError::InvalidConfig {
             reason: format!("Failed to parse config: {}", e),
         })?;
+
+    if let Some(bucket) = bucket_override {
+        if !bucket.is_empty() {
+            if let Some(obj) = config.as_object_mut() {
+                obj.insert("bucket".to_string(), JsonValue::String(bucket.to_string()));
+            }
+        }
+    }
 
     create_backend(&backend_type, &config).await
 }
