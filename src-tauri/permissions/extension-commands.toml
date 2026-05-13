@@ -212,6 +212,7 @@ commands.allow = [
   "local_delivery_status",
   "local_delivery_connect",
   "local_delivery_disconnect",
+  "local_delivery_force_sync",
   "local_delivery_elect",
   "local_delivery_get_leader",
   "local_delivery_broadcast_commit",
