@@ -312,28 +312,29 @@ pub async fn execute_sync(
         + actions.to_upload.iter().map(|f| f.size).sum::<u64>()
         + actions.conflicts.iter().map(|c| c.source_state.size).sum::<u64>();
 
-    // Diff diagnostics — without these it is not obvious whether a "sync
-    // every cycle" symptom is caused by hashing falling through to
-    // size+mtime, by genuine source/target divergence, or by a path
-    // normalization mismatch between the two providers.
-    let source_hashed = source_manifest.iter().filter(|f| !f.is_directory && f.hash.is_some()).count();
-    let source_files = source_manifest.iter().filter(|f| !f.is_directory).count();
-    let target_hashed = target_manifest.iter().filter(|f| !f.is_directory && f.hash.is_some()).count();
-    let target_files = target_manifest.iter().filter(|f| !f.is_directory).count();
-    eprintln!(
-        "[FileSyncEngine] Rule {} diff: source={}f ({}h), target={}f ({}h). \
-         Plan: dl={}, up={}, del={}, mkdir={}, conflicts={}. Bytes={} ({:.1} MB)",
-        rule_id,
-        source_files, source_hashed,
-        target_files, target_hashed,
-        actions.to_download.len(),
-        actions.to_upload.len(),
-        actions.to_delete.len(),
-        actions.to_create_directories.len(),
-        actions.conflicts.len(),
-        total_bytes,
-        total_bytes as f64 / (1024.0 * 1024.0),
-    );
+    // Diff diagnostics — only emit when the planner produced work or
+    // detected conflicts. Logging every cycle would spam stderr on idle
+    // rules (sync runs on a poll interval and most cycles are no-ops).
+    if total_files > 0 {
+        let source_hashed = source_manifest.iter().filter(|f| !f.is_directory && f.hash.is_some()).count();
+        let source_files = source_manifest.iter().filter(|f| !f.is_directory).count();
+        let target_hashed = target_manifest.iter().filter(|f| !f.is_directory && f.hash.is_some()).count();
+        let target_files = target_manifest.iter().filter(|f| !f.is_directory).count();
+        eprintln!(
+            "[FileSyncEngine] Rule {} diff: source={}f ({}h), target={}f ({}h). \
+             Plan: dl={}, up={}, del={}, mkdir={}, conflicts={}. Bytes={} ({:.1} MB)",
+            rule_id,
+            source_files, source_hashed,
+            target_files, target_hashed,
+            actions.to_download.len(),
+            actions.to_upload.len(),
+            actions.to_delete.len(),
+            actions.to_create_directories.len(),
+            actions.conflicts.len(),
+            total_bytes,
+            total_bytes as f64 / (1024.0 * 1024.0),
+        );
+    }
     if !actions.to_download.is_empty() {
         let sample: Vec<&str> = actions
             .to_download
