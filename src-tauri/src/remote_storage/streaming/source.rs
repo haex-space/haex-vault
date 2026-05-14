@@ -10,10 +10,33 @@ use thiserror::Error;
 /// Inclusive byte range `[start..=end]`. Matches the semantics of the
 /// HTTP `Range: bytes=N-M` header so adapters don't have to reinterpret
 /// edges.
+///
+/// Fields are private to prevent construction of inverted ranges (`end <
+/// start`) that would underflow when computing length.
 #[derive(Debug, Clone, Copy)]
 pub struct ByteRange {
-    pub start: u64,
-    pub end: u64,
+    start: u64,
+    end: u64,
+}
+
+impl ByteRange {
+    /// Build an inclusive range, rejecting `end < start`.
+    pub fn new(start: u64, end: u64) -> Result<Self, StreamingError> {
+        if end < start {
+            return Err(StreamingError::BadRequest(format!(
+                "invalid range: end ({end}) < start ({start})"
+            )));
+        }
+        Ok(Self { start, end })
+    }
+
+    pub fn start(&self) -> u64 {
+        self.start
+    }
+
+    pub fn end(&self) -> u64 {
+        self.end
+    }
 }
 
 /// Errors that surface from streaming sources.

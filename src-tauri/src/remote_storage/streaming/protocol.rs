@@ -73,18 +73,37 @@ async fn handle(app_handle: &AppHandle, request: &Request<Vec<u8>>) -> Response<
         .get("range")
         .and_then(|v| v.to_str().ok());
 
+    // Empty object: skip range parsing entirely. `bytes=0-0` over a 0-byte
+    // body is not satisfiable; any `Range:` header is also unsatisfiable.
+    if total == 0 {
+        if range_header.is_some() {
+            return range_not_satisfiable(0);
+        }
+        let content_type = source
+            .content_type()
+            .await
+            .unwrap_or_else(|| "application/octet-stream".to_string());
+        return Response::builder()
+            .status(200)
+            .header("Content-Type", content_type)
+            .header("Content-Length", "0")
+            .header("Accept-Ranges", "bytes")
+            .header("Cache-Control", "no-store")
+            .header("Access-Control-Allow-Origin", "*")
+            .header("Access-Control-Allow-Headers", "Range")
+            .body(Vec::new())
+            .unwrap_or_else(|_| error_response(500, "failed to build response".into()));
+    }
+
     let (range, status) = match range_header {
         Some(h) => match parse_range_header(h, total) {
             Ok(r) => (r, 206),
             Err(_) => return range_not_satisfiable(total),
         },
-        None => (
-            ByteRange {
-                start: 0,
-                end: total.saturating_sub(1),
-            },
-            200,
-        ),
+        None => match ByteRange::new(0, total - 1) {
+            Ok(r) => (r, 200),
+            Err(e) => return error_response(500, format!("bad range: {e}")),
+        },
     };
 
     let bytes = match source.read_range(range).await {
@@ -110,7 +129,7 @@ async fn handle(app_handle: &AppHandle, request: &Request<Vec<u8>>) -> Response<
     let builder = if status == 206 {
         builder.header(
             "Content-Range",
-            format!("bytes {}-{}/{}", range.start, range.end, total),
+            format!("bytes {}-{}/{}", range.start(), range.end(), total),
         )
     } else {
         builder
@@ -190,7 +209,7 @@ fn parse_range_header(header: &str, total: u64) -> Result<ByteRange, ()> {
         return Err(());
     }
 
-    Ok(ByteRange { start, end })
+    ByteRange::new(start, end).map_err(|_| ())
 }
 
 fn percent_decode(s: &str) -> String {
@@ -284,15 +303,15 @@ mod tests {
     #[test]
     fn parses_closed_range() {
         let r = parse_range_header("bytes=0-99", 1000).unwrap();
-        assert_eq!(r.start, 0);
-        assert_eq!(r.end, 99);
+        assert_eq!(r.start(), 0);
+        assert_eq!(r.end(), 99);
     }
 
     #[test]
     fn parses_open_ended_range() {
         let r = parse_range_header("bytes=500-", 1000).unwrap();
-        assert_eq!(r.start, 500);
-        assert_eq!(r.end, 999);
+        assert_eq!(r.start(), 500);
+        assert_eq!(r.end(), 999);
     }
 
     #[test]
@@ -312,18 +331,23 @@ mod tests {
     fn accepts_full_range() {
         // First and last byte of a small file.
         let r = parse_range_header("bytes=0-0", 1).unwrap();
-        assert_eq!(r.start, 0);
-        assert_eq!(r.end, 0);
+        assert_eq!(r.start(), 0);
+        assert_eq!(r.end(), 0);
         let r = parse_range_header("bytes=0-999", 1000).unwrap();
-        assert_eq!(r.start, 0);
-        assert_eq!(r.end, 999);
+        assert_eq!(r.start(), 0);
+        assert_eq!(r.end(), 999);
     }
 
     #[test]
     fn accepts_open_ended_at_start() {
         let r = parse_range_header("bytes=0-", 1000).unwrap();
-        assert_eq!(r.start, 0);
-        assert_eq!(r.end, 999);
+        assert_eq!(r.start(), 0);
+        assert_eq!(r.end(), 999);
+    }
+
+    #[test]
+    fn byte_range_rejects_inverted() {
+        assert!(ByteRange::new(50, 49).is_err());
     }
 
     #[test]

@@ -26,9 +26,15 @@ async function saveBase64WithDialog(
   const target = await showSaveDialog({ defaultPath: defaultFilename })
   if (!target) return false
 
-  const binary = atob(base64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  let bytes: Uint8Array
+  try {
+    const binary = atob(base64)
+    bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  } catch (e) {
+    console.error('[saveBase64WithDialog] failed to decode base64:', e)
+    return false
+  }
   await writeFile(target, bytes)
   return true
 }
@@ -208,14 +214,13 @@ export function useFileBrowser(tabId: string) {
   })
 
   /**
-   * Progress (0..1) of an in-flight S3 chunked download for `file`, or
-   * `undefined` if no transfer is currently active. Used by the row UI
-   * alongside the P2P progress store; safe to call for non-S3 peers (it
-   * just returns undefined).
+   * Progress (0..1) of an in-flight S3 chunked download for the file with
+   * `fileName` in the current directory, or `undefined` if no transfer is
+   * active. Safe to call for non-S3 peers (returns undefined).
    */
-  const getS3TransferProgress = (file: FileEntry): number | undefined => {
+  const getS3TransferProgress = (fileName: string): number | undefined => {
     if (!selectedPeer.value?.s3BackendId) return undefined
-    const key = toS3Prefix(currentPath.value) + file.name
+    const key = toS3Prefix(currentPath.value) + fileName
     return s3TransferProgress.value.get(key)
   }
 

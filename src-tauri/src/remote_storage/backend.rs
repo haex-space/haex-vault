@@ -172,6 +172,26 @@ pub(crate) struct S3BucketSetup {
     pub effective_bucket: String,
 }
 
+/// Rebuild an endpoint URL keeping scheme + authority but dropping any path.
+///
+/// Preserves the explicit port, and brackets IPv6 hosts the way URLs require
+/// (`[::1]`). Returns `None` if the input lacks a host (which would make
+/// the endpoint unusable for S3 anyway).
+fn endpoint_authority(url: &url::Url) -> Option<String> {
+    let host = url.host_str()?;
+    let bracketed = if host.contains(':') && !host.starts_with('[') {
+        format!("[{}]", host)
+    } else {
+        host.to_string()
+    };
+    let mut base = format!("{}://{}", url.scheme(), bracketed);
+    if let Some(port) = url.port() {
+        base.push(':');
+        base.push_str(&port.to_string());
+    }
+    Some(base)
+}
+
 /// Construct an S3 `Bucket` from `S3Config`.
 ///
 /// Shared between `S3Backend` (general CRUD) and the streaming layer (range
@@ -182,7 +202,7 @@ pub(crate) fn build_s3_bucket(config: &S3Config) -> Result<S3BucketSetup, Storag
         if let Ok(url) = url::Url::parse(endpoint) {
             let path = url.path();
             if path != "/" && !path.is_empty() {
-                let base = format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""));
+                let base = endpoint_authority(&url).unwrap_or_else(|| endpoint.clone());
                 let prefix = path.trim_matches('/');
                 let combined_bucket = format!("{}/{}", prefix, config.bucket);
                 (Some(base), combined_bucket)
@@ -283,11 +303,7 @@ impl S3Backend {
                     if path == "/" || path.is_empty() {
                         Some(endpoint.clone())
                     } else {
-                        Some(format!(
-                            "{}://{}",
-                            url.scheme(),
-                            url.host_str().unwrap_or("")
-                        ))
+                        endpoint_authority(&url)
                     }
                 })
                 .unwrap_or_else(|| endpoint.clone());
@@ -619,13 +635,53 @@ impl StorageBackend for S3Backend {
         // Existing file = resume offset. Missing file is fine (we'll create
         // it below in append mode); a length 0 file is identical to no
         // file from our perspective.
-        let start_offset = tokio::fs::metadata(output_path)
+        let existing_len = tokio::fs::metadata(output_path)
             .await
             .ok()
             .map(|m| m.len())
             .unwrap_or(0);
 
-        if total > 0 && start_offset >= total {
+        // Empty remote object: skip the range GET entirely. A `bytes=0-`
+        // request fails on S3 for 0-byte objects; just produce/truncate the
+        // local file to length 0 and report success.
+        if total == 0 {
+            tokio::fs::OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open(output_path)
+                .await
+                .map_err(|e| StorageError::DownloadFailed {
+                    reason: format!("open dest: {}", e),
+                })?;
+            if let Some(cb) = on_progress {
+                cb(0, 0);
+            }
+            return Ok(0);
+        }
+
+        // Local file larger than the remote object: truncate down so the
+        // resulting file actually matches the remote length. Treating it
+        // as "already complete" would leave stale trailing bytes on disk.
+        let start_offset = if existing_len > total {
+            let f = tokio::fs::OpenOptions::new()
+                .write(true)
+                .open(output_path)
+                .await
+                .map_err(|e| StorageError::DownloadFailed {
+                    reason: format!("open dest for truncate: {}", e),
+                })?;
+            f.set_len(total)
+                .await
+                .map_err(|e| StorageError::DownloadFailed {
+                    reason: format!("truncate dest: {}", e),
+                })?;
+            total
+        } else {
+            existing_len
+        };
+
+        if start_offset >= total {
             if let Some(cb) = on_progress {
                 cb(start_offset, start_offset);
             }
@@ -654,7 +710,7 @@ impl StorageBackend for S3Backend {
                 reason: format!("open dest: {}", e),
             })?;
 
-        let remaining = if total > 0 { total - start_offset } else { 0 };
+        let remaining = total - start_offset;
         let mut writer = ProgressWriter::new(file, remaining, cb_for_writer);
 
         // Range-GET from the resume offset to end-of-object. rust-s3 streams

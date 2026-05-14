@@ -7,6 +7,7 @@
 
 use async_trait::async_trait;
 use s3::bucket::Bucket;
+use s3::error::S3Error;
 use serde_json::Value as JsonValue;
 
 use super::source::{ByteRange, StreamingError, StreamingSource};
@@ -74,14 +75,7 @@ impl StreamingSource for S3StreamingSource {
             .bucket
             .head_object(&self.key)
             .await
-            .map_err(|e| {
-                let msg = e.to_string();
-                if msg.contains("404") || msg.contains("NoSuchKey") {
-                    StreamingError::NotFound(self.key.clone())
-                } else {
-                    StreamingError::Backend(format!("head_object: {e}"))
-                }
-            })?;
+            .map_err(|e| map_s3_error(e, &self.key, "head_object"))?;
         head.content_length
             .and_then(|n| u64::try_from(n).ok())
             .ok_or_else(|| {
@@ -97,9 +91,9 @@ impl StreamingSource for S3StreamingSource {
         // inclusive range — matches HTTP `Range: bytes=start-end` exactly.
         let response = self
             .bucket
-            .get_object_range(&self.key, range.start, Some(range.end))
+            .get_object_range(&self.key, range.start(), Some(range.end()))
             .await
-            .map_err(|e| StreamingError::Backend(format!("get_object_range: {e}")))?;
+            .map_err(|e| map_s3_error(e, &self.key, "get_object_range"))?;
 
         Ok(response.bytes().to_vec())
     }
@@ -111,5 +105,15 @@ impl StreamingSource for S3StreamingSource {
         // request.
         let (head, _status) = self.bucket.head_object(&self.key).await.ok()?;
         head.content_type
+    }
+}
+
+/// Translate `S3Error` into a streaming-layer error. Matches on the typed
+/// HTTP status (when present) instead of fragile substring checks — `404`
+/// in the body of an unrelated message shouldn't claim "not found".
+fn map_s3_error(err: S3Error, key: &str, op: &str) -> StreamingError {
+    match &err {
+        S3Error::HttpFailWithBody(404, _) => StreamingError::NotFound(key.to_string()),
+        _ => StreamingError::Backend(format!("{op}: {err}")),
     }
 }

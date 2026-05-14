@@ -822,14 +822,7 @@ const getFileTransferProgress = (file: { name: string; path?: string; isDir?: bo
 
   // S3 chunked download progress (composable handles the key derivation).
   if (browser.selectedPeer.value.s3BackendId) {
-    // getS3TransferProgress expects a FileEntry but only reads `.name`, so
-    // synthesise the minimum shape.
-    const s3Progress = browser.getS3TransferProgress({
-      name: file.name,
-      size: 0n,
-      isDir: file.isDir ?? false,
-      modified: null,
-    })
+    const s3Progress = browser.getS3TransferProgress(file.name)
     if (s3Progress !== undefined) return s3Progress
   }
 

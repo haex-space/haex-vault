@@ -74,12 +74,16 @@ impl MediaServer {
     }
 
     /// Register `path` and return a URL the WebView can give an
-    /// `<audio>`/`<video>` element. Re-registering the same path returns
-    /// a fresh token — easier to reason about than reference-counted
-    /// dedup, and the cost is just a HashMap entry.
+    /// `<audio>`/`<video>` element. If the same path is already registered
+    /// the existing token is reused so the registry can't grow unbounded
+    /// across repeated plays of the same file.
     pub async fn register(&self, path: PathBuf) -> String {
+        let mut map = self.tokens.write().await;
+        if let Some((existing_token, _)) = map.iter().find(|(_, p)| **p == path) {
+            return format!("http://127.0.0.1:{}/{}", self.port, existing_token);
+        }
         let token = uuid::Uuid::new_v4().to_string();
-        self.tokens.write().await.insert(token.clone(), path);
+        map.insert(token.clone(), path);
         format!("http://127.0.0.1:{}/{}", self.port, token)
     }
 }
@@ -328,6 +332,14 @@ pub async fn media_server_register(
     let pb = PathBuf::from(&path);
     if !pb.is_absolute() {
         return Err(format!("media_server_register requires absolute path: {path}"));
+    }
+    let meta = tokio::fs::metadata(&pb)
+        .await
+        .map_err(|e| format!("media_server_register: cannot stat {path}: {e}"))?;
+    if !meta.is_file() {
+        return Err(format!(
+            "media_server_register: not a regular file: {path}"
+        ));
     }
     Ok(state.media_server.register(pb).await)
 }
