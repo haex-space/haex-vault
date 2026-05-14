@@ -329,22 +329,28 @@ jobs:
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
-      # dtolnay/rust-toolchain only prepends $CARGO_HOME/bin to PATH when it
-      # has to install rustup itself. The macos-15-arm64 20260511+ runner
-      # images ship a pre-installed rustup-init binary that's symlinked as
-      # `cargo`/`rustc` in both /opt/homebrew/bin and ~/.cargo/bin, so even
-      # prepending ~/.cargo/bin to PATH still resolves to the stub. Bypass the
-      # broken proxies by putting the active toolchain's actual bin directory
-      # at the front of PATH — `rustup which cargo` returns the real binary.
-      - name: Ensure real cargo is on PATH
+      # The macos-15-arm64 20260511+ runner images ship a pre-installed
+      # `rustup-init` binary that is also installed under `~/.cargo/bin/cargo`
+      # and `~/.cargo/bin/rustc`. When invoked under those names it still
+      # behaves like the installer ("unexpected argument 'metadata' found"),
+      # breaking any tool that resolves cargo via CARGO_HOME (tauri-action's
+      # `cargo metadata` does exactly that, regardless of PATH).
+      # Overwrite the broken proxies with direct symlinks to the toolchain's
+      # real binaries — `rustup which` returns the actual paths.
+      - name: Repair cargo/rustc proxies and PATH
         shell: bash
         run: |
           real_cargo=$(rustup which cargo)
+          real_rustc=$(rustup which rustc)
           toolchain_bin=$(dirname "$real_cargo")
           echo "Active toolchain bin: $toolchain_bin"
+          mkdir -p "$HOME/.cargo/bin"
+          ln -sf "$real_cargo" "$HOME/.cargo/bin/cargo"
+          ln -sf "$real_rustc" "$HOME/.cargo/bin/rustc"
           echo "$toolchain_bin" >> "$GITHUB_PATH"
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-          "$real_cargo" --version
+          "$HOME/.cargo/bin/cargo" --version
+          "$HOME/.cargo/bin/cargo" metadata --no-deps --format-version 1 --manifest-path src-tauri/Cargo.toml >/dev/null && echo "cargo metadata OK"
 
       - name: Install dependencies (Ubuntu)
         if: matrix.platform == 'ubuntu-22.04'
