@@ -94,6 +94,8 @@ pub enum FileSyncCommandError {
     EngineError(#[from] SyncEngineError),
     #[error("Not running: {0}")]
     NotRunning(String),
+    #[error("Internal error: {0}")]
+    Internal(String),
 }
 
 impl serde::Serialize for FileSyncCommandError {
@@ -441,5 +443,121 @@ pub async fn file_sync_trigger_by_watcher(
 ) -> Result<(), FileSyncCommandError> {
     let manager = state.sync_manager.lock().await;
     manager.trigger(&rule_id).await;
+    Ok(())
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SyncLogRow {
+    pub id: String,
+    pub timestamp: String,
+    pub level: String,
+    /// JSON payload `{ summary, raw? }` — kept as a string so the frontend
+    /// can parse it without an extra Tauri schema dance.
+    pub message: String,
+    pub device_id: String,
+}
+
+/// Load persisted sync log entries for a rule.
+///
+/// Reads from the CRDT-synced `haex_logs` table, filtered by
+/// `source = 'file-sync'` and the rule ID stored in `extension_id`. When
+/// `all_devices` is false (default), entries are additionally filtered to the
+/// current device's logs only.
+#[tauri::command(rename_all = "camelCase")]
+pub async fn file_sync_get_log(
+    state: State<'_, AppState>,
+    rule_id: String,
+    limit: Option<u32>,
+    all_devices: Option<bool>,
+) -> Result<Vec<SyncLogRow>, FileSyncCommandError> {
+    use serde_json::Value as JsonValue;
+
+    let lim = limit.unwrap_or(50).min(500) as i64;
+    let all = all_devices.unwrap_or(false);
+
+    let device_id = state
+        .context
+        .lock()
+        .map(|ctx| ctx.device_id.clone())
+        .unwrap_or_default();
+
+    let table = crate::table_names::TABLE_LOGS;
+    let (sql, params) = if all {
+        (
+            format!(
+                "SELECT id, timestamp, level, message, device_id FROM {table} \
+                 WHERE source = 'file-sync' AND extension_id = ?1 \
+                 ORDER BY timestamp DESC LIMIT ?2"
+            ),
+            vec![JsonValue::String(rule_id), JsonValue::Number(lim.into())],
+        )
+    } else {
+        (
+            format!(
+                "SELECT id, timestamp, level, message, device_id FROM {table} \
+                 WHERE source = 'file-sync' AND extension_id = ?1 AND device_id = ?2 \
+                 ORDER BY timestamp DESC LIMIT ?3"
+            ),
+            vec![
+                JsonValue::String(rule_id),
+                JsonValue::String(device_id),
+                JsonValue::Number(lim.into()),
+            ],
+        )
+    };
+
+    // select_with_crdt automatically filters tombstoned rows so a previous
+    // clear_log call stays cleared after a reload.
+    let rows = crate::database::core::select_with_crdt(sql, params, &state.db)
+        .map_err(|e| FileSyncCommandError::Internal(e.to_string()))?;
+
+    fn opt_str(v: &serde_json::Value) -> String {
+        match v {
+            serde_json::Value::String(s) => s.clone(),
+            serde_json::Value::Null => String::new(),
+            other => other.to_string(),
+        }
+    }
+
+    let result = rows
+        .iter()
+        .map(|row| SyncLogRow {
+            id: opt_str(row.first().unwrap_or(&serde_json::Value::Null)),
+            timestamp: opt_str(row.get(1).unwrap_or(&serde_json::Value::Null)),
+            level: opt_str(row.get(2).unwrap_or(&serde_json::Value::Null)),
+            message: opt_str(row.get(3).unwrap_or(&serde_json::Value::Null)),
+            device_id: opt_str(row.get(4).unwrap_or(&serde_json::Value::Null)),
+        })
+        .collect();
+
+    Ok(result)
+}
+
+/// Soft-delete all sync log entries for a rule via CRDT.
+///
+/// Uses `execute_with_crdt` so the tombstone propagates across devices — a
+/// hard delete would re-sync from peers on the next pull.
+#[tauri::command(rename_all = "camelCase")]
+pub async fn file_sync_clear_log(
+    state: State<'_, AppState>,
+    rule_id: String,
+) -> Result<(), FileSyncCommandError> {
+    use serde_json::Value as JsonValue;
+
+    let hlc = state
+        .hlc
+        .lock()
+        .map_err(|e| FileSyncCommandError::Internal(format!("HLC lock: {e}")))?;
+    let table = crate::table_names::TABLE_LOGS;
+    let sql = format!("DELETE FROM {table} WHERE source = 'file-sync' AND extension_id = ?1");
+    crate::database::core::execute_with_crdt(
+        sql,
+        vec![JsonValue::String(rule_id)],
+        &state.db,
+        &hlc,
+    )
+    .map_err(|e| FileSyncCommandError::Internal(e.to_string()))?;
     Ok(())
 }

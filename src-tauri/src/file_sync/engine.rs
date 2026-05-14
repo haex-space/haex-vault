@@ -1141,6 +1141,46 @@ fn update_last_synced_at(app: &tauri::AppHandle, rule_id: &str) {
 // Event emission
 // ---------------------------------------------------------------------------
 
+/// Persist a sync log entry into the CRDT-synced `haex_logs` table.
+///
+/// `source = "file-sync"`, `extension_id = rule_id` so the frontend can filter
+/// per rule. `message` is encoded as JSON `{ code, params?, raw? }` — a stable
+/// machine-readable shape so the frontend can localize the rendered string per
+/// device locale. Persisting a pre-rendered locale-specific string here would
+/// freeze that locale into the CRDT row forever (it gets replicated to every
+/// peer regardless of their locale).
+fn write_sync_log_entry(
+    app: &tauri::AppHandle,
+    rule_id: &str,
+    level: &str,
+    code: &str,
+    params: serde_json::Value,
+    raw: Option<&str>,
+) {
+    use tauri::Manager;
+    let state = app.state::<crate::AppState>();
+    let device_id = state
+        .context
+        .lock()
+        .map(|ctx| ctx.device_id.clone())
+        .unwrap_or_default();
+    let mut message = serde_json::json!({ "code": code, "params": params });
+    if let Some(r) = raw {
+        message["raw"] = serde_json::Value::String(r.to_string());
+    }
+    if let Err(e) = crate::logging::insert_log(
+        &state,
+        level,
+        "file-sync",
+        Some(rule_id),
+        &message.to_string(),
+        None,
+        &device_id,
+    ) {
+        eprintln!("[FileSyncEngine] Failed to persist sync log for rule {rule_id}: {e}");
+    }
+}
+
 fn emit_sync_result(
     app: &tauri::AppHandle,
     rule_id: &str,
@@ -1151,6 +1191,45 @@ fn emit_sync_result(
     match result {
         Ok(r) => {
             update_last_synced_at(app, rule_id);
+            // Per-file transfer failures are collected into r.errors instead of
+            // surfacing as Err — without this branch a cycle where every
+            // transfer failed (counters all 0, errors populated) would leave
+            // no trace in the persistent log.
+            if !r.errors.is_empty() {
+                let raw = r.errors.join("; ");
+                write_sync_log_entry(
+                    app,
+                    rule_id,
+                    "error",
+                    "syncCompletedWithErrors",
+                    serde_json::json!({ "errorCount": r.errors.len() }),
+                    Some(&raw),
+                );
+            } else if r.files_downloaded > 0
+                || r.files_deleted > 0
+                || r.directories_created > 0
+                || r.conflicts_resolved > 0
+            {
+                // Only log non-trivial cycles so the persistent log doesn't fill up
+                // with empty no-op syncs — mirrors the in-memory append logic in
+                // the frontend store. All non-zero counters are persisted so
+                // delete-only / mkdir-only / conflict-only cycles don't render
+                // as "0 files / 0 bytes" in the history.
+                write_sync_log_entry(
+                    app,
+                    rule_id,
+                    "info",
+                    "syncSuccess",
+                    serde_json::json!({
+                        "filesDownloaded": r.files_downloaded,
+                        "filesDeleted": r.files_deleted,
+                        "directoriesCreated": r.directories_created,
+                        "conflictsResolved": r.conflicts_resolved,
+                        "bytesTransferred": r.bytes_transferred,
+                    }),
+                    None,
+                );
+            }
             let _ = app.emit_to(
                 "main",
                 "file-sync:complete",
@@ -1158,10 +1237,31 @@ fn emit_sync_result(
             );
         }
         Err(e) => {
+            // Cancellation is a user-initiated control-flow signal, not a
+            // sync failure — persisting it as `syncFailed` would pollute the
+            // CRDT log on every stop/disable. The frontend already removes
+            // the in-flight state when a cancel emits, so skipping here
+            // leaves no orphaned UI artifacts either.
+            if matches!(e, SyncEngineError::Cancelled) {
+                return;
+            }
+            let raw = e.to_string();
+            // Top-level abort (manifest fetch failure, provider unavailable,
+            // …). The raw error text is rendered verbatim by the frontend
+            // — it's already English and includes whatever provider-specific
+            // detail the user needs to debug.
+            write_sync_log_entry(
+                app,
+                rule_id,
+                "error",
+                "syncFailed",
+                serde_json::json!({}),
+                Some(&raw),
+            );
             let _ = app.emit_to(
                 "main",
                 "file-sync:error",
-                serde_json::json!({ "ruleId": rule_id, "error": e.to_string() }),
+                serde_json::json!({ "ruleId": rule_id, "error": raw }),
             );
         }
     }
@@ -1236,6 +1336,15 @@ async fn auto_disable_rule(
     }
     let _ = state.file_watcher.unwatch(rule_id);
     let _ = state.file_watcher.unwatch(&format!("{}_source", rule_id));
+
+    write_sync_log_entry(
+        app,
+        rule_id,
+        "error",
+        "autoPaused",
+        serde_json::json!({ "failures": failures }),
+        Some(last_error),
+    );
 
     let _ = app.emit_to(
         "main",
