@@ -329,6 +329,16 @@ jobs:
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
+      # dtolnay/rust-toolchain only prepends $CARGO_HOME/bin to PATH when it has
+      # to install rustup itself. The macos-15-arm64 20260511+ runner images
+      # ship a pre-installed rustup stub whose `cargo` shim points at
+      # rustup-init, shadowing the real toolchain at ~/.cargo/bin/cargo and
+      # making tauri-action's `cargo metadata` call blow up with
+      # "unexpected argument 'metadata' found". Force the correct precedence.
+      - name: Ensure ~/.cargo/bin is on PATH
+        shell: bash
+        run: echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
       - name: Install dependencies (Ubuntu)
         if: matrix.platform == 'ubuntu-22.04'
         run: |
