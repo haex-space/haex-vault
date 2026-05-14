@@ -159,4 +159,8 @@ impl SyncProvider for CloudProvider {
     fn supports_trash(&self) -> bool {
         false
     }
+
+    fn supports_directories(&self) -> bool {
+        false
+    }
 }
