@@ -26,7 +26,9 @@
           "https://tauri.localhost",
           "asset:",
           "haex-extension:",
-          "http://haex-extension.localhost"
+          "http://haex-extension.localhost",
+          "haex-stream:",
+          "http://haex-stream.localhost"
         ],
         "script-src": [
           "'self'",
@@ -52,6 +54,8 @@
           "http://tauri.localhost",
           "haex-extension:",
           "http://haex-extension.localhost",
+          "haex-stream:",
+          "http://haex-stream.localhost",
           "ipc:",
           "http://ipc.localhost",
           "ws://localhost:*",
@@ -67,6 +71,8 @@
           "asset:",
           "haex-extension:",
           "http://haex-extension.localhost",
+          "haex-stream:",
+          "http://haex-stream.localhost",
           "data:",
           "blob:",
           "https://*.haex.space"
@@ -89,6 +95,8 @@
           "asset:",
           "haex-extension:",
           "http://haex-extension.localhost",
+          "haex-stream:",
+          "http://haex-stream.localhost",
           "blob:",
           "mediastream:"
         ],

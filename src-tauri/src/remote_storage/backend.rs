@@ -135,6 +135,78 @@ pub trait StorageBackend: Send + Sync {
     }
 }
 
+/// Result of building an S3 `Bucket` from `S3Config`.
+///
+/// `effective_bucket` is the bucket name that actually targets the same
+/// object as `bucket`. When the configured endpoint includes a path prefix,
+/// the prefix is folded into the bucket name (`"prefix/bucket"`) so existence
+/// probes and `Bucket::create` operate on the identical name.
+pub(crate) struct S3BucketSetup {
+    pub bucket: Box<Bucket>,
+    pub effective_bucket: String,
+}
+
+/// Construct an S3 `Bucket` from `S3Config`.
+///
+/// Shared between `S3Backend` (general CRUD) and the streaming layer (range
+/// reads via `haex-stream://`). Keep both in sync by funneling all bucket
+/// construction through this helper.
+pub(crate) fn build_s3_bucket(config: &S3Config) -> Result<S3BucketSetup, StorageError> {
+    let (clean_endpoint, effective_bucket) = if let Some(endpoint) = &config.endpoint {
+        if let Ok(url) = url::Url::parse(endpoint) {
+            let path = url.path();
+            if path != "/" && !path.is_empty() {
+                let base = format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""));
+                let prefix = path.trim_matches('/');
+                let combined_bucket = format!("{}/{}", prefix, config.bucket);
+                (Some(base), combined_bucket)
+            } else {
+                (Some(endpoint.clone()), config.bucket.clone())
+            }
+        } else {
+            (Some(endpoint.clone()), config.bucket.clone())
+        }
+    } else {
+        (None, config.bucket.clone())
+    };
+
+    let credentials = Credentials::new(
+        Some(&config.access_key_id),
+        Some(&config.secret_access_key),
+        None,
+        None,
+        None,
+    )
+    .map_err(|e| StorageError::ConnectionFailed {
+        reason: format!("Failed to create credentials: {}", e),
+    })?;
+
+    let region = if let Some(endpoint) = &clean_endpoint {
+        Region::Custom {
+            region: config.region.clone(),
+            endpoint: endpoint.clone(),
+        }
+    } else {
+        config.region.parse().unwrap_or(Region::UsEast1)
+    };
+
+    let mut bucket =
+        Bucket::new(&effective_bucket, region, credentials).map_err(|e| {
+            StorageError::ConnectionFailed {
+                reason: format!("Failed to create bucket: {}", e),
+            }
+        })?;
+
+    if config.path_style.unwrap_or(false) {
+        bucket = bucket.with_path_style();
+    }
+
+    Ok(S3BucketSetup {
+        bucket,
+        effective_bucket,
+    })
+}
+
 /// S3-compatible storage backend
 pub struct S3Backend {
     bucket: Box<Bucket>,
@@ -152,61 +224,11 @@ pub struct S3Backend {
 impl S3Backend {
     /// Create a new S3 backend from config
     pub async fn new(config: &S3Config) -> Result<Self, StorageError> {
-        // Extract path prefix from endpoint URL if present
-        let (clean_endpoint, effective_bucket) = if let Some(endpoint) = &config.endpoint {
-            if let Ok(url) = url::Url::parse(endpoint) {
-                let path = url.path();
-                if path != "/" && !path.is_empty() {
-                    let base = format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""));
-                    let prefix = path.trim_matches('/');
-                    let combined_bucket = format!("{}/{}", prefix, config.bucket);
-                    (Some(base), combined_bucket)
-                } else {
-                    (Some(endpoint.clone()), config.bucket.clone())
-                }
-            } else {
-                (Some(endpoint.clone()), config.bucket.clone())
-            }
-        } else {
-            (None, config.bucket.clone())
-        };
-
-        let credentials = Credentials::new(
-            Some(&config.access_key_id),
-            Some(&config.secret_access_key),
-            None,
-            None,
-            None,
-        )
-        .map_err(|e| StorageError::ConnectionFailed {
-            reason: format!("Failed to create credentials: {}", e),
-        })?;
-
-        let region = if let Some(endpoint) = &clean_endpoint {
-            Region::Custom {
-                region: config.region.clone(),
-                endpoint: endpoint.clone(),
-            }
-        } else {
-            config.region.parse().unwrap_or(Region::UsEast1)
-        };
-
-        let mut bucket = Bucket::new(&effective_bucket, region, credentials).map_err(|e| {
-            StorageError::ConnectionFailed {
-                reason: format!("Failed to create bucket: {}", e),
-            }
-        })?;
-
-        let use_path_style = config.path_style.unwrap_or(false);
-
-        if use_path_style {
-            bucket = bucket.with_path_style();
-        }
-
+        let setup = build_s3_bucket(config)?;
         Ok(Self {
-            bucket,
+            bucket: setup.bucket,
             config: config.clone(),
-            effective_bucket,
+            effective_bucket: setup.effective_bucket,
         })
     }
 

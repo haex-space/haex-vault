@@ -213,6 +213,13 @@ pub fn run() {
                 }
             }
         })
+        .register_asynchronous_uri_scheme_protocol(
+            remote_storage::streaming::protocol::STREAM_PROTOCOL_NAME,
+            move |context, request, responder| {
+                let app_handle = context.app_handle().clone();
+                remote_storage::streaming::stream_protocol_handler(app_handle, request, responder);
+            },
+        )
         .manage(AppState {
             db: DbConnection(Arc::new(Mutex::new(None))),
             hlc: Mutex::new(HlcService::new()),
