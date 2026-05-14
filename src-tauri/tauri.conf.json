@@ -62,7 +62,8 @@
           "wss://localhost:*",
           "http://localhost:*",
           "https://*.haex.space",
-          "wss://*.haex.space"
+          "wss://*.haex.space",
+          "http://127.0.0.1:*"
         ],
         "img-src": [
           "'self'",
@@ -98,7 +99,8 @@
           "haex-stream:",
           "http://haex-stream.localhost",
           "blob:",
-          "mediastream:"
+          "mediastream:",
+          "http://127.0.0.1:*"
         ],
         "frame-src": [
           "haex-extension:",

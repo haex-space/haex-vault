@@ -9,6 +9,7 @@ pub mod file_sync;
 mod filesystem;
 mod logging;
 pub mod mail;
+mod media_server;
 pub mod mls;
 #[cfg(desktop)]
 mod shortcuts;
@@ -129,6 +130,12 @@ pub struct AppState {
     /// RwLock because reads (QUIC stream routing) are frequent and concurrent,
     /// writes (start/stop leader) are rare.
     pub leader_state: Arc<tokio::sync::RwLock<HashMap<String, Arc<space_delivery::local::leader::LeaderState>>>>,
+    /// Loopback HTTP range server. Exposes registered file paths as
+    /// `http://127.0.0.1:<port>/<token>` so the WebView's media element
+    /// can stream large files without loading them into RAM. Custom Tauri
+    /// URI schemes don't work for `<audio>`/`<video>` on WebKitGTK — this
+    /// is the cross-platform workaround.
+    pub media_server: media_server::MediaServer,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -247,6 +254,12 @@ pub fn run() {
             pty_manager: extension::shell::pty::PtyManager::new(),
             local_sync_loops: tokio::sync::Mutex::new(HashMap::new()),
             leader_state: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
+            // Bind the loopback media server up-front. Failure to bind a
+            // random port is so unusual that crashing here is the right
+            // call — without the server the file browser's audio/video
+            // preview can't work on WebKitGTK at all.
+            media_server: tauri::async_runtime::block_on(media_server::MediaServer::start())
+                .expect("failed to start local media server"),
         })
         //.manage(ExtensionState::default())
         .plugin(tauri_plugin_dialog::init())
@@ -502,6 +515,7 @@ pub fn run() {
             remote_storage::remote_storage_list_dir,
             remote_storage::remote_storage_download_to_path,
             remote_storage::remote_storage_cancel_transfer,
+            media_server::media_server_register,
             // Extension Remote Storage commands (with permission checks)
             extension::remote_storage::commands::extension_remote_storage_list_backends,
             extension::remote_storage::commands::extension_remote_storage_add_backend,
