@@ -738,32 +738,11 @@ export function useFileBrowser(tabId: string) {
       return
     }
 
-    // Files: download (if remote) then open with system app.
-    // No inline preview — avoids downloading entire files just to show them in-app.
-    if (selectedPeer.value?.s3BackendId) {
-      // S3: pull base64 and save to user downloads. No inline preview /
-      // open-with-system path yet — S3 download command returns base64 and
-      // there's no local cache file to hand to the OS.
-      const key = toS3Prefix(currentPath.value) + file.name
-      const base64 = await invoke<string>('remote_storage_download', {
-        request: {
-          backendId: selectedPeer.value.s3BackendId,
-          key,
-        },
-      })
-      preview.downloadBase64(base64, file.name)
-    } else if (selectedPeer.value?.localPath) {
-      // Local share: open directly with system app
-      const absPath = resolveLocalAbsolutePath(file)
-      if (absPath) await preview.openWithSystem(absPath)
-    } else {
-      // Remote peer: download to cache, then open with system app
-      const localPath = await peerStore.remoteReadAsync(
-        selectedPeer.value!.endpointId,
-        resolveFilePath(file),
-      )
-      await preview.openWithSystem(localPath)
-    }
+    // Files: route to the unified open path. Media plays inline in the
+    // preview modal; everything else is fetched (for remote backends) and
+    // handed off to the system handler. The per-row transfer progress bar
+    // provides feedback while bytes stream in.
+    await playFile(file)
   }
 
   const onGlobalSearchResultClick = async (file: GlobalSearchFile) => {
@@ -1017,38 +996,37 @@ export function useFileBrowser(tabId: string) {
   }
 
   /**
-   * Open `file` in the inline media player.
+   * Unified open path for a file. Called both from single-click and the
+   * "Play" context-menu item.
    *
-   * Strategy (per backend):
-   *   - S3 audio/video: stream chunk-by-chunk into the app cache, then
-   *     play via `convertFileSrc()` so WebKit's media pipeline (which
-   *     rejects custom URI schemes on Linux) sees an `http://asset.localhost`
-   *     URL it accepts. Chunked + resumable means cancelled / interrupted
-   *     fetches don't restart from zero.
-   *   - S3 image/pdf:   base64 round-trip remains acceptable today; revisit
-   *     if previewing huge images becomes a pain point.
-   *   - Local:          existing `openLocal` path (`convertFileSrc`).
-   *   - P2P:            existing `openWithSystem` path (downloads to disk
-   *                     cache then hands off to OS).
+   * Media (image/video/audio/pdf) opens in the inline preview modal so the
+   * user gets immediate feedback inside the app. Everything else is handed
+   * to the OS via `openWithSystem`.
    *
-   * Falls back to `onFileClick` for any case we don't have a player for
-   * yet, so the menu item never silently no-ops.
+   * Per backend:
+   *   - S3 audio/video: chunk-streamed into the app cache and exposed via a
+   *     local HTTP range server (`media_server_register`). WebKitGTK's
+   *     GStreamer pipeline rejects `asset://` URLs on Linux, so the plain
+   *     `http://127.0.0.1:<port>/…` URL is the only thing that plays back
+   *     reliably across platforms.
+   *   - S3 other: chunk-streamed to cache, then `openLocal` (image/pdf via
+   *     `convertFileSrc`) or `openWithSystem` (everything else).
+   *   - Local share: direct `openLocal` / `openWithSystem` on the share path.
+   *   - P2P peer: `remoteReadAsync` to materialise into the peer cache, then
+   *     `openLocal` / `openWithSystem`.
+   *
+   * The chunked S3 downloads are resumable, so a cancelled / interrupted
+   * fetch is picked up by the next click instead of restarting from zero.
    */
   const playFile = async (file: FileEntry) => {
     const peer = selectedPeer.value
+    if (!peer) return
     const type = getMediaType(file.name)
+    const isMedia = type !== 'unsupported'
 
-    if (peer?.s3BackendId && (type === 'audio' || type === 'video')) {
+    if (peer.s3BackendId && (type === 'audio' || type === 'video')) {
       try {
         const cachePath = await ensureS3FileCachedAsync(file, peer.s3BackendId)
-        // WebKitGTK's GStreamer media backend can't reliably play back
-        // from `asset://` (`http://asset.localhost`) URLs on Linux. We
-        // expose the cached file through a tiny tokio HTTP range server
-        // (`media_server_register`) so the `<audio>`/`<video>` element
-        // sees a plain `http://127.0.0.1:<port>/<token>` URL, which
-        // GStreamer / WebKit accept everywhere. Reading the whole file
-        // into a Blob would defeat the streaming win entirely for large
-        // media.
         const url = await invoke<string>('media_server_register', {
           path: cachePath,
         })
@@ -1061,7 +1039,30 @@ export function useFileBrowser(tabId: string) {
       }
     }
 
-    await onFileClick(file)
+    let absPath: string | null = null
+    try {
+      if (peer.s3BackendId) {
+        absPath = await ensureS3FileCachedAsync(file, peer.s3BackendId)
+      } else if (peer.localPath) {
+        absPath = resolveLocalAbsolutePath(file)
+      } else {
+        absPath = await peerStore.remoteReadAsync(
+          peer.endpointId,
+          resolveFilePath(file),
+        )
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.includes('cancelled')) return
+      throw e
+    }
+    if (!absPath) return
+
+    if (isMedia) {
+      await preview.openLocal(absPath, file.name, file.size)
+    } else {
+      await preview.openWithSystem(absPath)
+    }
   }
 
   // =========================================================================

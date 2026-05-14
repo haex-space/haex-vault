@@ -118,15 +118,6 @@ export function useFilePreview() {
     cleanup()
   }
 
-  /**
-   * Trigger a browser download for a base64 string
-   */
-  const downloadBase64 = (base64: string, filename: string) => {
-    const url = base64ToObjectUrl(base64, filename)
-    triggerDownload(url, filename)
-    URL.revokeObjectURL(url)
-  }
-
   const openWithSystem = async (absolutePath: string) => {
     await invoke('open_file_system', { path: absolutePath })
   }
@@ -141,7 +132,6 @@ export function useFilePreview() {
     openRemote,
     openStream,
     close,
-    downloadBase64,
     openWithSystem,
     getMediaType,
     isPreviewable,
@@ -160,9 +150,3 @@ function base64ToObjectUrl(base64: string, filename: string): string {
   return URL.createObjectURL(blob)
 }
 
-function triggerDownload(url: string, filename: string) {
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-}
