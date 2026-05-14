@@ -533,7 +533,7 @@ pub fn create_encrypted_database(
     // `VaultLock` (releasing its flock) while its SQLite connection is
     // still open in `state.db` — the first vault would then be exposed to
     // concurrent writers from other instances.
-    reject_if_vault_already_mounted(&state)?;
+    reject_if_vault_already_mounted(&state, &vault_path)?;
 
     // Acquire the per-vault lock up front. A freshly-created vault can't
     // collide with another instance by definition, but grabbing the lock
@@ -847,22 +847,33 @@ fn acquire_vault_lock_or_error(
 /// Reject mount attempts when this process already has a vault open.
 /// Prevents dropping the live `VaultLock` (and releasing its flock) while
 /// the corresponding SQLite connection is still stored in `state.db`.
-fn reject_if_vault_already_mounted(state: &State<'_, AppState>) -> Result<(), DatabaseError> {
+///
+/// `requested_path` is included in the returned error so callers (frontend,
+/// test fixtures) can distinguish which mount attempt was rejected when
+/// multiple are in flight.
+fn reject_if_vault_already_mounted(
+    state: &State<'_, AppState>,
+    requested_path: &str,
+) -> Result<(), DatabaseError> {
+    let existing_path = {
+        let lock_guard = state
+            .vault_lock
+            .lock()
+            .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?;
+        lock_guard
+            .as_ref()
+            .map(|lock| lock.vault_path().display().to_string())
+    };
     let has_connection = state
         .db
         .0
         .lock()
         .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?
         .is_some();
-    let has_lock = state
-        .vault_lock
-        .lock()
-        .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?
-        .is_some();
-    if has_connection || has_lock {
-        return Err(DatabaseError::DatabaseError {
-            reason: "Another vault is still mounted in this process; close it first."
-                .to_string(),
+    if existing_path.is_some() || has_connection {
+        return Err(DatabaseError::VaultAlreadyMountedInProcess {
+            existing_path: existing_path.unwrap_or_else(|| "<unknown>".to_string()),
+            requested_path: requested_path.to_string(),
         });
     }
     Ok(())
@@ -917,11 +928,9 @@ pub fn open_encrypted_database(
             );
             return Ok(format!("Vault '{vault_path}' already open"));
         }
-        return Err(DatabaseError::DatabaseError {
-            reason: format!(
-                "Cannot open '{vault_path}': a different vault ('{}') is already mounted in this process. Close it before opening another.",
-                existing.display()
-            ),
+        return Err(DatabaseError::VaultAlreadyMountedInProcess {
+            existing_path: existing.display().to_string(),
+            requested_path: vault_path.clone(),
         });
     }
 
