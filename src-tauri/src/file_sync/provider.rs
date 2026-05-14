@@ -130,6 +130,16 @@ pub trait SyncProvider: Send + Sync {
         false
     }
 
+    /// Whether the provider has real directories that appear in `manifest()`.
+    /// Cloud object stores (S3, …) return `false`: directories are implicit
+    /// from object keys, so they never show up in the manifest and the diff
+    /// would otherwise re-plan the same `mkdir`s every cycle in an endless
+    /// loop. Setting this to `false` makes the engine drop directory-create
+    /// actions for this target.
+    fn supports_directories(&self) -> bool {
+        true
+    }
+
     /// Hook fired after a successful `write_file_from_path`. Implementations
     /// that own a local filesystem (e.g. `LocalProvider`) can use the sender's
     /// announced SHA-256 to prime their hash cache so the next manifest scan

@@ -462,9 +462,11 @@ pub struct SyncLogRow {
 /// Load persisted sync log entries for a rule.
 ///
 /// Reads from the CRDT-synced `haex_logs` table, filtered by
-/// `source = 'file-sync'` and the rule ID stored in `extension_id`. When
-/// `all_devices` is false (default), entries are additionally filtered to the
-/// current device's logs only.
+/// `source = 'file-sync'` and the rule ID stored in `metadata.ruleId`. The
+/// rule ID lives in `metadata` (not `extension_id`) because `extension_id`
+/// has a FK on `haex_extensions(id)` and sync rules are not extensions.
+/// When `all_devices` is false (default), entries are additionally filtered
+/// to the current device's logs only.
 #[tauri::command(rename_all = "camelCase")]
 pub async fn file_sync_get_log(
     state: State<'_, AppState>,
@@ -488,7 +490,7 @@ pub async fn file_sync_get_log(
         (
             format!(
                 "SELECT id, timestamp, level, message, device_id FROM {table} \
-                 WHERE source = 'file-sync' AND extension_id = ?1 \
+                 WHERE source = 'file-sync' AND json_extract(metadata, '$.ruleId') = ?1 \
                  ORDER BY timestamp DESC LIMIT ?2"
             ),
             vec![JsonValue::String(rule_id), JsonValue::Number(lim.into())],
@@ -497,7 +499,7 @@ pub async fn file_sync_get_log(
         (
             format!(
                 "SELECT id, timestamp, level, message, device_id FROM {table} \
-                 WHERE source = 'file-sync' AND extension_id = ?1 AND device_id = ?2 \
+                 WHERE source = 'file-sync' AND json_extract(metadata, '$.ruleId') = ?1 AND device_id = ?2 \
                  ORDER BY timestamp DESC LIMIT ?3"
             ),
             vec![
