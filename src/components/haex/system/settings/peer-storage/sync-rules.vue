@@ -90,6 +90,12 @@
                   <div class="flex items-center gap-2 mb-1">
                     <UIcon :name="providerIcon(rule.sourceType)" class="w-4 h-4 text-muted shrink-0" />
                     <span class="text-xs text-muted">{{ t('label.source') }}</span>
+                    <UIcon
+                      v-if="syncStore.unavailableSides.get(rule.id) === 'source'"
+                      name="i-lucide-cloud-off"
+                      class="w-4 h-4 text-warning shrink-0"
+                      :title="t('label.unavailable')"
+                    />
                   </div>
                   <p class="text-sm font-medium truncate">
                     {{ formatProviderLabel(rule.sourceType, rule.sourceConfig) }}
@@ -110,6 +116,12 @@
                   <div class="flex items-center gap-2 mb-1">
                     <UIcon :name="providerIcon(rule.targetType)" class="w-4 h-4 text-muted shrink-0" />
                     <span class="text-xs text-muted">{{ t('label.target') }}</span>
+                    <UIcon
+                      v-if="syncStore.unavailableSides.get(rule.id) === 'target'"
+                      name="i-lucide-cloud-off"
+                      class="w-4 h-4 text-warning shrink-0"
+                      :title="t('label.unavailable')"
+                    />
                   </div>
                   <p class="text-sm font-medium truncate">
                     {{ formatProviderLabel(rule.targetType, rule.targetConfig) }}
@@ -862,6 +874,7 @@ de:
   label:
     source: Quelle
     target: Ziel
+    unavailable: Nicht erreichbar — wird automatisch wiederholt
   direction:
     oneWay: Einseitig
     twoWay: Beidseitig
@@ -926,6 +939,7 @@ en:
   label:
     source: Source
     target: Target
+    unavailable: Unreachable — retrying automatically
   direction:
     oneWay: One-way
     twoWay: Two-way
