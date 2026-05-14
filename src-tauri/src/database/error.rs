@@ -111,6 +111,18 @@ pub enum DatabaseError {
     #[error("Vault at '{path}' is already open in another instance")]
     VaultAlreadyOpenElsewhere { path: String, reason: String },
 
+    /// This process already has a vault mounted in AppState — typically
+    /// because the caller forgot to invoke `close_database` before
+    /// `create_encrypted_database` / `open_encrypted_database` for a
+    /// different vault. Surfaced as a distinct variant so frontends and
+    /// test fixtures can recover by calling `close_database` and retrying,
+    /// instead of having to grep for substrings in a generic error reason.
+    #[error("Cannot mount '{requested_path}': another vault ('{existing_path}') is still mounted in this process; close it first.")]
+    VaultAlreadyMountedInProcess {
+        existing_path: String,
+        requested_path: String,
+    },
+
     #[error("Validation error: {reason}")]
     ValidationError { reason: String },
 
