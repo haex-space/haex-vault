@@ -115,6 +115,27 @@ pub struct StorageDownloadRequest {
     pub key: String,
 }
 
+/// Request a resumable streaming download into a local file.
+///
+/// `transfer_id` is a frontend-generated UUID so the WebView can correlate
+/// `storage:transfer:*` events to a specific UI row and (optionally) cancel
+/// the transfer via [`remote_storage_cancel_transfer`].
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DownloadToPathRequest {
+    /// Backend ID to download from
+    pub backend_id: String,
+    /// Object key (path in the bucket)
+    pub key: String,
+    /// Absolute path on disk where the object should land. If the file
+    /// already exists, the download resumes from its current size.
+    pub output_path: String,
+    /// Caller-generated transfer id, used to route progress events and
+    /// cancellation requests.
+    pub transfer_id: String,
+}
+
 /// Request to delete an object
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]

@@ -133,6 +133,32 @@ pub trait StorageBackend: Send + Sync {
         }
         Ok(n)
     }
+
+    /// Resumable streaming download.
+    ///
+    /// If `output_path` already exists, the implementation should treat its
+    /// current size as the resume offset and continue from there (append
+    /// mode, Range-GET from that byte). The progress callback should report
+    /// `(total_done_so_far, total_size)` so the UI shows monotonic progress
+    /// across resume events. Returns the total number of bytes the file
+    /// holds after the call.
+    ///
+    /// Default impl rejects with a clear error so callers can detect that
+    /// the active backend doesn't yet support resumable downloads (today:
+    /// non-S3 backends).
+    async fn download_to_path_resumable(
+        &self,
+        _key: &str,
+        _output_path: &Path,
+        _on_progress: Option<ProgressCallback>,
+    ) -> Result<u64, StorageError> {
+        Err(StorageError::Internal {
+            reason: format!(
+                "Resumable downloads not supported by {} backend",
+                self.backend_type()
+            ),
+        })
+    }
 }
 
 /// Result of building an S3 `Bucket` from `S3Config`.
@@ -562,6 +588,94 @@ impl StorageBackend for S3Backend {
             })?;
 
         Ok(writer.bytes_written())
+    }
+
+    async fn download_to_path_resumable(
+        &self,
+        key: &str,
+        output_path: &Path,
+        on_progress: Option<ProgressCallback>,
+    ) -> Result<u64, StorageError> {
+        // Resolve the full object size up front so we can (a) tell the
+        // caller they're already complete and skip the network entirely,
+        // and (b) feed a meaningful "total" into the progress callback
+        // even after a resume.
+        let total = match self.bucket.head_object(key).await {
+            Ok((head, _)) => head
+                .content_length
+                .and_then(|l| u64::try_from(l).ok())
+                .unwrap_or(0),
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("404") || msg.contains("NoSuchKey") {
+                    return Err(StorageError::ObjectNotFound { key: key.to_string() });
+                }
+                return Err(StorageError::DownloadFailed {
+                    reason: format!("head_object: {}", e),
+                });
+            }
+        };
+
+        // Existing file = resume offset. Missing file is fine (we'll create
+        // it below in append mode); a length 0 file is identical to no
+        // file from our perspective.
+        let start_offset = tokio::fs::metadata(output_path)
+            .await
+            .ok()
+            .map(|m| m.len())
+            .unwrap_or(0);
+
+        if total > 0 && start_offset >= total {
+            if let Some(cb) = on_progress {
+                cb(start_offset, start_offset);
+            }
+            return Ok(start_offset);
+        }
+
+        // Wrap the user-supplied callback so progress samples report the
+        // *combined* (already-on-disk + freshly-downloaded) byte count.
+        // Without this the UI would jump from "50%" back to "0%" each time
+        // a resume runs.
+        let cb_for_writer: Option<ProgressCallback> = on_progress.map(|cb| {
+            let cb = cb.clone();
+            std::sync::Arc::new(move |fresh_done: u64, _fresh_total: u64| {
+                let absolute = start_offset + fresh_done;
+                let absolute_total = total.max(absolute);
+                cb(absolute, absolute_total);
+            }) as ProgressCallback
+        });
+
+        let file = tokio::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(output_path)
+            .await
+            .map_err(|e| StorageError::DownloadFailed {
+                reason: format!("open dest: {}", e),
+            })?;
+
+        let remaining = if total > 0 { total - start_offset } else { 0 };
+        let mut writer = ProgressWriter::new(file, remaining, cb_for_writer);
+
+        // Range-GET from the resume offset to end-of-object. rust-s3 streams
+        // the body chunk-by-chunk into the writer, so memory stays flat
+        // regardless of object size.
+        self.bucket
+            .get_object_range_to_writer(key, start_offset, None, &mut writer)
+            .await
+            .map_err(|e| StorageError::DownloadFailed {
+                reason: format!("S3 range get failed: {}", e),
+            })?;
+
+        use tokio::io::AsyncWriteExt;
+        writer
+            .shutdown()
+            .await
+            .map_err(|e| StorageError::DownloadFailed {
+                reason: format!("flush dest: {}", e),
+            })?;
+
+        Ok(start_offset + writer.bytes_written())
     }
 }
 
