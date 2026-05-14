@@ -329,15 +329,22 @@ jobs:
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
-      # dtolnay/rust-toolchain only prepends $CARGO_HOME/bin to PATH when it has
-      # to install rustup itself. The macos-15-arm64 20260511+ runner images
-      # ship a pre-installed rustup stub whose `cargo` shim points at
-      # rustup-init, shadowing the real toolchain at ~/.cargo/bin/cargo and
-      # making tauri-action's `cargo metadata` call blow up with
-      # "unexpected argument 'metadata' found". Force the correct precedence.
-      - name: Ensure ~/.cargo/bin is on PATH
+      # dtolnay/rust-toolchain only prepends $CARGO_HOME/bin to PATH when it
+      # has to install rustup itself. The macos-15-arm64 20260511+ runner
+      # images ship a pre-installed rustup-init binary that's symlinked as
+      # `cargo`/`rustc` in both /opt/homebrew/bin and ~/.cargo/bin, so even
+      # prepending ~/.cargo/bin to PATH still resolves to the stub. Bypass the
+      # broken proxies by putting the active toolchain's actual bin directory
+      # at the front of PATH — `rustup which cargo` returns the real binary.
+      - name: Ensure real cargo is on PATH
         shell: bash
-        run: echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+        run: |
+          real_cargo=$(rustup which cargo)
+          toolchain_bin=$(dirname "$real_cargo")
+          echo "Active toolchain bin: $toolchain_bin"
+          echo "$toolchain_bin" >> "$GITHUB_PATH"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          "$real_cargo" --version
 
       - name: Install dependencies (Ubuntu)
         if: matrix.platform == 'ubuntu-22.04'
