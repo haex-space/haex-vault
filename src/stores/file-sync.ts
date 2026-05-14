@@ -162,6 +162,11 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
   const syncStatuses = ref<Map<string, SyncRuleStatus>>(new Map())
   const lastResults = ref<Map<string, SyncResult>>(new Map())
   const lastErrors = ref<Map<string, string>>(new Map())
+  // Per-rule reachability state. When set, the named side (source/target)
+  // could not be reached on the last cycle. Cleared on the next successful
+  // sync. Used by the UI to badge the offending endpoint on the rule card
+  // instead of treating the whole rule as failed.
+  const unavailableSides = ref<Map<string, 'source' | 'target'>>(new Map())
   const currentProgress = ref<Map<string, SyncProgress>>(new Map())
   // In-memory rolling log of recent events per rule. Capped per rule to
   // keep memory bounded. Surfaces in the UI as a "history" — not persisted
@@ -499,6 +504,12 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
         lastResults.value = new Map(lastResults.value)
         currentProgress.value.delete(ruleId)
         currentProgress.value = new Map(currentProgress.value)
+        // Reaching `file-sync:complete` means both manifests came back —
+        // any stale "unavailable" badge from a prior cycle is no longer true.
+        if (unavailableSides.value.has(ruleId)) {
+          unavailableSides.value.delete(ruleId)
+          unavailableSides.value = new Map(unavailableSides.value)
+        }
 
         // The live entry mirrors the persisted-path logic in
         // `emit_sync_result` (engine.rs): per-file failures collected in
@@ -526,6 +537,10 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
         } else if (hadError) {
           lastErrors.value.delete(ruleId)
           lastErrors.value = new Map(lastErrors.value)
+          if (unavailableSides.value.has(ruleId)) {
+            unavailableSides.value.delete(ruleId)
+            unavailableSides.value = new Map(unavailableSides.value)
+          }
           appendLogEntry(ruleId, {
             at: Date.now(),
             level: 'info',
@@ -549,14 +564,25 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
       { target: 'main' },
     )
 
-    unlistenError = await listen<{ ruleId: string; error: string }>(
+    unlistenError = await listen<{
+      ruleId: string
+      error: string
+      unavailable?: 'source' | 'target' | null
+    }>(
       'file-sync:error',
       (event) => {
-        const { ruleId, error } = event.payload
+        const { ruleId, error, unavailable } = event.payload
         const sig = errorSignature(error)
         const previousSig = lastErrors.value.get(ruleId)
         lastErrors.value.set(ruleId, sig)
         lastErrors.value = new Map(lastErrors.value)
+        if (unavailable === 'source' || unavailable === 'target') {
+          unavailableSides.value.set(ruleId, unavailable)
+          unavailableSides.value = new Map(unavailableSides.value)
+        } else if (unavailableSides.value.has(ruleId)) {
+          unavailableSides.value.delete(ruleId)
+          unavailableSides.value = new Map(unavailableSides.value)
+        }
         currentProgress.value.delete(ruleId)
         currentProgress.value = new Map(currentProgress.value)
 
@@ -683,6 +709,7 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
     syncStatuses,
     lastResults,
     lastErrors,
+    unavailableSides,
     ruleLogs,
     getRuleLog,
     clearRuleLog,
@@ -709,6 +736,7 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
       syncStatuses.value = new Map()
       lastResults.value = new Map()
       lastErrors.value = new Map()
+      unavailableSides.value = new Map()
       ruleLogs.value = new Map()
       ruleLogAllDevices.value = new Map()
       currentProgress.value = new Map()
