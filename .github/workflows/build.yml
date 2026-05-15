@@ -353,6 +353,13 @@ jobs:
       # `cargo metadata` does exactly that, regardless of PATH).
       # Overwrite the broken proxies with direct symlinks to the toolchain's
       # real binaries — `rustup which` returns the actual paths.
+      #
+      # `rustup target add` is also called defensively: dtolnay/rust-toolchain
+      # installs the targets in `~/.rustup` during Setup Rust, but observed
+      # runs have shown the target installation occasionally not surviving
+      # cache restore (probably runner-image variance — same cache key has
+      # produced both success and "Target X does not exist" failures).
+      # `rustup target add` is idempotent, so re-adding is a cheap insurance.
       - name: Repair cargo/rustc proxies and PATH
         shell: bash
         run: |
@@ -367,6 +374,11 @@ jobs:
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           "$HOME/.cargo/bin/cargo" --version
           "$HOME/.cargo/bin/cargo" metadata --no-deps --format-version 1 --manifest-path src-tauri/Cargo.toml >/dev/null && echo "cargo metadata OK"
+          if [ "${{ matrix.platform }}" = "macos-latest" ]; then
+            rustup target add aarch64-apple-darwin x86_64-apple-darwin
+            echo "Installed targets:"
+            rustup target list --installed
+          fi
 
       - name: Clean stale migration caches
         shell: bash
