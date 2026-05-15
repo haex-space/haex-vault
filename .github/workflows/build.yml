@@ -329,6 +329,22 @@ jobs:
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
+      - name: Install dependencies (Ubuntu)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # Must run AFTER `Setup Rust cache`: rust-cache restores `~/.cargo/bin`
+      # from the cached workspace, which on macOS overwrites these symlinks
+      # with the broken rustup-init proxies again. Doing the repair last
+      # makes it the authoritative state for the rest of the job.
+      #
       # The macos-15-arm64 20260511+ runner images ship a pre-installed
       # `rustup-init` binary that is also installed under `~/.cargo/bin/cargo`
       # and `~/.cargo/bin/rustc`. When invoked under those names it still
@@ -351,17 +367,6 @@ jobs:
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           "$HOME/.cargo/bin/cargo" --version
           "$HOME/.cargo/bin/cargo" metadata --no-deps --format-version 1 --manifest-path src-tauri/Cargo.toml >/dev/null && echo "cargo metadata OK"
-
-      - name: Install dependencies (Ubuntu)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
-
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
 
       - name: Clean stale migration caches
         shell: bash
