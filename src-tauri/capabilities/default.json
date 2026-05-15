@@ -20,11 +20,15 @@
     "fs:allow-appdata-write-recursive",
     "fs:allow-applocaldata-read-recursive",
     "fs:allow-applocaldata-write-recursive",
+    "fs:allow-appcache-read-recursive",
+    "fs:allow-appcache-write-recursive",
+    "fs:allow-appcache-meta-recursive",
     "fs:allow-read-file",
     "fs:allow-write-file",
     "fs:allow-read-dir",
     "fs:allow-mkdir",
     "fs:allow-exists",
+    "fs:allow-stat",
     "fs:allow-remove",
     "fs:allow-resource-read-recursive",
     "fs:allow-resource-write-recursive",
@@ -37,7 +41,9 @@
       "identifier": "fs:scope",
       "allow": [
         { "path": "**" },
-        { "path": "$TEMP/**" }
+        { "path": "$TEMP/**" },
+        { "path": "$APPCACHE" },
+        { "path": "$APPCACHE/**" }
       ]
     },
     "http:allow-fetch-send",

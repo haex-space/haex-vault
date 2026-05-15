@@ -404,6 +404,135 @@ pub async fn remote_storage_list_dir(
 }
 
 // ============================================================================
+// Resumable Download
+// ============================================================================
+
+/// Download an object directly to a local path, resuming any existing
+/// partial file at that path.
+///
+/// Why this exists separately from `remote_storage_download`:
+///   - The base64 round-trip used by `remote_storage_download` loads the
+///     whole file into RAM (and shovels it through IPC) — fine for small
+///     blobs, unusable for video / multi-GiB objects.
+///   - The `<a download>` shim that callers used to invoke after the
+///     base64 trip doesn't reliably trigger a real save in Tauri's WebView
+///     (WebKitGTK drops the `download` attribute), so the data was being
+///     thrown away anyway.
+///
+/// Progress reports + cancellation flow through `AppState.transfer_tokens`
+/// (same pool the P2P transfer commands use). Frontend listens for the
+/// `storage:transfer:progress` / `storage:transfer:complete` /
+/// `storage:transfer:cancelled` events keyed by `transfer_id`.
+///
+/// `transfer_id` is supplied by the caller so the UI can pair the lifecycle
+/// events to the row that requested the download (and so the user can
+/// cancel via `remote_storage_cancel_transfer`).
+#[tauri::command]
+pub async fn remote_storage_download_to_path(
+    state: State<'_, AppState>,
+    app_handle: tauri::AppHandle,
+    request: super::types::DownloadToPathRequest,
+) -> Result<u64, StorageError> {
+    use std::path::PathBuf;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::Arc;
+    use tauri::Emitter;
+    use tokio_util::sync::CancellationToken;
+
+    let backend = get_backend_instance(&state, &request.backend_id).await?;
+    let output = PathBuf::from(&request.output_path);
+
+    // Register a cancellation token under the transfer id. The pause flag
+    // is unused for now (cancel-on-resume is functionally equivalent) but
+    // lives alongside the cancel token so the `transfer_tokens` map keeps
+    // a single uniform shape with the P2P side.
+    let cancel = CancellationToken::new();
+    let pause = Arc::new(AtomicBool::new(false));
+    state
+        .transfer_tokens
+        .lock()
+        .await
+        .insert(request.transfer_id.clone(), (cancel.clone(), pause));
+
+    // Progress callback emits a Tauri event each throttle window. Cloning
+    // the AppHandle is cheap (Arc inside) so the closure can outlive this
+    // function if rust-s3 holds onto the writer.
+    let app_for_cb = app_handle.clone();
+    let tid_for_cb = request.transfer_id.clone();
+    let cb: super::progress::ProgressCallback = Arc::new(move |done, total| {
+        let _ = app_for_cb.emit(
+            "storage:transfer:progress",
+            serde_json::json!({
+                "transferId": tid_for_cb,
+                "bytesDone": done,
+                "bytesTotal": total,
+            }),
+        );
+    });
+
+    let result = tokio::select! {
+        r = backend.download_to_path_resumable(&request.key, &output, Some(cb)) => r,
+        _ = cancel.cancelled() => {
+            Err(StorageError::DownloadFailed {
+                reason: "cancelled".to_string(),
+            })
+        }
+    };
+
+    // Always drop the token before returning so a follow-up resume doesn't
+    // collide with a stale entry.
+    state.transfer_tokens.lock().await.remove(&request.transfer_id);
+
+    match result {
+        Ok(bytes) => {
+            let _ = app_handle.emit(
+                "storage:transfer:complete",
+                serde_json::json!({
+                    "transferId": request.transfer_id,
+                    "bytesDone": bytes,
+                }),
+            );
+            Ok(bytes)
+        }
+        Err(err) => {
+            let is_cancelled = matches!(
+                &err,
+                StorageError::DownloadFailed { reason } if reason == "cancelled"
+            );
+            let event = if is_cancelled {
+                "storage:transfer:cancelled"
+            } else {
+                "storage:transfer:failed"
+            };
+            let _ = app_handle.emit(
+                event,
+                serde_json::json!({
+                    "transferId": request.transfer_id,
+                    "reason": err.to_string(),
+                }),
+            );
+            Err(err)
+        }
+    }
+}
+
+/// Cancel an in-flight resumable download. Idempotent — calling on an
+/// unknown id is a no-op (the transfer may have just finished). After a
+/// cancel the partial file on disk is left intact so the caller can
+/// resume by invoking `remote_storage_download_to_path` again with the
+/// same output path.
+#[tauri::command]
+pub async fn remote_storage_cancel_transfer(
+    state: State<'_, AppState>,
+    transfer_id: String,
+) -> Result<(), StorageError> {
+    if let Some((cancel, _pause)) = state.transfer_tokens.lock().await.get(&transfer_id) {
+        cancel.cancel();
+    }
+    Ok(())
+}
+
+// ============================================================================
 // Helper Functions
 // ============================================================================
 

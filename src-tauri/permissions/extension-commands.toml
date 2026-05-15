@@ -272,7 +272,10 @@ commands.allow = [
   "remote_storage_list_dir",
   "remote_storage_upload",
   "remote_storage_download",
+  "remote_storage_download_to_path",
+  "remote_storage_cancel_transfer",
   "remote_storage_delete",
+  "media_server_register",
 
   # External bridge (WebSocket for browser extension etc.)
   "external_bridge_start",

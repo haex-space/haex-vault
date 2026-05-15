@@ -133,6 +133,124 @@ pub trait StorageBackend: Send + Sync {
         }
         Ok(n)
     }
+
+    /// Resumable streaming download.
+    ///
+    /// If `output_path` already exists, the implementation should treat its
+    /// current size as the resume offset and continue from there (append
+    /// mode, Range-GET from that byte). The progress callback should report
+    /// `(total_done_so_far, total_size)` so the UI shows monotonic progress
+    /// across resume events. Returns the total number of bytes the file
+    /// holds after the call.
+    ///
+    /// Default impl rejects with a clear error so callers can detect that
+    /// the active backend doesn't yet support resumable downloads (today:
+    /// non-S3 backends).
+    async fn download_to_path_resumable(
+        &self,
+        _key: &str,
+        _output_path: &Path,
+        _on_progress: Option<ProgressCallback>,
+    ) -> Result<u64, StorageError> {
+        Err(StorageError::Internal {
+            reason: format!(
+                "Resumable downloads not supported by {} backend",
+                self.backend_type()
+            ),
+        })
+    }
+}
+
+/// Result of building an S3 `Bucket` from `S3Config`.
+///
+/// `effective_bucket` is the bucket name that actually targets the same
+/// object as `bucket`. When the configured endpoint includes a path prefix,
+/// the prefix is folded into the bucket name (`"prefix/bucket"`) so existence
+/// probes and `Bucket::create` operate on the identical name.
+pub(crate) struct S3BucketSetup {
+    pub bucket: Box<Bucket>,
+    pub effective_bucket: String,
+}
+
+/// Rebuild an endpoint URL keeping scheme + authority but dropping any path.
+///
+/// Preserves the explicit port, and brackets IPv6 hosts the way URLs require
+/// (`[::1]`). Returns `None` if the input lacks a host (which would make
+/// the endpoint unusable for S3 anyway).
+fn endpoint_authority(url: &url::Url) -> Option<String> {
+    let host = url.host_str()?;
+    let bracketed = if host.contains(':') && !host.starts_with('[') {
+        format!("[{}]", host)
+    } else {
+        host.to_string()
+    };
+    let mut base = format!("{}://{}", url.scheme(), bracketed);
+    if let Some(port) = url.port() {
+        base.push(':');
+        base.push_str(&port.to_string());
+    }
+    Some(base)
+}
+
+/// Construct an S3 `Bucket` from `S3Config`.
+///
+/// Shared between `S3Backend` (general CRUD) and the streaming layer (range
+/// reads via `haex-stream://`). Keep both in sync by funneling all bucket
+/// construction through this helper.
+pub(crate) fn build_s3_bucket(config: &S3Config) -> Result<S3BucketSetup, StorageError> {
+    let (clean_endpoint, effective_bucket) = if let Some(endpoint) = &config.endpoint {
+        if let Ok(url) = url::Url::parse(endpoint) {
+            let path = url.path();
+            if path != "/" && !path.is_empty() {
+                let base = endpoint_authority(&url).unwrap_or_else(|| endpoint.clone());
+                let prefix = path.trim_matches('/');
+                let combined_bucket = format!("{}/{}", prefix, config.bucket);
+                (Some(base), combined_bucket)
+            } else {
+                (Some(endpoint.clone()), config.bucket.clone())
+            }
+        } else {
+            (Some(endpoint.clone()), config.bucket.clone())
+        }
+    } else {
+        (None, config.bucket.clone())
+    };
+
+    let credentials = Credentials::new(
+        Some(&config.access_key_id),
+        Some(&config.secret_access_key),
+        None,
+        None,
+        None,
+    )
+    .map_err(|e| StorageError::ConnectionFailed {
+        reason: format!("Failed to create credentials: {}", e),
+    })?;
+
+    let region = if let Some(endpoint) = &clean_endpoint {
+        Region::Custom {
+            region: config.region.clone(),
+            endpoint: endpoint.clone(),
+        }
+    } else {
+        config.region.parse().unwrap_or(Region::UsEast1)
+    };
+
+    let mut bucket =
+        Bucket::new(&effective_bucket, region, credentials).map_err(|e| {
+            StorageError::ConnectionFailed {
+                reason: format!("Failed to create bucket: {}", e),
+            }
+        })?;
+
+    if config.path_style.unwrap_or(false) {
+        bucket = bucket.with_path_style();
+    }
+
+    Ok(S3BucketSetup {
+        bucket,
+        effective_bucket,
+    })
 }
 
 /// S3-compatible storage backend
@@ -152,61 +270,11 @@ pub struct S3Backend {
 impl S3Backend {
     /// Create a new S3 backend from config
     pub async fn new(config: &S3Config) -> Result<Self, StorageError> {
-        // Extract path prefix from endpoint URL if present
-        let (clean_endpoint, effective_bucket) = if let Some(endpoint) = &config.endpoint {
-            if let Ok(url) = url::Url::parse(endpoint) {
-                let path = url.path();
-                if path != "/" && !path.is_empty() {
-                    let base = format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""));
-                    let prefix = path.trim_matches('/');
-                    let combined_bucket = format!("{}/{}", prefix, config.bucket);
-                    (Some(base), combined_bucket)
-                } else {
-                    (Some(endpoint.clone()), config.bucket.clone())
-                }
-            } else {
-                (Some(endpoint.clone()), config.bucket.clone())
-            }
-        } else {
-            (None, config.bucket.clone())
-        };
-
-        let credentials = Credentials::new(
-            Some(&config.access_key_id),
-            Some(&config.secret_access_key),
-            None,
-            None,
-            None,
-        )
-        .map_err(|e| StorageError::ConnectionFailed {
-            reason: format!("Failed to create credentials: {}", e),
-        })?;
-
-        let region = if let Some(endpoint) = &clean_endpoint {
-            Region::Custom {
-                region: config.region.clone(),
-                endpoint: endpoint.clone(),
-            }
-        } else {
-            config.region.parse().unwrap_or(Region::UsEast1)
-        };
-
-        let mut bucket = Bucket::new(&effective_bucket, region, credentials).map_err(|e| {
-            StorageError::ConnectionFailed {
-                reason: format!("Failed to create bucket: {}", e),
-            }
-        })?;
-
-        let use_path_style = config.path_style.unwrap_or(false);
-
-        if use_path_style {
-            bucket = bucket.with_path_style();
-        }
-
+        let setup = build_s3_bucket(config)?;
         Ok(Self {
-            bucket,
+            bucket: setup.bucket,
             config: config.clone(),
-            effective_bucket,
+            effective_bucket: setup.effective_bucket,
         })
     }
 
@@ -235,11 +303,7 @@ impl S3Backend {
                     if path == "/" || path.is_empty() {
                         Some(endpoint.clone())
                     } else {
-                        Some(format!(
-                            "{}://{}",
-                            url.scheme(),
-                            url.host_str().unwrap_or("")
-                        ))
+                        endpoint_authority(&url)
                     }
                 })
                 .unwrap_or_else(|| endpoint.clone());
@@ -540,6 +604,134 @@ impl StorageBackend for S3Backend {
             })?;
 
         Ok(writer.bytes_written())
+    }
+
+    async fn download_to_path_resumable(
+        &self,
+        key: &str,
+        output_path: &Path,
+        on_progress: Option<ProgressCallback>,
+    ) -> Result<u64, StorageError> {
+        // Resolve the full object size up front so we can (a) tell the
+        // caller they're already complete and skip the network entirely,
+        // and (b) feed a meaningful "total" into the progress callback
+        // even after a resume.
+        let total = match self.bucket.head_object(key).await {
+            Ok((head, _)) => head
+                .content_length
+                .and_then(|l| u64::try_from(l).ok())
+                .unwrap_or(0),
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("404") || msg.contains("NoSuchKey") {
+                    return Err(StorageError::ObjectNotFound { key: key.to_string() });
+                }
+                return Err(StorageError::DownloadFailed {
+                    reason: format!("head_object: {}", e),
+                });
+            }
+        };
+
+        // Existing file = resume offset. Missing file is fine (we'll create
+        // it below in append mode); a length 0 file is identical to no
+        // file from our perspective.
+        let existing_len = tokio::fs::metadata(output_path)
+            .await
+            .ok()
+            .map(|m| m.len())
+            .unwrap_or(0);
+
+        // Empty remote object: skip the range GET entirely. A `bytes=0-`
+        // request fails on S3 for 0-byte objects; just produce/truncate the
+        // local file to length 0 and report success.
+        if total == 0 {
+            tokio::fs::OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open(output_path)
+                .await
+                .map_err(|e| StorageError::DownloadFailed {
+                    reason: format!("open dest: {}", e),
+                })?;
+            if let Some(cb) = on_progress {
+                cb(0, 0);
+            }
+            return Ok(0);
+        }
+
+        // Local file larger than the remote object: truncate down so the
+        // resulting file actually matches the remote length. Treating it
+        // as "already complete" would leave stale trailing bytes on disk.
+        let start_offset = if existing_len > total {
+            let f = tokio::fs::OpenOptions::new()
+                .write(true)
+                .open(output_path)
+                .await
+                .map_err(|e| StorageError::DownloadFailed {
+                    reason: format!("open dest for truncate: {}", e),
+                })?;
+            f.set_len(total)
+                .await
+                .map_err(|e| StorageError::DownloadFailed {
+                    reason: format!("truncate dest: {}", e),
+                })?;
+            total
+        } else {
+            existing_len
+        };
+
+        if start_offset >= total {
+            if let Some(cb) = on_progress {
+                cb(start_offset, start_offset);
+            }
+            return Ok(start_offset);
+        }
+
+        // Wrap the user-supplied callback so progress samples report the
+        // *combined* (already-on-disk + freshly-downloaded) byte count.
+        // Without this the UI would jump from "50%" back to "0%" each time
+        // a resume runs.
+        let cb_for_writer: Option<ProgressCallback> = on_progress.map(|cb| {
+            let cb = cb.clone();
+            std::sync::Arc::new(move |fresh_done: u64, _fresh_total: u64| {
+                let absolute = start_offset + fresh_done;
+                let absolute_total = total.max(absolute);
+                cb(absolute, absolute_total);
+            }) as ProgressCallback
+        });
+
+        let file = tokio::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(output_path)
+            .await
+            .map_err(|e| StorageError::DownloadFailed {
+                reason: format!("open dest: {}", e),
+            })?;
+
+        let remaining = total - start_offset;
+        let mut writer = ProgressWriter::new(file, remaining, cb_for_writer);
+
+        // Range-GET from the resume offset to end-of-object. rust-s3 streams
+        // the body chunk-by-chunk into the writer, so memory stays flat
+        // regardless of object size.
+        self.bucket
+            .get_object_range_to_writer(key, start_offset, None, &mut writer)
+            .await
+            .map_err(|e| StorageError::DownloadFailed {
+                reason: format!("S3 range get failed: {}", e),
+            })?;
+
+        use tokio::io::AsyncWriteExt;
+        writer
+            .shutdown()
+            .await
+            .map_err(|e| StorageError::DownloadFailed {
+                reason: format!("flush dest: {}", e),
+            })?;
+
+        Ok(start_offset + writer.bytes_written())
     }
 }
 

@@ -291,117 +291,41 @@
               v-if="browser.viewMode.value === 'list'"
               class="space-y-1"
             >
-              <div
+              <UContextMenu
                 v-for="file in browser.filteredFiles.value"
                 :key="file.name"
-                :class="[
-                  'flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors relative overflow-hidden',
-                  browser.isSelected(file)
-                    ? 'bg-primary/10'
-                    : 'hover:bg-muted/50',
-                  browser.isCutFile(file) && 'opacity-40',
-                ]"
-                @click="browser.onFileClick(file)"
+                :items="buildContextMenuItems(file)"
               >
-                <!-- Download progress background -->
                 <div
-                  v-if="getFileTransferProgress(file) !== undefined"
-                  class="absolute inset-0 bg-primary/15 transition-all duration-300 ease-out"
-                  :style="{
-                    width: `${(getFileTransferProgress(file) ?? 0) * 100}%`,
-                  }"
-                />
-                <UCheckbox
-                  :model-value="browser.isSelected(file)"
-                  class="relative z-10"
-                  @click.stop
-                  @update:model-value="browser.toggleSelect(file)"
-                />
-                <!-- Thumbnail or icon -->
-                <img
-                  v-if="browser.getThumbnailUrl(file)"
-                  :src="browser.getThumbnailUrl(file)!"
-                  :alt="file.name"
-                  class="w-8 h-8 rounded object-cover shrink-0 relative z-10"
-                  loading="lazy"
-                />
-                <UIcon
-                  v-else
-                  :name="
-                    file.isDir
-                      ? 'i-lucide-folder'
-                      : browser.getFileIcon(file.name)
-                  "
                   :class="[
-                    'w-5 h-5 shrink-0 relative z-10',
-                    file.isDir ? 'text-primary' : 'text-muted',
-                  ]"
-                />
-                <div class="flex-1 min-w-0 relative z-10">
-                  <p class="text-sm truncate">{{ file.name }}</p>
-                  <div class="flex gap-3 text-xs text-muted mt-0.5">
-                    <span
-                      v-if="file.displayPath"
-                      class="text-primary/70"
-                      >{{ file.displayPath }}/</span
-                    >
-                    <span v-if="file.modified">{{
-                      browser.formatDate(file.modified)
-                    }}</span>
-                    <span v-if="!file.isDir && file.size">{{
-                      browser.formatSize(file.size)
-                    }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- ===== Grid view ===== -->
-            <div
-              v-else
-              class="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2"
-            >
-              <div
-                v-for="file in browser.filteredFiles.value"
-                :key="file.name"
-                :class="[
-                  'group relative flex flex-col items-center gap-2 p-3 rounded-lg cursor-pointer transition-colors overflow-hidden',
-                  browser.isSelected(file)
-                    ? 'bg-primary/10'
-                    : 'hover:bg-muted/50',
-                  browser.isCutFile(file) && 'opacity-40',
-                ]"
-                @click="browser.onFileClick(file)"
-              >
-                <!-- Selection checkbox (top-left, visible on hover or when selected) -->
-                <UCheckbox
-                  :model-value="browser.isSelected(file)"
-                  :class="[
-                    'absolute top-2 left-2 z-10 transition-opacity',
+                    'flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors relative overflow-hidden',
                     browser.isSelected(file)
-                      ? 'opacity-100'
-                      : 'opacity-0 group-hover:opacity-100',
+                      ? 'bg-primary/10'
+                      : 'hover:bg-muted/50',
+                    browser.isCutFile(file) && 'opacity-40',
                   ]"
-                  @click.stop
-                  @update:model-value="browser.toggleSelect(file)"
-                />
-                <!-- Download progress background -->
-                <div
-                  v-if="getFileTransferProgress(file) !== undefined"
-                  class="absolute inset-0 bg-primary/15 transition-all duration-300 ease-out"
-                  :style="{
-                    width: `${(getFileTransferProgress(file) ?? 0) * 100}%`,
-                  }"
-                />
-                <!-- Thumbnail or icon -->
-                <div
-                  class="w-full aspect-square rounded-md overflow-hidden flex items-center justify-center bg-muted/30"
+                  @click="browser.onFileClick(file)"
                 >
+                  <!-- Download progress background -->
+                  <div
+                    v-if="getFileTransferProgress(file) !== undefined"
+                    class="absolute inset-0 bg-primary/15 transition-all duration-300 ease-out"
+                    :style="{
+                      width: `${(getFileTransferProgress(file) ?? 0) * 100}%`,
+                    }"
+                  />
+                  <UCheckbox
+                    :model-value="browser.isSelected(file)"
+                    class="relative z-10"
+                    @click.stop
+                    @update:model-value="browser.toggleSelect(file)"
+                  />
+                  <!-- Thumbnail or icon -->
                   <img
                     v-if="browser.getThumbnailUrl(file)"
                     :src="browser.getThumbnailUrl(file)!"
                     :alt="file.name"
-                    class="w-full h-full object-cover"
+                    class="w-8 h-8 rounded object-cover shrink-0 relative z-10"
                     loading="lazy"
                   />
                   <UIcon
@@ -412,28 +336,112 @@
                         : browser.getFileIcon(file.name)
                     "
                     :class="[
-                      'w-10 h-10',
+                      'w-5 h-5 shrink-0 relative z-10',
                       file.isDir ? 'text-primary' : 'text-muted',
                     ]"
                   />
+                  <div class="flex-1 min-w-0 relative z-10">
+                    <p class="text-sm truncate">{{ file.name }}</p>
+                    <div class="flex gap-3 text-xs text-muted mt-0.5">
+                      <span
+                        v-if="file.displayPath"
+                        class="text-primary/70"
+                        >{{ file.displayPath }}/</span
+                      >
+                      <span v-if="file.modified">{{
+                        browser.formatDate(file.modified)
+                      }}</span>
+                      <span v-if="!file.isDir && file.size">{{
+                        browser.formatSize(file.size)
+                      }}</span>
+                    </div>
+                  </div>
                 </div>
-                <!-- Filename + meta -->
-                <div class="w-full min-w-0 text-center">
-                  <p class="text-xs truncate">{{ file.name }}</p>
-                  <p
-                    v-if="file.displayPath"
-                    class="text-[10px] text-primary/70 truncate mt-0.5"
+              </UContextMenu>
+            </div>
+
+            <!-- ===== Grid view ===== -->
+            <div
+              v-else
+              class="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2"
+            >
+              <UContextMenu
+                v-for="file in browser.filteredFiles.value"
+                :key="file.name"
+                :items="buildContextMenuItems(file)"
+              >
+                <div
+                  :class="[
+                    'group relative flex flex-col items-center gap-2 p-3 rounded-lg cursor-pointer transition-colors overflow-hidden',
+                    browser.isSelected(file)
+                      ? 'bg-primary/10'
+                      : 'hover:bg-muted/50',
+                    browser.isCutFile(file) && 'opacity-40',
+                  ]"
+                  @click="browser.onFileClick(file)"
+                >
+                  <!-- Selection checkbox (top-left, visible on hover or when selected) -->
+                  <UCheckbox
+                    :model-value="browser.isSelected(file)"
+                    :class="[
+                      'absolute top-2 left-2 z-10 transition-opacity',
+                      browser.isSelected(file)
+                        ? 'opacity-100'
+                        : 'opacity-0 group-hover:opacity-100',
+                    ]"
+                    @click.stop
+                    @update:model-value="browser.toggleSelect(file)"
+                  />
+                  <!-- Download progress background -->
+                  <div
+                    v-if="getFileTransferProgress(file) !== undefined"
+                    class="absolute inset-0 bg-primary/15 transition-all duration-300 ease-out"
+                    :style="{
+                      width: `${(getFileTransferProgress(file) ?? 0) * 100}%`,
+                    }"
+                  />
+                  <!-- Thumbnail or icon -->
+                  <div
+                    class="w-full aspect-square rounded-md overflow-hidden flex items-center justify-center bg-muted/30"
                   >
-                    {{ file.displayPath }}/
-                  </p>
-                  <p
-                    v-else-if="!file.isDir && file.size"
-                    class="text-[10px] text-muted mt-0.5"
-                  >
-                    {{ browser.formatSize(file.size) }}
-                  </p>
+                    <img
+                      v-if="browser.getThumbnailUrl(file)"
+                      :src="browser.getThumbnailUrl(file)!"
+                      :alt="file.name"
+                      class="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                    <UIcon
+                      v-else
+                      :name="
+                        file.isDir
+                          ? 'i-lucide-folder'
+                          : browser.getFileIcon(file.name)
+                      "
+                      :class="[
+                        'w-10 h-10',
+                        file.isDir ? 'text-primary' : 'text-muted',
+                      ]"
+                    />
+                  </div>
+                  <!-- Filename + meta -->
+                  <div class="w-full min-w-0 text-center">
+                    <p class="text-xs truncate">{{ file.name }}</p>
+                    <p
+                      v-if="file.displayPath"
+                      class="text-[10px] text-primary/70 truncate mt-0.5"
+                    >
+                      {{ file.displayPath }}/
+                    </p>
+                    <p
+                      v-else-if="!file.isDir && file.size"
+                      class="text-[10px] text-muted mt-0.5"
+                    >
+                      {{ browser.formatSize(file.size) }}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              </UContextMenu>
             </div>
 
             <!-- Searching indicator -->
@@ -670,6 +678,80 @@
         />
       </template>
     </UiDialogConfirm>
+
+    <!-- Rename dialog (triggered from per-row context menu) -->
+    <UiDialogConfirm
+      v-model:open="renameOpen"
+      :title="t('renameTitle')"
+      :confirm-label="t('rename')"
+      :loading="isRenaming"
+      @confirm="confirmRenameAsync"
+    >
+      <template #body>
+        <UiInput
+          v-model="renameNewName"
+          :placeholder="t('renamePlaceholder')"
+          autofocus
+          @keydown.enter="confirmRenameAsync"
+        />
+      </template>
+    </UiDialogConfirm>
+
+    <!--
+      Inline media preview for the active `browser.preview`. The URL may be
+      a blob: (small local files), an asset: (regular local files), or a
+      haex-stream: (S3 audio/video). The audio/video elements drive their
+      own Range requests when the source supports them — we just hand over
+      the URL.
+    -->
+    <UModal
+      :open="browser.preview.isOpen.value"
+      :title="browser.preview.previewFilename.value ?? ' '"
+      :ui="{ content: 'max-w-3xl' }"
+      @update:open="(v) => !v && browser.preview.close()"
+    >
+      <template #body>
+        <div class="flex items-center justify-center min-h-32">
+          <audio
+            v-if="
+              browser.preview.previewType.value === 'audio' &&
+                browser.preview.previewUrl.value
+            "
+            controls
+            autoplay
+            class="w-full"
+            :src="browser.preview.previewUrl.value"
+          />
+          <video
+            v-else-if="
+              browser.preview.previewType.value === 'video' &&
+                browser.preview.previewUrl.value
+            "
+            controls
+            autoplay
+            class="max-h-[70vh] w-full"
+            :src="browser.preview.previewUrl.value"
+          />
+          <img
+            v-else-if="
+              browser.preview.previewType.value === 'image' &&
+                browser.preview.previewUrl.value
+            "
+            :src="browser.preview.previewUrl.value"
+            :alt="browser.preview.previewFilename.value ?? ''"
+            class="max-h-[70vh] object-contain"
+          />
+          <iframe
+            v-else-if="
+              browser.preview.previewType.value === 'pdf' &&
+                browser.preview.previewUrl.value
+            "
+            :src="browser.preview.previewUrl.value"
+            class="w-full h-[70vh] border-0"
+          />
+        </div>
+      </template>
+    </UModal>
   </HaexSystem>
 </template>
 
@@ -723,9 +805,27 @@ interface OverviewGroup {
   entries: OverviewEntry[]
 }
 
-/** Get transfer progress for a file (0-1, or undefined if not downloading) */
-const getFileTransferProgress = (file: { name: string; path?: string }) => {
+/**
+ * Get transfer progress (0..1) for a file's row.
+ *
+ * Two sources, in priority order:
+ *   1. S3 chunked download progress (`browser.getS3TransferProgress`) — keyed
+ *      by the S3 object key, populated while `remote_storage_download_to_path`
+ *      streams chunks for this file.
+ *   2. P2P transfer progress (`peerStore.getTransferProgress`) — keyed by
+ *      the full peer path, populated by the iroh streaming reader.
+ *
+ * Returns undefined when neither is active.
+ */
+const getFileTransferProgress = (file: { name: string; path?: string; isDir?: boolean }) => {
   if (!browser.selectedPeer.value) return undefined
+
+  // S3 chunked download progress (composable handles the key derivation).
+  if (browser.selectedPeer.value.s3BackendId) {
+    const s3Progress = browser.getS3TransferProgress(file.name)
+    if (s3Progress !== undefined) return s3Progress
+  }
+
   const fullPath = (
     file.path || `${browser.currentPath.value}/${file.name}`
   ).replace(/\/+/g, '/')
@@ -749,6 +849,161 @@ const isUploading = ref(false)
 const isCreatingFolder = ref(false)
 const newFolderOpen = ref(false)
 const newFolderName = ref('')
+
+// --- Rename dialog (driven by the per-row context menu) ---
+type RenameTarget = (typeof browser.filteredFiles.value)[number] | null
+const renameOpen = ref(false)
+const renameTarget = ref<RenameTarget>(null)
+const renameNewName = ref('')
+const isRenaming = ref(false)
+
+const openRenameDialog = (file: NonNullable<RenameTarget>) => {
+  renameTarget.value = file
+  renameNewName.value = file.name
+  renameOpen.value = true
+}
+
+const confirmRenameAsync = async () => {
+  const target = renameTarget.value
+  if (!target) return
+  const next = renameNewName.value
+  if (!next.trim() || next === target.name) {
+    renameOpen.value = false
+    return
+  }
+  isRenaming.value = true
+  try {
+    const ok = await browser.renameFile(target, next)
+    if (ok) {
+      renameOpen.value = false
+      renameTarget.value = null
+      renameNewName.value = ''
+    } else {
+      toast.add({ title: t('renameInvalid'), color: 'error' })
+    }
+  } catch (error) {
+    toast.add({
+      title: t('renameFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+    })
+  } finally {
+    isRenaming.value = false
+  }
+}
+
+// --- Single-file actions invoked from the context menu ---
+//
+// Each helper wraps the corresponding `browser.*File()` call with toast
+// reporting so the user gets feedback regardless of which menu item they
+// invoked. Kept thin on purpose — the heavy lifting lives in the composable
+// so the toolbar (which works on selections) and the context menu (which
+// works on a single file) cannot drift apart.
+
+const downloadFileAsync = async (file: NonNullable<RenameTarget>) => {
+  try {
+    await browser.downloadFile(file)
+  } catch (error) {
+    toast.add({
+      title: t('downloadFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+    })
+  }
+}
+
+const deleteFileAsync = async (file: NonNullable<RenameTarget>) => {
+  try {
+    await browser.deleteFile(file)
+    await browser.loadFiles()
+  } catch (error) {
+    toast.add({
+      title: t('deleteFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+    })
+  }
+}
+
+const playFileAsync = async (file: NonNullable<RenameTarget>) => {
+  try {
+    await browser.playFile(file)
+  } catch (error) {
+    toast.add({
+      title: t('openFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+    })
+  }
+}
+
+/**
+ * Build the items array for the per-row Nuxt UI `UContextMenu`. Grouped
+ * (`ContextMenuItem[][]`) so the component renders separators between
+ * groups:
+ *
+ *   1. open / download (file-only, omitted for folders)
+ *   2. clipboard + rename
+ *   3. delete
+ *
+ * Operations the current backend cannot perform are surfaced as
+ * `disabled` rows so users see the feature exists but understand it
+ * isn't available for the active peer/backend (e.g. delete on P2P
+ * without a write UCAN).
+ */
+const buildContextMenuItems = (file: NonNullable<RenameTarget>) => {
+  const groups: Array<Array<Record<string, unknown>>> = []
+
+  if (!file.isDir) {
+    const fileActions: Array<Record<string, unknown>> = []
+    if (browser.canPlayFile(file)) {
+      fileActions.push({
+        label: t('play'),
+        icon: 'i-lucide-play',
+        onSelect: () => playFileAsync(file),
+      })
+    }
+    fileActions.push({
+      label: t('download'),
+      icon: 'i-lucide-download',
+      onSelect: () => downloadFileAsync(file),
+    })
+    groups.push(fileActions)
+  }
+
+  groups.push([
+    {
+      label: t('copy'),
+      icon: 'i-lucide-copy',
+      disabled: !browser.canCopyOrCutFile(file),
+      onSelect: () => browser.copyFile(file),
+    },
+    {
+      label: t('cut'),
+      icon: 'i-lucide-scissors',
+      disabled: !browser.canCopyOrCutFile(file),
+      onSelect: () => browser.cutFile(file),
+    },
+    {
+      label: t('rename'),
+      icon: 'i-lucide-pencil',
+      disabled: !browser.canRenameFile(file),
+      onSelect: () => openRenameDialog(file),
+    },
+  ])
+
+  groups.push([
+    {
+      label: t('delete'),
+      icon: 'i-lucide-trash-2',
+      color: 'error',
+      disabled: !browser.canDeleteFile(file),
+      onSelect: () => deleteFileAsync(file),
+    },
+  ])
+
+  return groups
+}
 
 const uploadFilesAsync = async () => {
   isUploading.value = true
@@ -1412,6 +1667,14 @@ de:
   folderNameInvalid: Ungültiger Ordnername
   createFolderFailed: Ordner konnte nicht erstellt werden
   create: Erstellen
+  play: Abspielen
+  rename: Umbenennen
+  renameTitle: Datei umbenennen
+  renamePlaceholder: Neuer Name
+  renameInvalid: Ungültiger Name
+  renameFailed: Umbenennen fehlgeschlagen
+  deleteFailed: Löschen fehlgeschlagen
+  openFailed: Öffnen fehlgeschlagen
   sections:
     local: Dieses Gerät
     peers: Andere Geräte
@@ -1462,6 +1725,14 @@ en:
   folderNameInvalid: Invalid folder name
   createFolderFailed: Could not create folder
   create: Create
+  play: Play
+  rename: Rename
+  renameTitle: Rename file
+  renamePlaceholder: New name
+  renameInvalid: Invalid name
+  renameFailed: Rename failed
+  deleteFailed: Delete failed
+  openFailed: Open failed
   sections:
     local: This device
     peers: Other devices
