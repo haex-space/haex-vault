@@ -253,7 +253,12 @@ impl PeerEndpoint {
             .max_concurrent_bidi_streams(VarInt::from_u32(256))
             .build();
 
-        let endpoint = Endpoint::builder(iroh::endpoint::presets::N0)
+        // iroh's `.bind()` can hang indefinitely if relay-URL DNS lookup
+        // stalls or socket binding loops on transient OS errors. Cap at 15s
+        // so a hung start surfaces as a fast error and the caller can retry,
+        // instead of wedging the whole frontend (observed in CI as 30s+
+        // playwright timeouts on `peer_storage_start`).
+        let bind_future = Endpoint::builder(iroh::endpoint::presets::N0)
             .secret_key(self.secret_key.clone())
             .alpns(vec![
                 ALPN.to_vec(),
@@ -264,8 +269,12 @@ impl PeerEndpoint {
                 iroh::address_lookup::MdnsAddressLookup::builder().service_name("haex-peer"),
             )
             .transport_config(transport_config)
-            .bind()
+            .bind();
+        let endpoint = tokio::time::timeout(std::time::Duration::from_secs(15), bind_future)
             .await
+            .map_err(|_| PeerStorageError::ConnectionFailed {
+                reason: "Endpoint bind timed out after 15s".to_string(),
+            })?
             .map_err(|e| PeerStorageError::ConnectionFailed {
                 reason: format!("Failed to bind endpoint: {e}"),
             })?;
