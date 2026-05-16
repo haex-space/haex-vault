@@ -1031,9 +1031,37 @@ export function useFileBrowser(tabId: string) {
 
     if (peer.s3BackendId && (type === 'audio' || type === 'video')) {
       try {
-        const cachePath = await ensureS3FileCachedAsync(file, peer.s3BackendId)
-        const url = await invoke<string>('media_server_register', {
-          path: cachePath,
+        const key = toS3Prefix(currentPath.value) + file.name
+        const url = await invoke<string>('media_server_register_s3_stream', {
+          backendId: peer.s3BackendId,
+          key,
+        })
+        preview.openStream(url, file.name)
+        return
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        if (msg.includes('cancelled')) return
+        throw e
+      }
+    }
+
+    // P2P audio/video: stream over iroh range reads via the local media
+    // server, no full-file download to disk first. UCAN + relayUrl come
+    // from the same resolver the rest of the peer-storage API uses, so
+    // capability checks stay in lock-step with `remoteReadAsync`.
+    if (!peer.s3BackendId && !peer.localPath && (type === 'audio' || type === 'video')) {
+      const path = resolveFilePath(file)
+      const { ucanToken, relayUrl: deviceRelayUrl } =
+        peerStore.resolveRequestContext(peer.endpointId, path)
+      if (!ucanToken) {
+        throw new Error('No valid UCAN token for this peer\'s space')
+      }
+      try {
+        const url = await invoke<string>('media_server_register_peer_stream', {
+          nodeId: peer.endpointId,
+          relayUrl: deviceRelayUrl,
+          path,
+          ucanToken,
         })
         preview.openStream(url, file.name)
         return
