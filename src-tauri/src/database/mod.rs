@@ -754,6 +754,23 @@ fn create_encrypted_database_inner(
 pub fn close_database(state: State<'_, AppState>) -> Result<(), DatabaseError> {
     println!("[CLOSE_DB] Closing database connection...");
 
+    // Stop vault-scoped background tasks BEFORE taking the connection:
+    // sync loops clone `state.db.0` and would otherwise keep running with
+    // a stale None — or, after the next vault opens, write through that
+    // same Arc into the new vault. `peer_storage` is process-scoped (the
+    // device's QUIC identity), so it stays up.
+    tauri::async_runtime::block_on(async {
+        state.sync_manager.lock().await.stop_all();
+        for (_, handle) in state.local_sync_loops.lock().await.drain() {
+            handle.stop();
+        }
+        state.leader_state.write().await.clear();
+        for (_, (cancel, _)) in state.transfer_tokens.lock().await.drain() {
+            cancel.cancel();
+        }
+    });
+    println!("[CLOSE_DB] Runtime state cleared (sync loops, leaders, transfers)");
+
     // 1. Close the database connection
     {
         let mut db_guard = state.db.0.lock().map_err(|e| DatabaseError::LockError {
