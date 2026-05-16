@@ -75,13 +75,16 @@ lazy_static! {
 
     // loader.rs — read
 
+    // Excludes the phantom "__core__" row, which represents the haex-vault core
+    // itself as an external-bridge target — not a real, installable extension.
     pub static ref SQL_LIST_EXTENSIONS: String = format!(
         "SELECT {COL_EXTENSIONS_ID}, {COL_EXTENSIONS_NAME}, {COL_EXTENSIONS_VERSION}, {COL_EXTENSIONS_AUTHOR}, \
                 {COL_EXTENSIONS_ENTRY}, {COL_EXTENSIONS_ICON}, {COL_EXTENSIONS_PUBLIC_KEY}, {COL_EXTENSIONS_SIGNATURE}, \
                 {COL_EXTENSIONS_HOMEPAGE}, {COL_EXTENSIONS_DESCRIPTION}, {COL_EXTENSIONS_ENABLED}, \
                 {COL_EXTENSIONS_SINGLE_INSTANCE}, {COL_EXTENSIONS_DISPLAY_MODE}, {COL_EXTENSIONS_DEV_PATH}, \
                 {COL_EXTENSIONS_I18N} \
-         FROM {TABLE_EXTENSIONS}"
+         FROM {TABLE_EXTENSIONS} \
+         WHERE {COL_EXTENSIONS_ID} != '__core__'"
     );
 
     // manager.rs + removal.rs — toggles (consolidated)
