@@ -211,8 +211,9 @@ async fn handle_connection(
         } => {
             let size = match source.size().await {
                 Ok(n) => n,
-                Err(_) => {
-                    return write_status(&mut stream, 500, "Internal Server Error").await
+                Err(e) => {
+                    let (code, text) = streaming_status(&e);
+                    return write_status(&mut stream, code, text).await;
                 }
             };
             let ct = content_type
@@ -252,18 +253,34 @@ async fn handle_connection(
         return Ok(());
     }
 
-    let (start, end, status, status_text) = if let Some(spec) = range_header {
-        match parse_range(&spec, total) {
-            Some((s, e)) => (s, e, 206u16, "Partial Content"),
-            None => {
-                // Unsatisfiable — RFC 7233 wants `bytes */<total>` so the
-                // client knows the real size.
-                return write_range_unsatisfiable(&mut stream, total).await;
+    let (mut start, mut end, mut status, mut status_text) =
+        if let Some(spec) = range_header {
+            match parse_range(&spec, total) {
+                Some((s, e)) => (s, e, 206u16, "Partial Content"),
+                None => {
+                    // Unsatisfiable — RFC 7233 wants `bytes */<total>` so the
+                    // client knows the real size.
+                    return write_range_unsatisfiable(&mut stream, total).await;
+                }
             }
+        } else {
+            (0, total - 1, 200u16, "OK")
+        };
+
+    // Cap responses from `Stream` sources so a `bytes=0-` against a multi-
+    // GiB media file does not allocate the entire object into a single
+    // `Vec<u8>`. Local files use a lazy seek+chunk-read loop, so no cap
+    // there. A browser receiving a smaller-than-requested 206 just sends
+    // the next range — standard HTTP behaviour.
+    const STREAM_RANGE_CAP_BYTES: u64 = 8 * 1024 * 1024;
+    if matches!(media_source, MediaSource::Stream { .. }) {
+        let capped_end = start + STREAM_RANGE_CAP_BYTES - 1;
+        if capped_end < end {
+            end = capped_end;
+            status = 206;
+            status_text = "Partial Content";
         }
-    } else {
-        (0, total - 1, 200u16, "OK")
-    };
+    }
 
     let content_length = end - start + 1;
 
@@ -440,6 +457,18 @@ async fn write_status(
     Ok(())
 }
 
+/// Map a `StreamingError` to an HTTP status code + reason phrase. Only
+/// usable before any response headers have been written — once the wire
+/// is committed to e.g. 200 OK, the body must follow that status.
+fn streaming_status(err: &crate::remote_storage::streaming::source::StreamingError) -> (u16, &'static str) {
+    use crate::remote_storage::streaming::source::StreamingError;
+    match err {
+        StreamingError::NotFound(_) => (404, "Not Found"),
+        StreamingError::BadRequest(_) => (400, "Bad Request"),
+        StreamingError::Backend(_) => (500, "Internal Server Error"),
+    }
+}
+
 async fn write_range_unsatisfiable(stream: &mut TcpStream, total: u64) -> std::io::Result<()> {
     let response = format!(
         "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{}\r\nContent-Length: 0\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n",
@@ -538,5 +567,71 @@ mod tests {
         let body = resp.bytes().await.unwrap();
         assert_eq!(body.len(), 256);
         assert!(body.iter().all(|b| *b == 0xAB));
+    }
+
+    /// A `bytes=0-` request against a multi-MiB stream source must NOT
+    /// allocate the entire object — the server caps any single response
+    /// at 8 MiB and returns 206 with a partial Content-Range so the
+    /// browser can pull the remainder in subsequent requests.
+    #[tokio::test]
+    async fn caps_open_ended_range_at_8_mib_for_stream_source() {
+        const TOTAL: usize = 10 * 1024 * 1024; // 10 MiB
+        let server = MediaServer::start().await.unwrap();
+        let source = Arc::new(DummySource {
+            data: vec![0u8; TOTAL],
+        });
+        let url = server.register_source(source, None).await;
+
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let resp = client
+            .get(&url)
+            .header("Range", "bytes=0-")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status().as_u16(), 206);
+        assert_eq!(
+            resp.headers().get("Content-Range").unwrap(),
+            format!("bytes 0-{}/{}", 8 * 1024 * 1024 - 1, TOTAL).as_str(),
+        );
+        let body = resp.bytes().await.unwrap();
+        assert_eq!(body.len(), 8 * 1024 * 1024);
+    }
+
+    /// `StreamingError::NotFound` from `size()` (i.e. before any
+    /// response headers have been written) must surface as HTTP 404,
+    /// not 500. Once we are past `size()` the wire is committed and we
+    /// can only drop the connection.
+    #[tokio::test]
+    async fn size_returning_not_found_yields_http_404() {
+        struct NotFoundSource;
+        #[async_trait]
+        impl crate::remote_storage::streaming::source::StreamingSource for NotFoundSource {
+            async fn size(
+                &self,
+            ) -> Result<u64, crate::remote_storage::streaming::source::StreamingError> {
+                Err(
+                    crate::remote_storage::streaming::source::StreamingError::NotFound(
+                        "missing.mp4".into(),
+                    ),
+                )
+            }
+            async fn read_range(
+                &self,
+                _: crate::remote_storage::streaming::source::ByteRange,
+            ) -> Result<
+                Vec<u8>,
+                crate::remote_storage::streaming::source::StreamingError,
+            > {
+                unreachable!("size() returns first")
+            }
+        }
+        let server = MediaServer::start().await.unwrap();
+        let url = server
+            .register_source(Arc::new(NotFoundSource), None)
+            .await;
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let resp = client.get(&url).send().await.unwrap();
+        assert_eq!(resp.status().as_u16(), 404);
     }
 }
