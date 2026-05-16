@@ -537,7 +537,13 @@ pub async fn media_server_register_peer_stream(
     let endpoint_id: iroh::EndpointId = node_id
         .parse()
         .map_err(|e| format!("invalid node_id: {e}"))?;
-    let relay = relay_url.and_then(|s| s.parse::<iroh::RelayUrl>().ok());
+    let relay = match relay_url {
+        Some(s) => Some(
+            s.parse::<iroh::RelayUrl>()
+                .map_err(|e| format!("invalid relay_url: {e}"))?,
+        ),
+        None => None,
+    };
     let source = PeerStreamingSource::new(
         state.peer_storage.clone(),
         endpoint_id,

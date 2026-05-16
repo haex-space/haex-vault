@@ -451,6 +451,21 @@ impl PeerEndpoint {
         range: [u64; 2],
         ucan_token: &str,
     ) -> Result<Vec<u8>, PeerStorageError> {
+        if range[0] > range[1] {
+            return Err(PeerStorageError::ProtocolError {
+                reason: format!("invalid range: {}-{}", range[0], range[1]),
+            });
+        }
+        // Upper bound for what we're willing to buffer: the requested
+        // inclusive byte count. A peer that announces more than this is
+        // either buggy or malicious, so refuse before allocating.
+        let max_expected = range[1]
+            .checked_sub(range[0])
+            .and_then(|d| d.checked_add(1))
+            .ok_or_else(|| PeerStorageError::ProtocolError {
+                reason: "invalid range length".to_string(),
+            })?;
+
         let (mut send, mut recv) = self.open_stream(remote_id, relay_url).await?;
         // Convert inclusive [start, end] → wire half-open [start, end + 1].
         // saturating_add guards against the (pathological) caller passing
@@ -465,6 +480,13 @@ impl PeerEndpoint {
 
         match response {
             Response::ReadHeader { size } => {
+                if size > max_expected {
+                    return Err(PeerStorageError::ProtocolError {
+                        reason: format!(
+                            "range response too large: requested at most {max_expected} bytes, peer announced {size}"
+                        ),
+                    });
+                }
                 let mut data = Vec::with_capacity(size as usize);
                 let mut buf = [0u8; 64 * 1024];
                 let mut got: u64 = 0;
@@ -477,6 +499,13 @@ impl PeerEndpoint {
                         Some(n) => {
                             data.extend_from_slice(&buf[..n]);
                             got += n as u64;
+                            if got > size {
+                                return Err(PeerStorageError::ConnectionFailed {
+                                    reason: format!(
+                                        "peer exceeded announced size: announced {size}, received {got}"
+                                    ),
+                                });
+                            }
                         }
                         None => break,
                     }
