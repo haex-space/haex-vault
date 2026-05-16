@@ -154,4 +154,38 @@ mod tests {
         assert_eq!(content_type_from_path("song.flac").as_deref(), Some("audio/flac"));
         assert_eq!(content_type_from_path("clip.WEBM").as_deref(), Some("video/webm")); // case-insensitive
     }
+
+    #[test]
+    fn map_peer_error_classifies_path_lookup_failures_as_not_found() {
+        use crate::peer_storage::error::PeerStorageError;
+        let cases = [
+            "Path not found",
+            "File not found: /share/clip.mp4",
+            "Share not found: media",
+            "No such file or directory (os error 2)",
+        ];
+        for reason in cases {
+            let mapped = map_peer_error(PeerStorageError::ProtocolError {
+                reason: reason.to_string(),
+            });
+            assert!(
+                matches!(mapped, StreamingError::NotFound(_)),
+                "expected NotFound for {reason:?}, got {mapped:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn map_peer_error_falls_back_to_backend_for_other_failures() {
+        use crate::peer_storage::error::PeerStorageError;
+        let mapped = map_peer_error(PeerStorageError::ConnectionFailed {
+            reason: "TLS handshake failed".to_string(),
+        });
+        assert!(matches!(mapped, StreamingError::Backend(_)));
+
+        let mapped = map_peer_error(PeerStorageError::ProtocolError {
+            reason: "unexpected response".to_string(),
+        });
+        assert!(matches!(mapped, StreamingError::Backend(_)));
+    }
 }
