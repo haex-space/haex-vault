@@ -51,8 +51,11 @@ impl PeerStreamingSource {
 #[async_trait]
 impl StreamingSource for PeerStreamingSource {
     async fn size(&self) -> Result<u64, StreamingError> {
-        // Fast path: already cached.
-        if let Some(n) = *self.cached_size.lock().await {
+        // Hold the Mutex across the RPC so two concurrent first-time
+        // callers don't both issue a `remote_stat`. The Mutex is per
+        // source, so other sources are unaffected.
+        let mut cached = self.cached_size.lock().await;
+        if let Some(n) = *cached {
             return Ok(n);
         }
         let entry = {
@@ -67,7 +70,7 @@ impl StreamingSource for PeerStreamingSource {
                 .await
         }
         .map_err(map_peer_error)?;
-        *self.cached_size.lock().await = Some(entry.size);
+        *cached = Some(entry.size);
         Ok(entry.size)
     }
 
