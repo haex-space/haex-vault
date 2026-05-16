@@ -456,10 +456,9 @@ impl ExtensionWebviewManager {
         drop(windows); // Release lock before emitting
 
         if window_ids.is_empty() {
-            eprintln!(
-                "[Manager] No webview windows found for extension '{}'",
-                extension_id
-            );
+            // No open webview to receive this event. Callers see Ok(false)
+            // and decide what to do — no need to log on every emit (sync
+            // engines emit on each poll cycle which floods stderr).
             return Ok(false);
         }
 

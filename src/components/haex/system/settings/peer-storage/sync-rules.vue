@@ -43,11 +43,17 @@
               <!-- Header: badges + expand toggle -->
               <div class="flex items-center gap-2 mb-3">
                 <UBadge
-                  :color="syncStore.isRuleRunning(rule.id) ? 'success' : 'neutral'"
+                  :color="badgeColor(rule)"
                   variant="subtle"
                   size="sm"
+                  :title="badgeTitle(rule)"
                 >
-                  {{ syncStore.isRuleRunning(rule.id) ? t('status.running') : t('status.stopped') }}
+                  <UIcon
+                    v-if="!rule.enabled"
+                    name="i-lucide-pause"
+                    class="w-3 h-3"
+                  />
+                  {{ statusLabel(rule) }}
                 </UBadge>
                 <UBadge variant="subtle" color="neutral" size="sm">
                   {{ rule.direction === 'two_way' ? t('direction.twoWay') : t('direction.oneWay') }}
@@ -84,6 +90,12 @@
                   <div class="flex items-center gap-2 mb-1">
                     <UIcon :name="providerIcon(rule.sourceType)" class="w-4 h-4 text-muted shrink-0" />
                     <span class="text-xs text-muted">{{ t('label.source') }}</span>
+                    <UIcon
+                      v-if="syncStore.unavailableSides.get(rule.id) === 'source'"
+                      name="i-lucide-cloud-off"
+                      class="w-4 h-4 text-warning shrink-0"
+                      :title="t('label.unavailable')"
+                    />
                   </div>
                   <p class="text-sm font-medium truncate">
                     {{ formatProviderLabel(rule.sourceType, rule.sourceConfig) }}
@@ -104,6 +116,12 @@
                   <div class="flex items-center gap-2 mb-1">
                     <UIcon :name="providerIcon(rule.targetType)" class="w-4 h-4 text-muted shrink-0" />
                     <span class="text-xs text-muted">{{ t('label.target') }}</span>
+                    <UIcon
+                      v-if="syncStore.unavailableSides.get(rule.id) === 'target'"
+                      name="i-lucide-cloud-off"
+                      class="w-4 h-4 text-warning shrink-0"
+                      :title="t('label.unavailable')"
+                    />
                   </div>
                   <p class="text-sm font-medium truncate">
                     {{ formatProviderLabel(rule.targetType, rule.targetConfig) }}
@@ -128,6 +146,20 @@
                 :loading="isSyncing === rule.id"
                 @click="onSyncNowAsync(rule.id)"
               />
+              <UChip
+                :show="syncStore.getRuleLog(rule.id).length > 0"
+                :text="syncStore.getRuleLog(rule.id).length"
+                :color="hasErrorInLog(rule.id) ? 'error' : 'primary'"
+                size="sm"
+              >
+                <UiButton
+                  icon="i-lucide-scroll-text"
+                  variant="ghost"
+                  :color="hasErrorInLog(rule.id) ? 'error' : 'neutral'"
+                  :title="t('actions.viewLog')"
+                  @click="expandedMap[rule.id] = true"
+                />
+              </UChip>
               <UiButton
                 icon="i-lucide-pencil"
                 variant="ghost"
@@ -300,6 +332,80 @@
               <div v-else class="text-xs text-muted">
                 {{ t('progress.noData') }}
               </div>
+
+              <!-- Activity log / error history -->
+              <div class="mt-3 pt-3 border-t border-default">
+                <div class="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                  <span class="text-xs text-muted font-medium">{{ t('log.title') }}</span>
+                  <div class="flex items-center gap-2">
+                    <USwitch
+                      :model-value="!!showAllDevicesMap[rule.id]"
+                      size="xs"
+                      :label="t('log.allDevices')"
+                      @update:model-value="(val: boolean) => onToggleAllDevicesAsync(rule.id, val)"
+                    />
+                    <UiButton
+                      v-if="syncStore.getRuleLog(rule.id).length"
+                      icon="i-lucide-eraser"
+                      variant="ghost"
+                      color="neutral"
+                      size="xs"
+                      @click="syncStore.clearRuleLog(rule.id)"
+                    >
+                      {{ t('log.clear') }}
+                    </UiButton>
+                  </div>
+                </div>
+                <div
+                  v-if="syncStore.getRuleLog(rule.id).length"
+                  class="space-y-1 max-h-60 overflow-y-auto"
+                >
+                  <div
+                    v-for="(entry, idx) in syncStore.getRuleLog(rule.id)"
+                    :key="`${rule.id}-${idx}-${entry.at}`"
+                    class="flex items-start gap-2 text-xs"
+                  >
+                    <UIcon
+                      :name="entry.level === 'error' ? 'i-lucide-circle-x' : 'i-lucide-check'"
+                      :class="entry.level === 'error' ? 'text-error' : 'text-success'"
+                      class="w-3 h-3 mt-0.5 shrink-0"
+                    />
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-baseline gap-2 flex-wrap">
+                        <span
+                          class="break-words"
+                          :class="entry.level === 'error' ? 'text-error' : ''"
+                        >
+                          {{ entry.summary }}
+                        </span>
+                        <UBadge
+                          v-if="otherDeviceName(entry.deviceId)"
+                          color="neutral"
+                          variant="subtle"
+                          size="xs"
+                          :title="entry.deviceId ?? ''"
+                        >
+                          <UIcon name="i-lucide-monitor" class="w-3 h-3" />
+                          {{ otherDeviceName(entry.deviceId) }}
+                        </UBadge>
+                        <span
+                          v-if="entry.repeats && entry.repeats > 1"
+                          class="text-muted shrink-0"
+                          :title="t('log.repeats')"
+                        >
+                          ×{{ entry.repeats }}
+                        </span>
+                      </div>
+                      <span class="text-muted text-[10px]">
+                        {{ formatRelative(entry.at) }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <p v-else class="text-xs text-muted italic">
+                  {{ t('log.empty') }}
+                </p>
+              </div>
             </div>
           </template>
         </UCollapsible>
@@ -330,6 +436,35 @@ const showCreateDialog = ref(false)
 const editingRule = ref<SelectHaexSyncRules | null>(null)
 const isSyncing = ref<string | null>(null)
 const expandedMap = reactive<Record<string, boolean>>({})
+// Per-rule toggle for showing log entries from all devices vs. only this device.
+// State is local — not persisted across mounts — so the user starts on the
+// (cheaper) device-local view by default.
+const showAllDevicesMap = reactive<Record<string, boolean>>({})
+
+const deviceStore = useDeviceStore()
+
+onMounted(() => {
+  // The badge in log entries resolves human-readable device names; without a
+  // load the map is empty and we'd only ever fall back to the truncated id.
+  deviceStore.loadKnownDevicesAsync().catch(() => { /* best effort */ })
+})
+
+const otherDeviceName = (deviceId: string | null | undefined): string | null => {
+  if (!deviceId) return null
+  if (deviceId === deviceStore.deviceId) return null
+  return deviceStore.getDeviceName(deviceId)
+}
+
+const onToggleAllDevicesAsync = async (ruleId: string, value: boolean) => {
+  showAllDevicesMap[ruleId] = value
+  await syncStore.loadRuleLogsAsync([ruleId], { allDevices: value })
+  // Rapid toggling can race; if the toggle was flipped again while we were
+  // loading, reconcile once with the current value so the displayed log
+  // matches the visible toggle state.
+  if (showAllDevicesMap[ruleId] !== value) {
+    await syncStore.loadRuleLogsAsync([ruleId], { allDevices: !!showAllDevicesMap[ruleId] })
+  }
+}
 
 // Auto-expand any rule that is actively syncing so users see progress
 // immediately (e.g. on app start when sync resumes automatically).
@@ -584,8 +719,6 @@ const providerIcon = (type: string): string => {
   }
 }
 
-const deviceStore = useDeviceStore()
-
 const resolveDeviceName = (type: string, config: unknown): string | null => {
   if (type === 'local') {
     return deviceStore.deviceName || deviceStore.hostname || null
@@ -626,6 +759,42 @@ const formatInterval = (seconds: number): string => {
   if (seconds < 60) return `${seconds}s`
   if (seconds < 3600) return `${seconds / 60} min`
   return `${seconds / 3600}h`
+}
+
+const hasErrorInLog = (ruleId: string): boolean =>
+  syncStore.getRuleLog(ruleId).some(entry => entry.level === 'error')
+
+const statusLabel = (rule: SelectHaexSyncRules): string => {
+  if (!rule.enabled) {
+    // If we've seen this rule produce an error in this session, treat the
+    // disabled flag as an auto-pause (vs. a manual user pause).
+    return syncStore.lastErrors.has(rule.id)
+      ? t('status.autoPaused')
+      : t('status.paused')
+  }
+  return syncStore.isRuleRunning(rule.id) ? t('status.running') : t('status.stopped')
+}
+
+const badgeColor = (rule: SelectHaexSyncRules) => {
+  if (!rule.enabled) {
+    return syncStore.lastErrors.has(rule.id) ? 'error' : 'warning'
+  }
+  return syncStore.isRuleRunning(rule.id) ? 'success' : 'neutral'
+}
+
+const badgeTitle = (rule: SelectHaexSyncRules): string => {
+  if (!rule.enabled && syncStore.lastErrors.has(rule.id)) {
+    return t('status.autoPausedTitle')
+  }
+  return ''
+}
+
+const formatRelative = (timestamp: number): string => {
+  const diff = Date.now() - timestamp
+  if (diff < 60_000) return t('log.justNow')
+  if (diff < 3_600_000) return t('log.minutesAgo', { n: Math.floor(diff / 60_000) })
+  if (diff < 86_400_000) return t('log.hoursAgo', { n: Math.floor(diff / 3_600_000) })
+  return new Date(timestamp).toLocaleString()
 }
 
 const formatDeleteMode = (mode: string): string => {
@@ -705,12 +874,27 @@ de:
   label:
     source: Quelle
     target: Ziel
+    unavailable: Nicht erreichbar — wird automatisch wiederholt
   direction:
     oneWay: Einseitig
     twoWay: Beidseitig
   status:
     running: Aktiv
     stopped: Inaktiv
+    paused: Pausiert
+    autoPaused: Auto-pausiert
+    autoPausedTitle: Wegen wiederholter Fehler automatisch deaktiviert
+  actions:
+    viewLog: Aktivitäts-Log anzeigen
+  log:
+    title: Aktivitäts-Log
+    clear: Löschen
+    repeats: Wiederholungen
+    empty: Noch keine Log-Einträge
+    allDevices: Alle Geräte
+    justNow: gerade eben
+    minutesAgo: vor {n} min
+    hoursAgo: vor {n} h
   intervals:
     manual: Nur manuell
   deleteModes:
@@ -755,12 +939,27 @@ en:
   label:
     source: Source
     target: Target
+    unavailable: Unreachable — retrying automatically
   direction:
     oneWay: One-way
     twoWay: Two-way
   status:
     running: Active
     stopped: Inactive
+    paused: Paused
+    autoPaused: Auto-paused
+    autoPausedTitle: Disabled automatically after repeated failures
+  actions:
+    viewLog: Show activity log
+  log:
+    title: Activity Log
+    clear: Clear
+    repeats: Repeats
+    empty: No log entries yet
+    allDevices: All devices
+    justNow: just now
+    minutesAgo: "{n} min ago"
+    hoursAgo: "{n} h ago"
   intervals:
     manual: Manual only
   deleteModes:

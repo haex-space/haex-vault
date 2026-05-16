@@ -445,19 +445,36 @@ export async function acceptLocalInvite(
     } catch {
       // No existing loop — that's fine.
     }
-    try {
-      await invoke('local_delivery_connect', {
-        spaceId: invite.spaceId,
-        leaderEndpointId: acceptedEndpoint,
-        leaderRelayUrl: null,
-        identityDid: identity.did,
-      })
-      log.info(`Started peer sync after invite accept: space=${invite.spaceId} leader=${acceptedEndpoint.slice(0, 16)}`)
-    } catch (error) {
-      // Log as error: the old loop was already stopped, so the space is now
-      // without active peer sync until startLocalSpacePeerSyncAsync retries.
-      log.error(`ClaimInvite: failed to start sync loop after disconnect: ${error}`)
+    // Retry with linear backoff: the leader endpoint can be briefly busy
+    // immediately after the ClaimInvite RPC returns (UCAN write + member
+    // registration are still in flight on the leader). A single failure here
+    // used to leave the space silently sync-less; now we get up to ~6s of
+    // retry budget before bubbling.
+    const attempts = [0, 500, 1500, 3000]
+    let lastError: unknown = null
+    let connected = false
+    for (const [i, delay] of attempts.entries()) {
+      if (delay > 0) await new Promise((r) => setTimeout(r, delay))
+      try {
+        await invoke('local_delivery_connect', {
+          spaceId: invite.spaceId,
+          leaderEndpointId: acceptedEndpoint,
+          leaderRelayUrl: null,
+          identityDid: identity.did,
+        })
+        log.info(`Started peer sync after invite accept: space=${invite.spaceId} leader=${acceptedEndpoint.slice(0, 16)} attempt=${i + 1}`)
+        connected = true
+        break
+      } catch (error) {
+        lastError = error
+        log.warn(`ClaimInvite connect attempt ${i + 1}/${attempts.length} failed: ${error}`)
+      }
     }
+    if (!connected) {
+      log.error(`ClaimInvite: failed to start sync loop after ${attempts.length} attempts; space=${invite.spaceId} leader=${acceptedEndpoint.slice(0, 16)} err=${lastError}`)
+    }
+  } else {
+    log.error(`ClaimInvite: no accepted endpoint after successful claim — sync loop will not start`)
   }
 
   log.info(`Accepted local invite for space ${invite.spaceId}`)

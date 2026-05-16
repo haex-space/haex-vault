@@ -36,6 +36,20 @@ pub enum SyncEngineError {
     #[error("Provider error: {0}")]
     Provider(#[from] SyncProviderError),
 
+    /// Source manifest could not be fetched (peer offline, network down,
+    /// cloud bucket unreachable, …). Treated as a transient condition: the
+    /// loop keeps retrying with exponential backoff and never auto-pauses
+    /// the rule. Sync simply resumes when the source becomes reachable.
+    #[error("Source unavailable: {0}")]
+    SourceUnavailable(SyncProviderError),
+
+    /// Target manifest could not be fetched. Same semantics as
+    /// `SourceUnavailable` — the target may equally be a phone, peer, or
+    /// cloud bucket that goes offline temporarily, so the loop retries
+    /// indefinitely with backoff rather than disabling the rule.
+    #[error("Target unavailable: {0}")]
+    TargetUnavailable(SyncProviderError),
+
     #[error("Database error: {0}")]
     Database(String),
 
@@ -295,13 +309,37 @@ pub async fn execute_sync(
     check_cancel!();
 
     // 1. Get manifests (sequential — each is a single network roundtrip)
-    let source_manifest = source.manifest().await?;
+    // Tag each side's error so the loop can distinguish a transient source
+    // outage (peer offline → keep retrying forever) from a target outage
+    // (bucket gone → count toward auto-pause).
+    let source_manifest = source
+        .manifest()
+        .await
+        .map_err(SyncEngineError::SourceUnavailable)?;
     check_cancel!();
-    let target_manifest = target.manifest().await?;
+    let target_manifest = target
+        .manifest()
+        .await
+        .map_err(SyncEngineError::TargetUnavailable)?;
     check_cancel!();
 
     // 2. Compute diff
-    let actions = compute_sync_actions(&source_manifest, &target_manifest, direction, delete_mode);
+    let mut actions = compute_sync_actions(&source_manifest, &target_manifest, direction, delete_mode);
+
+    // Drop `mkdir` actions when the target has no real directories (cloud
+    // object stores: directories are implicit from object keys and never
+    // appear in `manifest()`). Without this, every cycle re-plans the same
+    // `mkdir`s, the engine returns `directories_created > 0` for each cycle,
+    // and the resulting `update_last_synced_at` + CRDT-dirty event spams the
+    // frontend with reloads forever.
+    if !target.supports_directories() {
+        actions.to_create_directories.clear();
+    }
+    if !source.supports_directories() && direction == SyncDirection::TwoWay {
+        // Symmetric guard for the two-way case where target dirs would be
+        // pushed back to a cloud "source".
+        actions.to_create_directories.clear();
+    }
 
     let total_files = (actions.to_download.len()
         + actions.to_upload.len()
@@ -312,28 +350,29 @@ pub async fn execute_sync(
         + actions.to_upload.iter().map(|f| f.size).sum::<u64>()
         + actions.conflicts.iter().map(|c| c.source_state.size).sum::<u64>();
 
-    // Diff diagnostics — without these it is not obvious whether a "sync
-    // every cycle" symptom is caused by hashing falling through to
-    // size+mtime, by genuine source/target divergence, or by a path
-    // normalization mismatch between the two providers.
-    let source_hashed = source_manifest.iter().filter(|f| !f.is_directory && f.hash.is_some()).count();
-    let source_files = source_manifest.iter().filter(|f| !f.is_directory).count();
-    let target_hashed = target_manifest.iter().filter(|f| !f.is_directory && f.hash.is_some()).count();
-    let target_files = target_manifest.iter().filter(|f| !f.is_directory).count();
-    eprintln!(
-        "[FileSyncEngine] Rule {} diff: source={}f ({}h), target={}f ({}h). \
-         Plan: dl={}, up={}, del={}, mkdir={}, conflicts={}. Bytes={} ({:.1} MB)",
-        rule_id,
-        source_files, source_hashed,
-        target_files, target_hashed,
-        actions.to_download.len(),
-        actions.to_upload.len(),
-        actions.to_delete.len(),
-        actions.to_create_directories.len(),
-        actions.conflicts.len(),
-        total_bytes,
-        total_bytes as f64 / (1024.0 * 1024.0),
-    );
+    // Diff diagnostics — only emit when the planner produced work or
+    // detected conflicts. Logging every cycle would spam stderr on idle
+    // rules (sync runs on a poll interval and most cycles are no-ops).
+    if total_files > 0 {
+        let source_hashed = source_manifest.iter().filter(|f| !f.is_directory && f.hash.is_some()).count();
+        let source_files = source_manifest.iter().filter(|f| !f.is_directory).count();
+        let target_hashed = target_manifest.iter().filter(|f| !f.is_directory && f.hash.is_some()).count();
+        let target_files = target_manifest.iter().filter(|f| !f.is_directory).count();
+        eprintln!(
+            "[FileSyncEngine] Rule {} diff: source={}f ({}h), target={}f ({}h). \
+             Plan: dl={}, up={}, del={}, mkdir={}, conflicts={}. Bytes={} ({:.1} MB)",
+            rule_id,
+            source_files, source_hashed,
+            target_files, target_hashed,
+            actions.to_download.len(),
+            actions.to_upload.len(),
+            actions.to_delete.len(),
+            actions.to_create_directories.len(),
+            actions.conflicts.len(),
+            total_bytes,
+            total_bytes as f64 / (1024.0 * 1024.0),
+        );
+    }
     if !actions.to_download.is_empty() {
         let sample: Vec<&str> = actions
             .to_download
@@ -1140,6 +1179,51 @@ fn update_last_synced_at(app: &tauri::AppHandle, rule_id: &str) {
 // Event emission
 // ---------------------------------------------------------------------------
 
+/// Persist a sync log entry into the CRDT-synced `haex_logs` table.
+///
+/// `source = "file-sync"`, and the rule ID is stored in the `metadata` JSON
+/// (`{ "ruleId": <id> }`) — NOT in `extension_id`, because that column has a
+/// FK on `haex_extensions(id)` and sync rules are not extensions, so the
+/// INSERT would fail with `FOREIGN KEY constraint failed` on every cycle.
+///
+/// `message` is encoded as JSON `{ code, params?, raw? }` — a stable
+/// machine-readable shape so the frontend can localize the rendered string per
+/// device locale. Persisting a pre-rendered locale-specific string here would
+/// freeze that locale into the CRDT row forever (it gets replicated to every
+/// peer regardless of their locale).
+fn write_sync_log_entry(
+    app: &tauri::AppHandle,
+    rule_id: &str,
+    level: &str,
+    code: &str,
+    params: serde_json::Value,
+    raw: Option<&str>,
+) {
+    use tauri::Manager;
+    let state = app.state::<crate::AppState>();
+    let device_id = state
+        .context
+        .lock()
+        .map(|ctx| ctx.device_id.clone())
+        .unwrap_or_default();
+    let mut message = serde_json::json!({ "code": code, "params": params });
+    if let Some(r) = raw {
+        message["raw"] = serde_json::Value::String(r.to_string());
+    }
+    let metadata = serde_json::json!({ "ruleId": rule_id });
+    if let Err(e) = crate::logging::insert_log(
+        &state,
+        level,
+        "file-sync",
+        None,
+        &message.to_string(),
+        Some(metadata),
+        &device_id,
+    ) {
+        eprintln!("[FileSyncEngine] Failed to persist sync log for rule {rule_id}: {e}");
+    }
+}
+
 fn emit_sync_result(
     app: &tauri::AppHandle,
     rule_id: &str,
@@ -1150,6 +1234,45 @@ fn emit_sync_result(
     match result {
         Ok(r) => {
             update_last_synced_at(app, rule_id);
+            // Per-file transfer failures are collected into r.errors instead of
+            // surfacing as Err — without this branch a cycle where every
+            // transfer failed (counters all 0, errors populated) would leave
+            // no trace in the persistent log.
+            if !r.errors.is_empty() {
+                let raw = r.errors.join("; ");
+                write_sync_log_entry(
+                    app,
+                    rule_id,
+                    "error",
+                    "syncCompletedWithErrors",
+                    serde_json::json!({ "errorCount": r.errors.len() }),
+                    Some(&raw),
+                );
+            } else if r.files_downloaded > 0
+                || r.files_deleted > 0
+                || r.directories_created > 0
+                || r.conflicts_resolved > 0
+            {
+                // Only log non-trivial cycles so the persistent log doesn't fill up
+                // with empty no-op syncs — mirrors the in-memory append logic in
+                // the frontend store. All non-zero counters are persisted so
+                // delete-only / mkdir-only / conflict-only cycles don't render
+                // as "0 files / 0 bytes" in the history.
+                write_sync_log_entry(
+                    app,
+                    rule_id,
+                    "info",
+                    "syncSuccess",
+                    serde_json::json!({
+                        "filesDownloaded": r.files_downloaded,
+                        "filesDeleted": r.files_deleted,
+                        "directoriesCreated": r.directories_created,
+                        "conflictsResolved": r.conflicts_resolved,
+                        "bytesTransferred": r.bytes_transferred,
+                    }),
+                    None,
+                );
+            }
             let _ = app.emit_to(
                 "main",
                 "file-sync:complete",
@@ -1157,10 +1280,47 @@ fn emit_sync_result(
             );
         }
         Err(e) => {
+            // Cancellation is a user-initiated control-flow signal, not a
+            // sync failure — persisting it as `syncFailed` would pollute the
+            // CRDT log on every stop/disable. The frontend already removes
+            // the in-flight state when a cancel emits, so skipping here
+            // leaves no orphaned UI artifacts either.
+            if matches!(e, SyncEngineError::Cancelled) {
+                return;
+            }
+            let raw = e.to_string();
+            // Source/target unavailability (peer offline, network blip,
+            // bucket unreachable) is expected — the loop retries with
+            // backoff and the rule must not auto-pause. Persisting
+            // "syncFailed" every cycle would spam the CRDT log and bounce
+            // the frontend on every retry. The runtime event is still
+            // emitted so the UI can show a transient state.
+            let unavailable_side: Option<&'static str> = match e {
+                SyncEngineError::SourceUnavailable(_) => Some("source"),
+                SyncEngineError::TargetUnavailable(_) => Some("target"),
+                _ => None,
+            };
+            if unavailable_side.is_none() {
+                // Genuine error (DB failure, provider crash, …). Render the
+                // raw text verbatim — it already includes whatever
+                // provider-specific detail the user needs to debug.
+                write_sync_log_entry(
+                    app,
+                    rule_id,
+                    "error",
+                    "syncFailed",
+                    serde_json::json!({}),
+                    Some(&raw),
+                );
+            }
             let _ = app.emit_to(
                 "main",
                 "file-sync:error",
-                serde_json::json!({ "ruleId": rule_id, "error": e.to_string() }),
+                serde_json::json!({
+                    "ruleId": rule_id,
+                    "error": raw,
+                    "unavailable": unavailable_side,
+                }),
             );
         }
     }
@@ -1170,15 +1330,105 @@ fn emit_sync_result(
 // Periodic sync loop
 // ---------------------------------------------------------------------------
 
-/// How long to wait before retrying after a failed sync cycle.
-const RETRY_INTERVAL: Duration = Duration::from_secs(30);
+/// Base wait after the first failed sync cycle. Subsequent failures double
+/// this duration (exponential backoff) up to `MAX_RETRY_INTERVAL`.
+const INITIAL_RETRY: Duration = Duration::from_secs(30);
+
+/// Hard cap on the retry interval. Reached after ~6 consecutive failures.
+const MAX_RETRY_INTERVAL: Duration = Duration::from_secs(30 * 60);
+
+/// After this many consecutive failures the rule is auto-disabled so it
+/// stops hammering a broken target. The user has to re-enable it manually
+/// after fixing the underlying issue.
+const MAX_CONSECUTIVE_FAILURES: u32 = 20;
+
+/// 30s * 2^(failures-1), capped at MAX_RETRY_INTERVAL.
+fn backoff_duration(consecutive_failures: u32) -> Duration {
+    if consecutive_failures == 0 {
+        return INITIAL_RETRY;
+    }
+    let shift = (consecutive_failures - 1).min(10);
+    let secs = INITIAL_RETRY
+        .as_secs()
+        .saturating_mul(1u64 << shift);
+    Duration::from_secs(secs.min(MAX_RETRY_INTERVAL.as_secs()))
+}
+
+/// Persist `enabled = false` on a sync rule, tear down its runtime
+/// state (SyncManager registration + file watchers) and notify the frontend.
+async fn auto_disable_rule(
+    app: &tauri::AppHandle,
+    rule_id: &str,
+    failures: u32,
+    last_error: &str,
+) {
+    use tauri::{Emitter, Manager};
+    let state = app.state::<crate::AppState>();
+    {
+        let hlc = match state.hlc.lock() {
+            Ok(g) => g,
+            Err(_) => {
+                eprintln!(
+                    "[FileSyncEngine] Rule {} auto-pause failed: HLC lock poisoned",
+                    rule_id
+                );
+                return;
+            }
+        };
+
+        let sql = "UPDATE haex_sync_rules SET enabled = 0 WHERE id = ?1".to_string();
+        let params = vec![JsonValue::String(rule_id.to_string())];
+
+        if let Err(e) = crate::database::core::execute_with_crdt(sql, params, &state.db, &hlc) {
+            eprintln!(
+                "[FileSyncEngine] Failed to persist auto-pause for rule {rule_id}: {e}"
+            );
+        }
+    }
+
+    // Unregister from SyncManager so `is_running` reflects reality, and stop
+    // any file watchers that were started alongside this rule. Without this,
+    // the loop exits but the runtime state stays as a zombie entry.
+    {
+        let mut manager = state.sync_manager.lock().await;
+        manager.stop(rule_id);
+    }
+    let _ = state.file_watcher.unwatch(rule_id);
+    let _ = state.file_watcher.unwatch(&format!("{}_source", rule_id));
+
+    write_sync_log_entry(
+        app,
+        rule_id,
+        "error",
+        "autoPaused",
+        serde_json::json!({ "failures": failures }),
+        Some(last_error),
+    );
+
+    let _ = app.emit_to(
+        "main",
+        "file-sync:auto-paused",
+        serde_json::json!({
+            "ruleId": rule_id,
+            "consecutiveFailures": failures,
+            "lastError": last_error,
+        }),
+    );
+    let _ = app.emit_to(
+        "main",
+        crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED,
+        (),
+    );
+}
 
 /// Run periodic sync for a rule. Cancellable via `CancellationToken`.
 ///
 /// The optional `trigger_receiver` allows external events (e.g. file watcher)
 /// to interrupt the sleep timer and trigger an immediate sync cycle.
-/// On failure the next attempt is scheduled after `RETRY_INTERVAL` (30 s)
-/// instead of the full `interval`, so peer unavailability self-heals quickly.
+///
+/// On failure, exponential backoff is applied: 30s, 60s, 120s, … up to
+/// `MAX_RETRY_INTERVAL`. The counter resets on the first successful cycle
+/// so transient failures still self-heal quickly.
 pub async fn run_sync_loop(
     source: Arc<dyn SyncProvider>,
     target: Arc<dyn SyncProvider>,
@@ -1206,9 +1456,56 @@ pub async fn run_sync_loop(
     .await;
     eprintln!("[FileSyncEngine] Rule {} initial sync done: {:?}", rule_id, result.as_ref().map(|r| r.files_downloaded));
 
-    // Retry sooner if the initial sync failed
-    let mut next_wait = if result.is_err() { RETRY_INTERVAL } else { interval };
+    // Two independent counters:
+    // - `consecutive_failures` drives the exponential backoff (any failure
+    //   slows the retry cadence, including transient outages).
+    // - `pause_failures` is the subset that counts toward auto-pause.
+    //   Source/target-unavailable errors are excluded because the remote
+    //   side may equally be a phone, peer, or cloud bucket that goes
+    //   offline temporarily — the rule must keep pinging and resume on
+    //   reconnect instead of disabling itself.
+    fn is_unavailable(e: &SyncEngineError) -> bool {
+        matches!(
+            e,
+            SyncEngineError::SourceUnavailable(_) | SyncEngineError::TargetUnavailable(_)
+        )
+    }
+    let initial_is_unavail = result.as_ref().err().map(is_unavailable).unwrap_or(false);
+    let mut consecutive_failures: u32 = if result.is_err() { 1 } else { 0 };
+    let mut pause_failures: u32 = if result.is_err() && !initial_is_unavail { 1 } else { 0 };
+    let mut next_wait = if consecutive_failures > 0 {
+        let w = backoff_duration(consecutive_failures);
+        eprintln!(
+            "[FileSyncEngine] Rule {} failed (attempt {}), next retry in {}s",
+            rule_id,
+            consecutive_failures,
+            w.as_secs()
+        );
+        w
+    } else {
+        interval
+    };
+    // Last error message, used when auto-pausing the rule.
+    let mut last_error_text: String = result
+        .as_ref()
+        .err()
+        .map(|e| e.to_string())
+        .unwrap_or_default();
+    // Marker used by the trigger arm to honour the backoff window: it skips
+    // any trigger that fires before the next allowed attempt.
+    let mut next_attempt_at: std::time::Instant = std::time::Instant::now() + next_wait;
     emit_sync_result(&app_handle, &rule_id, &result);
+
+    // Stop immediately if the very first sync already exhausted the budget
+    // (only realistic with MAX = 1, but keeps the invariant clean).
+    if pause_failures >= MAX_CONSECUTIVE_FAILURES {
+        eprintln!(
+            "[FileSyncEngine] Rule {} auto-paused after {} consecutive failures",
+            rule_id, pause_failures
+        );
+        auto_disable_rule(&app_handle, &rule_id, pause_failures, &last_error_text).await;
+        return;
+    }
 
     // Manual mode (interval = 0): only sync on trigger, no periodic timer
     let use_timer = !interval.is_zero();
@@ -1231,8 +1528,48 @@ pub async fn run_sync_loop(
                     Some(cancel.clone()),
                 )
                 .await;
-                next_wait = if result.is_err() { RETRY_INTERVAL } else { interval };
+                if let Err(ref e) = result {
+                    consecutive_failures = consecutive_failures.saturating_add(1);
+                    if !is_unavailable(e) {
+                        pause_failures = pause_failures.saturating_add(1);
+                    }
+                    last_error_text = e.to_string();
+                    next_wait = backoff_duration(consecutive_failures);
+                    eprintln!(
+                        "[FileSyncEngine] Rule {} failed (attempt {}), next retry in {}s",
+                        rule_id,
+                        consecutive_failures,
+                        next_wait.as_secs()
+                    );
+                } else {
+                    if consecutive_failures > 0 {
+                        eprintln!(
+                            "[FileSyncEngine] Rule {} recovered after {} failures",
+                            rule_id, consecutive_failures
+                        );
+                    }
+                    consecutive_failures = 0;
+                    pause_failures = 0;
+                    last_error_text.clear();
+                    next_wait = interval;
+                }
+                next_attempt_at = std::time::Instant::now() + next_wait;
                 emit_sync_result(&app_handle, &rule_id, &result);
+
+                if pause_failures >= MAX_CONSECUTIVE_FAILURES {
+                    eprintln!(
+                        "[FileSyncEngine] Rule {} auto-paused after {} consecutive failures",
+                        rule_id, pause_failures
+                    );
+                    auto_disable_rule(
+                        &app_handle,
+                        &rule_id,
+                        pause_failures,
+                        &last_error_text,
+                    )
+                    .await;
+                    break;
+                }
             }
             msg = trigger_receiver.recv() => {
                 if msg.is_none() {
@@ -1241,6 +1578,21 @@ pub async fn run_sync_loop(
                 }
                 // Drain any additional pending triggers to avoid redundant syncs
                 while trigger_receiver.try_recv().is_ok() {}
+
+                // While the backoff window is open, ignore file-watcher triggers
+                // — otherwise filesystem activity bypasses the retry slowdown
+                // and we hammer the failing target. Triggers reaching us after
+                // the backoff has elapsed proceed normally.
+                if consecutive_failures > 0 && std::time::Instant::now() < next_attempt_at {
+                    let remaining = next_attempt_at - std::time::Instant::now();
+                    eprintln!(
+                        "[FileSyncEngine] Rule {} trigger suppressed during backoff (~{}s left)",
+                        rule_id,
+                        remaining.as_secs()
+                    );
+                    continue;
+                }
+
                 let result = execute_sync(
                     source.clone(),
                     target.clone(),
@@ -1252,9 +1604,36 @@ pub async fn run_sync_loop(
                     Some(cancel.clone()),
                 )
                 .await;
-                // Manual triggers reset to normal interval even after a previous failure
-                next_wait = if result.is_err() { RETRY_INTERVAL } else { interval };
+                if let Err(ref e) = result {
+                    consecutive_failures = consecutive_failures.saturating_add(1);
+                    if !is_unavailable(e) {
+                        pause_failures = pause_failures.saturating_add(1);
+                    }
+                    last_error_text = e.to_string();
+                    next_wait = backoff_duration(consecutive_failures);
+                } else {
+                    consecutive_failures = 0;
+                    pause_failures = 0;
+                    last_error_text.clear();
+                    next_wait = interval;
+                }
+                next_attempt_at = std::time::Instant::now() + next_wait;
                 emit_sync_result(&app_handle, &rule_id, &result);
+
+                if pause_failures >= MAX_CONSECUTIVE_FAILURES {
+                    eprintln!(
+                        "[FileSyncEngine] Rule {} auto-paused after {} consecutive failures",
+                        rule_id, pause_failures
+                    );
+                    auto_disable_rule(
+                        &app_handle,
+                        &rule_id,
+                        pause_failures,
+                        &last_error_text,
+                    )
+                    .await;
+                    break;
+                }
             }
         }
     }

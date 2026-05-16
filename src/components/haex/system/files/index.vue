@@ -129,6 +129,30 @@
             {{ t('paste') }} ({{ browser.clipboard.clipboardCount.value }})
           </UiButton>
 
+          <!-- Upload + New Folder (when peer supports writes, no selection) -->
+          <template
+            v-if="
+              browser.selectionCount.value === 0 &&
+              !browser.canPaste.value &&
+              browser.canWrite.value
+            "
+          >
+            <UiButton
+              variant="ghost"
+              icon="i-lucide-folder-plus"
+              :title="t('newFolder')"
+              :loading="isCreatingFolder"
+              @click="openCreateFolderDialog"
+            />
+            <UiButton
+              variant="ghost"
+              icon="i-lucide-upload"
+              :title="t('uploadFiles')"
+              :loading="isUploading"
+              @click="uploadFilesAsync"
+            />
+          </template>
+
           <!-- P2P endpoint toggle + settings -->
           <template v-if="!browser.selectedPeer.value">
             <UiButton
@@ -267,117 +291,41 @@
               v-if="browser.viewMode.value === 'list'"
               class="space-y-1"
             >
-              <div
+              <UContextMenu
                 v-for="file in browser.filteredFiles.value"
                 :key="file.name"
-                :class="[
-                  'flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors relative overflow-hidden',
-                  browser.isSelected(file)
-                    ? 'bg-primary/10'
-                    : 'hover:bg-muted/50',
-                  browser.isCutFile(file) && 'opacity-40',
-                ]"
-                @click="browser.onFileClick(file)"
+                :items="buildContextMenuItems(file)"
               >
-                <!-- Download progress background -->
                 <div
-                  v-if="getFileTransferProgress(file) !== undefined"
-                  class="absolute inset-0 bg-primary/15 transition-all duration-300 ease-out"
-                  :style="{
-                    width: `${(getFileTransferProgress(file) ?? 0) * 100}%`,
-                  }"
-                />
-                <UCheckbox
-                  :model-value="browser.isSelected(file)"
-                  class="relative z-10"
-                  @click.stop
-                  @update:model-value="browser.toggleSelect(file)"
-                />
-                <!-- Thumbnail or icon -->
-                <img
-                  v-if="browser.getThumbnailUrl(file)"
-                  :src="browser.getThumbnailUrl(file)!"
-                  :alt="file.name"
-                  class="w-8 h-8 rounded object-cover shrink-0 relative z-10"
-                  loading="lazy"
-                />
-                <UIcon
-                  v-else
-                  :name="
-                    file.isDir
-                      ? 'i-lucide-folder'
-                      : browser.getFileIcon(file.name)
-                  "
                   :class="[
-                    'w-5 h-5 shrink-0 relative z-10',
-                    file.isDir ? 'text-primary' : 'text-muted',
-                  ]"
-                />
-                <div class="flex-1 min-w-0 relative z-10">
-                  <p class="text-sm truncate">{{ file.name }}</p>
-                  <div class="flex gap-3 text-xs text-muted mt-0.5">
-                    <span
-                      v-if="file.displayPath"
-                      class="text-primary/70"
-                      >{{ file.displayPath }}/</span
-                    >
-                    <span v-if="file.modified">{{
-                      browser.formatDate(file.modified)
-                    }}</span>
-                    <span v-if="!file.isDir && file.size">{{
-                      browser.formatSize(file.size)
-                    }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- ===== Grid view ===== -->
-            <div
-              v-else
-              class="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2"
-            >
-              <div
-                v-for="file in browser.filteredFiles.value"
-                :key="file.name"
-                :class="[
-                  'group relative flex flex-col items-center gap-2 p-3 rounded-lg cursor-pointer transition-colors overflow-hidden',
-                  browser.isSelected(file)
-                    ? 'bg-primary/10'
-                    : 'hover:bg-muted/50',
-                  browser.isCutFile(file) && 'opacity-40',
-                ]"
-                @click="browser.onFileClick(file)"
-              >
-                <!-- Selection checkbox (top-left, visible on hover or when selected) -->
-                <UCheckbox
-                  :model-value="browser.isSelected(file)"
-                  :class="[
-                    'absolute top-2 left-2 z-10 transition-opacity',
+                    'flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors relative overflow-hidden',
                     browser.isSelected(file)
-                      ? 'opacity-100'
-                      : 'opacity-0 group-hover:opacity-100',
+                      ? 'bg-primary/10'
+                      : 'hover:bg-muted/50',
+                    browser.isCutFile(file) && 'opacity-40',
                   ]"
-                  @click.stop
-                  @update:model-value="browser.toggleSelect(file)"
-                />
-                <!-- Download progress background -->
-                <div
-                  v-if="getFileTransferProgress(file) !== undefined"
-                  class="absolute inset-0 bg-primary/15 transition-all duration-300 ease-out"
-                  :style="{
-                    width: `${(getFileTransferProgress(file) ?? 0) * 100}%`,
-                  }"
-                />
-                <!-- Thumbnail or icon -->
-                <div
-                  class="w-full aspect-square rounded-md overflow-hidden flex items-center justify-center bg-muted/30"
+                  @click="browser.onFileClick(file)"
                 >
+                  <!-- Download progress background -->
+                  <div
+                    v-if="getFileTransferProgress(file) !== undefined"
+                    class="absolute inset-0 bg-primary/15 transition-all duration-300 ease-out"
+                    :style="{
+                      width: `${(getFileTransferProgress(file) ?? 0) * 100}%`,
+                    }"
+                  />
+                  <UCheckbox
+                    :model-value="browser.isSelected(file)"
+                    class="relative z-10"
+                    @click.stop
+                    @update:model-value="browser.toggleSelect(file)"
+                  />
+                  <!-- Thumbnail or icon -->
                   <img
                     v-if="browser.getThumbnailUrl(file)"
                     :src="browser.getThumbnailUrl(file)!"
                     :alt="file.name"
-                    class="w-full h-full object-cover"
+                    class="w-8 h-8 rounded object-cover shrink-0 relative z-10"
                     loading="lazy"
                   />
                   <UIcon
@@ -388,28 +336,112 @@
                         : browser.getFileIcon(file.name)
                     "
                     :class="[
-                      'w-10 h-10',
+                      'w-5 h-5 shrink-0 relative z-10',
                       file.isDir ? 'text-primary' : 'text-muted',
                     ]"
                   />
+                  <div class="flex-1 min-w-0 relative z-10">
+                    <p class="text-sm truncate">{{ file.name }}</p>
+                    <div class="flex gap-3 text-xs text-muted mt-0.5">
+                      <span
+                        v-if="file.displayPath"
+                        class="text-primary/70"
+                        >{{ file.displayPath }}/</span
+                      >
+                      <span v-if="file.modified">{{
+                        browser.formatDate(file.modified)
+                      }}</span>
+                      <span v-if="!file.isDir && file.size">{{
+                        browser.formatSize(file.size)
+                      }}</span>
+                    </div>
+                  </div>
                 </div>
-                <!-- Filename + meta -->
-                <div class="w-full min-w-0 text-center">
-                  <p class="text-xs truncate">{{ file.name }}</p>
-                  <p
-                    v-if="file.displayPath"
-                    class="text-[10px] text-primary/70 truncate mt-0.5"
+              </UContextMenu>
+            </div>
+
+            <!-- ===== Grid view ===== -->
+            <div
+              v-else
+              class="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2"
+            >
+              <UContextMenu
+                v-for="file in browser.filteredFiles.value"
+                :key="file.name"
+                :items="buildContextMenuItems(file)"
+              >
+                <div
+                  :class="[
+                    'group relative flex flex-col items-center gap-2 p-3 rounded-lg cursor-pointer transition-colors overflow-hidden',
+                    browser.isSelected(file)
+                      ? 'bg-primary/10'
+                      : 'hover:bg-muted/50',
+                    browser.isCutFile(file) && 'opacity-40',
+                  ]"
+                  @click="browser.onFileClick(file)"
+                >
+                  <!-- Selection checkbox (top-left, visible on hover or when selected) -->
+                  <UCheckbox
+                    :model-value="browser.isSelected(file)"
+                    :class="[
+                      'absolute top-2 left-2 z-10 transition-opacity',
+                      browser.isSelected(file)
+                        ? 'opacity-100'
+                        : 'opacity-0 group-hover:opacity-100',
+                    ]"
+                    @click.stop
+                    @update:model-value="browser.toggleSelect(file)"
+                  />
+                  <!-- Download progress background -->
+                  <div
+                    v-if="getFileTransferProgress(file) !== undefined"
+                    class="absolute inset-0 bg-primary/15 transition-all duration-300 ease-out"
+                    :style="{
+                      width: `${(getFileTransferProgress(file) ?? 0) * 100}%`,
+                    }"
+                  />
+                  <!-- Thumbnail or icon -->
+                  <div
+                    class="w-full aspect-square rounded-md overflow-hidden flex items-center justify-center bg-muted/30"
                   >
-                    {{ file.displayPath }}/
-                  </p>
-                  <p
-                    v-else-if="!file.isDir && file.size"
-                    class="text-[10px] text-muted mt-0.5"
-                  >
-                    {{ browser.formatSize(file.size) }}
-                  </p>
+                    <img
+                      v-if="browser.getThumbnailUrl(file)"
+                      :src="browser.getThumbnailUrl(file)!"
+                      :alt="file.name"
+                      class="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                    <UIcon
+                      v-else
+                      :name="
+                        file.isDir
+                          ? 'i-lucide-folder'
+                          : browser.getFileIcon(file.name)
+                      "
+                      :class="[
+                        'w-10 h-10',
+                        file.isDir ? 'text-primary' : 'text-muted',
+                      ]"
+                    />
+                  </div>
+                  <!-- Filename + meta -->
+                  <div class="w-full min-w-0 text-center">
+                    <p class="text-xs truncate">{{ file.name }}</p>
+                    <p
+                      v-if="file.displayPath"
+                      class="text-[10px] text-primary/70 truncate mt-0.5"
+                    >
+                      {{ file.displayPath }}/
+                    </p>
+                    <p
+                      v-else-if="!file.isDir && file.size"
+                      class="text-[10px] text-muted mt-0.5"
+                    >
+                      {{ browser.formatSize(file.size) }}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              </UContextMenu>
             </div>
 
             <!-- Searching indicator -->
@@ -629,14 +661,107 @@
         </div>
       </div>
     </Transition>
+
+    <!-- New folder dialog -->
+    <UiDialogConfirm
+      v-model:open="newFolderOpen"
+      :title="t('newFolder')"
+      :confirm-label="t('create')"
+      @confirm="confirmCreateFolderAsync"
+    >
+      <template #body>
+        <UiInput
+          v-model="newFolderName"
+          :placeholder="t('folderNamePlaceholder')"
+          autofocus
+          @keydown.enter="confirmCreateFolderAsync"
+        />
+      </template>
+    </UiDialogConfirm>
+
+    <!-- Rename dialog (triggered from per-row context menu) -->
+    <UiDialogConfirm
+      v-model:open="renameOpen"
+      :title="t('renameTitle')"
+      :confirm-label="t('rename')"
+      :loading="isRenaming"
+      @confirm="confirmRenameAsync"
+    >
+      <template #body>
+        <UiInput
+          v-model="renameNewName"
+          :placeholder="t('renamePlaceholder')"
+          autofocus
+          @keydown.enter="confirmRenameAsync"
+        />
+      </template>
+    </UiDialogConfirm>
+
+    <!--
+      Inline media preview for the active `browser.preview`. The URL may be
+      a blob: (small local files), an asset: (regular local files), or a
+      haex-stream: (S3 audio/video). The audio/video elements drive their
+      own Range requests when the source supports them — we just hand over
+      the URL.
+    -->
+    <UModal
+      :open="browser.preview.isOpen.value"
+      :title="browser.preview.previewFilename.value ?? ' '"
+      :ui="{ content: 'max-w-3xl' }"
+      @update:open="(v) => !v && browser.preview.close()"
+    >
+      <template #body>
+        <div class="flex items-center justify-center min-h-32">
+          <audio
+            v-if="
+              browser.preview.previewType.value === 'audio' &&
+                browser.preview.previewUrl.value
+            "
+            controls
+            autoplay
+            class="w-full"
+            :src="browser.preview.previewUrl.value"
+          />
+          <video
+            v-else-if="
+              browser.preview.previewType.value === 'video' &&
+                browser.preview.previewUrl.value
+            "
+            controls
+            autoplay
+            class="max-h-[70vh] w-full"
+            :src="browser.preview.previewUrl.value"
+          />
+          <img
+            v-else-if="
+              browser.preview.previewType.value === 'image' &&
+                browser.preview.previewUrl.value
+            "
+            :src="browser.preview.previewUrl.value"
+            :alt="browser.preview.previewFilename.value ?? ''"
+            class="max-h-[70vh] object-contain"
+          />
+          <iframe
+            v-else-if="
+              browser.preview.previewType.value === 'pdf' &&
+                browser.preview.previewUrl.value
+            "
+            :src="browser.preview.previewUrl.value"
+            class="w-full h-[70vh] border-0"
+          />
+        </div>
+      </template>
+    </UModal>
   </HaexSystem>
 </template>
 
 <script setup lang="ts">
+import { invoke } from '@tauri-apps/api/core'
 import { SettingsCategory } from '~/config/settingsCategories'
 import type { RemotePeer } from '~/composables/useFileBrowser'
 import { usePeerPing } from '~/composables/usePeerPing'
 import { requireDb } from '~/stores/vault'
+import type { StorageBackendInfo } from '~/../src-tauri/bindings/StorageBackendInfo'
 
 const props = defineProps<{
   tabId: string
@@ -661,7 +786,7 @@ interface AvatarRef {
 }
 
 interface OverviewEntry {
-  kind: 'local-share' | 'remote-peer'
+  kind: 'local-share' | 'remote-peer' | 'cloud-backend'
   key: string
   title: string
   subtitle: string
@@ -680,9 +805,27 @@ interface OverviewGroup {
   entries: OverviewEntry[]
 }
 
-/** Get transfer progress for a file (0-1, or undefined if not downloading) */
-const getFileTransferProgress = (file: { name: string; path?: string }) => {
+/**
+ * Get transfer progress (0..1) for a file's row.
+ *
+ * Two sources, in priority order:
+ *   1. S3 chunked download progress (`browser.getS3TransferProgress`) — keyed
+ *      by the S3 object key, populated while `remote_storage_download_to_path`
+ *      streams chunks for this file.
+ *   2. P2P transfer progress (`peerStore.getTransferProgress`) — keyed by
+ *      the full peer path, populated by the iroh streaming reader.
+ *
+ * Returns undefined when neither is active.
+ */
+const getFileTransferProgress = (file: { name: string; path?: string; isDir?: boolean }) => {
   if (!browser.selectedPeer.value) return undefined
+
+  // S3 chunked download progress (composable handles the key derivation).
+  if (browser.selectedPeer.value.s3BackendId) {
+    const s3Progress = browser.getS3TransferProgress(file.name)
+    if (s3Progress !== undefined) return s3Progress
+  }
+
   const fullPath = (
     file.path || `${browser.currentPath.value}/${file.name}`
   ).replace(/\/+/g, '/')
@@ -697,6 +840,217 @@ const toggleEndpointAsync = async () => {
     else await peerStore.startAsync()
   } finally {
     isTogglingEndpoint.value = false
+  }
+}
+
+// --- Upload + create folder ---
+const toast = useToast()
+const isUploading = ref(false)
+const isCreatingFolder = ref(false)
+const newFolderOpen = ref(false)
+const newFolderName = ref('')
+
+// --- Rename dialog (driven by the per-row context menu) ---
+type RenameTarget = (typeof browser.filteredFiles.value)[number] | null
+const renameOpen = ref(false)
+const renameTarget = ref<RenameTarget>(null)
+const renameNewName = ref('')
+const isRenaming = ref(false)
+
+const openRenameDialog = (file: NonNullable<RenameTarget>) => {
+  renameTarget.value = file
+  renameNewName.value = file.name
+  renameOpen.value = true
+}
+
+const confirmRenameAsync = async () => {
+  const target = renameTarget.value
+  if (!target) return
+  const next = renameNewName.value
+  if (!next.trim() || next === target.name) {
+    renameOpen.value = false
+    return
+  }
+  isRenaming.value = true
+  try {
+    const ok = await browser.renameFile(target, next)
+    if (ok) {
+      renameOpen.value = false
+      renameTarget.value = null
+      renameNewName.value = ''
+    } else {
+      toast.add({ title: t('renameInvalid'), color: 'error' })
+    }
+  } catch (error) {
+    toast.add({
+      title: t('renameFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+    })
+  } finally {
+    isRenaming.value = false
+  }
+}
+
+// --- Single-file actions invoked from the context menu ---
+//
+// Each helper wraps the corresponding `browser.*File()` call with toast
+// reporting so the user gets feedback regardless of which menu item they
+// invoked. Kept thin on purpose — the heavy lifting lives in the composable
+// so the toolbar (which works on selections) and the context menu (which
+// works on a single file) cannot drift apart.
+
+const downloadFileAsync = async (file: NonNullable<RenameTarget>) => {
+  try {
+    await browser.downloadFile(file)
+  } catch (error) {
+    toast.add({
+      title: t('downloadFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+    })
+  }
+}
+
+const deleteFileAsync = async (file: NonNullable<RenameTarget>) => {
+  try {
+    await browser.deleteFile(file)
+    await browser.loadFiles()
+  } catch (error) {
+    toast.add({
+      title: t('deleteFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+    })
+  }
+}
+
+const playFileAsync = async (file: NonNullable<RenameTarget>) => {
+  try {
+    await browser.playFile(file)
+  } catch (error) {
+    toast.add({
+      title: t('openFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+    })
+  }
+}
+
+/**
+ * Build the items array for the per-row Nuxt UI `UContextMenu`. Grouped
+ * (`ContextMenuItem[][]`) so the component renders separators between
+ * groups:
+ *
+ *   1. open / download (file-only, omitted for folders)
+ *   2. clipboard + rename
+ *   3. delete
+ *
+ * Operations the current backend cannot perform are surfaced as
+ * `disabled` rows so users see the feature exists but understand it
+ * isn't available for the active peer/backend (e.g. delete on P2P
+ * without a write UCAN).
+ */
+const buildContextMenuItems = (file: NonNullable<RenameTarget>) => {
+  const groups: Array<Array<Record<string, unknown>>> = []
+
+  if (!file.isDir) {
+    const fileActions: Array<Record<string, unknown>> = []
+    if (browser.canPlayFile(file)) {
+      fileActions.push({
+        label: t('play'),
+        icon: 'i-lucide-play',
+        onSelect: () => playFileAsync(file),
+      })
+    }
+    fileActions.push({
+      label: t('download'),
+      icon: 'i-lucide-download',
+      onSelect: () => downloadFileAsync(file),
+    })
+    groups.push(fileActions)
+  }
+
+  groups.push([
+    {
+      label: t('copy'),
+      icon: 'i-lucide-copy',
+      disabled: !browser.canCopyOrCutFile(file),
+      onSelect: () => browser.copyFile(file),
+    },
+    {
+      label: t('cut'),
+      icon: 'i-lucide-scissors',
+      disabled: !browser.canCopyOrCutFile(file),
+      onSelect: () => browser.cutFile(file),
+    },
+    {
+      label: t('rename'),
+      icon: 'i-lucide-pencil',
+      disabled: !browser.canRenameFile(file),
+      onSelect: () => openRenameDialog(file),
+    },
+  ])
+
+  groups.push([
+    {
+      label: t('delete'),
+      icon: 'i-lucide-trash-2',
+      color: 'error',
+      disabled: !browser.canDeleteFile(file),
+      onSelect: () => deleteFileAsync(file),
+    },
+  ])
+
+  return groups
+}
+
+const uploadFilesAsync = async () => {
+  isUploading.value = true
+  try {
+    const count = await browser.uploadFilesAsync()
+    if (count > 0) {
+      toast.add({
+        title: t('uploadSuccess', { count }),
+        color: 'success',
+      })
+    }
+  } catch (error) {
+    toast.add({
+      title: t('uploadFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+    })
+  } finally {
+    isUploading.value = false
+  }
+}
+
+const openCreateFolderDialog = () => {
+  newFolderName.value = ''
+  newFolderOpen.value = true
+}
+
+const confirmCreateFolderAsync = async () => {
+  const name = newFolderName.value
+  if (!name.trim()) return
+  isCreatingFolder.value = true
+  try {
+    const ok = await browser.createFolderAsync(name)
+    if (ok) {
+      newFolderOpen.value = false
+      newFolderName.value = ''
+    } else {
+      toast.add({ title: t('folderNameInvalid'), color: 'error' })
+    }
+  } catch (error) {
+    toast.add({
+      title: t('createFolderFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+    })
+  } finally {
+    isCreatingFolder.value = false
   }
 }
 
@@ -901,9 +1255,56 @@ const buildPeerEntry = (input: PeerEntryInput): OverviewEntry => {
   }
 }
 
+// S3 / remote storage backends. These live outside the space + contact model
+// (they belong to no peer), so they get their own group that is always
+// appended last regardless of the current grouping mode.
+const storageBackends = ref<StorageBackendInfo[]>([])
+const loadStorageBackendsAsync = async () => {
+  try {
+    storageBackends.value = await invoke<StorageBackendInfo[]>(
+      'remote_storage_list_backends',
+    )
+  } catch {
+    // Non-fatal: the file browser must still render the other sections even
+    // if S3 listing fails (e.g. database error). The settings page is the
+    // canonical place to diagnose backend configuration issues.
+    storageBackends.value = []
+  }
+}
+
+const s3PeerForBackend = (backend: StorageBackendInfo): RemotePeer => ({
+  endpointId: `s3:${backend.id}`,
+  name: backend.name,
+  source: 's3',
+  detail: backend.config?.bucket || backend.type,
+  s3BackendId: backend.id,
+})
+
+const cloudStorageGroup = computed<OverviewGroup | null>(() => {
+  const enabled = storageBackends.value.filter((b) => b.enabled)
+  if (enabled.length === 0) return null
+  return {
+    id: 'cloud-storage',
+    title: t('groups.cloudStorage'),
+    icon: 'i-lucide-cloud',
+    entries: enabled.map((backend) => ({
+      kind: 'cloud-backend' as const,
+      key: `s3:${backend.id}`,
+      title: backend.name,
+      subtitle: backend.config?.bucket
+        ? `${backend.type.toUpperCase()} · ${backend.config.bucket}`
+        : backend.type.toUpperCase(),
+      icon: 'i-lucide-cloud',
+      peer: s3PeerForBackend(backend),
+    })),
+  }
+})
+
 const overviewGroups = computed<OverviewGroup[]>(() => {
-  if (groupBy.value === 'space') return buildSpaceGroups()
-  return buildContactGroups()
+  const groups =
+    groupBy.value === 'space' ? buildSpaceGroups() : buildContactGroups()
+  const cloud = cloudStorageGroup.value
+  return cloud ? [...groups, cloud] : groups
 })
 
 const hasAnyEntries = computed(() => overviewGroups.value.length > 0)
@@ -1221,6 +1622,7 @@ onMounted(async () => {
     peerStore.loadSharesAsync(),
     peerStore.loadSpaceDevicesAsync(),
     spacesStore.loadSpacesFromDbAsync(),
+    loadStorageBackendsAsync(),
   ])
   await loadContactClaimsAsync()
   await applyDeepLink(props.windowParams)
@@ -1257,6 +1659,22 @@ de:
   p2pSettings: P2P-Einstellungen
   noStorage: Keine Speicherquellen verfügbar
   noStorageHint: Teile Ordner in den P2P-Einstellungen oder verbinde dich mit anderen Geräten.
+  uploadFiles: Dateien hochladen
+  uploadSuccess: '{count} Datei(en) hinzugefügt'
+  uploadFailed: Upload fehlgeschlagen
+  newFolder: Neuer Ordner
+  folderNamePlaceholder: Ordnername
+  folderNameInvalid: Ungültiger Ordnername
+  createFolderFailed: Ordner konnte nicht erstellt werden
+  create: Erstellen
+  play: Abspielen
+  rename: Umbenennen
+  renameTitle: Datei umbenennen
+  renamePlaceholder: Neuer Name
+  renameInvalid: Ungültiger Name
+  renameFailed: Umbenennen fehlgeschlagen
+  deleteFailed: Löschen fehlgeschlagen
+  openFailed: Öffnen fehlgeschlagen
   sections:
     local: Dieses Gerät
     peers: Andere Geräte
@@ -1269,6 +1687,7 @@ de:
     myDevices: Meine Geräte
     directContacts: Direkte Kontakte
     unknown: Ohne Zuordnung
+    cloudStorage: Cloud-Speicher
 en:
   title: Files
   description: Browse and download files from connected devices
@@ -1298,6 +1717,22 @@ en:
   p2pSettings: P2P Settings
   noStorage: No storage sources available
   noStorageHint: Share folders in P2P settings or connect with other devices.
+  uploadFiles: Upload files
+  uploadSuccess: '{count} file(s) added'
+  uploadFailed: Upload failed
+  newFolder: New folder
+  folderNamePlaceholder: Folder name
+  folderNameInvalid: Invalid folder name
+  createFolderFailed: Could not create folder
+  create: Create
+  play: Play
+  rename: Rename
+  renameTitle: Rename file
+  renamePlaceholder: New name
+  renameInvalid: Invalid name
+  renameFailed: Rename failed
+  deleteFailed: Delete failed
+  openFailed: Open failed
   sections:
     local: This device
     peers: Other devices
@@ -1310,4 +1745,5 @@ en:
     myDevices: My devices
     directContacts: Direct contacts
     unknown: Unattributed
+    cloudStorage: Cloud storage
 </i18n>

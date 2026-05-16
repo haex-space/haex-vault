@@ -82,8 +82,14 @@ jobs:
 
       # Detect Dependabot semver level so we can gate E2E tests:
       # patch/minor → skip E2E (pragmatic), major → run E2E (strict).
+      #
+      # Use `github.event.pull_request.user.login` rather than `github.actor`:
+      # when Dependabot opens a PR via an org-level GitHub App or PAT, the
+      # `actor` is the org account, not `dependabot[bot]`, and the metadata
+      # step gets skipped — leaving every Dependabot PR in the strict E2E
+      # gate. The PR author field always reflects who opened the PR.
       - name: Fetch Dependabot metadata
-        if: github.actor == 'dependabot[bot]' && github.event_name == 'pull_request'
+        if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event_name == 'pull_request'
         id: dep-meta
         uses: dependabot/fetch-metadata@v3
         with:
@@ -92,11 +98,11 @@ jobs:
       - name: Compute dependency context
         id: dep-context
         env:
-          ACTOR: ${{ github.actor }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           EVENT: ${{ github.event_name }}
           UPDATE_TYPE: ${{ steps.dep-meta.outputs.update-type }}
         run: |
-          if [ "$ACTOR" = "dependabot[bot]" ] && [ "$EVENT" = "pull_request" ]; then
+          if [ "$PR_AUTHOR" = "dependabot[bot]" ] && [ "$EVENT" = "pull_request" ]; then
             echo "is_dependabot=true" >> "$GITHUB_OUTPUT"
             # Skip E2E only when we have positive confirmation of patch/minor.
             # Empty/unknown update-type → default to running E2E (strict).
@@ -333,6 +339,46 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+
+      # Must run AFTER `Setup Rust cache`: rust-cache restores `~/.cargo/bin`
+      # from the cached workspace, which on macOS overwrites these symlinks
+      # with the broken rustup-init proxies again. Doing the repair last
+      # makes it the authoritative state for the rest of the job.
+      #
+      # The macos-15-arm64 20260511+ runner images ship a pre-installed
+      # `rustup-init` binary that is also installed under `~/.cargo/bin/cargo`
+      # and `~/.cargo/bin/rustc`. When invoked under those names it still
+      # behaves like the installer ("unexpected argument 'metadata' found"),
+      # breaking any tool that resolves cargo via CARGO_HOME (tauri-action's
+      # `cargo metadata` does exactly that, regardless of PATH).
+      # Overwrite the broken proxies with direct symlinks to the toolchain's
+      # real binaries — `rustup which` returns the actual paths.
+      #
+      # `rustup target add` is also called defensively: dtolnay/rust-toolchain
+      # installs the targets in `~/.rustup` during Setup Rust, but observed
+      # runs have shown the target installation occasionally not surviving
+      # cache restore (probably runner-image variance — same cache key has
+      # produced both success and "Target X does not exist" failures).
+      # `rustup target add` is idempotent, so re-adding is a cheap insurance.
+      - name: Repair cargo/rustc proxies and PATH
+        shell: bash
+        run: |
+          real_cargo=$(rustup which cargo)
+          real_rustc=$(rustup which rustc)
+          toolchain_bin=$(dirname "$real_cargo")
+          echo "Active toolchain bin: $toolchain_bin"
+          mkdir -p "$HOME/.cargo/bin"
+          ln -sf "$real_cargo" "$HOME/.cargo/bin/cargo"
+          ln -sf "$real_rustc" "$HOME/.cargo/bin/rustc"
+          echo "$toolchain_bin" >> "$GITHUB_PATH"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          "$HOME/.cargo/bin/cargo" --version
+          "$HOME/.cargo/bin/cargo" metadata --no-deps --format-version 1 --manifest-path src-tauri/Cargo.toml >/dev/null && echo "cargo metadata OK"
+          if [ "${{ matrix.platform }}" = "macos-latest" ]; then
+            rustup target add aarch64-apple-darwin x86_64-apple-darwin
+            echo "Installed targets:"
+            rustup target list --installed
+          fi
 
       - name: Clean stale migration caches
         shell: bash

@@ -25,7 +25,11 @@
 <script setup lang="ts">
 import type { ButtonProps } from '@nuxt/ui'
 
-interface IButtonProps extends ButtonProps {
+// Vue 3.5.34's SFC compiler cannot resolve type imports from @nuxt/ui's
+// virtual component bundle — `@vue-ignore` keeps the inherited props as
+// fallthrough attrs at runtime, matching the 3.2 behaviour described in
+// the compiler warning.
+interface IButtonProps extends /* @vue-ignore */ ButtonProps {
   tooltip?: string
 }
 const buttonProps = defineProps<IButtonProps>()

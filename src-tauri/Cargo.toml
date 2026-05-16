@@ -32,7 +32,7 @@ mime_guess = "2.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
-sqlparser = { version = "0.61", features = ["visitor"] }
+sqlparser = { version = "0.62", features = ["visitor"] }
 tauri = { version = "2.11", features = ["protocol-asset", "devtools", "test"] }
 tauri-plugin-dialog = "2.7"
 tauri-plugin-fs = "2.4.5"
@@ -54,7 +54,7 @@ ts-rs = { version = "12.0", features = ["serde-compat"] }
 uhlc = "0.9"
 url = "2.5"
 uuid = { version = "1.23", features = ["v4"] }
-zip = "8.5"
+zip = "8.6"
 rusqlite = { version = "0.39", features = [
   "load_extension",
   "bundled-sqlcipher-vendored-openssl",
@@ -160,7 +160,7 @@ tauri-plugin-android-fs = "28"
 # a tiny JNI shim called from MainActivity.onCreate (see
 # `Java_space_haex_vault_MainActivity_initializeNdkContext` in lib.rs).
 ndk-context = "0.1"
-jni = "0.21"
+jni = "0.22"
 
 [dev-dependencies]
 futures = "0.3"

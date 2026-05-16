@@ -115,6 +115,27 @@ pub struct StorageDownloadRequest {
     pub key: String,
 }
 
+/// Request a resumable streaming download into a local file.
+///
+/// `transfer_id` is a frontend-generated UUID so the WebView can correlate
+/// `storage:transfer:*` events to a specific UI row and (optionally) cancel
+/// the transfer via [`remote_storage_cancel_transfer`].
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DownloadToPathRequest {
+    /// Backend ID to download from
+    pub backend_id: String,
+    /// Object key (path in the bucket)
+    pub key: String,
+    /// Absolute path on disk where the object should land. If the file
+    /// already exists, the download resumes from its current size.
+    pub output_path: String,
+    /// Caller-generated transfer id, used to route progress events and
+    /// cancellation requests.
+    pub transfer_id: String,
+}
+
 /// Request to delete an object
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -148,4 +169,18 @@ pub struct StorageObjectInfo {
     pub size: u64,
     /// Last modified timestamp (ISO 8601)
     pub last_modified: Option<String>,
+}
+
+/// Directory-style listing result: a single hierarchy level under a prefix,
+/// split into sub-prefixes ("folders") and objects ("files"). Built on top of
+/// S3's `delimiter` parameter so very large buckets aren't enumerated to
+/// browse a single folder.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct StorageListDirResponse {
+    /// Sub-prefixes under the requested prefix (always end with "/").
+    pub folders: Vec<String>,
+    /// Objects whose key starts with the prefix and contains no further "/".
+    pub objects: Vec<StorageObjectInfo>,
 }

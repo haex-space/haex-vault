@@ -5,7 +5,7 @@ const VIDEO_EXTS = new Set(['mp4', 'mov', 'webm', 'ogv'])
 const AUDIO_EXTS = new Set(['mp3', 'wav', 'flac', 'ogg', 'aac', 'm4a'])
 const PDF_EXTS = new Set(['pdf'])
 
-const MIME_TYPES: Record<string, string> = {
+export const MIME_TYPES: Record<string, string> = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
   webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp',
   mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm',
@@ -99,17 +99,23 @@ export function useFilePreview() {
     }
   }
 
-  const close = () => {
+  /**
+   * Open preview pointing at a streaming URL (e.g. `haex-stream://…`).
+   *
+   * No bytes are loaded into memory — the player drives Range requests
+   * directly against the URL. Used for S3 audio/video where pulling the
+   * whole file just to play it would be wasteful (and slow for anything
+   * over a few MiB).
+   */
+  const openStream = (streamUrl: string, filename: string) => {
     cleanup()
+    previewFilename.value = filename
+    previewType.value = getMediaType(filename)
+    previewUrl.value = streamUrl
   }
 
-  /**
-   * Trigger a browser download for a base64 string
-   */
-  const downloadBase64 = (base64: string, filename: string) => {
-    const url = base64ToObjectUrl(base64, filename)
-    triggerDownload(url, filename)
-    URL.revokeObjectURL(url)
+  const close = () => {
+    cleanup()
   }
 
   const openWithSystem = async (absolutePath: string) => {
@@ -124,8 +130,8 @@ export function useFilePreview() {
     isOpen,
     openLocal,
     openRemote,
+    openStream,
     close,
-    downloadBase64,
     openWithSystem,
     getMediaType,
     isPreviewable,
@@ -144,9 +150,3 @@ function base64ToObjectUrl(base64: string, filename: string): string {
   return URL.createObjectURL(blob)
 }
 
-function triggerDownload(url: string, filename: string) {
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-}

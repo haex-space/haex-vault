@@ -9,6 +9,7 @@ pub mod file_sync;
 mod filesystem;
 mod logging;
 pub mod mail;
+mod media_server;
 pub mod mls;
 #[cfg(desktop)]
 mod shortcuts;
@@ -50,36 +51,30 @@ use tauri::Manager;
 /// stored in ndk-context outlives the local JNI frame.
 #[cfg(target_os = "android")]
 #[no_mangle]
-pub extern "system" fn Java_space_haex_vault_MainActivity_initializeNdkContext(
-    env: jni::JNIEnv,
-    _class: jni::objects::JClass,
-    activity: jni::objects::JObject,
+pub extern "system" fn Java_space_haex_vault_MainActivity_initializeNdkContext<'local>(
+    mut unowned_env: jni::EnvUnowned<'local>,
+    _class: jni::objects::JClass<'local>,
+    activity: jni::objects::JObject<'local>,
 ) {
-    let env_local = env;
-    let vm = match env_local.get_java_vm() {
-        Ok(vm) => vm,
-        Err(e) => {
-            eprintln!("[NdkContext] Failed to get JavaVM: {e}");
-            return;
+    let outcome = unowned_env.with_env(|env| -> jni::errors::Result<()> {
+        let vm = env.get_java_vm()?;
+        let activity_global = env.new_global_ref(&activity)?;
+        unsafe {
+            ndk_context::initialize_android_context(
+                vm.get_raw() as *mut std::ffi::c_void,
+                activity_global.as_obj().as_raw() as *mut std::ffi::c_void,
+            );
         }
-    };
-    let activity_global = match env_local.new_global_ref(activity) {
-        Ok(g) => g,
-        Err(e) => {
-            eprintln!("[NdkContext] Failed to create global ref to activity: {e}");
-            return;
-        }
-    };
-    unsafe {
-        ndk_context::initialize_android_context(
-            vm.get_java_vm_pointer() as *mut std::ffi::c_void,
-            activity_global.as_obj().as_raw() as *mut std::ffi::c_void,
-        );
+        // Leak the global ref — the raw pointer we just stored must remain
+        // valid for the lifetime of the process.
+        let _ = activity_global.into_raw();
+        Ok(())
+    });
+    match outcome.into_outcome() {
+        jni::Outcome::Ok(()) => eprintln!("[NdkContext] Initialized"),
+        jni::Outcome::Err(e) => eprintln!("[NdkContext] Failed: {e}"),
+        jni::Outcome::Panic(_) => eprintln!("[NdkContext] Panic during init"),
     }
-    // Leak the global ref — the raw pointer we just stored must remain
-    // valid for the lifetime of the process.
-    std::mem::forget(activity_global);
-    eprintln!("[NdkContext] Initialized");
 }
 
 pub mod table_names {
@@ -135,6 +130,12 @@ pub struct AppState {
     /// RwLock because reads (QUIC stream routing) are frequent and concurrent,
     /// writes (start/stop leader) are rare.
     pub leader_state: Arc<tokio::sync::RwLock<HashMap<String, Arc<space_delivery::local::leader::LeaderState>>>>,
+    /// Loopback HTTP range server. Exposes registered file paths as
+    /// `http://127.0.0.1:<port>/<token>` so the WebView's media element
+    /// can stream large files without loading them into RAM. Custom Tauri
+    /// URI schemes don't work for `<audio>`/`<video>` on WebKitGTK — this
+    /// is the cross-platform workaround.
+    pub media_server: media_server::MediaServer,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -219,6 +220,13 @@ pub fn run() {
                 }
             }
         })
+        .register_asynchronous_uri_scheme_protocol(
+            remote_storage::streaming::protocol::STREAM_PROTOCOL_NAME,
+            move |context, request, responder| {
+                let app_handle = context.app_handle().clone();
+                remote_storage::streaming::stream_protocol_handler(app_handle, request, responder);
+            },
+        )
         .manage(AppState {
             db: DbConnection(Arc::new(Mutex::new(None))),
             hlc: Mutex::new(HlcService::new()),
@@ -246,6 +254,12 @@ pub fn run() {
             pty_manager: extension::shell::pty::PtyManager::new(),
             local_sync_loops: tokio::sync::Mutex::new(HashMap::new()),
             leader_state: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
+            // Bind the loopback media server up-front. Failure to bind a
+            // random port is so unusual that crashing here is the right
+            // call — without the server the file browser's audio/video
+            // preview can't work on WebKitGTK at all.
+            media_server: tauri::async_runtime::block_on(media_server::MediaServer::start())
+                .expect("failed to start local media server"),
         })
         //.manage(ExtensionState::default())
         .plugin(tauri_plugin_dialog::init())
@@ -498,6 +512,10 @@ pub fn run() {
             remote_storage::remote_storage_download,
             remote_storage::remote_storage_delete,
             remote_storage::remote_storage_list,
+            remote_storage::remote_storage_list_dir,
+            remote_storage::remote_storage_download_to_path,
+            remote_storage::remote_storage_cancel_transfer,
+            media_server::media_server_register,
             // Extension Remote Storage commands (with permission checks)
             extension::remote_storage::commands::extension_remote_storage_list_backends,
             extension::remote_storage::commands::extension_remote_storage_add_backend,
@@ -554,6 +572,8 @@ pub fn run() {
             peer_storage::peer_storage_diagnose_connection,
             peer_storage::peer_storage_remote_list,
             peer_storage::peer_storage_remote_read,
+            peer_storage::peer_storage_remote_write,
+            peer_storage::peer_storage_remote_create_directory,
             peer_storage::peer_storage_transfer_cancel,
             peer_storage::peer_storage_transfer_pause,
             peer_storage::peer_storage_transfer_resume,
@@ -596,6 +616,8 @@ pub fn run() {
             file_sync::commands::file_sync_trigger_by_watcher,
             file_sync::commands::file_sync_status,
             file_sync::commands::file_sync_stop_all,
+            file_sync::commands::file_sync_get_log,
+            file_sync::commands::file_sync_clear_log,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

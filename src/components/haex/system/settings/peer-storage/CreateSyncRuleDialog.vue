@@ -65,13 +65,19 @@
               />
             </div>
 
-            <!-- Cloud: backend + prefix -->
+            <!-- Cloud: backend + bucket + prefix -->
             <div v-if="sourceType === 'cloud'" class="space-y-3">
               <UiSelectMenu
                 v-model="sourceBackendId"
                 :items="backendOptions"
                 :label="t('source.backend')"
                 value-key="value"
+              />
+              <UiInput
+                v-model="sourceBucket"
+                :label="t('source.bucket')"
+                :placeholder="defaultBucketFor(sourceBackendId) || 'my-bucket'"
+                :description="t('source.bucketDescription')"
               />
               <UiInput
                 v-model="sourcePrefix"
@@ -156,13 +162,19 @@
               />
             </div>
 
-            <!-- Cloud: backend + prefix -->
+            <!-- Cloud: backend + bucket + prefix -->
             <div v-if="targetType === 'cloud'" class="space-y-3">
               <UiSelectMenu
                 v-model="targetBackendId"
                 :items="backendOptions"
                 :label="t('target.backend')"
                 value-key="value"
+              />
+              <UiInput
+                v-model="targetBucket"
+                :label="t('target.bucket')"
+                :placeholder="defaultBucketFor(targetBackendId) || 'my-bucket'"
+                :description="t('target.bucketDescription')"
               />
               <UiInput
                 v-model="targetPrefix"
@@ -264,6 +276,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { eq } from 'drizzle-orm'
 import { haexDevices, type SelectHaexSyncRules } from '~/database/schemas'
 import { getUcanForSpaceAsync } from '~/utils/auth/ucanStore'
+import type { StorageBackendInfo } from '~/../src-tauri/bindings/StorageBackendInfo'
 
 type ProviderType = 'local' | 'peer' | 'cloud'
 
@@ -293,8 +306,21 @@ const { add: addToast } = useToast()
 const fileSyncStore = useFileSyncStore()
 const spacesStore = useSpacesStore()
 const peerStorageStore = usePeerStorageStore()
-const syncBackendsStore = useSyncBackendsStore()
 const deviceStore = useDeviceStore()
+
+const storageBackends = ref<StorageBackendInfo[]>([])
+
+const loadStorageBackendsAsync = async () => {
+  try {
+    storageBackends.value = await invoke<StorageBackendInfo[]>('remote_storage_list_backends')
+  } catch (error) {
+    addToast({
+      title: t('errors.loadBackendsFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+    })
+  }
+}
 const { currentVault } = storeToRefs(useVaultStore())
 
 // UStepper uses 0-based index
@@ -342,6 +368,7 @@ const sourceDeviceEndpointId = ref('')
 const sourceShareId = ref('')
 const sourceSubfolder = ref('')
 const sourceBackendId = ref('')
+const sourceBucket = ref('')
 const sourcePrefix = ref('')
 
 // -- Target state --
@@ -354,6 +381,7 @@ const targetCreateNewFolder = ref(false)
 const targetNewFolderName = ref('')
 const targetSubfolder = ref('')
 const targetBackendId = ref('')
+const targetBucket = ref('')
 const targetPrefix = ref('')
 
 // -- Settings state --
@@ -373,8 +401,15 @@ const spaceOptions = computed(() =>
 )
 
 const backendOptions = computed(() =>
-  syncBackendsStore.backends.map(b => ({ label: b.name, value: b.id })),
+  storageBackends.value
+    .filter(b => b.enabled)
+    .map(b => ({ label: b.name, value: b.id })),
 )
+
+const defaultBucketFor = (backendId: string): string => {
+  const backend = storageBackends.value.find(b => b.id === backendId)
+  return backend?.config?.bucket || ''
+}
 
 const deviceOptionsForSpace = (spaceId: string) =>
   peerStorageStore.spaceDevices
@@ -450,6 +485,8 @@ const buildSourceConfig = () => {
     }
     case 'cloud': return {
       backendId: sourceBackendId.value,
+      // Only send an override when the user actually changed it
+      bucket: sourceBucket.value.trim() || undefined,
       prefix: sourcePrefix.value,
     }
   }
@@ -476,6 +513,7 @@ const buildTargetConfig = () => {
     }
     case 'cloud': return {
       backendId: targetBackendId.value,
+      bucket: targetBucket.value.trim() || undefined,
       prefix: targetPrefix.value,
     }
   }
@@ -609,6 +647,7 @@ const resetForm = () => {
   sourceShareId.value = ''
   sourceSubfolder.value = ''
   sourceBackendId.value = ''
+  sourceBucket.value = ''
   sourcePrefix.value = ''
   targetType.value = 'local'
   targetPath.value = ''
@@ -619,6 +658,7 @@ const resetForm = () => {
   targetNewFolderName.value = ''
   targetSubfolder.value = ''
   targetBackendId.value = ''
+  targetBucket.value = ''
   targetPrefix.value = ''
   direction.value = 'one_way'
   intervalSeconds.value = 300
@@ -644,6 +684,7 @@ const populateFromRule = (rule: SelectHaexSyncRules) => {
     sourceShareId.value = (srcCfg?.path as string) || ''
   } else if (rule.sourceType === 'cloud') {
     sourceBackendId.value = (srcCfg?.backendId as string) || ''
+    sourceBucket.value = (srcCfg?.bucket as string) || ''
     sourcePrefix.value = (srcCfg?.prefix as string) || ''
   }
 
@@ -656,6 +697,7 @@ const populateFromRule = (rule: SelectHaexSyncRules) => {
     targetShareId.value = (tgtCfg?.path as string) || ''
   } else if (rule.targetType === 'cloud') {
     targetBackendId.value = (tgtCfg?.backendId as string) || ''
+    targetBucket.value = (tgtCfg?.bucket as string) || ''
     targetPrefix.value = (tgtCfg?.prefix as string) || ''
   }
 }
@@ -665,6 +707,7 @@ watch(open, async (isOpen) => {
     resetForm()
     await peerStorageStore.loadSharesAsync()
     await peerStorageStore.loadSpaceDevicesAsync()
+    await loadStorageBackendsAsync()
     if (props.editRule) {
       populateFromRule(props.editRule)
     } else if (props.prefill) {
@@ -707,6 +750,8 @@ de:
     subfolder: Unterordner (optional)
     subfolderPlaceholder: z.B. Bilder/Urlaub
     backend: Storage-Backend
+    bucket: Bucket
+    bucketDescription: Leer lassen um den Bucket des Backends zu verwenden. Wird automatisch angelegt, falls nicht vorhanden.
     prefix: Pfad-Präfix
   target:
     type: Zieltyp
@@ -720,6 +765,8 @@ de:
     subfolder: Unterordner (optional)
     subfolderPlaceholder: z.B. Backup/Fotos
     backend: Storage-Backend
+    bucket: Bucket
+    bucketDescription: Leer lassen um den Bucket des Backends zu verwenden. Wird automatisch angelegt, falls nicht vorhanden.
     prefix: Pfad-Präfix
   settings:
     direction: Richtung
@@ -757,6 +804,7 @@ de:
     deleted: Sync-Regel gelöscht
   errors:
     createFailed: Sync-Regel konnte nicht erstellt werden
+    loadBackendsFailed: Storage-Backends konnten nicht geladen werden
 en:
   title: Create Sync Rule
   titleEdit: Edit Sync Rule
@@ -781,6 +829,8 @@ en:
     subfolder: Subfolder (optional)
     subfolderPlaceholder: e.g. Pictures/Vacation
     backend: Storage backend
+    bucket: Bucket
+    bucketDescription: Leave empty to use the backend's default bucket. Created automatically if missing.
     prefix: Path prefix
   target:
     type: Target type
@@ -794,6 +844,8 @@ en:
     subfolder: Subfolder (optional)
     subfolderPlaceholder: e.g. Backup/Photos
     backend: Storage backend
+    bucket: Bucket
+    bucketDescription: Leave empty to use the backend's default bucket. Created automatically if missing.
     prefix: Path prefix
   settings:
     direction: Direction
@@ -831,4 +883,5 @@ en:
     deleted: Sync rule deleted
   errors:
     createFailed: Failed to save sync rule
+    loadBackendsFailed: Failed to load storage backends
 </i18n>

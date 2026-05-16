@@ -208,6 +208,7 @@ import type { UpdateStorageBackendRequest } from '~/../src-tauri/bindings/Update
 
 const { t } = useI18n()
 const { add } = useToast()
+const fileSyncStore = useFileSyncStore()
 
 // State
 const storageBackends = ref<StorageBackendInfo[]>([])
@@ -398,6 +399,21 @@ const onUpdateBackendAsync = async () => {
       color: 'success',
     })
 
+    // Running sync loops hold a constructed S3 client built from the old
+    // config — restart any rule that references this backend so it picks
+    // up the new region/endpoint/credentials.
+    try {
+      const restarted = await fileSyncStore.restartRulesUsingBackendAsync(editingBackendId.value!)
+      if (restarted > 0) {
+        add({
+          title: t('success.rulesRestarted', { count: restarted }),
+          color: 'success',
+        })
+      }
+    } catch (error) {
+      console.error('Failed to restart sync rules after backend update:', error)
+    }
+
     await loadBackendsAsync()
     closeForm()
   } catch (error) {
@@ -517,6 +533,7 @@ de:
     backendUpdated: Storage Backend aktualisiert
     backendDeleted: Storage Backend gelöscht
     connectionOk: Verbindung erfolgreich
+    rulesRestarted: "{count} Sync-Regel(n) mit neuer Konfiguration neu gestartet"
   errors:
     loadFailed: Backends konnten nicht geladen werden
     addFailed: Backend konnte nicht hinzugefügt werden
@@ -577,6 +594,7 @@ en:
     backendUpdated: Storage backend updated
     backendDeleted: Storage backend deleted
     connectionOk: Connection successful
+    rulesRestarted: "Restarted {count} sync rule(s) with new configuration"
   errors:
     loadFailed: Failed to load backends
     addFailed: Failed to add backend
