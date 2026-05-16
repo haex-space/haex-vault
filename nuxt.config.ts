@@ -24,15 +24,22 @@ export default defineNuxtConfig({
 
   experimental: {},
 
-  // Workaround for Nuxt 4.4.5 + ssr:false regression
-  // "No entry found in rollupOptions.input" — see nuxt/nuxt#35033 (fix in
-  // #35037, awaiting release). Vite Environment API in 4.4.5 + SPA mode can
-  // drop the required `entry`/`server` keys from rollupOptions.input. We
-  // patch them in via the vite:extendConfig hook with the first string
-  // input as fallback so resolveServerEntry succeeds.
+  // Workaround for Nuxt 4.4.5 + ssr:false dev-mode regression
+  // ("No entry found in rollupOptions.input" from resolveServerEntry, only
+  // triggered in `nuxt dev`). See nuxt/nuxt#35033 (fix #35037 merged but no
+  // 4.4.6 release yet).
+  //
+  // CRITICAL: this hook MUST only run in dev. Applying `rollupInput.server`
+  // in the production build (`nuxt generate`) silently drops the `<link
+  // rel="stylesheet" href="/_nuxt/entry.*.css">` tag from the prerendered
+  // index.html — every Tauri release build between v1.21 and v1.22 ran
+  // without CSS because of this. Only patch `entry`/`server` when the dev
+  // server is being built.
   // TODO: Remove this hook once Nuxt > 4.4.5 with the upstream fix is released.
   hooks: {
-    'vite:extendConfig'(config) {
+    'vite:extendConfig'(config, { isClient }) {
+      if (!process.env.NUXT_DEV && process.env.NODE_ENV !== 'development') return
+      if (!isClient) return
       const rollupInput = config.build?.rollupOptions?.input
       if (
         !rollupInput
