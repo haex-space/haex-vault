@@ -481,6 +481,13 @@ impl PeerEndpoint {
                         None => break,
                     }
                 }
+                if got < size {
+                    return Err(PeerStorageError::ConnectionFailed {
+                        reason: format!(
+                            "Stream ended early: expected {size} bytes, received {got}"
+                        ),
+                    });
+                }
                 Ok(data)
             }
             Response::Error { message } => {
