@@ -143,13 +143,31 @@ const emit = defineEmits<{
 const selectedExtensionIds = ref<string[]>([])
 const rememberDecision = ref(false)
 
+const CORE_EXTENSION_ID = '__core__'
+const CORE_EXTENSION_NAME = 'core'
+
 // Get installed extensions
 const extensionsStore = useExtensionsStore()
+
+// Whether the client requested core access (passwords etc. served by haex-vault itself)
+const requestsCoreAccess = computed(() =>
+  (props.pendingAuth?.requestedExtensions ?? []).some(
+    (req) => req.extensionPublicKey === CORE_EXTENSION_ID && req.name === CORE_EXTENSION_NAME,
+  ),
+)
+
 const extensionOptions = computed(() => {
-  return extensionsStore.availableExtensions.map((ext) => ({
+  const options = extensionsStore.availableExtensions.map((ext) => ({
     value: ext.id,
     label: ext.name || ext.id,
   }))
+  if (requestsCoreAccess.value) {
+    options.unshift({
+      value: CORE_EXTENSION_ID,
+      label: t('coreOption'),
+    })
+  }
+  return options
 })
 
 // Reset selection when dialog opens and pre-select requested extensions
@@ -157,14 +175,17 @@ watch(open, (isOpen) => {
   if (isOpen) {
     rememberDecision.value = false
 
-    // Pre-select extensions that match the client's requestedExtensions
     const requested = props.pendingAuth?.requestedExtensions ?? []
     if (requested.length > 0) {
+      // Pre-select installed extensions that match the client's request
       const matchedIds = extensionsStore.availableExtensions
         .filter((ext) =>
           requested.some((req) => ext.name === req.name && ext.publicKey === req.extensionPublicKey),
         )
         .map((ext) => ext.id)
+
+      // Also pre-select core access if requested
+      if (requestsCoreAccess.value) matchedIds.unshift(CORE_EXTENSION_ID)
 
       selectedExtensionIds.value = matchedIds
     } else {
@@ -194,9 +215,10 @@ de:
   title: Externe Verbindung
   wantsToConnect: möchte sich verbinden
   clientId: Client-ID (Fingerprint)
-  selectExtension: Erweiterungen auswählen
-  selectExtensionPlaceholder: Erweiterungen wählen...
-  extensionHint: Der Client erhält Zugriff auf die ausgewählten Erweiterungen.
+  selectExtension: Zugriff auswählen
+  selectExtensionPlaceholder: Zugriff wählen...
+  extensionHint: Der Client erhält Zugriff auf die ausgewählten Bereiche.
+  coreOption: Core (Passwörter)
   warning:
     title: Sicherheitshinweis
     description: Genehmige nur Verbindungen von Anwendungen, die du selbst gestartet hast.
@@ -207,9 +229,10 @@ en:
   title: External Connection
   wantsToConnect: wants to connect
   clientId: Client ID (Fingerprint)
-  selectExtension: Select Extensions
-  selectExtensionPlaceholder: Choose extensions...
-  extensionHint: The client will have access to the selected extensions.
+  selectExtension: Select Access
+  selectExtensionPlaceholder: Choose access...
+  extensionHint: The client will have access to the selected areas.
+  coreOption: Core (Passwords)
   warning:
     title: Security Notice
     description: Only approve connections from applications you started yourself.

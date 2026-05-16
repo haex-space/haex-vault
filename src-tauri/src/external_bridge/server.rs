@@ -876,6 +876,35 @@ async fn check_client_authorized_for_extension(
     }
 }
 
+/// Check if a client is authorized for the core target.
+/// Uses the simpler (client_id, extension_id) lookup since core has no
+/// public_key/name pair to JOIN against.
+async fn check_client_authorized_for_core(app_handle: &AppHandle, client_id: &str) -> bool {
+    use super::authorization::SQL_IS_AUTHORIZED;
+
+    let state = app_handle.state::<AppState>();
+    let params = vec![
+        JsonValue::String(client_id.to_string()),
+        JsonValue::String(super::CORE_EXTENSION_ID.to_string()),
+    ];
+
+    match select_with_crdt(SQL_IS_AUTHORIZED.to_string(), params, &state.db) {
+        Ok(rows) => rows
+            .first()
+            .and_then(|row| row.first())
+            .and_then(|count| count.as_i64())
+            .map(|c| c > 0)
+            .unwrap_or(false),
+        Err(e) => {
+            eprintln!(
+                "[ExternalBridge] Failed to check core authorization: {}",
+                e
+            );
+            false
+        }
+    }
+}
+
 /// Get extension ID by public_key and name
 async fn get_extension_id_by_public_key_and_name(
     app_handle: &AppHandle,
@@ -1082,21 +1111,34 @@ async fn process_request(
         }
     };
 
+    // Core-target detection: requests addressed to the haex-vault core itself
+    // (not a specific extension) carry the CORE sentinel as extensionPublicKey/name.
+    let is_core = ext_public_key == super::CORE_EXTENSION_ID
+        && ext_name == super::CORE_EXTENSION_NAME;
+
     // Lookup the extension's internal ID first (needed for session auth check)
-    let extension_id = match get_extension_id_by_public_key_and_name(app_handle, ext_public_key, ext_name).await {
-        Some(id) => id,
-        None => {
-            return serde_json::json!({
-                "requestId": request_id,
-                "success": false,
-                "error": "Extension not found"
-            });
+    let extension_id = if is_core {
+        super::CORE_EXTENSION_ID.to_string()
+    } else {
+        match get_extension_id_by_public_key_and_name(app_handle, ext_public_key, ext_name).await {
+            Some(id) => id,
+            None => {
+                return serde_json::json!({
+                    "requestId": request_id,
+                    "success": false,
+                    "error": "Extension not found"
+                });
+            }
         }
     };
 
-    // Verify client is authorized for this extension
+    // Verify client is authorized for this extension (or core)
     // Check both database authorization AND session authorization ("allow once")
-    let db_authorized = check_client_authorized_for_extension(app_handle, client_id, ext_public_key, ext_name).await;
+    let db_authorized = if is_core {
+        check_client_authorized_for_core(app_handle, client_id).await
+    } else {
+        check_client_authorized_for_extension(app_handle, client_id, ext_public_key, ext_name).await
+    };
     let session_authorized = {
         let auths = session_authorizations.read().await;
         auths.get(client_id).map(|sa| sa.extension_id == extension_id).unwrap_or(false)
@@ -1106,18 +1148,25 @@ async fn process_request(
         return serde_json::json!({
             "requestId": request_id,
             "success": false,
-            "error": "Client not authorized for this extension"
+            "error": if is_core {
+                "Client not authorized for core access".to_string()
+            } else {
+                "Client not authorized for this extension".to_string()
+            }
         });
     }
 
-    // Ensure the extension is loaded (auto-start if needed)
-    if let Err(e) = ensure_extension_loaded(app_handle, &extension_id).await {
-        eprintln!("[ExternalBridge] Failed to ensure extension is loaded: {}", e);
-        return serde_json::json!({
-            "requestId": request_id,
-            "success": false,
-            "error": format!("Failed to load extension: {}", e)
-        });
+    // Ensure the extension is loaded (auto-start if needed).
+    // Core requests are handled by the main window — no extension to load.
+    if !is_core {
+        if let Err(e) = ensure_extension_loaded(app_handle, &extension_id).await {
+            eprintln!("[ExternalBridge] Failed to ensure extension is loaded: {}", e);
+            return serde_json::json!({
+                "requestId": request_id,
+                "success": false,
+                "error": format!("Failed to load extension: {}", e)
+            });
+        }
     }
 
     // Create oneshot channel for response
@@ -1140,13 +1189,22 @@ async fn process_request(
     });
 
     // Emit the request to the extension via Tauri event.
+    // - Core target: emit "haextension:external:core-request" to main window.
     // - WebView extension: emit_to_all_extension_windows() targets ONLY that
     //   extension's webview windows by label.
     // - Iframe extension (or no native webview): emit_to("main", …) so the
     //   frontend can forward via postMessage to the iframe of THIS extension.
     //   .emit() would broadcast to every webview, leaking the request payload
     //   (incl. publicKey, action, payload) to unrelated extensions.
-    let emit_result = {
+    let emit_result = if is_core {
+        let ok = app_handle
+            .emit_to("main", "haextension:external:core-request", &external_request)
+            .is_ok();
+        if ok {
+            eprintln!("[ExternalBridge] Emitted core request to main window");
+        }
+        ok
+    } else {
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         {
             let state = app_handle.state::<AppState>();

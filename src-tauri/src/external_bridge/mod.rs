@@ -14,6 +14,13 @@ mod tests;
 pub use authorization::{AuthorizedClient, BlockedClient, PendingAuthorization};
 pub use server::{ExternalBridge, SessionAuthorization, SessionBlockedClient, DEFAULT_BRIDGE_PORT};
 
+/// Sentinel `extension_public_key` (and `extension_id`) used by external clients
+/// to address the haex-vault core itself instead of a specific extension.
+/// A phantom row with this id exists in `haex_extensions` (see migration 0007).
+pub const CORE_EXTENSION_ID: &str = "__core__";
+/// Sentinel `extension_name` paired with `CORE_EXTENSION_ID` for core requests.
+pub const CORE_EXTENSION_NAME: &str = "core";
+
 use crate::database::core::{execute_with_crdt, select_with_crdt};
 use crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED;
 use crate::AppState;

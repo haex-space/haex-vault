@@ -61,6 +61,17 @@ const externalAuthOpen = computed({
 onMounted(() => {
   externalAuth.init()
 })
+
+// Core external request handlers (browser extensions & CLI tools that target
+// haex-vault core features like passwords directly, without going through an
+// installed extension).
+const coreExternalHandlers = useCoreExternalRequestHandlers()
+onMounted(() => {
+  coreExternalHandlers.initAsync()
+})
+onUnmounted(() => {
+  coreExternalHandlers.dispose()
+})
 </script>
 
 <style>
