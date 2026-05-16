@@ -23,13 +23,27 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::RwLock;
 
-/// Per-app singleton — pinned port + tokens → path mapping. Cloning is
-/// cheap (Arc) so the AppState can stash one instance and Tauri commands
-/// take owned copies.
+use crate::remote_storage::streaming::source::{ByteRange, StreamingSource};
+
+/// Source of bytes for a registered token. Either a plain on-disk file or
+/// a virtual streaming source (S3, peer, …). Kept private — callers go
+/// through `register` / `register_source`.
+#[derive(Clone)]
+enum MediaSource {
+    Local(PathBuf),
+    Stream {
+        source: Arc<dyn StreamingSource>,
+        content_type: Option<String>,
+    },
+}
+
+/// Per-app singleton — pinned port + tokens → media source mapping.
+/// Cloning is cheap (Arc) so the AppState can stash one instance and
+/// Tauri commands take owned copies.
 #[derive(Clone)]
 pub struct MediaServer {
     port: u16,
-    tokens: Arc<RwLock<HashMap<String, PathBuf>>>,
+    tokens: Arc<RwLock<HashMap<String, MediaSource>>>,
 }
 
 impl MediaServer {
@@ -39,7 +53,7 @@ impl MediaServer {
     pub async fn start() -> std::io::Result<Self> {
         let listener = TcpListener::bind("127.0.0.1:0").await?;
         let port = listener.local_addr()?.port();
-        let tokens: Arc<RwLock<HashMap<String, PathBuf>>> =
+        let tokens: Arc<RwLock<HashMap<String, MediaSource>>> =
             Arc::new(RwLock::new(HashMap::new()));
 
         let tokens_for_accept = tokens.clone();
@@ -79,11 +93,35 @@ impl MediaServer {
     /// across repeated plays of the same file.
     pub async fn register(&self, path: PathBuf) -> String {
         let mut map = self.tokens.write().await;
-        if let Some((existing_token, _)) = map.iter().find(|(_, p)| **p == path) {
+        if let Some((existing_token, _)) = map
+            .iter()
+            .find(|(_, src)| matches!(src, MediaSource::Local(p) if *p == path))
+        {
             return format!("http://127.0.0.1:{}/{}", self.port, existing_token);
         }
         let token = uuid::Uuid::new_v4().to_string();
-        map.insert(token.clone(), path);
+        map.insert(token.clone(), MediaSource::Local(path));
+        format!("http://127.0.0.1:{}/{}", self.port, token)
+    }
+
+    /// Register a virtual streaming source. Each call produces a fresh
+    /// token — sources can hold mutable handles (open QUIC connection,
+    /// SDK client) that don't dedup cleanly, so cache identity is the
+    /// caller's problem.
+    pub async fn register_source(
+        &self,
+        source: Arc<dyn StreamingSource>,
+        content_type: Option<String>,
+    ) -> String {
+        let token = uuid::Uuid::new_v4().to_string();
+        let mut map = self.tokens.write().await;
+        map.insert(
+            token.clone(),
+            MediaSource::Stream {
+                source,
+                content_type,
+            },
+        );
         format!("http://127.0.0.1:{}/{}", self.port, token)
     }
 }
@@ -95,7 +133,7 @@ impl MediaServer {
 /// chunks so memory stays flat regardless of file size.
 async fn handle_connection(
     mut stream: TcpStream,
-    tokens: Arc<RwLock<HashMap<String, PathBuf>>>,
+    tokens: Arc<RwLock<HashMap<String, MediaSource>>>,
 ) -> std::io::Result<()> {
     let mut buf = [0u8; 8192];
     let mut request_bytes: Vec<u8> = Vec::with_capacity(1024);
@@ -141,23 +179,47 @@ async fn handle_connection(
         return write_status(&mut stream, 404, "Not Found").await;
     }
 
-    let target_path = {
+    let media_source = {
         let map = tokens.read().await;
         map.get(token).cloned()
     };
-    let target_path = match target_path {
-        Some(p) => p,
+    let media_source = match media_source {
+        Some(s) => s,
         None => return write_status(&mut stream, 404, "Not Found").await,
     };
 
-    // Open the file + figure out its size before deciding response code.
-    let mut file = match tokio::fs::File::open(&target_path).await {
-        Ok(f) => f,
-        Err(_) => return write_status(&mut stream, 404, "Not Found").await,
-    };
-    let total = match file.metadata().await {
-        Ok(m) => m.len(),
-        Err(_) => return write_status(&mut stream, 500, "Internal Server Error").await,
+    // Resolve total size and content-type before deciding response code.
+    // For the local branch we also need the open file handle for the
+    // body-streaming step below, so we keep it here.
+    let (total, content_type, mut local_file) = match &media_source {
+        MediaSource::Local(path) => {
+            let file = match tokio::fs::File::open(path).await {
+                Ok(f) => f,
+                Err(_) => return write_status(&mut stream, 404, "Not Found").await,
+            };
+            let size = match file.metadata().await {
+                Ok(m) => m.len(),
+                Err(_) => {
+                    return write_status(&mut stream, 500, "Internal Server Error").await
+                }
+            };
+            (size, mime_for(path).to_string(), Some(file))
+        }
+        MediaSource::Stream {
+            source,
+            content_type,
+        } => {
+            let size = match source.size().await {
+                Ok(n) => n,
+                Err(_) => {
+                    return write_status(&mut stream, 500, "Internal Server Error").await
+                }
+            };
+            let ct = content_type
+                .clone()
+                .unwrap_or_else(|| "application/octet-stream".to_string());
+            (size, ct, None)
+        }
     };
 
     // Parse `Range: bytes=N-M` / `bytes=N-` / `bytes=-N` if present.
@@ -172,6 +234,24 @@ async fn handle_connection(
         })
         .next();
 
+    // 0-byte body: any Range header is unsatisfiable; otherwise return an
+    // empty 200. Mirrors the haex-stream protocol handler's behavior.
+    if total == 0 {
+        if range_header.is_some() {
+            return write_range_unsatisfiable(&mut stream, 0).await;
+        }
+        let mut header = String::from("HTTP/1.1 200 OK\r\n");
+        header.push_str(&format!("Content-Type: {}\r\n", content_type));
+        header.push_str("Content-Length: 0\r\n");
+        header.push_str("Accept-Ranges: bytes\r\n");
+        header.push_str("Cache-Control: no-store\r\n");
+        header.push_str("Access-Control-Allow-Origin: *\r\n");
+        header.push_str("Connection: close\r\n");
+        header.push_str("\r\n");
+        stream.write_all(header.as_bytes()).await?;
+        return Ok(());
+    }
+
     let (start, end, status, status_text) = if let Some(spec) = range_header {
         match parse_range(&spec, total) {
             Some((s, e)) => (s, e, 206u16, "Partial Content"),
@@ -182,17 +262,16 @@ async fn handle_connection(
             }
         }
     } else {
-        (0, total.saturating_sub(1), 200u16, "OK")
+        (0, total - 1, 200u16, "OK")
     };
 
     let content_length = end - start + 1;
-    let mime = mime_for(&target_path);
 
     // Response header. CORS open — these URLs only resolve inside the
     // WebView (loopback) and any locally-running tool that could already
     // read the file directly off disk anyway.
     let mut header = format!("HTTP/1.1 {} {}\r\n", status, status_text);
-    header.push_str(&format!("Content-Type: {}\r\n", mime));
+    header.push_str(&format!("Content-Type: {}\r\n", content_type));
     header.push_str(&format!("Content-Length: {}\r\n", content_length));
     header.push_str("Accept-Ranges: bytes\r\n");
     if status == 206 {
@@ -211,8 +290,39 @@ async fn handle_connection(
         return Ok(());
     }
 
-    // Stream the body in 64 KiB chunks so we never hold more than that in
-    // memory regardless of file size.
+    match &media_source {
+        MediaSource::Local(_) => {
+            // Already opened above — `local_file` is Some on this branch.
+            let file = local_file
+                .as_mut()
+                .expect("local_file populated for Local branch");
+            stream_local_chunks(&mut stream, file, start, content_length).await
+        }
+        MediaSource::Stream { source, .. } => {
+            let range = match ByteRange::new(start, end) {
+                Ok(r) => r,
+                Err(_) => return Ok(()), // headers already sent; bail
+            };
+            let bytes = match source.read_range(range).await {
+                Ok(b) => b,
+                // Headers are already on the wire — we can't switch status
+                // codes now. Drop the connection; the client will see a
+                // truncated body, which is the best signal available.
+                Err(_) => return Ok(()),
+            };
+            write_body_chunks(&mut stream, &bytes).await
+        }
+    }
+}
+
+/// Stream a byte range from an open file in 64 KiB chunks. Seeks to
+/// `start` first; reads exactly `content_length` bytes (or until EOF).
+async fn stream_local_chunks(
+    stream: &mut TcpStream,
+    file: &mut tokio::fs::File,
+    start: u64,
+    content_length: u64,
+) -> std::io::Result<()> {
     file.seek(std::io::SeekFrom::Start(start)).await?;
     let mut reader = BufReader::new(file);
     let mut remaining = content_length;
@@ -224,11 +334,8 @@ async fn handle_connection(
             break;
         }
         if let Err(e) = stream.write_all(&chunk[..n]).await {
-            // Client closed connection mid-stream (user closed the
-            // player). Not an error worth surfacing.
-            let kind = e.kind();
             if matches!(
-                kind,
+                e.kind(),
                 std::io::ErrorKind::BrokenPipe
                     | std::io::ErrorKind::ConnectionReset
                     | std::io::ErrorKind::ConnectionAborted,
@@ -239,7 +346,25 @@ async fn handle_connection(
         }
         remaining -= n as u64;
     }
+    Ok(())
+}
 
+/// Write an in-memory buffer to the TCP stream in 64 KiB chunks,
+/// swallowing the broken-pipe family (client disconnected).
+async fn write_body_chunks(stream: &mut TcpStream, bytes: &[u8]) -> std::io::Result<()> {
+    for chunk in bytes.chunks(64 * 1024) {
+        if let Err(e) = stream.write_all(chunk).await {
+            if matches!(
+                e.kind(),
+                std::io::ErrorKind::BrokenPipe
+                    | std::io::ErrorKind::ConnectionReset
+                    | std::io::ErrorKind::ConnectionAborted,
+            ) {
+                return Ok(());
+            }
+            return Err(e);
+        }
+    }
     Ok(())
 }
 
@@ -342,4 +467,76 @@ pub async fn media_server_register(
         ));
     }
     Ok(state.media_server.register(pb).await)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use async_trait::async_trait;
+    use std::sync::Arc;
+
+    struct DummySource {
+        data: Vec<u8>,
+    }
+
+    #[async_trait]
+    impl crate::remote_storage::streaming::source::StreamingSource for DummySource {
+        async fn size(
+            &self,
+        ) -> Result<u64, crate::remote_storage::streaming::source::StreamingError> {
+            Ok(self.data.len() as u64)
+        }
+        async fn read_range(
+            &self,
+            range: crate::remote_storage::streaming::source::ByteRange,
+        ) -> Result<Vec<u8>, crate::remote_storage::streaming::source::StreamingError> {
+            Ok(self.data[range.start() as usize..=range.end() as usize].to_vec())
+        }
+    }
+
+    #[tokio::test]
+    async fn serves_range_from_streaming_source() {
+        let server = MediaServer::start().await.unwrap();
+        let source = Arc::new(DummySource {
+            data: (0u8..=200).collect(),
+        });
+        let url = server
+            .register_source(source, Some("application/octet-stream".into()))
+            .await;
+
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let resp = client
+            .get(&url)
+            .header("Range", "bytes=10-19")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status().as_u16(), 206);
+        assert_eq!(
+            resp.headers().get("Content-Range").unwrap(),
+            "bytes 10-19/201",
+        );
+        let body = resp.bytes().await.unwrap();
+        assert_eq!(body.as_ref(), &(10u8..=19).collect::<Vec<u8>>()[..]);
+    }
+
+    #[tokio::test]
+    async fn serves_full_body_from_streaming_source_without_range_header() {
+        let server = MediaServer::start().await.unwrap();
+        let source = Arc::new(DummySource {
+            data: vec![0xAB; 256],
+        });
+        let url = server.register_source(source, None).await;
+
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let resp = client.get(&url).send().await.unwrap();
+        assert_eq!(resp.status().as_u16(), 200);
+        assert_eq!(
+            resp.headers().get("Content-Type").unwrap(),
+            "application/octet-stream",
+        );
+        let body = resp.bytes().await.unwrap();
+        assert_eq!(body.len(), 256);
+        assert!(body.iter().all(|b| *b == 0xAB));
+    }
 }
