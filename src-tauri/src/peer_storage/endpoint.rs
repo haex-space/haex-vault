@@ -617,6 +617,67 @@ impl PeerEndpoint {
         );
         self.state.write().await.allowed_peers = allowed;
     }
+
+    /// Local-only endpoint start for unit tests. Binds with `RelayMode::Disabled`
+    /// and no address-lookup service, so the test does not depend on DNS or relay
+    /// servers. Spawns the accept loop; omits the production endpoint-closed
+    /// watcher (which depends on a Tauri AppHandle).
+    #[cfg(test)]
+    pub(crate) async fn start_for_test(&mut self) -> Result<EndpointId, PeerStorageError> {
+        if self.endpoint.is_some() {
+            return Err(PeerStorageError::EndpointAlreadyRunning);
+        }
+
+        let endpoint = Endpoint::builder(iroh::endpoint::presets::Minimal)
+            .secret_key(self.secret_key.clone())
+            .alpns(vec![ALPN.to_vec()])
+            .relay_mode(RelayMode::Disabled)
+            .bind()
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed {
+                reason: format!("Failed to bind test endpoint: {e}"),
+            })?;
+
+        let id = endpoint.id();
+
+        let ep = endpoint.clone();
+        let state = self.state.clone();
+        let accept_task = tokio::spawn(async move {
+            accept_loop(ep, state).await;
+        });
+
+        self.endpoint = Some(endpoint);
+        self.accept_task = Some(accept_task);
+
+        Ok(id)
+    }
+
+    /// Pre-populate the connection cache with a direct-address QUIC connection
+    /// to `remote_addr`. After this returns, `open_stream(remote_id, None)` will
+    /// reuse the cached connection. Used by tests to bypass the relay /
+    /// address-lookup path that production `open_stream` relies on, since unit
+    /// tests run with `RelayMode::Disabled` and no DNS publishing.
+    #[cfg(test)]
+    pub(crate) async fn connect_for_test(
+        &self,
+        remote_addr: EndpointAddr,
+    ) -> Result<(), PeerStorageError> {
+        let endpoint = self
+            .endpoint
+            .as_ref()
+            .ok_or(PeerStorageError::EndpointNotRunning)?;
+        let remote_id = remote_addr.id;
+        let conn = endpoint
+            .connect(remote_addr, ALPN)
+            .await
+            .map_err(|e| PeerStorageError::ConnectionFailed {
+                reason: format!("connect_for_test: {e}"),
+            })?;
+        if let Ok(mut cache) = self.connections.lock() {
+            cache.insert(remote_id, conn);
+        }
+        Ok(())
+    }
 }
 
 // ============================================================================
