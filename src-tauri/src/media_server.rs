@@ -253,7 +253,7 @@ async fn handle_connection(
         return Ok(());
     }
 
-    let (mut start, mut end, mut status, mut status_text) =
+    let (start, mut end, mut status, mut status_text) =
         if let Some(spec) = range_header {
             match parse_range(&spec, total) {
                 Some((s, e)) => (s, e, 206u16, "Partial Content"),
@@ -496,6 +496,57 @@ pub async fn media_server_register(
         ));
     }
     Ok(state.media_server.register(pb).await)
+}
+
+/// Register an S3 object as a streaming source. Returns a
+/// `http://127.0.0.1:<port>/<token>` URL that an HTML `<audio>` or
+/// `<video>` element can be pointed at — Range requests against that
+/// URL are translated into S3 `get_object_range` calls.
+#[tauri::command(rename_all = "camelCase")]
+pub async fn media_server_register_s3_stream(
+    state: tauri::State<'_, crate::AppState>,
+    backend_id: String,
+    key: String,
+) -> Result<String, String> {
+    use crate::remote_storage::streaming::s3_source::S3StreamingSource;
+    use crate::remote_storage::streaming::source::StreamingSource;
+    let source = S3StreamingSource::from_backend_id(&state.db, &backend_id, &key)
+        .await
+        .map_err(|e| e.to_string())?;
+    // Probe the object's content type before handing the source over —
+    // we ask for it once, cache it in the registry, and the per-request
+    // path then avoids a second HEAD round-trip per range.
+    let ct = source.content_type().await;
+    Ok(state.media_server.register_source(Arc::new(source), ct).await)
+}
+
+/// Register a remote-peer file as a streaming source. Returns a
+/// `http://127.0.0.1:<port>/<token>` URL backed by an iroh QUIC channel
+/// to the peer — Range requests against that URL are translated into
+/// `peer_storage::Request::Read { range }` calls.
+#[tauri::command(rename_all = "camelCase")]
+pub async fn media_server_register_peer_stream(
+    state: tauri::State<'_, crate::AppState>,
+    node_id: String,
+    relay_url: Option<String>,
+    path: String,
+    ucan_token: String,
+) -> Result<String, String> {
+    use crate::remote_storage::streaming::peer_source::PeerStreamingSource;
+    use crate::remote_storage::streaming::source::StreamingSource;
+    let endpoint_id: iroh::EndpointId = node_id
+        .parse()
+        .map_err(|e| format!("invalid node_id: {e}"))?;
+    let relay = relay_url.and_then(|s| s.parse::<iroh::RelayUrl>().ok());
+    let source = PeerStreamingSource::new(
+        state.peer_storage.clone(),
+        endpoint_id,
+        relay,
+        path,
+        ucan_token,
+    );
+    let ct = source.content_type().await;
+    Ok(state.media_server.register_source(Arc::new(source), ct).await)
 }
 
 #[cfg(test)]
