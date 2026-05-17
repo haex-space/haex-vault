@@ -11,6 +11,7 @@
 //! `<audio>` element at — the browser then drives Range requests and we
 //! translate each one into a call into the matching adapter.
 
+pub mod peer_source;
 pub mod protocol;
 pub mod s3_source;
 pub mod source;

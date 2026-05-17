@@ -516,6 +516,8 @@ pub fn run() {
             remote_storage::remote_storage_download_to_path,
             remote_storage::remote_storage_cancel_transfer,
             media_server::media_server_register,
+            media_server::media_server_register_s3_stream,
+            media_server::media_server_register_peer_stream,
             // Extension Remote Storage commands (with permission checks)
             extension::remote_storage::commands::extension_remote_storage_list_backends,
             extension::remote_storage::commands::extension_remote_storage_add_backend,
