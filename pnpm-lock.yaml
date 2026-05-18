@@ -170,8 +170,8 @@ importers:
         specifier: ^0.17.3
         version: 0.17.3
       '@oxc-minify/binding-linux-x64-gnu':
-        specifier: ^0.129.0
-        version: 0.129.0
+        specifier: ^0.131.0
+        version: 0.131.0
       '@playwright/test':
         specifier: ^1.59.1
         version: 1.59.1
@@ -2173,8 +2173,8 @@ packages:
     cpu: [x64]
     os: [linux]
 
-  '@oxc-minify/binding-linux-x64-gnu@0.129.0':
-    resolution: {integrity: sha512-bhzSBIrCy0+Qj2v4sXzumnEc4OArO/cLxUo55OOciXKz4EPbGJoFlIoVG1r0seNZHTcyO7gPIymenJNT3IqR5Q==}
+  '@oxc-minify/binding-linux-x64-gnu@0.131.0':
+    resolution: {integrity: sha512-KodzbW12zmT/C/w4bGv2aWN7Q5+KVJKbNoAv5hooYeSujj8xSPGWl8pnyj7dJ9nd8j0CVjubEvHQ86rtzV99OA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
@@ -5957,6 +5957,7 @@ packages:
 
   lucide-vue-next@0.543.0:
     resolution: {integrity: sha512-Az5kpNm/koKAwSNIKjsZ4uHV2tVfmlQlcHwFBygQ8gc5/jFg7An9OrxgDy/aE5m+HLx7VfLYqDxLr8gWecZbQA==}
+    deprecated: Package deprecated. Please use @lucide/vue instead.
     peerDependencies:
       vue: '>=3.0.1'
 
@@ -10296,7 +10297,7 @@ snapshots:
   '@oxc-minify/binding-linux-x64-gnu@0.128.0':
     optional: true
 
-  '@oxc-minify/binding-linux-x64-gnu@0.129.0': {}
+  '@oxc-minify/binding-linux-x64-gnu@0.131.0': {}
 
   '@oxc-minify/binding-linux-x64-musl@0.128.0':
     optional: true
