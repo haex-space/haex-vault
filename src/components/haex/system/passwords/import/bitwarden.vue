@@ -16,7 +16,7 @@
             accept=".csv,.json"
             class="hidden"
             @change="onFileChangeAsync"
-          />
+          >
           <UButton
             icon="i-lucide-file"
             variant="outline"

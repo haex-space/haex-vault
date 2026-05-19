@@ -87,7 +87,7 @@ import { TRASH_GROUP_ID } from '~/stores/passwords/groups'
 const { t } = useI18n()
 
 const groupsStore = usePasswordsGroupsStore()
-const { rootGroups, selectedGroupId, trashGroup, itemGroupMap, itemCountByGroupId } = storeToRefs(groupsStore)
+const { rootGroups, selectedGroupId, trashGroup, itemGroupMap } = storeToRefs(groupsStore)
 const { selectGroup, setItemGroupAsync } = groupsStore
 
 const regularRootGroups = computed(

@@ -1,11 +1,8 @@
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
 import {
-  haexDeletedRows,
   haexSpaceDevices,
-  haexSpaceMembers,
   haexSpaces,
-  haexUcanTokens,
 } from '~/database/schemas'
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
 import type { schema } from '~/database'

@@ -75,7 +75,7 @@ export async function handleMailMethodAsync(
       const uids = params.uids as number[]
       const flags = params.flags as string[]
       const add = params.add as boolean
-      return invokeWithPermissionPrompt<void>(
+      return invokeWithPermissionPrompt<null>(
         TAURI_COMMANDS.mail.setFlags,
         { imap, mailbox, uids, flags, add, ...extInfo },
       )
@@ -86,7 +86,7 @@ export async function handleMailMethodAsync(
       const sourceMailbox = params.sourceMailbox as string
       const destinationMailbox = params.destinationMailbox as string
       const uids = params.uids as number[]
-      return invokeWithPermissionPrompt<void>(
+      return invokeWithPermissionPrompt<null>(
         TAURI_COMMANDS.mail.moveMessages,
         { imap, sourceMailbox, destinationMailbox, uids, ...extInfo },
       )
@@ -97,7 +97,7 @@ export async function handleMailMethodAsync(
       const mailbox = params.mailbox as string
       const rfc822Base64 = params.rfc822Base64 as string
       const flags = params.flags as string[] | undefined
-      return invokeWithPermissionPrompt<void>(
+      return invokeWithPermissionPrompt<null>(
         TAURI_COMMANDS.mail.appendMessage,
         { imap, mailbox, rfc822Base64, flags, ...extInfo },
       )

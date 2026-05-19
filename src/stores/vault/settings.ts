@@ -20,7 +20,7 @@ export {
 const log = createLogger('VAULT_SETTINGS')
 
 export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
-  const { currentVault, currentVaultName } = storeToRefs(useVaultStore())
+  const { currentVaultName } = storeToRefs(useVaultStore())
   const route = useRoute()
 
   // Check if we're in remote sync mode (don't create settings, wait for sync)

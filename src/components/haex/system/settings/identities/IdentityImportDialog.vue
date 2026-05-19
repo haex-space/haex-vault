@@ -140,7 +140,7 @@ export interface ImportSubmitPayload {
 
 const open = defineModel<boolean>('open', { required: true })
 
-const props = defineProps<{
+defineProps<{
   submitting: boolean
 }>()
 

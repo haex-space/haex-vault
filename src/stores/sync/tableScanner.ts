@@ -270,7 +270,7 @@ export async function scanTableForSpaceColumnChangesAsync(
 ): Promise<ColumnChange[]> {
   log.info(`Scanning space-scoped table: ${tableName} (spaceId: ${spaceId} via ${spaceColumn})`)
 
-  const { schema, pkColumns, dataColumns, allColumns } = await getTableColumnsAsync(tableName)
+  const { pkColumns, dataColumns, allColumns } = await getTableColumnsAsync(tableName)
 
   const columnList = allColumns.map((c) => `"${c}"`).join(', ')
   const hlcFilter = lastPushHlcTimestamp

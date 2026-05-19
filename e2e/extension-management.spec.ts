@@ -58,19 +58,6 @@ async function navigateToExtensionsSettings(page: Page): Promise<void> {
 }
 
 /**
- * Check if an extension is installed
- */
-async function isExtensionInstalled(
-  page: Page,
-  extensionName: string,
-): Promise<boolean> {
-  const extensionItem = page.locator(
-    `[data-testid="extension-item"]:has-text("${extensionName}"), [class*="extension"]:has-text("${extensionName}")`,
-  )
-  return extensionItem.isVisible().catch(() => false)
-}
-
-/**
  * Open extension installation dialog
  */
 async function openInstallDialog(page: Page): Promise<void> {

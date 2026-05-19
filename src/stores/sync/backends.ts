@@ -28,8 +28,6 @@ export interface TemporaryBackend {
 }
 
 export const useSyncBackendsStore = defineStore('syncBackendsStore', () => {
-  const { currentVault } = storeToRefs(useVaultStore())
-
   const backends = ref<SelectHaexSyncBackends[]>([])
 
   /**
