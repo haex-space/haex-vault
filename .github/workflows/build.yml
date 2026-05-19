@@ -341,33 +341,26 @@ jobs:
       - name: Install dependencies (Ubuntu)
         if: startsWith(matrix.platform, 'ubuntu-22.04')
         run: |
-          # ports.ubuntu.com (the default mirror for arm64 packages) is
-          # intermittently unreachable from GitHub's Azure-hosted ARM runners.
-          # First force IPv4 (the v6 route to ports.ubuntu.com is broken on
-          # these runners), bump apt's own retry budget, then fall back to a
-          # regional mirror if the upstream still fails.
+          # ports.ubuntu.com is unreachable over HTTP from GitHub's Azure-hosted
+          # ARM runners — Canonical's own infrastructure (IP 91.189.91.102) times
+          # out, and every *.ports.ubuntu.com country mirror is a CNAME to that
+          # same IP, so swapping mirrors doesn't help. HTTPS is served by
+          # Cloudflare on a different IP range that's reachable from these
+          # runners, so we rewrite the sources to https://.
+          if [ "${{ matrix.platform }}" = "ubuntu-22.04-arm" ]; then
+            sudo sed -i 's|http://ports.ubuntu.com|https://ports.ubuntu.com|g' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null || true
+          fi
+          # ForceIPv4 + apt's own retries are kept as defense in depth: if
+          # Cloudflare's v6 route is also flaky from the runner, v4 still works,
+          # and a single 504 won't fail the whole build.
           echo 'Acquire::ForceIPv4 "true";' | sudo tee /etc/apt/apt.conf.d/99force-ipv4 >/dev/null
           echo 'Acquire::Retries "5";' | sudo tee /etc/apt/apt.conf.d/80retries >/dev/null
           echo 'Acquire::http::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/80timeout >/dev/null
 
-          install_pkgs() {
-            # xdg-utils provides xdg-mime which the AppImage bundler invokes.
-            # Preinstalled on the amd64 runner image, missing on arm.
-            sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev xdg-utils
-          }
-
-          if sudo apt-get update && install_pkgs; then
-            exit 0
-          fi
-
-          # Only ARM hits the mirror outage in practice — amd64 uses
-          # azure.archive.ubuntu.com via the runner image and rarely fails.
-          # Do the rewrite unconditionally though: it's cheap and matching on
-          # `ports.ubuntu.com` means amd64 sources.list is left untouched.
-          echo "::warning::Default mirror failed, falling back to de.ports.ubuntu.com"
-          sudo sed -i 's|http://ports.ubuntu.com/|http://de.ports.ubuntu.com/|g' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null || true
           sudo apt-get update
-          install_pkgs
+          # xdg-utils provides xdg-mime which the AppImage bundler invokes.
+          # Preinstalled on the amd64 runner image, missing on arm.
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev xdg-utils
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
