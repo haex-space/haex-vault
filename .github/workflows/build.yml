@@ -311,6 +311,8 @@ jobs:
             args: '--target x86_64-apple-darwin'
           - platform: 'ubuntu-22.04'
             args: ''
+          - platform: 'ubuntu-22.04-arm'
+            args: ''
           - platform: 'windows-latest'
             args: ''
 
@@ -337,10 +339,28 @@ jobs:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Install dependencies (Ubuntu)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: startsWith(matrix.platform, 'ubuntu-22.04')
         run: |
+          # ports.ubuntu.com is unreachable over HTTP from GitHub's Azure-hosted
+          # ARM runners — Canonical's own infrastructure (IP 91.189.91.102) times
+          # out, and every *.ports.ubuntu.com country mirror is a CNAME to that
+          # same IP, so swapping mirrors doesn't help. HTTPS is served by
+          # Cloudflare on a different IP range that's reachable from these
+          # runners, so we rewrite the sources to https://.
+          if [ "${{ matrix.platform }}" = "ubuntu-22.04-arm" ]; then
+            sudo sed -i 's|http://ports.ubuntu.com|https://ports.ubuntu.com|g' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null || true
+          fi
+          # ForceIPv4 + apt's own retries are kept as defense in depth: if
+          # Cloudflare's v6 route is also flaky from the runner, v4 still works,
+          # and a single 504 won't fail the whole build.
+          echo 'Acquire::ForceIPv4 "true";' | sudo tee /etc/apt/apt.conf.d/99force-ipv4 >/dev/null
+          echo 'Acquire::Retries "5";' | sudo tee /etc/apt/apt.conf.d/80retries >/dev/null
+          echo 'Acquire::http::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/80timeout >/dev/null
+
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
+          # xdg-utils provides xdg-mime which the AppImage bundler invokes.
+          # Preinstalled on the amd64 runner image, missing on arm.
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev xdg-utils
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
@@ -418,16 +438,20 @@ jobs:
             src-tauri/target/*/release/bundle/macos/*.app
 
       - name: Upload artifacts (Ubuntu)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: startsWith(matrix.platform, 'ubuntu-22.04')
         uses: actions/upload-artifact@v7
         with:
-          name: linux
+          # Split per-arch so release.yml can stage both amd64 + arm64
+          # bundles independently. Wildcard `linux-*` collects everything.
+          name: linux-${{ matrix.platform == 'ubuntu-22.04-arm' && 'arm64' || 'amd64' }}
           path: |
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/appimage/*.AppImage
             src-tauri/target/release/bundle/rpm/*.rpm
 
-      # Build E2E binary with relaxed CSP for Docker internal hostnames
+      # Build E2E binary with relaxed CSP for Docker internal hostnames.
+      # Kept amd64-only: E2E infra (Docker compose, emulators) is amd64,
+      # running it on arm would double cost for zero coverage gain.
       - name: Build E2E binary with Docker CSP
         if: matrix.platform == 'ubuntu-22.04'
         run: |
