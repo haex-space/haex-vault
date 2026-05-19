@@ -341,26 +341,33 @@ jobs:
       - name: Install dependencies (Ubuntu)
         if: startsWith(matrix.platform, 'ubuntu-22.04')
         run: |
-          # The ubuntu-22.04-arm runner routes ports.ubuntu.com via IPv6 but
-          # only has working IPv4, so apt fails with "Network is unreachable".
-          # Forcing IPv4 is harmless on amd64 (where it would succeed anyway).
+          # ports.ubuntu.com (the default mirror for arm64 packages) is
+          # intermittently unreachable from GitHub's Azure-hosted ARM runners.
+          # First force IPv4 (the v6 route to ports.ubuntu.com is broken on
+          # these runners), bump apt's own retry budget, then fall back to a
+          # regional mirror if the upstream still fails.
           echo 'Acquire::ForceIPv4 "true";' | sudo tee /etc/apt/apt.conf.d/99force-ipv4 >/dev/null
-          # Retry update + install: the ARM mirror is also occasionally slow
-          # to respond and a single 504 from the CDN would otherwise fail the
-          # whole build.
-          retry() {
-            for i in 1 2 3; do
-              "$@" && return 0
-              echo "Retry $i failed: $*"
-              sleep 5
-            done
-            return 1
+          echo 'Acquire::Retries "5";' | sudo tee /etc/apt/apt.conf.d/80retries >/dev/null
+          echo 'Acquire::http::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/80timeout >/dev/null
+
+          install_pkgs() {
+            # xdg-utils provides xdg-mime which the AppImage bundler invokes.
+            # Preinstalled on the amd64 runner image, missing on arm.
+            sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev xdg-utils
           }
-          retry sudo apt-get update
-          # xdg-utils provides xdg-mime which the AppImage bundler invokes.
-          # Preinstalled on the amd64 runner image, missing on arm — without
-          # this the AppImage step fails with "xdg-mime binary not found".
-          retry sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev xdg-utils
+
+          if sudo apt-get update && install_pkgs; then
+            exit 0
+          fi
+
+          # Only ARM hits the mirror outage in practice — amd64 uses
+          # azure.archive.ubuntu.com via the runner image and rarely fails.
+          # Do the rewrite unconditionally though: it's cheap and matching on
+          # `ports.ubuntu.com` means amd64 sources.list is left untouched.
+          echo "::warning::Default mirror failed, falling back to de.ports.ubuntu.com"
+          sudo sed -i 's|http://ports.ubuntu.com/|http://de.ports.ubuntu.com/|g' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null || true
+          sudo apt-get update
+          install_pkgs
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
