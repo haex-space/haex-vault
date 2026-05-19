@@ -68,7 +68,7 @@ export async function handlePasswordsMethodAsync(
       if (!itemId || !input) {
         throw new Error('itemId and input are required')
       }
-      return invokeWithPermissionPrompt<void>(
+      return invokeWithPermissionPrompt<null>(
         TAURI_COMMANDS.passwords.update,
         { itemId, input, ...extInfo },
       )
@@ -79,7 +79,7 @@ export async function handlePasswordsMethodAsync(
       if (!itemId) {
         throw new Error('itemId is required')
       }
-      return invokeWithPermissionPrompt<void>(
+      return invokeWithPermissionPrompt<null>(
         TAURI_COMMANDS.passwords.delete,
         { itemId, ...extInfo },
       )
