@@ -51,12 +51,14 @@ onMounted(() => {
 })
 
 // External client authorization handler
+// The dialog has `:dismissible="false"`, so the only ways to close it are the
+// explicit Allow/Deny buttons inside the dialog — those already call the
+// backend. We don't call cancelPrompt() here because it would issue an extra
+// (and unwanted) session-block when the dialog closes normally.
 const externalAuth = useExternalAuth()
 const externalAuthOpen = computed({
   get: () => externalAuth.isOpen.value,
-  set: (v) => {
-    if (!v) externalAuth.cancelPrompt()
-  },
+  set: () => {},
 })
 onMounted(() => {
   externalAuth.init()

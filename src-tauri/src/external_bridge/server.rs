@@ -51,6 +51,10 @@ struct ConnectedClient {
 pub struct SessionAuthorization {
     /// Unique client identifier (public key fingerprint)
     pub client_id: String,
+    /// Human-readable client name (e.g. "haex-pass Browser Extension")
+    pub client_name: String,
+    /// Client's public key (base64)
+    pub public_key: String,
     /// Extension ID this client can access
     pub extension_id: String,
 }
@@ -122,12 +126,20 @@ impl ExternalBridge {
     }
 
     /// Add a session authorization (for "allow once")
-    pub async fn add_session_authorization(&self, client_id: &str, extension_id: &str) {
+    pub async fn add_session_authorization(
+        &self,
+        client_id: &str,
+        client_name: &str,
+        public_key: &str,
+        extension_id: &str,
+    ) {
         let mut authorizations = self.session_authorizations.write().await;
         authorizations.insert(
             client_id.to_string(),
             SessionAuthorization {
                 client_id: client_id.to_string(),
+                client_name: client_name.to_string(),
+                public_key: public_key.to_string(),
                 extension_id: extension_id.to_string(),
             },
         );
