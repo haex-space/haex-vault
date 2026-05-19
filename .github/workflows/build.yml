@@ -342,7 +342,10 @@ jobs:
         if: startsWith(matrix.platform, 'ubuntu-22.04')
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
+          # xdg-utils provides xdg-mime which the AppImage bundler invokes.
+          # Preinstalled on the amd64 runner image, missing on arm — without
+          # this the AppImage step fails with "xdg-mime binary not found".
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev xdg-utils
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
