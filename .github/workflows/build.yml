@@ -311,6 +311,8 @@ jobs:
             args: '--target x86_64-apple-darwin'
           - platform: 'ubuntu-22.04'
             args: ''
+          - platform: 'ubuntu-22.04-arm'
+            args: ''
           - platform: 'windows-latest'
             args: ''
 
@@ -337,7 +339,7 @@ jobs:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Install dependencies (Ubuntu)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: startsWith(matrix.platform, 'ubuntu-22.04')
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
@@ -418,16 +420,20 @@ jobs:
             src-tauri/target/*/release/bundle/macos/*.app
 
       - name: Upload artifacts (Ubuntu)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: startsWith(matrix.platform, 'ubuntu-22.04')
         uses: actions/upload-artifact@v7
         with:
-          name: linux
+          # Split per-arch so release.yml can stage both amd64 + arm64
+          # bundles independently. Wildcard `linux-*` collects everything.
+          name: linux-${{ matrix.platform == 'ubuntu-22.04-arm' && 'arm64' || 'amd64' }}
           path: |
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/appimage/*.AppImage
             src-tauri/target/release/bundle/rpm/*.rpm
 
-      # Build E2E binary with relaxed CSP for Docker internal hostnames
+      # Build E2E binary with relaxed CSP for Docker internal hostnames.
+      # Kept amd64-only: E2E infra (Docker compose, emulators) is amd64,
+      # running it on arm would double cost for zero coverage gain.
       - name: Build E2E binary with Docker CSP
         if: matrix.platform == 'ubuntu-22.04'
         run: |

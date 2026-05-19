@@ -412,10 +412,15 @@ jobs:
           find ./artifacts/macos-aarch64 -name "*.dmg" -exec cp {} release-assets/ \; 2>/dev/null || true
           find ./artifacts/macos-x86_64 -name "*.dmg" -exec cp {} release-assets/ \; 2>/dev/null || true
 
-          # Linux
-          find ./artifacts/linux -name "*.deb" -exec cp {} release-assets/ \; 2>/dev/null || true
-          find ./artifacts/linux -name "*.AppImage" -exec cp {} release-assets/ \; 2>/dev/null || true
-          find ./artifacts/linux -name "*.rpm" -exec cp {} release-assets/ \; 2>/dev/null || true
+          # Linux (amd64 + arm64). Build.yml uploads under linux-amd64 /
+          # linux-arm64; wildcard collects both. Filenames already carry
+          # the arch suffix (Tauri bundler), so collisions are impossible.
+          for arch_dir in ./artifacts/linux-*; do
+            [ -d "$arch_dir" ] || continue
+            find "$arch_dir" -name "*.deb" -exec cp {} release-assets/ \; 2>/dev/null || true
+            find "$arch_dir" -name "*.AppImage" -exec cp {} release-assets/ \; 2>/dev/null || true
+            find "$arch_dir" -name "*.rpm" -exec cp {} release-assets/ \; 2>/dev/null || true
+          done
 
           # Windows
           find ./artifacts/windows -name "*.msi" -exec cp {} release-assets/ \; 2>/dev/null || true
