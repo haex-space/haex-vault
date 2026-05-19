@@ -17,17 +17,6 @@ import type { Page } from '@playwright/test'
 import { test, expect } from '@playwright/test'
 
 // ============================================================================
-// Test Configuration
-// ============================================================================
-
-const SYNC_SERVER_URL = process.env.SYNC_SERVER_URL || 'http://localhost:3002'
-
-// Test timeouts for mobile-like conditions
-const INITIAL_SYNC_TIMEOUT = 30000
-const WORKSPACE_CREATION_TIMEOUT = 10000
-const SETTINGS_OPEN_TIMEOUT = 5000
-
-// ============================================================================
 // Helper Functions
 // ============================================================================
 
@@ -73,13 +62,6 @@ test.describe('Workspace Creation During Initial Sync', () => {
     // Wait for initial load
     await page.waitForTimeout(3000)
 
-    // Check that workspace was created or loaded
-    const workspaceCreated = workspaceLogs.some(log =>
-      log.includes('Workspace loaded/created') ||
-      log.includes('Loading workspaces') ||
-      log.includes('No workspaces found, creating default'),
-    )
-
     // The app should be in a state where windows can be opened
     const body = page.locator('body')
     await expect(body).toBeVisible()
@@ -109,7 +91,7 @@ test.describe('Workspace Creation During Initial Sync', () => {
 
       try {
         // Try to access window manager through Nuxt's runtime
-        const nuxtApp = (window as any).__NUXT__
+        const nuxtApp = (window as unknown as { __NUXT__?: { $pinia?: { state: { value: Record<string, { windows?: unknown[] }> } } } }).__NUXT__
         if (nuxtApp && nuxtApp.$pinia) {
           const windowManagerStore = nuxtApp.$pinia.state.value.windowManager
           if (windowManagerStore) {
@@ -192,7 +174,7 @@ test.describe('Settings View Accessibility', () => {
         await new Promise(resolve => setTimeout(resolve, 500))
 
         // Access window manager store
-        const useWindowManagerStore = (window as any).useWindowManagerStore
+        const useWindowManagerStore = (window as unknown as { useWindowManagerStore?: () => { openWindowAsync?: (args: Record<string, unknown>) => Promise<unknown> } }).useWindowManagerStore
         if (useWindowManagerStore) {
           const store = useWindowManagerStore()
           if (store.openWindowAsync) {
@@ -206,8 +188,8 @@ test.describe('Settings View Accessibility', () => {
           }
         }
         return { success: false, error: 'Store not available' }
-      } catch (e: any) {
-        return { success: false, error: e.message }
+      } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : String(e) }
       }
     })
 

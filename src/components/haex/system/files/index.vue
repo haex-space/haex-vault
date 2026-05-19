@@ -327,7 +327,7 @@
                     :alt="file.name"
                     class="w-8 h-8 rounded object-cover shrink-0 relative z-10"
                     loading="lazy"
-                  />
+                  >
                   <UIcon
                     v-else
                     :name="
@@ -410,7 +410,7 @@
                       :alt="file.name"
                       class="w-full h-full object-cover"
                       loading="lazy"
-                    />
+                    >
                     <UIcon
                       v-else
                       :name="
@@ -740,7 +740,7 @@
             :src="browser.preview.previewUrl.value"
             :alt="browser.preview.previewFilename.value ?? ''"
             class="max-h-[70vh] object-contain"
-          />
+          >
           <iframe
             v-else-if="
               browser.preview.previewType.value === 'pdf' &&
@@ -760,7 +760,6 @@ import { invoke } from '@tauri-apps/api/core'
 import { SettingsCategory } from '~/config/settingsCategories'
 import type { RemotePeer } from '~/composables/useFileBrowser'
 import { usePeerPing } from '~/composables/usePeerPing'
-import { requireDb } from '~/stores/vault'
 import type { StorageBackendInfo } from '~/../src-tauri/bindings/StorageBackendInfo'
 
 const props = defineProps<{

@@ -8,7 +8,6 @@ import { emit } from '@tauri-apps/api/event'
 import { decryptCrdtData, verifyRecordSignatureAsync, publicKeyToDidKeyAsync } from '@haex-space/vault-sdk'
 import {
   DidAuthAction,
-  decodeUcan,
   validateUcan,
   spaceResource,
   createWebCryptoVerifier,

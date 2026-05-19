@@ -52,7 +52,7 @@
           :src="binaryIconSrc"
           :alt="item.title ?? 'icon'"
           class="size-8 object-contain"
-        />
+        >
         <UIcon
           v-else
           name="i-lucide-key"

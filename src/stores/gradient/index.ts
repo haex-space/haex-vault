@@ -11,7 +11,6 @@ export const useGradientStore = defineStore('gradientStore', () => {
   const gradientVariant = ref<GradientVariant>('gitlab')
   const gradientEnabled = ref(true)
 
-  const { currentVault } = storeToRefs(useVaultStore())
   const route = useRoute()
 
   // Check if we're in remote sync mode (don't create settings, wait for sync)

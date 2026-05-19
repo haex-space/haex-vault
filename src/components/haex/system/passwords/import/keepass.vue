@@ -16,7 +16,7 @@
             accept=".kdbx"
             class="hidden"
             @change="onFileChangeAsync"
-          />
+          >
           <UButton
             icon="i-lucide-file"
             variant="outline"

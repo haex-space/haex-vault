@@ -27,7 +27,7 @@
               :src="imageDataUrls[attachment.id]"
               :alt="attachment.fileName"
               class="size-full object-cover"
-            />
+            >
           </div>
           <!-- Placeholder while image loads -->
           <div
@@ -64,7 +64,7 @@
               @click.stop
               @keyup.enter="saveRename(attachment)"
               @keyup.esc="cancelRename"
-            />
+            >
             <template v-else>
               <p class="text-sm font-medium truncate">
                 {{ attachment.fileName }}
@@ -148,7 +148,7 @@
         multiple
         class="hidden"
         @change="onFileChange"
-      />
+      >
       <UiButton
         icon="i-lucide-plus"
         :label="t('add')"
