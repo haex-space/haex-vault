@@ -267,8 +267,17 @@ const onDragEnd = () => {
 
 const copyToClipboard = async (value: string | null | undefined, key: string) => {
   if (!value) return
-  await navigator.clipboard.writeText(value)
-  toast.add({ title: t(`toast.${key}`), color: 'success', duration: 1500 })
+  try {
+    await navigator.clipboard.writeText(value)
+    toast.add({ title: t(`toast.${key}`), color: 'success', duration: 1500 })
+  } catch (error) {
+    console.error('[ListItem] clipboard write failed', error)
+    toast.add({
+      title: t('toast.copyFailed'),
+      color: 'error',
+      icon: 'i-lucide-alert-triangle',
+    })
+  }
 }
 
 const menuItems = computed<ContextMenuItem[][]>(() => {
@@ -364,6 +373,7 @@ de:
     movedToTrash: In Papierkorb verschoben
     restored: Wiederhergestellt
     deleted: Eintrag gelöscht
+    copyFailed: Kopieren fehlgeschlagen
 en:
   untitled: (untitled)
   select: Select
@@ -381,4 +391,5 @@ en:
     movedToTrash: Moved to trash
     restored: Restored
     deleted: Entry deleted
+    copyFailed: Copy failed
 </i18n>

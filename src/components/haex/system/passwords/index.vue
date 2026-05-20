@@ -200,10 +200,11 @@ const onKeydown = (event: KeyboardEvent) => {
   const ctrl = event.ctrlKey || event.metaKey
 
   // Ctrl+A — scope depends on which panel was last clicked. Sidebar = all
-  // (non-trash) folders, main = visible items + child folders.
+  // (non-trash) folders, main = visible items + child folders. The sidebar
+  // branch only applies on wide layouts where the sidebar is actually shown.
   if (ctrl && event.key === 'a' && !isInputFocused()) {
     event.preventDefault()
-    if (activeArea.value === 'sidebar') {
+    if (activeArea.value === 'sidebar' && isWideLayout.value) {
       const allGroupIds = groups.value
         .filter((g) => !groupsStore.isGroupInTrash(g.id))
         .map((g) => g.id)

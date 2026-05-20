@@ -286,6 +286,14 @@ export const usePasswordsGroupsStore = defineStore(
           .where(inArray(haexPasswordsGroups.id, groupIdsToDelete))
       }
       await loadGroupsAsync()
+      // If the user was viewing a trash subfolder that just got purged,
+      // fall back to the trash root so breadcrumb/list/tree stay consistent.
+      if (
+        selectedGroupId.value &&
+        !groups.value.some((group) => group.id === selectedGroupId.value)
+      ) {
+        selectedGroupId.value = TRASH_GROUP_ID
+      }
     }
 
     const restoreGroupAsync = async (groupId: string): Promise<void> => {
