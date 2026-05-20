@@ -2,6 +2,7 @@
   <UiDrawerModal
     v-model:open="open"
     :title="t('title')"
+    :dismissible="false"
     :ui="{
       content: 'sm:max-w-md sm:mx-auto',
     }"
@@ -146,13 +147,19 @@ const rememberDecision = ref(false)
 const CORE_EXTENSION_ID = '__core__'
 const CORE_EXTENSION_NAME = 'core'
 
+// Names that should map to the HaexVault core target instead of a separate
+// extension. haex-pass used to ship as its own extension but is now built into
+// haex-vault, so clients still requesting "haex-pass" land on core.
+const CORE_ALIAS_NAMES = new Set(['haex-pass'])
+
 // Get installed extensions
 const extensionsStore = useExtensionsStore()
 
-// Whether the client requested core access (passwords etc. served by haex-vault itself)
 const requestsCoreAccess = computed(() =>
   (props.pendingAuth?.requestedExtensions ?? []).some(
-    (req) => req.extensionPublicKey === CORE_EXTENSION_ID && req.name === CORE_EXTENSION_NAME,
+    (req) =>
+      (req.extensionPublicKey === CORE_EXTENSION_ID && req.name === CORE_EXTENSION_NAME)
+      || CORE_ALIAS_NAMES.has(req.name),
   ),
 )
 
@@ -161,12 +168,12 @@ const extensionOptions = computed(() => {
     value: ext.id,
     label: ext.name || ext.id,
   }))
-  if (requestsCoreAccess.value) {
-    options.unshift({
-      value: CORE_EXTENSION_ID,
-      label: t('coreOption'),
-    })
-  }
+  // HaexVault core is always offered so users can grant access to built-in
+  // features (passwords etc.) regardless of what the client requested.
+  options.unshift({
+    value: CORE_EXTENSION_ID,
+    label: t('coreOption'),
+  })
   return options
 })
 
@@ -184,7 +191,7 @@ watch(open, (isOpen) => {
         )
         .map((ext) => ext.id)
 
-      // Also pre-select core access if requested
+      // Also pre-select core access if requested (explicitly or via alias)
       if (requestsCoreAccess.value) matchedIds.unshift(CORE_EXTENSION_ID)
 
       selectedExtensionIds.value = matchedIds
@@ -218,7 +225,7 @@ de:
   selectExtension: Zugriff auswählen
   selectExtensionPlaceholder: Zugriff wählen...
   extensionHint: Der Client erhält Zugriff auf die ausgewählten Bereiche.
-  coreOption: Core (Passwörter)
+  coreOption: HaexVault (Kernfeatures)
   warning:
     title: Sicherheitshinweis
     description: Genehmige nur Verbindungen von Anwendungen, die du selbst gestartet hast.
@@ -232,7 +239,7 @@ en:
   selectExtension: Select Access
   selectExtensionPlaceholder: Choose access...
   extensionHint: The client will have access to the selected areas.
-  coreOption: Core (Passwords)
+  coreOption: HaexVault (Core features)
   warning:
     title: Security Notice
     description: Only approve connections from applications you started yourself.

@@ -72,7 +72,7 @@
             :key="'auth-' + auth.clientId"
           >
             <div class="flex items-center gap-2">
-              <span class="font-semibold">{{ t('sessionClient') }}</span>
+              <span class="font-semibold">{{ auth.clientName || t('sessionClient') }}</span>
               <UBadge color="success" variant="subtle">
                 {{ t('sessionAllowed') }}
               </UBadge>
