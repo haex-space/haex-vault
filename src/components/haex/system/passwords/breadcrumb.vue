@@ -49,7 +49,7 @@ const { t } = useI18n()
 
 const groupsStore = usePasswordsGroupsStore()
 const { selectedGroupId, breadcrumbGroups } = storeToRefs(groupsStore)
-const { selectGroup } = groupsStore
+const { selectGroup } = usePasswordsNavigation()
 </script>
 
 <i18n lang="yaml">

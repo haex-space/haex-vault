@@ -15,6 +15,7 @@
         <aside
           class="hidden @3xl:flex @3xl:flex-col shrink-0 overflow-y-auto border-e border-default"
           :style="{ width: `${sidebarWidth}px` }"
+          @mousedown="activeArea = 'sidebar'"
         >
           <HaexSystemPasswordsSidebar />
         </aside>
@@ -24,7 +25,10 @@
           @mousedown="startResize"
           @dblclick="sidebarWidth = DEFAULT_SIDEBAR_WIDTH"
         />
-        <main class="flex-1 min-w-0 overflow-hidden flex flex-col">
+        <main
+          class="flex-1 min-w-0 overflow-hidden flex flex-col"
+          @mousedown="activeArea = 'main'"
+        >
           <HaexSystemPasswordsEditor
             v-if="viewMode === 'item'"
             :key="selectedItemId ?? 'new'"
@@ -83,7 +87,12 @@ const passwordsStore = usePasswordsStore()
 const groupsStore = usePasswordsGroupsStore()
 const selection = usePasswordsSelectionStore()
 const { viewMode, selectedItemId, items } = storeToRefs(passwordsStore)
-const { selectedGroupId } = storeToRefs(groupsStore)
+const { selectedGroupId, groups } = storeToRefs(groupsStore)
+
+// Tracks which panel (sidebar/main) the user last interacted with so global
+// keyboard shortcuts like Ctrl+A know which selection scope to target.
+type ActiveArea = 'sidebar' | 'main'
+const activeArea = ref<ActiveArea>('main')
 const {
   selectedEntries,
   selectedCount,
@@ -190,10 +199,29 @@ const onKeydown = (event: KeyboardEvent) => {
   if (viewMode.value !== 'list') return
   const ctrl = event.ctrlKey || event.metaKey
 
-  // Ctrl+A — select all visible entries in the current folder/search result.
+  // Ctrl+A — scope depends on which panel was last clicked. Sidebar = all
+  // (non-trash) folders, main = visible items + child folders.
   if (ctrl && event.key === 'a' && !isInputFocused()) {
     event.preventDefault()
-    selection.selectAll(visibleOrderedIds.value)
+    if (activeArea.value === 'sidebar') {
+      const allGroupIds = groups.value
+        .filter((g) => !groupsStore.isGroupInTrash(g.id))
+        .map((g) => g.id)
+      selection.selectAll(allGroupIds)
+    } else {
+      selection.selectAll(visibleOrderedIds.value)
+    }
+    return
+  }
+
+  // Delete — bulk-delete the current selection (no-op when nothing is picked).
+  if (
+    (event.key === 'Delete' || event.key === 'Backspace')
+    && !isInputFocused()
+    && selection.selectedCount > 0
+  ) {
+    event.preventDefault()
+    bulkDeleteOpen.value = true
     return
   }
 

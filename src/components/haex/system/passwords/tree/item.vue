@@ -1,67 +1,55 @@
 <template>
   <div>
-    <div
-      ref="rowRef"
-      :class="[
-        'flex items-center gap-2 pe-2 rounded-md cursor-pointer transition-colors min-h-12',
-        isActive ? 'bg-elevated font-medium' : 'hover:bg-elevated/70',
-        isDragging && 'opacity-40',
-        isCut && 'opacity-50 grayscale',
-        (isDropTarget || isMultiSelected) && 'ring-2 ring-primary ring-offset-1 ring-offset-transparent',
-      ]"
-      :style="{ paddingInlineStart: `${level * 20 + 4}px` }"
-      draggable="true"
-      @click="onRowClick"
-      @dragstart="onDragStart"
-      @dragend="onDragEnd"
-      @dragover.prevent="onDragOver"
-      @dragleave="onDragLeave"
-      @drop.prevent="onDropAsync"
-      @contextmenu.prevent="onContextMenu"
-    >
-      <button
-        type="button"
-        class="size-8 shrink-0 flex items-center justify-center rounded hover:bg-muted/40"
-        :class="{ invisible: !hasChildren }"
-        @click.stop="toggleExpanded(group.id)"
-      >
-        <UIcon
-          name="i-lucide-chevron-right"
-          class="size-4 transition-transform"
-          :class="{ 'rotate-90': expanded }"
-        />
-      </button>
-
+    <UContextMenu :items="menuItems">
       <div
-        class="size-9 shrink-0 flex items-center justify-center rounded-md overflow-hidden"
-        :style="folderBackgroundStyle"
+        ref="rowRef"
+        :class="[
+          'flex items-center gap-2 pe-2 rounded-md cursor-pointer transition-colors min-h-12',
+          isActive ? 'bg-elevated font-medium' : 'hover:bg-elevated/70',
+          isDragging && 'opacity-40',
+          isCut && 'opacity-50 grayscale',
+          (isDropTarget || isMultiSelected) && 'ring-2 ring-primary ring-offset-1 ring-offset-transparent',
+        ]"
+        :style="{ paddingInlineStart: `${level * 20 + 4}px` }"
+        draggable="true"
+        @click="onRowClick"
+        @dragstart="onDragStart"
+        @dragend="onDragEnd"
+        @dragover.prevent="onDragOver"
+        @dragleave="onDragLeave"
+        @drop.prevent="onDropAsync"
       >
-        <UIcon
-          :name="folderIconName"
-          class="size-5"
-          :style="folderGlyphStyle"
-        />
+        <button
+          type="button"
+          class="size-8 shrink-0 flex items-center justify-center rounded hover:bg-muted/40"
+          :class="{ invisible: !hasChildren }"
+          @click.stop="toggleExpanded(group.id)"
+        >
+          <UIcon
+            name="i-lucide-chevron-right"
+            class="size-4 transition-transform"
+            :class="{ 'rotate-90': expanded }"
+          />
+        </button>
+
+        <div
+          class="size-9 shrink-0 flex items-center justify-center rounded-md overflow-hidden"
+          :style="folderBackgroundStyle"
+        >
+          <UIcon
+            :name="folderIconName"
+            class="size-5"
+            :style="folderGlyphStyle"
+          />
+        </div>
+
+        <span class="flex-1 text-[15px] truncate py-2">{{ group.name || t('untitled') }}</span>
       </div>
-
-      <span class="flex-1 text-[15px] truncate py-2">{{ group.name || t('untitled') }}</span>
-
-      <UDropdownMenu
-        :items="menuItems"
-        :content="{ align: 'end' }"
-      >
-        <UButton
-          icon="i-lucide-more-horizontal"
-          color="neutral"
-          variant="ghost"
-          class="shrink-0"
-          @click.stop
-        />
-      </UDropdownMenu>
-    </div>
+    </UContextMenu>
 
     <div
       v-if="expanded && hasChildren"
-      class="space-y-0.5"
+      class="space-y-1.5 mt-1.5"
     >
       <HaexSystemPasswordsTreeItem
         v-for="child in children"
@@ -77,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import type { DropdownMenuItem } from '@nuxt/ui'
+import type { ContextMenuItem } from '@nuxt/ui'
 import type { SelectHaexPasswordsGroups } from '~/database/schemas'
 
 const props = defineProps<{
@@ -99,8 +87,8 @@ const {
   selectedGroupId,
   childrenByParent,
 } = storeToRefs(groupsStore)
-const { selectGroup, setItemGroupAsync, moveGroupAsync, descendantIdSet } =
-  groupsStore
+const { setItemGroupAsync, moveGroupAsync, descendantIdSet } = groupsStore
+const { selectGroup } = usePasswordsNavigation()
 
 const isInTrash = computed(() => groupsStore.isGroupInTrash(props.group.id))
 
@@ -166,7 +154,7 @@ const onRowClick = (event: MouseEvent) => {
   selectGroup(props.group.id)
 }
 
-const menuItems = computed<DropdownMenuItem[][]>(() => {
+const menuItems = computed<ContextMenuItem[][]>(() => {
   if (isInTrash.value) {
     return [
       [
@@ -219,10 +207,6 @@ const menuItems = computed<DropdownMenuItem[][]>(() => {
     ],
   ]
 })
-
-const onContextMenu = () => {
-  emit('edit', props.group)
-}
 
 const isDragging = ref(false)
 const isDropTarget = ref(false)

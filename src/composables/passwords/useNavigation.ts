@@ -7,6 +7,7 @@
  */
 export function usePasswordsNavigation(tabIdOverride?: string) {
   const store = usePasswordsStore()
+  const groupsStore = usePasswordsGroupsStore()
   const navigationStore = useNavigationStore()
   // Allow passing tabId directly (for the root that provides it); otherwise inject.
   const tabId = tabIdOverride ?? inject<string>('haex-tab-id')
@@ -42,6 +43,26 @@ export function usePasswordsNavigation(tabIdOverride?: string) {
     withHistory(
       () => store.startEdit(),
       () => store.startEdit(),
+    )
+  }
+
+  /**
+   * Switch the active folder and record the change on the tab's back stack —
+   * same pattern as `useDrillDownNavigation.navigateTo` in the settings view.
+   * If the target equals the currently-selected group, this is a no-op and
+   * nothing is pushed onto the stack.
+   */
+  const selectGroup = (groupId: string | null) => {
+    const before = groupsStore.selectedGroupId
+    if (before === groupId) return
+    groupsStore.selectGroup(groupId)
+    if (!tabId) return
+    navigationStore.pushBack(
+      {
+        undo: () => groupsStore.selectGroup(before),
+        redo: () => groupsStore.selectGroup(groupId),
+      },
+      tabId,
     )
   }
 
@@ -106,6 +127,7 @@ export function usePasswordsNavigation(tabIdOverride?: string) {
     openItem,
     startCreate,
     startEdit,
+    selectGroup,
     goBack,
     armWindowCloseBoundary,
     trackHistory,
