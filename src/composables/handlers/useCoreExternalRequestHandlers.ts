@@ -1,7 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { and, eq, like, or } from 'drizzle-orm'
+import { and, eq, isNotNull, like, or } from 'drizzle-orm'
 import { TOTP } from 'otpauth'
+import { parse as parseTld } from 'tldts'
 import {
   arrayBufferToBase64,
   base64ToArrayBuffer,
@@ -147,6 +148,38 @@ const errorResponse = (requestId: string, message: string): ExternalCoreResponse
 const toErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : 'Unknown error'
 
+/**
+ * Reduce a URL (or bare host) into `{ hostname, registrableDomain }`.
+ *
+ * Used by the get-items URL matcher so an entry stored as `example.de`
+ * matches when the browser is on `www.example.de` or `app.example.de`.
+ * `registrableDomain` is the eTLD+1 from the Public Suffix List
+ * (`example.de`, `example.co.uk`, …) and is `null` for IPs, `localhost`,
+ * or intranet names — callers then fall back to hostname equality.
+ *
+ * `allowPrivateDomains: true` keeps multi-tenant private suffixes
+ * (`*.github.io`, `*.herokuapp.com`, …) distinct so credentials for one
+ * tenant don't cross-match another sharing the same private suffix.
+ */
+const describeUrlForMatching = (
+  input: string,
+): { hostname: string | null; registrableDomain: string | null } => {
+  const tryConstruct = (raw: string): URL | null => {
+    try {
+      return new URL(raw)
+    } catch {
+      return null
+    }
+  }
+  // Stored entries are often just "example.de" without a scheme — URL needs one.
+  const parsed = tryConstruct(input) ?? tryConstruct(`https://${input}`)
+  if (!parsed) return { hostname: null, registrableDomain: null }
+  const hostname = parsed.hostname.toLowerCase()
+  if (!hostname) return { hostname: null, registrableDomain: null }
+  const { domain } = parseTld(hostname, { allowPrivateDomains: true })
+  return { hostname, registrableDomain: domain ?? null }
+}
+
 // ---------------------------------------------------------------------------
 // get-items
 // ---------------------------------------------------------------------------
@@ -160,14 +193,21 @@ const handleGetItemsAsync = async (
 
   const db = requireDb()
 
-  let domain: string
-  try {
-    domain = new URL(url).hostname
-  } catch {
-    domain = url
+  // Reduce the URL/host to its registrable domain (eTLD+1) via the Public
+  // Suffix List. www.example.de and app.example.de both collapse to
+  // example.de — so an entry stored as example.de matches when the browser
+  // is on www.example.de, and sibling subdomains share the match.
+  const target = describeUrlForMatching(url)
+  if (!target.hostname) {
+    return errorResponse(request.requestId, `Could not parse URL: ${url}`)
   }
 
-  const items = await db
+  // SQL pre-filter casts a wide net using the registrable domain (or the
+  // raw hostname when PSL can't classify it — IP addresses, localhost,
+  // intranet hosts). The JS step below tightens the match.
+  const filterToken = target.registrableDomain ?? target.hostname
+
+  const candidates = await db
     .select({
       id: haexPasswordsItemDetails.id,
       title: haexPasswordsItemDetails.title,
@@ -179,8 +219,27 @@ const handleGetItemsAsync = async (
     })
     .from(haexPasswordsItemDetails)
     .where(
-      or(like(haexPasswordsItemDetails.url, `%${domain}%`), eq(haexPasswordsItemDetails.url, url)),
+      and(
+        isNotNull(haexPasswordsItemDetails.url),
+        or(
+          like(haexPasswordsItemDetails.url, `%${filterToken}%`),
+          eq(haexPasswordsItemDetails.url, url),
+        ),
+      ),
     )
+
+  // Keep entries whose URL has the same registrable domain as the target.
+  // The substring filter above also hits false positives like
+  // `bad-example.de` for `example.de` — this filter discards them.
+  const items = candidates.filter((item) => {
+    if (!item.url) return false
+    const candidate = describeUrlForMatching(item.url)
+    if (!candidate.hostname) return false
+    if (target.registrableDomain && candidate.registrableDomain) {
+      return target.registrableDomain === candidate.registrableDomain
+    }
+    return target.hostname === candidate.hostname
+  })
 
   const entries: ItemEntry[] = await Promise.all(
     items.map(async (item) => {

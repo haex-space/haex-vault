@@ -144,6 +144,9 @@ importers:
       tailwindcss:
         specifier: ^4.3.0
         version: 4.3.0
+      tldts:
+        specifier: ^7.0.19
+        version: 7.0.30
       vue:
         specifier: ^3.5.34
         version: 3.5.34(typescript@5.9.3)

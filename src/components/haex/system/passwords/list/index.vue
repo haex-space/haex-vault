@@ -1,7 +1,19 @@
 <template>
   <div class="h-full overflow-y-auto">
     <div
-      v-if="isEmpty"
+      v-if="showInitialLoader"
+      class="h-full flex flex-col items-center justify-center gap-3 text-muted p-6"
+    >
+      <UIcon
+        name="i-lucide-loader-2"
+        class="size-10 animate-spin text-primary"
+      />
+      <p class="text-sm text-center">
+        {{ t('loading') }}
+      </p>
+    </div>
+    <div
+      v-else-if="isEmpty"
       class="h-full flex flex-col items-center justify-center gap-3 text-muted p-6"
     >
       <UIcon
@@ -52,8 +64,14 @@ import type { SelectHaexPasswordsGroups } from '~/database/schemas'
 const { t } = useI18n()
 
 const passwordsStore = usePasswordsStore()
-const { tagsByItemId, selectedItemId } = storeToRefs(passwordsStore)
+const { tagsByItemId, selectedItemId, isLoading, hasLoadedOnce } = storeToRefs(passwordsStore)
 const { openItem } = usePasswordsNavigation()
+
+// Only block the empty-state on the very first load — subsequent reloads
+// (e.g. after delete) should keep the existing list visible to avoid flicker.
+const showInitialLoader = computed(
+  () => !hasLoadedOnce.value && isLoading.value,
+)
 
 const selection = usePasswordsSelectionStore()
 const { desktopFocusId } = storeToRefs(selection)
@@ -89,7 +107,9 @@ const onDeleteFolder = (group: SelectHaexPasswordsGroups) => {
 de:
   noPasswords: Noch keine Passwörter vorhanden
   noResults: Keine Treffer für "{query}"
+  loading: Passwörter werden geladen…
 en:
   noPasswords: No passwords yet
   noResults: No matches for "{query}"
+  loading: Loading passwords…
 </i18n>

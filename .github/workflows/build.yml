@@ -299,8 +299,12 @@ jobs:
     if: needs.check-skip.outputs.should_skip != 'true'
     # Cap build time so a hung apt-get or CDN 504 doesn't silently burn
     # 6 hours of runner time (GitHub's default) and block the release
-    # pipeline indefinitely. Observed normal runtime is ~12-15 min.
-    timeout-minutes: 30
+    # pipeline indefinitely. Observed normal runtime: Linux/macOS ~15-22 min,
+    # Windows ~27 min on a cold cache plus ~2 min for cache save — the extra
+    # headroom on Windows prevents the cache-save step from being killed by
+    # the timeout, which would leave the cache unpopulated and trap us in a
+    # loop of cold-compile runs.
+    timeout-minutes: ${{ matrix.platform == 'windows-latest' && 45 || 30 }}
     strategy:
       fail-fast: false
       matrix:

@@ -1,91 +1,80 @@
 <template>
-  <div
-    ref="rowRef"
-    :class="[
-      isDragging && 'opacity-40',
-      isCut && 'opacity-50 grayscale',
-      (isDropTarget || isMultiSelected) && 'ring-2 ring-primary rounded-lg',
-    ]"
-    draggable="true"
-    @dragstart="onDragStart"
-    @dragend="onDragEnd"
-    @dragover.prevent="onDragOver"
-    @dragleave="onDragLeave"
-    @drop.prevent="onDropAsync"
-  >
-    <UiListItem
-      class="cursor-pointer"
-      @click="onRowClick"
+  <UContextMenu :items="menuItems">
+    <div
+      ref="rowRef"
+      :class="[
+        isDragging && 'opacity-40',
+        isCut && 'opacity-50 grayscale',
+        (isDropTarget || isMultiSelected) && 'ring-2 ring-primary rounded-lg',
+      ]"
+      draggable="true"
+      @dragstart="onDragStart"
+      @dragend="onDragEnd"
+      @dragover.prevent="onDragOver"
+      @dragleave="onDragLeave"
+      @drop.prevent="onDropAsync"
     >
-      <div class="flex items-center gap-3 min-h-14">
-        <button
-          v-if="isSelectionMode"
-          type="button"
-          :class="[
-            'shrink-0 size-6 rounded border flex items-center justify-center transition-colors',
-            isMultiSelected
-              ? 'bg-primary border-primary text-inverted'
-              : 'border-default hover:border-primary',
-          ]"
-          :aria-label="isMultiSelected ? t('deselect') : t('select')"
-          @click.stop="onCheckboxClick"
-        >
-          <UIcon
-            v-if="isMultiSelected"
-            name="i-lucide-check"
-            class="size-4"
-          />
-        </button>
-        <div
-          class="shrink-0 size-10 rounded-md flex items-center justify-center bg-elevated overflow-hidden"
-          :style="iconBackgroundStyle"
-        >
-          <UIcon
-            :name="folderIconName"
-            class="size-6"
-            :style="iconGlyphStyle"
-          />
-        </div>
-
-        <div class="flex-1 min-w-0">
-          <p class="font-medium truncate">
-            {{ group.name || t('untitled') }}
-          </p>
-
-          <div
-            v-if="countDescription"
-            class="mt-0.5 flex items-center gap-3 text-xs text-muted"
+      <UiListItem
+        class="cursor-pointer"
+        @click="onRowClick"
+      >
+        <div class="flex items-center gap-3 min-h-14">
+          <button
+            v-if="isSelectionMode"
+            type="button"
+            :class="[
+              'shrink-0 size-6 rounded border flex items-center justify-center transition-colors',
+              isMultiSelected
+                ? 'bg-primary border-primary text-inverted'
+                : 'border-default hover:border-primary',
+            ]"
+            :aria-label="isMultiSelected ? t('deselect') : t('select')"
+            @click.stop="onCheckboxClick"
           >
-            <span>{{ countDescription }}</span>
+            <UIcon
+              v-if="isMultiSelected"
+              name="i-lucide-check"
+              class="size-4"
+            />
+          </button>
+          <div
+            class="shrink-0 size-10 rounded-md flex items-center justify-center bg-elevated overflow-hidden"
+            :style="iconBackgroundStyle"
+          >
+            <UIcon
+              :name="folderIconName"
+              class="size-6"
+              :style="iconGlyphStyle"
+            />
+          </div>
+
+          <div class="flex-1 min-w-0">
+            <p class="font-medium truncate">
+              {{ group.name || t('untitled') }}
+            </p>
+
+            <div
+              v-if="countDescription"
+              class="mt-0.5 flex items-center gap-3 text-xs text-muted"
+            >
+              <span>{{ countDescription }}</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      <template #actions>
-        <div class="flex items-center gap-1 text-muted">
-          <UDropdownMenu
-            :items="menuItems"
-            :content="{ align: 'end' }"
-          >
-            <UButton
-              icon="i-lucide-more-horizontal"
-              color="neutral"
-              variant="ghost"
-              @click.stop
-            />
-          </UDropdownMenu>
+        <template #actions>
           <UIcon
             name="i-lucide-chevron-right"
-            class="size-4"
+            class="size-4 text-muted"
           />
-        </div>
-      </template>
-    </UiListItem>
-  </div>
+        </template>
+      </UiListItem>
+    </div>
+  </UContextMenu>
 </template>
 
 <script setup lang="ts">
-import type { DropdownMenuItem } from '@nuxt/ui'
+import type { ContextMenuItem } from '@nuxt/ui'
 import type { SelectHaexPasswordsGroups } from '~/database/schemas'
 
 const props = defineProps<{
@@ -100,6 +89,7 @@ const emit = defineEmits<{
 const toast = useToast()
 const { t } = useI18n()
 const groupsStore = usePasswordsGroupsStore()
+const { selectGroup } = usePasswordsNavigation()
 const isInTrash = computed(() => groupsStore.isGroupInTrash(props.group.id))
 const {
   childrenByParent,
@@ -180,7 +170,7 @@ const onRowClick = (event: MouseEvent) => {
     selection.toggle(props.group.id)
     return
   }
-  groupsStore.selectGroup(props.group.id)
+  selectGroup(props.group.id)
 }
 
 const onCheckboxClick = (event: MouseEvent) => {
@@ -191,7 +181,7 @@ const onCheckboxClick = (event: MouseEvent) => {
   selection.toggle(props.group.id)
 }
 
-const menuItems = computed<DropdownMenuItem[][]>(() => {
+const menuItems = computed<ContextMenuItem[][]>(() => {
   if (isInTrash.value) {
     return [
       [
