@@ -156,6 +156,10 @@ const toErrorMessage = (error: unknown): string =>
  * `registrableDomain` is the eTLD+1 from the Public Suffix List
  * (`example.de`, `example.co.uk`, …) and is `null` for IPs, `localhost`,
  * or intranet names — callers then fall back to hostname equality.
+ *
+ * `allowPrivateDomains: true` keeps multi-tenant private suffixes
+ * (`*.github.io`, `*.herokuapp.com`, …) distinct so credentials for one
+ * tenant don't cross-match another sharing the same private suffix.
  */
 const describeUrlForMatching = (
   input: string,
@@ -172,7 +176,7 @@ const describeUrlForMatching = (
   if (!parsed) return { hostname: null, registrableDomain: null }
   const hostname = parsed.hostname.toLowerCase()
   if (!hostname) return { hostname: null, registrableDomain: null }
-  const { domain } = parseTld(hostname)
+  const { domain } = parseTld(hostname, { allowPrivateDomains: true })
   return { hostname, registrableDomain: domain ?? null }
 }
 
