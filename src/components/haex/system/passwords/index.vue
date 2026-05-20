@@ -40,7 +40,7 @@
               <Transition name="toolbar-fade">
                 <HaexSystemPasswordsSelectionToolbar
                   v-if="isSelectionMode || hasClipboard"
-                  :class="selectedGroupId !== null ? 'absolute inset-0' : undefined"
+                  class="absolute inset-0"
                   @tag="bulkTagOpen = true"
                   @delete="bulkDeleteOpen = true"
                   @paste="onPaste"
