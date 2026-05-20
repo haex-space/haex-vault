@@ -73,6 +73,7 @@
 
 <script setup lang="ts">
 import { useResizeObserver } from '@vueuse/core'
+import { TRASH_GROUP_ID } from '~/stores/passwords/groups'
 
 const props = defineProps<{
   tabId?: string
@@ -178,6 +179,35 @@ const onPaste = async () => {
     })
   }
 }
+
+// Drop the user into the single root folder on first mount of this view,
+// so a vault with only one top-level folder doesn't open on an effectively
+// empty root that just lists that one folder. Fires once per mount —
+// clicking "Alle Passwörter" later still navigates back to the real root.
+const tryAutoEnterSingleRoot = () => {
+  if (selectedGroupId.value !== null) return
+  const userRoots = groupsStore.rootGroups.filter((g) => g.id !== TRASH_GROUP_ID)
+  if (userRoots.length === 1) {
+    selectedGroupId.value = userRoots[0]!.id
+  }
+}
+
+onMounted(() => {
+  if (groups.value.length > 0) {
+    tryAutoEnterSingleRoot()
+    return
+  }
+  // Groups load async — wait for the first non-empty snapshot, then stop.
+  const stop = watch(
+    () => groups.value.length,
+    (count) => {
+      if (count > 0) {
+        tryAutoEnterSingleRoot()
+        stop()
+      }
+    },
+  )
+})
 
 // Leaving a view where the selection makes sense clears it — matches the
 // file-manager convention where entering a different folder resets selection.
