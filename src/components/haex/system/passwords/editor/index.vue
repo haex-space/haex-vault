@@ -33,7 +33,7 @@
             :src="binaryIconSrc"
             :alt="form.title || 'icon'"
             class="size-6 object-contain"
-          />
+          >
           <UIcon
             v-else
             name="i-lucide-key"
@@ -694,7 +694,7 @@ const currentKvValue = computed({
   },
 })
 
-const { copy: copyKv, copied: kvCopied } = useClipboard({ copiedDuring: 2000 })
+const { copy: copyKv } = useClipboard({ copiedDuring: 2000 })
 const kvCopiedItem = ref<EditableKeyValue | null>(null)
 
 const copyKvValue = async (kv: EditableKeyValue) => {

@@ -115,7 +115,6 @@ function errorSignature(raw: string): string {
 }
 
 export const useFileSyncStore = defineStore('fileSyncStore', () => {
-  const { currentVault } = storeToRefs(useVaultStore())
   const { add: addToast } = useToast()
   const { $i18n } = useNuxtApp()
 

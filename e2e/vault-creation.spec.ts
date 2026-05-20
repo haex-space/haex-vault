@@ -207,13 +207,7 @@ test.describe('Vault Creation', () => {
         await submitButton.click()
         await page.waitForTimeout(500)
 
-        // Should show validation error
-        const hasError = await page
-          .locator('[class*="error"], [role="alert"], .text-red')
-          .isVisible()
-          .catch(() => false)
-
-        // Form should still be visible
+        // Form should still be visible (validation prevented submit)
         const formStillVisible = await page
           .locator('form, input[type="password"]')
           .isVisible()

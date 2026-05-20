@@ -79,7 +79,6 @@
 <script setup lang="ts">
 import type { DropdownMenuItem } from '@nuxt/ui'
 import type { SelectHaexPasswordsGroups } from '~/database/schemas'
-import { TRASH_GROUP_ID } from '~/stores/passwords/groups'
 
 const props = defineProps<{
   group: SelectHaexPasswordsGroups
@@ -105,8 +104,7 @@ const { selectGroup, setItemGroupAsync, moveGroupAsync, descendantIdSet } =
 
 const isInTrash = computed(() => groupsStore.isGroupInTrash(props.group.id))
 
-const { isExpanded, toggleExpanded, setExpanded, expandAncestors } =
-  useTreeExpanded()
+const { isExpanded, toggleExpanded, setExpanded } = useTreeExpanded()
 
 const children = computed(
   () => childrenByParent.value.get(props.group.id) ?? [],

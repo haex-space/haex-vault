@@ -12,7 +12,7 @@
           :src="dataUrl"
           :alt="attachment?.fileName"
           class="max-w-full mx-auto rounded"
-        />
+        >
 
         <!-- PDF via blob URL (data: URLs blocked by CSP in Tauri WebView) -->
         <div
@@ -23,7 +23,7 @@
             :src="pdfBlobUrl"
             type="application/pdf"
             class="w-full h-full"
-          />
+          >
         </div>
 
         <!-- Text -->

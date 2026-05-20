@@ -66,9 +66,13 @@
         </UFormField>
 
         <UFormField :label="t('form.region.label')" required>
-          <UiInput
+          <UInputMenu
             v-model="formData.region"
+            :items="regionItems"
             :placeholder="t('form.region.placeholder')"
+            create-item="always"
+            class="w-full"
+            @create="onRegionCreate"
           />
         </UFormField>
 
@@ -210,6 +214,41 @@ const { t } = useI18n()
 const { add } = useToast()
 const fileSyncStore = useFileSyncStore()
 
+const DEFAULT_S3_REGION = 'auto'
+
+const KNOWN_S3_REGIONS = [
+  'auto',
+  'us-east-1',
+  'us-east-2',
+  'us-west-1',
+  'us-west-2',
+  'af-south-1',
+  'ap-east-1',
+  'ap-south-1',
+  'ap-south-2',
+  'ap-southeast-1',
+  'ap-southeast-2',
+  'ap-southeast-3',
+  'ap-southeast-4',
+  'ap-northeast-1',
+  'ap-northeast-2',
+  'ap-northeast-3',
+  'ca-central-1',
+  'eu-central-1',
+  'eu-central-2',
+  'eu-west-1',
+  'eu-west-2',
+  'eu-west-3',
+  'eu-south-1',
+  'eu-south-2',
+  'eu-north-1',
+  'me-south-1',
+  'me-central-1',
+  'sa-east-1',
+] as const
+
+const regionItems = ref<string[]>([...KNOWN_S3_REGIONS])
+
 // State
 const storageBackends = ref<StorageBackendInfo[]>([])
 const showBackendForm = ref(false)
@@ -224,11 +263,20 @@ const formData = reactive({
   name: '',
   endpoint: '',
   bucket: '',
-  region: 'auto',
+  region: DEFAULT_S3_REGION,
   accessKeyId: '',
   secretAccessKey: '',
   pathStyle: false,
 })
+
+const onRegionCreate = (value: string) => {
+  const trimmed = value.trim()
+  if (!trimmed) return
+  if (!regionItems.value.includes(trimmed)) {
+    regionItems.value.push(trimmed)
+  }
+  formData.region = trimmed
+}
 
 const isFormValid = computed(() => {
   const baseValid =
@@ -249,6 +297,31 @@ const isFormValid = computed(() => {
   )
 })
 
+const getErrorMessage = (error: unknown): string => {
+  const raw = (() => {
+    if (error instanceof Error) return error.message
+    if (typeof error === 'string') return error
+    if (error && typeof error === 'object') {
+      const details = (error as { details?: unknown }).details
+      if (details && typeof details === 'object') {
+        const reason = (details as { reason?: unknown }).reason
+        if (typeof reason === 'string') return reason
+      }
+      try {
+        return JSON.stringify(error)
+      } catch {
+        return String(error)
+      }
+    }
+    return String(error)
+  })()
+
+  const s3Message = raw.match(/<Message>([^<]+)<\/Message>/)?.[1]
+  if (s3Message) return s3Message
+
+  return raw.length > 240 ? `${raw.slice(0, 237)}...` : raw
+}
+
 // Load backends on mount
 onMounted(async () => {
   await loadBackendsAsync()
@@ -261,7 +334,7 @@ const loadBackendsAsync = async () => {
     console.error('Failed to load storage backends:', error)
     add({
       title: t('errors.loadFailed'),
-      description: error instanceof Error ? error.message : String(error),
+      description: getErrorMessage(error),
       color: 'error',
     })
   }
@@ -271,7 +344,7 @@ const resetForm = () => {
   formData.name = ''
   formData.endpoint = ''
   formData.bucket = ''
-  formData.region = 'auto'
+  formData.region = DEFAULT_S3_REGION
   formData.accessKeyId = ''
   formData.secretAccessKey = ''
   formData.pathStyle = false
@@ -291,7 +364,10 @@ const openEditForm = (backend: StorageBackendInfo) => {
   formData.name = backend.name
   formData.endpoint = backend.config?.endpoint || ''
   formData.bucket = backend.config?.bucket || ''
-  formData.region = backend.config?.region || 'auto'
+  formData.region = backend.config?.region || DEFAULT_S3_REGION
+  if (formData.region && !regionItems.value.includes(formData.region)) {
+    regionItems.value.push(formData.region)
+  }
   // Credentials are not returned from the backend for security
   formData.accessKeyId = ''
   formData.secretAccessKey = ''
@@ -323,10 +399,10 @@ const onSubmitFormAsync = async () => {
 const onAddBackendAsync = async () => {
   try {
     const config: Record<string, unknown> = {
-      bucket: formData.bucket,
-      region: formData.region,
-      accessKeyId: formData.accessKeyId,
-      secretAccessKey: formData.secretAccessKey,
+      bucket: formData.bucket.trim(),
+      region: formData.region.trim(),
+      accessKeyId: formData.accessKeyId.trim(),
+      secretAccessKey: formData.secretAccessKey.trim(),
     }
 
     if (formData.endpoint.trim()) {
@@ -338,7 +414,7 @@ const onAddBackendAsync = async () => {
     }
 
     const request: AddStorageBackendRequest = {
-      name: formData.name,
+      name: formData.name.trim(),
       type: 's3',
       config,
     }
@@ -356,7 +432,7 @@ const onAddBackendAsync = async () => {
     console.error('Failed to add storage backend:', error)
     add({
       title: t('errors.addFailed'),
-      description: error instanceof Error ? error.message : String(error),
+      description: getErrorMessage(error),
       color: 'error',
     })
   }
@@ -367,8 +443,8 @@ const onUpdateBackendAsync = async () => {
 
   try {
     const config: Record<string, unknown> = {
-      bucket: formData.bucket,
-      region: formData.region,
+      bucket: formData.bucket.trim(),
+      region: formData.region.trim(),
     }
 
     if (formData.endpoint.trim()) {
@@ -388,7 +464,7 @@ const onUpdateBackendAsync = async () => {
 
     const request: UpdateStorageBackendRequest = {
       backendId: editingBackendId.value,
-      name: formData.name,
+      name: formData.name.trim(),
       config,
     }
 
@@ -420,7 +496,7 @@ const onUpdateBackendAsync = async () => {
     console.error('Failed to update storage backend:', error)
     add({
       title: t('errors.updateFailed'),
-      description: error instanceof Error ? error.message : String(error),
+      description: getErrorMessage(error),
       color: 'error',
     })
   }
@@ -439,7 +515,7 @@ const onTestBackendAsync = async (backendId: string) => {
     console.error('Connection test failed:', error)
     add({
       title: t('errors.testFailed'),
-      description: error instanceof Error ? error.message : String(error),
+      description: getErrorMessage(error),
       color: 'error',
     })
   } finally {
@@ -468,7 +544,7 @@ const onConfirmDeleteAsync = async () => {
     console.error('Failed to delete storage backend:', error)
     add({
       title: t('errors.deleteFailed'),
-      description: error instanceof Error ? error.message : String(error),
+      description: getErrorMessage(error),
       color: 'error',
     })
   } finally {
@@ -507,7 +583,7 @@ de:
       placeholder: my-bucket
     region:
       label: Region
-      placeholder: eu-central-1
+      placeholder: auto
     accessKeyId:
       label: Access Key ID
       placeholder: AKIAIOSFODNN7EXAMPLE
@@ -568,7 +644,7 @@ en:
       placeholder: my-bucket
     region:
       label: Region
-      placeholder: eu-central-1
+      placeholder: auto
     accessKeyId:
       label: Access Key ID
       placeholder: AKIAIOSFODNN7EXAMPLE

@@ -10,8 +10,8 @@
 // - Vault connection and sync
 //
 
-import type { Page} from '@playwright/test';
-import { test, expect, APIRequestContext } from '@playwright/test'
+import type { Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 
 // ============================================================================
 // Test Configuration
@@ -23,7 +23,6 @@ const SYNC_SERVER_URL =
 const PRODUCTION_SERVER_URL = 'https://sync.haex.space'
 
 // Test credentials (use environment variables in CI)
-const TEST_EMAIL = process.env.TEST_EMAIL || `test_${Date.now()}@example.com`
 const TEST_PASSWORD = process.env.TEST_PASSWORD || 'TestPassword123!'
 
 // ============================================================================
@@ -136,8 +135,6 @@ test.describe('Server Health Check', () => {
     try {
       const response = await request.get(SYNC_SERVER_URL, { timeout: 5000 })
 
-      // Check for CORS-related headers
-      const headers = response.headers()
       // Either has CORS headers or returns proper content
       expect(response.ok()).toBeTruthy()
     } catch {
@@ -210,7 +207,7 @@ test.describe('Account Registration', () => {
 
   test.skip('should create new account successfully', async ({
     page,
-    request,
+    request: _request,
   }) => {
     // This test actually creates an account - only run in controlled environments
     if (!process.env.ALLOW_ACCOUNT_CREATION) {
@@ -678,8 +675,6 @@ test.describe('Remote Vault Connection Flow', () => {
       // If there are insert operations, subsequent reads should show the data
       // (not empty object {} which was the bug symptom)
       if (insertOps.length > 0 && readResults.length > 0) {
-        const emptyObjectReads = readResults.filter((m) => m.includes('result: {}'))
-
         // After the fix, we should NOT see empty object results after insert
         // Some empty results are OK (before first insert), but not after
         const lastInsertIndex = dbOperations.findIndex((m) =>
@@ -705,14 +700,6 @@ test.describe('Remote Vault Connection Flow', () => {
 
       await page.goto('/')
       await waitForAppReady(page)
-
-      // Monitor for timeout warning
-      let sawTimeoutWarning = false
-      page.on('console', (msg) => {
-        if (msg.text().includes('timeout') || msg.text().includes('Timeout')) {
-          sawTimeoutWarning = true
-        }
-      })
 
       // Wait long enough for potential timeout (but not forever)
       await page.waitForTimeout(35000) // Longer than 30s timeout
@@ -781,7 +768,7 @@ test.describe('Drizzle Callback E2E', () => {
 
     // Either sync indicator or desktop should appear within reasonable time
     // (not stuck in infinite loop)
-    const appeared = await Promise.race([
+    await Promise.race([
       syncIndicators.first().waitFor({ timeout: 15000 }).then(() => true).catch(() => false),
       desktopLoaded.first().waitFor({ timeout: 15000 }).then(() => true).catch(() => false),
       page.waitForTimeout(15000).then(() => false),

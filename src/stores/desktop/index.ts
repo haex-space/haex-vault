@@ -24,7 +24,6 @@ export interface IDesktopItem extends SelectHaexDesktopItems {
 const log = createLogger('DESKTOP')
 
 export const useDesktopStore = defineStore('desktopStore', () => {
-  const { currentVault } = storeToRefs(useVaultStore())
   const workspaceStore = useWorkspaceStore()
   const { currentWorkspace } = storeToRefs(workspaceStore)
   const { $i18n } = useNuxtApp()

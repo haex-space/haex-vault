@@ -1,0 +1,135 @@
+name: Dependabot Auto-Rebase Stale PRs
+
+# Auto-rebases Dependabot PRs whose branch has fallen behind main, with a
+# hard cap of MAX_CONCURRENT (3) Dependabot CI runs in flight at any time.
+#
+# Why this exists:
+#   When a Dependabot PR merges, every other open Dependabot PR becomes
+#   BEHIND. Dependabot only rebases on its weekly schedule, so PRs pile up
+#   until somebody manually comments `@dependabot rebase` on each one.
+#   We automate that — but limit the rebase fan-out so CI runners don't
+#   get hogged by a backlog of simultaneously-rebuilding Dependabot PRs.
+#
+# Triggers:
+#   - push to main: rebase the next batch immediately after a merge
+#   - schedule (hourly): fallback in case push didn't fire (force-push,
+#     branch-protection bypasses) or to drain remaining backlog when slots
+#     free up
+#   - workflow_dispatch: manual kick
+#
+# Slot accounting:
+#   "In flight" = workflow runs whose head_branch starts with `dependabot/`
+#   and whose status is queued, in_progress, requested, or waiting.
+#   That count is subtracted from MAX_CONCURRENT to get free slots.
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: dependabot-auto-rebase
+  cancel-in-progress: false
+
+jobs:
+  rebase-stale:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rebase stale Dependabot PRs (max 3 in flight)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          MAX_CONCURRENT: '3'
+        run: |
+          set -euo pipefail
+
+          # 1. Count in-flight Dependabot CI runs.
+          # `gh run list` exposes only one status at a time, so query each
+          # active status and sum. We dedupe by databaseId in case a run
+          # transitions between states mid-query.
+          in_flight_ids=$(
+            for s in queued in_progress requested waiting pending; do
+              gh run list --repo "$REPO" --status "$s" --limit 100 \
+                --json databaseId,headBranch \
+                -q '.[] | select(.headBranch | startswith("dependabot/")) | .databaseId'
+            done | sort -u
+          )
+          in_flight=$(printf '%s\n' "$in_flight_ids" | grep -c . || true)
+          echo "Dependabot CI runs in flight: $in_flight"
+
+          available=$(( MAX_CONCURRENT - in_flight ))
+          if [ "$available" -le 0 ]; then
+            echo "No slots available (cap: $MAX_CONCURRENT). Skipping."
+            exit 0
+          fi
+          echo "Available rebase slots: $available"
+
+          # Collect head branches that are already building so we skip them
+          # (rebasing now would just cancel the running build and waste it).
+          busy_branches=$(
+            for s in queued in_progress requested waiting pending; do
+              gh run list --repo "$REPO" --status "$s" --limit 100 \
+                --json headBranch \
+                -q '.[] | select(.headBranch | startswith("dependabot/")) | .headBranch'
+            done | sort -u
+          )
+
+          # 2. List open Dependabot PRs that are BEHIND main, oldest first.
+          # `mergeStateStatus` requires GraphQL — the REST/JSON pr-list
+          # field doesn't expose BEHIND vs CLEAN reliably.
+          owner="${REPO%/*}"
+          name="${REPO#*/}"
+          payload=$(
+            gh api graphql -F owner="$owner" -F name="$name" -f query='
+              query($owner:String!, $name:String!) {
+                repository(owner:$owner, name:$name) {
+                  pullRequests(states:OPEN, first:100, orderBy:{field:CREATED_AT, direction:ASC}) {
+                    nodes {
+                      number
+                      createdAt
+                      mergeStateStatus
+                      headRefName
+                      author { login }
+                    }
+                  }
+                }
+              }'
+          )
+
+          # Filter: Dependabot author, BEHIND state, head branch not already building.
+          mapfile -t candidates < <(
+            jq -r --arg busy "$busy_branches" '
+              ($busy | split("\n") | map(select(length > 0))) as $busyList
+              | .data.repository.pullRequests.nodes[]
+              | select(.author.login == "dependabot")
+              | select(.mergeStateStatus == "BEHIND")
+              | select(.headRefName as $h | $busyList | index($h) | not)
+              | .number
+            ' <<<"$payload"
+          )
+
+          if [ ${#candidates[@]} -eq 0 ]; then
+            echo "No stale Dependabot PRs eligible for rebase."
+            exit 0
+          fi
+          echo "Eligible PRs (oldest first): ${candidates[*]}"
+
+          # 3. Trigger rebase on up to `available` PRs.
+          count=0
+          for pr in "${candidates[@]}"; do
+            if [ "$count" -ge "$available" ]; then
+              break
+            fi
+            echo "Triggering @dependabot rebase on PR #$pr"
+            gh pr comment "$pr" --repo "$REPO" --body "@dependabot rebase"
+            count=$(( count + 1 ))
+          done
+          echo "Rebase requested on $count PR(s)."

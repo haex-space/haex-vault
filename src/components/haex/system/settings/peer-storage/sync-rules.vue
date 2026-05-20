@@ -545,9 +545,9 @@ watch(
     // Drop maps for rules no longer syncing
     for (const ruleId of Object.keys(slotMaps)) {
       if (!progressMap.has(ruleId)) {
-        delete slotMaps[ruleId]
-        delete lastFilesDone[ruleId]
-        delete cycleKey[ruleId]
+        Reflect.deleteProperty(slotMaps, ruleId)
+        Reflect.deleteProperty(lastFilesDone, ruleId)
+        Reflect.deleteProperty(cycleKey, ruleId)
       }
     }
   },

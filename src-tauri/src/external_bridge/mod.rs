@@ -263,7 +263,7 @@ pub async fn external_bridge_client_allow(
         // This persists for the lifetime of the haex-vault session
         let bridge = state.external_bridge.lock().await;
         bridge
-            .add_session_authorization(&client_id, &extension_id)
+            .add_session_authorization(&client_id, &client_name, &public_key, &extension_id)
             .await;
     }
 
@@ -309,14 +309,10 @@ pub async fn external_bridge_client_block(
 
         // Emit event to notify frontend
         let _ = app_handle.emit_to("main", EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
-    } else {
-        // Add to session blocked list (for "deny once")
-        // This persists for the lifetime of the haex-vault session
-        let bridge = state.external_bridge.lock().await;
-        bridge
-            .add_session_blocked(&client_id, &client_name, &public_key)
-            .await;
     }
+    // Without `remember`, we only reject this specific request. A session-wide
+    // block would silently swallow every subsequent reconnect — bad UX when
+    // the user just wanted to dismiss the current prompt.
 
     // Deny the pending request
     let bridge = state.external_bridge.lock().await;
