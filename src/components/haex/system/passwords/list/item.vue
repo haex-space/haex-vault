@@ -293,6 +293,11 @@ const menuItems = computed<ContextMenuItem[][]>(() => {
               toast.add({ title: t('toast.restored'), color: 'success' })
             } catch (error) {
               console.error('[ListItem] restore failed', error)
+              toast.add({
+                title: t('toast.actionFailed'),
+                color: 'error',
+                icon: 'i-lucide-alert-triangle',
+              })
             }
           },
         },
@@ -308,6 +313,11 @@ const menuItems = computed<ContextMenuItem[][]>(() => {
               toast.add({ title: t('toast.deleted'), color: 'success' })
             } catch (error) {
               console.error('[ListItem] delete failed', error)
+              toast.add({
+                title: t('toast.actionFailed'),
+                color: 'error',
+                icon: 'i-lucide-alert-triangle',
+              })
             }
           },
         },
@@ -347,6 +357,11 @@ const menuItems = computed<ContextMenuItem[][]>(() => {
             toast.add({ title: t('toast.movedToTrash'), color: 'success' })
           } catch (error) {
             console.error('[ListItem] delete failed', error)
+            toast.add({
+              title: t('toast.actionFailed'),
+              color: 'error',
+              icon: 'i-lucide-alert-triangle',
+            })
           }
         },
       },
@@ -374,6 +389,7 @@ de:
     restored: Wiederhergestellt
     deleted: Eintrag gelöscht
     copyFailed: Kopieren fehlgeschlagen
+    actionFailed: Aktion fehlgeschlagen
 en:
   untitled: (untitled)
   select: Select
@@ -392,4 +408,5 @@ en:
     restored: Restored
     deleted: Entry deleted
     copyFailed: Copy failed
+    actionFailed: Action failed
 </i18n>

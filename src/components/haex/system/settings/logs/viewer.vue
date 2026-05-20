@@ -49,7 +49,7 @@
       <div class="shrink-0 flex items-center justify-end gap-2 px-3">
         <span class="text-sm text-muted">
           {{ totalCount }} {{ t('entries')
-          }}<template v-if="filterSearch && filteredLogs.length !== logs.length">
+          }}<template v-if="filterSearch">
             · {{ filteredLogs.length }} {{ t('matchOnPage') }}</template
           >
         </span>
@@ -372,8 +372,14 @@ const fetchLogs = async () => {
       }),
       invoke<number>('log_count', { query: baseQuery }),
     ])
-    logs.value = result
     totalCount.value = count
+    const totalPages = Math.max(1, Math.ceil(count / pageSize))
+    if (currentPage.value > totalPages) {
+      logs.value = []
+      currentPage.value = totalPages
+      return
+    }
+    logs.value = result
   } catch (error) {
     console.error('Failed to fetch logs:', error)
   } finally {
