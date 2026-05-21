@@ -47,9 +47,12 @@
         </div>
       </div>
       <div class="shrink-0 flex items-center justify-end gap-2 px-3">
-        <span class="text-sm text-muted"
-          >{{ filteredLogs.length }} {{ t('entries') }}</span
-        >
+        <span class="text-sm text-muted">
+          {{ totalCount }} {{ t('entries')
+          }}<template v-if="filterSearch">
+            · {{ filteredLogs.length }} {{ t('matchOnPage') }}</template
+          >
+        </span>
         <UButton
           v-if="filteredLogs.length > 0"
           icon="i-heroicons-clipboard-document"
@@ -59,7 +62,7 @@
           @click="copyAllLogs"
         />
         <UButton
-          v-if="logs.length > 0"
+          v-if="totalCount > 0"
           icon="i-lucide-trash-2"
           color="error"
           variant="ghost"
@@ -149,15 +152,19 @@
             >{{ formatMetadata(log.metadata) }}</pre
           >
         </div>
+      </div>
 
-        <!-- Load More -->
-        <UButton
-          v-if="filteredLogs.length >= pageSize"
-          :label="t('actions.loadMore')"
-          block
-          color="neutral"
-          variant="ghost"
-          @click="loadMore"
+      <!-- Pagination (fixed) -->
+      <div
+        v-if="totalCount > pageSize"
+        class="shrink-0 flex justify-center pt-2"
+      >
+        <UPagination
+          v-model:page="currentPage"
+          :total="totalCount"
+          :items-per-page="pageSize"
+          :sibling-count="1"
+          show-edges
         />
       </div>
     </div>
@@ -188,6 +195,8 @@ interface LogEntry {
 const isLoading = ref(true)
 const logs = ref<LogEntry[]>([])
 const pageSize = 100
+const currentPage = ref(1)
+const totalCount = ref(0)
 
 const filterLevel = ref('warn')
 const ALL = '__all__'
@@ -328,44 +337,55 @@ const getSourceLabel = (log: LogEntry) => {
   return log.source
 }
 
-const fetchLogs = async (offset = 0) => {
-  isLoading.value = offset === 0
+const buildQuery = () => {
+  let source: string | null = null
+  let extensionId: string | null = null
+
+  if (filterSource.value && filterSource.value !== ALL) {
+    if (filterSource.value.startsWith('system:')) {
+      source = filterSource.value.slice(7)
+    } else if (filterSource.value.startsWith('ext:')) {
+      extensionId = filterSource.value.slice(4)
+    }
+  }
+
+  return {
+    level: filterLevel.value || null,
+    extensionId,
+    source,
+    deviceId: filterDevice.value !== ALL ? filterDevice.value : null,
+    since: getSinceTimestamp(),
+  }
+}
+
+const fetchLogs = async () => {
+  isLoading.value = true
   try {
-    let source: string | null = null
-    let extensionId: string | null = null
-
-    if (filterSource.value && filterSource.value !== ALL) {
-      if (filterSource.value.startsWith('system:')) {
-        source = filterSource.value.slice(7)
-      } else if (filterSource.value.startsWith('ext:')) {
-        extensionId = filterSource.value.slice(4)
-      }
+    const baseQuery = buildQuery()
+    const [result, count] = await Promise.all([
+      invoke<LogEntry[]>('log_read', {
+        query: {
+          ...baseQuery,
+          limit: pageSize,
+          offset: (currentPage.value - 1) * pageSize,
+        },
+      }),
+      invoke<number>('log_count', { query: baseQuery }),
+    ])
+    totalCount.value = count
+    const totalPages = Math.max(1, Math.ceil(count / pageSize))
+    if (currentPage.value > totalPages) {
+      logs.value = []
+      currentPage.value = totalPages
+      return
     }
-
-    const result = await invoke<LogEntry[]>('log_read', {
-      query: {
-        level: filterLevel.value || null,
-        extensionId,
-        source,
-        deviceId: filterDevice.value !== ALL ? filterDevice.value : null,
-        since: getSinceTimestamp(),
-        limit: pageSize,
-        offset,
-      },
-    })
-    if (offset === 0) {
-      logs.value = result
-    } else {
-      logs.value = [...logs.value, ...result]
-    }
+    logs.value = result
   } catch (error) {
     console.error('Failed to fetch logs:', error)
   } finally {
     isLoading.value = false
   }
 }
-
-const loadMore = () => fetchLogs(logs.value.length)
 
 const resetFilters = () => {
   filterLevel.value = 'warn'
@@ -383,7 +403,7 @@ const copyLogEntry = async (log: LogEntry) => {
 const deleteLogAsync = async (id: string) => {
   try {
     await invoke('log_delete', { ids: [id] })
-    logs.value = logs.value.filter((l) => l.id !== id)
+    await fetchLogs()
   } catch (error) {
     console.error('Failed to delete log:', error)
   }
@@ -393,6 +413,8 @@ const clearAllLogsAsync = async () => {
   try {
     await invoke('log_clear_all')
     logs.value = []
+    totalCount.value = 0
+    currentPage.value = 1
   } catch (error) {
     console.error('Failed to clear logs:', error)
   }
@@ -408,8 +430,17 @@ const copyAllLogs = async () => {
   await copy(text)
 }
 
-// Reload on filter change
-watch([filterLevel, filterSource, filterDevice, filterTime], () => fetchLogs())
+// Reset to first page when filters change, then reload.
+watch([filterLevel, filterSource, filterDevice, filterTime], () => {
+  if (currentPage.value !== 1) {
+    currentPage.value = 1
+  } else {
+    fetchLogs()
+  }
+})
+
+// Reload current page when the user navigates.
+watch(currentPage, () => fetchLogs())
 
 onMounted(async () => {
   await deviceStore.loadKnownDevicesAsync()
@@ -421,6 +452,7 @@ onMounted(async () => {
 de:
   title: Logs anzeigen
   entries: Einträge
+  matchOnPage: auf dieser Seite gefunden
   empty: Keine Logs vorhanden
   filter:
     all: Alle Quellen
@@ -439,13 +471,13 @@ de:
       7d: Letzte 7 Tage
       30d: Letzte 30 Tage
   actions:
-    loadMore: Mehr laden
     copyAll: Alle kopieren
     copyEntry: Eintrag kopieren
     clearAll: Alle Logs löschen
 en:
   title: View Logs
   entries: entries
+  matchOnPage: matches on this page
   empty: No logs found
   filter:
     all: All sources
@@ -464,7 +496,6 @@ en:
       7d: Last 7 days
       30d: Last 30 days
   actions:
-    loadMore: Load more
     copyAll: Copy all
     copyEntry: Copy entry
     clearAll: Clear all logs

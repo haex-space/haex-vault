@@ -1,10 +1,23 @@
 <template>
   <nav
-    v-if="selectedGroupId !== null"
     class="flex items-center gap-1 px-3 py-2 border-b border-default text-sm min-h-12 overflow-x-auto"
     :aria-label="t('ariaLabel')"
   >
+    <!-- At root, "Alle Passwörter" is the current location: render as a plain
+         label (non-clickable, bold). Inside a folder it becomes a clickable
+         crumb that navigates back to the root. -->
+    <span
+      v-if="selectedGroupId === null"
+      class="flex items-center gap-1.5 px-2 py-1 font-medium shrink-0"
+    >
+      <UIcon
+        name="i-lucide-key-round"
+        class="size-4"
+      />
+      <span>{{ t('allPasswords') }}</span>
+    </span>
     <button
+      v-else
       type="button"
       class="flex items-center gap-1.5 px-2 py-1 rounded-md text-muted hover:text-default hover:bg-elevated transition-colors shrink-0"
       @click="selectGroup(null)"
@@ -49,7 +62,7 @@ const { t } = useI18n()
 
 const groupsStore = usePasswordsGroupsStore()
 const { selectedGroupId, breadcrumbGroups } = storeToRefs(groupsStore)
-const { selectGroup } = groupsStore
+const { selectGroup } = usePasswordsNavigation()
 </script>
 
 <i18n lang="yaml">

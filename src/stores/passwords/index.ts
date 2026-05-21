@@ -20,23 +20,33 @@ export const usePasswordsStore = defineStore('passwordsStore', () => {
   const selectedItemId = ref<string | null>(null)
   const viewMode = ref<PasswordsViewMode>('list')
   const isEditing = ref(false)
+  // Flips to false only after the first load resolves so the list can show a
+  // spinner instead of the "no passwords" empty state on open.
+  const hasLoadedOnce = ref(false)
+  const isLoading = ref(false)
 
   const loadItemsAsync = async () => {
-    const db = requireDb()
-    items.value = await db.select().from(haexPasswordsItemDetails)
-    itemTagRows.value = await db
-      .select({
-        itemId: haexPasswordsItemTags.itemId,
-        id: haexPasswordsTags.id,
-        name: haexPasswordsTags.name,
-        color: haexPasswordsTags.color,
-        createdAt: haexPasswordsTags.createdAt,
-      })
-      .from(haexPasswordsItemTags)
-      .innerJoin(
-        haexPasswordsTags,
-        eq(haexPasswordsItemTags.tagId, haexPasswordsTags.id),
-      )
+    isLoading.value = true
+    try {
+      const db = requireDb()
+      items.value = await db.select().from(haexPasswordsItemDetails)
+      itemTagRows.value = await db
+        .select({
+          itemId: haexPasswordsItemTags.itemId,
+          id: haexPasswordsTags.id,
+          name: haexPasswordsTags.name,
+          color: haexPasswordsTags.color,
+          createdAt: haexPasswordsTags.createdAt,
+        })
+        .from(haexPasswordsItemTags)
+        .innerJoin(
+          haexPasswordsTags,
+          eq(haexPasswordsItemTags.tagId, haexPasswordsTags.id),
+        )
+    } finally {
+      isLoading.value = false
+      hasLoadedOnce.value = true
+    }
   }
 
   const tagsByItemId = computed<Record<string, SelectHaexPasswordsTags[]>>(
@@ -66,11 +76,10 @@ export const usePasswordsStore = defineStore('passwordsStore', () => {
     const activeGroupId = groupsStore.selectedGroupId
     const itemGroupMap = groupsStore.itemGroupMap
     if (activeGroupId === null) {
-      // "Alle Passwörter" — exclude items that live inside the trash hierarchy.
-      return items.value.filter((item) => {
-        const groupId = itemGroupMap.get(item.id)
-        return !groupId || !groupsStore.isGroupInTrash(groupId)
-      })
+      // Root behaves like any other level: only items that live directly at
+      // the root (no group assignment) are listed here. Items inside folders
+      // are reached by drilling into the folder.
+      return items.value.filter((item) => !itemGroupMap.get(item.id))
     }
     return items.value.filter(
       (item) => itemGroupMap.get(item.id) === activeGroupId,
@@ -158,6 +167,8 @@ export const usePasswordsStore = defineStore('passwordsStore', () => {
     selectedItemId,
     viewMode,
     isEditing,
+    isLoading,
+    hasLoadedOnce,
     tagsByItemId,
     selectedItem,
     selectedItemTags,

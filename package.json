@@ -72,6 +72,7 @@
     "qrcode": "^1.5.4",
     "swiper": "^12.1.4",
     "tailwindcss": "^4.3.0",
+    "tldts": "^7.0.19",
     "vue": "^3.5.34",
     "vue-advanced-cropper": "^2.8.9"
   },

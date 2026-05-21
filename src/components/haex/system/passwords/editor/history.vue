@@ -63,10 +63,10 @@
     </div>
 
     <!-- Detail panel -->
-    <div class="flex-1 overflow-y-auto px-4 py-4">
+    <div class="flex-1 overflow-y-auto p-4">
       <div
         v-if="selectedSnapshot && parsedData"
-        class="max-w-lg space-y-3"
+        class="max-w-2xl mx-auto space-y-4"
       >
         <p class="text-xs text-muted">
           {{ t('savedAt') }}: {{ formatAbsolute(selectedSnapshot.modifiedAt || selectedSnapshot.createdAt) }}

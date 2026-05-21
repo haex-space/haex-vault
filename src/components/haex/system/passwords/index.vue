@@ -15,6 +15,7 @@
         <aside
           class="hidden @3xl:flex @3xl:flex-col shrink-0 overflow-y-auto border-e border-default"
           :style="{ width: `${sidebarWidth}px` }"
+          @mousedown="activeArea = 'sidebar'"
         >
           <HaexSystemPasswordsSidebar />
         </aside>
@@ -24,7 +25,10 @@
           @mousedown="startResize"
           @dblclick="sidebarWidth = DEFAULT_SIDEBAR_WIDTH"
         />
-        <main class="flex-1 min-w-0 overflow-hidden flex flex-col">
+        <main
+          class="flex-1 min-w-0 overflow-hidden flex flex-col"
+          @mousedown="activeArea = 'main'"
+        >
           <HaexSystemPasswordsEditor
             v-if="viewMode === 'item'"
             :key="selectedItemId ?? 'new'"
@@ -36,7 +40,7 @@
               <Transition name="toolbar-fade">
                 <HaexSystemPasswordsSelectionToolbar
                   v-if="isSelectionMode || hasClipboard"
-                  :class="selectedGroupId !== null ? 'absolute inset-0' : undefined"
+                  class="absolute inset-0"
                   @tag="bulkTagOpen = true"
                   @delete="bulkDeleteOpen = true"
                   @paste="onPaste"
@@ -69,6 +73,7 @@
 
 <script setup lang="ts">
 import { useResizeObserver } from '@vueuse/core'
+import { TRASH_GROUP_ID } from '~/stores/passwords/groups'
 
 const props = defineProps<{
   tabId?: string
@@ -83,7 +88,12 @@ const passwordsStore = usePasswordsStore()
 const groupsStore = usePasswordsGroupsStore()
 const selection = usePasswordsSelectionStore()
 const { viewMode, selectedItemId, items } = storeToRefs(passwordsStore)
-const { selectedGroupId } = storeToRefs(groupsStore)
+const { selectedGroupId, groups } = storeToRefs(groupsStore)
+
+// Tracks which panel (sidebar/main) the user last interacted with so global
+// keyboard shortcuts like Ctrl+A know which selection scope to target.
+type ActiveArea = 'sidebar' | 'main'
+const activeArea = ref<ActiveArea>('main')
 const {
   selectedEntries,
   selectedCount,
@@ -170,6 +180,35 @@ const onPaste = async () => {
   }
 }
 
+// Drop the user into the single root folder on first mount of this view,
+// so a vault with only one top-level folder doesn't open on an effectively
+// empty root that just lists that one folder. Fires once per mount —
+// clicking "Alle Passwörter" later still navigates back to the real root.
+const tryAutoEnterSingleRoot = () => {
+  if (selectedGroupId.value !== null) return
+  const userRoots = groupsStore.rootGroups.filter((g) => g.id !== TRASH_GROUP_ID)
+  if (userRoots.length === 1) {
+    selectedGroupId.value = userRoots[0]!.id
+  }
+}
+
+onMounted(() => {
+  if (groups.value.length > 0) {
+    tryAutoEnterSingleRoot()
+    return
+  }
+  // Groups load async — wait for the first non-empty snapshot, then stop.
+  const stop = watch(
+    () => groups.value.length,
+    (count) => {
+      if (count > 0) {
+        tryAutoEnterSingleRoot()
+        stop()
+      }
+    },
+  )
+})
+
 // Leaving a view where the selection makes sense clears it — matches the
 // file-manager convention where entering a different folder resets selection.
 watch(selectedGroupId, () => selection.clear())
@@ -190,10 +229,30 @@ const onKeydown = (event: KeyboardEvent) => {
   if (viewMode.value !== 'list') return
   const ctrl = event.ctrlKey || event.metaKey
 
-  // Ctrl+A — select all visible entries in the current folder/search result.
+  // Ctrl+A — scope depends on which panel was last clicked. Sidebar = all
+  // (non-trash) folders, main = visible items + child folders. The sidebar
+  // branch only applies on wide layouts where the sidebar is actually shown.
   if (ctrl && event.key === 'a' && !isInputFocused()) {
     event.preventDefault()
-    selection.selectAll(visibleOrderedIds.value)
+    if (activeArea.value === 'sidebar' && isWideLayout.value) {
+      const allGroupIds = groups.value
+        .filter((g) => !groupsStore.isGroupInTrash(g.id))
+        .map((g) => g.id)
+      selection.selectAll(allGroupIds)
+    } else {
+      selection.selectAll(visibleOrderedIds.value)
+    }
+    return
+  }
+
+  // Delete — bulk-delete the current selection (no-op when nothing is picked).
+  if (
+    (event.key === 'Delete' || event.key === 'Backspace')
+    && !isInputFocused()
+    && selection.selectedCount > 0
+  ) {
+    event.preventDefault()
+    bulkDeleteOpen.value = true
     return
   }
 

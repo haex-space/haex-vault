@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import {
   haexPasswordsGroupItems,
   haexPasswordsGroups,
@@ -263,6 +263,39 @@ export const usePasswordsGroupsStore = defineStore(
       await setItemGroupAsync(itemId, null)
     }
 
+    // Permanently deletes every item + group inside the trash, but keeps the
+    // trash container itself so the sidebar entry stays anchored.
+    const emptyTrashAsync = async (): Promise<void> => {
+      const db = requireDb()
+      const trashDescendants = descendantIdSet(TRASH_GROUP_ID)
+      const itemIds: string[] = []
+      for (const [itemId, groupId] of itemGroupMap.value.entries()) {
+        if (groupId && trashDescendants.has(groupId)) itemIds.push(itemId)
+      }
+      if (itemIds.length > 0) {
+        await db
+          .delete(haexPasswordsItemDetails)
+          .where(inArray(haexPasswordsItemDetails.id, itemIds))
+      }
+      const groupIdsToDelete = Array.from(trashDescendants).filter(
+        (id) => id !== TRASH_GROUP_ID,
+      )
+      if (groupIdsToDelete.length > 0) {
+        await db
+          .delete(haexPasswordsGroups)
+          .where(inArray(haexPasswordsGroups.id, groupIdsToDelete))
+      }
+      await loadGroupsAsync()
+      // If the user was viewing a trash subfolder that just got purged,
+      // fall back to the trash root so breadcrumb/list/tree stay consistent.
+      if (
+        selectedGroupId.value &&
+        !groups.value.some((group) => group.id === selectedGroupId.value)
+      ) {
+        selectedGroupId.value = TRASH_GROUP_ID
+      }
+    }
+
     const restoreGroupAsync = async (groupId: string): Promise<void> => {
       const db = requireDb()
       await db
@@ -429,6 +462,7 @@ export const usePasswordsGroupsStore = defineStore(
       bulkCloneAsync,
       restoreItemAsync,
       restoreGroupAsync,
+      emptyTrashAsync,
     }
   },
 )
