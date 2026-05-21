@@ -3037,6 +3037,18 @@
       "description": "Permission identifier",
       "oneOf": [
         {
+          "description": "Grants the main window access to every `#[tauri::command]` registered\nin haex-vault's `invoke_handler!`. Mirrors the lib.rs registration —\nkeep them in sync when adding/removing commands.\n",
+          "type": "string",
+          "const": "allow-app-commands",
+          "markdownDescription": "Grants the main window access to every `#[tauri::command]` registered\nin haex-vault's `invoke_handler!`. Mirrors the lib.rs registration —\nkeep them in sync when adding/removing commands.\n"
+        },
+        {
+          "description": "Grants extension webviews access to every `extension_*` Tauri command.\n",
+          "type": "string",
+          "const": "allow-extension-commands",
+          "markdownDescription": "Grants extension webviews access to every `extension_*` Tauri command.\n"
+        },
+        {
           "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `all-without-delete`",
           "type": "string",
           "const": "android-fs:default",

@@ -281,6 +281,13 @@ pub fn vault_exists(app_handle: AppHandle, vault_name: String) -> Result<bool, D
 /// Fails if a vault with the same name already exists.
 #[tauri::command]
 pub fn import_vault(app_handle: AppHandle, source_path: String, vault_name: Option<String>) -> Result<String, DatabaseError> {
+    // Android: source comes as a Content URI JSON envelope (SAF). std::fs cannot
+    // open content:// URIs, so we read through ContentResolver via android_fs.
+    #[cfg(target_os = "android")]
+    if source_path.starts_with('{') {
+        return import_vault_from_content_uri(&app_handle, &source_path, vault_name);
+    }
+
     let source = Path::new(&source_path);
 
     // Validate source file exists
@@ -328,6 +335,59 @@ pub fn import_vault(app_handle: AppHandle, source_path: String, vault_name: Opti
     println!(
         "Vault '{}' successfully imported to '{}'",
         vault_name, target_path
+    );
+
+    Ok(target_path)
+}
+
+/// Imports a vault from an Android Content URI (SAF picker result).
+/// Reads bytes through ContentResolver and writes them into the vaults directory.
+#[cfg(target_os = "android")]
+fn import_vault_from_content_uri(
+    app_handle: &AppHandle,
+    source_uri_json: &str,
+    vault_name: Option<String>,
+) -> Result<String, DatabaseError> {
+    use tauri_plugin_android_fs::{AndroidFsExt, FileUri};
+
+    let api = app_handle.android_fs();
+
+    let uri = FileUri::from_json_str(source_uri_json).map_err(|e| DatabaseError::IoError {
+        path: source_uri_json.to_string(),
+        reason: format!("Invalid Content URI: {e:?}"),
+    })?;
+
+    // Derive vault name: prefer caller-provided, else fall back to URI display name.
+    let resolved_name = match vault_name {
+        Some(name) if !name.trim().is_empty() => name.trim().to_string(),
+        _ => {
+            let display = api.get_name(&uri).map_err(|e| DatabaseError::ValidationError {
+                reason: format!("Could not read file name from Content URI: {e:?}"),
+            })?;
+            display.trim_end_matches(VAULT_EXTENSION).to_string()
+        }
+    };
+
+    let target_path = get_vault_path(app_handle, &resolved_name)?;
+    if Path::new(&target_path).exists() {
+        return Err(DatabaseError::VaultAlreadyExists {
+            vault_name: resolved_name,
+        });
+    }
+
+    let bytes = api.read(&uri).map_err(|e| DatabaseError::IoError {
+        path: source_uri_json.to_string(),
+        reason: format!("Failed to read source via ContentResolver: {e:?}"),
+    })?;
+
+    fs::write(&target_path, &bytes).map_err(|e| DatabaseError::IoError {
+        path: target_path.clone(),
+        reason: format!("Failed to write vault file: {e}"),
+    })?;
+
+    println!(
+        "Vault '{}' successfully imported from Content URI to '{}'",
+        resolved_name, target_path
     );
 
     Ok(target_path)

@@ -197,6 +197,7 @@ commands.allow = [
   "filesystem_stat",
   "filesystem_select_file",
   "filesystem_select_folder",
+  "filesystem_get_file_name",
 
   # File sync
   "file_sync_start_rule",

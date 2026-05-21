@@ -539,6 +539,7 @@ pub fn run() {
             filesystem::filesystem_stat,
             filesystem::filesystem_select_folder,
             filesystem::filesystem_select_file,
+            filesystem::filesystem_get_file_name,
             filesystem::filesystem_rename,
             filesystem::filesystem_copy,
             filesystem::filesystem_copy_dir,
