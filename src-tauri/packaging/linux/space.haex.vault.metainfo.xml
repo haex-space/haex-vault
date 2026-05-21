@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>space.haex.vault</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <name>Haex Vault</name>
+  <summary>Build once, run everywhere, sync automatically</summary>
+
+  <description>
+    <p>
+      Haex Vault is a cross-platform vault application that keeps your data
+      encrypted at rest and synchronizes it automatically between your devices.
+    </p>
+    <p>
+      It runs on desktop and mobile, supports multiple sync backends
+      (S3, Supabase, peer-to-peer via QUIC) and extends through pluggable
+      vault extensions like haex-pass.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">haex-vault.desktop</launchable>
+
+  <url type="homepage">https://haex.space</url>
+
+  <developer_name>Haex</developer_name>
+
+  <categories>
+    <category>Utility</category>
+    <category>Security</category>
+  </categories>
+
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="1.25.0" date="2026-05-21"/>
+  </releases>
+</component>

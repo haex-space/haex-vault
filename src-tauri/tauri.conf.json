@@ -154,7 +154,9 @@
         "files": {}
       },
       "deb": {
-        "files": {}
+        "files": {
+          "/usr/share/metainfo/space.haex.vault.metainfo.xml": "packaging/linux/space.haex.vault.metainfo.xml"
+        }
       },
       "rpm": {
         "epoch": 0,
