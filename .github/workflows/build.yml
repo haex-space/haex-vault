@@ -72,13 +72,17 @@ jobs:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
           FIRST_LINE=$(echo "$COMMIT_MSG" | head -n 1)
-          # Skip build for release-please's merge commit. The release tag
-          # gets its own dedicated build via release-please.yml's
+          # Skip build for release-please's release-PR merge commit. The
+          # release tag gets its own dedicated build via release-please.yml's
           # build-release job (workflow_call into build.yml), so this push
-          # event would just rebuild the identical code.
-          if [[ "$FIRST_LINE" == "chore(release):"* ]] || [[ "$FIRST_LINE" == "Bump version to"* ]]; then
+          # event would just rebuild the identical code. The "v<digit>"
+          # pattern is intentional: it matches release-please's
+          # "chore(release): vX.Y.Z" pull-request title and NOT other
+          # release-themed chores (e.g. workflow tweaks). Old pattern kept
+          # for compatibility with any in-flight pre-release-please commits.
+          if [[ "$FIRST_LINE" =~ ^chore\(release\):\ v[0-9] ]] || [[ "$FIRST_LINE" == "Bump version to"* ]]; then
             echo "should_skip=true" >> "$GITHUB_OUTPUT"
-            echo "Skipping build for release/version-bump commit"
+            echo "Skipping build for release-PR merge commit"
           else
             echo "should_skip=false" >> "$GITHUB_OUTPUT"
           fi
