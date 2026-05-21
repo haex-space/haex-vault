@@ -1,7 +1,7 @@
 name: Build
 
 on:
-  # Build runs on direct pushes to long-lived branches (main, release) and
+  # Build runs on direct pushes to long-lived branches (develop, main) and
   # on every pull_request event. Feature/PR branches are NOT in the push
   # filter on purpose: when a developer pushes to a PR branch, only the
   # pull_request event runs CI. The earlier "push: ['**']" trigger fired
@@ -12,12 +12,12 @@ on:
   # trigger eliminates the duplicate at the source.
   push:
     branches:
+      - develop
       - main
-      - release
-      # Bot-pushed sync branches (release.yml uses RELEASE_PAT for the push
-      # so this event fires; the matching pull_request event is suppressed by
-      # GitHub's anti-recursion rule because the PR is opened with
-      # GITHUB_TOKEN, so this is the only chance Build has to run there).
+      # Bot-pushed sync branches (release-please.yml pushes with RELEASE_PAT
+      # so this event fires; the matching pull_request event is suppressed
+      # by GitHub's anti-recursion rule when the PR is opened with the
+      # default token, so this is the only chance Build has to run there).
       - 'sync-main/**'
     tags-ignore:
       - '**'
@@ -27,30 +27,29 @@ on:
       haex_e2e_tests_ref:
         description: 'haex-e2e-tests branch or SHA for test files (default: main)'
         default: ''
-  # Expose as reusable workflow so release.yml can verify a prep branch
-  # directly, sidestepping the anti-recursion rule that blocks build.yml
-  # from triggering via bot-created PR events.
+  # Expose as reusable workflow so release-please.yml can build a release
+  # tag directly, sidestepping the anti-recursion rule that blocks
+  # build.yml from triggering via bot-created PR/tag events.
   workflow_call:
     inputs:
       ref:
-        description: 'Git ref to check out and verify (e.g. release-prep/vX.Y.Z)'
+        description: 'Git ref to check out and verify (e.g. a release tag vX.Y.Z)'
         required: false
         type: string
         default: ''
 
 concurrency:
   # One run per logical work unit. Three cases:
-  #   - workflow_call (from release.yml): unique per run_id so a release
-  #     verify never queues behind a push-Build for the same commit. Keeps
-  #     the original escape that an earlier SHA-based key broke.
-  #   - release branch: shared 'build-release' so a new push cancels the
-  #     previous release build (serial).
-  #   - everywhere else: keyed by commit SHA. Now that push and
-  #     pull_request can no longer both fire for the same SHA (push only
-  #     runs on main/release), this grouping mostly matters for force-push
-  #     to a PR branch — the new pull_request run cancels the previous
-  #     one cleanly without leaving stale required-check entries.
-  group: ${{ github.event_name == 'workflow_call' && format('build-call-{0}', github.run_id) || (github.ref == 'refs/heads/release' && 'build-release') || format('build-{0}', github.event.pull_request.head.sha || github.sha) }}
+  #   - workflow_call (from release-please.yml): unique per run_id so a
+  #     release build never queues behind a push-Build for the same commit.
+  #   - main branch: shared 'build-main' so a new push (sync after release)
+  #     cancels the previous build (serial).
+  #   - everywhere else: keyed by commit SHA. Now that push and pull_request
+  #     can no longer both fire for the same SHA (push only runs on
+  #     develop/main), this grouping mostly matters for force-pushes to a
+  #     PR branch — the new pull_request run cancels the previous one
+  #     cleanly without leaving stale required-check entries.
+  group: ${{ github.event_name == 'workflow_call' && format('build-call-{0}', github.run_id) || (github.ref == 'refs/heads/main' && 'build-main') || format('build-{0}', github.event.pull_request.head.sha || github.sha) }}
   cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
 
 jobs:
@@ -73,9 +72,13 @@ jobs:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
           FIRST_LINE=$(echo "$COMMIT_MSG" | head -n 1)
-          if [[ "$FIRST_LINE" == "Bump version to"* ]]; then
+          # Skip build for release-please's merge commit. The release tag
+          # gets its own dedicated build via release-please.yml's
+          # build-release job (workflow_call into build.yml), so this push
+          # event would just rebuild the identical code.
+          if [[ "$FIRST_LINE" == "chore(release):"* ]] || [[ "$FIRST_LINE" == "Bump version to"* ]]; then
             echo "should_skip=true" >> "$GITHUB_OUTPUT"
-            echo "Skipping build for version bump commit"
+            echo "Skipping build for release/version-bump commit"
           else
             echo "should_skip=false" >> "$GITHUB_OUTPUT"
           fi
@@ -138,9 +141,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          # When invoked as a reusable workflow from release.yml, inputs.ref
-          # points at the prep branch we want to verify. For push/PR runs
-          # inputs.ref is empty and checkout falls back to the event's sha.
+          # When invoked as a reusable workflow from release-please.yml,
+          # inputs.ref points at the release tag we want to build. For
+          # push/PR runs inputs.ref is empty and checkout falls back to
+          # the event's sha.
           ref: ${{ inputs.ref || github.sha }}
 
       - name: Setup Node.js
@@ -418,11 +422,11 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      # Inject -dev.<sha> suffix for non-release builds. The release branch
-      # carries the canonical version and tags get built from release.yml,
-      # so we skip injection for those flows.
+      # Inject -dev.<sha> suffix for non-release builds. Tags are built
+      # from release-please.yml via workflow_call and carry the canonical
+      # release version, so skip injection there.
       - name: Inject dev version suffix
-        if: github.ref != 'refs/heads/release' && !startsWith(github.ref, 'refs/tags/')
+        if: ${{ !startsWith(github.ref, 'refs/tags/') && inputs.ref == '' }}
         run: node scripts/inject-dev-version.js
 
       - name: Build Tauri app
@@ -586,10 +590,10 @@ jobs:
           # src-tauri/database/migrations/ (the source of truth).
           find src-tauri/target -path "*/database/migrations" -type d -exec rm -rf {} + 2>/dev/null || true
 
-      # Inject -dev.<sha> suffix for non-release builds (release.yml builds
-      # from tags and skips this step entirely).
+      # Inject -dev.<sha> suffix for non-release builds. release-please.yml
+      # builds from tags via workflow_call and skips this step entirely.
       - name: Inject dev version suffix
-        if: github.ref != 'refs/heads/release' && !startsWith(github.ref, 'refs/tags/')
+        if: ${{ !startsWith(github.ref, 'refs/tags/') && inputs.ref == '' }}
         run: node scripts/inject-dev-version.js
 
       - name: Initialize Android project
