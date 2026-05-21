@@ -359,6 +359,7 @@ pub fn run() {
             database::migrations::clear_pending_column,
             logging::commands::log_write_system,
             logging::commands::log_read,
+            logging::commands::log_count,
             logging::commands::log_cleanup,
             logging::commands::log_delete,
             logging::commands::log_clear_all,

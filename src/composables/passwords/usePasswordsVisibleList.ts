@@ -1,3 +1,4 @@
+import { TRASH_GROUP_ID } from '~/stores/passwords/groups'
 import type { SelectHaexPasswordsGroups, SelectHaexPasswordsItemDetails } from '~/database/schemas'
 
 /**
@@ -14,10 +15,16 @@ export const usePasswordsVisibleList = () => {
 
   const isSearching = computed(() => searchResults.value !== null)
 
+  // Root view mirrors the sidebar: show top-level user folders alongside any
+  // ungrouped items. The trash folder is excluded — it lives as a dedicated
+  // sidebar node and would otherwise show up as a regular folder tile here.
   const visibleFolders = computed<SelectHaexPasswordsGroups[]>(() => {
     if (isSearching.value) return []
-    if (selectedGroupId.value === null) return []
-    return childrenByParent.value.get(selectedGroupId.value) ?? []
+    const children = childrenByParent.value.get(selectedGroupId.value) ?? []
+    if (selectedGroupId.value === null) {
+      return children.filter((g) => g.id !== TRASH_GROUP_ID)
+    }
+    return children
   })
 
   const visibleItems = computed<SelectHaexPasswordsItemDetails[]>(() =>

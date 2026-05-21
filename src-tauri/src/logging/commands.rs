@@ -5,7 +5,7 @@ use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
 use crate::AppState;
 
-use super::{LogEntry, LogLevel, LogQueryParams, get_effective_log_level, insert_log, query_logs, cleanup_logs};
+use super::{LogEntry, LogLevel, LogQueryParams, count_logs, get_effective_log_level, insert_log, query_logs, cleanup_logs};
 
 /// Write a system log entry.
 #[tauri::command]
@@ -38,6 +38,15 @@ pub fn log_read(
     query: LogQueryParams,
 ) -> Result<Vec<LogEntry>, DatabaseError> {
     query_logs(&state.db, &query)
+}
+
+/// Count logs matching the given filters. Used by paginated UIs.
+#[tauri::command]
+pub fn log_count(
+    state: State<'_, AppState>,
+    query: LogQueryParams,
+) -> Result<i64, DatabaseError> {
+    count_logs(&state.db, &query)
 }
 
 /// Clean up old log entries based on retention settings.

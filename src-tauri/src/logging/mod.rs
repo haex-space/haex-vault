@@ -177,12 +177,8 @@ pub fn insert_log(
     Ok(())
 }
 
-/// Read logs with optional filters.
-/// Uses select_with_crdt to automatically filter tombstoned (deleted) rows.
-pub fn query_logs(
-    connection: &crate::database::DbConnection,
-    query: &LogQueryParams,
-) -> Result<Vec<LogEntry>, crate::database::error::DatabaseError> {
+/// Build the WHERE clause + bound parameters shared by `query_logs` and `count_logs`.
+fn build_log_filter(query: &LogQueryParams) -> (String, Vec<serde_json::Value>, usize) {
     use serde_json::Value as JsonValue;
 
     let mut conditions: Vec<String> = Vec::new();
@@ -238,6 +234,19 @@ pub fn query_logs(
         format!("WHERE {}", conditions.join(" AND "))
     };
 
+    (where_clause, params, idx)
+}
+
+/// Read logs with optional filters.
+/// Uses select_with_crdt to automatically filter tombstoned (deleted) rows.
+pub fn query_logs(
+    connection: &crate::database::DbConnection,
+    query: &LogQueryParams,
+) -> Result<Vec<LogEntry>, crate::database::error::DatabaseError> {
+    use serde_json::Value as JsonValue;
+
+    let (where_clause, mut params, idx) = build_log_filter(query);
+
     let limit = query.limit.unwrap_or(500);
     let offset = query.offset.unwrap_or(0);
 
@@ -274,6 +283,34 @@ pub fn query_logs(
             device_id: json_to_opt_string(row.get(7).unwrap_or(&JsonValue::Null)).unwrap_or_default(),
         })
     }).collect()
+}
+
+/// Count logs matching the same filters used by `query_logs` (limit/offset are ignored).
+/// Uses select_with_crdt so tombstoned rows are excluded.
+pub fn count_logs(
+    connection: &crate::database::DbConnection,
+    query: &LogQueryParams,
+) -> Result<i64, crate::database::error::DatabaseError> {
+    use serde_json::Value as JsonValue;
+
+    let (where_clause, params, _) = build_log_filter(query);
+
+    let sql = format!(
+        "SELECT COUNT(*) FROM {} {}",
+        crate::table_names::TABLE_LOGS,
+        where_clause,
+    );
+
+    let rows = crate::database::core::select_with_crdt(sql, params, connection)?;
+
+    Ok(rows
+        .first()
+        .and_then(|row| row.first())
+        .and_then(|val| match val {
+            JsonValue::Number(n) => n.as_i64(),
+            _ => None,
+        })
+        .unwrap_or(0))
 }
 
 const DEFAULT_RETENTION_DAYS: i64 = 14;
