@@ -357,15 +357,21 @@ fn import_vault_from_content_uri(
         reason: format!("Invalid Content URI: {e:?}"),
     })?;
 
+    let display_name = api.get_name(&uri).map_err(|e| DatabaseError::ValidationError {
+        reason: format!("Could not read file name from Content URI: {e:?}"),
+    })?;
+
+    // Match desktop import validation: source must be a .db file.
+    if Path::new(&display_name).extension().and_then(|e| e.to_str()) != Some("db") {
+        return Err(DatabaseError::ValidationError {
+            reason: "Source file must have .db extension".to_string(),
+        });
+    }
+
     // Derive vault name: prefer caller-provided, else fall back to URI display name.
     let resolved_name = match vault_name {
         Some(name) if !name.trim().is_empty() => name.trim().to_string(),
-        _ => {
-            let display = api.get_name(&uri).map_err(|e| DatabaseError::ValidationError {
-                reason: format!("Could not read file name from Content URI: {e:?}"),
-            })?;
-            display.trim_end_matches(VAULT_EXTENSION).to_string()
-        }
+        _ => display_name.trim_end_matches(VAULT_EXTENSION).to_string(),
     };
 
     let target_path = get_vault_path(app_handle, &resolved_name)?;
