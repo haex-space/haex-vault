@@ -78,15 +78,23 @@ jobs:
             const path = 'src-tauri/Cargo.lock';
             const lock = fs.readFileSync(path, 'utf8');
             const target = process.env.NEW_VERSION || JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
+            // Distinguish 'already correct' from 'regex did not match' so a
+            // Cargo.lock format change can't silently leave the lockfile
+            // stale and break the eventual cargo --locked build.
+            const currentMatch = lock.match(/name = \"haex-vault\"\nversion = \"([^\"]+)\"/);
+            if (!currentMatch) {
+              console.error('::error::haex-vault entry not found in Cargo.lock — sync regex needs updating');
+              process.exit(1);
+            }
             const updated = lock.replace(
               /(name = \"haex-vault\"\nversion = \")[^\"]+(\")/,
               \`\$1\${target}\$2\`
             );
             if (updated === lock) {
-              console.log('Cargo.lock already up-to-date for haex-vault');
+              console.log(\`Cargo.lock already up-to-date for haex-vault (\${currentMatch[1]})\`);
             } else {
               fs.writeFileSync(path, updated);
-              console.log(\`Cargo.lock haex-vault version → \${target}\`);
+              console.log(\`Cargo.lock haex-vault version \${currentMatch[1]} → \${target}\`);
             }
           "
 
@@ -142,27 +150,28 @@ jobs:
         run: |
           mkdir -p release-assets
 
-          # macOS DMGs (skip raw .app bundles — those are folders, not user downloads)
-          find ./artifacts/macos-aarch64 -name "*.dmg" -exec cp {} release-assets/ \; 2>/dev/null || true
-          find ./artifacts/macos-x86_64 -name "*.dmg" -exec cp {} release-assets/ \; 2>/dev/null || true
+          # macOS DMGs (skip raw .app bundles — those are folders, not user downloads).
+          # No `|| true`: if the upload path drifted, fail loudly rather than
+          # publish a release missing platforms.
+          find ./artifacts/macos-aarch64 -name "*.dmg" -exec cp {} release-assets/ \;
+          find ./artifacts/macos-x86_64 -name "*.dmg" -exec cp {} release-assets/ \;
 
           # Linux (amd64 + arm64). Build.yml uploads under linux-amd64 /
           # linux-arm64; wildcard collects both. Filenames already carry
           # the arch suffix (Tauri bundler), so collisions are impossible.
-          for arch_dir in ./artifacts/linux-*; do
-            [ -d "$arch_dir" ] || continue
-            find "$arch_dir" -name "*.deb" -exec cp {} release-assets/ \; 2>/dev/null || true
-            find "$arch_dir" -name "*.AppImage" -exec cp {} release-assets/ \; 2>/dev/null || true
-            find "$arch_dir" -name "*.rpm" -exec cp {} release-assets/ \; 2>/dev/null || true
+          for arch_dir in ./artifacts/linux-amd64 ./artifacts/linux-arm64; do
+            find "$arch_dir" -name "*.deb" -exec cp {} release-assets/ \;
+            find "$arch_dir" -name "*.AppImage" -exec cp {} release-assets/ \;
+            find "$arch_dir" -name "*.rpm" -exec cp {} release-assets/ \;
           done
 
           # Windows
-          find ./artifacts/windows -name "*.msi" -exec cp {} release-assets/ \; 2>/dev/null || true
-          find ./artifacts/windows -name "*.exe" -exec cp {} release-assets/ \; 2>/dev/null || true
+          find ./artifacts/windows -name "*.msi" -exec cp {} release-assets/ \;
+          find ./artifacts/windows -name "*.exe" -exec cp {} release-assets/ \;
 
           # Android: rename universal APK/AAB with versioned filename
-          UNIVERSAL_APK=$(find ./artifacts/android -path "*universal/release/*.apk" -type f 2>/dev/null | head -1)
-          UNIVERSAL_AAB=$(find ./artifacts/android -path "*universalRelease/*.aab" -type f 2>/dev/null | head -1)
+          UNIVERSAL_APK=$(find ./artifacts/android -path "*universal/release/*.apk" -type f | head -1)
+          UNIVERSAL_AAB=$(find ./artifacts/android -path "*universalRelease/*.aab" -type f | head -1)
           if [ -n "$UNIVERSAL_APK" ]; then
             cp "$UNIVERSAL_APK" "release-assets/haex-vault_${PACKAGE_VERSION}_universal.apk"
           else
@@ -178,6 +187,18 @@ jobs:
 
           echo "=== Staged assets ==="
           ls -la release-assets/
+
+          # Sanity check: every required platform must have produced at least
+          # one asset. Catches the "build.yml renamed an upload path" class of
+          # drift that would otherwise quietly publish an incomplete release.
+          missing=0
+          for pattern in '*.dmg' '*.deb' '*.AppImage' '*.rpm' '*.msi' '*.exe' '*.apk' '*.aab'; do
+            if ! compgen -G "release-assets/$pattern" > /dev/null; then
+              echo "::error::No asset matching '$pattern' was staged — build path drift?"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || exit 1
 
       - name: Upload assets to GitHub release
         env:
@@ -217,15 +238,43 @@ jobs:
           SYNC_BRANCH="sync-main/v${NEW_VERSION}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$SYNC_BRANCH"
-          git push origin "$SYNC_BRANCH"
 
-          PR_URL=$(gh pr create \
-            --base main \
-            --head "$SYNC_BRANCH" \
-            --title "chore(release): sync main to v$NEW_VERSION" \
-            --body "Post-release sync: brings v$NEW_VERSION into main so main mirrors the released state.")
-          PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+          # Idempotent on rerun: -B resets the local branch, --force-with-lease
+          # updates the remote without clobbering unrelated upstream commits.
+          git checkout -B "$SYNC_BRANCH"
+          git push -u --force-with-lease origin "$SYNC_BRANCH"
 
-          gh pr merge "$PR_NUMBER" --squash --auto || \
-            echo "::warning::Auto-merge enable failed for sync PR #$PR_NUMBER (likely conflict). PR remains open for manual review."
+          # Reuse an existing open PR if a previous run already created one.
+          PR_NUMBER=$(gh pr list \
+            --base main --head "$SYNC_BRANCH" --state open \
+            --json number --jq '.[0].number // empty')
+
+          if [ -z "$PR_NUMBER" ]; then
+            if ! PR_URL=$(gh pr create \
+              --base main \
+              --head "$SYNC_BRANCH" \
+              --title "chore(release): sync main to v$NEW_VERSION" \
+              --body "Post-release sync: brings v$NEW_VERSION into main so main mirrors the released state." \
+              2>&1); then
+              echo "::error::Failed to create sync PR: $PR_URL"
+              exit 1
+            fi
+            PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+            echo "Created sync PR #$PR_NUMBER"
+          else
+            echo "Reusing existing sync PR #$PR_NUMBER"
+          fi
+
+          # Try to enable auto-merge. Surface the real cause when it fails
+          # instead of collapsing every error into "likely conflict". This
+          # step is best-effort (release is already published), so we warn
+          # rather than fail the workflow.
+          if ! MERGE_OUTPUT=$(gh pr merge "$PR_NUMBER" --squash --auto 2>&1); then
+            if echo "$MERGE_OUTPUT" | grep -qiE 'auto.?merge.*(not.*enabled|disabled)|allow_auto_merge'; then
+              echo "::warning::Auto-merge is disabled at the repo level — sync PR #$PR_NUMBER remains open for manual merge. Detail: $MERGE_OUTPUT"
+            elif echo "$MERGE_OUTPUT" | grep -qiE 'conflict|not.*mergeable|merge.*not.*clean'; then
+              echo "::warning::Sync PR #$PR_NUMBER has a merge conflict — manual resolution required. Detail: $MERGE_OUTPUT"
+            else
+              echo "::warning::Could not enable auto-merge on sync PR #$PR_NUMBER. Detail: $MERGE_OUTPUT"
+            fi
+          fi

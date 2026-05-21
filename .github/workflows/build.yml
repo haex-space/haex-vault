@@ -49,8 +49,14 @@ concurrency:
   #     develop/main), this grouping mostly matters for force-pushes to a
   #     PR branch — the new pull_request run cancels the previous one
   #     cleanly without leaving stale required-check entries.
-  group: ${{ github.event_name == 'workflow_call' && format('build-call-{0}', github.run_id) || (github.ref == 'refs/heads/main' && 'build-main') || format('build-{0}', github.event.pull_request.head.sha || github.sha) }}
-  cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
+  #
+  # workflow_call detection: use `inputs.ref != ''` rather than
+  # `github.event_name == 'workflow_call'`. Inside a reusable workflow,
+  # github.event (and event_name) reflect the CALLER's event — so the
+  # event_name check would never match and the release build would share
+  # a concurrency group with the parallel push-Build for the same SHA.
+  group: ${{ inputs.ref != '' && format('build-call-{0}', github.run_id) || (github.ref == 'refs/heads/main' && 'build-main') || format('build-{0}', github.event.pull_request.head.sha || github.sha) }}
+  cancel-in-progress: ${{ inputs.ref == '' }}
 
 jobs:
   # Skip build only for version bump commits (they trigger the Release workflow via tag).
@@ -70,7 +76,18 @@ jobs:
         id: check
         env:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
+          REF_INPUT: ${{ inputs.ref }}
         run: |
+          # workflow_call invocations from release-please.yml pass inputs.ref
+          # (the release tag). Inside a reusable workflow `github.event` still
+          # reflects the CALLER's event, so the chore(release) skip rule
+          # below would otherwise trip on the develop push's commit message
+          # and starve the release of artifacts. Exempt explicit ref builds.
+          if [ -n "$REF_INPUT" ]; then
+            echo "should_skip=false" >> "$GITHUB_OUTPUT"
+            echo "Reusable invocation for ref=$REF_INPUT — build proceeds"
+            exit 0
+          fi
           FIRST_LINE=$(echo "$COMMIT_MSG" | head -n 1)
           # Skip build for release-please's release-PR merge commit. The
           # release tag gets its own dedicated build via release-please.yml's
