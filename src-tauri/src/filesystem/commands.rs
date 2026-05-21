@@ -641,6 +641,36 @@ pub async fn filesystem_select_file(
     }
 }
 
+/// Get the display name of a file from its path.
+/// Desktop: returns the basename of the path.
+/// Android: resolves Content URIs (JSON envelope from android_fs) via ContentResolver.
+#[tauri::command]
+pub async fn filesystem_get_file_name(
+    #[allow(unused_variables)] app_handle: tauri::AppHandle,
+    path: String,
+) -> Result<String, FsError> {
+    #[cfg(target_os = "android")]
+    if path.starts_with('{') {
+        use tauri_plugin_android_fs::{AndroidFsExt, FileUri};
+
+        let api = app_handle.android_fs();
+        let uri = FileUri::from_json_str(&path).map_err(|e| FsError::IoError {
+            reason: format!("Invalid Content URI: {:?}", e),
+        })?;
+        return api.get_name(&uri).map_err(|e| FsError::IoError {
+            reason: format!("Failed to read file name from Content URI: {:?}", e),
+        });
+    }
+
+    Path::new(&path)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| FsError::InvalidPath {
+            reason: format!("Could not extract file name from '{}'", path),
+        })
+}
+
 /// Rename/move a file or directory
 #[tauri::command]
 pub async fn filesystem_rename(

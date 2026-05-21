@@ -127,7 +127,6 @@
 
 <script setup lang="ts">
 import { useDropZone } from '@vueuse/core'
-import { open as openFileDialog } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 import { vaultSchema } from './schema'
 
@@ -193,21 +192,21 @@ const { isOverDropZone } = useDropZone(dropZoneRef, {
 
 const onSelectFileAsync = async () => {
   try {
-    const file = await openFileDialog({
+    // Use the project's own picker — it handles Android SAF (returns Content
+    // URI as JSON envelope) and desktop paths transparently, and persists
+    // URI permissions so access survives app restarts.
+    const selected = await invoke<string[] | null>('filesystem_select_file', {
+      title: t('selectFile'),
+      filters: [['SQLite Database', ['db']]],
       multiple: false,
-      filters: [
-        {
-          name: 'SQLite Database',
-          extensions: ['db'],
-        },
-      ],
     })
 
-    if (file) {
-      selectedPath.value = file
-      vault.name = deriveVaultName(file)
-      open.value = true
-    }
+    const file = selected?.[0]
+    if (!file) return
+
+    selectedPath.value = file
+    vault.name = await deriveVaultNameAsync(file)
+    open.value = true
   } catch (error) {
     console.error('Failed to open file dialog:', error)
     add({
@@ -220,6 +219,20 @@ const onSelectFileAsync = async () => {
 const deriveVaultName = (pathOrName: string) => {
   const fileName = pathOrName.split('/').pop()?.split('\\').pop() || pathOrName
   return fileName.replace(/\.db$/, '')
+}
+
+const deriveVaultNameAsync = async (path: string) => {
+  // Android paths are JSON-encoded Content URIs — resolve display name via backend.
+  if (path.startsWith('{')) {
+    try {
+      const name = await invoke<string>('filesystem_get_file_name', { path })
+      return name.replace(/\.db$/, '')
+    } catch (error) {
+      console.warn('Could not derive vault name from Content URI:', error)
+      return ''
+    }
+  }
+  return deriveVaultName(path)
 }
 
 const checkVaultNameExistsAsync = async () => {
@@ -371,6 +384,7 @@ de:
     text: Datei hierher ziehen oder klicken zum Auswählen
     hint: Nur .db Dateien
   selectedFile: Ausgewählte Datei
+  selectFile: Vault-Datei auswählen
   name:
     label: Vault-Name
     description: Name unter dem die Vault lokal gespeichert wird
@@ -404,6 +418,7 @@ en:
     text: Drag file here or click to select
     hint: Only .db files
   selectedFile: Selected file
+  selectFile: Select vault file
   name:
     label: Vault Name
     description: Name under which the vault will be stored locally
