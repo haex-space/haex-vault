@@ -1,0 +1,231 @@
+name: Release Please
+
+# Triggered on every push to `develop`. Three modes:
+#   1. No release-worthy commits since last tag → no-op.
+#   2. Release-worthy commits exist → open/update a "Release vX.Y.Z" PR on
+#      develop with version bumps (package.json, tauri.conf.json,
+#      src-tauri/Cargo.toml, src-tauri/Cargo.lock) and CHANGELOG.md.
+#   3. The release PR just got merged → tag the merge commit, build all
+#      platforms, publish artifacts, and open a sync PR develop→main so
+#      main mirrors the released state.
+#
+# Why develop, not main:
+#   develop is the integration branch (feature PRs land here). main is
+#   protected and only ever receives sync PRs from develop after a release
+#   ships. This keeps release-please's "draft next release" PR on the
+#   active branch and main stable.
+
+on:
+  push:
+    branches:
+      - develop
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-22.04
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      pr: ${{ steps.release.outputs.pr }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          # PAT (not GITHUB_TOKEN) so the resulting PR fires workflow events.
+          # GitHub's anti-recursion rule suppresses workflow runs for events
+          # produced by GITHUB_TOKEN — without a PAT the release PR's CI
+          # would never run and required checks would block forever.
+          token: ${{ secrets.RELEASE_PAT }}
+          config-file: .release-please-config.json
+          manifest-file: .release-please-manifest.json
+          target-branch: develop
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # When release-please opens/updates the release PR, the bump lands in
+  # package.json + tauri.conf.json + Cargo.toml — but Cargo.lock still has
+  # the old version for the workspace member. Sync it here so the resulting
+  # commit on develop has a consistent lockfile (otherwise `cargo --locked`
+  # would fail and the next build would mark Cargo.lock dirty).
+  # ─────────────────────────────────────────────────────────────────────────
+  sync-cargo-lock:
+    needs: release-please
+    if: needs.release-please.outputs.pr != ''
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout release PR branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
+          token: ${{ secrets.RELEASE_PAT }}
+
+      - name: Sync Cargo.lock version
+        env:
+          NEW_VERSION: ${{ fromJSON(needs.release-please.outputs.pr).version || needs.release-please.outputs.version }}
+        run: |
+          node -e "
+            const fs = require('fs');
+            const path = 'src-tauri/Cargo.lock';
+            const lock = fs.readFileSync(path, 'utf8');
+            const target = process.env.NEW_VERSION || JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
+            const updated = lock.replace(
+              /(name = \"haex-vault\"\nversion = \")[^\"]+(\")/,
+              \`\$1\${target}\$2\`
+            );
+            if (updated === lock) {
+              console.log('Cargo.lock already up-to-date for haex-vault');
+            } else {
+              fs.writeFileSync(path, updated);
+              console.log(\`Cargo.lock haex-vault version → \${target}\`);
+            }
+          "
+
+      - name: Commit lockfile update if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet src-tauri/Cargo.lock; then
+            git add src-tauri/Cargo.lock
+            git commit -m "chore: sync Cargo.lock version"
+            git push
+          else
+            echo "Cargo.lock already synced — nothing to commit"
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # On release-please's "tag created" step (PR was just merged), run the
+  # full CI suite against the tag commit. Reuses build.yml via workflow_call
+  # so the nested artifacts are visible to publish-artifacts below without
+  # needing cross-run lookups.
+  # ─────────────────────────────────────────────────────────────────────────
+  build-release:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    uses: ./.github/workflows/build.yml
+    with:
+      ref: ${{ needs.release-please.outputs.tag_name }}
+    secrets: inherit
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Stage built artifacts and upload them to the GitHub release that
+  # release-please created. Mirrors the old release.yml's publish-artifacts
+  # job — same Tauri bundler output layout, same versioned Android filenames.
+  # ─────────────────────────────────────────────────────────────────────────
+  publish-artifacts:
+    needs: [release-please, build-release]
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: ./artifacts
+
+      - name: List downloaded artifacts
+        run: |
+          echo "=== Artifact tree ==="
+          find ./artifacts -maxdepth 4 -type f | sort
+
+      - name: Stage release assets
+        env:
+          PACKAGE_VERSION: ${{ needs.release-please.outputs.version }}
+        run: |
+          mkdir -p release-assets
+
+          # macOS DMGs (skip raw .app bundles — those are folders, not user downloads)
+          find ./artifacts/macos-aarch64 -name "*.dmg" -exec cp {} release-assets/ \; 2>/dev/null || true
+          find ./artifacts/macos-x86_64 -name "*.dmg" -exec cp {} release-assets/ \; 2>/dev/null || true
+
+          # Linux (amd64 + arm64). Build.yml uploads under linux-amd64 /
+          # linux-arm64; wildcard collects both. Filenames already carry
+          # the arch suffix (Tauri bundler), so collisions are impossible.
+          for arch_dir in ./artifacts/linux-*; do
+            [ -d "$arch_dir" ] || continue
+            find "$arch_dir" -name "*.deb" -exec cp {} release-assets/ \; 2>/dev/null || true
+            find "$arch_dir" -name "*.AppImage" -exec cp {} release-assets/ \; 2>/dev/null || true
+            find "$arch_dir" -name "*.rpm" -exec cp {} release-assets/ \; 2>/dev/null || true
+          done
+
+          # Windows
+          find ./artifacts/windows -name "*.msi" -exec cp {} release-assets/ \; 2>/dev/null || true
+          find ./artifacts/windows -name "*.exe" -exec cp {} release-assets/ \; 2>/dev/null || true
+
+          # Android: rename universal APK/AAB with versioned filename
+          UNIVERSAL_APK=$(find ./artifacts/android -path "*universal/release/*.apk" -type f 2>/dev/null | head -1)
+          UNIVERSAL_AAB=$(find ./artifacts/android -path "*universalRelease/*.aab" -type f 2>/dev/null | head -1)
+          if [ -n "$UNIVERSAL_APK" ]; then
+            cp "$UNIVERSAL_APK" "release-assets/haex-vault_${PACKAGE_VERSION}_universal.apk"
+          else
+            echo "::error::No universal Android APK found in android artifact"
+            exit 1
+          fi
+          if [ -n "$UNIVERSAL_AAB" ]; then
+            cp "$UNIVERSAL_AAB" "release-assets/haex-vault_${PACKAGE_VERSION}_universal.aab"
+          else
+            echo "::error::No universal Android AAB found in android artifact"
+            exit 1
+          fi
+
+          echo "=== Staged assets ==="
+          ls -la release-assets/
+
+      - name: Upload assets to GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          gh release upload "$TAG_NAME" release-assets/* --clobber
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Sync develop → main so main mirrors the released state. Opens a PR
+  # because main is protected (PR-only). Auto-merges on green CI; if there
+  # is a conflict, the PR stays open for manual handling (release itself
+  # is already published, so this step is best-effort cosmetic).
+  # ─────────────────────────────────────────────────────────────────────────
+  sync-to-main:
+    needs: [release-please, publish-artifacts]
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v6
+        with:
+          ref: develop
+          fetch-depth: 0
+          # PAT (not GITHUB_TOKEN) so the subsequent push triggers Build.
+          # GitHub's anti-recursion rule suppresses workflow runs for events
+          # produced by GITHUB_TOKEN, which would leave the sync PR stuck
+          # waiting on the required CI check forever.
+          token: ${{ secrets.RELEASE_PAT }}
+
+      - name: Open sync PR to main
+        env:
+          NEW_VERSION: ${{ needs.release-please.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SYNC_BRANCH="sync-main/v${NEW_VERSION}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$SYNC_BRANCH"
+          git push origin "$SYNC_BRANCH"
+
+          PR_URL=$(gh pr create \
+            --base main \
+            --head "$SYNC_BRANCH" \
+            --title "chore(release): sync main to v$NEW_VERSION" \
+            --body "Post-release sync: brings v$NEW_VERSION into main so main mirrors the released state.")
+          PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+
+          gh pr merge "$PR_NUMBER" --squash --auto || \
+            echo "::warning::Auto-merge enable failed for sync PR #$PR_NUMBER (likely conflict). PR remains open for manual review."

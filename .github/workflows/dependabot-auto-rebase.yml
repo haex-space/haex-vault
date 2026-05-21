@@ -1,6 +1,6 @@
 name: Dependabot Auto-Rebase Stale PRs
 
-# Auto-rebases Dependabot PRs whose branch has fallen behind main, with a
+# Auto-rebases Dependabot PRs whose branch has fallen behind develop, with a
 # hard cap of MAX_CONCURRENT (3) Dependabot CI runs in flight at any time.
 #
 # Why this exists:
@@ -11,7 +11,7 @@ name: Dependabot Auto-Rebase Stale PRs
 #   get hogged by a backlog of simultaneously-rebuilding Dependabot PRs.
 #
 # Triggers:
-#   - push to main: rebase the next batch immediately after a merge
+#   - push to develop: rebase the next batch immediately after a merge
 #   - schedule (hourly): fallback in case push didn't fire (force-push,
 #     branch-protection bypasses) or to drain remaining backlog when slots
 #     free up
@@ -25,7 +25,7 @@ name: Dependabot Auto-Rebase Stale PRs
 on:
   push:
     branches:
-      - main
+      - develop
   schedule:
     - cron: '0 * * * *'
   workflow_dispatch:
@@ -82,7 +82,7 @@ jobs:
             done | sort -u
           )
 
-          # 2. List open Dependabot PRs that are BEHIND main, oldest first.
+          # 2. List open Dependabot PRs that are BEHIND develop, oldest first.
           # `mergeStateStatus` requires GraphQL — the REST/JSON pr-list
           # field doesn't expose BEHIND vs CLEAN reliably.
           owner="${REPO%/*}"
