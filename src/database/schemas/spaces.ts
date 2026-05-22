@@ -53,12 +53,12 @@ export const haexSpaceDevices = sqliteTable(
       .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     identityId: text(tableNames.haex.space_devices.columns.identityId)
       .references(() => haexIdentities.id),
-    // FK on the random PK of haex_devices, NOT on haex_devices.device_id —
-    // the stable file-UUID must never leave the vault-private table so
-    // foreign space members cannot correlate devices across vaults.
-    deviceId: text(tableNames.haex.space_devices.columns.deviceId)
-      .notNull()
-      .references(() => haexDevices.id, { onDelete: 'cascade' }),
+    // References the random per-vault `haex_devices.id` so the stable
+    // file-UUID never leaks across vaults — but intentionally NOT a SQL FK:
+    // foreign members publish their own `haex_devices.id` here via CRDT
+    // sync, and those values are never present in the local haex_devices
+    // table (which is vault-private).
+    deviceId: text(tableNames.haex.space_devices.columns.deviceId).notNull(),
     // Snapshot of the device's iroh EndpointId for this space. Other space
     // members never see `haex_devices` (vault-private), so the endpoint id
     // must be published here. Per (device × vault) — distinct from the
@@ -124,10 +124,11 @@ export const haexPeerShares = sqliteTable(
     spaceId: text(tableNames.haex.peer_shares.columns.spaceId)
       .notNull()
       .references(() => haexSpaces.id, { onDelete: 'cascade' }),
-    // FK on haex_devices.id (random PK), see haexSpaceDevices.deviceId comment.
-    deviceId: text(tableNames.haex.peer_shares.columns.deviceId)
-      .notNull()
-      .references(() => haexDevices.id, { onDelete: 'cascade' }),
+    // References the random per-vault `haex_devices.id` (same opaque
+    // identifier used by haexSpaceDevices.deviceId). Not a SQL FK because
+    // peer-replicated rows reference foreign vault ids that are never
+    // present locally.
+    deviceId: text(tableNames.haex.peer_shares.columns.deviceId).notNull(),
     // Snapshot of the hosting device's iroh EndpointId. Needed so other space
     // members can connect — they never see `haex_devices`.
     endpointId: text(tableNames.haex.peer_shares.columns.endpointId).notNull(),

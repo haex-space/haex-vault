@@ -526,8 +526,7 @@ CREATE TABLE `haex_peer_shares` (
 	`local_path` text NOT NULL,
 	`authored_by_did` text,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
-	FOREIGN KEY (`space_id`) REFERENCES `haex_spaces`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`device_id`) REFERENCES `haex_devices`(`id`) ON UPDATE no action ON DELETE cascade
+	FOREIGN KEY (`space_id`) REFERENCES `haex_spaces`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE TABLE `haex_shared_space_sync` (
@@ -562,8 +561,7 @@ CREATE TABLE `haex_space_devices` (
 	`authored_by_did` text,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
 	FOREIGN KEY (`space_id`) REFERENCES `haex_spaces`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`identity_id`) REFERENCES `haex_identities`(`id`) ON UPDATE no action ON DELETE no action,
-	FOREIGN KEY (`device_id`) REFERENCES `haex_devices`(`id`) ON UPDATE no action ON DELETE cascade
+	FOREIGN KEY (`identity_id`) REFERENCES `haex_identities`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_space_devices_space_device_unique` ON `haex_space_devices` (`space_id`,`device_id`);--> statement-breakpoint

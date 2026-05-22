@@ -402,16 +402,26 @@ export const useVaultStore = defineStore('vaultStore', () => {
   const initVaultAsync = async () => {
     if (!currentVaultId.value) return
 
-    // Resolve the device identity for this vault. When the open vault has no
-    // matching haex_devices row yet (`resolveAsync` returns `'pending'`),
-    // `deviceStore.pendingResolution` carries the data the Reconciliation
-    // dialog needs. Anything downstream that requires `deviceStore.deviceRowId`
-    // (P2P endpoint start, MLS enrollment, identity device-claims, …) is
-    // guarded below so the rest of the vault still opens — the user just gets
-    // the dialog instead of P2P silently coming up under a freshly generated
-    // identity.
+    // Resolve the device identity for this vault.
+    //
+    // - Matched (haex_devices row already exists for this physical device):
+    //   resolveAsync loads the endpoint key silently and we move on.
+    // - Pending with known devices: the vault has at least one haex_devices
+    //   row from another device (replicated via Personal Sync), so this
+    //   could be a reclaim. The Reconciliation dialog picks it up via
+    //   `pendingResolution`.
+    // - Pending with empty known_devices: nothing to reconcile against, so
+    //   we silently register a fresh row. The user can still rename it
+    //   later via Settings → Devices → Current.
     const deviceStore = useDeviceStore()
-    await deviceStore.resolveAsync()
+    const status = await deviceStore.resolveAsync()
+    if (status === 'pending' && deviceStore.pendingResolution?.knownDevices.length === 0) {
+      const fallbackName
+        = deviceStore.deviceName
+        || deviceStore.hostname
+        || `Device ${deviceStore.localDeviceId.slice(0, 8)}`
+      await deviceStore.registerNewAsync(fallbackName)
+    }
 
     // Set device ID for console interceptor logging
     const { $setConsoleLoggerDeviceId } = useNuxtApp()

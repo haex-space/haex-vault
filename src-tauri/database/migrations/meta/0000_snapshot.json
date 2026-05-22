@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "3dc9bbb6-6acf-48c7-8112-b5a1e2acd6b7",
+  "id": "22fa68b8-1451-4dc4-a64d-905f4aa4b2c1",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "haex_desktop_items_no_sync": {
@@ -3490,19 +3490,6 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
-        },
-        "haex_peer_shares_device_id_haex_devices_id_fk": {
-          "name": "haex_peer_shares_device_id_haex_devices_id_fk",
-          "tableFrom": "haex_peer_shares",
-          "tableTo": "haex_devices",
-          "columnsFrom": [
-            "device_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -3766,19 +3753,6 @@
             "id"
           ],
           "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "haex_space_devices_device_id_haex_devices_id_fk": {
-          "name": "haex_space_devices_device_id_haex_devices_id_fk",
-          "tableFrom": "haex_space_devices",
-          "tableTo": "haex_devices",
-          "columnsFrom": [
-            "device_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
