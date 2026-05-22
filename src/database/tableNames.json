@@ -455,6 +455,7 @@
       "name": "haex_devices",
       "columns": {
         "id": "id",
+        "ownerDid": "owner_did",
         "deviceId": "device_id",
         "endpointId": "endpoint_id",
         "secretKey": "secret_key",
