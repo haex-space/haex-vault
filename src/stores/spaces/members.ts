@@ -238,8 +238,19 @@ export async function removeSpaceMember(db: DB, spaceId: string, memberDid: stri
     throw err
   }
 
-  // 1. Find the member's leaf index in the MLS group
-  const memberIndex = await invoke<number | null>('mls_find_member_index', { spaceId, memberDid })
+  // 1. Find the member's leaf index in the MLS group.
+  // `mls_find_member_index` distinguishes between "group exists, member
+  // absent" (returns null) and "group itself missing" (throws). Both end
+  // up in the same DB-only fallback path — a space that never got an MLS
+  // group initialised (e.g. test setup or pre-MLS legacy rows) still
+  // needs its haex_space_members / UCAN / device cleanup to run.
+  let memberIndex: number | null
+  try {
+    memberIndex = await invoke<number | null>('mls_find_member_index', { spaceId, memberDid })
+  } catch (err) {
+    log.warn(`mls_find_member_index failed for space ${spaceId}, treating as no-group: ${err}`)
+    memberIndex = null
+  }
   if (memberIndex === null) {
     log.warn(`Member ${memberDid.slice(0, 20)}... not found in MLS group, removing from DB only`)
     await deleteUcansForMembersAsync(db, spaceId, [memberDid])
