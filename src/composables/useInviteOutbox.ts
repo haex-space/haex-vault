@@ -193,7 +193,7 @@ export function useInviteOutbox() {
         .where(eq(haexSpaceDevices.spaceId, entry.spaceId))
       const spaceEndpoints = Array.from(new Set([
         ...(ownEndpointId ? [ownEndpointId] : []),
-        ...devices.map(d => d.deviceEndpointId),
+        ...devices.map(d => d.endpointId),
       ]))
 
       try {

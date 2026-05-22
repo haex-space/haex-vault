@@ -5,57 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1776802286341,
-      "tag": "0000_delete_log_refactor",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1776811201915,
-      "tag": "0001_tired_madelyne_pryor",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1776847898162,
-      "tag": "0002_confused_nicolaos",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1776868622544,
-      "tag": "0003_freezing_falcon",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1776928025604,
-      "tag": "0004_flashy_star_brand",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1776581322336,
-      "tag": "0005_talented_blue_marvel",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1777000000000,
-      "tag": "0006_sync_state_hash",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "6",
-      "when": 1779000000000,
-      "tag": "0007_add_core_extension",
+      "when": 1779406068870,
+      "tag": "0000_messy_kylun",
       "breakpoints": true
     }
   ]

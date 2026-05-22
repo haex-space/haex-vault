@@ -148,15 +148,15 @@
             >
               <UIcon name="i-lucide-monitor-smartphone" class="w-4 h-4 text-muted shrink-0" />
               <div class="min-w-0 flex-1">
-                <p class="text-sm font-medium truncate">{{ device.deviceName }}</p>
+                <p class="text-sm font-medium truncate">{{ device.name }}</p>
                 <div class="flex items-center gap-1">
-                  <code class="text-xs text-muted truncate">{{ device.deviceEndpointId }}</code>
+                  <code class="text-xs text-muted truncate">{{ device.endpointId }}</code>
                   <UButton
                     variant="ghost"
                     color="neutral"
                     icon="i-lucide-copy"
                     size="xs"
-                    @click="copyToClipboard(device.deviceEndpointId)"
+                    @click="copyToClipboard(device.endpointId)"
                   />
                 </div>
                 <p

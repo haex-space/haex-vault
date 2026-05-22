@@ -235,8 +235,10 @@
         "id": "id",
         "spaceId": "space_id",
         "identityId": "identity_id",
-        "deviceEndpointId": "device_endpoint_id",
-        "deviceName": "device_name",
+        "deviceId": "device_id",
+        "endpointId": "endpoint_id",
+        "name": "name",
+        "platform": "platform",
         "avatar": "avatar",
         "avatarOptions": "avatar_options",
         "relayUrl": "relay_url",
@@ -261,7 +263,8 @@
       "columns": {
         "id": "id",
         "spaceId": "space_id",
-        "deviceEndpointId": "device_endpoint_id",
+        "deviceId": "device_id",
+        "endpointId": "endpoint_id",
         "name": "name",
         "localPath": "local_path",
         "authoredByDid": "authored_by_did",
@@ -452,9 +455,13 @@
       "name": "haex_devices",
       "columns": {
         "id": "id",
+        "deviceId": "device_id",
         "endpointId": "endpoint_id",
+        "secretKey": "secret_key",
         "name": "name",
         "platform": "platform",
+        "avatar": "avatar",
+        "avatarOptions": "avatar_options",
         "createdAt": "created_at"
       }
     },

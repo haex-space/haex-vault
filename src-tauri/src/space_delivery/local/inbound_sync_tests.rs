@@ -142,8 +142,8 @@ fn setup_authz_db() -> DbConnection {
             id TEXT PRIMARY KEY,
             space_id TEXT NOT NULL,
             identity_id TEXT,
-            device_endpoint_id TEXT NOT NULL,
-            device_name TEXT NOT NULL,
+            endpoint_id TEXT NOT NULL,
+            name TEXT NOT NULL,
             relay_url TEXT,
             authored_by_did TEXT
         );
@@ -169,7 +169,7 @@ fn setup_authz_db() -> DbConnection {
         CREATE TABLE haex_peer_shares (
             id TEXT PRIMARY KEY,
             space_id TEXT NOT NULL,
-            device_endpoint_id TEXT NOT NULL,
+            endpoint_id TEXT NOT NULL,
             name TEXT NOT NULL,
             local_path TEXT NOT NULL,
             authored_by_did TEXT
@@ -221,7 +221,7 @@ fn insert_device(
 ) {
     core::execute(
         "INSERT INTO haex_space_devices \
-         (id, space_id, identity_id, device_endpoint_id, device_name) \
+         (id, space_id, identity_id, endpoint_id, name) \
          VALUES (?1, ?2, ?3, ?4, ?5)"
             .to_string(),
         vec![
@@ -245,7 +245,7 @@ fn insert_share(
 ) {
     core::execute(
         "INSERT INTO haex_peer_shares \
-         (id, space_id, device_endpoint_id, name, local_path) \
+         (id, space_id, endpoint_id, name, local_path) \
          VALUES (?1, ?2, ?3, ?4, ?5)"
             .to_string(),
         vec![
@@ -441,7 +441,7 @@ fn authored_by_did_uses_max_hlc_within_row_group() {
         make_change(
             "haex_peer_shares",
             "row-1",
-            "device_endpoint_id",
+            "endpoint_id",
             "5000/abcd",
             json!("m"),
         ),
@@ -590,7 +590,7 @@ fn authz_write_member_can_push_peer_shares() {
         change(
             "haex_peer_shares",
             "share-1",
-            "device_endpoint_id",
+            "endpoint_id",
             "100/abcd",
             json!("endpoint-alice"),
         ),
@@ -850,14 +850,14 @@ fn authz_member_can_register_own_device() {
         change(
             "haex_space_devices",
             "dev-alice",
-            "device_endpoint_id",
+            "endpoint_id",
             "100/abcd",
             json!("endpoint-alice"),
         ),
         change(
             "haex_space_devices",
             "dev-alice",
-            "device_name",
+            "name",
             "100/abcd",
             json!("Alice's Laptop"),
         ),
@@ -891,14 +891,14 @@ fn authz_member_cannot_hijack_foreign_device_endpoint() {
         change(
             "haex_space_devices",
             "dev-fake",
-            "device_endpoint_id",
+            "endpoint_id",
             "100/abcd",
             json!("endpoint-bob"),
         ),
         change(
             "haex_space_devices",
             "dev-fake",
-            "device_name",
+            "name",
             "100/abcd",
             json!("Pretending to be Bob"),
         ),
@@ -939,7 +939,7 @@ fn authz_member_cannot_modify_foreign_device_row() {
     let changes = vec![change(
         "haex_space_devices",
         "dev-bob",
-        "device_name",
+        "name",
         "100/abcd",
         json!("Hacked"),
     )];
@@ -1090,7 +1090,7 @@ fn authz_insert_without_space_id_column_rejected() {
         change(
             "haex_peer_shares",
             "share-new",
-            "device_endpoint_id",
+            "endpoint_id",
             "100/abcd",
             json!("endpoint-alice"),
         ),
@@ -1145,7 +1145,7 @@ fn authz_authored_by_did_forge_attempt_is_rewritten() {
         change(
             "haex_peer_shares",
             "share-mallory",
-            "device_endpoint_id",
+            "endpoint_id",
             "100/abcd",
             json!("endpoint-mallory"),
         ),

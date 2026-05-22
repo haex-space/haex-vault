@@ -10,7 +10,6 @@ pub mod vault_settings_key {
     pub const LOCALE: &str = "locale";
     pub const THEME: &str = "theme";
     pub const VAULT_NAME: &str = "vault_name";
-    pub const SPACE_ID: &str = "space_id";
     pub const DESKTOP_ICON_SIZE: &str = "desktop_icon_size";
     pub const TOMBSTONE_RETENTION_DAYS: &str = "tombstone_retention_days";
     pub const EXTERNAL_BRIDGE_PORT: &str = "external_bridge_port";
@@ -19,9 +18,6 @@ pub mod vault_settings_key {
     pub const TRIGGER_VERSION: &str = "trigger_version";
     pub const GRADIENT_VARIANT: &str = "gradient_variant";
     pub const GRADIENT_ENABLED: &str = "gradient_enabled";
-    /// 32-byte secret (hex) used to encrypt the Ed25519 device key file in the app data directory.
-    /// Generated once at vault creation, shared across devices via CRDT sync.
-    pub const DEVICE_KEY_SECRET: &str = "device_key_secret";
     pub const PEER_STORAGE_RELAY_URL: &str = "peer_storage_relay_url";
 
     /// Prefix for the per-space, per-device CRDT push cursor used by local
@@ -52,7 +48,6 @@ mod tests {
             "locale": vault_settings_key::LOCALE,
             "theme": vault_settings_key::THEME,
             "vaultName": vault_settings_key::VAULT_NAME,
-            "spaceId": vault_settings_key::SPACE_ID,
             "desktopIconSize": vault_settings_key::DESKTOP_ICON_SIZE,
             "tombstoneRetentionDays": vault_settings_key::TOMBSTONE_RETENTION_DAYS,
             "externalBridgePort": vault_settings_key::EXTERNAL_BRIDGE_PORT,
@@ -61,7 +56,6 @@ mod tests {
             "triggerVersion": vault_settings_key::TRIGGER_VERSION,
             "gradientVariant": vault_settings_key::GRADIENT_VARIANT,
             "gradientEnabled": vault_settings_key::GRADIENT_ENABLED,
-            "deviceKeySecret": vault_settings_key::DEVICE_KEY_SECRET,
         });
 
         let output = serde_json::json!({

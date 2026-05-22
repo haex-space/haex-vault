@@ -287,7 +287,7 @@ const props = defineProps<{
   prefill?: {
     sourceType: 'local' | 'peer'
     spaceId: string
-    deviceEndpointId: string
+    endpointId: string
     shareName: string
     localPath?: string
   } | null
@@ -414,11 +414,11 @@ const defaultBucketFor = (backendId: string): string => {
 const deviceOptionsForSpace = (spaceId: string) =>
   peerStorageStore.spaceDevices
     .filter(d => d.spaceId === spaceId)
-    .map(d => ({ label: d.deviceName, value: d.deviceEndpointId }))
+    .map(d => ({ label: d.name, value: d.endpointId }))
 
 const shareOptionsForDevice = (endpointId: string) =>
   peerStorageStore.shares
-    .filter(s => s.deviceEndpointId === endpointId)
+    .filter(s => s.endpointId === endpointId)
     .map(s => ({ label: s.name, value: s.id }))
 
 // -- Validation --
@@ -520,27 +520,13 @@ const buildTargetConfig = () => {
 }
 
 // -- Resolve current device DB id --
-const resolveCurrentDeviceIdAsync = async (): Promise<string> => {
-  const db = currentVault.value?.drizzle
-  if (!db) throw new Error('No vault open')
-
-  const endpointId = deviceStore.deviceId
-  if (!endpointId) throw new Error('Device not initialized')
-
-  const rows = await db
-    .select()
-    .from(haexDevices)
-    .where(eq(haexDevices.endpointId, endpointId))
-
-  if (rows.length > 0) return rows[0]!.id
-
-  const id = crypto.randomUUID()
-  await db.insert(haexDevices).values({
-    id,
-    endpointId,
-    name: deviceStore.deviceName || deviceStore.hostname || endpointId.slice(0, 12),
-    platform: 'desktop',
-  })
+//
+// The row in haex_devices is created up-front when the vault is opened (see
+// useDeviceStore.resolveAsync / registerNewAsync). Sync rules just reference
+// that row id as a FK; we do not lazy-create here anymore.
+const resolveCurrentDeviceId = (): string => {
+  const id = deviceStore.deviceRowId
+  if (!id) throw new Error('Device identity not resolved — open the vault first')
   return id
 }
 
@@ -604,7 +590,7 @@ const onSaveAsync = async () => {
       addToast({ title: t('success.updated'), color: 'success' })
       emit('updated')
     } else {
-      const deviceId = await resolveCurrentDeviceIdAsync()
+      const deviceId = resolveCurrentDeviceId()
       const spaceId = resolveSpaceId()
       if (!spaceId) throw new Error('No space available')
 
@@ -716,7 +702,7 @@ watch(open, async (isOpen) => {
         sourcePath.value = props.prefill.localPath
       } else {
         sourceSpaceId.value = props.prefill.spaceId
-        sourceDeviceEndpointId.value = props.prefill.deviceEndpointId
+        sourceDeviceEndpointId.value = props.prefill.endpointId
         sourceShareId.value = props.prefill.shareName
       }
       step.value = 1 // Jump to target step

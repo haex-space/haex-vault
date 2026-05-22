@@ -45,7 +45,7 @@ fn load_shares_from_db(
     state: &AppState,
     endpoint_id: &str,
 ) -> Result<Vec<(String, String, String, String)>, PeerStorageError> {
-    let sql = "SELECT id, name, local_path, space_id FROM haex_peer_shares WHERE device_endpoint_id = ?1".to_string();
+    let sql = "SELECT id, name, local_path, space_id FROM haex_peer_shares WHERE endpoint_id = ?1".to_string();
     let params = vec![serde_json::Value::String(endpoint_id.to_string())];
 
     let rows = crate::database::core::select_with_crdt(sql, params, &state.db)
@@ -69,7 +69,7 @@ fn load_allowed_peers_from_db(
     state: &AppState,
     own_endpoint_id: &str,
 ) -> Result<HashMap<String, HashSet<String>>, PeerStorageError> {
-    let sql = "SELECT device_endpoint_id, space_id FROM haex_space_devices WHERE device_endpoint_id != ?1".to_string();
+    let sql = "SELECT endpoint_id, space_id FROM haex_space_devices WHERE endpoint_id != ?1".to_string();
     let params = vec![serde_json::Value::String(own_endpoint_id.to_string())];
 
     let rows = crate::database::core::select_with_crdt(sql, params, &state.db)

@@ -390,7 +390,7 @@ export function useFileBrowser(tabId: string) {
 
   const globalSearchAsync = async (generation: number) => {
     const shares = peerStore.nodeId
-      ? peerStore.shares.filter(s => s.deviceEndpointId === peerStore.nodeId)
+      ? peerStore.shares.filter(s => s.endpointId === peerStore.nodeId)
       : peerStore.shares
 
     const results: GlobalSearchFile[] = []

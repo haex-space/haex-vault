@@ -402,13 +402,26 @@ export const useVaultStore = defineStore('vaultStore', () => {
   const initVaultAsync = async () => {
     if (!currentVaultId.value) return
 
-    // Initialize device identity key
-    await useDeviceStore().initDeviceIdAsync()
+    // Resolve the device identity for this vault. When the open vault has no
+    // matching haex_devices row yet, we leave the resolution pending so the
+    // app can surface the Reconciliation dialog (see useDeviceStore.pendingResolution).
+    // TODO: replace the silent auto-register fallback below with a real
+    // Reconciliation flow that asks the user whether this is a new device
+    // or a previously-known one being re-opened.
+    const deviceStore = useDeviceStore()
+    const status = await deviceStore.resolveAsync()
+    if (status === 'pending') {
+      const fallbackName
+        = deviceStore.deviceName
+        || deviceStore.hostname
+        || `Device ${deviceStore.localDeviceId.slice(0, 8)}`
+      await deviceStore.registerNewAsync(fallbackName)
+    }
 
     // Set device ID for console interceptor logging
     const { $setConsoleLoggerDeviceId } = useNuxtApp()
-    if ($setConsoleLoggerDeviceId && useDeviceStore().deviceId) {
-      $setConsoleLoggerDeviceId(useDeviceStore().deviceId!)
+    if ($setConsoleLoggerDeviceId && deviceStore.deviceId) {
+      $setConsoleLoggerDeviceId(deviceStore.deviceId)
     }
 
     // Initialize MLS tables (must happen before any space creation)
@@ -471,7 +484,6 @@ export const useVaultStore = defineStore('vaultStore', () => {
     }
 
     // Auto-enroll this device into MLS groups for shared spaces (non-blocking)
-    const deviceStore = useDeviceStore()
     if (deviceStore.deviceId) {
       const { useDeviceEnrollment } = await import('@/composables/useDeviceEnrollment')
       const { syncEnrollmentsAsync } = useDeviceEnrollment()
@@ -504,31 +516,30 @@ export const useVaultStore = defineStore('vaultStore', () => {
 })
 
 /**
- * Gets or creates a UUID for this vault
- * The UUID is stored in haex_settings and persists across sessions
+ * Gets or creates a UUID for this vault.
+ *
+ * Stored under the `vault_id` setting key — purely local bookkeeping for the
+ * frontend's `openVaults` map and route param. Distinct from any space- or
+ * device-level identifier.
  */
 const getVaultIdAsync = async (
   drizzleDb: SqliteRemoteDatabase<typeof schema>,
 ): Promise<string> => {
   const { haexVaultSettings } = schema
 
-  // Try to get existing vault ID from settings
-  const existingSettings = await drizzleDb
+  const existing = await drizzleDb
     .select()
     .from(haexVaultSettings)
-    .where(eq(haexVaultSettings.key, 'space_id'))
+    .where(eq(haexVaultSettings.key, 'vault_id'))
     .limit(1)
 
-  if (existingSettings[0]?.value) {
-    return existingSettings[0].value
+  if (existing[0]?.value) {
+    return existing[0].value
   }
 
-  // Generate new UUID for this vault
   const vaultId = crypto.randomUUID()
-
-  // Store it in settings
   await drizzleDb.insert(haexVaultSettings).values({
-    key: 'space_id',
+    key: 'vault_id',
     value: vaultId,
   })
 

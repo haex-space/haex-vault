@@ -180,7 +180,10 @@ commands.allow = [
   "sql_with_crdt",
 
   # Device / identity
-  "device_init_key",
+  "device_resolve_for_vault",
+  "device_create_for_vault",
+  "device_reclaim_existing",
+  "endpoint_load_for_device",
   "decrypt_for_identity",
   "encrypt_for_identity",
 

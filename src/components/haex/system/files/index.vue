@@ -1097,7 +1097,7 @@ const openP2PSettings = () => {
 const localShares = computed(() => {
   if (peerStore.nodeId) {
     return peerStore.shares.filter(
-      (s) => s.deviceEndpointId === peerStore.nodeId,
+      (s) => s.endpointId === peerStore.nodeId,
     )
   }
   return peerStore.shares
@@ -1115,12 +1115,12 @@ const remotePeers = computed(() => {
   const seen = new Set<string>()
 
   for (const device of peerStore.spaceDevices) {
-    if (isOwnEndpoint(device.deviceEndpointId)) continue
-    if (seen.has(device.deviceEndpointId)) continue
-    seen.add(device.deviceEndpointId)
+    if (isOwnEndpoint(device.endpointId)) continue
+    if (seen.has(device.endpointId)) continue
+    seen.add(device.endpointId)
     peers.push({
-      endpointId: device.deviceEndpointId,
-      name: device.deviceName || device.deviceEndpointId.slice(0, 16) + '...',
+      endpointId: device.endpointId,
+      name: device.name || device.endpointId.slice(0, 16) + '...',
       source: 'space',
       detail: getSpaceName(device.spaceId),
     })
@@ -1206,7 +1206,7 @@ const buildPeerEntry = (input: PeerEntryInput): OverviewEntry => {
   const identity = getIdentity(input.identityId ?? input.device?.identityId)
   const contactName = identity?.name?.trim() || undefined
   const deviceName =
-    input.device?.deviceName?.trim() ||
+    input.device?.name?.trim() ||
     input.fallbackName?.trim() ||
     `${input.endpointId.slice(0, 16)}…`
 
@@ -1223,7 +1223,7 @@ const buildPeerEntry = (input: PeerEntryInput): OverviewEntry => {
   const avatar: AvatarRef | undefined = input.device
     ? {
         src: input.device.avatar,
-        seed: input.device.deviceEndpointId,
+        seed: input.device.endpointId,
         options: parseAvatarOptions(input.device.avatarOptions),
         alt: deviceName,
       }
@@ -1346,19 +1346,19 @@ function buildSpaceGroups(): OverviewGroup[] {
   }
 
   for (const device of peerStore.spaceDevices) {
-    if (isOwnEndpoint(device.deviceEndpointId)) continue
+    if (isOwnEndpoint(device.endpointId)) continue
     if (!isDeviceInVisibleSpace(device.spaceId)) continue
     let seen = seenDevicesPerSpace.get(device.spaceId)
     if (!seen) {
       seen = new Set()
       seenDevicesPerSpace.set(device.spaceId, seen)
     }
-    if (seen.has(device.deviceEndpointId)) continue
-    seen.add(device.deviceEndpointId)
+    if (seen.has(device.endpointId)) continue
+    seen.add(device.endpointId)
     pushEntry(
       device.spaceId,
       buildPeerEntry({
-        endpointId: device.deviceEndpointId,
+        endpointId: device.endpointId,
         contextKey: `space:${device.spaceId}`,
         detail: getSpaceName(device.spaceId),
         source: 'space',
@@ -1405,7 +1405,7 @@ function buildSpaceGroups(): OverviewGroup[] {
   const knownEndpointIds = new Set(
     peerStore.spaceDevices
       .filter((d) => isDeviceInVisibleSpace(d.spaceId))
-      .map((d) => d.deviceEndpointId),
+      .map((d) => d.endpointId),
   )
   const directEntries: OverviewEntry[] = []
   const seen = new Set<string>()
@@ -1453,14 +1453,14 @@ function buildContactGroups(): OverviewGroup[] {
   }
   const seenForMe = new Set<string>()
   for (const device of peerStore.spaceDevices) {
-    if (isOwnEndpoint(device.deviceEndpointId)) continue
-    if (seenForMe.has(device.deviceEndpointId)) continue
+    if (isOwnEndpoint(device.endpointId)) continue
+    if (seenForMe.has(device.endpointId)) continue
     if (!device.identityId || !ownIdentityIds.has(device.identityId)) continue
     if (!isDeviceInVisibleSpace(device.spaceId)) continue
-    seenForMe.add(device.deviceEndpointId)
+    seenForMe.add(device.endpointId)
     myEntries.push(
       buildPeerEntry({
-        endpointId: device.deviceEndpointId,
+        endpointId: device.endpointId,
         contextKey: 'me',
         detail: getSpaceName(device.spaceId),
         source: 'space',
@@ -1486,14 +1486,14 @@ function buildContactGroups(): OverviewGroup[] {
     const seen = new Set<string>()
 
     for (const device of peerStore.spaceDevices) {
-      if (isOwnEndpoint(device.deviceEndpointId)) continue
+      if (isOwnEndpoint(device.endpointId)) continue
       if (device.identityId !== contact.id) continue
       if (!isDeviceInVisibleSpace(device.spaceId)) continue
-      if (seen.has(device.deviceEndpointId)) continue
-      seen.add(device.deviceEndpointId)
+      if (seen.has(device.endpointId)) continue
+      seen.add(device.endpointId)
       entries.push(
         buildPeerEntry({
-          endpointId: device.deviceEndpointId,
+          endpointId: device.endpointId,
           contextKey: `contact:${contact.id}`,
           detail: getSpaceName(device.spaceId),
           source: 'space',
@@ -1539,14 +1539,14 @@ function buildContactGroups(): OverviewGroup[] {
   const unattributed: OverviewEntry[] = []
   const seenUnattr = new Set<string>()
   for (const device of peerStore.spaceDevices) {
-    if (isOwnEndpoint(device.deviceEndpointId)) continue
-    if (attributedEndpoints.has(device.deviceEndpointId)) continue
+    if (isOwnEndpoint(device.endpointId)) continue
+    if (attributedEndpoints.has(device.endpointId)) continue
     if (!isDeviceInVisibleSpace(device.spaceId)) continue
-    if (seenUnattr.has(device.deviceEndpointId)) continue
-    seenUnattr.add(device.deviceEndpointId)
+    if (seenUnattr.has(device.endpointId)) continue
+    seenUnattr.add(device.endpointId)
     unattributed.push(
       buildPeerEntry({
-        endpointId: device.deviceEndpointId,
+        endpointId: device.endpointId,
         contextKey: 'unknown',
         detail: getSpaceName(device.spaceId),
         source: 'space',

@@ -161,7 +161,7 @@ const groups = computed(() => {
     const isRunning = peerStore.running
     if (!isRunning) return result
 
-    const peerCount = peerStore.spaceDevices.filter(d => d.deviceEndpointId !== peerStore.nodeId).length
+    const peerCount = peerStore.spaceDevices.filter(d => d.endpointId !== peerStore.nodeId).length
 
     result.push({
       id: 'p2p',

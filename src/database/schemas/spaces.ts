@@ -53,8 +53,21 @@ export const haexSpaceDevices = sqliteTable(
       .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     identityId: text(tableNames.haex.space_devices.columns.identityId)
       .references(() => haexIdentities.id),
-    deviceEndpointId: text(tableNames.haex.space_devices.columns.deviceEndpointId).notNull(),
-    deviceName: text(tableNames.haex.space_devices.columns.deviceName).notNull(),
+    // FK on the random PK of haex_devices, NOT on haex_devices.device_id —
+    // the stable file-UUID must never leave the vault-private table so
+    // foreign space members cannot correlate devices across vaults.
+    deviceId: text(tableNames.haex.space_devices.columns.deviceId)
+      .notNull()
+      .references(() => haexDevices.id, { onDelete: 'cascade' }),
+    // Snapshot of the device's iroh EndpointId for this space. Other space
+    // members never see `haex_devices` (vault-private), so the endpoint id
+    // must be published here. Per (device × vault) — distinct from the
+    // device's endpoint id in any other vault, so no cross-vault correlation.
+    endpointId: text(tableNames.haex.space_devices.columns.endpointId).notNull(),
+    // Mirrors haex_devices.name — duplicated because haex_devices is
+    // vault-private. Keep both columns in sync via updateDeviceMetaAsync.
+    name: text(tableNames.haex.space_devices.columns.name).notNull(),
+    platform: text(tableNames.haex.space_devices.columns.platform).notNull(), // mirrors haex_devices.platform
     avatar: text(tableNames.haex.space_devices.columns.avatar), // Base64 WebP 128x128
     avatarOptions: text(tableNames.haex.space_devices.columns.avatarOptions), // JSON DiceBear options
     relayUrl: text(tableNames.haex.space_devices.columns.relayUrl),
@@ -63,7 +76,7 @@ export const haexSpaceDevices = sqliteTable(
     createdAt: text(tableNames.haex.space_devices.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
   },
   (table) => [
-    uniqueIndex('haex_space_devices_space_device_unique').on(table.spaceId, table.deviceEndpointId),
+    uniqueIndex('haex_space_devices_space_device_unique').on(table.spaceId, table.deviceId),
   ],
 )
 export type InsertHaexSpaceDevices = typeof haexSpaceDevices.$inferInsert
@@ -111,7 +124,13 @@ export const haexPeerShares = sqliteTable(
     spaceId: text(tableNames.haex.peer_shares.columns.spaceId)
       .notNull()
       .references(() => haexSpaces.id, { onDelete: 'cascade' }),
-    deviceEndpointId: text(tableNames.haex.peer_shares.columns.deviceEndpointId).notNull(),
+    // FK on haex_devices.id (random PK), see haexSpaceDevices.deviceId comment.
+    deviceId: text(tableNames.haex.peer_shares.columns.deviceId)
+      .notNull()
+      .references(() => haexDevices.id, { onDelete: 'cascade' }),
+    // Snapshot of the hosting device's iroh EndpointId. Needed so other space
+    // members can connect — they never see `haex_devices`.
+    endpointId: text(tableNames.haex.peer_shares.columns.endpointId).notNull(),
     name: text(tableNames.haex.peer_shares.columns.name).notNull(),
     localPath: text(tableNames.haex.peer_shares.columns.localPath).notNull(),
     authoredByDid: text(tableNames.haex.peer_shares.columns.authoredByDid),
