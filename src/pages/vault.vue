@@ -10,6 +10,8 @@
       <NuxtLayout>
         <NuxtPage />
       </NuxtLayout>
+      <HaexDeviceReconciliationReconciliationDialog />
+      <HaexDeviceReconciliationSpacePublishingDialog />
     </template>
   </div>
 </template>
@@ -99,30 +101,38 @@ onMounted(async () => {
 
     // Auto-start P2P endpoint unless the user explicitly disabled it on this device.
     // Default-on semantics: missing row = enabled; only 'false' disables.
+    //
+    // We gate on `deviceRowId` (haex_devices.id) — when the open vault has no
+    // matching row yet, resolveAsync left the identity pending and the
+    // Reconciliation dialog will pick it up. A watcher inside the dialog
+    // restarts this autostart once the user confirms.
     const deviceStore = useDeviceStore()
-    const peerAutostart = deviceStore.deviceId
-      ? await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
-          where: and(
-            eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageAutostart),
-            eq(haexVaultSettings.deviceId, deviceStore.deviceId),
-          ),
-        })
-      : null
-    if (peerAutostart?.value !== 'false') {
-      usePeerStorageStore().startAsync().catch((error) => {
-        console.warn('[P2P] Autostart failed:', error)
+    let autostartEnabled = false
+    if (deviceStore.deviceRowId) {
+      const peerAutostart = await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
+        where: and(
+          eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageAutostart),
+          eq(haexVaultSettings.deviceId, deviceStore.deviceId),
+        ),
       })
+      autostartEnabled = peerAutostart?.value !== 'false'
+      if (autostartEnabled) {
+        usePeerStorageStore().startAsync().catch((error) => {
+          console.warn('[P2P] Autostart failed:', error)
+        })
+      }
     }
 
     // Set up file sync event listeners so progress/complete events are handled.
     // When P2P is enabled, startAsync() calls loadRulesAsync() + startEnabledRulesAsync()
     // after the endpoint is up — starting rules here too would cause a double-start race.
-    // When P2P is disabled, start rules here since startAsync() will not run.
+    // When P2P is disabled (or the device is still pending reconciliation),
+    // start rules here since startAsync() will not run.
     const fileSyncStore = useFileSyncStore()
     fileSyncStore.loadRulesAsync()
       .then(() => fileSyncStore.setupEventListeners())
       .then(() => {
-        if (peerAutostart?.value === 'false') {
+        if (!autostartEnabled) {
           return fileSyncStore.startEnabledRulesAsync()
         }
       })

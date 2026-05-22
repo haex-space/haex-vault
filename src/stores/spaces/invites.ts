@@ -414,17 +414,19 @@ export async function acceptLocalInvite(
   // space until the next CRDT sync round triggers another reload.
   await loadSpacesFromDbAsync()
 
-  // Register this device in haex_space_devices for the new space. The CRDT
+  // Publish this device in haex_space_devices for the new space. The CRDT
   // sync loop will push this row to the space leader, which then reloads
-  // allowed_peers and permits this device to browse shared files (sub-folder
-  // listing is gated on allowed_peers; without this row the leader silently
-  // filters out shares from this space).
-  const peerStorageStore = usePeerStorageStore()
-  if (peerStorageStore.running && peerStorageStore.nodeId) {
-    const deviceStore = useDeviceStore()
-    const deviceName = deviceStore.deviceName || deviceStore.hostname || 'Unknown'
+  // allowed_peers and permits this device to browse shared files. We do this
+  // unconditionally on invite accept (rather than only via the Publishing
+  // dialog) because the sub-folder listing is gated on `allowed_peers` —
+  // without this row the leader silently filters the just-joined space's
+  // shares away from us. The dialog still surfaces afterwards so the user
+  // can also publish their other devices.
+  const deviceStore = useDeviceStore()
+  if (deviceStore.deviceRowId) {
+    const peerStorageStore = usePeerStorageStore()
     try {
-      await peerStorageStore.registerDeviceInSpaceAsync(invite.spaceId, deviceName)
+      await peerStorageStore.registerDeviceInSpaceAsync(invite.spaceId)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       if (!message.toLowerCase().includes('unique') && !message.toLowerCase().includes('duplicate')) {
@@ -432,6 +434,7 @@ export async function acceptLocalInvite(
       }
     }
   }
+  useSpacePublishingStore().openForNewSpace(invite.spaceId)
 
   // Connect directly to the endpoint that served the ClaimInvite — it is
   // the leader by definition. Skipping election here is intentional: right

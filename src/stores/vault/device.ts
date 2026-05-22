@@ -138,6 +138,15 @@ export const useDeviceStore = defineStore('vaultDeviceStore', () => {
     return res
   }
 
+  /**
+   * Dismiss the pending reconciliation without committing a choice. The
+   * vault keeps running without a haex_devices row and P2P stays down for
+   * this session; the Geräte-&-Spaces settings page can revisit the choice.
+   */
+  const skipResolution = () => {
+    pendingResolution.value = null
+  }
+
   /** Push the current device row's secret key into the iroh endpoint. */
   const loadEndpointKeyAsync = async () => {
     if (!deviceRowId.value) return
@@ -247,6 +256,7 @@ export const useDeviceStore = defineStore('vaultDeviceStore', () => {
     resolveAsync,
     registerNewAsync,
     reclaimAsync,
+    skipResolution,
     loadEndpointKeyAsync,
     updateDeviceClaimsAsync,
     isDesktop,
