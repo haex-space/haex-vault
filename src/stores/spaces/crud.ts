@@ -92,10 +92,12 @@ export async function createLocalSpace(
 
   await invoke('local_delivery_start', { spaceId: id })
 
-  // Publishing this device in the new space is now an explicit choice —
-  // surface the Space-Publishing dialog so the user can pick which devices
-  // should be reachable here.
-  useSpacePublishingStore().openForNewSpace(id)
+  // Note: publishing this device in the new space is now explicit — the
+  // Space-Publishing dialog is opened from the UI handler that created the
+  // space (e.g. SpaceCreateDialog submit), NOT from this helper. Internal
+  // callers (ensureDefaultSpaceAsync, ensureVaultSpaceAsync) deliberately
+  // don't trigger the dialog because their spaces are meta-state, not user
+  // intent.
 
   log.info(`Created local space "${spaceName}" (${id})`)
   return { id }

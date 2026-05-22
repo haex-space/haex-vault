@@ -447,9 +447,12 @@ const onCreateSpaceAsync = async (payload: CreateSpacePayload) => {
   isCreating.value = true
   try {
     if (payload.type === SpaceType.LOCAL) {
-      await spacesStore.createLocalSpaceAsync(payload.name, payload.ownerIdentityId)
+      const { id } = await spacesStore.createLocalSpaceAsync(payload.name, payload.ownerIdentityId)
       add({ title: t('success.created'), color: 'success' })
       showCreateDialog.value = false
+      // Open the Space-Publishing dialog so the user can pick which of
+      // their devices should be reachable in the freshly created space.
+      useSpacePublishingStore().openForNewSpace(id)
     } else {
       const originUrl = payload.originUrl?.value
       if (!originUrl) {
