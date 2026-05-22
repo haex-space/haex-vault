@@ -557,8 +557,13 @@ fn ensure_default_identity(state: &State<'_, AppState>) -> Result<(), DatabaseEr
         reason: "Failed to lock HLC service".to_string(),
     })?;
 
+    // source='own' so downstream consumers (e.g. the Phase 2
+    // haex_devices.owner_did join) can distinguish own identities from
+    // contact / space-member rows. Pre-Phase-2 the seed was tagged 'contact'
+    // because code only looked at private_key — the Phase 2 matrix view
+    // also checks source.
     core::execute_with_crdt(
-        "INSERT INTO haex_identities (id, did, name, source, private_key) VALUES (?1, ?2, ?3, 'contact', ?4)".to_string(),
+        "INSERT INTO haex_identities (id, did, name, source, private_key) VALUES (?1, ?2, ?3, 'own', ?4)".to_string(),
         vec![
             JsonValue::String(id),
             JsonValue::String(did.clone()),

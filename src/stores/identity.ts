@@ -153,7 +153,12 @@ export const useIdentityStore = defineStore('identityStore', () => {
       id,
       name,
       did,
-      source: 'contact',
+      // Locally generated identity with its own private key — this is an own
+      // identity, not a contact. (Until Phase 2 the row was incorrectly
+      // tagged 'contact'; downstream code only relied on `privateKey != null`
+      // so the mistake was invisible. The Phase 2 owner_did join now requires
+      // the source label to be accurate.)
+      source: 'own',
       privateKey: signingPrivateKey,
       avatar: avatarSet.avatar,
       notes: null,

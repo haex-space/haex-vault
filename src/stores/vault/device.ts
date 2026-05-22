@@ -94,13 +94,33 @@ export const useDeviceStore = defineStore('vaultDeviceStore', () => {
     return 'pending'
   }
 
+  /**
+   * Resolve the DID of the own identity that should own newly registered
+   * device rows. Throws when there is no own identity yet — `initVaultAsync`
+   * always seeds one before driving device resolution, so hitting this is a
+   * setup bug, not a normal flow.
+   */
+  const requireOwnDidAsync = async (): Promise<string> => {
+    const identityStore = useIdentityStore()
+    if (identityStore.ownIdentities.length === 0) {
+      await identityStore.loadIdentitiesAsync()
+    }
+    const own = identityStore.ownIdentities[0]
+    if (!own) {
+      throw new Error('device store: no own identity available to own the device row')
+    }
+    return own.did
+  }
+
   /** Register a brand-new `haex_devices` row for this physical device. */
   const registerNewAsync = async (
     name: string,
     avatar?: string,
     avatarOptions?: string,
   ): Promise<DeviceCreated> => {
+    const ownerDid = await requireOwnDidAsync()
     const res = await invoke<DeviceCreated>('device_create_for_vault', {
+      ownerDid,
       name,
       platform: platform.value,
       avatar,
@@ -122,8 +142,10 @@ export const useDeviceStore = defineStore('vaultDeviceStore', () => {
     avatar?: string,
     avatarOptions?: string,
   ): Promise<DeviceCreated> => {
+    const ownerDid = await requireOwnDidAsync()
     const res = await invoke<DeviceCreated>('device_reclaim_existing', {
       existingId,
+      ownerDid,
       name,
       platform: platform.value,
       avatar,

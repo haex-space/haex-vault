@@ -72,7 +72,11 @@ fn load_or_generate_device_id_file(app_handle: &AppHandle) -> Result<String, Dev
 #[serde(rename_all = "camelCase")]
 pub struct KnownDevice {
     pub id: String,
-    pub device_id: String,
+    pub owner_did: String,
+    /// `None` for foreign device stubs (created by the
+    /// `haex_space_devices_ensure_refs` trigger) — those rows never carry the
+    /// file UUID because we don't own the physical device.
+    pub device_id: Option<String>,
     pub endpoint_id: String,
     pub name: String,
     pub platform: String,
@@ -99,13 +103,20 @@ pub struct DeviceResolution {
     pub known_devices: Vec<KnownDevice>,
 }
 
-/// Read every row from `haex_devices` and convert it to [`KnownDevice`].
+/// Read every OWN device row from `haex_devices` and convert it to
+/// [`KnownDevice`]. Foreign device stubs (created by the
+/// `haex_space_devices_ensure_refs` trigger) are excluded by joining on
+/// `haex_identities.source = 'own'` so the reconciliation dialog only
+/// presents devices the user can actually reclaim.
 /// Goes through `select_with_crdt` so tombstoned rows are filtered out.
 fn list_known_devices(state: &State<'_, AppState>) -> Result<Vec<KnownDevice>, DeviceError> {
     let rows = core::select_with_crdt(
-        "SELECT id, device_id, endpoint_id, name, platform, avatar, avatar_options, created_at \
-         FROM haex_devices \
-         ORDER BY created_at ASC"
+        "SELECT d.id, d.owner_did, d.device_id, d.endpoint_id, d.name, d.platform, \
+                d.avatar, d.avatar_options, d.created_at \
+         FROM haex_devices d \
+         JOIN haex_identities i ON i.did = d.owner_did \
+         WHERE i.source = 'own' \
+         ORDER BY d.created_at ASC"
             .to_string(),
         vec![],
         &state.db,
@@ -122,13 +133,14 @@ fn list_known_devices(state: &State<'_, AppState>) -> Result<Vec<KnownDevice>, D
     for row in rows {
         out.push(KnownDevice {
             id: as_string(&row[0]).unwrap_or_default(),
-            device_id: as_string(&row[1]).unwrap_or_default(),
-            endpoint_id: as_string(&row[2]).unwrap_or_default(),
-            name: as_string(&row[3]).unwrap_or_default(),
-            platform: as_string(&row[4]).unwrap_or_default(),
-            avatar: as_string(&row[5]),
-            avatar_options: as_string(&row[6]),
-            created_at: as_string(&row[7]),
+            owner_did: as_string(&row[1]).unwrap_or_default(),
+            device_id: as_string(&row[2]),
+            endpoint_id: as_string(&row[3]).unwrap_or_default(),
+            name: as_string(&row[4]).unwrap_or_default(),
+            platform: as_string(&row[5]).unwrap_or_default(),
+            avatar: as_string(&row[6]),
+            avatar_options: as_string(&row[7]),
+            created_at: as_string(&row[8]),
         });
     }
     Ok(out)
@@ -148,8 +160,16 @@ pub async fn device_resolve_for_vault(
 ) -> Result<DeviceResolution, DeviceError> {
     let device_id = load_or_generate_device_id_file(&app_handle)?;
 
+    // Only ever match against rows owned by an own identity. A stub created by
+    // the ensure-refs trigger never has `device_id` set (foreign devices don't
+    // know our file UUID), so in practice this WHERE clause filters them out,
+    // but the JOIN makes the intent explicit and survives schema drift.
     let matched_rows = core::select_with_crdt(
-        "SELECT id, endpoint_id FROM haex_devices WHERE device_id = ? LIMIT 1".to_string(),
+        "SELECT d.id, d.endpoint_id FROM haex_devices d \
+         JOIN haex_identities i ON i.did = d.owner_did \
+         WHERE d.device_id = ? AND i.source = 'own' \
+         LIMIT 1"
+            .to_string(),
         vec![JsonValue::String(device_id.clone())],
         &state.db,
     )
@@ -199,10 +219,14 @@ pub struct DeviceCreated {
 /// Register a brand-new `haex_devices` row for the current physical device.
 /// Generates a fresh ed25519 keypair (so a fresh iroh EndpointId, distinct
 /// from any other vault).
+///
+/// `owner_did` must be the DID of an `haex_identities` row with `source='own'`
+/// — the caller (frontend) reads it from the identity store before invoking.
 #[tauri::command(rename_all = "camelCase")]
 pub async fn device_create_for_vault(
     app_handle: AppHandle,
     state: State<'_, AppState>,
+    owner_did: String,
     name: String,
     platform: String,
     avatar: Option<String>,
@@ -218,11 +242,12 @@ pub async fn device_create_for_vault(
 
     core::execute_with_crdt(
         "INSERT INTO haex_devices \
-         (id, device_id, endpoint_id, secret_key, name, platform, avatar, avatar_options) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+         (id, owner_did, device_id, endpoint_id, secret_key, name, platform, avatar, avatar_options) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
             .to_string(),
         vec![
             JsonValue::String(row_id.clone()),
+            JsonValue::String(owner_did),
             JsonValue::String(device_id.clone()),
             JsonValue::String(endpoint_id.clone()),
             JsonValue::String(secret_hex),
@@ -250,6 +275,10 @@ pub async fn device_create_for_vault(
 /// dialog: we generate a fresh keypair (because we cannot recover the lost
 /// one) and rewrite the existing row.
 ///
+/// `owner_did` is rewritten in case a foreign-stub row is being reclaimed
+/// as own — this is a defensive overwrite, in practice the UI only offers
+/// reclaim on rows that were previously owned by the user.
+///
 /// The caller is expected to have warned the user when the previous
 /// `endpoint_id` is still online — this command does not perform the check.
 #[tauri::command(rename_all = "camelCase")]
@@ -257,6 +286,7 @@ pub async fn device_reclaim_existing(
     app_handle: AppHandle,
     state: State<'_, AppState>,
     existing_id: String,
+    owner_did: String,
     name: Option<String>,
     platform: Option<String>,
     avatar: Option<String>,
@@ -273,6 +303,7 @@ pub async fn device_reclaim_existing(
     // `None`. Avatars can be cleared explicitly with an empty string if needed.
     core::execute_with_crdt(
         "UPDATE haex_devices SET \
+           owner_did = ?, \
            device_id = ?, \
            endpoint_id = ?, \
            secret_key = ?, \
@@ -283,6 +314,7 @@ pub async fn device_reclaim_existing(
          WHERE id = ?"
             .to_string(),
         vec![
+            JsonValue::String(owner_did),
             JsonValue::String(device_id.clone()),
             JsonValue::String(endpoint_id.clone()),
             JsonValue::String(secret_hex),

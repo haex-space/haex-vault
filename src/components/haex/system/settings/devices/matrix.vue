@@ -118,7 +118,7 @@
 
 <script setup lang="ts">
 import { and, eq } from 'drizzle-orm'
-import { haexDevices, haexSpaceDevices } from '~/database/schemas'
+import { haexDevices, haexIdentities, haexSpaceDevices } from '~/database/schemas'
 
 defineEmits<{ back: [] }>()
 
@@ -187,7 +187,19 @@ const platformIcon = (platform: string) => {
 const loadAsync = async () => {
   const db = vaultStore.currentVault?.drizzle
   if (!db) return
-  const devs = await db.select().from(haexDevices)
+  // Foreign device stubs (created by the haex_space_devices_ensure_refs
+  // trigger) share the haex_devices table — filter them out by joining the
+  // owner identity and only keeping `source='own'` rows.
+  const devs = await db
+    .select({
+      id: haexDevices.id,
+      endpointId: haexDevices.endpointId,
+      name: haexDevices.name,
+      platform: haexDevices.platform,
+    })
+    .from(haexDevices)
+    .innerJoin(haexIdentities, eq(haexIdentities.did, haexDevices.ownerDid))
+    .where(eq(haexIdentities.source, 'own'))
   ownDevices.value = devs.map(d => ({
     id: d.id,
     endpointId: d.endpointId,

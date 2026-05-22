@@ -402,6 +402,15 @@ export const useVaultStore = defineStore('vaultStore', () => {
   const initVaultAsync = async () => {
     if (!currentVaultId.value) return
 
+    // Initialize MLS tables (must happen before any space creation)
+    await invoke('mls_init_tables')
+
+    // Ensure at least one own identity exists (needed for UCAN signing, MLS,
+    // and to populate haex_devices.owner_did when registering a fresh device
+    // row below).
+    const identityStore = useIdentityStore()
+    await identityStore.ensureDefaultIdentityAsync()
+
     // Resolve the device identity for this vault.
     //
     // - Matched (haex_devices row already exists for this physical device):
@@ -428,13 +437,6 @@ export const useVaultStore = defineStore('vaultStore', () => {
     if ($setConsoleLoggerDeviceId && deviceStore.deviceId) {
       $setConsoleLoggerDeviceId(deviceStore.deviceId)
     }
-
-    // Initialize MLS tables (must happen before any space creation)
-    await invoke('mls_init_tables')
-
-    // Ensure at least one identity exists (needed for UCAN signing and MLS)
-    const identityStore = useIdentityStore()
-    await identityStore.ensureDefaultIdentityAsync()
 
     // Ensure vault space exists in haex_spaces (FK target for sync backends)
     // This depends on an owner identity because haex_spaces.ownerIdentityId is mandatory.
