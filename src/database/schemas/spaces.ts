@@ -57,8 +57,14 @@ export const haexSpaceDevices = sqliteTable(
     // file-UUID never leaks across vaults. Foreign members publish their
     // own `haex_devices.id` here via CRDT sync — those values are not
     // present locally at insert time, so the `haex_space_devices_ensure_refs`
-    // trigger auto-creates a stub row in `haex_devices` before the FK is
-    // checked.
+    // trigger auto-creates a stub row in `haex_devices` (with `secret_key`
+    // and `device_id` NULL, see Phase 2 schema in `devices.ts`) before the
+    // FK is checked. CASCADE is safe here because:
+    //   - Own device delete → cascade to publish rows is what we want
+    //     (the user "leaves" the spaces they were publishing into).
+    //   - Foreign stub rows are not user-deletable; the only path that
+    //     touches them is `haex_space_devices_propagate_meta` (UPDATE,
+    //     no cascade) or a follow-up CRDT row, both safe.
     deviceId: text(tableNames.haex.space_devices.columns.deviceId)
       .notNull()
       .references(() => haexDevices.id, { onDelete: 'cascade' }),

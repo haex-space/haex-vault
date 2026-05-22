@@ -227,9 +227,16 @@ export async function removeSpaceMember(db: DB, spaceId: string, memberDid: stri
     .where(and(eq(haexSpaceDevices.spaceId, spaceId), eq(haexSpaceDevices.authoredByDid, memberDid)))
   // Refresh the running peer_storage endpoint so the just-removed peer
   // drops out of allowed_peers immediately rather than only on next sync.
-  await invoke('peer_storage_reload_shares').catch((err) => {
-    log.warn(`peer_storage_reload_shares after device cleanup failed: ${err}`)
-  })
+  // This is the only cut-over from the DB delete to the in-memory
+  // allowed_peers view — if it fails, removeSpaceMember would otherwise
+  // succeed while the running endpoint kept authorising the removed peer
+  // until something else triggered a reload, so propagate the error.
+  try {
+    await invoke('peer_storage_reload_shares')
+  } catch (err) {
+    log.error(`peer_storage_reload_shares after device cleanup failed: ${err}`)
+    throw err
+  }
 
   // 1. Find the member's leaf index in the MLS group
   const memberIndex = await invoke<number | null>('mls_find_member_index', { spaceId, memberDid })

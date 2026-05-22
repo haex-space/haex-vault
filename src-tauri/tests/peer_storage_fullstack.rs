@@ -15,8 +15,16 @@ use iroh::Endpoint;
 use haex_vault_lib::peer_storage::endpoint::PeerEndpoint;
 use haex_vault_lib::peer_storage::protocol::{self, Request, Response, ALPN};
 
-/// Test UCAN token generator — creates a valid signed token for a given space.
+/// Test UCAN token generator — creates a valid signed token for one or more spaces.
 fn test_ucan_token(space_id: &str) -> String {
+    test_ucan_token_for(&[space_id])
+}
+
+/// Multi-space variant of [`test_ucan_token`]. The peer-storage handler now
+/// gates each request on the intersection of the UCAN's claimed spaces and
+/// the peer's allowed_spaces, so tests that operate on multiple spaces in
+/// a single connection must present a UCAN that covers them all.
+fn test_ucan_token_for(space_ids: &[&str]) -> String {
     use base64::Engine;
     use ed25519_dalek::{Signer, SigningKey};
 
@@ -43,12 +51,16 @@ fn test_ucan_token(space_id: &str) -> String {
         .unwrap()
         .as_secs();
 
+    let cap: serde_json::Map<String, serde_json::Value> = space_ids
+        .iter()
+        .map(|s| (format!("space:{}", s), serde_json::Value::String("space/admin".into())))
+        .collect();
     let header = serde_json::json!({"alg": "EdDSA", "typ": "JWT"});
     let payload = serde_json::json!({
         "ucv": "1.0",
         "iss": did,
         "aud": did,
-        "cap": { format!("space:{}", space_id): "space/admin" },
+        "cap": cap,
         "exp": now + 86400,
         "iat": now,
         "prf": [],
@@ -1471,7 +1483,21 @@ async fn dynamic_space_grant_upgrade_and_downgrade() {
     server.set_allowed_peers(upgraded).await;
     sleep(Duration::from_millis(50)).await;
 
-    let resp = send_request(&ep, addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("tier-basic") }).await.unwrap();
+    let resp = send_request(
+        &ep,
+        addr.clone(),
+        &Request::List {
+            path: "/".to_string(),
+            // Phase 2 presents a UCAN covering BOTH tiers — the new
+            // per-UCAN-space gate restricts the root listing to the
+            // intersection of allowed_spaces and the UCAN's claimed
+            // spaces, so a single-tier UCAN here would only return the
+            // matching share.
+            ucan_token: test_ucan_token_for(&["tier-basic", "tier-premium"]),
+        },
+    )
+    .await
+    .unwrap();
     match &resp {
         Response::List { entries } => assert_eq!(entries.len(), 2, "Phase 2: basic + premium"),
         other => panic!("Phase 2: {:?}", other),

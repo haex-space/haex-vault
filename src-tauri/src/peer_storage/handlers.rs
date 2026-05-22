@@ -92,17 +92,25 @@ pub(super) async fn handle_stream(
         }
     };
 
-    // ── Layer 1.5: require peer to be registered in at least one of the
+    // ── Layer 1.5: narrow allowed_spaces to the intersection with the
     // UCAN's claimed spaces. The connection-accept gate is intentionally
     // coarse ("known peer = accepted"), so this is the first check that
-    // ties the request to the peer's space membership: if a peer was
-    // removed from space X they may still hold a valid UCAN for it, but
-    // they should no longer be able to use it against us.
-    let ucan_grants_access = validated_ucan
+    // ties the request to the peer's UCAN presentation:
+    //
+    // - If the intersection is empty, the peer is presenting a UCAN they
+    //   cannot use (e.g. removed from every space the UCAN names). Reject.
+    // - If the intersection is non-empty, use it as the effective allowed
+    //   spaces for the rest of the request. This stops a peer with
+    //   allowed = {A, B} and a UCAN for {A} from leaking share names in
+    //   B via the root listing — handle_list would otherwise return
+    //   everything in allowed_spaces.
+    let effective_spaces: HashSet<String> = validated_ucan
         .capabilities
         .keys()
-        .any(|space_id| allowed_spaces.contains(space_id));
-    if !ucan_grants_access {
+        .filter(|space_id| allowed_spaces.contains(*space_id))
+        .cloned()
+        .collect();
+    if effective_spaces.is_empty() {
         eprintln!(
             "[PeerStorage] Access denied: peer holds a UCAN for spaces it is not registered in"
         );
@@ -112,6 +120,7 @@ pub(super) async fn handle_stream(
         send_response_and_finish(&mut send, &resp).await.ok();
         return Ok(());
     }
+    let allowed_spaces = &effective_spaces;
 
     // ── Layer 2 (source of truth): check capability matches operation ──
     let target_space_id = {
