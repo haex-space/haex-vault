@@ -53,11 +53,11 @@ fn load_or_generate_device_id_file(app_handle: &AppHandle) -> Result<String, Dev
     if path.exists() {
         let raw = fs::read_to_string(&path)?;
         let trimmed = raw.trim();
-        if !trimmed.is_empty() {
+        if !trimmed.is_empty() && uuid::Uuid::parse_str(trimmed).is_ok() {
             return Ok(trimmed.to_string());
         }
         eprintln!(
-            "[Device] device_id file at {} was empty, regenerating",
+            "[Device] device_id file at {} was invalid, regenerating",
             path.display()
         );
     }
@@ -295,6 +295,24 @@ pub async fn device_reclaim_existing(
     let device_id = load_or_generate_device_id_file(&app_handle)?;
     let (secret_hex, endpoint_id) = generate_keypair();
 
+    // Verify the target row exists before issuing the UPDATE; without this
+    // a typo or stale id would silently no-op and the frontend would treat
+    // it as a successful reclaim, deferring the failure to the next
+    // endpoint_load_for_device call.
+    let existing = core::select_with_crdt(
+        "SELECT id FROM haex_devices WHERE id = ? LIMIT 1".to_string(),
+        vec![JsonValue::String(existing_id.clone())],
+        &state.db,
+    )
+    .map_err(|e| DeviceError::Database {
+        reason: format!("SELECT haex_devices for reclaim: {e}"),
+    })?;
+    if existing.is_empty() {
+        return Err(DeviceError::Database {
+            reason: format!("no haex_devices row with id {existing_id}"),
+        });
+    }
+
     let hlc = state.hlc.lock().map_err(|_| DeviceError::Database {
         reason: "HLC lock poisoned".to_string(),
     })?;
@@ -376,7 +394,9 @@ pub async fn endpoint_load_for_device(
     {
         let mut endpoint = state.peer_storage.write().await;
         if endpoint.is_running() {
-            let _ = endpoint.stop().await;
+            endpoint.stop().await.map_err(|e| DeviceError::KeyError {
+                reason: format!("failed to stop existing endpoint: {e}"),
+            })?;
         }
         endpoint.replace_key(secret_key);
     }

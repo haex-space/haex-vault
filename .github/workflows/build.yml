@@ -71,6 +71,7 @@ jobs:
       is_dependabot: ${{ steps.dep-context.outputs.is_dependabot }}
       dep_update_type: ${{ steps.dep-meta.outputs.update-type }}
       skip_e2e: ${{ steps.dep-context.outputs.skip_e2e }}
+      e2e_tests_ref: ${{ steps.e2e-ref.outputs.ref }}
     steps:
       - name: Check if version bump commit
         id: check
@@ -125,6 +126,38 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           skip-commit-verification: true
+
+      # Cross-repo branch coupling: when a haex-vault branch ships schema
+      # or API changes that need matching e2e tests, the tests usually live on
+      # a same-named branch in haex-e2e-tests. Without this resolution the
+      # e2e shard runs against `main` and fails on the column/API mismatch.
+      # Explicit `haex_e2e_tests_ref` workflow_dispatch input always wins;
+      # otherwise we probe haex-e2e-tests for the haex-vault branch and fall
+      # back to `main` if it doesn't exist.
+      - name: Resolve haex-e2e-tests ref
+        id: e2e-ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_REF: ${{ inputs.haex_e2e_tests_ref }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          if [ -n "$INPUT_REF" ]; then
+            echo "ref=$INPUT_REF" >> "$GITHUB_OUTPUT"
+            echo "Using explicit haex_e2e_tests_ref=$INPUT_REF"
+            exit 0
+          fi
+          if [ -z "$BRANCH" ] || [ "$BRANCH" = "main" ]; then
+            echo "ref=main" >> "$GITHUB_OUTPUT"
+            echo "Default branch — using haex-e2e-tests=main"
+            exit 0
+          fi
+          if gh api -X GET "repos/haex-space/haex-e2e-tests/branches/$BRANCH" --silent 2>/dev/null; then
+            echo "ref=$BRANCH" >> "$GITHUB_OUTPUT"
+            echo "Found matching haex-e2e-tests branch: $BRANCH"
+          else
+            echo "ref=main" >> "$GITHUB_OUTPUT"
+            echo "No matching haex-e2e-tests branch for '$BRANCH' — using main"
+          fi
 
       - name: Compute dependency context
         id: dep-context
@@ -220,9 +253,10 @@ jobs:
       haextension_version: main
       vault_sdk_version: main
       sync_server_version: main
-      # Allow overriding the e2e-tests branch via workflow_dispatch to break
-      # the chicken-and-egg when vault and e2e-tests changes land together.
-      e2e_tests_ref: ${{ inputs.haex_e2e_tests_ref }}
+      # Auto-resolved by check-skip: matches the haex-vault branch in
+      # haex-e2e-tests when present, falls back to `main`. Explicit
+      # workflow_dispatch `haex_e2e_tests_ref` input takes precedence.
+      e2e_tests_ref: ${{ needs.check-skip.outputs.e2e_tests_ref }}
 
   # Android E2E tests (run after Android build, independent of desktop E2E)
   e2e-tests-android:
@@ -236,7 +270,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: haex-space/haex-e2e-tests
-          ref: ${{ inputs.haex_e2e_tests_ref || 'main' }}
+          ref: ${{ needs.check-skip.outputs.e2e_tests_ref }}
 
       - name: Enable KVM for Android emulator
         run: |

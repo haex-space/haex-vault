@@ -80,6 +80,10 @@ export const haexSpaceDevices = sqliteTable(
   },
   (table) => [
     uniqueIndex('haex_space_devices_space_device_unique').on(table.spaceId, table.deviceId),
+    // Backend ownership/discovery resolves rows by (space, endpoint_id); the
+    // index keeps that lookup off a full scan and prevents duplicate endpoint
+    // registrations inside a single space.
+    uniqueIndex('haex_space_devices_space_endpoint_unique').on(table.spaceId, table.endpointId),
   ],
 )
 export type InsertHaexSpaceDevices = typeof haexSpaceDevices.$inferInsert

@@ -272,7 +272,7 @@ const otherDeviceShares = computed<[string, SelectHaexPeerShares[]][]>(() => {
 
 const getDeviceName = (endpointId: string): string | undefined => {
   return peerStore.spaceDevices.find(
-    (d) => d.endpointId === endpointId,
+    (d) => d.endpointId === endpointId && d.spaceId === props.spaceId,
   )?.name
 }
 

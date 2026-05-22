@@ -144,7 +144,16 @@ const selectedDevices = ref<Set<string>>(new Set())
 const canSubmit = computed(() => {
   if (submitting.value) return false
   if (mode.value === 'new-device') return selectedSpaces.value.size > 0
-  if (mode.value === 'new-space') return selectedDevices.value.size > 0
+  if (mode.value === 'new-space') {
+    // Only the current device can actually be published from this vault —
+    // remote rows need their owning vault to publish (see onSubmit). Without
+    // the current device in the selection, Submit would close the dialog
+    // without any INSERT.
+    return (
+      !!deviceStore.deviceRowId
+      && selectedDevices.value.has(deviceStore.deviceRowId)
+    )
+  }
   return false
 })
 

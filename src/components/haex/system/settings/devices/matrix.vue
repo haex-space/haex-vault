@@ -15,10 +15,6 @@
           class="flex-1"
         />
         <label class="flex items-center gap-2 text-sm">
-          <UCheckbox v-model="onlyMemberSpaces" />
-          {{ t('filters.onlyMember') }}
-        </label>
-        <label class="flex items-center gap-2 text-sm">
           <UCheckbox v-model="onlyWithGaps" />
           {{ t('filters.onlyWithGaps') }}
         </label>
@@ -139,7 +135,6 @@ const peerStorageStore = usePeerStorageStore()
 const log = createLogger('DEVICE-MATRIX')
 
 const search = ref('')
-const onlyMemberSpaces = ref(true)
 const onlyWithGaps = ref(false)
 
 const ownDevices = ref<DeviceRow[]>([])
@@ -155,13 +150,6 @@ const filteredSpaces = computed(() => {
   const q = search.value.trim().toLowerCase()
   return spacesStore.visibleSpaces.filter((space) => {
     if (q && !space.name.toLowerCase().includes(q)) return false
-    if (onlyMemberSpaces.value) {
-      // visibleSpaces already only contains spaces where the user has any
-      // claim (membership, ownership or pending invite), so this filter is a
-      // no-op today; keep it explicit so future changes to visibleSpaces
-      // (e.g. surfacing additional public spaces) do not silently broaden
-      // the matrix.
-    }
     if (onlyWithGaps.value) {
       const hasGap = ownDevices.value.some(
         d => !publishedKeys.value.has(cellKey(d.id, space.id)),
@@ -270,7 +258,6 @@ de:
   onlyCurrentDeviceHint: Nur das aktuelle Gerät kann ein Häkchen setzen — andere Geräte müssen ihre eigene Vault öffnen und dort veröffentlichen.
   filters:
     searchPlaceholder: Space-Name suchen…
-    onlyMember: nur eigene Spaces
     onlyWithGaps: nur Spaces mit fehlenden Geräten
   table:
     device: Gerät
@@ -286,7 +273,6 @@ en:
   onlyCurrentDeviceHint: Only the current device can tick a cell — other devices must open their own vault and publish from there.
   filters:
     searchPlaceholder: Search space name…
-    onlyMember: own spaces only
     onlyWithGaps: only spaces with missing devices
   table:
     device: Device

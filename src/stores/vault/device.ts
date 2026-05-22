@@ -90,6 +90,10 @@ export const useDeviceStore = defineStore('vaultDeviceStore', () => {
       await updateDeviceClaimsAsync()
       return 'matched'
     }
+    // Stale resolved IDs would otherwise let downstream checks treat the
+    // device as identified and use the wrong endpoint identity.
+    deviceRowId.value = ''
+    deviceId.value = ''
     pendingResolution.value = res
     return 'pending'
   }
