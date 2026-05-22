@@ -92,6 +92,27 @@ pub(super) async fn handle_stream(
         }
     };
 
+    // ── Layer 1.5: require peer to be registered in at least one of the
+    // UCAN's claimed spaces. The connection-accept gate is intentionally
+    // coarse ("known peer = accepted"), so this is the first check that
+    // ties the request to the peer's space membership: if a peer was
+    // removed from space X they may still hold a valid UCAN for it, but
+    // they should no longer be able to use it against us.
+    let ucan_grants_access = validated_ucan
+        .capabilities
+        .keys()
+        .any(|space_id| allowed_spaces.contains(space_id));
+    if !ucan_grants_access {
+        eprintln!(
+            "[PeerStorage] Access denied: peer holds a UCAN for spaces it is not registered in"
+        );
+        let resp = Response::Error {
+            message: "Access denied: peer not registered in any of the UCAN's spaces".to_string(),
+        };
+        send_response_and_finish(&mut send, &resp).await.ok();
+        return Ok(());
+    }
+
     // ── Layer 2 (source of truth): check capability matches operation ──
     let target_space_id = {
         let s = state.read().await;

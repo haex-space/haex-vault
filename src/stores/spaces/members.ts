@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { didKeyToPublicKeyAsync } from '@haex-space/vault-sdk'
 import {
   haexIdentities,
+  haexSpaceDevices,
   haexSpaceMembers,
   haexUcanTokens,
 } from '~/database/schemas'
@@ -213,6 +214,22 @@ export async function removeSpaceMember(db: DB, spaceId: string, memberDid: stri
     .innerJoin(haexIdentities, eq(haexSpaceMembers.identityId, haexIdentities.id))
     .where(and(eq(haexSpaceMembers.spaceId, spaceId), eq(haexIdentities.did, memberDid)))
     .limit(1)
+
+  // Drop the member's device publications in this space too. Without this
+  // step the removed member's haex_space_devices rows would linger and the
+  // peer_storage allowed_peers map would still recognise them, defeating
+  // the "removed member can no longer access" guarantee. We match on
+  // `authored_by_did` (rather than identity_id) because cross-vault rows
+  // arrive with the publisher's local identity_id, which doesn't resolve
+  // against this vault's haex_identities — authored_by_did is the
+  // identity-portable handle.
+  await db.delete(haexSpaceDevices)
+    .where(and(eq(haexSpaceDevices.spaceId, spaceId), eq(haexSpaceDevices.authoredByDid, memberDid)))
+  // Refresh the running peer_storage endpoint so the just-removed peer
+  // drops out of allowed_peers immediately rather than only on next sync.
+  await invoke('peer_storage_reload_shares').catch((err) => {
+    log.warn(`peer_storage_reload_shares after device cleanup failed: ${err}`)
+  })
 
   // 1. Find the member's leaf index in the MLS group
   const memberIndex = await invoke<number | null>('mls_find_member_index', { spaceId, memberDid })
