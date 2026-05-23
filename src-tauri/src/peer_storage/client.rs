@@ -7,6 +7,7 @@ use iroh::{EndpointId, RelayUrl};
 use crate::peer_storage::endpoint::PeerEndpoint;
 use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::protocol::{FileEntry, Request, Response};
+use crate::peer_storage::streaming;
 
 /// Outcome of a streaming peer read into a local file.
 ///
@@ -91,9 +92,6 @@ impl PeerEndpoint {
         pause_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
         ucan_token: &str,
     ) -> Result<StreamReadResult, PeerStorageError> {
-        use sha2::{Digest, Sha256};
-        use tokio::io::AsyncWriteExt;
-
         let is_full_file = range.is_none();
         let req = Request::Read {
             path: path.to_string(),
@@ -104,137 +102,55 @@ impl PeerEndpoint {
 
         match response {
             Response::ReadHeader { size } => {
-                // Pipeline: QUIC reader (this task) → bounded channel →
-                // disk-writer + hasher (spawned task). The previous serial
-                // loop alternated `recv.read().await` and `file.write_all().await`,
-                // which paired disk and net latency in series and choked
-                // per-stream throughput on a fast LAN. Decoupling them lets
-                // QUIC keep pulling ACKs while the disk is still flushing
-                // the previous chunk.
-                const CHUNK: usize = 1024 * 1024;
-                const CHANNEL_DEPTH: usize = 8;
-                let (tx, mut rx) =
-                    tokio::sync::mpsc::channel::<Vec<u8>>(CHANNEL_DEPTH);
-
-                let writer_path = output_path.to_path_buf();
-                let writer_task = tokio::spawn(async move {
-                    let mut file = match tokio::fs::File::create(&writer_path).await {
-                        Ok(f) => f,
-                        Err(e) => {
-                            return Err(PeerStorageError::ProtocolError {
-                                reason: format!("Failed to create output file: {e}"),
-                            });
-                        }
-                    };
-                    let mut hasher = is_full_file.then(Sha256::new);
-                    let mut bytes_written: u64 = 0;
-                    while let Some(chunk) = rx.recv().await {
-                        if let Err(e) = file.write_all(&chunk).await {
-                            return Err(PeerStorageError::ProtocolError {
-                                reason: format!("Failed to write to file: {e}"),
-                            });
-                        }
-                        if let Some(h) = hasher.as_mut() {
-                            h.update(&chunk);
-                        }
-                        bytes_written += chunk.len() as u64;
-                    }
-                    if let Err(e) = file.flush().await {
-                        return Err(PeerStorageError::ProtocolError {
-                            reason: format!("Failed to flush file: {e}"),
-                        });
-                    }
-                    Ok((bytes_written, hasher.map(|h| hex::encode(h.finalize()))))
-                });
-
-                let mut bytes_received: u64 = 0;
-                let mut buf = vec![0u8; CHUNK];
-                let mut io_err: Option<PeerStorageError> = None;
-
-                while bytes_received < size {
-                    // Check cancellation before each chunk
-                    if let Some(ref token) = cancel_token {
-                        if token.is_cancelled() {
-                            io_err = Some(PeerStorageError::ProtocolError {
-                                reason: "Transfer cancelled".to_string(),
-                            });
-                            break;
-                        }
-                    }
-
-                    // Wait while paused
-                    if let Some(ref flag) = pause_flag {
-                        while flag.load(std::sync::atomic::Ordering::Relaxed) {
-                            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                            if let Some(ref token) = cancel_token {
-                                if token.is_cancelled() {
-                                    break;
-                                }
-                            }
-                        }
-                        if let Some(ref token) = cancel_token {
-                            if token.is_cancelled() {
-                                io_err = Some(PeerStorageError::ProtocolError {
-                                    reason: "Transfer cancelled".to_string(),
-                                });
-                                break;
-                            }
-                        }
-                    }
-
-                    match recv.read(&mut buf).await {
-                        Ok(Some(n)) => {
-                            let chunk = buf[..n].to_vec();
-                            if tx.send(chunk).await.is_err() {
-                                // Writer task aborted — surface its error below.
-                                break;
-                            }
-                            bytes_received += n as u64;
-                            if let Some(ref cb) = on_progress {
-                                cb(bytes_received, size);
-                            }
-                        }
-                        Ok(None) => {
-                            io_err = Some(PeerStorageError::ConnectionFailed {
-                                reason: format!(
-                                    "Stream ended early: expected {size} bytes, received {bytes_received}"
-                                ),
-                            });
-                            break;
-                        }
-                        Err(e) => {
-                            io_err = Some(PeerStorageError::ConnectionFailed {
-                                reason: format!("Failed to read from stream: {e}"),
-                            });
-                            break;
-                        }
-                    }
-                }
-
-                drop(tx);
-                let writer_result = writer_task.await.map_err(|e| {
+                let file = tokio::fs::File::create(output_path).await.map_err(|e| {
                     PeerStorageError::ProtocolError {
-                        reason: format!("Writer task panicked: {e}"),
+                        reason: format!("Failed to create output file: {e}"),
                     }
                 })?;
 
-                if let Some(err) = io_err {
-                    let _ = tokio::fs::remove_file(output_path).await;
-                    return Err(err);
-                }
+                let options = streaming::RecvOptions {
+                    on_progress,
+                    cancel_token,
+                    pause_flag,
+                    compute_hash: is_full_file,
+                };
 
-                let (bytes_written, hash) = writer_result?;
+                let result = streaming::pipe_recv_to_writer(recv, file, size, options).await;
 
-                if bytes_written != size {
+                let stats = match result {
+                    Ok(s) => s,
+                    Err(streaming::PipelineError::Cancelled) => {
+                        let _ = tokio::fs::remove_file(output_path).await;
+                        return Err(PeerStorageError::ProtocolError {
+                            reason: "Transfer cancelled".to_string(),
+                        });
+                    }
+                    Err(streaming::PipelineError::Io(e)) => {
+                        let _ = tokio::fs::remove_file(output_path).await;
+                        return Err(PeerStorageError::ProtocolError {
+                            reason: format!("Failed to write to file: {e}"),
+                        });
+                    }
+                    Err(streaming::PipelineError::Stream(reason)) => {
+                        let _ = tokio::fs::remove_file(output_path).await;
+                        return Err(PeerStorageError::ConnectionFailed { reason });
+                    }
+                };
+
+                if stats.bytes != size {
                     let _ = tokio::fs::remove_file(output_path).await;
                     return Err(PeerStorageError::ConnectionFailed {
                         reason: format!(
-                            "Incomplete download: expected {size} bytes, received {bytes_written}"
+                            "Incomplete download: expected {size} bytes, received {}",
+                            stats.bytes
                         ),
                     });
                 }
 
-                Ok(StreamReadResult { bytes: size, hash })
+                Ok(StreamReadResult {
+                    bytes: size,
+                    hash: stats.hash,
+                })
             }
             Response::Error { message } => {
                 Err(PeerStorageError::ProtocolError { reason: message })
@@ -552,4 +468,222 @@ impl PeerEndpoint {
             }),
         }
     }
+}
+
+/// Download a file as `parallelism` parallel range reads, each on its own
+/// QUIC stream. Faster than [`PeerEndpoint::read_open_streams_to_file`] for
+/// large files because per-stream throughput stops being the bottleneck —
+/// the cost is one stat round-trip (paid by the caller) plus a final
+/// sequential pass over the on-disk file to compute the SHA-256, since
+/// SHA-256 over `N` parallel byte ranges is not composable.
+///
+/// `size` must be the authoritative file size from the sender (e.g. from
+/// the manifest or a stat call) — the function pre-allocates the output
+/// file to that exact length and writes each range at its own offset.
+pub(crate) async fn read_multipart_to_file(
+    endpoint: Arc<tokio::sync::RwLock<PeerEndpoint>>,
+    remote_id: EndpointId,
+    relay_url: Option<RelayUrl>,
+    path: String,
+    output_path: std::path::PathBuf,
+    size: u64,
+    parallelism: usize,
+    on_progress: Option<Arc<dyn Fn(u64, u64) + Send + Sync>>,
+    cancel_token: Option<tokio_util::sync::CancellationToken>,
+    pause_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
+    ucan_token: String,
+) -> Result<StreamReadResult, PeerStorageError> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    if size == 0 {
+        tokio::fs::File::create(&output_path)
+            .await
+            .map_err(PeerStorageError::Io)?;
+        use sha2::Digest;
+        return Ok(StreamReadResult {
+            bytes: 0,
+            hash: Some(hex::encode(sha2::Sha256::digest([]))),
+        });
+    }
+
+    let n = parallelism
+        .max(1)
+        .min(streaming::MAX_PARALLEL_STREAMS_PER_FILE);
+
+    // Pre-allocate the target file so every spawned task can seek to its own
+    // offset and write its range independently. truncate(true) discards any
+    // stale partial file from a previous failed download.
+    {
+        use tokio::io::AsyncWriteExt;
+        let mut file = tokio::fs::OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(&output_path)
+            .await
+            .map_err(PeerStorageError::Io)?;
+        file.set_len(size).await.map_err(PeerStorageError::Io)?;
+        file.flush().await.map_err(PeerStorageError::Io)?;
+    }
+
+    let total_received = Arc::new(AtomicU64::new(0));
+    let chunk = size.div_ceil(n as u64);
+
+    let mut join_set = tokio::task::JoinSet::new();
+    for i in 0..n {
+        let start = (i as u64) * chunk;
+        if start >= size {
+            break;
+        }
+        let end = (start + chunk).min(size);
+        let part_size = end - start;
+
+        let endpoint = endpoint.clone();
+        let path = path.clone();
+        let output_path = output_path.clone();
+        let ucan_token = ucan_token.clone();
+        let relay_url = relay_url.clone();
+        let cancel_token = cancel_token.clone();
+        let pause_flag = pause_flag.clone();
+        let on_progress = on_progress.clone();
+        let total_received = total_received.clone();
+        let prev_in_stream = Arc::new(AtomicU64::new(0));
+        let total_size = size;
+
+        join_set.spawn(async move {
+            let (mut send, mut recv) = endpoint
+                .read()
+                .await
+                .open_stream(remote_id, relay_url)
+                .await?;
+
+            let req = Request::Read {
+                path,
+                range: Some([start, end]),
+                ucan_token,
+            };
+            let response = PeerEndpoint::send_request(&mut send, &mut recv, &req).await?;
+            let announced = match response {
+                Response::ReadHeader { size } => size,
+                Response::Error { message } => {
+                    return Err(PeerStorageError::ProtocolError { reason: message });
+                }
+                _ => {
+                    return Err(PeerStorageError::ProtocolError {
+                        reason: "Unexpected response in multipart read".to_string(),
+                    });
+                }
+            };
+            if announced != part_size {
+                return Err(PeerStorageError::ProtocolError {
+                    reason: format!(
+                        "multipart range size mismatch: requested {part_size}, peer announced {announced}"
+                    ),
+                });
+            }
+
+            let mut file = tokio::fs::OpenOptions::new()
+                .write(true)
+                .open(&output_path)
+                .await
+                .map_err(PeerStorageError::Io)?;
+            use tokio::io::AsyncSeekExt;
+            file.seek(std::io::SeekFrom::Start(start))
+                .await
+                .map_err(PeerStorageError::Io)?;
+
+            let progress_cb: Option<Box<dyn Fn(u64, u64) + Send>> = on_progress.map(|cb| {
+                let total_received = total_received.clone();
+                let prev_in_stream = prev_in_stream.clone();
+                Box::new(move |done_in_stream: u64, _expected_in_stream: u64| {
+                    let prev = prev_in_stream.swap(done_in_stream, Ordering::Relaxed);
+                    let delta = done_in_stream.saturating_sub(prev);
+                    let new_total =
+                        total_received.fetch_add(delta, Ordering::Relaxed) + delta;
+                    cb(new_total, total_size);
+                }) as Box<dyn Fn(u64, u64) + Send>
+            });
+
+            let options = streaming::RecvOptions {
+                on_progress: progress_cb,
+                cancel_token,
+                pause_flag,
+                compute_hash: false,
+            };
+
+            let stats = streaming::pipe_recv_to_writer(&mut recv, file, part_size, options)
+                .await
+                .map_err(|e| match e {
+                    streaming::PipelineError::Io(e) => PeerStorageError::Io(e),
+                    streaming::PipelineError::Stream(reason) => {
+                        PeerStorageError::ConnectionFailed { reason }
+                    }
+                    streaming::PipelineError::Cancelled => PeerStorageError::ProtocolError {
+                        reason: "Transfer cancelled".to_string(),
+                    },
+                })?;
+            if stats.bytes != part_size {
+                return Err(PeerStorageError::ConnectionFailed {
+                    reason: format!(
+                        "multipart range short: expected {part_size}, received {}",
+                        stats.bytes
+                    ),
+                });
+            }
+            Ok::<(), PeerStorageError>(())
+        });
+    }
+
+    let mut first_err: Option<PeerStorageError> = None;
+    while let Some(res) = join_set.join_next().await {
+        let task_res = res.map_err(|e| PeerStorageError::ProtocolError {
+            reason: format!("multipart join: {e}"),
+        });
+        match task_res.and_then(|inner| inner) {
+            Ok(()) => {}
+            Err(e) => {
+                if first_err.is_none() {
+                    first_err = Some(e);
+                    join_set.abort_all();
+                }
+            }
+        }
+    }
+
+    if let Some(err) = first_err {
+        let _ = tokio::fs::remove_file(&output_path).await;
+        return Err(err);
+    }
+
+    let hash = hash_file_sha256(&output_path).await.map_err(|e| {
+        PeerStorageError::ProtocolError {
+            reason: format!("post-download hash: {e}"),
+        }
+    })?;
+
+    Ok(StreamReadResult {
+        bytes: size,
+        hash: Some(hash),
+    })
+}
+
+/// Sequentially read `path` and return the hex-encoded SHA-256 of its
+/// contents. Used after multi-stream downloads (whose per-range layout
+/// makes inline hashing impossible) to recover the manifest-comparable
+/// hash that single-stream downloads produce for free.
+async fn hash_file_sha256(path: &std::path::Path) -> Result<String, std::io::Error> {
+    use sha2::{Digest, Sha256};
+    use tokio::io::AsyncReadExt;
+
+    let mut file = tokio::fs::File::open(path).await?;
+    let mut hasher = Sha256::new();
+    let mut buf = vec![0u8; streaming::CHUNK_SIZE];
+    loop {
+        let n = file.read(&mut buf).await?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    Ok(hex::encode(hasher.finalize()))
 }

@@ -11,6 +11,7 @@ use iroh::{EndpointId, RelayUrl};
 use crate::peer_storage::endpoint::PeerEndpoint;
 use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::protocol::{self, Request, Response};
+use crate::peer_storage::streaming;
 
 use super::provider::{validate_relative_path, ReadFileResult, SyncProvider, SyncProviderError};
 use super::types::FileState;
@@ -256,6 +257,41 @@ impl SyncProvider for PeerProvider {
     ) -> Result<ReadFileResult, SyncProviderError> {
         validate_relative_path(relative_path)?;
         let full_path = self.full_remote_path(relative_path);
+
+        // Probe size first so we can pick between single-stream and
+        // multi-stream. The stat round-trip costs ~1 RTT — negligible on
+        // LAN, and easily repaid by the parallel-stream throughput gain on
+        // anything that crosses [`streaming::MULTI_STREAM_THRESHOLD`].
+        let stat = self
+            .endpoint
+            .read()
+            .await
+            .remote_stat(self.remote_id, self.relay_url.clone(), &full_path, &self.ucan_token)
+            .await
+            .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
+
+        if !stat.is_dir && stat.size >= streaming::MULTI_STREAM_THRESHOLD {
+            let result = crate::peer_storage::client::read_multipart_to_file(
+                self.endpoint.clone(),
+                self.remote_id,
+                self.relay_url.clone(),
+                full_path,
+                output_path.to_path_buf(),
+                stat.size,
+                streaming::MAX_PARALLEL_STREAMS_PER_FILE,
+                Some(on_progress),
+                None,
+                None,
+                self.ucan_token.clone(),
+            )
+            .await
+            .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
+            return Ok(ReadFileResult {
+                bytes: result.bytes,
+                hash: result.hash,
+            });
+        }
+
         let (mut send, mut recv) = self.open_stream().await.map_err(|e| {
             SyncProviderError::ConnectionFailed { reason: e.to_string() }
         })?;
@@ -300,52 +336,21 @@ impl SyncProvider for PeerProvider {
         PeerEndpoint::send_request_header(&mut send, &req)
             .await
             .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
-        // Pipeline disk reads off the network-write hot path. The previous
-        // serial loop paired disk + net latency in series; on fast LAN this
-        // capped per-stream throughput around `chunk / (disk_lat + net_lat)`.
-        // 1 MB chunks × 8 in-flight = ~8 MB peak per upload, fine for our
-        // TRANSFER_CONCURRENCY budget.
-        use tokio::io::AsyncReadExt;
-        const CHUNK: usize = 1024 * 1024;
-        const CHANNEL_DEPTH: usize = 8;
-        let mut file =
+
+        let file =
             tokio::fs::File::open(source_path).await.map_err(SyncProviderError::Io)?;
-        let (tx, mut rx) =
-            tokio::sync::mpsc::channel::<Result<Vec<u8>, std::io::Error>>(CHANNEL_DEPTH);
 
-        let read_task = tokio::spawn(async move {
-            loop {
-                let mut buf = vec![0u8; CHUNK];
-                match file.read(&mut buf).await {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        buf.truncate(n);
-                        if tx.send(Ok(buf)).await.is_err() {
-                            return;
-                        }
-                    }
-                    Err(e) => {
-                        let _ = tx.send(Err(e)).await;
-                        return;
-                    }
+        streaming::pipe_reader_to_send(&mut send, file, size)
+            .await
+            .map_err(|e| match e {
+                streaming::PipelineError::Io(e) => SyncProviderError::Io(e),
+                streaming::PipelineError::Stream(reason) => {
+                    SyncProviderError::ConnectionFailed { reason }
                 }
-            }
-        });
-
-        while let Some(item) = rx.recv().await {
-            match item {
-                Ok(chunk) => {
-                    send.write_all(&chunk).await.map_err(|e| {
-                        SyncProviderError::ConnectionFailed { reason: e.to_string() }
-                    })?;
-                }
-                Err(e) => {
-                    let _ = read_task.await;
-                    return Err(SyncProviderError::Io(e));
-                }
-            }
-        }
-        let _ = read_task.await;
+                streaming::PipelineError::Cancelled => SyncProviderError::ConnectionFailed {
+                    reason: "Transfer cancelled".to_string(),
+                },
+            })?;
 
         send.finish()
             .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
