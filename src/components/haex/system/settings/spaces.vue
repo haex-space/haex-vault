@@ -69,7 +69,7 @@
         >
           <SpaceListItem
             v-for="entry in spaceListEntries"
-            :key="entry.space.id"
+            :key="entry.kind === 'pending' ? `pending:${entry.invite.id}` : `active:${entry.space.id}`"
             :space="entry.space"
             :pending="entry.kind === 'pending'"
             :invite="entry.kind === 'pending' ? entry.invite : undefined"
@@ -286,10 +286,21 @@ const onDeclineInviteAsync = async (invite?: SelectHaexPendingInvites) => {
 
 const spaceListEntries = computed((): SpaceListEntry[] => {
   const entries: SpaceListEntry[] = []
+  // A space is either pending OR active for this user, never both. After
+  // accept, `pendingInvites` is refreshed at the end of acceptInviteAsync,
+  // but `activeSpaces` updates earlier in the same chain — and any racy
+  // path (re-fired `push-invite-received` event, mounted-but-not-yet-loaded
+  // component) can leave a stale pending entry around. Without this guard,
+  // the v-for emits two SpaceListItems sharing the same `space.id`, the
+  // data-testid collides (`space-card-<id>` appears twice), and tests that
+  // use `document.querySelector` get the pending one first — see
+  // haex-e2e-tests/tests/spaces/invitations/quic-invite-flow.spec.ts:1498.
+  const activeSpaceIds = new Set(activeSpaces.value.map((s) => s.id))
 
   // Pending invites first — construct space from invite metadata
   // (no dummy entry in haex_spaces to avoid CRDT tombstone issues)
   for (const invite of pendingInvites.value) {
+    if (activeSpaceIds.has(invite.spaceId)) continue
     const space: SpaceWithType = {
       id: invite.spaceId,
       name: invite.spaceName || invite.spaceId.slice(0, 8),
