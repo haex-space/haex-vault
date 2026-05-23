@@ -4,13 +4,14 @@
 //! Uses iroh for NAT traversal and QUIC transport with E2E encryption.
 
 mod android;
-mod client;
+pub(crate) mod client;
 pub mod commands;
 pub mod endpoint;
 pub mod error;
 mod handlers;
 mod helpers;
 pub mod protocol;
+pub(crate) mod streaming;
 #[cfg(test)]
 mod tests;
 
