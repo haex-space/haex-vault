@@ -4,7 +4,9 @@ name: Release Please
 #   1. No release-worthy commits since last tag → no-op.
 #   2. Release-worthy commits exist → open/update a "Release vX.Y.Z" PR on
 #      main with version bumps (package.json, tauri.conf.json,
-#      src-tauri/Cargo.toml, src-tauri/Cargo.lock) and CHANGELOG.md.
+#      src-tauri/Cargo.toml) and CHANGELOG.md. Cargo.lock is not touched
+#      by release-please — the sync-cargo-lock job below patches it on
+#      the release PR branch so `cargo --locked` stays consistent.
 #   3. The release PR just got merged → tag the merge commit, build all
 #      platforms, and publish artifacts to the GitHub release.
 
