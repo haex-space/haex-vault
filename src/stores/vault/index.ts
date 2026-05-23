@@ -402,21 +402,41 @@ export const useVaultStore = defineStore('vaultStore', () => {
   const initVaultAsync = async () => {
     if (!currentVaultId.value) return
 
-    // Initialize device identity key
-    await useDeviceStore().initDeviceIdAsync()
-
-    // Set device ID for console interceptor logging
-    const { $setConsoleLoggerDeviceId } = useNuxtApp()
-    if ($setConsoleLoggerDeviceId && useDeviceStore().deviceId) {
-      $setConsoleLoggerDeviceId(useDeviceStore().deviceId!)
-    }
-
     // Initialize MLS tables (must happen before any space creation)
     await invoke('mls_init_tables')
 
-    // Ensure at least one identity exists (needed for UCAN signing and MLS)
+    // Ensure at least one own identity exists (needed for UCAN signing, MLS,
+    // and to populate haex_devices.owner_did when registering a fresh device
+    // row below).
     const identityStore = useIdentityStore()
     await identityStore.ensureDefaultIdentityAsync()
+
+    // Resolve the device identity for this vault.
+    //
+    // - Matched (haex_devices row already exists for this physical device):
+    //   resolveAsync loads the endpoint key silently and we move on.
+    // - Pending with known devices: the vault has at least one haex_devices
+    //   row from another device (replicated via Personal Sync), so this
+    //   could be a reclaim. The Reconciliation dialog picks it up via
+    //   `pendingResolution`.
+    // - Pending with empty known_devices: nothing to reconcile against, so
+    //   we silently register a fresh row. The user can still rename it
+    //   later via Settings → Devices → Current.
+    const deviceStore = useDeviceStore()
+    const status = await deviceStore.resolveAsync()
+    if (status === 'pending' && deviceStore.pendingResolution?.knownDevices.length === 0) {
+      const fallbackName
+        = deviceStore.deviceName
+        || deviceStore.hostname
+        || `Device ${deviceStore.localDeviceId.slice(0, 8)}`
+      await deviceStore.registerNewAsync(fallbackName)
+    }
+
+    // Set device ID for console interceptor logging
+    const { $setConsoleLoggerDeviceId } = useNuxtApp()
+    if ($setConsoleLoggerDeviceId && deviceStore.deviceId) {
+      $setConsoleLoggerDeviceId(deviceStore.deviceId)
+    }
 
     // Ensure vault space exists in haex_spaces (FK target for sync backends)
     // This depends on an owner identity because haex_spaces.ownerIdentityId is mandatory.
@@ -471,7 +491,6 @@ export const useVaultStore = defineStore('vaultStore', () => {
     }
 
     // Auto-enroll this device into MLS groups for shared spaces (non-blocking)
-    const deviceStore = useDeviceStore()
     if (deviceStore.deviceId) {
       const { useDeviceEnrollment } = await import('@/composables/useDeviceEnrollment')
       const { syncEnrollmentsAsync } = useDeviceEnrollment()
@@ -504,31 +523,30 @@ export const useVaultStore = defineStore('vaultStore', () => {
 })
 
 /**
- * Gets or creates a UUID for this vault
- * The UUID is stored in haex_settings and persists across sessions
+ * Gets or creates a UUID for this vault.
+ *
+ * Stored under the `vault_id` setting key — purely local bookkeeping for the
+ * frontend's `openVaults` map and route param. Distinct from any space- or
+ * device-level identifier.
  */
 const getVaultIdAsync = async (
   drizzleDb: SqliteRemoteDatabase<typeof schema>,
 ): Promise<string> => {
   const { haexVaultSettings } = schema
 
-  // Try to get existing vault ID from settings
-  const existingSettings = await drizzleDb
+  const existing = await drizzleDb
     .select()
     .from(haexVaultSettings)
-    .where(eq(haexVaultSettings.key, 'space_id'))
+    .where(eq(haexVaultSettings.key, 'vault_id'))
     .limit(1)
 
-  if (existingSettings[0]?.value) {
-    return existingSettings[0].value
+  if (existing[0]?.value) {
+    return existing[0].value
   }
 
-  // Generate new UUID for this vault
   const vaultId = crypto.randomUUID()
-
-  // Store it in settings
   await drizzleDb.insert(haexVaultSettings).values({
-    key: 'space_id',
+    key: 'vault_id',
     value: vaultId,
   })
 

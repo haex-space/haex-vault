@@ -1,130 +1,406 @@
-//! Device identity management
+//! Device identity management.
 //!
-//! Each device has a unique Ed25519 keypair that serves as its identity.
-//! The public key (EndpointId) is used as a cryptographically strong device
-//! identifier across the system: peer storage, space device registration,
-//! CRDT device tracking, etc.
+//! Identity model (see `.claude/plans/2026-05-22-haex-devices-refactor.md`):
 //!
-//! The keypair is generated on first vault open per device and stored
-//! encrypted in the app data directory (not in the vault DB, which is portable).
+//! - `<app_data>/device_id`            plaintext UUID, identifies the physical device
+//!                                     across vaults. No crypto material.
+//! - `haex_devices.id`                 random UUID per vault row, opaque FK target.
+//!                                     Hides the stable device-id from the sync server.
+//! - `haex_devices.device_id`          mirrors the file UUID inside the encrypted vault.
+//! - `haex_devices.endpoint_id`        iroh ed25519 public key, distinct per
+//!                                     (device × vault) — prevents cross-vault correlation.
+//! - `haex_devices.secret_key`         iroh ed25519 secret key, hex. SQLCipher protects
+//!                                     it at rest; no filesystem key file anymore.
 
 pub mod error;
-pub mod key;
 
+use std::fs;
+use std::path::PathBuf;
+
+use iroh::SecretKey;
+use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 use tauri::{AppHandle, Manager, State};
+use ts_rs::TS;
 
 use crate::AppState;
-use crate::extension::database::executor::SqlExecutor;
+use crate::database::core;
 use error::DeviceError;
 
-/// Read a vault setting by key, or return None if not found.
-fn read_setting(conn: &rusqlite::Connection, key: &str) -> Result<Option<String>, DeviceError> {
-    match conn.query_row(
-        "SELECT value FROM haex_vault_settings WHERE key = ?1",
-        [key],
-        |row| row.get(0),
-    ) {
-        Ok(val) => Ok(Some(val)),
-        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-        Err(e) => Err(DeviceError::Database {
-            reason: format!("Failed to read setting '{key}': {e}"),
-        }),
-    }
-}
+const DEVICE_ID_FILE: &str = "device_id";
 
-/// Initialize the device key after vault open.
-///
-/// Reads `device_key_secret` and `space_id` from vault settings (generating them
-/// if missing for pre-existing vaults), loads or generates the Ed25519 device key
-/// from the app data directory, and replaces the ephemeral key in the PeerEndpoint.
-///
-/// Returns the EndpointId (public key) for this device.
-#[tauri::command]
-pub async fn device_init_key(
-    app_handle: AppHandle,
-    state: State<'_, AppState>,
-) -> Result<String, DeviceError> {
-    // 1. Read or generate device_key_secret and space_id from the vault database
-    let (secret_hex, vault_uuid) = {
-        let db_guard = state.db.0.lock().map_err(|e| DeviceError::Database {
-            reason: format!("DB lock error: {e}"),
-        })?;
-        let conn = db_guard.as_ref().ok_or_else(|| DeviceError::Database {
-            reason: "No database connection — vault not open".to_string(),
-        })?;
-
-        // space_id must always exist (set at creation or synced from remote)
-        let uuid = read_setting(conn, "space_id")?.ok_or_else(|| DeviceError::Database {
-            reason: "space_id not found — vault may not be fully initialized".to_string(),
-        })?;
-
-        // device_key_secret may be missing in pre-existing vaults — generate if needed
-        let secret = match read_setting(conn, "device_key_secret")? {
-            Some(val) => val,
-            None => {
-                let mut secret_bytes = [0u8; 32];
-                rand::fill(&mut secret_bytes);
-                let new_secret = hex::encode(secret_bytes);
-
-                let hlc_service = state.hlc.lock().map_err(|e| DeviceError::Database {
-                    reason: format!("HLC lock error: {e}"),
-                })?;
-
-                let tx = conn.unchecked_transaction().map_err(|e| DeviceError::Database {
-                    reason: format!("Failed to begin transaction: {e}"),
-                })?;
-                SqlExecutor::execute_internal_typed(
-                    &tx,
-                    &hlc_service,
-                    "INSERT INTO haex_vault_settings (id, key, value) VALUES (?, 'device_key_secret', ?)",
-                    rusqlite::params![uuid::Uuid::new_v4().to_string(), new_secret],
-                ).map_err(|e| DeviceError::Database {
-                    reason: format!("Failed to store device_key_secret: {e}"),
-                })?;
-                tx.commit().map_err(|e| DeviceError::Database {
-                    reason: format!("Failed to commit device_key_secret: {e}"),
-                })?;
-
-                eprintln!("[Device] Generated device_key_secret for existing vault");
-                new_secret
-            }
-        };
-
-        (secret, uuid)
-    };
-
-    // 2. Decode the hex secret into 32 bytes
-    let secret_bytes: [u8; 32] = hex::decode(&secret_hex)
-        .map_err(|e| DeviceError::KeyError {
-            reason: format!("Invalid device_key_secret hex: {e}"),
-        })?
-        .try_into()
-        .map_err(|v: Vec<u8>| DeviceError::KeyError {
-            reason: format!("device_key_secret wrong length: expected 32, got {}", v.len()),
-        })?;
-
-    // 3. Resolve app data directory
-    let app_data_dir = app_handle
+/// Resolve the path to `<app_data>/device_id`.
+fn device_id_file_path(app_handle: &AppHandle) -> Result<PathBuf, DeviceError> {
+    let dir = app_handle
         .path()
         .app_data_dir()
         .map_err(|e| DeviceError::KeyError {
             reason: format!("Cannot resolve app data directory: {e}"),
         })?;
+    Ok(dir.join(DEVICE_ID_FILE))
+}
 
-    // 4. Load or generate the Ed25519 device key
-    let secret_key = key::load_or_generate(&app_data_dir, &vault_uuid, &secret_bytes)?;
-    let endpoint_id = secret_key.public();
+/// Load `<app_data>/device_id`, or generate and persist a random UUID if missing.
+/// This file is plaintext and contains no crypto material — only a stable
+/// identifier so the user can recognize this physical device across vaults.
+fn load_or_generate_device_id_file(app_handle: &AppHandle) -> Result<String, DeviceError> {
+    let path = device_id_file_path(app_handle)?;
 
-    // 5. Replace the ephemeral key in the PeerEndpoint
-    // Stop first if still running (e.g. unclean vault close)
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    if path.exists() {
+        let raw = fs::read_to_string(&path)?;
+        let trimmed = raw.trim();
+        if !trimmed.is_empty() && uuid::Uuid::parse_str(trimmed).is_ok() {
+            return Ok(trimmed.to_string());
+        }
+        eprintln!(
+            "[Device] device_id file at {} was invalid, regenerating",
+            path.display()
+        );
+    }
+
+    let new_id = uuid::Uuid::new_v4().to_string();
+    fs::write(&path, &new_id)?;
+    Ok(new_id)
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct KnownDevice {
+    pub id: String,
+    pub owner_did: String,
+    /// `None` for foreign device stubs (created by the
+    /// `haex_space_devices_ensure_refs` trigger) — those rows never carry the
+    /// file UUID because we don't own the physical device.
+    pub device_id: Option<String>,
+    pub endpoint_id: String,
+    pub name: String,
+    pub platform: String,
+    pub avatar: Option<String>,
+    pub avatar_options: Option<String>,
+    pub created_at: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceResolution {
+    /// The OS-level device id (= contents of `<app_data>/device_id`).
+    pub device_id: String,
+    /// `Some(id)` when a `haex_devices` row with this `device_id` exists and
+    /// can be reused silently.
+    pub matched_id: Option<String>,
+    /// `Some(endpoint_id)` when matched — convenience for callers that want
+    /// to start the iroh endpoint immediately.
+    pub matched_endpoint_id: Option<String>,
+    /// All `haex_devices` rows in the open vault. Used by the reconciliation
+    /// dialog so the user can either pick a known device row to claim or
+    /// register a fresh row.
+    pub known_devices: Vec<KnownDevice>,
+}
+
+/// Read every OWN device row from `haex_devices` and convert it to
+/// [`KnownDevice`]. Foreign device stubs (created by the
+/// `haex_space_devices_ensure_refs` trigger) are excluded by joining on
+/// `haex_identities.source = 'own'` so the reconciliation dialog only
+/// presents devices the user can actually reclaim.
+/// Goes through `select_with_crdt` so tombstoned rows are filtered out.
+fn list_known_devices(state: &State<'_, AppState>) -> Result<Vec<KnownDevice>, DeviceError> {
+    let rows = core::select_with_crdt(
+        "SELECT d.id, d.owner_did, d.device_id, d.endpoint_id, d.name, d.platform, \
+                d.avatar, d.avatar_options, d.created_at \
+         FROM haex_devices d \
+         JOIN haex_identities i ON i.did = d.owner_did \
+         WHERE i.source = 'own' \
+         ORDER BY d.created_at ASC"
+            .to_string(),
+        vec![],
+        &state.db,
+    )
+    .map_err(|e| DeviceError::Database {
+        reason: format!("select haex_devices: {e}"),
+    })?;
+
+    fn as_string(v: &JsonValue) -> Option<String> {
+        v.as_str().map(|s| s.to_string())
+    }
+
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        out.push(KnownDevice {
+            id: as_string(&row[0]).unwrap_or_default(),
+            owner_did: as_string(&row[1]).unwrap_or_default(),
+            device_id: as_string(&row[2]),
+            endpoint_id: as_string(&row[3]).unwrap_or_default(),
+            name: as_string(&row[4]).unwrap_or_default(),
+            platform: as_string(&row[5]).unwrap_or_default(),
+            avatar: as_string(&row[6]),
+            avatar_options: as_string(&row[7]),
+            created_at: as_string(&row[8]),
+        });
+    }
+    Ok(out)
+}
+
+/// Resolve the open vault against `<app_data>/device_id`.
+///
+/// - Reads (or creates) the device id file.
+/// - Looks for a matching row in `haex_devices` and reports it via
+///   `matched_id` / `matched_endpoint_id` when found.
+/// - Always returns the list of known devices so the frontend can render the
+///   reconciliation dialog when no match exists.
+#[tauri::command]
+pub async fn device_resolve_for_vault(
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<DeviceResolution, DeviceError> {
+    let device_id = load_or_generate_device_id_file(&app_handle)?;
+
+    // Only ever match against rows owned by an own identity. A stub created by
+    // the ensure-refs trigger never has `device_id` set (foreign devices don't
+    // know our file UUID), so in practice this WHERE clause filters them out,
+    // but the JOIN makes the intent explicit and survives schema drift.
+    let matched_rows = core::select_with_crdt(
+        "SELECT d.id, d.endpoint_id FROM haex_devices d \
+         JOIN haex_identities i ON i.did = d.owner_did \
+         WHERE d.device_id = ? AND i.source = 'own' \
+         LIMIT 1"
+            .to_string(),
+        vec![JsonValue::String(device_id.clone())],
+        &state.db,
+    )
+    .map_err(|e| DeviceError::Database {
+        reason: format!("SELECT match for device_id: {e}"),
+    })?;
+
+    let (matched_id, matched_endpoint_id) = matched_rows
+        .into_iter()
+        .next()
+        .map(|row| {
+            (
+                row[0].as_str().map(|s| s.to_string()),
+                row[1].as_str().map(|s| s.to_string()),
+            )
+        })
+        .unwrap_or((None, None));
+
+    let known_devices = list_known_devices(&state)?;
+
+    Ok(DeviceResolution {
+        device_id,
+        matched_id,
+        matched_endpoint_id,
+        known_devices,
+    })
+}
+
+/// Generate a fresh ed25519 keypair for iroh, returning `(secret_hex, public_str)`.
+fn generate_keypair() -> (String, String) {
+    let mut bytes = [0u8; 32];
+    rand::fill(&mut bytes);
+    let secret = SecretKey::from_bytes(&bytes);
+    let public = secret.public();
+    (hex::encode(bytes), public.to_string())
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceCreated {
+    pub id: String,
+    pub device_id: String,
+    pub endpoint_id: String,
+}
+
+/// Register a brand-new `haex_devices` row for the current physical device.
+/// Generates a fresh ed25519 keypair (so a fresh iroh EndpointId, distinct
+/// from any other vault).
+///
+/// `owner_did` must be the DID of an `haex_identities` row with `source='own'`
+/// — the caller (frontend) reads it from the identity store before invoking.
+#[tauri::command(rename_all = "camelCase")]
+pub async fn device_create_for_vault(
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+    owner_did: String,
+    name: String,
+    platform: String,
+    avatar: Option<String>,
+    avatar_options: Option<String>,
+) -> Result<DeviceCreated, DeviceError> {
+    let device_id = load_or_generate_device_id_file(&app_handle)?;
+    let (secret_hex, endpoint_id) = generate_keypair();
+    let row_id = uuid::Uuid::new_v4().to_string();
+
+    let hlc = state.hlc.lock().map_err(|_| DeviceError::Database {
+        reason: "HLC lock poisoned".to_string(),
+    })?;
+
+    core::execute_with_crdt(
+        "INSERT INTO haex_devices \
+         (id, owner_did, device_id, endpoint_id, secret_key, name, platform, avatar, avatar_options) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            .to_string(),
+        vec![
+            JsonValue::String(row_id.clone()),
+            JsonValue::String(owner_did),
+            JsonValue::String(device_id.clone()),
+            JsonValue::String(endpoint_id.clone()),
+            JsonValue::String(secret_hex),
+            JsonValue::String(name),
+            JsonValue::String(platform),
+            avatar.map_or(JsonValue::Null, JsonValue::String),
+            avatar_options.map_or(JsonValue::Null, JsonValue::String),
+        ],
+        &state.db,
+        &hlc,
+    )
+    .map_err(|e| DeviceError::Database {
+        reason: format!("INSERT haex_devices: {e}"),
+    })?;
+
+    Ok(DeviceCreated {
+        id: row_id,
+        device_id,
+        endpoint_id,
+    })
+}
+
+/// Reclaim an existing `haex_devices` row for the current physical device.
+/// Used when the user picks "this is my old device" in the reconciliation
+/// dialog: we generate a fresh keypair (because we cannot recover the lost
+/// one) and rewrite the existing row.
+///
+/// `owner_did` is rewritten in case a foreign-stub row is being reclaimed
+/// as own — this is a defensive overwrite, in practice the UI only offers
+/// reclaim on rows that were previously owned by the user.
+///
+/// The caller is expected to have warned the user when the previous
+/// `endpoint_id` is still online — this command does not perform the check.
+#[tauri::command(rename_all = "camelCase")]
+pub async fn device_reclaim_existing(
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+    existing_id: String,
+    owner_did: String,
+    name: Option<String>,
+    platform: Option<String>,
+    avatar: Option<String>,
+    avatar_options: Option<String>,
+) -> Result<DeviceCreated, DeviceError> {
+    let device_id = load_or_generate_device_id_file(&app_handle)?;
+    let (secret_hex, endpoint_id) = generate_keypair();
+
+    // Verify the target row exists before issuing the UPDATE; without this
+    // a typo or stale id would silently no-op and the frontend would treat
+    // it as a successful reclaim, deferring the failure to the next
+    // endpoint_load_for_device call.
+    let existing = core::select_with_crdt(
+        "SELECT id FROM haex_devices WHERE id = ? LIMIT 1".to_string(),
+        vec![JsonValue::String(existing_id.clone())],
+        &state.db,
+    )
+    .map_err(|e| DeviceError::Database {
+        reason: format!("SELECT haex_devices for reclaim: {e}"),
+    })?;
+    if existing.is_empty() {
+        return Err(DeviceError::Database {
+            reason: format!("no haex_devices row with id {existing_id}"),
+        });
+    }
+
+    let hlc = state.hlc.lock().map_err(|_| DeviceError::Database {
+        reason: "HLC lock poisoned".to_string(),
+    })?;
+
+    // COALESCE keeps the existing column value whenever the caller passes
+    // `None`. Avatars can be cleared explicitly with an empty string if needed.
+    core::execute_with_crdt(
+        "UPDATE haex_devices SET \
+           owner_did = ?, \
+           device_id = ?, \
+           endpoint_id = ?, \
+           secret_key = ?, \
+           name = COALESCE(?, name), \
+           platform = COALESCE(?, platform), \
+           avatar = COALESCE(?, avatar), \
+           avatar_options = COALESCE(?, avatar_options) \
+         WHERE id = ?"
+            .to_string(),
+        vec![
+            JsonValue::String(owner_did),
+            JsonValue::String(device_id.clone()),
+            JsonValue::String(endpoint_id.clone()),
+            JsonValue::String(secret_hex),
+            name.map_or(JsonValue::Null, JsonValue::String),
+            platform.map_or(JsonValue::Null, JsonValue::String),
+            avatar.map_or(JsonValue::Null, JsonValue::String),
+            avatar_options.map_or(JsonValue::Null, JsonValue::String),
+            JsonValue::String(existing_id.clone()),
+        ],
+        &state.db,
+        &hlc,
+    )
+    .map_err(|e| DeviceError::Database {
+        reason: format!("UPDATE haex_devices: {e}"),
+    })?;
+
+    Ok(DeviceCreated {
+        id: existing_id,
+        device_id,
+        endpoint_id,
+    })
+}
+
+/// Load the ed25519 secret key of the given `haex_devices` row into the
+/// process-wide [`PeerEndpoint`]. Must be called before `peer_storage_start`.
+#[tauri::command(rename_all = "camelCase")]
+pub async fn endpoint_load_for_device(
+    state: State<'_, AppState>,
+    device_row_id: String,
+) -> Result<String, DeviceError> {
+    let secret_rows = core::select_with_crdt(
+        "SELECT secret_key FROM haex_devices WHERE id = ? LIMIT 1".to_string(),
+        vec![JsonValue::String(device_row_id.clone())],
+        &state.db,
+    )
+    .map_err(|e| DeviceError::Database {
+        reason: format!("SELECT secret_key: {e}"),
+    })?;
+    let secret_hex = secret_rows
+        .into_iter()
+        .next()
+        .and_then(|row| row.into_iter().next())
+        .and_then(|v| v.as_str().map(|s| s.to_string()))
+        .ok_or_else(|| DeviceError::Database {
+            reason: format!("no haex_devices row with id {device_row_id}"),
+        })?;
+
+    let secret_bytes: [u8; 32] = hex::decode(&secret_hex)
+        .map_err(|e| DeviceError::KeyError {
+            reason: format!("Invalid secret_key hex: {e}"),
+        })?
+        .try_into()
+        .map_err(|v: Vec<u8>| DeviceError::KeyError {
+            reason: format!("secret_key wrong length: expected 32, got {}", v.len()),
+        })?;
+    let secret_key = SecretKey::from_bytes(&secret_bytes);
+    let endpoint_id = secret_key.public().to_string();
+
     {
         let mut endpoint = state.peer_storage.write().await;
         if endpoint.is_running() {
-            let _ = endpoint.stop().await;
+            endpoint.stop().await.map_err(|e| DeviceError::KeyError {
+                reason: format!("failed to stop existing endpoint: {e}"),
+            })?;
         }
         endpoint.replace_key(secret_key);
     }
 
-    eprintln!("[Device] Key initialized, EndpointId: {endpoint_id}");
-    Ok(endpoint_id.to_string())
+    eprintln!("[Device] Endpoint key loaded for device row {device_row_id}, EndpointId: {endpoint_id}");
+    Ok(endpoint_id)
 }

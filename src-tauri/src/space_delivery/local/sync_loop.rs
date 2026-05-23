@@ -923,7 +923,7 @@ fn filter_foreign_membership_rows(
 
     let owned_device_ids: HashSet<String> = query_owned_row_ids(
         db,
-        "SELECT id FROM haex_space_devices WHERE space_id = ?1 AND device_endpoint_id = ?2",
+        "SELECT id FROM haex_space_devices WHERE space_id = ?1 AND endpoint_id = ?2",
         space_id,
         our_endpoint_id,
     );

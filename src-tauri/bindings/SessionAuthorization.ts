@@ -9,6 +9,14 @@ export type SessionAuthorization = {
  */
 clientId: string, 
 /**
+ * Human-readable client name (e.g. "haex-pass Browser Extension")
+ */
+clientName: string, 
+/**
+ * Client's public key (base64)
+ */
+publicKey: string, 
+/**
  * Extension ID this client can access
  */
 extensionId: string, };

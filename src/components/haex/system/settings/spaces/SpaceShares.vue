@@ -253,27 +253,27 @@ const spaceShares = computed<SelectHaexPeerShares[]>(() =>
 )
 
 const ownShares = computed<SelectHaexPeerShares[]>(() =>
-  spaceShares.value.filter((s) => s.deviceEndpointId === peerStore.nodeId),
+  spaceShares.value.filter((s) => s.endpointId === peerStore.nodeId),
 )
 
 const otherDeviceShares = computed<[string, SelectHaexPeerShares[]][]>(() => {
   const shares = spaceShares.value.filter(
-    (s) => s.deviceEndpointId !== peerStore.nodeId,
+    (s) => s.endpointId !== peerStore.nodeId,
   )
 
   const grouped = new Map<string, SelectHaexPeerShares[]>()
   for (const share of shares) {
-    const existing = grouped.get(share.deviceEndpointId) || []
+    const existing = grouped.get(share.endpointId) || []
     existing.push(share)
-    grouped.set(share.deviceEndpointId, existing)
+    grouped.set(share.endpointId, existing)
   }
   return [...grouped.entries()]
 })
 
-const getDeviceName = (deviceEndpointId: string): string | undefined => {
+const getDeviceName = (endpointId: string): string | undefined => {
   return peerStore.spaceDevices.find(
-    (d) => d.deviceEndpointId === deviceEndpointId,
-  )?.deviceName
+    (d) => d.endpointId === endpointId && d.spaceId === props.spaceId,
+  )?.name
 }
 
 // Share icon & path helpers — local to this component; the add-share flow
@@ -306,7 +306,7 @@ const formatPath = (path: string): string => {
 // user needs space/admin or space/write, or must share the same identity as
 // the share's device.
 const canDeleteShare = (share: SelectHaexPeerShares): boolean => {
-  if (share.deviceEndpointId === peerStore.nodeId) return true
+  if (share.endpointId === peerStore.nodeId) return true
 
   if (
     props.capabilities.includes('space/admin') ||
@@ -317,12 +317,12 @@ const canDeleteShare = (share: SelectHaexPeerShares): boolean => {
 
   const shareDevice = peerStore.spaceDevices.find(
     (d) =>
-      d.deviceEndpointId === share.deviceEndpointId &&
+      d.endpointId === share.endpointId &&
       d.spaceId === props.spaceId,
   )
   const ownDevice = peerStore.spaceDevices.find(
     (d) =>
-      d.deviceEndpointId === peerStore.nodeId && d.spaceId === props.spaceId,
+      d.endpointId === peerStore.nodeId && d.spaceId === props.spaceId,
   )
   if (
     shareDevice?.identityId &&
@@ -340,12 +340,12 @@ const canDeleteShare = (share: SelectHaexPeerShares): boolean => {
 const rulesForShare = (share: SelectHaexPeerShares): SelectHaexSyncRules[] => {
   return syncStore.syncRules.filter((rule) => {
     const cfg = rule.sourceConfig as Record<string, unknown>
-    if (share.deviceEndpointId === peerStore.nodeId) {
+    if (share.endpointId === peerStore.nodeId) {
       return rule.sourceType === 'local' && cfg?.path === share.localPath
     }
     return (
       rule.sourceType === 'peer' &&
-      cfg?.endpointId === share.deviceEndpointId &&
+      cfg?.endpointId === share.endpointId &&
       typeof cfg?.path === 'string' &&
       (cfg.path as string).startsWith(share.name)
     )
@@ -357,19 +357,19 @@ const showSyncDialog = ref(false)
 const syncPrefill = ref<{
   sourceType: 'local' | 'peer'
   spaceId: string
-  deviceEndpointId: string
+  endpointId: string
   shareName: string
   localPath?: string
 } | null>(null)
 const syncEditRule = ref<SelectHaexSyncRules | null>(null)
 
 const onCreateSyncRule = (share: SelectHaexPeerShares) => {
-  const isOwn = share.deviceEndpointId === peerStore.nodeId
+  const isOwn = share.endpointId === peerStore.nodeId
   syncEditRule.value = null
   syncPrefill.value = {
     sourceType: isOwn ? 'local' : 'peer',
     spaceId: props.spaceId,
-    deviceEndpointId: share.deviceEndpointId,
+    endpointId: share.endpointId,
     shareName: share.name,
     localPath: isOwn ? share.localPath : undefined,
   }
@@ -447,17 +447,17 @@ const onRemoveShareAsync = async (shareId: string) => {
 }
 
 const onBrowseShare = (share: SelectHaexPeerShares) => {
-  const isOwnDevice = share.deviceEndpointId === peerStore.nodeId
+  const isOwnDevice = share.endpointId === peerStore.nodeId
   const deviceName = isOwnDevice
     ? t('thisDevice')
-    : getDeviceName(share.deviceEndpointId) ||
-      share.deviceEndpointId.slice(0, 12) + '…'
+    : getDeviceName(share.endpointId) ||
+      share.endpointId.slice(0, 12) + '…'
 
   windowManager.openWindowAsync({
     type: 'system',
     sourceId: 'files',
     params: {
-      endpointId: share.deviceEndpointId,
+      endpointId: share.endpointId,
       peerName: deviceName,
       shareName: share.name,
       ...(isOwnDevice && { localPath: share.localPath }),

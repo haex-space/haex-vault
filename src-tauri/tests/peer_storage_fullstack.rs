@@ -15,8 +15,16 @@ use iroh::Endpoint;
 use haex_vault_lib::peer_storage::endpoint::PeerEndpoint;
 use haex_vault_lib::peer_storage::protocol::{self, Request, Response, ALPN};
 
-/// Test UCAN token generator — creates a valid signed token for a given space.
+/// Test UCAN token generator — creates a valid signed token for one or more spaces.
 fn test_ucan_token(space_id: &str) -> String {
+    test_ucan_token_for(&[space_id])
+}
+
+/// Multi-space variant of [`test_ucan_token`]. The peer-storage handler now
+/// gates each request on the intersection of the UCAN's claimed spaces and
+/// the peer's allowed_spaces, so tests that operate on multiple spaces in
+/// a single connection must present a UCAN that covers them all.
+fn test_ucan_token_for(space_ids: &[&str]) -> String {
     use base64::Engine;
     use ed25519_dalek::{Signer, SigningKey};
 
@@ -43,12 +51,16 @@ fn test_ucan_token(space_id: &str) -> String {
         .unwrap()
         .as_secs();
 
+    let cap: serde_json::Map<String, serde_json::Value> = space_ids
+        .iter()
+        .map(|s| (format!("space:{}", s), serde_json::Value::String("space/admin".into())))
+        .collect();
     let header = serde_json::json!({"alg": "EdDSA", "typ": "JWT"});
     let payload = serde_json::json!({
         "ucv": "1.0",
         "iss": did,
         "aud": did,
-        "cap": { format!("space:{}", space_id): "space/admin" },
+        "cap": cap,
         "exp": now + 86400,
         "iat": now,
         "prf": [],
@@ -581,8 +593,10 @@ async fn cross_space_isolation() {
     let client_ep = client.endpoint_ref().unwrap().clone();
     let server_addr = server.endpoint_ref().unwrap().addr();
 
-    // List root — should only show Public
-    let resp = send_request(&client_ep, server_addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
+    // List root — should only show Public. UCAN claims space-public (the
+    // space the peer is registered in); the new per-UCAN-space gate now
+    // requires this to overlap with allowed_spaces.
+    let resp = send_request(&client_ep, server_addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-public") }).await.unwrap();
     match resp {
         Response::List { entries } => {
             let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
@@ -592,8 +606,9 @@ async fn cross_space_isolation() {
         other => panic!("Expected List, got: {:?}", other),
     }
 
-    // Try to access Private directly — should fail
-    let resp = send_request(&client_ep, server_addr, &Request::List { path: "/Private".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
+    // Try to access Private directly with the space-public UCAN — should
+    // fail at the UCAN capability check (UCAN has no rights for space-private).
+    let resp = send_request(&client_ep, server_addr, &Request::List { path: "/Private".to_string(), ucan_token: test_ucan_token("space-public") }).await.unwrap();
     match resp {
         Response::Error { .. } => { /* expected */ }
         other => panic!("Accessing Private share should fail, got: {:?}", other),
@@ -632,8 +647,9 @@ async fn multiple_shares_in_same_space() {
     let client_ep = client.endpoint_ref().unwrap().clone();
     let server_addr = server.endpoint_ref().unwrap().addr();
 
-    // List root — should show both shares
-    let resp = send_request(&client_ep, server_addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
+    // List root — should show both shares. UCAN claims shared-space (the
+    // peer's only authorized space).
+    let resp = send_request(&client_ep, server_addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("shared-space") }).await.unwrap();
     match resp {
         Response::List { entries } => {
             assert_eq!(entries.len(), 2);
@@ -1386,13 +1402,15 @@ async fn three_peers_three_spaces_complete_isolation() {
     let eb = pb.endpoint_ref().unwrap().clone();
     let ec = pc.endpoint_ref().unwrap().clone();
 
-    // Each sees only their share
+    // Each sees only their share. UCAN claims the peer's authorized space
+    // — the per-UCAN-space gate rejects any UCAN that doesn't intersect
+    // with allowed_spaces.
     for (label, ep, expected, file, content, space) in [
         ("Alice", &ea, "Alice", "a.txt", b"alice".as_slice(), "sp-a"),
         ("Bob", &eb, "Bob", "b.txt", b"bob".as_slice(), "sp-b"),
         ("Charlie", &ec, "Charlie", "c.txt", b"charlie".as_slice(), "sp-c"),
     ] {
-        let resp = send_request(ep, addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
+        let resp = send_request(ep, addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token(space) }).await.unwrap();
         match &resp {
             Response::List { entries } => {
                 assert_eq!(entries.len(), 1, "{label} should see exactly 1 share");
@@ -1450,7 +1468,7 @@ async fn dynamic_space_grant_upgrade_and_downgrade() {
     allowed.insert(user.endpoint_id().to_string(), basic_only);
     server.set_allowed_peers(allowed).await;
 
-    let resp = send_request(&ep, addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
+    let resp = send_request(&ep, addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("tier-basic") }).await.unwrap();
     match &resp {
         Response::List { entries } => assert_eq!(entries.len(), 1, "Phase 1: only basic"),
         other => panic!("Phase 1: {:?}", other),
@@ -1465,7 +1483,21 @@ async fn dynamic_space_grant_upgrade_and_downgrade() {
     server.set_allowed_peers(upgraded).await;
     sleep(Duration::from_millis(50)).await;
 
-    let resp = send_request(&ep, addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
+    let resp = send_request(
+        &ep,
+        addr.clone(),
+        &Request::List {
+            path: "/".to_string(),
+            // Phase 2 presents a UCAN covering BOTH tiers — the new
+            // per-UCAN-space gate restricts the root listing to the
+            // intersection of allowed_spaces and the UCAN's claimed
+            // spaces, so a single-tier UCAN here would only return the
+            // matching share.
+            ucan_token: test_ucan_token_for(&["tier-basic", "tier-premium"]),
+        },
+    )
+    .await
+    .unwrap();
     match &resp {
         Response::List { entries } => assert_eq!(entries.len(), 2, "Phase 2: basic + premium"),
         other => panic!("Phase 2: {:?}", other),
@@ -1481,7 +1513,7 @@ async fn dynamic_space_grant_upgrade_and_downgrade() {
     server.set_allowed_peers(downgraded).await;
     sleep(Duration::from_millis(50)).await;
 
-    let resp = send_request(&ep, addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
+    let resp = send_request(&ep, addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("tier-basic") }).await.unwrap();
     match &resp {
         Response::List { entries } => {
             assert_eq!(entries.len(), 1, "Phase 3: back to basic only");

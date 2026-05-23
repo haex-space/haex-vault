@@ -4,7 +4,7 @@
 //! `haex_mls_sync_keys`).
 //!
 //! Without this gate any write member could overwrite a foreign-row's
-//! `identity_id` or `device_endpoint_id` and impersonate another member.
+//! `identity_id` or `endpoint_id` and impersonate another member.
 //! The check resolves the row's *existing* owner from the DB and falls
 //! back to the change-set declaration only for fresh inserts; declared
 //! owner values for existing rows must match exactly (no rewrites).
@@ -26,7 +26,7 @@ use super::util::read_existing_column;
 pub(super) fn owner_column_for(table: &str) -> Option<&'static str> {
     match table {
         "haex_space_members" => Some("identity_id"),
-        "haex_space_devices" => Some("device_endpoint_id"),
+        "haex_space_devices" => Some("endpoint_id"),
         "haex_device_mls_enrollments" => Some("device_id"),
         // Epoch-derived key, identical across all members of an epoch.
         // CRDT-LWW already lets any write member replace the value; the

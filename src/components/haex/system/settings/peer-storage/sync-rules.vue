@@ -727,8 +727,8 @@ const resolveDeviceName = (type: string, config: unknown): string | null => {
     const cfg = config as Record<string, unknown>
     const endpointId = cfg?.endpointId as string
     if (!endpointId) return null
-    const device = peerStorageStore.spaceDevices.find(d => d.deviceEndpointId === endpointId)
-    return device?.deviceName || endpointId.slice(0, 16) + '...'
+    const device = peerStorageStore.spaceDevices.find(d => d.endpointId === endpointId)
+    return device?.name || endpointId.slice(0, 16) + '...'
   }
   return null
 }

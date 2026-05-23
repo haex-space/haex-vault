@@ -16,7 +16,7 @@ use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
 use crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED;
 use crate::extension::database::executor::SqlExecutor;
-use crate::table_names::{COL_CRDT_CONFIGS_KEY, COL_CRDT_CONFIGS_TYPE, COL_CRDT_CONFIGS_VALUE, TABLE_CRDT_CONFIGS, TABLE_VAULT_SETTINGS};
+use crate::table_names::{COL_CRDT_CONFIGS_KEY, COL_CRDT_CONFIGS_TYPE, COL_CRDT_CONFIGS_VALUE, TABLE_CRDT_CONFIGS};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use constants::vault_settings_key;
 use crate::AppState;
@@ -557,8 +557,13 @@ fn ensure_default_identity(state: &State<'_, AppState>) -> Result<(), DatabaseEr
         reason: "Failed to lock HLC service".to_string(),
     })?;
 
+    // source='own' so downstream consumers (e.g. the Phase 2
+    // haex_devices.owner_did join) can distinguish own identities from
+    // contact / space-member rows. Pre-Phase-2 the seed was tagged 'contact'
+    // because code only looked at private_key — the Phase 2 matrix view
+    // also checks source.
     core::execute_with_crdt(
-        "INSERT INTO haex_identities (id, did, name, source, private_key) VALUES (?1, ?2, ?3, 'contact', ?4)".to_string(),
+        "INSERT INTO haex_identities (id, did, name, source, private_key) VALUES (?1, ?2, ?3, 'own', ?4)".to_string(),
         vec![
             JsonValue::String(id),
             JsonValue::String(did.clone()),
@@ -734,81 +739,40 @@ fn create_encrypted_database_inner(
     initialize_session_post_migration(app_handle, state)?;
     println!("[CREATE_DB] ✅ HLC and triggers initialized");
 
-    // Step 5: Set space_id
-    // For remote sync: use the provided space_id
-    // For new vaults: generate a new UUID
-    println!("[CREATE_DB] Step 5: Setting space_id...");
+    // Step 5: Seed the built-in `__core__` extension row so peer/extension
+    // tables that reference it via FK (haex_shared_space_sync, etc.) have a
+    // valid parent on a freshly-created vault. `haex_extensions` is CRDT-synced,
+    // so go through execute_with_crdt to attach HLC + column timestamps.
+    println!("[CREATE_DB] Step 5: Seeding __core__ extension row...");
     {
-        let effective_space_id = match &space_id {
-            Some(id) => {
-                println!("[CREATE_DB] Using provided space_id: {}", id);
-                id.clone()
-            }
-            None => {
-                let new_id = uuid::Uuid::new_v4().to_string();
-                println!("[CREATE_DB] Generating new space_id: {}", new_id);
-                new_id
-            }
-        };
-
         let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
             reason: "Failed to lock HLC service".to_string(),
         })?;
-        let row_id = uuid::Uuid::new_v4().to_string();
-        let insert_sql = format!(
-            "INSERT INTO {} (id, key, value) VALUES (?, '{}', ?)",
-            TABLE_VAULT_SETTINGS,
-            vault_settings_key::SPACE_ID,
-        );
-        with_connection(&state.db, |conn| {
-            let tx = conn.transaction().map_err(DatabaseError::from)?;
-            SqlExecutor::execute_internal_typed(
-                &tx,
-                &hlc_service,
-                &insert_sql,
-                rusqlite::params![row_id, effective_space_id],
-            )?;
-            tx.commit().map_err(DatabaseError::from)?;
-            Ok(())
-        })?;
-        println!("[CREATE_DB] ✅ space_id set successfully with CRDT timestamp");
+        core::execute_with_crdt(
+            "INSERT OR IGNORE INTO haex_extensions \
+             (id, public_key, name, version, signature, enabled, single_instance, display_mode, description) \
+             VALUES ('__core__', '__core__', 'core', '0.0.0', '', 1, 0, 'auto', \
+                     'haex-vault built-in core feature target')"
+                .to_string(),
+            vec![],
+            &state.db,
+            &hlc_service,
+        )?;
     }
+    println!("[CREATE_DB] ✅ __core__ extension seeded");
 
-    // Step 6: Generate device_key_secret (32 random bytes for encrypting the Ed25519 device key file)
-    println!("[CREATE_DB] Step 6: Generating device_key_secret...");
-    {
-        let mut secret_bytes = [0u8; 32];
-        rand::fill(&mut secret_bytes);
-        let secret_hex = hex::encode(secret_bytes);
-
-        let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-            reason: "Failed to lock HLC service".to_string(),
-        })?;
-        let row_id = uuid::Uuid::new_v4().to_string();
-        let insert_sql = format!(
-            "INSERT INTO {} (id, key, value) VALUES (?, '{}', ?)",
-            TABLE_VAULT_SETTINGS,
-            vault_settings_key::DEVICE_KEY_SECRET,
-        );
-        with_connection(&state.db, |conn| {
-            let tx = conn.transaction().map_err(DatabaseError::from)?;
-            SqlExecutor::execute_internal_typed(
-                &tx,
-                &hlc_service,
-                &insert_sql,
-                rusqlite::params![row_id, secret_hex],
-            )?;
-            tx.commit().map_err(DatabaseError::from)?;
-            Ok(())
-        })?;
-        println!("[CREATE_DB] ✅ device_key_secret generated and stored");
-    }
-
-    // Step 7: Seed the default own identity so the vault is immediately usable
+    // Step 6: Seed the default own identity so the vault is immediately usable
     // (haex_spaces.owner_identity_id is NOT NULL; UCAN signing needs this key).
-    println!("[CREATE_DB] Step 7: Seeding default identity...");
+    println!("[CREATE_DB] Step 6: Seeding default identity...");
     ensure_default_identity(state)?;
     println!("[CREATE_DB] ✅ default identity ensured");
+
+    // `space_id` is intentionally NOT seeded anymore. The legacy vault-UUID
+    // setting was conceptually a device identity proxy; the device-identity
+    // refactor moves that into the `haex_devices` table + <app_data>/device_id
+    // file. The `space_id` parameter is kept on the signature for backwards
+    // compatibility with the frontend invoke shape but is unused.
+    let _ = space_id;
 
     println!("[CREATE_DB] ========== create_encrypted_database COMPLETE ==========");
     Ok(vault_path)

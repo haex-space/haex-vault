@@ -165,7 +165,7 @@ async fn create_provider(
             // the sync rule config may be stale if the peer restarted.
             let relay_url = {
                 let sql = "SELECT relay_url FROM haex_space_devices \
-                           WHERE device_endpoint_id = ?1 LIMIT 1"
+                           WHERE endpoint_id = ?1 LIMIT 1"
                     .to_string();
                 let params = vec![serde_json::Value::String(endpoint_id_str.to_string())];
                 crate::database::core::select_with_crdt(sql, params, &state.db)

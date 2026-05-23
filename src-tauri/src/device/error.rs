@@ -1,12 +1,9 @@
-//! Error types for device identity management
+//! Error types for device identity management.
 
 #[derive(Debug, thiserror::Error)]
 pub enum DeviceError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
-
-    #[error("Encryption error: {reason}")]
-    Encryption { reason: String },
 
     #[error("Device key error: {reason}")]
     KeyError { reason: String },

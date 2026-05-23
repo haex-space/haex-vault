@@ -220,17 +220,17 @@ const spaceDevices = computed(() =>
 
 const deviceOptions = computed(() =>
   spaceDevices.value.map((d) => ({
-    label: d.deviceName,
+    label: d.name,
     value: d.id,
     avatar: d.avatar,
-    endpointId: d.deviceEndpointId,
+    endpointId: d.endpointId,
   })),
 )
 
 const selectedSpaceEndpoints = computed(() =>
   spaceDevices.value
     .filter((d) => selectedDeviceIds.value.includes(d.id))
-    .map((d) => d.deviceEndpointId),
+    .map((d) => d.endpointId),
 )
 
 const selectedCapabilities = computed((): string[] => {

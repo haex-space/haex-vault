@@ -53,8 +53,30 @@ export const haexSpaceDevices = sqliteTable(
       .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     identityId: text(tableNames.haex.space_devices.columns.identityId)
       .references(() => haexIdentities.id),
-    deviceEndpointId: text(tableNames.haex.space_devices.columns.deviceEndpointId).notNull(),
-    deviceName: text(tableNames.haex.space_devices.columns.deviceName).notNull(),
+    // References the random per-vault `haex_devices.id` so the stable
+    // file-UUID never leaks across vaults. Foreign members publish their
+    // own `haex_devices.id` here via CRDT sync — those values are not
+    // present locally at insert time, so the `haex_space_devices_ensure_refs`
+    // trigger auto-creates a stub row in `haex_devices` (with `secret_key`
+    // and `device_id` NULL, see Phase 2 schema in `devices.ts`) before the
+    // FK is checked. CASCADE is safe here because:
+    //   - Own device delete → cascade to publish rows is what we want
+    //     (the user "leaves" the spaces they were publishing into).
+    //   - Foreign stub rows are not user-deletable; the only path that
+    //     touches them is `haex_space_devices_propagate_meta` (UPDATE,
+    //     no cascade) or a follow-up CRDT row, both safe.
+    deviceId: text(tableNames.haex.space_devices.columns.deviceId)
+      .notNull()
+      .references(() => haexDevices.id, { onDelete: 'cascade' }),
+    // Snapshot of the device's iroh EndpointId for this space. Other space
+    // members never see `haex_devices` (vault-private), so the endpoint id
+    // must be published here. Per (device × vault) — distinct from the
+    // device's endpoint id in any other vault, so no cross-vault correlation.
+    endpointId: text(tableNames.haex.space_devices.columns.endpointId).notNull(),
+    // Mirrors haex_devices.name — duplicated because haex_devices is
+    // vault-private. Keep both columns in sync via updateDeviceMetaAsync.
+    name: text(tableNames.haex.space_devices.columns.name).notNull(),
+    platform: text(tableNames.haex.space_devices.columns.platform).notNull(), // mirrors haex_devices.platform
     avatar: text(tableNames.haex.space_devices.columns.avatar), // Base64 WebP 128x128
     avatarOptions: text(tableNames.haex.space_devices.columns.avatarOptions), // JSON DiceBear options
     relayUrl: text(tableNames.haex.space_devices.columns.relayUrl),
@@ -63,7 +85,11 @@ export const haexSpaceDevices = sqliteTable(
     createdAt: text(tableNames.haex.space_devices.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
   },
   (table) => [
-    uniqueIndex('haex_space_devices_space_device_unique').on(table.spaceId, table.deviceEndpointId),
+    uniqueIndex('haex_space_devices_space_device_unique').on(table.spaceId, table.deviceId),
+    // Backend ownership/discovery resolves rows by (space, endpoint_id); the
+    // index keeps that lookup off a full scan and prevents duplicate endpoint
+    // registrations inside a single space.
+    uniqueIndex('haex_space_devices_space_endpoint_unique').on(table.spaceId, table.endpointId),
   ],
 )
 export type InsertHaexSpaceDevices = typeof haexSpaceDevices.$inferInsert
@@ -111,7 +137,16 @@ export const haexPeerShares = sqliteTable(
     spaceId: text(tableNames.haex.peer_shares.columns.spaceId)
       .notNull()
       .references(() => haexSpaces.id, { onDelete: 'cascade' }),
-    deviceEndpointId: text(tableNames.haex.peer_shares.columns.deviceEndpointId).notNull(),
+    // References the random per-vault `haex_devices.id` (same opaque
+    // identifier used by haexSpaceDevices.deviceId). The
+    // `haex_peer_shares_ensure_refs` trigger ensures the FK parent row
+    // exists for peer-replicated shares before the FK check runs.
+    deviceId: text(tableNames.haex.peer_shares.columns.deviceId)
+      .notNull()
+      .references(() => haexDevices.id, { onDelete: 'cascade' }),
+    // Snapshot of the hosting device's iroh EndpointId. Needed so other space
+    // members can connect — they never see `haex_devices`.
+    endpointId: text(tableNames.haex.peer_shares.columns.endpointId).notNull(),
     name: text(tableNames.haex.peer_shares.columns.name).notNull(),
     localPath: text(tableNames.haex.peer_shares.columns.localPath).notNull(),
     authoredByDid: text(tableNames.haex.peer_shares.columns.authoredByDid),

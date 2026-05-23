@@ -17,10 +17,10 @@ pub fn get_space_device_candidates(
     db: &DbConnection,
     space_id: &str,
 ) -> Result<Vec<DeviceCandidate>, DeliveryError> {
-    let sql = "SELECT device_endpoint_id, relay_url, leader_priority \
+    let sql = "SELECT endpoint_id, relay_url, leader_priority \
                FROM haex_space_devices \
                WHERE space_id = ?1 \
-               ORDER BY leader_priority ASC, device_endpoint_id ASC"
+               ORDER BY leader_priority ASC, endpoint_id ASC"
         .to_string();
     let params = vec![serde_json::Value::String(space_id.to_string())];
 

@@ -94,7 +94,7 @@ const onUpdateAvatarAsync = async (avatar: string | null) => {
   await currentVault.value.drizzle
     .update(haexSpaceDevices)
     .set({ avatar, ...(avatarOptions !== undefined ? { avatarOptions } : {}) })
-    .where(eq(haexSpaceDevices.deviceEndpointId, deviceId.value))
+    .where(eq(haexSpaceDevices.endpointId, deviceId.value))
 
   currentDeviceAvatar.value = avatar
   if (pendingOptions.value !== undefined) {
@@ -110,14 +110,14 @@ const onUpdateDeviceNameAsync = async () => {
   isSaving.value = true
   try {
     const existing = await currentVault.value.drizzle.query.haexSpaceDevices.findFirst({
-      where: eq(haexSpaceDevices.deviceEndpointId, deviceId.value),
+      where: eq(haexSpaceDevices.endpointId, deviceId.value),
     })
 
     if (existing) {
       await currentVault.value.drizzle
         .update(haexSpaceDevices)
-        .set({ deviceName: name })
-        .where(eq(haexSpaceDevices.deviceEndpointId, deviceId.value))
+        .set({ name })
+        .where(eq(haexSpaceDevices.endpointId, deviceId.value))
     }
 
     add({ description: t('deviceName.success'), color: 'success' })
@@ -133,10 +133,10 @@ const loadDeviceNameAsync = async () => {
   if (!currentVault.value?.drizzle || !deviceId.value) return
 
   const entry = await currentVault.value.drizzle.query.haexSpaceDevices.findFirst({
-    where: eq(haexSpaceDevices.deviceEndpointId, deviceId.value),
+    where: eq(haexSpaceDevices.endpointId, deviceId.value),
   })
 
-  deviceName.value = entry?.deviceName ?? ''
+  deviceName.value = entry?.name ?? ''
   currentDeviceAvatar.value = entry?.avatar ?? null
   if (entry?.avatarOptions) {
     try { currentDeviceAvatarOptions.value = JSON.parse(entry.avatarOptions) } catch { /* ignore */ }

@@ -8,20 +8,20 @@
     <UiListContainer v-if="otherDevices.length > 0">
       <UiListItem
         v-for="device in otherDevices"
-        :key="device.deviceEndpointId"
+        :key="device.endpointId"
       >
         <div class="flex items-center gap-3">
           <div class="relative shrink-0">
             <UiAvatar
               :src="device.avatar"
-              :seed="device.deviceEndpointId"
+              :seed="device.endpointId"
               :badge-src="getIdentityAvatar(device.identityId)"
               :badge-seed="device.identityId || undefined"
               size="sm"
             />
             <span
               class="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border border-default"
-              :class="peerOnlineStatus[device.deviceEndpointId] ? 'bg-success' : 'bg-warning'"
+              :class="peerOnlineStatus[device.endpointId] ? 'bg-success' : 'bg-warning'"
             />
           </div>
           <div class="flex-1 min-w-0">
@@ -48,8 +48,8 @@
               />
             </div>
             <template v-else>
-              <p class="text-sm font-medium truncate">{{ device.deviceName }}</p>
-              <p class="text-xs text-muted truncate font-mono">{{ device.deviceEndpointId.slice(0, 16) }}…</p>
+              <p class="text-sm font-medium truncate">{{ device.name }}</p>
+              <p class="text-xs text-muted truncate font-mono">{{ device.endpointId.slice(0, 16) }}…</p>
             </template>
           </div>
           <UBadge
@@ -90,7 +90,7 @@
     <UiDialogConfirm
       v-model:open="showRemoveDialog"
       :title="t('removeDevice.title')"
-      :description="t('removeDevice.description', { name: deviceToRemove?.deviceName })"
+      :description="t('removeDevice.description', { name: deviceToRemove?.name })"
       :confirm-label="t('removeDevice.confirm')"
       confirm-icon="i-lucide-trash-2"
       @confirm="onRemoveDeviceAsync"
@@ -123,9 +123,9 @@ const getIdentityAvatar = (identityId: string | null) => {
 const otherDevices = computed(() => {
   const seen = new Set<string>()
   return peerStore.spaceDevices.filter(d => {
-    if (d.deviceEndpointId === deviceId.value) return false
-    if (seen.has(d.deviceEndpointId)) return false
-    seen.add(d.deviceEndpointId)
+    if (d.endpointId === deviceId.value) return false
+    if (seen.has(d.endpointId)) return false
+    seen.add(d.endpointId)
     return true
   })
 })
@@ -150,7 +150,7 @@ const onRemoveDeviceAsync = async () => {
   try {
     const db = currentVault.value.drizzle
     // Delete shares belonging to this device
-    await db.delete(haexPeerShares).where(eq(haexPeerShares.deviceEndpointId, device.deviceEndpointId))
+    await db.delete(haexPeerShares).where(eq(haexPeerShares.endpointId, device.endpointId))
     // Delete the device registration
     await db.delete(haexSpaceDevices).where(eq(haexSpaceDevices.id, device.id))
     await peerStore.loadSpaceDevicesAsync()
@@ -166,7 +166,7 @@ const onRemoveDeviceAsync = async () => {
 
 const startEditing = (device: typeof peerStore.spaceDevices[number]) => {
   editingDeviceId.value = device.id
-  editingName.value = device.deviceName
+  editingName.value = device.name
 }
 
 const onSaveOtherDeviceNameAsync = async (id: string) => {
@@ -176,7 +176,7 @@ const onSaveOtherDeviceNameAsync = async (id: string) => {
   try {
     await currentVault.value.drizzle
       .update(haexSpaceDevices)
-      .set({ deviceName: name })
+      .set({ name })
       .where(eq(haexSpaceDevices.id, id))
 
     await peerStore.loadSpaceDevicesAsync()
@@ -191,8 +191,8 @@ const onSaveOtherDeviceNameAsync = async (id: string) => {
 const checkPeersOnlineAsync = async () => {
   if (!peerStore.running) return
   for (const device of otherDevices.value) {
-    peerStore.checkPeerOnlineAsync(device.deviceEndpointId).then((online) => {
-      peerOnlineStatus.value = { ...peerOnlineStatus.value, [device.deviceEndpointId]: online }
+    peerStore.checkPeerOnlineAsync(device.endpointId).then((online) => {
+      peerOnlineStatus.value = { ...peerOnlineStatus.value, [device.endpointId]: online }
     })
   }
 }

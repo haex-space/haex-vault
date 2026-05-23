@@ -567,7 +567,10 @@ pub fn run() {
             extension::shell::commands::extension_shell_resize,
             extension::shell::commands::extension_shell_close,
             // Device identity
-            device::device_init_key,
+            device::device_resolve_for_vault,
+            device::device_create_for_vault,
+            device::device_reclaim_existing,
+            device::endpoint_load_for_device,
             // Peer Storage (P2P file sharing via iroh/QUIC)
             peer_storage::peer_storage_start,
             peer_storage::peer_storage_stop,
