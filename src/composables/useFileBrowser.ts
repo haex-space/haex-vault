@@ -357,6 +357,8 @@ export function useFileBrowser(tabId: string) {
         if (selectedPeer.value?.localPath) {
           const result = await peerStore.localListAsync(selectedPeer.value.localPath, dirPath)
           entries = result.entries as FileEntry[]
+        } else if (dirPath === '/') {
+          entries = await peerStore.remoteListAllSharesAsync(selectedPeer.value!.endpointId)
         } else {
           entries = await peerStore.remoteListAsync(selectedPeer.value!.endpointId, dirPath)
         }
@@ -699,11 +701,12 @@ export function useFileBrowser(tabId: string) {
           isLoadingMore.value = false
         }
       } else {
-        // Remote: no pagination (iroh returns all at once)
-        const result = await peerStore.remoteListAsync(
-          selectedPeer.value.endpointId,
-          currentPath.value,
-        )
+        // Remote: no pagination (iroh returns all at once). At the root path
+        // we need to fan out one request per shared space — see
+        // peerStore.remoteListAllSharesAsync for the rationale.
+        const result = currentPath.value === '/'
+          ? await peerStore.remoteListAllSharesAsync(selectedPeer.value.endpointId)
+          : await peerStore.remoteListAsync(selectedPeer.value.endpointId, currentPath.value)
         if (generation !== loadGeneration) return
         files.value = result
         totalFiles.value = result.length
