@@ -154,13 +154,17 @@
         "files": {}
       },
       "deb": {
+        "desktopTemplate": "packaging/linux/main.desktop",
         "files": {
           "/usr/share/metainfo/space.haex.vault.metainfo.xml": "packaging/linux/space.haex.vault.metainfo.xml"
         }
       },
       "rpm": {
+        "desktopTemplate": "packaging/linux/main.desktop",
         "epoch": 0,
-        "files": {},
+        "files": {
+          "/usr/share/metainfo/space.haex.vault.metainfo.xml": "packaging/linux/space.haex.vault.metainfo.xml"
+        },
         "release": "1"
       }
     }

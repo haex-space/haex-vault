@@ -19,7 +19,13 @@
     </p>
   </description>
 
-  <launchable type="desktop-id">haex-vault.desktop</launchable>
+  <!-- Must match the actual .desktop filename Tauri emits, which is derived
+       from `productName` ("Haex Vault") — not from the app-id. AppStream
+       catalog generators drop desktop-application components when this
+       reference does not resolve to an installed .desktop file. -->
+  <launchable type="desktop-id">Haex Vault.desktop</launchable>
+
+  <icon type="stock">haex-vault</icon>
 
   <url type="homepage">https://haex.space</url>
 
@@ -31,8 +37,4 @@
   </categories>
 
   <content_rating type="oars-1.1"/>
-
-  <releases>
-    <release version="1.25.0" date="2026-05-21"/>
-  </releases>
 </component>
