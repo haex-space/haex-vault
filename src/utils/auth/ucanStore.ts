@@ -235,3 +235,21 @@ export async function loadUcansFromDbAsync(db: SqliteRemoteDatabase<Record<strin
   }
   log.warn(`UCAN-DIAG loadUcansFromDbAsync dbRows=${rows.length} cacheBefore=${sizeBefore} cacheAfter=${ucanCache.size}`)
 }
+
+// Test-only hook: expose cache mutators to the page runtime so e2e specs
+// can inject Race A / Race B scenarios (see variant-a-race.spec.ts in
+// haex-e2e-tests). Lives only on debug/ucan-subpath-logging — drop before
+// merging to main.
+if (typeof window !== 'undefined') {
+  ;(window as Window & {
+    __ucanCacheDebug?: {
+      clear: (spaceId?: string) => void
+      size: () => number
+      keys: () => string[]
+    }
+  }).__ucanCacheDebug = {
+    clear: (spaceId?: string) => clearUcanCache(spaceId),
+    size: () => ucanCache.size,
+    keys: () => Array.from(ucanCache.keys()),
+  }
+}
