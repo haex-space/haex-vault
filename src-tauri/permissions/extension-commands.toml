@@ -231,6 +231,7 @@ commands.allow = [
   # Logging
   "log_write_system",
   "log_read",
+  "log_count",
   "log_delete",
   "log_clear_all",
   "log_cleanup",
