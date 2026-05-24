@@ -9,6 +9,9 @@ import { importUserPrivateKeyAsync } from '@haex-space/vault-sdk'
 import { eq, gt } from 'drizzle-orm'
 import { haexUcanTokens } from '~/database/schemas'
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
+import { createLogger } from '@/stores/logging'
+
+const log = createLogger('UCAN_STORE')
 
 // UCAN tokens are effectively permanent — revocation is driven by the
 // active-membership check on the server side (see is_active_space_member in
@@ -123,7 +126,10 @@ export async function createServerRelayUcanAsync(
  */
 export function getUcanForSpaceAsync(spaceId: string): string | null {
   const token = ucanCache.get(spaceId)
-  if (!token) return null
+  if (!token) {
+    log.warn(`UCAN-DIAG getUcanForSpaceAsync outcome=cache-miss spaceId=${spaceId.slice(0, 8)} cacheSize=${ucanCache.size}`)
+    return null
+  }
 
   // Check expiry
   try {
@@ -131,10 +137,12 @@ export function getUcanForSpaceAsync(spaceId: string): string | null {
     const now = Math.floor(Date.now() / 1000)
     if (decoded.payload.exp <= now) {
       ucanCache.delete(spaceId)
+      log.warn(`UCAN-DIAG getUcanForSpaceAsync outcome=expired spaceId=${spaceId.slice(0, 8)} exp=${decoded.payload.exp} now=${now}`)
       return null
     }
-  } catch {
+  } catch (err) {
     ucanCache.delete(spaceId)
+    log.warn(`UCAN-DIAG getUcanForSpaceAsync outcome=decode-error spaceId=${spaceId.slice(0, 8)} err=${(err as Error).message?.slice(0, 80)}`)
     return null
   }
 
@@ -164,6 +172,7 @@ export async function fetchWithUcanAuth(
  */
 export function cacheUcan(spaceId: string, token: string): void {
   ucanCache.set(spaceId, token)
+  log.warn(`UCAN-DIAG cacheUcan spaceId=${spaceId.slice(0, 8)} cacheSize=${ucanCache.size}`)
 }
 
 /**
@@ -215,6 +224,7 @@ export async function persistUcanAsync(
  */
 export async function loadUcansFromDbAsync(db: SqliteRemoteDatabase<Record<string, unknown>>): Promise<void> {
   const now = Math.floor(Date.now() / 1000)
+  const sizeBefore = ucanCache.size
   const rows = await db
     .select({ spaceId: haexUcanTokens.spaceId, token: haexUcanTokens.token })
     .from(haexUcanTokens)
@@ -223,4 +233,5 @@ export async function loadUcansFromDbAsync(db: SqliteRemoteDatabase<Record<strin
   for (const row of rows) {
     ucanCache.set(row.spaceId, row.token)
   }
+  log.warn(`UCAN-DIAG loadUcansFromDbAsync dbRows=${rows.length} cacheBefore=${sizeBefore} cacheAfter=${ucanCache.size}`)
 }

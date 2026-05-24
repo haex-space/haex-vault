@@ -11,6 +11,9 @@ import { loadUcansFromDbAsync } from '@/utils/auth/ucanStore'
 import { useInvitePolicy } from '@/composables/useInvitePolicy'
 import { useMlsDelivery } from '@/composables/useMlsDelivery'
 import { useCurrentIdentity } from '@/composables/useCurrentIdentity'
+import { createLogger } from '@/stores/logging'
+
+const log = createLogger('SPACE_INVITES')
 
 export type InvitePolicyValue = 'all' | 'contacts_only' | 'nobody'
 
@@ -94,13 +97,20 @@ export function useSpaceInvites() {
         // up-to-date by the time this composable resolves. Frontend-only race
         // surfaced as cardCount: 0 with active row in DB; see
         // haex-e2e-tests/tests/spaces/invitations/quic-invite-flow.spec.ts.
+        log.warn(`UCAN-DIAG acceptInviteAsync quic-branch start spaceId=${invite.spaceId.slice(0, 8)} tokenId=${invite.tokenId?.slice(0, 8)}`)
         await spacesStore.acceptLocalInviteAsync(invite)
+        log.warn(`UCAN-DIAG acceptInviteAsync quic-branch after acceptLocalInviteAsync spaceId=${invite.spaceId.slice(0, 8)}`)
         await spacesStore.loadSpacesFromDbAsync()
         // Rust ClaimInvite persists the claimed UCAN directly into haex_ucan_tokens
         // (bypassing the TS persistUcanAsync path), so the in-memory ucanCache
         // stays empty until next vault open. Re-prime it now or subsequent peer
         // storage requests will fail with "No valid UCAN token for this peer's space".
-        if (db) await loadUcansFromDbAsync(db)
+        if (db) {
+          await loadUcansFromDbAsync(db)
+          log.warn(`UCAN-DIAG acceptInviteAsync quic-branch after loadUcansFromDbAsync spaceId=${invite.spaceId.slice(0, 8)}`)
+        } else {
+          log.warn(`UCAN-DIAG acceptInviteAsync quic-branch db=null - ucanCache NOT re-primed spaceId=${invite.spaceId.slice(0, 8)}`)
+        }
       } else if (originUrl && invite.tokenId) {
         // Online space without QUIC endpoints — accept via server
         const identity = await ensureCurrentIdentityAsync()

@@ -79,14 +79,18 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     configuredRelayUrl.value = url
   }
 
-  const loadSharesAsync = async () => {
+  const loadSharesAsync = async (trigger: string = 'unknown') => {
     const db = requireDb()
+    const before = shares.value.length
     shares.value = await db.select().from(haexPeerShares).all()
+    log.warn(`UCAN-DIAG loadSharesAsync trigger=${trigger} before=${before} after=${shares.value.length}`)
   }
 
-  const loadSpaceDevicesAsync = async () => {
+  const loadSpaceDevicesAsync = async (trigger: string = 'unknown') => {
     const db = requireDb()
+    const before = spaceDevices.value.length
     spaceDevices.value = await db.select().from(haexSpaceDevices).all()
+    log.warn(`UCAN-DIAG loadSpaceDevicesAsync trigger=${trigger} before=${before} after=${spaceDevices.value.length}`)
   }
 
   const addShareAsync = async (spaceId: string, name: string, localPath: string) => {
@@ -366,7 +370,18 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
           s => s.endpointId === remoteNodeId && s.name === shareName,
         )
       : undefined
+    const nodeShort = remoteNodeId.slice(0, 12)
     if (shareName && !matchingShare) {
+      // Surface which subset of shares.value we *do* see for this peer so
+      // the failure mode is unambiguous: stale cache (no rows at all) vs.
+      // endpoint mismatch (rows present but different endpointId) vs.
+      // name mismatch (right endpoint, wrong share name).
+      const peerShares = shares.value
+        .filter(s => s.endpointId === remoteNodeId)
+        .map(s => s.name)
+      log.warn(
+        `UCAN-DIAG resolveRequestContext outcome=matchingShare-undefined node=${nodeShort} path=${path} shareName=${shareName} sharesTotal=${shares.value.length} sharesForPeer=${peerShares.length} peerShareNames=${JSON.stringify(peerShares)}`,
+      )
       return { ucanToken: null, relayUrl: null }
     }
     const device = spaceDevices.value.find(
@@ -375,6 +390,18 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     )
     const spaceId = matchingShare?.spaceId ?? device?.spaceId
     const ucanToken = spaceId ? getUcanForSpaceAsync(spaceId) : null
+    const outcome = !ucanToken
+      ? (spaceId ? 'ucan-cache-miss' : 'spaceId-undefined')
+      : 'ok'
+    if (!ucanToken || shareName) {
+      // Non-root resolves and any failure: log full context. Root happy-path
+      // (no shareName, ucanToken present) stays silent to avoid spam.
+      // Use warn so DEFAULT_LOG_LEVEL='warn' in haex-vault doesn't filter
+      // these out — these are diagnostic, not noise.
+      log.warn(
+        `UCAN-DIAG resolveRequestContext outcome=${outcome} node=${nodeShort} path=${path} shareName=${shareName || '(root)'} spaceId=${spaceId?.slice(0, 8) ?? 'none'} matchingShare=${!!matchingShare} device=${!!device} sharesTotal=${shares.value.length} devicesTotal=${spaceDevices.value.length}`,
+      )
+    }
     return { ucanToken, relayUrl: device?.relayUrl ?? null }
   }
 

@@ -454,9 +454,10 @@ export const useSyncOrchestratorStore = defineStore(
       registerStoreForTables(
         ['haex_space_devices', 'haex_peer_shares'],
         async () => {
+          log.warn(`UCAN-DIAG orchestrator sync:tables-updated listener firing for haex_space_devices/haex_peer_shares`)
           const peerStore = usePeerStorageStore()
-          await peerStore.loadSpaceDevicesAsync()
-          await peerStore.loadSharesAsync()
+          await peerStore.loadSpaceDevicesAsync('orchestrator-sync-tables-updated')
+          await peerStore.loadSharesAsync('orchestrator-sync-tables-updated')
           // Reload Rust-side allowed_peers: the daemon keeps its own in-memory
           // access control list and won't pick up new haex_space_devices rows
           // from CRDT until explicitly told to reload.
