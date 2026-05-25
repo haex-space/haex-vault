@@ -284,7 +284,16 @@ export function useFileBrowser(tabId: string) {
   // On desktop, currentPath alone is sufficient, but on Android we need
   // the full Content URI per level since URIs can't be reconstructed from names.
   const navStack = ref<{ name: string; path: string }[]>([])
-  const forwardStack = ref<{ path: string; navStack: { name: string; path: string }[] }[]>([])
+  // Forward stack tracks not just the path but also the origin spaceId, so
+  // navigating forward into a previously-visited share resumes the same
+  // space context (matters when two spaces shared with the same peer have
+  // colliding share names — otherwise the resolver falls back to the
+  // by-name lookup and may pick the wrong space).
+  const forwardStack = ref<{
+    path: string
+    navStack: { name: string; path: string }[]
+    spaceId: string | null
+  }[]>([])
 
   // =========================================================================
   // Multi-select
@@ -354,13 +363,22 @@ export function useFileBrowser(tabId: string) {
     // against `sortedFiles` (handled in `filteredFiles`).
     if (selectedPeer.value?.s3BackendId) return
 
-    interface QueueEntry { path: string; displayPrefix: string }
-    const queue: QueueEntry[] = [{ path: basePath, displayPrefix: '' }]
+    // Queue carries `spaceId` so subdirectory listings stay scoped to the
+    // share's origin space. Without this the root fan-out's per-entry
+    // spaceId gets dropped on the first descend, and colliding share names
+    // across spaces collapse onto whichever space the by-name fallback
+    // picks first — missing one space and duplicating the other.
+    interface QueueEntry { path: string; displayPrefix: string; spaceId?: string }
+    const queue: QueueEntry[] = [{
+      path: basePath,
+      displayPrefix: '',
+      spaceId: currentSpaceId.value ?? undefined,
+    }]
     const results: SearchableFile[] = []
 
     while (queue.length > 0) {
       if (generation !== searchGeneration) return
-      const { path: dirPath, displayPrefix } = queue.shift()!
+      const { path: dirPath, displayPrefix, spaceId } = queue.shift()!
 
       try {
         let entries: FileEntry[]
@@ -373,7 +391,7 @@ export function useFileBrowser(tabId: string) {
           entries = await peerStore.remoteListAsync(
             selectedPeer.value!.endpointId,
             dirPath,
-            currentSpaceId.value ?? undefined,
+            spaceId,
           )
         }
 
@@ -384,6 +402,7 @@ export function useFileBrowser(tabId: string) {
 
           results.push({
             ...entry,
+            spaceId: entry.spaceId ?? spaceId,
             displayPath: displayPrefix,
             searchPath: entryPath,
           })
@@ -392,6 +411,7 @@ export function useFileBrowser(tabId: string) {
             queue.push({
               path: entryPath,
               displayPrefix: displayPrefix ? `${displayPrefix}/${entry.name}` : entry.name,
+              spaceId: entry.spaceId ?? spaceId,
             })
           }
         }
@@ -568,6 +588,7 @@ export function useFileBrowser(tabId: string) {
     forwardStack.value = [...forwardStack.value, {
       path: currentPath.value,
       navStack: [...navStack.value],
+      spaceId: currentSpaceId.value,
     }]
   }
 
@@ -595,6 +616,7 @@ export function useFileBrowser(tabId: string) {
     forwardStack.value = forwardStack.value.slice(0, -1)
     currentPath.value = entry.path
     navStack.value = entry.navStack
+    currentSpaceId.value = entry.spaceId
     loadFiles()
   }
 
