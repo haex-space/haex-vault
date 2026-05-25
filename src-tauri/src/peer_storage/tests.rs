@@ -295,11 +295,11 @@ mod tests {
         format!("did:key:z{}", bs58::encode(bytes).into_string())
     }
 
-    /// Mint a read-capable UCAN for `space_id`, signed by the audience key.
-    /// Mirrors the test helper used by `ucan::verify::tests::make_test_token`,
-    /// kept inline here so the peer_storage tests have no cross-module test
-    /// dependency.
-    fn read_ucan(signer: &SigningKey, space_id: &str) -> String {
+    /// Mint a UCAN for `space_id` with the given capability, signed by the
+    /// audience key. Mirrors the test helper used by
+    /// `ucan::verify::tests::make_test_token`, kept inline here so the
+    /// peer_storage tests have no cross-module test dependency.
+    fn mint_ucan(signer: &SigningKey, space_id: &str, capability: &str) -> String {
         let issuer_did = did_from_signing_key(signer);
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -310,7 +310,7 @@ mod tests {
             "ucv": "1.0",
             "iss": issuer_did,
             "aud": "did:key:z6MkAudience",
-            "cap": { format!("space:{}", space_id): "space/read" },
+            "cap": { format!("space:{}", space_id): capability },
             "exp": now + 3600,
             "iat": now,
             "prf": [],
@@ -326,6 +326,14 @@ mod tests {
             payload_b64,
             BASE64URL.encode(signature.to_bytes())
         )
+    }
+
+    fn read_ucan(signer: &SigningKey, space_id: &str) -> String {
+        mint_ucan(signer, space_id, "space/read")
+    }
+
+    fn write_ucan(signer: &SigningKey, space_id: &str) -> String {
+        mint_ucan(signer, space_id, "space/write")
     }
 
     struct Harness {
@@ -797,6 +805,16 @@ mod tests {
         // Build a small deterministic payload.
         let payload: Vec<u8> = (0u16..512).map(|i| (i % 256) as u8).collect();
 
+        // The default harness UCAN only grants read; mint a write-capable one
+        // signed by the same key so the upload passes the capability check.
+        // The signing key lives only inside setup_harness, so reproduce it by
+        // signing fresh — verification only checks the signature against the
+        // token's `iss`, not the issuer's identity beyond that.
+        let mut seed = [0u8; 32];
+        rand::fill(&mut seed);
+        let write_signer = SigningKey::from_bytes(&seed);
+        let write_token = write_ucan(&write_signer, "test-space");
+
         // Upload a file to the server, then read it back. The read exercises
         // pipe_reader_to_send through handlers::stream_file_to_send on the
         // server side (disk → QUIC pipeline). The write exercises
@@ -808,7 +826,7 @@ mod tests {
                 None,
                 &upload_path,
                 &payload,
-                &h.ucan,
+                &write_token,
             )
             .await
             .expect("remote_write_file");
