@@ -358,22 +358,43 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   // Resolve which space a remote request belongs to, so the matching UCAN
   // can be picked. The first path segment is the share name; the share row
   // (replicated via CRDT) carries the authoritative spaceId.
-  const resolveRequestContext = (remoteNodeId: string, path: string) => {
+  //
+  // `spaceIdHint` is used when the caller already knows the authoritative
+  // spaceId (e.g. an entry from `remoteListAllSharesAsync` that knows its
+  // origin space). This bypasses the by-name lookup, which is otherwise
+  // ambiguous when a single peer hosts shares with identical names in
+  // different spaces. Without the hint we sort matching shares/devices by
+  // spaceId so at least the picked space is stable across calls.
+  const resolveRequestContext = (
+    remoteNodeId: string,
+    path: string,
+    spaceIdHint?: string,
+  ) => {
     const trimmed = path.replace(/^\/+/, '')
     const shareName = trimmed.split('/')[0]
-    const matchingShare = shareName
-      ? shares.value.find(
-          s => s.endpointId === remoteNodeId && s.name === shareName,
-        )
-      : undefined
+    let matchingShare: SelectHaexPeerShares | undefined
+    if (spaceIdHint && shareName) {
+      matchingShare = shares.value.find(
+        s => s.endpointId === remoteNodeId
+          && s.name === shareName
+          && s.spaceId === spaceIdHint,
+      )
+    } else if (shareName) {
+      const candidates = shares.value
+        .filter(s => s.endpointId === remoteNodeId && s.name === shareName)
+        .sort((a, b) => a.spaceId.localeCompare(b.spaceId))
+      matchingShare = candidates[0]
+    }
     if (shareName && !matchingShare) {
       return { ucanToken: null, relayUrl: null }
     }
-    const device = spaceDevices.value.find(
-      d => d.endpointId === remoteNodeId
-        && (matchingShare ? d.spaceId === matchingShare.spaceId : true),
-    )
-    const spaceId = matchingShare?.spaceId ?? device?.spaceId
+    const resolvedSpaceId = matchingShare?.spaceId ?? spaceIdHint
+    const deviceCandidates = spaceDevices.value
+      .filter(d => d.endpointId === remoteNodeId
+        && (resolvedSpaceId ? d.spaceId === resolvedSpaceId : true))
+      .sort((a, b) => a.spaceId.localeCompare(b.spaceId))
+    const device = deviceCandidates[0]
+    const spaceId = resolvedSpaceId ?? device?.spaceId
     const ucanToken = spaceId ? getUcanForSpaceAsync(spaceId) : null
     return { ucanToken, relayUrl: device?.relayUrl ?? null }
   }
@@ -381,8 +402,9 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   const getCapabilityForPeer = (
     remoteNodeId: string,
     path: string,
+    spaceIdHint?: string,
   ): Capability | null => {
-    const { ucanToken } = resolveRequestContext(remoteNodeId, path)
+    const { ucanToken } = resolveRequestContext(remoteNodeId, path, spaceIdHint)
     if (!ucanToken) return null
     try {
       const decoded = decodeUcan(ucanToken)
@@ -393,8 +415,14 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     }
   }
 
-  const remoteListAsync = async (remoteNodeId: string, path: string) => {
-    const { ucanToken, relayUrl: deviceRelayUrl } = resolveRequestContext(remoteNodeId, path)
+  const remoteListAsync = async (
+    remoteNodeId: string,
+    path: string,
+    spaceIdHint?: string,
+  ) => {
+    const { ucanToken, relayUrl: deviceRelayUrl } = resolveRequestContext(
+      remoteNodeId, path, spaceIdHint,
+    )
     if (!ucanToken) throw new Error('No valid UCAN token for this peer\'s space')
     activeTransfers.value++
     try {
@@ -418,8 +446,11 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   // device row match in resolveRequestContext, which is non-deterministic and
   // also leaks names across runs). This fans out one parallel request per
   // space we share with the peer, each scoped to that space's UCAN, and
-  // merges the results.
-  const remoteListAllSharesAsync = async (remoteNodeId: string): Promise<FileEntry[]> => {
+  // tags each returned entry with its origin spaceId so downstream calls
+  // can address the right space when share names collide across spaces.
+  const remoteListAllSharesAsync = async (
+    remoteNodeId: string,
+  ): Promise<Array<FileEntry & { spaceId: string }>> => {
     const peerSpaceIds = [...new Set(
       spaceDevices.value
         .filter(d => d.endpointId === remoteNodeId)
@@ -428,7 +459,9 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
 
     if (peerSpaceIds.length === 0) return []
 
-    const fetchOneSpace = async (spaceId: string): Promise<FileEntry[]> => {
+    const fetchOneSpace = async (
+      spaceId: string,
+    ): Promise<Array<FileEntry & { spaceId: string }>> => {
       const ucanToken = getUcanForSpaceAsync(spaceId)
       if (!ucanToken) {
         log.warn(`remoteListAllSharesAsync: skipping space ${spaceId.slice(0, 8)} — no cached UCAN`)
@@ -439,12 +472,13 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
       )
       activeTransfers.value++
       try {
-        return await invoke<FileEntry[]>('peer_storage_remote_list', {
+        const entries = await invoke<FileEntry[]>('peer_storage_remote_list', {
           nodeId: remoteNodeId,
           relayUrl: device?.relayUrl ?? null,
           path: '/',
           ucanToken,
         })
+        return entries.map(entry => ({ ...entry, spaceId }))
       } catch (err) {
         log.warn(`remoteListAllSharesAsync: leader rejected space ${spaceId.slice(0, 8)}: ${err}`)
         return []
@@ -457,8 +491,15 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     return perSpace.flat()
   }
 
-  const remoteReadAsync = async (remoteNodeId: string, path: string, saveTo?: string) => {
-    const { ucanToken, relayUrl: deviceRelayUrl } = resolveRequestContext(remoteNodeId, path)
+  const remoteReadAsync = async (
+    remoteNodeId: string,
+    path: string,
+    saveTo?: string,
+    spaceIdHint?: string,
+  ) => {
+    const { ucanToken, relayUrl: deviceRelayUrl } = resolveRequestContext(
+      remoteNodeId, path, spaceIdHint,
+    )
     if (!ucanToken) throw new Error('No valid UCAN token for this peer\'s space')
     const transferId = crypto.randomUUID()
     const { channel, promise } = createTransferChannel(transferId, path)
@@ -485,8 +526,11 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     remoteNodeId: string,
     remotePath: string,
     sourcePath: string,
+    spaceIdHint?: string,
   ) => {
-    const { ucanToken, relayUrl: deviceRelayUrl } = resolveRequestContext(remoteNodeId, remotePath)
+    const { ucanToken, relayUrl: deviceRelayUrl } = resolveRequestContext(
+      remoteNodeId, remotePath, spaceIdHint,
+    )
     if (!ucanToken) throw new Error('No valid UCAN token for this peer\'s space')
     activeTransfers.value++
     try {
@@ -505,8 +549,11 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   const remoteCreateDirectoryAsync = async (
     remoteNodeId: string,
     remotePath: string,
+    spaceIdHint?: string,
   ) => {
-    const { ucanToken, relayUrl: deviceRelayUrl } = resolveRequestContext(remoteNodeId, remotePath)
+    const { ucanToken, relayUrl: deviceRelayUrl } = resolveRequestContext(
+      remoteNodeId, remotePath, spaceIdHint,
+    )
     if (!ucanToken) throw new Error('No valid UCAN token for this peer\'s space')
     await invoke('peer_storage_remote_create_directory', {
       nodeId: remoteNodeId,
