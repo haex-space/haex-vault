@@ -10,6 +10,7 @@ import type { DirEntry } from '~/../src-tauri/bindings/DirEntry'
 import {
   haexIdentities,
   haexPeerShares,
+  haexPendingInvites,
   haexSpaceDevices,
   haexVaultSettings,
   type SelectHaexPeerShares,
@@ -28,6 +29,12 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   const configuredRelayUrl = ref<string | null>(null)
   const shares = ref<SelectHaexPeerShares[]>([])
   const spaceDevices = ref<SelectHaexSpaceDevices[]>([])
+  // (spaceId, endpointId) tuples extracted from accepted invites whose
+  // haex_space_devices row has not yet arrived via CRDT sync. Used as a
+  // fallback in `resolveRequestContext` so the file-browser-root resolver
+  // can map an inviter's endpoint to its space immediately after accept,
+  // closing the race window between accept-complete and CRDT-row-arrived.
+  const acceptedInviteEndpoints = ref<Array<{ spaceId: string, endpointId: string }>>([])
 
   let stateEvents: RustEventGroup | null = null
 
@@ -87,6 +94,34 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   const loadSpaceDevicesAsync = async () => {
     const db = requireDb()
     spaceDevices.value = await db.select().from(haexSpaceDevices).all()
+  }
+
+  const loadAcceptedInviteEndpointsAsync = async () => {
+    const db = requireDb()
+    const rows = await db
+      .select({
+        spaceId: haexPendingInvites.spaceId,
+        spaceEndpoints: haexPendingInvites.spaceEndpoints,
+      })
+      .from(haexPendingInvites)
+      .where(eq(haexPendingInvites.status, 'accepted'))
+      .all()
+    const tuples: Array<{ spaceId: string, endpointId: string }> = []
+    for (const row of rows) {
+      if (!row.spaceEndpoints) continue
+      try {
+        const endpoints = JSON.parse(row.spaceEndpoints) as unknown
+        if (!Array.isArray(endpoints)) continue
+        for (const endpointId of endpoints) {
+          if (typeof endpointId === 'string' && endpointId.length > 0) {
+            tuples.push({ spaceId: row.spaceId, endpointId })
+          }
+        }
+      } catch {
+        // Malformed JSON — skip this invite, don't fail the whole load.
+      }
+    }
+    acceptedInviteEndpoints.value = tuples
   }
 
   const addShareAsync = async (spaceId: string, name: string, localPath: string) => {
@@ -202,6 +237,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     relayUrl.value = info.relayUrl
 
     await loadSpaceDevicesAsync()
+    await loadAcceptedInviteEndpointsAsync()
     if (relayUrl.value) {
       const db = requireDb()
       // Refresh the relay URL on our publish rows so peers see the current
@@ -358,6 +394,19 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   // Resolve which space a remote request belongs to, so the matching UCAN
   // can be picked. The first path segment is the share name; the share row
   // (replicated via CRDT) carries the authoritative spaceId.
+  //
+  // Root-path lookups (path='/') depend on the inviter's haex_space_devices
+  // row, which only lands after the CRDT pull following accept. Without a
+  // fallback, clicking the file browser between accept-complete and
+  // CRDT-row-arrived throws "No valid UCAN token". We can't seed
+  // haex_space_devices ourselves: the synthetic deviceId we'd have to pass
+  // (the invite payload doesn't carry the inviter's real one) fires
+  // haex_space_devices_ensure_refs and creates a haex_devices stub claiming
+  // the inviter's endpoint_id. That stub then blocks any later peer_shares
+  // CRDT row (whose ensure-refs trigger silently fails the INSERT OR IGNORE
+  // on haex_devices_endpoint_id_unique, leaving peer_shares.device_id
+  // dangling). Instead, fall back to (spaceId, endpoint) tuples extracted
+  // from accepted invites — same information, no schema corruption.
   const resolveRequestContext = (remoteNodeId: string, path: string) => {
     const trimmed = path.replace(/^\/+/, '')
     const shareName = trimmed.split('/')[0]
@@ -373,7 +422,13 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
       d => d.endpointId === remoteNodeId
         && (matchingShare ? d.spaceId === matchingShare.spaceId : true),
     )
-    const spaceId = matchingShare?.spaceId ?? device?.spaceId
+    let spaceId = matchingShare?.spaceId ?? device?.spaceId
+    if (!spaceId) {
+      const inviteTuple = acceptedInviteEndpoints.value.find(
+        t => t.endpointId === remoteNodeId,
+      )
+      spaceId = inviteTuple?.spaceId
+    }
     const ucanToken = spaceId ? getUcanForSpaceAsync(spaceId) : null
     return { ucanToken, relayUrl: device?.relayUrl ?? null }
   }
@@ -518,9 +573,11 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     isTransferring,
     shares,
     spaceDevices,
+    acceptedInviteEndpoints,
     refreshStatusAsync,
     loadSharesAsync,
     loadSpaceDevicesAsync,
+    loadAcceptedInviteEndpointsAsync,
     loadConfiguredRelayUrlAsync,
     saveConfiguredRelayUrlAsync,
     startAsync,
@@ -551,6 +608,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
       configuredRelayUrl.value = null
       shares.value = []
       spaceDevices.value = []
+      acceptedInviteEndpoints.value = []
       transfers.value.clear()
     },
   }
