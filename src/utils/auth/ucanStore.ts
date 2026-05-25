@@ -240,7 +240,15 @@ export async function loadUcansFromDbAsync(db: SqliteRemoteDatabase<Record<strin
 // can inject Race A / Race B scenarios (see variant-a-race.spec.ts in
 // haex-e2e-tests). Lives only on debug/ucan-subpath-logging — drop before
 // merging to main.
-if (typeof window !== 'undefined') {
+//
+// Defense-in-depth gate: `import.meta.dev` is a build-time constant that
+// Vite tree-shakes to `false` in production builds, so even if the hook
+// code accidentally lands on main, the assignment is dead-eliminated. The
+// e2e variant-a-race test currently builds the production binary, so it
+// would need `pnpm tauri dev` mode or a VITE_-prefixed env override to
+// re-arm — accept the trade-off here since the diagnostic value of the
+// race test is already captured (16/16 GREEN on the diag branch).
+if (import.meta.dev && typeof window !== 'undefined') {
   ;(window as Window & {
     __ucanCacheDebug?: {
       clear: (spaceId?: string) => void
