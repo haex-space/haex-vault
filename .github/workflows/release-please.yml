@@ -1,24 +1,19 @@
 name: Release Please
 
-# Triggered on every push to `develop`. Three modes:
+# Triggered on every push to `main`. Three modes:
 #   1. No release-worthy commits since last tag → no-op.
 #   2. Release-worthy commits exist → open/update a "Release vX.Y.Z" PR on
-#      develop with version bumps (package.json, tauri.conf.json,
-#      src-tauri/Cargo.toml, src-tauri/Cargo.lock) and CHANGELOG.md.
+#      main with version bumps (package.json, tauri.conf.json,
+#      src-tauri/Cargo.toml) and CHANGELOG.md. Cargo.lock is not touched
+#      by release-please — the sync-cargo-lock job below patches it on
+#      the release PR branch so `cargo --locked` stays consistent.
 #   3. The release PR just got merged → tag the merge commit, build all
-#      platforms, publish artifacts, and open a sync PR develop→main so
-#      main mirrors the released state.
-#
-# Why develop, not main:
-#   develop is the integration branch (feature PRs land here). main is
-#   protected and only ever receives sync PRs from develop after a release
-#   ships. This keeps release-please's "draft next release" PR on the
-#   active branch and main stable.
+#      platforms, and publish artifacts to the GitHub release.
 
 on:
   push:
     branches:
-      - develop
+      - main
 
 permissions:
   contents: write
@@ -49,14 +44,14 @@ jobs:
           token: ${{ secrets.RELEASE_PAT }}
           config-file: .release-please-config.json
           manifest-file: .release-please-manifest.json
-          target-branch: develop
+          target-branch: main
 
   # ─────────────────────────────────────────────────────────────────────────
   # When release-please opens/updates the release PR, the bump lands in
   # package.json + tauri.conf.json + Cargo.toml — but Cargo.lock still has
   # the old version for the workspace member. Sync it here so the resulting
-  # commit on develop has a consistent lockfile (otherwise `cargo --locked`
-  # would fail and the next build would mark Cargo.lock dirty).
+  # commit has a consistent lockfile (otherwise `cargo --locked` would fail
+  # and the next build would mark Cargo.lock dirty).
   # ─────────────────────────────────────────────────────────────────────────
   sync-cargo-lock:
     needs: release-please
@@ -207,74 +202,3 @@ jobs:
           TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
         run: |
           gh release upload "$TAG_NAME" release-assets/* --clobber
-
-  # ─────────────────────────────────────────────────────────────────────────
-  # Sync develop → main so main mirrors the released state. Opens a PR
-  # because main is protected (PR-only). Auto-merges on green CI; if there
-  # is a conflict, the PR stays open for manual handling (release itself
-  # is already published, so this step is best-effort cosmetic).
-  # ─────────────────────────────────────────────────────────────────────────
-  sync-to-main:
-    needs: [release-please, publish-artifacts]
-    if: needs.release-please.outputs.release_created == 'true'
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout develop
-        uses: actions/checkout@v6
-        with:
-          ref: develop
-          fetch-depth: 0
-          # PAT (not GITHUB_TOKEN) so the subsequent push triggers Build.
-          # GitHub's anti-recursion rule suppresses workflow runs for events
-          # produced by GITHUB_TOKEN, which would leave the sync PR stuck
-          # waiting on the required CI check forever.
-          token: ${{ secrets.RELEASE_PAT }}
-
-      - name: Open sync PR to main
-        env:
-          NEW_VERSION: ${{ needs.release-please.outputs.version }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          SYNC_BRANCH="sync-main/v${NEW_VERSION}"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Idempotent on rerun: -B resets the local branch, --force-with-lease
-          # updates the remote without clobbering unrelated upstream commits.
-          git checkout -B "$SYNC_BRANCH"
-          git push -u --force-with-lease origin "$SYNC_BRANCH"
-
-          # Reuse an existing open PR if a previous run already created one.
-          PR_NUMBER=$(gh pr list \
-            --base main --head "$SYNC_BRANCH" --state open \
-            --json number --jq '.[0].number // empty')
-
-          if [ -z "$PR_NUMBER" ]; then
-            if ! PR_URL=$(gh pr create \
-              --base main \
-              --head "$SYNC_BRANCH" \
-              --title "chore(release): sync main to v$NEW_VERSION" \
-              --body "Post-release sync: brings v$NEW_VERSION into main so main mirrors the released state." \
-              2>&1); then
-              echo "::error::Failed to create sync PR: $PR_URL"
-              exit 1
-            fi
-            PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
-            echo "Created sync PR #$PR_NUMBER"
-          else
-            echo "Reusing existing sync PR #$PR_NUMBER"
-          fi
-
-          # Try to enable auto-merge. Surface the real cause when it fails
-          # instead of collapsing every error into "likely conflict". This
-          # step is best-effort (release is already published), so we warn
-          # rather than fail the workflow.
-          if ! MERGE_OUTPUT=$(gh pr merge "$PR_NUMBER" --squash --auto 2>&1); then
-            if echo "$MERGE_OUTPUT" | grep -qiE 'auto.?merge.*(not.*enabled|disabled)|allow_auto_merge'; then
-              echo "::warning::Auto-merge is disabled at the repo level — sync PR #$PR_NUMBER remains open for manual merge. Detail: $MERGE_OUTPUT"
-            elif echo "$MERGE_OUTPUT" | grep -qiE 'conflict|not.*mergeable|merge.*not.*clean'; then
-              echo "::warning::Sync PR #$PR_NUMBER has a merge conflict — manual resolution required. Detail: $MERGE_OUTPUT"
-            else
-              echo "::warning::Could not enable auto-merge on sync PR #$PR_NUMBER. Detail: $MERGE_OUTPUT"
-            fi
-          fi
