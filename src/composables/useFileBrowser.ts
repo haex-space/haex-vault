@@ -68,7 +68,11 @@ async function cacheKeyHash(backendId: string, key: string): Promise<string> {
 }
 
 // Extended FileEntry with optional path (used on Android for Content URIs)
-export type FileEntry = BaseFileEntry & { path?: string }
+// and an optional spaceId for entries that came from the multi-space root
+// listing (`remoteListAllSharesAsync`). The spaceId carries provenance
+// through subsequent calls so a click on `TestShare` in space A always
+// resolves the UCAN of space A, even when space B also has a `TestShare`.
+export type FileEntry = BaseFileEntry & { path?: string; spaceId?: string }
 
 export interface RemotePeer {
   endpointId: string
@@ -152,6 +156,12 @@ export function useFileBrowser(tabId: string) {
 
   const selectedPeer = ref<RemotePeer | null>(null)
   const currentPath = ref('/')
+  // Origin spaceId for the current navigation. Set when the user clicks an
+  // entry returned by `peerStore.remoteListAllSharesAsync` (which tags every
+  // entry with its origin space), so subsequent peer-storage calls keep
+  // addressing the same space even when share names collide across spaces.
+  // Cleared whenever we return to root or switch peers.
+  const currentSpaceId = ref<string | null>(null)
   const files = ref<FileEntry[]>([])
   const totalFiles = ref(0)
   const isLoading = ref(false)
@@ -274,7 +284,16 @@ export function useFileBrowser(tabId: string) {
   // On desktop, currentPath alone is sufficient, but on Android we need
   // the full Content URI per level since URIs can't be reconstructed from names.
   const navStack = ref<{ name: string; path: string }[]>([])
-  const forwardStack = ref<{ path: string; navStack: { name: string; path: string }[] }[]>([])
+  // Forward stack tracks not just the path but also the origin spaceId, so
+  // navigating forward into a previously-visited share resumes the same
+  // space context (matters when two spaces shared with the same peer have
+  // colliding share names — otherwise the resolver falls back to the
+  // by-name lookup and may pick the wrong space).
+  const forwardStack = ref<{
+    path: string
+    navStack: { name: string; path: string }[]
+    spaceId: string | null
+  }[]>([])
 
   // =========================================================================
   // Multi-select
@@ -344,21 +363,36 @@ export function useFileBrowser(tabId: string) {
     // against `sortedFiles` (handled in `filteredFiles`).
     if (selectedPeer.value?.s3BackendId) return
 
-    interface QueueEntry { path: string; displayPrefix: string }
-    const queue: QueueEntry[] = [{ path: basePath, displayPrefix: '' }]
+    // Queue carries `spaceId` so subdirectory listings stay scoped to the
+    // share's origin space. Without this the root fan-out's per-entry
+    // spaceId gets dropped on the first descend, and colliding share names
+    // across spaces collapse onto whichever space the by-name fallback
+    // picks first — missing one space and duplicating the other.
+    interface QueueEntry { path: string; displayPrefix: string; spaceId?: string }
+    const queue: QueueEntry[] = [{
+      path: basePath,
+      displayPrefix: '',
+      spaceId: currentSpaceId.value ?? undefined,
+    }]
     const results: SearchableFile[] = []
 
     while (queue.length > 0) {
       if (generation !== searchGeneration) return
-      const { path: dirPath, displayPrefix } = queue.shift()!
+      const { path: dirPath, displayPrefix, spaceId } = queue.shift()!
 
       try {
         let entries: FileEntry[]
         if (selectedPeer.value?.localPath) {
           const result = await peerStore.localListAsync(selectedPeer.value.localPath, dirPath)
           entries = result.entries as FileEntry[]
+        } else if (dirPath === '/') {
+          entries = await peerStore.remoteListAllSharesAsync(selectedPeer.value!.endpointId)
         } else {
-          entries = await peerStore.remoteListAsync(selectedPeer.value!.endpointId, dirPath)
+          entries = await peerStore.remoteListAsync(
+            selectedPeer.value!.endpointId,
+            dirPath,
+            spaceId,
+          )
         }
 
         for (const entry of entries) {
@@ -368,6 +402,7 @@ export function useFileBrowser(tabId: string) {
 
           results.push({
             ...entry,
+            spaceId: entry.spaceId ?? spaceId,
             displayPath: displayPrefix,
             searchPath: entryPath,
           })
@@ -376,6 +411,7 @@ export function useFileBrowser(tabId: string) {
             queue.push({
               path: entryPath,
               displayPrefix: displayPrefix ? `${displayPrefix}/${entry.name}` : entry.name,
+              spaceId: entry.spaceId ?? spaceId,
             })
           }
         }
@@ -526,6 +562,7 @@ export function useFileBrowser(tabId: string) {
     direction.value = 'forward'
     selectedPeer.value = peer
     currentPath.value = initialPath
+    currentSpaceId.value = null
     navStack.value = []
     forwardStack.value = []
     loadFiles()
@@ -540,6 +577,7 @@ export function useFileBrowser(tabId: string) {
     direction.value = 'back'
     selectedPeer.value = null
     currentPath.value = '/'
+    currentSpaceId.value = null
     navStack.value = []
     forwardStack.value = []
     files.value = []
@@ -550,6 +588,7 @@ export function useFileBrowser(tabId: string) {
     forwardStack.value = [...forwardStack.value, {
       path: currentPath.value,
       navStack: [...navStack.value],
+      spaceId: currentSpaceId.value,
     }]
   }
 
@@ -566,6 +605,7 @@ export function useFileBrowser(tabId: string) {
       segments.pop()
       currentPath.value = segments.length ? '/' + segments.join('/') : '/'
     }
+    if (currentPath.value === '/') currentSpaceId.value = null
     loadFiles()
   }
 
@@ -576,6 +616,7 @@ export function useFileBrowser(tabId: string) {
     forwardStack.value = forwardStack.value.slice(0, -1)
     currentPath.value = entry.path
     navStack.value = entry.navStack
+    currentSpaceId.value = entry.spaceId
     loadFiles()
   }
 
@@ -594,12 +635,14 @@ export function useFileBrowser(tabId: string) {
       const segments = pathSegments.value.slice(0, index + 1)
       currentPath.value = '/' + segments.join('/')
     }
+    if (currentPath.value === '/') currentSpaceId.value = null
     loadFiles()
   }
 
   const navigateToPath = (path: string) => {
     direction.value = 'forward'
     currentPath.value = path
+    if (path === '/') currentSpaceId.value = null
     forwardStack.value = [] // New navigation clears forward history
     loadFiles()
   }
@@ -699,11 +742,16 @@ export function useFileBrowser(tabId: string) {
           isLoadingMore.value = false
         }
       } else {
-        // Remote: no pagination (iroh returns all at once)
-        const result = await peerStore.remoteListAsync(
-          selectedPeer.value.endpointId,
-          currentPath.value,
-        )
+        // Remote: no pagination (iroh returns all at once). At the root path
+        // we need to fan out one request per shared space — see
+        // peerStore.remoteListAllSharesAsync for the rationale.
+        const result = currentPath.value === '/'
+          ? await peerStore.remoteListAllSharesAsync(selectedPeer.value.endpointId)
+          : await peerStore.remoteListAsync(
+              selectedPeer.value.endpointId,
+              currentPath.value,
+              currentSpaceId.value ?? undefined,
+            )
         if (generation !== loadGeneration) return
         files.value = result
         totalFiles.value = result.length
@@ -734,6 +782,12 @@ export function useFileBrowser(tabId: string) {
       // Android: track Content URI navigation in navStack for correct breadcrumbs / back-navigation
       if (file.path && isContentUri(file.path)) {
         navStack.value = [...navStack.value, { name: file.name, path: file.path }]
+      }
+      // Clicking an entry from the multi-space root listing pins navigation
+      // to that entry's origin space, so a click on `Photos` in space A
+      // never accidentally drops into space B's `Photos`.
+      if (currentPath.value === '/' && file.spaceId) {
+        currentSpaceId.value = file.spaceId
       }
       currentPath.value = filePath
       loadFiles()
@@ -812,6 +866,8 @@ export function useFileBrowser(tabId: string) {
       await peerStore.remoteReadAsync(
         selectedPeer.value.endpointId,
         resolveFilePath(file),
+        undefined,
+        file.spaceId ?? currentSpaceId.value ?? undefined,
       )
       return true
     }
@@ -1052,7 +1108,11 @@ export function useFileBrowser(tabId: string) {
     if (!peer.s3BackendId && !peer.localPath && (type === 'audio' || type === 'video')) {
       const path = resolveFilePath(file)
       const { ucanToken, relayUrl: deviceRelayUrl } =
-        peerStore.resolveRequestContext(peer.endpointId, path)
+        peerStore.resolveRequestContext(
+          peer.endpointId,
+          path,
+          file.spaceId ?? currentSpaceId.value ?? undefined,
+        )
       if (!ucanToken) {
         throw new Error('No valid UCAN token for this peer\'s space')
       }
@@ -1082,6 +1142,8 @@ export function useFileBrowser(tabId: string) {
         absPath = await peerStore.remoteReadAsync(
           peer.endpointId,
           resolveFilePath(file),
+          undefined,
+          file.spaceId ?? currentSpaceId.value ?? undefined,
         )
       }
     } catch (e) {
@@ -1116,7 +1178,11 @@ export function useFileBrowser(tabId: string) {
     const peer = selectedPeer.value
     if (!peer) return false
     if (peer.localPath || peer.s3BackendId) return true
-    const cap = peerStore.getCapabilityForPeer(peer.endpointId, currentPath.value)
+    const cap = peerStore.getCapabilityForPeer(
+      peer.endpointId,
+      currentPath.value,
+      currentSpaceId.value ?? undefined,
+    )
     return cap === 'space/write' || cap === 'space/admin'
   })
 
@@ -1172,6 +1238,7 @@ export function useFileBrowser(tabId: string) {
           selectedPeer.value.endpointId,
           joinRemotePath(basename(src)),
           src,
+          currentSpaceId.value ?? undefined,
         )
       }
     }
@@ -1211,6 +1278,7 @@ export function useFileBrowser(tabId: string) {
       await peerStore.remoteCreateDirectoryAsync(
         selectedPeer.value.endpointId,
         joinRemotePath(name),
+        currentSpaceId.value ?? undefined,
       )
     }
 
