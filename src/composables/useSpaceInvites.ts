@@ -8,9 +8,12 @@ import type { SpaceWithType } from '@/stores/spaces'
 import { SpaceType, SpaceStatus } from '~/database/constants'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { loadUcansFromDbAsync } from '@/utils/auth/ucanStore'
+import { createLogger } from '@/stores/logging'
 import { useInvitePolicy } from '@/composables/useInvitePolicy'
 import { useMlsDelivery } from '@/composables/useMlsDelivery'
 import { useCurrentIdentity } from '@/composables/useCurrentIdentity'
+
+const log = createLogger('SPACE_INVITES')
 
 export type InvitePolicyValue = 'all' | 'contacts_only' | 'nobody'
 
@@ -144,6 +147,20 @@ export function useSpaceInvites() {
             respondedAt: new Date().toISOString(),
           })
           .where(eq(haexPendingInvites.id, invite.id))
+      }
+
+      // Refresh the peer-storage resolver's accepted-invite endpoint cache
+      // so the file-browser-root resolver can pick the right UCAN for the
+      // inviter's endpoint immediately, without waiting for the inviter's
+      // haex_space_devices row to arrive via CRDT pull (see comment in
+      // peer-storage.ts:resolveRequestContext).
+      try {
+        const peerStore = usePeerStorageStore()
+        await peerStore.loadAcceptedInviteEndpointsAsync()
+      } catch (err) {
+        log.warn(
+          `Failed to refresh peerStore acceptedInviteEndpoints after accept: ${(err as Error).message?.slice(0, 120)}`,
+        )
       }
 
       await loadInvitesAsync()
