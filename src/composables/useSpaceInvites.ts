@@ -2,15 +2,19 @@ import { eq } from 'drizzle-orm'
 import { listen } from '@tauri-apps/api/event'
 import {
   haexPendingInvites,
+  haexSpaceDevices,
   type SelectHaexPendingInvites,
 } from '~/database/schemas'
 import type { SpaceWithType } from '@/stores/spaces'
 import { SpaceType, SpaceStatus } from '~/database/constants'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { loadUcansFromDbAsync } from '@/utils/auth/ucanStore'
+import { createLogger } from '@/stores/logging'
 import { useInvitePolicy } from '@/composables/useInvitePolicy'
 import { useMlsDelivery } from '@/composables/useMlsDelivery'
 import { useCurrentIdentity } from '@/composables/useCurrentIdentity'
+
+const log = createLogger('SPACE_INVITES')
 
 export type InvitePolicyValue = 'all' | 'contacts_only' | 'nobody'
 
@@ -101,6 +105,40 @@ export function useSpaceInvites() {
         // stays empty until next vault open. Re-prime it now or subsequent peer
         // storage requests will fail with "No valid UCAN token for this peer's space".
         if (db) await loadUcansFromDbAsync(db)
+
+        // Seed the inviter's `haex_space_devices` row from the invite payload
+        // so the file-browser-root resolver
+        // (`peerStore.resolveRequestContext` for path='/') can find the
+        // leader's endpoint immediately. Without this, the user can click
+        // the file browser between the accept completing and the leader's
+        // row arriving via CRDT pull — the resolver throws "No valid UCAN
+        // token" even though the UCAN cache is warm (Class 3, see
+        // `debug/ucan-subpath-logging`). The trigger
+        // `haex_space_devices_ensure_refs` auto-creates a stub
+        // `haex_devices` row for the synthetic deviceId we pass; when the
+        // leader's real row arrives later, CRDT merge overwrites the stub
+        // metadata. `INSERT OR IGNORE` keeps re-accepts idempotent.
+        if (db) {
+          for (const endpointId of endpoints) {
+            await db
+              .insert(haexSpaceDevices)
+              .values({
+                id: crypto.randomUUID(),
+                spaceId: invite.spaceId,
+                deviceId: crypto.randomUUID(),
+                endpointId,
+                name: invite.inviterLabel ?? `Inviter ${endpointId.slice(0, 8)}`,
+                platform: 'unknown',
+                authoredByDid: invite.inviterDid,
+              })
+              .onConflictDoNothing()
+              .catch((err) => {
+                log.warn(
+                  `Failed to seed inviter haex_space_devices for endpoint ${endpointId.slice(0, 12)} space ${invite.spaceId.slice(0, 8)}: ${(err as Error).message?.slice(0, 120)}`,
+                )
+              })
+          }
+        }
       } else if (originUrl && invite.tokenId) {
         // Online space without QUIC endpoints — accept via server
         const identity = await ensureCurrentIdentityAsync()
