@@ -342,7 +342,13 @@ const expandedIdentity = ref<string | null>(null)
 onMounted(async () => {
   isLoading.value = true
   try {
-    await identityStore.loadIdentitiesAsync()
+    // Spaces must be hydrated too: `isDeletable` derives the vault-owner
+    // identity from `spaces`. Without this, the owner row briefly appears
+    // deletable until the spaces store finishes loading elsewhere.
+    await Promise.all([
+      identityStore.loadIdentitiesAsync(),
+      spacesStore.loadSpacesFromDbAsync(),
+    ])
   } finally {
     isLoading.value = false
   }
