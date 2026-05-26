@@ -1,6 +1,6 @@
 import { invoke, Channel } from '@tauri-apps/api/core'
 import { RustEventGroup, RUST_EVENTS, type PeerStorageStateEvent } from '@/lib/rust-events'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, or } from 'drizzle-orm'
 import { createLogger } from '@/stores/logging'
 import { requireDb } from '~/stores/vault'
 import type { PeerStorageStatus } from '~/../src-tauri/bindings/PeerStorageStatus'
@@ -195,23 +195,32 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
 
     // Idempotent publish: a previous membership (e.g. leave → re-invite)
     // leaves the haex_space_devices row behind because self-leave only
-    // tears down haex_space_members. Without this branch, re-accepting
-    // the invite would hit `UNIQUE (space_id, endpoint_id)` and abort
-    // the publish step.
+    // tears down haex_space_members. Re-publishing would otherwise hit a
+    // UNIQUE constraint — the table has two: (space_id, endpoint_id) and
+    // (space_id, device_id). After a reclaim the endpoint_id rotates but
+    // device_id (= haex_devices.id) stays the same, so we have to look up
+    // by either column.
     const existing = await db
       .select({ id: haexSpaceDevices.id })
       .from(haexSpaceDevices)
       .where(and(
         eq(haexSpaceDevices.spaceId, spaceId),
-        eq(haexSpaceDevices.endpointId, deviceStore.deviceId),
+        or(
+          eq(haexSpaceDevices.endpointId, deviceStore.deviceId),
+          eq(haexSpaceDevices.deviceId, deviceStore.deviceRowId),
+        ),
       ))
       .limit(1)
 
     if (existing[0]) {
+      // Refresh endpoint_id alongside the rest: a reclaim leaves the row
+      // pointing at the rotated-away public key, which would prevent peers
+      // from authorising this device on the new endpoint.
       await db.update(haexSpaceDevices)
         .set({
           identityId: identityId || null,
           deviceId: deviceStore.deviceRowId,
+          endpointId: deviceStore.deviceId,
           name: displayName,
           platform: deviceStore.platform,
           relayUrl: relayUrl.value,
