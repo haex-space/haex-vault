@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.0.1](https://github.com/haex-space/haex-vault/compare/v2.0.0...v2.0.1) (2026-05-26)
+
+
+### Bug Fixes
+
+* **acl:** allow `log_count` Tauri command from main window ([750c9c2](https://github.com/haex-space/haex-vault/commit/750c9c2defa36b945946c6bcbee96e9f256819fa))
+* **acl:** allow log_count + Linux .desktop launchable fixup ([a2bd26b](https://github.com/haex-space/haex-vault/commit/a2bd26badd8615fa690a018c06e57decfb8b8375))
+* **file-browser:** persist spaceId through history + recursive search ([4f0a31b](https://github.com/haex-space/haex-vault/commit/4f0a31b6869004b8ea4adede93b0cad3826aa14f))
+* **packaging:** align Linux .desktop launchable id with Tauri output ([687f18a](https://github.com/haex-space/haex-vault/commit/687f18ae2b833e20200c37d3462bf9c82f6cbcb2))
+* **peer-storage:** carry spaceId provenance through the merged root listing ([9360ef5](https://github.com/haex-space/haex-vault/commit/9360ef537125ce274550242dbd15cc6f239b32ab))
+* **peer-storage:** merge root listing across all shared spaces with a peer ([c1c890b](https://github.com/haex-space/haex-vault/commit/c1c890b305c60069c80479fa3afae386ee932672))
+* **peer-storage:** merge root listing across all shared spaces with a peer ([2d37dbb](https://github.com/haex-space/haex-vault/commit/2d37dbb7e4f4975a741765c7a0aa7c6e9a0e34c8))
+* **release-please:** drop package-name to unblock post-merge tagging ([57cf689](https://github.com/haex-space/haex-vault/commit/57cf689a76eb134b920bd4b14687558641a3d74a))
+* **release-please:** drop package-name to unblock post-merge tagging ([6457d77](https://github.com/haex-space/haex-vault/commit/6457d77b7119ae1bc37871503661169153689e0c))
+* **spaces:** seed inviter's haex_space_devices row on QUIC accept ([#326](https://github.com/haex-space/haex-vault/issues/326)) ([97bf8a5](https://github.com/haex-space/haex-vault/commit/97bf8a5005d914ed595f1fafb1d9b50e9deda45f))
+
 ## [2.0.0](https://github.com/haex-space/haex-vault/compare/v1.25.0...v2.0.0) (2026-05-23)
 
 
