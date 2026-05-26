@@ -52,7 +52,7 @@ export const haexSpaceDevices = sqliteTable(
       .notNull()
       .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     identityId: text(tableNames.haex.space_devices.columns.identityId)
-      .references(() => haexIdentities.id),
+      .references(() => haexIdentities.id, { onDelete: 'cascade' }),
     // References the random per-vault `haex_devices.id` so the stable
     // file-UUID never leaks across vaults. Foreign members publish their
     // own `haex_devices.id` here via CRDT sync — those values are not

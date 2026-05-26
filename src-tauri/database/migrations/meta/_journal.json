@@ -22,6 +22,20 @@
       "when": 1779468260147,
       "tag": "0002_mushy_donald_blake",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1779809002417,
+      "tag": "0003_redundant_vulture",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1779809500000,
+      "tag": "0004_restore_space_devices_triggers",
+      "breakpoints": true
     }
   ]
 }

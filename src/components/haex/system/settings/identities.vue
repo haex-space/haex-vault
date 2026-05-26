@@ -44,6 +44,7 @@
         :identity="identity"
         :expanded="expandedIdentity === identity.id"
         :claims="identityStore.getClaimsForIdentity(identity.id).value"
+        :deletable="isDeletable(identity)"
         @toggle="(open) => onToggleIdentity(identity.id, open)"
         @share-qr="onShareQr(identity)"
         @copy-did="copyText(identity.did)"
@@ -114,10 +115,51 @@
       v-model:open="showDeleteConfirm"
       :title="t('delete.title')"
       :description="t('delete.description')"
-      :confirm-label="t('delete.confirmLabel')"
+      :confirm-label="deleteConfirmLabel"
+      :confirm-disabled="!canConfirmDelete"
       confirm-icon="i-lucide-trash-2"
       @confirm="onConfirmDeleteAsync"
     >
+      <div
+        v-if="affectedSyncBackends.length > 0"
+        class="mt-4 p-3 rounded-lg border border-error/40 bg-error/10 space-y-2"
+      >
+        <div class="flex items-start gap-2">
+          <UIcon
+            name="i-lucide-triangle-alert"
+            class="w-5 h-5 shrink-0 text-error mt-0.5"
+          />
+          <div class="space-y-1">
+            <p class="text-sm font-semibold text-error">
+              {{ t('delete.syncBackendWarningTitle') }}
+            </p>
+            <p class="text-sm text-error/90">
+              {{
+                t('delete.syncBackendWarningBody', {
+                  count: affectedSyncBackends.length,
+                })
+              }}
+            </p>
+          </div>
+        </div>
+        <ul class="list-disc list-inside text-sm text-error/90 pl-7">
+          <li
+            v-for="backend in affectedSyncBackends"
+            :key="backend.id"
+            class="font-medium"
+          >
+            {{ backend.name }}
+            <span class="font-mono text-xs text-error/70">({{ backend.homeServerUrl }})</span>
+          </li>
+        </ul>
+        <label class="flex items-start gap-2 pl-7 cursor-pointer pt-1">
+          <UCheckbox v-model="acceptedSyncBackendLoss" />
+          <span class="text-sm text-error font-medium">
+            {{ t('delete.syncBackendConfirm') }}
+          </span>
+        </label>
+      </div>
+
       <div
         v-if="affectedAdminSpaces.length > 0"
         class="mt-4 space-y-2"
@@ -162,6 +204,7 @@
 import type {
   SelectHaexIdentities,
   SelectHaexSpaces,
+  SelectHaexSyncBackends,
 } from '~/database/schemas'
 import ShareIdentityDialog from './contacts/ShareIdentityDialog.vue'
 import IdentityListItem, {
@@ -197,13 +240,23 @@ import {
 } from '@/composables/useIdentityExport'
 import { useUpdateIdentityPassword } from '@/composables/useUpdateIdentityPassword'
 import { useOperationErrorToast } from '@/composables/useOperationErrorToast'
+import { VaultOwnerDeletionError } from '@/stores/identity'
+import { SpaceType } from '~/database/constants'
 
 const { t } = useI18n()
 const { add } = useToast()
 
 const identityStore = useIdentityStore()
+const spacesStore = useSpacesStore()
 const { ownIdentities: identities } = storeToRefs(identityStore)
+const { spaces } = storeToRefs(spacesStore)
 const { currentVaultPassword } = storeToRefs(useVaultStore())
+
+const vaultOwnerIdentityId = computed(
+  () => spaces.value.find((s) => s.type === SpaceType.VAULT)?.ownerIdentityId ?? null,
+)
+const isDeletable = (identity: SelectHaexIdentities) =>
+  identity.id !== vaultOwnerIdentityId.value
 
 const { createIdentityAsync: runCreateIdentityAsync } = useIdentityCreation()
 const { parseImport, importAsync } = useIdentityImport()
@@ -241,6 +294,33 @@ const editTarget = ref<SelectHaexIdentities | null>(null)
 const deleteTarget = ref<SelectHaexIdentities | null>(null)
 const affectedAdminSpaces = ref<SelectHaexSpaces[]>([])
 const affectedMemberSpaces = ref<SelectHaexSpaces[]>([])
+const affectedSyncBackends = ref<SelectHaexSyncBackends[]>([])
+const acceptedSyncBackendLoss = ref(false)
+const deleteCountdown = ref(0)
+const DELETE_COUNTDOWN_SECONDS = 10
+let deleteCountdownTimer: ReturnType<typeof setInterval> | null = null
+
+const stopDeleteCountdown = () => {
+  if (deleteCountdownTimer) {
+    clearInterval(deleteCountdownTimer)
+    deleteCountdownTimer = null
+  }
+}
+
+watch(showDeleteConfirm, (open) => {
+  stopDeleteCountdown()
+  if (!open) {
+    deleteCountdown.value = 0
+    return
+  }
+  deleteCountdown.value = DELETE_COUNTDOWN_SECONDS
+  deleteCountdownTimer = setInterval(() => {
+    deleteCountdown.value--
+    if (deleteCountdown.value <= 0) stopDeleteCountdown()
+  }, 1000)
+})
+
+onBeforeUnmount(stopDeleteCountdown)
 
 // Import
 const importJson = ref('')
@@ -529,8 +609,21 @@ const prepareDelete = async (identity: SelectHaexIdentities) => {
   const affected = await identityStore.getAffectedSpacesAsync(identity.id)
   affectedAdminSpaces.value = affected.adminSpaces
   affectedMemberSpaces.value = affected.memberSpaces
+  affectedSyncBackends.value = affected.syncBackends
+  acceptedSyncBackendLoss.value = false
   showDeleteConfirm.value = true
 }
+
+const canConfirmDelete = computed(
+  () =>
+    deleteCountdown.value === 0
+    && (affectedSyncBackends.value.length === 0 || acceptedSyncBackendLoss.value),
+)
+
+const deleteConfirmLabel = computed(() => {
+  const base = t('delete.confirmLabel')
+  return deleteCountdown.value > 0 ? `${base} (${deleteCountdown.value}s)` : base
+})
 
 const onConfirmDeleteAsync = async () => {
   if (!deleteTarget.value) return
@@ -541,6 +634,10 @@ const onConfirmDeleteAsync = async () => {
     deleteTarget.value = null
   } catch (error) {
     console.error('Failed to delete identity:', error)
+    if (error instanceof VaultOwnerDeletionError) {
+      add({ title: t('errors.vaultOwnerDelete'), color: 'error' })
+      return
+    }
     showOperationError(error, 'errors.deleteFailed')
   }
 }
@@ -614,6 +711,9 @@ de:
     confirmLabel: Endgültig löschen
     adminSpacesWarning: 'Diese Spaces werden ebenfalls gelöscht ({count}):'
     memberSpacesInfo: 'Aus {count} weiteren Spaces wirst du entfernt.'
+    syncBackendWarningTitle: 'Achtung: Datenverlust auf Sync-Servern'
+    syncBackendWarningBody: 'Diese Identität ist die einzige Authentifizierung für {count, plural, one {einen Sync-Server} other {# Sync-Server}}. Nach dem Löschen kannst du nicht mehr auf bereits hochgeladene Daten dort zugreifen — sie sind dauerhaft verloren, sofern du kein anderes Gerät mit derselben Identität besitzt.'
+    syncBackendConfirm: Ich habe verstanden, dass Daten auf diesen Servern unwiederbringlich verloren gehen.
   claims:
     updated: Claim aktualisiert
     added: Claim hinzugefügt
@@ -635,6 +735,7 @@ de:
     createFailed: Identität konnte nicht erstellt werden
     editFailed: Identität konnte nicht bearbeitet werden
     deleteFailed: Identität konnte nicht gelöscht werden
+    vaultOwnerDelete: Die Eigentümer-Identität des Tresors kann nicht gelöscht werden
     exportFailed: Export fehlgeschlagen
     importFailed: Import fehlgeschlagen
     invalidJson: Ungültiges JSON
@@ -659,6 +760,9 @@ en:
     confirmLabel: Delete permanently
     adminSpacesWarning: 'These spaces will also be deleted ({count}):'
     memberSpacesInfo: 'You will be removed from {count} more spaces.'
+    syncBackendWarningTitle: 'Warning: data loss on sync servers'
+    syncBackendWarningBody: 'This identity is the only credential for {count, plural, one {one sync server} other {# sync servers}}. After deletion, any data already uploaded there becomes unreachable from this vault — it is permanently lost unless you have another device holding the same identity.'
+    syncBackendConfirm: I understand that data on these servers will be permanently lost.
   claims:
     updated: Claim updated
     added: Claim added
@@ -680,6 +784,7 @@ en:
     createFailed: Failed to create identity
     editFailed: Failed to edit identity
     deleteFailed: Failed to delete identity
+    vaultOwnerDelete: The vault owner identity cannot be deleted
     exportFailed: Export failed
     importFailed: Import failed
     invalidJson: Invalid JSON
