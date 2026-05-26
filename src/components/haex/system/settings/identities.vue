@@ -134,11 +134,7 @@
               {{ t('delete.syncBackendWarningTitle') }}
             </p>
             <p class="text-sm text-error/90">
-              {{
-                t('delete.syncBackendWarningBody', {
-                  count: affectedSyncBackends.length,
-                })
-              }}
+              {{ t('delete.syncBackendWarningBody') }}
             </p>
           </div>
         </div>
@@ -712,7 +708,7 @@ de:
     adminSpacesWarning: 'Diese Spaces werden ebenfalls gelöscht ({count}):'
     memberSpacesInfo: 'Aus {count} weiteren Spaces wirst du entfernt.'
     syncBackendWarningTitle: 'Achtung: Datenverlust auf Sync-Servern'
-    syncBackendWarningBody: 'Diese Identität ist die einzige Authentifizierung für {count, plural, one {einen Sync-Server} other {# Sync-Server}}. Nach dem Löschen kannst du nicht mehr auf bereits hochgeladene Daten dort zugreifen — sie sind dauerhaft verloren, sofern du kein anderes Gerät mit derselben Identität besitzt.'
+    syncBackendWarningBody: 'Diese Identität ist die einzige Authentifizierung für die folgenden Sync-Server. Nach dem Löschen kannst du nicht mehr auf bereits hochgeladene Daten dort zugreifen — sie sind dauerhaft verloren, sofern du kein anderes Gerät mit derselben Identität besitzt.'
     syncBackendConfirm: Ich habe verstanden, dass Daten auf diesen Servern unwiederbringlich verloren gehen.
   claims:
     updated: Claim aktualisiert
@@ -761,7 +757,7 @@ en:
     adminSpacesWarning: 'These spaces will also be deleted ({count}):'
     memberSpacesInfo: 'You will be removed from {count} more spaces.'
     syncBackendWarningTitle: 'Warning: data loss on sync servers'
-    syncBackendWarningBody: 'This identity is the only credential for {count, plural, one {one sync server} other {# sync servers}}. After deletion, any data already uploaded there becomes unreachable from this vault — it is permanently lost unless you have another device holding the same identity.'
+    syncBackendWarningBody: 'This identity is the only credential for the sync servers listed below. After deletion, any data already uploaded there becomes unreachable from this vault — it is permanently lost unless you have another device holding the same identity.'
     syncBackendConfirm: I understand that data on these servers will be permanently lost.
   claims:
     updated: Claim updated
