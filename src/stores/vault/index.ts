@@ -424,22 +424,12 @@ export const useVaultStore = defineStore('vaultStore', () => {
     //   later via Settings → Devices → Current.
     const deviceStore = useDeviceStore()
     const status = await deviceStore.resolveAsync()
-    if (status === 'pending') {
-      const known = deviceStore.pendingResolution?.knownDevices ?? []
-      if (known.length === 0) {
-        const fallbackName
-          = deviceStore.deviceName
-          || deviceStore.hostname
-          || `Device ${deviceStore.localDeviceId.slice(0, 8)}`
-        await deviceStore.registerNewAsync(fallbackName)
-      } else if (known.length === 1) {
-        // Only one candidate to reclaim — skip the dialog and adopt the row
-        // automatically. Typical case: app-data wipe on a device that was
-        // the sole peer of this vault. Multiple candidates still go through
-        // the dialog because the choice is destructive (rotates the secret).
-        const sole = known[0]!
-        await deviceStore.reclaimAsync(sole.id, sole.name)
-      }
+    if (status === 'pending' && deviceStore.pendingResolution?.knownDevices.length === 0) {
+      const fallbackName
+        = deviceStore.deviceName
+        || deviceStore.hostname
+        || `Device ${deviceStore.localDeviceId.slice(0, 8)}`
+      await deviceStore.registerNewAsync(fallbackName)
     }
 
     // Set device ID for console interceptor logging
