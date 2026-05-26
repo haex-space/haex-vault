@@ -44,6 +44,7 @@
                 variant="ghost"
                 :loading="revokingClientId === client.clientId"
                 :title="t('revoke')"
+                :aria-label="t('revoke')"
                 @click="handleRevokeClient(client)"
               />
             </template>
@@ -82,6 +83,7 @@
                 variant="ghost"
                 :loading="revokingSessionClientId === auth.clientId"
                 :title="t('revoke')"
+                :aria-label="t('revoke')"
                 @click="handleRevokeSessionAuth(auth)"
               />
             </template>
@@ -105,6 +107,7 @@
                 variant="ghost"
                 :loading="unblockingSessionClientId === client.clientId"
                 :title="t('unblock')"
+                :aria-label="t('unblock')"
                 @click="handleUnblockSessionClient(client)"
               />
             </template>
@@ -140,6 +143,7 @@
                 variant="ghost"
                 :loading="unblockingClientId === client.clientId"
                 :title="t('unblock')"
+                :aria-label="t('unblock')"
                 @click="handleUnblockClient(client)"
               />
             </template>
