@@ -1,6 +1,6 @@
 import { invoke, Channel } from '@tauri-apps/api/core'
 import { RustEventGroup, RUST_EVENTS, type PeerStorageStateEvent } from '@/lib/rust-events'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { createLogger } from '@/stores/logging'
 import { requireDb } from '~/stores/vault'
 import type { PeerStorageStatus } from '~/../src-tauri/bindings/PeerStorageStatus'
@@ -193,15 +193,41 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
       || deviceStore.hostname
       || `Device ${deviceStore.deviceId.slice(0, 8)}`
 
-    await db.insert(haexSpaceDevices).values({
-      spaceId,
-      identityId: identityId || null,
-      deviceId: deviceStore.deviceRowId,
-      endpointId: deviceStore.deviceId,
-      name: displayName,
-      platform: deviceStore.platform,
-      relayUrl: relayUrl.value,
-    })
+    // Idempotent publish: a previous membership (e.g. leave → re-invite)
+    // leaves the haex_space_devices row behind because self-leave only
+    // tears down haex_space_members. Without this branch, re-accepting
+    // the invite would hit `UNIQUE (space_id, endpoint_id)` and abort
+    // the publish step.
+    const existing = await db
+      .select({ id: haexSpaceDevices.id })
+      .from(haexSpaceDevices)
+      .where(and(
+        eq(haexSpaceDevices.spaceId, spaceId),
+        eq(haexSpaceDevices.endpointId, deviceStore.deviceId),
+      ))
+      .limit(1)
+
+    if (existing[0]) {
+      await db.update(haexSpaceDevices)
+        .set({
+          identityId: identityId || null,
+          deviceId: deviceStore.deviceRowId,
+          name: displayName,
+          platform: deviceStore.platform,
+          relayUrl: relayUrl.value,
+        })
+        .where(eq(haexSpaceDevices.id, existing[0].id))
+    } else {
+      await db.insert(haexSpaceDevices).values({
+        spaceId,
+        identityId: identityId || null,
+        deviceId: deviceStore.deviceRowId,
+        endpointId: deviceStore.deviceId,
+        name: displayName,
+        platform: deviceStore.platform,
+        relayUrl: relayUrl.value,
+      })
+    }
 
     await loadSpaceDevicesAsync()
   }
