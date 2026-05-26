@@ -19,6 +19,9 @@ on:
       # by GitHub's anti-recursion rule when the PR is opened with the
       # default token, so this is the only chance Build has to run there).
       - 'sync-main/**'
+      # Bot-pushed back-sync branches (release-please.yml syncs version bumps
+      # from main back to develop after each release).
+      - 'sync-develop/**'
     tags-ignore:
       - '**'
   pull_request:
