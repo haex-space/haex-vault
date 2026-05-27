@@ -10,7 +10,7 @@
       <NuxtLayout>
         <NuxtPage />
       </NuxtLayout>
-      <HaexDeviceReconciliationReconciliationDialog />
+      <HaexDeviceReconciliationDialog />
       <HaexDeviceReconciliationSpacePublishingDialog />
     </template>
   </div>

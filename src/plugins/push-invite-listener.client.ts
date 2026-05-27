@@ -27,6 +27,12 @@ export default defineNuxtPlugin({
   async setup(nuxtApp) {
     let unlisten: UnlistenFn | null = null
 
+    // Capture composables during plugin setup. Calling `useToast()` from
+    // inside the Tauri event callback below would run outside Vue's setup
+    // context — `inject()` then warns and returns undefined.
+    const toast = useToast()
+    const i18n = nuxtApp.$i18n as { locale?: { value?: string } } | undefined
+
     try {
       // Pin to the main window — backend emits via emit_to("main", …)
       // and bare listen() (default target=Any) is dropped in prod builds.
@@ -35,10 +41,8 @@ export default defineNuxtPlugin({
 
         let toastOk = false
         try {
-          const { add } = useToast()
-          const i18n = nuxtApp.$i18n as { locale?: { value?: string } } | undefined
           const isDe = (i18n?.locale?.value ?? 'de') === 'de'
-          add({
+          toast.add({
             title: isDe ? 'Neue Einladung' : 'New invitation',
             description: isDe
               ? 'Du hast eine neue Space-Einladung erhalten.'
