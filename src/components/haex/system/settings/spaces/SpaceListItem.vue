@@ -433,14 +433,30 @@ const inviteMenuItems = computed(() => [
 ])
 
 onMounted(async () => {
-  if (!props.pending) {
-    capabilities.value = await spacesStore.getCapabilitiesForSpaceAsync(props.space.id)
-  } else {
+  if (props.pending) {
     // Pending invite: ensure contacts are loaded so resolvedInviterLabel can
     // prefer the local contact name over the untrusted remote label.
     await identityStore.loadIdentitiesAsync()
   }
 })
+
+// Capabilities come from UCAN tokens filtered by our own identity DIDs, so they
+// can only resolve once the identity store has hydrated. SpaceListItem may mount
+// before that finishes — the parent page loads identities and spaces
+// concurrently, and cached spaces render their items immediately. Loading
+// capabilities once in onMounted therefore left `capabilities` empty for good
+// when the store wasn't hydrated yet (nothing re-ran the query), hiding the
+// admin / invite / edit affordances until the component happened to remount.
+// Re-resolve whenever our own identity DIDs change so the controls appear as
+// soon as hydration completes.
+watch(
+  () => identityStore.ownIdentities.map(i => i.did).join(','),
+  async (dids) => {
+    if (props.pending || !dids) return
+    capabilities.value = await spacesStore.getCapabilitiesForSpaceAsync(props.space.id)
+  },
+  { immediate: true },
+)
 
 const { getBackendNameByUrl } = useSyncBackendsStore()
 
