@@ -13,10 +13,12 @@ use crate::extension::permissions::types::{
     Action, DbAction, ExtensionPermission, FsAction, PasswordsAction, PermissionStatus,
     ResourceType, WebAction,
 };
-use crate::extension::utils::resolve_extension_id;
+use crate::extension::utils::{
+    resolve_extension_id, PermissionResolvedPayload, EVENT_PERMISSION_RESOLVED,
+};
 use crate::AppState;
 use std::path::Path;
-use tauri::{State, WebviewWindow};
+use tauri::{AppHandle, State, WebviewWindow};
 
 // =============================================================================
 // Permission Check Commands (unified for WebView and iframe)
@@ -92,6 +94,39 @@ pub async fn extension_permissions_check_filesystem(
 // =============================================================================
 // Legacy Commands (for internal use by frontend)
 // =============================================================================
+
+/// Notify the owning extension's webview that a permission prompt was resolved.
+///
+/// Called by the frontend permission-prompt flow after every decision
+/// (granted / denied / one-time allow / cancel). The extension's SDK listens
+/// for this event to auto-retry the original request (on grant) or fail it
+/// cleanly (on deny). `target` MUST be the original prompt target so it
+/// matches the PermissionPromptRequired error the SDK is waiting on.
+#[tauri::command]
+pub fn notify_extension_permission_decision(
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+    extension_id: String,
+    resource_type: String,
+    action: String,
+    target: String,
+    decision: String,
+) -> Result<(), ExtensionError> {
+    let payload = PermissionResolvedPayload {
+        extension_id: extension_id.clone(),
+        resource_type,
+        action,
+        target,
+        decision,
+    };
+    let _ = state.extension_webview_manager.emit_to_extension_or_main(
+        &app_handle,
+        &extension_id,
+        EVENT_PERMISSION_RESOLVED,
+        payload,
+    );
+    Ok(())
+}
 
 /// Grants or denies a permission for the current session only (not persisted to database)
 ///

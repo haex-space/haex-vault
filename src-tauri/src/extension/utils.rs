@@ -14,6 +14,24 @@ use tauri::{AppHandle, Emitter, State, WebviewWindow};
 /// Event name for permission prompt required
 pub const EVENT_PERMISSION_PROMPT_REQUIRED: &str = "extension:permission-prompt-required";
 
+/// Event name for a resolved permission prompt (sent to the owning extension
+/// so its SDK can auto-retry the original request, or react to a denial).
+pub const EVENT_PERMISSION_RESOLVED: &str = "extension:permission-resolved";
+
+/// Payload for the permission-resolved event. `target` is the ORIGINAL prompt
+/// target (not a normalized variant), so the SDK can match it against the
+/// PermissionPromptRequired error it is waiting on.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionResolvedPayload {
+    pub extension_id: String,
+    pub resource_type: String,
+    pub action: String,
+    pub target: String,
+    /// "granted" | "denied"
+    pub decision: String,
+}
+
 /// Payload for permission prompt event
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
