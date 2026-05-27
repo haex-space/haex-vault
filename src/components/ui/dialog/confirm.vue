@@ -29,6 +29,7 @@
         <UiButton
           :icon="confirmIcon || 'mdi:check'"
           :label="confirmLabel || t('confirm')"
+          :disabled="confirmDisabled"
           block
 
           color="primary"
@@ -41,14 +42,18 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
-  abortIcon?: string
-  abortLabel?: string
-  confirmIcon?: string
-  confirmLabel?: string
-  description?: string
-  title?: string
-}>()
+withDefaults(
+  defineProps<{
+    abortIcon?: string
+    abortLabel?: string
+    confirmIcon?: string
+    confirmLabel?: string
+    confirmDisabled?: boolean
+    description?: string
+    title?: string
+  }>(),
+  { confirmDisabled: false },
+)
 
 const open = defineModel<boolean>('open', { default: false })
 
