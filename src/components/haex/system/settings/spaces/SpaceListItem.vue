@@ -452,7 +452,13 @@ onMounted(async () => {
 watch(
   () => identityStore.ownIdentities.map(i => i.did).join(','),
   async (dids) => {
-    if (props.pending || !dids) return
+    // No own identities (e.g. after logout / identity reset) means no
+    // capabilities — clear so privileged controls don't linger from a
+    // previous hydration.
+    if (props.pending || !dids) {
+      capabilities.value = []
+      return
+    }
     capabilities.value = await spacesStore.getCapabilitiesForSpaceAsync(props.space.id)
   },
   { immediate: true },
