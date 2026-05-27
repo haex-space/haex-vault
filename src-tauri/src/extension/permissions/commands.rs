@@ -19,6 +19,10 @@ use crate::extension::utils::{
 use crate::AppState;
 use std::path::Path;
 use tauri::{AppHandle, State, WebviewWindow};
+// Mobile builds have no `extension_webview_manager`; the resolution event is
+// emitted to the main window directly, which needs the Emitter trait in scope.
+#[cfg(any(target_os = "android", target_os = "ios"))]
+use tauri::Emitter;
 
 // =============================================================================
 // Permission Check Commands (unified for WebView and iframe)
@@ -112,6 +116,15 @@ pub fn notify_extension_permission_decision(
     target: String,
     decision: String,
 ) -> Result<(), ExtensionError> {
+    // The SDK only resolves its pending request on "granted" | "denied"; reject
+    // anything else at the boundary so a malformed decision can't silently
+    // drift the protocol.
+    if decision != "granted" && decision != "denied" {
+        return Err(ExtensionError::ValidationError {
+            reason: format!("Invalid decision: {decision}. Expected 'granted' or 'denied'"),
+        });
+    }
+
     let payload = PermissionResolvedPayload {
         extension_id: extension_id.clone(),
         resource_type,
@@ -119,12 +132,34 @@ pub fn notify_extension_permission_decision(
         target,
         decision,
     };
-    let _ = state.extension_webview_manager.emit_to_extension_or_main(
-        &app_handle,
-        &extension_id,
-        EVENT_PERMISSION_RESOLVED,
-        payload,
-    );
+
+    // Deliver the resolution event so the extension SDK can auto-retry (grant)
+    // or fail cleanly (deny). Propagate delivery failures instead of swallowing
+    // them — a dropped event leaves the SDK waiting until its own timeout.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    state
+        .extension_webview_manager
+        .emit_to_extension_or_main(
+            &app_handle,
+            &extension_id,
+            EVENT_PERMISSION_RESOLVED,
+            payload,
+        )
+        .map_err(|e| ExtensionError::WebError {
+            reason: format!("Failed to notify extension of permission decision: {e}"),
+        })?;
+
+    // Mobile builds have no extension_webview_manager — emit to the main window.
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        let _ = &state;
+        app_handle
+            .emit_to("main", EVENT_PERMISSION_RESOLVED, payload)
+            .map_err(|e| ExtensionError::WebError {
+                reason: format!("Failed to notify extension of permission decision: {e}"),
+            })?;
+    }
+
     Ok(())
 }
 
