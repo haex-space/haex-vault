@@ -4,7 +4,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 export interface PermissionPromptData {
   extensionId: string
   extensionName: string
-  resourceType: 'db' | 'web' | 'fs' | 'shell' | 'filesync' | 'spaces'
+  resourceType: 'db' | 'web' | 'fs' | 'shell' | 'filesync' | 'spaces' | 'passwords'
   action: string
   target: string
 }
@@ -222,6 +222,27 @@ export function usePermissionPrompt() {
   }
 
   /**
+   * Notify the owning extension's webview that the prompt was resolved, so its
+   * SDK can auto-retry (on grant) or fail the original call (on deny).
+   * Uses the ORIGINAL prompt target so the SDK can match its pending request.
+   */
+  async function notifyExtensionDecision(data: PermissionPromptData, decision: PermissionDecision) {
+    // "ask" (one-time allow) is a grant for the immediate retry.
+    const effective = decision === 'denied' ? 'denied' : 'granted'
+    try {
+      await invoke('notify_extension_permission_decision', {
+        extensionId: data.extensionId,
+        resourceType: data.resourceType,
+        action: data.action,
+        target: data.target,
+        decision: effective,
+      })
+    } catch (error) {
+      console.error('Failed to notify extension of permission decision:', error)
+    }
+  }
+
+  /**
    * Handle user decision from the dialog
    * Called by the dialog component when user clicks a button
    *
@@ -236,8 +257,9 @@ export function usePermissionPrompt() {
 
     const data = promptData.value
 
-    // Save the current decision
+    // Save the current decision, then notify the extension so its SDK retries.
     await saveDecision(data, decision, remember)
+    await notifyExtensionDecision(data, decision)
 
     // Close dialog and resolve promise for current prompt
     isOpen.value = false
@@ -258,6 +280,7 @@ export function usePermissionPrompt() {
       for (const queuedPrompt of queueCopy) {
         // Save the decision for each queued prompt
         await saveDecision(queuedPrompt.data, decision, remember)
+        await notifyExtensionDecision(queuedPrompt.data, decision)
         // Resolve the promise if it exists
         queuedPrompt.resolve?.(decision)
         // Resolve any duplicate waiters for this queued prompt
@@ -289,6 +312,9 @@ export function usePermissionPrompt() {
     // Resolve any duplicate waiters as denied
     if (data) {
       resolveDuplicateWaiters(data, 'denied')
+      // Tell the extension's SDK so its pending request fails cleanly instead
+      // of hanging until timeout.
+      void notifyExtensionDecision(data, 'denied')
     }
 
     // Show next prompt from queue if available
