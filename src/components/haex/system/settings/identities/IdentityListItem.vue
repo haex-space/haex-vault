@@ -53,6 +53,7 @@
               @click="$emit('edit')"
             />
             <UButton
+              v-if="deletable"
               variant="ghost"
               color="error"
               icon="i-lucide-trash-2"
@@ -172,11 +173,15 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const props = defineProps<{
-  identity: SelectHaexIdentities
-  expanded: boolean
-  claims: ListItemClaim[]
-}>()
+const props = withDefaults(
+  defineProps<{
+    identity: SelectHaexIdentities
+    expanded: boolean
+    claims: ListItemClaim[]
+    deletable?: boolean
+  }>(),
+  { deletable: true },
+)
 
 const avatarOptions = computed(() => {
   if (!props.identity.avatarOptions) return null
@@ -187,38 +192,50 @@ const avatarOptions = computed(() => {
   }
 })
 
-const menuItems = computed(() => [
-  [
-    {
-      label: t('shareQr'),
-      icon: 'i-lucide-qr-code',
-      onSelect: () => emit('share-qr'),
-    },
-    {
-      label: t('copyDid'),
-      icon: 'i-lucide-copy',
-      onSelect: () => emit('copy-did'),
-    },
-    {
-      label: t('export'),
-      icon: 'i-lucide-download',
-      onSelect: () => emit('export'),
-    },
-    {
-      label: t('edit'),
-      icon: 'i-lucide-pencil',
-      onSelect: () => emit('edit'),
-    },
-  ],
-  [
-    {
-      label: t('delete'),
-      icon: 'i-lucide-trash-2',
-      color: 'error' as const,
-      onSelect: () => emit('delete'),
-    },
-  ],
-])
+type MenuItem = {
+  label: string
+  icon: string
+  color?: 'error'
+  onSelect: () => void
+}
+
+const menuItems = computed(() => {
+  const groups: MenuItem[][] = [
+    [
+      {
+        label: t('shareQr'),
+        icon: 'i-lucide-qr-code',
+        onSelect: () => emit('share-qr'),
+      },
+      {
+        label: t('copyDid'),
+        icon: 'i-lucide-copy',
+        onSelect: () => emit('copy-did'),
+      },
+      {
+        label: t('export'),
+        icon: 'i-lucide-download',
+        onSelect: () => emit('export'),
+      },
+      {
+        label: t('edit'),
+        icon: 'i-lucide-pencil',
+        onSelect: () => emit('edit'),
+      },
+    ],
+  ]
+  if (props.deletable) {
+    groups.push([
+      {
+        label: t('delete'),
+        icon: 'i-lucide-trash-2',
+        color: 'error',
+        onSelect: () => emit('delete'),
+      },
+    ])
+  }
+  return groups
+})
 </script>
 
 <i18n lang="yaml">
