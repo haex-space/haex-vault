@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.1.0](https://github.com/haex-space/haex-vault/compare/v2.0.1...v2.1.0) (2026-05-27)
+
+
+### Features
+
+* **permissions:** notify extensions when a permission prompt is resolved ([#333](https://github.com/haex-space/haex-vault/issues/333)) ([d945617](https://github.com/haex-space/haex-vault/commit/d9456177d1ff2576ea3fb51af0d81aaf7dc07d15))
+* **ui:** card variant for UiList + cleaner invite/client UIs ([#330](https://github.com/haex-space/haex-vault/issues/330)) ([bac9f32](https://github.com/haex-space/haex-vault/commit/bac9f3229599b71f7d0e86a46a01d18eef3cfefc))
+
+
+### Bug Fixes
+
+* **identity:** handle FK fallout when deleting an identity ([#331](https://github.com/haex-space/haex-vault/issues/331)) ([0ae0a90](https://github.com/haex-space/haex-vault/commit/0ae0a9014471ecfcb93af346acce797c8cc03ded))
+* invite re-accept and console warnings ([cf5c527](https://github.com/haex-space/haex-vault/commit/cf5c527f7edd07d6f3b37bcf487e58dc810ce918))
+* invite re-accept, console warnings, single-device reconciliation ([e7353ba](https://github.com/haex-space/haex-vault/commit/e7353bacdc92c678928a51b221e75fb1d6c7fbad))
+* **peer-storage:** dedupe device publish by device_id too ([0864a19](https://github.com/haex-space/haex-vault/commit/0864a1915d2d41b06e3f0385c6f087da13e9c199))
+* **spaces:** resolve space capabilities reactively on identity hydration ([#334](https://github.com/haex-space/haex-vault/issues/334)) ([8ae3200](https://github.com/haex-space/haex-vault/commit/8ae320012c2826e9de66614eacd0961d9f454446))
+
+
+### Reverts
+
+* **reconciliation:** drop auto-reclaim for single candidate ([688a175](https://github.com/haex-space/haex-vault/commit/688a175af1d373e2d4bb42c615b7d14d7e25774a))
+
 ## [2.0.1](https://github.com/haex-space/haex-vault/compare/v2.0.0...v2.0.1) (2026-05-26)
 
 
