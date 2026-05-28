@@ -131,6 +131,14 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
       throw new Error('Device identity not resolved — cannot add share')
     }
 
+    // Ensure this device is published in the space before adding the share.
+    // Without the haex_space_devices row, peers receive the peer_shares row via
+    // CRDT sync but cannot resolve the device — `allowed_peers` stays empty and
+    // sub-folder listings fail on the auth check. registerDeviceInSpaceAsync is
+    // idempotent (upserts on (space_id, endpoint_id)), so calling it on every
+    // share-add is safe.
+    await registerDeviceInSpaceAsync(spaceId)
+
     await db.insert(haexPeerShares).values({
       spaceId,
       deviceId: deviceStore.deviceRowId,
