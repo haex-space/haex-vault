@@ -53,6 +53,35 @@
           <h3 class="text-lg font-semibold">
             {{ t('extensions.title') }}
           </h3>
+          <div class="flex flex-col @sm:flex-row gap-2">
+            <UInput
+              v-model="searchQuery"
+              icon="i-lucide-search"
+              :placeholder="t('search.placeholder')"
+              class="flex-1"
+              :ui="{ trailing: 'pe-1' }"
+            >
+              <template
+                v-if="searchQuery"
+                #trailing
+              >
+                <UButton
+                  icon="i-lucide-x"
+                  size="xs"
+                  color="neutral"
+                  variant="link"
+                  :aria-label="t('search.clear')"
+                  @click="searchQuery = ''"
+                />
+              </template>
+            </UInput>
+            <USelectMenu
+              v-model="statusFilter"
+              :items="statusFilterOptions"
+              value-key="value"
+              class="w-full @sm:w-44"
+            />
+          </div>
           <div class="flex items-center gap-4 text-xs text-muted">
             <span class="flex items-center gap-1">
               <span class="w-2 h-2 rounded-full bg-success" />
@@ -67,7 +96,14 @@
               {{ t('extensions.deleted') }}
             </span>
           </div>
+          <div
+            v-if="extensionItems.length === 0"
+            class="py-6 text-center text-sm text-muted"
+          >
+            {{ t('search.empty') }}
+          </div>
           <UAccordion
+            v-else
             :items="extensionItems"
             multiple
             :ui="{ header: 'w-full', trigger: 'w-full flex-1', label: 'w-full flex-1' }"
@@ -244,6 +280,16 @@ const retentionDays = ref(30)
 const isForceDeleting = ref(false)
 const lastCleanupResult = ref<CleanupResult | null>(null)
 
+const searchQuery = ref('')
+type StatusFilter = 'all' | 'modified' | 'deleted' | 'nonEmpty'
+const statusFilter = ref<StatusFilter>('all')
+const statusFilterOptions = computed(() => [
+  { label: t('filter.all'), value: 'all' as const },
+  { label: t('filter.nonEmpty'), value: 'nonEmpty' as const },
+  { label: t('filter.modified'), value: 'modified' as const },
+  { label: t('filter.deleted'), value: 'deleted' as const },
+])
+
 const hasTombstones = computed(() => (dbInfo.value?.totalTombstones ?? 0) > 0)
 
 const retentionOptions = [
@@ -264,46 +310,6 @@ const pendingSyncMap = computed(() => {
   )
 })
 
-const extensionItems = computed(() => {
-  if (!dbInfo.value) return []
-
-  return dbInfo.value.extensions.map((ext) => {
-    // Find the extension in the store to get its icon
-    const storeExtension = ext.extensionId
-      ? extensionsStore.availableExtensions.find(
-          (e) => e.id === ext.extensionId,
-        )
-      : null
-
-    // Calculate modified rows for this extension (sum of pending sync rows for its tables)
-    const tablesWithModified = ext.tables.map((table) => ({
-      ...table,
-      modifiedRows: pendingSyncMap.value.get(table.name) ?? 0,
-    }))
-    const modifiedRows = tablesWithModified.reduce(
-      (sum, t) => sum + Number(t.modifiedRows),
-      0,
-    )
-
-    return {
-      label: ext.name,
-      extensionId: ext.extensionId,
-      iconUrl: storeExtension?.iconUrl,
-      tableCount: ext.tables.length,
-      activeRows: ext.activeRows,
-      tombstoneRows: ext.tombstoneRows,
-      modifiedRows,
-      tables: tablesWithModified,
-    }
-  })
-})
-
-const browseTable = ref<string | null>(null)
-
-const openTableBrowser = (tableName: string) => {
-  browseTable.value = tableName
-}
-
 const formatTableName = (name: string): string => {
   // Remove extension prefix for readability
   // Format: {public_key}__{extension_name}__{table}
@@ -312,6 +318,83 @@ const formatTableName = (name: string): string => {
     return parts.slice(2).join('__')
   }
   return name
+}
+
+const extensionItems = computed(() => {
+  if (!dbInfo.value) return []
+
+  const query = searchQuery.value.trim().toLowerCase()
+  const status = statusFilter.value
+
+  return dbInfo.value.extensions
+    .map((ext) => {
+      const storeExtension = ext.extensionId
+        ? extensionsStore.availableExtensions.find(
+            (e) => e.id === ext.extensionId,
+          )
+        : null
+
+      const tablesWithModified = ext.tables.map((table) => ({
+        ...table,
+        modifiedRows: pendingSyncMap.value.get(table.name) ?? 0,
+      }))
+
+      const extNameMatches = query
+        ? ext.name.toLowerCase().includes(query)
+        : true
+
+      const filteredTables = tablesWithModified.filter((table) => {
+        if (status === 'modified' && Number(table.modifiedRows) === 0)
+          return false
+        if (status === 'deleted' && Number(table.tombstoneRows) === 0)
+          return false
+        if (
+          status === 'nonEmpty' &&
+          Number(table.activeRows) === 0 &&
+          Number(table.modifiedRows) === 0 &&
+          Number(table.tombstoneRows) === 0
+        )
+          return false
+        if (query && !extNameMatches) {
+          return formatTableName(table.name).toLowerCase().includes(query)
+        }
+        return true
+      })
+
+      const sortedTables = [...filteredTables].sort((a, b) =>
+        formatTableName(a.name).localeCompare(formatTableName(b.name)),
+      )
+
+      const modifiedRows = sortedTables.reduce(
+        (sum, t) => sum + Number(t.modifiedRows),
+        0,
+      )
+
+      return {
+        label: ext.name,
+        extensionId: ext.extensionId,
+        iconUrl: storeExtension?.iconUrl,
+        tableCount: sortedTables.length,
+        activeRows: sortedTables.reduce(
+          (sum, t) => sum + Number(t.activeRows),
+          0,
+        ),
+        tombstoneRows: sortedTables.reduce(
+          (sum, t) => sum + Number(t.tombstoneRows),
+          0,
+        ),
+        modifiedRows,
+        tables: sortedTables,
+      }
+    })
+    .filter((ext) => ext.tables.length > 0)
+    .sort((a, b) => a.label.localeCompare(b.label))
+})
+
+const browseTable = ref<string | null>(null)
+
+const openTableBrowser = (tableName: string) => {
+  browseTable.value = tableName
 }
 
 const loadDatabaseInfoAsync = async () => {
@@ -383,6 +466,15 @@ de:
     active: aktiv
     modified: geändert
     deleted: gelöscht
+  search:
+    placeholder: Tabellen oder Erweiterungen suchen…
+    clear: Suche zurücksetzen
+    empty: Keine passenden Tabellen gefunden
+  filter:
+    all: Alle Tabellen
+    nonEmpty: Nicht leer
+    modified: Nur geänderte
+    deleted: Nur gelöschte
   retention:
     label: Aufbewahrungszeit
     description: Gelöschte Einträge werden für diese Zeit aufbewahrt, damit alle Geräte die Löschung synchronisieren können.
@@ -421,6 +513,15 @@ en:
     active: active
     modified: modified
     deleted: deleted
+  search:
+    placeholder: Search tables or extensions…
+    clear: Clear search
+    empty: No matching tables found
+  filter:
+    all: All tables
+    nonEmpty: Non-empty
+    modified: Modified only
+    deleted: Deleted only
   retention:
     label: Retention Period
     description: Deleted entries are kept for this time so all devices can sync the deletion.
