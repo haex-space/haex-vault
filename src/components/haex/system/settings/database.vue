@@ -336,7 +336,7 @@ const extensionItems = computed(() => {
 
       const tablesWithModified = ext.tables.map((table) => ({
         ...table,
-        modifiedRows: pendingSyncMap.value.get(table.name) ?? 0,
+        modifiedRows: Number(pendingSyncMap.value.get(table.name) ?? 0n),
       }))
 
       const extNameMatches = query
