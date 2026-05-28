@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/haex-space/haex-vault/compare/v2.1.1...v2.2.0) (2026-05-28)
+
+
+### Features
+
+* **vault:** add search and filters to database table overview ([#341](https://github.com/haex-space/haex-vault/issues/341)) ([c2174a7](https://github.com/haex-space/haex-vault/commit/c2174a7f7ec1310169b9529dcae7f11ded91b82e))
+
 ## [2.1.1](https://github.com/haex-space/haex-vault/compare/v2.1.0...v2.1.1) (2026-05-28)
 
 
