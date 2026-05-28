@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.1](https://github.com/haex-space/haex-vault/compare/v2.1.0...v2.1.1) (2026-05-28)
+
+
+### Bug Fixes
+
+* **release-please:** empty package-name so component matches branch name ([#337](https://github.com/haex-space/haex-vault/issues/337)) ([ebdf0c0](https://github.com/haex-space/haex-vault/commit/ebdf0c0ade65b586daef911f961b293223cf27c5))
+
 ## [2.1.0](https://github.com/haex-space/haex-vault/compare/v2.0.1...v2.1.0) (2026-05-27)
 
 
