@@ -22,17 +22,12 @@
           :message="t('noAuthorizedClients')"
         />
 
-        <UiListContainer v-else>
+        <UiListContainer v-else variant="card">
           <UiListItem
             v-for="client in authorizedClients"
             :key="client.id"
           >
-            <div class="flex items-center gap-2">
-              <span class="font-semibold">{{ client.clientName }}</span>
-              <UBadge color="success" variant="subtle">
-                {{ t('authorized') }}
-              </UBadge>
-            </div>
+            <div class="font-semibold">{{ client.clientName }}</div>
             <div class="text-sm text-muted mt-1">
               {{ t('extension') }}: {{ getExtensionName(client.extensionId) }}
             </div>
@@ -44,14 +39,14 @@
             </div>
             <template #actions>
               <UButton
+                icon="i-lucide-trash-2"
                 color="error"
                 variant="ghost"
                 :loading="revokingClientId === client.clientId"
+                :title="t('revoke')"
+                :aria-label="t('revoke')"
                 @click="handleRevokeClient(client)"
-              >
-                <UIcon name="i-heroicons-x-mark" class="w-4 h-4" />
-                {{ t('revoke') }}
-              </UButton>
+              />
             </template>
           </UiListItem>
         </UiListContainer>
@@ -66,17 +61,12 @@
           :message="t('noSessionDecisions')"
         />
 
-        <UiListContainer v-else>
+        <UiListContainer v-else variant="card">
           <UiListItem
             v-for="auth in sessionAuthorizations"
             :key="'auth-' + auth.clientId"
           >
-            <div class="flex items-center gap-2">
-              <span class="font-semibold">{{ auth.clientName || t('sessionClient') }}</span>
-              <UBadge color="success" variant="subtle">
-                {{ t('sessionAllowed') }}
-              </UBadge>
-            </div>
+            <div class="font-semibold">{{ auth.clientName || t('sessionClient') }}</div>
             <div class="text-sm text-muted mt-1">
               {{ t('extension') }}: {{ getExtensionName(auth.extensionId) }}
             </div>
@@ -88,14 +78,14 @@
             </div>
             <template #actions>
               <UButton
+                icon="i-lucide-trash-2"
                 color="error"
                 variant="ghost"
                 :loading="revokingSessionClientId === auth.clientId"
+                :title="t('revoke')"
+                :aria-label="t('revoke')"
                 @click="handleRevokeSessionAuth(auth)"
-              >
-                <UIcon name="i-heroicons-x-mark" class="w-4 h-4" />
-                {{ t('revoke') }}
-              </UButton>
+              />
             </template>
           </UiListItem>
 
@@ -103,12 +93,7 @@
             v-for="client in sessionBlockedClients"
             :key="'blocked-' + client.clientId"
           >
-            <div class="flex items-center gap-2">
-              <span class="font-semibold">{{ client.clientName }}</span>
-              <UBadge color="error" variant="subtle">
-                {{ t('sessionBlocked') }}
-              </UBadge>
-            </div>
+            <div class="font-semibold">{{ client.clientName }}</div>
             <div class="text-xs text-muted mt-1 font-mono truncate">
               {{ client.clientId }}
             </div>
@@ -117,14 +102,14 @@
             </div>
             <template #actions>
               <UButton
+                icon="i-heroicons-check"
                 color="success"
                 variant="ghost"
                 :loading="unblockingSessionClientId === client.clientId"
+                :title="t('unblock')"
+                :aria-label="t('unblock')"
                 @click="handleUnblockSessionClient(client)"
-              >
-                <UIcon name="i-heroicons-check" class="w-4 h-4" />
-                {{ t('unblock') }}
-              </UButton>
+              />
             </template>
           </UiListItem>
         </UiListContainer>
@@ -139,17 +124,12 @@
           :message="t('noBlockedClients')"
         />
 
-        <UiListContainer v-else>
+        <UiListContainer v-else variant="card">
           <UiListItem
             v-for="client in blockedClients"
             :key="client.id"
           >
-            <div class="flex items-center gap-2">
-              <span class="font-semibold">{{ client.clientName }}</span>
-              <UBadge color="error" variant="subtle">
-                {{ t('blocked') }}
-              </UBadge>
-            </div>
+            <div class="font-semibold">{{ client.clientName }}</div>
             <div class="text-xs text-muted mt-1 font-mono truncate">
               {{ client.clientId }}
             </div>
@@ -158,14 +138,14 @@
             </div>
             <template #actions>
               <UButton
+                icon="i-heroicons-check"
                 color="success"
                 variant="ghost"
                 :loading="unblockingClientId === client.clientId"
+                :title="t('unblock')"
+                :aria-label="t('unblock')"
                 @click="handleUnblockClient(client)"
-              >
-                <UIcon name="i-heroicons-check" class="w-4 h-4" />
-                {{ t('unblock') }}
-              </UButton>
+              />
             </template>
           </UiListItem>
         </UiListContainer>
@@ -306,10 +286,6 @@ de:
   noAuthorizedClients: Keine dauerhaft autorisierten Clients vorhanden.
   noBlockedClients: Keine dauerhaft blockierten Clients vorhanden.
   noSessionDecisions: Keine temporären Entscheidungen vorhanden.
-  authorized: Dauerhaft
-  blocked: Dauerhaft
-  sessionAllowed: Erlaubt
-  sessionBlocked: Blockiert
   sessionClient: Externer Client
   sessionHint: Wird beim Neustart von haex-vault entfernt
   extension: Erweiterung
@@ -335,10 +311,6 @@ en:
   noAuthorizedClients: No permanently authorized clients.
   noBlockedClients: No permanently blocked clients.
   noSessionDecisions: No temporary decisions.
-  authorized: Permanent
-  blocked: Permanent
-  sessionAllowed: Allowed
-  sessionBlocked: Blocked
   sessionClient: External Client
   sessionHint: Will be removed when haex-vault restarts
   extension: Extension

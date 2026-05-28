@@ -27,28 +27,19 @@
       <template v-else>
         <!-- Contact mode: multi-select contacts -->
         <template v-if="mode === 'contact'">
-          <div class="flex gap-2">
-            <UiSelectMenu
-              v-model="selectedContactIds"
-              :items="contactOptions"
-              value-key="value"
-              multiple
-              :label="t('form.selectContacts')"
-              class="flex-1"
-              data-testid="invite-contact-select"
-            >
-              <template #empty>
-                {{ t('form.noContacts') }}
-              </template>
-            </UiSelectMenu>
-            <UiButton
-              icon="i-lucide-contact"
-              color="neutral"
-              variant="outline"
-              :title="t('form.manageContacts')"
-              @click="navigateToContacts"
-            />
-          </div>
+          <UiSelectMenu
+            v-model="selectedContactIds"
+            :items="contactOptions"
+            value-key="value"
+            multiple
+            :label="t('form.selectContacts')"
+            class="w-full"
+            data-testid="invite-contact-select"
+          >
+            <template #empty>
+              {{ t('form.noContacts') }}
+            </template>
+          </UiSelectMenu>
         </template>
 
         <!-- Link mode: label + max uses -->
@@ -100,14 +91,15 @@
         </div>
 
         <!-- Expiry / deadline -->
-        <UiSelectMenu
-          v-model="selectedExpiry"
-          :items="expiryOptions"
-          :search-input="false"
-          :label="t('form.deadlineLabel')"
-          class="w-full mt-3"
-        />
-        <p class="text-xs text-muted mt-1">{{ t('form.deadlineHint') }}</p>
+        <div class="mt-6">
+          <UiSelectMenu
+            v-model="selectedExpiry"
+            :items="expiryOptions"
+            :search-input="false"
+            :label="t('form.deadlineLabel')"
+          />
+          <p class="text-xs text-muted mt-1">{{ t('form.deadlineHint') }}</p>
+        </div>
 
         <!-- Endpoint selector (only for local spaces) -->
         <template v-if="isLocalSpace && spaceDevices.length > 0">
@@ -159,7 +151,6 @@
 </template>
 
 <script setup lang="ts">
-import { SettingsCategory } from '~/config/settingsCategories'
 import type { SelectHaexIdentities } from '~/database/schemas'
 import { SpaceType, SpaceCapability } from '~/database/constants'
 import { createLogger } from '@/stores/logging'
@@ -180,7 +171,6 @@ const props = defineProps<{
 const { t } = useI18n()
 const { add } = useToast()
 
-const windowManager = useWindowManagerStore()
 const spacesStore = useSpacesStore()
 const identityStore = useIdentityStore()
 const peerStorageStore = usePeerStorageStore()
@@ -368,14 +358,6 @@ const onSubmitAsync = async () => {
   }
 }
 
-const navigateToContacts = () => {
-  open.value = false
-  windowManager.openWindowAsync({
-    type: 'system',
-    sourceId: 'settings',
-    params: { category: SettingsCategory.Contacts },
-  })
-}
 </script>
 
 <i18n lang="yaml">
@@ -389,7 +371,6 @@ de:
   form:
     selectContacts: Kontakte auswählen
     noContacts: Keine Kontakte vorhanden
-    manageContacts: Kontakte verwalten
     capabilityLabel: Berechtigungen
     deadlineLabel: Annahmefrist
     deadlineHint: Die Einladung verfällt, wenn sie nicht innerhalb dieser Zeit angenommen wird.
@@ -432,7 +413,6 @@ en:
   form:
     selectContacts: Select contacts
     noContacts: No contacts found
-    manageContacts: Manage contacts
     capabilityLabel: Permissions
     deadlineLabel: Acceptance deadline
     deadlineHint: The invitation expires if not accepted within this time.

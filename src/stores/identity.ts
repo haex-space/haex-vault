@@ -23,6 +23,7 @@ import {
   type SelectHaexIdentities,
   type SelectHaexIdentityClaims,
   type SelectHaexSpaces,
+  type SelectHaexSyncBackends,
 } from '~/database/schemas'
 import { SpaceType } from '~/database/constants'
 import { createLogger } from '@/stores/logging'
@@ -34,6 +35,13 @@ export interface ExportedIdentity {
   privateKey: string
   avatar?: string | null
   claims?: { type: string; value: string }[]
+}
+
+export class VaultOwnerDeletionError extends Error {
+  constructor() {
+    super('Cannot delete the owner of the vault space')
+    this.name = 'VaultOwnerDeletionError'
+  }
 }
 
 const log = createLogger('IDENTITY')
@@ -299,18 +307,28 @@ export const useIdentityStore = defineStore('identityStore', () => {
   const getAffectedSpacesAsync = async (identityId: string): Promise<{
     adminSpaces: SelectHaexSpaces[]
     memberSpaces: SelectHaexSpaces[]
+    syncBackends: SelectHaexSyncBackends[]
   }> => {
     const db = requireDb()
 
     const identity = await getIdentityByIdAsync(identityId)
-    if (!identity) return { adminSpaces: [], memberSpaces: [] }
+    if (!identity) return { adminSpaces: [], memberSpaces: [], syncBackends: [] }
 
-    // Spaces where this identity issued UCANs → admin
-    const adminUcans = await db
-      .select({ spaceId: haexUcanTokens.spaceId })
-      .from(haexUcanTokens)
-      .where(eq(haexUcanTokens.issuerDid, identity.did))
-    const adminSpaceIds = [...new Set(adminUcans.map(u => u.spaceId))]
+    // Spaces where this identity is admin: either it issued UCANs (online
+    // spaces) OR it is the direct owner (local spaces don't issue UCANs but
+    // still hold a non-cascading FK via `owner_identity_id`).
+    const [adminUcans, ownedSpaceRows] = await Promise.all([
+      db.select({ spaceId: haexUcanTokens.spaceId })
+        .from(haexUcanTokens)
+        .where(eq(haexUcanTokens.issuerDid, identity.did)),
+      db.select({ id: haexSpaces.id })
+        .from(haexSpaces)
+        .where(eq(haexSpaces.ownerIdentityId, identityId)),
+    ])
+    const adminSpaceIds = [...new Set([
+      ...adminUcans.map(u => u.spaceId),
+      ...ownedSpaceRows.map(s => s.id),
+    ])]
 
     const adminSpaces = adminSpaceIds.length > 0
       ? await db.select().from(haexSpaces)
@@ -334,7 +352,15 @@ export const useIdentityStore = defineStore('identityStore', () => {
       ? await db.select().from(haexSpaces).where(inArray(haexSpaces.id, memberSpaceIds))
       : []
 
-    return { adminSpaces, memberSpaces }
+    // Sync backends authenticate against the server via this identity's keys.
+    // Deleting the identity removes the only credential — any data still on
+    // that backend becomes unreachable from this vault.
+    const syncBackends = await db
+      .select()
+      .from(haexSyncBackends)
+      .where(eq(haexSyncBackends.identityId, identityId))
+
+    return { adminSpaces, memberSpaces, syncBackends }
   }
 
   const deleteIdentityAsync = async (identityId: string) => {
@@ -342,6 +368,22 @@ export const useIdentityStore = defineStore('identityStore', () => {
 
     const identity = await getIdentityByIdAsync(identityId)
     if (!identity) return
+
+    // Refuse if the identity owns the vault space. The vault is never
+    // deletable, and `haex_spaces.owner_identity_id` does not cascade — so
+    // deleting the identity would leave the vault row with a dangling FK and
+    // SQLite would abort the DELETE.
+    const vaultOwnerRows = await db
+      .select({ id: haexSpaces.id })
+      .from(haexSpaces)
+      .where(and(
+        eq(haexSpaces.type, SpaceType.VAULT),
+        eq(haexSpaces.ownerIdentityId, identityId),
+      ))
+      .limit(1)
+    if (vaultOwnerRows.length > 0) {
+      throw new VaultOwnerDeletionError()
+    }
 
     const { adminSpaces, memberSpaces } = await getAffectedSpacesAsync(identityId)
     const spacesStore = useSpacesStore()

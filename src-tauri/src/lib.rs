@@ -400,6 +400,7 @@ pub fn run() {
             extension::permissions::commands::extension_permissions_check_filesystem,
             extension::permissions::commands::resolve_permission_prompt,
             extension::permissions::commands::grant_session_permission,
+            extension::permissions::commands::notify_extension_permission_decision,
             extension::permissions::commands::get_extension_session_permissions,
             extension::permissions::commands::remove_extension_session_permission,
             extension::logging::commands::extension_logging_write,
