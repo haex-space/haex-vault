@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.2.1](https://github.com/haex-space/haex-vault/compare/v2.2.0...v2.2.1) (2026-05-29)
+
+
+### Bug Fixes
+
+* **crdt:** preserve HLC order when grouping remote changes per row ([c845fa8](https://github.com/haex-space/haex-vault/commit/c845fa8418c007a67b7a19fb939e5d7a726fc9d4))
+* **crdt:** re-enable foreign_keys unconditionally after apply ([b002caf](https://github.com/haex-space/haex-vault/commit/b002caf58e79f27c0ba7902a8af5d49f9623680b))
+* **crdt:** skip delete-log propagation when target row is newer ([f3843e9](https://github.com/haex-space/haex-vault/commit/f3843e9493a609ac1ed2432a4d36c2810c261775))
+* **extension/protocol:** verify installed triple before resolving asset ([2f3eb62](https://github.com/haex-space/haex-vault/commit/2f3eb62f44fb858cca52b40f888165f6fae90685))
+* **extension/web:** remove allow_once permission bypass ([40cc90d](https://github.com/haex-space/haex-vault/commit/40cc90d942319be108e9c68f2cff2b1b32dd92e8))
+* **mls:** surface stale-group delete failure in process_welcome ([7d5dd94](https://github.com/haex-space/haex-vault/commit/7d5dd94a116031ee639e005caddca09647fcde0c))
+* **shortcuts:** sanitize extension name before shell/desktop interpolation ([a7e6f2d](https://github.com/haex-space/haex-vault/commit/a7e6f2d27c765290a0909d2cb2051a8680ae1b28))
+* **space_delivery/buffer:** merge ack UPDATE + read-back into RETURNING ([93238ad](https://github.com/haex-space/haex-vault/commit/93238adbf3e73a0ffb8f0fd47e9b7935080c275a))
+* **spaces:** ensure haex_space_devices is populated for invite peers ([#344](https://github.com/haex-space/haex-vault/issues/344)) ([9f85aed](https://github.com/haex-space/haex-vault/commit/9f85aed8d7e031fcab1b73079875deb89f69ddb3))
+* **ucan:** add audience replay-protection + close clock-skew fail-open ([36ad375](https://github.com/haex-space/haex-vault/commit/36ad3754240c61e3ddb3545086947130292a7fa0))
+
 ## [2.2.0](https://github.com/haex-space/haex-vault/compare/v2.1.1...v2.2.0) (2026-05-28)
 
 
