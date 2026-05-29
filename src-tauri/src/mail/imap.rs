@@ -320,24 +320,39 @@ async fn move_messages_inner(
         .join(",");
 
     // Try MOVE first; if the server returns BAD/NO we fall back to
-    // COPY + STORE \Deleted + EXPUNGE.
+    // COPY + STORE \Deleted + EXPUNGE. If the fallback itself fails we
+    // surface the original MOVE error alongside the fallback error, so the
+    // caller can diagnose which step actually broke (previously the MOVE
+    // error was discarded with `Err(_)`).
     match session.uid_mv(&uid_set, destination_mailbox).await {
         Ok(()) => Ok(()),
-        Err(_) => {
-            session
-                .uid_copy(&uid_set, destination_mailbox)
-                .await
-                .map_err(imap_err)?;
-            let stream = session
-                .uid_store(&uid_set, "+FLAGS (\\Deleted)")
-                .await
-                .map_err(imap_err)?;
-            let _: Vec<_> = stream.try_collect().await.map_err(imap_err)?;
-            // UID EXPUNGE only removes the UIDs we just marked \Deleted,
-            // so concurrent \Deleted flags from other clients survive.
-            let expunge_stream = session.uid_expunge(&uid_set).await.map_err(imap_err)?;
-            let _: Vec<_> = expunge_stream.try_collect().await.map_err(imap_err)?;
-            Ok(())
+        Err(mv_err) => {
+            let fallback = async {
+                session
+                    .uid_copy(&uid_set, destination_mailbox)
+                    .await
+                    .map_err(imap_err)?;
+                let stream = session
+                    .uid_store(&uid_set, "+FLAGS (\\Deleted)")
+                    .await
+                    .map_err(imap_err)?;
+                let _: Vec<_> = stream.try_collect().await.map_err(imap_err)?;
+                // UID EXPUNGE only removes the UIDs we just marked \Deleted,
+                // so concurrent \Deleted flags from other clients survive.
+                let expunge_stream = session.uid_expunge(&uid_set).await.map_err(imap_err)?;
+                let _: Vec<_> = expunge_stream.try_collect().await.map_err(imap_err)?;
+                Ok::<(), MailError>(())
+            }
+            .await;
+
+            match fallback {
+                Ok(()) => Ok(()),
+                Err(fb_err) => Err(MailError::Imap {
+                    reason: format!(
+                        "MOVE failed ({mv_err}) and COPY+EXPUNGE fallback also failed: {fb_err}"
+                    ),
+                }),
+            }
         }
     }
 }
