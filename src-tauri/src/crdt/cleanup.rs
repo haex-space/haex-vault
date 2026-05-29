@@ -45,12 +45,17 @@ impl Drop for ForeignKeyGuard<'_> {
 }
 
 /// Run `f` with `PRAGMA foreign_keys` turned off, re-enabling unconditionally
-/// when `f` returns — even on `Err`. Use this instead of manual OFF/ON pairs
-/// in code paths that open a transaction: `Connection::transaction` requires
-/// `&mut`, which conflicts with the RAII guard's shared borrow.
+/// when `f` returns — even on `Err` or panic. Use this instead of manual
+/// OFF/ON pairs in code paths that open a transaction: `Connection::transaction`
+/// requires `&mut`, which conflicts with the RAII guard's shared borrow.
 ///
 /// Generic over the error type so callers can use their own error enum
 /// (e.g. `DatabaseError`) as long as it implements `From<rusqlite::Error>`.
+///
+/// Panic-safety: `f` runs under `catch_unwind`. If it panics, the FK pragma
+/// is restored and the original payload is re-raised — without this, a
+/// panic inside `f` would leave the shared connection with FK disabled and
+/// later non-CRDT queries would silently skip referential-integrity checks.
 pub(crate) fn with_fk_disabled<R, E, F>(conn: &mut Connection, f: F) -> Result<R, E>
 where
     F: FnOnce(&mut Connection) -> Result<R, E>,
@@ -58,9 +63,12 @@ where
 {
     conn.execute("PRAGMA foreign_keys = OFF", [])
         .map_err(E::from)?;
-    let result = f(conn);
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(conn)));
     let _ = conn.execute("PRAGMA foreign_keys = ON", []);
-    result
+    match result {
+        Ok(r) => r,
+        Err(payload) => std::panic::resume_unwind(payload),
+    }
 }
 
 #[cfg(test)]
@@ -163,6 +171,26 @@ mod fk_guard_tests {
         assert!(
             fk_state(&conn),
             "FK must be re-enabled even when body returns Err — this is the bug fix"
+        );
+    }
+
+    #[test]
+    fn with_fk_disabled_reenables_on_panic() {
+        // Defense in depth: a panic inside the body would otherwise leave the
+        // shared Connection with FK disabled, silently breaking referential
+        // integrity for every subsequent query on this connection.
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute("PRAGMA foreign_keys = ON", []).unwrap();
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _: Result<(), rusqlite::Error> =
+                with_fk_disabled(&mut conn, |_| panic!("simulated panic in body"));
+        }));
+
+        assert!(result.is_err(), "panic must propagate to caller");
+        assert!(
+            fk_state(&conn),
+            "FK must be re-enabled even when body panics — defense in depth"
         );
     }
 
