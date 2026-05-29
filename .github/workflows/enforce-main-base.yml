@@ -23,10 +23,34 @@ jobs:
   enforce-main-base:
     runs-on: ubuntu-22.04
     steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
       - name: Check PR head branch is allowed to target main
         env:
           HEAD_REF: ${{ github.head_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          # Bootstrap exemption: a PR that only touches this workflow file
+          # itself can target `main` from any branch — otherwise the
+          # workflow could never be installed in the first place (the
+          # check would fail on its own setup PR). The exemption is
+          # narrow: we require that *every* changed file matches the
+          # bootstrap allowlist; sneaking a feature commit alongside the
+          # workflow change still fails the check.
+          BOOTSTRAP_PATHS_REGEX='^(\.github/workflows/enforce-main-base\.yml|CONTRIBUTING\.md)$'
+          CHANGED=$(git diff --name-only "$BASE_SHA".."$HEAD_SHA")
+          echo "Changed files in this PR:"
+          echo "$CHANGED" | sed 's/^/  /'
+          if [ -n "$CHANGED" ] && ! echo "$CHANGED" | grep -vE "$BOOTSTRAP_PATHS_REGEX" > /dev/null; then
+            echo "::notice::Bootstrap PR detected — only ${BOOTSTRAP_PATHS_REGEX} changed; head-branch allowlist skipped."
+            exit 0
+          fi
+
           # Allowlist for branches that may target `main`:
           #   develop                      → the gitflow release path (develop → main)
           #   release-please--*            → release-please action PRs
