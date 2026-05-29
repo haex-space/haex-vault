@@ -369,6 +369,38 @@ pub fn apply_remote_changes_in_transaction(
 /// received remote timestamp after applying all changes. This ensures future local
 /// operations generate timestamps strictly greater than any received remote timestamp,
 /// preventing incomplete rows on the server during push.
+/// Build a `WHERE …` clause that matches a row by its CRDT primary-key map.
+///
+/// Returns `Some((where_clause, params))` if every PK column name is a safe
+/// identifier; returns `None` if **any** column name fails the safety check.
+/// Skipping individual columns is wrong: with a partial WHERE the resulting
+/// DELETE matches *more* than the intended row (potentially every row if
+/// every column was unsafe). All-or-nothing is the only correct stance.
+pub(crate) fn build_pk_where_from_map(
+    row_pks: &serde_json::Map<String, JsonValue>,
+) -> Option<(String, Vec<JsonValue>)> {
+    if row_pks.is_empty() {
+        return None;
+    }
+    let mut where_parts: Vec<String> = Vec::with_capacity(row_pks.len());
+    let mut values: Vec<JsonValue> = Vec::with_capacity(row_pks.len());
+    for (col_name, value) in row_pks {
+        if !is_safe_identifier(col_name) {
+            return None;
+        }
+        match value {
+            JsonValue::Null => {
+                where_parts.push(format!("\"{}\" IS NULL", col_name));
+            }
+            _ => {
+                where_parts.push(format!("\"{}\" = ?", col_name));
+                values.push(value.clone());
+            }
+        }
+    }
+    Some((where_parts.join(" AND "), values))
+}
+
 /// Decide whether to honour a delete-log entry, given the HLC of the entry
 /// and the HLC of the row currently sitting in the target table (if any).
 ///
@@ -440,29 +472,21 @@ fn propagate_deleted_rows_to_target_tables(
             }
         };
 
-        if row_pks.is_empty() {
-            continue;
-        }
-
-        let mut where_parts: Vec<String> = Vec::new();
-        let mut values: Vec<JsonValue> = Vec::new();
-        for (col_name, value) in &row_pks {
-            if !is_safe_identifier(col_name) {
-                eprintln!("[SYNC RUST] Skipping unsafe PK column: {}", col_name);
+        // All-or-nothing safety: if any PK column name fails the safe-
+        // identifier check we must skip the entire row. Building a
+        // partial WHERE from the remaining columns would match more
+        // rows than intended (potentially every row in the table).
+        let (where_clause, values) = match build_pk_where_from_map(&row_pks) {
+            Some(parts) => parts,
+            None => {
+                eprintln!(
+                    "[SYNC RUST] Skipping delete-log {} for '{}': row_pks contains \
+                     unsafe or empty PK columns — refusing to issue a partial WHERE",
+                    id, target_table
+                );
                 continue;
             }
-            match value {
-                JsonValue::Null => {
-                    where_parts.push(format!("\"{}\" IS NULL", col_name));
-                }
-                _ => {
-                    where_parts.push(format!("\"{}\" = ?", col_name));
-                    values.push(value.clone());
-                }
-            }
-        }
-
-        let where_clause = where_parts.join(" AND ");
+        };
         let sql_params = json_values_to_sql_params(&values)?;
         let param_refs: Vec<&dyn rusqlite::ToSql> =
             sql_params.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
@@ -1060,6 +1084,77 @@ mod hlc_grouping_tests {
 
     // ------------------------------------------------------------------
     // should_propagate_delete: insert-after-delete resurrection check
+    // ------------------------------------------------------------------
+
+    // ------------------------------------------------------------------
+    // build_pk_where_from_map: all-or-nothing safety
+    // ------------------------------------------------------------------
+
+    fn pk_map(pairs: &[(&str, JsonValue)]) -> serde_json::Map<String, JsonValue> {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect()
+    }
+
+    #[test]
+    fn pk_where_returns_none_for_empty_map() {
+        let empty = serde_json::Map::<String, JsonValue>::new();
+        assert!(build_pk_where_from_map(&empty).is_none());
+    }
+
+    #[test]
+    fn pk_where_handles_safe_identifiers_with_values() {
+        let map = pk_map(&[
+            ("id", JsonValue::String("x".into())),
+            ("group_id", JsonValue::String("g".into())),
+        ]);
+        let (clause, values) = build_pk_where_from_map(&map).expect("safe");
+        assert!(clause.contains("\"id\" = ?"));
+        assert!(clause.contains("\"group_id\" = ?"));
+        assert!(clause.contains(" AND "));
+        assert_eq!(values.len(), 2);
+    }
+
+    #[test]
+    fn pk_where_uses_is_null_for_null_values() {
+        let map = pk_map(&[
+            ("id", JsonValue::String("x".into())),
+            ("optional", JsonValue::Null),
+        ]);
+        let (clause, values) = build_pk_where_from_map(&map).expect("safe");
+        assert!(clause.contains("\"optional\" IS NULL"));
+        // NULL columns do not contribute to the bound parameter list.
+        assert_eq!(values.len(), 1);
+    }
+
+    #[test]
+    fn pk_where_returns_none_when_any_column_is_unsafe() {
+        // Bug-fix probe: previously the loop did `continue` on the unsafe
+        // column, building a WHERE from the *remaining* columns. The
+        // resulting DELETE would match every row that shares those
+        // remaining values — potentially every row when every column is
+        // unsafe. All-or-nothing is the only safe stance.
+        let map = pk_map(&[
+            ("id", JsonValue::String("x".into())),
+            ("evil; DROP TABLE", JsonValue::String("y".into())),
+        ]);
+        assert!(
+            build_pk_where_from_map(&map).is_none(),
+            "row with any unsafe PK column must produce no WHERE clause — \
+             building a partial clause from the other columns would match \
+             more rows than intended"
+        );
+    }
+
+    #[test]
+    fn pk_where_returns_none_when_only_unsafe_columns() {
+        let map = pk_map(&[("evil; --", JsonValue::String("y".into()))]);
+        assert!(build_pk_where_from_map(&map).is_none());
+    }
+
+    // ------------------------------------------------------------------
+    // should_propagate_delete (existing tests)
     // ------------------------------------------------------------------
 
     #[test]
