@@ -577,3 +577,114 @@ mod malformed_input_tests {
         );
     }
 }
+
+// ============================================================================
+// Cross-Extension Asset Disclosure Tests
+//
+// Background: the `haex-extension://` protocol handler receives
+// `(public_key, name, version)` from a caller-controlled URL.
+// `get_extension_dir` constructs a path without verifying installation,
+// so any webview could read another extension's static assets.
+// `verify_extension_installed` is the guard.
+//
+// These tests previously lived inside `mod malformed_input_tests` due to
+// a missing closing brace — semantically they belong in their own module.
+// ============================================================================
+
+mod cross_extension_asset_disclosure {
+    use super::*;
+
+    fn create_test_extension_with_version(public_key: &str, name: &str, version: &str) -> Extension {
+        let mut ext = create_test_extension(public_key, name);
+        ext.manifest.version = version.to_string();
+        ext
+    }
+
+    #[test]
+    fn verify_extension_installed_rejects_uninstalled_triple() {
+        use crate::extension::core::manager::ExtensionManager;
+        let manager = ExtensionManager::new();
+        // No extensions registered.
+
+        let result = manager.verify_extension_installed("attacker_pubkey", "victim_ext", "1.0.0");
+        assert!(
+            result.is_err(),
+            "uninstalled extension must be rejected to prevent cross-extension \
+             asset disclosure via crafted haex-extension:// URLs"
+        );
+    }
+
+    #[test]
+    fn verify_extension_installed_rejects_version_mismatch() {
+        use crate::extension::core::manager::ExtensionManager;
+        let manager = ExtensionManager::new();
+        manager
+            .add_extension(create_test_extension_with_version(
+                "test_pubkey",
+                "test_ext",
+                "2.0.0",
+            ))
+            .unwrap();
+
+        // Installed = 2.0.0, attacker requests 1.0.0 (an older directory that
+        // may still exist on disk after an upgrade).
+        let result = manager.verify_extension_installed("test_pubkey", "test_ext", "1.0.0");
+        assert!(
+            result.is_err(),
+            "version mismatch must be rejected — old version dirs may still exist on disk"
+        );
+    }
+
+    #[test]
+    fn verify_extension_installed_accepts_matching_triple() {
+        use crate::extension::core::manager::ExtensionManager;
+        let manager = ExtensionManager::new();
+        manager
+            .add_extension(create_test_extension_with_version(
+                "test_pubkey",
+                "test_ext",
+                "1.0.0",
+            ))
+            .unwrap();
+
+        let result = manager.verify_extension_installed("test_pubkey", "test_ext", "1.0.0");
+        assert!(result.is_ok(), "matching installed extension must be accepted");
+    }
+
+    #[test]
+    fn verify_extension_installed_rejects_different_pubkey_same_name() {
+        use crate::extension::core::manager::ExtensionManager;
+        // Victim extension is installed.
+        let manager = ExtensionManager::new();
+        manager
+            .add_extension(create_test_extension_with_version(
+                "victim_pubkey",
+                "haex-pass",
+                "1.0.0",
+            ))
+            .unwrap();
+
+        // Attacker pretends to be a different extension with the same name.
+        let result = manager.verify_extension_installed("attacker_pubkey", "haex-pass", "1.0.0");
+        assert!(
+            result.is_err(),
+            "same name with different pubkey must be rejected"
+        );
+    }
+
+    /// Regression guard: the `haex-extension://` protocol handler must verify
+    /// that `(public_key, name, version)` corresponds to an installed extension
+    /// BEFORE resolving an asset path. Without this guard, any webview that
+    /// can issue requests to the protocol can read other extensions' static
+    /// assets by crafting URLs with their base64-encoded triple.
+    #[test]
+    fn protocol_handler_must_call_verify_extension_installed() {
+        let source = include_str!("../core/protocol.rs");
+        assert!(
+            source.contains("verify_extension_installed"),
+            "extension_protocol_handler must call verify_extension_installed \
+             before resolving asset paths to prevent cross-extension asset \
+             disclosure via crafted haex-extension:// URLs."
+        );
+    }
+}

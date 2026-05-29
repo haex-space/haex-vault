@@ -607,9 +607,12 @@ pub async fn filesystem_select_file(
             if selected.is_empty() {
                 Ok(None)
             } else {
-                // Persist URI permissions so they survive app restarts
+                // Persist URI permissions so they survive app restarts.
+                // Without this, Android revokes access when the app is terminated.
                 for uri in &selected {
-                    let _ = picker.persist_uri_permission(uri);
+                    picker.persist_uri_permission(uri).map_err(|e| FsError::IoError {
+                        reason: format!("Failed to persist URI permission: {:?}", e),
+                    })?;
                 }
                 let uris: Result<Vec<String>, FsError> = selected
                     .into_iter()
@@ -628,8 +631,11 @@ pub async fn filesystem_select_file(
 
             match selected {
                 Some(uri) => {
-                    // Persist URI permission so it survives app restarts
-                    let _ = picker.persist_uri_permission(&uri);
+                    // Persist URI permission so it survives app restarts.
+                    // Without this, Android revokes access when the app is terminated.
+                    picker.persist_uri_permission(&uri).map_err(|e| FsError::IoError {
+                        reason: format!("Failed to persist URI permission: {:?}", e),
+                    })?;
                     let uri_json = uri.to_json_string().map_err(|e| FsError::IoError {
                         reason: format!("Failed to serialize URI: {:?}", e),
                     })?;

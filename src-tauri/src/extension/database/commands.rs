@@ -232,7 +232,9 @@ pub async fn extension_database_query(
 
     SqlPermissionValidator::validate_sql(&state, &extension_id, &sql).await?;
 
-    let placeholder_count = sql.matches('?').count();
+    // Use the comment/string-aware counter so a literal '?' inside a quoted
+    // string (or a comment) is not mistaken for a real parameter placeholder.
+    let placeholder_count = super::helpers::count_sql_placeholders(&sql);
     if placeholder_count != params.len() {
         return Err(ExtensionError::Database {
             source: DatabaseError::ParameterMismatchError {

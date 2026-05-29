@@ -45,12 +45,17 @@ impl Drop for ForeignKeyGuard<'_> {
 }
 
 /// Run `f` with `PRAGMA foreign_keys` turned off, re-enabling unconditionally
-/// when `f` returns — even on `Err`. Use this instead of manual OFF/ON pairs
-/// in code paths that open a transaction: `Connection::transaction` requires
-/// `&mut`, which conflicts with the RAII guard's shared borrow.
+/// when `f` returns — even on `Err` or panic. Use this instead of manual
+/// OFF/ON pairs in code paths that open a transaction: `Connection::transaction`
+/// requires `&mut`, which conflicts with the RAII guard's shared borrow.
 ///
 /// Generic over the error type so callers can use their own error enum
 /// (e.g. `DatabaseError`) as long as it implements `From<rusqlite::Error>`.
+///
+/// Panic-safety: `f` runs under `catch_unwind`. If it panics, the FK pragma
+/// is restored and the original payload is re-raised — without this, a
+/// panic inside `f` would leave the shared connection with FK disabled and
+/// later non-CRDT queries would silently skip referential-integrity checks.
 pub(crate) fn with_fk_disabled<R, E, F>(conn: &mut Connection, f: F) -> Result<R, E>
 where
     F: FnOnce(&mut Connection) -> Result<R, E>,
@@ -58,9 +63,12 @@ where
 {
     conn.execute("PRAGMA foreign_keys = OFF", [])
         .map_err(E::from)?;
-    let result = f(conn);
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(conn)));
     let _ = conn.execute("PRAGMA foreign_keys = ON", []);
-    result
+    match result {
+        Ok(r) => r,
+        Err(payload) => std::panic::resume_unwind(payload),
+    }
 }
 
 #[cfg(test)]
@@ -167,6 +175,26 @@ mod fk_guard_tests {
     }
 
     #[test]
+    fn with_fk_disabled_reenables_on_panic() {
+        // Defense in depth: a panic inside the body would otherwise leave the
+        // shared Connection with FK disabled, silently breaking referential
+        // integrity for every subsequent query on this connection.
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute("PRAGMA foreign_keys = ON", []).unwrap();
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _: Result<(), rusqlite::Error> =
+                with_fk_disabled(&mut conn, |_| panic!("simulated panic in body"));
+        }));
+
+        assert!(result.is_err(), "panic must propagate to caller");
+        assert!(
+            fk_state(&conn),
+            "FK must be re-enabled even when body panics — defense in depth"
+        );
+    }
+
+    #[test]
     fn with_fk_disabled_transaction_pattern_works() {
         // The actual call shape used in apply_remote_changes_to_db:
         // open a transaction, do stuff, commit. The closure helper must
@@ -189,6 +217,18 @@ mod fk_guard_tests {
             .unwrap();
         assert_eq!(count, 1);
     }
+}
+
+/// Computes the cutoff HLC time for cleanup.
+///
+/// Returns `None` if the cutoff would overflow `i64`. SQLite stores integers
+/// as signed 64-bit, so an `as i64` cast on a `u64 > i64::MAX` would wrap to
+/// a negative value and silently skew the `DELETE … WHERE … < ?1` comparison.
+fn compute_cutoff_hlc_num(current_hlc_num: u64, retention_days: u32) -> Option<i64> {
+    let ns_per_day: u64 = 24 * 60 * 60 * 1_000_000_000;
+    let retention_ns = u64::from(retention_days).saturating_mul(ns_per_day);
+    let cutoff = current_hlc_num.saturating_sub(retention_ns);
+    i64::try_from(cutoff).ok()
 }
 
 /// Cleans up old delete-log entries. Deletes rows from `haex_deleted_rows`
@@ -236,9 +276,19 @@ pub fn cleanup_deleted_rows(
         })?;
 
         let current_hlc_num = current_timestamp.get_time().as_u64();
-        let ns_per_day: u64 = 24 * 60 * 60 * 1_000_000_000;
-        let retention_ns = u64::from(retention_days).saturating_mul(ns_per_day);
-        let cutoff_hlc_num = current_hlc_num.saturating_sub(retention_ns) as i64;
+        let cutoff_hlc_num = match compute_cutoff_hlc_num(current_hlc_num, retention_days) {
+            Some(v) => v,
+            None => {
+                eprintln!(
+                    "HLC cutoff exceeds i64::MAX (current_hlc_num={current_hlc_num}, retention_days={retention_days}); skipping cleanup"
+                );
+                return Ok(CleanupResult {
+                    tombstones_deleted: 0,
+                    applied_deleted: 0,
+                    total_deleted: 0,
+                });
+            }
+        };
 
         let delete_sql = format!(
             "DELETE FROM \"{}\"
@@ -334,4 +384,46 @@ pub fn get_crdt_stats(conn: &Connection) -> Result<CrdtStats, rusqlite::Error> {
         update_count: applied,
         delete_count,
     })
+}
+
+#[cfg(test)]
+mod cutoff_tests {
+    use super::*;
+
+    const NS_PER_DAY: u64 = 24 * 60 * 60 * 1_000_000_000;
+
+    #[test]
+    fn normal_case_subtracts_retention() {
+        let current: u64 = 2 * NS_PER_DAY;
+        let cutoff = compute_cutoff_hlc_num(current, 1).expect("should fit i64");
+        assert_eq!(cutoff as u64, NS_PER_DAY);
+    }
+
+    #[test]
+    fn saturates_at_zero_when_retention_exceeds_current() {
+        let cutoff = compute_cutoff_hlc_num(NS_PER_DAY, 30).expect("zero fits i64");
+        assert_eq!(cutoff, 0);
+    }
+
+    #[test]
+    fn rejects_cutoff_above_i64_max() {
+        // current_hlc_num near u64::MAX, retention small → result still > i64::MAX
+        // Old code: `as i64` would wrap to a large negative i64 and silently
+        // make the DELETE comparison meaningless.
+        let current = u64::MAX;
+        assert_eq!(compute_cutoff_hlc_num(current, 1), None);
+    }
+
+    #[test]
+    fn accepts_cutoff_exactly_at_i64_max() {
+        let current = i64::MAX as u64;
+        let cutoff = compute_cutoff_hlc_num(current, 0).expect("i64::MAX fits i64");
+        assert_eq!(cutoff, i64::MAX);
+    }
+
+    #[test]
+    fn rejects_cutoff_one_past_i64_max() {
+        let current = (i64::MAX as u64) + 1;
+        assert_eq!(compute_cutoff_hlc_num(current, 0), None);
+    }
 }
