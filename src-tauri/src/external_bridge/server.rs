@@ -77,6 +77,12 @@ pub struct ExternalBridge {
     running: bool,
     current_port: u16,
     shutdown_tx: Option<mpsc::Sender<()>>,
+    /// Handle to the accept-loop task spawned by `start`. Kept so `stop`
+    /// can `.await` (and as a fallback `.abort()`) the task — without this,
+    /// the listener can still hold the port for a short window after
+    /// `stop` returns, and a quick `stop` → `start` cycle hits a bind
+    /// conflict on the same port.
+    server_task: Option<tokio::task::JoinHandle<()>>,
     clients: Arc<RwLock<HashMap<String, ConnectedClient>>>,
     pending_authorizations: Arc<RwLock<HashMap<String, PendingAuthorization>>>,
     server_keypair: Arc<RwLock<Option<ServerKeyPair>>>,
@@ -105,6 +111,7 @@ impl ExternalBridge {
             running: false,
             current_port: DEFAULT_BRIDGE_PORT,
             shutdown_tx: None,
+            server_task: None,
             clients: Arc::new(RwLock::new(HashMap::new())),
             pending_authorizations: Arc::new(RwLock::new(HashMap::new())),
             server_keypair: Arc::new(RwLock::new(None)),
@@ -281,8 +288,11 @@ impl ExternalBridge {
         let session_authorizations = self.session_authorizations.clone();
         let session_blocked = self.session_blocked.clone();
 
-        // Spawn the server task
-        tokio::spawn(async move {
+        // Spawn the server task. The JoinHandle is stored on `self` so
+        // `stop` can await it; without that the listener-bound port may
+        // still be busy for a short window after `stop` returns, breaking
+        // a quick `stop` → `start` cycle.
+        let task = tokio::spawn(async move {
             loop {
                 tokio::select! {
                     result = listener.accept() => {
@@ -315,6 +325,7 @@ impl ExternalBridge {
                 }
             }
         });
+        self.server_task = Some(task);
 
         self.running = true;
         Ok(())
@@ -328,6 +339,32 @@ impl ExternalBridge {
 
         if let Some(tx) = self.shutdown_tx.take() {
             let _ = tx.send(()).await;
+        }
+
+        // Wait for the accept-loop task to finish so the listener's port is
+        // fully released before we return. With a 2s upper bound: if the
+        // task is stuck inside `accept_async` waiting on a slow client
+        // handshake, `abort()` cancels it. Without this guard, a quick
+        // `stop` → `start` cycle can hit a bind conflict on the same port.
+        if let Some(task) = self.server_task.take() {
+            match tokio::time::timeout(Duration::from_secs(2), task).await {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => {
+                    eprintln!(
+                        "[ExternalBridge] Server task ended with error: {}",
+                        e
+                    );
+                }
+                Err(_) => {
+                    eprintln!(
+                        "[ExternalBridge] Server task did not exit within 2s; aborting"
+                    );
+                    // The handle was moved into the timeout future and is
+                    // unreachable on the timeout branch — that's fine, the
+                    // task will be cancelled when its JoinHandle is dropped
+                    // here.
+                }
+            }
         }
 
         // Close all client connections
@@ -1317,6 +1354,35 @@ mod fail_closed_tests {
     //! up to return an error — substantial fixture work for a one-line
     //! polarity bug. A source-level guard catches accidental reintroduction
     //! of the fail-open path (`Err(_) => false`) reliably.
+
+    /// stop() must await the spawned accept-loop task (or abort it on
+    /// timeout) before returning, otherwise the listener port can still
+    /// be busy when start() is called immediately afterwards.
+    #[test]
+    fn stop_must_await_server_task() {
+        let source = include_str!("server.rs");
+        let production = source
+            .split_once("#[cfg(test)]")
+            .map(|(p, _)| p)
+            .unwrap_or(source);
+
+        // The task handle must be stored on self so stop can reach it.
+        assert!(
+            production.contains("server_task: Option<tokio::task::JoinHandle"),
+            "ExternalBridge must store the accept-loop JoinHandle so stop \
+             can wait for the listener to be fully released"
+        );
+        // stop must consume the handle and bound the wait.
+        assert!(
+            production.contains("self.server_task.take()"),
+            "ExternalBridge::stop must take and await self.server_task"
+        );
+        assert!(
+            production.contains("tokio::time::timeout(Duration::from_secs(2), task)"),
+            "stop must bound the wait on the server task so a stuck \
+             accept_async cannot wedge the call"
+        );
+    }
 
     #[test]
     fn check_client_blocked_fails_closed() {
