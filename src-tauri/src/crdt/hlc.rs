@@ -311,18 +311,42 @@ impl Default for HlcService {
 }
 
 /// Compares two HLC timestamp strings numerically.
-/// Format: "<u64_ntp_nanoseconds>/<node_id_hex>"
-/// Returns Ordering based on the numeric time component, then node ID.
+/// Format: `<u64_ntp_nanoseconds>/<node_id_hex>`.
+///
+/// Returns Ordering based on the numeric time component, then a **numeric**
+/// comparison of the hex node id (uhlc strips leading zeros when serialising
+/// 16-byte node ids, so `"01"` and `"1"` are the *same* node — a string
+/// comparison gets that wrong).
+///
+/// **Parse failures are logged (once per call site, via `eprintln`) and
+/// fall back to `(0, 0)`**. Silent fallback used to make a malformed HLC
+/// compare as "ancient" — fine for sort stability, dangerous when the
+/// malformed value is on the local side of a `is_newer` check and the
+/// remote happens to be near zero. Surfacing the failure makes the
+/// presence of a malformed HLC visible in the logs.
 pub fn compare_hlc_strings(a: &str, b: &str) -> std::cmp::Ordering {
-    fn parse(s: &str) -> (u64, &str) {
-        match s.split_once('/') {
-            Some((time_str, node_id)) => (time_str.parse::<u64>().unwrap_or(0), node_id),
-            None => (s.parse::<u64>().unwrap_or(0), ""),
-        }
+    fn parse(s: &str) -> (u64, u128) {
+        let (time_str, node_str) = match s.split_once('/') {
+            Some((t, n)) => (t, n),
+            None => (s, ""),
+        };
+        let time = time_str.parse::<u64>().unwrap_or_else(|_| {
+            eprintln!("[HLC] compare_hlc_strings: cannot parse time component of {s:?}");
+            0
+        });
+        let node = if node_str.is_empty() {
+            0
+        } else {
+            parse_hlc_node_hex(node_str).unwrap_or_else(|| {
+                eprintln!("[HLC] compare_hlc_strings: cannot parse node id of {s:?}");
+                0
+            })
+        };
+        (time, node)
     }
     let (a_time, a_node) = parse(a);
     let (b_time, b_node) = parse(b);
-    a_time.cmp(&b_time).then_with(|| a_node.cmp(b_node))
+    a_time.cmp(&b_time).then_with(|| a_node.cmp(&b_node))
 }
 
 /// Returns true if `a` is strictly newer than `b`.
@@ -616,6 +640,82 @@ mod tests {
         assert!(
             ts2_after > ts2_before,
             "Updated timestamp should be greater than previous timestamp"
+        );
+    }
+
+    // ----------------------------------------------------------------
+    // compare_hlc_strings: numeric tie-break + parse-failure visibility
+    // ----------------------------------------------------------------
+
+    #[test]
+    fn compare_orders_by_time_first() {
+        let a = "5/abc";
+        let b = "10/abc";
+        assert_eq!(compare_hlc_strings(a, b), std::cmp::Ordering::Less);
+        assert_eq!(compare_hlc_strings(b, a), std::cmp::Ordering::Greater);
+    }
+
+    #[test]
+    fn compare_treats_node_ids_numerically_not_lexically() {
+        // uhlc strips leading zeros: "01" and "1" identify the same
+        // 16-byte node id. A string compare would return Greater for
+        // "5/01" vs "5/1" (since '0' < '1'); the numeric compare must
+        // return Equal.
+        let with_leading = "5/01";
+        let without_leading = "5/1";
+        assert_eq!(
+            compare_hlc_strings(with_leading, without_leading),
+            std::cmp::Ordering::Equal,
+            "node ids '01' and '1' must compare as equal"
+        );
+    }
+
+    #[test]
+    fn compare_with_different_node_ids_orders_numerically() {
+        // Both have time=5; node 0x1 < node 0x2 numerically.
+        assert_eq!(
+            compare_hlc_strings("5/1", "5/2"),
+            std::cmp::Ordering::Less
+        );
+        assert_eq!(
+            compare_hlc_strings("5/2", "5/1"),
+            std::cmp::Ordering::Greater
+        );
+    }
+
+    #[test]
+    fn compare_with_wide_node_ids_orders_numerically() {
+        // Lexically "5/02" > "5/10" (since '2' > '1') but numerically
+        // 0x02 < 0x10. Only the numeric ordering is correct.
+        assert_eq!(
+            compare_hlc_strings("5/02", "5/10"),
+            std::cmp::Ordering::Less,
+            "node 0x02 must compare less than 0x10 numerically"
+        );
+    }
+
+    #[test]
+    fn compare_malformed_time_falls_back_to_zero() {
+        // Non-numeric time component falls back to 0, so the well-formed
+        // side wins by being greater. (Plus an eprintln we cannot easily
+        // assert on, but it makes the failure visible to operators.)
+        let malformed = "not-a-number/abc";
+        let valid = "5/abc";
+        assert_eq!(
+            compare_hlc_strings(malformed, valid),
+            std::cmp::Ordering::Less
+        );
+    }
+
+    #[test]
+    fn compare_malformed_node_falls_back_to_zero() {
+        // Non-hex node component falls back to 0, so the well-formed
+        // node loses the tie-break.
+        let malformed = "5/zzzz";
+        let valid = "5/1";
+        assert_eq!(
+            compare_hlc_strings(malformed, valid),
+            std::cmp::Ordering::Less
         );
     }
 }
