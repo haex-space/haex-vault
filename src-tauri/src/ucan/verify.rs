@@ -68,6 +68,8 @@ pub enum UcanVerifyError {
     InvalidSignature,
     #[error("Token expired")]
     Expired,
+    #[error("Audience mismatch: expected {expected}, got {actual}")]
+    AudienceMismatch { expected: String, actual: String },
     #[error("Missing capability for space {space_id}")]
     MissingCapability { space_id: String },
     #[error("Insufficient capability: need {required:?}, have {actual:?}")]
@@ -119,13 +121,15 @@ pub fn validate_token(token: &str) -> Result<ValidatedUcan, UcanVerifyError> {
         .verify(signing_input.as_bytes(), &Signature::from_bytes(&sig_array))
         .map_err(|_| UcanVerifyError::InvalidSignature)?;
 
-    // Check expiry
+    // Check expiry. If the system clock is implausibly skewed (before UNIX
+    // epoch), fail closed — otherwise unwrap_or_default() would return 0 and
+    // every token with exp > 0 would appear valid.
     let exp = payload["exp"]
         .as_u64()
         .ok_or_else(|| UcanVerifyError::MalformedToken("missing exp".into()))?;
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
+        .map_err(|_| UcanVerifyError::Expired)?
         .as_secs();
     if now >= exp {
         return Err(UcanVerifyError::Expired);
@@ -155,6 +159,33 @@ pub fn validate_token(token: &str) -> Result<ValidatedUcan, UcanVerifyError> {
         capabilities,
         expires_at: exp,
     })
+}
+
+// ---------------------------------------------------------------------------
+// Layer 1.5: audience check (replay protection)
+// ---------------------------------------------------------------------------
+
+/// Check that the UCAN's `aud` field matches the expected recipient DID.
+///
+/// Without this check, a UCAN that was issued for peer X can be replayed
+/// against peer Y by anyone who obtains the token: Y validates the signature
+/// (issuer is legitimate), finds matching capabilities, and grants access —
+/// but Y was never the intended recipient.
+///
+/// Callers SHOULD invoke this after `validate_token` with their own DID
+/// (typically the local QUIC endpoint identity) as `expected_audience`.
+pub fn require_audience(
+    validated: &ValidatedUcan,
+    expected_audience: &str,
+) -> Result<(), UcanVerifyError> {
+    if validated.audience == expected_audience {
+        Ok(())
+    } else {
+        Err(UcanVerifyError::AudienceMismatch {
+            expected: expected_audience.to_string(),
+            actual: validated.audience.clone(),
+        })
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -359,5 +390,46 @@ mod tests {
         assert!(CapabilityLevel::Admin > CapabilityLevel::Invite);
         assert!(CapabilityLevel::Invite > CapabilityLevel::Write);
         assert!(CapabilityLevel::Write > CapabilityLevel::Read);
+    }
+
+    // ------------------------------------------------------------------
+    // Audience replay-protection
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn require_audience_rejects_mismatch() {
+        let key = random_signing_key();
+        let token = make_test_token(&key, "s", "space/read", 3600);
+        let validated = validate_token(&token).unwrap();
+
+        // make_test_token sets aud = "did:key:z6MkAudience"
+        let result = require_audience(&validated, "did:key:z6MkOtherPeer");
+        assert!(
+            matches!(result, Err(UcanVerifyError::AudienceMismatch { .. })),
+            "UCAN audience mismatch must be rejected to prevent token replay \
+             against the wrong recipient"
+        );
+    }
+
+    #[test]
+    fn require_audience_accepts_match() {
+        let key = random_signing_key();
+        let token = make_test_token(&key, "s", "space/read", 3600);
+        let validated = validate_token(&token).unwrap();
+
+        assert!(require_audience(&validated, "did:key:z6MkAudience").is_ok());
+    }
+
+    #[test]
+    fn require_audience_rejects_empty_when_token_has_audience() {
+        let key = random_signing_key();
+        let token = make_test_token(&key, "s", "space/read", 3600);
+        let validated = validate_token(&token).unwrap();
+
+        // Caller passing empty string must not accidentally pass (empty is a
+        // common sentinel for "no own DID known" and would be a security bug
+        // if it matched a token with aud == "").
+        let result = require_audience(&validated, "");
+        assert!(matches!(result, Err(UcanVerifyError::AudienceMismatch { .. })));
     }
 }
