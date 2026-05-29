@@ -41,6 +41,7 @@ pub fn handle_push_invite(
     inviter_avatar_options: Option<&str>,
     space_endpoints: &[String],
     origin_url: Option<&str>,
+    inviter_relay_url: Option<&str>,
 ) -> Response {
     let token_fp = token_fingerprint(token_id);
     logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
@@ -154,9 +155,9 @@ pub fn handle_push_invite(
 
     let insert_result = core::execute_with_crdt(
         "INSERT OR IGNORE INTO haex_pending_invites \
-         (id, space_id, space_name, space_type, origin_url, inviter_did, inviter_label, inviter_avatar, inviter_avatar_options, \
+         (id, space_id, space_name, space_type, origin_url, inviter_did, inviter_label, inviter_avatar, inviter_avatar_options, inviter_relay_url, \
           capabilities, include_history, token_id, space_endpoints, status, created_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 'pending', ?14) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, 'pending', ?15) \
          RETURNING id"
             .to_string(),
         vec![
@@ -176,6 +177,9 @@ pub fn handle_push_invite(
             }),
             inviter_avatar_options.map_or(serde_json::Value::Null, |o| {
                 serde_json::Value::String(o.to_string())
+            }),
+            inviter_relay_url.map_or(serde_json::Value::Null, |r| {
+                serde_json::Value::String(r.to_string())
             }),
             serde_json::Value::String(capabilities_json),
             serde_json::Value::Number(serde_json::Number::from(include_history as i32)),

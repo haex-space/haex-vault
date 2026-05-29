@@ -332,6 +332,7 @@ export async function acceptLocalInvite(
     inviterLabel?: string | null
     inviterAvatar?: string | null
     inviterAvatarOptions?: string | null
+    inviterRelayUrl?: string | null
     spaceEndpoints: string | null
     tokenId: string | null
   },
@@ -445,6 +446,17 @@ export async function acceptLocalInvite(
   // row, the (space_id, endpoint_id) UNIQUE index will collide. CRDT apply
   // resolves per column via HLC winner, so any field the inviter changes
   // ("name x → y") propagates as expected once their row exists.
+  // Fall back to the receiver-side configured relay if the invite didn't
+  // carry one (legacy invites, or sender without a configured relay). Both
+  // devices typically run the same default relay, so this guess is correct
+  // far more often than leaving NULL — and the real value still wins via
+  // CRDT-HLC once the inviter's authoritative row arrives.
+  const stubRelayUrl =
+    invite.inviterRelayUrl
+      ?? peerStorageStore.configuredRelayUrl
+      ?? peerStorageStore.relayUrl
+      ?? null
+
   for (const inviterEndpointId of endpoints) {
     if (inviterEndpointId === deviceStore.deviceId) continue
     try {
@@ -460,6 +472,7 @@ export async function acceptLocalInvite(
           platform: '',
           avatar: invite.inviterAvatar ?? null,
           avatarOptions: invite.inviterAvatarOptions ?? null,
+          relayUrl: stubRelayUrl,
           authoredByDid: invite.inviterDid,
         })
         .onConflictDoNothing()

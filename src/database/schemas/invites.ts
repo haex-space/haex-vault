@@ -22,6 +22,7 @@ export const haexPendingInvites = sqliteTable(
     inviterLabel: text(tableNames.haex.pending_invites.columns.inviterLabel),
     inviterAvatar: text(tableNames.haex.pending_invites.columns.inviterAvatar),
     inviterAvatarOptions: text(tableNames.haex.pending_invites.columns.inviterAvatarOptions),
+    inviterRelayUrl: text(tableNames.haex.pending_invites.columns.inviterRelayUrl),
     capabilities: text(tableNames.haex.pending_invites.columns.capabilities), // JSON array: ["space/read", "space/write"]
     includeHistory: integer(tableNames.haex.pending_invites.columns.includeHistory, { mode: 'boolean' }).default(false),
     tokenId: text(tableNames.haex.pending_invites.columns.tokenId),

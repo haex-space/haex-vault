@@ -156,6 +156,14 @@ pub enum Request {
         origin_url: Option<String>,
         /// RFC3339 deadline
         expires_at: String,
+        /// Inviter's configured relay URL. Stored on the invitee side so the
+        /// inviter's haex_space_devices stub (seeded from this invite during
+        /// accept) carries a working relay before the real CRDT-replicated
+        /// row arrives. Without this, the first sync round after accept may
+        /// have to rely on mDNS / hole-punching alone. Optional for backward
+        /// compatibility with older senders.
+        #[serde(default)]
+        inviter_relay_url: Option<String>,
     },
 }
 

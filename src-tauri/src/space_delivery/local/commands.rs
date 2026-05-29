@@ -486,11 +486,31 @@ pub(crate) struct PersistClaimedUcan<'a> {
 /// for a freshly-claimed local invite. `issuer` is the inviter because the
 /// ucan_token is signed by them; storing the claimant there (as an earlier
 /// revision did) misrepresents the delegation chain.
+///
+/// Any prior UCAN rows for `(space_id, audience_did = claimant)` are deleted
+/// first. A leave-then-rejoin cycle leaves the previous UCAN row behind (the
+/// LEAVING-state sync loop needs it to push the membership delete), so without
+/// this cleanup a re-invite stacks the new token on top of the old. The new
+/// invite may even carry different capabilities, and a stale-token-wins
+/// resolution in `getUcanForSpaceAsync` would silently use the wrong rights.
+/// `haex_ucan_tokens` is not in `SPACE_SCOPED_CRDT_TABLES`, so the DELETE is
+/// purely local — peers are unaffected.
 pub(crate) fn persist_claimed_ucan(
     db: &DbConnection,
     hlc_guard: &std::sync::MutexGuard<'_, crate::crdt::hlc::HlcService>,
     p: PersistClaimedUcan<'_>,
 ) -> Result<(), String> {
+    crate::database::core::execute_with_crdt(
+        "DELETE FROM haex_ucan_tokens WHERE space_id = ?1 AND audience_did = ?2".to_string(),
+        vec![
+            serde_json::Value::String(p.space_id.to_string()),
+            serde_json::Value::String(p.claimant_did.to_string()),
+        ],
+        db,
+        hlc_guard,
+    )
+    .map_err(|e| format!("Failed to clear prior UCANs for re-invite: {e}"))?;
+
     let ucan_id = uuid::Uuid::new_v4().to_string();
     let now_secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -836,6 +856,7 @@ pub async fn local_delivery_push_invite(
     space_endpoints: Vec<String>,
     origin_url: Option<String>,
     expires_at: String,
+    inviter_relay_url: Option<String>,
 ) -> Result<bool, String> {
     let log = |level: &str, msg: &str| {
         let _ = crate::logging::insert_log(&state, level, "PushInvite-Send", None, msg, None, "rust");
@@ -884,6 +905,7 @@ pub async fn local_delivery_push_invite(
         space_endpoints,
         origin_url,
         expires_at,
+        inviter_relay_url,
     };
 
     let bytes = super::protocol::encode(&request)
