@@ -115,6 +115,16 @@ pub fn resolve_secure_extension_asset_path(
         });
     }
 
+    // The triple comes from a caller-controlled URL; without this check, a
+    // webview can read another installed extension's static assets by crafting
+    // `haex-extension://<base64-of-other-triple>/asset`. get_extension_dir
+    // only constructs a path — it does not check that the extension exists.
+    state.extension_manager.verify_extension_installed(
+        public_key,
+        extension_name,
+        extension_version,
+    )?;
+
     let specific_extension_dir = state.extension_manager.get_extension_dir(
         app_handle,
         public_key,

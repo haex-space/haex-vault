@@ -87,6 +87,42 @@ impl ExtensionManager {
         Ok(specific_extension_dir)
     }
 
+    /// Verifies that an extension with the given triple is actually installed.
+    ///
+    /// Used by the `haex-extension://` protocol handler before resolving asset
+    /// paths: the handler receives `(public_key, name, version)` from a
+    /// caller-controlled URL, and `get_extension_dir` only constructs a path
+    /// — it does not check that the extension exists. Without this guard a
+    /// webview can craft `haex-extension://<base64-of-other-extension>/asset`
+    /// and read the static assets of any installed extension.
+    ///
+    /// Returns `Ok(())` only if an extension with the matching public_key and
+    /// name is registered AND its manifest version equals `extension_version`.
+    pub fn verify_extension_installed(
+        &self,
+        public_key: &str,
+        extension_name: &str,
+        extension_version: &str,
+    ) -> Result<(), ExtensionError> {
+        let extension = self
+            .get_extension_by_public_key_and_name(public_key, extension_name)?
+            .ok_or_else(|| ExtensionError::NotFound {
+                public_key: public_key.to_string(),
+                name: extension_name.to_string(),
+            })?;
+
+        if extension.manifest.version != extension_version {
+            return Err(ExtensionError::ValidationError {
+                reason: format!(
+                    "Version mismatch for extension {}::{}: installed {}, requested {}",
+                    public_key, extension_name, extension.manifest.version, extension_version
+                ),
+            });
+        }
+
+        Ok(())
+    }
+
     /// Add an extension to the in-memory manager.
     /// Accepts both Production and Development sources.
     pub fn add_extension(&self, extension: Extension) -> Result<(), ExtensionError> {
