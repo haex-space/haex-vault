@@ -147,32 +147,29 @@ pub fn resolve_secure_extension_asset_path(
 
     let final_path = specific_extension_dir.join(clean_relative_path);
 
-    match final_path.canonicalize() {
-        Ok(canonical_path) => {
-            let canonical_base = specific_extension_dir
-                .canonicalize()
-                .map_err(|e| ExtensionError::Filesystem { source: e })?;
-            if canonical_path.starts_with(&canonical_base) {
-                Ok(canonical_path)
-            } else {
-                eprintln!(
-                    "SECURITY WARNING: Path traversal attempt blocked: {requested_asset_path}"
-                );
-                Err(ExtensionError::SecurityViolation {
-                    reason: format!("Path traversal attempt: {requested_asset_path}"),
-                })
-            }
+    // Both paths MUST canonicalize: a textual `starts_with` fallback is
+    // unsound when symlinks exist (a link inside the extension dir can point
+    // outside it, but textually still "starts with" the base). If
+    // canonicalize fails — file missing, IO error, permission denied — we
+    // reject the request instead of falling back to the string check.
+    let canonical_path = final_path.canonicalize().map_err(|e| {
+        eprintln!(
+            "SECURITY WARNING: canonicalize failed for asset path {requested_asset_path}: {e}"
+        );
+        ExtensionError::SecurityViolation {
+            reason: format!("Asset path could not be canonicalized: {requested_asset_path}"),
         }
-        Err(_) => {
-            if final_path.starts_with(&specific_extension_dir) {
-                Ok(final_path)
-            } else {
-                eprintln!("SECURITY WARNING: Invalid asset path: {requested_asset_path}");
-                Err(ExtensionError::SecurityViolation {
-                    reason: format!("Invalid asset path: {requested_asset_path}"),
-                })
-            }
-        }
+    })?;
+    let canonical_base = specific_extension_dir
+        .canonicalize()
+        .map_err(|e| ExtensionError::Filesystem { source: e })?;
+    if canonical_path.starts_with(&canonical_base) {
+        Ok(canonical_path)
+    } else {
+        eprintln!("SECURITY WARNING: Path traversal attempt blocked: {requested_asset_path}");
+        Err(ExtensionError::SecurityViolation {
+            reason: format!("Path traversal attempt: {requested_asset_path}"),
+        })
     }
 }
 
