@@ -387,4 +387,31 @@ mod tests {
 
         assert!(headers.get("Authorization").unwrap().starts_with("Bearer "));
     }
+
+    // ============================================================================
+    // Permission-Bypass Regression Tests
+    // ============================================================================
+
+    /// Regression guard: `extension_web_fetch` must not accept an `allow_once`
+    /// parameter that lets callers skip `check_web_permission`.
+    ///
+    /// Original bug: the command took `allow_once: Option<bool>` and, when
+    /// `true`, returned `fetch_web_request(...)` without checking permissions.
+    /// Since the parameter is supplied by the *caller* (which may be a
+    /// malicious extension's webview invoking the Tauri command directly),
+    /// any extension could bypass the prompt by passing `allowOnce: true`.
+    ///
+    /// The "Allow Once" user button is wired through
+    /// `grant_session_permission(decision: 'ask')` + the SDK's retry path,
+    /// so the parameter was both dead and dangerous.
+    #[test]
+    fn extension_web_fetch_must_not_accept_allow_once() {
+        let source = include_str!("commands.rs");
+        assert!(
+            !source.contains("allow_once"),
+            "extension_web_fetch must not accept allow_once: callers can bypass \
+             check_web_permission. The Allow-Once user flow uses \
+             grant_session_permission instead."
+        );
+    }
 }
