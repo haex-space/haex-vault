@@ -330,8 +330,8 @@ pub(crate) fn group_row_changes_in_hlc_order(
     let mut entries: Vec<((String, String), Vec<RemoteColumnChange>)> =
         map.into_iter().collect();
     entries.sort_by(|a, b| {
-        let a_min = a.1.iter().map(|c| c.hlc_timestamp.as_str()).min();
-        let b_min = b.1.iter().map(|c| c.hlc_timestamp.as_str()).min();
+        let a_min = crate::crdt::hlc::hlc_min(a.1.iter().map(|c| c.hlc_timestamp.as_str()));
+        let b_min = crate::crdt::hlc::hlc_min(b.1.iter().map(|c| c.hlc_timestamp.as_str()));
         match (a_min, b_min) {
             (Some(am), Some(bm)) => crate::crdt::hlc::compare_hlc_strings(am, bm),
             (Some(_), None) => std::cmp::Ordering::Less,
@@ -1242,7 +1242,7 @@ mod hlc_grouping_tests {
         let baseline_min_hlcs: Vec<&str> = baseline
             .iter()
             .map(|(_, list)| {
-                list.iter().map(|c| c.hlc_timestamp.as_str()).min().unwrap()
+                crate::crdt::hlc::hlc_min(list.iter().map(|c| c.hlc_timestamp.as_str())).unwrap()
             })
             .collect();
         for window in baseline_min_hlcs.windows(2) {
