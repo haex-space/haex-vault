@@ -1,9 +1,12 @@
 //! Peer-side logic: connecting to leader, sending/receiving sync data.
 
+use std::time::Duration;
+
 use crate::database::DbConnection;
 
 use super::error::DeliveryError;
 use super::protocol::{self, Request, Response};
+use super::quic_retry::READ_TIMEOUT_SECS;
 use super::ucan::load_active_ucan_for_audience;
 
 /// A connected peer session with the leader.
@@ -107,16 +110,31 @@ impl PeerSession {
                 reason: e.to_string(),
             })?;
 
+
         send.finish()
             .map_err(|e| DeliveryError::ConnectionFailed {
                 reason: e.to_string(),
             })?;
 
-        protocol::read_response(&mut recv)
-            .await
-            .map_err(|e| DeliveryError::ProtocolError {
+        // Bound the response wait. A QUIC connection whose path silently
+        // degrades after the handshake (e.g. relay-only after a direct-path
+        // failure) leaves read_response hanging until the QUIC idle timer
+        // fires (~150 s), wedging the sync loop. Mirrors the bound used by
+        // quic_retry for the invite flows.
+        match tokio::time::timeout(
+            Duration::from_secs(READ_TIMEOUT_SECS),
+            protocol::read_response(&mut recv),
+        )
+        .await
+        {
+            Ok(Ok(resp)) => Ok(resp),
+            Ok(Err(e)) => Err(DeliveryError::ProtocolError {
                 reason: e.to_string(),
-            })
+            }),
+            Err(_) => Err(DeliveryError::ConnectionFailed {
+                reason: format!("read timeout after {READ_TIMEOUT_SECS}s"),
+            }),
+        }
     }
 
     /// Push local CRDT changes to the leader.
@@ -299,5 +317,35 @@ impl PeerSession {
     /// Close the connection gracefully.
     pub fn close(&self) {
         self.conn.close(0u32.into(), b"done");
+    }
+}
+
+#[cfg(test)]
+mod read_timeout_tests {
+    //! Regression guard: PeerSession::request must bound the response wait.
+    //!
+    //! Behavioural verification requires a live iroh::Endpoint pair and a
+    //! controllable path-degradation, which doesn't exist as a test fixture.
+    //! A source-level guard catches accidental removal of the timeout.
+
+    #[test]
+    fn request_must_apply_read_timeout() {
+        let source = include_str!("peer.rs");
+        let production = source
+            .split_once("#[cfg(test)]")
+            .map(|(p, _)| p)
+            .unwrap_or(source);
+
+        assert!(
+            production.contains("tokio::time::timeout"),
+            "PeerSession::request must wrap protocol::read_response in \
+             tokio::time::timeout; otherwise a degraded QUIC path blocks \
+             read for ~150s until the connection's idle timer fires"
+        );
+        assert!(
+            production.contains("READ_TIMEOUT_SECS"),
+            "the bound should reuse READ_TIMEOUT_SECS from quic_retry for \
+             consistency with the invite-flow timeout"
+        );
     }
 }
