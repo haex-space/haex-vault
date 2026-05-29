@@ -791,7 +791,15 @@ async fn check_client_authorized(app_handle: &AppHandle, client_id: &str) -> boo
     }
 }
 
-/// Check if a client is blocked (via CRDT database query)
+/// Check if a client is blocked (via CRDT database query).
+///
+/// **Fail closed**: when the DB query errors out (e.g. the database is mid-
+/// migration, the connection is locked, the disk is read-only), report the
+/// client as *blocked* so the handshake is rejected. The symmetric
+/// `check_client_authorized` is also conservative on error — denying — but
+/// the blocked check has the opposite polarity: returning `false` on error
+/// here would let a known-blocked client through during any transient DB
+/// outage.
 async fn check_client_blocked(app_handle: &AppHandle, client_id: &str) -> bool {
     let state = app_handle.state::<AppState>();
     let params = vec![JsonValue::String(client_id.to_string())];
@@ -805,7 +813,14 @@ async fn check_client_blocked(app_handle: &AppHandle, client_id: &str) -> bool {
             }
             false
         }
-        Err(_) => false,
+        Err(e) => {
+            eprintln!(
+                "[ExternalBridge] check_client_blocked DB error for client {}: {} \
+                 — treating as blocked (fail-closed)",
+                client_id, e
+            );
+            true
+        }
     }
 }
 
@@ -1291,5 +1306,50 @@ async fn process_request(
                 "error": "Request timeout"
             })
         }
+    }
+}
+
+#[cfg(test)]
+mod fail_closed_tests {
+    //! Regression guard: check_client_blocked must fail closed.
+    //!
+    //! A behavioural test requires a Tauri AppHandle + a DbConnection set
+    //! up to return an error — substantial fixture work for a one-line
+    //! polarity bug. A source-level guard catches accidental reintroduction
+    //! of the fail-open path (`Err(_) => false`) reliably.
+
+    #[test]
+    fn check_client_blocked_fails_closed() {
+        let source = include_str!("server.rs");
+        let production = source
+            .split_once("#[cfg(test)]")
+            .map(|(p, _)| p)
+            .unwrap_or(source);
+
+        // Locate the function body.
+        let fn_marker = "async fn check_client_blocked(";
+        let fn_start = production
+            .find(fn_marker)
+            .expect("check_client_blocked must exist in server.rs");
+        // Scan forward to the next top-level `fn ` (anchored at column 0)
+        // so the assertion only covers this function's body.
+        let body_end = production[fn_start..]
+            .find("\nasync fn ")
+            .or_else(|| production[fn_start..].find("\nfn "))
+            .map(|off| fn_start + off)
+            .unwrap_or(production.len());
+        let body = &production[fn_start..body_end];
+
+        assert!(
+            !body.contains("Err(_) => false"),
+            "check_client_blocked must not fail open. An `Err(_) => false` \
+             arm lets known-blocked clients through during any transient \
+             DB outage (migration, lock, read-only disk). Return `true` \
+             on Err instead."
+        );
+        assert!(
+            body.contains("true"),
+            "check_client_blocked's Err arm must return true (fail closed)"
+        );
     }
 }
