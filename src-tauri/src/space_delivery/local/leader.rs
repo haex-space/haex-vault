@@ -13,7 +13,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use crate::crdt::commands::{apply_remote_changes_to_db, RemoteColumnChange};
 use crate::crdt::hlc::HlcService;
 use crate::crdt::scanner::{scan_space_scoped_tables_for_local_changes, LocalColumnChange};
-use crate::ucan::{require_capability, validate_token, CapabilityLevel, ValidatedUcan};
+use crate::ucan::{require_audience, require_capability, validate_token, CapabilityLevel, ValidatedUcan};
 use crate::database::DbConnection;
 use super::buffer;
 use super::error::DeliveryError;
@@ -86,23 +86,39 @@ fn require_valid_ucan(ucan_token: &str, op: &str) -> Result<ValidatedUcan, Respo
     })
 }
 
-/// Check that a validated UCAN grants the required capability for `space_id`
-/// **and** that the UCAN audience is still an active member of the space.
+/// Check that a validated UCAN grants the required capability for `space_id`,
+/// that the UCAN's `aud` matches the **announced peer DID** (replay-protection),
+/// and that the audience is still an active member of the space.
 ///
-/// Membership is the revocation kill-switch: when the admin removes a
-/// member (tombstones the `haex_space_members` row + MLS commit) the UCAN
-/// remains cryptographically valid but this check rejects every request.
-/// A removed member cannot even see metadata like the member list or
-/// peer-share titles after the tombstone has propagated.
+/// Three concentric gates:
 ///
-/// Returns an Error response on either failure path.
+/// 1. **Audience match (`require_audience`)** — the UCAN must have been issued
+///    *to the peer presenting it*. Without this check, a peer P who obtained
+///    another member's UCAN (e.g. by snooping or replay) could present it
+///    over its own authenticated QUIC channel; the capability+membership
+///    checks below would both pass.
+/// 2. **Capability (`require_capability`)** — the UCAN grants at least the
+///    operation's minimum capability for `space_id`.
+/// 3. **Active membership (`is_active_space_member`)** — revocation
+///    kill-switch: when the admin tombstones a member, the UCAN remains
+///    cryptographically valid but every request is rejected here.
+///
+/// Returns an Error response on any failure.
 fn require_ucan_capability(
     validated: &ValidatedUcan,
     space_id: &str,
     required: CapabilityLevel,
+    peer_did: &str,
     op: &str,
     db: &crate::database::DbConnection,
 ) -> Result<(), Response> {
+    require_audience(validated, peer_did).map_err(|e| {
+        eprintln!("[SpaceDelivery] {op}: audience mismatch: {e}");
+        Response::Error {
+            message: format!("Access denied: {e}"),
+        }
+    })?;
+
     require_capability(validated, space_id, required).map_err(|e| {
         eprintln!("[SpaceDelivery] {op}: capability check failed: {e}");
         Response::Error {
@@ -626,25 +642,14 @@ pub(super) async fn handle_delivery_request(
                     return r;
                 }
             };
-            if validated.audience != did {
-                eprintln!(
-                    "[SpaceDelivery] Announce REJECTED: UCAN audience {} does not match announced DID {}",
-                    validated.audience, did
-                );
-                crate::logging::log_to_db(
-                    &state.db, &state.hlc, "warn", "Announce",
-                    &format!("audience mismatch: ucan_aud={} announced_did={}",
-                        &validated.audience[..24.min(validated.audience.len())],
-                        &did[..24.min(did.len())]),
-                );
-                return Response::Error {
-                    message: "UCAN audience does not match announced DID".to_string(),
-                };
-            }
+            // Audience-vs-announced-DID is now enforced inside
+            // require_ucan_capability via require_audience; no separate
+            // pre-check needed.
             if let Err(r) = require_ucan_capability(
                 &validated,
                 &space_id,
                 CapabilityLevel::Read,
+                &did,
                 "Announce",
                 &state.db,
             ) {
@@ -985,10 +990,15 @@ pub(super) async fn handle_delivery_request(
                     return r;
                 }
             };
+            let peer_did = match require_peer_did(state, peer_endpoint_id).await {
+                Ok(did) => did,
+                Err(resp) => return resp,
+            };
             if let Err(r) = require_ucan_capability(
                 &validated,
                 &space_id,
                 CapabilityLevel::Read,
+                &peer_did,
                 "SyncPull",
                 &state.db,
             ) {
@@ -1125,10 +1135,15 @@ pub(super) async fn handle_delivery_request(
                 Ok(v) => v,
                 Err(r) => return r,
             };
+            let peer_did = match require_peer_did(state, peer_endpoint_id).await {
+                Ok(did) => did,
+                Err(resp) => return resp,
+            };
             if let Err(r) = require_ucan_capability(
                 &validated,
                 &space_id,
                 CapabilityLevel::Read,
+                &peer_did,
                 "RequestRejoin",
                 &state.db,
             ) {
@@ -1160,16 +1175,20 @@ pub(super) async fn handle_delivery_request(
                 Ok(v) => v,
                 Err(r) => return r,
             };
+            let peer_did = match require_peer_did(state, peer_endpoint_id).await {
+                Ok(did) => did,
+                Err(resp) => return resp,
+            };
             if let Err(r) = require_ucan_capability(
                 &validated,
                 &space_id,
                 CapabilityLevel::Read,
+                &peer_did,
                 "SubmitExternalCommit",
                 &state.db,
             ) {
                 return r;
             }
-            let peer_did = validated.audience.clone();
 
             let commit_blob = match base64_decode(&commit) {
                 Ok(b) => b,
@@ -1266,4 +1285,91 @@ pub(super) async fn send_response(
         reason: format!("Failed to finish send: {e}"),
     })?;
     Ok(())
+}
+
+#[cfg(test)]
+mod audience_check_tests {
+    //! Regression guards for UCAN audience verification.
+    //!
+    //! `require_ucan_capability` is the central gate for every authenticated
+    //! space-delivery request. Without an `aud == announced peer DID` check
+    //! it accepts UCANs issued to anyone as long as that anyone is still a
+    //! member — a replay window. These tests are static-source assertions:
+    //! the dispatcher requires `&mut LeaderState`, a tokio runtime, an
+    //! `iroh::Endpoint`, a populated `connected_peers` map, and a SQLite
+    //! schema with HLC triggers. Building all of that for a unit test costs
+    //! more than the linting checks below buy us. Behavioural coverage is
+    //! deferred to e2e in haex-e2e-tests.
+    //!
+    //! Unit coverage of the helper itself (`require_audience` accepts /
+    //! rejects) lives in `ucan::verify::tests`.
+
+    /// `require_ucan_capability` must take a `peer_did` parameter and call
+    /// `require_audience` inside. Removing either would silently restore
+    /// the replay window the audience check is meant to close.
+    #[test]
+    fn require_ucan_capability_takes_peer_did_and_calls_require_audience() {
+        let source = include_str!("leader.rs");
+        let production = source
+            .split_once("#[cfg(test)]")
+            .map(|(p, _)| p)
+            .unwrap_or(source);
+
+        assert!(
+            production.contains("peer_did: &str,"),
+            "require_ucan_capability must declare a peer_did parameter"
+        );
+        assert!(
+            production.contains("require_audience(validated, peer_did)"),
+            "require_ucan_capability must invoke require_audience with the \
+             announced peer DID — without this, a UCAN issued to any other \
+             still-active member is accepted as a replay"
+        );
+    }
+
+    /// Every UCAN-gated request handler must source `peer_did` from the
+    /// QUIC-authenticated channel (`require_peer_did(state, …)` or the
+    /// Announce-payload `did`) and pass it to `require_ucan_capability`.
+    /// Six call sites today: Announce + SyncPull + RequestRejoin +
+    /// SubmitExternalCommit (audience-checked) plus the MlsUpload /
+    /// MlsSend paths that only need `require_peer_did` for the message
+    /// envelope.
+    #[test]
+    fn every_require_ucan_capability_call_passes_a_peer_did() {
+        let source = include_str!("leader.rs");
+        let production = source
+            .split_once("#[cfg(test)]")
+            .map(|(p, _)| p)
+            .unwrap_or(source);
+
+        // A correct call site looks like `require_ucan_capability(\n  &validated,\n  &space_id,\n  CapabilityLevel::Read,\n  &<peer_did>,\n  …`.
+        // Approximate that by counting calls and required positional
+        // markers separately.
+        let total_calls = production.matches("require_ucan_capability(").count();
+        // The fn definition itself contains one occurrence; production
+        // call sites are the remainder.
+        let call_sites = total_calls.saturating_sub(1);
+
+        assert!(
+            call_sites >= 4,
+            "expected at least 4 call sites (Announce, SyncPull, \
+             RequestRejoin, SubmitExternalCommit); found {}",
+            call_sites
+        );
+
+        // Each call site must reference a peer_did binding immediately
+        // above it. require_peer_did is the canonical source; Announce
+        // uses the request's own `did` field. Either way the binding
+        // appears nearby — and our four edited call sites now reference
+        // exactly one of the two patterns.
+        let peer_did_lookups = production
+            .matches("require_peer_did(state, peer_endpoint_id)")
+            .count();
+        assert!(
+            peer_did_lookups >= 3,
+            "expected at least 3 require_peer_did(…) lookups feeding \
+             require_ucan_capability call sites; found {}",
+            peer_did_lookups
+        );
+    }
 }
