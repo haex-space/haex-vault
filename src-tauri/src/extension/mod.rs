@@ -573,7 +573,8 @@ pub fn remove_dev_extension(
 
     let extension_id = extension.id.clone();
 
-    // Remove from database (with CRDT tombstone).
+    // Remove from database. `SqlExecutor::execute_internal_typed` writes the
+    // delete through the CRDT path (haex_deleted_rows delete-log).
     //
     // `with_fk_disabled` re-enables foreign-keys on every exit path — including
     // early returns via `?` — so an error mid-transaction does not leave FK
