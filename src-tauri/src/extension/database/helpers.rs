@@ -116,7 +116,7 @@ fn validate_params(sql: &str, params: &[JsonValue]) -> Result<(), DatabaseError>
 /// Counts the number of SQL placeholders (?) in a statement.
 /// Skips placeholders inside single-quoted strings (with SQL-style `''` escaping),
 /// `--` line comments, and `/* */` block comments.
-fn count_sql_placeholders(sql: &str) -> usize {
+pub(super) fn count_sql_placeholders(sql: &str) -> usize {
     let bytes = sql.as_bytes();
     let len = bytes.len();
     let mut count = 0;
