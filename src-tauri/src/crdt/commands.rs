@@ -369,6 +369,27 @@ pub fn apply_remote_changes_in_transaction(
 /// received remote timestamp after applying all changes. This ensures future local
 /// operations generate timestamps strictly greater than any received remote timestamp,
 /// preventing incomplete rows on the server during push.
+/// Decide whether to honour a delete-log entry, given the HLC of the entry
+/// and the HLC of the row currently sitting in the target table (if any).
+///
+/// CRDT semantics: a delete is just another timestamped operation. If the
+/// target row carries a `haex_hlc` strictly newer than the delete-log entry,
+/// the row was inserted/updated *after* the delete and must be kept (a
+/// "resurrection"). Without this check, propagation unconditionally drops
+/// the row, breaking last-write-wins for the insert-after-delete case.
+fn should_propagate_delete(delete_log_hlc: &str, target_row_hlc: Option<&str>) -> bool {
+    match target_row_hlc {
+        // Row doesn't exist locally → nothing to delete, but reporting
+        // "should propagate" is harmless and keeps logging consistent.
+        None => true,
+        Some(target) => {
+            // Honour the delete unless the target row is strictly newer.
+            crate::crdt::hlc::compare_hlc_strings(target, delete_log_hlc)
+                != std::cmp::Ordering::Greater
+        }
+    }
+}
+
 /// Applies pending delete-log entries to their target tables.
 ///
 /// For each row id in `delete_log_ids`, reads `(table_name, row_pks)` from
@@ -382,18 +403,19 @@ fn propagate_deleted_rows_to_target_tables(
     for id in delete_log_ids {
         let result = tx.query_row(
             &format!(
-                "SELECT table_name, row_pks FROM \"{}\" WHERE id = ?1",
+                "SELECT table_name, row_pks, haex_hlc FROM \"{}\" WHERE id = ?1",
                 DELETED_ROWS_TABLE
             ),
             params![id],
             |row| {
                 let table_name: String = row.get(0)?;
                 let row_pks: String = row.get(1)?;
-                Ok((table_name, row_pks))
+                let delete_hlc: String = row.get(2)?;
+                Ok((table_name, row_pks, delete_hlc))
             },
         );
 
-        let (target_table, row_pks_json) = match result {
+        let (target_table, row_pks_json, delete_hlc) = match result {
             Ok(r) => r,
             Err(rusqlite::Error::QueryReturnedNoRows) => continue,
             Err(e) => return Err(DatabaseError::from(e)),
@@ -440,14 +462,34 @@ fn propagate_deleted_rows_to_target_tables(
             }
         }
 
-        let delete_sql = format!(
-            "DELETE FROM \"{}\" WHERE {}",
-            target_table,
-            where_parts.join(" AND ")
-        );
+        let where_clause = where_parts.join(" AND ");
         let sql_params = json_values_to_sql_params(&values)?;
         let param_refs: Vec<&dyn rusqlite::ToSql> =
             sql_params.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
+
+        // Resurrection check: if the target row was inserted/updated after
+        // this delete-log entry, the row's haex_hlc is strictly newer and
+        // we must NOT propagate the delete.
+        let select_hlc_sql = format!(
+            "SELECT haex_hlc FROM \"{}\" WHERE {}",
+            target_table, where_clause
+        );
+        let target_row_hlc: Option<String> = tx
+            .query_row(&select_hlc_sql, param_refs.as_slice(), |row| row.get(0))
+            .ok();
+        if !should_propagate_delete(&delete_hlc, target_row_hlc.as_deref()) {
+            eprintln!(
+                "[SYNC RUST] Skipping delete-log {} for '{}': target row \
+                 has newer haex_hlc ({:?} > {}) — resurrected",
+                id, target_table, target_row_hlc, delete_hlc
+            );
+            continue;
+        }
+
+        let delete_sql = format!(
+            "DELETE FROM \"{}\" WHERE {}",
+            target_table, where_clause
+        );
 
         match tx.execute(&delete_sql, param_refs.as_slice()) {
             Ok(n) => {
@@ -1015,6 +1057,46 @@ mod hlc_grouping_tests {
         assert_eq!(ordered[0].1.len(), 2, "row A must keep both of its changes");
         assert_eq!(ordered[1].0 .1, r#"{"id":"b"}"#);
     }
+
+    // ------------------------------------------------------------------
+    // should_propagate_delete: insert-after-delete resurrection check
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn delete_propagates_when_target_does_not_exist_locally() {
+        assert!(should_propagate_delete("5/abcdef", None));
+    }
+
+    #[test]
+    fn delete_propagates_when_target_row_is_older() {
+        // Target row was last modified at HLC 3; delete-log claims HLC 5.
+        // The delete is newer → propagate.
+        assert!(should_propagate_delete("5/abcdef", Some("3/abcdef")));
+    }
+
+    #[test]
+    fn delete_propagates_when_target_row_has_equal_hlc() {
+        // Equal timestamps: tie-break by node id (built into the
+        // comparator). We treat equal-or-older target rows as "delete
+        // wins" to keep idempotent re-application stable.
+        assert!(should_propagate_delete("5/abcdef", Some("5/abcdef")));
+    }
+
+    #[test]
+    fn delete_skipped_when_target_row_is_strictly_newer() {
+        // This is the bug fix: an insert/update at HLC 10 must survive a
+        // delete-log entry at HLC 5. Without this, the row inserted
+        // after the delete would be wiped on the next apply.
+        assert!(!should_propagate_delete("5/abcdef", Some("10/abcdef")));
+    }
+
+    #[test]
+    fn delete_skipped_when_target_row_is_far_newer() {
+        // Sanity: large HLC gap, same node.
+        assert!(!should_propagate_delete("100/abcdef", Some("1000/abcdef")));
+    }
+
+    // ------------------------------------------------------------------
 
     #[test]
     fn helper_is_deterministic_across_input_orderings() {
