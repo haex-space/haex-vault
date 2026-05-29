@@ -70,6 +70,8 @@ pub enum UcanVerifyError {
     Expired,
     #[error("Audience mismatch: expected {expected}, got {actual}")]
     AudienceMismatch { expected: String, actual: String },
+    #[error("require_audience called with an empty expected audience")]
+    EmptyExpectedAudience,
     #[error("Missing capability for space {space_id}")]
     MissingCapability { space_id: String },
     #[error("Insufficient capability: need {required:?}, have {actual:?}")]
@@ -178,6 +180,15 @@ pub fn require_audience(
     validated: &ValidatedUcan,
     expected_audience: &str,
 ) -> Result<(), UcanVerifyError> {
+    // Reject an empty `expected_audience` outright: an empty UCAN audience
+    // is itself invalid (validate_token requires a non-empty `aud`), so
+    // the only way to reach this branch with `expected == actual == ""`
+    // is a caller passing in an uninitialised string — which would
+    // otherwise look like a successful audience check and bypass the
+    // replay-protection layer entirely.
+    if expected_audience.is_empty() {
+        return Err(UcanVerifyError::EmptyExpectedAudience);
+    }
     if validated.audience == expected_audience {
         Ok(())
     } else {
@@ -430,6 +441,27 @@ mod tests {
         // common sentinel for "no own DID known" and would be a security bug
         // if it matched a token with aud == "").
         let result = require_audience(&validated, "");
-        assert!(matches!(result, Err(UcanVerifyError::AudienceMismatch { .. })));
+        assert!(matches!(result, Err(UcanVerifyError::EmptyExpectedAudience)));
+    }
+
+    #[test]
+    fn require_audience_rejects_empty_expected_regardless_of_token_audience() {
+        // Construct a ValidatedUcan with an empty audience by hand — this
+        // shape cannot come out of validate_token (which rejects empty aud),
+        // but guards the require_audience contract against a future change
+        // that loosens validate_token's audience check.
+        let validated = ValidatedUcan {
+            issuer: "did:key:z6MkIssuer".to_string(),
+            audience: String::new(),
+            capabilities: HashMap::new(),
+            expires_at: 0,
+        };
+        let result = require_audience(&validated, "");
+        assert!(
+            matches!(result, Err(UcanVerifyError::EmptyExpectedAudience)),
+            "an empty expected_audience must never be accepted, even when \
+             the validated audience is also empty (defense in depth: empty \
+             == empty would silently bypass the replay-protection layer)"
+        );
     }
 }
