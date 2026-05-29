@@ -191,6 +191,18 @@ mod fk_guard_tests {
     }
 }
 
+/// Computes the cutoff HLC time for cleanup.
+///
+/// Returns `None` if the cutoff would overflow `i64`. SQLite stores integers
+/// as signed 64-bit, so an `as i64` cast on a `u64 > i64::MAX` would wrap to
+/// a negative value and silently skew the `DELETE … WHERE … < ?1` comparison.
+fn compute_cutoff_hlc_num(current_hlc_num: u64, retention_days: u32) -> Option<i64> {
+    let ns_per_day: u64 = 24 * 60 * 60 * 1_000_000_000;
+    let retention_ns = u64::from(retention_days).saturating_mul(ns_per_day);
+    let cutoff = current_hlc_num.saturating_sub(retention_ns);
+    i64::try_from(cutoff).ok()
+}
+
 /// Cleans up old delete-log entries. Deletes rows from `haex_deleted_rows`
 /// whose `haex_hlc` is older than `retention_days`.
 ///
@@ -236,9 +248,19 @@ pub fn cleanup_deleted_rows(
         })?;
 
         let current_hlc_num = current_timestamp.get_time().as_u64();
-        let ns_per_day: u64 = 24 * 60 * 60 * 1_000_000_000;
-        let retention_ns = u64::from(retention_days).saturating_mul(ns_per_day);
-        let cutoff_hlc_num = current_hlc_num.saturating_sub(retention_ns) as i64;
+        let cutoff_hlc_num = match compute_cutoff_hlc_num(current_hlc_num, retention_days) {
+            Some(v) => v,
+            None => {
+                eprintln!(
+                    "HLC cutoff exceeds i64::MAX (current_hlc_num={current_hlc_num}, retention_days={retention_days}); skipping cleanup"
+                );
+                return Ok(CleanupResult {
+                    tombstones_deleted: 0,
+                    applied_deleted: 0,
+                    total_deleted: 0,
+                });
+            }
+        };
 
         let delete_sql = format!(
             "DELETE FROM \"{}\"
@@ -334,4 +356,46 @@ pub fn get_crdt_stats(conn: &Connection) -> Result<CrdtStats, rusqlite::Error> {
         update_count: applied,
         delete_count,
     })
+}
+
+#[cfg(test)]
+mod cutoff_tests {
+    use super::*;
+
+    const NS_PER_DAY: u64 = 24 * 60 * 60 * 1_000_000_000;
+
+    #[test]
+    fn normal_case_subtracts_retention() {
+        let current: u64 = 2 * NS_PER_DAY;
+        let cutoff = compute_cutoff_hlc_num(current, 1).expect("should fit i64");
+        assert_eq!(cutoff as u64, NS_PER_DAY);
+    }
+
+    #[test]
+    fn saturates_at_zero_when_retention_exceeds_current() {
+        let cutoff = compute_cutoff_hlc_num(NS_PER_DAY, 30).expect("zero fits i64");
+        assert_eq!(cutoff, 0);
+    }
+
+    #[test]
+    fn rejects_cutoff_above_i64_max() {
+        // current_hlc_num near u64::MAX, retention small → result still > i64::MAX
+        // Old code: `as i64` would wrap to a large negative i64 and silently
+        // make the DELETE comparison meaningless.
+        let current = u64::MAX;
+        assert_eq!(compute_cutoff_hlc_num(current, 1), None);
+    }
+
+    #[test]
+    fn accepts_cutoff_exactly_at_i64_max() {
+        let current = i64::MAX as u64;
+        let cutoff = compute_cutoff_hlc_num(current, 0).expect("i64::MAX fits i64");
+        assert_eq!(cutoff, i64::MAX);
+    }
+
+    #[test]
+    fn rejects_cutoff_one_past_i64_max() {
+        let current = (i64::MAX as u64) + 1;
+        assert_eq!(compute_cutoff_hlc_num(current, 0), None);
+    }
 }
