@@ -359,6 +359,15 @@ pub fn hlc_max<'a>(iter: impl Iterator<Item = &'a str>) -> Option<&'a str> {
     iter.max_by(|a, b| compare_hlc_strings(a, b))
 }
 
+/// Returns the minimum HLC timestamp string from an iterator, using numeric comparison.
+///
+/// Lexicographic `.min()` is unsafe on HLC strings: time components have
+/// variable width (`"99/x"` lex-precedes `"100/x"`) and node-id hex digits
+/// are not zero-padded.
+pub fn hlc_min<'a>(iter: impl Iterator<Item = &'a str>) -> Option<&'a str> {
+    iter.min_by(|a, b| compare_hlc_strings(a, b))
+}
+
 /// Returns the node-id suffix of an HLC timestamp string.
 /// Format: `<u64_ntp_nanoseconds>/<node_id_hex>`.
 pub fn hlc_node_id_suffix(hlc: &str) -> Option<&str> {

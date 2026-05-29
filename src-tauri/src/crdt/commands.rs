@@ -693,7 +693,15 @@ pub fn apply_remote_changes_to_db(
                 let params_refs: Vec<&dyn rusqlite::ToSql> =
                     params.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
 
-                stmt.query_row(&*params_refs, |row| row.get(0)).ok()
+                // Only `QueryReturnedNoRows` means "row absent" — any other
+                // error (locking, schema mismatch, etc.) must surface so the
+                // caller does not silently treat a transient failure as
+                // "no existing row" and overwrite live state.
+                match stmt.query_row(&*params_refs, |row| row.get(0)) {
+                    Ok(hlcs) => Some(hlcs),
+                    Err(rusqlite::Error::QueryReturnedNoRows) => None,
+                    Err(e) => return Err(DatabaseError::from(e)),
+                }
             };
 
             // Track if row exists
