@@ -24,17 +24,6 @@
 
         <USeparator :label="t('syncCredentials')" />
 
-        <UiInput
-          v-model="form.email"
-          label="Email"
-          placeholder="user@example.com"
-          leading-icon="i-lucide-mail"
-          type="email"
-          required
-          :custom-validators="[emailValidator]"
-          check
-        />
-
         <UCheckbox
           v-model="form.useVaultPassword"
           :label="t('useVaultPassword')"
@@ -67,6 +56,13 @@
           label="Name"
           placeholder="Max Mustermann"
           leading-icon="i-lucide-user"
+        />
+        <UiInput
+          v-model="form.email"
+          label="Email"
+          placeholder="user@example.com"
+          leading-icon="i-lucide-mail"
+          type="email"
         />
         <UiInput
           v-model="form.phone"
@@ -147,17 +143,8 @@ const form = reactive({
   address: '',
 })
 
-const isValidEmail = (email: string): boolean =>
-  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-
-const emailValidator = (value: unknown): string | null => {
-  const v = String(value ?? '').trim()
-  if (!v) return null
-  return isValidEmail(v) ? null : t('invalidEmail')
-}
-
 const canCreate = computed(() => {
-  if (!form.label.trim() || !isValidEmail(form.email)) return false
+  if (!form.label.trim()) return false
   if (form.useVaultPassword) return props.vaultPasswordAvailable
   return (
     form.password.length >= 8 && form.password === form.passwordConfirm
@@ -208,7 +195,6 @@ de:
   identityPasswordDescription: Dieses Passwort schützt deinen privaten Schlüssel auf dem Sync-Server. Merke es dir gut – es wird für die Wiederherstellung benötigt.
   identityPasswordConfirm: Identity-Passwort bestätigen
   passwordMismatch: Passwörter stimmen nicht überein
-  invalidEmail: Bitte eine gültige E-Mail-Adresse eingeben
   claimsOptional: Weitere Angaben (optional)
   phone: Telefon
   address: Adresse
@@ -225,7 +211,6 @@ en:
   identityPasswordDescription: This password protects your private key on the sync server. Remember it — it's required for recovery.
   identityPasswordConfirm: Confirm identity password
   passwordMismatch: Passwords do not match
-  invalidEmail: Please enter a valid email address
   claimsOptional: Additional fields (optional)
   phone: Phone
   address: Address
