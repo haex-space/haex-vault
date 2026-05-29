@@ -302,6 +302,46 @@ fn group_by_transaction_hlc(
     ordered
 }
 
+/// Groups column changes by `(table, row_pks)` and returns rows in ascending
+/// order of their earliest HLC timestamp.
+///
+/// The naive shape — collect changes into a `HashMap<(table, row_pks), …>`
+/// and iterate it — discards the careful HLC ordering established by
+/// `group_by_transaction_hlc`: HashMap iteration is unordered. When a remote
+/// batch contains rows from multiple transactions (e.g. parent inserted at
+/// HLC1, child inserted at HLC2 referencing it), HashMap iteration may apply
+/// the child first. FK constraints are disabled during apply so that is not
+/// itself a hard error, but the apply order then no longer reflects the
+/// causal order the sender intended, and any future logic that observes the
+/// per-row apply sequence will see nondeterministic results.
+///
+/// This helper preserves the per-row grouping but sorts the resulting rows
+/// by `min(hlc_timestamp)` so the iteration order is deterministic and
+/// follows the same causal order as `group_by_transaction_hlc`.
+pub(crate) fn group_row_changes_in_hlc_order(
+    changes: impl IntoIterator<Item = RemoteColumnChange>,
+) -> Vec<((String, String), Vec<RemoteColumnChange>)> {
+    let mut map: HashMap<(String, String), Vec<RemoteColumnChange>> = HashMap::new();
+    for change in changes {
+        map.entry((change.table_name.clone(), change.row_pks.clone()))
+            .or_default()
+            .push(change);
+    }
+    let mut entries: Vec<((String, String), Vec<RemoteColumnChange>)> =
+        map.into_iter().collect();
+    entries.sort_by(|a, b| {
+        let a_min = a.1.iter().map(|c| c.hlc_timestamp.as_str()).min();
+        let b_min = b.1.iter().map(|c| c.hlc_timestamp.as_str()).min();
+        match (a_min, b_min) {
+            (Some(am), Some(bm)) => crate::crdt::hlc::compare_hlc_strings(am, bm),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => std::cmp::Ordering::Equal,
+        }
+    });
+    entries
+}
+
 /// Applies remote changes in a single transaction, with HLC-ordered grouping.
 /// Note: lastPullServerTimestamp is now updated by the TypeScript layer after successful apply
 #[tauri::command]
@@ -493,15 +533,14 @@ pub fn apply_remote_changes_to_db(
         );
         tx.execute(&disable_sql, []).map_err(DatabaseError::from)?;
 
-        // Group changes by (table, row) so we can insert/update all columns of a row together.
-        // Also collect all HLC timestamps for advancing the local clock after applying.
-        let mut row_changes: HashMap<(String, String), Vec<RemoteColumnChange>> = HashMap::new();
-        let mut all_hlc_timestamps: Vec<String> = Vec::new();
-        // Collect IDs of haex_deleted_rows entries that arrive in this batch so we
-        // can apply the corresponding DELETE on the target table after the apply
-        // loop (triggers are still disabled at that point).
+        // Collect side-data needed after the apply loop:
+        //   1. all HLC timestamps for advancing the local clock,
+        //   2. IDs of haex_deleted_rows entries arriving in this batch so
+        //      the corresponding DELETE on the target table can run after
+        //      the apply loop (triggers are still disabled then).
+        let mut all_hlc_timestamps: Vec<String> = Vec::with_capacity(changes.len());
         let mut inbound_delete_log_ids: HashSet<String> = HashSet::new();
-        for change in changes {
+        for change in &changes {
             all_hlc_timestamps.push(change.hlc_timestamp.clone());
             if change.table_name == DELETED_ROWS_TABLE {
                 if let Ok(map) =
@@ -512,9 +551,13 @@ pub fn apply_remote_changes_to_db(
                     }
                 }
             }
-            let key = (change.table_name.clone(), change.row_pks.clone());
-            row_changes.entry(key).or_insert_with(Vec::new).push(change);
         }
+
+        // Group by (table, row) so all columns of one row are written
+        // together — and keep iteration ordered by the row's earliest
+        // HLC. Plain HashMap iteration would discard the careful HLC
+        // ordering that group_by_transaction_hlc just established.
+        let row_changes = group_row_changes_in_hlc_order(changes);
 
         // Apply changes grouped by row
         for ((_table_name, row_pks_str), row_change_list) in row_changes {
@@ -907,4 +950,122 @@ pub fn apply_remote_changes_to_db(
 
         Ok(())
     })
+}
+
+#[cfg(test)]
+mod hlc_grouping_tests {
+    use super::*;
+
+    fn change(table: &str, pk: &str, col: &str, hlc: &str) -> RemoteColumnChange {
+        RemoteColumnChange {
+            table_name: table.to_string(),
+            row_pks: pk.to_string(),
+            column_name: col.to_string(),
+            hlc_timestamp: hlc.to_string(),
+            decrypted_value: JsonValue::Null,
+        }
+    }
+
+    // HLC strings sort lexicographically when same length; use fixed-width
+    // numeric prefixes so the relative order is unambiguous.
+    const HLC1: &str = "1/abcdef";
+    const HLC2: &str = "2/abcdef";
+    const HLC3: &str = "3/abcdef";
+    const HLC4: &str = "4/abcdef";
+
+    #[test]
+    fn helper_emits_rows_in_ascending_min_hlc_order() {
+        // Construct three rows whose earliest HLCs are HLC1, HLC2, HLC3 —
+        // but feed them in reverse order so HashMap insertion order is
+        // visibly wrong. The helper must still produce HLC1 → HLC2 → HLC3.
+        let changes = vec![
+            change("t", r#"{"id":"c"}"#, "col", HLC3),
+            change("t", r#"{"id":"b"}"#, "col", HLC2),
+            change("t", r#"{"id":"a"}"#, "col", HLC1),
+        ];
+
+        let ordered = group_row_changes_in_hlc_order(changes);
+
+        let keys: Vec<&str> = ordered.iter().map(|(k, _)| k.1.as_str()).collect();
+        assert_eq!(
+            keys,
+            vec![r#"{"id":"a"}"#, r#"{"id":"b"}"#, r#"{"id":"c"}"#],
+            "rows must be ordered by ascending min(hlc), regardless of input order"
+        );
+    }
+
+    #[test]
+    fn helper_uses_min_hlc_per_row_for_ordering() {
+        // Row A has changes at HLC1 + HLC4; Row B has a single change at
+        // HLC2. min(A) = HLC1 < min(B) = HLC2, so A must come before B
+        // even though A also contains the latest timestamp in the batch.
+        let changes = vec![
+            change("t", r#"{"id":"a"}"#, "col1", HLC4),
+            change("t", r#"{"id":"b"}"#, "col", HLC2),
+            change("t", r#"{"id":"a"}"#, "col2", HLC1),
+        ];
+
+        let ordered = group_row_changes_in_hlc_order(changes);
+
+        assert_eq!(ordered.len(), 2, "rows must be grouped per (table, pk)");
+        assert_eq!(
+            ordered[0].0 .1, r#"{"id":"a"}"#,
+            "row A (min HLC = HLC1) must come before row B (min HLC = HLC2)"
+        );
+        assert_eq!(ordered[0].1.len(), 2, "row A must keep both of its changes");
+        assert_eq!(ordered[1].0 .1, r#"{"id":"b"}"#);
+    }
+
+    #[test]
+    fn helper_is_deterministic_across_input_orderings() {
+        // A direct probe for the bug: build a batch large enough that a
+        // plain HashMap iteration order is nearly guaranteed to differ
+        // between insertion orderings. The helper must always produce
+        // the same sequence regardless of how changes are reshuffled.
+        let baseline_changes: Vec<RemoteColumnChange> = (0..16)
+            .map(|i| {
+                let hlc = format!("{}/abcdef", i);
+                change("t", &format!(r#"{{"id":"r{}"}}"#, i), "c", &hlc)
+            })
+            .collect();
+
+        let baseline = group_row_changes_in_hlc_order(baseline_changes);
+        let baseline_keys: Vec<String> =
+            baseline.iter().map(|(k, _)| k.1.clone()).collect();
+
+        // Reverse input order and re-run.
+        let reversed: Vec<RemoteColumnChange> = (0..16)
+            .rev()
+            .map(|i| {
+                let hlc = format!("{}/abcdef", i);
+                change("t", &format!(r#"{{"id":"r{}"}}"#, i), "c", &hlc)
+            })
+            .collect();
+        let reversed_out = group_row_changes_in_hlc_order(reversed);
+        let reversed_keys: Vec<String> =
+            reversed_out.iter().map(|(k, _)| k.1.clone()).collect();
+
+        assert_eq!(
+            baseline_keys, reversed_keys,
+            "iteration order must be deterministic and HLC-driven, not \
+             dependent on the order changes were collected from the batch"
+        );
+
+        // Sanity: the row order matches ascending HLC numeric order.
+        // (Cannot use lexicographic compare on the row keys themselves
+        // because "r10" < "r2" lexically while HLC says otherwise.)
+        let baseline_min_hlcs: Vec<&str> = baseline
+            .iter()
+            .map(|(_, list)| {
+                list.iter().map(|c| c.hlc_timestamp.as_str()).min().unwrap()
+            })
+            .collect();
+        for window in baseline_min_hlcs.windows(2) {
+            assert!(
+                crate::crdt::hlc::compare_hlc_strings(window[0], window[1])
+                    != std::cmp::Ordering::Greater,
+                "consecutive rows must be in non-decreasing HLC order"
+            );
+        }
+    }
 }
