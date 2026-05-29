@@ -11,12 +11,37 @@ pub enum ShortcutError {
     #[error("Extension not found: {extension_id}")]
     ExtensionNotFound { extension_id: String },
 
+    #[error("Invalid extension id: {0}")]
+    InvalidExtensionId(String),
+
     #[allow(dead_code)]
     #[error("Platform not supported for desktop shortcuts")]
     PlatformNotSupported,
 
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
+}
+
+/// Validate that `extension_id` is safe to interpolate into a deep-link URL
+/// and from there into `.desktop`/PowerShell shortcut arguments.
+///
+/// Today `extension_id` is always a UUID (see `installer.rs`), but the value
+/// flows through Tauri command parameters, configuration, and a sync layer
+/// before it lands here — any future code path that produces a non-UUID id
+/// would otherwise break out of the quoted `Exec="…"` argument with a
+/// newline, double-quote, or backtick. Constraining to URL-safe chars at
+/// the point of interpolation is defense in depth.
+fn validate_extension_id_for_url(extension_id: &str) -> Result<(), ShortcutError> {
+    if extension_id.is_empty() || extension_id.len() > 128 {
+        return Err(ShortcutError::InvalidExtensionId(extension_id.to_string()));
+    }
+    let ok = extension_id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    if !ok {
+        return Err(ShortcutError::InvalidExtensionId(extension_id.to_string()));
+    }
+    Ok(())
 }
 
 impl serde::Serialize for ShortcutError {
@@ -73,6 +98,10 @@ pub async fn create_desktop_shortcut(
     state: State<'_, AppState>,
     extension_id: String,
 ) -> Result<(), ShortcutError> {
+    // Validate before any side effects — refuse to write a shortcut file
+    // whose Exec/Arguments line cannot be safely quoted.
+    validate_extension_id_for_url(&extension_id)?;
+
     // Get extension info
     let extension = state
         .extension_manager
@@ -89,7 +118,8 @@ pub async fn create_desktop_shortcut(
         reason: format!("Could not determine app path: {e}"),
     })?;
 
-    // Deep-link URL
+    // Deep-link URL — extension_id is constrained to URL-safe chars above,
+    // so this format is safe to interpolate into quoted shell arguments.
     let deep_link_url = format!("haexvault://extension/{extension_id}");
 
     #[cfg(target_os = "linux")]
@@ -386,6 +416,46 @@ mod tests {
     // sanitiser. Without this check the hardening is silently bypassed
     // the moment somebody copies a `{extension_name}` interpolation.
     // ------------------------------------------------------------------
+
+    // ------------------------------------------------------------------
+    // validate_extension_id_for_url
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn validate_extension_id_accepts_uuid_and_simple_ids() {
+        assert!(validate_extension_id_for_url("550e8400-e29b-41d4-a716-446655440000").is_ok());
+        assert!(validate_extension_id_for_url("simple_id-123").is_ok());
+    }
+
+    #[test]
+    fn validate_extension_id_rejects_empty_or_too_long() {
+        assert!(matches!(
+            validate_extension_id_for_url(""),
+            Err(ShortcutError::InvalidExtensionId(_))
+        ));
+        let huge = "a".repeat(129);
+        assert!(matches!(
+            validate_extension_id_for_url(&huge),
+            Err(ShortcutError::InvalidExtensionId(_))
+        ));
+    }
+
+    #[test]
+    fn validate_extension_id_rejects_url_breakers() {
+        // The interpolated deep_link_url ends up inside quoted Exec="…"
+        // arguments — a newline, double-quote, or backtick would close the
+        // quoted argument and inject a new `.desktop` key or PowerShell
+        // statement. Reject every non-URL-safe char outright.
+        for breaker in ["with space", "ext\"id", "ext\nid", "ext`id", "ext$id", "ext/id", "ext\\id", "ext;id", "ext id\nExec=evil"] {
+            assert!(
+                matches!(
+                    validate_extension_id_for_url(breaker),
+                    Err(ShortcutError::InvalidExtensionId(_))
+                ),
+                "expected validate_extension_id_for_url to reject {breaker:?}"
+            );
+        }
+    }
 
     #[test]
     fn shortcuts_must_sanitize_extension_name() {
