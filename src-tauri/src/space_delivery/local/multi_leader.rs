@@ -19,6 +19,12 @@ use super::leader::LeaderState;
 use super::protocol::{self, Request, Response};
 use super::push_invite;
 
+/// Upper bound on consecutive 10-second "waiting for stream" heartbeats.
+/// At 6 the connection is closed (60 s of zero streams). Without this, a
+/// peer that completes the QUIC handshake but never opens a bi-stream
+/// occupies a tokio task indefinitely and spams the log forever.
+const MAX_IDLE_HEARTBEATS: u32 = 6;
+
 /// Single QUIC handler that routes incoming requests to the correct LeaderState.
 pub struct MultiSpaceLeaderHandler {
     pub leaders: Arc<tokio::sync::RwLock<HashMap<String, Arc<LeaderState>>>>,
@@ -52,6 +58,7 @@ impl MultiSpaceLeaderHandler {
         );
 
         let mut stream_count: u32 = 0;
+        let mut idle_heartbeats: u32 = 0;
         let connection_start = std::time::Instant::now();
         loop {
             // Heartbeat every 10s while waiting for a stream — surfaces the
@@ -66,6 +73,7 @@ impl MultiSpaceLeaderHandler {
             match accept {
                 Ok(Ok((send, mut recv))) => {
                     stream_count += 1;
+                    idle_heartbeats = 0;
                     let leaders = self.leaders.clone();
                     let db = DbConnection(self.db.0.clone());
                     let hlc = self.hlc.clone();
@@ -101,13 +109,29 @@ impl MultiSpaceLeaderHandler {
                     break;
                 }
                 Err(_) => {
+                    idle_heartbeats += 1;
                     // Heartbeat: connection still open but no stream opened yet.
                     let msg = format!(
-                        "Waiting for stream from {remote_str} ({}s elapsed, {} streams handled)",
+                        "Waiting for stream from {remote_str} ({}s elapsed, {} streams handled, idle={}/{})",
                         connection_start.elapsed().as_secs(),
-                        stream_count
+                        stream_count,
+                        idle_heartbeats,
+                        MAX_IDLE_HEARTBEATS,
                     );
                     crate::logging::log_to_db(&self.db, &self.hlc, "warn", "MultiLeader", &msg);
+
+                    if idle_heartbeats >= MAX_IDLE_HEARTBEATS {
+                        // Misbehaving client occupies a tokio task and spams
+                        // the log indefinitely. Cap the wait and close.
+                        let msg = format!(
+                            "Closing idle connection from {remote_str} after {}s ({} idle heartbeats, 0 streams)",
+                            connection_start.elapsed().as_secs(),
+                            idle_heartbeats,
+                        );
+                        crate::logging::log_to_db(&self.db, &self.hlc, "warn", "MultiLeader", &msg);
+                        conn.close(0u32.into(), b"idle timeout");
+                        break;
+                    }
                 }
             }
         }
@@ -252,4 +276,43 @@ async fn handle_stream(
     };
 
     super::leader::send_response(&mut send, &response).await
+}
+
+#[cfg(test)]
+mod idle_close_tests {
+    use super::*;
+
+    #[test]
+    fn max_idle_heartbeats_is_bounded_and_finite() {
+        assert!(MAX_IDLE_HEARTBEATS > 0, "must be a positive bound");
+        assert!(
+            MAX_IDLE_HEARTBEATS <= 60,
+            "60 heartbeats = 10 minutes; anything beyond that defeats the \
+             purpose of the bound (preventing log-spam from misbehaving peers)"
+        );
+    }
+
+    /// Regression guard: the connection-accept loop in
+    /// MultiSpaceLeaderHandler must break out once MAX_IDLE_HEARTBEATS is
+    /// reached. Without this, a peer that completes the handshake but
+    /// never opens a stream wedges a tokio task and spams the log.
+    #[test]
+    fn accept_loop_closes_on_idle_bound() {
+        let source = include_str!("multi_leader.rs");
+        let production = source
+            .split_once("#[cfg(test)]")
+            .map(|(p, _)| p)
+            .unwrap_or(source);
+
+        assert!(
+            production.contains("idle_heartbeats >= MAX_IDLE_HEARTBEATS"),
+            "the heartbeat branch must check the idle counter against \
+             MAX_IDLE_HEARTBEATS and break the loop"
+        );
+        assert!(
+            production.contains("conn.close(0u32.into(), b\"idle timeout\")"),
+            "the loop must close the QUIC connection on the idle path so \
+             the peer learns the channel is gone instead of hanging"
+        );
+    }
 }

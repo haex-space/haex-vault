@@ -1,5 +1,32 @@
 # Changelog
 
+## [2.2.2](https://github.com/haex-space/haex-vault/compare/v2.2.1...v2.2.2) (2026-05-29)
+
+
+### Bug Fixes
+
+* **crdt/cleanup:** re-enable foreign_keys on panic via catch_unwind ([dc0e7de](https://github.com/haex-space/haex-vault/commit/dc0e7de25bfb025815c37e8b838d7dc056c32b06))
+* **crdt/cleanup:** reject HLC cutoff that overflows i64 ([34bbc4d](https://github.com/haex-space/haex-vault/commit/34bbc4d9ddca6c9fde666cfb9f3fd05a4ca43ea7))
+* **crdt/commands:** use hlc_min in row-changes grouping sort ([1a8ef0c](https://github.com/haex-space/haex-vault/commit/1a8ef0c9f805280b1585af04ad0440fcd3671298))
+* **crdt/hlc:** compare node ids numerically + surface parse failures ([83bc26b](https://github.com/haex-space/haex-vault/commit/83bc26b8660637d0f7642101cd9d10504a9b90e3))
+* **crdt:** add hlc_min helper + propagate DB errors in row-HLC read ([df7e277](https://github.com/haex-space/haex-vault/commit/df7e27795af949bab1de59156de0b011177298de))
+* **crdt:** skip whole row when any PK column is unsafe ([983c1bc](https://github.com/haex-space/haex-vault/commit/983c1bcdd9d7a53510d3214875ff643d501fccda))
+* **extension/database:** use comment/string-aware placeholder counter ([119ecbe](https://github.com/haex-space/haex-vault/commit/119ecbe2feb708c1e85819514c9446cb1f6eefd6))
+* **extension/mod:** use with_fk_disabled in remove_dev_extension ([1980932](https://github.com/haex-space/haex-vault/commit/1980932b1ee79abed6b929054aace5fd9f8ddf88))
+* **extension/protocol:** reject when asset path cannot be canonicalized ([20aa630](https://github.com/haex-space/haex-vault/commit/20aa630935b854cb09414590017d20d3822778f9))
+* **external_bridge:** await accept-loop on stop so port is fully released ([42f5cf6](https://github.com/haex-space/haex-vault/commit/42f5cf67ecd65ac3f4a6183954adabeb216df9df))
+* **external_bridge:** fail closed when blocked-check DB query errors ([ee7d3ea](https://github.com/haex-space/haex-vault/commit/ee7d3ea3993502ac138a7e16616266cba5132860))
+* **filesystem/android:** propagate persist_uri_permission errors ([bf8de25](https://github.com/haex-space/haex-vault/commit/bf8de25dd8794d996e3d23da485f8a40728428cd))
+* **mail/imap:** surface original MOVE error when fallback also fails ([6c9ddac](https://github.com/haex-space/haex-vault/commit/6c9ddaccd926a9592d9d8deca4b5ac9c83325a79))
+* **mls/manager:** propagate MlsGroup::load errors before re-joining ([2a7685a](https://github.com/haex-space/haex-vault/commit/2a7685a8f996e08d484a465f10f0563a7470d334))
+* **shortcuts:** validate extension_id is URL-safe before deep-link interpolation ([d0c191d](https://github.com/haex-space/haex-vault/commit/d0c191d5fa90d9438ad0c147798d9b6e78873b5e))
+* **space_delivery/buffer:** use json_each for acked_dids membership ([c16766d](https://github.com/haex-space/haex-vault/commit/c16766d47033f06c62a602b6c993ad0639fb6be1))
+* **space_delivery/multi_leader:** close connection after 60s of zero streams ([7398bee](https://github.com/haex-space/haex-vault/commit/7398bee4328a176063dc515728d55ac180789130))
+* **space_delivery/peer:** bound PeerSession::request response wait ([f2fe01e](https://github.com/haex-space/haex-vault/commit/f2fe01e6ebf469922f64c024b60fcd9818879e2f))
+* **space_delivery:** enforce UCAN audience == announced peer DID ([ca2eb1c](https://github.com/haex-space/haex-vault/commit/ca2eb1ccc6e5e2a71663a40a78127c4def9a7077))
+* **ucan/create:** return error instead of panicking on pre-epoch clock ([7efbd16](https://github.com/haex-space/haex-vault/commit/7efbd1624e3daa8da2335e8fa65e67da8a9c5845))
+* **ucan/verify:** reject empty expected_audience in require_audience ([8e522a7](https://github.com/haex-space/haex-vault/commit/8e522a78f6ad91fdb50ed6d3d921df326b908cac))
+
 ## [2.2.1](https://github.com/haex-space/haex-vault/compare/v2.2.0...v2.2.1) (2026-05-29)
 
 

@@ -573,48 +573,45 @@ pub fn remove_dev_extension(
 
     let extension_id = extension.id.clone();
 
-    // Remove from database (with CRDT tombstone)
+    // Remove from database. `SqlExecutor::execute_internal_typed` writes the
+    // delete through the CRDT path (haex_deleted_rows delete-log).
+    //
+    // `with_fk_disabled` re-enables foreign-keys on every exit path — including
+    // early returns via `?` — so an error mid-transaction does not leave FK
+    // checks off on the shared Connection for subsequent operations.
     db::core::with_connection(&state.db, |conn| {
-        // Disable foreign key constraints BEFORE starting the transaction
-        conn.execute("PRAGMA foreign_keys = OFF", [])
-            .map_err(db::error::DatabaseError::from)?;
+        crate::crdt::cleanup::with_fk_disabled(conn, |conn| {
+            let tx = conn.transaction().map_err(db::error::DatabaseError::from)?;
 
-        let tx = conn.transaction().map_err(db::error::DatabaseError::from)?;
+            let hlc_service = state.hlc.lock().map_err(|_| db::error::DatabaseError::MutexPoisoned {
+                reason: "Failed to lock HLC service".to_string(),
+            })?;
 
-        let hlc_service = state.hlc.lock().map_err(|_| db::error::DatabaseError::MutexPoisoned {
-            reason: "Failed to lock HLC service".to_string(),
-        })?;
+            // Delete permissions for this extension
+            PermissionManager::delete_permissions_in_transaction(&tx, &hlc_service, &extension_id)?;
 
-        // Delete permissions for this extension
-        PermissionManager::delete_permissions_in_transaction(&tx, &hlc_service, &extension_id)?;
+            // Drop all tables created by this extension
+            let dropped = utils::drop_extension_tables(&tx, &public_key, &name)?;
+            if !dropped.is_empty() {
+                eprintln!(
+                    "[DEV] Dropped {} tables for extension {}::{}",
+                    dropped.len(),
+                    public_key,
+                    name
+                );
+            }
 
-        // Drop all tables created by this extension
-        let dropped = utils::drop_extension_tables(&tx, &public_key, &name)?;
-        if !dropped.is_empty() {
-            eprintln!(
-                "[DEV] Dropped {} tables for extension {}::{}",
-                dropped.len(),
-                public_key,
-                name
-            );
-        }
+            // Delete the extension entry itself
+            let delete_sql = format!("DELETE FROM {TABLE_EXTENSIONS} WHERE id = ?");
+            SqlExecutor::execute_internal_typed(
+                &tx,
+                &hlc_service,
+                &delete_sql,
+                rusqlite::params![&extension_id],
+            )?;
 
-        // Delete the extension entry itself
-        let delete_sql = format!("DELETE FROM {TABLE_EXTENSIONS} WHERE id = ?");
-        SqlExecutor::execute_internal_typed(
-            &tx,
-            &hlc_service,
-            &delete_sql,
-            rusqlite::params![&extension_id],
-        )?;
-
-        let commit_result = tx.commit().map_err(db::error::DatabaseError::from);
-
-        // Re-enable foreign key constraints after transaction
-        conn.execute("PRAGMA foreign_keys = ON", [])
-            .map_err(db::error::DatabaseError::from)?;
-
-        commit_result
+            tx.commit().map_err(db::error::DatabaseError::from)
+        })
     })?;
 
     // Remove from in-memory manager

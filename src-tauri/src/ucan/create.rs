@@ -59,6 +59,8 @@ pub enum UcanCreateError {
     InvalidKey(String),
     #[error("Serialization error: {0}")]
     Serialization(String),
+    #[error("Clock error: {0}")]
+    ClockError(String),
 }
 
 // ---------------------------------------------------------------------------
@@ -80,7 +82,7 @@ pub fn create_delegated_ucan(
 ) -> Result<String, UcanCreateError> {
     let signing_key = signing_key_from_pkcs8_base64(issuer_private_key_base64)?;
 
-    let now = unix_now();
+    let now = unix_now()?;
     let nonce = generate_nonce();
 
     let mut cap = HashMap::new();
@@ -149,11 +151,14 @@ fn generate_nonce() -> String {
     BASE64URL.encode(bytes)
 }
 
-fn unix_now() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system clock before UNIX epoch")
-        .as_secs()
+fn unix_secs_from(t: SystemTime) -> Result<u64, UcanCreateError> {
+    t.duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .map_err(|e| UcanCreateError::ClockError(format!("system clock before UNIX epoch: {e}")))
+}
+
+fn unix_now() -> Result<u64, UcanCreateError> {
+    unix_secs_from(SystemTime::now())
 }
 
 // ---------------------------------------------------------------------------
@@ -235,5 +240,23 @@ mod tests {
         let n2 = generate_nonce();
         assert_ne!(n1, n2);
         assert_eq!(n1.len(), 16); // 12 bytes → 16 base64url chars
+    }
+
+    #[test]
+    fn unix_secs_from_now_succeeds() {
+        assert!(unix_secs_from(SystemTime::now()).is_ok());
+    }
+
+    #[test]
+    fn unix_secs_from_pre_epoch_returns_err() {
+        // Previously `unix_now` panicked on times before UNIX_EPOCH via
+        // `.expect("system clock before UNIX epoch")`. Verify the
+        // refactored function returns a ClockError instead.
+        let Some(pre_epoch) = UNIX_EPOCH.checked_sub(std::time::Duration::from_secs(1)) else {
+            // Platform can't represent pre-epoch; nothing to assert on.
+            return;
+        };
+        let err = unix_secs_from(pre_epoch).expect_err("pre-epoch must error, not panic");
+        assert!(matches!(err, UcanCreateError::ClockError(_)));
     }
 }

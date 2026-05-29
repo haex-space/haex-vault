@@ -124,7 +124,10 @@ const CONNECT_TIMEOUT_SECS: u64 = 10;
 /// until the QUIC idle timeout fires (~150s). With this timeout, the call
 /// fails fast as a transient error and the retry loop re-establishes a clean
 /// connection on the next attempt.
-const READ_TIMEOUT_SECS: u64 = 30;
+///
+/// `pub(super)` so the long-lived `PeerSession` (peer.rs) can apply the
+/// same bound on its `read_response` calls.
+pub(super) const READ_TIMEOUT_SECS: u64 = 30;
 
 /// Errors from [`send_request_once`], preserving the original iroh/quinn error
 /// types so the retry policy can match on variants instead of strings.

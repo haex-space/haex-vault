@@ -322,9 +322,14 @@ pub fn ack_commits(
         // (or fail to observe a concurrent peer's ACK) and the message
         // could be left permanently un-cleaned.
         let rows = core::execute(
+            // `instr(acked_dids, ?1) > 0` is substring-based: a DID that is
+            // a prefix of another already-acked DID would be reported as
+            // present and never inserted, leaving the message permanently
+            // un-cleaned. Use element-wise JSON array membership instead so
+            // SQL semantics match the Rust-side `acked.contains(did)` check.
             "UPDATE haex_local_delivery_pending_commits_no_sync \
              SET acked_dids = CASE \
-               WHEN instr(acked_dids, ?1) > 0 THEN acked_dids \
+               WHEN EXISTS (SELECT 1 FROM json_each(acked_dids) WHERE value = ?1) THEN acked_dids \
                ELSE json_insert(acked_dids, '$[#]', ?1) \
              END \
              WHERE space_id = ?2 AND message_id = ?3 \
@@ -593,6 +598,31 @@ mod ack_commits_tests {
         // Same DID ACKs again — must not produce duplicate entries.
         ack_commits(&db, "space1", "did:A", &[42]).unwrap();
         assert_eq!(read_acked(&db, "space1", 42), vec!["did:A"]);
+    }
+
+    /// Membership test must be element-wise, not a substring scan of the
+    /// serialised JSON array. With substring semantics, a DID that is a
+    /// prefix of an already-acked DID would be reported as present and
+    /// never inserted — leaving the message permanently un-cleaned.
+    #[test]
+    fn prefix_did_is_recorded_separately_from_superstring() {
+        let db = setup_test_db();
+        insert_pending(&db, "space1", 42, &["did:key:abc", "did:key:abcdef"]);
+
+        // The longer DID ACKs first.
+        ack_commits(&db, "space1", "did:key:abcdef", &[42]).unwrap();
+        assert_eq!(read_acked(&db, "space1", 42), vec!["did:key:abcdef"]);
+
+        // Now the prefix DID ACKs. With substring-based membership, the
+        // SQL gate would see "did:key:abc" inside "did:key:abcdef" and
+        // skip the insert, never marking the message fully-acked.
+        let fully = ack_commits(&db, "space1", "did:key:abc", &[42]).unwrap();
+        assert_eq!(
+            fully,
+            vec![42],
+            "ACK from a DID that is a prefix of an existing ACK must \
+             still be recorded so the expected set can be completed"
+        );
     }
 
     /// Regression guard: ack_commits must read its post-UPDATE state
