@@ -302,6 +302,46 @@ fn group_by_transaction_hlc(
     ordered
 }
 
+/// Groups column changes by `(table, row_pks)` and returns rows in ascending
+/// order of their earliest HLC timestamp.
+///
+/// The naive shape — collect changes into a `HashMap<(table, row_pks), …>`
+/// and iterate it — discards the careful HLC ordering established by
+/// `group_by_transaction_hlc`: HashMap iteration is unordered. When a remote
+/// batch contains rows from multiple transactions (e.g. parent inserted at
+/// HLC1, child inserted at HLC2 referencing it), HashMap iteration may apply
+/// the child first. FK constraints are disabled during apply so that is not
+/// itself a hard error, but the apply order then no longer reflects the
+/// causal order the sender intended, and any future logic that observes the
+/// per-row apply sequence will see nondeterministic results.
+///
+/// This helper preserves the per-row grouping but sorts the resulting rows
+/// by `min(hlc_timestamp)` so the iteration order is deterministic and
+/// follows the same causal order as `group_by_transaction_hlc`.
+pub(crate) fn group_row_changes_in_hlc_order(
+    changes: impl IntoIterator<Item = RemoteColumnChange>,
+) -> Vec<((String, String), Vec<RemoteColumnChange>)> {
+    let mut map: HashMap<(String, String), Vec<RemoteColumnChange>> = HashMap::new();
+    for change in changes {
+        map.entry((change.table_name.clone(), change.row_pks.clone()))
+            .or_default()
+            .push(change);
+    }
+    let mut entries: Vec<((String, String), Vec<RemoteColumnChange>)> =
+        map.into_iter().collect();
+    entries.sort_by(|a, b| {
+        let a_min = a.1.iter().map(|c| c.hlc_timestamp.as_str()).min();
+        let b_min = b.1.iter().map(|c| c.hlc_timestamp.as_str()).min();
+        match (a_min, b_min) {
+            (Some(am), Some(bm)) => crate::crdt::hlc::compare_hlc_strings(am, bm),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => std::cmp::Ordering::Equal,
+        }
+    });
+    entries
+}
+
 /// Applies remote changes in a single transaction, with HLC-ordered grouping.
 /// Note: lastPullServerTimestamp is now updated by the TypeScript layer after successful apply
 #[tauri::command]
@@ -329,6 +369,27 @@ pub fn apply_remote_changes_in_transaction(
 /// received remote timestamp after applying all changes. This ensures future local
 /// operations generate timestamps strictly greater than any received remote timestamp,
 /// preventing incomplete rows on the server during push.
+/// Decide whether to honour a delete-log entry, given the HLC of the entry
+/// and the HLC of the row currently sitting in the target table (if any).
+///
+/// CRDT semantics: a delete is just another timestamped operation. If the
+/// target row carries a `haex_hlc` strictly newer than the delete-log entry,
+/// the row was inserted/updated *after* the delete and must be kept (a
+/// "resurrection"). Without this check, propagation unconditionally drops
+/// the row, breaking last-write-wins for the insert-after-delete case.
+fn should_propagate_delete(delete_log_hlc: &str, target_row_hlc: Option<&str>) -> bool {
+    match target_row_hlc {
+        // Row doesn't exist locally → nothing to delete, but reporting
+        // "should propagate" is harmless and keeps logging consistent.
+        None => true,
+        Some(target) => {
+            // Honour the delete unless the target row is strictly newer.
+            crate::crdt::hlc::compare_hlc_strings(target, delete_log_hlc)
+                != std::cmp::Ordering::Greater
+        }
+    }
+}
+
 /// Applies pending delete-log entries to their target tables.
 ///
 /// For each row id in `delete_log_ids`, reads `(table_name, row_pks)` from
@@ -342,18 +403,19 @@ fn propagate_deleted_rows_to_target_tables(
     for id in delete_log_ids {
         let result = tx.query_row(
             &format!(
-                "SELECT table_name, row_pks FROM \"{}\" WHERE id = ?1",
+                "SELECT table_name, row_pks, haex_hlc FROM \"{}\" WHERE id = ?1",
                 DELETED_ROWS_TABLE
             ),
             params![id],
             |row| {
                 let table_name: String = row.get(0)?;
                 let row_pks: String = row.get(1)?;
-                Ok((table_name, row_pks))
+                let delete_hlc: String = row.get(2)?;
+                Ok((table_name, row_pks, delete_hlc))
             },
         );
 
-        let (target_table, row_pks_json) = match result {
+        let (target_table, row_pks_json, delete_hlc) = match result {
             Ok(r) => r,
             Err(rusqlite::Error::QueryReturnedNoRows) => continue,
             Err(e) => return Err(DatabaseError::from(e)),
@@ -400,14 +462,34 @@ fn propagate_deleted_rows_to_target_tables(
             }
         }
 
-        let delete_sql = format!(
-            "DELETE FROM \"{}\" WHERE {}",
-            target_table,
-            where_parts.join(" AND ")
-        );
+        let where_clause = where_parts.join(" AND ");
         let sql_params = json_values_to_sql_params(&values)?;
         let param_refs: Vec<&dyn rusqlite::ToSql> =
             sql_params.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
+
+        // Resurrection check: if the target row was inserted/updated after
+        // this delete-log entry, the row's haex_hlc is strictly newer and
+        // we must NOT propagate the delete.
+        let select_hlc_sql = format!(
+            "SELECT haex_hlc FROM \"{}\" WHERE {}",
+            target_table, where_clause
+        );
+        let target_row_hlc: Option<String> = tx
+            .query_row(&select_hlc_sql, param_refs.as_slice(), |row| row.get(0))
+            .ok();
+        if !should_propagate_delete(&delete_hlc, target_row_hlc.as_deref()) {
+            eprintln!(
+                "[SYNC RUST] Skipping delete-log {} for '{}': target row \
+                 has newer haex_hlc ({:?} > {}) — resurrected",
+                id, target_table, target_row_hlc, delete_hlc
+            );
+            continue;
+        }
+
+        let delete_sql = format!(
+            "DELETE FROM \"{}\" WHERE {}",
+            target_table, where_clause
+        );
 
         match tx.execute(&delete_sql, param_refs.as_slice()) {
             Ok(n) => {
@@ -473,16 +555,13 @@ pub fn apply_remote_changes_to_db(
     eprintln!("[SYNC RUST] Identifier validation passed");
 
     with_connection(db, |conn| {
-        // Disable foreign key constraints BEFORE starting the transaction
-        // IMPORTANT: PRAGMA foreign_keys cannot be changed inside a transaction!
+        // Disable foreign key constraints for the duration of the apply
+        // pass, re-enabling unconditionally on every exit path (including
+        // mid-body errors). PRAGMA foreign_keys cannot be changed inside a
+        // transaction, so the toggle must wrap the transaction.
         // See: https://sqlite.org/foreignkeys.html
-        // "It is not possible to enable or disable foreign key constraints in the middle
-        // of a multi-statement transaction. Attempting to do so does not return an error;
-        // it simply has no effect."
         eprintln!("[SYNC RUST] Disabling foreign_keys BEFORE transaction");
-        conn.pragma_update(None, "foreign_keys", "OFF")
-            .map_err(DatabaseError::from)?;
-
+        let applied_hlc_timestamps = crate::crdt::cleanup::with_fk_disabled(conn, |conn| {
         // Start transaction - all changes in the batch are applied atomically
         eprintln!("[SYNC RUST] Starting transaction...");
         let tx = conn.transaction().map_err(DatabaseError::from)?;
@@ -496,15 +575,14 @@ pub fn apply_remote_changes_to_db(
         );
         tx.execute(&disable_sql, []).map_err(DatabaseError::from)?;
 
-        // Group changes by (table, row) so we can insert/update all columns of a row together.
-        // Also collect all HLC timestamps for advancing the local clock after applying.
-        let mut row_changes: HashMap<(String, String), Vec<RemoteColumnChange>> = HashMap::new();
-        let mut all_hlc_timestamps: Vec<String> = Vec::new();
-        // Collect IDs of haex_deleted_rows entries that arrive in this batch so we
-        // can apply the corresponding DELETE on the target table after the apply
-        // loop (triggers are still disabled at that point).
+        // Collect side-data needed after the apply loop:
+        //   1. all HLC timestamps for advancing the local clock,
+        //   2. IDs of haex_deleted_rows entries arriving in this batch so
+        //      the corresponding DELETE on the target table can run after
+        //      the apply loop (triggers are still disabled then).
+        let mut all_hlc_timestamps: Vec<String> = Vec::with_capacity(changes.len());
         let mut inbound_delete_log_ids: HashSet<String> = HashSet::new();
-        for change in changes {
+        for change in &changes {
             all_hlc_timestamps.push(change.hlc_timestamp.clone());
             if change.table_name == DELETED_ROWS_TABLE {
                 if let Ok(map) =
@@ -515,9 +593,13 @@ pub fn apply_remote_changes_to_db(
                     }
                 }
             }
-            let key = (change.table_name.clone(), change.row_pks.clone());
-            row_changes.entry(key).or_insert_with(Vec::new).push(change);
         }
+
+        // Group by (table, row) so all columns of one row are written
+        // together — and keep iteration ordered by the row's earliest
+        // HLC. Plain HashMap iteration would discard the careful HLC
+        // ordering that group_by_transaction_hlc just established.
+        let row_changes = group_row_changes_in_hlc_order(changes);
 
         // Apply changes grouped by row
         for ((_table_name, row_pks_str), row_change_list) in row_changes {
@@ -887,11 +969,10 @@ pub fn apply_remote_changes_to_db(
             }
         }
 
-        // Re-enable foreign key constraints after transaction is complete
-        // This is done on the connection, not in a transaction
-        eprintln!("[SYNC RUST] Re-enabling foreign_keys");
-        conn.pragma_update(None, "foreign_keys", "ON")
-            .map_err(DatabaseError::from)?;
+        Ok(all_hlc_timestamps)
+        })?;
+        // FK constraints are now re-enabled by with_fk_disabled (even if
+        // the closure above returned Err mid-body).
 
         // Advance the local HLC clock past the highest received remote timestamp.
         // This ensures future local operations generate timestamps > any remote HLC,
@@ -902,7 +983,7 @@ pub fn apply_remote_changes_to_db(
             let max_hlc_str = match backend_info {
                 Some((_, hlc_str)) if !hlc_str.is_empty() => hlc_str.to_string(),
                 _ => {
-                    let max = hlc_max(all_hlc_timestamps.iter().map(|s| s.as_str()));
+                    let max = hlc_max(applied_hlc_timestamps.iter().map(|s| s.as_str()));
                     max.unwrap_or_default().to_string()
                 }
             };
@@ -911,4 +992,162 @@ pub fn apply_remote_changes_to_db(
 
         Ok(())
     })
+}
+
+#[cfg(test)]
+mod hlc_grouping_tests {
+    use super::*;
+
+    fn change(table: &str, pk: &str, col: &str, hlc: &str) -> RemoteColumnChange {
+        RemoteColumnChange {
+            table_name: table.to_string(),
+            row_pks: pk.to_string(),
+            column_name: col.to_string(),
+            hlc_timestamp: hlc.to_string(),
+            decrypted_value: JsonValue::Null,
+        }
+    }
+
+    // HLC strings sort lexicographically when same length; use fixed-width
+    // numeric prefixes so the relative order is unambiguous.
+    const HLC1: &str = "1/abcdef";
+    const HLC2: &str = "2/abcdef";
+    const HLC3: &str = "3/abcdef";
+    const HLC4: &str = "4/abcdef";
+
+    #[test]
+    fn helper_emits_rows_in_ascending_min_hlc_order() {
+        // Construct three rows whose earliest HLCs are HLC1, HLC2, HLC3 —
+        // but feed them in reverse order so HashMap insertion order is
+        // visibly wrong. The helper must still produce HLC1 → HLC2 → HLC3.
+        let changes = vec![
+            change("t", r#"{"id":"c"}"#, "col", HLC3),
+            change("t", r#"{"id":"b"}"#, "col", HLC2),
+            change("t", r#"{"id":"a"}"#, "col", HLC1),
+        ];
+
+        let ordered = group_row_changes_in_hlc_order(changes);
+
+        let keys: Vec<&str> = ordered.iter().map(|(k, _)| k.1.as_str()).collect();
+        assert_eq!(
+            keys,
+            vec![r#"{"id":"a"}"#, r#"{"id":"b"}"#, r#"{"id":"c"}"#],
+            "rows must be ordered by ascending min(hlc), regardless of input order"
+        );
+    }
+
+    #[test]
+    fn helper_uses_min_hlc_per_row_for_ordering() {
+        // Row A has changes at HLC1 + HLC4; Row B has a single change at
+        // HLC2. min(A) = HLC1 < min(B) = HLC2, so A must come before B
+        // even though A also contains the latest timestamp in the batch.
+        let changes = vec![
+            change("t", r#"{"id":"a"}"#, "col1", HLC4),
+            change("t", r#"{"id":"b"}"#, "col", HLC2),
+            change("t", r#"{"id":"a"}"#, "col2", HLC1),
+        ];
+
+        let ordered = group_row_changes_in_hlc_order(changes);
+
+        assert_eq!(ordered.len(), 2, "rows must be grouped per (table, pk)");
+        assert_eq!(
+            ordered[0].0 .1, r#"{"id":"a"}"#,
+            "row A (min HLC = HLC1) must come before row B (min HLC = HLC2)"
+        );
+        assert_eq!(ordered[0].1.len(), 2, "row A must keep both of its changes");
+        assert_eq!(ordered[1].0 .1, r#"{"id":"b"}"#);
+    }
+
+    // ------------------------------------------------------------------
+    // should_propagate_delete: insert-after-delete resurrection check
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn delete_propagates_when_target_does_not_exist_locally() {
+        assert!(should_propagate_delete("5/abcdef", None));
+    }
+
+    #[test]
+    fn delete_propagates_when_target_row_is_older() {
+        // Target row was last modified at HLC 3; delete-log claims HLC 5.
+        // The delete is newer → propagate.
+        assert!(should_propagate_delete("5/abcdef", Some("3/abcdef")));
+    }
+
+    #[test]
+    fn delete_propagates_when_target_row_has_equal_hlc() {
+        // Equal timestamps: tie-break by node id (built into the
+        // comparator). We treat equal-or-older target rows as "delete
+        // wins" to keep idempotent re-application stable.
+        assert!(should_propagate_delete("5/abcdef", Some("5/abcdef")));
+    }
+
+    #[test]
+    fn delete_skipped_when_target_row_is_strictly_newer() {
+        // This is the bug fix: an insert/update at HLC 10 must survive a
+        // delete-log entry at HLC 5. Without this, the row inserted
+        // after the delete would be wiped on the next apply.
+        assert!(!should_propagate_delete("5/abcdef", Some("10/abcdef")));
+    }
+
+    #[test]
+    fn delete_skipped_when_target_row_is_far_newer() {
+        // Sanity: large HLC gap, same node.
+        assert!(!should_propagate_delete("100/abcdef", Some("1000/abcdef")));
+    }
+
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn helper_is_deterministic_across_input_orderings() {
+        // A direct probe for the bug: build a batch large enough that a
+        // plain HashMap iteration order is nearly guaranteed to differ
+        // between insertion orderings. The helper must always produce
+        // the same sequence regardless of how changes are reshuffled.
+        let baseline_changes: Vec<RemoteColumnChange> = (0..16)
+            .map(|i| {
+                let hlc = format!("{}/abcdef", i);
+                change("t", &format!(r#"{{"id":"r{}"}}"#, i), "c", &hlc)
+            })
+            .collect();
+
+        let baseline = group_row_changes_in_hlc_order(baseline_changes);
+        let baseline_keys: Vec<String> =
+            baseline.iter().map(|(k, _)| k.1.clone()).collect();
+
+        // Reverse input order and re-run.
+        let reversed: Vec<RemoteColumnChange> = (0..16)
+            .rev()
+            .map(|i| {
+                let hlc = format!("{}/abcdef", i);
+                change("t", &format!(r#"{{"id":"r{}"}}"#, i), "c", &hlc)
+            })
+            .collect();
+        let reversed_out = group_row_changes_in_hlc_order(reversed);
+        let reversed_keys: Vec<String> =
+            reversed_out.iter().map(|(k, _)| k.1.clone()).collect();
+
+        assert_eq!(
+            baseline_keys, reversed_keys,
+            "iteration order must be deterministic and HLC-driven, not \
+             dependent on the order changes were collected from the batch"
+        );
+
+        // Sanity: the row order matches ascending HLC numeric order.
+        // (Cannot use lexicographic compare on the row keys themselves
+        // because "r10" < "r2" lexically while HLC says otherwise.)
+        let baseline_min_hlcs: Vec<&str> = baseline
+            .iter()
+            .map(|(_, list)| {
+                list.iter().map(|c| c.hlc_timestamp.as_str()).min().unwrap()
+            })
+            .collect();
+        for window in baseline_min_hlcs.windows(2) {
+            assert!(
+                crate::crdt::hlc::compare_hlc_strings(window[0], window[1])
+                    != std::cmp::Ordering::Greater,
+                "consecutive rows must be in non-decreasing HLC order"
+            );
+        }
+    }
 }

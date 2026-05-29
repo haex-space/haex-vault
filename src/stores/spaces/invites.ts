@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
 import type { Capability } from '@haex-space/ucan'
 import { didKeyToPublicKeyAsync } from '@haex-space/vault-sdk'
-import { haexSpaces, haexInviteTokens } from '~/database/schemas'
+import { haexSpaces, haexSpaceDevices, haexInviteTokens } from '~/database/schemas'
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
 import type { schema } from '~/database'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
@@ -423,8 +423,8 @@ export async function acceptLocalInvite(
   // shares away from us. The dialog still surfaces afterwards so the user
   // can also publish their other devices.
   const deviceStore = useDeviceStore()
+  const peerStorageStore = usePeerStorageStore()
   if (deviceStore.deviceRowId) {
-    const peerStorageStore = usePeerStorageStore()
     try {
       await peerStorageStore.registerDeviceInSpaceAsync(invite.spaceId)
     } catch (error) {
@@ -433,6 +433,42 @@ export async function acceptLocalInvite(
       log.error('Failed to register device in space during invite accept', { spaceId: invite.spaceId, error })
     }
   }
+
+  // Stub the inviter's own haex_space_devices row from the invite-token data.
+  // If the inviter never wrote their own row (e.g. shares added without going
+  // through the Publishing dialog), CRDT sync has nothing to deliver for them
+  // — peer_shares arrive without a matching device, so the file browser shows
+  // no entry and allowed_peers / UCAN auth on remote calls have nothing to
+  // resolve. The stub fills that gap from data we already have on hand.
+  //
+  // Conflict resolution: if the inviter later does push their authoritative
+  // row, the (space_id, endpoint_id) UNIQUE index will collide. CRDT apply
+  // resolves per column via HLC winner, so any field the inviter changes
+  // ("name x → y") propagates as expected once their row exists.
+  for (const inviterEndpointId of endpoints) {
+    if (inviterEndpointId === deviceStore.deviceId) continue
+    try {
+      await db
+        .insert(haexSpaceDevices)
+        .values({
+          id: crypto.randomUUID(),
+          spaceId: invite.spaceId,
+          identityId: ownerIdentity.id,
+          deviceId: crypto.randomUUID(),
+          endpointId: inviterEndpointId,
+          name: invite.inviterLabel || `Device ${inviterEndpointId.slice(0, 8)}`,
+          platform: '',
+          avatar: invite.inviterAvatar ?? null,
+          avatarOptions: invite.inviterAvatarOptions ?? null,
+          authoredByDid: invite.inviterDid,
+        })
+        .onConflictDoNothing()
+    } catch (error) {
+      log.warn(`Failed to stub inviter device row (endpoint=${inviterEndpointId.slice(0, 16)}): ${error}`)
+    }
+  }
+  await peerStorageStore.loadSpaceDevicesAsync()
+
   useSpacePublishingStore().openForNewSpace(invite.spaceId)
 
   // Connect directly to the endpoint that served the ClaimInvite — it is

@@ -95,7 +95,6 @@ pub async fn extension_web_fetch(
     headers: Option<HashMap<String, String>>,
     body: Option<String>,
     timeout: Option<u64>,
-    allow_once: Option<bool>,
     // Optional parameters for iframe mode (verified by frontend via origin)
     public_key: Option<String>,
     name: Option<String>,
@@ -108,22 +107,21 @@ pub async fn extension_web_fetch(
 
     let method_str = method.as_deref().unwrap_or("GET");
 
-    // Skip permission check if allowOnce is true (user clicked "Allow Once" in dialog)
-    if !allow_once.unwrap_or(false) {
-        // Check web permissions before making request
-        let permission_result =
-            crate::extension::permissions::manager::PermissionManager::check_web_permission(
-                &state,
-                &extension_id,
-                &url,
-            )
-            .await;
+    // The "Allow Once" user action is wired through grant_session_permission
+    // (decision = 'ask'), which the SDK's retry path picks up via the
+    // permission-resolved event. There is no caller-supplied bypass.
+    let permission_result =
+        crate::extension::permissions::manager::PermissionManager::check_web_permission(
+            &state,
+            &extension_id,
+            &url,
+        )
+        .await;
 
-        if let Err(ref e) = permission_result {
-            emit_permission_prompt_if_needed(&app_handle, e);
-        }
-        permission_result?;
+    if let Err(ref e) = permission_result {
+        emit_permission_prompt_if_needed(&app_handle, e);
     }
+    permission_result?;
 
     let request = WebFetchRequest {
         url,

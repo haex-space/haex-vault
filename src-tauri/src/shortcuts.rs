@@ -28,6 +28,41 @@ impl serde::Serialize for ShortcutError {
     }
 }
 
+/// Reduce an extension manifest's `name` to a label that is safe to embed
+/// in a Linux `.desktop` file and a PowerShell shortcut script.
+///
+/// The manifest name is signed by the extension's developer, not by the
+/// vault — a hostile extension can ship a name containing PowerShell
+/// metacharacters (`"`, backtick, `$(...)`), `.desktop` line breaks
+/// (`\nExec=…`), or path-separator characters that escape the filename.
+/// Sanitizing here is defense-in-depth around an inherently untrusted
+/// string.
+///
+/// Strategy: keep ASCII alphanumerics, space, dash, and underscore;
+/// replace anything else with `_`; collapse runs of `_`; trim; and bound
+/// the length to 64 chars so a maliciously long name cannot break the
+/// generated file. Dots are deliberately excluded so a `..` sequence in
+/// the manifest name cannot survive into the Windows filename path.
+fn sanitize_shortcut_label(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    let mut last_was_underscore = false;
+    for ch in name.chars() {
+        let keep = ch.is_ascii_alphanumeric() || ch == ' ' || ch == '-' || ch == '_';
+        if keep {
+            out.push(ch);
+            last_was_underscore = ch == '_';
+        } else if !last_was_underscore {
+            out.push('_');
+            last_was_underscore = true;
+        }
+    }
+    let trimmed = out.trim_matches(|c: char| c == ' ' || c == '_').to_string();
+    if trimmed.is_empty() {
+        return "extension".to_string();
+    }
+    trimmed.chars().take(64).collect()
+}
+
 /// Creates a native desktop shortcut for an extension
 /// - Linux: Creates a .desktop file in ~/.local/share/applications/
 /// - Windows: Creates a .lnk file on the Desktop
@@ -119,16 +154,21 @@ fn create_linux_shortcut(
     // Try to get the app icon path
     let icon_path = get_app_icon_path(app_handle);
 
+    // The manifest name is signed by the extension author, not by the
+    // vault — sanitize before embedding into a line-based .desktop file
+    // so that a name containing "\nExec=…" cannot inject a new entry.
+    let safe_name = sanitize_shortcut_label(extension_name);
+
     // Create .desktop file content
     let desktop_content = format!(
         r#"[Desktop Entry]
 Type=Application
-Name={extension_name} (HaexVault)
+Name={safe_name} (HaexVault)
 Exec="{app_path}" "{deep_link_url}"
 Icon={icon}
 Terminal=false
 Categories=Utility;
-Comment=Launch {extension_name} in HaexVault
+Comment=Launch {safe_name} in HaexVault
 StartupWMClass=haex-vault
 "#,
         app_path = app_path.display(),
@@ -192,7 +232,13 @@ fn create_windows_shortcut(
 
     // Sanitize extension_id for filename
     let safe_id = extension_id.replace(|c: char| !c.is_alphanumeric() && c != '-' && c != '_', "_");
-    let shortcut_path = format!("{desktop_path}\\{extension_name} (HaexVault).lnk");
+
+    // The manifest name is signed by the extension author, not by the
+    // vault — sanitize before embedding into a double-quoted PowerShell
+    // string and into the filename. Without this, a hostile name like
+    // `Foo"; Invoke-Expression "bad"; "Bar` would execute arbitrary code.
+    let safe_name = sanitize_shortcut_label(extension_name);
+    let shortcut_path = format!("{desktop_path}\\{safe_name} (HaexVault).lnk");
 
     // Use PowerShell to create the shortcut
     let ps_script = format!(
@@ -202,7 +248,7 @@ $Shortcut = $WshShell.CreateShortcut("{shortcut_path}")
 $Shortcut.TargetPath = "{app_path}"
 $Shortcut.Arguments = "{deep_link_url}"
 $Shortcut.WorkingDirectory = "{working_dir}"
-$Shortcut.Description = "Launch {extension_name} in HaexVault"
+$Shortcut.Description = "Launch {safe_name} in HaexVault"
 $Shortcut.Save()
 "#,
         shortcut_path = shortcut_path.replace('\\', "\\\\"),
@@ -260,4 +306,109 @@ pub async fn remove_desktop_shortcut(extension_id: String) -> Result<(), Shortcu
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ------------------------------------------------------------------
+    // sanitize_shortcut_label
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn sanitize_keeps_safe_chars() {
+        assert_eq!(sanitize_shortcut_label("My App"), "My App");
+        assert_eq!(sanitize_shortcut_label("haex-pass"), "haex-pass");
+        assert_eq!(sanitize_shortcut_label("foo_bar"), "foo_bar");
+        assert_eq!(sanitize_shortcut_label("Demo123"), "Demo123");
+    }
+
+    #[test]
+    fn sanitize_strips_powershell_metacharacters() {
+        // The Windows shortcut path embeds the label inside double-quoted
+        // PowerShell strings; quotes, backticks, $(...) must be neutralised.
+        let injected = r#"Foo"; Invoke-Expression "bad"; "Bar"#;
+        let cleaned = sanitize_shortcut_label(injected);
+        assert!(!cleaned.contains('"'), "double-quote must be stripped");
+        assert!(!cleaned.contains(';'), "semicolon must be stripped");
+        assert!(!cleaned.contains('`'), "backtick must be stripped");
+        assert!(!cleaned.contains('$'), "dollar must be stripped");
+        assert!(!cleaned.contains('('), "paren must be stripped");
+    }
+
+    #[test]
+    fn sanitize_strips_desktop_file_breakers() {
+        // Linux .desktop format is line-based; a newline lets a hostile
+        // name inject an Exec= line.
+        let injected = "Innocent\nExec=rm -rf $HOME";
+        let cleaned = sanitize_shortcut_label(injected);
+        assert!(!cleaned.contains('\n'), "newline must be stripped");
+        assert!(!cleaned.contains('='), "equals sign must be stripped");
+    }
+
+    #[test]
+    fn sanitize_strips_path_separators() {
+        // The Windows path is built as "{desktop}\\{label} (HaexVault).lnk"
+        // — embedded slashes/backslashes would escape the desktop dir.
+        let injected = "../../etc/passwd";
+        let cleaned = sanitize_shortcut_label(injected);
+        assert!(!cleaned.contains('/'), "forward slash must be stripped");
+        assert!(!cleaned.contains('\\'), "backslash must be stripped");
+        assert!(!cleaned.contains(".."), "parent-dir sequence must not survive");
+    }
+
+    #[test]
+    fn sanitize_handles_pure_garbage() {
+        // All-bad input should produce a safe fallback, not empty.
+        assert_eq!(sanitize_shortcut_label(r#"""#), "extension");
+        assert_eq!(sanitize_shortcut_label(""), "extension");
+        assert_eq!(sanitize_shortcut_label(r#"\\\"#), "extension");
+    }
+
+    #[test]
+    fn sanitize_bounds_length() {
+        let huge: String = "a".repeat(10_000);
+        let cleaned = sanitize_shortcut_label(&huge);
+        assert!(cleaned.len() <= 64, "label must be bounded to prevent oversized files");
+    }
+
+    #[test]
+    fn sanitize_collapses_consecutive_replacements() {
+        // Two adjacent unsafe chars should not produce __ — that is just
+        // cosmetic but documents the intended shape.
+        let cleaned = sanitize_shortcut_label(r#""""""#);
+        assert_eq!(cleaned, "extension");
+    }
+
+    // ------------------------------------------------------------------
+    // Regression guards: the platform implementations must use the
+    // sanitiser. Without this check the hardening is silently bypassed
+    // the moment somebody copies a `{extension_name}` interpolation.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn shortcuts_must_sanitize_extension_name() {
+        // Only inspect the non-test region of the file: the tests above
+        // call sanitize_shortcut_label many times and would mask a missing
+        // production call. Cut at the `#[cfg(test)]` marker.
+        let source = include_str!("shortcuts.rs");
+        let production = source
+            .split_once("#[cfg(test)]")
+            .map(|(prod, _)| prod)
+            .unwrap_or(source);
+
+        // Production must reference the sanitizer at least three times:
+        // 1. the definition (`fn sanitize_shortcut_label(`)
+        // 2. inside create_linux_shortcut (Desktop entry interpolation)
+        // 3. inside create_windows_shortcut (PowerShell + filename)
+        let calls = production.matches("sanitize_shortcut_label").count();
+        assert!(
+            calls >= 3,
+            "expected sanitize_shortcut_label to be referenced by the \
+             definition plus both create_linux_shortcut and \
+             create_windows_shortcut; found {} in production source",
+            calls
+        );
+    }
 }

@@ -255,10 +255,15 @@ impl MlsManager {
 
         // If a stale MLS group exists for this space (e.g. from a prior membership
         // that was removed/declined), delete it before joining with the new Welcome.
+        // Surface delete failures: a partial delete followed by a new join can
+        // leave keying material from two epochs interleaved in storage,
+        // permanently locking this device out of the new group.
         let expected_group_id = GroupId::from_slice(space_id.as_bytes());
         if let Ok(Some(mut old_group)) = MlsGroup::load(self.provider.storage(), &expected_group_id) {
             eprintln!("[MLS] Deleting stale group for space {space_id} before re-joining");
-            let _ = old_group.delete(self.provider.storage());
+            old_group
+                .delete(self.provider.storage())
+                .map_err(|e| format!("Failed to delete stale group before re-join: {e}"))?;
         }
 
         let group_config = MlsGroupJoinConfig::builder()

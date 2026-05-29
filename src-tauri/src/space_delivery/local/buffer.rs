@@ -314,30 +314,24 @@ pub fn ack_commits(
     let mut fully_acked = Vec::new();
 
     for &msg_id in message_ids {
-        // Atomic update: add DID to acked_dids only if not already present
-        core::execute(
+        // Atomic update + read-back in a single statement: RETURNING is
+        // evaluated against the post-UPDATE state inside the same
+        // transaction, so the "fully ACKed?" decision sees the value
+        // that THIS UPDATE produced. Without RETURNING, a separate
+        // follow-up SELECT could observe a different acked_dids value
+        // (or fail to observe a concurrent peer's ACK) and the message
+        // could be left permanently un-cleaned.
+        let rows = core::execute(
             "UPDATE haex_local_delivery_pending_commits_no_sync \
              SET acked_dids = CASE \
                WHEN instr(acked_dids, ?1) > 0 THEN acked_dids \
                ELSE json_insert(acked_dids, '$[#]', ?1) \
              END \
-             WHERE space_id = ?2 AND message_id = ?3"
+             WHERE space_id = ?2 AND message_id = ?3 \
+             RETURNING expected_dids, acked_dids"
                 .to_string(),
             vec![
                 serde_json::Value::String(member_did.to_string()),
-                serde_json::Value::String(space_id.to_string()),
-                serde_json::Value::Number(serde_json::Number::from(msg_id)),
-            ],
-            db,
-        )
-        .map_err(map_db)?;
-
-        // Read back to check if fully acked
-        let rows = core::select(
-            "SELECT expected_dids, acked_dids FROM haex_local_delivery_pending_commits_no_sync \
-             WHERE space_id = ?1 AND message_id = ?2"
-                .to_string(),
-            vec![
                 serde_json::Value::String(space_id.to_string()),
                 serde_json::Value::Number(serde_json::Number::from(msg_id)),
             ],
@@ -491,4 +485,135 @@ pub fn clear_welcomes_for_did(
         db,
     ).map_err(map_db)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod ack_commits_tests {
+    use super::*;
+    use rusqlite::Connection;
+    use std::sync::{Arc, Mutex};
+
+    use crate::table_names::TABLE_CRDT_CONFIGS;
+
+    /// Minimal in-memory schema for testing ack_commits without involving
+    /// CRDT triggers (this table is *_no_sync and intentionally not synced).
+    fn setup_test_db() -> DbConnection {
+        let conn = Connection::open_in_memory().unwrap();
+
+        // core::execute toggles triggers_enabled in haex_crdt_configs.
+        conn.execute_batch(&format!(
+            "CREATE TABLE {} (key TEXT PRIMARY KEY, type TEXT NOT NULL, value TEXT NOT NULL)",
+            TABLE_CRDT_CONFIGS
+        ))
+        .unwrap();
+
+        conn.execute_batch(
+            "CREATE TABLE haex_local_delivery_pending_commits_no_sync (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                space_id TEXT NOT NULL,
+                message_id INTEGER NOT NULL,
+                expected_dids TEXT NOT NULL DEFAULT '[]',
+                acked_dids TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+            )",
+        )
+        .unwrap();
+
+        DbConnection(Arc::new(Mutex::new(Some(conn))))
+    }
+
+    fn insert_pending(db: &DbConnection, space_id: &str, msg_id: i64, expected: &[&str]) {
+        let expected_json = serde_json::to_string(expected).unwrap();
+        core::execute(
+            "INSERT INTO haex_local_delivery_pending_commits_no_sync \
+             (space_id, message_id, expected_dids, acked_dids) \
+             VALUES (?1, ?2, ?3, '[]')"
+                .to_string(),
+            vec![
+                serde_json::Value::String(space_id.to_string()),
+                serde_json::Value::Number(serde_json::Number::from(msg_id)),
+                serde_json::Value::String(expected_json),
+            ],
+            db,
+        )
+        .unwrap();
+    }
+
+    fn read_acked(db: &DbConnection, space_id: &str, msg_id: i64) -> Vec<String> {
+        let rows = core::select(
+            "SELECT acked_dids FROM haex_local_delivery_pending_commits_no_sync \
+             WHERE space_id = ?1 AND message_id = ?2"
+                .to_string(),
+            vec![
+                serde_json::Value::String(space_id.to_string()),
+                serde_json::Value::Number(serde_json::Number::from(msg_id)),
+            ],
+            db,
+        )
+        .unwrap();
+        let acked_str = rows[0][0].as_str().unwrap();
+        serde_json::from_str(acked_str).unwrap()
+    }
+
+    #[test]
+    fn first_ack_records_did_without_marking_fully_acked() {
+        let db = setup_test_db();
+        insert_pending(&db, "space1", 42, &["did:A", "did:B"]);
+
+        let fully = ack_commits(&db, "space1", "did:A", &[42]).unwrap();
+        assert!(
+            fully.is_empty(),
+            "first of two expected ACKs must not be marked fully-acked"
+        );
+        assert_eq!(read_acked(&db, "space1", 42), vec!["did:A"]);
+    }
+
+    #[test]
+    fn final_ack_marks_message_fully_acked() {
+        let db = setup_test_db();
+        insert_pending(&db, "space1", 42, &["did:A", "did:B"]);
+
+        ack_commits(&db, "space1", "did:A", &[42]).unwrap();
+        let fully = ack_commits(&db, "space1", "did:B", &[42]).unwrap();
+
+        assert_eq!(
+            fully,
+            vec![42],
+            "ACK that completes the expected set must report the msg_id \
+             as fully-acked so the caller can clean it up"
+        );
+    }
+
+    #[test]
+    fn duplicate_ack_from_same_did_is_idempotent() {
+        let db = setup_test_db();
+        insert_pending(&db, "space1", 42, &["did:A", "did:B"]);
+
+        ack_commits(&db, "space1", "did:A", &[42]).unwrap();
+        // Same DID ACKs again — must not produce duplicate entries.
+        ack_commits(&db, "space1", "did:A", &[42]).unwrap();
+        assert_eq!(read_acked(&db, "space1", 42), vec!["did:A"]);
+    }
+
+    /// Regression guard: ack_commits must read its post-UPDATE state
+    /// through a single RETURNING clause, not via a follow-up SELECT.
+    /// A separate SELECT is a race window — between the UPDATE that
+    /// added our DID and the SELECT, a concurrent ACK might commit and
+    /// shift the fully-acked decision onto the wrong caller, leaving the
+    /// message un-cleaned.
+    #[test]
+    fn ack_commits_uses_returning_not_separate_select() {
+        let source = include_str!("buffer.rs");
+        let production = source
+            .split_once("#[cfg(test)]")
+            .map(|(p, _)| p)
+            .unwrap_or(source);
+
+        assert!(
+            production.contains("RETURNING expected_dids, acked_dids"),
+            "ack_commits must merge the UPDATE and the read-back into a \
+             single RETURNING statement so the decision is taken on the \
+             same state the UPDATE produced"
+        );
+    }
 }
