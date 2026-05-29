@@ -21,7 +21,14 @@ pub struct CleanupResult {
     pub total_deleted: usize,
 }
 
-/// RAII guard to ensure PRAGMA foreign_keys is re-enabled on drop.
+/// RAII guard that turns off `PRAGMA foreign_keys` for the duration of a
+/// block and turns it back on when the guard goes out of scope.
+///
+/// Use this instead of manual `pragma_update(..., "OFF") ... pragma_update(..., "ON")`
+/// pairs: if anything between the calls returns early via `?` the manual
+/// version leaves FK checks disabled on a shared `Connection`, silently
+/// breaking referential integrity for subsequent queries on the same
+/// connection.
 pub(crate) struct ForeignKeyGuard<'a>(&'a Connection);
 
 impl<'a> ForeignKeyGuard<'a> {
@@ -34,6 +41,153 @@ impl<'a> ForeignKeyGuard<'a> {
 impl Drop for ForeignKeyGuard<'_> {
     fn drop(&mut self) {
         let _ = self.0.execute("PRAGMA foreign_keys = ON", []);
+    }
+}
+
+/// Run `f` with `PRAGMA foreign_keys` turned off, re-enabling unconditionally
+/// when `f` returns — even on `Err`. Use this instead of manual OFF/ON pairs
+/// in code paths that open a transaction: `Connection::transaction` requires
+/// `&mut`, which conflicts with the RAII guard's shared borrow.
+///
+/// Generic over the error type so callers can use their own error enum
+/// (e.g. `DatabaseError`) as long as it implements `From<rusqlite::Error>`.
+pub(crate) fn with_fk_disabled<R, E, F>(conn: &mut Connection, f: F) -> Result<R, E>
+where
+    F: FnOnce(&mut Connection) -> Result<R, E>,
+    E: From<rusqlite::Error>,
+{
+    conn.execute("PRAGMA foreign_keys = OFF", [])
+        .map_err(E::from)?;
+    let result = f(conn);
+    let _ = conn.execute("PRAGMA foreign_keys = ON", []);
+    result
+}
+
+#[cfg(test)]
+mod fk_guard_tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    fn fk_state(conn: &Connection) -> bool {
+        conn.query_row("PRAGMA foreign_keys", [], |row| row.get::<_, i64>(0))
+            .unwrap()
+            == 1
+    }
+
+    #[test]
+    fn guard_disables_on_construction() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute("PRAGMA foreign_keys = ON", []).unwrap();
+        assert!(fk_state(&conn));
+
+        let _guard = ForeignKeyGuard::disable(&conn).unwrap();
+        assert!(!fk_state(&conn), "guard must disable FK on construction");
+    }
+
+    #[test]
+    fn guard_reenables_on_drop_via_block_end() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute("PRAGMA foreign_keys = ON", []).unwrap();
+        {
+            let _guard = ForeignKeyGuard::disable(&conn).unwrap();
+            assert!(!fk_state(&conn));
+        }
+        assert!(fk_state(&conn), "guard must re-enable FK when block ends");
+    }
+
+    #[test]
+    fn guard_reenables_on_drop_via_early_return() {
+        // Simulates the bug: when a function uses `?` to bubble up an
+        // error between manual OFF/ON calls, FK stays disabled. With the
+        // guard, an early return drops the guard and restores FK.
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute("PRAGMA foreign_keys = ON", []).unwrap();
+
+        fn body(conn: &Connection) -> Result<(), rusqlite::Error> {
+            let _guard = ForeignKeyGuard::disable(conn)?;
+            // Bubble up an error mid-block.
+            conn.execute("INVALID SQL", [])?;
+            Ok(())
+        }
+
+        let result = body(&conn);
+        assert!(result.is_err(), "test setup expects body to fail");
+        assert!(
+            fk_state(&conn),
+            "FK must be re-enabled even when body fails partway"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // with_fk_disabled: closure form that survives the &mut borrow taken
+    // by Connection::transaction(). Same correctness goal as the RAII
+    // guard — FK must be re-enabled on every exit path.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn with_fk_disabled_observes_fk_off_inside_body() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute("PRAGMA foreign_keys = ON", []).unwrap();
+
+        let _: Result<(), rusqlite::Error> = with_fk_disabled(&mut conn, |c| {
+            assert!(!fk_state(c), "FK must be OFF inside the body");
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn with_fk_disabled_reenables_on_ok() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute("PRAGMA foreign_keys = ON", []).unwrap();
+
+        let result: Result<(), rusqlite::Error> = with_fk_disabled(&mut conn, |_| Ok(()));
+        result.unwrap();
+        assert!(fk_state(&conn));
+    }
+
+    #[test]
+    fn with_fk_disabled_reenables_on_err() {
+        // This is the specific bug we are fixing: a `?` in the middle of
+        // the body returning Err must NOT leave FK disabled on the
+        // shared Connection for subsequent operations.
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute("PRAGMA foreign_keys = ON", []).unwrap();
+
+        let result: Result<(), rusqlite::Error> =
+            with_fk_disabled(&mut conn, |c| {
+                c.execute("INVALID SQL", [])?;
+                Ok(())
+            });
+
+        assert!(result.is_err(), "test setup expects body to fail");
+        assert!(
+            fk_state(&conn),
+            "FK must be re-enabled even when body returns Err — this is the bug fix"
+        );
+    }
+
+    #[test]
+    fn with_fk_disabled_transaction_pattern_works() {
+        // The actual call shape used in apply_remote_changes_to_db:
+        // open a transaction, do stuff, commit. The closure helper must
+        // not conflict with the &mut borrow the transaction takes.
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute("PRAGMA foreign_keys = ON", []).unwrap();
+        conn.execute("CREATE TABLE t (id INTEGER PRIMARY KEY)", []).unwrap();
+
+        let result: Result<(), rusqlite::Error> = with_fk_disabled(&mut conn, |c| {
+            let tx = c.transaction()?;
+            tx.execute("INSERT INTO t (id) VALUES (1)", [])?;
+            tx.commit()?;
+            Ok(())
+        });
+        result.unwrap();
+
+        assert!(fk_state(&conn));
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM t", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
     }
 }
 
