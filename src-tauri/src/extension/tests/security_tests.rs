@@ -472,16 +472,23 @@ mod malformed_input_tests {
         // Should produce a valid prefix
         assert!(prefix.starts_with("pubkey__"));
     }
+}
 
-    // ============================================================================
-    // Cross-Extension Asset Disclosure Tests
-    //
-    // Background: the `haex-extension://` protocol handler receives
-    // `(public_key, name, version)` from a caller-controlled URL.
-    // `get_extension_dir` constructs a path without verifying installation,
-    // so any webview could read another extension's static assets.
-    // `verify_extension_installed` is the guard.
-    // ============================================================================
+// ============================================================================
+// Cross-Extension Asset Disclosure Tests
+//
+// Background: the `haex-extension://` protocol handler receives
+// `(public_key, name, version)` from a caller-controlled URL.
+// `get_extension_dir` constructs a path without verifying installation,
+// so any webview could read another extension's static assets.
+// `verify_extension_installed` is the guard.
+//
+// These tests previously lived inside `mod malformed_input_tests` due to
+// a missing closing brace — semantically they belong in their own module.
+// ============================================================================
+
+mod cross_extension_asset_disclosure {
+    use super::*;
 
     fn create_test_extension_with_version(public_key: &str, name: &str, version: &str) -> Extension {
         let mut ext = create_test_extension(public_key, name);
