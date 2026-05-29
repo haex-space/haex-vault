@@ -473,16 +473,13 @@ pub fn apply_remote_changes_to_db(
     eprintln!("[SYNC RUST] Identifier validation passed");
 
     with_connection(db, |conn| {
-        // Disable foreign key constraints BEFORE starting the transaction
-        // IMPORTANT: PRAGMA foreign_keys cannot be changed inside a transaction!
+        // Disable foreign key constraints for the duration of the apply
+        // pass, re-enabling unconditionally on every exit path (including
+        // mid-body errors). PRAGMA foreign_keys cannot be changed inside a
+        // transaction, so the toggle must wrap the transaction.
         // See: https://sqlite.org/foreignkeys.html
-        // "It is not possible to enable or disable foreign key constraints in the middle
-        // of a multi-statement transaction. Attempting to do so does not return an error;
-        // it simply has no effect."
         eprintln!("[SYNC RUST] Disabling foreign_keys BEFORE transaction");
-        conn.pragma_update(None, "foreign_keys", "OFF")
-            .map_err(DatabaseError::from)?;
-
+        let applied_hlc_timestamps = crate::crdt::cleanup::with_fk_disabled(conn, |conn| {
         // Start transaction - all changes in the batch are applied atomically
         eprintln!("[SYNC RUST] Starting transaction...");
         let tx = conn.transaction().map_err(DatabaseError::from)?;
@@ -887,11 +884,10 @@ pub fn apply_remote_changes_to_db(
             }
         }
 
-        // Re-enable foreign key constraints after transaction is complete
-        // This is done on the connection, not in a transaction
-        eprintln!("[SYNC RUST] Re-enabling foreign_keys");
-        conn.pragma_update(None, "foreign_keys", "ON")
-            .map_err(DatabaseError::from)?;
+        Ok(all_hlc_timestamps)
+        })?;
+        // FK constraints are now re-enabled by with_fk_disabled (even if
+        // the closure above returned Err mid-body).
 
         // Advance the local HLC clock past the highest received remote timestamp.
         // This ensures future local operations generate timestamps > any remote HLC,
@@ -902,7 +898,7 @@ pub fn apply_remote_changes_to_db(
             let max_hlc_str = match backend_info {
                 Some((_, hlc_str)) if !hlc_str.is_empty() => hlc_str.to_string(),
                 _ => {
-                    let max = hlc_max(all_hlc_timestamps.iter().map(|s| s.as_str()));
+                    let max = hlc_max(applied_hlc_timestamps.iter().map(|s| s.as_str()));
                     max.unwrap_or_default().to_string()
                 }
             };
