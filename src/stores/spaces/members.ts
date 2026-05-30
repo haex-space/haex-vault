@@ -14,6 +14,7 @@ import type {
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
 import type { schema } from '~/database'
 import { createLogger } from '@/stores/logging'
+import { clearUcanCache } from '~/utils/auth/ucanStore'
 
 type DB = SqliteRemoteDatabase<typeof schema>
 
@@ -42,6 +43,10 @@ export async function deleteUcansForMembersAsync(
       eq(haexUcanTokens.spaceId, spaceId),
       inArray(haexUcanTokens.audienceDid, audienceDids),
     ))
+  // Cache is keyed by spaceId only — there's no per-audience entry — so dropping
+  // any UCAN for this space means the next consumer must re-resolve from DB
+  // (which will now return the remaining row, or null if all were removed).
+  clearUcanCache(spaceId)
 }
 
 /**

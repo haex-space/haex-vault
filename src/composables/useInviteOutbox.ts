@@ -214,6 +214,11 @@ export function useInviteOutbox() {
           spaceEndpoints,
           originUrl: space.originUrl || null,
           expiresAt: entry.expiresAt,
+          // Carry the inviter's relay so the invitee can seed our
+          // haex_space_devices stub with a working relay immediately —
+          // otherwise the first ClaimInvite-induced sync round depends on
+          // mDNS / hole-punching until the real CRDT row arrives.
+          inviterRelayUrl: peerStore.relayUrl ?? peerStore.configuredRelayUrl ?? null,
         })
 
         if (accepted) {

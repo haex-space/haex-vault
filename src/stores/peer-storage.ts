@@ -139,12 +139,30 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     // share-add is safe.
     await registerDeviceInSpaceAsync(spaceId)
 
+    // Self-attribute the row. SyncPush re-injects authored_by_did from the
+    // validated UCAN audience, but SyncPull serves rows raw — so a peer
+    // pulling the leader's local row would otherwise see NULL, which also
+    // disables the haex_peer_shares_ensure_refs trigger and leaves device_id
+    // dangling. See validate.rs:52-87 and 0001_late_spyke.sql:130-146.
+    //
+    // Hydrate the identity store before reading: in some flows
+    // (Tauri-restored sessions, freshly-opened vault) the store hasn't
+    // loaded yet, and an unhydrated read returns NULL which would
+    // reintroduce the exact failure mode the attribution fix is meant to
+    // close. loadIdentitiesAsync is idempotent and cheap on cache hit.
+    const identityStore = useIdentityStore()
+    if (identityStore.ownIdentities.length === 0) {
+      await identityStore.loadIdentitiesAsync()
+    }
+    const authoredByDid = identityStore.ownIdentities[0]?.did ?? null
+
     await db.insert(haexPeerShares).values({
       spaceId,
       deviceId: deviceStore.deviceRowId,
       endpointId: deviceStore.deviceId,
       name,
       localPath,
+      authoredByDid,
     })
 
     await loadSharesAsync()
@@ -178,9 +196,15 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
       throw new Error('Device identity not resolved — cannot publish in space')
     }
 
+    // Hydrate the identity store before deriving `identityId` /
+    // `authoredByDid` from it — see the matching note in `addShareAsync`.
+    // loadIdentitiesAsync is idempotent and cheap on cache hit.
+    const identityStore = useIdentityStore()
+    if (identityStore.ownIdentities.length === 0) {
+      await identityStore.loadIdentitiesAsync()
+    }
     let identityId = identityIdParam
     if (!identityId) {
-      const identityStore = useIdentityStore()
       identityId = identityStore.ownIdentities[0]?.id
     }
 
@@ -195,6 +219,13 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
         identityId = undefined
       }
     }
+
+    // Self-attribute the row so SyncPull peers see the author's DID instead
+    // of NULL. SyncPush would re-inject this from the validated UCAN, but
+    // pulls serve rows raw. See addShareAsync for the same rationale.
+    const authoredByDid = identityId
+      ? identityStore.identities.find(i => i.id === identityId)?.did ?? null
+      : identityStore.ownIdentities[0]?.did ?? null
 
     const displayName = nameOverride
       || deviceStore.deviceName
@@ -232,6 +263,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
           name: displayName,
           platform: deviceStore.platform,
           relayUrl: relayUrl.value,
+          authoredByDid,
         })
         .where(eq(haexSpaceDevices.id, existing[0].id))
     } else {
@@ -243,6 +275,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
         name: displayName,
         platform: deviceStore.platform,
         relayUrl: relayUrl.value,
+        authoredByDid,
       })
     }
 

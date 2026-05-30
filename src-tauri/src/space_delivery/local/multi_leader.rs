@@ -198,6 +198,7 @@ async fn handle_stream(
             space_endpoints,
             origin_url,
             expires_at: _,
+            inviter_relay_url,
         } => {
             crate::logging::log_to_db(db, hlc, "info", "MultiLeader", &format!(
                 "PushInvite received from {peer_endpoint_id} → space={} inviter={}",
@@ -219,6 +220,7 @@ async fn handle_stream(
                 inviter_avatar_options.as_deref(),
                 &space_endpoints,
                 origin_url.as_deref(),
+                inviter_relay_url.as_deref(),
             )
         }
 
