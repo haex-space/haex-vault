@@ -1084,6 +1084,7 @@ pub(super) async fn handle_delivery_request(
             space_endpoints,
             origin_url,
             expires_at: _,
+            inviter_relay_url,
         } => push_invite::handle_push_invite(
             &state.db,
             &state.hlc,
@@ -1100,6 +1101,7 @@ pub(super) async fn handle_delivery_request(
             inviter_avatar_options.as_deref(),
             &space_endpoints,
             origin_url.as_deref(),
+            inviter_relay_url.as_deref(),
         ),
         Request::MlsAckCommit {
             space_id,

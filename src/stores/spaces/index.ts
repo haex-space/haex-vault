@@ -504,15 +504,16 @@ export const useSpacesStore = defineStore('spacesStore', () => {
     const ownIdentityIds = identityStore.ownIdentities.map((i) => i.id)
 
     if (isLocalLeave) {
-      // Local-only leave order matters:
-      //  1. Mark space LEAVING + bump modifiedAt — peer-sync loop must keep
-      //     running so the upcoming membership delete can be pushed. The
-      //     loop only processes ACTIVE | LEAVING rows.
-      //  2. Delete membership row (BEFORE-DELETE trigger → haex_deleted_rows).
-      //     UCAN tokens are kept here so the sync loop can still authenticate
-      //     against the leader. They are removed later by
-      //     `cleanupCompletedLeavesAsync` once propagation is confirmed.
-      //  3. cleanup pass eventually removes haex_spaces row + UCANs.
+      // Local-only leave: drop UCANs immediately. The previous policy kept
+      // them around so the LEAVING-state sync loop could push the membership
+      // delete to the leader, but in practice that left stale tokens lying
+      // around for up to 30 days (LEAVE_GIVE_UP_AFTER_MS) — and on a re-invite
+      // before that timeout, the new and the old UCAN coexisted under the
+      // same (space_id, audience_did) with potentially different capabilities.
+      // We accept the trade-off: the leader may not see this device's leave
+      // immediately, but the leader's own membership/MLS-removal flow is the
+      // authoritative side anyway. The space row stays LEAVING so the cleanup
+      // pass can finalize and drop it together with anything else hanging off.
       const d = requireDb()
       await d
         .update(haexSpaces)
@@ -521,7 +522,9 @@ export const useSpacesStore = defineStore('spacesStore', () => {
           modifiedAt: new Date().toISOString(),
         })
         .where(eq(haexSpaces.id, spaceId))
-      await removeSelfFromSpace(requireDb(), spaceId, ownIdentityIds)
+      await removeSelfFromSpace(requireDb(), spaceId, ownIdentityIds, {
+        deleteUcans: true,
+      })
       // Reload reactive state so UI immediately stops showing the space.
       await loadSpacesFromDbAsync()
       log.info(`Marked local space ${spaceId} as LEAVING (push pending)`)

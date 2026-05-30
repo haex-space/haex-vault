@@ -302,6 +302,7 @@
         "inviterLabel": "inviter_label",
         "inviterAvatar": "inviter_avatar",
         "inviterAvatarOptions": "inviter_avatar_options",
+        "inviterRelayUrl": "inviter_relay_url",
         "capabilities": "capabilities",
         "includeHistory": "include_history",
         "tokenId": "token_id",
