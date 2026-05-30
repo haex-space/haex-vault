@@ -488,29 +488,20 @@ pub(crate) struct PersistClaimedUcan<'a> {
 /// revision did) misrepresents the delegation chain.
 ///
 /// Any prior UCAN rows for `(space_id, audience_did = claimant)` are deleted
-/// first. A leave-then-rejoin cycle leaves the previous UCAN row behind (the
-/// LEAVING-state sync loop needs it to push the membership delete), so without
-/// this cleanup a re-invite stacks the new token on top of the old. The new
-/// invite may even carry different capabilities, and a stale-token-wins
-/// resolution in `getUcanForSpaceAsync` would silently use the wrong rights.
-/// `haex_ucan_tokens` is not in `SPACE_SCOPED_CRDT_TABLES`, so the DELETE is
-/// purely local — peers are unaffected.
+/// AFTER the new row lands. A leave-then-rejoin cycle leaves the previous
+/// UCAN row behind (the LEAVING-state sync loop needs it to push the
+/// membership delete), so without this cleanup a re-invite stacks the new
+/// token on top of the old. The new invite may even carry different
+/// capabilities, and a stale-token-wins resolution in `getUcanForSpaceAsync`
+/// would silently use the wrong rights. We insert first so a failure in the
+/// cleanup never strands the claimant without a valid UCAN for the space.
+/// `haex_ucan_tokens` is not in `SPACE_SCOPED_CRDT_TABLES`, so the cleanup
+/// is purely local — peers are unaffected.
 pub(crate) fn persist_claimed_ucan(
     db: &DbConnection,
     hlc_guard: &std::sync::MutexGuard<'_, crate::crdt::hlc::HlcService>,
     p: PersistClaimedUcan<'_>,
 ) -> Result<(), String> {
-    crate::database::core::execute_with_crdt(
-        "DELETE FROM haex_ucan_tokens WHERE space_id = ?1 AND audience_did = ?2".to_string(),
-        vec![
-            serde_json::Value::String(p.space_id.to_string()),
-            serde_json::Value::String(p.claimant_did.to_string()),
-        ],
-        db,
-        hlc_guard,
-    )
-    .map_err(|e| format!("Failed to clear prior UCANs for re-invite: {e}"))?;
-
     let ucan_id = uuid::Uuid::new_v4().to_string();
     let now_secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -521,7 +512,7 @@ pub(crate) fn persist_claimed_ucan(
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
             .to_string(),
         vec![
-            serde_json::Value::String(ucan_id),
+            serde_json::Value::String(ucan_id.clone()),
             serde_json::Value::String(p.space_id.to_string()),
             serde_json::Value::String(p.inviter_did.to_string()),
             serde_json::Value::String(p.claimant_did.to_string()),
@@ -536,6 +527,28 @@ pub(crate) fn persist_claimed_ucan(
         hlc_guard,
     )
     .map_err(|e| format!("Failed to persist UCAN: {e}"))?;
+
+    // Cleanup is best-effort. If the new row landed but the cleanup query
+    // fails (e.g. transient lock contention), the next consumer simply sees
+    // the freshly-inserted token plus a stale leftover instead of just the
+    // new one — `getUcanForSpaceAsync` is keyed by spaceId, so it returns
+    // *some* valid UCAN either way. A failing DELETE must NOT roll back the
+    // INSERT — that would leave the claimant without authentication after a
+    // successful ClaimInvite, which is the exact failure mode the
+    // insert-first ordering exists to prevent.
+    let _ = crate::database::core::execute_with_crdt(
+        "DELETE FROM haex_ucan_tokens \
+         WHERE space_id = ?1 AND audience_did = ?2 AND id != ?3"
+            .to_string(),
+        vec![
+            serde_json::Value::String(p.space_id.to_string()),
+            serde_json::Value::String(p.claimant_did.to_string()),
+            serde_json::Value::String(ucan_id),
+        ],
+        db,
+        hlc_guard,
+    );
+
     Ok(())
 }
 
