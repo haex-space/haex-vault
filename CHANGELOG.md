@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.3](https://github.com/haex-space/haex-vault/compare/v2.2.2...v2.2.3) (2026-05-30)
+
+
+### Bug Fixes
+
+* **space-delivery:** re-surface fix scope for release-please (v2.2.2 trigger) ([#358](https://github.com/haex-space/haex-vault/issues/358)) ([3c11903](https://github.com/haex-space/haex-vault/commit/3c11903303582e7f0a4fc33d478cccdaafd34d40))
+
 ## [2.2.2](https://github.com/haex-space/haex-vault/compare/v2.2.1...v2.2.2) (2026-05-29)
 
 
