@@ -225,7 +225,7 @@ export function useSpaceInvites() {
   const listenForPushInvitesAsync = async (): Promise<() => void> => {
     return listen('push-invite-received', async () => {
       await loadInvitesAsync()
-    })
+    }, { target: 'main' })
   }
 
   return {
