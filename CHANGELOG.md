@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.3.0](https://github.com/haex-space/haex-vault/compare/v2.2.3...v2.3.0) (2026-05-31)
+
+
+### Features
+
+* **files:** chunked transfers with progress + cancel ([#365](https://github.com/haex-space/haex-vault/issues/365)) ([3fdbe73](https://github.com/haex-space/haex-vault/commit/3fdbe739792472f9acae4a7637d00a246a4ef0e9))
+
+
+### Bug Fixes
+
+* **acl:** allow media_server peer/s3 stream commands from main window ([#362](https://github.com/haex-space/haex-vault/issues/362)) ([d90d9a2](https://github.com/haex-space/haex-vault/commit/d90d9a2075973f152c7ceef0575be7f22884c437))
+* **external-auth:** prevent modal deadlock from concurrent auth dialog ([#361](https://github.com/haex-space/haex-vault/issues/361)) ([a51b927](https://github.com/haex-space/haex-vault/commit/a51b927759aef0c24c3057f99910ff72be43335d))
+
 ## [2.2.3](https://github.com/haex-space/haex-vault/compare/v2.2.2...v2.2.3) (2026-05-30)
 
 
