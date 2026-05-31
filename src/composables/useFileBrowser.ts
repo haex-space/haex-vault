@@ -234,6 +234,40 @@ export function useFileBrowser(tabId: string) {
     return s3TransferProgress.value.get(key)
   }
 
+  const getS3TransferIdForKey = (key: string): string | undefined => {
+    for (const [transferId, entryKey] of transferIdToKey.entries()) {
+      if (entryKey === key) return transferId
+    }
+    return undefined
+  }
+
+  const cancelS3TransferAsync = async (transferId: string): Promise<void> => {
+    await invoke('remote_storage_cancel_transfer', { transferId })
+  }
+
+  /**
+   * Cancel an in-flight transfer for `file`. Resolves the right transferId
+   * from the active-transfer maps (S3: keyed by S3 key, P2P: keyed by
+   * remote path) and forwards to the matching backend cancel command.
+   * No-op when nothing is in flight for that row — safe to call from the
+   * X-button without separately checking.
+   */
+  const cancelFileTransferAsync = async (file: FileEntry): Promise<void> => {
+    const peer = selectedPeer.value
+    if (!peer) return
+    if (peer.s3BackendId) {
+      const key = toS3Prefix(currentPath.value) + file.name
+      const transferId = getS3TransferIdForKey(key)
+      if (transferId) await cancelS3TransferAsync(transferId)
+      return
+    }
+    if (!peer.localPath) {
+      const path = resolveFilePath(file)
+      const transferId = peerStore.getTransferIdForPath(path)
+      if (transferId) await peerStore.cancelTransferAsync(transferId)
+    }
+  }
+
   /**
    * Start (or resume) a chunked download from S3 to `outputPath`. Returns
    * after the Tauri command resolves — progress events fire in the
@@ -1432,6 +1466,7 @@ export function useFileBrowser(tabId: string) {
     downloadFile,
     downloadSelectedAsync,
     getS3TransferProgress,
+    cancelFileTransferAsync,
     deleteFile,
     deleteSelectedAsync,
     canDeleteFile,
