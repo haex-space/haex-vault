@@ -451,6 +451,13 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     return undefined
   }
 
+  const getTransferIdForPath = (filePath: string): string | undefined => {
+    for (const t of transfers.value.values()) {
+      if (t.path === filePath) return t.transferId
+    }
+    return undefined
+  }
+
   const activeDownloads = computed(() => Array.from(transfers.value.values()))
 
   const cancelTransferAsync = async (transferId: string) => {
@@ -770,6 +777,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     transfers,
     activeDownloads,
     getTransferProgress,
+    getTransferIdForPath,
     cancelTransferAsync,
     pauseTransferAsync,
     resumeTransferAsync,
