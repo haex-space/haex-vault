@@ -278,6 +278,7 @@ commands.allow = [
   "remote_storage_upload",
   "remote_storage_download",
   "remote_storage_download_to_path",
+  "remote_storage_upload_from_path",
   "remote_storage_cancel_transfer",
   "remote_storage_delete",
   "media_server_register",

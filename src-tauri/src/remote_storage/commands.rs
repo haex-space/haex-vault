@@ -533,6 +533,94 @@ pub async fn remote_storage_cancel_transfer(
 }
 
 // ============================================================================
+// Resumable Upload
+// ============================================================================
+
+/// Stream a local file up to a remote storage backend, with progress events
+/// and cancellation. Mirrors [`remote_storage_download_to_path`] in shape so
+/// the frontend reuses the existing `storage:transfer:*` listeners and the
+/// shared `remote_storage_cancel_transfer` command.
+#[tauri::command]
+pub async fn remote_storage_upload_from_path(
+    state: State<'_, AppState>,
+    app_handle: tauri::AppHandle,
+    request: super::types::UploadFromPathRequest,
+) -> Result<u64, StorageError> {
+    use std::path::PathBuf;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::Arc;
+    use tauri::Emitter;
+    use tokio_util::sync::CancellationToken;
+
+    let backend = get_backend_instance(&state, &request.backend_id).await?;
+    let source = PathBuf::from(&request.source_path);
+
+    let cancel = CancellationToken::new();
+    let pause = Arc::new(AtomicBool::new(false));
+    state
+        .transfer_tokens
+        .lock()
+        .await
+        .insert(request.transfer_id.clone(), (cancel.clone(), pause));
+
+    let app_for_cb = app_handle.clone();
+    let tid_for_cb = request.transfer_id.clone();
+    let cb: super::progress::ProgressCallback = Arc::new(move |done, total| {
+        let _ = app_for_cb.emit(
+            "storage:transfer:progress",
+            serde_json::json!({
+                "transferId": tid_for_cb,
+                "bytesDone": done,
+                "bytesTotal": total,
+            }),
+        );
+    });
+
+    let result = tokio::select! {
+        r = backend.upload_from_path(&request.key, &source, Some(cb)) => r,
+        _ = cancel.cancelled() => {
+            Err(StorageError::UploadFailed {
+                reason: "cancelled".to_string(),
+            })
+        }
+    };
+
+    state.transfer_tokens.lock().await.remove(&request.transfer_id);
+
+    match result {
+        Ok(bytes) => {
+            let _ = app_handle.emit(
+                "storage:transfer:complete",
+                serde_json::json!({
+                    "transferId": request.transfer_id,
+                    "bytesDone": bytes,
+                }),
+            );
+            Ok(bytes)
+        }
+        Err(err) => {
+            let is_cancelled = matches!(
+                &err,
+                StorageError::UploadFailed { reason } if reason == "cancelled"
+            );
+            let event = if is_cancelled {
+                "storage:transfer:cancelled"
+            } else {
+                "storage:transfer:failed"
+            };
+            let _ = app_handle.emit(
+                event,
+                serde_json::json!({
+                    "transferId": request.transfer_id,
+                    "reason": err.to_string(),
+                }),
+            );
+            Err(err)
+        }
+    }
+}
+
+// ============================================================================
 // Helper Functions
 // ============================================================================
 
