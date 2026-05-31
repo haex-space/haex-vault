@@ -51,14 +51,24 @@ onMounted(() => {
 })
 
 // External client authorization handler
-// The dialog has `:dismissible="false"`, so the only ways to close it are the
-// explicit Allow/Deny buttons inside the dialog — those already call the
-// backend. We don't call cancelPrompt() here because it would issue an extra
-// (and unwanted) session-block when the dialog closes normally.
+// The dialog has `:dismissible="false"`, so a normal Allow/Deny click closes
+// it via the `decision` event (handleDecision flips isOpen back to false).
+// The setter here only fires if some other code path issues `update:open`
+// (e.g. a parent unmount or programmatic close); in that case we mirror the
+// new value onto the source-of-truth ref so the dialog can actually
+// disappear from the UI. Without this, the dialog state could get wedged
+// open and stack-block other modals.
 const externalAuth = useExternalAuth()
 const externalAuthOpen = computed({
   get: () => externalAuth.isOpen.value,
-  set: () => {},
+  set: (v) => {
+    if (!v) {
+      // Use cancelPrompt() so the backend learns the dialog was dismissed —
+      // otherwise the pending-authorization entry on the Rust side stays
+      // around and suppresses future prompts for the same client.
+      externalAuth.cancelPrompt()
+    }
+  },
 })
 onMounted(() => {
   externalAuth.init()
