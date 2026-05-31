@@ -18,6 +18,71 @@ const pendingAuth = ref<PendingAuthorization | null>(null)
 const initialized = ref(false)
 // Counter that increments when a decision is made (for reactive updates)
 const decisionCounter = ref(0)
+// If an auth request arrives while another modal (e.g. AddContact) is open
+// we cannot show the auth dialog right away: Reka UI's DismissableLayer
+// pushes a new focus trap onto `body` and the auth dialog ends up z-stacked
+// behind the active modal AND inerts it at the same time → UI deadlocks.
+// We therefore queue the request and present it once the DOM is free.
+const queuedAuth = ref<PendingAuthorization | null>(null)
+let dialogObserver: MutationObserver | null = null
+
+/**
+ * Reka UI sets `role="dialog"` + `data-state="open"` on every visible
+ * dialog content (see reka-ui/Dialog/DialogContentImpl.vue). We use that
+ * to detect whether *any* modal is currently shown. Returns false when
+ * called server-side.
+ */
+function hasOtherOpenDialog(): boolean {
+  if (typeof document === 'undefined') return false
+  return document.querySelector('[role="dialog"][data-state="open"]') !== null
+}
+
+/**
+ * Watch the DOM for the `data-state` attribute on dialogs to flip. As soon
+ * as no other dialog is open, drain the queue by showing the next auth
+ * request. The observer is shared across `useExternalAuth()` callers and
+ * disconnects itself once the queue is empty.
+ */
+function startWatchingDom() {
+  if (dialogObserver || typeof document === 'undefined') return
+  dialogObserver = new MutationObserver(() => {
+    if (!queuedAuth.value) {
+      stopWatchingDom()
+      return
+    }
+    if (hasOtherOpenDialog()) return
+    const next = queuedAuth.value
+    queuedAuth.value = null
+    stopWatchingDom()
+    void presentDialogFromQueue(next)
+  })
+  dialogObserver.observe(document.body, {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['data-state'],
+    childList: true,
+  })
+}
+
+function stopWatchingDom() {
+  dialogObserver?.disconnect()
+  dialogObserver = null
+}
+
+/**
+ * Module-scoped flush helper — needed because `startWatchingDom` lives
+ * outside the composable closure and can't reach the inner
+ * `presentAuthDialog`. Mirrors the same focus + state-set sequence.
+ */
+async function presentDialogFromQueue(auth: PendingAuthorization) {
+  try {
+    await invoke('focus_main_window')
+  } catch (error) {
+    console.warn('[ExternalAuth] Failed to focus window:', error)
+  }
+  pendingAuth.value = auth
+  isOpen.value = true
+}
 
 /**
  * Composable for managing external client authorization prompts
@@ -71,16 +136,25 @@ export function useExternalAuth() {
       return
     }
 
-    // Bring window to foreground so user notices the authorization request
-    // Uses GTK present() on Linux for proper window focusing
-    try {
-      await invoke('focus_main_window')
-    } catch (error) {
-      console.warn('[ExternalAuth] Failed to focus window:', error)
+    // Dedup against the visible dialog and the queue so a reconnect-looping
+    // client cannot flood us. The backend also dedups in
+    // pending_authorizations, this is the belt-and-braces guard for events
+    // that slipped through (e.g. across a backend restart that cleared
+    // pending state).
+    if (isOpen.value && pendingAuth.value?.clientId === auth.clientId) return
+    if (queuedAuth.value?.clientId === auth.clientId) return
+
+    // If another modal is already open (AddContact, file preview, …), do
+    // NOT pop the auth dialog now: Reka UI would z-stack it behind the
+    // active modal and globally inert the page, leaving the user stuck.
+    // Queue it and wait for the DOM to free up.
+    if (!isOpen.value && hasOtherOpenDialog()) {
+      queuedAuth.value = auth
+      startWatchingDom()
+      return
     }
 
-    pendingAuth.value = auth
-    isOpen.value = true
+    await presentDialogFromQueue(auth)
   }
 
   /**
