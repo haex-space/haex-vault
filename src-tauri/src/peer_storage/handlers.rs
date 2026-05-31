@@ -499,7 +499,7 @@ async fn stream_file_to_send(
             .map_err(PeerStorageError::Io)?;
     }
 
-    streaming::pipe_reader_to_send(send, file, read_size)
+    streaming::pipe_reader_to_send(send, file, read_size, streaming::SendOptions::default())
         .await
         .map_err(|e| match e {
             streaming::PipelineError::Io(e) => PeerStorageError::Io(e),

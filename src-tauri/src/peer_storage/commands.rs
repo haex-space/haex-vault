@@ -325,11 +325,18 @@ pub async fn peer_storage_remote_read(
         deduplicate_path(&downloads_dir, &file_name)
     };
 
-    // Create cancel + pause controls for this transfer
+    // Create cancel + pause controls for this transfer. Reject duplicates so
+    // a colliding id can't orphan an in-flight download's token.
     let (cancel_token, pause_flag) = if let Some(ref tid) = transfer_id {
         let cancel = tokio_util::sync::CancellationToken::new();
         let pause = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        state.transfer_tokens.lock().await.insert(tid.clone(), (cancel.clone(), pause.clone()));
+        let mut tokens = state.transfer_tokens.lock().await;
+        if tokens.contains_key(tid) {
+            return Err(PeerStorageError::ProtocolError {
+                reason: format!("transferId {tid} already in flight"),
+            });
+        }
+        tokens.insert(tid.clone(), (cancel.clone(), pause.clone()));
         (Some(cancel), Some(pause))
     } else {
         (None, None)
@@ -412,17 +419,24 @@ pub async fn peer_storage_remote_read(
 
 /// Upload a local file to a remote peer.
 ///
-/// Reads the source file from disk and streams it to the peer over the
-/// existing iroh `Request::Write` protocol. The remote side checks the
-/// caller's UCAN `Write` capability for the target space.
+/// Mirrors [`peer_storage_remote_read`]: spawns the streaming write in a
+/// background task and reports progress/completion/errors via the supplied
+/// `on_event` channel. Returns immediately after the task is spawned.
+///
+/// If `transfer_id` is provided a [`CancellationToken`] is registered in
+/// `AppState.transfer_tokens` so the existing `peer_storage_transfer_cancel`
+/// command can abort the upload — same control surface as downloads.
 #[tauri::command(rename_all = "camelCase")]
 pub async fn peer_storage_remote_write(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     node_id: String,
     relay_url: Option<String>,
     path: String,
     source_path: String,
+    transfer_id: Option<String>,
     ucan_token: String,
+    on_event: Channel<TransferEvent>,
 ) -> Result<(), PeerStorageError> {
     let remote_id: iroh::EndpointId = node_id
         .parse()
@@ -431,18 +445,91 @@ pub async fn peer_storage_remote_write(
         })?;
     let parsed_relay = relay_url.and_then(|s| s.parse::<iroh::RelayUrl>().ok());
 
-    // Buffered read keeps the implementation simple at the cost of memory.
-    // Streaming with progress can be layered on later, matching the read path.
-    let data = tokio::fs::read(&source_path)
-        .await
-        .map_err(|e| PeerStorageError::ProtocolError {
-            reason: format!("Failed to read source '{source_path}': {e}"),
-        })?;
+    // Register cancel token under the transfer id so the existing
+    // peer_storage_transfer_cancel command can abort this upload. Reject
+    // duplicates so a colliding id can't orphan an in-flight upload's token.
+    let cancel_token = if let Some(ref tid) = transfer_id {
+        let cancel = tokio_util::sync::CancellationToken::new();
+        let pause = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut tokens = state.transfer_tokens.lock().await;
+        if tokens.contains_key(tid) {
+            return Err(PeerStorageError::ProtocolError {
+                reason: format!("transferId {tid} already in flight"),
+            });
+        }
+        tokens.insert(tid.clone(), (cancel.clone(), pause));
+        Some(cancel)
+    } else {
+        None
+    };
 
-    let endpoint = state.peer_storage.read().await;
-    endpoint
-        .remote_write_file(remote_id, parsed_relay, &path, &data, &ucan_token)
-        .await
+    let app_handle = app.clone();
+    let source_path_buf = PathBuf::from(&source_path);
+    let on_event_progress = on_event.clone();
+
+    tokio::spawn(async move {
+        let state = app_handle.state::<AppState>();
+
+        // 100ms throttling on progress emits — same window the read path uses.
+        let progress_cb: Option<Box<dyn Fn(u64, u64) + Send>> = Some({
+            let last_emit = std::sync::Mutex::new(
+                std::time::Instant::now() - std::time::Duration::from_secs(1),
+            );
+            Box::new(move |sent: u64, total: u64| {
+                let now = std::time::Instant::now();
+                let should_emit = {
+                    let last = last_emit.lock().unwrap_or_else(|e| e.into_inner());
+                    sent >= total || now.duration_since(*last).as_millis() >= 100
+                };
+                if should_emit {
+                    *last_emit.lock().unwrap_or_else(|e| e.into_inner()) = now;
+                    let _ = on_event_progress.send(TransferEvent::Progress {
+                        bytes_received: sent,
+                        total_bytes: total,
+                    });
+                }
+            }) as Box<dyn Fn(u64, u64) + Send>
+        });
+
+        let options = crate::peer_storage::streaming::SendOptions {
+            on_progress: progress_cb,
+            cancel_token,
+        };
+
+        let result = {
+            let endpoint = state.peer_storage.read().await;
+            endpoint
+                .remote_write_file(
+                    remote_id,
+                    parsed_relay,
+                    &path,
+                    &source_path_buf,
+                    &ucan_token,
+                    options,
+                )
+                .await
+        };
+
+        if let Some(tid) = &transfer_id {
+            state.transfer_tokens.lock().await.remove(tid);
+        }
+
+        match result {
+            Ok(bytes) => {
+                let _ = on_event.send(TransferEvent::Complete {
+                    local_path: source_path,
+                    total_bytes: bytes,
+                });
+            }
+            Err(e) => {
+                let _ = on_event.send(TransferEvent::Error {
+                    error: e.to_string(),
+                });
+            }
+        }
+    });
+
+    Ok(())
 }
 
 /// Create a directory on a remote peer.
