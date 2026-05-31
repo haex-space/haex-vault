@@ -281,6 +281,8 @@ commands.allow = [
   "remote_storage_cancel_transfer",
   "remote_storage_delete",
   "media_server_register",
+  "media_server_register_s3_stream",
+  "media_server_register_peer_stream",
 
   # External bridge (WebSocket for browser extension etc.)
   "external_bridge_start",

@@ -615,7 +615,11 @@ async fn handle_connection(
                                 },
                             );
 
-                            // Add to pending authorizations
+                            // Add to pending authorizations. If the same client_id is
+                            // already pending (e.g. a flaky extension that disconnects
+                            // and re-handshakes in a loop), suppress the duplicate UI
+                            // event — otherwise every reconnect re-fires GTK present()
+                            // and stacks a new auth modal, which jams the window.
                             let mut pending_guard = pending.write().await;
                             let pending_auth = PendingAuthorization {
                                 client_id: cid.clone(),
@@ -623,17 +627,20 @@ async fn handle_connection(
                                 public_key: handshake.client.public_key.clone(),
                                 requested_extensions: handshake.client.requested_extensions.clone(),
                             };
-                            pending_guard.insert(cid.clone(), pending_auth.clone());
+                            let already_pending =
+                                pending_guard.insert(cid.clone(), pending_auth.clone()).is_some();
 
-                            // Emit event to frontend to show authorization dialog.
-                            // Nur Main-Window — der Authorization-Dialog wird dort
-                            // gerendert; Extensions dürfen Authorization-Requests
-                            // anderer Clients nicht beobachten.
-                            let _ = app_handle.emit_to(
-                                "main",
-                                "external:authorization-request",
-                                &pending_auth,
-                            );
+                            if !already_pending {
+                                // Emit event to frontend to show authorization dialog.
+                                // Nur Main-Window — der Authorization-Dialog wird dort
+                                // gerendert; Extensions dürfen Authorization-Requests
+                                // anderer Clients nicht beobachten.
+                                let _ = app_handle.emit_to(
+                                    "main",
+                                    "external:authorization-request",
+                                    &pending_auth,
+                                );
+                            }
 
                             // Store client's public key for encrypted responses later
                             client_public_key_spki = Some(handshake.client.public_key.clone());
