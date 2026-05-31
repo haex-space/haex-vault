@@ -136,6 +136,27 @@ pub struct DownloadToPathRequest {
     pub transfer_id: String,
 }
 
+/// Request a streaming upload from a local file.
+///
+/// Mirrors [`DownloadToPathRequest`]. The backend reads `source_path` in
+/// chunks and pushes to the configured remote; progress + cancellation
+/// flow through `AppState.transfer_tokens` keyed by `transfer_id`, same
+/// as the download path.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct UploadFromPathRequest {
+    /// Backend ID to upload to
+    pub backend_id: String,
+    /// Object key (path in the bucket)
+    pub key: String,
+    /// Absolute path on disk of the file to upload.
+    pub source_path: String,
+    /// Caller-generated transfer id, used to route progress events and
+    /// cancellation requests.
+    pub transfer_id: String,
+}
+
 /// Request to delete an object
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]

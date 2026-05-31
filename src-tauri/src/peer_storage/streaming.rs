@@ -78,6 +78,20 @@ pub struct RecvStats {
     pub hash: Option<String>,
 }
 
+/// Options for the disk → network direction. Same shape as [`RecvOptions`]
+/// minus the receive-only fields (no pause for uploads — the API surface
+/// keeps mirroring the read path but pause is not wired through yet).
+#[derive(Default)]
+pub struct SendOptions {
+    pub on_progress: Option<Box<dyn Fn(u64, u64) + Send>>,
+    pub cancel_token: Option<CancellationToken>,
+}
+
+#[derive(Debug, Default)]
+pub struct SendStats {
+    pub bytes: u64,
+}
+
 /// Disk → network pipeline.
 ///
 /// Spawns a reader task that pulls `size` bytes from `reader` in
@@ -92,7 +106,8 @@ pub async fn pipe_reader_to_send<R>(
     send: &mut iroh::endpoint::SendStream,
     mut reader: R,
     size: u64,
-) -> Result<(), PipelineError>
+    options: SendOptions,
+) -> Result<SendStats, PipelineError>
 where
     R: AsyncRead + Unpin + Send + 'static,
 {
@@ -120,13 +135,29 @@ where
         }
     });
 
+    let SendOptions {
+        on_progress,
+        cancel_token,
+    } = options;
+
+    let mut bytes_sent: u64 = 0;
     let mut net_err: Option<PipelineError> = None;
     while let Some(item) = rx.recv().await {
+        if let Some(ref token) = cancel_token {
+            if token.is_cancelled() {
+                net_err = Some(PipelineError::Cancelled);
+                break;
+            }
+        }
         match item {
             Ok(chunk) => {
                 if let Err(e) = send.write_all(&chunk).await {
                     net_err = Some(PipelineError::Stream(format!("send write: {e}")));
                     break;
+                }
+                bytes_sent += chunk.len() as u64;
+                if let Some(ref cb) = on_progress {
+                    cb(bytes_sent, size);
                 }
             }
             Err(e) => {
@@ -140,7 +171,7 @@ where
     if let Some(err) = net_err {
         return Err(err);
     }
-    Ok(())
+    Ok(SendStats { bytes: bytes_sent })
 }
 
 /// Network → disk pipeline.

@@ -516,6 +516,7 @@ pub fn run() {
             remote_storage::remote_storage_list,
             remote_storage::remote_storage_list_dir,
             remote_storage::remote_storage_download_to_path,
+            remote_storage::remote_storage_upload_from_path,
             remote_storage::remote_storage_cancel_transfer,
             media_server::media_server_register,
             media_server::media_server_register_s3_stream,

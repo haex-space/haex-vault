@@ -1713,8 +1713,8 @@ de:
   renameFailed: Umbenennen fehlgeschlagen
   deleteFailed: Löschen fehlgeschlagen
   openFailed: Öffnen fehlgeschlagen
-  cancelTransfer: Download abbrechen
-  cancelTransferFailed: Download konnte nicht abgebrochen werden
+  cancelTransfer: Übertragung abbrechen
+  cancelTransferFailed: Übertragung konnte nicht abgebrochen werden
   sections:
     local: Dieses Gerät
     peers: Andere Geräte
@@ -1773,8 +1773,8 @@ en:
   renameFailed: Rename failed
   deleteFailed: Delete failed
   openFailed: Open failed
-  cancelTransfer: Cancel download
-  cancelTransferFailed: Could not cancel download
+  cancelTransfer: Cancel transfer
+  cancelTransferFailed: Could not cancel transfer
   sections:
     local: This device
     peers: Other devices

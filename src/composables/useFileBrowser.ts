@@ -299,6 +299,35 @@ export function useFileBrowser(tabId: string) {
     }
   }
 
+  /**
+   * Mirror of `startS3ChunkedDownload` for the upload direction. Uses the
+   * same `transferIdToKey` + `s3TransferProgress` maps so the per-row UI
+   * (progress overlay + X cancel button) lights up exactly the same way it
+   * does for downloads — no new plumbing on the consumer side.
+   */
+  const startS3ChunkedUpload = async (
+    backendId: string,
+    key: string,
+    sourcePath: string,
+  ): Promise<void> => {
+    const transferId = crypto.randomUUID()
+    transferIdToKey.set(transferId, key)
+    const next = new Map(s3TransferProgress.value)
+    next.set(key, 0)
+    s3TransferProgress.value = next
+
+    try {
+      await invoke('remote_storage_upload_from_path', {
+        request: { backendId, key, sourcePath, transferId },
+      })
+    } finally {
+      transferIdToKey.delete(transferId)
+      const cleared = new Map(s3TransferProgress.value)
+      cleared.delete(key)
+      s3TransferProgress.value = cleared
+    }
+  }
+
   const isContentUri = (p: string) => p.startsWith('{')
 
   /**
@@ -1227,9 +1256,19 @@ export function useFileBrowser(tabId: string) {
   /**
    * Open the native file picker and add the chosen file(s) to the current
    * folder. Supports local shares (zero-copy via `filesystem_copy`), S3
-   * backends (base64 round-trip via `remote_storage_upload`), and remote
-   * P2P peers (streamed via the iroh `Request::Write` protocol).
-   * Returns the number of files added so the caller can show a toast.
+   * backends (streamed via `remote_storage_upload_from_path` so multi-GB
+   * files don't have to fit in IPC memory), and remote P2P peers (streamed
+   * via the iroh `Request::Write` protocol with progress + cancellation).
+   *
+   * Each remote upload inserts a placeholder row into `files.value` so the
+   * existing per-row progress + X-cancel UI works while the transfer runs;
+   * the placeholder is replaced by the real listing once `loadFiles()`
+   * refreshes at the end. Cancelled or failed uploads have their placeholder
+   * removed in-line so they don't linger before the refresh.
+   *
+   * Returns the number of files the caller asked to upload (regardless of
+   * how many ultimately succeeded — the caller's toast just acknowledges
+   * the intent).
    */
   const uploadFilesAsync = async (): Promise<number> => {
     if (!canWrite.value || !selectedPeer.value) return 0
@@ -1244,6 +1283,31 @@ export function useFileBrowser(tabId: string) {
       return parts[parts.length - 1] || p
     }
 
+    const isCancelledError = (e: unknown): boolean => {
+      const msg = e instanceof Error ? e.message : String(e)
+      return msg.includes('cancelled')
+    }
+
+    // Track placeholders so removal can't ever drop a real listing entry
+    // that happens to share a name. Belt-and-braces because the placeholder
+    // has `modified: null` and isDir false which *should* be unambiguous,
+    // but explicit identity is cheaper than reasoning about that.
+    const placeholders = new Set<{ name: string; size: bigint; isDir: false; modified: null }>()
+    const insertPlaceholder = (name: string) => {
+      const entry = { name, size: 0n, isDir: false as const, modified: null }
+      placeholders.add(entry)
+      files.value = [...files.value, entry]
+    }
+    const removePlaceholder = (name: string) => {
+      for (const entry of placeholders) {
+        if (entry.name === name) {
+          placeholders.delete(entry)
+          files.value = files.value.filter(f => f !== entry)
+          return
+        }
+      }
+    }
+
     if (selectedPeer.value.localPath) {
       const targetDir = resolveCurrentDir()
       if (!targetDir) return 0
@@ -1256,24 +1320,35 @@ export function useFileBrowser(tabId: string) {
     } else if (selectedPeer.value.s3BackendId) {
       const prefix = toS3Prefix(currentPath.value)
       for (const src of selected) {
-        const data = await invoke<string>('filesystem_read_file', { path: src })
-        await invoke('remote_storage_upload', {
-          request: {
-            backendId: selectedPeer.value.s3BackendId,
-            key: prefix + basename(src),
-            data,
-          },
-        })
+        const name = basename(src)
+        insertPlaceholder(name)
+        try {
+          await startS3ChunkedUpload(
+            selectedPeer.value.s3BackendId,
+            prefix + name,
+            src,
+          )
+        } catch (e) {
+          removePlaceholder(name)
+          if (!isCancelledError(e)) throw e
+        }
       }
     } else {
       // Remote P2P peer: read on Rust side and stream over iroh.
       for (const src of selected) {
-        await peerStore.remoteWriteAsync(
-          selectedPeer.value.endpointId,
-          joinRemotePath(basename(src)),
-          src,
-          currentSpaceId.value ?? undefined,
-        )
+        const name = basename(src)
+        insertPlaceholder(name)
+        try {
+          await peerStore.remoteWriteAsync(
+            selectedPeer.value.endpointId,
+            joinRemotePath(name),
+            src,
+            currentSpaceId.value ?? undefined,
+          )
+        } catch (e) {
+          removePlaceholder(name)
+          if (!isCancelledError(e)) throw e
+        }
       }
     }
 

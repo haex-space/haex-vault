@@ -802,8 +802,11 @@ mod tests {
         let tmp_out = tempfile::tempdir().unwrap();
         let out_path = tmp_out.path().join("uploaded_out.bin");
 
-        // Build a small deterministic payload.
+        // Build a small deterministic payload and persist it as the upload source.
         let payload: Vec<u8> = (0u16..512).map(|i| (i % 256) as u8).collect();
+        let src_dir = tempfile::tempdir().unwrap();
+        let src_path = src_dir.path().join("payload.bin");
+        tokio::fs::write(&src_path, &payload).await.unwrap();
 
         // The default harness UCAN only grants read; mint a write-capable one
         // signed by the same key so the upload passes the capability check.
@@ -825,8 +828,9 @@ mod tests {
                 h.server_remote_id,
                 None,
                 &upload_path,
-                &payload,
+                &src_path,
                 &write_token,
+                crate::peer_storage::streaming::SendOptions::default(),
             )
             .await
             .expect("remote_write_file");
@@ -852,6 +856,53 @@ mod tests {
 
         let downloaded = tokio::fs::read(&out_path).await.unwrap();
         assert_eq!(downloaded, payload, "round-tripped bytes must match original");
+    }
+
+    #[tokio::test]
+    async fn pipe_reader_to_send_cancelled_token_aborts_upload() {
+        let h = setup_harness().await;
+        let upload_path = format!("/{}/cancel_upload.bin", h.share_name);
+
+        // 8 MB payload — large enough that the pipeline iterates over multiple
+        // chunks (CHUNK_SIZE = 1 MB) so the cancel-check between chunks gets a
+        // chance to trip. Pre-cancelling the token still works because the
+        // check runs before the first chunk write.
+        let payload: Vec<u8> = (0..(8 * 1024 * 1024)).map(|i| (i % 251) as u8).collect();
+        let src_dir = tempfile::tempdir().unwrap();
+        let src_path = src_dir.path().join("cancel_payload.bin");
+        tokio::fs::write(&src_path, &payload).await.unwrap();
+
+        let mut seed = [0u8; 32];
+        rand::fill(&mut seed);
+        let write_signer = SigningKey::from_bytes(&seed);
+        let write_token = write_ucan(&write_signer, "test-space");
+
+        let token = tokio_util::sync::CancellationToken::new();
+        token.cancel();
+
+        let options = crate::peer_storage::streaming::SendOptions {
+            on_progress: None,
+            cancel_token: Some(token),
+        };
+
+        let result = h
+            .client
+            .remote_write_file(
+                h.server_remote_id,
+                None,
+                &upload_path,
+                &src_path,
+                &write_token,
+                options,
+            )
+            .await;
+
+        assert!(result.is_err(), "cancelled upload must return an error");
+        let err_str = result.unwrap_err().to_string();
+        assert!(
+            err_str.contains("cancel") || err_str.contains("Cancel"),
+            "error must mention cancellation, got: {err_str}"
+        );
     }
 
     // -------------------------------------------------------------------------
