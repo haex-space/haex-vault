@@ -325,11 +325,18 @@ pub async fn peer_storage_remote_read(
         deduplicate_path(&downloads_dir, &file_name)
     };
 
-    // Create cancel + pause controls for this transfer
+    // Create cancel + pause controls for this transfer. Reject duplicates so
+    // a colliding id can't orphan an in-flight download's token.
     let (cancel_token, pause_flag) = if let Some(ref tid) = transfer_id {
         let cancel = tokio_util::sync::CancellationToken::new();
         let pause = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        state.transfer_tokens.lock().await.insert(tid.clone(), (cancel.clone(), pause.clone()));
+        let mut tokens = state.transfer_tokens.lock().await;
+        if tokens.contains_key(tid) {
+            return Err(PeerStorageError::ProtocolError {
+                reason: format!("transferId {tid} already in flight"),
+            });
+        }
+        tokens.insert(tid.clone(), (cancel.clone(), pause.clone()));
         (Some(cancel), Some(pause))
     } else {
         (None, None)
@@ -439,15 +446,18 @@ pub async fn peer_storage_remote_write(
     let parsed_relay = relay_url.and_then(|s| s.parse::<iroh::RelayUrl>().ok());
 
     // Register cancel token under the transfer id so the existing
-    // peer_storage_transfer_cancel command can abort this upload.
+    // peer_storage_transfer_cancel command can abort this upload. Reject
+    // duplicates so a colliding id can't orphan an in-flight upload's token.
     let cancel_token = if let Some(ref tid) = transfer_id {
         let cancel = tokio_util::sync::CancellationToken::new();
         let pause = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        state
-            .transfer_tokens
-            .lock()
-            .await
-            .insert(tid.clone(), (cancel.clone(), pause));
+        let mut tokens = state.transfer_tokens.lock().await;
+        if tokens.contains_key(tid) {
+            return Err(PeerStorageError::ProtocolError {
+                reason: format!("transferId {tid} already in flight"),
+            });
+        }
+        tokens.insert(tid.clone(), (cancel.clone(), pause));
         Some(cancel)
     } else {
         None

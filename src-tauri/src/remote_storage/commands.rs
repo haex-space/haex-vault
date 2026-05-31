@@ -446,13 +446,20 @@ pub async fn remote_storage_download_to_path(
     // is unused for now (cancel-on-resume is functionally equivalent) but
     // lives alongside the cancel token so the `transfer_tokens` map keeps
     // a single uniform shape with the P2P side.
+    //
+    // Reject duplicates: silently overwriting would orphan the previous
+    // token (cancel requests would only reach the new transfer).
     let cancel = CancellationToken::new();
     let pause = Arc::new(AtomicBool::new(false));
-    state
-        .transfer_tokens
-        .lock()
-        .await
-        .insert(request.transfer_id.clone(), (cancel.clone(), pause));
+    {
+        let mut tokens = state.transfer_tokens.lock().await;
+        if tokens.contains_key(&request.transfer_id) {
+            return Err(StorageError::DownloadFailed {
+                reason: format!("transferId {} already in flight", request.transfer_id),
+            });
+        }
+        tokens.insert(request.transfer_id.clone(), (cancel.clone(), pause));
+    }
 
     // Progress callback emits a Tauri event each throttle window. Cloning
     // the AppHandle is cheap (Arc inside) so the closure can outlive this
@@ -540,6 +547,12 @@ pub async fn remote_storage_cancel_transfer(
 /// and cancellation. Mirrors [`remote_storage_download_to_path`] in shape so
 /// the frontend reuses the existing `storage:transfer:*` listeners and the
 /// shared `remote_storage_cancel_transfer` command.
+///
+/// Unlike the download counterpart, cancellation flows **into** the backend
+/// via a [`CancellationToken`] (not a `tokio::select!` race) so the S3 impl
+/// can issue `AbortMultipartUpload` and avoid orphaning in-flight chunks the
+/// bucket would otherwise be billed for. See
+/// [`StorageBackend::upload_from_path_cancellable`].
 #[tauri::command]
 pub async fn remote_storage_upload_from_path(
     state: State<'_, AppState>,
@@ -555,13 +568,20 @@ pub async fn remote_storage_upload_from_path(
     let backend = get_backend_instance(&state, &request.backend_id).await?;
     let source = PathBuf::from(&request.source_path);
 
+    // Reject duplicate transfer ids. The token map is keyed by caller-supplied
+    // UUID; silently overwriting would orphan the previous token (cancel
+    // requests then only reach the new transfer).
     let cancel = CancellationToken::new();
     let pause = Arc::new(AtomicBool::new(false));
-    state
-        .transfer_tokens
-        .lock()
-        .await
-        .insert(request.transfer_id.clone(), (cancel.clone(), pause));
+    {
+        let mut tokens = state.transfer_tokens.lock().await;
+        if tokens.contains_key(&request.transfer_id) {
+            return Err(StorageError::UploadFailed {
+                reason: format!("transferId {} already in flight", request.transfer_id),
+            });
+        }
+        tokens.insert(request.transfer_id.clone(), (cancel.clone(), pause));
+    }
 
     let app_for_cb = app_handle.clone();
     let tid_for_cb = request.transfer_id.clone();
@@ -576,14 +596,9 @@ pub async fn remote_storage_upload_from_path(
         );
     });
 
-    let result = tokio::select! {
-        r = backend.upload_from_path(&request.key, &source, Some(cb)) => r,
-        _ = cancel.cancelled() => {
-            Err(StorageError::UploadFailed {
-                reason: "cancelled".to_string(),
-            })
-        }
-    };
+    let result = backend
+        .upload_from_path_cancellable(&request.key, &source, Some(cb), Some(cancel))
+        .await;
 
     state.transfer_tokens.lock().await.remove(&request.transfer_id);
 

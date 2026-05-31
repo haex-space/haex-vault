@@ -1308,6 +1308,12 @@ export function useFileBrowser(tabId: string) {
       }
     }
 
+    // Sequential `for await` is deliberate: each upload runs against one
+    // transferId / one cancel token, and the placeholder UX (one progress
+    // bar per row) is easier to follow when files complete in order. Fan-out
+    // would also need a per-row queue indicator. The file-sync provider
+    // path (cloud_provider.rs) already does its own parallel multipart for
+    // bulk syncs.
     if (selectedPeer.value.localPath) {
       const targetDir = resolveCurrentDir()
       if (!targetDir) return 0

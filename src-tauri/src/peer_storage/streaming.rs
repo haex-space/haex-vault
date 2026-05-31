@@ -142,6 +142,12 @@ where
 
     let mut bytes_sent: u64 = 0;
     let mut net_err: Option<PipelineError> = None;
+    // Cancel is polled between chunks rather than `select!`ed against the
+    // `rx.recv().await` itself. Same trade-off as the recv side: in the
+    // pathological slow-network case a cancel signal sits for up to one
+    // chunk-RTT before being honoured. With CHUNK_SIZE = 1 MiB that's
+    // typically well under a second; not worth the complexity of an
+    // interruptible await for the file-explorer use case.
     while let Some(item) = rx.recv().await {
         if let Some(ref token) = cancel_token {
             if token.is_cancelled() {

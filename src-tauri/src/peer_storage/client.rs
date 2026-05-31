@@ -261,6 +261,13 @@ impl PeerEndpoint {
     ///
     /// Returns the number of bytes actually written to the wire — equal to
     /// the file size on success, less than that on cancel.
+    ///
+    /// On cancel the function returns `PeerStorageError::ProtocolError { reason: "cancelled" }`
+    /// **without** calling `send.finish()`. Dropping the un-finished `SendStream`
+    /// triggers a QUIC reset on the server, which is the cleanup signal the
+    /// server's `handle_write` already relies on: it stages to a `.part`
+    /// sibling and `remove_file`s it on any non-OK path before the atomic
+    /// rename. So no truncated file is ever exposed at the destination.
     pub async fn remote_write_file(
         &self,
         remote_id: EndpointId,

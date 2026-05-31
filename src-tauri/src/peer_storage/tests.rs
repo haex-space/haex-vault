@@ -903,6 +903,28 @@ mod tests {
             err_str.contains("cancel") || err_str.contains("Cancel"),
             "error must mention cancellation, got: {err_str}"
         );
+
+        // The server stages writes to a `.part` sibling and only renames on
+        // success — a cancelled upload must leave neither the staged file nor
+        // the final destination on disk. Server cleanup runs asynchronously
+        // after the client's connection reset propagates, so poll briefly
+        // before asserting absence.
+        let dest = h._tmp.path().join("cancel_upload.bin");
+        let staged = h._tmp.path().join("cancel_upload.bin.part");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        loop {
+            if !dest.exists() && !staged.exists() {
+                break;
+            }
+            if std::time::Instant::now() >= deadline {
+                panic!(
+                    "cancelled upload left files on disk after 2s: dest_exists={}, staged_exists={}",
+                    dest.exists(),
+                    staged.exists()
+                );
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
     }
 
     // -------------------------------------------------------------------------
