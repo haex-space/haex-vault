@@ -109,6 +109,26 @@ pub trait StorageBackend: Send + Sync {
         Ok(n)
     }
 
+    /// Cancellation-aware variant of `upload_from_path`. Backends that can
+    /// observe `cancel_token` between chunks **must** also clean up server-side
+    /// state (e.g. abort the multipart upload) when the token fires so we
+    /// don't leak in-flight uploads (rust-s3 charges until lifecycle policies
+    /// kick in).
+    ///
+    /// Default impl ignores `cancel_token` and falls back to `upload_from_path`,
+    /// which is correct for backends whose `upload` is atomic from the server's
+    /// point of view (no orphaned state on caller drop). S3 overrides this
+    /// with a manual multipart loop that calls `abort_upload` on cancel.
+    async fn upload_from_path_cancellable(
+        &self,
+        key: &str,
+        source_path: &Path,
+        on_progress: Option<ProgressCallback>,
+        _cancel_token: Option<tokio_util::sync::CancellationToken>,
+    ) -> Result<u64, StorageError> {
+        self.upload_from_path(key, source_path, on_progress).await
+    }
+
     /// Download an object from the backend into a local file, streaming if
     /// supported.
     ///
@@ -563,6 +583,168 @@ impl StorageBackend for S3Backend {
             })?;
 
         Ok(reader.bytes_read())
+    }
+
+    /// Manual chunked multipart upload with cancel-aware abort.
+    ///
+    /// `put_object_stream` doesn't surface the multipart upload id, so a
+    /// `tokio::select!` against the cancel token would orphan whatever parts
+    /// it had already uploaded — S3 charges for those until lifecycle rules
+    /// abort them, hours-to-days later. This override drives the multipart
+    /// directly so we can call `abort_upload` the moment the cancel token
+    /// fires.
+    ///
+    /// Chunk size matches rust-s3's own `CHUNK_SIZE = 8 MiB` (S3 minimum is
+    /// 5 MiB). Sequential, not parallel — cancel responsiveness > raw
+    /// throughput in the UI-driven case; the file-sync provider keeps using
+    /// the parallel `put_object_stream` via `upload_from_path`.
+    async fn upload_from_path_cancellable(
+        &self,
+        key: &str,
+        source_path: &Path,
+        on_progress: Option<ProgressCallback>,
+        cancel_token: Option<tokio_util::sync::CancellationToken>,
+    ) -> Result<u64, StorageError> {
+        use tokio::io::AsyncReadExt;
+
+        // 8 MiB chunks, matching rust-s3's internal CHUNK_SIZE.
+        const CHUNK_SIZE: usize = 8 * 1024 * 1024;
+        const CONTENT_TYPE: &str = "application/octet-stream";
+
+        // Fast path: no cancel token requested → forward to the existing
+        // parallel-multipart impl. Callers that need cancel always pass one.
+        let Some(cancel) = cancel_token else {
+            return self.upload_from_path(key, source_path, on_progress).await;
+        };
+
+        let total = tokio::fs::metadata(source_path)
+            .await
+            .map_err(|e| StorageError::UploadFailed {
+                reason: format!("stat source: {}", e),
+            })?
+            .len();
+
+        let mut file = tokio::fs::File::open(source_path)
+            .await
+            .map_err(|e| StorageError::UploadFailed {
+                reason: format!("open source: {}", e),
+            })?;
+
+        // Tiny files: a single PUT is cheaper than multipart and has no
+        // server-side state to clean up. Cancel before the PUT still works
+        // because we check the token before launching the request.
+        if total < CHUNK_SIZE as u64 {
+            if cancel.is_cancelled() {
+                return Err(StorageError::UploadFailed {
+                    reason: "cancelled".to_string(),
+                });
+            }
+            let mut data = Vec::with_capacity(total as usize);
+            file.read_to_end(&mut data)
+                .await
+                .map_err(|e| StorageError::UploadFailed {
+                    reason: format!("read source: {}", e),
+                })?;
+            self.upload(key, &data).await?;
+            if let Some(cb) = &on_progress {
+                cb(total, total);
+            }
+            return Ok(total);
+        }
+
+        let init = self
+            .bucket
+            .initiate_multipart_upload(key, CONTENT_TYPE)
+            .await
+            .map_err(|e| StorageError::UploadFailed {
+                reason: format!("initiate_multipart_upload: {}", e),
+            })?;
+        let upload_id = init.upload_id;
+
+        let abort_on_cancel = |reason: String| {
+            let bucket = self.bucket.clone();
+            let key_owned = key.to_string();
+            let upload_id_owned = upload_id.clone();
+            async move {
+                let _ = bucket.abort_upload(&key_owned, &upload_id_owned).await;
+                StorageError::UploadFailed { reason }
+            }
+        };
+
+        let mut etags: Vec<s3::serde_types::Part> = Vec::new();
+        let mut bytes_done: u64 = 0;
+        let mut part_number: u32 = 0;
+        let mut buf = vec![0u8; CHUNK_SIZE];
+
+        loop {
+            if cancel.is_cancelled() {
+                return Err(abort_on_cancel("cancelled".to_string()).await);
+            }
+
+            // Read up to CHUNK_SIZE — `read` may return fewer bytes than
+            // requested, so loop until the buffer is full or we hit EOF.
+            let mut filled = 0usize;
+            while filled < buf.len() {
+                if cancel.is_cancelled() {
+                    return Err(abort_on_cancel("cancelled".to_string()).await);
+                }
+                match file.read(&mut buf[filled..]).await {
+                    Ok(0) => break,
+                    Ok(n) => filled += n,
+                    Err(e) => {
+                        return Err(abort_on_cancel(format!("read source: {}", e)).await);
+                    }
+                }
+            }
+
+            if filled == 0 {
+                break;
+            }
+
+            part_number += 1;
+            let chunk = buf[..filled].to_vec();
+            let part = self
+                .bucket
+                .put_multipart_chunk(chunk, key, part_number, &upload_id, CONTENT_TYPE)
+                .await
+                .map_err(|e| {
+                    let bucket = self.bucket.clone();
+                    let key_owned = key.to_string();
+                    let upload_id_owned = upload_id.clone();
+                    tokio::spawn(async move {
+                        let _ = bucket.abort_upload(&key_owned, &upload_id_owned).await;
+                    });
+                    StorageError::UploadFailed {
+                        reason: format!("put_multipart_chunk #{}: {}", part_number, e),
+                    }
+                })?;
+            etags.push(part);
+
+            bytes_done += filled as u64;
+            if let Some(cb) = &on_progress {
+                cb(bytes_done, total);
+            }
+
+            // Last chunk was a short read — we're done.
+            if filled < buf.len() {
+                break;
+            }
+        }
+
+        // Final cancel check before committing: if the user cancelled while
+        // the last chunk was uploading, abort instead of completing.
+        if cancel.is_cancelled() {
+            return Err(abort_on_cancel("cancelled".to_string()).await);
+        }
+
+        self.bucket
+            .complete_multipart_upload(key, &upload_id, etags)
+            .await
+            .map_err(|e| StorageError::UploadFailed {
+                reason: format!("complete_multipart_upload: {}", e),
+            })?;
+
+        Ok(bytes_done)
     }
 
     async fn download_to_path(

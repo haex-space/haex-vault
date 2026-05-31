@@ -356,6 +356,16 @@
                       }}</span>
                     </div>
                   </div>
+                  <UButton
+                    v-if="getFileTransferProgress(file) !== undefined"
+                    icon="i-lucide-x"
+                    color="error"
+                    variant="ghost"
+                    size="xs"
+                    class="relative z-10 shrink-0"
+                    :aria-label="t('cancelTransfer')"
+                    @click.stop="cancelTransferAsync(file)"
+                  />
                 </div>
               </UContextMenu>
             </div>
@@ -399,6 +409,16 @@
                     :style="{
                       width: `${(getFileTransferProgress(file) ?? 0) * 100}%`,
                     }"
+                  />
+                  <UButton
+                    v-if="getFileTransferProgress(file) !== undefined"
+                    icon="i-lucide-x"
+                    color="error"
+                    variant="solid"
+                    size="xs"
+                    class="absolute top-2 right-2 z-10"
+                    :aria-label="t('cancelTransfer')"
+                    @click.stop="cancelTransferAsync(file)"
                   />
                   <!-- Thumbnail or icon -->
                   <div
@@ -911,6 +931,18 @@ const downloadFileAsync = async (file: NonNullable<RenameTarget>) => {
   }
 }
 
+const cancelTransferAsync = async (file: NonNullable<RenameTarget>) => {
+  try {
+    await browser.cancelFileTransferAsync(file)
+  } catch (error) {
+    toast.add({
+      title: t('cancelTransferFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+    })
+  }
+}
+
 const deleteFileAsync = async (file: NonNullable<RenameTarget>) => {
   try {
     await browser.deleteFile(file)
@@ -967,6 +999,13 @@ const buildContextMenuItems = (file: NonNullable<RenameTarget>) => {
       icon: 'i-lucide-download',
       onSelect: () => downloadFileAsync(file),
     })
+    if (getFileTransferProgress(file) !== undefined) {
+      fileActions.push({
+        label: t('cancelTransfer'),
+        icon: 'i-lucide-x',
+        onSelect: () => cancelTransferAsync(file),
+      })
+    }
     groups.push(fileActions)
   }
 
@@ -1674,6 +1713,8 @@ de:
   renameFailed: Umbenennen fehlgeschlagen
   deleteFailed: Löschen fehlgeschlagen
   openFailed: Öffnen fehlgeschlagen
+  cancelTransfer: Übertragung abbrechen
+  cancelTransferFailed: Übertragung konnte nicht abgebrochen werden
   sections:
     local: Dieses Gerät
     peers: Andere Geräte
@@ -1732,6 +1773,8 @@ en:
   renameFailed: Rename failed
   deleteFailed: Delete failed
   openFailed: Open failed
+  cancelTransfer: Cancel transfer
+  cancelTransferFailed: Could not cancel transfer
   sections:
     local: This device
     peers: Other devices

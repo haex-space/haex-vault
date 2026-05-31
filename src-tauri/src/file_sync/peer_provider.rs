@@ -340,7 +340,7 @@ impl SyncProvider for PeerProvider {
         let file =
             tokio::fs::File::open(source_path).await.map_err(SyncProviderError::Io)?;
 
-        streaming::pipe_reader_to_send(&mut send, file, size)
+        streaming::pipe_reader_to_send(&mut send, file, size, streaming::SendOptions::default())
             .await
             .map_err(|e| match e {
                 streaming::PipelineError::Io(e) => SyncProviderError::Io(e),
