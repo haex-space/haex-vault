@@ -193,6 +193,7 @@ impl MultiSpaceLeaderHandler {
                     let hlc = self.hlc.clone();
                     let app_handle = self.app_handle.clone();
                     let peer_endpoint_id = remote_str.clone();
+                    let verified_did_for_stream = verified_did.clone();
                     let stream_index = stream_count;
                     tokio::spawn(async move {
                         if let Err(e) = handle_stream(
@@ -203,6 +204,7 @@ impl MultiSpaceLeaderHandler {
                             &hlc,
                             &app_handle,
                             &peer_endpoint_id,
+                            &verified_did_for_stream,
                         )
                         .await
                         {
@@ -286,14 +288,21 @@ fn extract_space_id(request: &Request) -> Option<&str> {
 }
 
 /// Handle a single bidirectional QUIC stream: read request, route, respond.
+///
+/// `verified_did` is the cryptographically authenticated DID of the connected
+/// peer, established by the server-initiated quic_did_auth handshake at
+/// connection-accept time. It is plumbed into every request handler so the
+/// later commits in this PR can gate auth checks on it (claim binding,
+/// announce binding, UCAN audience match, inviter spoofing reject).
 async fn handle_stream(
     mut send: iroh::endpoint::SendStream,
     recv: &mut iroh::endpoint::RecvStream,
     leaders: &tokio::sync::RwLock<HashMap<String, Arc<LeaderState>>>,
     db: &DbConnection,
-    hlc: &Arc<std::sync::Mutex<HlcService>>,
+    hlc: &Arc<Mutex<HlcService>>,
     app_handle: &AppHandle,
     peer_endpoint_id: &str,
+    verified_did: &str,
 ) -> Result<(), DeliveryError> {
     let request = protocol::read_request(recv)
         .await
@@ -340,6 +349,7 @@ async fn handle_stream(
                 &space_endpoints,
                 origin_url.as_deref(),
                 inviter_relay_url.as_deref(),
+                verified_did,
             )
         }
 
@@ -356,7 +366,7 @@ async fn handle_stream(
                     crate::logging::log_to_db(db, hlc, "info", "MultiLeader", &format!(
                         "Routing ClaimInvite to leader for space {}", &space_id[..8.min(space_id.len())]
                     ));
-                    super::leader::handle_claim_invite(leader, request).await
+                    super::leader::handle_claim_invite(leader, request, verified_did).await
                 }
                 None => {
                     crate::logging::log_to_db(db, hlc, "error", "MultiLeader", &format!(
@@ -381,6 +391,7 @@ async fn handle_stream(
                                 leader,
                                 other,
                                 peer_endpoint_id,
+                                verified_did,
                             )
                             .await
                         }

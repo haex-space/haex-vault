@@ -196,7 +196,16 @@ async fn notify_others_sync(
 /// load the existing UCAN from DB, re-serve the buffered Welcome, and
 /// **do not re-consume the token or re-call MLS add_member** (which would
 /// fail for an already-added DID).
-pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Response {
+pub async fn handle_claim_invite(
+    state: &LeaderState,
+    request: Request,
+    verified_did: &str,
+) -> Response {
+    // Suppress the dead-code warning until C5 actually consumes verified_did
+    // to gate the token validation. Plumbing it through here in C4 keeps the
+    // wiring step (and the bisect window for any wire regression) small.
+    let _ = verified_did;
+
     let (space_id, token, did, endpoint_id, key_packages, label, public_key) = match request {
         Request::ClaimInvite {
             space_id,
@@ -609,7 +618,13 @@ pub(super) async fn handle_delivery_request(
     state: &LeaderState,
     request: Request,
     peer_endpoint_id: &str,
+    verified_did: &str,
 ) -> Response {
+    // Suppress the dead-code warning until commits C6/C7 actually consume
+    // verified_did to gate Announce binding and UCAN-audience checks. Plumbed
+    // through here in C4 so each subsequent binding step is a smaller diff.
+    let _ = verified_did;
+
     match request {
         Request::Announce {
             did,
@@ -1066,7 +1081,7 @@ pub(super) async fn handle_delivery_request(
 
         // -- Invites (ClaimInvite) --
         req @ Request::ClaimInvite { .. } => {
-            handle_claim_invite(state, req).await
+            handle_claim_invite(state, req, verified_did).await
         }
 
         // -- Push Invites (peer-to-peer, invitee side) --
@@ -1102,6 +1117,7 @@ pub(super) async fn handle_delivery_request(
             &space_endpoints,
             origin_url.as_deref(),
             inviter_relay_url.as_deref(),
+            verified_did,
         ),
         Request::MlsAckCommit {
             space_id,

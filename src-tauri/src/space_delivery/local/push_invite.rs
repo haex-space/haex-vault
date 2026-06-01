@@ -42,7 +42,13 @@ pub fn handle_push_invite(
     space_endpoints: &[String],
     origin_url: Option<&str>,
     inviter_relay_url: Option<&str>,
+    verified_did: &str,
 ) -> Response {
+    // C8 will reject the request when `inviter_did != verified_did` (spoofed
+    // sender). For C4 we only plumb the value through — keeping the wiring
+    // step bisect-isolated from the policy check.
+    let _ = verified_did;
+
     let token_fp = token_fingerprint(token_id);
     logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
         "Received invite for space {space_id} ({space_name}) from {inviter_did}, token={token_fp}"
