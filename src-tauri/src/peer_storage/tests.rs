@@ -473,7 +473,7 @@ mod tests {
 
         let mut server = PeerEndpoint::new_ephemeral();
         server.set_random_test_identity();
-        let _server_id = server.start_for_test().await.expect("server bind");
+        let server_id = server.start_for_test().await.expect("server bind");
         server
             .add_share(
                 "share-1".to_string(),
@@ -516,7 +516,7 @@ mod tests {
 
         let path = "/media/file.txt".to_string();
         let result = client
-            .remote_list(client_id, None, &path, "any-token")
+            .remote_list(server_id, None, &path, "any-token")
             .await;
         assert!(
             result.is_err(),

@@ -283,6 +283,14 @@ pub async fn peer_storage_start(
 ) -> Result<PeerStorageStartInfo, PeerStorageError> {
     let mut endpoint = state.peer_storage.write().await;
 
+    // Bail out before mutating endpoint state. `set_own_identity` below
+    // asserts when the endpoint is already running, so without this guard
+    // a second `peer_storage_start` call would panic instead of returning
+    // the recoverable `EndpointAlreadyRunning` error that `start` raises.
+    if endpoint.is_running() {
+        return Err(PeerStorageError::EndpointAlreadyRunning);
+    }
+
     // Store AppHandle so the accept loop can use android_fs for Content URI shares
     endpoint.set_app_handle(app.clone()).await;
 
