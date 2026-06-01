@@ -321,6 +321,11 @@ pub async fn peer_storage_start(
                     db: db_conn,
                     hlc: std::sync::Arc::new(std::sync::Mutex::new(hlc_clone)),
                     app_handle: app.clone(),
+                    own_endpoint_id: own_endpoint_id.clone(),
+                    own_identity: std::sync::Arc::new(std::sync::Mutex::new(None)),
+                    endpoint_dids: std::sync::Arc::new(
+                        tokio::sync::RwLock::new(std::collections::HashMap::new()),
+                    ),
                 },
             );
             endpoint.set_delivery_handler(handler).await;

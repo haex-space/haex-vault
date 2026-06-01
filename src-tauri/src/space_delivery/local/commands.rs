@@ -49,13 +49,17 @@ pub async fn local_delivery_start(
     // Register handler only once — it holds the same Arc as leader_state map
     if is_first {
         let hlc_clone = state.hlc.lock().map_err(|_| "HLC lock poisoned".to_string())?.clone();
+        let endpoint = state.peer_storage.read().await;
+        let own_endpoint_id = endpoint.endpoint_id().to_string();
         let handler = Arc::new(MultiSpaceLeaderHandler {
             leaders: state.leader_state.clone(),
             db: DbConnection(state.db.0.clone()),
             hlc: Arc::new(std::sync::Mutex::new(hlc_clone)),
             app_handle: app,
+            own_endpoint_id,
+            own_identity: Arc::new(std::sync::Mutex::new(None)),
+            endpoint_dids: Arc::new(RwLock::new(HashMap::new())),
         });
-        let endpoint = state.peer_storage.read().await;
         endpoint.set_delivery_handler(handler).await;
     }
 

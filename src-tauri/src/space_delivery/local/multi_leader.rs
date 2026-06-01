@@ -6,13 +6,13 @@
 //! to the appropriate LeaderState by space_id.
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use tauri::AppHandle;
 
 use crate::crdt::hlc::HlcService;
 use crate::database::DbConnection;
-use crate::peer_storage::endpoint::DeliveryConnectionHandler;
+use crate::peer_storage::endpoint::{DeliveryConnectionHandler, OwnIdentity};
 
 use super::error::DeliveryError;
 use super::leader::LeaderState;
@@ -29,8 +29,26 @@ const MAX_IDLE_HEARTBEATS: u32 = 6;
 pub struct MultiSpaceLeaderHandler {
     pub leaders: Arc<tokio::sync::RwLock<HashMap<String, Arc<LeaderState>>>>,
     pub db: DbConnection,
-    pub hlc: Arc<std::sync::Mutex<HlcService>>,
+    pub hlc: Arc<Mutex<HlcService>>,
     pub app_handle: AppHandle,
+    /// Iroh endpoint id of this vault's PeerEndpoint, captured at handler
+    /// construction. Used as `server_endpoint_id` in the quic_did_auth
+    /// handshake initiated on every incoming delivery connection.
+    pub own_endpoint_id: String,
+    /// Server-side handshake precondition: the vault must have a configured
+    /// device identity (`haex_devices.owner_did` + corresponding private key)
+    /// before accepting delivery connections. Mirrors the same invariant on
+    /// `PeerEndpoint::own_identity` — declining to answer when half-configured
+    /// catches the "identity row missing for the active endpoint" failure
+    /// mode early instead of letting a peer hit a confusing UCAN-audience
+    /// mismatch downstream.
+    pub own_identity: Arc<Mutex<Option<OwnIdentity>>>,
+    /// Cryptographically verified DID per connected remote endpoint id,
+    /// populated by the quic_did_auth handshake at connection-accept time.
+    /// Read by request handlers to gate UCAN audience checks against the
+    /// connection-bound DID rather than the request-payload `did` field.
+    /// Cleared when the connection closes.
+    pub endpoint_dids: Arc<tokio::sync::RwLock<HashMap<String, String>>>,
 }
 
 impl DeliveryConnectionHandler for MultiSpaceLeaderHandler {
@@ -43,6 +61,16 @@ impl DeliveryConnectionHandler for MultiSpaceLeaderHandler {
 }
 
 impl MultiSpaceLeaderHandler {
+    /// Install the device identity used by the quic_did_auth handshake.
+    /// Symmetric with `PeerEndpoint::set_own_identity`: must be set before
+    /// the first delivery connection is accepted, otherwise the handshake
+    /// precondition check closes the connection.
+    pub fn set_own_identity(&self, identity: OwnIdentity) {
+        if let Ok(mut slot) = self.own_identity.lock() {
+            *slot = Some(identity);
+        }
+    }
+
     async fn handle_connection_inner(&self, conn: iroh::endpoint::Connection) {
         let remote = conn.remote_id();
         let remote_str = remote.to_string();
