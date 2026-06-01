@@ -44,15 +44,26 @@ pub fn handle_push_invite(
     inviter_relay_url: Option<&str>,
     verified_did: &str,
 ) -> Response {
-    // C8 will reject the request when `inviter_did != verified_did` (spoofed
-    // sender). For C4 we only plumb the value through — keeping the wiring
-    // step bisect-isolated from the policy check.
-    let _ = verified_did;
-
     let token_fp = token_fingerprint(token_id);
     logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
         "Received invite for space {space_id} ({space_name}) from {inviter_did}, token={token_fp}"
     ));
+
+    // Reject spoofed inviters: the payload `inviter_did` must equal the
+    // connection-bound DID established by the quic_did_auth handshake.
+    // Without this gate any outsider can push an invite carrying somebody
+    // else's DID as the inviter, leading the invitee's UI to render a
+    // forged "you have an invite from Alice" prompt (plan §4.2 scenario 5).
+    if inviter_did != verified_did {
+        logging::log_to_db(db, hlc, "warn", LOG_SOURCE, &format!(
+            "REJECTED: inviter_did spoofed (payload={} verified={})",
+            &inviter_did[..24.min(inviter_did.len())],
+            &verified_did[..24.min(verified_did.len())],
+        ));
+        return Response::Error {
+            message: "Inviter DID does not match the authenticated peer DID".to_string(),
+        };
+    }
 
     // 1. Validate capabilities — reject if empty or containing unknown values
     if capabilities.is_empty() {
