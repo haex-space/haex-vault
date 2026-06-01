@@ -134,6 +134,12 @@ where
     send.write_all(&json)
         .await
         .map_err(|e| ChallengeError::WireProtocol(e.to_string()))?;
+    // Flush so a small handshake message (~200 bytes) is actually pushed
+    // through iroh's QUIC send buffer — without this the peer's read_exact
+    // blocks until the connection idles or another byte is written.
+    send.flush()
+        .await
+        .map_err(|e| ChallengeError::WireProtocol(e.to_string()))?;
     Ok(())
 }
 
