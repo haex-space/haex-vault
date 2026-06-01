@@ -1375,3 +1375,122 @@ mod audience_check_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod claim_invite_did_binding_tests {
+    //! Red regression for the ClaimInvite DID-spoofing vector (Phase 2 of
+    //! `docs/plans/2026-06-01-quic-did-auth-primitiv.md`).
+    //!
+    //! ## The bug these guards lock down
+    //!
+    //! Today `handle_claim_invite` lifts the claimant's DID directly from
+    //! the request payload (`Request::ClaimInvite { did, .. }`) and passes
+    //! it to `invite_tokens::validate_invite` as `claimer_did`. The
+    //! iroh-QUIC connection only binds the remote `endpoint_id`; nothing
+    //! ties the claimant's payload-`did` to the connection cryptographically.
+    //! Per §1.2/§4.2 of the plan, this enables two distinct attacks:
+    //!
+    //! - **Targeted-Invite spoofing (§4.2 scenario 1):** a token has
+    //!   `target_did = Alice`; any peer who knows the token can send
+    //!   `ClaimInvite { did: "Alice", … }` from their own endpoint and
+    //!   becomes "Alice" inside the MLS group.
+    //! - **Public-Invite identity spoofing (§4.2 scenario 2):** a token
+    //!   has `target_did = None`; any peer can pick a fresh DID (or borrow
+    //!   a known one) and have a UCAN minted for that DID.
+    //!
+    //! `invite_tokens::validate_invite` itself is fine — it correctly
+    //! rejects `claimer_did` ≠ `target_did`. The vulnerability is the
+    //! *call site*: it has no way to know the connection-verified DID
+    //! until the Phase 2 wiring lands.
+    //!
+    //! ## Why source-text assertions, not full behavioural tests
+    //!
+    //! Same reason `audience_check_tests` above is source-text-only:
+    //! `handle_claim_invite` requires `&LeaderState`, which needs an
+    //! `iroh::Endpoint`, an MLS provider, a tokio runtime, and a SQLite
+    //! schema with HLC triggers — building all that for a unit test
+    //! costs more than these assertions buy us. Real behavioural T5+T6
+    //! cases (per §4.4) live in the `haex-e2e-tests` companion PR
+    //! (`invitations/targeted-invite-did-mismatch`,
+    //! `invitations/public-invite-foreign-did`).
+    //!
+    //! ## TDD discipline
+    //!
+    //! These tests are `#[ignore]`d while the rest of the Phase 2 commits
+    //! land in sequence so the suite stays green on every commit — the
+    //! `#[ignore]` attribute is removed in commit C5
+    //! (`feat(space_delivery): bind ClaimInvite to verified DID`) which
+    //! is also the commit that makes them pass.
+
+    /// T5 (positive): the connection-verified DID flows into
+    /// `handle_claim_invite`. Without a `verified_did` parameter the call
+    /// site has nothing but the payload `did` to validate against — which
+    /// is exactly the bug.
+    #[test]
+    #[ignore = "Red regression — unignore in C5 after handle_claim_invite uses verified_did"]
+    fn handle_claim_invite_takes_verified_did_parameter() {
+        let source = include_str!("leader.rs");
+        let production = source
+            .split_once("#[cfg(test)]")
+            .map(|(p, _)| p)
+            .unwrap_or(source);
+
+        assert!(
+            production.contains("pub async fn handle_claim_invite(")
+                && production.contains("verified_did: &str"),
+            "handle_claim_invite must accept the connection-verified DID as \
+             a parameter so the claim is gated by the cryptographically \
+             bound peer identity rather than the client-supplied payload \
+             `did` field. See plan §4.2 scenarios 1+2."
+        );
+    }
+
+    /// T6 (negative): `validate_invite` must be invoked with the
+    /// connection-verified DID, not with the payload `did` field. The
+    /// guard pins the exact argument used at the call site — without it,
+    /// any peer can spoof `Request::ClaimInvite::did` and pass a token
+    /// validation gated only on a string match against `target_did`.
+    #[test]
+    #[ignore = "Red regression — unignore in C5 after handle_claim_invite uses verified_did"]
+    fn handle_claim_invite_validates_against_verified_did_not_payload_did() {
+        let source = include_str!("leader.rs");
+        let production = source
+            .split_once("#[cfg(test)]")
+            .map(|(p, _)| p)
+            .unwrap_or(source);
+
+        // The validate_invite call sits inside handle_claim_invite. After
+        // the C5 fix the fourth positional argument (`claimer_did`) is
+        // sourced from the connection-bound `verified_did`, never from
+        // the request payload.
+        let bytes = production.as_bytes();
+        let call_marker = b"invite_tokens::validate_invite(";
+        let mut found_correct = false;
+        let mut idx = 0;
+        while let Some(pos) = bytes
+            .windows(call_marker.len())
+            .skip(idx)
+            .position(|w| w == call_marker)
+        {
+            let abs = idx + pos;
+            idx = abs + call_marker.len();
+            // Scan the next ~400 bytes — enough for the multiline call
+            // expression to include the claimer argument.
+            let end = (abs + 400).min(bytes.len());
+            let window = std::str::from_utf8(&bytes[abs..end]).unwrap_or("");
+            if window.contains("verified_did") && !window.contains("&did,\n") {
+                found_correct = true;
+                break;
+            }
+        }
+
+        assert!(
+            found_correct,
+            "invite_tokens::validate_invite(…) inside handle_claim_invite must \
+             pass `verified_did` (the connection-bound DID), not the payload \
+             `did` field. Today the call site uses `&did` (payload-supplied), \
+             which lets a peer claim any token by spoofing the `did` field. \
+             See plan §4.2 scenarios 1+2 and §5.5 commit 5."
+        );
+    }
+}
