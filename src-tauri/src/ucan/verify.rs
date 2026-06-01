@@ -235,7 +235,7 @@ pub fn require_capability(
 /// Extract an Ed25519 `VerifyingKey` from a `did:key:z6Mk...` DID.
 ///
 /// Format: `did:key:z` + base58btc( 0xed01 + 32-byte-pubkey )
-fn public_key_from_did(did: &str) -> Result<VerifyingKey, UcanVerifyError> {
+pub fn public_key_from_did(did: &str) -> Result<VerifyingKey, UcanVerifyError> {
     let multibase_key = did
         .strip_prefix("did:key:")
         .ok_or_else(|| UcanVerifyError::MalformedToken("DID must start with did:key:".into()))?;
