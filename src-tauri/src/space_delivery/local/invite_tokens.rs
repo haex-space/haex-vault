@@ -405,3 +405,107 @@ fn update_token_usage(
     })?;
     Ok(())
 }
+
+#[cfg(test)]
+mod target_did_anti_manipulation_tests {
+    //! Freeze the Phase-2 anti-manipulation invariant for `target_did`
+    //! (plan §4.3, test T10).
+    //!
+    //! ## The invariant
+    //!
+    //! The `target_did` value that gates a ClaimInvite is read **only** from
+    //! the in-memory `invite_tokens` cache or from `haex_invite_tokens` (the
+    //! CRDT-synced DB row created by the inviter). It is **never** taken
+    //! from a request payload, never from a link-payload hint, and never
+    //! from any CRDT push that has not been authored under the leader's
+    //! UCAN.
+    //!
+    //! A future refactor that accidentally accepts a `target_did` parameter
+    //! at the validation surface — or that derives `target_did` from a
+    //! `LocalInviteToken` instance produced by the caller — would silently
+    //! re-open the entire ClaimInvite spoofing surface that C5 closed. The
+    //! source-text guards below lock the calling convention in place.
+    //!
+    //! ## Why source-text, not behavioural
+    //!
+    //! `validate_invite` requires an `Arc<RwLock<Vec<LocalInviteToken>>>`
+    //! and a `DbConnection`; a behavioural test of "this function never
+    //! consults a parameter target_did" is moot when the function does not
+    //! take such a parameter to begin with — the invariant is structural.
+    //! End-to-end T10 (Targeted-Invite where a link-hint disagrees with the
+    //! DB token) lives in the haex-e2e-tests companion as
+    //! `invitations/targeted-invite-did-mismatch`.
+
+    /// `validate_invite` must read its `target_did` from the token row, not
+    /// from a caller-supplied parameter. The function takes `claimer_did`
+    /// (the DID that wants to claim, gated upstream by the Phase-2
+    /// quic_did_auth handshake) — the `target_did` comparison must happen
+    /// against the loaded `LocalInviteToken::target_did` via `can_claim`.
+    /// Any signature change that introduces a `target_did` parameter on the
+    /// validation surface trips this guard.
+    #[test]
+    fn validate_invite_does_not_accept_target_did_parameter() {
+        let source = include_str!("invite_tokens.rs");
+        let production = source
+            .split_once("#[cfg(test)]")
+            .map(|(p, _)| p)
+            .unwrap_or(source);
+
+        // Isolate the validate_invite parameter list (between the opening
+        // paren of `pub async fn validate_invite(` and the closing paren).
+        // The check is intentionally scoped to this function: token-creation
+        // helpers like `create_contact_invite_token` do legitimately take a
+        // `target_did: &str` parameter — that is the inviter choosing the
+        // claimant — and must not collide with the validation surface guard.
+        let after_sig = production
+            .split_once("pub async fn validate_invite(")
+            .expect("validate_invite signature missing")
+            .1;
+        let params = after_sig
+            .split_once(") -> Result")
+            .expect("validate_invite return-type missing")
+            .0;
+
+        assert!(
+            params.contains("claimer_did: &str,"),
+            "validate_invite must accept the claimer DID (gated by Phase-2 \
+             handshake) as a parameter"
+        );
+        assert!(
+            !params.contains("target_did"),
+            "validate_invite must NOT take a target_did parameter in any \
+             shape — target DID is authoritative from haex_invite_tokens, \
+             never from a caller-supplied value (plan §4.3). Params seen: \
+             {params}"
+        );
+    }
+
+    /// The claim-side comparison must run against the persisted token row,
+    /// not against caller-supplied data. `can_claim` is the only place that
+    /// dereferences `self.target_did`; removing the `can_claim` invocation
+    /// from `validate_invite` would silently accept every claim regardless
+    /// of `target_did`.
+    #[test]
+    fn validate_invite_gates_target_did_via_loaded_token_can_claim() {
+        let source = include_str!("invite_tokens.rs");
+        let production = source
+            .split_once("#[cfg(test)]")
+            .map(|(p, _)| p)
+            .unwrap_or(source);
+
+        assert!(
+            production.contains("token.can_claim(claimer_did)"),
+            "validate_invite must gate the claim through \
+             `token.can_claim(claimer_did)` so target_did comes from the \
+             loaded haex_invite_tokens row, not from any caller-supplied \
+             value"
+        );
+        assert!(
+            production
+                .contains("self.target_did.as_ref().map_or(true, |t| t == did)"),
+            "LocalInviteToken::can_claim must compare claimer DID against \
+             the row's own target_did field — the entire authoritative \
+             chain hinges on this exact comparison"
+        );
+    }
+}
