@@ -30,7 +30,7 @@
     "android:build": "pnpm android:init && tauri android build"
   },
   "dependencies": {
-    "@choochmeque/tauri-plugin-biometry-api": "^0.2.6",
+    "@choochmeque/tauri-plugin-biometry-api": "^0.2.8",
     "@dicebear/bottts": "^9.4.2",
     "@dicebear/core": "^9.4.2",
     "@dicebear/toon-head": "^9.4.2",
