@@ -201,27 +201,31 @@ pub async fn handle_claim_invite(
     request: Request,
     verified_did: &str,
 ) -> Response {
-    // Suppress the dead-code warning until C5 actually consumes verified_did
-    // to gate the token validation. Plumbing it through here in C4 keeps the
-    // wiring step (and the bisect window for any wire regression) small.
-    let _ = verified_did;
-
-    let (space_id, token, did, endpoint_id, key_packages, label, public_key) = match request {
-        Request::ClaimInvite {
-            space_id,
-            token,
-            did,
-            endpoint_id,
-            key_packages,
-            label,
-            public_key,
-        } => (space_id, token, did, endpoint_id, key_packages, label, public_key),
-        _ => {
-            return Response::Error {
-                message: "Expected ClaimInvite request".to_string(),
+    let (space_id, token, _payload_did_ignored, endpoint_id, key_packages, label, public_key) =
+        match request {
+            Request::ClaimInvite {
+                space_id,
+                token,
+                did,
+                endpoint_id,
+                key_packages,
+                label,
+                public_key,
+            } => (space_id, token, did, endpoint_id, key_packages, label, public_key),
+            _ => {
+                return Response::Error {
+                    message: "Expected ClaimInvite request".to_string(),
+                }
             }
-        }
-    };
+        };
+
+    // The connection-bound DID from the quic_did_auth handshake is the only
+    // identity we trust for this claim — the payload `did` is ignored (and
+    // dropped from the wire format in C10). Without this binding any peer
+    // that knows the token can claim it under an arbitrary DID; with it the
+    // claim is gated on possession of the private key for `verified_did`.
+    // See plan §4.2 scenarios 1+2.
+    let did: String = verified_did.to_string();
 
     debug_assert_eq!(space_id, state.space_id, "ClaimInvite routed to wrong leader");
 
@@ -259,7 +263,7 @@ pub async fn handle_claim_invite(
             &state.db,
             &state.invite_tokens,
             &token,
-            &did,
+            verified_did,
         )
         .await
         {
@@ -1443,7 +1447,6 @@ mod claim_invite_did_binding_tests {
     /// site has nothing but the payload `did` to validate against — which
     /// is exactly the bug.
     #[test]
-    #[ignore = "Red regression — unignore in C5 after handle_claim_invite uses verified_did"]
     fn handle_claim_invite_takes_verified_did_parameter() {
         let source = include_str!("leader.rs");
         let production = source
@@ -1467,7 +1470,6 @@ mod claim_invite_did_binding_tests {
     /// any peer can spoof `Request::ClaimInvite::did` and pass a token
     /// validation gated only on a string match against `target_did`.
     #[test]
-    #[ignore = "Red regression — unignore in C5 after handle_claim_invite uses verified_did"]
     fn handle_claim_invite_validates_against_verified_did_not_payload_did() {
         let source = include_str!("leader.rs");
         let production = source
