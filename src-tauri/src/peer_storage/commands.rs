@@ -150,27 +150,36 @@ fn load_peer_owner_dids(
     let rows = crate::database::core::select_with_crdt(sql, params, &state.db)
         .map_err(|e| PeerStorageError::Database { reason: e.to_string() })?;
 
-    let mut map: HashMap<String, String> = HashMap::new();
+    // Two passes: first gather every distinct (endpoint_id, owner_did)
+    // pair, then accept only endpoint_ids that map to exactly one DID.
+    // A single-pass loop that removed on conflict would silently let a
+    // later row reinstate a conflicted endpoint, making acceptance depend
+    // on SQL row order.
+    use std::collections::HashSet as StdHashSet;
+    let mut candidates: HashMap<String, StdHashSet<String>> = HashMap::new();
     for row in &rows {
         let endpoint_id = row.first().and_then(|v| v.as_str()).unwrap_or_default().to_string();
         let owner_did = row.get(1).and_then(|v| v.as_str()).unwrap_or_default().to_string();
         if endpoint_id.is_empty() || owner_did.is_empty() {
             continue;
         }
-        // If a peer surfaces under conflicting owner DIDs we cannot pick a
-        // side safely — drop the entry so handle_connection rejects rather
-        // than admitting one of two possibly-wrong DIDs.
-        match map.get(&endpoint_id) {
-            Some(existing) if existing != &owner_did => {
-                eprintln!(
-                    "[PeerStorage] Ambiguous owner_did for endpoint_id {endpoint_id}: \
-                     {existing} vs {owner_did} — dropping from peer_owner_dids map"
-                );
-                map.remove(&endpoint_id);
-            }
-            _ => {
-                map.insert(endpoint_id, owner_did);
-            }
+        candidates.entry(endpoint_id).or_default().insert(owner_did);
+    }
+
+    let mut map: HashMap<String, String> = HashMap::new();
+    for (endpoint_id, dids) in candidates {
+        if dids.len() == 1 {
+            // Safe to use .next().unwrap() — len == 1 guarantees one element.
+            map.insert(endpoint_id, dids.into_iter().next().unwrap());
+        } else {
+            // Multiple distinct owner_dids for the same endpoint_id: cannot
+            // pick a side safely. Drop permanently so handle_connection
+            // rejects rather than admit an arbitrary one.
+            let did_list: Vec<String> = dids.into_iter().collect();
+            eprintln!(
+                "[PeerStorage] Ambiguous owner_did for endpoint_id {endpoint_id}: \
+                 {did_list:?} — dropping from peer_owner_dids map"
+            );
         }
     }
     Ok(map)
