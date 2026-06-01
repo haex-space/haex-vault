@@ -61,19 +61,6 @@ fn base64_decode(s: &str) -> Result<Vec<u8>, String> {
     BASE64.decode(s).map_err(|e| format!("base64 decode error: {e}"))
 }
 
-/// Look up the DID for a connected peer, returning an error Response on failure.
-async fn require_peer_did(state: &LeaderState, endpoint_id: &str) -> Result<String, Response> {
-    state
-        .connected_peers
-        .read()
-        .await
-        .get(endpoint_id)
-        .map(|p| p.did.clone())
-        .ok_or_else(|| Response::Error {
-            message: "Peer has not announced".to_string(),
-        })
-}
-
 /// Validate a UCAN token carried in a space-delivery request and return a
 /// structured Error response on any failure. This is the first gate for
 /// sync-level operations — signature, expiry, structure all checked here.
@@ -742,10 +729,7 @@ pub(super) async fn handle_delivery_request(
             space_id,
             packages,
         } => {
-            let did = match require_peer_did(state, peer_endpoint_id).await {
-                Ok(did) => did,
-                Err(resp) => return resp,
-            };
+            let did = verified_did.to_string();
             for pkg_b64 in &packages {
                 if let Ok(blob) = base64_decode(pkg_b64) {
                     let _ = buffer::store_key_package(&state.db, &space_id, &did, &blob);
@@ -784,10 +768,7 @@ pub(super) async fn handle_delivery_request(
             message,
             message_type,
         } => {
-            let did = match require_peer_did(state, peer_endpoint_id).await {
-                Ok(did) => did,
-                Err(resp) => return resp,
-            };
+            let did = verified_did.to_string();
             match base64_decode(&message) {
                 Ok(blob) => {
                     match buffer::store_message(&state.db, &space_id, &did, &message_type, &blob) {
@@ -860,10 +841,7 @@ pub(super) async fn handle_delivery_request(
         }
 
         Request::MlsFetchWelcomes { space_id } => {
-            let did = match require_peer_did(state, peer_endpoint_id).await {
-                Ok(did) => did,
-                Err(resp) => return resp,
-            };
+            let did = verified_did.to_string();
             match buffer::fetch_welcomes(&state.db, &space_id, &did) {
                 Ok(entries) => {
                     let encoded: Vec<String> = entries.iter().map(|(_, blob)| base64_encode(blob)).collect();
@@ -890,6 +868,24 @@ pub(super) async fn handle_delivery_request(
                 Ok(v) => v,
                 Err(r) => return r,
             };
+
+            // Layer-0: UCAN audience must match the connection-bound DID.
+            // Without this gate a peer with a valid SyncPush capability for
+            // someone *else*'s DID (snooped or replayed UCAN) could push
+            // arbitrary CRDT rows attributed to that DID. Analog
+            // peer_storage::handle_stream Layer-1.25.
+            if let Err(e) = crate::ucan::require_audience(&validated, verified_did) {
+                crate::logging::log_to_db(
+                    &state.db, &state.hlc, "warn", "SyncPush",
+                    &format!("audience mismatch: space={} aud={} verified={}",
+                        &space_id[..8.min(space_id.len())],
+                        &validated.audience[..24.min(validated.audience.len())],
+                        &verified_did[..24.min(verified_did.len())]),
+                );
+                return Response::Error {
+                    message: format!("Access denied: {e}"),
+                };
+            }
 
             // Parse changes JSON into Vec<LocalColumnChange>
             let local_changes: Vec<LocalColumnChange> = match serde_json::from_value(changes) {
@@ -1010,10 +1006,7 @@ pub(super) async fn handle_delivery_request(
                     return r;
                 }
             };
-            let peer_did = match require_peer_did(state, peer_endpoint_id).await {
-                Ok(did) => did,
-                Err(resp) => return resp,
-            };
+            let peer_did = verified_did.to_string();
             if let Err(r) = require_ucan_capability(
                 &validated,
                 &space_id,
@@ -1128,10 +1121,7 @@ pub(super) async fn handle_delivery_request(
             space_id,
             message_ids,
         } => {
-            let did = match require_peer_did(state, peer_endpoint_id).await {
-                Ok(did) => did,
-                Err(resp) => return resp,
-            };
+            let did = verified_did.to_string();
 
             match buffer::ack_commits(&state.db, &space_id, &did, &message_ids) {
                 Ok(fully_acked) => {
@@ -1158,10 +1148,7 @@ pub(super) async fn handle_delivery_request(
                 Ok(v) => v,
                 Err(r) => return r,
             };
-            let peer_did = match require_peer_did(state, peer_endpoint_id).await {
-                Ok(did) => did,
-                Err(resp) => return resp,
-            };
+            let peer_did = verified_did.to_string();
             if let Err(r) = require_ucan_capability(
                 &validated,
                 &space_id,
@@ -1198,10 +1185,7 @@ pub(super) async fn handle_delivery_request(
                 Ok(v) => v,
                 Err(r) => return r,
             };
-            let peer_did = match require_peer_did(state, peer_endpoint_id).await {
-                Ok(did) => did,
-                Err(resp) => return resp,
-            };
+            let peer_did = verified_did.to_string();
             if let Err(r) = require_ucan_capability(
                 &validated,
                 &space_id,
@@ -1274,10 +1258,7 @@ pub(super) async fn handle_delivery_request(
         }
 
         Request::MlsKeyPackageCount { space_id } => {
-            let did = match require_peer_did(state, peer_endpoint_id).await {
-                Ok(did) => did,
-                Err(resp) => return resp,
-            };
+            let did = verified_did.to_string();
             match buffer::count_key_packages_for_did(&state.db, &space_id, &did) {
                 Ok(available) => {
                     let needed = TARGET_KEY_PACKAGES_PER_PEER.saturating_sub(available);
@@ -1351,12 +1332,13 @@ mod audience_check_tests {
     }
 
     /// Every UCAN-gated request handler must source `peer_did` from the
-    /// QUIC-authenticated channel (`require_peer_did(state, …)` or the
-    /// Announce-payload `did`) and pass it to `require_ucan_capability`.
-    /// Six call sites today: Announce + SyncPull + RequestRejoin +
-    /// SubmitExternalCommit (audience-checked) plus the MlsUpload /
-    /// MlsSend paths that only need `require_peer_did` for the message
-    /// envelope.
+    /// connection-bound `verified_did` of the quic_did_auth handshake (Phase
+    /// 2, see plan §4.1). Prior to Phase 2 the DID was looked up from the
+    /// `connected_peers` map populated by Announce — that worked only when
+    /// every handler ran after Announce and effectively meant "trust whatever
+    /// Announce claimed", which is itself unsafe before the handshake binds
+    /// the DID. After C7 every handler binds directly via
+    /// `verified_did.to_string()`.
     #[test]
     fn every_require_ucan_capability_call_passes_a_peer_did() {
         let source = include_str!("leader.rs");
@@ -1365,9 +1347,6 @@ mod audience_check_tests {
             .map(|(p, _)| p)
             .unwrap_or(source);
 
-        // A correct call site looks like `require_ucan_capability(\n  &validated,\n  &space_id,\n  CapabilityLevel::Read,\n  &<peer_did>,\n  …`.
-        // Approximate that by counting calls and required positional
-        // markers separately.
         let total_calls = production.matches("require_ucan_capability(").count();
         // The fn definition itself contains one occurrence; production
         // call sites are the remainder.
@@ -1380,19 +1359,30 @@ mod audience_check_tests {
             call_sites
         );
 
-        // Each call site must reference a peer_did binding immediately
-        // above it. require_peer_did is the canonical source; Announce
-        // uses the request's own `did` field. Either way the binding
-        // appears nearby — and our four edited call sites now reference
-        // exactly one of the two patterns.
-        let peer_did_lookups = production
+        // Every handler that needs a DID for capability/buffer keys/audit
+        // logs now derives it from the connection-bound verified_did. The
+        // legacy `require_peer_did(state, peer_endpoint_id)` lookup against
+        // `connected_peers` is gone — keeping it would defeat the Phase 2
+        // promise that handlers no longer depend on Announce having run
+        // first.
+        let legacy_lookups = production
             .matches("require_peer_did(state, peer_endpoint_id)")
             .count();
+        assert_eq!(
+            legacy_lookups, 0,
+            "no production handler should look up the peer DID via \
+             require_peer_did any more — it must come from verified_did. \
+             Found {legacy_lookups} legacy call sites."
+        );
+
+        let verified_bindings = production
+            .matches("verified_did.to_string()")
+            .count();
         assert!(
-            peer_did_lookups >= 3,
-            "expected at least 3 require_peer_did(…) lookups feeding \
-             require_ucan_capability call sites; found {}",
-            peer_did_lookups
+            verified_bindings >= 4,
+            "expected at least 4 `verified_did.to_string()` bindings inside \
+             request handlers (covering MLS request envelope DIDs + the \
+             three UCAN-audience-checked handlers); found {verified_bindings}"
         );
     }
 }
