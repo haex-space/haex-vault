@@ -37,27 +37,34 @@ pub struct Response {
 
 /// Build the signature input for the handshake.
 ///
-/// Layout: `DOMAIN_TAG || 0x00 || nonce || 0x00 || client_endpoint_id || 0x00 || server_endpoint_id`.
+/// Layout: `DOMAIN_TAG || len(nonce) || nonce || len(client_ep) || client_ep || len(server_ep) || server_ep`,
+/// where every `len` is a big-endian `u32`.
 ///
-/// The `0x00` separators close the length-extension hole between the three
-/// variable-length string fields — without them, an attacker who could
-/// influence two adjacent fields could shift bytes across the boundary and
-/// keep the signature valid.
+/// Length-prefixing every variable-length field is the only encoding that
+/// guarantees collision-freeness regardless of what bytes the fields contain.
+/// A previous version used `0x00` separators, which collides when any field
+/// can carry an embedded NUL: `("a\0b", "c")` and `("a", "b\0c")` serialise
+/// to the same bytes once concatenated through the separator scheme.
+/// iroh endpoint ids are hex today so NUL bytes never appear in practice,
+/// but the client controls the `client_endpoint_id` string carried in the
+/// Response — defense in depth means we don't rely on that invariant.
 pub fn build_sig_input(
     nonce: &[u8],
     client_endpoint_id: &str,
     server_endpoint_id: &str,
 ) -> Vec<u8> {
+    let client_bytes = client_endpoint_id.as_bytes();
+    let server_bytes = server_endpoint_id.as_bytes();
     let mut buf = Vec::with_capacity(
-        DOMAIN_TAG.len() + 1 + nonce.len() + 1 + client_endpoint_id.len() + 1 + server_endpoint_id.len(),
+        DOMAIN_TAG.len() + 4 + nonce.len() + 4 + client_bytes.len() + 4 + server_bytes.len(),
     );
     buf.extend_from_slice(DOMAIN_TAG);
-    buf.push(0x00);
+    buf.extend_from_slice(&(nonce.len() as u32).to_be_bytes());
     buf.extend_from_slice(nonce);
-    buf.push(0x00);
-    buf.extend_from_slice(client_endpoint_id.as_bytes());
-    buf.push(0x00);
-    buf.extend_from_slice(server_endpoint_id.as_bytes());
+    buf.extend_from_slice(&(client_bytes.len() as u32).to_be_bytes());
+    buf.extend_from_slice(client_bytes);
+    buf.extend_from_slice(&(server_bytes.len() as u32).to_be_bytes());
+    buf.extend_from_slice(server_bytes);
     buf
 }
 
@@ -73,11 +80,40 @@ mod tests {
     }
 
     #[test]
-    fn sig_input_separator_prevents_field_collision() {
-        // "ab" || "" and "a" || "b" would collide without separators.
+    fn sig_input_length_prefix_prevents_field_boundary_collision() {
+        // Two splits of the same concatenation must produce different
+        // sig-inputs under length-prefixing.
         let a = build_sig_input(&[0xAA], "ab", "cd");
         let b = build_sig_input(&[0xAA], "a", "bcd");
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn sig_input_length_prefix_prevents_nul_byte_collision() {
+        // Critical for defense in depth: embedded NUL in one string field
+        // must not let an attacker shift bytes across the field boundary
+        // and reuse a signature. Under the old 0x00-separator encoding,
+        // ("a\0b", "c") and ("a", "b\0c") collided; length-prefixing
+        // makes them distinct.
+        let a = build_sig_input(&[0xAA], "a\0b", "c");
+        let b = build_sig_input(&[0xAA], "a", "b\0c");
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn sig_input_lengths_match_concrete_layout() {
+        // Lock in the exact wire layout so a future "just refactor the
+        // builder" change cannot silently break compatibility.
+        let got = build_sig_input(&[0x11, 0x22], "ab", "cde");
+        let mut expected = Vec::new();
+        expected.extend_from_slice(DOMAIN_TAG);
+        expected.extend_from_slice(&2u32.to_be_bytes());
+        expected.extend_from_slice(&[0x11, 0x22]);
+        expected.extend_from_slice(&2u32.to_be_bytes());
+        expected.extend_from_slice(b"ab");
+        expected.extend_from_slice(&3u32.to_be_bytes());
+        expected.extend_from_slice(b"cde");
+        assert_eq!(got, expected);
     }
 
     #[test]
