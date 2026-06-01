@@ -670,10 +670,13 @@ pub async fn local_delivery_claim_invite(
 
     // Encode once outside the retry loop — the request bytes are identical
     // across attempts, including the (expensively-generated) KeyPackages.
+    //
+    // The claimant DID is no longer carried on the wire — the leader reads it
+    // from the quic_did_auth handshake state for this connection (the same
+    // signing key used by `complete_client_did_auth` below).
     let req = Request::ClaimInvite {
         space_id: space_id.clone(),
         token: token_id.clone(),
-        did: identity_did.clone(),
         endpoint_id: our_endpoint_id,
         key_packages: key_packages_b64,
         label,

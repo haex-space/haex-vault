@@ -188,30 +188,27 @@ pub async fn handle_claim_invite(
     request: Request,
     verified_did: &str,
 ) -> Response {
-    let (space_id, token, _payload_did_ignored, endpoint_id, key_packages, label, public_key) =
-        match request {
-            Request::ClaimInvite {
-                space_id,
-                token,
-                did,
-                endpoint_id,
-                key_packages,
-                label,
-                public_key,
-            } => (space_id, token, did, endpoint_id, key_packages, label, public_key),
-            _ => {
-                return Response::Error {
-                    message: "Expected ClaimInvite request".to_string(),
-                }
+    let (space_id, token, endpoint_id, key_packages, label, public_key) = match request {
+        Request::ClaimInvite {
+            space_id,
+            token,
+            endpoint_id,
+            key_packages,
+            label,
+            public_key,
+        } => (space_id, token, endpoint_id, key_packages, label, public_key),
+        _ => {
+            return Response::Error {
+                message: "Expected ClaimInvite request".to_string(),
             }
-        };
+        }
+    };
 
     // The connection-bound DID from the quic_did_auth handshake is the only
-    // identity we trust for this claim — the payload `did` is ignored (and
-    // dropped from the wire format in C10). Without this binding any peer
-    // that knows the token can claim it under an arbitrary DID; with it the
-    // claim is gated on possession of the private key for `verified_did`.
-    // See plan §4.2 scenarios 1+2.
+    // identity we trust for this claim. Carrying a `did` in the payload was
+    // a trust hazard (plan §4.2 scenarios 1 + 2) — the field is dropped
+    // from the wire format in this commit; all downstream code uses the
+    // cryptographically authenticated `verified_did` instead.
     let did: String = verified_did.to_string();
 
     debug_assert_eq!(space_id, state.space_id, "ClaimInvite routed to wrong leader");
@@ -613,7 +610,6 @@ pub(super) async fn handle_delivery_request(
 ) -> Response {
     match request {
         Request::Announce {
-            did: _payload_did_ignored,
             endpoint_id,
             space_id,
             label,
@@ -622,9 +618,8 @@ pub(super) async fn handle_delivery_request(
         } => {
             // The connection-bound DID from the quic_did_auth handshake is
             // the only identity we trust for this announce. The payload `did`
-            // field (kept on the wire for one more commit, dropped in C10) is
-            // ignored — see plan §1.3 + §4.2 for the spoofing vector that
-            // bypassing this binding would re-enable.
+            // field has been removed from the wire in C10 — see plan §1.3 +
+            // §4.2 for the spoofing vector that carrying it would re-enable.
             let did: String = verified_did.to_string();
             // Announce is the first authenticated boundary of a peer session.
             // Anyone can open a QUIC stream with the ALPN and claim a DID, so

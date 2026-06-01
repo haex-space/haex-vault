@@ -108,8 +108,12 @@ pub enum Request {
     /// Announce identity to the leader (sent on connect).
     /// Requires UCAN with `space/read` capability (or higher) for the target space —
     /// the announce populates `haex_space_devices` which is space-scoped sync state.
+    ///
+    /// The peer's DID is no longer carried on the wire — it is established
+    /// cryptographically by the quic_did_auth handshake at connection-accept
+    /// time and bound to the connection. Carrying it in the payload was a
+    /// trust hazard (plan §1.3 / §4.2).
     Announce {
-        did: String,
         endpoint_id: String,
         space_id: String,
         label: Option<String>,
@@ -121,12 +125,15 @@ pub enum Request {
     // -- Invites --
     /// Claim an invite token. Invitee sends token + KeyPackages.
     /// Leader validates, creates UCAN, adds to MLS group, returns Welcome.
+    ///
+    /// The invitee's DID is no longer carried on the wire — it is bound by
+    /// the quic_did_auth handshake and read from the connection state. A
+    /// payload-supplied DID would let any peer with knowledge of the token
+    /// claim it under an arbitrary identity (plan §4.2 scenarios 1 + 2).
     ClaimInvite {
         space_id: String,
         /// The invite token ID
         token: String,
-        /// Invitee's DID
-        did: String,
         /// Invitee's endpoint ID
         endpoint_id: String,
         /// Base64-encoded MLS KeyPackages

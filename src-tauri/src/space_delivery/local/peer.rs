@@ -87,9 +87,10 @@ impl PeerSession {
 
         let session = Self { conn, ucan_token };
 
-        // Send Announce request
+        // Send Announce request. The DID is no longer carried on the wire —
+        // the leader reads it from the quic_did_auth handshake state for this
+        // connection.
         let req = Request::Announce {
-            did: our_did.to_string(),
             endpoint_id: our_endpoint_id.to_string(),
             space_id: space_id.to_string(),
             label: label.map(|s| s.to_string()),
