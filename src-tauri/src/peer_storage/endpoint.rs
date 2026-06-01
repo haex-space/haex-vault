@@ -203,9 +203,18 @@ impl PeerEndpoint {
     }
 
     /// Set the DID + signing key used by the quic_did_auth handshake.
-    /// Must be called before `start` for the handshake to succeed — without
-    /// it both outbound and inbound handshakes are rejected.
+    ///
+    /// Must be called before `start` — swapping the identity while the
+    /// endpoint is running would leave cached connections authenticated
+    /// against the *old* DID while new connections authenticate against the
+    /// new one, producing a single endpoint that effectively serves two
+    /// mixed identities. Panics in that case (programmer error, not a
+    /// recoverable runtime condition).
     pub fn set_own_identity(&self, identity: OwnIdentity) {
+        assert!(
+            self.endpoint.is_none(),
+            "set_own_identity must be called before start (endpoint is already running)"
+        );
         if let Ok(mut slot) = self.own_identity.lock() {
             *slot = Some(identity);
         }
