@@ -624,20 +624,21 @@ pub(super) async fn handle_delivery_request(
     peer_endpoint_id: &str,
     verified_did: &str,
 ) -> Response {
-    // Suppress the dead-code warning until commits C6/C7 actually consume
-    // verified_did to gate Announce binding and UCAN-audience checks. Plumbed
-    // through here in C4 so each subsequent binding step is a smaller diff.
-    let _ = verified_did;
-
     match request {
         Request::Announce {
-            did,
+            did: _payload_did_ignored,
             endpoint_id,
             space_id,
             label,
             claims,
             ucan_token,
         } => {
+            // The connection-bound DID from the quic_did_auth handshake is
+            // the only identity we trust for this announce. The payload `did`
+            // field (kept on the wire for one more commit, dropped in C10) is
+            // ignored — see plan §1.3 + §4.2 for the spoofing vector that
+            // bypassing this binding would re-enable.
+            let did: String = verified_did.to_string();
             // Announce is the first authenticated boundary of a peer session.
             // Anyone can open a QUIC stream with the ALPN and claim a DID, so
             // we must verify the UCAN before trusting `did` and before
