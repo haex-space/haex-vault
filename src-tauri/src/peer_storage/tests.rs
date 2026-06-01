@@ -852,11 +852,10 @@ mod tests {
         let src_path = src_dir.path().join("payload.bin");
         tokio::fs::write(&src_path, &payload).await.unwrap();
 
-        // The default harness UCAN only grants read; mint a write-capable one
-        // signed by the same key so the upload passes the capability check.
-        // The signing key lives only inside setup_harness, so reproduce it by
-        // signing fresh — verification only checks the signature against the
-        // token's `iss`, not the issuer's identity beyond that.
+        // The default harness UCAN only grants read; mint a write-capable
+        // one with a fresh random issuer key. UCAN verification only checks
+        // the signature against the token's own `iss` (not against any
+        // pre-shared identity), so any well-formed signing key works.
         let mut seed = [0u8; 32];
         rand::fill(&mut seed);
         let write_signer = SigningKey::from_bytes(&seed);
