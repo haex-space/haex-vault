@@ -4,8 +4,17 @@
 
 use serde::{Deserialize, Serialize};
 
-/// ALPN protocol identifier for space delivery
-pub const ALPN: &[u8] = b"haex-delivery/1";
+/// ALPN protocol identifier for space delivery.
+///
+/// Version bumped from `haex-delivery/1` to `haex-delivery/2` when Phase 2 of
+/// the quic_did_auth refactor introduced the server-initiated handshake on
+/// the first bidirectional stream and removed the payload `did` field from
+/// Announce + ClaimInvite. A `haex-delivery/1` peer trying to connect to a
+/// `haex-delivery/2` server (or vice versa) fails the QUIC TLS ALPN
+/// negotiation immediately, rather than handshaking and then dropping at the
+/// application layer — which keeps the wire break diagnosable and isolates
+/// the binary-compat boundary in bisect to this single commit.
+pub const ALPN: &[u8] = b"haex-delivery/2";
 
 /// Maximum request size (10 MB — CRDT changes can be large)
 const MAX_REQUEST_SIZE: usize = 10 * 1024 * 1024;
