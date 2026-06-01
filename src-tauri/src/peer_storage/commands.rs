@@ -106,6 +106,21 @@ fn load_own_identity_for_device(
             reason: format!("decoding identity private_key for {did}: {e}"),
         })?;
 
+    // Refuse to load a (did, private_key) pair whose halves don't match:
+    // a drifted row would otherwise authenticate as `did` to peers but be
+    // unable to sign for it, surfacing only later as silent handshake
+    // failures. Encode the public key derived from the private key as a
+    // did:key and compare against the row's stored DID — they must be byte
+    // identical.
+    let derived_did = crate::ucan::did_key_from_public_key(&signing_key.verifying_key());
+    if derived_did != did {
+        return Err(PeerStorageError::Database {
+            reason: format!(
+                "identity drift for endpoint_id={own_endpoint_id}: row says did={did} but private_key encodes did={derived_did}"
+            ),
+        });
+    }
+
     Ok(crate::peer_storage::endpoint::OwnIdentity { did, signing_key })
 }
 
