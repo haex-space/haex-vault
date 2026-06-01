@@ -9,8 +9,10 @@
 //!
 //! Design notes: see `docs/plans/2026-06-01-quic-did-auth-primitiv.md`.
 
+mod client;
 mod server;
 mod wire;
 
+pub use client::respond_to_challenge;
 pub use server::{challenge_and_verify, ChallengeError, CHALLENGE_TIMEOUT};
 pub use wire::{build_sig_input, Challenge, Response, DOMAIN_TAG, NONCE_LEN, PROTOCOL_VERSION};
