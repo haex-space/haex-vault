@@ -299,7 +299,7 @@ mod tests {
     /// audience key. Mirrors the test helper used by
     /// `ucan::verify::tests::make_test_token`, kept inline here so the
     /// peer_storage tests have no cross-module test dependency.
-    fn mint_ucan(signer: &SigningKey, space_id: &str, capability: &str) -> String {
+    fn mint_ucan(signer: &SigningKey, space_id: &str, capability: &str, audience: &str) -> String {
         let issuer_did = did_from_signing_key(signer);
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -309,7 +309,7 @@ mod tests {
         let payload = serde_json::json!({
             "ucv": "1.0",
             "iss": issuer_did,
-            "aud": "did:key:z6MkAudience",
+            "aud": audience,
             "cap": { format!("space:{}", space_id): capability },
             "exp": now + 3600,
             "iat": now,
@@ -328,12 +328,12 @@ mod tests {
         )
     }
 
-    fn read_ucan(signer: &SigningKey, space_id: &str) -> String {
-        mint_ucan(signer, space_id, "space/read")
+    fn read_ucan(signer: &SigningKey, space_id: &str, audience: &str) -> String {
+        mint_ucan(signer, space_id, "space/read", audience)
     }
 
-    fn write_ucan(signer: &SigningKey, space_id: &str) -> String {
-        mint_ucan(signer, space_id, "space/write")
+    fn write_ucan(signer: &SigningKey, space_id: &str, audience: &str) -> String {
+        mint_ucan(signer, space_id, "space/write", audience)
     }
 
     struct Harness {
@@ -345,6 +345,9 @@ mod tests {
         server_remote_id: iroh::EndpointId,
         share_name: String,
         ucan: String,
+        /// The client's verified DID — UCANs whose `aud` does not match this
+        /// are rejected by the Layer 1.25 audience check in handle_stream.
+        client_did: String,
         _tmp: tempfile::TempDir,
     }
 
@@ -366,6 +369,7 @@ mod tests {
 
         // --- Server side ---
         let mut server = PeerEndpoint::new_ephemeral();
+        server.set_random_test_identity();
         let server_id = server.start_for_test().await.expect("server bind");
         server
             .add_share(
@@ -378,6 +382,7 @@ mod tests {
 
         // --- Client side ---
         let mut client = PeerEndpoint::new_ephemeral();
+        let client_did = client.set_random_test_identity();
         client.start_for_test().await.expect("client bind");
         let client_id = client.endpoint_id();
 
@@ -388,6 +393,13 @@ mod tests {
         allowed.insert(client_id.to_string(), spaces);
         server.set_allowed_peers(allowed).await;
 
+        // Mirror the production load: handle_connection cross-checks the
+        // crypto-verified DID against this map, so tests must populate it
+        // with the client's expected owner DID.
+        let mut owner_dids = HashMap::new();
+        owner_dids.insert(client_id.to_string(), client_did.clone());
+        server.set_peer_owner_dids(owner_dids).await;
+
         // Server endpoint addr (full, with direct addrs since RelayMode::Disabled).
         let server_addr = server.endpoint_ref().unwrap().addr();
         client
@@ -395,14 +407,13 @@ mod tests {
             .await
             .expect("client → server connect");
 
-        // Sign the UCAN with the same key as the client device — the server's
-        // capability check verifies the token signature but does not require
-        // iss == client EndpointId, only that the token grants read on the
-        // target space.
-        let mut seed = [0u8; 32];
-        rand::fill(&mut seed);
+        // Sign the UCAN with a fresh issuer key — the server's capability
+        // check verifies the token signature but does not require iss ==
+        // client EndpointId. The audience MUST equal the client's verified
+        // DID so the Layer 1.25 audience check in handle_stream passes.
+        let seed: [u8; 32] = rand::random();
         let ucan_signer = SigningKey::from_bytes(&seed);
-        let ucan = read_ucan(&ucan_signer, &space_id);
+        let ucan = read_ucan(&ucan_signer, &space_id, &client_did);
 
         Harness {
             _server: server,
@@ -410,6 +421,7 @@ mod tests {
             server_remote_id: server_id,
             share_name,
             ucan,
+            client_did,
             _tmp: tmp,
         }
     }
@@ -443,6 +455,107 @@ mod tests {
 
         assert_eq!(entry.size, 1024 * 1024, "ramp file is 1 MiB");
         assert!(!entry.is_dir, "ramp.bin is a regular file");
+    }
+
+    /// Defense-in-depth regression: when the DB's expected owner DID for a
+    /// peer (`peer_owner_dids`) disagrees with the cryptographically verified
+    /// DID from the handshake, the connection must close. The handshake on
+    /// its own only proves the peer holds the private key for the DID it
+    /// claims; the cross-check ensures that DID is also the one our vault
+    /// recorded for this endpoint id when the row was synced through CRDT.
+    /// A drift between the two layers is treated as a vault-internal
+    /// inconsistency, not a recoverable state.
+    #[tokio::test]
+    async fn connection_closes_when_peer_owner_did_disagrees_with_handshake() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("file.txt"), b"x").unwrap();
+        let space_id = "test-space".to_string();
+
+        let mut server = PeerEndpoint::new_ephemeral();
+        server.set_random_test_identity();
+        let server_id = server.start_for_test().await.expect("server bind");
+        server
+            .add_share(
+                "share-1".to_string(),
+                "media".to_string(),
+                tmp.path().to_string_lossy().to_string(),
+                space_id.clone(),
+            )
+            .await;
+
+        let mut client = PeerEndpoint::new_ephemeral();
+        let _client_did = client.set_random_test_identity();
+        client.start_for_test().await.expect("client bind");
+        let client_id = client.endpoint_id();
+
+        // Allow the client through the coarse access gate ...
+        let mut allowed = HashMap::new();
+        let mut spaces = HashSet::new();
+        spaces.insert(space_id.clone());
+        allowed.insert(client_id.to_string(), spaces);
+        server.set_allowed_peers(allowed).await;
+
+        // ... but tell the server that this endpoint id is supposed to
+        // belong to a completely different DID. The handshake will return
+        // the client's actual DID; the cross-check must then reject.
+        let mut wrong_owner_dids = HashMap::new();
+        wrong_owner_dids.insert(
+            client_id.to_string(),
+            "did:key:z6MkUnrelatedExpectedOwner".to_string(),
+        );
+        server.set_peer_owner_dids(wrong_owner_dids).await;
+
+        // Run the connect through `connect_for_test`, which completes the
+        // handshake locally; the server-side cross-check then closes the
+        // connection so the next request open_bi fails.
+        let server_addr = server.endpoint_ref().unwrap().addr();
+        // `connect_for_test` may or may not see the close before its own
+        // handshake completes — either way, the subsequent operation must
+        // not succeed.
+        let _ = client.connect_for_test(server_addr).await;
+
+        let path = "/media/file.txt".to_string();
+        let result = client
+            .remote_list(server_id, None, &path, "any-token")
+            .await;
+        assert!(
+            result.is_err(),
+            "request must fail when DB owner_did disagrees with handshake, got: {result:?}"
+        );
+    }
+
+    /// Layer 1.25 security regression: a UCAN whose audience does not match
+    /// the verified peer DID must be rejected, even when the signature is
+    /// valid and the capability + space match. Without this check the entire
+    /// quic_did_auth handshake would be theatrical — a peer could replay any
+    /// UCAN it managed to obtain by other means.
+    #[tokio::test]
+    async fn remote_list_rejects_ucan_for_foreign_did() {
+        let h = setup_harness().await;
+
+        // Mint a UCAN whose audience is a fresh, unrelated DID — not the
+        // client's verified DID. The signature is valid (issuer signs over
+        // the payload) but the audience is wrong, so handle_stream's Layer
+        // 1.25 check should fire.
+        let foreign_seed: [u8; 32] = rand::random();
+        let foreign_signer = SigningKey::from_bytes(&foreign_seed);
+        let foreign_did = did_from_signing_key(&foreign_signer);
+
+        let issuer_seed: [u8; 32] = rand::random();
+        let issuer = SigningKey::from_bytes(&issuer_seed);
+        let mismatched_ucan = read_ucan(&issuer, "test-space", &foreign_did);
+
+        let result = h
+            .client
+            .remote_list(h.server_remote_id, None, "/", &mismatched_ucan)
+            .await;
+
+        let err = result.expect_err("foreign-audience UCAN must be rejected");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("audience"),
+            "error should mention audience mismatch, got: {msg}"
+        );
     }
 
     // =========================================================================
@@ -552,6 +665,7 @@ mod tests {
         let space_id = "test-space".to_string();
 
         let mut server = PeerEndpoint::new_ephemeral();
+        server.set_random_test_identity();
         let server_id = server.start_for_test().await.expect("server bind");
         server
             .add_share(
@@ -563,6 +677,7 @@ mod tests {
             .await;
 
         let mut client_inner = PeerEndpoint::new_ephemeral();
+        let client_did = client_inner.set_random_test_identity();
         client_inner.start_for_test().await.expect("client bind");
         let client_id = client_inner.endpoint_id();
 
@@ -572,16 +687,19 @@ mod tests {
         allowed.insert(client_id.to_string(), spaces);
         server.set_allowed_peers(allowed).await;
 
+        let mut owner_dids = HashMap::new();
+        owner_dids.insert(client_id.to_string(), client_did.clone());
+        server.set_peer_owner_dids(owner_dids).await;
+
         let server_addr = server.endpoint_ref().unwrap().addr();
         client_inner
             .connect_for_test(server_addr)
             .await
             .expect("client → server connect");
 
-        let mut seed = [0u8; 32];
-        rand::fill(&mut seed);
+        let seed: [u8; 32] = rand::random();
         let ucan_signer = ed25519_dalek::SigningKey::from_bytes(&seed);
-        let ucan = read_ucan(&ucan_signer, &space_id);
+        let ucan = read_ucan(&ucan_signer, &space_id, &client_did);
 
         let client = std::sync::Arc::new(tokio::sync::RwLock::new(client_inner));
 
@@ -808,15 +926,13 @@ mod tests {
         let src_path = src_dir.path().join("payload.bin");
         tokio::fs::write(&src_path, &payload).await.unwrap();
 
-        // The default harness UCAN only grants read; mint a write-capable one
-        // signed by the same key so the upload passes the capability check.
-        // The signing key lives only inside setup_harness, so reproduce it by
-        // signing fresh — verification only checks the signature against the
-        // token's `iss`, not the issuer's identity beyond that.
-        let mut seed = [0u8; 32];
-        rand::fill(&mut seed);
+        // The default harness UCAN only grants read; mint a write-capable
+        // one with a fresh random issuer key. UCAN verification only checks
+        // the signature against the token's own `iss` (not against any
+        // pre-shared identity), so any well-formed signing key works.
+        let seed: [u8; 32] = rand::random();
         let write_signer = SigningKey::from_bytes(&seed);
-        let write_token = write_ucan(&write_signer, "test-space");
+        let write_token = write_ucan(&write_signer, "test-space", &h.client_did);
 
         // Upload a file to the server, then read it back. The read exercises
         // pipe_reader_to_send through handlers::stream_file_to_send on the
@@ -872,10 +988,9 @@ mod tests {
         let src_path = src_dir.path().join("cancel_payload.bin");
         tokio::fs::write(&src_path, &payload).await.unwrap();
 
-        let mut seed = [0u8; 32];
-        rand::fill(&mut seed);
+        let seed: [u8; 32] = rand::random();
         let write_signer = SigningKey::from_bytes(&seed);
-        let write_token = write_ucan(&write_signer, "test-space");
+        let write_token = write_ucan(&write_signer, "test-space", &h.client_did);
 
         let token = tokio_util::sync::CancellationToken::new();
         token.cancel();

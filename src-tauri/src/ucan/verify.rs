@@ -232,10 +232,21 @@ pub fn require_capability(
 // did:key → Ed25519 public key
 // ---------------------------------------------------------------------------
 
+/// Encode an Ed25519 `VerifyingKey` as a `did:key:z6Mk...` DID.
+///
+/// Inverse of [`public_key_from_did`]; same `0xed01` multicodec + base58btc
+/// encoding the rest of the codebase uses for identity DIDs.
+pub fn did_key_from_public_key(verifying_key: &VerifyingKey) -> String {
+    let mut bytes = Vec::with_capacity(34);
+    bytes.extend_from_slice(&ED25519_MULTICODEC);
+    bytes.extend_from_slice(verifying_key.as_bytes());
+    format!("did:key:z{}", bs58::encode(bytes).into_string())
+}
+
 /// Extract an Ed25519 `VerifyingKey` from a `did:key:z6Mk...` DID.
 ///
 /// Format: `did:key:z` + base58btc( 0xed01 + 32-byte-pubkey )
-fn public_key_from_did(did: &str) -> Result<VerifyingKey, UcanVerifyError> {
+pub fn public_key_from_did(did: &str) -> Result<VerifyingKey, UcanVerifyError> {
     let multibase_key = did
         .strip_prefix("did:key:")
         .ok_or_else(|| UcanVerifyError::MalformedToken("DID must start with did:key:".into()))?;

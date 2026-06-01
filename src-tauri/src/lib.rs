@@ -15,6 +15,7 @@ pub mod mls;
 mod shortcuts;
 mod passwords;
 pub mod peer_storage;
+pub mod quic_did_auth;
 mod remote_storage;
 pub mod space_delivery;
 pub mod ucan;

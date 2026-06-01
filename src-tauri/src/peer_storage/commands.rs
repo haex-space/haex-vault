@@ -62,6 +62,129 @@ fn load_shares_from_db(
     Ok(shares)
 }
 
+/// Load the device's own (DID, signing key) for the quic_did_auth handshake.
+/// Joins `haex_devices` (filtered to this endpoint's row) against
+/// `haex_identities` to fetch the PKCS8-base64 private key for the identity
+/// pinned in `owner_did`.
+fn load_own_identity_for_device(
+    state: &AppState,
+    own_endpoint_id: &str,
+) -> Result<crate::peer_storage::endpoint::OwnIdentity, PeerStorageError> {
+    let sql = "SELECT i.did, i.private_key \
+               FROM haex_devices d \
+               JOIN haex_identities i ON i.did = d.owner_did \
+               WHERE d.endpoint_id = ?1 \
+               LIMIT 1"
+        .to_string();
+    let params = vec![serde_json::Value::String(own_endpoint_id.to_string())];
+
+    let rows = crate::database::core::select_with_crdt(sql, params, &state.db)
+        .map_err(|e| PeerStorageError::Database { reason: e.to_string() })?;
+
+    let row = rows.first().ok_or_else(|| PeerStorageError::Database {
+        reason: format!("no haex_devices row for endpoint_id {own_endpoint_id}"),
+    })?;
+
+    let did = row
+        .first()
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| PeerStorageError::Database {
+            reason: "missing did column".into(),
+        })?
+        .to_string();
+
+    let private_key_b64 = row
+        .get(1)
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| PeerStorageError::Database {
+            reason: format!("identity row for {did} has no private_key — cannot sign DID-auth"),
+        })?
+        .to_string();
+
+    let signing_key = crate::ucan::signing_key_from_pkcs8_base64(&private_key_b64)
+        .map_err(|e| PeerStorageError::Database {
+            reason: format!("decoding identity private_key for {did}: {e}"),
+        })?;
+
+    // Refuse to load a (did, private_key) pair whose halves don't match:
+    // a drifted row would otherwise authenticate as `did` to peers but be
+    // unable to sign for it, surfacing only later as silent handshake
+    // failures. Encode the public key derived from the private key as a
+    // did:key and compare against the row's stored DID — they must be byte
+    // identical.
+    let derived_did = crate::ucan::did_key_from_public_key(&signing_key.verifying_key());
+    if derived_did != did {
+        return Err(PeerStorageError::Database {
+            reason: format!(
+                "identity drift for endpoint_id={own_endpoint_id}: row says did={did} but private_key encodes did={derived_did}"
+            ),
+        });
+    }
+
+    Ok(crate::peer_storage::endpoint::OwnIdentity { did, signing_key })
+}
+
+/// Load the expected `(endpoint_id -> owner_did)` map for every peer we
+/// could legitimately accept connections from. The query joins
+/// `haex_space_devices` (cross-vault, UCAN-attributed) against
+/// `haex_devices` (vault-private, populated by the
+/// `haex_space_devices_ensure_refs` trigger from `authored_by_did`). The
+/// result is the DB-side ground truth that the quic_did_auth handshake's
+/// crypto-verified DID is cross-checked against in `handle_connection`.
+///
+/// Excludes our own endpoint and skips rows whose `owner_did` is NULL —
+/// the latter only happens transiently during a partial sync and we'd
+/// rather reject the peer than risk admitting an unverifiable one.
+fn load_peer_owner_dids(
+    state: &AppState,
+    own_endpoint_id: &str,
+) -> Result<HashMap<String, String>, PeerStorageError> {
+    let sql = "SELECT DISTINCT sd.endpoint_id, d.owner_did \
+               FROM haex_space_devices sd \
+               JOIN haex_devices d ON d.id = sd.device_id \
+               WHERE sd.endpoint_id != ?1 \
+                 AND d.owner_did IS NOT NULL"
+        .to_string();
+    let params = vec![serde_json::Value::String(own_endpoint_id.to_string())];
+
+    let rows = crate::database::core::select_with_crdt(sql, params, &state.db)
+        .map_err(|e| PeerStorageError::Database { reason: e.to_string() })?;
+
+    // Two passes: first gather every distinct (endpoint_id, owner_did)
+    // pair, then accept only endpoint_ids that map to exactly one DID.
+    // A single-pass loop that removed on conflict would silently let a
+    // later row reinstate a conflicted endpoint, making acceptance depend
+    // on SQL row order.
+    use std::collections::HashSet as StdHashSet;
+    let mut candidates: HashMap<String, StdHashSet<String>> = HashMap::new();
+    for row in &rows {
+        let endpoint_id = row.first().and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        let owner_did = row.get(1).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        if endpoint_id.is_empty() || owner_did.is_empty() {
+            continue;
+        }
+        candidates.entry(endpoint_id).or_default().insert(owner_did);
+    }
+
+    let mut map: HashMap<String, String> = HashMap::new();
+    for (endpoint_id, dids) in candidates {
+        if dids.len() == 1 {
+            // Safe to use .next().unwrap() — len == 1 guarantees one element.
+            map.insert(endpoint_id, dids.into_iter().next().unwrap());
+        } else {
+            // Multiple distinct owner_dids for the same endpoint_id: cannot
+            // pick a side safely. Drop permanently so handle_connection
+            // rejects rather than admit an arbitrary one.
+            let did_list: Vec<String> = dids.into_iter().collect();
+            eprintln!(
+                "[PeerStorage] Ambiguous owner_did for endpoint_id {endpoint_id}: \
+                 {did_list:?} — dropping from peer_owner_dids map"
+            );
+        }
+    }
+    Ok(map)
+}
+
 /// Load allowed peers from haex_space_devices.
 /// Returns a map: remote EndpointId (string) -> set of space_ids they may access.
 /// Excludes our own endpoint ID.
@@ -98,6 +221,11 @@ pub(crate) async fn reload_allowed_peers(
     let allowed_peers = load_allowed_peers_from_db(state, &endpoint_id)?;
     let peer_count: usize = allowed_peers.values().map(|s| s.len()).sum();
     endpoint.set_allowed_peers(allowed_peers).await;
+    // Keep the DID cross-check map in lock-step: a peer that just appeared
+    // in allowed_peers but not yet in peer_owner_dids would be rejected by
+    // handle_connection. Same SQL pass updates both.
+    let owner_dids = load_peer_owner_dids(state, &endpoint_id)?;
+    endpoint.set_peer_owner_dids(owner_dids).await;
     eprintln!("[PeerStorage] Updated allowed peers: {peer_count} peers across spaces");
     Ok(())
 }
@@ -111,6 +239,7 @@ async fn reload_state_from_db(
 
     let shares = load_shares_from_db(state, &endpoint_id)?;
     let allowed_peers = load_allowed_peers_from_db(state, &endpoint_id)?;
+    let peer_owner_dids = load_peer_owner_dids(state, &endpoint_id)?;
 
     endpoint.clear_shares().await;
     let mut loaded = 0;
@@ -135,6 +264,7 @@ async fn reload_state_from_db(
     }
 
     endpoint.set_allowed_peers(allowed_peers).await;
+    endpoint.set_peer_owner_dids(peer_owner_dids).await;
 
     eprintln!("[PeerStorage] Loaded {loaded}/{} shares from DB", shares.len());
     Ok(loaded)
@@ -153,8 +283,24 @@ pub async fn peer_storage_start(
 ) -> Result<PeerStorageStartInfo, PeerStorageError> {
     let mut endpoint = state.peer_storage.write().await;
 
+    // Bail out before mutating endpoint state. `set_own_identity` below
+    // asserts when the endpoint is already running, so without this guard
+    // a second `peer_storage_start` call would panic instead of returning
+    // the recoverable `EndpointAlreadyRunning` error that `start` raises.
+    if endpoint.is_running() {
+        return Err(PeerStorageError::EndpointAlreadyRunning);
+    }
+
     // Store AppHandle so the accept loop can use android_fs for Content URI shares
     endpoint.set_app_handle(app.clone()).await;
+
+    // Load the device's identity so the quic_did_auth handshake can prove
+    // our DID to peers and reject inbound peers that present mismatched
+    // UCANs. Must run before `start` — the accept loop is spawned inside
+    // `start` and reads the identity slot from then on.
+    let own_endpoint_id = endpoint.endpoint_id().to_string();
+    let own_identity = load_own_identity_for_device(&state, &own_endpoint_id)?;
+    endpoint.set_own_identity(own_identity);
 
     // Load shares and allowed peers from DB before starting
     reload_state_from_db(&state, &*endpoint).await?;

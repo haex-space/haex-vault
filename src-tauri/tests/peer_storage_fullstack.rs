@@ -11,9 +11,86 @@ use std::path::PathBuf;
 use std::sync::LazyLock;
 use tokio::time::{sleep, Duration};
 
+use ed25519_dalek::SigningKey;
 use iroh::Endpoint;
-use haex_vault_lib::peer_storage::endpoint::PeerEndpoint;
+use haex_vault_lib::peer_storage::endpoint::{OwnIdentity, PeerEndpoint};
 use haex_vault_lib::peer_storage::protocol::{self, Request, Response, ALPN};
+use haex_vault_lib::quic_did_auth;
+
+const ED25519_MULTICODEC: [u8; 2] = [0xed, 0x01];
+
+/// Identity shared between `test_client_identity` and `test_ucan_token_for`
+/// so the UCAN's `aud` and the client's verified DID line up under Layer
+/// 1.25. Pulling the seed from the RNG once at first access keeps every
+/// helper in this file in sync without any literal seed bytes — CodeQL
+/// flagged the old `seed[0] = 42` pattern as a hardcoded credential.
+static SHARED_TEST_KEY: LazyLock<SigningKey> = LazyLock::new(|| {
+    let seed: [u8; 32] = rand::random();
+    SigningKey::from_bytes(&seed)
+});
+
+/// Build an OwnIdentity backed by `SHARED_TEST_KEY`.
+fn test_client_identity() -> OwnIdentity {
+    let signing_key = SHARED_TEST_KEY.clone();
+    let mut bytes = Vec::with_capacity(34);
+    bytes.extend_from_slice(&ED25519_MULTICODEC);
+    bytes.extend_from_slice(signing_key.verifying_key().as_bytes());
+    let did = format!("did:key:z{}", bs58::encode(bytes).into_string());
+    OwnIdentity { did, signing_key }
+}
+
+/// A fresh random identity for the server. The server's own DID does not
+/// affect UCAN audience checks (those run against the client's DID), so a
+/// new key per test isolates servers across the suite.
+fn random_server_identity() -> OwnIdentity {
+    let seed: [u8; 32] = rand::random();
+    let signing_key = SigningKey::from_bytes(&seed);
+    let mut bytes = Vec::with_capacity(34);
+    bytes.extend_from_slice(&ED25519_MULTICODEC);
+    bytes.extend_from_slice(signing_key.verifying_key().as_bytes());
+    let did = format!("did:key:z{}", bs58::encode(bytes).into_string());
+    OwnIdentity { did, signing_key }
+}
+
+/// Install identities on the server and a slice of clients before starting
+/// any of them, then start them in order. Returns the (shared) DID the
+/// clients now claim. Callers wire that DID into `peer_owner_dids` for
+/// every accepted client endpoint id so the Layer 1.5 cross-check passes.
+async fn install_test_identities(
+    server: &mut PeerEndpoint,
+    clients: &mut [&mut PeerEndpoint],
+) -> String {
+    server.set_own_identity(random_server_identity());
+    let client_identity = test_client_identity();
+    for c in clients.iter_mut() {
+        c.set_own_identity(client_identity.clone());
+    }
+    server.start(None).await.unwrap();
+    for c in clients.iter_mut() {
+        c.start(None).await.unwrap();
+    }
+    client_identity.did
+}
+
+/// Variant for the multi-client tests that need to run the client-side
+/// DID-auth handshake themselves (e.g. via raw protocol fixtures). Returns
+/// the OwnIdentity instead of just the DID.
+#[allow(dead_code)]
+async fn install_test_identities_full(
+    server: &mut PeerEndpoint,
+    clients: &mut [&mut PeerEndpoint],
+) -> OwnIdentity {
+    server.set_own_identity(random_server_identity());
+    let client_identity = test_client_identity();
+    for c in clients.iter_mut() {
+        c.set_own_identity(client_identity.clone());
+    }
+    server.start(None).await.unwrap();
+    for c in clients.iter_mut() {
+        c.start(None).await.unwrap();
+    }
+    client_identity
+}
 
 /// Test UCAN token generator — creates a valid signed token for one or more spaces.
 fn test_ucan_token(space_id: &str) -> String {
@@ -26,20 +103,14 @@ fn test_ucan_token(space_id: &str) -> String {
 /// a single connection must present a UCAN that covers them all.
 fn test_ucan_token_for(space_ids: &[&str]) -> String {
     use base64::Engine;
-    use ed25519_dalek::{Signer, SigningKey};
+    use ed25519_dalek::Signer;
 
     const BASE64URL: base64::engine::GeneralPurpose = base64::engine::GeneralPurpose::new(
         &base64::alphabet::URL_SAFE,
         base64::engine::general_purpose::NO_PAD,
     );
 
-    static TEST_KEY: LazyLock<SigningKey> = LazyLock::new(|| {
-        let mut seed = [0u8; 32];
-        seed[0] = 42; // deterministic test key
-        SigningKey::from_bytes(&seed)
-    });
-
-    let vk = TEST_KEY.verifying_key();
+    let vk = SHARED_TEST_KEY.verifying_key();
     let multicodec: [u8; 2] = [0xed, 0x01];
     let mut key_bytes = Vec::with_capacity(34);
     key_bytes.extend_from_slice(&multicodec);
@@ -69,7 +140,7 @@ fn test_ucan_token_for(space_ids: &[&str]) -> String {
 
     let h = BASE64URL.encode(serde_json::to_string(&header).unwrap().as_bytes());
     let p = BASE64URL.encode(serde_json::to_string(&payload).unwrap().as_bytes());
-    let sig = TEST_KEY.sign(format!("{h}.{p}").as_bytes());
+    let sig = SHARED_TEST_KEY.sign(format!("{h}.{p}").as_bytes());
     format!("{h}.{p}.{}", BASE64URL.encode(sig.to_bytes()))
 }
 
@@ -77,12 +148,13 @@ fn test_ucan_token_for(space_ids: &[&str]) -> String {
 // Helper: proper protocol client
 // =============================================================================
 
-/// Send a protocol request and read the response using the correct wire format.
-async fn send_request(
+/// Connect to `server_addr` and run the quic_did_auth handshake on the
+/// server-initiated bidirectional stream. Returns the QUIC connection ready
+/// for application-level request streams.
+async fn connect_and_handshake(
     client_ep: &Endpoint,
     server_addr: iroh::EndpointAddr,
-    request: &Request,
-) -> Result<Response, String> {
+) -> Result<iroh::endpoint::Connection, String> {
     let conn = tokio::time::timeout(
         Duration::from_secs(5),
         client_ep.connect(server_addr, ALPN),
@@ -90,6 +162,38 @@ async fn send_request(
     .await
     .map_err(|_| "connect timeout".to_string())?
     .map_err(|e| format!("connect error: {e}"))?;
+
+    // Server-initiated DID-auth stream: client accepts and signs.
+    let (mut auth_send, mut auth_recv) = tokio::time::timeout(
+        Duration::from_secs(5),
+        conn.accept_bi(),
+    )
+    .await
+    .map_err(|_| "auth accept_bi timeout".to_string())?
+    .map_err(|e| format!("auth accept_bi: {e}"))?;
+
+    let identity = test_client_identity();
+    quic_did_auth::respond_to_challenge(
+        &mut auth_send,
+        &mut auth_recv,
+        &identity.did,
+        &identity.signing_key,
+        &client_ep.id().to_string(),
+    )
+    .await
+    .map_err(|e| format!("did-auth: {e}"))?;
+    let _ = auth_send.finish();
+
+    Ok(conn)
+}
+
+/// Send a protocol request and read the response using the correct wire format.
+async fn send_request(
+    client_ep: &Endpoint,
+    server_addr: iroh::EndpointAddr,
+    request: &Request,
+) -> Result<Response, String> {
+    let conn = connect_and_handshake(client_ep, server_addr).await?;
 
     let (mut send, mut recv) = conn
         .open_bi()
@@ -129,13 +233,7 @@ async fn send_read_request_for_space(
     range: Option<[u64; 2]>,
     space_id: &str,
 ) -> Result<(Response, Vec<u8>), String> {
-    let conn = tokio::time::timeout(
-        Duration::from_secs(5),
-        client_ep.connect(server_addr, ALPN),
-    )
-    .await
-    .map_err(|_| "connect timeout".to_string())?
-    .map_err(|e| format!("connect error: {e}"))?;
+    let conn = connect_and_handshake(client_ep, server_addr).await?;
 
     let (mut send, mut recv) = conn
         .open_bi()
@@ -175,8 +273,7 @@ async fn setup_server_client(
     let mut server = PeerEndpoint::new_ephemeral();
     let mut client = PeerEndpoint::new_ephemeral();
 
-    server.start(None).await.unwrap();
-    client.start(None).await.unwrap();
+    let client_did = install_test_identities(&mut server, &mut [&mut client]).await;
 
     let tmp = tempfile::TempDir::new().unwrap();
 
@@ -200,12 +297,15 @@ async fn setup_server_client(
         space_id.to_string(),
     ).await;
 
-    // Allow client
+    // Allow client + matching DID expectation for the Layer 1.5 cross-check.
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
     spaces.insert(space_id.to_string());
     allowed.insert(client.endpoint_id().to_string(), spaces);
     server.set_allowed_peers(allowed).await;
+    let mut owner_dids = HashMap::new();
+    owner_dids.insert(client.endpoint_id().to_string(), client_did);
+    server.set_peer_owner_dids(owner_dids).await;
 
     let server_addr = server.endpoint_ref().unwrap().addr();
 
@@ -570,8 +670,7 @@ async fn cross_space_isolation() {
     let mut server = PeerEndpoint::new_ephemeral();
     let mut client = PeerEndpoint::new_ephemeral();
 
-    server.start(None).await.unwrap();
-    client.start(None).await.unwrap();
+    let client_did = install_test_identities(&mut server, &mut [&mut client]).await;
 
     let tmp1 = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp1.path().join("public.txt"), b"public").unwrap();
@@ -589,6 +688,9 @@ async fn cross_space_isolation() {
     spaces.insert("space-public".to_string());
     allowed.insert(client.endpoint_id().to_string(), spaces);
     server.set_allowed_peers(allowed).await;
+    let mut owner_dids = HashMap::new();
+    owner_dids.insert(client.endpoint_id().to_string(), client_did);
+    server.set_peer_owner_dids(owner_dids).await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
     let server_addr = server.endpoint_ref().unwrap().addr();
@@ -626,8 +728,7 @@ async fn multiple_shares_in_same_space() {
     let mut server = PeerEndpoint::new_ephemeral();
     let mut client = PeerEndpoint::new_ephemeral();
 
-    server.start(None).await.unwrap();
-    client.start(None).await.unwrap();
+    let client_did = install_test_identities(&mut server, &mut [&mut client]).await;
 
     let tmp1 = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp1.path().join("doc.txt"), b"document").unwrap();
@@ -643,6 +744,9 @@ async fn multiple_shares_in_same_space() {
     spaces.insert("shared-space".to_string());
     allowed.insert(client.endpoint_id().to_string(), spaces);
     server.set_allowed_peers(allowed).await;
+    let mut owner_dids = HashMap::new();
+    owner_dids.insert(client.endpoint_id().to_string(), client_did);
+    server.set_peer_owner_dids(owner_dids).await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
     let server_addr = server.endpoint_ref().unwrap().addr();
@@ -680,9 +784,8 @@ async fn concurrent_clients_can_connect() {
     let mut client1 = PeerEndpoint::new_ephemeral();
     let mut client2 = PeerEndpoint::new_ephemeral();
 
-    server.start(None).await.unwrap();
-    client1.start(None).await.unwrap();
-    client2.start(None).await.unwrap();
+    let client_did =
+        install_test_identities(&mut server, &mut [&mut client1, &mut client2]).await;
 
     let tmp = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp.path().join("shared.txt"), b"shared content").unwrap();
@@ -695,6 +798,10 @@ async fn concurrent_clients_can_connect() {
     allowed.insert(client1.endpoint_id().to_string(), spaces.clone());
     allowed.insert(client2.endpoint_id().to_string(), spaces);
     server.set_allowed_peers(allowed).await;
+    let mut owner_dids = HashMap::new();
+    owner_dids.insert(client1.endpoint_id().to_string(), client_did.clone());
+    owner_dids.insert(client2.endpoint_id().to_string(), client_did);
+    server.set_peer_owner_dids(owner_dids).await;
 
     let server_addr = server.endpoint_ref().unwrap().addr();
     let ep1 = client1.endpoint_ref().unwrap().clone();
@@ -920,8 +1027,7 @@ async fn empty_directory_listing_returns_zero_entries() {
 async fn share_removed_while_client_browsing() {
     let mut server = PeerEndpoint::new_ephemeral();
     let mut client = PeerEndpoint::new_ephemeral();
-    server.start(None).await.unwrap();
-    client.start(None).await.unwrap();
+    let client_did = install_test_identities(&mut server, &mut [&mut client]).await;
 
     let tmp = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp.path().join("data.txt"), b"important").unwrap();
@@ -932,6 +1038,9 @@ async fn share_removed_while_client_browsing() {
     spaces.insert("space-1".to_string());
     allowed.insert(client.endpoint_id().to_string(), spaces);
     server.set_allowed_peers(allowed).await;
+    let mut owner_dids = HashMap::new();
+    owner_dids.insert(client.endpoint_id().to_string(), client_did);
+    server.set_peer_owner_dids(owner_dids).await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
     let server_addr = server.endpoint_ref().unwrap().addr();
@@ -1159,9 +1268,11 @@ async fn leaked_endpoint_id_cannot_access_files() {
     let mut legitimate = PeerEndpoint::new_ephemeral();
     let mut attacker = PeerEndpoint::new_ephemeral();
 
-    server.start(None).await.unwrap();
-    legitimate.start(None).await.unwrap();
-    attacker.start(None).await.unwrap();
+    let client_did = install_test_identities(
+        &mut server,
+        &mut [&mut legitimate, &mut attacker],
+    )
+    .await;
 
     let tmp = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp.path().join("confidential.txt"), b"TOP SECRET DATA").unwrap();
@@ -1172,12 +1283,17 @@ async fn leaked_endpoint_id_cannot_access_files() {
         tmp.path().to_string_lossy().to_string(), "private-space".to_string(),
     ).await;
 
-    // Only legitimate peer is allowed
+    // Only legitimate peer is allowed; the attacker has its own iroh
+    // endpoint but is not registered in allowed_peers, so the connection
+    // is closed at the accept gate before the handshake even starts.
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
     spaces.insert("private-space".to_string());
     allowed.insert(legitimate.endpoint_id().to_string(), spaces);
     server.set_allowed_peers(allowed).await;
+    let mut owner_dids = HashMap::new();
+    owner_dids.insert(legitimate.endpoint_id().to_string(), client_did);
+    server.set_peer_owner_dids(owner_dids).await;
 
     let server_addr = server.endpoint_ref().unwrap().addr();
     let attacker_ep = attacker.endpoint_ref().unwrap().clone();
@@ -1253,8 +1369,7 @@ async fn space_a_peer_cannot_access_space_b_by_any_means() {
     let mut server = PeerEndpoint::new_ephemeral();
     let mut peer = PeerEndpoint::new_ephemeral();
 
-    server.start(None).await.unwrap();
-    peer.start(None).await.unwrap();
+    let client_did = install_test_identities(&mut server, &mut [&mut peer]).await;
 
     let tmp_pub = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp_pub.path().join("readme.txt"), b"public").unwrap();
@@ -1269,6 +1384,9 @@ async fn space_a_peer_cannot_access_space_b_by_any_means() {
     spaces.insert("space-public".to_string());
     allowed.insert(peer.endpoint_id().to_string(), spaces);
     server.set_allowed_peers(allowed).await;
+    let mut owner_dids = HashMap::new();
+    owner_dids.insert(peer.endpoint_id().to_string(), client_did);
+    server.set_peer_owner_dids(owner_dids).await;
 
     let ep = peer.endpoint_ref().unwrap().clone();
     let addr = server.endpoint_ref().unwrap().addr();
@@ -1312,8 +1430,7 @@ async fn revoked_peer_stays_blocked_across_multiple_attempts() {
     let mut server = PeerEndpoint::new_ephemeral();
     let mut client = PeerEndpoint::new_ephemeral();
 
-    server.start(None).await.unwrap();
-    client.start(None).await.unwrap();
+    let client_did = install_test_identities(&mut server, &mut [&mut client]).await;
 
     let tmp = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp.path().join("secret.txt"), b"pre-revoke").unwrap();
@@ -1325,6 +1442,9 @@ async fn revoked_peer_stays_blocked_across_multiple_attempts() {
     spaces.insert("space-1".to_string());
     allowed.insert(client.endpoint_id().to_string(), spaces);
     server.set_allowed_peers(allowed).await;
+    let mut owner_dids = HashMap::new();
+    owner_dids.insert(client.endpoint_id().to_string(), client_did);
+    server.set_peer_owner_dids(owner_dids).await;
 
     let ep = client.endpoint_ref().unwrap().clone();
     let addr = server.endpoint_ref().unwrap().addr();
@@ -1335,6 +1455,7 @@ async fn revoked_peer_stays_blocked_across_multiple_attempts() {
 
     // Revoke
     server.set_allowed_peers(HashMap::new()).await;
+    server.set_peer_owner_dids(HashMap::new()).await;
     sleep(Duration::from_millis(100)).await;
 
     // Update file to detect stale data
@@ -1372,10 +1493,8 @@ async fn three_peers_three_spaces_complete_isolation() {
     let mut pb = PeerEndpoint::new_ephemeral();
     let mut pc = PeerEndpoint::new_ephemeral();
 
-    server.start(None).await.unwrap();
-    pa.start(None).await.unwrap();
-    pb.start(None).await.unwrap();
-    pc.start(None).await.unwrap();
+    let client_did =
+        install_test_identities(&mut server, &mut [&mut pa, &mut pb, &mut pc]).await;
 
     let ta = tempfile::TempDir::new().unwrap();
     std::fs::write(ta.path().join("a.txt"), b"alice").unwrap();
@@ -1396,6 +1515,11 @@ async fn three_peers_three_spaces_complete_isolation() {
     allowed.insert(pb.endpoint_id().to_string(), sb);
     allowed.insert(pc.endpoint_id().to_string(), sc);
     server.set_allowed_peers(allowed).await;
+    let mut owner_dids = HashMap::new();
+    owner_dids.insert(pa.endpoint_id().to_string(), client_did.clone());
+    owner_dids.insert(pb.endpoint_id().to_string(), client_did.clone());
+    owner_dids.insert(pc.endpoint_id().to_string(), client_did);
+    server.set_peer_owner_dids(owner_dids).await;
 
     let addr = server.endpoint_ref().unwrap().addr();
     let ea = pa.endpoint_ref().unwrap().clone();
@@ -1447,8 +1571,7 @@ async fn dynamic_space_grant_upgrade_and_downgrade() {
     let mut server = PeerEndpoint::new_ephemeral();
     let mut user = PeerEndpoint::new_ephemeral();
 
-    server.start(None).await.unwrap();
-    user.start(None).await.unwrap();
+    let client_did = install_test_identities(&mut server, &mut [&mut user]).await;
 
     let tmp_a = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp_a.path().join("basic.txt"), b"basic").unwrap();
@@ -1467,6 +1590,9 @@ async fn dynamic_space_grant_upgrade_and_downgrade() {
     basic_only.insert("tier-basic".to_string());
     allowed.insert(user.endpoint_id().to_string(), basic_only);
     server.set_allowed_peers(allowed).await;
+    let mut owner_dids = HashMap::new();
+    owner_dids.insert(user.endpoint_id().to_string(), client_did);
+    server.set_peer_owner_dids(owner_dids).await;
 
     let resp = send_request(&ep, addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("tier-basic") }).await.unwrap();
     match &resp {
