@@ -451,6 +451,42 @@ mod tests {
         assert!(!entry.is_dir, "ramp.bin is a regular file");
     }
 
+    /// Layer 1.25 security regression: a UCAN whose audience does not match
+    /// the verified peer DID must be rejected, even when the signature is
+    /// valid and the capability + space match. Without this check the entire
+    /// quic_did_auth handshake would be theatrical — a peer could replay any
+    /// UCAN it managed to obtain by other means.
+    #[tokio::test]
+    async fn remote_list_rejects_ucan_for_foreign_did() {
+        let h = setup_harness().await;
+
+        // Mint a UCAN whose audience is a fresh, unrelated DID — not the
+        // client's verified DID. The signature is valid (issuer signs over
+        // the payload) but the audience is wrong, so handle_stream's Layer
+        // 1.25 check should fire.
+        let mut foreign_seed = [0u8; 32];
+        rand::fill(&mut foreign_seed);
+        let foreign_signer = SigningKey::from_bytes(&foreign_seed);
+        let foreign_did = did_from_signing_key(&foreign_signer);
+
+        let mut issuer_seed = [0u8; 32];
+        rand::fill(&mut issuer_seed);
+        let issuer = SigningKey::from_bytes(&issuer_seed);
+        let mismatched_ucan = read_ucan(&issuer, "test-space", &foreign_did);
+
+        let result = h
+            .client
+            .remote_list(h.server_remote_id, None, "/", &mismatched_ucan)
+            .await;
+
+        let err = result.expect_err("foreign-audience UCAN must be rejected");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("audience"),
+            "error should mention audience mismatch, got: {msg}"
+        );
+    }
+
     // =========================================================================
     // Unit tests: streaming module constants and error types
     // =========================================================================
