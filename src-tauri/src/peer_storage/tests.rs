@@ -393,6 +393,13 @@ mod tests {
         allowed.insert(client_id.to_string(), spaces);
         server.set_allowed_peers(allowed).await;
 
+        // Mirror the production load: handle_connection cross-checks the
+        // crypto-verified DID against this map, so tests must populate it
+        // with the client's expected owner DID.
+        let mut owner_dids = HashMap::new();
+        owner_dids.insert(client_id.to_string(), client_did.clone());
+        server.set_peer_owner_dids(owner_dids).await;
+
         // Server endpoint addr (full, with direct addrs since RelayMode::Disabled).
         let server_addr = server.endpoint_ref().unwrap().addr();
         client
@@ -449,6 +456,73 @@ mod tests {
 
         assert_eq!(entry.size, 1024 * 1024, "ramp file is 1 MiB");
         assert!(!entry.is_dir, "ramp.bin is a regular file");
+    }
+
+    /// Defense-in-depth regression: when the DB's expected owner DID for a
+    /// peer (`peer_owner_dids`) disagrees with the cryptographically verified
+    /// DID from the handshake, the connection must close. The handshake on
+    /// its own only proves the peer holds the private key for the DID it
+    /// claims; the cross-check ensures that DID is also the one our vault
+    /// recorded for this endpoint id when the row was synced through CRDT.
+    /// A drift between the two layers is treated as a vault-internal
+    /// inconsistency, not a recoverable state.
+    #[tokio::test]
+    async fn connection_closes_when_peer_owner_did_disagrees_with_handshake() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("file.txt"), b"x").unwrap();
+        let space_id = "test-space".to_string();
+
+        let mut server = PeerEndpoint::new_ephemeral();
+        server.set_random_test_identity();
+        let _server_id = server.start_for_test().await.expect("server bind");
+        server
+            .add_share(
+                "share-1".to_string(),
+                "media".to_string(),
+                tmp.path().to_string_lossy().to_string(),
+                space_id.clone(),
+            )
+            .await;
+
+        let mut client = PeerEndpoint::new_ephemeral();
+        let _client_did = client.set_random_test_identity();
+        client.start_for_test().await.expect("client bind");
+        let client_id = client.endpoint_id();
+
+        // Allow the client through the coarse access gate ...
+        let mut allowed = HashMap::new();
+        let mut spaces = HashSet::new();
+        spaces.insert(space_id.clone());
+        allowed.insert(client_id.to_string(), spaces);
+        server.set_allowed_peers(allowed).await;
+
+        // ... but tell the server that this endpoint id is supposed to
+        // belong to a completely different DID. The handshake will return
+        // the client's actual DID; the cross-check must then reject.
+        let mut wrong_owner_dids = HashMap::new();
+        wrong_owner_dids.insert(
+            client_id.to_string(),
+            "did:key:z6MkUnrelatedExpectedOwner".to_string(),
+        );
+        server.set_peer_owner_dids(wrong_owner_dids).await;
+
+        // Run the connect through `connect_for_test`, which completes the
+        // handshake locally; the server-side cross-check then closes the
+        // connection so the next request open_bi fails.
+        let server_addr = server.endpoint_ref().unwrap().addr();
+        // `connect_for_test` may or may not see the close before its own
+        // handshake completes — either way, the subsequent operation must
+        // not succeed.
+        let _ = client.connect_for_test(server_addr).await;
+
+        let path = "/media/file.txt".to_string();
+        let result = client
+            .remote_list(client_id, None, &path, "any-token")
+            .await;
+        assert!(
+            result.is_err(),
+            "request must fail when DB owner_did disagrees with handshake, got: {result:?}"
+        );
     }
 
     /// Layer 1.25 security regression: a UCAN whose audience does not match
@@ -615,6 +689,10 @@ mod tests {
         spaces.insert(space_id.clone());
         allowed.insert(client_id.to_string(), spaces);
         server.set_allowed_peers(allowed).await;
+
+        let mut owner_dids = HashMap::new();
+        owner_dids.insert(client_id.to_string(), client_did.clone());
+        server.set_peer_owner_dids(owner_dids).await;
 
         let server_addr = server.endpoint_ref().unwrap().addr();
         client_inner

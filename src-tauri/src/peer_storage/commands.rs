@@ -124,6 +124,58 @@ fn load_own_identity_for_device(
     Ok(crate::peer_storage::endpoint::OwnIdentity { did, signing_key })
 }
 
+/// Load the expected `(endpoint_id -> owner_did)` map for every peer we
+/// could legitimately accept connections from. The query joins
+/// `haex_space_devices` (cross-vault, UCAN-attributed) against
+/// `haex_devices` (vault-private, populated by the
+/// `haex_space_devices_ensure_refs` trigger from `authored_by_did`). The
+/// result is the DB-side ground truth that the quic_did_auth handshake's
+/// crypto-verified DID is cross-checked against in `handle_connection`.
+///
+/// Excludes our own endpoint and skips rows whose `owner_did` is NULL —
+/// the latter only happens transiently during a partial sync and we'd
+/// rather reject the peer than risk admitting an unverifiable one.
+fn load_peer_owner_dids(
+    state: &AppState,
+    own_endpoint_id: &str,
+) -> Result<HashMap<String, String>, PeerStorageError> {
+    let sql = "SELECT DISTINCT sd.endpoint_id, d.owner_did \
+               FROM haex_space_devices sd \
+               JOIN haex_devices d ON d.id = sd.device_id \
+               WHERE sd.endpoint_id != ?1 \
+                 AND d.owner_did IS NOT NULL"
+        .to_string();
+    let params = vec![serde_json::Value::String(own_endpoint_id.to_string())];
+
+    let rows = crate::database::core::select_with_crdt(sql, params, &state.db)
+        .map_err(|e| PeerStorageError::Database { reason: e.to_string() })?;
+
+    let mut map: HashMap<String, String> = HashMap::new();
+    for row in &rows {
+        let endpoint_id = row.first().and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        let owner_did = row.get(1).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        if endpoint_id.is_empty() || owner_did.is_empty() {
+            continue;
+        }
+        // If a peer surfaces under conflicting owner DIDs we cannot pick a
+        // side safely — drop the entry so handle_connection rejects rather
+        // than admitting one of two possibly-wrong DIDs.
+        match map.get(&endpoint_id) {
+            Some(existing) if existing != &owner_did => {
+                eprintln!(
+                    "[PeerStorage] Ambiguous owner_did for endpoint_id {endpoint_id}: \
+                     {existing} vs {owner_did} — dropping from peer_owner_dids map"
+                );
+                map.remove(&endpoint_id);
+            }
+            _ => {
+                map.insert(endpoint_id, owner_did);
+            }
+        }
+    }
+    Ok(map)
+}
+
 /// Load allowed peers from haex_space_devices.
 /// Returns a map: remote EndpointId (string) -> set of space_ids they may access.
 /// Excludes our own endpoint ID.
@@ -160,6 +212,11 @@ pub(crate) async fn reload_allowed_peers(
     let allowed_peers = load_allowed_peers_from_db(state, &endpoint_id)?;
     let peer_count: usize = allowed_peers.values().map(|s| s.len()).sum();
     endpoint.set_allowed_peers(allowed_peers).await;
+    // Keep the DID cross-check map in lock-step: a peer that just appeared
+    // in allowed_peers but not yet in peer_owner_dids would be rejected by
+    // handle_connection. Same SQL pass updates both.
+    let owner_dids = load_peer_owner_dids(state, &endpoint_id)?;
+    endpoint.set_peer_owner_dids(owner_dids).await;
     eprintln!("[PeerStorage] Updated allowed peers: {peer_count} peers across spaces");
     Ok(())
 }
@@ -173,6 +230,7 @@ async fn reload_state_from_db(
 
     let shares = load_shares_from_db(state, &endpoint_id)?;
     let allowed_peers = load_allowed_peers_from_db(state, &endpoint_id)?;
+    let peer_owner_dids = load_peer_owner_dids(state, &endpoint_id)?;
 
     endpoint.clear_shares().await;
     let mut loaded = 0;
@@ -197,6 +255,7 @@ async fn reload_state_from_db(
     }
 
     endpoint.set_allowed_peers(allowed_peers).await;
+    endpoint.set_peer_owner_dids(peer_owner_dids).await;
 
     eprintln!("[PeerStorage] Loaded {loaded}/{} shares from DB", shares.len());
     Ok(loaded)

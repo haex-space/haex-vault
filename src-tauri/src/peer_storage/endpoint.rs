@@ -117,6 +117,13 @@ pub struct PeerState {
     /// handlers to enforce UCAN audience match. Cleared when the connection
     /// closes.
     pub endpoint_dids: HashMap<String, String>,
+    /// Expected owner DID per remote endpoint id, loaded from
+    /// `haex_devices.owner_did` (which the `haex_space_devices_ensure_refs`
+    /// trigger populates from UCAN-attributed CRDT rows). Cross-checked
+    /// against the cryptographically verified DID from the quic_did_auth
+    /// handshake — any mismatch is treated as a vault-internal inconsistency
+    /// (database drift, partial sync, or worse) and the connection is closed.
+    pub peer_owner_dids: HashMap<String, String>,
 }
 
 impl Default for PeerState {
@@ -127,6 +134,7 @@ impl Default for PeerState {
             app_handle: None,
             delivery_handler: None,
             endpoint_dids: HashMap::new(),
+            peer_owner_dids: HashMap::new(),
         }
     }
 }
@@ -738,6 +746,20 @@ impl PeerEndpoint {
         self.state.write().await.allowed_peers = allowed;
     }
 
+    /// Update the expected `(endpoint_id -> owner_did)` map used as a
+    /// defense-in-depth cross-check against the cryptographically verified
+    /// DID from the handshake. Loaded from `haex_devices.owner_did` for
+    /// every endpoint we expect to see — keep this in sync with
+    /// `allowed_peers`, since a peer that passes `allowed_peers` but has no
+    /// entry here will be rejected by `handle_connection`.
+    pub async fn set_peer_owner_dids(&self, dids: HashMap<String, String>) {
+        eprintln!(
+            "[PeerStorage] Updated peer owner DIDs: {} entries",
+            dids.len()
+        );
+        self.state.write().await.peer_owner_dids = dids;
+    }
+
     /// Local-only endpoint start for unit tests. Binds with `RelayMode::Disabled`
     /// and no address-lookup service, so the test does not depend on DNS or relay
     /// servers. Spawns the accept loop; omits the production endpoint-closed
@@ -985,10 +1007,48 @@ async fn handle_connection(
         }
     };
 
-    eprintln!(
-        "[PeerStorage] DID-auth ok: {remote} -> {}",
-        &verified_did[..24.min(verified_did.len())]
-    );
+    let verified_short: String = verified_did.chars().take(24).collect();
+    eprintln!("[PeerStorage] DID-auth ok: {remote} -> {verified_short}");
+
+    // -- Phase 1.5: defense in depth — cross-check the crypto-verified DID
+    // against the (endpoint_id -> owner_did) map we loaded from haex_devices.
+    // The handshake alone proves "this peer holds the private key for the
+    // DID it claims". The DB-side expectation proves "this DID is the one
+    // we recorded as the owner of this endpoint id when the row was synced
+    // through CRDT with UCAN audience attribution". Either layer alone is
+    // sufficient on the happy path; together they make any single-layer
+    // compromise (crypto bug, DB drift, partial sync, schema regression)
+    // detectable rather than silent.
+    {
+        let s = state.read().await;
+        match s.peer_owner_dids.get(&remote_str) {
+            Some(expected) if expected == &verified_did => {
+                // happy path — DB and crypto agree
+            }
+            Some(expected) => {
+                let expected_short: String = expected.chars().take(24).collect();
+                eprintln!(
+                    "[PeerStorage] Closing connection to {remote}: verified DID does not match \
+                     haex_devices.owner_did (verified={verified_short} db={expected_short})"
+                );
+                conn.close(4u32.into(), b"did/owner_did mismatch");
+                return;
+            }
+            None => {
+                // A peer that cleared allowed_peers must also have an entry
+                // here — the two maps are loaded from the same DB pass. A
+                // missing entry means inconsistent state and we reject
+                // rather than accept the crypto-only proof.
+                eprintln!(
+                    "[PeerStorage] Closing connection to {remote}: no haex_devices.owner_did \
+                     entry for verified DID {verified_short}"
+                );
+                conn.close(5u32.into(), b"no owner_did mapping");
+                return;
+            }
+        }
+    }
+
     state
         .write()
         .await

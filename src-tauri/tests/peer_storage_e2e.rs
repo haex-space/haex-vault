@@ -133,12 +133,17 @@ async fn allowed_peer_can_connect() {
         tmp.path().to_string_lossy().to_string(), "space-1".to_string(),
     ).await;
 
-    // Allow client
+    // Allow client + mirror the DB-side `(endpoint_id -> owner_did)`
+    // expectation that handle_connection cross-checks against the
+    // crypto-verified DID from the handshake.
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
     spaces.insert("space-1".to_string());
     allowed.insert(client.endpoint_id().to_string(), spaces);
     server.set_allowed_peers(allowed).await;
+    let mut owner_dids = HashMap::new();
+    owner_dids.insert(client.endpoint_id().to_string(), client_identity.did.clone());
+    server.set_peer_owner_dids(owner_dids).await;
 
     // Connect and send LIST
     let client_ep = client.endpoint_ref().unwrap().clone();
@@ -187,12 +192,15 @@ async fn access_revoked_mid_session() {
         tmp.path().to_string_lossy().to_string(), "space-1".to_string(),
     ).await;
 
-    // Allow client
+    // Allow client + matching owner_did expectation.
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
     spaces.insert("space-1".to_string());
     allowed.insert(client.endpoint_id().to_string(), spaces);
     server.set_allowed_peers(allowed).await;
+    let mut owner_dids = HashMap::new();
+    owner_dids.insert(client.endpoint_id().to_string(), client_identity.did.clone());
+    server.set_peer_owner_dids(owner_dids).await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
 
@@ -202,6 +210,7 @@ async fn access_revoked_mid_session() {
 
     // Revoke
     server.set_allowed_peers(HashMap::new()).await;
+    server.set_peer_owner_dids(HashMap::new()).await;
     sleep(Duration::from_millis(100)).await;
 
     // Second request should fail
@@ -238,13 +247,17 @@ async fn partial_revoke_only_blocks_target() {
         tmp.path().to_string_lossy().to_string(), "space-1".to_string(),
     ).await;
 
-    // Allow both
+    // Allow both + matching owner_did expectations.
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
     spaces.insert("space-1".to_string());
     allowed.insert(good.endpoint_id().to_string(), spaces.clone());
     allowed.insert(evil.endpoint_id().to_string(), spaces);
     server.set_allowed_peers(allowed).await;
+    let mut owner_dids = HashMap::new();
+    owner_dids.insert(good.endpoint_id().to_string(), good_identity.did.clone());
+    owner_dids.insert(evil.endpoint_id().to_string(), evil_identity.did.clone());
+    server.set_peer_owner_dids(owner_dids).await;
 
     let good_ep = good.endpoint_ref().unwrap().clone();
     let evil_ep = evil.endpoint_ref().unwrap().clone();
@@ -253,12 +266,15 @@ async fn partial_revoke_only_blocks_target() {
     assert!(raw_list(&good_ep, server_addr.clone(), &good_identity).await.is_ok());
     assert!(raw_list(&evil_ep, server_addr.clone(), &evil_identity).await.is_ok());
 
-    // Revoke only evil
+    // Revoke only evil — drop from both maps in lock-step.
     let mut new_allowed = HashMap::new();
     let mut spaces = HashSet::new();
     spaces.insert("space-1".to_string());
     new_allowed.insert(good.endpoint_id().to_string(), spaces);
     server.set_allowed_peers(new_allowed).await;
+    let mut new_owner_dids = HashMap::new();
+    new_owner_dids.insert(good.endpoint_id().to_string(), good_identity.did.clone());
+    server.set_peer_owner_dids(new_owner_dids).await;
     sleep(Duration::from_millis(100)).await;
 
     // Evil denied, good still works
