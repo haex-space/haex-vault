@@ -765,11 +765,10 @@ impl PeerEndpoint {
     }
 
     /// Generate a fresh ed25519 keypair and install it as the endpoint's
-    /// own identity. Used by tests so the quic_did_auth handshake has
-    /// something to sign with — production code calls `set_own_identity` with
-    /// the device's `haex_devices.owner_did` + `haex_identities.private_key`.
+    /// own identity. Returns the generated DID so tests can mint UCANs whose
+    /// audience matches the verified peer DID checked in handle_stream.
     #[cfg(test)]
-    pub(crate) fn set_random_test_identity(&self) {
+    pub(crate) fn set_random_test_identity(&self) -> String {
         let mut seed = [0u8; 32];
         rand::fill(&mut seed);
         let signing_key = SigningKey::from_bytes(&seed);
@@ -777,7 +776,11 @@ impl PeerEndpoint {
         did_bytes.extend_from_slice(&[0xed, 0x01]);
         did_bytes.extend_from_slice(signing_key.verifying_key().as_bytes());
         let did = format!("did:key:z{}", bs58::encode(did_bytes).into_string());
-        self.set_own_identity(OwnIdentity { did, signing_key });
+        self.set_own_identity(OwnIdentity {
+            did: did.clone(),
+            signing_key,
+        });
+        did
     }
 
     /// Pre-populate the connection cache with a direct-address QUIC connection
@@ -981,7 +984,7 @@ async fn handle_connection(
         .write()
         .await
         .endpoint_dids
-        .insert(remote_str.clone(), verified_did);
+        .insert(remote_str.clone(), verified_did.clone());
 
     // -- Phase 2: normal request loop --
 
@@ -1001,10 +1004,16 @@ async fn handle_connection(
                 };
 
                 let state = state.clone();
+                let verified_did = verified_did.clone();
                 tokio::spawn(async move {
-                    if let Err(e) =
-                        super::handlers::handle_stream(send, &mut recv, &state, &allowed_spaces)
-                            .await
+                    if let Err(e) = super::handlers::handle_stream(
+                        send,
+                        &mut recv,
+                        &state,
+                        &allowed_spaces,
+                        &verified_did,
+                    )
+                    .await
                     {
                         eprintln!("[PeerStorage] Stream error from {remote}: {e}");
                     }

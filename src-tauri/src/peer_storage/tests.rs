@@ -299,7 +299,7 @@ mod tests {
     /// audience key. Mirrors the test helper used by
     /// `ucan::verify::tests::make_test_token`, kept inline here so the
     /// peer_storage tests have no cross-module test dependency.
-    fn mint_ucan(signer: &SigningKey, space_id: &str, capability: &str) -> String {
+    fn mint_ucan(signer: &SigningKey, space_id: &str, capability: &str, audience: &str) -> String {
         let issuer_did = did_from_signing_key(signer);
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -309,7 +309,7 @@ mod tests {
         let payload = serde_json::json!({
             "ucv": "1.0",
             "iss": issuer_did,
-            "aud": "did:key:z6MkAudience",
+            "aud": audience,
             "cap": { format!("space:{}", space_id): capability },
             "exp": now + 3600,
             "iat": now,
@@ -328,12 +328,12 @@ mod tests {
         )
     }
 
-    fn read_ucan(signer: &SigningKey, space_id: &str) -> String {
-        mint_ucan(signer, space_id, "space/read")
+    fn read_ucan(signer: &SigningKey, space_id: &str, audience: &str) -> String {
+        mint_ucan(signer, space_id, "space/read", audience)
     }
 
-    fn write_ucan(signer: &SigningKey, space_id: &str) -> String {
-        mint_ucan(signer, space_id, "space/write")
+    fn write_ucan(signer: &SigningKey, space_id: &str, audience: &str) -> String {
+        mint_ucan(signer, space_id, "space/write", audience)
     }
 
     struct Harness {
@@ -345,6 +345,9 @@ mod tests {
         server_remote_id: iroh::EndpointId,
         share_name: String,
         ucan: String,
+        /// The client's verified DID — UCANs whose `aud` does not match this
+        /// are rejected by the Layer 1.25 audience check in handle_stream.
+        client_did: String,
         _tmp: tempfile::TempDir,
     }
 
@@ -379,7 +382,7 @@ mod tests {
 
         // --- Client side ---
         let mut client = PeerEndpoint::new_ephemeral();
-        client.set_random_test_identity();
+        let client_did = client.set_random_test_identity();
         client.start_for_test().await.expect("client bind");
         let client_id = client.endpoint_id();
 
@@ -397,14 +400,14 @@ mod tests {
             .await
             .expect("client → server connect");
 
-        // Sign the UCAN with the same key as the client device — the server's
-        // capability check verifies the token signature but does not require
-        // iss == client EndpointId, only that the token grants read on the
-        // target space.
+        // Sign the UCAN with a fresh issuer key — the server's capability
+        // check verifies the token signature but does not require iss ==
+        // client EndpointId. The audience MUST equal the client's verified
+        // DID so the Layer 1.25 audience check in handle_stream passes.
         let mut seed = [0u8; 32];
         rand::fill(&mut seed);
         let ucan_signer = SigningKey::from_bytes(&seed);
-        let ucan = read_ucan(&ucan_signer, &space_id);
+        let ucan = read_ucan(&ucan_signer, &space_id, &client_did);
 
         Harness {
             _server: server,
@@ -412,6 +415,7 @@ mod tests {
             server_remote_id: server_id,
             share_name,
             ucan,
+            client_did,
             _tmp: tmp,
         }
     }
@@ -566,7 +570,7 @@ mod tests {
             .await;
 
         let mut client_inner = PeerEndpoint::new_ephemeral();
-        client_inner.set_random_test_identity();
+        let client_did = client_inner.set_random_test_identity();
         client_inner.start_for_test().await.expect("client bind");
         let client_id = client_inner.endpoint_id();
 
@@ -585,7 +589,7 @@ mod tests {
         let mut seed = [0u8; 32];
         rand::fill(&mut seed);
         let ucan_signer = ed25519_dalek::SigningKey::from_bytes(&seed);
-        let ucan = read_ucan(&ucan_signer, &space_id);
+        let ucan = read_ucan(&ucan_signer, &space_id, &client_did);
 
         let client = std::sync::Arc::new(tokio::sync::RwLock::new(client_inner));
 
@@ -820,7 +824,7 @@ mod tests {
         let mut seed = [0u8; 32];
         rand::fill(&mut seed);
         let write_signer = SigningKey::from_bytes(&seed);
-        let write_token = write_ucan(&write_signer, "test-space");
+        let write_token = write_ucan(&write_signer, "test-space", &h.client_did);
 
         // Upload a file to the server, then read it back. The read exercises
         // pipe_reader_to_send through handlers::stream_file_to_send on the
@@ -879,7 +883,7 @@ mod tests {
         let mut seed = [0u8; 32];
         rand::fill(&mut seed);
         let write_signer = SigningKey::from_bytes(&seed);
-        let write_token = write_ucan(&write_signer, "test-space");
+        let write_token = write_ucan(&write_signer, "test-space", &h.client_did);
 
         let token = tokio_util::sync::CancellationToken::new();
         token.cancel();

@@ -73,6 +73,7 @@ pub(super) async fn handle_stream(
     recv: &mut iroh::endpoint::RecvStream,
     state: &RwLock<PeerState>,
     allowed_spaces: &HashSet<String>,
+    verified_remote_did: &str,
 ) -> Result<(), PeerStorageError> {
     let request = protocol::read_request(recv)
         .await
@@ -92,6 +93,28 @@ pub(super) async fn handle_stream(
             return Ok(());
         }
     };
+
+    // ── Layer 1.25: UCAN audience must equal the peer's cryptographically
+    // verified DID for this connection. Without this check a peer P could
+    // present a UCAN issued to a foreign DID Q over its own iroh transport
+    // key — Layer 1 (signature) and the capability/space gates below would
+    // both pass. The verified DID was bound to the connection during the
+    // quic_did_auth handshake in handle_connection. ──
+    if let Err(e) = crate::ucan::require_audience(&validated_ucan, verified_remote_did) {
+        eprintln!(
+            "[PeerStorage] UCAN audience != verified peer DID: aud={} verified={} err={}",
+            &validated_ucan.audience[..24.min(validated_ucan.audience.len())],
+            &verified_remote_did[..24.min(verified_remote_did.len())],
+            e
+        );
+        let resp = Response::Error {
+            message: format!(
+                "Access denied: UCAN audience does not match verified peer DID: {e}"
+            ),
+        };
+        send_response_and_finish(&mut send, &resp).await.ok();
+        return Ok(());
+    }
 
     // ── Layer 1.5: narrow allowed_spaces to the intersection with the
     // UCAN's claimed spaces. The connection-accept gate is intentionally
