@@ -300,7 +300,7 @@ pub async fn peer_storage_start(
     // `start` and reads the identity slot from then on.
     let own_endpoint_id = endpoint.endpoint_id().to_string();
     let own_identity = load_own_identity_for_device(&state, &own_endpoint_id)?;
-    endpoint.set_own_identity(own_identity);
+    endpoint.set_own_identity(own_identity.clone());
 
     // Load shares and allowed peers from DB before starting
     reload_state_from_db(&state, &*endpoint).await?;
@@ -328,6 +328,12 @@ pub async fn peer_storage_start(
                     ),
                 },
             );
+            // Mirror the same device identity onto the delivery handler so
+            // its server-initiated quic_did_auth handshake can run on every
+            // incoming connection. Same identity material as peer_storage —
+            // the slot exists per-handler so peer_storage and space_delivery
+            // can be configured independently if that ever becomes useful.
+            handler.set_own_identity(own_identity.clone());
             endpoint.set_delivery_handler(handler).await;
         }
     }

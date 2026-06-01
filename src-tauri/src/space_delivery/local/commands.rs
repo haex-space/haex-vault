@@ -12,7 +12,6 @@ use crate::AppState;
 
 use super::invite_tokens;
 use super::leader::LeaderState;
-use super::multi_leader::MultiSpaceLeaderHandler;
 use super::protocol::{Request, Response};
 use super::types::{ClaimInviteResult, DeliveryStatus, ElectionResultInfo, LeaderInfo, LocalInviteInfo};
 
@@ -42,26 +41,15 @@ pub async fn local_delivery_start(
     });
 
     let mut leaders = state.leader_state.write().await;
-    let is_first = leaders.is_empty();
     leaders.insert(space_id.clone(), leader_state);
     drop(leaders);
 
-    // Register handler only once — it holds the same Arc as leader_state map
-    if is_first {
-        let hlc_clone = state.hlc.lock().map_err(|_| "HLC lock poisoned".to_string())?.clone();
-        let endpoint = state.peer_storage.read().await;
-        let own_endpoint_id = endpoint.endpoint_id().to_string();
-        let handler = Arc::new(MultiSpaceLeaderHandler {
-            leaders: state.leader_state.clone(),
-            db: DbConnection(state.db.0.clone()),
-            hlc: Arc::new(std::sync::Mutex::new(hlc_clone)),
-            app_handle: app,
-            own_endpoint_id,
-            own_identity: Arc::new(std::sync::Mutex::new(None)),
-            endpoint_dids: Arc::new(RwLock::new(HashMap::new())),
-        });
-        endpoint.set_delivery_handler(handler).await;
-    }
+    // The MultiSpaceLeaderHandler is registered once during `peer_storage_start`
+    // with the device identity already loaded — re-registering here would
+    // overwrite it with a fresh handler whose `own_identity` slot is empty,
+    // breaking the server-initiated quic_did_auth handshake. The handler
+    // already holds an `Arc` to `state.leader_state`, so the leader row we
+    // just inserted is visible to it without any further wiring.
 
     eprintln!("[SpaceDelivery] Started leader mode for space {space_id}");
     Ok(())
@@ -694,11 +682,28 @@ pub async fn local_delivery_claim_invite(
     let bytes = super::protocol::encode(&req)
         .map_err(|e| format!("Failed to encode request: {e}"))?;
 
+    // Load the claimant's signing key for the server-initiated quic_did_auth
+    // handshake. ClaimInvite is the first time this DID ever connects to the
+    // leader, so the handshake is what cryptographically binds the claim to
+    // this DID — without it the leader cannot tell us apart from any other
+    // peer who happens to know the token (plan §4.2 scenarios 1+2).
+    let db_for_identity = DbConnection(state.db.0.clone());
+    let our_identity = super::quic_retry::load_signing_identity_for_did(
+        &db_for_identity,
+        &identity_did,
+    )
+    .map_err(|e| {
+        log("error", &format!("identity load failed: {e}"));
+        e.to_string()
+    })?;
+
     // QUIC connect + send + read with automatic retry on transient failures.
     let response = super::quic_retry::send_request_with_retry(
         "ClaimInvite",
         &iroh_endpoint,
         addr,
+        &identity_did,
+        &our_identity.signing_key,
         &bytes,
     )
     .await
@@ -928,11 +933,30 @@ pub async fn local_delivery_push_invite(
     let bytes = super::protocol::encode(&request)
         .map_err(|e| format!("Encode error: {e}"))?;
 
+    // The inviter authenticates as themself; the inviter_did inside the
+    // payload must match the connection-verified DID (C8 enforces). Load the
+    // signing key for `inviter_did` from `haex_identities`.
+    let inviter_did_for_auth = match &request {
+        super::protocol::Request::PushInvite { inviter_did, .. } => inviter_did.clone(),
+        _ => unreachable!("request constructed as PushInvite a few lines above"),
+    };
+    let db_for_identity = DbConnection(state.db.0.clone());
+    let inviter_identity = super::quic_retry::load_signing_identity_for_did(
+        &db_for_identity,
+        &inviter_did_for_auth,
+    )
+    .map_err(|e| {
+        log("error", &format!("identity load failed: {e}"));
+        e.to_string()
+    })?;
+
     // QUIC connect + send + read with automatic retry on transient failures.
     let response = super::quic_retry::send_request_with_retry(
         "PushInvite-Send",
         &iroh_endpoint,
         addr,
+        &inviter_did_for_auth,
+        &inviter_identity.signing_key,
         &bytes,
     )
     .await

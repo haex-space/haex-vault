@@ -32,6 +32,7 @@ impl PeerSession {
         leader_relay_url: Option<&str>,
         space_id: &str,
         our_did: &str,
+        our_signing_key: &ed25519_dalek::SigningKey,
         our_endpoint_id: &str,
         label: Option<&str>,
         db: &DbConnection,
@@ -66,6 +67,23 @@ impl PeerSession {
             .map_err(|e| DeliveryError::ConnectionFailed {
                 reason: e.to_string(),
             })?;
+
+        // Server-initiated quic_did_auth handshake. The leader opens the first
+        // bidirectional stream right after `accept` and writes a Challenge;
+        // we accept that stream, sign the canonical payload with our identity,
+        // and only then send the Announce on a fresh bi-stream. Without this
+        // every announce after the C3 wire change would deadlock the leader
+        // waiting for a Response that never arrives.
+        super::quic_retry::complete_client_did_auth(
+            &conn,
+            our_did,
+            our_signing_key,
+            our_endpoint_id,
+        )
+        .await
+        .map_err(|e| DeliveryError::ConnectionFailed {
+            reason: format!("DID-auth: {e}"),
+        })?;
 
         let session = Self { conn, ucan_token };
 

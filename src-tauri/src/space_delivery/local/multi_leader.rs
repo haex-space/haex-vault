@@ -85,6 +85,92 @@ impl MultiSpaceLeaderHandler {
             &format!("Connection accepted from {remote_str}"),
         );
 
+        // -- Phase 1: DID challenge --
+        //
+        // The first bidirectional stream of every delivery connection is the
+        // quic_did_auth handshake, server-initiated via `open_bi`. Until it
+        // succeeds the connection holds no state for this peer; on success
+        // the verified DID is cached in `endpoint_dids` and consumed by the
+        // request handlers (C4+ commits) to gate UCAN audience checks against
+        // the connection-bound DID rather than the request-payload `did`
+        // field. Mirrors `peer_storage/endpoint.rs:955-1010`.
+        let identity_snapshot = self
+            .own_identity
+            .lock()
+            .ok()
+            .and_then(|g| g.clone());
+        if identity_snapshot.is_none() {
+            crate::logging::log_to_db(
+                &self.db,
+                &self.hlc,
+                "error",
+                "MultiLeader",
+                &format!(
+                    "Rejecting delivery connection from {remote_str}: own identity \
+                     not configured (set_own_identity must run before start)"
+                ),
+            );
+            conn.close(3u32.into(), b"no own identity");
+            return;
+        }
+
+        // Server initiates the auth stream so it can write the Challenge
+        // first — `open_bi` materialises the stream on the wire as soon as
+        // the server writes, which avoids a both-sides-blocked-on-read
+        // deadlock that would otherwise occur if both endpoints tried to
+        // read first. Same rationale as peer_storage.
+        let verified_did = match conn.open_bi().await {
+            Ok((mut send, mut recv)) => {
+                match crate::quic_did_auth::challenge_and_verify(
+                    &mut send,
+                    &mut recv,
+                    &self.own_endpoint_id,
+                    &remote_str,
+                )
+                .await
+                {
+                    Ok(did) => did,
+                    Err(e) => {
+                        crate::logging::log_to_db(
+                            &self.db,
+                            &self.hlc,
+                            "warn",
+                            "MultiLeader",
+                            &format!("DID-auth failed for {remote_str}: {e}"),
+                        );
+                        conn.close(2u32.into(), b"did-auth failed");
+                        return;
+                    }
+                }
+            }
+            Err(e) => {
+                crate::logging::log_to_db(
+                    &self.db,
+                    &self.hlc,
+                    "warn",
+                    "MultiLeader",
+                    &format!("Failed to open auth stream to {remote_str}: {e}"),
+                );
+                return;
+            }
+        };
+
+        let verified_short: String = verified_did.chars().take(24).collect();
+        crate::logging::log_to_db(
+            &self.db,
+            &self.hlc,
+            "info",
+            "MultiLeader",
+            &format!("DID-auth ok: {remote_str} -> {verified_short}"),
+        );
+
+        self.endpoint_dids
+            .write()
+            .await
+            .insert(remote_str.clone(), verified_did.clone());
+
+        // -- Phase 2: normal request loop --
+
         let mut stream_count: u32 = 0;
         let mut idle_heartbeats: u32 = 0;
         let connection_start = std::time::Instant::now();
@@ -163,6 +249,11 @@ impl MultiSpaceLeaderHandler {
                 }
             }
         }
+
+        // Drop the cached verified DID — once the QUIC connection is gone
+        // the (endpoint_id -> DID) binding established by the handshake no
+        // longer applies. A future reconnect repeats the handshake.
+        self.endpoint_dids.write().await.remove(&remote_str);
 
         // Clean up peer state across all active leaders
         let leaders = self.leaders.read().await;
