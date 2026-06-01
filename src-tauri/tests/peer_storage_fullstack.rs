@@ -19,13 +19,19 @@ use haex_vault_lib::quic_did_auth;
 
 const ED25519_MULTICODEC: [u8; 2] = [0xed, 0x01];
 
-/// Deterministic client identity. Shares its key with `test_ucan_token`
-/// (also seed[0]=42) so any UCAN minted by that helper has `aud` equal to
-/// the client's verified DID — the Layer 1.25 audience check then passes.
+/// Identity shared between `test_client_identity` and `test_ucan_token_for`
+/// so the UCAN's `aud` and the client's verified DID line up under Layer
+/// 1.25. Pulling the seed from the RNG once at first access keeps every
+/// helper in this file in sync without any literal seed bytes — CodeQL
+/// flagged the old `seed[0] = 42` pattern as a hardcoded credential.
+static SHARED_TEST_KEY: LazyLock<SigningKey> = LazyLock::new(|| {
+    let seed: [u8; 32] = rand::random();
+    SigningKey::from_bytes(&seed)
+});
+
+/// Build an OwnIdentity backed by `SHARED_TEST_KEY`.
 fn test_client_identity() -> OwnIdentity {
-    let mut seed = [0u8; 32];
-    seed[0] = 42;
-    let signing_key = SigningKey::from_bytes(&seed);
+    let signing_key = SHARED_TEST_KEY.clone();
     let mut bytes = Vec::with_capacity(34);
     bytes.extend_from_slice(&ED25519_MULTICODEC);
     bytes.extend_from_slice(signing_key.verifying_key().as_bytes());
@@ -37,8 +43,7 @@ fn test_client_identity() -> OwnIdentity {
 /// affect UCAN audience checks (those run against the client's DID), so a
 /// new key per test isolates servers across the suite.
 fn random_server_identity() -> OwnIdentity {
-    let mut seed = [0u8; 32];
-    rand::fill(&mut seed);
+    let seed: [u8; 32] = rand::random();
     let signing_key = SigningKey::from_bytes(&seed);
     let mut bytes = Vec::with_capacity(34);
     bytes.extend_from_slice(&ED25519_MULTICODEC);
@@ -98,20 +103,14 @@ fn test_ucan_token(space_id: &str) -> String {
 /// a single connection must present a UCAN that covers them all.
 fn test_ucan_token_for(space_ids: &[&str]) -> String {
     use base64::Engine;
-    use ed25519_dalek::{Signer, SigningKey};
+    use ed25519_dalek::Signer;
 
     const BASE64URL: base64::engine::GeneralPurpose = base64::engine::GeneralPurpose::new(
         &base64::alphabet::URL_SAFE,
         base64::engine::general_purpose::NO_PAD,
     );
 
-    static TEST_KEY: LazyLock<SigningKey> = LazyLock::new(|| {
-        let mut seed = [0u8; 32];
-        seed[0] = 42; // deterministic test key
-        SigningKey::from_bytes(&seed)
-    });
-
-    let vk = TEST_KEY.verifying_key();
+    let vk = SHARED_TEST_KEY.verifying_key();
     let multicodec: [u8; 2] = [0xed, 0x01];
     let mut key_bytes = Vec::with_capacity(34);
     key_bytes.extend_from_slice(&multicodec);
@@ -141,7 +140,7 @@ fn test_ucan_token_for(space_ids: &[&str]) -> String {
 
     let h = BASE64URL.encode(serde_json::to_string(&header).unwrap().as_bytes());
     let p = BASE64URL.encode(serde_json::to_string(&payload).unwrap().as_bytes());
-    let sig = TEST_KEY.sign(format!("{h}.{p}").as_bytes());
+    let sig = SHARED_TEST_KEY.sign(format!("{h}.{p}").as_bytes());
     format!("{h}.{p}.{}", BASE64URL.encode(sig.to_bytes()))
 }
 

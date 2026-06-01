@@ -162,9 +162,17 @@ mod tests {
         server_result
     }
 
+    /// Fresh random ed25519 seed for ephemeral test keys. Static-analysers
+    /// (CodeQL) flag any literal byte array passed to `SigningKey::from_bytes`
+    /// as a hardcoded cryptographic value — none of these tests assert
+    /// specific bytes, so random per-call is the right choice.
+    fn random_test_seed() -> [u8; 32] {
+        rand::random()
+    }
+
     #[tokio::test]
     async fn roundtrip_happy_path_returns_client_did() {
-        let sk = SigningKey::from_bytes(&[11u8; 32]);
+        let sk = SigningKey::from_bytes(&random_test_seed());
         let did = did_from_signing_key(&sk);
 
         let verified = run_handshake(&did, &sk, "client-ep", "server-ep", "client-ep")
@@ -176,7 +184,7 @@ mod tests {
     #[tokio::test]
     async fn roundtrip_rejects_when_client_endpoint_lies() {
         // Client signs claiming endpoint "lies-A", server-side iroh reports "real-B".
-        let sk = SigningKey::from_bytes(&[12u8; 32]);
+        let sk = SigningKey::from_bytes(&random_test_seed());
         let did = did_from_signing_key(&sk);
 
         let err = run_handshake(&did, &sk, "lies-A", "server-ep", "real-B")
@@ -187,8 +195,11 @@ mod tests {
 
     #[tokio::test]
     async fn roundtrip_two_distinct_clients_get_distinct_dids() {
-        let sk_a = SigningKey::from_bytes(&[1u8; 32]);
-        let sk_b = SigningKey::from_bytes(&[2u8; 32]);
+        let sk_a = SigningKey::from_bytes(&random_test_seed());
+        let mut sk_b = SigningKey::from_bytes(&random_test_seed());
+        while sk_b.verifying_key() == sk_a.verifying_key() {
+            sk_b = SigningKey::from_bytes(&random_test_seed());
+        }
         let did_a = did_from_signing_key(&sk_a);
         let did_b = did_from_signing_key(&sk_b);
 

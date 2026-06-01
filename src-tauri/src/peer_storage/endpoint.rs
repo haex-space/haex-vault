@@ -236,8 +236,7 @@ impl PeerEndpoint {
 
     /// Create a PeerEndpoint with a temporary random key (for testing or pre-init state).
     pub fn new_ephemeral() -> Self {
-        let mut bytes = [0u8; 32];
-        rand::fill(&mut bytes);
+        let bytes: [u8; 32] = rand::random();
         Self::new(SecretKey::from_bytes(&bytes))
     }
 
@@ -800,8 +799,7 @@ impl PeerEndpoint {
     /// audience matches the verified peer DID checked in handle_stream.
     #[cfg(test)]
     pub(crate) fn set_random_test_identity(&self) -> String {
-        let mut seed = [0u8; 32];
-        rand::fill(&mut seed);
+        let seed: [u8; 32] = rand::random();
         let signing_key = SigningKey::from_bytes(&seed);
         let mut did_bytes = Vec::with_capacity(34);
         did_bytes.extend_from_slice(&[0xed, 0x01]);

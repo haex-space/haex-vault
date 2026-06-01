@@ -411,8 +411,7 @@ mod tests {
         // check verifies the token signature but does not require iss ==
         // client EndpointId. The audience MUST equal the client's verified
         // DID so the Layer 1.25 audience check in handle_stream passes.
-        let mut seed = [0u8; 32];
-        rand::fill(&mut seed);
+        let seed: [u8; 32] = rand::random();
         let ucan_signer = SigningKey::from_bytes(&seed);
         let ucan = read_ucan(&ucan_signer, &space_id, &client_did);
 
@@ -538,13 +537,11 @@ mod tests {
         // client's verified DID. The signature is valid (issuer signs over
         // the payload) but the audience is wrong, so handle_stream's Layer
         // 1.25 check should fire.
-        let mut foreign_seed = [0u8; 32];
-        rand::fill(&mut foreign_seed);
+        let foreign_seed: [u8; 32] = rand::random();
         let foreign_signer = SigningKey::from_bytes(&foreign_seed);
         let foreign_did = did_from_signing_key(&foreign_signer);
 
-        let mut issuer_seed = [0u8; 32];
-        rand::fill(&mut issuer_seed);
+        let issuer_seed: [u8; 32] = rand::random();
         let issuer = SigningKey::from_bytes(&issuer_seed);
         let mismatched_ucan = read_ucan(&issuer, "test-space", &foreign_did);
 
@@ -700,8 +697,7 @@ mod tests {
             .await
             .expect("client → server connect");
 
-        let mut seed = [0u8; 32];
-        rand::fill(&mut seed);
+        let seed: [u8; 32] = rand::random();
         let ucan_signer = ed25519_dalek::SigningKey::from_bytes(&seed);
         let ucan = read_ucan(&ucan_signer, &space_id, &client_did);
 
@@ -934,8 +930,7 @@ mod tests {
         // one with a fresh random issuer key. UCAN verification only checks
         // the signature against the token's own `iss` (not against any
         // pre-shared identity), so any well-formed signing key works.
-        let mut seed = [0u8; 32];
-        rand::fill(&mut seed);
+        let seed: [u8; 32] = rand::random();
         let write_signer = SigningKey::from_bytes(&seed);
         let write_token = write_ucan(&write_signer, "test-space", &h.client_did);
 
@@ -993,8 +988,7 @@ mod tests {
         let src_path = src_dir.path().join("cancel_payload.bin");
         tokio::fs::write(&src_path, &payload).await.unwrap();
 
-        let mut seed = [0u8; 32];
-        rand::fill(&mut seed);
+        let seed: [u8; 32] = rand::random();
         let write_signer = SigningKey::from_bytes(&seed);
         let write_token = write_ucan(&write_signer, "test-space", &h.client_did);
 

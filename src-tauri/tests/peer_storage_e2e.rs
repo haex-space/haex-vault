@@ -22,8 +22,7 @@ const ED25519_MULTICODEC: [u8; 2] = [0xed, 0x01];
 /// tests, but lives here so the integration crate doesn't depend on test-cfg
 /// symbols.
 fn random_test_identity() -> OwnIdentity {
-    let mut seed = [0u8; 32];
-    rand::fill(&mut seed);
+    let seed: [u8; 32] = rand::random();
     let signing_key = SigningKey::from_bytes(&seed);
     let mut did_bytes = Vec::with_capacity(34);
     did_bytes.extend_from_slice(&ED25519_MULTICODEC);
