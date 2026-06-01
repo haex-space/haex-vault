@@ -366,6 +366,7 @@ mod tests {
 
         // --- Server side ---
         let mut server = PeerEndpoint::new_ephemeral();
+        server.set_random_test_identity();
         let server_id = server.start_for_test().await.expect("server bind");
         server
             .add_share(
@@ -378,6 +379,7 @@ mod tests {
 
         // --- Client side ---
         let mut client = PeerEndpoint::new_ephemeral();
+        client.set_random_test_identity();
         client.start_for_test().await.expect("client bind");
         let client_id = client.endpoint_id();
 
@@ -552,6 +554,7 @@ mod tests {
         let space_id = "test-space".to_string();
 
         let mut server = PeerEndpoint::new_ephemeral();
+        server.set_random_test_identity();
         let server_id = server.start_for_test().await.expect("server bind");
         server
             .add_share(
@@ -563,6 +566,7 @@ mod tests {
             .await;
 
         let mut client_inner = PeerEndpoint::new_ephemeral();
+        client_inner.set_random_test_identity();
         client_inner.start_for_test().await.expect("client bind");
         let client_id = client_inner.endpoint_id();
 

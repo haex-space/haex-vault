@@ -62,6 +62,53 @@ fn load_shares_from_db(
     Ok(shares)
 }
 
+/// Load the device's own (DID, signing key) for the quic_did_auth handshake.
+/// Joins `haex_devices` (filtered to this endpoint's row) against
+/// `haex_identities` to fetch the PKCS8-base64 private key for the identity
+/// pinned in `owner_did`.
+fn load_own_identity_for_device(
+    state: &AppState,
+    own_endpoint_id: &str,
+) -> Result<crate::peer_storage::endpoint::OwnIdentity, PeerStorageError> {
+    let sql = "SELECT i.did, i.private_key \
+               FROM haex_devices d \
+               JOIN haex_identities i ON i.did = d.owner_did \
+               WHERE d.endpoint_id = ?1 \
+               LIMIT 1"
+        .to_string();
+    let params = vec![serde_json::Value::String(own_endpoint_id.to_string())];
+
+    let rows = crate::database::core::select_with_crdt(sql, params, &state.db)
+        .map_err(|e| PeerStorageError::Database { reason: e.to_string() })?;
+
+    let row = rows.first().ok_or_else(|| PeerStorageError::Database {
+        reason: format!("no haex_devices row for endpoint_id {own_endpoint_id}"),
+    })?;
+
+    let did = row
+        .first()
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| PeerStorageError::Database {
+            reason: "missing did column".into(),
+        })?
+        .to_string();
+
+    let private_key_b64 = row
+        .get(1)
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| PeerStorageError::Database {
+            reason: format!("identity row for {did} has no private_key — cannot sign DID-auth"),
+        })?
+        .to_string();
+
+    let signing_key = crate::ucan::signing_key_from_pkcs8_base64(&private_key_b64)
+        .map_err(|e| PeerStorageError::Database {
+            reason: format!("decoding identity private_key for {did}: {e}"),
+        })?;
+
+    Ok(crate::peer_storage::endpoint::OwnIdentity { did, signing_key })
+}
+
 /// Load allowed peers from haex_space_devices.
 /// Returns a map: remote EndpointId (string) -> set of space_ids they may access.
 /// Excludes our own endpoint ID.
@@ -155,6 +202,14 @@ pub async fn peer_storage_start(
 
     // Store AppHandle so the accept loop can use android_fs for Content URI shares
     endpoint.set_app_handle(app.clone()).await;
+
+    // Load the device's identity so the quic_did_auth handshake can prove
+    // our DID to peers and reject inbound peers that present mismatched
+    // UCANs. Must run before `start` — the accept loop is spawned inside
+    // `start` and reads the identity slot from then on.
+    let own_endpoint_id = endpoint.endpoint_id().to_string();
+    let own_identity = load_own_identity_for_device(&state, &own_endpoint_id)?;
+    endpoint.set_own_identity(own_identity);
 
     // Load shares and allowed peers from DB before starting
     reload_state_from_db(&state, &*endpoint).await?;
