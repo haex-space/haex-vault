@@ -151,6 +151,7 @@ impl MultiSpaceLeaderHandler {
                     "MultiLeader",
                     &format!("Failed to open auth stream to {remote_str}: {e}"),
                 );
+                conn.close(2u32.into(), b"auth stream open failed");
                 return;
             }
         };
