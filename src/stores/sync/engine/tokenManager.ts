@@ -6,6 +6,7 @@
 
 import { computed, shallowRef } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { fetch } from '@tauri-apps/plugin-http'
 import { importUserPrivateKeyAsync } from '@haex-space/vault-sdk'
 import { engineLog as log } from './types'
 
