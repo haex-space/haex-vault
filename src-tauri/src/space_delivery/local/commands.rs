@@ -916,12 +916,6 @@ pub async fn local_delivery_push_invite(
     }
     log("info", &format!("Connecting to {target_endpoint_id} (relay={})", relay.is_some()));
 
-    // The inviter authenticates as themself; the inviter_did inside the
-    // payload must match the connection-verified DID (C8 enforces). Capture
-    // the value before moving `inviter_did` into the request struct so the
-    // signing key for `inviter_did` can be loaded from `haex_identities`.
-    let inviter_did_for_auth = inviter_did.clone();
-
     let request = super::protocol::Request::PushInvite {
         space_id,
         space_name,
@@ -942,6 +936,13 @@ pub async fn local_delivery_push_invite(
     let bytes = super::protocol::encode(&request)
         .map_err(|e| format!("Encode error: {e}"))?;
 
+    // The inviter authenticates as themself; the inviter_did inside the
+    // payload must match the connection-verified DID (C8 enforces). Load the
+    // signing key for `inviter_did` from `haex_identities`.
+    let inviter_did_for_auth = match &request {
+        super::protocol::Request::PushInvite { inviter_did, .. } => inviter_did.clone(),
+        _ => unreachable!("request constructed as PushInvite a few lines above"),
+    };
     let db_for_identity = DbConnection(state.db.0.clone());
     let inviter_identity = super::quic_retry::load_signing_identity_for_did(
         &db_for_identity,
