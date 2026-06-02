@@ -3,6 +3,7 @@ import {
   encryptPrivateKeyAsync,
   didKeyToPublicKeyAsync,
 } from '@haex-space/vault-sdk'
+import { fetch } from '@tauri-apps/plugin-http'
 import { didAuthenticateAsync } from '~/stores/sync/engine/tokenManager'
 import { throwIfNotOk, safeJson } from '~/utils/fetch'
 

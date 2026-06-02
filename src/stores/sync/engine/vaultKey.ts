@@ -8,6 +8,7 @@ import {
   decryptVaultKey,
   generateVaultKey,
 } from '@haex-space/vault-sdk'
+import { fetch } from '@tauri-apps/plugin-http'
 import { encryptVaultNameAsync } from '@/utils/crypto/vaultName'
 import { createDidAuthHeader, fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { engineLog as log, type VaultKeyCache } from './types'

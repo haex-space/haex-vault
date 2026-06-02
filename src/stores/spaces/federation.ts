@@ -1,3 +1,4 @@
+import { fetch } from '@tauri-apps/plugin-http'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { createServerRelayUcanAsync, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
 import { createLogger } from '@/stores/logging'

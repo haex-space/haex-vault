@@ -4,6 +4,7 @@
  */
 
 import { encryptCrdtData, decryptCrdtData } from '@haex-space/vault-sdk'
+import { fetch } from '@tauri-apps/plugin-http'
 import { createDidAuthHeader } from '@/utils/auth/didAuth'
 import { getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
 import { getVaultKeyCache } from './vaultKey'

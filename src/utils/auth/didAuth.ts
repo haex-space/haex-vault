@@ -4,6 +4,7 @@ import {
   type FederatedAuthParams,
   type CreateFederatedAuthOptions,
 } from '@haex-space/federation-sdk'
+import { fetch } from '@tauri-apps/plugin-http'
 import { toBase64Url } from '~/utils/encoding'
 
 export type { FederatedAuthParams }

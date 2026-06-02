@@ -6,6 +6,7 @@ import {
   type Capability,
 } from '@haex-space/ucan'
 import { importUserPrivateKeyAsync } from '@haex-space/vault-sdk'
+import { fetch } from '@tauri-apps/plugin-http'
 import { eq, gt } from 'drizzle-orm'
 import { haexUcanTokens } from '~/database/schemas'
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
