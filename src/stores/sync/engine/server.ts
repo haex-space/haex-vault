@@ -4,6 +4,7 @@
  */
 
 import { DidAuthAction } from '@haex-space/ucan'
+import { fetch } from '@tauri-apps/plugin-http'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { encryptVaultNameAsync } from '@/utils/crypto/vaultName'
 import { clearVaultKeyCache } from './vaultKey'

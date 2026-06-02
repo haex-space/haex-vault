@@ -52,12 +52,8 @@
     {
       "identifier": "http:default",
       "allow": [
-        { "url": "https://*.haex.space" },
-        { "url": "https://*.haex.space/**" },
-        { "url": "http://localhost:*" },
-        { "url": "http://localhost:*/**" },
-        { "url": "http://127.0.0.1:*" },
-        { "url": "http://127.0.0.1:*/**" }
+        { "url": "https://**" },
+        { "url": "http://**" }
       ]
     },
     "notification:allow-create-channel",
