@@ -12,7 +12,6 @@ use crate::AppState;
 
 use super::invite_tokens;
 use super::leader::LeaderState;
-use super::multi_leader::MultiSpaceLeaderHandler;
 use super::protocol::{Request, Response};
 use super::types::{ClaimInviteResult, DeliveryStatus, ElectionResultInfo, LeaderInfo, LocalInviteInfo};
 
@@ -42,22 +41,15 @@ pub async fn local_delivery_start(
     });
 
     let mut leaders = state.leader_state.write().await;
-    let is_first = leaders.is_empty();
     leaders.insert(space_id.clone(), leader_state);
     drop(leaders);
 
-    // Register handler only once — it holds the same Arc as leader_state map
-    if is_first {
-        let hlc_clone = state.hlc.lock().map_err(|_| "HLC lock poisoned".to_string())?.clone();
-        let handler = Arc::new(MultiSpaceLeaderHandler {
-            leaders: state.leader_state.clone(),
-            db: DbConnection(state.db.0.clone()),
-            hlc: Arc::new(std::sync::Mutex::new(hlc_clone)),
-            app_handle: app,
-        });
-        let endpoint = state.peer_storage.read().await;
-        endpoint.set_delivery_handler(handler).await;
-    }
+    // The MultiSpaceLeaderHandler is registered once during `peer_storage_start`
+    // with the device identity already loaded — re-registering here would
+    // overwrite it with a fresh handler whose `own_identity` slot is empty,
+    // breaking the server-initiated quic_did_auth handshake. The handler
+    // already holds an `Arc` to `state.leader_state`, so the leader row we
+    // just inserted is visible to it without any further wiring.
 
     eprintln!("[SpaceDelivery] Started leader mode for space {space_id}");
     Ok(())
@@ -678,10 +670,13 @@ pub async fn local_delivery_claim_invite(
 
     // Encode once outside the retry loop — the request bytes are identical
     // across attempts, including the (expensively-generated) KeyPackages.
+    //
+    // The claimant DID is no longer carried on the wire — the leader reads it
+    // from the quic_did_auth handshake state for this connection (the same
+    // signing key used by `complete_client_did_auth` below).
     let req = Request::ClaimInvite {
         space_id: space_id.clone(),
         token: token_id.clone(),
-        did: identity_did.clone(),
         endpoint_id: our_endpoint_id,
         key_packages: key_packages_b64,
         label,
@@ -690,11 +685,28 @@ pub async fn local_delivery_claim_invite(
     let bytes = super::protocol::encode(&req)
         .map_err(|e| format!("Failed to encode request: {e}"))?;
 
+    // Load the claimant's signing key for the server-initiated quic_did_auth
+    // handshake. ClaimInvite is the first time this DID ever connects to the
+    // leader, so the handshake is what cryptographically binds the claim to
+    // this DID — without it the leader cannot tell us apart from any other
+    // peer who happens to know the token (plan §4.2 scenarios 1+2).
+    let db_for_identity = DbConnection(state.db.0.clone());
+    let our_identity = super::quic_retry::load_signing_identity_for_did(
+        &db_for_identity,
+        &identity_did,
+    )
+    .map_err(|e| {
+        log("error", &format!("identity load failed: {e}"));
+        e.to_string()
+    })?;
+
     // QUIC connect + send + read with automatic retry on transient failures.
     let response = super::quic_retry::send_request_with_retry(
         "ClaimInvite",
         &iroh_endpoint,
         addr,
+        &identity_did,
+        &our_identity.signing_key,
         &bytes,
     )
     .await
@@ -904,6 +916,12 @@ pub async fn local_delivery_push_invite(
     }
     log("info", &format!("Connecting to {target_endpoint_id} (relay={})", relay.is_some()));
 
+    // The inviter authenticates as themself; the inviter_did inside the
+    // payload must match the connection-verified DID (C8 enforces). Capture
+    // the value before moving `inviter_did` into the request struct so the
+    // signing key for `inviter_did` can be loaded from `haex_identities`.
+    let inviter_did_for_auth = inviter_did.clone();
+
     let request = super::protocol::Request::PushInvite {
         space_id,
         space_name,
@@ -924,11 +942,23 @@ pub async fn local_delivery_push_invite(
     let bytes = super::protocol::encode(&request)
         .map_err(|e| format!("Encode error: {e}"))?;
 
+    let db_for_identity = DbConnection(state.db.0.clone());
+    let inviter_identity = super::quic_retry::load_signing_identity_for_did(
+        &db_for_identity,
+        &inviter_did_for_auth,
+    )
+    .map_err(|e| {
+        log("error", &format!("identity load failed: {e}"));
+        e.to_string()
+    })?;
+
     // QUIC connect + send + read with automatic retry on transient failures.
     let response = super::quic_retry::send_request_with_retry(
         "PushInvite-Send",
         &iroh_endpoint,
         addr,
+        &inviter_did_for_auth,
+        &inviter_identity.signing_key,
         &bytes,
     )
     .await

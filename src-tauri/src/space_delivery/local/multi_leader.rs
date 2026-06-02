@@ -6,13 +6,13 @@
 //! to the appropriate LeaderState by space_id.
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use tauri::AppHandle;
 
 use crate::crdt::hlc::HlcService;
 use crate::database::DbConnection;
-use crate::peer_storage::endpoint::DeliveryConnectionHandler;
+use crate::peer_storage::endpoint::{DeliveryConnectionHandler, OwnIdentity};
 
 use super::error::DeliveryError;
 use super::leader::LeaderState;
@@ -29,8 +29,26 @@ const MAX_IDLE_HEARTBEATS: u32 = 6;
 pub struct MultiSpaceLeaderHandler {
     pub leaders: Arc<tokio::sync::RwLock<HashMap<String, Arc<LeaderState>>>>,
     pub db: DbConnection,
-    pub hlc: Arc<std::sync::Mutex<HlcService>>,
+    pub hlc: Arc<Mutex<HlcService>>,
     pub app_handle: AppHandle,
+    /// Iroh endpoint id of this vault's PeerEndpoint, captured at handler
+    /// construction. Used as `server_endpoint_id` in the quic_did_auth
+    /// handshake initiated on every incoming delivery connection.
+    pub own_endpoint_id: String,
+    /// Server-side handshake precondition: the vault must have a configured
+    /// device identity (`haex_devices.owner_did` + corresponding private key)
+    /// before accepting delivery connections. Mirrors the same invariant on
+    /// `PeerEndpoint::own_identity` — declining to answer when half-configured
+    /// catches the "identity row missing for the active endpoint" failure
+    /// mode early instead of letting a peer hit a confusing UCAN-audience
+    /// mismatch downstream.
+    pub own_identity: Arc<Mutex<Option<OwnIdentity>>>,
+    /// Cryptographically verified DID per connected remote endpoint id,
+    /// populated by the quic_did_auth handshake at connection-accept time.
+    /// Read by request handlers to gate UCAN audience checks against the
+    /// connection-bound DID rather than the request-payload `did` field.
+    /// Cleared when the connection closes.
+    pub endpoint_dids: Arc<tokio::sync::RwLock<HashMap<String, String>>>,
 }
 
 impl DeliveryConnectionHandler for MultiSpaceLeaderHandler {
@@ -43,6 +61,16 @@ impl DeliveryConnectionHandler for MultiSpaceLeaderHandler {
 }
 
 impl MultiSpaceLeaderHandler {
+    /// Install the device identity used by the quic_did_auth handshake.
+    /// Symmetric with `PeerEndpoint::set_own_identity`: must be set before
+    /// the first delivery connection is accepted, otherwise the handshake
+    /// precondition check closes the connection.
+    pub fn set_own_identity(&self, identity: OwnIdentity) {
+        if let Ok(mut slot) = self.own_identity.lock() {
+            *slot = Some(identity);
+        }
+    }
+
     async fn handle_connection_inner(&self, conn: iroh::endpoint::Connection) {
         let remote = conn.remote_id();
         let remote_str = remote.to_string();
@@ -56,6 +84,93 @@ impl MultiSpaceLeaderHandler {
             "MultiLeader",
             &format!("Connection accepted from {remote_str}"),
         );
+
+        // -- Phase 1: DID challenge --
+        //
+        // The first bidirectional stream of every delivery connection is the
+        // quic_did_auth handshake, server-initiated via `open_bi`. Until it
+        // succeeds the connection holds no state for this peer; on success
+        // the verified DID is cached in `endpoint_dids` and consumed by the
+        // request handlers (C4+ commits) to gate UCAN audience checks against
+        // the connection-bound DID rather than the request-payload `did`
+        // field. Mirrors `peer_storage/endpoint.rs:955-1010`.
+        let identity_snapshot = self
+            .own_identity
+            .lock()
+            .ok()
+            .and_then(|g| g.clone());
+        if identity_snapshot.is_none() {
+            crate::logging::log_to_db(
+                &self.db,
+                &self.hlc,
+                "error",
+                "MultiLeader",
+                &format!(
+                    "Rejecting delivery connection from {remote_str}: own identity \
+                     not configured (set_own_identity must run before start)"
+                ),
+            );
+            conn.close(3u32.into(), b"no own identity");
+            return;
+        }
+
+        // Server initiates the auth stream so it can write the Challenge
+        // first — `open_bi` materialises the stream on the wire as soon as
+        // the server writes, which avoids a both-sides-blocked-on-read
+        // deadlock that would otherwise occur if both endpoints tried to
+        // read first. Same rationale as peer_storage.
+        let verified_did = match conn.open_bi().await {
+            Ok((mut send, mut recv)) => {
+                match crate::quic_did_auth::challenge_and_verify(
+                    &mut send,
+                    &mut recv,
+                    &self.own_endpoint_id,
+                    &remote_str,
+                )
+                .await
+                {
+                    Ok(did) => did,
+                    Err(e) => {
+                        crate::logging::log_to_db(
+                            &self.db,
+                            &self.hlc,
+                            "warn",
+                            "MultiLeader",
+                            &format!("DID-auth failed for {remote_str}: {e}"),
+                        );
+                        conn.close(2u32.into(), b"did-auth failed");
+                        return;
+                    }
+                }
+            }
+            Err(e) => {
+                crate::logging::log_to_db(
+                    &self.db,
+                    &self.hlc,
+                    "warn",
+                    "MultiLeader",
+                    &format!("Failed to open auth stream to {remote_str}: {e}"),
+                );
+                conn.close(2u32.into(), b"auth stream open failed");
+                return;
+            }
+        };
+
+        let verified_short: String = verified_did.chars().take(24).collect();
+        crate::logging::log_to_db(
+            &self.db,
+            &self.hlc,
+            "info",
+            "MultiLeader",
+            &format!("DID-auth ok: {remote_str} -> {verified_short}"),
+        );
+
+        self.endpoint_dids
+            .write()
+            .await
+            .insert(remote_str.clone(), verified_did.clone());
+
+        // -- Phase 2: normal request loop --
 
         let mut stream_count: u32 = 0;
         let mut idle_heartbeats: u32 = 0;
@@ -79,6 +194,7 @@ impl MultiSpaceLeaderHandler {
                     let hlc = self.hlc.clone();
                     let app_handle = self.app_handle.clone();
                     let peer_endpoint_id = remote_str.clone();
+                    let verified_did_for_stream = verified_did.clone();
                     let stream_index = stream_count;
                     tokio::spawn(async move {
                         if let Err(e) = handle_stream(
@@ -89,6 +205,7 @@ impl MultiSpaceLeaderHandler {
                             &hlc,
                             &app_handle,
                             &peer_endpoint_id,
+                            &verified_did_for_stream,
                         )
                         .await
                         {
@@ -136,6 +253,11 @@ impl MultiSpaceLeaderHandler {
             }
         }
 
+        // Drop the cached verified DID — once the QUIC connection is gone
+        // the (endpoint_id -> DID) binding established by the handshake no
+        // longer applies. A future reconnect repeats the handshake.
+        self.endpoint_dids.write().await.remove(&remote_str);
+
         // Clean up peer state across all active leaders
         let leaders = self.leaders.read().await;
         for leader in leaders.values() {
@@ -167,14 +289,21 @@ fn extract_space_id(request: &Request) -> Option<&str> {
 }
 
 /// Handle a single bidirectional QUIC stream: read request, route, respond.
+///
+/// `verified_did` is the cryptographically authenticated DID of the connected
+/// peer, established by the server-initiated quic_did_auth handshake at
+/// connection-accept time. It is plumbed into every request handler so the
+/// later commits in this PR can gate auth checks on it (claim binding,
+/// announce binding, UCAN audience match, inviter spoofing reject).
 async fn handle_stream(
     mut send: iroh::endpoint::SendStream,
     recv: &mut iroh::endpoint::RecvStream,
     leaders: &tokio::sync::RwLock<HashMap<String, Arc<LeaderState>>>,
     db: &DbConnection,
-    hlc: &Arc<std::sync::Mutex<HlcService>>,
+    hlc: &Arc<Mutex<HlcService>>,
     app_handle: &AppHandle,
     peer_endpoint_id: &str,
+    verified_did: &str,
 ) -> Result<(), DeliveryError> {
     let request = protocol::read_request(recv)
         .await
@@ -221,6 +350,7 @@ async fn handle_stream(
                 &space_endpoints,
                 origin_url.as_deref(),
                 inviter_relay_url.as_deref(),
+                verified_did,
             )
         }
 
@@ -237,7 +367,7 @@ async fn handle_stream(
                     crate::logging::log_to_db(db, hlc, "info", "MultiLeader", &format!(
                         "Routing ClaimInvite to leader for space {}", &space_id[..8.min(space_id.len())]
                     ));
-                    super::leader::handle_claim_invite(leader, request).await
+                    super::leader::handle_claim_invite(leader, request, verified_did).await
                 }
                 None => {
                     crate::logging::log_to_db(db, hlc, "error", "MultiLeader", &format!(
@@ -262,6 +392,7 @@ async fn handle_stream(
                                 leader,
                                 other,
                                 peer_endpoint_id,
+                                verified_did,
                             )
                             .await
                         }

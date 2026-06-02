@@ -4,8 +4,17 @@
 
 use serde::{Deserialize, Serialize};
 
-/// ALPN protocol identifier for space delivery
-pub const ALPN: &[u8] = b"haex-delivery/1";
+/// ALPN protocol identifier for space delivery.
+///
+/// Version bumped from `haex-delivery/1` to `haex-delivery/2` when Phase 2 of
+/// the quic_did_auth refactor introduced the server-initiated handshake on
+/// the first bidirectional stream and removed the payload `did` field from
+/// Announce + ClaimInvite. A `haex-delivery/1` peer trying to connect to a
+/// `haex-delivery/2` server (or vice versa) fails the QUIC TLS ALPN
+/// negotiation immediately, rather than handshaking and then dropping at the
+/// application layer — which keeps the wire break diagnosable and isolates
+/// the binary-compat boundary in bisect to this single commit.
+pub const ALPN: &[u8] = b"haex-delivery/2";
 
 /// Maximum request size (10 MB — CRDT changes can be large)
 const MAX_REQUEST_SIZE: usize = 10 * 1024 * 1024;
@@ -108,8 +117,12 @@ pub enum Request {
     /// Announce identity to the leader (sent on connect).
     /// Requires UCAN with `space/read` capability (or higher) for the target space —
     /// the announce populates `haex_space_devices` which is space-scoped sync state.
+    ///
+    /// The peer's DID is no longer carried on the wire — it is established
+    /// cryptographically by the quic_did_auth handshake at connection-accept
+    /// time and bound to the connection. Carrying it in the payload was a
+    /// trust hazard (plan §1.3 / §4.2).
     Announce {
-        did: String,
         endpoint_id: String,
         space_id: String,
         label: Option<String>,
@@ -121,12 +134,15 @@ pub enum Request {
     // -- Invites --
     /// Claim an invite token. Invitee sends token + KeyPackages.
     /// Leader validates, creates UCAN, adds to MLS group, returns Welcome.
+    ///
+    /// The invitee's DID is no longer carried on the wire — it is bound by
+    /// the quic_did_auth handshake and read from the connection state. A
+    /// payload-supplied DID would let any peer with knowledge of the token
+    /// claim it under an arbitrary identity (plan §4.2 scenarios 1 + 2).
     ClaimInvite {
         space_id: String,
         /// The invite token ID
         token: String,
-        /// Invitee's DID
-        did: String,
         /// Invitee's endpoint ID
         endpoint_id: String,
         /// Base64-encoded MLS KeyPackages

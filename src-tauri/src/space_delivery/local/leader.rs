@@ -61,19 +61,6 @@ fn base64_decode(s: &str) -> Result<Vec<u8>, String> {
     BASE64.decode(s).map_err(|e| format!("base64 decode error: {e}"))
 }
 
-/// Look up the DID for a connected peer, returning an error Response on failure.
-async fn require_peer_did(state: &LeaderState, endpoint_id: &str) -> Result<String, Response> {
-    state
-        .connected_peers
-        .read()
-        .await
-        .get(endpoint_id)
-        .map(|p| p.did.clone())
-        .ok_or_else(|| Response::Error {
-            message: "Peer has not announced".to_string(),
-        })
-}
-
 /// Validate a UCAN token carried in a space-delivery request and return a
 /// structured Error response on any failure. This is the first gate for
 /// sync-level operations — signature, expiry, structure all checked here.
@@ -196,23 +183,33 @@ async fn notify_others_sync(
 /// load the existing UCAN from DB, re-serve the buffered Welcome, and
 /// **do not re-consume the token or re-call MLS add_member** (which would
 /// fail for an already-added DID).
-pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Response {
-    let (space_id, token, did, endpoint_id, key_packages, label, public_key) = match request {
+pub async fn handle_claim_invite(
+    state: &LeaderState,
+    request: Request,
+    verified_did: &str,
+) -> Response {
+    let (space_id, token, endpoint_id, key_packages, label, public_key) = match request {
         Request::ClaimInvite {
             space_id,
             token,
-            did,
             endpoint_id,
             key_packages,
             label,
             public_key,
-        } => (space_id, token, did, endpoint_id, key_packages, label, public_key),
+        } => (space_id, token, endpoint_id, key_packages, label, public_key),
         _ => {
             return Response::Error {
                 message: "Expected ClaimInvite request".to_string(),
             }
         }
     };
+
+    // The connection-bound DID from the quic_did_auth handshake is the only
+    // identity we trust for this claim. Carrying a `did` in the payload was
+    // a trust hazard (plan §4.2 scenarios 1 + 2) — the field is dropped
+    // from the wire format in this commit; all downstream code uses the
+    // cryptographically authenticated `verified_did` instead.
+    let did: String = verified_did.to_string();
 
     debug_assert_eq!(space_id, state.space_id, "ClaimInvite routed to wrong leader");
 
@@ -250,7 +247,7 @@ pub async fn handle_claim_invite(state: &LeaderState, request: Request) -> Respo
             &state.db,
             &state.invite_tokens,
             &token,
-            &did,
+            verified_did,
         )
         .await
         {
@@ -609,16 +606,21 @@ pub(super) async fn handle_delivery_request(
     state: &LeaderState,
     request: Request,
     peer_endpoint_id: &str,
+    verified_did: &str,
 ) -> Response {
     match request {
         Request::Announce {
-            did,
             endpoint_id,
             space_id,
             label,
             claims,
             ucan_token,
         } => {
+            // The connection-bound DID from the quic_did_auth handshake is
+            // the only identity we trust for this announce. The payload `did`
+            // field has been removed from the wire in C10 — see plan §1.3 +
+            // §4.2 for the spoofing vector that carrying it would re-enable.
+            let did: String = verified_did.to_string();
             // Announce is the first authenticated boundary of a peer session.
             // Anyone can open a QUIC stream with the ALPN and claim a DID, so
             // we must verify the UCAN before trusting `did` and before
@@ -722,10 +724,7 @@ pub(super) async fn handle_delivery_request(
             space_id,
             packages,
         } => {
-            let did = match require_peer_did(state, peer_endpoint_id).await {
-                Ok(did) => did,
-                Err(resp) => return resp,
-            };
+            let did = verified_did.to_string();
             for pkg_b64 in &packages {
                 if let Ok(blob) = base64_decode(pkg_b64) {
                     let _ = buffer::store_key_package(&state.db, &space_id, &did, &blob);
@@ -764,10 +763,7 @@ pub(super) async fn handle_delivery_request(
             message,
             message_type,
         } => {
-            let did = match require_peer_did(state, peer_endpoint_id).await {
-                Ok(did) => did,
-                Err(resp) => return resp,
-            };
+            let did = verified_did.to_string();
             match base64_decode(&message) {
                 Ok(blob) => {
                     match buffer::store_message(&state.db, &space_id, &did, &message_type, &blob) {
@@ -840,10 +836,7 @@ pub(super) async fn handle_delivery_request(
         }
 
         Request::MlsFetchWelcomes { space_id } => {
-            let did = match require_peer_did(state, peer_endpoint_id).await {
-                Ok(did) => did,
-                Err(resp) => return resp,
-            };
+            let did = verified_did.to_string();
             match buffer::fetch_welcomes(&state.db, &space_id, &did) {
                 Ok(entries) => {
                     let encoded: Vec<String> = entries.iter().map(|(_, blob)| base64_encode(blob)).collect();
@@ -870,6 +863,24 @@ pub(super) async fn handle_delivery_request(
                 Ok(v) => v,
                 Err(r) => return r,
             };
+
+            // Layer-0: UCAN audience must match the connection-bound DID.
+            // Without this gate a peer with a valid SyncPush capability for
+            // someone *else*'s DID (snooped or replayed UCAN) could push
+            // arbitrary CRDT rows attributed to that DID. Analog
+            // peer_storage::handle_stream Layer-1.25.
+            if let Err(e) = crate::ucan::require_audience(&validated, verified_did) {
+                crate::logging::log_to_db(
+                    &state.db, &state.hlc, "warn", "SyncPush",
+                    &format!("audience mismatch: space={} aud={} verified={}",
+                        &space_id[..8.min(space_id.len())],
+                        &validated.audience[..24.min(validated.audience.len())],
+                        &verified_did[..24.min(verified_did.len())]),
+                );
+                return Response::Error {
+                    message: format!("Access denied: {e}"),
+                };
+            }
 
             // Parse changes JSON into Vec<LocalColumnChange>
             let local_changes: Vec<LocalColumnChange> = match serde_json::from_value(changes) {
@@ -990,10 +1001,7 @@ pub(super) async fn handle_delivery_request(
                     return r;
                 }
             };
-            let peer_did = match require_peer_did(state, peer_endpoint_id).await {
-                Ok(did) => did,
-                Err(resp) => return resp,
-            };
+            let peer_did = verified_did.to_string();
             if let Err(r) = require_ucan_capability(
                 &validated,
                 &space_id,
@@ -1066,7 +1074,7 @@ pub(super) async fn handle_delivery_request(
 
         // -- Invites (ClaimInvite) --
         req @ Request::ClaimInvite { .. } => {
-            handle_claim_invite(state, req).await
+            handle_claim_invite(state, req, verified_did).await
         }
 
         // -- Push Invites (peer-to-peer, invitee side) --
@@ -1102,15 +1110,13 @@ pub(super) async fn handle_delivery_request(
             &space_endpoints,
             origin_url.as_deref(),
             inviter_relay_url.as_deref(),
+            verified_did,
         ),
         Request::MlsAckCommit {
             space_id,
             message_ids,
         } => {
-            let did = match require_peer_did(state, peer_endpoint_id).await {
-                Ok(did) => did,
-                Err(resp) => return resp,
-            };
+            let did = verified_did.to_string();
 
             match buffer::ack_commits(&state.db, &space_id, &did, &message_ids) {
                 Ok(fully_acked) => {
@@ -1137,10 +1143,7 @@ pub(super) async fn handle_delivery_request(
                 Ok(v) => v,
                 Err(r) => return r,
             };
-            let peer_did = match require_peer_did(state, peer_endpoint_id).await {
-                Ok(did) => did,
-                Err(resp) => return resp,
-            };
+            let peer_did = verified_did.to_string();
             if let Err(r) = require_ucan_capability(
                 &validated,
                 &space_id,
@@ -1177,10 +1180,7 @@ pub(super) async fn handle_delivery_request(
                 Ok(v) => v,
                 Err(r) => return r,
             };
-            let peer_did = match require_peer_did(state, peer_endpoint_id).await {
-                Ok(did) => did,
-                Err(resp) => return resp,
-            };
+            let peer_did = verified_did.to_string();
             if let Err(r) = require_ucan_capability(
                 &validated,
                 &space_id,
@@ -1253,10 +1253,7 @@ pub(super) async fn handle_delivery_request(
         }
 
         Request::MlsKeyPackageCount { space_id } => {
-            let did = match require_peer_did(state, peer_endpoint_id).await {
-                Ok(did) => did,
-                Err(resp) => return resp,
-            };
+            let did = verified_did.to_string();
             match buffer::count_key_packages_for_did(&state.db, &space_id, &did) {
                 Ok(available) => {
                     let needed = TARGET_KEY_PACKAGES_PER_PEER.saturating_sub(available);
@@ -1330,12 +1327,13 @@ mod audience_check_tests {
     }
 
     /// Every UCAN-gated request handler must source `peer_did` from the
-    /// QUIC-authenticated channel (`require_peer_did(state, …)` or the
-    /// Announce-payload `did`) and pass it to `require_ucan_capability`.
-    /// Six call sites today: Announce + SyncPull + RequestRejoin +
-    /// SubmitExternalCommit (audience-checked) plus the MlsUpload /
-    /// MlsSend paths that only need `require_peer_did` for the message
-    /// envelope.
+    /// connection-bound `verified_did` of the quic_did_auth handshake (Phase
+    /// 2, see plan §4.1). Prior to Phase 2 the DID was looked up from the
+    /// `connected_peers` map populated by Announce — that worked only when
+    /// every handler ran after Announce and effectively meant "trust whatever
+    /// Announce claimed", which is itself unsafe before the handshake binds
+    /// the DID. After C7 every handler binds directly via
+    /// `verified_did.to_string()`.
     #[test]
     fn every_require_ucan_capability_call_passes_a_peer_did() {
         let source = include_str!("leader.rs");
@@ -1344,9 +1342,6 @@ mod audience_check_tests {
             .map(|(p, _)| p)
             .unwrap_or(source);
 
-        // A correct call site looks like `require_ucan_capability(\n  &validated,\n  &space_id,\n  CapabilityLevel::Read,\n  &<peer_did>,\n  …`.
-        // Approximate that by counting calls and required positional
-        // markers separately.
         let total_calls = production.matches("require_ucan_capability(").count();
         // The fn definition itself contains one occurrence; production
         // call sites are the remainder.
@@ -1359,19 +1354,147 @@ mod audience_check_tests {
             call_sites
         );
 
-        // Each call site must reference a peer_did binding immediately
-        // above it. require_peer_did is the canonical source; Announce
-        // uses the request's own `did` field. Either way the binding
-        // appears nearby — and our four edited call sites now reference
-        // exactly one of the two patterns.
-        let peer_did_lookups = production
+        // Every handler that needs a DID for capability/buffer keys/audit
+        // logs now derives it from the connection-bound verified_did. The
+        // legacy `require_peer_did(state, peer_endpoint_id)` lookup against
+        // `connected_peers` is gone — keeping it would defeat the Phase 2
+        // promise that handlers no longer depend on Announce having run
+        // first.
+        let legacy_lookups = production
             .matches("require_peer_did(state, peer_endpoint_id)")
             .count();
+        assert_eq!(
+            legacy_lookups, 0,
+            "no production handler should look up the peer DID via \
+             require_peer_did any more — it must come from verified_did. \
+             Found {legacy_lookups} legacy call sites."
+        );
+
+        let verified_bindings = production
+            .matches("verified_did.to_string()")
+            .count();
         assert!(
-            peer_did_lookups >= 3,
-            "expected at least 3 require_peer_did(…) lookups feeding \
-             require_ucan_capability call sites; found {}",
-            peer_did_lookups
+            verified_bindings >= 4,
+            "expected at least 4 `verified_did.to_string()` bindings inside \
+             request handlers (covering MLS request envelope DIDs + the \
+             three UCAN-audience-checked handlers); found {verified_bindings}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod claim_invite_did_binding_tests {
+    //! Red regression for the ClaimInvite DID-spoofing vector (Phase 2 of
+    //! `docs/plans/2026-06-01-quic-did-auth-primitiv.md`).
+    //!
+    //! ## The bug these guards lock down
+    //!
+    //! Today `handle_claim_invite` lifts the claimant's DID directly from
+    //! the request payload (`Request::ClaimInvite { did, .. }`) and passes
+    //! it to `invite_tokens::validate_invite` as `claimer_did`. The
+    //! iroh-QUIC connection only binds the remote `endpoint_id`; nothing
+    //! ties the claimant's payload-`did` to the connection cryptographically.
+    //! Per §1.2/§4.2 of the plan, this enables two distinct attacks:
+    //!
+    //! - **Targeted-Invite spoofing (§4.2 scenario 1):** a token has
+    //!   `target_did = Alice`; any peer who knows the token can send
+    //!   `ClaimInvite { did: "Alice", … }` from their own endpoint and
+    //!   becomes "Alice" inside the MLS group.
+    //! - **Public-Invite identity spoofing (§4.2 scenario 2):** a token
+    //!   has `target_did = None`; any peer can pick a fresh DID (or borrow
+    //!   a known one) and have a UCAN minted for that DID.
+    //!
+    //! `invite_tokens::validate_invite` itself is fine — it correctly
+    //! rejects `claimer_did` ≠ `target_did`. The vulnerability is the
+    //! *call site*: it has no way to know the connection-verified DID
+    //! until the Phase 2 wiring lands.
+    //!
+    //! ## Why source-text assertions, not full behavioural tests
+    //!
+    //! Same reason `audience_check_tests` above is source-text-only:
+    //! `handle_claim_invite` requires `&LeaderState`, which needs an
+    //! `iroh::Endpoint`, an MLS provider, a tokio runtime, and a SQLite
+    //! schema with HLC triggers — building all that for a unit test
+    //! costs more than these assertions buy us. Real behavioural T5+T6
+    //! cases (per §4.4) live in the `haex-e2e-tests` companion PR
+    //! (`invitations/targeted-invite-did-mismatch`,
+    //! `invitations/public-invite-foreign-did`).
+    //!
+    //! ## TDD discipline
+    //!
+    //! These tests are `#[ignore]`d while the rest of the Phase 2 commits
+    //! land in sequence so the suite stays green on every commit — the
+    //! `#[ignore]` attribute is removed in commit C5
+    //! (`feat(space_delivery): bind ClaimInvite to verified DID`) which
+    //! is also the commit that makes them pass.
+
+    /// T5 (positive): the connection-verified DID flows into
+    /// `handle_claim_invite`. Without a `verified_did` parameter the call
+    /// site has nothing but the payload `did` to validate against — which
+    /// is exactly the bug.
+    #[test]
+    fn handle_claim_invite_takes_verified_did_parameter() {
+        let source = include_str!("leader.rs");
+        let production = source
+            .split_once("#[cfg(test)]")
+            .map(|(p, _)| p)
+            .unwrap_or(source);
+
+        assert!(
+            production.contains("pub async fn handle_claim_invite(")
+                && production.contains("verified_did: &str"),
+            "handle_claim_invite must accept the connection-verified DID as \
+             a parameter so the claim is gated by the cryptographically \
+             bound peer identity rather than the client-supplied payload \
+             `did` field. See plan §4.2 scenarios 1+2."
+        );
+    }
+
+    /// T6 (negative): `validate_invite` must be invoked with the
+    /// connection-verified DID, not with the payload `did` field. The
+    /// guard pins the exact argument used at the call site — without it,
+    /// any peer can spoof `Request::ClaimInvite::did` and pass a token
+    /// validation gated only on a string match against `target_did`.
+    #[test]
+    fn handle_claim_invite_validates_against_verified_did_not_payload_did() {
+        let source = include_str!("leader.rs");
+        let production = source
+            .split_once("#[cfg(test)]")
+            .map(|(p, _)| p)
+            .unwrap_or(source);
+
+        // The validate_invite call sits inside handle_claim_invite. After
+        // the C5 fix the fourth positional argument (`claimer_did`) is
+        // sourced from the connection-bound `verified_did`, never from
+        // the request payload.
+        let bytes = production.as_bytes();
+        let call_marker = b"invite_tokens::validate_invite(";
+        let mut found_correct = false;
+        let mut idx = 0;
+        while let Some(pos) = bytes
+            .windows(call_marker.len())
+            .skip(idx)
+            .position(|w| w == call_marker)
+        {
+            let abs = idx + pos;
+            idx = abs + call_marker.len();
+            // Scan the next ~400 bytes — enough for the multiline call
+            // expression to include the claimer argument.
+            let end = (abs + 400).min(bytes.len());
+            let window = std::str::from_utf8(&bytes[abs..end]).unwrap_or("");
+            if window.contains("verified_did") && !window.contains("&did,\n") {
+                found_correct = true;
+                break;
+            }
+        }
+
+        assert!(
+            found_correct,
+            "invite_tokens::validate_invite(…) inside handle_claim_invite must \
+             pass `verified_did` (the connection-bound DID), not the payload \
+             `did` field. Today the call site uses `&did` (payload-supplied), \
+             which lets a peer claim any token by spoofing the `did` field. \
+             See plan §4.2 scenarios 1+2 and §5.5 commit 5."
         );
     }
 }
