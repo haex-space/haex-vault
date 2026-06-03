@@ -61,12 +61,14 @@
               <UiListItem
                 v-for="device in knownDevices"
                 :key="device.id"
-                :data-testid="`welcome-reclaim-${device.id}`"
                 :highlight="selectedReclaimId === device.id"
                 class="cursor-pointer"
                 @click="toggleReclaim(device.id)"
               >
-                <div class="flex items-center gap-3">
+                <div
+                  :data-testid="`welcome-reclaim-${device.id}`"
+                  class="flex items-center gap-3"
+                >
                   <UiAvatar
                     :seed="device.endpointId"
                     size="md"
