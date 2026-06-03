@@ -118,7 +118,7 @@ describe('Icon client bundle', () => {
     const missing: string[] = []
     for (const id of used) {
       const [prefix, name] = id.split(':')
-      if (!bundled.get(prefix)?.has(name)) missing.push(id)
+      if (!prefix || !name || !bundled.get(prefix)?.has(name)) missing.push(id)
     }
 
     expect(
