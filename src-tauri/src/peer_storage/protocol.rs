@@ -6,8 +6,13 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-/// ALPN protocol identifier for peer storage
-pub const ALPN: &[u8] = b"haex-peer/1";
+/// ALPN protocol identifier for peer storage.
+///
+/// v2 adds a mandatory connection-level quic_did_auth handshake on the first
+/// bi-stream of every connection (see `crate::quic_did_auth`). v1 peers and
+/// v2 peers cannot interoperate; the ALPN bump makes that explicit at QUIC
+/// handshake time rather than failing later with a confusing read timeout.
+pub const ALPN: &[u8] = b"haex-peer/2";
 
 /// Maximum request size (1 MB — covers Write header but not file data)
 const MAX_REQUEST_SIZE: usize = 1024 * 1024;

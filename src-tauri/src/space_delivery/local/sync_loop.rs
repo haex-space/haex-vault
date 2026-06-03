@@ -150,6 +150,12 @@ pub async fn start_peer_sync_loop(
         &our_did[..24.min(our_did.len())],
     ));
 
+    // Load the identity's signing key once for the lifetime of this loop.
+    // Every (re)connect drives the server-initiated quic_did_auth handshake,
+    // and the loop reconnects internally on transient failure — keeping the
+    // key in-process avoids repeated DB hits + private-key derivations.
+    let our_identity = super::quic_retry::load_signing_identity_for_did(&db, &our_did)?;
+
     // Establish initial connection. UCAN is loaded from the DB inside
     // `PeerSession::connect`, so reconnect-after-expiry gets a fresh token
     // without any state plumbing up here.
@@ -159,6 +165,7 @@ pub async fn start_peer_sync_loop(
         leader_relay_url.as_deref(),
         &space_id,
         &our_did,
+        &our_identity.signing_key,
         &our_endpoint_id,
         Some("sync-loop"),
         &db,
@@ -195,6 +202,7 @@ pub async fn start_peer_sync_loop(
         leader_relay_url,
         space_id,
         our_did,
+        our_identity.signing_key,
         our_endpoint_id,
         device_id,
         app_handle,
@@ -229,6 +237,7 @@ async fn run_sync_loop(
     leader_relay_url: Option<String>,
     space_id: String,
     our_did: String,
+    our_signing_key: ed25519_dalek::SigningKey,
     our_endpoint_id: String,
     device_id: String,
     app_handle: tauri::AppHandle,
@@ -387,6 +396,7 @@ async fn run_sync_loop(
                         leader_relay_url.as_deref(),
                         &space_id,
                         &our_did,
+                        &our_signing_key,
                         &our_endpoint_id,
                         Some("sync-loop"),
                         &db,

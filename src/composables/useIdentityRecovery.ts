@@ -2,6 +2,7 @@ import {
   decryptPrivateKeyAsync,
   publicKeyToDidKeyAsync,
 } from '@haex-space/vault-sdk'
+import { fetch } from '@tauri-apps/plugin-http'
 import { throwIfNotOk } from '~/utils/fetch'
 
 export interface RecoveryKeyData {

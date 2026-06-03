@@ -23,8 +23,30 @@ const DEFAULT_RELAY_URL: &str = "https://relay.sync.haex.space";
 
 use tauri::Emitter;
 
+use ed25519_dalek::SigningKey;
+
 use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::protocol::{self, Request, Response, ALPN};
+
+/// Identity material the endpoint uses to prove its DID on outbound
+/// connections and to challenge inbound peers. Loaded once at start from
+/// `haex_devices.owner_did` + `haex_identities.private_key`. Held in
+/// `PeerEndpoint`, NOT in `PeerState` — the secret key never leaves the
+/// endpoint struct.
+#[derive(Clone)]
+pub struct OwnIdentity {
+    pub did: String,
+    pub signing_key: SigningKey,
+}
+
+impl std::fmt::Debug for OwnIdentity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OwnIdentity")
+            .field("did", &self.did)
+            .field("signing_key", &"<redacted>")
+            .finish()
+    }
+}
 
 // ============================================================================
 // Delivery connection handler trait
@@ -90,6 +112,18 @@ pub struct PeerState {
     pub app_handle: Option<tauri::AppHandle>,
     /// Handler for incoming space delivery connections (set by space_delivery module)
     pub delivery_handler: Option<Arc<dyn DeliveryConnectionHandler>>,
+    /// Verified DID per connected remote endpoint id, populated by the
+    /// quic_did_auth handshake at connection-accept time. Used by request
+    /// handlers to enforce UCAN audience match. Cleared when the connection
+    /// closes.
+    pub endpoint_dids: HashMap<String, String>,
+    /// Expected owner DID per remote endpoint id, loaded from
+    /// `haex_devices.owner_did` (which the `haex_space_devices_ensure_refs`
+    /// trigger populates from UCAN-attributed CRDT rows). Cross-checked
+    /// against the cryptographically verified DID from the quic_did_auth
+    /// handshake — any mismatch is treated as a vault-internal inconsistency
+    /// (database drift, partial sync, or worse) and the connection is closed.
+    pub peer_owner_dids: HashMap<String, String>,
 }
 
 impl Default for PeerState {
@@ -99,6 +133,8 @@ impl Default for PeerState {
             allowed_peers: HashMap::new(),
             app_handle: None,
             delivery_handler: None,
+            endpoint_dids: HashMap::new(),
+            peer_owner_dids: HashMap::new(),
         }
     }
 }
@@ -143,7 +179,20 @@ pub struct PeerEndpoint {
     /// Cached connections to remote peers. Reusing a single QUIC connection for
     /// multiple streams avoids per-request TLS handshakes and the race condition
     /// where a closing connection interferes with a subsequent connect() call.
+    ///
+    /// **Cached connections are always already-authenticated**: the
+    /// `quic_did_auth` handshake runs once on the first opened/accepted
+    /// bi-stream of a fresh connection. Subsequent stream opens on the same
+    /// connection skip the handshake.
     connections: Mutex<HashMap<EndpointId, iroh::endpoint::Connection>>,
+    /// Identity used to prove our DID to remote peers (outbound) and to
+    /// challenge inbound peers. Set via `set_own_identity` before `start`.
+    /// `None` until set — used only by the quic_did_auth handshake; other
+    /// peer_storage paths do not depend on it.
+    ///
+    /// Held in an `Arc<Mutex<_>>` so the accept loop and concurrent `open_stream`
+    /// calls can read it without going through the outer endpoint reference.
+    own_identity: Arc<Mutex<Option<OwnIdentity>>>,
 }
 
 impl PeerEndpoint {
@@ -157,13 +206,37 @@ impl PeerEndpoint {
             watcher_task: None,
             configured_relay_url: None,
             connections: Mutex::new(HashMap::new()),
+            own_identity: Arc::new(Mutex::new(None)),
         }
+    }
+
+    /// Set the DID + signing key used by the quic_did_auth handshake.
+    ///
+    /// Must be called before `start` — swapping the identity while the
+    /// endpoint is running would leave cached connections authenticated
+    /// against the *old* DID while new connections authenticate against the
+    /// new one, producing a single endpoint that effectively serves two
+    /// mixed identities. Panics in that case (programmer error, not a
+    /// recoverable runtime condition).
+    pub fn set_own_identity(&self, identity: OwnIdentity) {
+        assert!(
+            self.endpoint.is_none(),
+            "set_own_identity must be called before start (endpoint is already running)"
+        );
+        if let Ok(mut slot) = self.own_identity.lock() {
+            *slot = Some(identity);
+        }
+    }
+
+    /// Clone the configured identity, if any. Used by the accept loop and by
+    /// `open_stream` to drive the handshake.
+    fn own_identity(&self) -> Option<OwnIdentity> {
+        self.own_identity.lock().ok().and_then(|g| g.clone())
     }
 
     /// Create a PeerEndpoint with a temporary random key (for testing or pre-init state).
     pub fn new_ephemeral() -> Self {
-        let mut bytes = [0u8; 32];
-        rand::fill(&mut bytes);
+        let bytes: [u8; 32] = rand::random();
         Self::new(SecretKey::from_bytes(&bytes))
     }
 
@@ -282,12 +355,16 @@ impl PeerEndpoint {
         let id = endpoint.id();
         eprintln!("[PeerStorage] Endpoint started with ID: {id}");
 
-        // Spawn accept loop with shared state
+        // Spawn accept loop with shared state and (a handle to) the own-
+        // identity slot so the quic_did_auth handshake can find it. Sharing
+        // the Arc<Mutex<_>> (rather than a snapshot) means a late
+        // `set_own_identity` after `start` still reaches the accept loop.
         let ep = endpoint.clone();
         let state = self.state.clone();
+        let own_identity = self.own_identity.clone();
 
         let accept_task = tokio::spawn(async move {
-            accept_loop(ep, state).await;
+            accept_loop(ep, state, own_identity).await;
         });
 
         // Endpoint death watcher (diag/multi-leader-quic-logging branch).
@@ -499,6 +576,56 @@ impl PeerEndpoint {
             }
         };
 
+        // -- Phase 1: DID handshake on a server-initiated bi-stream --
+        //
+        // Server `handle_connection` calls `open_bi` and writes the Challenge
+        // first; we await it here with `accept_bi`. Doing it that direction
+        // avoids a both-sides-blocked-on-read deadlock — `open_bi` alone does
+        // not materialise the stream on the wire, so client-initiated +
+        // server-initiated reads would both block forever.
+        let identity = self.own_identity().ok_or_else(|| PeerStorageError::ConnectionFailed {
+            reason: "own identity not configured — call set_own_identity before open_stream".into(),
+        })?;
+        let own_endpoint_id_str = endpoint.id().to_string();
+
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            conn.accept_bi(),
+        )
+        .await
+        {
+            Ok(Ok((mut auth_send, mut auth_recv))) => {
+                if let Err(e) = crate::quic_did_auth::respond_to_challenge(
+                    &mut auth_send,
+                    &mut auth_recv,
+                    &identity.did,
+                    &identity.signing_key,
+                    &own_endpoint_id_str,
+                )
+                .await
+                {
+                    return Err(PeerStorageError::ConnectionFailed {
+                        reason: format!("DID-auth handshake failed: {e}"),
+                    });
+                }
+                // Close the auth stream cleanly so the server sees end-of-send
+                // and can hand off to its Phase 2 accept loop without delay.
+                let _ = auth_send.finish();
+            }
+            Ok(Err(e)) => {
+                return Err(PeerStorageError::ConnectionFailed {
+                    reason: format!("accept auth stream: {e}"),
+                });
+            }
+            Err(_) => {
+                return Err(PeerStorageError::ConnectionFailed {
+                    reason: "accept auth stream timed out after 5s".to_string(),
+                });
+            }
+        };
+
+        // -- Phase 2: open the actual request stream --
+        //
         // Same rationale as the cached-path open_bi: never let stream open
         // outlast the connect bound.
         let streams = match tokio::time::timeout(
@@ -618,6 +745,20 @@ impl PeerEndpoint {
         self.state.write().await.allowed_peers = allowed;
     }
 
+    /// Update the expected `(endpoint_id -> owner_did)` map used as a
+    /// defense-in-depth cross-check against the cryptographically verified
+    /// DID from the handshake. Loaded from `haex_devices.owner_did` for
+    /// every endpoint we expect to see — keep this in sync with
+    /// `allowed_peers`, since a peer that passes `allowed_peers` but has no
+    /// entry here will be rejected by `handle_connection`.
+    pub async fn set_peer_owner_dids(&self, dids: HashMap<String, String>) {
+        eprintln!(
+            "[PeerStorage] Updated peer owner DIDs: {} entries",
+            dids.len()
+        );
+        self.state.write().await.peer_owner_dids = dids;
+    }
+
     /// Local-only endpoint start for unit tests. Binds with `RelayMode::Disabled`
     /// and no address-lookup service, so the test does not depend on DNS or relay
     /// servers. Spawns the accept loop; omits the production endpoint-closed
@@ -642,8 +783,9 @@ impl PeerEndpoint {
 
         let ep = endpoint.clone();
         let state = self.state.clone();
+        let own_identity = self.own_identity.clone();
         let accept_task = tokio::spawn(async move {
-            accept_loop(ep, state).await;
+            accept_loop(ep, state, own_identity).await;
         });
 
         self.endpoint = Some(endpoint);
@@ -652,11 +794,35 @@ impl PeerEndpoint {
         Ok(id)
     }
 
+    /// Generate a fresh ed25519 keypair and install it as the endpoint's
+    /// own identity. Returns the generated DID so tests can mint UCANs whose
+    /// audience matches the verified peer DID checked in handle_stream.
+    #[cfg(test)]
+    pub(crate) fn set_random_test_identity(&self) -> String {
+        let seed: [u8; 32] = rand::random();
+        let signing_key = SigningKey::from_bytes(&seed);
+        let mut did_bytes = Vec::with_capacity(34);
+        did_bytes.extend_from_slice(&[0xed, 0x01]);
+        did_bytes.extend_from_slice(signing_key.verifying_key().as_bytes());
+        let did = format!("did:key:z{}", bs58::encode(did_bytes).into_string());
+        self.set_own_identity(OwnIdentity {
+            did: did.clone(),
+            signing_key,
+        });
+        did
+    }
+
     /// Pre-populate the connection cache with a direct-address QUIC connection
     /// to `remote_addr`. After this returns, `open_stream(remote_id, None)` will
     /// reuse the cached connection. Used by tests to bypass the relay /
     /// address-lookup path that production `open_stream` relies on, since unit
     /// tests run with `RelayMode::Disabled` and no DNS publishing.
+    ///
+    /// Runs the quic_did_auth handshake on the first opened bi-stream so the
+    /// cached connection is fully authenticated (matching production
+    /// `open_stream`). Callers must have called `set_random_test_identity` (or
+    /// `set_own_identity`) on the client side, and the server-side endpoint
+    /// must also have a configured identity for the handshake to complete.
     #[cfg(test)]
     pub(crate) async fn connect_for_test(
         &self,
@@ -673,6 +839,31 @@ impl PeerEndpoint {
             .map_err(|e| PeerStorageError::ConnectionFailed {
                 reason: format!("connect_for_test: {e}"),
             })?;
+
+        // Server-initiated auth bi-stream (see open_stream for protocol
+        // reasoning). Client awaits on accept_bi, then responds.
+        let identity = self.own_identity().ok_or_else(|| PeerStorageError::ConnectionFailed {
+            reason: "connect_for_test: own identity not configured".into(),
+        })?;
+        let own_endpoint_id_str = endpoint.id().to_string();
+        let (mut auth_send, mut auth_recv) = conn.accept_bi().await.map_err(|e| {
+            PeerStorageError::ConnectionFailed {
+                reason: format!("connect_for_test accept auth stream: {e}"),
+            }
+        })?;
+        crate::quic_did_auth::respond_to_challenge(
+            &mut auth_send,
+            &mut auth_recv,
+            &identity.did,
+            &identity.signing_key,
+            &own_endpoint_id_str,
+        )
+        .await
+        .map_err(|e| PeerStorageError::ConnectionFailed {
+            reason: format!("connect_for_test DID-auth: {e}"),
+        })?;
+        let _ = auth_send.finish();
+
         if let Ok(mut cache) = self.connections.lock() {
             cache.insert(remote_id, conn);
         }
@@ -684,9 +875,15 @@ impl PeerEndpoint {
 // Accept loop — handles incoming connections with access control
 // ============================================================================
 
-async fn accept_loop(endpoint: Endpoint, state: Arc<RwLock<PeerState>>) {
+async fn accept_loop(
+    endpoint: Endpoint,
+    state: Arc<RwLock<PeerState>>,
+    own_identity: Arc<Mutex<Option<OwnIdentity>>>,
+) {
     while let Some(incoming) = endpoint.accept().await {
         let state = state.clone();
+        let own_identity = own_identity.clone();
+        let own_endpoint_id = endpoint.id().to_string();
         tokio::spawn(async move {
             match incoming.await {
                 Ok(conn) => {
@@ -710,7 +907,7 @@ async fn accept_loop(endpoint: Endpoint, state: Arc<RwLock<PeerState>>) {
                                      (access to {} spaces)",
                                     spaces.len()
                                 );
-                                handle_connection(conn, state).await;
+                                handle_connection(conn, state, own_identity, own_endpoint_id).await;
                             }
                             _ => {
                                 eprintln!(
@@ -755,9 +952,108 @@ async fn accept_loop(endpoint: Endpoint, state: Arc<RwLock<PeerState>>) {
     }
 }
 
-async fn handle_connection(conn: iroh::endpoint::Connection, state: Arc<RwLock<PeerState>>) {
+async fn handle_connection(
+    conn: iroh::endpoint::Connection,
+    state: Arc<RwLock<PeerState>>,
+    own_identity: Arc<Mutex<Option<OwnIdentity>>>,
+    own_endpoint_id: String,
+) {
     let remote = conn.remote_id();
     let remote_str = remote.to_string();
+
+    // -- Phase 1: DID challenge --
+    //
+    // The first accepted bi-stream of every connection is the quic_did_auth
+    // handshake. Until it succeeds we hold no state for this peer; on
+    // success we cache (endpoint_id -> DID) in PeerState so subsequent
+    // request handlers can enforce UCAN audience == this DID.
+    let identity_snapshot = own_identity.lock().ok().and_then(|g| g.clone());
+    let Some(_own_identity) = identity_snapshot else {
+        eprintln!(
+            "[PeerStorage] Rejecting connection from {remote}: own identity not configured \
+             (set_own_identity must run before start)"
+        );
+        conn.close(3u32.into(), b"no own identity");
+        return;
+    };
+
+    // The server initiates the auth stream so it can write the Challenge
+    // first — `open_bi` materialises the stream on the wire as soon as the
+    // server writes, which avoids a both-sides-blocked-on-read deadlock that
+    // would otherwise occur if both endpoints tried to read first.
+    let verified_did = match conn.open_bi().await {
+        Ok((mut send, mut recv)) => {
+            match crate::quic_did_auth::challenge_and_verify(
+                &mut send,
+                &mut recv,
+                &own_endpoint_id,
+                &remote_str,
+            )
+            .await
+            {
+                Ok(did) => did,
+                Err(e) => {
+                    eprintln!("[PeerStorage] DID-auth failed for {remote}: {e}");
+                    conn.close(2u32.into(), b"did-auth failed");
+                    return;
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("[PeerStorage] Failed to open auth stream to {remote}: {e}");
+            return;
+        }
+    };
+
+    let verified_short: String = verified_did.chars().take(24).collect();
+    eprintln!("[PeerStorage] DID-auth ok: {remote} -> {verified_short}");
+
+    // -- Phase 1.5: defense in depth — cross-check the crypto-verified DID
+    // against the (endpoint_id -> owner_did) map we loaded from haex_devices.
+    // The handshake alone proves "this peer holds the private key for the
+    // DID it claims". The DB-side expectation proves "this DID is the one
+    // we recorded as the owner of this endpoint id when the row was synced
+    // through CRDT with UCAN audience attribution". Either layer alone is
+    // sufficient on the happy path; together they make any single-layer
+    // compromise (crypto bug, DB drift, partial sync, schema regression)
+    // detectable rather than silent.
+    {
+        let s = state.read().await;
+        match s.peer_owner_dids.get(&remote_str) {
+            Some(expected) if expected == &verified_did => {
+                // happy path — DB and crypto agree
+            }
+            Some(expected) => {
+                let expected_short: String = expected.chars().take(24).collect();
+                eprintln!(
+                    "[PeerStorage] Closing connection to {remote}: verified DID does not match \
+                     haex_devices.owner_did (verified={verified_short} db={expected_short})"
+                );
+                conn.close(4u32.into(), b"did/owner_did mismatch");
+                return;
+            }
+            None => {
+                // A peer that cleared allowed_peers must also have an entry
+                // here — the two maps are loaded from the same DB pass. A
+                // missing entry means inconsistent state and we reject
+                // rather than accept the crypto-only proof.
+                eprintln!(
+                    "[PeerStorage] Closing connection to {remote}: no haex_devices.owner_did \
+                     entry for verified DID {verified_short}"
+                );
+                conn.close(5u32.into(), b"no owner_did mapping");
+                return;
+            }
+        }
+    }
+
+    state
+        .write()
+        .await
+        .endpoint_dids
+        .insert(remote_str.clone(), verified_did.clone());
+
+    // -- Phase 2: normal request loop --
 
     loop {
         match conn.accept_bi().await {
@@ -771,14 +1067,20 @@ async fn handle_connection(conn: iroh::endpoint::Connection, state: Arc<RwLock<P
                 let Some(allowed_spaces) = allowed_spaces.filter(|s| !s.is_empty()) else {
                     eprintln!("[PeerStorage] Closing connection to {remote}: access revoked");
                     conn.close(1u32.into(), b"access revoked");
-                    return;
+                    break;
                 };
 
                 let state = state.clone();
+                let verified_did = verified_did.clone();
                 tokio::spawn(async move {
-                    if let Err(e) =
-                        super::handlers::handle_stream(send, &mut recv, &state, &allowed_spaces)
-                            .await
+                    if let Err(e) = super::handlers::handle_stream(
+                        send,
+                        &mut recv,
+                        &state,
+                        &allowed_spaces,
+                        &verified_did,
+                    )
+                    .await
                     {
                         eprintln!("[PeerStorage] Stream error from {remote}: {e}");
                     }
@@ -790,4 +1092,9 @@ async fn handle_connection(conn: iroh::endpoint::Connection, state: Arc<RwLock<P
             }
         }
     }
+
+    // Drop the cached DID when the connection ends — once the QUIC stream
+    // is gone the (endpoint_id -> DID) binding from this handshake no longer
+    // applies. A future reconnect repeats the handshake.
+    state.write().await.endpoint_dids.remove(&remote_str);
 }

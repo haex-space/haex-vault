@@ -150,6 +150,9 @@ pub enum QuicSendError {
 
     #[error("read response: {0}")]
     Read(#[from] PeerProtocolError),
+
+    #[error("DID-auth handshake: {0}")]
+    AuthFailed(crate::quic_did_auth::ChallengeError),
 }
 
 impl QuicSendError {
@@ -173,6 +176,13 @@ impl QuicSendError {
             // InvalidJson / MessageTooLarge are protocol errors — final.
             Self::Read(PeerProtocolError::Read(_)) => true,
             Self::Read(_) => false,
+            // Auth failures: only the Timeout / WireProtocol variants might
+            // recover on a retry against a freshly-accepted connection. A
+            // signature or DID rejection is a protocol-level decision — there
+            // is no useful retry that would change the outcome.
+            Self::AuthFailed(crate::quic_did_auth::ChallengeError::Timeout) => true,
+            Self::AuthFailed(crate::quic_did_auth::ChallengeError::WireProtocol(_)) => true,
+            Self::AuthFailed(_) => false,
         }
     }
 }
@@ -203,14 +213,23 @@ fn is_connect_transient(ce: &ConnectError) -> bool {
     }
 }
 
-/// Execute a single QUIC request/response cycle: connect → open_bi → write →
-/// read → close. Returns the decoded [`Response`] on success.
+/// Execute a single QUIC request/response cycle: connect → handshake →
+/// open_bi → write → read → close. Returns the decoded [`Response`] on success.
+///
+/// The handshake step is the client side of the server-initiated
+/// `quic_did_auth` protocol: the server opens the first bidirectional stream
+/// after `accept` and writes a Challenge; this function `accept_bi`s that
+/// stream and signs the canonical payload with `our_signing_key` to prove
+/// possession of the private key encoded in `our_did`. Only then does the
+/// real request stream get opened.
 ///
 /// Each call establishes a fresh connection. For a retry-capable version, use
 /// [`send_request_with_retry`].
 pub async fn send_request_once(
     endpoint: &Endpoint,
     addr: EndpointAddr,
+    our_did: &str,
+    our_signing_key: &ed25519_dalek::SigningKey,
     request_bytes: &[u8],
 ) -> Result<Response, QuicSendError> {
     let conn = tokio::time::timeout(
@@ -219,6 +238,9 @@ pub async fn send_request_once(
     )
     .await
     .map_err(|_| QuicSendError::ConnectTimeout(CONNECT_TIMEOUT_SECS))??;
+
+    let own_endpoint_id = endpoint.id().to_string();
+    complete_client_did_auth(&conn, our_did, our_signing_key, &own_endpoint_id).await?;
 
     let (mut send, mut recv) = conn
         .open_bi()
@@ -252,11 +274,21 @@ pub async fn send_request_with_retry(
     operation: &str,
     endpoint: &Endpoint,
     addr: EndpointAddr,
+    our_did: &str,
+    our_signing_key: &ed25519_dalek::SigningKey,
     request_bytes: &[u8],
 ) -> Result<Response, QuicSendError> {
     let mut last_error: Option<QuicSendError> = None;
     for attempt in 1..=MAX_ATTEMPTS {
-        match send_request_once(endpoint, addr.clone(), request_bytes).await {
+        match send_request_once(
+            endpoint,
+            addr.clone(),
+            our_did,
+            our_signing_key,
+            request_bytes,
+        )
+        .await
+        {
             Ok(response) => {
                 if attempt > 1 {
                     eprintln!(
@@ -281,6 +313,107 @@ pub async fn send_request_with_retry(
         }
     }
     Err(last_error.expect("loop runs at least once"))
+}
+
+/// Client side of the server-initiated `quic_did_auth` handshake.
+///
+/// The space-delivery server (`MultiSpaceLeaderHandler::handle_connection_inner`)
+/// opens the first bidirectional stream right after `accept` and writes a
+/// Challenge. This helper `accept_bi`s that stream and replies with a Response
+/// signed by `our_signing_key`, proving the client holds the private key for
+/// `our_did`. Must run before any application-layer request bi-stream is
+/// opened on the same connection.
+pub(super) async fn complete_client_did_auth(
+    conn: &iroh::endpoint::Connection,
+    our_did: &str,
+    our_signing_key: &ed25519_dalek::SigningKey,
+    own_endpoint_id: &str,
+) -> Result<(), QuicSendError> {
+    let (mut send, mut recv) = conn
+        .accept_bi()
+        .await
+        .map_err(QuicSendError::OpenStream)?;
+
+    crate::quic_did_auth::respond_to_challenge(
+        &mut send,
+        &mut recv,
+        our_did,
+        our_signing_key,
+        own_endpoint_id,
+    )
+    .await
+    .map_err(QuicSendError::AuthFailed)?;
+
+    // The server side returned from `challenge_and_verify` as soon as the
+    // Response was received; explicit `finish` clarifies the stream lifecycle
+    // and lets the QUIC layer release send-side buffers promptly. Errors here
+    // are tolerated — the server has already validated us.
+    let _ = send.finish();
+    Ok(())
+}
+
+/// Load `(did, signing_key)` for the given DID from `haex_identities`. Used
+/// by the client paths that initiate delivery connections (ClaimInvite,
+/// PushInvite, PeerSession) to satisfy the server-initiated quic_did_auth
+/// handshake. Mirrors the consistency check from
+/// `peer_storage::commands::load_own_identity_for_device`: derives the DID
+/// from the public half of the loaded private key and rejects any row whose
+/// stored DID disagrees, so a drifted identity row surfaces as an immediate
+/// error rather than as a silent handshake failure later.
+pub fn load_signing_identity_for_did(
+    db: &crate::database::DbConnection,
+    did: &str,
+) -> Result<crate::peer_storage::endpoint::OwnIdentity, super::error::DeliveryError> {
+    let rows = crate::database::core::select_with_crdt(
+        "SELECT did, private_key FROM haex_identities \
+         WHERE did = ?1 AND private_key IS NOT NULL LIMIT 1"
+            .to_string(),
+        vec![serde_json::Value::String(did.to_string())],
+        db,
+    )
+    .map_err(|e| super::error::DeliveryError::Database {
+        reason: format!("identity load for {did}: {e}"),
+    })?;
+
+    let row = rows
+        .first()
+        .ok_or_else(|| super::error::DeliveryError::AccessDenied {
+            reason: format!("no haex_identities row with private_key for {did}"),
+        })?;
+
+    let stored_did = row
+        .first()
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| super::error::DeliveryError::Database {
+            reason: "haex_identities row missing did column".to_string(),
+        })?
+        .to_string();
+
+    let private_key_b64 = row
+        .get(1)
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| super::error::DeliveryError::AccessDenied {
+            reason: format!("identity {did} has no private_key — cannot sign DID-auth"),
+        })?;
+
+    let signing_key = crate::ucan::signing_key_from_pkcs8_base64(private_key_b64)
+        .map_err(|e| super::error::DeliveryError::Database {
+            reason: format!("decoding private_key for {did}: {e}"),
+        })?;
+
+    let derived_did = crate::ucan::did_key_from_public_key(&signing_key.verifying_key());
+    if derived_did != stored_did {
+        return Err(super::error::DeliveryError::AccessDenied {
+            reason: format!(
+                "identity drift for did={stored_did}: private_key encodes did={derived_did}"
+            ),
+        });
+    }
+
+    Ok(crate::peer_storage::endpoint::OwnIdentity {
+        did: stored_did,
+        signing_key,
+    })
 }
 
 /// Generic retry wrapper for caller-supplied async operations that don't fit

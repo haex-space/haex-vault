@@ -5,6 +5,7 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import { emit } from '@tauri-apps/api/event'
+import { fetch } from '@tauri-apps/plugin-http'
 import { decryptCrdtData, verifyRecordSignatureAsync, publicKeyToDidKeyAsync } from '@haex-space/vault-sdk'
 import {
   DidAuthAction,
