@@ -7,6 +7,7 @@ import { appCacheDir, join as joinPath } from '@tauri-apps/api/path'
 import type { FileEntry as BaseFileEntry } from '~/../src-tauri/bindings/FileEntry'
 import type { StorageListDirResponse } from '~/../src-tauri/bindings/StorageListDirResponse'
 import { getMediaType } from '~/composables/useFilePreview'
+import { classifyBackend, resolveAvPlayback } from '~/composables/useMediaPlayback'
 import { readableFileSize } from '~/utils/helper'
 
 /**
@@ -1127,20 +1128,21 @@ export function useFileBrowser(tabId: string) {
    * user gets immediate feedback inside the app. Everything else is handed
    * to the OS via `openWithSystem`.
    *
-   * Per backend:
-   *   - S3 audio/video: chunk-streamed into the app cache and exposed via a
-   *     local HTTP range server (`media_server_register`). WebKitGTK's
-   *     GStreamer pipeline rejects `asset://` URLs on Linux, so the plain
-   *     `http://127.0.0.1:<port>/…` URL is the only thing that plays back
-   *     reliably across platforms.
-   *   - S3 other: chunk-streamed to cache, then `openLocal` (image/pdf via
-   *     `convertFileSrc`) or `openWithSystem` (everything else).
-   *   - Local share: direct `openLocal` / `openWithSystem` on the share path.
-   *   - P2P peer: `remoteReadAsync` to materialise into the peer cache, then
-   *     `openLocal` / `openWithSystem`.
+   * Audio/video — regardless of backend — streams through the local HTTP
+   * range server (`http://127.0.0.1:<port>/…`), the only URL form WebKitGTK's
+   * GStreamer backend accepts with Range support on every platform. The
+   * backend → action mapping lives in `resolveAvPlayback`:
+   *   - S3 / P2P / local share: register a streaming source and hand the
+   *     element the range-server URL (no full-file download to disk first).
+   *   - Android Content URI: no path for the range server and must never be
+   *     loaded into RAM, so it streams via the system player from disk.
    *
-   * The chunked S3 downloads are resumable, so a cancelled / interrupted
-   * fetch is picked up by the next click instead of restarting from zero.
+   * Image / PDF / other still materialise a concrete path first:
+   *   - S3: chunk-streamed to the app cache (resumable), then `openLocal`
+   *     (image/pdf via `convertFileSrc`) or `openWithSystem`.
+   *   - Local share: direct `openLocal` / `openWithSystem` on the share path.
+   *   - P2P peer: `remoteReadAsync` into the peer cache, then `openLocal` /
+   *     `openWithSystem`.
    */
   const playFile = async (file: FileEntry) => {
     const peer = selectedPeer.value
@@ -1148,46 +1150,58 @@ export function useFileBrowser(tabId: string) {
     const type = getMediaType(file.name)
     const isMedia = type !== 'unsupported'
 
-    if (peer.s3BackendId && (type === 'audio' || type === 'video')) {
+    // Audio/video: always stream through the local range server (or the
+    // system player for Android Content URIs). UCAN + relayUrl for the P2P
+    // case come from the same resolver `remoteReadAsync` uses, so capability
+    // checks stay in lock-step.
+    if (type === 'audio' || type === 'video') {
+      const localAbsPath = peer.localPath ? resolveLocalAbsolutePath(file) : null
+      const action = resolveAvPlayback(classifyBackend(peer, localAbsPath))
       try {
-        const key = toS3Prefix(currentPath.value) + file.name
-        const url = await invoke<string>('media_server_register_s3_stream', {
-          backendId: peer.s3BackendId,
-          key,
-        })
-        preview.openStream(url, file.name)
-        return
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
-        if (msg.includes('cancelled')) return
-        throw e
-      }
-    }
-
-    // P2P audio/video: stream over iroh range reads via the local media
-    // server, no full-file download to disk first. UCAN + relayUrl come
-    // from the same resolver the rest of the peer-storage API uses, so
-    // capability checks stay in lock-step with `remoteReadAsync`.
-    if (!peer.s3BackendId && !peer.localPath && (type === 'audio' || type === 'video')) {
-      const path = resolveFilePath(file)
-      const { ucanToken, relayUrl: deviceRelayUrl } =
-        peerStore.resolveRequestContext(
-          peer.endpointId,
-          path,
-          file.spaceId ?? currentSpaceId.value ?? undefined,
-        )
-      if (!ucanToken) {
-        throw new Error('No valid UCAN token for this peer\'s space')
-      }
-      try {
-        const url = await invoke<string>('media_server_register_peer_stream', {
-          nodeId: peer.endpointId,
-          relayUrl: deviceRelayUrl,
-          path,
-          ucanToken,
-        })
-        preview.openStream(url, file.name)
-        return
+        switch (action) {
+          case 'streamS3': {
+            const key = toS3Prefix(currentPath.value) + file.name
+            const url = await invoke<string>('media_server_register_s3_stream', {
+              backendId: peer.s3BackendId,
+              key,
+            })
+            preview.openStream(url, file.name)
+            return
+          }
+          case 'streamPeer': {
+            const path = resolveFilePath(file)
+            const { ucanToken, relayUrl: deviceRelayUrl } =
+              peerStore.resolveRequestContext(
+                peer.endpointId,
+                path,
+                file.spaceId ?? currentSpaceId.value ?? undefined,
+              )
+            if (!ucanToken) {
+              throw new Error('No valid UCAN token for this peer\'s space')
+            }
+            const url = await invoke<string>('media_server_register_peer_stream', {
+              nodeId: peer.endpointId,
+              relayUrl: deviceRelayUrl,
+              path,
+              ucanToken,
+            })
+            preview.openStream(url, file.name)
+            return
+          }
+          case 'streamLocal': {
+            const url = await invoke<string>('media_server_register', {
+              path: localAbsPath,
+            })
+            preview.openStream(url, file.name)
+            return
+          }
+          case 'openSystem': {
+            // Android Content URI — no file path for the range server, and
+            // never base64 into RAM. The system player streams from disk.
+            if (localAbsPath) await preview.openWithSystem(localAbsPath)
+            return
+          }
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         if (msg.includes('cancelled')) return
