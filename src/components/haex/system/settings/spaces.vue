@@ -45,6 +45,7 @@
             color="primary"
             icon="i-lucide-plus"
             data-testid="spaces-create-trigger"
+            data-tour="settings-spaces-create"
             @click="showCreateDialog = true"
           >
             <span class="hidden @sm:inline">{{ t('actions.create') }}</span>
@@ -68,11 +69,12 @@
           class="space-y-3"
         >
           <SpaceListItem
-            v-for="entry in spaceListEntries"
+            v-for="(entry, idx) in spaceListEntries"
             :key="entry.kind === 'pending' ? `pending:${entry.invite.id}` : `active:${entry.space.id}`"
             :space="entry.space"
             :pending="entry.kind === 'pending'"
             :invite="entry.kind === 'pending' ? entry.invite : undefined"
+            :show-tour-anchors="idx === 0 && entry.kind === 'active'"
             @select="openSpaceDetail"
             @accept="
               onAcceptInviteAsync(
