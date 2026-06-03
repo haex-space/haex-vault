@@ -169,7 +169,6 @@
 <script setup lang="ts">
 const deviceStore = useDeviceStore()
 const identityStore = useIdentityStore()
-const spacesStore = useSpacesStore()
 const publishingStore = useSpacePublishingStore()
 const tourStore = useTourStore()
 const { t } = useI18n()
@@ -178,6 +177,14 @@ const visible = ref(false)
 const step = ref<1 | 2>(1)
 const userName = ref('')
 const deviceName = ref('')
+// The device-name baseline at the moment the dialog was last (re-)opened.
+// Combined with the computed `deviceNameTouched` below, this lets the hostname-
+// backfill watcher distinguish "untouched default" from "user explicitly typed
+// or cleared" without any event plumbing. The backfill watcher itself keeps
+// `initialDeviceName` in sync so a programmatic hostname-arrives-late update
+// does NOT register as a user edit.
+const initialDeviceName = ref('')
+const deviceNameTouched = computed(() => deviceName.value !== initialDeviceName.value)
 const reclaimExpanded = ref(false)
 const selectedReclaimId = ref<string | null>(null)
 const submitting = ref(false)
@@ -209,7 +216,9 @@ const openDialog = () => {
   selectedReclaimId.value = null
   const current = defaultIdentity.value?.name
   userName.value = isPlaceholderName(current) ? '' : current ?? ''
-  deviceName.value = deviceStore.hostname ?? ''
+  const baseline = deviceStore.hostname ?? ''
+  deviceName.value = baseline
+  initialDeviceName.value = baseline
   visible.value = true
 }
 
@@ -225,12 +234,16 @@ watch(
 )
 
 // hostname resolves asynchronously; backfill the device field if it arrives
-// after the dialog opened and the user hasn't typed anything yet.
+// after the dialog opened and the user has not interacted with it yet. The
+// dirty check (current !== initial) keeps us from overwriting a deliberate
+// user edit; updating the baseline alongside means the backfill itself does
+// not count as an edit on subsequent hostname changes.
 watch(
   () => deviceStore.hostname,
   (h) => {
-    if (visible.value && step.value === 1 && !deviceName.value && h) {
+    if (visible.value && step.value === 1 && !deviceNameTouched.value && !deviceName.value && h) {
       deviceName.value = h
+      initialDeviceName.value = h
     }
   },
 )
@@ -249,12 +262,6 @@ const platformIcon = (platform: string) => {
 
 const toggleReclaim = (id: string) => {
   selectedReclaimId.value = selectedReclaimId.value === id ? null : id
-}
-
-const maybeOpenPublishing = () => {
-  if (spacesStore.foreignSpaces.length > 0) {
-    publishingStore.openForNewDevice()
-  }
 }
 
 const onProceed = async () => {
@@ -290,12 +297,12 @@ const onSkipStep1 = () => {
 const onStartTour = async () => {
   visible.value = false
   await tourStore.start()
-  maybeOpenPublishing()
+  publishingStore.openForNewDevice()
 }
 
 const onSkipTour = () => {
   visible.value = false
-  maybeOpenPublishing()
+  publishingStore.openForNewDevice()
 }
 
 const onOpenChange = (open: boolean) => {

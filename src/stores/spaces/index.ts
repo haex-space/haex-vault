@@ -134,8 +134,15 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   // device meaningfully publishes its endpoint. Owned spaces (personal/default
   // + self-created) need no publishing: the owner's endpoints are already known.
   // Pending (unaccepted) invites don't count — there's no membership yet.
+  //
+  // Guard against an empty identity store: without any own identities loaded,
+  // every space would falsely look 'foreign' (ownerIdentityId never matches),
+  // which would pop the publishing dialog for the user's own personal space
+  // during a brief hydration race. Treat that state as "unknown → no foreign
+  // spaces"; once identities load, the computed re-runs naturally.
   const foreignSpaces = computed(() => {
     const identityStore = useIdentityStore()
+    if (identityStore.ownIdentities.length === 0) return []
     const ownIdentityIds = new Set(identityStore.ownIdentities.map((i) => i.id))
     return visibleSpaces.value.filter(
       (s) => s.status !== SpaceStatus.PENDING && !ownIdentityIds.has(s.ownerIdentityId),

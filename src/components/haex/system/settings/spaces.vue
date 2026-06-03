@@ -69,12 +69,12 @@
           class="space-y-3"
         >
           <SpaceListItem
-            v-for="(entry, idx) in spaceListEntries"
+            v-for="entry in spaceListEntries"
             :key="entry.kind === 'pending' ? `pending:${entry.invite.id}` : `active:${entry.space.id}`"
             :space="entry.space"
             :pending="entry.kind === 'pending'"
             :invite="entry.kind === 'pending' ? entry.invite : undefined"
-            :show-tour-anchors="idx === 0 && entry.kind === 'active'"
+            :show-tour-anchors="entry.kind === 'active' && entry.space.id === firstActiveSpaceId"
             @select="openSpaceDetail"
             @accept="
               onAcceptInviteAsync(
@@ -323,6 +323,14 @@ const spaceListEntries = computed((): SpaceListEntry[] => {
 
   return entries
 })
+
+// Anchor the tour at the first ACTIVE card, regardless of where pending invites
+// sit in spaceListEntries. Using a raw idx===0 would silently miss the anchor
+// whenever a pending invite occupies the top of the list — the onboarding-tour
+// stops `space-invite` / `space-add-share` would never resolve.
+const firstActiveSpaceId = computed(
+  () => activeSpaces.value[0]?.id ?? null,
+)
 
 // =========================================================================
 // Loading states & dialog visibility

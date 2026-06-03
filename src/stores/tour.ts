@@ -36,6 +36,11 @@ export const useTourStore = defineStore('tourStore', () => {
   const isActive = ref(false)
   let driverInstance: Driver | null = null
   let completeResolver: (() => void) | null = null
+  // Track the active tour's completion promise so concurrent start() callers
+  // all await the same end-of-tour signal. Without this, a second start()
+  // while a tour is running would return Promise.resolve() and break the
+  // "await start() means the tour is finished" contract.
+  let activeTourPromise: Promise<void> | null = null
 
   const t = (key: string): string => {
     const locale = $i18n.locale.value as 'de' | 'en'
@@ -59,14 +64,15 @@ export const useTourStore = defineStore('tourStore', () => {
     driverInstance = null
     completeResolver?.()
     completeResolver = null
+    activeTourPromise = null
   }
 
   const start = (): Promise<void> => {
-    if (isActive.value) return Promise.resolve()
+    if (isActive.value) return activeTourPromise ?? Promise.resolve()
 
     isActive.value = true
 
-    return new Promise<void>((resolve) => {
+    const promise = new Promise<void>((resolve) => {
       completeResolver = resolve
 
       driverInstance = driver({
@@ -167,6 +173,9 @@ export const useTourStore = defineStore('tourStore', () => {
 
       driverInstance.drive()
     })
+
+    activeTourPromise = promise
+    return promise
   }
 
   return { isActive, start, complete }

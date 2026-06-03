@@ -50,12 +50,39 @@ describe('tourStore.start (Promise coupling)', () => {
     expect(store.isActive).toBe(false)
   })
 
-  it('does not start a second tour while one is already active', async () => {
+  it('does not spin up a second driver while one is already active', async () => {
     const store = useTourStore()
     store.start()
     expect(driver).toHaveBeenCalledTimes(1)
 
-    await store.start() // resolves immediately, no new driver instance
+    // Second call must NOT create a new driver instance.
+    store.start()
     expect(driver).toHaveBeenCalledTimes(1)
+  })
+
+  it('lets concurrent start() callers share the same end-of-tour signal', async () => {
+    // Regression: a previous implementation returned Promise.resolve() for the
+    // second call, which let a `await tourStore.start()` callsite proceed to
+    // post-tour work while the first tour was still running. Both awaiters must
+    // resolve together when complete() fires.
+    const store = useTourStore()
+    let firstResolved = false
+    let secondResolved = false
+
+    void store.start().then(() => {
+      firstResolved = true
+    })
+    void store.start().then(() => {
+      secondResolved = true
+    })
+
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(firstResolved).toBe(false)
+    expect(secondResolved).toBe(false)
+
+    store.complete()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(firstResolved).toBe(true)
+    expect(secondResolved).toBe(true)
   })
 })
