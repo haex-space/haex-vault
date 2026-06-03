@@ -12,6 +12,22 @@ function getNestedValue(obj: Record<string, unknown>, path: string): string {
   }, obj) as string ?? path
 }
 
+/** Resolve once `selector` exists in the DOM, or after `timeoutMs` (so the
+ *  tour never wedges if a capability-gated control never appears). */
+function waitForElement(selector: string, timeoutMs = 4000): Promise<void> {
+  return new Promise((resolve) => {
+    const start = Date.now()
+    const check = () => {
+      if (document.querySelector(selector) || Date.now() - start > timeoutMs) {
+        resolve()
+        return
+      }
+      requestAnimationFrame(check)
+    }
+    check()
+  })
+}
+
 export const useTourStore = defineStore('tourStore', () => {
   const { $i18n } = useNuxtApp()
   const windowManager = useWindowManagerStore()
@@ -76,32 +92,10 @@ export const useTourStore = defineStore('tourStore', () => {
         {
           element: '[data-tour="launcher-settings-item"]',
           popover: {
-            title: t('steps.launcherSettings.title'),
-            description: t('steps.launcherSettings.description'),
+            title: t('steps.settings.title'),
+            description: t('steps.settings.description'),
             onNextClick: async () => {
               launcherStore.isOpen = false
-              await navigateSettings(SettingsCategory.General)
-              driverInstance?.moveNext()
-            },
-          },
-        },
-        {
-          element: '[data-tour="settings-nav-general"]',
-          popover: {
-            title: t('steps.general.title'),
-            description: t('steps.general.description'),
-            onNextClick: async () => {
-              await navigateSettings(SettingsCategory.Devices)
-              driverInstance?.moveNext()
-            },
-          },
-        },
-        {
-          element: '[data-tour="settings-device-name"]',
-          popover: {
-            title: t('steps.deviceName.title'),
-            description: t('steps.deviceName.description'),
-            onNextClick: async () => {
               await navigateSettings(SettingsCategory.Extensions)
               driverInstance?.moveNext()
             },
@@ -110,48 +104,53 @@ export const useTourStore = defineStore('tourStore', () => {
         {
           element: '[data-tour="settings-nav-extensions"]',
           popover: {
-            title: t('steps.extensionsNav.title'),
-            description: t('steps.extensionsNav.description'),
-          },
-        },
-        {
-          element: '[data-tour="settings-extensions-install"]',
-          popover: {
             title: t('steps.extensions.title'),
             description: t('steps.extensions.description'),
             onNextClick: async () => {
-              await navigateSettings(SettingsCategory.Identities)
+              await navigateSettings(SettingsCategory.Spaces)
+              await waitForElement('[data-tour="settings-spaces-create"]')
               driverInstance?.moveNext()
             },
           },
         },
         {
-          element: '[data-tour="settings-nav-identities"]',
+          element: '[data-tour="settings-spaces-create"]',
           popover: {
-            title: t('steps.identitiesNav.title'),
-            description: t('steps.identitiesNav.description'),
+            title: t('steps.spacesOverview.title'),
+            description: t('steps.spacesOverview.description'),
+            onNextClick: async () => {
+              // Invite/add-share buttons render only after the card resolves
+              // its capabilities from the UCAN store.
+              await waitForElement('[data-tour="space-invite"]')
+              driverInstance?.moveNext()
+            },
           },
         },
         {
-          element: '[data-tour="settings-identities-create"]',
+          element: '[data-tour="space-invite"]',
           popover: {
-            title: t('steps.identity.title'),
-            description: t('steps.identity.description'),
+            title: t('steps.spacesInvite.title'),
+            description: t('steps.spacesInvite.description'),
+            onNextClick: async () => {
+              await waitForElement('[data-tour="space-add-share"]')
+              driverInstance?.moveNext()
+            },
+          },
+        },
+        {
+          element: '[data-tour="space-add-share"]',
+          popover: {
+            title: t('steps.spacesShare.title'),
+            description: t('steps.spacesShare.description'),
             onNextClick: async () => {
               await navigateSettings(SettingsCategory.Sync)
+              await waitForElement('[data-tour="settings-nav-sync"]')
               driverInstance?.moveNext()
             },
           },
         },
         {
           element: '[data-tour="settings-nav-sync"]',
-          popover: {
-            title: t('steps.syncNav.title'),
-            description: t('steps.syncNav.description'),
-          },
-        },
-        {
-          element: '[data-tour="settings-sync-add-backend"]',
           popover: {
             title: t('steps.sync.title'),
             description: t('steps.sync.description'),
