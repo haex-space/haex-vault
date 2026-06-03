@@ -2,6 +2,12 @@ use super::*;
 use async_trait::async_trait;
 use std::sync::Arc;
 
+/// A unique temp dir per call so the `tokio::test` cases (run in parallel by
+/// the test harness) never share a path and race on create/remove.
+fn unique_test_dir(prefix: &str) -> std::path::PathBuf {
+    std::env::temp_dir().join(format!("{prefix}-{}", uuid::Uuid::new_v4()))
+}
+
 struct DummySource {
     data: Vec<u8>,
 }
@@ -141,7 +147,7 @@ async fn size_returning_not_found_yields_http_404() {
 /// a seek to an arbitrary offset, and a no-Range full-body fall-back.
 #[tokio::test]
 async fn serves_local_media_file_with_range_and_seek() {
-    let dir = std::env::temp_dir().join("haex-media-server-test");
+    let dir = unique_test_dir("haex-media-server-range");
     tokio::fs::create_dir_all(&dir).await.unwrap();
     // Byte N has value N so range slices are trivially checkable.
     let path = dir.join("clip.mp4");
@@ -188,14 +194,14 @@ async fn serves_local_media_file_with_range_and_seek() {
     assert_eq!(resp.status().as_u16(), 200);
     assert_eq!(resp.bytes().await.unwrap().len(), 100);
 
-    tokio::fs::remove_file(&path).await.ok();
+    tokio::fs::remove_dir_all(&dir).await.ok();
 }
 
 /// Re-registering the same local path reuses the existing token instead of
 /// growing the registry unbounded across repeated plays of one file.
 #[tokio::test]
 async fn register_dedupes_same_local_path() {
-    let dir = std::env::temp_dir().join("haex-media-server-test");
+    let dir = unique_test_dir("haex-media-server-dedupe");
     tokio::fs::create_dir_all(&dir).await.unwrap();
     let path = dir.join("dedupe.mp3");
     tokio::fs::write(&path, b"id3").await.unwrap();
@@ -205,5 +211,5 @@ async fn register_dedupes_same_local_path() {
     let url_b = server.register(path.clone()).await;
     assert_eq!(url_a, url_b);
 
-    tokio::fs::remove_file(&path).await.ok();
+    tokio::fs::remove_dir_all(&dir).await.ok();
 }
