@@ -322,8 +322,8 @@ de:
     warningTitle: Das alte Gerät könnte noch online sein.
     warningBody: Du überschreibst Schlüssel und EndpointId. Verbindungen vom alten Gerät brechen ab.
   tour:
-    intro: Die Tour zeigt dir die wichtigsten Bereiche:
-    stops: Launcher · Einstellungen · Erweiterungen · Spaces (Einladen & Teilen) · Sync
+    intro: "Die Tour zeigt dir die wichtigsten Bereiche:"
+    stops: "Launcher · Einstellungen · Erweiterungen · Spaces (Einladen & Teilen) · Sync"
     start: Tour starten
     skip: Überspringen
 en:
@@ -344,8 +344,8 @@ en:
     warningTitle: The old device might still be online.
     warningBody: You overwrite key and EndpointId. Existing connections from the old device will drop.
   tour:
-    intro: The tour walks you through the key areas:
-    stops: Launcher · Settings · Extensions · Spaces (invite & share) · Sync
+    intro: "The tour walks you through the key areas:"
+    stops: "Launcher · Settings · Extensions · Spaces (invite & share) · Sync"
     start: Start tour
     skip: Skip
 </i18n>
