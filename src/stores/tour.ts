@@ -35,6 +35,7 @@ export const useTourStore = defineStore('tourStore', () => {
 
   const isActive = ref(false)
   let driverInstance: Driver | null = null
+  let completeResolver: (() => void) | null = null
 
   const t = (key: string): string => {
     const locale = $i18n.locale.value as 'de' | 'en'
@@ -56,14 +57,19 @@ export const useTourStore = defineStore('tourStore', () => {
     isActive.value = false
     driverInstance?.destroy()
     driverInstance = null
+    completeResolver?.()
+    completeResolver = null
   }
 
-  const start = async () => {
-    if (isActive.value) return
+  const start = (): Promise<void> => {
+    if (isActive.value) return Promise.resolve()
 
     isActive.value = true
 
-    driverInstance = driver({
+    return new Promise<void>((resolve) => {
+      completeResolver = resolve
+
+      driverInstance = driver({
       animate: true,
       overlayColor: 'rgba(0,0,0,0.6)',
       allowClose: true,
@@ -159,7 +165,8 @@ export const useTourStore = defineStore('tourStore', () => {
       ],
     })
 
-    driverInstance.drive()
+      driverInstance.drive()
+    })
   }
 
   return { isActive, start, complete }
